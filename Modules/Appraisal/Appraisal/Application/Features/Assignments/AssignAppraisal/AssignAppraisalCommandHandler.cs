@@ -16,6 +16,7 @@ namespace Appraisal.Application.Features.Assignments.AssignAppraisal;
 /// </summary>
 public class AssignAppraisalCommandHandler(
     IAppraisalRepository appraisalRepository,
+    IAppraisalUnitOfWork unitOfWork,
     IWorkflowRelayService workflowRelayService)
     : ICommandHandler<AssignAppraisalCommand, AssignAppraisalResult>
 {
@@ -32,6 +33,16 @@ public class AssignAppraisalCommandHandler(
             ?? throw new BadRequestException(
                 $"No pending assignment found for appraisal '{command.AppraisalId}'. " +
                 "The workflow task must be in Pending status to accept an assignment.");
+
+        // Persist the admin remark onto the row BEFORE resuming the workflow. Committing here (rather
+        // than relying on a transactional marker) guarantees the value is durable before the relay
+        // triggers the downstream CompanyAssigned/InternalAssigned handlers — .Assign() there does not
+        // touch Remark, so it survives. This handler otherwise stays a pure relay (no transactional marker).
+        if (command.Remark is not null)
+        {
+            pendingAssignment.SetRemark(command.Remark);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
 
         // Build input payload matching the keys the workflow's TaskActivity maps into variables.
         // The key names below MUST match the `inputMappings` declared on the appraisal-assignment

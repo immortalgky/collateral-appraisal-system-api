@@ -21,4 +21,8 @@ public record SaveDraftQuotationRequest(
     string? TermsAndConditions = null,
     string? ContactName = null,
     string? ContactEmail = null,
-    string? ContactPhone = null);
+    string? ContactPhone = null,
+    // When true, the company is opting out ("not participate"). Pricing is ignored/cleared and
+    // DeclineReason is persisted as the marker; the flow still goes through Send-to-Checker → Submit.
+    bool NotParticipating = false,
+    string? DeclineReason = null);

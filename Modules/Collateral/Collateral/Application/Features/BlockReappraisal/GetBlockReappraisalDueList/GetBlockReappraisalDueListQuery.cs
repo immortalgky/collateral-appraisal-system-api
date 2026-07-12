@@ -5,8 +5,11 @@ namespace Collateral.Application.Features.BlockReappraisal.GetBlockReappraisalDu
 /// Backed by collateral.vw_BlockReappraisalDueList (Status = 'Pending').
 /// </summary>
 public record GetBlockReappraisalDueListQuery(
-    string? ProjectName,
-    string? OldAppraisalNumber,
+    string? Search,
+    DateTime? LastAppraisedDateFrom,
+    DateTime? LastAppraisedDateTo,
+    int? RemainingDayMin,
+    int? RemainingDayMax,
     PaginationRequest PaginationRequest) : IQuery<GetBlockReappraisalDueListResult>;
 
 public record GetBlockReappraisalDueListResult(PaginatedResult<BlockReappraisalDueListItem> Items);

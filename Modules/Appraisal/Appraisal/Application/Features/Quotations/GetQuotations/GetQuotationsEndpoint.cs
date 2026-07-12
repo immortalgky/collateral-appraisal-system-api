@@ -13,11 +13,12 @@ public class GetQuotationsEndpoint : ICarterModule
                     string? search,
                     DateOnly? cutOffTimeFrom,
                     DateOnly? cutOffTimeTo,
+                    Guid? companyId,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
                 {
-                    var query = new GetQuotationsQuery(request, appraisalId, status, search, cutOffTimeFrom, cutOffTimeTo);
+                    var query = new GetQuotationsQuery(request, appraisalId, status, search, cutOffTimeFrom, cutOffTimeTo, companyId);
 
                     var result = await sender.Send(query, cancellationToken);
 

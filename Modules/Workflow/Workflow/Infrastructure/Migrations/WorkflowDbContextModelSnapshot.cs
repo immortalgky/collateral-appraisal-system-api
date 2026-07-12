@@ -1357,6 +1357,9 @@ namespace Workflow.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<decimal>("AppraisalValue")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1569,6 +1572,9 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<string>("AppraisalNo")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("AppraisalValue")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -1936,8 +1942,8 @@ namespace Workflow.Infrastructure.Migrations
                         .HasColumnType("nvarchar(20)");
 
                     b.Property<string>("Remark")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<DateTime?>("SlaBreachedAt")
                         .HasColumnType("datetime2");
@@ -2002,6 +2008,10 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<Guid?>("AssigneeCompanyId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Comment")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
                     b.Property<string>("CommitteeCode")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -2019,6 +2029,14 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("DecisionTaken")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("DraftAssignee")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
                     b.Property<DateTime?>("DueAt")
                         .HasColumnType("datetime2");
 
@@ -2031,6 +2049,10 @@ namespace Workflow.Infrastructure.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)")
                         .HasDefaultValue("F");
+
+                    b.Property<string>("ReasonCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<DateTime?>("SlaBreachedAt")
                         .HasColumnType("datetime2");

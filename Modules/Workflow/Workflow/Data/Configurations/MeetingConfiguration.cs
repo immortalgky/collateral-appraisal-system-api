@@ -71,6 +71,7 @@ public class MeetingItemConfiguration : IEntityTypeConfiguration<MeetingItem>
         builder.Property(i => i.AppraisalId).IsRequired();
         builder.Property(i => i.AppraisalNo).HasMaxLength(100);
         builder.Property(i => i.FacilityLimit).HasColumnType("decimal(18,2)").IsRequired();
+        builder.Property(i => i.AppraisalValue).HasColumnType("decimal(18,2)").IsRequired();
         // Nullable: only set for Decision items; Acknowledgement items have null values.
         builder.Property(i => i.WorkflowInstanceId);
         builder.Property(i => i.ActivityId).HasMaxLength(200);

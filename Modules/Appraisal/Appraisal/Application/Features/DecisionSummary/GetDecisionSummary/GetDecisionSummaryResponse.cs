@@ -7,6 +7,7 @@ public record GetDecisionSummaryResponse(
     decimal BuildingInsurance,
     IReadOnlyList<GovernmentPriceRow> GovernmentPrices,
     decimal GovernmentPriceTotalArea,
+    decimal GovernmentPriceSurveyedArea,
     decimal GovernmentPriceAvgPerSqWa,
     decimal? TotalAppraisalPriceReview,
     decimal? ForceSellingPriceReview,

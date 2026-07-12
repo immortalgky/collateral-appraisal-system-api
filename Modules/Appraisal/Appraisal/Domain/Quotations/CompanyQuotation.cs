@@ -209,6 +209,30 @@ public class CompanyQuotation : Entity<Guid>
         SubmittedAt = submittedAt;
     }
 
+    /// <summary>
+    /// Flags a draft as "not participating" while it flows through the normal Draft → PendingCheckerReview
+    /// pipeline. The recorded <see cref="DeclineReason"/> is the persisted marker that the Maker/Checker
+    /// screen and the final submit read to decide "decline vs bid". A not-participating record carries no
+    /// bid pricing, so any saved items are cleared and the header totals zeroed. This is NOT terminal —
+    /// the checker's final submit either confirms it (→ <see cref="Decline"/>) or flips it to a real bid.
+    /// </summary>
+    public void SetNotParticipating(string reason)
+    {
+        ClearItems();
+        TotalQuotedPrice = 0;
+        DeclineReason = reason;
+    }
+
+    /// <summary>
+    /// Clears the not-participating marker so a draft/submission is treated as a real bid. Called when the
+    /// Maker or Checker flips the participate decision back on.
+    /// </summary>
+    public void ClearDeclineIntent()
+    {
+        DeclineReason = null;
+        DeclinedBy = null;
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Legacy status transitions (kept for non-IBG path)
     // ─────────────────────────────────────────────────────────────────────────

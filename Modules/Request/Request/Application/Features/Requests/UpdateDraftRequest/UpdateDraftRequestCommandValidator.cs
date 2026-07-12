@@ -4,16 +4,9 @@ public class UpdateDraftRequestCommandValidator : AbstractValidator<UpdateDraftR
 {
     public UpdateDraftRequestCommandValidator()
     {
-        RuleFor(x => x.Purpose)
-            .NotNull()
-            .NotEmpty()
-            .WithMessage("Purpose is required.");
-
-        RuleFor(x => x.Channel)
-            .NotNull()
-            .NotEmpty()
-            .WithMessage("Channel is required.");
-
+        // A draft is intentionally incomplete: only the fields the handler dereferences
+        // unconditionally are required. Everything else (Purpose, Channel, Detail, Customers,
+        // Properties, ...) is validated on Submit, not on Save-draft.
         RuleFor(x => x.RequestorEmployeeId)
             .NotNull()
             .NotEmpty()
@@ -23,27 +16,10 @@ public class UpdateDraftRequestCommandValidator : AbstractValidator<UpdateDraftR
             .NotNull()
             .WithMessage("Creator is required.");
 
+        // Priority is optional for a draft (omitted → Normal at Save), but an explicitly
+        // supplied value must be in-set so it fails as a 400 instead of throwing in Save.
         RuleFor(x => x.Priority)
-            .NotNull()
-            .NotEmpty()
-            .WithMessage("Priority is required.")
             .Must(Priority.IsValid)
             .WithMessage("Priority must be 'Normal' or 'High'.");
-
-        RuleFor(x => x.IsPma)
-            .NotNull()
-            .WithMessage("IsPma is required.");
-
-        RuleFor(x => x.Detail)
-            .NotEmpty()
-            .WithMessage("Detail is required.");
-
-        RuleFor(x => x.Customers)
-            .NotNull()
-            .WithMessage("Customers is required.");
-
-        RuleFor(x => x.Properties)
-            .NotNull()
-            .WithMessage("Properties is required.");
     }
 }

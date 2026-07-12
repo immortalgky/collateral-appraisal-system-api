@@ -17,6 +17,7 @@ public class GetWebhookSubscriptionQueryHandler(ISqlConnectionFactory sqlConnect
             SELECT
                 s.Id,
                 s.SystemCode,
+                s.EventType,
                 s.CallbackUrl,
                 s.IsActive,
                 RIGHT(s.SecretKey, 4) AS SecretLast4,

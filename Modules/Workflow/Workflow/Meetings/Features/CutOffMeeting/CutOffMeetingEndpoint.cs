@@ -36,14 +36,14 @@ public class CutOffMeetingCommandHandler(
         var meeting = await meetingRepository.GetByIdWithItemsAsync(command.MeetingId, ct)
             ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
 
-        if (meeting.MeetingNoYear is int year && meeting.MeetingNoSeq is int seq)
+        if (meeting.StartAt is DateTime startAt)
         {
-            var blocker = await meetingRepository.GetEarlierUnpassedMeetingAsync(
-                year, seq, dateTimeProvider.ApplicationNow, ct);
+            var blocker = await meetingRepository.GetEarlierActiveMeetingAsync(
+                startAt, dateTimeProvider.ApplicationNow, meeting.Id, ct);
             if (blocker is not null)
                 throw new ConflictException(
                     $"Cannot cut off meeting {meeting.MeetingNo}. " +
-                    $"Meeting {blocker.MeetingNo}'s scheduled end time has not passed yet.");
+                    $"An earlier meeting {blocker.MeetingNo} is still in progress and has not ended yet.");
         }
 
         // Load queued items not yet assigned to any meeting

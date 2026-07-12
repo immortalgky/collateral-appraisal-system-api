@@ -93,10 +93,46 @@ public class GetReappraisalCandidatesQueryHandler(ISqlConnectionFactory connecti
         var result = await connectionFactory.GetOpenConnection()
             .QueryPaginatedAsync<ReappraisalCandidateListItem>(
                 sql,
-                orderBy: "c.ReviewDate ASC, c.CifNumber ASC",
+                orderBy: BuildOrderBy(query.SortBy, query.SortDir),
                 request: query.Pagination,
                 param: p);
 
         return new GetReappraisalCandidatesResult(result);
+    }
+
+    private const string DefaultOrderBy = "c.ReviewDate ASC, c.CifNumber ASC";
+
+    /// <summary>
+    /// Maps a client-supplied sort field to a whitelisted view column. The pagination
+    /// helper only blocks injection characters — it does NOT validate column names — so
+    /// unknown fields fall back to the default order rather than being interpolated raw.
+    /// </summary>
+    private static readonly Dictionary<string, string> SortableColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["OldAppraisalReportNumber"] = "c.OldAppraisalReportNumber",
+        ["CifNumber"] = "c.CifNumber",
+        ["CustomerName"] = "c.CustomerName",
+        ["ReviewType"] = "c.ReviewType",
+        ["RemainingDay"] = "c.RemainingDay",
+        ["AppraisalDate"] = "c.AppraisalDate",
+    };
+
+    private static string BuildOrderBy(string? sortBy, string? sortDir)
+    {
+        if (string.IsNullOrWhiteSpace(sortBy) ||
+            !SortableColumns.TryGetValue(sortBy.Trim(), out var column))
+        {
+            return DefaultOrderBy;
+        }
+
+        var direction = string.Equals(sortDir?.Trim(), "desc", StringComparison.OrdinalIgnoreCase)
+            ? "DESC"
+            : "ASC";
+
+        // Keep CifNumber as a stable tiebreaker, but not when it's already the sort column
+        // (SQL Server rejects a column appearing twice in ORDER BY).
+        return column == "c.CifNumber"
+            ? $"{column} {direction}"
+            : $"{column} {direction}, c.CifNumber ASC";
     }
 }

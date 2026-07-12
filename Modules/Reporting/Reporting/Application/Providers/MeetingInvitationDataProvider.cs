@@ -1,5 +1,6 @@
 using Reporting.Application.Models;
 using Reporting.Application.Services;
+using Workflow.Contracts.Sql;
 
 namespace Reporting.Application.Providers;
 
@@ -92,20 +93,9 @@ public sealed class MeetingInvitationDataProvider(
 
         var items = (await connection.QueryAsync<MeetingItemFlat>(itemsSql, p)).ToList();
 
-        // ── 4. Previous ended meeting number ──────────────────────────────────
-        const string prevSql = """
-            SELECT TOP 1 prev.MeetingNo
-            FROM workflow.Meetings curr
-            INNER JOIN workflow.Meetings prev
-                ON prev.Status = 'Ended'
-                AND prev.Id <> curr.Id
-                AND prev.EndedAt IS NOT NULL
-            WHERE curr.Id = @MeetingId
-              AND (curr.StartAt IS NULL OR prev.EndedAt < curr.StartAt)
-            ORDER BY prev.EndedAt DESC
-            """;
-
-        var previousMeetingNo = await connection.QueryFirstOrDefaultAsync<string?>(prevSql, p);
+        // ── 4. Previous meeting number ────────────────────────────────────────
+        var previousMeetingNo = await connection.QueryFirstOrDefaultAsync<string?>(
+            PreviousMeetingNoQuery.Sql("MeetingId"), p);
 
         // ── Build model ───────────────────────────────────────────────────────
         var members = memberRows.Select(m => new MeetingMemberRow

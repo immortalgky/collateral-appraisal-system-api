@@ -64,6 +64,7 @@ public class AddItemsToMeetingCommandHandler(
                 queueItem.AppraisalId,
                 queueItem.AppraisalNo,
                 queueItem.FacilityLimit,
+                queueItem.AppraisalValue,
                 queueItem.WorkflowInstanceId,
                 queueItem.ActivityId,
                 now);

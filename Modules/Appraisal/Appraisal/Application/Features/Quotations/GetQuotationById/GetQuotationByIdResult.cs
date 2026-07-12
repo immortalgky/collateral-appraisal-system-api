@@ -121,6 +121,9 @@ public record CompanyQuotationResult(
     string? CompanyName,
     string QuotationNumber,
     string Status,
+    /// <summary>Maker's "not participate" reason. Set while a decline is PendingCheckerReview (the intent
+    /// marker that distinguishes a pending decline from a pending bid) and retained once Declined.</summary>
+    string? DeclineReason,
     /// <summary>Null while the company quotation is Draft or PendingCheckerReview (never actually submitted).</summary>
     DateTime? SubmittedAt,
     decimal TotalQuotedPrice,

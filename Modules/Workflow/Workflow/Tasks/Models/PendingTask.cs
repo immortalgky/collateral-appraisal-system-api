@@ -50,6 +50,19 @@ public class PendingTask : Aggregate<Guid>
     /// </summary>
     public string? CommitteeCode { get; private set; }
 
+    /// <summary>
+    /// In-progress decision draft fields, saved by the task owner so an unfinished review survives
+    /// page reloads. Overwritten wholesale on every save; cleared implicitly once the task completes
+    /// and moves to <see cref="CompletedTask"/>.
+    /// </summary>
+    public string? DecisionTaken { get; private set; }
+
+    public string? Comment { get; private set; }
+    public string? ReasonCode { get; private set; }
+
+    /// <summary>The draft "Assign Next To" selection.</summary>
+    public string? DraftAssignee { get; private set; }
+
     private PendingTask()
     {
         // For EF Core
@@ -177,5 +190,18 @@ public class PendingTask : Aggregate<Guid>
         SlaBreachedAt = null;
         if (slaDurationHours.HasValue)
             SlaDurationHours = slaDurationHours;
+    }
+
+    /// <summary>
+    /// Full-replace save of the in-progress decision draft — mirrors how the final decision overwrites
+    /// all fields on completion. Called on every autosave/manual-save; does not validate the values,
+    /// since the draft is not the decision of record until the task actually completes.
+    /// </summary>
+    public void SaveDecisionDraft(string? decisionTaken, string? comment, string? reasonCode, string? draftAssignee)
+    {
+        DecisionTaken = decisionTaken;
+        Comment = comment;
+        ReasonCode = reasonCode;
+        DraftAssignee = draftAssignee;
     }
 }

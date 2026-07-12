@@ -8,6 +8,7 @@ public record GetAppraisalByIdResponse
     public DateTime? RequestedAt { get; set; }
     public string Status { get; set; } = null!;
     public string AppraisalType { get; set; } = null!;
+    public int? InspectionNumber { get; set; }
     public string Priority { get; set; } = null!;
     public bool IsPma { get; set; }
     public bool IsBlock { get; set; }

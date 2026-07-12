@@ -10,7 +10,7 @@ using Shared.Exceptions;
 namespace Integration.Application.Features.WebhookSubscriptions.CreateWebhookSubscription;
 
 public record CreateWebhookSubscriptionCommand(
-    string SystemCode, string CallbackUrl, string SecretKey)
+    string SystemCode, string CallbackUrl, string SecretKey, string? EventType = null)
     : ICommand<CreateWebhookSubscriptionResult>;
 
 public record CreateWebhookSubscriptionResult(Guid Id);
@@ -25,6 +25,7 @@ public class CreateWebhookSubscriptionCommandValidator : AbstractValidator<Creat
             .Must(WebhookUrlRules.BeAnAbsoluteHttpUrl)
             .WithMessage("CallbackUrl must be an absolute http(s) URL.");
         RuleFor(x => x.SecretKey).NotEmpty().MaximumLength(256);
+        RuleFor(x => x.EventType).MaximumLength(100);
     }
 }
 
@@ -38,17 +39,16 @@ public class CreateWebhookSubscriptionCommandHandler(
         CancellationToken cancellationToken)
     {
         var systemCode = command.SystemCode.Trim();
+        var eventType = string.IsNullOrWhiteSpace(command.EventType) ? null : command.EventType.Trim();
 
-        // SystemCode is the routing key the outbound dispatcher looks up — it must be unique
-        // across all rows (active or not), so check directly rather than via the active-only repo lookup.
-        var connection = sqlConnectionFactory.GetOpenConnection();
-        var exists = await connection.ExecuteScalarAsync<int>(
-            "SELECT COUNT(1) FROM integration.WebhookSubscriptions WHERE SystemCode = @systemCode",
-            new { systemCode });
-        if (exists > 0)
-            throw new ConflictException("WebhookSubscription", systemCode);
+        // (SystemCode, EventType) is the routing key the outbound dispatcher looks up — it must be
+        // unique across all rows (active or not), so check directly rather than via the
+        // active-only repo lookup. Null-safe on EventType (null = catch-all).
+        if (await SubscriptionExistsAsync(systemCode, eventType))
+            throw new ConflictException("WebhookSubscription", $"{systemCode}/{eventType ?? "(catch-all)"}");
 
-        var subscription = WebhookSubscription.Create(systemCode, command.CallbackUrl.Trim(), command.SecretKey);
+        var subscription = WebhookSubscription.Create(
+            systemCode, command.CallbackUrl.Trim(), command.SecretKey, eventType: eventType);
 
         await repository.AddAsync(subscription, cancellationToken);
         try
@@ -57,22 +57,26 @@ public class CreateWebhookSubscriptionCommandHandler(
         }
         catch (DbUpdateException)
         {
-            // The unique index on SystemCode is the atomic backstop: a concurrent insert that won
-            // the race surfaces here as a constraint violation — translate it to a clean 409.
-            if (await SystemCodeExistsAsync(systemCode))
-                throw new ConflictException("WebhookSubscription", systemCode);
+            // The unique index on (SystemCode, EventType) is the atomic backstop: a concurrent
+            // insert that won the race surfaces here as a constraint violation — translate to 409.
+            if (await SubscriptionExistsAsync(systemCode, eventType))
+                throw new ConflictException("WebhookSubscription", $"{systemCode}/{eventType ?? "(catch-all)"}");
             throw;
         }
 
         return new CreateWebhookSubscriptionResult(subscription.Id);
     }
 
-    private async Task<bool> SystemCodeExistsAsync(string systemCode)
+    private async Task<bool> SubscriptionExistsAsync(string systemCode, string? eventType)
     {
         var connection = sqlConnectionFactory.GetOpenConnection();
         var count = await connection.ExecuteScalarAsync<int>(
-            "SELECT COUNT(1) FROM integration.WebhookSubscriptions WHERE SystemCode = @systemCode",
-            new { systemCode });
+            """
+            SELECT COUNT(1) FROM integration.WebhookSubscriptions
+            WHERE SystemCode = @systemCode
+              AND ((EventType = @eventType) OR (EventType IS NULL AND @eventType IS NULL))
+            """,
+            new { systemCode, eventType });
         return count > 0;
     }
 }

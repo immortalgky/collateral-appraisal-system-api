@@ -24,7 +24,10 @@ public record PrevAppraisalSnapshotDto(
     Guid AppraisalId,
     string? AppraisalNumber,
     decimal? AppraisalValue,
-    DateTime? AppointmentDate
+    DateTime? AppointmentDate,
+    // The inspection round a NEW Construction-Inspection request copying this appraisal would be
+    // (completed Progressive inspections on this collateral + 1). Shown read-only on the create page.
+    int? NextInspectionNumber
 );
 
 /// <summary>

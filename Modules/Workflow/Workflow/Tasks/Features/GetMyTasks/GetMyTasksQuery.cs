@@ -22,7 +22,9 @@ public record GetMyTasksFilterRequest(
     DateTime? RequestedAtTo = null,
     string? SortBy = null,
     string? SortDir = null,
-    string? SlaStatus = null
+    string? SlaStatus = null,
+    string? Purpose = null,
+    string? TaskStatusBucket = null
 ) : ITaskListFilter;
 
 public record GetMyTasksQuery(

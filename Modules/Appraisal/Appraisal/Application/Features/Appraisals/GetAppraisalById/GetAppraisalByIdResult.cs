@@ -11,6 +11,8 @@ public record GetAppraisalByIdResult
     public DateTime? RequestedAt { get; set; }
     public string Status { get; set; } = null!;
     public string AppraisalType { get; set; } = null!;
+    // Construction-inspection round (1st, 2nd, ...) for Progressive appraisals; null otherwise.
+    public int? InspectionNumber { get; set; }
     public string Priority { get; set; } = null!;
     public bool IsPma { get; set; }
     public bool IsBlock { get; set; }

@@ -15,11 +15,15 @@ public class DocumentRequirementRepository : IDocumentRequirementRepository
 
     public async Task<IReadOnlyList<DocumentType>> GetAllDocumentTypesAsync(
         bool includeInactive = false,
+        string? category = null,
         CancellationToken cancellationToken = default)
     {
         var query = _context.DocumentTypes.AsQueryable();
         if (!includeInactive)
             query = query.Where(d => d.IsActive);
+
+        if (!string.IsNullOrWhiteSpace(category))
+            query = query.Where(d => d.Category == category);
 
         return await query
             .OrderBy(d => d.SortOrder)

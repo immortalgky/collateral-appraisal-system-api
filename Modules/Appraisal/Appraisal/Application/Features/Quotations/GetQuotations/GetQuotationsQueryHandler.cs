@@ -95,11 +95,38 @@ public class GetQuotationsQueryHandler(
             dynamicParams.Add("Status", query.Status.Trim());
         }
 
-        // Optional filter: free-text search across QuotationNumber and RequestedBy
+        // Optional free-text search: matches quotation number, linked appraisal number,
+        // or customer name (via the appraisal → request chain). Appraisal/customer are
+        // OR-ed in as EXISTS subqueries so the outer statement stays wrappable for COUNT.
+        //
+        // Performance: all three columns (QuotationNumber, Appraisals.AppraisalNumber,
+        // RequestCustomers.Name) have indexes tuned for a PREFIX seek. So the default is a
+        // prefix match ("term%") which seeks the index. A leading-wildcard contains-search
+        // scans every row, so it is opt-in: the user types '*' wherever they want a wildcard
+        // (e.g. "*abc" → "%abc", "ab*cd" → "ab%cd", "*abc*" → "%abc%").
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
-            sql += " AND (q.QuotationNumber LIKE @SearchPattern OR q.RequestedBy LIKE @SearchPattern)";
-            dynamicParams.Add("SearchPattern", "%" + query.Search.Trim() + "%");
+            sql += """
+                 AND (
+                     q.QuotationNumber LIKE @SearchPattern
+                     OR EXISTS (
+                         SELECT 1 FROM appraisal.QuotationRequestAppraisals qra
+                         JOIN appraisal.Appraisals a ON a.Id = qra.AppraisalId
+                         WHERE qra.QuotationRequestId = q.Id
+                           AND a.AppraisalNumber LIKE @SearchPattern
+                     )
+                     OR EXISTS (
+                         SELECT 1 FROM appraisal.QuotationRequestAppraisals qra
+                         JOIN appraisal.Appraisals a ON a.Id = qra.AppraisalId
+                         JOIN request.RequestCustomers rc ON rc.RequestId = a.RequestId
+                         WHERE qra.QuotationRequestId = q.Id
+                           AND rc.Name LIKE @SearchPattern
+                     )
+                 )
+                """;
+            var term = query.Search.Trim();
+            var pattern = term.Contains('*') ? term.Replace('*', '%') : term + "%";
+            dynamicParams.Add("SearchPattern", pattern);
         }
 
         // Optional filter: CutOffTime range — convert DateOnly → DateTime (Dapper rejects DateOnly)
@@ -113,6 +140,19 @@ public class GetQuotationsQueryHandler(
         {
             sql += " AND q.CutOffTime <= @CutOffTimeTo";
             dynamicParams.Add("CutOffTimeTo", query.CutOffTimeTo.Value.ToDateTime(TimeOnly.MaxValue));
+        }
+
+        // Optional filter: invited company (exact CompanyId)
+        if (query.CompanyId.HasValue)
+        {
+            sql += """
+                 AND EXISTS (
+                     SELECT 1 FROM appraisal.QuotationInvitations qi
+                     WHERE qi.QuotationRequestId = q.Id
+                       AND qi.CompanyId = @CompanyId
+                 )
+                """;
+            dynamicParams.Add("CompanyId", query.CompanyId.Value);
         }
 
         var result = await connectionFactory.QueryPaginatedAsync<QuotationDto>(

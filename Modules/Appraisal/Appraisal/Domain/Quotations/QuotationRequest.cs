@@ -612,9 +612,13 @@ public class QuotationRequest : Aggregate<Guid>
         CancellationReason = reason;
     }
 
-    public void SetSpecialRequirements(string requirements)
+    public void SetSpecialRequirements(string? requirements)
     {
-        SpecialRequirements = requirements;
+        if (Status != "Draft")
+            throw new InvalidOperationException(
+                $"Cannot change special requirements on a quotation in status '{Status}'. Only Draft quotations are editable.");
+
+        SpecialRequirements = string.IsNullOrWhiteSpace(requirements) ? null : requirements.Trim();
     }
 
     /// <summary>

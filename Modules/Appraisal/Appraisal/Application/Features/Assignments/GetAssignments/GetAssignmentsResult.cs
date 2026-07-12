@@ -21,6 +21,8 @@ public record AssignmentDto(
     DateTime? CompletedAt,
     string? RejectionReason,
     string? CancellationReason,
+    string? Remark,
+    DateTime? DraftSavedAt,
     DateTime? CreatedAt,
     List<EngagementCycleDto> Cycles,
     int TotalExternalBusinessMinutes,

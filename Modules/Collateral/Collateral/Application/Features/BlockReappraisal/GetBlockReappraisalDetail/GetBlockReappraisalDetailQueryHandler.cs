@@ -62,7 +62,10 @@ public class GetBlockReappraisalDetailQueryHandler(
                 pu.PlotNumber,
                 pu.HouseNumber,
                 pu.NumberOfFloors,
-                pu.LandArea
+                pu.LandArea,
+                pu.LastAppraisedValue,
+                pu.UpdatedAt,
+                pu.UpdatedBy
             FROM collateral.ProjectUnits pu
             WHERE pu.CollateralMasterId = @CollateralMasterId
             ORDER BY pu.SequenceNumber

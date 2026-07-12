@@ -68,6 +68,20 @@ public class AppraisalAssignment : Entity<Guid>
     public string? CancellationReason { get; private set; }
     public string? Notes { get; private set; }
 
+    /// <summary>
+    /// Admin free-text remark captured on the administration/assignment screen. Editable while the
+    /// assignment is being drafted and preserved through the final Assign — distinct from
+    /// <see cref="Notes"/>, which is reserved for internal rework reasons.
+    /// </summary>
+    public string? Remark { get; private set; }
+
+    /// <summary>
+    /// Stamped by <see cref="SaveDraft"/> the first time the admin saves an in-progress decision.
+    /// Distinguishes a real saved draft from the workflow's freshly-created Pending row, so the UI
+    /// can re-seed saved selections instead of showing its blank defaults. Null = never drafted.
+    /// </summary>
+    public DateTime? DraftSavedAt { get; private set; }
+
     // External engagement cycles — one per round-trip through ext-* activities
     private readonly List<ExternalEngagementCycle> _cycles = new();
     public IReadOnlyCollection<ExternalEngagementCycle> Cycles => _cycles.AsReadOnly();
@@ -192,6 +206,43 @@ public class AppraisalAssignment : Entity<Guid>
             previousAssignmentId,
             reassignmentNumber,
             assignedBy);
+    }
+
+    /// <summary>
+    /// Persist the admin's in-progress assignment decision (selections + remark) as a draft.
+    /// Full-replace of the editable fields. Only legal while <see cref="AssignmentStatus.Pending"/> —
+    /// does NOT stamp <see cref="AssignedAt"/> or advance the status; the workflow-driven Assign owns
+    /// that transition.
+    /// </summary>
+    public void SaveDraft(
+        string assignmentType,
+        string? assigneeUserId,
+        string? assigneeCompanyId,
+        string assignmentMethod,
+        string? internalAppraiserId,
+        string? internalFollowupMethod,
+        string? remark)
+    {
+        ValidateStatus("save draft", AssignmentStatus.Pending);
+
+        AssignmentType = AssignmentType.FromString(assignmentType);
+        AssigneeUserId = assigneeUserId;
+        AssigneeCompanyId = assigneeCompanyId;
+        AssignmentMethod = assignmentMethod;
+        InternalAppraiserId = internalAppraiserId;
+        InternalFollowupAssignmentMethod = internalFollowupMethod;
+        Remark = remark;
+        DraftSavedAt = DateTime.Now;
+    }
+
+    /// <summary>
+    /// Sets the admin remark without touching selections or status. Used on the final Assign path,
+    /// where the selections travel through the workflow relay but the remark must still be persisted
+    /// onto the row (Assign does not carry it). Preserved through <see cref="Assign"/>.
+    /// </summary>
+    public void SetRemark(string? remark)
+    {
+        Remark = remark;
     }
 
     /// <summary>

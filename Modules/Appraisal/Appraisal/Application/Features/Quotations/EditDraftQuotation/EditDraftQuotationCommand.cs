@@ -10,6 +10,7 @@ public record EditDraftQuotationCommand(
     Guid QuotationRequestId,
     DateTime CutOffTime,
     IReadOnlyList<Guid> CompanyIds,
-    IReadOnlyList<EditDraftAppraisalEntry> Appraisals) : ICommand<EditDraftQuotationResult>, ITransactionalCommand<IAppraisalUnitOfWork>;
+    IReadOnlyList<EditDraftAppraisalEntry> Appraisals,
+    string? SpecialRequirements = null) : ICommand<EditDraftQuotationResult>, ITransactionalCommand<IAppraisalUnitOfWork>;
 
 public record EditDraftAppraisalEntry(Guid AppraisalId, int? MaxAppraisalDays);

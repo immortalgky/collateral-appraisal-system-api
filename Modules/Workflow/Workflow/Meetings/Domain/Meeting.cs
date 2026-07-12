@@ -148,6 +148,7 @@ public class Meeting : Aggregate<Guid>
         Guid appraisalId,
         string? appraisalNo,
         decimal facilityLimit,
+        decimal appraisalValue,
         Guid workflowInstanceId,
         string activityId,
         DateTime now)
@@ -163,7 +164,7 @@ public class Meeting : Aggregate<Guid>
                 $"Appraisal {appraisalId} is already on this meeting");
 
         var item = MeetingItem.CreateDecision(
-            Id, appraisalId, appraisalNo, facilityLimit,
+            Id, appraisalId, appraisalNo, facilityLimit, appraisalValue,
             appraisalType: null, workflowInstanceId, activityId);
         _items.Add(item);
         return item;
@@ -247,7 +248,7 @@ public class Meeting : Aggregate<Guid>
                 continue;
 
             var item = MeetingItem.CreateDecision(
-                Id, qi.AppraisalId, qi.AppraisalNo, qi.FacilityLimit,
+                Id, qi.AppraisalId, qi.AppraisalNo, qi.FacilityLimit, qi.AppraisalValue,
                 appraisalType: null, qi.WorkflowInstanceId, qi.ActivityId);
             _items.Add(item);
             qi.AssignTo(Id);
@@ -260,7 +261,7 @@ public class Meeting : Aggregate<Guid>
                 continue;
 
             var item = MeetingItem.CreateAcknowledgement(
-                Id, ai.AppraisalId, ai.AppraisalNo, facilityLimit: 0,
+                Id, ai.AppraisalId, ai.AppraisalNo, facilityLimit: 0, appraisalValue: 0,
                 appraisalType: null, ai.AcknowledgementGroup, ai.AppraisalDecisionId);
             _items.Add(item);
             ai.Include(Id);
@@ -406,6 +407,36 @@ public class Meeting : Aggregate<Guid>
 
         AddDomainEvent(new MeetingCancelledDomainEvent(
             Id, reason, CancelledAt.Value, cancelledDecisionItems));
+    }
+
+    /// <summary>
+    /// Manually ends an in-progress meeting that has no outstanding decisions.
+    /// In progress = <see cref="MeetingStatus.InvitationSent"/> + <see cref="StartAt"/> has passed.
+    /// Guard-and-stamp only: does not release or return items. Refuses before the scheduled start,
+    /// and while any Decision item is still Pending or RoutedBack. Supports acknowledgement-only
+    /// meetings that have no Decision items and therefore never auto-end via <see cref="ReleaseItem"/>.
+    /// Raises <see cref="MeetingEndedDomainEvent"/>.
+    /// </summary>
+    public void EndNow(DateTime now)
+    {
+        if (Status != MeetingStatus.InvitationSent)
+            throw new InvalidOperationException(
+                $"Only an in-progress meeting can be ended; this meeting is {Status}.");
+
+        // Must have actually started (InProgress). Ending early is Cancel's job.
+        if (!StartAt.HasValue || StartAt.Value > now)
+            throw new InvalidOperationException(
+                "Cannot end the meeting before its scheduled start time.");
+
+        // Defensive invariant — the handler surfaces the friendly 409, but the aggregate
+        // must never end while any decision item is unresolved.
+        if (_items.Any(i => i.Kind == MeetingItemKind.Decision && i.ItemDecision != ItemDecision.Released))
+            throw new InvalidOperationException(
+                "Cannot end the meeting while decision items are pending or routed back.");
+
+        Status = MeetingStatus.Ended;
+        EndedAt = now;
+        AddDomainEvent(new MeetingEndedDomainEvent(Id, now));
     }
 
     // -------------------------------------------------------------------------
