@@ -51,7 +51,11 @@ public record BlockReappraisalUnitDto(
     string? PlotNumber,
     string? HouseNumber,
     int? NumberOfFloors,
-    decimal? LandArea);
+    decimal? LandArea,
+    decimal? LastAppraisedValue,
+    DateTime? UpdatedAt,
+    string? UpdatedBy
+    );
 
 public record BlockReappraisalModelDto(
     string? ModelName);
