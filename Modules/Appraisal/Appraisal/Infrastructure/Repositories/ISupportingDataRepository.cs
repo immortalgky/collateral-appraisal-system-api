@@ -20,6 +20,8 @@ public interface ISupportingDataRepository : IRepository<SupportingData, Guid>
         string? search,
         string? sortBy,
         string? sortDir,
+        string? website,
+        string? phoneNo,
         CancellationToken ct = default);
 
     Task<PaginatedResult<SupportingDataDetail>> GetDetailListAsync(

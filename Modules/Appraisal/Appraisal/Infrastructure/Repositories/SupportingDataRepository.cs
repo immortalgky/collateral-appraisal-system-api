@@ -43,6 +43,8 @@ public class SupportingDataRepository(AppraisalDbContext dbContext, ICurrentUser
         string? search,
         string? sortBy,
         string? sortDir,
+        string? website,
+        string? phoneNo,
         CancellationToken cancellationToken = default
     )
     {
@@ -93,6 +95,16 @@ public class SupportingDataRepository(AppraisalDbContext dbContext, ICurrentUser
             query = query.Where(s =>
                 s.SupportingNumber != null &&
                 s.SupportingNumber.Value.Contains(search));
+
+        // Use EXISTS via Any() so EF Core translates to a correlated subquery --
+        // no Include() needed, no N+1, short-circuits on first matching detail row.
+        if (!string.IsNullOrWhiteSpace(website))
+            query = query.Where(s =>
+                s.Details.Any(d => d.Website != null && d.Website.Contains(website)));
+
+        if (!string.IsNullOrWhiteSpace(phoneNo))
+            query = query.Where(s =>
+                s.Details.Any(d => d.PhoneNo != null && d.PhoneNo.Contains(phoneNo)));
 
         var isDesc = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
         query = sortBy switch

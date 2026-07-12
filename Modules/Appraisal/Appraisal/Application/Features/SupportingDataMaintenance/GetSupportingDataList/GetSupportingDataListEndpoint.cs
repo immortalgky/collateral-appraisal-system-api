@@ -18,11 +18,13 @@ public class GetSupportingDataListEndpoint : ICarterModule
             [FromQuery] string? search,
             [FromQuery] string? sortBy,
             [FromQuery] string? sortDir,
+            [FromQuery] string? website,
+            [FromQuery] string? phoneNo,
             ISender sender,
             CancellationToken cancellationToken
         ) =>
         {
-            var filter = new GetSupportingDataListQuery(pagination.PageNumber, pagination.PageSize, status, dateFrom, dateTo, lastModifiedDateFrom, lastModifiedDateTo, supportingNumber, search, sortBy, sortDir);
+            var filter = new GetSupportingDataListQuery(pagination.PageNumber, pagination.PageSize, status, dateFrom, dateTo, lastModifiedDateFrom, lastModifiedDateTo, supportingNumber, search, sortBy, sortDir, website, phoneNo);
 
             var result = await sender.Send(filter, cancellationToken);
 
