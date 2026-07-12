@@ -24,7 +24,10 @@ public record BlockUnitMaintenanceUnitDto(
     bool IsSold,
     // "Cash" | "Loan" | null — enum name string (stored as nvarchar(10) in collateral.ProjectUnits)
     string? PurchaseBy,
-    string? LoanBankName
+    string? LoanBankName,
+    decimal? LastAppraisedValue,
+    DateTime? UpdatedAt,
+    string? UpdatedBy
 );
 
 /// <summary>
