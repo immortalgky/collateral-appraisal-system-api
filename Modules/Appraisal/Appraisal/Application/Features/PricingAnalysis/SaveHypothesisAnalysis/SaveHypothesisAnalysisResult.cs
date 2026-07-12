@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.PricingAnalysis.GetHypothesisAnalysis;
 using Appraisal.Domain.Appraisals.Hypothesis;
 using Appraisal.Domain.Appraisals.Hypothesis.Summaries;
 
@@ -8,5 +9,6 @@ public record SaveHypothesisAnalysisResult(
     HypothesisVariant Variant,
     LandBuildingSummary? LandBuildingSummary,
     CondominiumSummary? CondominiumSummary,
-    decimal? TotalLandAreaFromTitles = null
+    decimal? TotalLandAreaFromTitles = null,
+    IReadOnlyList<CostItemDto>? CostItems = null
 );

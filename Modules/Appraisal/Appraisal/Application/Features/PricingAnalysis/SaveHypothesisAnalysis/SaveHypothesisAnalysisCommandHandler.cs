@@ -1,4 +1,5 @@
 using Appraisal.Application.Configurations;
+using Appraisal.Application.Features.PricingAnalysis.GetHypothesisAnalysis;
 using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Appraisals.Hypothesis;
@@ -77,7 +78,8 @@ public class SaveHypothesisAnalysisCommandHandler(
             await unitOfWork.SaveChangesAsync(cancellationToken);
 
             return new SaveHypothesisAnalysisResult(
-                analysis.Id, analysis.Variant, snapshot.Summary, null, totalLandAreaFromTitles);
+                analysis.Id, analysis.Variant, snapshot.Summary, null, totalLandAreaFromTitles,
+                MapCostItemDtos(analysis.CostItems));
         }
         else
         {
@@ -99,9 +101,26 @@ public class SaveHypothesisAnalysisCommandHandler(
             await unitOfWork.SaveChangesAsync(cancellationToken);
 
             return new SaveHypothesisAnalysisResult(
-                analysis.Id, analysis.Variant, null, computedSummary, totalLandAreaFromTitles);
+                analysis.Id, analysis.Variant, null, computedSummary, totalLandAreaFromTitles,
+                MapCostItemDtos(analysis.CostItems));
         }
     }
+    private static IReadOnlyList<CostItemDto> MapCostItemDtos(IReadOnlyList<HypothesisCostItem> items)
+        => items
+            .OrderBy(i => i.Category)
+            .ThenBy(i => i.DisplaySequence)
+            .Select(i => new CostItemDto(
+                i.Id, i.Category, i.Kind, i.Description, i.DisplaySequence,
+                i.Amount, i.RateAmount, i.Quantity, i.RatePercent, i.CategoryRatio, i.ModelName,
+                i.IsBuilding, i.DepreciationMethod,
+                i.Area, i.PricePerSqM, i.PriceBeforeDepreciation,
+                i.Year, i.AnnualDepreciationPercent,
+                i.TotalDepreciationPercent, i.DepreciationAmount, i.ValueAfterDepreciation,
+                i.DepreciationPeriods
+                    .OrderBy(p => p.Sequence)
+                    .Select(p => new DepreciationPeriodDto(p.Id, p.Sequence, p.AtYear, p.ToYear, p.DepreciationPerYear))
+                    .ToList()))
+            .ToList();
 
     // ── Selective upsert: UPDATE existing, INSERT new, DELETE orphans ─────
     // clientId (input.Id) == entity.Id for rows the frontend received from prior save.
