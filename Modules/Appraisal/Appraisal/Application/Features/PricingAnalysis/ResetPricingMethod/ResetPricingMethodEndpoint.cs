@@ -19,7 +19,7 @@ public class ResetPricingMethodEndpoint : ICarterModule
             .Produces<ResetPricingMethodResult>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Reset pricing method")
-            .WithDescription("Clears all data (factors, scores, calculations, comparable links, final value, RSQ result) for a pricing method.")
+            .WithDescription("Clears all data (factors, scores, calculations, comparable links, final value, RSQ result, method-specific analyses, and any hosted reference analyses) for a pricing method.")
             .WithTags("PricingAnalysis");
     }
 }

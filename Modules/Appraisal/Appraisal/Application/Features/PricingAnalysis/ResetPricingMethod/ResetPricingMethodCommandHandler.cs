@@ -1,10 +1,12 @@
+using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Shared.CQRS;
 
 namespace Appraisal.Application.Features.PricingAnalysis.ResetPricingMethod;
 
 public class ResetPricingMethodCommandHandler(
-    IPricingAnalysisRepository repository
+    IPricingAnalysisRepository repository,
+    PricingReferenceCleanupService cleanupService
 ) : ICommandHandler<ResetPricingMethodCommand, ResetPricingMethodResult>
 {
     public async Task<ResetPricingMethodResult> Handle(
@@ -26,6 +28,12 @@ public class ResetPricingMethodCommandHandler(
                 $"Pricing method with ID {command.MethodId} not found.");
 
         var method = approach.Methods.First(m => m.Id == command.MethodId);
+
+        // Active cleanup: delete all reference PricingAnalyses whose HostMethodId == this
+        // method (DL10) — covers RoomIncomeRef/IncomeLandRef left behind by Income methods,
+        // and is a safe no-op for method types that never create host-scoped references
+        // (WQS, SaleGrid, DirectComparison, MachineCost). Mirrors RemoveMethodCommandHandler.
+        await cleanupService.CleanupForMethodRemovalAsync(command.MethodId, cancellationToken);
 
         method.Reset();
         approach.ClearValue();
