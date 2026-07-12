@@ -11,5 +11,7 @@ public record GetSupportingDataListQuery(
     string? SupportingNumber,
     string? Search,
     string? SortBy,
-    string? SortDir
+    string? SortDir,
+    string? Website,
+    string? PhoneNo
 ) : IQuery<GetSupportingDataListResult>;
