@@ -84,6 +84,15 @@ public class GroupService(
         var group = await groupRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException("Group", id);
 
+        // Guard: refuse to delete a team that still has members.
+        var userCount = await dbContext.GroupUsers.CountAsync(m => m.GroupId == id, cancellationToken);
+        if (userCount > 0)
+            throw new ConflictException(
+                $"Cannot delete group '{group.Name}' because it has {userCount} user(s). Remove them first.");
+
+        // Hard delete: remove members first (cascade would handle it, but explicit is clearer)
+        var users = dbContext.GroupUsers.Where(m => m.GroupId == id);
+        dbContext.GroupUsers.RemoveRange(users);
         group.Delete(deletedBy);
         auditWriter.Record(AuditAction.Deleted, AuditEntityType.Group, id, group.Name);
         await groupRepository.SaveChangesAsync(cancellationToken);
