@@ -31,7 +31,7 @@ public class WebhookService(
     // top level with no CAS envelope. No WhenWritingNull here (unlike the envelope options): a
     // legitimately-cleared field (e.g. BuildingInsurance reset to null) must be sent as explicit
     // JSON null so LOS can distinguish "cleared" from "field absent", not omitted. Land/condo
-    // no longer share one collateral record (see LosPmaTitleDetails), so there is no cross-type
+    // no longer share one collateral record (see LosPmaDetails), so there is no cross-type
     // null leakage to guard against either.
     private static readonly JsonSerializerOptions _rawPayloadJsonOptions = new()
     {
