@@ -155,7 +155,7 @@ BEGIN
     INSERT INTO parameter.PricingParameterAssumptionMethods (AssumptionType, MethodTypeCode) VALUES
     ('I00', '06'), ('I00', '04'),
     ('I01', '01'), ('I01', '02'), ('I01', '03'), ('I01', '04'), ('I01', '05'),
-    ('I02', '06'),
+    ('I02', '06'), ('I02', '14'),
     ('I03', '13'),
     ('I04', '13'), ('I04', '14'),
     ('I05', '13'), ('I05', '14'),
