@@ -20,11 +20,27 @@ public class GetQuotationsQueryHandler(
     IPoolTaskClauseService poolTaskClauseService
 ) : IQueryHandler<GetQuotationsQuery, GetQuotationsResult>
 {
-    // Explicit column list matches the QuotationDto positional record constructor exactly.
-    // RmUserId and AppraisalId are used for filtering only — not selected into the DTO.
+    // Explicit column list matches the QuotationDto record. RmUserId/AppraisalId are used for
+    // filtering only. Customer columns come from the CustomerApply join below.
     private const string SelectColumns = """
         SELECT q.Id, q.QuotationNumber, q.RequestDate, q.CutOffTime, q.Status, q.RequestedBy,
-               q.TotalAppraisals, q.TotalCompaniesInvited, q.TotalQuotationsReceived
+               q.TotalAppraisals, q.TotalCompaniesInvited, q.TotalQuotationsReceived,
+               cust.CustomerName, cust.CustomerCount, cust.CustomerNames
+        """;
+
+    // Distinct customer names for the quotation, via QuotationRequestAppraisals → Appraisals →
+    // RequestCustomers (correlated on q.Id — the same chain the customer search filter uses).
+    // Representative name = MIN; count + ordered full list drive the "+N" indicator and tooltip.
+    private const string CustomerApply = """
+        OUTER APPLY (
+            SELECT CustomerName = MIN(x.Name), CustomerCount = COUNT(*),
+                   CustomerNames = STRING_AGG(x.Name, ', ') WITHIN GROUP (ORDER BY x.Name)
+            FROM (SELECT DISTINCT rc.Name
+                  FROM appraisal.QuotationRequestAppraisals qra
+                  JOIN appraisal.Appraisals a ON a.Id = qra.AppraisalId
+                  JOIN request.RequestCustomers rc ON rc.RequestId = a.RequestId
+                  WHERE qra.QuotationRequestId = q.Id) x
+        ) cust
         """;
 
     // PoolTaskAccess.BuildSqlClause references AssigneeUserId / AssigneeCompanyId column names.
@@ -45,7 +61,7 @@ public class GetQuotationsQueryHandler(
 
         if (currentUser.IsInRole("Admin") || currentUser.IsInRole("IntAdmin"))
         {
-            sql = $"{SelectColumns} FROM appraisal.vw_QuotationList q WHERE 1 = 1";
+            sql = $"{SelectColumns} FROM appraisal.vw_QuotationList q {CustomerApply} WHERE 1 = 1";
         }
         else
         {
@@ -61,6 +77,7 @@ public class GetQuotationsQueryHandler(
             // rm-pick-winner rows (type '1') and claimed-task rows (type '1') for RM callers.
             sql = $$"""
                 {{SelectColumns}} FROM appraisal.vw_QuotationList q
+                {{CustomerApply}}
                 WHERE EXISTS (
                     SELECT 1 FROM {{PendingTasksSubquery}} pt
                     WHERE pt.CorrelationId = q.Id
@@ -88,45 +105,48 @@ public class GetQuotationsQueryHandler(
             dynamicParams.Add("AppraisalId", query.AppraisalId.Value);
         }
 
-        // Optional filter: Status
-        if (!string.IsNullOrWhiteSpace(query.Status))
+        // Optional filter: Status (multi-select → IN list; Dapper expands the array)
+        if (query.Statuses is { Length: > 0 })
         {
-            sql += " AND q.Status = @Status";
-            dynamicParams.Add("Status", query.Status.Trim());
+            sql += " AND q.Status IN @Statuses";
+            dynamicParams.Add("Statuses", query.Statuses);
         }
 
-        // Optional free-text search: matches quotation number, linked appraisal number,
-        // or customer name (via the appraisal → request chain). Appraisal/customer are
-        // OR-ed in as EXISTS subqueries so the outer statement stays wrappable for COUNT.
-        //
-        // Performance: all three columns (QuotationNumber, Appraisals.AppraisalNumber,
-        // RequestCustomers.Name) have indexes tuned for a PREFIX seek. So the default is a
-        // prefix match ("term%") which seeks the index. A leading-wildcard contains-search
-        // scans every row, so it is opt-in: the user types '*' wherever they want a wildcard
-        // (e.g. "*abc" → "%abc", "ab*cd" → "ab%cd", "*abc*" → "%abc%").
-        if (!string.IsNullOrWhiteSpace(query.Search))
+        // Optional per-field search. Each field is an INDEPENDENT predicate AND-ed onto the
+        // query, so combining fields NARROWS the result set (e.g. quotation-no AND customer).
+        // Splitting them (vs one OR-ed omnibox) keeps each predicate on a single column.
+        // Each is a contains match ("%term%") — see BuildLikePattern for why that is cheap here.
+        if (!string.IsNullOrWhiteSpace(query.QuotationNo))
+        {
+            sql += " AND q.QuotationNumber LIKE @QuotationNoPattern";
+            dynamicParams.Add("QuotationNoPattern", BuildLikePattern(query.QuotationNo));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.AppraisalNo))
         {
             sql += """
-                 AND (
-                     q.QuotationNumber LIKE @SearchPattern
-                     OR EXISTS (
-                         SELECT 1 FROM appraisal.QuotationRequestAppraisals qra
-                         JOIN appraisal.Appraisals a ON a.Id = qra.AppraisalId
-                         WHERE qra.QuotationRequestId = q.Id
-                           AND a.AppraisalNumber LIKE @SearchPattern
-                     )
-                     OR EXISTS (
-                         SELECT 1 FROM appraisal.QuotationRequestAppraisals qra
-                         JOIN appraisal.Appraisals a ON a.Id = qra.AppraisalId
-                         JOIN request.RequestCustomers rc ON rc.RequestId = a.RequestId
-                         WHERE qra.QuotationRequestId = q.Id
-                           AND rc.Name LIKE @SearchPattern
-                     )
+                 AND EXISTS (
+                     SELECT 1 FROM appraisal.QuotationRequestAppraisals qra
+                     JOIN appraisal.Appraisals a ON a.Id = qra.AppraisalId
+                     WHERE qra.QuotationRequestId = q.Id
+                       AND a.AppraisalNumber LIKE @AppraisalNoPattern
                  )
                 """;
-            var term = query.Search.Trim();
-            var pattern = term.Contains('*') ? term.Replace('*', '%') : term + "%";
-            dynamicParams.Add("SearchPattern", pattern);
+            dynamicParams.Add("AppraisalNoPattern", BuildLikePattern(query.AppraisalNo));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.CustomerName))
+        {
+            sql += """
+                 AND EXISTS (
+                     SELECT 1 FROM appraisal.QuotationRequestAppraisals qra
+                     JOIN appraisal.Appraisals a ON a.Id = qra.AppraisalId
+                     JOIN request.RequestCustomers rc ON rc.RequestId = a.RequestId
+                     WHERE qra.QuotationRequestId = q.Id
+                       AND rc.Name LIKE @CustomerNamePattern
+                 )
+                """;
+            dynamicParams.Add("CustomerNamePattern", BuildLikePattern(query.CustomerName));
         }
 
         // Optional filter: CutOffTime range — convert DateOnly → DateTime (Dapper rejects DateOnly)
@@ -157,13 +177,39 @@ public class GetQuotationsQueryHandler(
 
         var result = await connectionFactory.QueryPaginatedAsync<QuotationDto>(
             sql,
-            "RequestDate DESC",
+            BuildOrderBy(query.SortBy, query.SortDir),
             query.PaginationRequest,
             dynamicParams);
 
         return new GetQuotationsResult(result);
     }
 
+    // Whitelist of user-sortable columns → real view columns. Only these literal strings ever
+    // reach the ORDER BY, so user input can never inject. Keys are what the frontend sends.
+    private static readonly Dictionary<string, string> AllowedSortColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["QuotationNumber"] = "QuotationNumber",
+        ["Status"] = "Status",
+        ["CutOffTime"] = "CutOffTime",
+        ["TotalAppraisals"] = "TotalAppraisals",
+        ["RequestDate"] = "RequestDate",
+        ["CustomerName"] = "cust.CustomerName",
+    };
+
+    // Default RequestDate DESC; Id is a stable tiebreaker (never a sort key → no duplicate-column trap).
+    private static string BuildOrderBy(string? sortBy, string? sortDir)
+    {
+        var column = AllowedSortColumns.TryGetValue(sortBy ?? "", out var col) ? col : "RequestDate";
+        var direction = string.Equals(sortDir, "asc", StringComparison.OrdinalIgnoreCase) ? "ASC" : "DESC";
+        return $"{column} {direction}, Id DESC";
+    }
+
     private static GetQuotationsResult EmptyResult(PaginationRequest request) =>
         new(new PaginatedResult<QuotationDto>([], 0, request.PageNumber, request.PageSize));
+
+    // Contains match ("%term%") — matches anywhere in the field. On these listings this is
+    // cheap: quotation number is a tiny table, and appraisal/customer ride a correlated EXISTS
+    // driven from the small quotation set, so it never scans the large Appraisals /
+    // RequestCustomers tables directly.
+    private static string BuildLikePattern(string term) => $"%{term.Trim()}%";
 }

@@ -8,15 +8,19 @@ public class GetMyInvitationsEndpoint : ICarterModule
                 "/quotations/my-invitations",
                 async (
                     [AsParameters] PaginationRequest request,
-                    string? status,
-                    string? search,
+                    string[]? statuses,
+                    string? quotationNo,
+                    string? appraisalNo,
+                    string? customerName,
                     DateOnly? cutOffTimeFrom,
                     DateOnly? cutOffTimeTo,
+                    string? sortBy,
+                    string? sortDir,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
                 {
-                    var query = new GetMyInvitationsQuery(request, status, search, cutOffTimeFrom, cutOffTimeTo);
+                    var query = new GetMyInvitationsQuery(request, statuses, quotationNo, appraisalNo, customerName, cutOffTimeFrom, cutOffTimeTo, sortBy, sortDir);
 
                     var result = await sender.Send(query, cancellationToken);
 
