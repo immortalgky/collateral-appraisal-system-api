@@ -12,7 +12,7 @@ public sealed record LosPmaUpdatePayload(
     string CasReportNo,
     string? LoanApplicationNo,
     string Action,
-    LosPmaTitleDetails TitleDetails);
+    LosPmaDetails PmaDetails);
 
 /// <summary>
 /// <see cref="Collateral"/> is set by <see cref="LosPmaPayloadMapper"/> to a
@@ -20,7 +20,7 @@ public sealed record LosPmaUpdatePayload(
 /// (one payload for the whole property) — never both, so each JSON payload only ever carries the
 /// fields for its own property type (no cross-type null leakage).
 /// </summary>
-public sealed record LosPmaTitleDetails(
+public sealed record LosPmaDetails(
     LosPmaPrices Pma,
     object Collateral);
 

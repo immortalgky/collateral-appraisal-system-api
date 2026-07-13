@@ -28,7 +28,7 @@ public static class LosPmaPayloadMapper
                     CasReportNo: data.AppraisalNumber!,
                     LoanApplicationNo: data.LoanApplicationNo,
                     Action: DefaultAction,
-                    TitleDetails: new LosPmaTitleDetails(
+                    PmaDetails: new LosPmaDetails(
                         prices,
                         new LosLandCollateral(
                             Rawang: title.Rawang,
@@ -56,7 +56,7 @@ public static class LosPmaPayloadMapper
                     CasReportNo: data.AppraisalNumber!,
                     LoanApplicationNo: data.LoanApplicationNo,
                     Action: DefaultAction,
-                    TitleDetails: new LosPmaTitleDetails(
+                    PmaDetails: new LosPmaDetails(
                         prices,
                         new LosCondoCollateral(
                             TitleDeedNo: condo.BuiltOnTitleNumber, // sent like the land collateral's titleDeedNo
