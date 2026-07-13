@@ -15,4 +15,7 @@ public record MyInvitationDto(
     DateTime? QuotedAt,
     string? QuotedBy,
     string CompanyStatus,
-    bool HasSubmitted);
+    bool HasSubmitted,
+    string? CustomerName,
+    int CustomerCount,
+    string? CustomerNames);
