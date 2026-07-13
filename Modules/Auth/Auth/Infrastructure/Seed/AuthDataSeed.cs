@@ -40,12 +40,16 @@ public class AuthDataSeed(
         await SeedActivityMenuOverridesAsync();
         await SeedAdminRoleAsync();
 
+        // NOTE: APPRAISAL_PROPERTY_PMA_VIEW/EDIT are intentionally NOT in these shared arrays.
+        // The PMA property tab is exclusive to the int-pma-input activity, so its permission is
+        // granted only to IntAppraisalStaff below and hidden on that role's other activities via
+        // ActivityMenuOverrides. Keeping it out of the shared set stops it leaking to every role.
         string[] appraisalSectionViews =
         [
             "APPRAISAL_360_VIEW", "APPRAISAL_REQUEST_VIEW",
             "APPRAISAL_ADMINISTRATION_VIEW", "APPRAISAL_APPOINTMENT_VIEW",
             "APPRAISAL_PROPERTY_VIEW", "APPRAISAL_BLOCK_CONDO_VIEW",
-            "APPRAISAL_BLOCK_VILLAGE_VIEW", "APPRAISAL_PROPERTY_PMA_VIEW",
+            "APPRAISAL_BLOCK_VILLAGE_VIEW",
             "APPRAISAL_DOCUMENTS_VIEW", "APPRAISAL_SUMMARY_VIEW"
         ];
         string[] appraisalSectionEdits =
@@ -53,7 +57,7 @@ public class AuthDataSeed(
             "APPRAISAL_REQUEST_EDIT",
             "APPRAISAL_ADMINISTRATION_EDIT", "APPRAISAL_APPOINTMENT_EDIT",
             "APPRAISAL_PROPERTY_EDIT", "APPRAISAL_BLOCK_CONDO_EDIT",
-            "APPRAISAL_BLOCK_VILLAGE_EDIT", "APPRAISAL_PROPERTY_PMA_EDIT",
+            "APPRAISAL_BLOCK_VILLAGE_EDIT",
             "APPRAISAL_DOCUMENTS_EDIT", "APPRAISAL_SUMMARY_EDIT"
         ];
 
@@ -87,7 +91,8 @@ public class AuthDataSeed(
             [
                 "DASHBOARD_VIEW", "REQUEST_VIEW", "APPRAISAL_VIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_ASSIGNMENT", "USER_MANAGE",
-                "TASK_MONITOR_VIEW", "TASK_MONITOR_REASSIGN",
+                // Company-scoped: external admins may only see/reassign tasks within their own company.
+                "TASK_MONITOR_VIEW:TEAM", "TASK_MONITOR_REASSIGN:TEAM",
                 "QUOTATION_EXT_VIEW", "TASK_QUOTATION_SUBMIT", "TASK_QUOTATION_NEGOTIATE",
                 "INVOICE_EXT_VIEW", "INVOICE_CREATE",
                 ..appraisalSectionViews
@@ -114,11 +119,15 @@ public class AuthDataSeed(
             "Bank",
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
-                "TASK_APPR_BOOK_VERIFICATION", "TASK_INT_APPR_EXECUTION", "STANDALONE_USE",
+                "TASK_APPR_BOOK_VERIFICATION", "TASK_INT_APPR_EXECUTION", "TASK_INT_PMA_INPUT",
+                "STANDALONE_USE",
                 "HISTORY_SEARCH_VIEW",
                 "SUPPORTING_DATA_MAINT_EDIT",
                 "SUPPORTING_DATA_MAINT_VIEW",
                 "SUPPORTING_DATA_MAINT_REMOVE",
+                // PMA property tab — granted here only (kept out of the shared arrays) so it appears
+                // exclusively on the int-pma-input activity, hidden on this role's other activities.
+                "APPRAISAL_PROPERTY_PMA_VIEW", "APPRAISAL_PROPERTY_PMA_EDIT",
                 ..appraisalSectionViews, ..appraisalSectionEdits
             ]);
         await SeedRoleWithPermissionsAsync(IntAppraisalCheckerRoleName,
@@ -553,6 +562,8 @@ public class AuthDataSeed(
             ("TASK_LIST_VIEW", "View Task List", "View and manage assigned tasks", "Workflow"),
             ("TASK_MONITOR_VIEW", "View Task Monitor", "View the supervisor task-monitor list of pending tasks held by monitored groups", "Workflow"),
             ("TASK_MONITOR_REASSIGN", "Reassign Pending Task", "Reassign a pending task to another eligible assignee without resetting the SLA clock", "Workflow"),
+            ("TASK_MONITOR_VIEW:TEAM", "View Task Monitor — own team/company only", "View the task-monitor list confined to the user's own team (internal) or company (external)", "Workflow"),
+            ("TASK_MONITOR_REASSIGN:TEAM", "Reassign Pending Task — own team/company only", "Reassign pending tasks only within the user's own team (internal) or company (external)", "Workflow"),
             ("APPRAISAL_VIEW", "View Appraisal", "View appraisal requests and details", "Appraisal"),
             ("APPRAISAL_CREATE", "Create Appraisal", "Create new appraisal requests", "Appraisal"),
             ("APPRAISAL_EDIT", "Edit Appraisal", "Edit existing appraisal requests", "Appraisal"),
@@ -634,6 +645,8 @@ public class AuthDataSeed(
                 "Workflow"),
             ("TASK_INT_APPR_VERIFICATION", "Task: Internal Appraisal Verification",
                 "Access internal appraisal verification tasks", "Workflow"),
+            ("TASK_INT_PMA_INPUT", "Task: Internal PMA Property Input",
+                "Access internal PMA property input tasks (int-pma-input)", "Workflow"),
             ("TASK_PENDING_APPROVAL", "Task: Pending Approval", "Access pending approval tasks", "Workflow"),
             ("TASK_PROVIDE_ADDITIONAL_DOCS", "Task: Provide Additional Documents",
                 "Access document followup tasks raised by checkers", "Workflow"),
@@ -825,6 +838,23 @@ public class AuthDataSeed(
                 viewPermissionCode: null,
                 editPermissionCode: monitoring.EditPermissionCode,
                 viewPermissionPrefix: "MONITORING:");
+        }
+
+        // One-off repair: `main.task.int-pma-input` was first seeded mid-list (grouped with the
+        // internal-appraisal tasks) and so rendered above "All Tasks". The INSERT-ONLY UpsertTree
+        // above won't move an already-persisted row, so pin its SortOrder to 15 — just after
+        // "All Tasks" (10) and before the rest. Idempotent: a no-op once normalised.
+        if (existingByKey.TryGetValue("main.task.int-pma-input", out var pmaInput)
+            && pmaInput.SortOrder != 15)
+        {
+            pmaInput.Update(
+                pmaInput.Path,
+                pmaInput.Icon,
+                pmaInput.IconColor,
+                sortOrder: 15,
+                pmaInput.ViewPermissionCode,
+                pmaInput.EditPermissionCode,
+                pmaInput.ViewPermissionPrefix);
         }
 
         await dbContext.SaveChangesAsync();

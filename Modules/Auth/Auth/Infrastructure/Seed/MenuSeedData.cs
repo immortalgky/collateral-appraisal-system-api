@@ -36,6 +36,7 @@ public static class MenuSeedData
             new List<MenuSeedNode>
             {
                 new("main.task.all", "All Tasks", "list", IconStyle.Solid, "text-purple-500", "/tasks", "TASK_LIST_VIEW", null),
+                new("main.task.int-pma-input", "PMA Property Input", "keyboard", IconStyle.Solid, "text-purple-500", "/tasks?activityId=int-pma-input", "TASK_INT_PMA_INPUT", null),
                 new("main.task.appraisal-initiation-check", "Appraisal Initiation Check", "clipboard-check", IconStyle.Solid, "text-purple-500", "/tasks?activityId=appraisal-initiation-check", "TASK_APPR_INITIATION_CHECK", null),
                 new("main.task.appraisal-initiation", "Appraisal Initiation", "file-pen", IconStyle.Solid, "text-purple-500", "/tasks?activityId=appraisal-initiation", "TASK_APPR_INITIATION", null),
                 new("main.task.appraisal-assignment", "Appraisal Assignment", "building", IconStyle.Solid, "text-purple-500", "/tasks?activityId=appraisal-assignment", "TASK_APPR_ASSIGNMENT", null),
@@ -56,7 +57,10 @@ public static class MenuSeedData
                 new("main.task.admin-finalize", "Finalize Quotation", "circle-check", IconStyle.Solid, "text-purple-500", "/tasks?activityId=admin-finalize", "TASK_QUOTATION_FINALIZE", null),
                 new("main.task.fee-appointment-approval", "Fee & Appointment Approval", "check-to-slot", IconStyle.Solid, "text-purple-500", "/tasks?activityId=fee-appointment-approval", "TASK_FEE_APPOINTMENT_APPROVAL", null),
             }),
-        new("main.task-monitor", "Task Monitor", "user-gear", IconStyle.Solid, "text-orange-500", "/task-monitor", "TASK_MONITOR_VIEW", "TASK_MONITOR_REASSIGN"),
+        // View gate is prefix-based so the :TEAM scope variant (TASK_MONITOR_VIEW:TEAM) also
+        // reveals the menu; base and :TEAM both start with "TASK_MONITOR_VIEW".
+        new("main.task-monitor", "Task Monitor", "user-gear", IconStyle.Solid, "text-orange-500", "/task-monitor", null, "TASK_MONITOR_REASSIGN",
+            ViewPermissionPrefix: "TASK_MONITOR_VIEW"),
         // Single tabbed Monitoring page — all 6 sections in one screen.
         // Visible to any user holding any MONITORING:* permission. Tabs are hidden client-side
         // based on the user's section-level permissions.
