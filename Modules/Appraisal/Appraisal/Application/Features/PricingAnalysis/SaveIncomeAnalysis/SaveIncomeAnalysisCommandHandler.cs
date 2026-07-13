@@ -180,7 +180,7 @@ public class SaveIncomeAnalysisCommandHandler(
         // Collect all remaining room-type names from Method01 assumptions in the current sections.
         // Always run — an empty set means every room (or the whole Method01 assumption) was removed,
         // so all RoomIncomeRef analyses hosted by this method must be deleted.
-        var remainingRooms = GatherMethod01RoomNames(command.Sections);
+        var remainingRooms = GatherMethodRoomNames(command.Sections);
         await cleanupService.CleanupForIncomeRoomsAsync(command.MethodId, remainingRooms, cancellationToken);
 
         return new SaveIncomeAnalysisResult(IncomeAnalysisMapper.ToDto(
@@ -363,23 +363,24 @@ public class SaveIncomeAnalysisCommandHandler(
     /// Gathers the distinct room-type names present in all Method01 assumptions across all sections.
     /// Used to determine which RoomIncomeRef analyses are still valid after a save.
     /// </summary>
-    private static IReadOnlyCollection<string> GatherMethod01RoomNames(IReadOnlyList<IncomeSectionInput> sections)
+    private static readonly string[] SkipMethodCodes = [ "01", "02", "05" ];
+    private static IReadOnlyCollection<string> GatherMethodRoomNames(IReadOnlyList<IncomeSectionInput> sections)
     {
         var names = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var section in sections)
-        foreach (var category in section.Categories)
-        foreach (var assumption in category.Assumptions)
-        {
-            if (!string.Equals(assumption.MethodTypeCode, "M01", StringComparison.OrdinalIgnoreCase))
-                continue;
+            foreach (var category in section.Categories)
+                foreach (var assumption in category.Assumptions)
+                {
+                    if (!SkipMethodCodes.Contains(assumption.MethodTypeCode, StringComparer.OrdinalIgnoreCase))
+                        continue;
 
-            var roomNames = PricingReferenceCleanupService.ExtractRoomNamesFromMethod01(
-                assumption.Detail.GetRawText());
+                    var roomNames = PricingReferenceCleanupService.ExtractRoomNamesFromMethod01(
+                        assumption.Detail.GetRawText());
 
-            foreach (var name in roomNames)
-                names.Add(name);
-        }
+                    foreach (var name in roomNames)
+                        names.Add(name);
+                }
 
         return names;
     }
