@@ -89,6 +89,8 @@ internal static class ProfitRentSectionLoader
         // W2 fix: EstimatePriceRounded confirmed on ProfitRentAnalysis.cs line 24.
         // Effective value = EstimatePriceRounded ?? FinalValueRounded
         //   (mirrors SaveProfitRentAnalysisCommandHandler.cs:110)
+        // FinalValueRounded is sourced from PricingFinalValues (Phase C: never lived on
+        // ProfitRentAnalyses — mirrors LeaseholdSectionLoader / IncomeSectionLoader).
         const string headerSql = """
             SELECT
                 pra.Id               AS ProfitRentAnalysisId,
@@ -98,9 +100,11 @@ internal static class ProfitRentSectionLoader
                 pra.GrowthIntervalYears,
                 pra.DiscountRate,
                 pra.TotalPresentValue,
-                pra.FinalValueRounded,
+                COALESCE(pfv.FinalValueRounded, 0) AS FinalValueRounded,
                 pra.EstimatePriceRounded
             FROM appraisal.ProfitRentAnalyses pra
+            LEFT JOIN appraisal.PricingFinalValues pfv
+                ON pfv.PricingMethodId = pra.PricingMethodId
             WHERE pra.PricingMethodId = @MethodId
             """;
 
