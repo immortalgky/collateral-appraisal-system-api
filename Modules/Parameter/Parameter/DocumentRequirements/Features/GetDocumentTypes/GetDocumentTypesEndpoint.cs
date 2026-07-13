@@ -6,10 +6,11 @@ public class GetDocumentTypesEndpoint : ICarterModule
     {
         app.MapGet("/document-types", async (
                 [FromQuery] bool? includeInactive,
+                [FromQuery] string? category,
                 ISender sender,
                 CancellationToken cancellationToken) =>
             {
-                var query = new GetDocumentTypesQuery(includeInactive ?? false);
+                var query = new GetDocumentTypesQuery(includeInactive ?? false, category);
                 var result = await sender.Send(query, cancellationToken);
                 return Results.Ok(new GetDocumentTypesResponse(result.DocumentTypes));
             })

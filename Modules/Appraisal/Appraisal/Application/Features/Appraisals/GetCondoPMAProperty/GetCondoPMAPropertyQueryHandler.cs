@@ -38,6 +38,9 @@ public class GetCondoPMAPropertyQueryHandler(
             Province: detail.Address?.Province,
             BuildingInsurancePrice: property.BuildingInsurancePrice,
             SellingPrice: property.SellingPrice,
-            ForcedSalePrice: property.ForcedSalePrice);
+            ForcedSalePrice: property.ForcedSalePrice,
+            ExternalSyncStatus: property.ExternalSyncStatus,
+            ExternalSyncError: property.ExternalSyncError,
+            ExternalSyncedAt: property.ExternalSyncedAt);
     }
 }

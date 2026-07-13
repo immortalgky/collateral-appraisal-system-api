@@ -28,6 +28,8 @@ public interface ITaskListFilter
     string? SortDir { get; }
     string? SlaStatus { get; }
     string? ActivityId { get; }
+    string? Purpose { get; }
+    string? TaskStatusBucket { get; }
 }
 
 /// <summary>

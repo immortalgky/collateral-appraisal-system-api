@@ -135,6 +135,7 @@ builder.Services.AddMassTransit(config =>
             e.ConfigureConsumer<WebhookDispatchConsumer>(context);
             e.UsePartitioner<AppraisalCreatedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
             e.UsePartitioner<AppraisalStatusChangedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
+            e.UsePartitioner<AppraisalPmaUpdatedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
         });
 
         // ---------------------------------------------------------------------
@@ -209,6 +210,22 @@ builder.Services.AddMassTransit(config =>
             var partitioner = e.CreatePartitioner(16);
             e.ConfigureConsumer<AppointmentDateChangedIntegrationEventConsumer>(context);
             e.UsePartitioner<AppointmentDateChangedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
+        });
+
+        // #7 PMA external-sync status round-trip — the Integration module's WebhookDispatchConsumer
+        // publishes this after every PMA save's delivery attempt. Partitioned by AppraisalId so
+        // multiple round-tripped status events for the same appraisal serialize relative to EACH
+        // OTHER (no out-of-order overwrite between two delivery outcomes). This does NOT order
+        // against the synchronous "Pending" write the PMA save command handler makes outside this
+        // partition — a stale Delivered/Failed can briefly overwrite a newer save's Pending until
+        // that save's own status event arrives; self-correcting, not a data-loss risk. Consumer is
+        // [ExcludeFromConfigureEndpoints] to prevent ConfigureEndpoints from also creating an
+        // unordered auto-queue.
+        configurator.ReceiveEndpoint("pma-sync-status", e =>
+        {
+            var partitioner = e.CreatePartitioner(16);
+            e.ConfigureConsumer<PmaExternalSyncStatusChangedIntegrationEventHandler>(context);
+            e.UsePartitioner<PmaExternalSyncStatusChangedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
         });
 
         // In-memory outbox removed — using per-module persistent outbox via IntegrationEventDeliveryService

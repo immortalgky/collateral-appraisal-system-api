@@ -17,7 +17,8 @@ public class EditDraftQuotationEndpoint : ICarterModule
                         QuotationRequestId: id,
                         CutOffTime: request.CutOffTime,
                         CompanyIds: request.CompanyIds,
-                        Appraisals: request.Appraisals ?? Array.Empty<EditDraftAppraisalEntry>());
+                        Appraisals: request.Appraisals ?? Array.Empty<EditDraftAppraisalEntry>(),
+                        SpecialRequirements: request.SpecialRequirements);
 
                     var result = await sender.Send(command, cancellationToken);
                     return Results.Ok(result);

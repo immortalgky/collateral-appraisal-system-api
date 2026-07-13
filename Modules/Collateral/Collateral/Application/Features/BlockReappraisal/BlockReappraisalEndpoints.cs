@@ -15,8 +15,11 @@ public class BlockReappraisalEndpoints : ICarterModule
         app.MapGet(
                 "/block-reappraisal",
                 async (
-                    string? projectName,
-                    string? oldAppraisalNumber,
+                    string? search,
+                    DateTime? lastAppraisedDateFrom,
+                    DateTime? lastAppraisedDateTo,
+                    int? remainingDayMin,
+                    int? remainingDayMax,
                     int? pageNumber,
                     int? pageSize,
                     ISender sender,
@@ -25,8 +28,11 @@ public class BlockReappraisalEndpoints : ICarterModule
                     // PaginationRequest.PageNumber is 0-based (offset = PageNumber * PageSize);
                     // the FE sends a 0-based `pageNumber`, matching the AS400 reappraisal endpoint.
                     var query = new GetBlockReappraisalDueListQuery(
-                        ProjectName: projectName,
-                        OldAppraisalNumber: oldAppraisalNumber,
+                        Search: search,
+                        LastAppraisedDateFrom: lastAppraisedDateFrom,
+                        LastAppraisedDateTo: lastAppraisedDateTo,
+                        RemainingDayMin: remainingDayMin,
+                        RemainingDayMax: remainingDayMax,
                         PaginationRequest: new PaginationRequest(pageNumber ?? 0, pageSize ?? 20));
 
                     var result = await sender.Send(query, cancellationToken);

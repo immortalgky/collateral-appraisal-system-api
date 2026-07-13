@@ -42,6 +42,8 @@ public class GetAssignmentsQueryHandler(AppraisalDbContext dbContext)
             a.CompletedAt,
             a.RejectionReason,
             a.CancellationReason,
+            a.Remark,
+            a.DraftSavedAt,
             a.CreatedAt,
             a.Cycles.OrderBy(c => c.CycleNumber).Select(c => new EngagementCycleDto(
                 c.Id,

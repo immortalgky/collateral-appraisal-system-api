@@ -14,4 +14,6 @@ public record AssignAppraisalRequest(
     /// Workflow routing decision: "EXT" for external company, "INT" for internal staff.
     /// Defaults to "EXT" when omitted.
     /// </summary>
-    string DecisionTaken = "EXT");
+    string DecisionTaken = "EXT",
+    /// <summary>Admin remark persisted onto the assignment row alongside the assign action.</summary>
+    string? Remark = null);

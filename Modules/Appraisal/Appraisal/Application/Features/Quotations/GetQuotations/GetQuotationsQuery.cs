@@ -6,4 +6,5 @@ public record GetQuotationsQuery(
     string? Status = null,
     string? Search = null,
     DateOnly? CutOffTimeFrom = null,
-    DateOnly? CutOffTimeTo = null) : IQuery<GetQuotationsResult>;
+    DateOnly? CutOffTimeTo = null,
+    Guid? CompanyId = null) : IQuery<GetQuotationsResult>;

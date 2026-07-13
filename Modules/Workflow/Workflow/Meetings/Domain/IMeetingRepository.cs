@@ -9,14 +9,13 @@ public interface IMeetingRepository
     Task<Meeting?> GetByIdForDecisionAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>
-    /// Returns the lowest-MeetingNoSeq meeting in the same year that is earlier than the given seq
-    /// and whose scheduled end time has not yet passed (EndAt != null and EndAt &gt; now,
-    /// Status != Cancelled). Used to enforce sequential cut-off ordering: a meeting cannot be cut
-    /// off while an earlier meeting's scheduled window is still ongoing. A meeting with no scheduled
-    /// end date never blocks, and routed-back/unfinished cases do not block once the scheduled end
-    /// time has passed. Returns null if none exists.
+    /// Returns the earliest-scheduled meeting that starts before <paramref name="startAt"/>, is still
+    /// active (Status not Ended/Cancelled), and whose scheduled end time has not passed (EndAt &gt; now),
+    /// excluding <paramref name="excludeMeetingId"/>. Used to block cut-off while an earlier meeting is
+    /// still in progress. An earlier meeting that has ended, been cancelled, or whose scheduled window
+    /// has already elapsed does not block. Returns null if none exists.
     /// </summary>
-    Task<Meeting?> GetEarlierUnpassedMeetingAsync(int meetingNoYear, int meetingNoSeq, DateTime now, CancellationToken ct = default);
+    Task<Meeting?> GetEarlierActiveMeetingAsync(DateTime startAt, DateTime now, Guid excludeMeetingId, CancellationToken ct = default);
 
     /// <summary>
     /// Returns the first non-cancelled meeting whose scheduled window overlaps the half-open

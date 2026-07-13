@@ -47,7 +47,7 @@ public class CompletedTaskConfiguration : IEntityTypeConfiguration<CompletedTask
             .IsRequired(false);
 
         builder.Property(p => p.Remark)
-            .HasMaxLength(1000)
+            .HasMaxLength(4000)
             .IsRequired(false);
 
         builder.Property(p => p.Movement)

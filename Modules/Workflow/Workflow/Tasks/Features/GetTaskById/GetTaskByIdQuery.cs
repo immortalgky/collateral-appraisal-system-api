@@ -24,4 +24,10 @@ public record TaskDetailResult
     public bool IsOwner { get; init; }
     public string? WorkingBy { get; init; }
     public DateTime? LockedAt { get; init; }
+
+    /// <summary>In-progress decision draft, saved via SaveTaskDecisionDraft — seeds the review form on reload.</summary>
+    public string? DecisionTaken { get; init; }
+    public string? Comment { get; init; }
+    public string? ReasonCode { get; init; }
+    public string? Assignee { get; init; }
 }

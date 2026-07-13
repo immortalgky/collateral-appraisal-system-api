@@ -70,6 +70,22 @@ public class PendingTaskConfiguration : IEntityTypeConfiguration<PendingTask>
             .HasMaxLength(50)
             .IsRequired(false);
 
+        builder.Property(p => p.DecisionTaken)
+            .HasMaxLength(255)
+            .IsRequired(false);
+
+        builder.Property(p => p.Comment)
+            .HasMaxLength(4000)
+            .IsRequired(false);
+
+        builder.Property(p => p.ReasonCode)
+            .HasMaxLength(20)
+            .IsRequired(false);
+
+        builder.Property(p => p.DraftAssignee)
+            .HasMaxLength(255)
+            .IsRequired(false);
+
         builder.HasIndex(p => new { p.WorkflowInstanceId, p.ActivityId, p.AssigneeCompanyId })
             .HasDatabaseName("IX_PendingTasks_WorkflowInstance_Activity_Company");
 

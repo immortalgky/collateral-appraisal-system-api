@@ -16,5 +16,7 @@ public record GetReappraisalCandidatesQuery(
     DateOnly? ReviewDateFrom = null,
     DateOnly? ReviewDateTo = null,
     int? RemainingDayFrom = null,
-    int? RemainingDayTo = null
+    int? RemainingDayTo = null,
+    string? SortBy = null,
+    string? SortDir = null
 ) : IQuery<GetReappraisalCandidatesResult>;

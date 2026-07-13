@@ -1,3 +1,7 @@
+using Shared.Data.Outbox;
+using Shared.Messaging.Events;
+using Shared.Time;
+
 namespace Appraisal.Application.EventHandlers;
 
 /// <summary>
@@ -8,10 +12,14 @@ namespace Appraisal.Application.EventHandlers;
 /// in-memory values, all reads materialize tracked entities and aggregate client-side — SQL aggregate
 /// functions like SumAsync bypass the ChangeTracker and would return stale DB values.
 ///
-/// Do NOT call SaveChangesAsync — tracked mutations are flushed by the outer save.
+/// Do NOT call SaveChangesAsync — tracked mutations are flushed by the outer save. The outbox message
+/// staged here is drained into the same SaveChangesAsync by DispatchDomainEventInterceptor (which
+/// dispatches domain events, then drains the outbox), so publish is atomic with the summary upsert.
 /// </summary>
 public class AppraisalFinalValuesChangedEventHandler(
     AppraisalDbContext db,
+    IIntegrationEventOutbox outbox,
+    IDateTimeProvider dateTimeProvider,
     ILogger<AppraisalFinalValuesChangedEventHandler> logger
 ) : INotificationHandler<AppraisalFinalValuesChangedEvent>
 {
@@ -96,6 +104,17 @@ public class AppraisalFinalValuesChangedEventHandler(
         }
 
         row.UpdateSummary(approach, date, total, forced, insuranceTotal);
+
+        // Surface the new appraisal-level appraised value to the Workflow module so the
+        // approval-tier switch / committee selection route on appraised value (not facility limit).
+        // CorrelationId = RequestId is the workflow instance's correlation key.
+        outbox.Publish(new AppraisalValueChangedIntegrationEvent
+        {
+            AppraisalId = appraisalId,
+            CorrelationId = appraisal.RequestId,
+            AppraisedValue = total,
+            OccurredOn = dateTimeProvider.ApplicationNow
+        });
 
         logger.LogDebug(
             "ValuationAnalyses upserted for AppraisalId: {AppraisalId} — Total: {Total}, Forced: {Forced}, Insurance: {Insurance}",

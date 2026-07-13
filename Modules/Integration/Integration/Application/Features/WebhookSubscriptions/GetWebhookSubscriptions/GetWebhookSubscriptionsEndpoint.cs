@@ -16,11 +16,12 @@ public class GetWebhookSubscriptionsEndpoint : ICarterModule
                 int? pageSize,
                 string? systemCode,
                 bool? isActive,
+                string? eventType,
                 ISender sender,
                 CancellationToken cancellationToken) =>
             {
                 var query = new GetWebhookSubscriptionsQuery(
-                    pageNumber ?? 1, pageSize ?? 20, systemCode, isActive);
+                    pageNumber ?? 1, pageSize ?? 20, systemCode, isActive, eventType);
                 var result = await sender.Send(query, cancellationToken);
                 return Results.Ok(result);
             })

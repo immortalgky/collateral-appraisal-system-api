@@ -21,5 +21,7 @@ public record AssignAppraisalCommand(
     /// Workflow routing decision: "EXT" routes to company-selection (external company),
     /// "INT" routes to int-appraisal-execution (internal assignment).
     /// </summary>
-    string DecisionTaken = "EXT"
+    string DecisionTaken = "EXT",
+    /// <summary>Admin remark persisted onto the assignment row alongside the assign action.</summary>
+    string? Remark = null
 ) : ICommand<AssignAppraisalResult>;

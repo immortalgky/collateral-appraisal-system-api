@@ -19,8 +19,10 @@ CREATE OR ALTER PROCEDURE [workflow].[sp_GetTaskList]
     @AppointmentDateTo    DATETIME2     = NULL,
     @RequestedAtFrom      DATETIME2     = NULL,
     @RequestedAtTo        DATETIME2     = NULL,
-    @SlaStatus            NVARCHAR(50)  = NULL,
+    @SlaStatus            NVARCHAR(50)  = NULL,  -- 'NoSla' sentinel = IS NULL; else equality
     @ActivityId           NVARCHAR(100) = NULL,
+    @Purpose              NVARCHAR(200) = NULL,
+    @TaskStatusBucket     NVARCHAR(20)  = NULL,  -- 'NotStarted' | 'InProgress' | 'Overdue' (mutually exclusive)
     -- Sort + paging
     @SortBy       SYSNAME    = NULL,
     @SortDir      VARCHAR(4) = 'DESC',
@@ -67,7 +69,7 @@ BEGIN
     ----------------------------------------------------------------------------
     DECLARE @NeedEnrich BIT = CASE WHEN
            @Status IS NOT NULL OR @Priority IS NOT NULL OR @AppraisalNumber IS NOT NULL
-        OR @CustomerName IS NOT NULL OR @Search IS NOT NULL
+        OR @CustomerName IS NOT NULL OR @Search IS NOT NULL OR @Purpose IS NOT NULL
         OR @AppointmentDateFrom IS NOT NULL OR @AppointmentDateTo IS NOT NULL
         OR @RequestedAtFrom IS NOT NULL OR @RequestedAtTo IS NOT NULL
         OR @SortBy IN ('AppraisalNumber','RequestNumber','CustomerName','Purpose','PropertyType',
@@ -171,7 +173,13 @@ BEGIN
           AND (@TaskType   IS NULL OR TaskName   = @TaskType)
           AND (@ActivityId IS NULL OR ActivityId = @ActivityId)
           AND (@TaskStatus IS NULL OR TaskStatus = @TaskStatus)
-          AND (@SlaStatus  IS NULL OR SlaStatus  = @SlaStatus)
+          AND (@SlaStatus IS NULL
+                 OR (@SlaStatus = 'NoSla' AND SlaStatus IS NULL)
+                 OR (@SlaStatus <> 'NoSla' AND SlaStatus = @SlaStatus))
+          AND (@TaskStatusBucket IS NULL
+                 OR (@TaskStatusBucket = 'NotStarted' AND TaskStatus = 'Assigned' AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
+                 OR (@TaskStatusBucket = 'InProgress' AND TaskStatus IN ('InProgress','Completing') AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
+                 OR (@TaskStatusBucket = 'Overdue' AND SlaStatus = 'Breached'))
           AND (@DateFrom   IS NULL OR AssignedAt >= @DateFrom)
           AND (@DateTo     IS NULL OR AssignedAt <  DATEADD(day, 1, @DateTo))
         ORDER BY Rn
@@ -199,7 +207,13 @@ BEGIN
           AND  (@TaskType   IS NULL OR TaskName   = @TaskType)
           AND  (@ActivityId IS NULL OR ActivityId = @ActivityId)
           AND  (@TaskStatus IS NULL OR TaskStatus = @TaskStatus)
-          AND  (@SlaStatus  IS NULL OR SlaStatus  = @SlaStatus)
+          AND  (@SlaStatus IS NULL
+                 OR (@SlaStatus = 'NoSla' AND SlaStatus IS NULL)
+                 OR (@SlaStatus <> 'NoSla' AND SlaStatus = @SlaStatus))
+          AND  (@TaskStatusBucket IS NULL
+                 OR (@TaskStatusBucket = 'NotStarted' AND TaskStatus = 'Assigned' AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
+                 OR (@TaskStatusBucket = 'InProgress' AND TaskStatus IN ('InProgress','Completing') AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
+                 OR (@TaskStatusBucket = 'Overdue' AND SlaStatus = 'Breached'))
           AND  (@DateFrom   IS NULL OR AssignedAt >= @DateFrom)
           AND  (@DateTo     IS NULL OR AssignedAt <  DATEADD(day, 1, @DateTo))
     ),
@@ -345,6 +359,7 @@ BEGIN
     FROM enriched
     WHERE (@Status          IS NULL OR AStatus = @Status)
       AND (@Priority        IS NULL OR Priority = @Priority)
+      AND (@Purpose         IS NULL OR Purpose = @Purpose)
       -- @AppraisalNumber / @CustomerName / @Search are applied per-branch in `resolved` (#f_cust/#f_appr/#f_search pushdown).
       AND (@AppointmentDateFrom IS NULL OR AppointmentDateTime >= @AppointmentDateFrom)
       AND (@AppointmentDateTo   IS NULL OR AppointmentDateTime <  DATEADD(day, 1, @AppointmentDateTo))
@@ -379,7 +394,13 @@ BEGIN
           AND  (@TaskType   IS NULL OR TaskName   = @TaskType)
           AND  (@ActivityId IS NULL OR ActivityId = @ActivityId)
           AND  (@TaskStatus IS NULL OR TaskStatus = @TaskStatus)
-          AND  (@SlaStatus  IS NULL OR SlaStatus  = @SlaStatus)
+          AND  (@SlaStatus IS NULL
+                 OR (@SlaStatus = 'NoSla' AND SlaStatus IS NULL)
+                 OR (@SlaStatus <> 'NoSla' AND SlaStatus = @SlaStatus))
+          AND  (@TaskStatusBucket IS NULL
+                 OR (@TaskStatusBucket = 'NotStarted' AND TaskStatus = 'Assigned' AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
+                 OR (@TaskStatusBucket = 'InProgress' AND TaskStatus IN ('InProgress','Completing') AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
+                 OR (@TaskStatusBucket = 'Overdue' AND SlaStatus = 'Breached'))
           AND  (@DateFrom   IS NULL OR AssignedAt >= @DateFrom)
           AND  (@DateTo     IS NULL OR AssignedAt <  DATEADD(day, 1, @DateTo))
     ),
@@ -491,6 +512,7 @@ BEGIN
     FROM light
     WHERE (@Status          IS NULL OR AStatus  = @Status)
       AND (@Priority        IS NULL OR Priority = @Priority)
+      AND (@Purpose         IS NULL OR Purpose = @Purpose)
       -- @AppraisalNumber / @CustomerName / @Search are applied per-branch in `resolved` (#f_cust/#f_appr/#f_search pushdown).
       AND (@RequestedAtFrom IS NULL OR RequestReceivedDate >= @RequestedAtFrom)
       AND (@RequestedAtTo   IS NULL OR RequestReceivedDate <  DATEADD(day, 1, @RequestedAtTo))

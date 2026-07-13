@@ -6,7 +6,8 @@ using Microsoft.AspNetCore.Routing;
 
 namespace Integration.Application.Features.WebhookSubscriptions.CreateWebhookSubscription;
 
-public record CreateWebhookSubscriptionRequest(string SystemCode, string CallbackUrl, string SecretKey);
+public record CreateWebhookSubscriptionRequest(
+    string SystemCode, string CallbackUrl, string SecretKey, string? EventType = null);
 
 public class CreateWebhookSubscriptionEndpoint : ICarterModule
 {
@@ -18,7 +19,7 @@ public class CreateWebhookSubscriptionEndpoint : ICarterModule
                 CancellationToken cancellationToken) =>
             {
                 var command = new CreateWebhookSubscriptionCommand(
-                    request.SystemCode, request.CallbackUrl, request.SecretKey);
+                    request.SystemCode, request.CallbackUrl, request.SecretKey, request.EventType);
                 var result = await sender.Send(command, cancellationToken);
                 return Results.Created($"/webhook-subscriptions/{result.Id}", result);
             })

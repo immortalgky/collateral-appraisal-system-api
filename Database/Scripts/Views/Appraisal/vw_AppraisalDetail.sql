@@ -14,6 +14,7 @@ SELECT a.Id,
            ELSE a.Status
        END AS Status,
        a.AppraisalType,
+       a.InspectionNumber,
        a.Priority,
        a.IsPma,
        a.Purpose,

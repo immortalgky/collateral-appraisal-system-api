@@ -30,6 +30,15 @@ public class
         builder.Property(c => c.ForcedSalePrice).HasPrecision(18, 2);
         builder.Property(c => c.BuildingInsurancePrice).HasPrecision(18, 2);
 
+        // External (LOS) sync tracking — set to Pending on PMA save, round-tripped to
+        // Delivered/Failed by the async webhook consumer (see AppraisalProperty.SetExternalSyncStatus).
+        builder.Property(c => c.ExternalSyncStatus)
+            .IsRequired()
+            .HasMaxLength(20)
+            .HasDefaultValue(ExternalSyncStatuses.NotSynced);
+        builder.Property(c => c.ExternalSyncError).HasMaxLength(2000);
+        builder.Property(c => c.ExternalSyncedAt);
+
 
         // PropertyType Value Object (stored as string)
         builder.OwnsOne(c => c.PropertyType, pt =>

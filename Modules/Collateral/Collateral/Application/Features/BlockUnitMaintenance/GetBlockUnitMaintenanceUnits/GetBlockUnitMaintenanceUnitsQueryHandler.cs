@@ -41,7 +41,10 @@ public class GetBlockUnitMaintenanceUnitsQueryHandler(
                    pu.LandArea,
                    pu.IsSold,
                    pu.PurchaseBy,
-                   pu.LoanBankName
+                   pu.LoanBankName,
+                   pu.LastAppraisedValue,
+                   pu.UpdatedAt,
+                   pu.UpdatedBy
             FROM   collateral.ProjectUnits pu
             WHERE  pu.CollateralMasterId = @CollateralMasterId
             ORDER BY pu.SequenceNumber;

@@ -11,11 +11,11 @@
     <div class="cols3">
       <div class="kv"><span class="k">เขตการปกครอง</span><span class="v">{{ model.administrative_district }}</span></div>
       <div class="kv"><span class="k">สำนักงานที่ดิน</span><span class="v">{{ model.land_office }}</span></div>
-      <div class="kv">{{ if model.is_increase_limit }}<span class="k">วงเงินสินเชื่อเดิม</span><span class="v">{{ if model.existing_loan_value; model.existing_loan_value | math.format "N2"; else; "-"; end }} บาท</span>{{ else if model.is_reappraisal }}<span class="k">ราคาประเมินเดิม</span><span class="v">{{ if model.old_appraisal_value; model.old_appraisal_value | math.format "N2"; else; "-"; end }}</span>{{ end }}</div>
+      <div class="kv">{{ if model.is_increase_limit }}<span class="k">วงเงินสินเชื่อเดิม</span><span class="v">{{ if model.existing_loan_value; model.existing_loan_value | math.format "N2"; else; "-"; end }} บาท</span>{{ else if model.is_re_appraisal }}<span class="k">ราคาประเมินเดิม</span><span class="v">{{ if model.old_appraisal_value; model.old_appraisal_value | math.format "N2"; else; "-"; end }}</span>{{ end }}</div>
     </div>
     <div class="cols3">
       <div class="kv" style="grid-column:span 2;"><span class="k">ผู้ประเมินราคา</span><span class="v">{{ model.appraiser }}</span></div>
-      <div class="kv">{{ if !model.is_reappraisal }}<span class="k">{{ if model.is_increase_limit }}ขอเพิ่มวงเงิน{{ else }}วงเงินสินเชื่อ{{ end }}</span><span class="v">{{ if model.loan_value; model.loan_value | math.format "N2"; else; "-"; end }} บาท</span>{{ end }}</div>
+      <div class="kv">{{ if !model.is_re_appraisal }}<span class="k">{{ if model.is_increase_limit }}ขอเพิ่มวงเงิน{{ else }}วงเงินสินเชื่อ{{ end }}</span><span class="v">{{ if model.loan_value; model.loan_value | math.format "N2"; else; "-"; end }} บาท</span>{{ end }}</div>
     </div>
   </div>
 
@@ -126,7 +126,7 @@
     <div class="kv"><span class="k">พิกัด</span><span class="v">{{ model.gps }}</span></div>
     <div class="cols2">
       <div class="kv"><span class="k">ราคาประเมินราชการ</span><span class="v">{{ model.government_price_text }}</span></div>
-      <div class="kv"><span class="k">การใช้ประโยชน์</span><span class="v">{{ for u in model.utilizations }}{{ u }}{{ if !for.last }}<br>{{ end }}{{ end }}</span></div>
+      <div class="kv"><span class="k">สภาพการใช้ประโยชน์</span><span class="v">{{ for u in model.utilizations }}{{ u }}{{ if !for.last }}<br>{{ end }}{{ end }}</span></div>
     </div>
     <div class="kv" style="margin-top:3px;">
       <span class="k">วิธีการประเมิน</span>

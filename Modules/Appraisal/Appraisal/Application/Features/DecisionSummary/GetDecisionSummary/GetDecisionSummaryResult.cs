@@ -11,7 +11,8 @@ public record GetDecisionSummaryResult(
 
     // Government Appraisal Prices (read-only)
     IReadOnlyList<GovernmentPriceRow> GovernmentPrices,
-    decimal GovernmentPriceTotalArea,
+    decimal GovernmentPriceTotalArea,     // all titles incl. missing-from-survey (total land area)
+    decimal GovernmentPriceSurveyedArea,  // non-missing titles only — the area the AVG is computed over
     decimal GovernmentPriceAvgPerSqWa,
 
     // Review fields (sourced from ValuationAnalyses — populated by event handler, overridden by Book Verification save)

@@ -45,6 +45,8 @@ public static class TaskListProcParams
         p.Add("RequestedAtTo", filter?.RequestedAtTo);
         p.Add("SlaStatus", N(filter?.SlaStatus));
         p.Add("ActivityId", N(filter?.ActivityId));
+        p.Add("Purpose", N(filter?.Purpose));
+        p.Add("TaskStatusBucket", N(filter?.TaskStatusBucket));
 
         p.Add("SortBy", N(filter?.SortBy));
         p.Add("SortDir", N(filter?.SortDir) ?? "DESC");

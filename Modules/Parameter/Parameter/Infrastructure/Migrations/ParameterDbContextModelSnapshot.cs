@@ -18,7 +18,7 @@ namespace Parameter.Infrastructure.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("parameter")
-                .HasAnnotation("ProductVersion", "9.0.5")
+                .HasAnnotation("ProductVersion", "9.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -308,6 +308,22 @@ namespace Parameter.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("ConstructionWorkItems", "parameter");
+                });
+
+            modelBuilder.Entity("Parameter.Dealers.Models.Dealer", b =>
+                {
+                    b.Property<string>("DealerCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("DealerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("DealerCode");
+
+                    b.ToTable("Dealers", "parameter");
                 });
 
             modelBuilder.Entity("Parameter.DocumentRequirements.Models.DocumentRequirement", b =>

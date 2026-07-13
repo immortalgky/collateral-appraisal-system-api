@@ -30,6 +30,8 @@ public record GetMeetingsQuery(
     string? CustomerName = null,
     DateTime? FromDate = null,
     DateTime? ToDate = null,
+    string? SortBy = null,
+    string? SortDir = null,
     int PageNumber = 0,
     int PageSize = 20) : IQuery<PaginatedResult<MeetingListItemDto>>;
 
@@ -43,13 +45,24 @@ public record MeetingListItemDto(
     string? Location,
     int ItemCount,
     DateTime? CutOffAt,
-    DateTime? InvitationSentAt);
+    DateTime? InvitationSentAt,
+    DateTime? UpdatedAt,
+    string? UpdatedBy);
 
 public class GetMeetingsQueryHandler(
     ISqlConnectionFactory connectionFactory,
     IDateTimeProvider dateTimeProvider)
     : IQueryHandler<GetMeetingsQuery, PaginatedResult<MeetingListItemDto>>
 {
+    // Whitelist of sortable columns (frontend key → safe SQL expression). Guards against
+    // SQL injection since the value is interpolated into ORDER BY.
+    private static readonly Dictionary<string, string> SortColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["meetingNo"] = "m.MeetingNoSeq",
+        ["startAt"] = "m.StartAt",
+        ["itemCount"] = "ItemCount",
+    };
+
     /// <summary>
     /// Effective-status CASE expression:
     ///   InvitationSent + StartAt &lt;= now  → 'InProgress'  (computed, never persisted)
@@ -80,8 +93,11 @@ public class GetMeetingsQueryHandler(
                                    m.Location,
                                    (SELECT COUNT(1) FROM workflow.MeetingItems i WHERE i.MeetingId = m.Id) AS ItemCount,
                                    m.CutOffAt,
-                                   m.InvitationSentAt
+                                   m.InvitationSentAt,
+                                   m.UpdatedAt,
+                                   COALESCE(NULLIF(LTRIM(RTRIM(u.FirstName + ' ' + u.LastName)), ''), m.UpdatedBy) AS UpdatedBy
                                FROM workflow.Meetings m
+                               LEFT JOIN auth.AspNetUsers u ON u.UserName = m.UpdatedBy
                                WHERE (
                                    @Status IS NULL
                                    OR (
@@ -122,32 +138,51 @@ public class GetMeetingsQueryHandler(
                                )
                                AND (
                                    @Search IS NULL
-                                   OR m.MeetingNo LIKE '%' + @Search + '%'
+                                   OR m.MeetingNo LIKE @Search
                                    OR EXISTS (
                                        SELECT 1
                                        FROM workflow.MeetingItems mi
                                        INNER JOIN [appraisal].[Appraisals] a ON a.Id = mi.AppraisalId
                                        INNER JOIN [request].[RequestCustomers] rc ON rc.RequestId = a.RequestId
                                        WHERE mi.MeetingId = m.Id
-                                         AND rc.Name LIKE '%' + @Search + '%'
+                                         AND rc.Name LIKE @Search
                                    )
                                )
                                """;
+
+    // Prefix match by default ("term%") so an indexed seek is possible; a leading-wildcard
+    // contains-search scans every row, so it is opt-in — the user types '*' wherever they want
+    // a wildcard (e.g. "*abc" → "%abc", "ab*cd" → "ab%cd", "*abc*" → "%abc%").
+    private static string? BuildSearchPattern(string? search)
+    {
+        if (string.IsNullOrWhiteSpace(search)) return null;
+        var term = search.Trim();
+        return term.Contains('*') ? term.Replace('*', '%') : term + "%";
+    }
 
     public async Task<PaginatedResult<MeetingListItemDto>> Handle(
         GetMeetingsQuery query, CancellationToken cancellationToken)
     {
         var request = new PaginationRequest(query.PageNumber, query.PageSize);
+
+        var orderBy = "m.StartAt, m.MeetingNoSeq";
+        if (!string.IsNullOrWhiteSpace(query.SortBy) && SortColumns.TryGetValue(query.SortBy, out var col))
+        {
+            var dir = string.Equals(query.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
+            // Stable tiebreaker so pagination stays deterministic on ties.
+            orderBy = col == "m.MeetingNoSeq" ? $"{col} {dir}" : $"{col} {dir}, m.MeetingNoSeq";
+        }
+
         return await connectionFactory.QueryPaginatedAsync<MeetingListItemDto>(
             Sql,
-            "m.StartAt, m.MeetingNoSeq",
+            orderBy,
             request,
             new
             {
                 Now = dateTimeProvider.ApplicationNow,
                 Status = query.Status,
                 IsHistory = query.IsHistory,
-                Search = string.IsNullOrWhiteSpace(query.Search) ? null : query.Search.Trim(),
+                Search = BuildSearchPattern(query.Search),
                 MeetingNo = string.IsNullOrWhiteSpace(query.MeetingNo) ? null : query.MeetingNo.Trim(),
                 CustomerName = string.IsNullOrWhiteSpace(query.CustomerName) ? null : query.CustomerName.Trim(),
                 FromDate = query.FromDate,

@@ -1,6 +1,7 @@
 using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Projects;
 using Collateral.Contracts.BlockUnits;
+using Collateral.Contracts.Engagements;
 using MediatR;
 using Request.Contracts.Requests.Dtos;
 using Shared.Identity;
@@ -139,6 +140,15 @@ public class AppraisalCreationService(
 
         if (isProgressive)
         {
+            // Stamp which inspection round this is (1st, 2nd, ...). Count basis = completed Progressive
+            // inspections already on the same collateral (resolved from the prior appraisal's master),
+            // + 1. Engagement rows only exist for completed appraisals, so this appraisal isn't counted
+            // against itself.
+            var priorInspectionCount = await sender.Send(
+                new GetProgressiveInspectionCountByPriorAppraisalQuery(prevAppraisalId!.Value),
+                cancellationToken);
+            appraisal.SetInspectionNumber(priorInspectionCount + 1);
+
             // Step 4 (Progressive path): Deep-copy properties from the prior appraisal.
             // ConstructionInspection (per-property) detail is intentionally excluded — it stays empty for fresh tracking.
             priorToNewProperties = await CopyPropertiesFromPriorAppraisalAsync(

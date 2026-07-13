@@ -53,6 +53,7 @@ public class GetQuotationByIdQueryHandler(
                 CompanyName: visibleCompanyNames.GetValueOrDefault(cq.CompanyId),
                 QuotationNumber: cq.QuotationNumber,
                 Status: cq.Status,
+                DeclineReason: cq.DeclineReason,
                 // CompanyQuotation.CreateDraft initialises SubmittedAt = default(DateTime), which serialises
                 // as "0001-01-01T00:00:00" and renders as junk in the UI. Only emit a real value once the
                 // company has actually submitted (or progressed past Draft/PendingCheckerReview).

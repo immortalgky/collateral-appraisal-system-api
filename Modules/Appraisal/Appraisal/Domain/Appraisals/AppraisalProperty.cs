@@ -15,6 +15,13 @@ public class AppraisalProperty : Entity<Guid>
     public decimal? BuildingInsurancePrice { get; private set;}
     public string? Description { get; private set; }
 
+    // External (LOS) sync tracking — set to Pending on PMA save, then round-tripped to
+    // Delivered/Failed by PmaExternalSyncStatusChangedIntegrationEventHandler once the
+    // Integration module's async webhook delivery completes. See ExternalSyncStatuses below.
+    public string ExternalSyncStatus { get; private set; } = ExternalSyncStatuses.NotSynced;
+    public string? ExternalSyncError { get; private set; }
+    public DateTime? ExternalSyncedAt { get; private set; }
+
     // Navigation Properties - 1:1 with detail tables (based on PropertyType)
     // For LandAndBuilding type, BOTH LandDetail AND BuildingDetail are populated
     public LandAppraisalDetail? LandDetail { get; private set; }
@@ -85,6 +92,21 @@ public class AppraisalProperty : Entity<Guid>
         SellingPrice = sellingPrice;
         ForcedSalePrice = forcedSalePrice;
         BuildingInsurancePrice = buildingInsurancePrice;
+    }
+
+    /// <summary>
+    /// Sets the outcome of the async external (LOS) PMA sync for this property. Called with
+    /// <see cref="ExternalSyncStatuses.Pending"/> on PMA save, and later with
+    /// <see cref="ExternalSyncStatuses.Delivered"/>/<see cref="ExternalSyncStatuses.Failed"/> by the
+    /// round-tripped PmaExternalSyncStatusChangedIntegrationEvent consumer. Stamped with the
+    /// caller's clock (IDateTimeProvider.ApplicationNow) rather than DateTime.Now/UtcNow.
+    /// </summary>
+    public void SetExternalSyncStatus(string status, string? error, DateTime at)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(status);
+        ExternalSyncStatus = status;
+        ExternalSyncError = error;
+        ExternalSyncedAt = at;
     }
 
     #region Set Detail Methods
@@ -223,4 +245,18 @@ public class AppraisalProperty : Entity<Guid>
     }
 
     #endregion
+}
+
+/// <summary>
+/// String values for <see cref="AppraisalProperty.ExternalSyncStatus"/>. NotSynced/Pending are set
+/// locally by the Land/Condo PMA save handlers; Delivered/Failed are round-tripped from the
+/// Integration module via PmaExternalSyncStatusChangedIntegrationEvent (see
+/// Shared.Messaging.Events.PmaExternalSyncStatus for the matching wire-level constants).
+/// </summary>
+public static class ExternalSyncStatuses
+{
+    public const string NotSynced = "NotSynced";
+    public const string Pending = "Pending";
+    public const string Delivered = "Delivered";
+    public const string Failed = "Failed";
 }

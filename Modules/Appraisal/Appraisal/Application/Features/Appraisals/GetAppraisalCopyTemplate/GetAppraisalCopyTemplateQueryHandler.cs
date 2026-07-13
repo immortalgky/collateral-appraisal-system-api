@@ -1,4 +1,6 @@
+using Collateral.Contracts.Engagements;
 using Dapper;
+using MediatR;
 using Request.Contracts.RequestDocuments.Dto;
 using Request.Contracts.Requests.Dtos;
 
@@ -10,7 +12,8 @@ namespace Appraisal.Application.Features.Appraisals.GetAppraisalCopyTemplate;
 /// live in the same SQL Server database so the join is free.
 /// </summary>
 public class GetAppraisalCopyTemplateQueryHandler(
-    ISqlConnectionFactory connectionFactory
+    ISqlConnectionFactory connectionFactory,
+    ISender sender
 ) : IQueryHandler<GetAppraisalCopyTemplateQuery, AppraisalCopyTemplateDto>
 {
     public async Task<AppraisalCopyTemplateDto> Handle(
@@ -116,11 +119,18 @@ public class GetAppraisalCopyTemplateQueryHandler(
 
         // ── Map to DTOs ───────────────────────────────────────────────────
 
+        // If a NEW Construction-Inspection request copies this appraisal, this is the round it would
+        // be: completed Progressive inspections already on this collateral + 1. Computed for every
+        // copy-template call (cheap count); the FE only surfaces it for CI purposes.
+        var priorInspectionCount = await sender.Send(
+            new GetProgressiveInspectionCountByPriorAppraisalQuery(header.AppraisalId), cancellationToken);
+
         var prevAppraisal = new PrevAppraisalSnapshotDto(
             header.AppraisalId,
             header.AppraisalNumber,
             header.AppraisalValue,       // From appraisal.ValuationAnalyses.AppraisedValue (LEFT JOIN; null if no valuation yet)
-            header.AppointmentDate);
+            header.AppointmentDate,
+            priorInspectionCount + 1);
 
         var detail = new RequestDetailCopyDto(
             header.HasAppraisalBook,

@@ -53,20 +53,25 @@ public class SubmitDraftToCheckerCommandHandler(
             throw new BadRequestException(
                 $"Cannot submit to checker: existing quotation is in status '{companyQuotation.Status}'");
 
-        var zeroFeeItems = companyQuotation.Items
-            .Where(i => i.FeeAmount - i.Discount - (i.NegotiatedDiscount ?? 0) <= 0)
-            .ToList();
-        if (zeroFeeItems.Any())
-            throw new BadRequestException("All items must have a fee after discount greater than 0 before submitting to checker.");
+        // Pricing/completeness guards apply only to a participating bid. A "not participate" draft
+        // (DeclineReason set) carries no priced items and is sent to the checker as-is.
+        if (string.IsNullOrWhiteSpace(companyQuotation.DeclineReason))
+        {
+            var zeroFeeItems = companyQuotation.Items
+                .Where(i => i.FeeAmount - i.Discount - (i.NegotiatedDiscount ?? 0) <= 0)
+                .ToList();
+            if (zeroFeeItems.Any())
+                throw new BadRequestException("All items must have a fee after discount greater than 0 before submitting to checker.");
 
-        // Completeness guard: Fee Amount and Estimated Days are mandatory per item. The draft may be
-        // saved incomplete, but promoting it to Checker review requires every item to be fully priced.
-        if (companyQuotation.Items.Count == 0)
-            throw new BadRequestException("Cannot submit to checker: the quotation has no items");
+            // Completeness guard: Fee Amount and Estimated Days are mandatory per item. The draft may be
+            // saved incomplete, but promoting it to Checker review requires every item to be fully priced.
+            if (companyQuotation.Items.Count == 0)
+                throw new BadRequestException("Cannot submit to checker: the quotation has no items");
 
-        if (companyQuotation.Items.Any(i => i.FeeAmount <= 0 || i.EstimatedDays <= 0))
-            throw new BadRequestException(
-                "Cannot submit to checker: every item must have a Fee Amount and Estimated Days greater than zero");
+            if (companyQuotation.Items.Any(i => i.FeeAmount <= 0 || i.EstimatedDays <= 0))
+                throw new BadRequestException(
+                    "Cannot submit to checker: every item must have a Fee Amount and Estimated Days greater than zero");
+        }
 
         var makerUsername = currentUser.Username
             ?? currentUser.UserId?.ToString()

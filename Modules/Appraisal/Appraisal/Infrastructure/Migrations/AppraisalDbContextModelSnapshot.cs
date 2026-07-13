@@ -435,6 +435,9 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
+                    b.Property<int?>("InspectionNumber")
+                        .HasColumnType("int");
+
                     b.Property<bool>("IsPma")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -624,6 +627,9 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("DraftSavedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("ExternalAppraiserId")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -670,6 +676,10 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<string>("RejectionReason")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Remark")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<DateTime?>("SLADueDate")
                         .HasColumnType("datetime2")
@@ -1256,6 +1266,20 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ExternalSyncError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("ExternalSyncStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("NotSynced");
+
+                    b.Property<DateTime?>("ExternalSyncedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<decimal?>("ForcedSalePrice")
                         .HasPrecision(18, 2)

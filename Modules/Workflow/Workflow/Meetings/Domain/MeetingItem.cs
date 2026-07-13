@@ -8,6 +8,7 @@ public class MeetingItem : Entity<Guid>
     public Guid AppraisalId { get; private set; }
     public string? AppraisalNo { get; private set; }
     public decimal FacilityLimit { get; private set; }
+    public decimal AppraisalValue { get; private set; }
 
     /// <summary>Only populated for Decision items (null for Acknowledgement items).</summary>
     public Guid? WorkflowInstanceId { get; private set; }
@@ -49,6 +50,7 @@ public class MeetingItem : Entity<Guid>
         Guid appraisalId,
         string? appraisalNo,
         decimal facilityLimit,
+        decimal appraisalValue,
         string? appraisalType,
         Guid workflowInstanceId,
         string activityId)
@@ -60,6 +62,7 @@ public class MeetingItem : Entity<Guid>
             AppraisalId = appraisalId,
             AppraisalNo = appraisalNo,
             FacilityLimit = facilityLimit,
+            AppraisalValue = appraisalValue,
             WorkflowInstanceId = workflowInstanceId,
             ActivityId = activityId,
             AddedAt = DateTime.Now,
@@ -77,6 +80,7 @@ public class MeetingItem : Entity<Guid>
         Guid appraisalId,
         string? appraisalNo,
         decimal facilityLimit,
+        decimal appraisalValue,
         string? appraisalType,
         string acknowledgementGroup,
         Guid? sourceAppraisalDecisionId)
@@ -90,6 +94,7 @@ public class MeetingItem : Entity<Guid>
             AppraisalId = appraisalId,
             AppraisalNo = appraisalNo,
             FacilityLimit = facilityLimit,
+            AppraisalValue = appraisalValue,
             WorkflowInstanceId = null,
             ActivityId = null,
             AddedAt = DateTime.Now,

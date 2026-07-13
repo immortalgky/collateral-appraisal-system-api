@@ -264,7 +264,7 @@ public sealed class AppraisalSummaryCondoDataProvider(
             CollateralAddress = common.CollateralAddress,
             AdministrativeDistrict = firstCondo?.SubDistrict,
             LandOffice = firstCondo?.LandOffice,
-            OldAppraisalValue = null,
+            OldAppraisalValue = common.PrevAppraisedValue,
             IsReAppraisal = string.Equals(common.AppraisalType, "ReAppraisal", StringComparison.OrdinalIgnoreCase),
             IsIncreaseLimit = common.IsIncreaseLimit,
             ExistingLoanValue = common.ExistingLoanValue,

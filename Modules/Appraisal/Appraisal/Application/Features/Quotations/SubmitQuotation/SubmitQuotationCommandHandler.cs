@@ -73,9 +73,6 @@ public class SubmitQuotationCommandHandler(
                 quotationNumber: command.QuotationNumber,
                 submittedAt: dateTimeProvider.ApplicationNow);
 
-            ApplyScalarFields(companyQuotation, command);
-            AddItems(companyQuotation, command.Items);
-
             quotationRequest.AddQuotation(companyQuotation);
             submitRole = "ExtAdmin";
         }
@@ -91,12 +88,6 @@ public class SubmitQuotationCommandHandler(
                     "You do not hold the active Checker task for this quotation. Only the current task owner may make a final submission.");
 
             companyQuotation = existingQuotation;
-            ApplyScalarFields(companyQuotation, command);
-            companyQuotation.ClearItems();
-            AddItems(companyQuotation, command.Items);
-            companyQuotation.MarkSubmitted(dateTimeProvider.ApplicationNow);
-
-            quotationRequest.RecalculateQuotationsReceived();
             submitRole = "ExtAppraisalChecker";
         }
         else if (existingQuotation.Status == "Draft")
@@ -112,14 +103,50 @@ public class SubmitQuotationCommandHandler(
                 $"Cannot submit quotation: existing quotation is in status '{existingQuotation.Status}'");
         }
 
-        // Mark invitation as submitted (idempotent)
-        invitation.MarkSubmitted();
+        // ─── Finalise: "not participate" → Declined, otherwise → Submitted ───────
+        // The checker may flip the maker's decision either way; command.NotParticipating is authoritative.
+        string decisionTaken;
+        string activityName;
+        string? activityRemark = null;
+
+        if (command.NotParticipating)
+        {
+            var reason = !string.IsNullOrWhiteSpace(command.DeclineReason)
+                ? command.DeclineReason
+                : companyQuotation.DeclineReason ?? string.Empty;
+            var declinedBy = currentUser.Username ?? currentUser.UserId?.ToString() ?? command.CompanyId.ToString();
+
+            companyQuotation.SetNotParticipating(reason); // clear any pricing / items
+            companyQuotation.Decline(reason, declinedBy, dateTimeProvider.ApplicationNow);
+
+            if (invitation.Status == "Pending")
+                invitation.Decline();
+
+            decisionTaken = "Decline";
+            activityName = QuotationActivityNames.InvitationDeclined;
+            activityRemark = reason; // surfaced on the bank-side tracking log
+        }
+        else
+        {
+            companyQuotation.ClearDeclineIntent(); // was a not-participate draft the checker flipped to a bid
+            ApplyScalarFields(companyQuotation, command);
+            companyQuotation.ClearItems();
+            AddItems(companyQuotation, command.Items);
+            companyQuotation.MarkSubmitted(dateTimeProvider.ApplicationNow);
+
+            invitation.MarkSubmitted();
+            quotationRequest.RecalculateQuotationsReceived();
+
+            decisionTaken = "Submit";
+            activityName = QuotationActivityNames.QuotationSubmitted;
+        }
 
         activityLogger.Log(
             quotationRequest.Id,
             companyQuotation.Id,
             command.CompanyId,
-            QuotationActivityNames.QuotationSubmitted,
+            activityName,
+            remark: activityRemark,
             actionByRole: submitRole);
 
         var autoClosed = quotationRequest.TryAutoCloseAfterAllResponses(dateTimeProvider.ApplicationNow);
@@ -135,12 +162,22 @@ public class SubmitQuotationCommandHandler(
             }, correlationId: quotationRequest.Id.ToString());
         }
 
-        // Resume fan-out step in quotation child workflow for this company's submission
+        if (command.NotParticipating)
+        {
+            outbox.Publish(new QuotationInvitationDeclinedIntegrationEvent
+            {
+                QuotationRequestId = quotationRequest.Id,
+                CompanyId = command.CompanyId,
+                Reason = companyQuotation.DeclineReason ?? string.Empty
+            }, correlationId: quotationRequest.Id.ToString());
+        }
+
+        // Resume fan-out step in quotation child workflow for this company's decision
         outbox.Publish(new QuotationWorkflowResumeIntegrationEvent
         {
             QuotationRequestId = quotationRequest.Id,
             ActivityId = "ext-collect-submissions",
-            DecisionTaken = "Submit",
+            DecisionTaken = decisionTaken,
             CompletedBy = currentUser.Username ?? currentUser.UserId?.ToString() ?? string.Empty,
             CompanyId = command.CompanyId
         }, correlationId: quotationRequest.Id.ToString());

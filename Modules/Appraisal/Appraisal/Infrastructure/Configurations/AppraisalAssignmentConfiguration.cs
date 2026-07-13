@@ -96,6 +96,8 @@ public class AppraisalAssignmentConfiguration : IEntityTypeConfiguration<Apprais
             .HasMaxLength(500);
         builder.Property(a => a.Notes)
             .HasMaxLength(4000);
+        builder.Property(a => a.Remark)
+            .HasMaxLength(4000);
 
         // Self-referencing FK for reassignment chain
         builder.HasOne<AppraisalAssignment>()

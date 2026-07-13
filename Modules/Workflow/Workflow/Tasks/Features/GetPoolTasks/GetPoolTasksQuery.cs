@@ -22,7 +22,9 @@ public record GetPoolTasksFilterRequest(
     string? SortBy = null,
     string? SortDir = null,
     string? SlaStatus = null,
-    string? ActivityId = null
+    string? ActivityId = null,
+    string? Purpose = null,
+    string? TaskStatusBucket = null
 ) : ITaskListFilter;
 
 public record GetPoolTasksQuery(

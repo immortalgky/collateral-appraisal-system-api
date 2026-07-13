@@ -940,7 +940,10 @@ public class AuthDataSeed(
             adminRole = new ApplicationRole
             {
                 Name = AdminRoleName,
-                Description = "Full system access — auto-granted every permission by the seeder."
+                Description = "Full system access — auto-granted every permission by the seeder.",
+                // CA-497: Scope must be non-null so the Edit-Roles modal can deselect this role
+                // from a user (a null Scope made it appear "unassignable/unremovable" in the UI).
+                Scope = "Bank"
             };
 
             var createResult = await roleManager.CreateAsync(adminRole);
