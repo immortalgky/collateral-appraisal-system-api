@@ -175,15 +175,17 @@ public class MonitoringActivityMapTests
     }
 
     [Fact]
-    public void BuildActivityScopeSql_TeamScopeWithNoUsername_DropsTeamBranchAndFailsClosed()
+    public void BuildActivityScopeSql_TeamScopeWithNoUsername_FailsClosed()
     {
         var service = new MonitoringScopeService(new FakeCurrentUserService([], username: null));
         var parameters = new DynamicParameters();
 
-        // Team-only scope + no username ⇒ no visible activities (null fragment, no MeNorm leaked).
+        // Team-only scope + no username ⇒ the shared predicate fails closed to "1 = 0", so the
+        // team branch can never match. No MeNorm is leaked. (The clause is non-null so a caller
+        // ANDing it restricts to nothing rather than failing open.)
         var sql = service.BuildActivityScopeSql(new MonitoringScope([], ["x"]), parameters);
 
-        sql.Should().BeNull();
+        sql.Should().Contain("1 = 0");
         parameters.ParameterNames.Should().NotContain("MeNorm");
     }
 }

@@ -9,6 +9,7 @@ using Workflow.AssigneeSelection.Pipeline;
 using Workflow.AssigneeSelection.Teams;
 using Workflow.Data;
 using Workflow.Services.Groups;
+using Workflow.Services.TaskMonitor;
 using Workflow.Tasks.Features.ReassignTask;
 using Workflow.Tasks.Models;
 using Workflow.Workflow.Activities.Core;
@@ -26,6 +27,7 @@ public class ReassignTaskCommandHandlerTests : IDisposable
     private readonly WorkflowDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
     private readonly IGroupMonitoringService _groupMonitoringService;
+    private readonly ITaskMonitorScope _taskMonitorScope;
     private readonly IWorkflowInstanceRepository _instanceRepository;
     private readonly IAssignmentPipeline _assignmentPipeline;
     private readonly ReassignTaskCommandHandler _handler;
@@ -39,6 +41,7 @@ public class ReassignTaskCommandHandlerTests : IDisposable
 
         _currentUserService = Substitute.For<ICurrentUserService>();
         _groupMonitoringService = Substitute.For<IGroupMonitoringService>();
+        _taskMonitorScope = Substitute.For<ITaskMonitorScope>();
         _instanceRepository = Substitute.For<IWorkflowInstanceRepository>();
         _assignmentPipeline = Substitute.For<IAssignmentPipeline>();
 
@@ -51,6 +54,7 @@ public class ReassignTaskCommandHandlerTests : IDisposable
             _dbContext,
             _currentUserService,
             _groupMonitoringService,
+            _taskMonitorScope,
             _instanceRepository,
             _assignmentPipeline,
             dateTimeProvider,
@@ -59,6 +63,8 @@ public class ReassignTaskCommandHandlerTests : IDisposable
         // Default happy-path stubs
         _currentUserService.Username.Returns("supervisor");
         _groupMonitoringService.IsUserSupervisedByAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        _taskMonitorScope.IsTargetInScopeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(true);
     }
 
@@ -206,6 +212,23 @@ public class ReassignTaskCommandHandlerTests : IDisposable
 
         result.IsSuccess.Should().BeFalse();
         result.ErrorMessage.Should().Be("You do not supervise this user");
+    }
+
+    // ── Validation: task outside the team-scoped supervisor's team/company ─────
+
+    [Fact]
+    public async Task Handle_TaskOutsideTeamScope_ReturnsFail()
+    {
+        var task = await SeedTaskAsync("alice");
+        // Supervisor monitors alice's group, but alice is outside the supervisor's team/company scope.
+        _taskMonitorScope.IsTargetInScopeAsync("TASK_MONITOR_REASSIGN", "alice", Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        var result = await _handler.Handle(
+            new ReassignTaskCommand(task.Id, "bob"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Be("This task is outside your team/company scope");
     }
 
     // ── Validation: new assignee not eligible ─────────────────────────────────

@@ -13,6 +13,7 @@ public class ReassignTaskCommandHandler(
     WorkflowDbContext dbContext,
     ICurrentUserService currentUserService,
     IGroupMonitoringService groupMonitoringService,
+    ITaskMonitorScope taskMonitorScope,
     IWorkflowInstanceRepository instanceRepository,
     IAssignmentPipeline assignmentPipeline,
     IDateTimeProvider dateTimeProvider,
@@ -54,6 +55,13 @@ public class ReassignTaskCommandHandler(
             task.AssignedTo, currentUser, cancellationToken);
         if (!isSupervisor)
             return new ReassignTaskResult(false, ErrorMessage: "You do not supervise this user");
+
+        // 7b. :TEAM scope — a team-scoped supervisor may only act on tasks whose current assignee is
+        // within their own team (internal) or company (external), matching what they can see.
+        var isInScope = await taskMonitorScope.IsTargetInScopeAsync(
+            "TASK_MONITOR_REASSIGN", task.AssignedTo, cancellationToken);
+        if (!isInScope)
+            return new ReassignTaskResult(false, ErrorMessage: "This task is outside your team/company scope");
 
         // 8. Target must be eligible for the activity
         var isEligible = await IsNewAssigneeEligibleAsync(task, command.NewAssignedTo, cancellationToken);
