@@ -79,7 +79,7 @@ public class OpenTaskCommandHandler(
             """
             SELECT TOP 1 Id FROM appraisal.Appraisals
             WHERE RequestId = @CorrelationId
-            ORDER BY CreatedAt DESC
+            ORDER BY Id
             """,
             new { task.CorrelationId });
 

@@ -49,7 +49,7 @@ public class GetTaskByIdQueryHandler(
                 qra_first.AppraisalId,
                 (SELECT TOP 1 Id FROM appraisal.Appraisals
                  WHERE RequestId = pt.CorrelationId
-                 ORDER BY CreatedAt DESC)
+                 ORDER BY Id)
             )                                  AS AppraisalId
         FROM workflow.PendingTasks pt
         -- Followup tasks: resolve RequestId / AppraisalId via FollowupWorkflowInstanceId

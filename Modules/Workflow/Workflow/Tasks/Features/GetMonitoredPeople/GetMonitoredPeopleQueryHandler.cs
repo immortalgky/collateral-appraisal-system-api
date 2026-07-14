@@ -7,7 +7,8 @@ namespace Workflow.Tasks.Features.GetMonitoredPeople;
 
 public class GetMonitoredPeopleQueryHandler(
     ISqlConnectionFactory connectionFactory,
-    ICurrentUserService currentUserService
+    ICurrentUserService currentUserService,
+    ITaskMonitorScope taskMonitorScope
 ) : IQueryHandler<GetMonitoredPeopleQuery, GetMonitoredPeopleResult>
 {
     private static readonly HashSet<string> AllowedSortFields = new(StringComparer.OrdinalIgnoreCase)
@@ -47,6 +48,12 @@ public class GetMonitoredPeopleQueryHandler(
 
         var parameters = new DynamicParameters();
         parameters.Add("SupervisorNormalizedUserName", currentUser?.ToUpperInvariant() ?? "");
+
+        // Additional :TEAM scope: when the user holds only TASK_MONITOR_VIEW:TEAM (not the base
+        // permission), confine the aggregate to their own team (internal) or company (external).
+        var teamScopeClause = taskMonitorScope.BuildScopeClause("TASK_MONITOR_VIEW", parameters);
+        if (teamScopeClause is not null)
+            baseSql += " AND " + teamScopeClause;
 
         var search = query.Filter?.Search;
         if (!string.IsNullOrWhiteSpace(search))
