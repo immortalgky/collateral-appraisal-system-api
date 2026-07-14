@@ -24,22 +24,44 @@ public class GetPendingQuotationsSummaryQueryHandler(ISqlConnectionFactory conne
         var filter = query.Filter;
         if (filter.Status is { Length: > 0 })
         {
-            conditions.Add("Status IN @Statuses");
+            conditions.Add("q.Status IN @Statuses");
             parameters.Add("Statuses", filter.Status);
         }
         else
         {
-            conditions.Add("Status NOT IN ('Closed', 'Finalized', 'Cancelled')");
+            conditions.Add("q.Status NOT IN ('Closed', 'Finalized', 'Cancelled')");
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.Search))
+        // Per-field search — keep the count consistent with the list handler's predicates.
+        if (!string.IsNullOrWhiteSpace(filter.QuotationNo))
         {
-            conditions.Add("(QuotationNumber LIKE @Search ESCAPE '\\' OR RequestedBy LIKE @Search ESCAPE '\\')");
-            parameters.Add("Search", "%" + EscapeLike(filter.Search.Trim()) + "%");
+            conditions.Add(@"q.QuotationNumber LIKE @QuotationNoPattern ESCAPE '\'");
+            parameters.Add("QuotationNoPattern", "%" + EscapeLike(filter.QuotationNo.Trim()) + "%");
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.AppraisalNo))
+        {
+            conditions.Add(@"EXISTS (
+    SELECT 1 FROM appraisal.QuotationRequestAppraisals qra
+    JOIN appraisal.Appraisals a ON a.Id = qra.AppraisalId
+    WHERE qra.QuotationRequestId = q.Id
+      AND a.AppraisalNumber LIKE @AppraisalNoPattern ESCAPE '\')");
+            parameters.Add("AppraisalNoPattern", "%" + EscapeLike(filter.AppraisalNo.Trim()) + "%");
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.CustomerName))
+        {
+            conditions.Add(@"EXISTS (
+    SELECT 1 FROM appraisal.QuotationRequestAppraisals qra
+    JOIN appraisal.Appraisals a ON a.Id = qra.AppraisalId
+    JOIN request.RequestCustomers rc ON rc.RequestId = a.RequestId
+    WHERE qra.QuotationRequestId = q.Id
+      AND rc.Name LIKE @CustomerNamePattern ESCAPE '\')");
+            parameters.Add("CustomerNamePattern", "%" + EscapeLike(filter.CustomerName.Trim()) + "%");
         }
 
         var where = "WHERE " + string.Join(" AND ", conditions);
-        var sql = $"SELECT COUNT(*) FROM appraisal.vw_QuotationList {where}";
+        var sql = $"SELECT COUNT(*) FROM appraisal.vw_QuotationList q {where}";
 
         var conn = connectionFactory.GetOpenConnection();
         var total = await conn.ExecuteScalarAsync<int>(sql, parameters);
