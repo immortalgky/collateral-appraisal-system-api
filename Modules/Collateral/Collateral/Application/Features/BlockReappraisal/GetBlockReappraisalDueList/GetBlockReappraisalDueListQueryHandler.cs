@@ -47,11 +47,32 @@ public class GetBlockReappraisalDueListQueryHandler(
             ? "WHERE " + string.Join(" AND ", conditions)
             : "";
 
+        // Whitelist sortable columns to defeat SQL injection. DueDate is the stable
+        // tiebreaker (and the default order), so it is intentionally not selectable here.
+        var sortColumn = query.SortBy?.ToLowerInvariant() switch
+        {
+            "oldappraisalnumber"  => "OldAppraisalNumber",
+            "projectname"         => "ProjectName",
+            "projectsellingprice" => "ProjectSellingPrice",
+            "remainingunits"      => "RemainingUnits",
+            "lastappraiseddate"   => "LastAppraisedDate",
+            "remainingday"        => "RemainingDay",
+            _                     => null
+        };
+
+        var sortDir = string.Equals(query.SortDir, "asc", StringComparison.OrdinalIgnoreCase)
+            ? "ASC"
+            : "DESC";
+
+        var orderBy = sortColumn is not null
+            ? $"{sortColumn} {sortDir}, DueDate ASC"
+            : "DueDate ASC";
+
         var sql = $"SELECT * FROM collateral.vw_BlockReappraisalDueList {where}";
 
         var result = await connectionFactory.QueryPaginatedAsync<BlockReappraisalDueListItem>(
             sql,
-            "DueDate ASC",
+            orderBy,
             query.PaginationRequest,
             parameters);
 
