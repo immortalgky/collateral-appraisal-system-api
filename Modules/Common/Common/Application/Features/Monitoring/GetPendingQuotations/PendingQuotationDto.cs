@@ -10,5 +10,9 @@ public record PendingQuotationDto(
     int TotalAppraisals,
     int TotalCompaniesInvited,
     int TotalQuotationsReceived,
-    string? RmUsername
+    string? RmUsername,
+    string? RmFullName,
+    string? CustomerName,
+    int CustomerCount,
+    string? CustomerNames
 );

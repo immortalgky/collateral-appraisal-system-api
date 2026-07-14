@@ -17,7 +17,9 @@ public class GetPendingQuotationsEndpoint : ICarterModule
                 async (
                     [AsParameters] PaginationRequest pagination,
                     string[]? status,
-                    string? search,
+                    string? quotationNo,
+                    string? appraisalNo,
+                    string? customerName,
                     string? sortBy,
                     string? sortDir,
                     DateOnly? cutOffTimeFrom,
@@ -25,7 +27,7 @@ public class GetPendingQuotationsEndpoint : ICarterModule
                     ISender sender,
                     CancellationToken cancellationToken) =>
                 {
-                    var filter = new PendingQuotationFilter(status, search, sortBy, sortDir, cutOffTimeFrom, cutOffTimeTo);
+                    var filter = new PendingQuotationFilter(status, quotationNo, appraisalNo, customerName, sortBy, sortDir, cutOffTimeFrom, cutOffTimeTo);
                     var result = await sender.Send(new GetPendingQuotationsQuery(pagination, filter), cancellationToken);
                     return Results.Ok(result);
                 })
