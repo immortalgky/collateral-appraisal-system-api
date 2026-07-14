@@ -13,6 +13,8 @@ public record AppraisalEvaluationHeader(
     DateTime? ReportReceivedDate,
     string?   AppraiserCompanyName,
     string?   AssigneeCompanyId,
+    string?   InternalAppraiserId,
+    string?   InternalAppraiserName,
     string?   CollateralTypes,
     string?   InspectionDates,
     string?   DepartmentOfAppraisal);
@@ -27,6 +29,7 @@ public class GetEvaluationHeaderQueryHandler(ISqlConnectionFactory connectionFac
         const string sql =
             "SELECT AppraisalId, AppraisalNumber, AppraisalStatus, BankingSegment, CustomerName, " +
             "ReportReceivedDate, AppraiserCompanyName, AssigneeCompanyId, " +
+            "InternalAppraiserId, InternalAppraiserName, " +
             "CollateralTypes, InspectionDates, DepartmentOfAppraisal " +
             "FROM appraisal.vw_AppraisalEvaluationHeader " +
             "WHERE AppraisalId = @AppraisalId";
