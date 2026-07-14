@@ -11,13 +11,14 @@ public interface IRegulatoryExportQuery
 
 /// <summary>
 /// One row of the outbound CAS-AS400-Regulatory interface (per active IsMaster collateral master).
-/// Carries typed field values that <c>RegulatoryFileWriter</c> formats into a 308-char Detail record.
+/// Carries typed field values that <c>RegulatoryFileWriter</c> formats into a 300-char Detail record.
 /// Produced by <c>RegulatoryExportQuery</c> via <c>vw_RegulatoryExport</c>.
 /// </summary>
 public sealed record RegulatoryExportRow(
     string? PreviousAppraisalNumber,
     string? LatestAppraisalNumber,
     string CollateralType,
+    string? HostCollateralId,
     string? LatestAppraisalType,
     bool IsUnderConstruction,
     decimal? ConstructionProgressPercent,

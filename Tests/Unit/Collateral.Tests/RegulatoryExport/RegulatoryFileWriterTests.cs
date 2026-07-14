@@ -24,6 +24,7 @@ public class RegulatoryFileWriterTests
         PreviousAppraisalNumber: "6800100",
         LatestAppraisalNumber: "6800123",
         CollateralType: CollateralTypes.LandWithBuilding, // "LB" → building fields populate
+        HostCollateralId: "6702522",
         LatestAppraisalType: "ReAppraisal",
         IsUnderConstruction: false,
         ConstructionProgressPercent: null,
@@ -115,6 +116,25 @@ public class RegulatoryFileWriterTests
 
         // pos 80-82 (index 79..82): age 12 → "012".
         Assert.Equal("012", line[79..82]);
+    }
+
+    [Fact]
+    public void Field4_HostCollateralId_IsZeroFilled_WhenPresent()
+    {
+        var line = new RegulatoryFileWriter().BuildDetail(SampleRow());
+
+        // pos 22-40 (index 21..40), 19-char HOST collateral id, right-aligned zero-filled.
+        Assert.Equal("6702522".PadLeft(19, '0'), line[21..40]);
+    }
+
+    [Fact]
+    public void Field4_HostCollateralId_IsZeros_WhenNull()
+    {
+        // Column is NULL until the inbound host-mapping feed populates it → all zeros.
+        var row = SampleRow() with { HostCollateralId = null };
+        var line = new RegulatoryFileWriter().BuildDetail(row);
+
+        Assert.Equal(new string('0', 19), line[21..40]);
     }
 
     [Fact]

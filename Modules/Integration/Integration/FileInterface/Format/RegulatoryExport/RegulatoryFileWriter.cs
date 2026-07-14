@@ -126,7 +126,7 @@ public sealed class RegulatoryFileWriter
             ["RecordType"]                 = "D",
             ["ApplicationId"]              = row.PreviousAppraisalNumber,
             ["NewestApplicationId"]        = row.LatestAppraisalNumber,
-            ["CollateralIdHost"]           = null,
+            ["CollateralIdHost"]           = row.HostCollateralId,
             ["UnderConstruction"]          = underConstruction,
             ["ConstructionProgress"]       = constructionProgress,
             ["AppraisalValueCompleted"]    = Money(row.LatestAppraisalValue),

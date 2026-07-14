@@ -16,6 +16,7 @@ namespace Integration.FileInterface.Jobs.RegulatoryExport;
 public class RegulatoryExportJob(
     IRegulatoryExportQuery query,
     RegulatoryFileWriter writer,
+    RegulatoryExcelWriter excelWriter,
     IOutboundFileSink fileSink,
     IFileInterfaceConfigProvider configProvider,
     IDateTimeProvider dateTimeProvider,
@@ -54,8 +55,14 @@ public class RegulatoryExportJob(
 
         await fileSink.WriteAsync(directory, fileName, content, ct);
 
+        // Human-readable Excel companion (same fields, friendly headers) written next to the .txt so
+        // non-IT users can inspect what was sent that month.
+        var excelFileName = $"{prefix}{now.ToString(dateFormat)}.xlsx";
+        var excelBytes = excelWriter.Build(effectiveDate, rows);
+        await fileSink.WriteAsync(directory, excelFileName, excelBytes, ct);
+
         logger.LogInformation(
-            "{Tag} Exported {Count} record(s) to {File} in {Dir}",
-            JobTag, rows.Count, fileName, directory);
+            "{Tag} Exported {Count} record(s) to {File} (+ {ExcelFile}) in {Dir}",
+            JobTag, rows.Count, fileName, excelFileName, directory);
     }
 }

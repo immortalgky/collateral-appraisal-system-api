@@ -19,7 +19,13 @@ public class SftpFileSink(
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
     private readonly SftpSinkOptions _opts = options.Value.Sftp;
 
-    public async Task WriteAsync(string directory, string fileName, string content, CancellationToken cancellationToken = default)
+    public Task WriteAsync(string directory, string fileName, string content, CancellationToken cancellationToken = default) =>
+        UploadAsync(directory, fileName, Utf8NoBom.GetBytes(content), content.Length + " chars", cancellationToken);
+
+    public Task WriteAsync(string directory, string fileName, byte[] content, CancellationToken cancellationToken = default) =>
+        UploadAsync(directory, fileName, content, content.Length + " bytes", cancellationToken);
+
+    private async Task UploadAsync(string directory, string fileName, byte[] bytes, string sizeDescription, CancellationToken cancellationToken)
     {
         await Task.Run(() =>
         {
@@ -27,7 +33,6 @@ public class SftpFileSink(
             client.Connect();
             try
             {
-                var bytes = Utf8NoBom.GetBytes(content);
                 using var ms = new MemoryStream(bytes);
 
                 EnsureRemoteDirectory(client, directory);
@@ -35,8 +40,8 @@ public class SftpFileSink(
                 var remotePath = $"{directory.TrimEnd('/')}/{Path.GetFileName(fileName)}";
                 client.UploadFile(ms, remotePath, canOverride: true);
 
-                logger.LogInformation("[OutboundFileSink:Sftp] Uploaded {File} ({Chars} chars) → {Path}",
-                    fileName, content.Length, remotePath);
+                logger.LogInformation("[OutboundFileSink:Sftp] Uploaded {File} ({Size}) → {Path}",
+                    fileName, sizeDescription, remotePath);
             }
             finally
             {
