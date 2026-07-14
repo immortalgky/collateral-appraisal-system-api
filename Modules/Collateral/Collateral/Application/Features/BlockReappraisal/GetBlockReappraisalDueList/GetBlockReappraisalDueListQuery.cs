@@ -10,6 +10,8 @@ public record GetBlockReappraisalDueListQuery(
     DateTime? LastAppraisedDateTo,
     int? RemainingDayMin,
     int? RemainingDayMax,
+    string? SortBy,
+    string? SortDir,
     PaginationRequest PaginationRequest) : IQuery<GetBlockReappraisalDueListResult>;
 
 public record GetBlockReappraisalDueListResult(PaginatedResult<BlockReappraisalDueListItem> Items);

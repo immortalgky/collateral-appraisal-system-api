@@ -20,6 +20,8 @@ public class BlockReappraisalEndpoints : ICarterModule
                     DateTime? lastAppraisedDateTo,
                     int? remainingDayMin,
                     int? remainingDayMax,
+                    string? sortBy,
+                    string? sortDir,
                     int? pageNumber,
                     int? pageSize,
                     ISender sender,
@@ -33,6 +35,8 @@ public class BlockReappraisalEndpoints : ICarterModule
                         LastAppraisedDateTo: lastAppraisedDateTo,
                         RemainingDayMin: remainingDayMin,
                         RemainingDayMax: remainingDayMax,
+                        SortBy: sortBy,
+                        SortDir: sortDir,
                         PaginationRequest: new PaginationRequest(pageNumber ?? 0, pageSize ?? 20));
 
                     var result = await sender.Send(query, cancellationToken);
