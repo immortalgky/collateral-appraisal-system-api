@@ -14,6 +14,7 @@ public class GetAuditLogsEndpoint : ICarterModule
                     AuditEntityType? entityType = null,
                     Guid? entityId = null,
                     Guid? actorUserId = null,
+                    string? actorName = null,
                     DateTime? from = null,
                     DateTime? to = null,
                     AuditAction? action = null,
@@ -22,7 +23,7 @@ public class GetAuditLogsEndpoint : ICarterModule
                 {
                     var query = new GetAuditLogsQuery(
                         pageNumber, pageSize,
-                        entityType, entityId, actorUserId,
+                        entityType, entityId, actorUserId, actorName,
                         from, to, action);
                     var result = await sender.Send(query, cancellationToken);
                     return Results.Ok(result);
