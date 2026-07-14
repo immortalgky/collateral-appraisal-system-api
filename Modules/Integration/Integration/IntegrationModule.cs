@@ -76,6 +76,7 @@ public static class IntegrationModule
         services.AddScoped<CollatrevTestFileBuilder>();
         services.AddSingleton<CollateralResultFileWriter>();
         services.AddSingleton<RegulatoryFileWriter>();
+        services.AddSingleton<RegulatoryExcelWriter>();
 
         // File interface jobs (moved from Collateral — thin orchestration only).
         services.AddScoped<As400ReappraisalJob>();

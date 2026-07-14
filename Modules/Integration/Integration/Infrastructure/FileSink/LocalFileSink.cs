@@ -29,4 +29,17 @@ public class LocalFileSink(IHostEnvironment environment, ILogger<LocalFileSink> 
         logger.LogInformation("[OutboundFileSink:Local] Wrote {File} ({Chars} chars) to {Dir}",
             fileName, content.Length, dir);
     }
+
+    public async Task WriteAsync(string directory, string fileName, byte[] content, CancellationToken cancellationToken = default)
+    {
+        var rooted = Path.IsPathRooted(directory) ? directory : Path.Combine(environment.ContentRootPath, directory);
+        var dir = Path.GetFullPath(rooted);
+        Directory.CreateDirectory(dir);
+
+        var fullPath = Path.Combine(dir, Path.GetFileName(fileName));
+        await File.WriteAllBytesAsync(fullPath, content, cancellationToken);
+
+        logger.LogInformation("[OutboundFileSink:Local] Wrote {File} ({Bytes} bytes) to {Dir}",
+            fileName, content.Length, dir);
+    }
 }

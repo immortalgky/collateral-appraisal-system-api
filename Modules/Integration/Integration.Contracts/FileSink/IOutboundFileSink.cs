@@ -15,4 +15,11 @@ public interface IOutboundFileSink
     /// <paramref name="directory"/>, overwriting any existing file with the same name.
     /// </summary>
     Task WriteAsync(string directory, string fileName, string content, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes binary <paramref name="content"/> (e.g. an xlsx workbook) to a file named
+    /// <paramref name="fileName"/> in <paramref name="directory"/>, overwriting any existing file
+    /// with the same name.
+    /// </summary>
+    Task WriteAsync(string directory, string fileName, byte[] content, CancellationToken cancellationToken = default);
 }

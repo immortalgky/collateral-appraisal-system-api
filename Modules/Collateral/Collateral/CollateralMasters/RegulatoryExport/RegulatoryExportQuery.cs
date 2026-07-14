@@ -19,6 +19,7 @@ public class RegulatoryExportQuery(ISqlConnectionFactory connectionFactory) : IR
         PreviousAppraisalNumber: r.PreviousAppraisalNumber,
         LatestAppraisalNumber: r.LatestAppraisalNumber,
         CollateralType: r.CollateralType,
+        HostCollateralId: r.HostCollateralId,
         LatestAppraisalType: r.LatestAppraisalType,
         IsUnderConstruction: r.IsUnderConstruction,
         ConstructionProgressPercent: r.ConstructionProgressPercent,
@@ -41,6 +42,7 @@ public class RegulatoryExportQuery(ISqlConnectionFactory connectionFactory) : IR
     {
         public Guid CollateralMasterId { get; init; }
         public string CollateralType { get; init; } = null!;
+        public string? HostCollateralId { get; init; }
         public string? PreviousAppraisalNumber { get; init; }
         public string? LatestAppraisalNumber { get; init; }
         public string? LatestAppraisalType { get; init; }
