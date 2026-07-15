@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.PricingAnalysis.GetPricingAnalysisDocuments;
+
 namespace Appraisal.Application.Features.PricingAnalysis.GetPricingAnalysis;
 
 /// <summary>
@@ -12,5 +14,7 @@ public record GetPricingAnalysisResult(
     string Status,
     decimal? FinalAppraisedValue,
     bool UseSystemCalc,
-    List<ApproachDto> Approaches
+    List<ApproachDto> Approaches,
+    List<PricingAnalysisDocumentDto> Documents,
+    string? Remark
 );

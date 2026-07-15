@@ -4,6 +4,7 @@ using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Appraisal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    partial class AppraisalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260709030819_AddPricingAnalysisRemark")]
+    partial class AddPricingAnalysisRemark
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -435,9 +438,6 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
-                    b.Property<int?>("InspectionNumber")
-                        .HasColumnType("int");
-
                     b.Property<bool>("IsPma")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -627,9 +627,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime?>("DraftSavedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("ExternalAppraiserId")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -676,10 +673,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<string>("RejectionReason")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("Remark")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<DateTime?>("SLADueDate")
                         .HasColumnType("datetime2")
@@ -1249,10 +1242,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<Guid>("AppraisalId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<decimal?>("BuildingInsurancePrice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1266,28 +1255,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("ExternalSyncError")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<string>("ExternalSyncStatus")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasDefaultValue("NotSynced");
-
-                    b.Property<DateTime?>("ExternalSyncedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal?>("ForcedSalePrice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("SellingPrice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("SequenceNumber")
                         .HasColumnType("int");

@@ -88,6 +88,7 @@ public class PricingAnalysisRepository(AppraisalDbContext dbContext)
         CancellationToken cancellationToken = default)
     {
         return await _dbContext.PricingAnalyses
+            .Include(pa => pa.Documents)
             .Include(pa => pa.Approaches)
                 .ThenInclude(a => a.Methods)
                     .ThenInclude(m => m.Calculations)

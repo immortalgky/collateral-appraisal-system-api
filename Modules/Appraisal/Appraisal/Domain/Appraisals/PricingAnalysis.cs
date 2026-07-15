@@ -1,3 +1,5 @@
+using Appraisal.Domain.Appraisals.Events;
+
 namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
@@ -58,6 +60,10 @@ public class PricingAnalysis : Aggregate<Guid>
 
     // Use system pricing calculation
     public bool UseSystemCalc { get; private set; } = true;
+
+    private readonly List<PricingAnalysisDocument> _documents = [];
+    public IReadOnlyList<PricingAnalysisDocument> Documents => _documents.AsReadOnly();
+    public string? Remark { get; private set; } = null!;
 
     private PricingAnalysis()
     {
@@ -223,6 +229,55 @@ public class PricingAnalysis : Aggregate<Guid>
         SetFinalAppraisedValueInternal(null);
     }
 
+    /// <summary>
+    /// Selects <paramref name="approachId"/> as the analysis's final approach, unselecting all
+    /// others, and propagates its <c>ApproachValue</c> up to <see cref="FinalAppraisedValue"/> —
+    /// even when that value is null — so the rollup never keeps a stale value from a previously
+    /// selected approach.
+    /// </summary>
+    public void SelectApproach(Guid approachId)
+    {
+        var targetApproach = _approaches.FirstOrDefault(a => a.Id == approachId);
+
+        if (targetApproach is null)
+            throw new NotFoundException("PricingAnalysisApproach", approachId);
+
+        RuleCheck.Valid()
+            .AddErrorIf(
+                targetApproach.Methods.All(m => !m.IsSelected),
+                "Cannot select an approach that has no selected method.")
+            .ThrowIfInvalid();
+
+        foreach (var approach in _approaches)
+        {
+            if (approach.Id == targetApproach.Id)
+                approach.Select();
+            else
+                approach.Unselect();
+        }
+
+        SetFinalAppraisedValueInternal(targetApproach.ApproachValue);
+    }
+
+    /// <summary>
+    /// Selects <paramref name="methodId"/> as the primary method within its parent approach
+    /// (setting all other methods in that approach as Alternative). If the parent approach is
+    /// already the analysis's selected/final approach, also propagates the method's value up to
+    /// <see cref="FinalAppraisedValue"/> — even when that value is null.
+    /// </summary>
+    public void SelectMethod(Guid methodId)
+    {
+        var parentApproach = _approaches.FirstOrDefault(a => a.Methods.Any(m => m.Id == methodId));
+
+        if (parentApproach is null)
+            throw new NotFoundException("PricingAnalysisMethod", methodId);
+
+        parentApproach.SelectMethod(methodId);
+
+        if (parentApproach.IsSelected)
+            SetFinalAppraisedValueInternal(parentApproach.ApproachValue);
+    }
+
     private void SetFinalAppraisedValueInternal(decimal? value)
     {
         FinalAppraisedValue = value;
@@ -282,5 +337,75 @@ public class PricingAnalysis : Aggregate<Guid>
             clone.AddDomainEvent(new AppraisalFinalValuesChangedEvent(newPropertyGroupId));
 
         return clone;
+    }
+
+    // Documents management
+    public PricingAnalysisDocument AddDocument(PricingAnalysisDocumentData data)
+    {
+        RuleCheck.Valid()
+             .AddErrorIf(
+                 data.DocumentId.HasValue && _documents.Any(d => d.DocumentId == data.DocumentId),
+                 $"Document '{data.DocumentId}' is already linked to this pricing analysis.")
+             .ThrowIfInvalid();
+
+        var document = PricingAnalysisDocument.Create(Id, data);
+
+        _documents.Add(document);
+
+        if (data.DocumentId.HasValue)
+            AddDomainEvent(new DocumentLinkedEvent(Id, data.DocumentId.Value));
+
+        return document;
+    }
+
+    public void UpdateDocument(Guid documentId, PricingAnalysisDocumentData data)
+    {
+        var document = _documents.FirstOrDefault(d => d.Id == documentId);
+
+        RuleCheck.Valid()
+            .AddErrorIf(document is null, $"Document with id '{documentId}' not found in this pricing analysis.")
+            .AddErrorIf(
+                 data.DocumentId.HasValue && _documents.Any(d => d.DocumentId == data.DocumentId),
+                 $"Document '{data.DocumentId}' is already linked to this pricing analysis.")
+            .ThrowIfInvalid();
+
+        var (previousDocId, newDocId) = document!.Update(data);
+
+        // Fire appropriate domain events based on document changes
+        if (previousDocId.HasValue && newDocId.HasValue)
+            AddDomainEvent(new DocumentUpdatedEvent(Id, previousDocId.Value, newDocId.Value));
+        else if (!previousDocId.HasValue && newDocId.HasValue)
+            AddDomainEvent(new DocumentLinkedEvent(Id, newDocId.Value));
+        else if (previousDocId.HasValue && !newDocId.HasValue)
+            AddDomainEvent(new DocumentUnlinkedEvent(Id, previousDocId.Value));
+    }
+
+    public void RemoveDocument(Guid documentId)
+    {
+        var document = _documents.FirstOrDefault(d => d.Id == documentId);
+
+        RuleCheck.Valid()
+            .AddErrorIf(document is null, $"Document with id '{documentId}' not found in this pricing analysis.")
+            .ThrowIfInvalid();
+
+        _documents.Remove(document!);
+
+        if (document!.DocumentId.HasValue)
+            AddDomainEvent(new DocumentUnlinkedEvent(Id, document.DocumentId.Value));
+    }
+
+    public PricingAnalysisDocument? GetDocument(Guid documentId)
+    {
+        return _documents.FirstOrDefault(d => d.Id == documentId);
+    }
+
+    public bool HasDocument(Guid documentId)
+    {
+        return _documents.Any(d => d.Id == documentId);
+    }
+
+    public void SetRemark(string? remark)
+    {
+        Remark = remark;
     }
 }

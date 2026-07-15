@@ -37,6 +37,10 @@ public class SaveComparativeAnalysisCommandHandler(
         // Persist template selection
         method.SetComparativeAnalysisTemplate(command.ComparativeAnalysisTemplateId);
 
+        // Persist remark (parity with Hypothesis/ProfitRent/MachineCost/Leasehold saves)
+        if (command.Remark is not null)
+            method.SetRemark(command.Remark);
+
         // STEP 1: Upsert comparative factors
         UpsertComparativeFactors(method, command.ComparativeFactors);
 

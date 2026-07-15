@@ -28,7 +28,8 @@ public class SaveComparativeAnalysisEndpoint : ICarterModule
                         request.AppraisalPrice,
                         request.IncludeLandArea,
                         request.LandArea,
-                        request.LandValue
+                        request.LandValue,
+                        request.Remark
                     );
 
                     var result = await sender.Send(command);

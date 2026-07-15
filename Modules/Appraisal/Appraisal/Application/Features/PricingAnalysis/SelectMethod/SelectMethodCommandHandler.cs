@@ -15,53 +15,17 @@ public class SelectMethodCommandHandler(
             command.PricingAnalysisId,
             cancellationToken);
 
-        if (pricingAnalysis == null)
-            throw new InvalidOperationException($"Pricing analysis with ID '{command.PricingAnalysisId}' not found");
+        if (pricingAnalysis is null)
+            throw new NotFoundException("PricingAnalysis", command.PricingAnalysisId);
 
-        PricingAnalysisMethod? targetMethod = null;
-        PricingAnalysisApproach? parentApproach = null;
+        // Selection invariants (exactly one selected method per approach) and the
+        // FinalAppraisedValue propagation (when this approach is already the analysis's
+        // selected/final approach) are now enforced inside the aggregate.
+        pricingAnalysis.SelectMethod(command.MethodId);
 
-        // Find the target method and its parent approach
-        foreach (var approach in pricingAnalysis.Approaches)
-        {
-            targetMethod = approach.Methods.FirstOrDefault(m => m.Id == command.MethodId);
-            if (targetMethod != null)
-            {
-                parentApproach = approach;
-                break;
-            }
-        }
-
-        if (targetMethod == null)
-            throw new InvalidOperationException($"Method with ID '{command.MethodId}' not found");
-
-        // Set a target method as Selected
-        targetMethod.SetAsSelected();
-
-        // Set all other methods in the same approach as Alternative
-        foreach (var method in parentApproach!.Methods)
-        {
-            if (method.Id != command.MethodId)
-            {
-                method.SetAsUnselected();
-            }
-        }
-
-        // Mark parent approach as selected, unselect all others
-        foreach (var approach in pricingAnalysis.Approaches)
-        {
-            if (approach.Id == parentApproach.Id)
-                approach.Select();
-            else
-                approach.Unselect();
-        }
-
-        // Propagate selected method's MethodValue → ApproachValue → FinalAppraisedValue
-        if (targetMethod.MethodValue.HasValue)
-        {
-            parentApproach.SetValue(targetMethod.MethodValue.Value);
-            pricingAnalysis.SetFinalValues(targetMethod.MethodValue.Value);
-        }
+        var targetMethod = pricingAnalysis.Approaches
+            .SelectMany(a => a.Methods)
+            .First(m => m.Id == command.MethodId);
 
         return new SelectMethodResult(
             targetMethod.Id,

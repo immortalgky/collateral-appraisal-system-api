@@ -83,6 +83,33 @@ public class PricingAnalysisApproach : Entity<Guid>
         ApproachValue = null;
     }
 
+    /// <summary>
+    /// Selects <paramref name="methodId"/> as the primary method within this approach, setting
+    /// all other methods here as Alternative, and syncs <see cref="ApproachValue"/> to the
+    /// newly-selected method's value — even when that value is null — so the approach never
+    /// keeps a stale value left over from a previously selected method.
+    /// </summary>
+    public void SelectMethod(Guid methodId)
+    {
+        var targetMethod = _methods.FirstOrDefault(m => m.Id == methodId);
+
+        if (targetMethod is null)
+            throw new NotFoundException("PricingAnalysisMethod", methodId);
+
+        targetMethod.SetAsSelected();
+
+        foreach (var method in _methods)
+        {
+            if (method.Id != methodId)
+                method.SetAsUnselected();
+        }
+
+        if (targetMethod.MethodValue.HasValue)
+            SetValue(targetMethod.MethodValue.Value);
+        else
+            ClearValue();
+    }
+
     public void Select()
     {
         IsSelected = true;

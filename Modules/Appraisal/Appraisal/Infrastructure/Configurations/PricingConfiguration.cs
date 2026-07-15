@@ -47,6 +47,9 @@ public class PricingAnalysisConfiguration : IEntityTypeConfiguration<PricingAnal
             .WithOne()
             .HasForeignKey(a => a.PricingAnalysisId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.OwnsMany(r => r.Documents, doc => new PricingDocumentConfiguration().Configure(doc));
+        builder.Property(p => p.Remark).HasMaxLength(4000);
     }
 }
 

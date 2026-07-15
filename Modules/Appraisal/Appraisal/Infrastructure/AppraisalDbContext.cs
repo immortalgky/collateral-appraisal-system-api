@@ -121,6 +121,7 @@ public class AppraisalDbContext : DbContext
     // Pricing Entities (part of Appraisal aggregate)
     // =====================================================
     public DbSet<PricingAnalysis> PricingAnalyses => Set<PricingAnalysis>();
+    public DbSet<PricingAnalysisDocument> PricingAnalysisDocuments => Set<PricingAnalysisDocument>();
     public DbSet<PricingAnalysisApproach> PricingAnalysisApproaches => Set<PricingAnalysisApproach>();
     public DbSet<PricingAnalysisMethod> PricingAnalysisMethods => Set<PricingAnalysisMethod>();
     public DbSet<PricingComparableLink> PricingComparableLinks => Set<PricingComparableLink>();

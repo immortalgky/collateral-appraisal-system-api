@@ -21,5 +21,6 @@ public record SaveComparativeAnalysisCommand(
     decimal? AppraisalPrice = null,
     bool? IncludeLandArea = null,
     decimal? LandArea = null,
-    decimal? LandValue = null
+    decimal? LandValue = null,
+    string? Remark = null
 ) : ICommand<SaveComparativeAnalysisResult>, ITransactionalCommand<IAppraisalUnitOfWork>;
