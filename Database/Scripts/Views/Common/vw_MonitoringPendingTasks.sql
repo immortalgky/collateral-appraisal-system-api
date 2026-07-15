@@ -51,9 +51,16 @@ SELECT
     pt.TaskDescription                                                          AS TaskDescription,
     r.Purpose                                                                   AS Purpose,
     rp.PropertyType                                                             AS PropertyType,
+    appl.Status                                                                 AS AppraisalStatus,
     pt.SlaStatus                                                                AS SlaStatus,
     appl.RequestedAt                                                            AS RequestedDate,
     pt.AssignedAt                                                               AS AssignedDate,
+    -- OpenDate: when the assignee first opened the task (first InProgress transition). Null while unopened.
+    pt.OpenedAt                                                                 AS OpenDate,
+    -- AppointmentDate: latest non-cancelled appointment for the active assignment. Null when none scheduled.
+    appt.AppointmentDateTime                                                    AS AppointmentDate,
+    -- SlaDurationHours: resolved SLA policy budget (e.g. 48) driving the due date. Null when no policy.
+    pt.SlaDurationHours                                                         AS SlaDurationHours,
     -- M1: PIC display name resolution.
     --     type='1' (person)  → "First Last" from auth.AspNetUsers; NULL if names are empty so
     --                          the FE can render the username as the primary line.
@@ -95,7 +102,7 @@ FROM workflow.PendingTasks pt
     -- C4 fix: OUTER APPLY TOP 1 prevents fan-out when a Request has multiple Appraisals
     OUTER APPLY (
         SELECT TOP 1 a2.Id, a2.AppraisalNumber,
-                     a2.RequestedAt, a2.Priority
+                     a2.RequestedAt, a2.Priority, a2.Status
         FROM appraisal.Appraisals a2
         WHERE a2.RequestId = r.Id
         ORDER BY a2.RequestedAt DESC, a2.Id DESC
@@ -116,7 +123,7 @@ FROM workflow.PendingTasks pt
     -- C4 fix: OUTER APPLY TOP 1 prevents fan-out from multiple active AppraisalAssignments
     --         during reassignment windows. Most-recent active External first, then any active.
     OUTER APPLY (
-        SELECT TOP 1 aa2.AssignmentType, aa2.AssignmentStatus, aa2.SubmittedAt,
+        SELECT TOP 1 aa2.Id, aa2.AssignmentType, aa2.AssignmentStatus, aa2.SubmittedAt,
                      aa2.AssigneeCompanyId
         FROM appraisal.AppraisalAssignments aa2
         WHERE aa2.AppraisalId = appl.Id
@@ -126,6 +133,14 @@ FROM workflow.PendingTasks pt
             CASE WHEN aa2.AssignmentType = 'External' THEN 0 ELSE 1 END,
             aa2.AssignedAt DESC, aa2.Id DESC
     ) aa
+    -- Appointment date for the active assignment; most-recent non-cancelled appointment.
+    OUTER APPLY (
+        SELECT TOP 1 ap.AppointmentDateTime
+        FROM appraisal.Appointments ap
+        WHERE ap.AssignmentId = aa.Id
+          AND ap.Status <> 'Cancelled'
+        ORDER BY ap.AppointmentDateTime DESC
+    ) appt
     -- M1: join user for display name (person-assigned tasks only)
     LEFT JOIN auth.AspNetUsers u
            ON u.NormalizedUserName = UPPER(pt.AssignedTo)

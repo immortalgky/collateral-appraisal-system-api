@@ -7,7 +7,7 @@ namespace Collateral.Tests.RegulatoryExport;
 /// <summary>
 /// Pins <see cref="RegulatoryFileWriter"/> to the 300-char CAS-AS400-Regulatory layout, focusing on the
 /// corrected sourcing rules:
-///   • Field 2 (ApplicationId) = the PREVIOUS appraisal number (blank when none).
+///   • Field 2 (ApplicationId) = the LATEST appraisal number, same as field 3 (bank always sends latest).
 ///   • Field 8 (AppraisalValueOrigination) = earliest value when the latest engagement is a Progressive
 ///     (construction) inspection; otherwise the latest value.
 ///   • Field 10 (BuildingAge) = zero-filled building age (now sourced for all building types + condo).
@@ -21,7 +21,6 @@ namespace Collateral.Tests.RegulatoryExport;
 public class RegulatoryFileWriterTests
 {
     private static RegulatoryExportRow SampleRow() => new(
-        PreviousAppraisalNumber: "6800100",
         LatestAppraisalNumber: "6800123",
         CollateralType: CollateralTypes.LandWithBuilding, // "LB" → building fields populate
         HostCollateralId: "6702522",
@@ -52,21 +51,25 @@ public class RegulatoryFileWriterTests
     }
 
     [Fact]
-    public void Field2_ApplicationId_IsPreviousAppraisalNumber()
+    public void Field2And3_BothCarryLatestAppraisalNumber()
     {
         var line = new RegulatoryFileWriter().BuildDetail(SampleRow());
 
-        // pos 2-11 (index 1..11), left-aligned previous appraisal number.
-        Assert.Equal("6800100".PadRight(10), line[1..11]);
+        // pos 2-11 (index 1..11) ApplicationId and pos 12-21 (index 11..21) NewestApplicationId
+        // both left-aligned with the LATEST appraisal number.
+        Assert.Equal("6800123".PadRight(10), line[1..11]);
+        Assert.Equal("6800123".PadRight(10), line[11..21]);
     }
 
     [Fact]
-    public void Field2_ApplicationId_IsBlank_WhenNoPreviousEngagement()
+    public void Field5And6_AreBlankAndZero_ForCondo()
     {
-        var row = SampleRow() with { PreviousAppraisalNumber = null };
+        // Condo is NOT in the land/building/land&building group → Under Construction blank, progress 0.00.
+        var row = SampleRow() with { CollateralType = CollateralTypes.Condo, IsUnderConstruction = true };
         var line = new RegulatoryFileWriter().BuildDetail(row);
 
-        Assert.Equal(new string(' ', 10), line[1..11]);
+        Assert.Equal(' ', line[40]);                       // pos 41 UnderConstruction → blank
+        Assert.Equal("00000", line[41..46]);               // pos 42-46 ConstructionProgress → 0.00 (×100)
     }
 
     [Fact]
@@ -135,6 +138,15 @@ public class RegulatoryFileWriterTests
         var line = new RegulatoryFileWriter().BuildDetail(row);
 
         Assert.Equal(new string('0', 19), line[21..40]);
+    }
+
+    [Fact]
+    public void Field12_ValuationDate_IsYyyyMMdd()
+    {
+        var line = new RegulatoryFileWriter().BuildDetail(SampleRow());
+
+        // pos 98-105 (index 97..105), 8-char date, YYYYMMDD (2025-01-21 → "20250121").
+        Assert.Equal("20250121", line[97..105]);
     }
 
     [Fact]

@@ -13,7 +13,6 @@ namespace Collateral.Tests.RegulatoryExport;
 public class RegulatoryExcelWriterTests
 {
     private static RegulatoryExportRow SampleRow() => new(
-        PreviousAppraisalNumber: "6800100",
         LatestAppraisalNumber: "6800123",
         CollateralType: CollateralTypes.LandWithBuilding,
         HostCollateralId: "6702522",

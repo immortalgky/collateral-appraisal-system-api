@@ -145,6 +145,7 @@ public static class MenuSeedData
             {
                 new("main.collateral-master.catalog", "Catalog", "list", IconStyle.Solid, "text-cyan-500", "/admin/collateral-masters", "COLLATERAL_ADMIN", null),
                 new("main.collateral-master.backfill", "Backfill Report", "rotate", IconStyle.Solid, "text-cyan-500", "/admin/collateral-masters/backfill", "COLLATERAL_ADMIN", null),
+                new("main.collateral-master.host-id-backfill", "Host ID Backfill", "id-card", IconStyle.Solid, "text-cyan-500", "/admin/collateral-masters/host-id-backfill", "COLLATERAL_ADMIN", null),
             }),
         new("main.workflow-builder", "Workflow Builder", "diagram-project", IconStyle.Solid, "text-orange-500", "/workflow-builder", "WORKFLOW_MANAGE", "WORKFLOW_MANAGE",
             new List<MenuSeedNode>

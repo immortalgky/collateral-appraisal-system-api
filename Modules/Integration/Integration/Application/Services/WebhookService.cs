@@ -120,25 +120,28 @@ public class WebhookService(
         var httpMethod = new HttpMethod(
             string.IsNullOrWhiteSpace(subscription.HttpMethod) ? "POST" : subscription.HttpMethod);
 
-        var request = new HttpRequestMessage(httpMethod, subscription.CallbackUrl)
+        // Builds a fresh request each call — an HttpRequestMessage cannot be resent once sent, so the
+        // 401 re-auth retry below rebuilds it. forceFreshToken drops the cached token first so the
+        // retry mints a new one. Auth setup lives here (called INSIDE the try) so a token-fetch/config
+        // failure (bad config, LOS token endpoint down, missing HMAC secret) resolves to a normal
+        // delivery Failure rather than throwing out of DeliverWebhookAsync — otherwise the caller
+        // (e.g. WebhookDispatchConsumer's per-title loop) would see an unhandled exception and a
+        // property could get stuck at "Pending" instead of resolving to Failed.
+        async Task<HttpRequestMessage> BuildRequestAsync(bool forceFreshToken)
         {
-            Content = new StringContent(delivery.Payload, Encoding.UTF8, "application/json")
-        };
+            var req = new HttpRequestMessage(httpMethod, subscription.CallbackUrl)
+            {
+                Content = new StringContent(delivery.Payload, Encoding.UTF8, "application/json")
+            };
+            req.Headers.Add("X-Event-Type", delivery.EventType);
 
-        request.Headers.Add("X-Event-Type", delivery.EventType);
-
-        try
-        {
-            // Auth header setup lives INSIDE the try: a token-fetch failure (bad config, LOS token
-            // endpoint down) or a missing HMAC secret must resolve to a normal delivery Failure
-            // (caught below, RecordFailure + WebhookDeliveryOutcome(false, ...)) rather than throw
-            // out of DeliverWebhookAsync — otherwise the caller (e.g. WebhookDispatchConsumer's
-            // per-title loop) would see an unhandled exception instead of a clean failed outcome,
-            // and a property could get stuck at "Pending" instead of resolving to Failed.
             if (subscription.AuthType == WebhookAuthType.TokenBearer)
             {
+                if (forceFreshToken)
+                    tokenProvider.InvalidateToken(subscription.Id);
+
                 var (tokenType, accessToken) = await tokenProvider.GetTokenAsync(subscription, cancellationToken);
-                request.Headers.Authorization = new AuthenticationHeaderValue(tokenType, accessToken);
+                req.Headers.Authorization = new AuthenticationHeaderValue(tokenType, accessToken);
             }
             else
             {
@@ -150,17 +153,44 @@ public class WebhookService(
                 var signedPayload = $"{unixTimestamp}.{delivery.Payload}";
                 var signature = GenerateSignature(signedPayload, subscription.SecretKey);
 
-                request.Headers.Add("X-Timestamp", unixTimestamp.ToString(CultureInfo.InvariantCulture));
-                request.Headers.Add("X-Signature", $"sha256={signature}");
+                req.Headers.Add("X-Timestamp", unixTimestamp.ToString(CultureInfo.InvariantCulture));
+                req.Headers.Add("X-Signature", $"sha256={signature}");
             }
 
+            return req;
+        }
+
+        HttpRequestMessage? request = null;
+        try
+        {
             var client = httpClientFactory.CreateClient("Webhook");
+
+            request = await BuildRequestAsync(forceFreshToken: false);
 
             // The resilience pipeline retries internally; when SendAsync returns we have the final outcome.
             // WebhookAttemptCounterHandler increments the count on each wire attempt.
             var response = await client.SendAsync(request, cancellationToken);
-
             var attempts = ReadAttemptCount(request);
+
+            // One-shot re-auth retry: a 401 on a token-bearer subscription means the cached token was
+            // rejected (expired/revoked). AddStandardResilienceHandler does NOT retry 401 (non-transient),
+            // so we handle it here — invalidate, mint a fresh token, and resend the update exactly ONCE.
+            // Each node self-heals on its own stale token; a genuinely bad credential 401s twice -> Failed.
+            if (subscription.AuthType == WebhookAuthType.TokenBearer &&
+                response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                logger.LogWarning(
+                    "Webhook token rejected (401) for subscription {SubscriptionId} ({SystemCode}); re-fetching token and retrying once",
+                    subscription.Id, subscription.SystemCode);
+
+                request.Dispose();
+                response.Dispose();
+
+                request = await BuildRequestAsync(forceFreshToken: true);
+                response = await client.SendAsync(request, cancellationToken);
+                attempts += ReadAttemptCount(request);
+            }
+
             subscription.RecordDelivery(dateTimeProvider.ApplicationNow);
 
             if (response.IsSuccessStatusCode)
@@ -179,18 +209,12 @@ public class WebhookService(
             }
             else
             {
-                // A 401 on a token-bearer subscription means the cached token was rejected
-                // (expired/revoked) — invalidate it. AddStandardResilienceHandler does NOT retry
-                // 401 (it's not a transient status), so this does not trigger an in-attempt retry;
-                // it just ensures the NEXT delivery attempt (the following PMA save, or a manual
-                // RetryWebhookDelivery) fetches a fresh token instead of reusing the rejected one.
+                // Still failing after the (at most one) re-auth retry. If it's a persistent 401 on a
+                // token-bearer subscription, drop the cached token so the NEXT delivery also starts fresh.
                 if (subscription.AuthType == WebhookAuthType.TokenBearer &&
                     response.StatusCode == HttpStatusCode.Unauthorized)
                 {
                     tokenProvider.InvalidateToken(subscription.Id);
-                    logger.LogWarning(
-                        "Webhook token rejected (401) for subscription {SubscriptionId} ({SystemCode}); cached token invalidated",
-                        subscription.Id, subscription.SystemCode);
                 }
 
                 delivery.RecordFailure((int)response.StatusCode, attempts, null);
@@ -214,7 +238,7 @@ public class WebhookService(
                 subscription.CallbackUrl,
                 delivery.EventType);
 
-            delivery.RecordFailure(0, ReadAttemptCount(request), ex.Message);
+            delivery.RecordFailure(0, request is null ? 0 : ReadAttemptCount(request), ex.Message);
             await PersistDeliveryAsync(delivery, cancellationToken);
 
             return new WebhookDeliveryOutcome(false, ex.Message);

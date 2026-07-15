@@ -16,7 +16,6 @@ public class RegulatoryExportQuery(ISqlConnectionFactory connectionFactory) : IR
     }
 
     private static RegulatoryExportRow Map(RawRow r) => new(
-        PreviousAppraisalNumber: r.PreviousAppraisalNumber,
         LatestAppraisalNumber: r.LatestAppraisalNumber,
         CollateralType: r.CollateralType,
         HostCollateralId: r.HostCollateralId,
@@ -43,7 +42,6 @@ public class RegulatoryExportQuery(ISqlConnectionFactory connectionFactory) : IR
         public Guid CollateralMasterId { get; init; }
         public string CollateralType { get; init; } = null!;
         public string? HostCollateralId { get; init; }
-        public string? PreviousAppraisalNumber { get; init; }
         public string? LatestAppraisalNumber { get; init; }
         public string? LatestAppraisalType { get; init; }
         public bool IsUnderConstruction { get; init; }

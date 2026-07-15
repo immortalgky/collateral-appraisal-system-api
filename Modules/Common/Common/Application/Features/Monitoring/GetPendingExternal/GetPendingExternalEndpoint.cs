@@ -24,6 +24,7 @@ public class GetPendingExternalEndpoint : ICarterModule
                     string? sortDir,
                     string[]? slaBucket,
                     string? pic,
+                    string? picType,
                     string[]? purpose,
                     string[]? propertyType,
                     string[]? taskType,
@@ -31,7 +32,7 @@ public class GetPendingExternalEndpoint : ICarterModule
                     ISender sender,
                     CancellationToken cancellationToken) =>
                 {
-                    var filter = new PendingExternalFilter(slaStatus, search, activityId, sortBy, sortDir, slaBucket, pic, purpose, propertyType, taskType, appraisalCompanyId);
+                    var filter = new PendingExternalFilter(slaStatus, search, activityId, sortBy, sortDir, slaBucket, pic, picType, purpose, propertyType, taskType, appraisalCompanyId);
                     var result = await sender.Send(new GetPendingExternalQuery(pagination, filter), cancellationToken);
                     return Results.Ok(result);
                 })

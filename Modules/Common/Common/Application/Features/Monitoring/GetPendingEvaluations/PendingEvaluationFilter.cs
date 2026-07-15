@@ -6,5 +6,6 @@ public record PendingEvaluationFilter(
     string? SortBy,
     string? SortDir,
     string? AppraisalCompanyId,
-    string[]? AppraisalStatus
+    string[]? AppraisalStatus,
+    string? InternalFollowupStaff
 );

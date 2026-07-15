@@ -60,6 +60,16 @@ public class GetPendingQuotationsSummaryQueryHandler(ISqlConnectionFactory conne
             parameters.Add("CustomerNamePattern", "%" + EscapeLike(filter.CustomerName.Trim()) + "%");
         }
 
+        // Keep the count consistent with the list handler's invited-company predicate.
+        if (!string.IsNullOrWhiteSpace(filter.AppraisalCompanyId))
+        {
+            conditions.Add(@"EXISTS (
+    SELECT 1 FROM appraisal.QuotationInvitations qi
+    WHERE qi.QuotationRequestId = q.Id
+      AND qi.CompanyId = @AppraisalCompanyId)");
+            parameters.Add("AppraisalCompanyId", filter.AppraisalCompanyId);
+        }
+
         var where = "WHERE " + string.Join(" AND ", conditions);
         var sql = $"SELECT COUNT(*) FROM appraisal.vw_QuotationList q {where}";
 

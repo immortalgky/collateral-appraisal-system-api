@@ -12,5 +12,7 @@ public record PendingEvaluationDto(
     decimal? AppraisalValue,
     Guid? EvaluationId,
     string? EvaluationStatus,
-    decimal? TotalScore
+    decimal? TotalScore,
+    string? InternalFollowupStaffId,
+    string? InternalFollowupStaffName
 );

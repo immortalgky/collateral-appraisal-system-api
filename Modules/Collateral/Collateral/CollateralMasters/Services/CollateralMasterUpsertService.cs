@@ -98,21 +98,52 @@ public class CollateralMasterUpsertService(
         var grouped = GroupPropertiesByGroup(inScopeProperties);
 
         // -----------------------------------------------------------------------
+        // One-collateral-per-appraisal: determine the SINGLE primary component up front.
+        // This is pure data (no DB access) so it's stable for the whole method:
+        //   - If ANY Land/LB property exists, the collapsed land master is UNCONDITIONALLY the
+        //     primary (land always wins — confirmed product rule).
+        //   - Otherwise, the group with the lowest GroupNumber is primary (ties keep the original
+        //     property order — same tie-break the snapshot builder already used).
+        // Every OTHER group's CollateralMaster becomes a typed ALIAS of the primary (IsMaster=false,
+        // ParentMasterId=primary.Id) while keeping its own type detail — see CreateCondoAlias /
+        // CreateMachineAlias / CreateLeaseholdAlias / CollateralMaster.DemoteToAlias.
+        // -----------------------------------------------------------------------
+        const string LandPrimaryGroupKey = "land:all";
+        string? primaryGroupKey = landOrLbProperties.Count > 0
+            ? LandPrimaryGroupKey
+            : grouped.Count > 0
+                ? grouped.OrderBy(g => g.GroupNumber ?? int.MaxValue).First().GroupKey
+                : null;
+
+        // Resolved once the primary group's master has been processed. Non-primary groups alias
+        // to this master's Id. Passes are ordered (primary group first within each pass) so this
+        // is populated before any non-primary group needs it — see the reordering below.
+        CollateralMaster? primaryMaster = null;
+
+        // -----------------------------------------------------------------------
         // Pass 1: Land + Condo + Machine — process each group
         // Pass-1 cache for Leasehold's underlying-resolution.
         // -----------------------------------------------------------------------
         var landMasterByPropertyId = new Dictionary<Guid, CollateralMaster>();
-        // Track IsMaster for each group so we can build the snapshot
+        // Track IsMaster for each group so we can build the snapshot. NOTE: a single group that
+        // holds two non-land types (e.g. Condo + Leasehold sharing a GroupNumber) overwrites this
+        // dict by GroupKey — the reconciliation step below must NOT rely on this dict alone, see
+        // resolvedNonLandMasters.
         var groupIsMasters = new Dictionary<string, CollateralMaster>(); // groupKey → IsMaster
         // Track newly-created + existing aliases for each land group (for snapshot + UnitPrice propagation)
         var groupAliases = new Dictionary<string, List<CollateralMaster>>(); // groupKey → alias list
         // Track the resolved CollateralType per group (for engagement stamping)
         var groupCollateralTypes = new Dictionary<string, string>(); // groupKey → CollateralType code
+        // Every non-land master/alias resolved or created in passes 1 & 2 — the reconciliation
+        // safety net below walks THIS list (not groupIsMasters, which can lose entries when one
+        // group holds two non-land types) so no resolved master is ever missed.
+        var resolvedNonLandMasters = new List<CollateralMaster>();
 
         // Land: ONE IsMaster per appraisal. All Land/LB titles across ALL groups collapse into a
         // single IsMaster + aliases set (first title = IsMaster, every other title = alias).
         // UpsertLandGroupAsync already does "first title → IsMaster, all remaining titles across all
         // passed properties → aliases", so feeding it the full land set yields exactly one master.
+        // Land is unconditionally the appraisal's primary when present — see primaryGroupKey above.
         CollateralMaster? landMaster = null;
         var landAliases = new List<CollateralMaster>();
         string? landCollateralType = null;
@@ -127,72 +158,131 @@ public class CollateralMasterUpsertService(
             landGroupNumber = grouped
                 .Where(g => g.Properties.Any(p => p.PropertyTypeCode is "L" or "LB"))
                 .Min(g => g.GroupNumber ?? int.MaxValue);
+            primaryMaster = landMaster;
         }
 
-        // Condo / Machine: unchanged — one IsMaster per group. A group that contains land is a land
-        // group; its condo/machine props are ignored (preserves the original land-wins else-if).
-        foreach (var group in grouped)
+        // Condo / Machine: one IsMaster row per appraisal overall — only the group matching
+        // primaryGroupKey stays IsMaster=true; every other non-land group becomes a typed alias of
+        // the primary. The primary-matching group (if it lives in this pass) is processed FIRST so
+        // primaryMaster is resolved before any alias creation needs its Id.
+        foreach (var group in grouped
+                     .Where(g => g.Properties.All(p => p.PropertyTypeCode is not "L" and not "LB"))
+                     .OrderBy(g => g.GroupKey == primaryGroupKey ? 0 : 1))
         {
-            if (group.Properties.Any(p => p.PropertyTypeCode is "L" or "LB"))
-                continue; // land handled above (one master per appraisal)
-
             var condoInGroup = group.Properties.Where(p => p.PropertyTypeCode == "U").ToList();
             var machineInGroup = group.Properties.Where(p => p.PropertyTypeCode == "MAC").ToList();
+            bool isPrimaryGroup = group.GroupKey == primaryGroupKey;
 
             if (condoInGroup.Count > 0)
             {
                 // Condo — typically one per group (singleton)
-                var master = await UpsertCondoAsync(condoInGroup.First(), appraisal, ct);
+                var master = await UpsertCondoAsync(condoInGroup.First(), appraisal, isPrimaryGroup, primaryMaster?.Id, ct);
                 groupIsMasters[group.GroupKey] = master;
+                resolvedNonLandMasters.Add(master);
+                if (isPrimaryGroup) primaryMaster = master;
             }
             else if (machineInGroup.Count > 0)
             {
-                var master = await UpsertMachineAsync(machineInGroup.First(), appraisal, ct);
+                var master = await UpsertMachineAsync(machineInGroup.First(), appraisal, isPrimaryGroup, primaryMaster?.Id, ct);
                 groupIsMasters[group.GroupKey] = master;
+                resolvedNonLandMasters.Add(master);
+                if (isPrimaryGroup) primaryMaster = master;
             }
         }
 
         // -----------------------------------------------------------------------
         // Pass 2: Leasehold (depends on underlying master already existing or created)
+        // Same primary-first reordering as pass 1.
         // -----------------------------------------------------------------------
-        var leaseholdGroups = grouped.Where(g =>
-            g.Properties.Any(p => p.PropertyTypeCode is "LSL" or "LSB" or "LS")).ToList();
+        var leaseholdGroups = grouped
+            .Where(g => g.Properties.Any(p => p.PropertyTypeCode is "LSL" or "LSB" or "LS"))
+            .OrderBy(g => g.GroupKey == primaryGroupKey ? 0 : 1)
+            .ToList();
 
         foreach (var group in leaseholdGroups)
         {
             var lhProperty = group.Properties.First(p => p.PropertyTypeCode is "LSL" or "LSB" or "LS");
-            var master = await UpsertLeaseholdAsync(lhProperty, appraisal, landOrLbProperties, condoProperties, landMasterByPropertyId, ct);
+            bool isPrimaryGroup = group.GroupKey == primaryGroupKey;
+            var master = await UpsertLeaseholdAsync(
+                lhProperty, appraisal, landOrLbProperties, condoProperties, landMasterByPropertyId,
+                isPrimaryGroup, primaryMaster?.Id, ct);
             groupIsMasters[group.GroupKey] = master;
+            resolvedNonLandMasters.Add(master);
+            if (isPrimaryGroup) primaryMaster = master;
+        }
+
+        // -----------------------------------------------------------------------
+        // Reconciliation safety net: enforce "exactly one IsMaster per appraisal" even in the rare
+        // ordering edge case where a non-primary group had to be resolved before the primary was
+        // known (e.g. the primary is a Leasehold-only group with no Land/Condo/Machine in the same
+        // appraisal — Leasehold is processed last, in pass 2). Also catches legacy standalone
+        // masters left over from before this model that a group's dedup key happened to match.
+        // Walks resolvedNonLandMasters (not groupIsMasters, which loses entries when a single
+        // group holds two non-land types — e.g. Condo + Leasehold sharing a GroupNumber — because
+        // the second type's write overwrites the first in that dict). Deduped by Id since the same
+        // master can appear more than once (e.g. resolved once per property that maps to it).
+        //
+        // CORE RULE: a row that already owns engagement history was appraised standalone as its
+        // OWN collateral — it must stay IsMaster (cross-appraisal reuse), never demoted. Only
+        // engagement-free rows may become aliases. No-ops for every row already created correctly
+        // via the alias factories above.
+        // -----------------------------------------------------------------------
+        if (primaryMaster is not null)
+        {
+            foreach (var groupMaster in resolvedNonLandMasters
+                         .GroupBy(m => m.Id)
+                         .Select(g => g.First()))
+            {
+                if (groupMaster.Id == primaryMaster.Id || !groupMaster.IsMaster)
+                    continue;
+
+                if (groupMaster.Engagements.Count == 0)
+                {
+                    groupMaster.DemoteToAlias(primaryMaster.Id);
+                    logger.LogInformation(
+                        "ProcessAppraisalAsync: demoted CollateralMaster {MasterId} ({Type}) to a typed alias " +
+                        "of primary {PrimaryId} for AppraisalId={AppraisalId}",
+                        groupMaster.Id, groupMaster.CollateralType, primaryMaster.Id, appraisalId);
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "ProcessAppraisalAsync: {Type} master {MasterId} was appraised standalone (has " +
+                        "{Count} engagement(s)); keeping it as its own IsMaster rather than demoting under " +
+                        "primary {PrimaryId} for AppraisalId={AppraisalId}.",
+                        groupMaster.CollateralType, groupMaster.Id, groupMaster.Engagements.Count,
+                        primaryMaster.Id, appraisalId);
+                }
+            }
         }
 
         // -----------------------------------------------------------------------
         // Build the snapshot bucket list: ONE consolidated land bucket (all land titles across all
         // groups, under the single IsMaster) + every non-land group (condo / machine / leasehold).
         // This collapses all land groups into one snapshot group, matching the
-        // one-IsMaster-per-appraisal model. Non-land groups keep their own IsMaster.
+        // one-IsMaster-per-appraisal model. Non-land groups reference their own (possibly aliased)
+        // master row.
         // -----------------------------------------------------------------------
         var snapshotBuckets = new List<PropertyGroupBucket>();
         if (landMaster is not null)
         {
-            snapshotBuckets.Add(new PropertyGroupBucket("land:all", null, landGroupNumber, landOrLbProperties));
-            groupIsMasters["land:all"] = landMaster;
-            groupAliases["land:all"] = landAliases;
-            groupCollateralTypes["land:all"] = landCollateralType!;
+            snapshotBuckets.Add(new PropertyGroupBucket(LandPrimaryGroupKey, null, landGroupNumber, landOrLbProperties));
+            groupIsMasters[LandPrimaryGroupKey] = landMaster;
+            groupAliases[LandPrimaryGroupKey] = landAliases;
+            groupCollateralTypes[LandPrimaryGroupKey] = landCollateralType!;
         }
         snapshotBuckets.AddRange(grouped
             .Where(g => g.Properties.All(p => p.PropertyTypeCode is not "L" and not "LB")));
 
         // -----------------------------------------------------------------------
-        // Build the single engagement snapshot covering ALL groups.
-        // Primary = group with the lowest GroupNumber (or lowest implicit sequence for ungrouped).
+        // Build the single engagement snapshot covering ALL groups, anchored on the SAME primary
+        // resolved above (primaryGroupKey / primaryMaster) — one-collateral-per-appraisal model.
         // -----------------------------------------------------------------------
-        if (snapshotBuckets.Count > 0)
+        if (snapshotBuckets.Count > 0 && primaryGroupKey is not null)
         {
-            var groupSnapshots = BuildGroupSnapshots(snapshotBuckets, groupIsMasters, groupAliases, appraisal, buildingProperties);
+            var groupSnapshots = BuildGroupSnapshots(snapshotBuckets, groupIsMasters, groupAliases, appraisal, buildingProperties, primaryGroupKey);
 
-            // Primary IsMaster = IsMaster of the principal group (first in ordered list)
-            var primaryGroup = snapshotBuckets.OrderBy(g => g.GroupNumber ?? int.MaxValue).First();
-            var primaryMaster = groupIsMasters.GetValueOrDefault(primaryGroup.GroupKey);
+            var primaryGroup = snapshotBuckets.First(g => g.GroupKey == primaryGroupKey);
 
             if (primaryMaster is not null)
             {
@@ -365,12 +455,13 @@ public class CollateralMasterUpsertService(
         {
             case "L" or "LB":
             {
+                // Dedup key is TitleNumber + TitleType + Province + District + SubDistrict
+                // (+ nullable SurveyNumber/LandParcelNumber/Rawang). LandOffice is descriptive, not a key field.
                 var land = p.LandIdentity;
                 if (land is null || !land.Titles.Any(t => !string.IsNullOrWhiteSpace(t.TitleNumber)))
                     missing.Add("TitleNumber");
                 if (land is null || !land.Titles.Any(t => !string.IsNullOrWhiteSpace(t.TitleType)))
                     missing.Add("TitleType");
-                if (string.IsNullOrWhiteSpace(land?.LandOffice)) missing.Add("LandOfficeCode");
                 if (string.IsNullOrWhiteSpace(land?.Province)) missing.Add("Province");
                 if (string.IsNullOrWhiteSpace(land?.District)) missing.Add("District");
                 if (string.IsNullOrWhiteSpace(land?.SubDistrict)) missing.Add("SubDistrict");
@@ -716,9 +807,33 @@ public class CollateralMasterUpsertService(
         return (master, newAliases, resolvedCollateralType);
     }
 
+    /// <summary>
+    /// When the resolved master for the appraisal's PRIMARY group turns out to be a typed alias
+    /// (e.g. this component was demoted under a different primary in a prior appraisal, and this
+    /// appraisal's composition now makes it the primary in its own right), PROMOTES it back to a
+    /// standalone IsMaster instead of walking to its (foreign, unrelated) parent — an alias never
+    /// owns engagements (DemoteToAlias's guard), so promotion is always safe and correct: this row
+    /// IS the collateral this appraisal is valuing, not whatever it used to be aliased under.
+    /// </summary>
+    private CollateralMaster PromotePrimaryIfAlias(CollateralMaster master, string componentType)
+    {
+        if (master.IsMaster) return master;
+
+        logger.LogInformation(
+            "{ComponentType} master {MasterId} resolved as the appraisal's primary but was a typed " +
+            "alias (ParentMasterId={ParentId}); promoting it to a standalone IsMaster " +
+            "(one-collateral-per-appraisal model).",
+            componentType, master.Id, master.ParentMasterId);
+
+        master.PromoteToMaster();
+        return master;
+    }
+
     private async Task<CollateralMaster> UpsertCondoAsync(
         AppraisalPropertyForCollateral p,
         AppraisalForCollateralResult appraisal,
+        bool isPrimary,
+        Guid? primaryMasterId,
         CancellationToken ct)
     {
         var condo = p.CondoIdentity!;
@@ -730,36 +845,62 @@ public class CollateralMasterUpsertService(
 
         if (master is null)
         {
-            master = CollateralMaster.CreateCondo(
-                ownerName: condo.OwnerName ?? string.Empty,
-                landOfficeCode: condo.LandOffice,
-                condoRegistrationNumber: condo.CondoRegistrationNumber!,
-                buildingNumber: condo.BuildingNumber!,
-                floorNumber: condo.FloorNumber!,
-                roomNumber: condo.RoomNumber!,
-                province: condo.Province!,
-                district: condo.District!,
-                subDistrict: condo.SubDistrict!,
-                condoName: condo.CondoName);
+            // New component. Non-primary components are born as typed aliases of the appraisal's
+            // primary collateral (one-collateral-per-appraisal model) whenever the primary is
+            // already known; otherwise they're born as regular masters and the reconciliation
+            // step in ProcessAppraisalAsync demotes them once the primary is resolved.
+            master = !isPrimary && primaryMasterId is { } pid
+                ? CollateralMaster.CreateCondoAlias(
+                    parentMasterId: pid,
+                    ownerName: condo.OwnerName ?? string.Empty,
+                    landOfficeCode: condo.LandOffice,
+                    condoRegistrationNumber: condo.CondoRegistrationNumber!,
+                    buildingNumber: condo.BuildingNumber!,
+                    floorNumber: condo.FloorNumber!,
+                    roomNumber: condo.RoomNumber!,
+                    province: condo.Province!,
+                    district: condo.District!,
+                    subDistrict: condo.SubDistrict!,
+                    condoName: condo.CondoName)
+                : CollateralMaster.CreateCondo(
+                    ownerName: condo.OwnerName ?? string.Empty,
+                    landOfficeCode: condo.LandOffice,
+                    condoRegistrationNumber: condo.CondoRegistrationNumber!,
+                    buildingNumber: condo.BuildingNumber!,
+                    floorNumber: condo.FloorNumber!,
+                    roomNumber: condo.RoomNumber!,
+                    province: condo.Province!,
+                    district: condo.District!,
+                    subDistrict: condo.SubDistrict!,
+                    condoName: condo.CondoName);
             repo.Add(master);
         }
-
-        if (!master.IsMaster)
+        else if (isPrimary)
         {
-            // Condo dedup-key matched an alias row.
-            // Resolve to the parent IsMaster and process against that parent.
-            // Validation upstream at the Request module prevents invalid alias-alone submissions.
-            logger.LogWarning(
-                "Condo master {MasterId} is an alias with ParentMasterId={ParentId}. " +
-                "Resolving to parent IsMaster (graceful re-anchor, PR-7).",
-                master.Id, master.ParentMasterId!.Value);
-
-            var parent = await repo.FindByIdWithEngagementsAsync(master.ParentMasterId!.Value, ct);
-            if (parent is null)
-                throw new InvalidOperationException(
-                    $"Condo alias {master.Id} references ParentMasterId={master.ParentMasterId} which could not be found.");
-            master = parent;
+            master = PromotePrimaryIfAlias(master, "Condo");
         }
+        else if (master.IsMaster && primaryMasterId is { } parentId)
+        {
+            // Legacy standalone master (or a master created before the primary was known within
+            // this same call) discovered as a non-primary component. Only demote it to a typed
+            // alias when it has NEVER been engaged standalone — a row with engagement history IS
+            // a real collateral in its own right and must stay IsMaster (cross-appraisal reuse).
+            if (master.Engagements.Count == 0)
+            {
+                master.DemoteToAlias(parentId);
+            }
+            else
+            {
+                logger.LogWarning(
+                    "ProcessAppraisalAsync: {Type} master {MasterId} was appraised standalone (has " +
+                    "{Count} engagement(s)); keeping it as its own IsMaster rather than demoting under " +
+                    "primary {PrimaryId} for AppraisalId={AppraisalId}.",
+                    master.CollateralType, master.Id, master.Engagements.Count, parentId, appraisal.AppraisalId);
+            }
+        }
+        // else: dedup key already resolved to an alias row — upsert detail directly on THAT row.
+        // Do NOT re-anchor to its parent (that assumed land-only aliases and is wrong for typed
+        // component aliases under the one-collateral-per-appraisal model).
 
         // Pricing values — sourced from PricingFinalValue of the selected approach (PR-8).
         var pricingInfo = p.PricingInfo;
@@ -800,6 +941,8 @@ public class CollateralMasterUpsertService(
     private async Task<CollateralMaster> UpsertMachineAsync(
         AppraisalPropertyForCollateral p,
         AppraisalForCollateralResult appraisal,
+        bool isPrimary,
+        Guid? primaryMasterId,
         CancellationToken ct)
     {
         var m = p.MachineryIdentity!;
@@ -809,15 +952,44 @@ public class CollateralMasterUpsertService(
 
         if (master is null)
         {
-            master = CollateralMaster.CreateMachine(
-                ownerName: m.OwnerName ?? string.Empty,
-                machineRegistrationNo: m.RegistrationNumber,
-                serialNo: m.SerialNo,
-                brand: m.Brand,
-                model: m.Model,
-                manufacturer: m.Manufacturer);
+            master = !isPrimary && primaryMasterId is { } pid
+                ? CollateralMaster.CreateMachineAlias(
+                    parentMasterId: pid,
+                    ownerName: m.OwnerName ?? string.Empty,
+                    machineRegistrationNo: m.RegistrationNumber,
+                    serialNo: m.SerialNo,
+                    brand: m.Brand,
+                    model: m.Model,
+                    manufacturer: m.Manufacturer)
+                : CollateralMaster.CreateMachine(
+                    ownerName: m.OwnerName ?? string.Empty,
+                    machineRegistrationNo: m.RegistrationNumber,
+                    serialNo: m.SerialNo,
+                    brand: m.Brand,
+                    model: m.Model,
+                    manufacturer: m.Manufacturer);
             repo.Add(master);
         }
+        else if (isPrimary)
+        {
+            master = PromotePrimaryIfAlias(master, "Machine");
+        }
+        else if (master.IsMaster && primaryMasterId is { } parentId)
+        {
+            if (master.Engagements.Count == 0)
+            {
+                master.DemoteToAlias(parentId);
+            }
+            else
+            {
+                logger.LogWarning(
+                    "ProcessAppraisalAsync: {Type} master {MasterId} was appraised standalone (has " +
+                    "{Count} engagement(s)); keeping it as its own IsMaster rather than demoting under " +
+                    "primary {PrimaryId} for AppraisalId={AppraisalId}.",
+                    master.CollateralType, master.Id, master.Engagements.Count, parentId, appraisal.AppraisalId);
+            }
+        }
+        // else: dedup key already resolved to an alias row — upsert detail directly on THAT row.
 
         var upsertData = new MachineUpsertData(
             IncomingRegistrationNo: m.RegistrationNumber,
@@ -837,6 +1009,8 @@ public class CollateralMasterUpsertService(
         List<AppraisalPropertyForCollateral> landProperties,
         List<AppraisalPropertyForCollateral> condoProperties,
         Dictionary<Guid, CollateralMaster> landMasterByPropertyId,
+        bool isPrimary,
+        Guid? primaryMasterId,
         CancellationToken ct)
     {
         var lh = p.LeaseholdIdentity!;
@@ -928,18 +1102,47 @@ public class CollateralMasterUpsertService(
 
         if (leaseMaster is null)
         {
-            leaseMaster = CollateralMaster.CreateLeasehold(
-                lessee: lh.LesseeName!,
-                leaseRegistrationNo: lh.ContractNo!,
-                underlyingMasterId: underlyingMaster.Id,
-                lessor: lh.LessorName!,
-                leaseTermStart: leaseTermStart,
-                // Pass the resolved code so a fresh LS/LSB master is born with the right
-                // discriminator — UpdateCollateralType below then no-ops on the insert path
-                // and only fires CollateralTypeChangedEvent for true L→LB-style upgrades.
-                collateralType: p.PropertyTypeCode);
+            // Pass the resolved code so a fresh LS/LSB master is born with the right discriminator
+            // — UpdateCollateralType below then no-ops on the insert path and only fires
+            // CollateralTypeChangedEvent for true L→LB-style upgrades.
+            leaseMaster = !isPrimary && primaryMasterId is { } pid
+                ? CollateralMaster.CreateLeaseholdAlias(
+                    parentMasterId: pid,
+                    lessee: lh.LesseeName!,
+                    leaseRegistrationNo: lh.ContractNo!,
+                    underlyingMasterId: underlyingMaster.Id,
+                    lessor: lh.LessorName!,
+                    leaseTermStart: leaseTermStart,
+                    collateralType: p.PropertyTypeCode)
+                : CollateralMaster.CreateLeasehold(
+                    lessee: lh.LesseeName!,
+                    leaseRegistrationNo: lh.ContractNo!,
+                    underlyingMasterId: underlyingMaster.Id,
+                    lessor: lh.LessorName!,
+                    leaseTermStart: leaseTermStart,
+                    collateralType: p.PropertyTypeCode);
             repo.Add(leaseMaster);
         }
+        else if (isPrimary)
+        {
+            leaseMaster = PromotePrimaryIfAlias(leaseMaster, "Leasehold");
+        }
+        else if (leaseMaster.IsMaster && primaryMasterId is { } parentId)
+        {
+            if (leaseMaster.Engagements.Count == 0)
+            {
+                leaseMaster.DemoteToAlias(parentId);
+            }
+            else
+            {
+                logger.LogWarning(
+                    "ProcessAppraisalAsync: {Type} master {MasterId} was appraised standalone (has " +
+                    "{Count} engagement(s)); keeping it as its own IsMaster rather than demoting under " +
+                    "primary {PrimaryId} for AppraisalId={AppraisalId}.",
+                    leaseMaster.CollateralType, leaseMaster.Id, leaseMaster.Engagements.Count, parentId, appraisal.AppraisalId);
+            }
+        }
+        // else: dedup key already resolved to an alias row — upsert detail directly on THAT row.
 
         DateOnly? leaseTermEnd = lh.LeaseEndDate.HasValue
             ? DateOnly.FromDateTime(lh.LeaseEndDate.Value)
@@ -981,14 +1184,9 @@ public class CollateralMasterUpsertService(
         IReadOnlyDictionary<string, CollateralMaster> groupIsMasters,
         IReadOnlyDictionary<string, List<CollateralMaster>> groupAliases,
         AppraisalForCollateralResult appraisal,
-        IReadOnlyList<AppraisalPropertyForCollateral> allBuildingProperties)
+        IReadOnlyList<AppraisalPropertyForCollateral> allBuildingProperties,
+        string primaryGroupKey)
     {
-        // Principal group = lowest GroupNumber (or first in list if all null)
-        var primaryGroupKey = groups
-            .OrderBy(g => g.GroupNumber ?? int.MaxValue)
-            .First()
-            .GroupKey;
-
         var snapshots = new List<PropertyGroupSnapshot>();
 
         foreach (var group in groups.OrderBy(g => g.GroupNumber ?? int.MaxValue))
@@ -1067,7 +1265,10 @@ public class CollateralMasterUpsertService(
             }
             else
             {
-                // Non-land types: one entry per AppraisalProperty in the group
+                // Non-land types: one entry per AppraisalProperty in the group. Role reflects the
+                // row's ACTUAL IsMaster flag — a non-primary group's row may be a typed alias
+                // (one-collateral-per-appraisal model) even though it still carries its own detail.
+                var role = isMasterRow.IsMaster ? "isMaster" : "alias";
                 foreach (var prop in group.Properties)
                 {
                     if (prop.PropertyTypeCode == "U")
@@ -1075,19 +1276,19 @@ public class CollateralMasterUpsertService(
                         propertyEntries.Add(SnapshotBuilder.BuildCondoPropertyEntry(
                             isMasterRow.Id,
                             prop,
-                            role: "isMaster",
+                            role: role,
                             unitPrice: isMasterRow.CondoDetail?.UnitPrice ?? prop.PricingInfo?.UnitPrice));
                     }
                     else if (prop.PropertyTypeCode == "MAC")
                     {
-                        propertyEntries.Add(SnapshotBuilder.BuildMachinePropertyEntry(isMasterRow.Id, prop, role: "isMaster"));
+                        propertyEntries.Add(SnapshotBuilder.BuildMachinePropertyEntry(isMasterRow.Id, prop, role: role));
                     }
                     else if (prop.PropertyTypeCode is "LSL" or "LSB" or "LS")
                     {
                         var lhUnderlyingMasterId = isMasterRow.LeaseholdDetail?.UnderlyingMasterId ?? Guid.Empty;
                         var lhUnderlyingType = isMasterRow.LeaseholdDetail is not null ? "Land" : "Unknown";
                         propertyEntries.Add(SnapshotBuilder.BuildLeaseholdPropertyEntry(
-                            isMasterRow.Id, prop, role: "isMaster", lhUnderlyingMasterId, lhUnderlyingType));
+                            isMasterRow.Id, prop, role: role, lhUnderlyingMasterId, lhUnderlyingType));
                     }
                 }
             }

@@ -1526,10 +1526,14 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
     }
 
     // -----------------------------------------------------------------------
-    // Condo_Leasehold_Machine_AreSingletonGroups_IsMasterTrueParentMasterIdNull
+    // Condo_Machine_NoLand_ExactlyOnePrimary_OtherBecomesTypedAlias
+    // One-collateral-per-appraisal model: when Condo and Machine coexist with no Land in the
+    // same appraisal, exactly ONE of them stays IsMaster=true (the primary, owning the single
+    // engagement); the other becomes a typed alias (IsMaster=false, ParentMasterId=primary.Id)
+    // while keeping its own type detail intact.
     // -----------------------------------------------------------------------
     [Fact]
-    public async Task Condo_Leasehold_Machine_AreSingletonGroups_IsMasterTrueParentMasterIdNull()
+    public async Task Condo_Machine_NoLand_ExactlyOnePrimary_OtherBecomesTypedAlias()
     {
         var tag = Guid.NewGuid().ToString("N")[..8];
         Guid appraisalId;
@@ -1555,21 +1559,535 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         // Condo
         var condo = await collateralDb.CollateralMasters
             .Include(m => m.CondoDetail)
+            .Include(m => m.Engagements)
             .FirstOrDefaultAsync(m => m.CondoDetail != null &&
                                       m.CondoDetail.CondoRegistrationNumber == $"SING-CR-{tag}",
                 TestContext.Current.CancellationToken);
         Assert.NotNull(condo);
-        Assert.True(condo.IsMaster, "Condo must be IsMaster=true");
-        Assert.Null(condo.ParentMasterId);
 
         // Machine
         var machine = await collateralDb.CollateralMasters
             .Include(m => m.MachineDetail)
+            .Include(m => m.Engagements)
             .FirstOrDefaultAsync(m => m.MachineDetail != null &&
                                       m.MachineDetail.MachineRegistrationNo == $"SING-REG-{tag}",
                 TestContext.Current.CancellationToken);
         Assert.NotNull(machine);
-        Assert.True(machine.IsMaster, "Machine must be IsMaster=true");
+
+        // Exactly one of the two ends up IsMaster=true (the appraisal's primary).
+        Assert.NotEqual(condo!.IsMaster, machine!.IsMaster);
+
+        var primary = condo.IsMaster ? condo : machine;
+        var alias = condo.IsMaster ? machine : condo;
+
+        Assert.Null(primary.ParentMasterId);
+        Assert.Single(primary.Engagements);
+
+        Assert.False(alias.IsMaster);
+        Assert.Equal(primary.Id, alias.ParentMasterId);
+        Assert.Empty(alias.Engagements);
+
+        // The alias keeps its OWN type detail — nothing was collapsed/dropped.
+        Assert.NotNull(condo.CondoDetail);
+        Assert.NotNull(machine.MachineDetail);
+    }
+
+    // -----------------------------------------------------------------------
+    // Task (a): Land + Machinery multi-component appraisal → exactly ONE IsMaster (the collapsed
+    // land master); the machinery group is persisted as a typed alias (IsMaster=0,
+    // ParentMasterId=primary, MachineDetail intact).
+    // -----------------------------------------------------------------------
+    [Fact]
+    public async Task LandAndMachinery_OneIsMaster_MachineryBecomesTypedAlias()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..8];
+        var titleNo = $"LM-{tag}";
+        var regNo = $"LM-REG-{tag}";
+        Guid appraisalId;
+
+        using (var seedScope = CreateScope())
+        {
+            var appraisalDb = GetAppraisalDbContext(seedScope);
+            var a = CreateAppraisalSeed(Guid.NewGuid());
+            SeedLandProperty(a, "LO-001", "BKK", "D1", "S1", titleNo, "Chanote");
+            SeedMachineryProperty(a, registrationNo: regNo,
+                serialNo: "S1", brand: "BRAND-M", model: "M1", manufacturer: "MFR-M");
+            appraisalDb.Appraisals.Add(a);
+            await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            appraisalId = a.Id;
+        }
+
+        await ProcessAppraisalInNewScopeAsync(appraisalId);
+
+        using var assertScope = CreateScope();
+        var collateralDb = GetCollateralDbContext(assertScope);
+
+        var landMaster = await collateralDb.CollateralMasters
+            .Include(m => m.LandDetail)
+            .Include(m => m.Engagements)
+            .FirstAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleNo,
+                TestContext.Current.CancellationToken);
+
+        var machine = await collateralDb.CollateralMasters
+            .Include(m => m.MachineDetail)
+            .Include(m => m.Engagements)
+            .FirstAsync(m => m.MachineDetail != null && m.MachineDetail.MachineRegistrationNo == regNo,
+                TestContext.Current.CancellationToken);
+
+        // Land is unconditionally the primary when present.
+        Assert.True(landMaster.IsMaster);
+        Assert.Null(landMaster.ParentMasterId);
+        Assert.Single(landMaster.Engagements);
+
+        // Machinery is a typed alias of the land master, but keeps its own MachineDetail.
+        Assert.False(machine.IsMaster);
+        Assert.Equal(landMaster.Id, machine.ParentMasterId);
+        Assert.Empty(machine.Engagements);
+        Assert.NotNull(machine.MachineDetail);
+        Assert.Equal(regNo, machine.MachineDetail!.MachineRegistrationNo);
+
+        // Exactly one IsMaster row across the whole appraisal's components.
+        var allRows = await collateralDb.CollateralMasters
+            .Where(m => m.Id == landMaster.Id || m.Id == machine.Id)
+            .ToListAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(1, allRows.Count(m => m.IsMaster));
+
+        // Exactly one engagement for the whole appraisal.
+        var engCount = await collateralDb.CollateralEngagements
+            .CountAsync(e => e.AppraisalId == appraisalId, TestContext.Current.CancellationToken);
+        Assert.Equal(1, engCount);
+    }
+
+    // -----------------------------------------------------------------------
+    // Task (b): Reappraising the SAME land+machinery collateral resolves the same primary + the
+    // same alias row — no duplicate masters/aliases created, and the second run is idempotent.
+    // -----------------------------------------------------------------------
+    [Fact]
+    public async Task LandAndMachinery_Reappraisal_ResolvesSamePrimaryAndAlias_Idempotent()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..8];
+        var titleNo = $"LMR-{tag}";
+        var regNo = $"LMR-REG-{tag}";
+        Guid a1Id, a2Id;
+
+        using (var seedScope = CreateScope())
+        {
+            var appraisalDb = GetAppraisalDbContext(seedScope);
+            var a1 = CreateAppraisalSeed(Guid.NewGuid());
+            SeedLandProperty(a1, "LO-001", "BKK", "D1", "S1", titleNo, "Chanote");
+            SeedMachineryProperty(a1, registrationNo: regNo,
+                serialNo: "S1", brand: "BRAND-M", model: "M1", manufacturer: "MFR-M");
+            appraisalDb.Appraisals.Add(a1);
+            await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            a1Id = a1.Id;
+        }
+        await ProcessAppraisalInNewScopeAsync(a1Id);
+
+        Guid landId1, machineId1;
+        using (var checkScope = CreateScope())
+        {
+            var collateralDb = GetCollateralDbContext(checkScope);
+            landId1 = (await collateralDb.CollateralMasters
+                .Include(m => m.LandDetail)
+                .FirstAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleNo,
+                    TestContext.Current.CancellationToken)).Id;
+            machineId1 = (await collateralDb.CollateralMasters
+                .Include(m => m.MachineDetail)
+                .FirstAsync(m => m.MachineDetail != null && m.MachineDetail.MachineRegistrationNo == regNo,
+                    TestContext.Current.CancellationToken)).Id;
+        }
+
+        // Reappraisal — SAME land title + SAME machine registration (same physical collateral).
+        using (var seedScope = CreateScope())
+        {
+            var appraisalDb = GetAppraisalDbContext(seedScope);
+            var a2 = CreateAppraisalSeed(Guid.NewGuid());
+            SeedLandProperty(a2, "LO-001", "BKK", "D1", "S1", titleNo, "Chanote");
+            SeedMachineryProperty(a2, registrationNo: regNo,
+                serialNo: "S1", brand: "BRAND-M", model: "M1", manufacturer: "MFR-M");
+            appraisalDb.Appraisals.Add(a2);
+            await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            a2Id = a2.Id;
+        }
+        await ProcessAppraisalInNewScopeAsync(a2Id);
+
+        // Re-run the SAME (second) appraisal again — must be a idempotent no-op.
+        await ProcessAppraisalInNewScopeAsync(a2Id);
+
+        using var assertScope = CreateScope();
+        var collateralDbAssert = GetCollateralDbContext(assertScope);
+
+        var landRows = await collateralDbAssert.CollateralMasters
+            .Include(m => m.LandDetail)
+            .Include(m => m.Engagements)
+            .Where(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleNo)
+            .ToListAsync(TestContext.Current.CancellationToken);
+        var machineRows = await collateralDbAssert.CollateralMasters
+            .Include(m => m.MachineDetail)
+            .Include(m => m.Engagements)
+            .Where(m => m.MachineDetail != null && m.MachineDetail.MachineRegistrationNo == regNo)
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        // No duplicate masters/aliases — same rows resolved every time.
+        Assert.Single(landRows);
+        Assert.Single(machineRows);
+        Assert.Equal(landId1, landRows[0].Id);
+        Assert.Equal(machineId1, machineRows[0].Id);
+
+        var landMaster = landRows[0];
+        var machine = machineRows[0];
+
+        Assert.True(landMaster.IsMaster);
+        Assert.False(machine.IsMaster);
+        Assert.Equal(landMaster.Id, machine.ParentMasterId);
+
+        // Two engagements total (one per distinct appraisal), both on the primary; the
+        // re-run of a2 did not add a third.
+        Assert.Equal(2, landMaster.Engagements.Count);
+        Assert.Contains(landMaster.Engagements, e => e.AppraisalId == a1Id);
+        Assert.Contains(landMaster.Engagements, e => e.AppraisalId == a2Id);
+        Assert.Empty(machine.Engagements);
+    }
+
+    // -----------------------------------------------------------------------
+    // Task (c): Standalone single-type appraisals (pure Condo, pure Machine) still produce ONE
+    // IsMaster with no alias — the sole component is trivially the primary.
+    // -----------------------------------------------------------------------
+    [Fact]
+    public async Task StandaloneCondo_IsMasterTrueNoAlias()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..8];
+        Guid appraisalId;
+
+        using (var seedScope = CreateScope())
+        {
+            var appraisalDb = GetAppraisalDbContext(seedScope);
+            var a = CreateAppraisalSeed(Guid.NewGuid());
+            SeedCondoProperty(a, "LO-BKK", $"STC-{tag}", "B1", "5", "501",
+                $"STC-T-{tag}", "Chanote", "Bangkok");
+            appraisalDb.Appraisals.Add(a);
+            await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            appraisalId = a.Id;
+        }
+
+        await ProcessAppraisalInNewScopeAsync(appraisalId);
+
+        using var assertScope = CreateScope();
+        var collateralDb = GetCollateralDbContext(assertScope);
+
+        var condo = await collateralDb.CollateralMasters
+            .Include(m => m.CondoDetail)
+            .Include(m => m.Engagements)
+            .FirstAsync(m => m.CondoDetail != null && m.CondoDetail.CondoRegistrationNumber == $"STC-{tag}",
+                TestContext.Current.CancellationToken);
+
+        Assert.True(condo.IsMaster);
+        Assert.Null(condo.ParentMasterId);
+        Assert.Single(condo.Engagements);
+
+        var engCount = await collateralDb.CollateralEngagements
+            .CountAsync(e => e.AppraisalId == appraisalId, TestContext.Current.CancellationToken);
+        Assert.Equal(1, engCount);
+    }
+
+    [Fact]
+    public async Task StandaloneMachine_IsMasterTrueNoAlias()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..8];
+        var regNo = $"STM-{tag}";
+        Guid appraisalId;
+
+        using (var seedScope = CreateScope())
+        {
+            var appraisalDb = GetAppraisalDbContext(seedScope);
+            var a = CreateAppraisalSeed(Guid.NewGuid());
+            SeedMachineryProperty(a, registrationNo: regNo,
+                serialNo: "S1", brand: "BRAND-X", model: "M1", manufacturer: "MFR-X");
+            appraisalDb.Appraisals.Add(a);
+            await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            appraisalId = a.Id;
+        }
+
+        await ProcessAppraisalInNewScopeAsync(appraisalId);
+
+        using var assertScope = CreateScope();
+        var collateralDb = GetCollateralDbContext(assertScope);
+
+        var machine = await collateralDb.CollateralMasters
+            .Include(m => m.MachineDetail)
+            .Include(m => m.Engagements)
+            .FirstAsync(m => m.MachineDetail != null && m.MachineDetail.MachineRegistrationNo == regNo,
+                TestContext.Current.CancellationToken);
+
+        Assert.True(machine.IsMaster);
         Assert.Null(machine.ParentMasterId);
+        Assert.Single(machine.Engagements);
+
+        var engCount = await collateralDb.CollateralEngagements
+            .CountAsync(e => e.AppraisalId == appraisalId, TestContext.Current.CancellationToken);
+        Assert.Equal(1, engCount);
+    }
+
+    // -----------------------------------------------------------------------
+    // C1 regression guard — role change: a component that was appraised STANDALONE (has its own
+    // engagement history) must never be demoted, even when a later appraisal makes it a
+    // non-primary component alongside Land. Old behavior (before the C1 fix) threw
+    // InvalidOperationException from DemoteToAlias here, permanently failing A2.
+    // -----------------------------------------------------------------------
+    [Fact]
+    public async Task Machine_StandaloneThenLandPrimary_MachineKeepsIsMasterAndOwnEngagement()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..8];
+        var regNo = $"RC-{tag}";
+        var titleNo = $"RC-LAND-{tag}";
+        Guid a1Id, a2Id;
+
+        // A1: machine-only appraisal — machine M becomes IsMaster with engagement E1.
+        using (var seedScope = CreateScope())
+        {
+            var appraisalDb = GetAppraisalDbContext(seedScope);
+            var a1 = CreateAppraisalSeed(Guid.NewGuid());
+            SeedMachineryProperty(a1, registrationNo: regNo,
+                serialNo: "S1", brand: "BRAND-RC", model: "M1", manufacturer: "MFR-RC");
+            appraisalDb.Appraisals.Add(a1);
+            await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            a1Id = a1.Id;
+        }
+        await ProcessAppraisalInNewScopeAsync(a1Id);
+
+        Guid machineId;
+        using (var checkScope = CreateScope())
+        {
+            var collateralDb = GetCollateralDbContext(checkScope);
+            var machine = await collateralDb.CollateralMasters
+                .Include(m => m.MachineDetail)
+                .Include(m => m.Engagements)
+                .FirstAsync(m => m.MachineDetail != null && m.MachineDetail.MachineRegistrationNo == regNo,
+                    TestContext.Current.CancellationToken);
+            Assert.True(machine.IsMaster);
+            Assert.Single(machine.Engagements);
+            machineId = machine.Id;
+        }
+
+        // A2: land + the SAME machine — land is the (unconditional) primary, so the machine is
+        // now a non-primary component. It must NOT be demoted (it has engagement history).
+        using (var seedScope = CreateScope())
+        {
+            var appraisalDb = GetAppraisalDbContext(seedScope);
+            var a2 = CreateAppraisalSeed(Guid.NewGuid());
+            SeedLandProperty(a2, "LO-001", "BKK", "D1", "S1", titleNo, "Chanote");
+            SeedMachineryProperty(a2, registrationNo: regNo,
+                serialNo: "S1", brand: "BRAND-RC", model: "M1", manufacturer: "MFR-RC");
+            appraisalDb.Appraisals.Add(a2);
+            await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            a2Id = a2.Id;
+        }
+
+        // Must NOT throw — this was the C1 regression (DemoteToAlias threw on M here).
+        await ProcessAppraisalInNewScopeAsync(a2Id);
+
+        using var assertScope = CreateScope();
+        var collateralDbAssert = GetCollateralDbContext(assertScope);
+
+        var landMaster = await collateralDbAssert.CollateralMasters
+            .Include(m => m.LandDetail)
+            .Include(m => m.Engagements)
+            .FirstAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleNo,
+                TestContext.Current.CancellationToken);
+
+        var machineReloaded = await collateralDbAssert.CollateralMasters
+            .Include(m => m.MachineDetail)
+            .Include(m => m.Engagements)
+            .FirstAsync(m => m.Id == machineId, TestContext.Current.CancellationToken);
+
+        // Land is A2's new primary, owning exactly one (new) engagement for A2.
+        Assert.True(landMaster.IsMaster);
+        Assert.Single(landMaster.Engagements);
+        Assert.Contains(landMaster.Engagements, e => e.AppraisalId == a2Id);
+
+        // The machine master STAYS IsMaster (appraised standalone in A1) and RETAINS E1 — it was
+        // not demoted, and A2 did not add a second engagement to it.
+        Assert.True(machineReloaded.IsMaster);
+        Assert.Null(machineReloaded.ParentMasterId);
+        Assert.Single(machineReloaded.Engagements);
+        Assert.Contains(machineReloaded.Engagements, e => e.AppraisalId == a1Id);
+
+        // Two distinct IsMaster rows now legitimately exist — expected and correct under the
+        // "engagement history makes a row a real collateral" rule.
+        Assert.NotEqual(landMaster.Id, machineReloaded.Id);
+    }
+
+    // -----------------------------------------------------------------------
+    // W1 regression guard — role change back: a component demoted to a (no-engagement) alias
+    // under a different primary must be PROMOTED back to a standalone IsMaster when a later
+    // appraisal makes it, in its own right, the primary — never walked to its old (foreign)
+    // parent, which would misattribute the engagement to an unrelated collateral.
+    // -----------------------------------------------------------------------
+    [Fact]
+    public async Task Condo_DemotedThenReappraisedStandalone_IsPromotedBackToMaster()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..8];
+        var titleNo = $"PR-LAND-{tag}";
+        var condoRegNo = $"PR-{tag}";
+        Guid a1Id, a2Id;
+
+        // A1: land + condo — land is primary; the condo has no engagement of its own, so it is
+        // demoted to a typed alias of the land master.
+        using (var seedScope = CreateScope())
+        {
+            var appraisalDb = GetAppraisalDbContext(seedScope);
+            var a1 = CreateAppraisalSeed(Guid.NewGuid());
+            SeedLandProperty(a1, "LO-001", "BKK", "D1", "S1", titleNo, "Chanote");
+            SeedCondoProperty(a1, "LO-BKK", condoRegNo, "B1", "5", "501", $"PR-T-{tag}", "Chanote", "Bangkok");
+            appraisalDb.Appraisals.Add(a1);
+            await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            a1Id = a1.Id;
+        }
+        await ProcessAppraisalInNewScopeAsync(a1Id);
+
+        Guid condoId;
+        using (var checkScope = CreateScope())
+        {
+            var collateralDb = GetCollateralDbContext(checkScope);
+            var condo = await collateralDb.CollateralMasters
+                .Include(m => m.CondoDetail)
+                .Include(m => m.Engagements)
+                .FirstAsync(m => m.CondoDetail != null && m.CondoDetail.CondoRegistrationNumber == condoRegNo,
+                    TestContext.Current.CancellationToken);
+            Assert.False(condo.IsMaster);
+            Assert.NotNull(condo.ParentMasterId);
+            Assert.Empty(condo.Engagements);
+            condoId = condo.Id;
+        }
+
+        // A2: condo-only reappraisal — the SAME condo is now, in its own right, this appraisal's
+        // primary. It must be promoted back to IsMaster, not resolved to its old (foreign) parent.
+        using (var seedScope = CreateScope())
+        {
+            var appraisalDb = GetAppraisalDbContext(seedScope);
+            var a2 = CreateAppraisalSeed(Guid.NewGuid());
+            SeedCondoProperty(a2, "LO-BKK", condoRegNo, "B1", "5", "501", $"PR-T-{tag}", "Chanote", "Bangkok");
+            appraisalDb.Appraisals.Add(a2);
+            await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            a2Id = a2.Id;
+        }
+        await ProcessAppraisalInNewScopeAsync(a2Id);
+
+        using var assertScope = CreateScope();
+        var collateralDbAssert = GetCollateralDbContext(assertScope);
+
+        var condoReloaded = await collateralDbAssert.CollateralMasters
+            .Include(m => m.CondoDetail)
+            .Include(m => m.Engagements)
+            .FirstAsync(m => m.Id == condoId, TestContext.Current.CancellationToken);
+
+        Assert.True(condoReloaded.IsMaster);
+        Assert.Null(condoReloaded.ParentMasterId);
+        Assert.Single(condoReloaded.Engagements);
+        Assert.Contains(condoReloaded.Engagements, e => e.AppraisalId == a2Id);
+    }
+
+    // -----------------------------------------------------------------------
+    // W2 regression guard — Leasehold-as-primary ordering: the lowest-GroupNumber group is a
+    // Leasehold group (processed last, in pass 2), while a SEPARATE Machine group (pass 1,
+    // non-primary) also exists. Exactly one IsMaster (the leasehold) must result; the machine
+    // becomes a typed alias; one engagement lands on the leasehold.
+    //
+    // The leasehold's own underlying Condo is pre-seeded directly (no engagement) so pass 1's
+    // independent processing of that same Condo property and the leasehold's underlying-
+    // resolution both resolve to the SAME already-persisted row within the unit of work — this
+    // sidesteps an unrelated, pre-existing gap where the underlying-Condo lookup (unlike Land's
+    // landMasterByPropertyId cache) doesn't see an Added-but-unsaved row from earlier in the
+    // same SaveChanges batch.
+    // -----------------------------------------------------------------------
+    [Fact]
+    public async Task LeaseholdOnlyPrimary_NoLand_MachineNonPrimaryGroupBecomesTypedAlias()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..8];
+        var condoRegNo = $"LHU-{tag}";
+        var contractNo = $"LHC-{tag}";
+        var machineRegNo = $"LHM-{tag}";
+
+        using (var preSeedScope = CreateScope())
+        {
+            var collateralDb = GetCollateralDbContext(preSeedScope);
+            var underlyingCondo = CollateralMaster.CreateCondo(
+                ownerName: "Test Owner",
+                landOfficeCode: "LO-BKK",
+                condoRegistrationNumber: condoRegNo,
+                buildingNumber: "B1",
+                floorNumber: "5",
+                roomNumber: "501",
+                province: "Bangkok",
+                district: "Test District",
+                subDistrict: "Test Subdistrict",
+                condoName: null);
+            collateralDb.CollateralMasters.Add(underlyingCondo);
+            await collateralDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        Guid appraisalId;
+        using (var seedScope = CreateScope())
+        {
+            var appraisalDb = GetAppraisalDbContext(seedScope);
+            var a = CreateAppraisalSeed(Guid.NewGuid());
+
+            // Leasehold property — its own group, GroupNumber=1 (lowest → primary).
+            var lhProp = a.AddLeaseAgreementLandProperty();
+            lhProp.LeaseAgreementDetail!.Update(
+                contractNo: contractNo,
+                lessorName: "Landlord Co",
+                lesseeName: "Tenant Inc",
+                leaseStartDate: new DateTime(2022, 1, 1));
+            var lhGroup = a.CreateGroup("Leasehold Group");
+            lhGroup.AddProperty(lhProp.Id);
+
+            // The pre-seeded condo, present in THIS appraisal too (required for
+            // UpsertLeaseholdAsync's no-land underlying-resolution fallback). Left ungrouped.
+            SeedCondoProperty(a, "LO-BKK", condoRegNo, "B1", "5", "501", "N/A", "Chanote", "Bangkok");
+
+            // Machine property — its OWN group, GroupNumber=2 (non-primary, unrelated to the lease).
+            var machineProp = SeedMachineryProperty(a, registrationNo: machineRegNo,
+                serialNo: "S1", brand: "BRAND-L", model: "M1", manufacturer: "MFR-L");
+            var machineGroup = a.CreateGroup("Machine Group");
+            machineGroup.AddProperty(machineProp.Id);
+
+            appraisalDb.Appraisals.Add(a);
+            await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            appraisalId = a.Id;
+        }
+
+        await ProcessAppraisalInNewScopeAsync(appraisalId);
+
+        using var assertScope = CreateScope();
+        var collateralDb2 = GetCollateralDbContext(assertScope);
+
+        var leaseMaster = await collateralDb2.CollateralMasters
+            .Include(m => m.LeaseholdDetail)
+            .Include(m => m.Engagements)
+            .FirstAsync(m => m.LeaseholdDetail != null && m.LeaseholdDetail.LeaseRegistrationNo == contractNo,
+                TestContext.Current.CancellationToken);
+
+        var machine = await collateralDb2.CollateralMasters
+            .Include(m => m.MachineDetail)
+            .Include(m => m.Engagements)
+            .FirstAsync(m => m.MachineDetail != null && m.MachineDetail.MachineRegistrationNo == machineRegNo,
+                TestContext.Current.CancellationToken);
+
+        // Leasehold is the appraisal's primary — owns the single engagement.
+        Assert.True(leaseMaster.IsMaster);
+        Assert.Null(leaseMaster.ParentMasterId);
+        Assert.Single(leaseMaster.Engagements);
+
+        // The separately-grouped Machine (pass-1, non-primary) becomes a typed alias, keeping
+        // its own MachineDetail.
+        Assert.False(machine.IsMaster);
+        Assert.Equal(leaseMaster.Id, machine.ParentMasterId);
+        Assert.Empty(machine.Engagements);
+        Assert.NotNull(machine.MachineDetail);
+
+        var engCount = await collateralDb2.CollateralEngagements
+            .CountAsync(e => e.AppraisalId == appraisalId, TestContext.Current.CancellationToken);
+        Assert.Equal(1, engCount);
     }
 }

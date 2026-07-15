@@ -19,13 +19,14 @@ public class GetPendingInternalSummaryEndpoint : ICarterModule
                     string[]? activityId,
                     string[]? slaBucket,
                     string? pic,
+                    string? picType,
                     string[]? purpose,
                     string[]? propertyType,
                     string[]? taskType,
                     ISender sender,
                     CancellationToken cancellationToken) =>
                 {
-                    var filter = new PendingInternalFilter(slaStatus, search, activityId, null, null, slaBucket, pic, purpose, propertyType, taskType);
+                    var filter = new PendingInternalFilter(slaStatus, search, activityId, null, null, slaBucket, pic, picType, purpose, propertyType, taskType);
                     var result = await sender.Send(new GetPendingInternalSummaryQuery(filter), cancellationToken);
                     return Results.Ok(result);
                 })

@@ -15,7 +15,6 @@ public interface IRegulatoryExportQuery
 /// Produced by <c>RegulatoryExportQuery</c> via <c>vw_RegulatoryExport</c>.
 /// </summary>
 public sealed record RegulatoryExportRow(
-    string? PreviousAppraisalNumber,
     string? LatestAppraisalNumber,
     string CollateralType,
     string? HostCollateralId,

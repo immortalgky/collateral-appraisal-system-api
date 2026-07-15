@@ -20,6 +20,7 @@ public class GetPendingExternalGroupedEndpoint : ICarterModule
                     string[]? activityId,
                     string[]? slaBucket,
                     string? pic,
+                    string? picType,
                     string[]? purpose,
                     string[]? propertyType,
                     string[]? taskType,
@@ -30,7 +31,7 @@ public class GetPendingExternalGroupedEndpoint : ICarterModule
                     if (string.IsNullOrWhiteSpace(groupBy) || groupBy.ToLowerInvariant() is not ("pic" or "company" or "activity"))
                         return Results.BadRequest("groupBy is required and must be one of: pic, company, activity.");
 
-                    var filter = new PendingExternalFilter(slaStatus, search, activityId, null, null, slaBucket, pic, purpose, propertyType, taskType, appraisalCompanyId);
+                    var filter = new PendingExternalFilter(slaStatus, search, activityId, null, null, slaBucket, pic, picType, purpose, propertyType, taskType, appraisalCompanyId);
                     var result = await sender.Send(new GetPendingExternalGroupedQuery(groupBy, filter), cancellationToken);
                     return Results.Ok(result);
                 })

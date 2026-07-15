@@ -8,6 +8,7 @@ public record PendingInternalFilter(
     string? SortDir,
     string[]? SlaBucket,
     string? Pic,
+    string? PicType,
     string[]? Purpose,
     string[]? PropertyType,
     string[]? TaskType

@@ -22,5 +22,9 @@ public record PendingTaskDto(
     string? AppraisalCompanyName,
     string MonitoringType,
     string? AssignedTo,
-    string? AssignedType
+    string? AssignedType,
+    DateTime? OpenDate,
+    DateTime? AppointmentDate,
+    int? SlaDurationHours,
+    string? AppraisalStatus
 );

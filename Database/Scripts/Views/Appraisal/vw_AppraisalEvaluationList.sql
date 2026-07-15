@@ -43,7 +43,14 @@ SELECT
                     + (ISNULL(w.W4, 0) * ISNULL(e.Criteria4Rating, 0))
                     + (ISNULL(w.W5, 0) * ISNULL(e.Criteria5Rating, 0))
             AS DECIMAL(5, 2))
-        END                                 AS TotalScore
+        END                                 AS TotalScore,
+
+    -- Internal followup staff: the bank-side user attached to the current external
+    -- assignment (AppraisalAssignment.InternalAppraiserId, stored as a username).
+    -- Name is resolved from auth.AspNetUsers, mirroring vw_AppraisalEvaluationHeader.
+    ext.InternalAppraiserId                 AS InternalFollowupStaffId,
+    NULLIF(LTRIM(RTRIM(CONCAT(u.FirstName, ' ', u.LastName))), '')
+                                            AS InternalFollowupStaffName
 
 FROM appraisal.Appraisals a
 
@@ -60,6 +67,7 @@ FROM appraisal.Appraisals a
             aa.AppraisalId,
             aa.ExternalAppraiserName,
             aa.AssigneeCompanyId,
+            aa.InternalAppraiserId,
             aa.SubmittedAt,
             ROW_NUMBER() OVER (PARTITION BY aa.AppraisalId ORDER BY aa.AssignedAt DESC, aa.CreatedAt DESC, aa.Id DESC) AS rn
         FROM appraisal.AppraisalAssignments aa
@@ -67,6 +75,10 @@ FROM appraisal.Appraisals a
           AND aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
     ) ext
 ON ext.AppraisalId = a.Id AND ext.rn = 1
+
+    -- Internal followup staff display name (person-assigned; username -> AspNetUsers)
+    LEFT JOIN auth.AspNetUsers u
+    ON u.NormalizedUserName = UPPER(ext.InternalAppraiserId)
 
     -- Final appraised value
     LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = a.Id

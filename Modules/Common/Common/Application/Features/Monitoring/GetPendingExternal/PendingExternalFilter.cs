@@ -8,6 +8,7 @@ public record PendingExternalFilter(
     string? SortDir,
     string[]? SlaBucket,
     string? Pic,
+    string? PicType,
     string[]? Purpose,
     string[]? PropertyType,
     string[]? TaskType,

@@ -69,10 +69,12 @@ public sealed class RegulatoryFileWriter
 
         bool isCondoType = row.CollateralType == CollateralTypes.Condo;
 
-        bool isLandOrBuildingOrLB = isLandType || isBuildingType || isCondoType;
+        // Under-construction and construction-progress apply only to land / building / land&building
+        // types. Condo (and everything else) → blank / 0.00.
+        bool isLandOrBuilding = isLandType || isBuildingType;
 
         string underConstruction;
-        if (!isLandOrBuildingOrLB)
+        if (!isLandOrBuilding)
         {
             underConstruction = string.Empty;
         }
@@ -80,17 +82,14 @@ public sealed class RegulatoryFileWriter
         {
             underConstruction = "L";
         }
-        else if (isBuildingType)
-        {
-            underConstruction = row.IsUnderConstruction ? "Y" : "N";
-        }
         else
         {
+            // Remaining in-group types are building types (LB / LSB / LS).
             underConstruction = row.IsUnderConstruction ? "Y" : "N";
         }
 
         string constructionProgress;
-        if (!isLandOrBuildingOrLB)
+        if (!isLandOrBuilding)
         {
             constructionProgress = Money(0m)!;
         }
@@ -124,7 +123,9 @@ public sealed class RegulatoryFileWriter
         var values = new Dictionary<string, string?>
         {
             ["RecordType"]                 = "D",
-            ["ApplicationId"]              = row.PreviousAppraisalNumber,
+            // Both Application Id and Newest Application Id carry the latest appraisal number — the
+            // bank always sends the latest report number in both fields.
+            ["ApplicationId"]              = row.LatestAppraisalNumber,
             ["NewestApplicationId"]        = row.LatestAppraisalNumber,
             ["CollateralIdHost"]           = row.HostCollateralId,
             ["UnderConstruction"]          = underConstruction,
@@ -176,5 +177,5 @@ public sealed class RegulatoryFileWriter
             : null;
 
     private static string? Date(DateTime? value) =>
-        value.HasValue ? DateOnly.FromDateTime(value.Value).ToString("ddMMyyyy", CultureInfo.InvariantCulture) : null;
+        value.HasValue ? DateOnly.FromDateTime(value.Value).ToString("yyyyMMdd", CultureInfo.InvariantCulture) : null;
 }

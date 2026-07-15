@@ -258,6 +258,44 @@ public class CollateralMaster : Aggregate<Guid>
     }
 
     /// <summary>
+    /// Demotes an existing IsMaster row to a typed alias of the appraisal's primary collateral.
+    /// Used by the one-collateral-per-appraisal upsert path when a legacy standalone master
+    /// (e.g. a Condo/Machine/Leasehold master created before this model existed) is discovered
+    /// as a NON-primary component of an appraisal being (re)processed. The row keeps its own
+    /// type detail (CondoDetail/MachineDetail/LeaseholdDetail) — only IsMaster/ParentMasterId flip.
+    /// Guarded against demoting a row that already owns engagements: under the
+    /// one-collateral-per-appraisal invariant, only the primary ever accumulates engagements
+    /// (CollateralMasterUpsertService.AppendEngagement always targets the primary), so a non-primary
+    /// row reaching this method with engagements attached indicates a bug upstream — fail loudly
+    /// instead of silently orphaning engagement history.
+    /// </summary>
+    public void DemoteToAlias(Guid parentMasterId)
+    {
+        if (Engagements.Count > 0)
+            throw new InvalidOperationException(
+                $"Cannot demote CollateralMaster {Id} to an alias of {parentMasterId}: it already owns " +
+                $"{Engagements.Count} engagement(s). This should not happen under the one-collateral-per-appraisal " +
+                "model — investigate before retrying.");
+
+        IsMaster = false;
+        ParentMasterId = parentMasterId;
+    }
+
+    /// <summary>
+    /// Promotes a typed alias back to a standalone IsMaster — used when a component that was
+    /// previously demoted under a different appraisal's primary is now, in THIS appraisal, the
+    /// primary collateral in its own right (e.g. a Condo alias reappraised standalone). Aliases
+    /// never accumulate engagements (see DemoteToAlias's guard), so promotion is always safe.
+    /// Idempotent no-op if already a master.
+    /// </summary>
+    public void PromoteToMaster()
+    {
+        if (IsMaster) return;
+        IsMaster = true;
+        ParentMasterId = null;
+    }
+
+    /// <summary>
     /// Creates a PRJ (block-project) master. Always IsMaster=true, ParentMasterId=null.
     /// Attaches a fresh ProjectDetail; caller must subsequently call UpsertFromProjectAppraisal.
     /// </summary>
@@ -404,6 +442,44 @@ public class CollateralMaster : Aggregate<Guid>
         return master;
     }
 
+    /// <summary>
+    /// Creates an alias row for a Condo component that is NOT the appraisal's primary collateral
+    /// (one-collateral-per-appraisal model). Unlike Land aliases, a Condo alias keeps its OWN full
+    /// CondoDetail — only IsMaster/ParentMasterId mark it as structurally subordinate to the primary.
+    /// No domain event — alias creation is a structural detail, not a business event.
+    /// </summary>
+    public static CollateralMaster CreateCondoAlias(
+        Guid parentMasterId,
+        string ownerName,
+        string? landOfficeCode,
+        string condoRegistrationNumber,
+        string buildingNumber,
+        string floorNumber,
+        string roomNumber,
+        string province,
+        string district,
+        string subDistrict,
+        string? condoName)
+    {
+        var alias = new CollateralMaster
+        {
+            Id = Guid.CreateVersion7(),
+            CollateralType = CollateralTypes.Condo, // "U"
+            OwnerName = ownerName,
+            IsDeleted = false,
+            IsMaster = false,
+            ParentMasterId = parentMasterId,
+        };
+
+        alias.CondoDetail = new CondoDetail(
+            alias.Id,
+            landOfficeCode, condoRegistrationNumber, buildingNumber, floorNumber, roomNumber,
+            province, district, subDistrict, condoName,
+            isDeleted: false);
+
+        return alias;
+    }
+
     public static CollateralMaster CreateLeasehold(
         string lessee,
         string leaseRegistrationNo,
@@ -439,6 +515,44 @@ public class CollateralMaster : Aggregate<Guid>
         return master;
     }
 
+    /// <summary>
+    /// Creates an alias row for a Leasehold component that is NOT the appraisal's primary collateral
+    /// (one-collateral-per-appraisal model). Keeps its OWN full LeaseholdDetail (including the
+    /// UnderlyingMasterId FK, unrelated to the IsMaster/ParentMasterId hierarchy) — only
+    /// IsMaster/ParentMasterId mark it as structurally subordinate to the primary.
+    /// No domain event — alias creation is a structural detail, not a business event.
+    /// </summary>
+    public static CollateralMaster CreateLeaseholdAlias(
+        Guid parentMasterId,
+        string lessee,
+        string leaseRegistrationNo,
+        Guid underlyingMasterId,
+        string lessor,
+        DateOnly leaseTermStart,
+        string? collateralType = null)
+    {
+        var effectiveType = string.IsNullOrWhiteSpace(collateralType)
+            ? CollateralTypes.Leasehold
+            : collateralType;
+
+        var alias = new CollateralMaster
+        {
+            Id = Guid.CreateVersion7(),
+            CollateralType = effectiveType,
+            OwnerName = lessee,
+            IsDeleted = false,
+            IsMaster = false,
+            ParentMasterId = parentMasterId,
+        };
+
+        alias.LeaseholdDetail = new LeaseholdDetail(
+            alias.Id,
+            leaseRegistrationNo, underlyingMasterId, lessor, lessee, leaseTermStart,
+            isDeleted: false);
+
+        return alias;
+    }
+
     public static CollateralMaster CreateMachine(
         string ownerName,
         string? machineRegistrationNo,
@@ -464,6 +578,39 @@ public class CollateralMaster : Aggregate<Guid>
 
         master.AddDomainEvent(new CollateralMasterCreatedEvent(master.Id, master.CollateralType));
         return master;
+    }
+
+    /// <summary>
+    /// Creates an alias row for a Machine component that is NOT the appraisal's primary collateral
+    /// (one-collateral-per-appraisal model). Keeps its OWN full MachineDetail — only
+    /// IsMaster/ParentMasterId mark it as structurally subordinate to the primary.
+    /// No domain event — alias creation is a structural detail, not a business event.
+    /// </summary>
+    public static CollateralMaster CreateMachineAlias(
+        Guid parentMasterId,
+        string ownerName,
+        string? machineRegistrationNo,
+        string? serialNo,
+        string? brand,
+        string? model,
+        string? manufacturer)
+    {
+        var alias = new CollateralMaster
+        {
+            Id = Guid.CreateVersion7(),
+            CollateralType = CollateralTypes.Machine,
+            OwnerName = ownerName,
+            IsDeleted = false,
+            IsMaster = false,
+            ParentMasterId = parentMasterId,
+        };
+
+        alias.MachineDetail = new MachineDetail(
+            alias.Id,
+            machineRegistrationNo, serialNo, brand, model, manufacturer,
+            isDeleted: false);
+
+        return alias;
     }
 
     /// <summary>

@@ -21,15 +21,17 @@ public class GetPendingFollowupsEndpoint : ICarterModule
                     string[]? slaStatus,
                     string[]? slaBucket,
                     string? pic,
+                    string? picType,
                     string[]? purpose,
                     string[]? propertyType,
                     string[]? taskType,
+                    string[]? appraisalCompanyId,
                     string? sortBy,
                     string? sortDir,
                     ISender sender,
                     CancellationToken cancellationToken) =>
                 {
-                    var filter = new PendingFollowupFilter(slaStatus, search, sortBy, sortDir, slaBucket, pic, purpose, propertyType, taskType);
+                    var filter = new PendingFollowupFilter(slaStatus, search, sortBy, sortDir, slaBucket, pic, picType, purpose, propertyType, taskType, appraisalCompanyId);
                     var result = await sender.Send(new GetPendingFollowupsQuery(pagination, filter), cancellationToken);
                     return Results.Ok(result);
                 })
