@@ -212,6 +212,18 @@ builder.Services.AddMassTransit(config =>
             e.UsePartitioner<AppointmentDateChangedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
         });
 
+        // Appraisal value changed — drives the approval-tier switch (meeting vs direct committee) by
+        // writing appraisalValue into WorkflowInstance.Variables. Partitioned by AppraisalId so multiple
+        // pricing recomputes for the same appraisal serialize (no out-of-order stale appraisalValue write).
+        // Consumer is [ExcludeFromConfigureEndpoints] to prevent ConfigureEndpoints from also creating an
+        // unordered auto-queue.
+        configurator.ReceiveEndpoint("workflow-appraisal-value-changed", e =>
+        {
+            var partitioner = e.CreatePartitioner(16);
+            e.ConfigureConsumer<AppraisalValueChangedIntegrationEventConsumer>(context);
+            e.UsePartitioner<AppraisalValueChangedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
+        });
+
         // #7 PMA external-sync status round-trip — the Integration module's WebhookDispatchConsumer
         // publishes this after every PMA save's delivery attempt. Partitioned by AppraisalId so
         // multiple round-tripped status events for the same appraisal serialize relative to EACH
