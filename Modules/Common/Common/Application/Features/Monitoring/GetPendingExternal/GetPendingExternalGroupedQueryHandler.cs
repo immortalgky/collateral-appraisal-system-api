@@ -50,8 +50,13 @@ public class GetPendingExternalGroupedQueryHandler(
 
         if (!string.IsNullOrWhiteSpace(filter.Pic))
         {
-            conditions.Add("PIC LIKE @Pic ESCAPE '\\'");
-            parameters.Add("Pic", "%" + EscapeLike(filter.Pic.Trim()) + "%");
+            conditions.Add("AssignedTo = @Pic");
+            parameters.Add("Pic", filter.Pic.Trim());
+            if (!string.IsNullOrWhiteSpace(filter.PicType))
+            {
+                conditions.Add("AssignedType = @PicType");
+                parameters.Add("PicType", filter.PicType.Trim());
+            }
         }
 
         if (filter.Purpose is { Length: > 0 })

@@ -50,6 +50,12 @@ public class GetPendingEvaluationsSummaryQueryHandler(ISqlConnectionFactory conn
             parameters.Add("AppraisalStatuses", filter.AppraisalStatus);
         }
 
+        if (!string.IsNullOrWhiteSpace(filter.InternalFollowupStaff))
+        {
+            conditions.Add("InternalFollowupStaffId = @InternalFollowupStaff");
+            parameters.Add("InternalFollowupStaff", filter.InternalFollowupStaff.Trim());
+        }
+
         var where = "WHERE " + string.Join(" AND ", conditions);
         var sql = $"SELECT COUNT(*) FROM appraisal.vw_AppraisalEvaluationList {where}";
 

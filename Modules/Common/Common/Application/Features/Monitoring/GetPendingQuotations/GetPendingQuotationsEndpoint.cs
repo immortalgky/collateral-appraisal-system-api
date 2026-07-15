@@ -24,10 +24,11 @@ public class GetPendingQuotationsEndpoint : ICarterModule
                     string? sortDir,
                     DateOnly? cutOffTimeFrom,
                     DateOnly? cutOffTimeTo,
+                    string? appraisalCompanyId,
                     ISender sender,
                     CancellationToken cancellationToken) =>
                 {
-                    var filter = new PendingQuotationFilter(status, quotationNo, appraisalNo, customerName, sortBy, sortDir, cutOffTimeFrom, cutOffTimeTo);
+                    var filter = new PendingQuotationFilter(status, quotationNo, appraisalNo, customerName, sortBy, sortDir, cutOffTimeFrom, cutOffTimeTo, appraisalCompanyId);
                     var result = await sender.Send(new GetPendingQuotationsQuery(pagination, filter), cancellationToken);
                     return Results.Ok(result);
                 })

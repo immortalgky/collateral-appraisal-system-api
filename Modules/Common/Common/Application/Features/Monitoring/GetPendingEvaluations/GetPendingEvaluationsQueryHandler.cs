@@ -37,7 +37,9 @@ SELECT
     AppraisalValue,
     EvaluationId,
     EvaluationStatus,
-    TotalScore
+    TotalScore,
+    InternalFollowupStaffId,
+    InternalFollowupStaffName
 FROM appraisal.vw_AppraisalEvaluationList";
         var conditions = new List<string>();
         var parameters = new DynamicParameters();
@@ -71,6 +73,13 @@ FROM appraisal.vw_AppraisalEvaluationList";
         {
             conditions.Add("AppraisalStatus IN @AppraisalStatuses");
             parameters.Add("AppraisalStatuses", filter.AppraisalStatus);
+        }
+
+        // Exact match on the internal followup staff username (autocomplete-selected value).
+        if (!string.IsNullOrWhiteSpace(filter.InternalFollowupStaff))
+        {
+            conditions.Add("InternalFollowupStaffId = @InternalFollowupStaff");
+            parameters.Add("InternalFollowupStaff", filter.InternalFollowupStaff.Trim());
         }
 
         sql += " WHERE " + string.Join(" AND ", conditions);

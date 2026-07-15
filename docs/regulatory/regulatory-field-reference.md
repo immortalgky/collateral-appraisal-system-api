@@ -31,8 +31,9 @@ need to check the data that was sent.
 
 **Number formatting (important):** money/decimal fields are written as **implied-decimal, no decimal
 point** — the value is multiplied by 100 and left-padded with zeros. Example: `5,000,000.50` is written
-as `500000050`. A blank/absent numeric field is written as all zeros. Dates are `ddMMyyyy`; a blank date
-is spaces. (The Excel companion, by contrast, shows real decimals and `dd/MM/yyyy` dates for readability.)
+as `500000050`. A blank/absent numeric field is written as all zeros. Detail date fields are `YYYYMMDD`
+(e.g. `20250121`); a blank date is spaces. (The Excel companion, by contrast, shows real decimals and
+`dd/MM/yyyy` dates for readability.)
 
 ---
 
@@ -45,17 +46,17 @@ w/ Building (LS). "Land types" = Land (L), LB, Leasehold Land (LSL), LSB, LS.
 | # | Pos | Len | Field | Type | Where the value comes from / condition |
 |---|-----|-----|-------|------|----------------------------------------|
 | 1 | 1 | 1 | Record Type | string(1) | Constant `D` (Header `H`, Trailer `T`). |
-| 2 | 2–11 | 10 | Application Id (previous appraisal no.) | string(10) | The **previous** (2nd-most-recent) engagement's appraisal number for the master. Blank if the master has only one appraisal. |
+| 2 | 2–11 | 10 | Application Id (appraisal no.) | string(10) | The **latest** engagement's appraisal number — same value as field 3. The bank always sends the latest appraisal report number in this field. |
 | 3 | 12–21 | 10 | Newest Application Id (latest appraisal no.) | string(10) | The **latest** engagement's appraisal number. |
 | 4 | 22–40 | 19 | HOST Collateral ID | decimal(19,0) | `CollateralMaster.HostCollateralId`. Populated by the inbound host-mapping feed; **zeros until that feed provides it**. |
-| 5 | 41 | 1 | Collateral Under Construction | string(1) | `Y` / `N` / `L` / blank. **Rule:** not a land/building/condo type → blank; bare Land or Leasehold land → `L`; building types → `Y` if under construction else `N`; Condo → `Y`/`N`. "Under construction" comes from the land detail's *is-under-construction-at-last-appraisal* flag. |
-| 6 | 42–46 | 5 | Construction Progress % | decimal(5,2) | Not land/building/condo → `0.00`; bare Land/Leasehold → `100.00`; otherwise the land detail's overall construction-progress percent (bounded 0–100). |
+| 5 | 41 | 1 | Collateral Under Construction | string(1) | `Y` / `N` / `L` / blank. **Rule:** not a land / building / land&building type → blank (this includes **Condo**); bare Land or Leasehold land → `L`; building types → `Y` if under construction else `N`. "Under construction" comes from the land detail's *is-under-construction-at-last-appraisal* flag. |
+| 6 | 42–46 | 5 | Construction Progress % | decimal(5,2) | Not a land / building / land&building type → `0.00` (this includes **Condo**); bare Land/Leasehold → `100.00`; otherwise the land detail's overall construction-progress percent (bounded 0–100). |
 | 7 | 47–61 | 15 | Appraisal Value as Completed | decimal(15,2) | The **latest** engagement's appraisal value. |
 | 8 | 62–76 | 15 | Appraisal Value at Origination | decimal(15,2) | If the latest appraisal is a **Progressive** (construction) inspection → the **earliest** engagement's value (the first appraisal already estimated the as-completed value); otherwise the latest value. |
 | 9 | 77–79 | 3 | Number of Floors | decimal(3,0) | Building types → the representative building's floor count (bounded 0–999); otherwise `0`. |
 | 10 | 80–82 | 3 | Building Age (years) | decimal(3,0) | Building types → representative building's age; Condo → condo detail's building age; otherwise `0` (bounded 0–999). |
 | 11 | 83–97 | 15 | Market Selling Price | decimal(15,2) | **Not yet sourced — sent as zeros.** (Pending source confirmation.) |
-| 12 | 98–105 | 8 | Valuation Date | DDMMYYYY | The **latest** engagement's appraisal date. |
+| 12 | 98–105 | 8 | Valuation Date | YYYYMMDD | The **latest** engagement's appraisal date. |
 | 13 | 106–120 | 15 | Valuation Price in Baht | decimal(15,2) | The latest engagement's appraisal value (same figure as field 7). |
 | 14 | 121–135 | 15 | Mortgage Value | decimal(15,2) | **Not yet sourced — sent as zeros.** |
 | 15 | 136 | 1 | Appraiser Type | string(1) | `1` = external appraisal, `2` = internal. Determined by whether the latest engagement has an external appraisal-company id. |
@@ -66,10 +67,10 @@ w/ Building (LS). "Land types" = Land (L), LB, Leasehold Land (LSL), LSB, LS.
 | 20 | 152–158 | 7 | Area Utilization (building area) | decimal(7,2) | Building types → representative building's area; Condo → condo detail's usable area (≤ 99,999.99); otherwise zeros. |
 | 21 | 159–168 | 10 | Building Type ID | string(10) | Building types → representative building's building-type code; otherwise blank. |
 | 22 | 169–268 | 100 | Building Name | string(100) | Building types → the English description of the building-type code (from the BuildingType parameter table); otherwise blank. |
-| 23 | 269–276 | 8 | Expected Building Completion Date | DDMMYYYY | **Not yet sourced — sent blank.** |
-| 24 | 277–284 | 8 | Construction Review Date | DDMMYYYY | The latest **Progressive** (construction-inspection) engagement date. Blank if the master has none. |
-| 25 | 285–292 | 8 | First Valuation Date | DDMMYYYY | The **earliest** engagement's appraisal date. |
-| 26 | 293–300 | 8 | Latest Valuation Date | DDMMYYYY | The **latest** engagement's appraisal date. |
+| 23 | 269–276 | 8 | Expected Building Completion Date | YYYYMMDD | **Not yet sourced — sent blank.** |
+| 24 | 277–284 | 8 | Construction Review Date | YYYYMMDD | The latest **Progressive** (construction-inspection) engagement date. Blank if the master has none. |
+| 25 | 285–292 | 8 | First Valuation Date | YYYYMMDD | The **earliest** engagement's appraisal date. |
+| 26 | 293–300 | 8 | Latest Valuation Date | YYYYMMDD | The **latest** engagement's appraisal date. |
 
 **Widths sum to exactly 300.**
 
@@ -80,8 +81,7 @@ w/ Building (LS). "Land types" = Land (L), LB, Leasehold Land (LSL), LSB, LS.
 - **One record per active master collateral** (`IsDeleted = 0`, `IsMaster = 1`).
 - Most value/date fields are driven by the master's **engagements** (its appraisal history):
   - **Earliest** = engagement with the earliest appraisal date → first valuation date + origination value.
-  - **Latest** = engagement with the latest appraisal date → completed value, valuation date/price, latest date.
-  - **Previous** = the 2nd-most-recent engagement → the "Application Id" (previous appraisal number).
+  - **Latest** = engagement with the latest appraisal date → completed value, valuation date/price, latest date, and the appraisal number sent in **both** fields 2 and 3.
   - **Latest Progressive** = the latest engagement whose appraisal type is *Progressive* → construction review date.
 - **Representative building** (fields 9, 10, 20, 21, 22) = the first (`Sequence = 1`) building recorded on
   the **latest** engagement.

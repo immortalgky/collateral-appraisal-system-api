@@ -7,7 +7,9 @@ public record PendingFollowupFilter(
     string? SortDir,
     string[]? SlaBucket,
     string? Pic,
+    string? PicType,
     string[]? Purpose,
     string[]? PropertyType,
-    string[]? TaskType
+    string[]? TaskType,
+    string[]? AppraisalCompanyId
 );

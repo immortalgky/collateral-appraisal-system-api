@@ -964,15 +964,17 @@ public class Appraisal : Aggregate<Guid>
                 $"Cannot complete appraisal: property #{propertyNum} (Land) is missing land detail.");
         }
 
-        // Validate title: at least one title with a non-empty TitleNumber
+        // Required fields mirror the Land collateral dedup key:
+        // TitleNumber + TitleType + Province + District + SubDistrict. LandOffice is not a key field.
         if (detail.Titles.Count == 0 || detail.Titles.All(t => string.IsNullOrWhiteSpace(t.TitleNumber)))
         {
             missing.Add("TitleNumber (at least one title must have a non-empty TitleNumber)");
         }
 
-        // LandOffice stored as controlled-list dropdown value — treated as LandOfficeCode
-        if (string.IsNullOrWhiteSpace(detail.Address?.LandOffice))
-            missing.Add("LandOffice (LandOfficeCode)");
+        if (detail.Titles.Count == 0 || detail.Titles.All(t => string.IsNullOrWhiteSpace(t.TitleType)))
+        {
+            missing.Add("TitleType (at least one title must have a non-empty TitleType)");
+        }
 
         if (string.IsNullOrWhiteSpace(detail.Address?.Province))
             missing.Add("Province");
@@ -1002,10 +1004,9 @@ public class Appraisal : Aggregate<Guid>
                 $"Cannot complete appraisal: property #{propertyNum} (Condo) is missing condo detail.");
         }
 
-        // LandOffice stored as controlled-list dropdown value — treated as LandOfficeCode
-        if (string.IsNullOrWhiteSpace(detail.Address?.LandOffice))
-            missing.Add("LandOffice (LandOfficeCode)");
-
+        // Required fields mirror the Condo collateral dedup key:
+        // CondoRegistrationNumber + BuildingNumber + FloorNumber + RoomNumber + Province + District + SubDistrict.
+        // LandOffice and unit-deed TitleNumber/TitleType are not key fields (condo dedup uses BuiltOnTitleNumber).
         if (string.IsNullOrWhiteSpace(detail.CondoRegistrationNumber))
             missing.Add("CondoRegistrationNumber");
         if (string.IsNullOrWhiteSpace(detail.BuildingNumber))
@@ -1015,11 +1016,12 @@ public class Appraisal : Aggregate<Guid>
         if (string.IsNullOrWhiteSpace(detail.RoomNumber))
             missing.Add("RoomNumber (UnitNumber)");
 
-        // Unit deed identifiers required for collateral master dedup
-        if (string.IsNullOrWhiteSpace(detail.TitleNumber))
-            missing.Add("TitleNumber (unit deed number)");
-        if (string.IsNullOrWhiteSpace(detail.TitleType))
-            missing.Add("TitleType (unit deed type)");
+        if (string.IsNullOrWhiteSpace(detail.Address?.Province))
+            missing.Add("Province");
+        if (string.IsNullOrWhiteSpace(detail.Address?.District))
+            missing.Add("District (Amphur)");
+        if (string.IsNullOrWhiteSpace(detail.Address?.SubDistrict))
+            missing.Add("SubDistrict (Tambon)");
 
         if (missing.Count > 0)
         {

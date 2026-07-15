@@ -124,6 +124,16 @@ OUTER APPLY (
             parameters.Add("CutOffTimeTo", filter.CutOffTimeTo.Value.ToDateTime(TimeOnly.MaxValue));
         }
 
+        // Optional filter: quotations that invited a specific appraisal company.
+        if (!string.IsNullOrWhiteSpace(filter.AppraisalCompanyId))
+        {
+            conditions.Add(@"EXISTS (
+    SELECT 1 FROM appraisal.QuotationInvitations qi
+    WHERE qi.QuotationRequestId = q.Id
+      AND qi.CompanyId = @AppraisalCompanyId)");
+            parameters.Add("AppraisalCompanyId", filter.AppraisalCompanyId);
+        }
+
         sql += " WHERE " + string.Join(" AND ", conditions);
 
         // Default RequestDate DESC; q.Id is a stable tiebreaker (never a sort key → no duplicate trap).

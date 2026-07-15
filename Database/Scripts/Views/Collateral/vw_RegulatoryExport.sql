@@ -57,20 +57,6 @@ LatestEngagement AS (
     FROM collateral.CollateralEngagements e
 ),
 
--- Previous engagement per master: the 2nd-most-recent (rn=2 of the same DESC order as Latest).
--- Feeds the "Application Id" field (the previous appraisal number, not the earliest). NULL when the
--- master has only one engagement → writer emits blank.
-PreviousEngagement AS (
-    SELECT
-        e.CollateralMasterId,
-        e.AppraisalNumber  AS PreviousAppraisalNumber,
-        ROW_NUMBER() OVER (
-            PARTITION BY e.CollateralMasterId
-            ORDER BY e.AppraisalDate DESC, e.CreatedAt DESC, e.Id DESC
-        ) AS rn
-    FROM collateral.CollateralEngagements e
-),
-
 -- Latest Progressive (construction-inspection) engagement per master
 LatestProgressiveEngagement AS (
     SELECT
@@ -106,9 +92,6 @@ SELECT
     m.Id                                                        AS CollateralMasterId,
     m.CollateralType,
     m.HostCollateralId,
-
-    -- Previous engagement (2nd-most-recent) → "Application Id" field
-    prev.PreviousAppraisalNumber,
 
     -- Earliest engagement (feeds first valuation date + origination value)
     ee.EarliestAppraisalDate,
@@ -203,11 +186,6 @@ LEFT JOIN EarliestEngagement ee
 LEFT JOIN LatestEngagement le
     ON  le.CollateralMasterId = m.Id
     AND le.rn                 = 1
-
--- Previous engagement (rn=2 → the 2nd-most-recent)
-LEFT JOIN PreviousEngagement prev
-    ON  prev.CollateralMasterId = m.Id
-    AND prev.rn                 = 2
 
 -- Latest Progressive engagement (rn=1)
 LEFT JOIN LatestProgressiveEngagement pe

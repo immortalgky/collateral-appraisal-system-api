@@ -13,6 +13,13 @@ public class PendingTask : Aggregate<Guid>
     public DateTime AssignedAt { get; private set; }
     public string? WorkingBy { get; private set; }
     public DateTime? LockedAt { get; private set; }
+
+    /// <summary>
+    /// The moment the assignee first opened the task (first transition to InProgress). Stamped once
+    /// in <see cref="StartWorking"/> and never overwritten, so it records the initial open time even
+    /// if the task is later re-opened. Null while the task is still Assigned/unopened.
+    /// </summary>
+    public DateTime? OpenedAt { get; private set; }
     public Guid WorkflowInstanceId { get; private set; }
     public string ActivityId { get; private set; } = default!;
     public DateTime? DueAt { get; private set; }
@@ -134,6 +141,8 @@ public class PendingTask : Aggregate<Guid>
     {
         WorkingBy = username;
         TaskStatus = TaskStatus.InProgress;
+        // Record the first-open timestamp; keep the original once set even if re-opened later.
+        OpenedAt ??= DateTime.Now;
         AddDomainEvent(new TaskStartedDomainEvent(CorrelationId, AssignedTo, AssignedAt, previousAssignedTo));
     }
 

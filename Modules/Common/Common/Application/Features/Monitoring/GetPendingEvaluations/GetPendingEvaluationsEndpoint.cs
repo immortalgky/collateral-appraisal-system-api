@@ -22,10 +22,11 @@ public class GetPendingEvaluationsEndpoint : ICarterModule
                     string? sortDir,
                     string? appraisalCompanyId,
                     string[]? appraisalStatus,
+                    string? internalFollowupStaff,
                     ISender sender,
                     CancellationToken cancellationToken) =>
                 {
-                    var filter = new PendingEvaluationFilter(evaluationStatus, search, sortBy, sortDir, appraisalCompanyId, appraisalStatus);
+                    var filter = new PendingEvaluationFilter(evaluationStatus, search, sortBy, sortDir, appraisalCompanyId, appraisalStatus, internalFollowupStaff);
                     var result = await sender.Send(new GetPendingEvaluationsQuery(pagination, filter), cancellationToken);
                     return Results.Ok(result);
                 })

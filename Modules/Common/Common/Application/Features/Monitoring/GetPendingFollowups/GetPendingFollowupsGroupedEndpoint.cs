@@ -19,16 +19,18 @@ public class GetPendingFollowupsGroupedEndpoint : ICarterModule
                     string[]? slaStatus,
                     string[]? slaBucket,
                     string? pic,
+                    string? picType,
                     string[]? purpose,
                     string[]? propertyType,
                     string[]? taskType,
+                    string[]? appraisalCompanyId,
                     ISender sender,
                     CancellationToken cancellationToken) =>
                 {
                     if (string.IsNullOrWhiteSpace(groupBy) || groupBy.ToLowerInvariant() is not ("pic" or "company" or "activity"))
                         return Results.BadRequest("groupBy is required and must be one of: pic, company, activity.");
 
-                    var filter = new PendingFollowupFilter(slaStatus, search, null, null, slaBucket, pic, purpose, propertyType, taskType);
+                    var filter = new PendingFollowupFilter(slaStatus, search, null, null, slaBucket, pic, picType, purpose, propertyType, taskType, appraisalCompanyId);
                     var result = await sender.Send(new GetPendingFollowupsGroupedQuery(groupBy, filter), cancellationToken);
                     return Results.Ok(result);
                 })

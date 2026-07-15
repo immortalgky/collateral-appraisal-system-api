@@ -23,8 +23,8 @@ public sealed class RegulatoryExcelWriter
     private static readonly string[] Headers =
     [
         "Collateral Type",
-        "Previous Appraisal No.",
-        "Latest Appraisal No.",
+        "Application Id (Appraisal No.)",
+        "Newest Application Id (Appraisal No.)",
         "HOST Collateral ID",
         "Under Construction",
         "Construction Progress (%)",
@@ -87,7 +87,8 @@ public sealed class RegulatoryExcelWriter
         var c = 1;
 
         ws.Cell(r, c++).Value = row.CollateralType;
-        ws.Cell(r, c++).Value = row.PreviousAppraisalNumber ?? "";
+        // Both Application Id and Newest Application Id carry the latest appraisal number (matches the file).
+        ws.Cell(r, c++).Value = row.LatestAppraisalNumber ?? "";
         ws.Cell(r, c++).Value = row.LatestAppraisalNumber ?? "";
         ws.Cell(r, c++).Value = row.HostCollateralId ?? "";
         ws.Cell(r, c++).Value = UnderConstructionText(row);
@@ -141,21 +142,22 @@ public sealed class RegulatoryExcelWriter
         row.CollateralType is CollateralTypes.Land or CollateralTypes.Leasehold;
 
     // Mirrors RegulatoryFileWriter's Under Construction rule (Y/N/L/blank), rendered as readable text.
+    // Only land / building / land&building types are in-group; condo (and everything else) → blank.
     private static string UnderConstructionText(RegulatoryExportRow row)
     {
         if (IsBareLand(row))
             return "Vacant land (L)";
-        if (IsBuildingType(row) || IsCondo(row))
+        if (IsBuildingType(row))
             return row.IsUnderConstruction ? "Under construction (Y)" : "Completed (N)";
         return "";
     }
 
-    // Mirrors RegulatoryFileWriter's Construction Progress rule.
+    // Mirrors RegulatoryFileWriter's Construction Progress rule (condo and other non-land/building → 0.00).
     private static decimal? ConstructionProgress(RegulatoryExportRow row)
     {
         if (IsBareLand(row))
             return 100m;
-        if (IsBuildingType(row) || IsCondo(row))
+        if (IsBuildingType(row))
             return row.ConstructionProgressPercent ?? 0m;
         return 0m;
     }

@@ -20,7 +20,8 @@ public class GetPendingFollowupsQueryHandler(ISqlConnectionFactory connectionFac
     {
         "AppraisalNumber", "CustomerName", "TaskType", "Purpose", "PropertyType",
         "SlaStatus", "Priority", "AssignedDate", "RequestedDate",
-        "OlaActualHours", "OlaVarianceHours", "Movement", "PIC"
+        "OlaActualHours", "OlaVarianceHours", "Movement", "PIC",
+        "OpenDate", "AppointmentDate", "AppraisalStatus"
     };
 
     public async Task<PaginatedResult<PendingTaskDto>> Handle(
@@ -51,7 +52,11 @@ SELECT
     AppraisalCompanyName,
     MonitoringType,
     AssignedTo,
-    AssignedType
+    AssignedType,
+    OpenDate,
+    AppointmentDate,
+    SlaDurationHours,
+    AppraisalStatus
 FROM common.vw_MonitoringPendingTasks";
 
         var conditions = new List<string> { "ActivityId IN @ActivityIds" };
@@ -75,8 +80,13 @@ FROM common.vw_MonitoringPendingTasks";
 
         if (!string.IsNullOrWhiteSpace(filter.Pic))
         {
-            conditions.Add("PIC LIKE @Pic ESCAPE '\\'");
-            parameters.Add("Pic", "%" + EscapeLike(filter.Pic.Trim()) + "%");
+            conditions.Add("AssignedTo = @Pic");
+            parameters.Add("Pic", filter.Pic.Trim());
+            if (!string.IsNullOrWhiteSpace(filter.PicType))
+            {
+                conditions.Add("AssignedType = @PicType");
+                parameters.Add("PicType", filter.PicType.Trim());
+            }
         }
 
         if (filter.Purpose is { Length: > 0 })
@@ -95,6 +105,12 @@ FROM common.vw_MonitoringPendingTasks";
         {
             conditions.Add("TaskType IN @TaskTypes");
             parameters.Add("TaskTypes", filter.TaskType);
+        }
+
+        if (filter.AppraisalCompanyId is { Length: > 0 })
+        {
+            conditions.Add("AppraisalCompanyId IN @AppraisalCompanyIds");
+            parameters.Add("AppraisalCompanyIds", filter.AppraisalCompanyId);
         }
 
         sql += " WHERE " + string.Join(" AND ", conditions);

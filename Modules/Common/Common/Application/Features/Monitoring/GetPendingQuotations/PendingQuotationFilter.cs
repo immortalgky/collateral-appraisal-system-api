@@ -8,5 +8,6 @@ public record PendingQuotationFilter(
     string? SortBy,
     string? SortDir,
     DateOnly? CutOffTimeFrom = null,
-    DateOnly? CutOffTimeTo = null
+    DateOnly? CutOffTimeTo = null,
+    string? AppraisalCompanyId = null
 );

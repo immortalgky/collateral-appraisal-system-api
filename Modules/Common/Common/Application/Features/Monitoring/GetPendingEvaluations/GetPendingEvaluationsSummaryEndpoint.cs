@@ -18,10 +18,11 @@ public class GetPendingEvaluationsSummaryEndpoint : ICarterModule
                     string? search,
                     string? appraisalCompanyId,
                     string[]? appraisalStatus,
+                    string? internalFollowupStaff,
                     ISender sender,
                     CancellationToken cancellationToken) =>
                 {
-                    var filter = new PendingEvaluationFilter(evaluationStatus, search, null, null, appraisalCompanyId, appraisalStatus);
+                    var filter = new PendingEvaluationFilter(evaluationStatus, search, null, null, appraisalCompanyId, appraisalStatus, internalFollowupStaff);
                     var result = await sender.Send(new GetPendingEvaluationsSummaryQuery(filter), cancellationToken);
                     return Results.Ok(result);
                 })

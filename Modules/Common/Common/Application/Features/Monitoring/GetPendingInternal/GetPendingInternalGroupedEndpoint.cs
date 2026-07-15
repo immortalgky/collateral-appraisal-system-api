@@ -20,6 +20,7 @@ public class GetPendingInternalGroupedEndpoint : ICarterModule
                     string[]? activityId,
                     string[]? slaBucket,
                     string? pic,
+                    string? picType,
                     string[]? purpose,
                     string[]? propertyType,
                     string[]? taskType,
@@ -29,7 +30,7 @@ public class GetPendingInternalGroupedEndpoint : ICarterModule
                     if (string.IsNullOrWhiteSpace(groupBy) || groupBy.ToLowerInvariant() is not ("pic" or "company" or "activity"))
                         return Results.BadRequest("groupBy is required and must be one of: pic, company, activity.");
 
-                    var filter = new PendingInternalFilter(slaStatus, search, activityId, null, null, slaBucket, pic, purpose, propertyType, taskType);
+                    var filter = new PendingInternalFilter(slaStatus, search, activityId, null, null, slaBucket, pic, picType, purpose, propertyType, taskType);
                     var result = await sender.Send(new GetPendingInternalGroupedQuery(groupBy, filter), cancellationToken);
                     return Results.Ok(result);
                 })

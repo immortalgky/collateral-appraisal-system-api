@@ -29,6 +29,9 @@ public class PendingTaskConfiguration : IEntityTypeConfiguration<PendingTask>
         builder.Property(p => p.LockedAt)
             .IsRequired(false);
 
+        builder.Property(p => p.OpenedAt)
+            .IsRequired(false);
+
         builder.Property(p => p.WorkflowInstanceId);
 
         builder.Property(p => p.ActivityId)
