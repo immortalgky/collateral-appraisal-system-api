@@ -404,7 +404,7 @@ public class PricingAnalysis : Aggregate<Guid>
         return _documents.Any(d => d.Id == documentId);
     }
 
-    public void SetRemark(string remark)
+    public void SetRemark(string? remark)
     {
         Remark = remark;
     }
