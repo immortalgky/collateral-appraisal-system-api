@@ -77,4 +77,7 @@ public sealed record Method01Detail
 
     [JsonPropertyName("startIn")]
     public int StartIn { get; init; }
+
+    [JsonPropertyName("remark")]
+    public string? Remark { get; init; }
 }

@@ -101,4 +101,7 @@ public sealed record Method02Detail
         [JsonPropertyName("seasons")]
         public SeasonRateInput[] Seasons { get; init; } = [];
     }
+
+    [JsonPropertyName("remark")]
+    public string? Remark { get; init; }
 }

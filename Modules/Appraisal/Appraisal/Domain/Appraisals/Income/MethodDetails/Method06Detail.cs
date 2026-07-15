@@ -23,6 +23,9 @@ public sealed record Method06Detail
     [JsonPropertyName("totalSaleableArea")]
     public decimal TotalSaleableArea { get; init; }
 
+    [JsonPropertyName("totalBuildingArea")]
+    public decimal TotalBuildingArea { get; init; }
+
     [JsonPropertyName("increaseRatePct")]
     public decimal IncreaseRatePct { get; init; }
 
