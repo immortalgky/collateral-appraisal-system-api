@@ -1,4 +1,5 @@
 using Appraisal.Domain.Appraisals;
+using Shared.Exceptions;
 using Appraisal.Domain.Appraisals.Events;
 
 namespace Appraisal.Tests.Domain;

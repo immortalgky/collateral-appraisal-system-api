@@ -342,6 +342,12 @@ public class PricingAnalysis : Aggregate<Guid>
     // Documents management
     public PricingAnalysisDocument AddDocument(PricingAnalysisDocumentData data)
     {
+        RuleCheck.Valid()
+             .AddErrorIf(
+                 data.DocumentId.HasValue && _documents.Any(d => d.DocumentId == data.DocumentId),
+                 $"Document '{data.DocumentId}' is already linked to this pricing analysis.")
+             .ThrowIfInvalid();
+
         var document = PricingAnalysisDocument.Create(Id, data);
 
         _documents.Add(document);
@@ -358,6 +364,9 @@ public class PricingAnalysis : Aggregate<Guid>
 
         RuleCheck.Valid()
             .AddErrorIf(document is null, $"Document with id '{documentId}' not found in this pricing analysis.")
+            .AddErrorIf(
+                 data.DocumentId.HasValue && _documents.Any(d => d.DocumentId == data.DocumentId),
+                 $"Document '{data.DocumentId}' is already linked to this pricing analysis.")
             .ThrowIfInvalid();
 
         var (previousDocId, newDocId) = document!.Update(data);
