@@ -8,6 +8,7 @@ public record GetAuditLogsQuery(
     AuditEntityType? EntityType,
     Guid? EntityId,
     Guid? ActorUserId,
+    string? ActorName,
     DateTime? From,
     DateTime? To,
     AuditAction? Action

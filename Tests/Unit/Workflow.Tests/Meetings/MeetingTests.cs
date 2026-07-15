@@ -264,8 +264,8 @@ public class MeetingTests
         var meeting = BuildNewMeeting();
         var appraisalId1 = Guid.NewGuid();
         var appraisalId2 = Guid.NewGuid();
-        meeting.AddItem(appraisalId1, "APR-001", 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
-        meeting.AddItem(appraisalId2, "APR-002", 600_000m, Guid.NewGuid(), "act-2", DateTime.UtcNow);
+        meeting.AddItem(appraisalId1, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
+        meeting.AddItem(appraisalId2, "APR-002", 600_000m, 600_000m, Guid.NewGuid(), "act-2", DateTime.UtcNow);
         meeting.SendInvitation(DateTime.UtcNow.AddDays(-1));
         meeting.ClearDomainEvents();
 
@@ -281,8 +281,8 @@ public class MeetingTests
         var meeting = BuildNewMeeting();
         var id1 = Guid.NewGuid();
         var id2 = Guid.NewGuid();
-        meeting.AddItem(id1, "APR-001", 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
-        meeting.AddItem(id2, "APR-002", 600_000m, Guid.NewGuid(), "act-2", DateTime.UtcNow);
+        meeting.AddItem(id1, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
+        meeting.AddItem(id2, "APR-002", 600_000m, 600_000m, Guid.NewGuid(), "act-2", DateTime.UtcNow);
         meeting.SendInvitation(DateTime.UtcNow.AddDays(-1));
         meeting.ClearDomainEvents();
 
@@ -303,7 +303,7 @@ public class MeetingTests
     {
         var meeting = BuildNewMeeting();
         var appraisalId = Guid.NewGuid();
-        meeting.AddItem(appraisalId, "APR-001", 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
+        meeting.AddItem(appraisalId, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
 
         var act = () => meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);
 
@@ -334,8 +334,8 @@ public class MeetingTests
         var meeting = BuildNewMeeting();
         var id1 = Guid.NewGuid();
         var id2 = Guid.NewGuid();
-        meeting.AddItem(id1, "APR-001", 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
-        meeting.AddItem(id2, "APR-002", 600_000m, Guid.NewGuid(), "act-2", DateTime.UtcNow);
+        meeting.AddItem(id1, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
+        meeting.AddItem(id2, "APR-002", 600_000m, 600_000m, Guid.NewGuid(), "act-2", DateTime.UtcNow);
         meeting.SendInvitation(DateTime.UtcNow.AddDays(-1));
         meeting.ClearDomainEvents();
         meeting.ReleaseItem(id1, "secretary", DateTime.UtcNow);
@@ -404,7 +404,7 @@ public class MeetingTests
     {
         var meeting = BuildNewMeeting();
         var appraisalId = Guid.NewGuid();
-        meeting.AddItem(appraisalId, "APR-001", 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
+        meeting.AddItem(appraisalId, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
 
         var act = () => meeting.RouteBackItem(appraisalId, "secretary", "reason", DateTime.UtcNow);
 
@@ -417,8 +417,8 @@ public class MeetingTests
         var meeting = BuildNewMeeting();
         var id1 = Guid.NewGuid();
         var id2 = Guid.NewGuid();
-        meeting.AddItem(id1, "APR-001", 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
-        meeting.AddItem(id2, "APR-002", 600_000m, Guid.NewGuid(), "act-2", DateTime.UtcNow);
+        meeting.AddItem(id1, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
+        meeting.AddItem(id2, "APR-002", 600_000m, 600_000m, Guid.NewGuid(), "act-2", DateTime.UtcNow);
         meeting.SendInvitation(DateTime.UtcNow.AddDays(-1));
 
         meeting.RouteBackItem(id1, "secretary", "reason1", DateTime.UtcNow);
@@ -717,7 +717,7 @@ public class MeetingTests
         meeting.SendInvitation(beforeNow);
 
         var now = DateTime.UtcNow;
-        var act = () => meeting.AddItem(Guid.NewGuid(), "APR-001", 100_000m, Guid.NewGuid(), "act", now);
+        var act = () => meeting.AddItem(Guid.NewGuid(), "APR-001", 100_000m, 100_000m, Guid.NewGuid(), "act", now);
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*started*");
     }
@@ -796,6 +796,93 @@ public class MeetingTests
     }
 
     // =========================================================================
+    // EndNow — manual end of an in-progress meeting
+    // =========================================================================
+
+    [Fact]
+    public void EndNow_AckOnlyMeeting_InProgress_TransitionsToEnded()
+    {
+        // Acknowledgement-only meeting has no Decision items, so it never auto-ends via ReleaseItem.
+        var meeting = BuildNewMeeting();
+        var startAt = DateTime.UtcNow.AddMinutes(-30);   // already started (InProgress)
+        var before = startAt.AddMinutes(-5);
+        meeting.SetSchedule(startAt, startAt.AddHours(2), null, before);
+        meeting.CutOff([], new[] { BuildAckItem() }, before);
+        meeting.SendInvitation(before);
+        meeting.ClearDomainEvents();
+
+        meeting.EndNow(DateTime.UtcNow);
+
+        meeting.Status.Should().Be(MeetingStatus.Ended);
+        meeting.EndedAt.Should().NotBeNull();
+        meeting.DomainEvents.Should().ContainSingle(e => e is MeetingEndedDomainEvent);
+    }
+
+    [Fact]
+    public void EndNow_BeforeScheduledStart_Throws()
+    {
+        var meeting = BuildNewMeeting();
+        var now = DateTime.UtcNow;
+        var startAt = now.AddHours(1);   // has not started yet
+        meeting.SetSchedule(startAt, startAt.AddHours(2), null, now.AddMinutes(-5));
+        meeting.CutOff([], new[] { BuildAckItem() }, now.AddMinutes(-5));
+        meeting.SendInvitation(now.AddMinutes(-5));
+
+        var act = () => meeting.EndNow(now);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*before its scheduled start*");
+    }
+
+    [Fact]
+    public void EndNow_WithPendingDecisionItem_Throws()
+    {
+        var meeting = BuildNewMeeting();
+        var startAt = DateTime.UtcNow.AddMinutes(-30);
+        var before = startAt.AddMinutes(-5);
+        meeting.SetSchedule(startAt, startAt.AddHours(2), null, before);
+        meeting.AddItem(Guid.NewGuid(), "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", before);
+        meeting.SendInvitation(before);
+
+        var act = () => meeting.EndNow(DateTime.UtcNow);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*pending or routed back*");
+    }
+
+    [Fact]
+    public void EndNow_WhenRoutedBack_Throws()
+    {
+        var meeting = BuildInvitationSentMeetingWithOneItem();
+        var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
+        meeting.RouteBackItem(appraisalId, "secretary", "needs rework", DateTime.UtcNow);
+
+        var act = () => meeting.EndNow(DateTime.UtcNow);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*in-progress*");
+    }
+
+    [Fact]
+    public void EndNow_WhenNew_Throws()
+    {
+        var meeting = BuildNewMeeting();
+
+        var act = () => meeting.EndNow(DateTime.UtcNow);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*in-progress*");
+    }
+
+    [Fact]
+    public void EndNow_WhenAlreadyEnded_Throws()
+    {
+        var meeting = BuildInvitationSentMeetingWithOneItem();
+        var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
+        meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);   // auto-ends
+
+        var act = () => meeting.EndNow(DateTime.UtcNow);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*in-progress*");
+    }
+
+    // =========================================================================
     // Helpers
     // =========================================================================
 
@@ -816,7 +903,7 @@ public class MeetingTests
             meeting.SnapshotCommittee(committee, meetingSeq: 1);
 
         var appraisalId = Guid.NewGuid();
-        meeting.AddItem(appraisalId, "APR-001", 500_000m, Guid.NewGuid(), "meeting-act", DateTime.UtcNow);
+        meeting.AddItem(appraisalId, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "meeting-act", DateTime.UtcNow);
 
         meeting.SendInvitation(DateTime.UtcNow.AddDays(-1));
         meeting.ClearDomainEvents();
@@ -832,7 +919,7 @@ public class MeetingTests
         var meeting = BuildNewMeeting();
 
         // Add a decision item (needed so release tests have something to work with)
-        meeting.AddItem(Guid.NewGuid(), "APR-DEC-001", 100_000m, Guid.NewGuid(), "act-dec", DateTime.UtcNow);
+        meeting.AddItem(Guid.NewGuid(), "APR-DEC-001", 100_000m, 100_000m, Guid.NewGuid(), "act-dec", DateTime.UtcNow);
 
         // CutOff adds an ack item
         var ackItem = BuildAckItem();
@@ -848,6 +935,7 @@ public class MeetingTests
         => MeetingQueueItem.CreateQueued(
             appraisalId ?? Guid.NewGuid(),
             "APR-Q-001",
+            800_000m,
             800_000m,
             Guid.NewGuid(),
             "queue-act");

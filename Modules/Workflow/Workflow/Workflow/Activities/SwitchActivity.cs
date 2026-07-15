@@ -190,10 +190,14 @@ public class SwitchActivity : WorkflowActivityBase
                 // Build a comparison expression: expressionResult [operator] [value]
                 var comparisonExpression = $"expressionValue {caseCondition}";
                 
-                // Create temporary variables for evaluation
+                // Create temporary variables for evaluation.
+                // Missing/null variable → compare as numeric 0 (not the string "null"): for a
+                // numeric threshold switch a missing value then fails safe to the lowest tier
+                // (e.g. missing appraisalValue matches "<= 30000000" → no meeting) instead of
+                // sorting after every number and hitting the first ">" case.
                 var tempVariables = new Dictionary<string, object>(variables)
                 {
-                    ["expressionValue"] = expressionResult ?? "null"
+                    ["expressionValue"] = expressionResult ?? 0m
                 };
 
                 return _expressionEvaluator.EvaluateExpression(comparisonExpression, tempVariables);

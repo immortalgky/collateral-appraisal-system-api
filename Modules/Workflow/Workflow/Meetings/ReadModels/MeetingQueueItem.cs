@@ -14,6 +14,7 @@ public class MeetingQueueItem : Entity<Guid>
     public Guid AppraisalId { get; private set; }
     public string? AppraisalNo { get; private set; }
     public decimal FacilityLimit { get; private set; }
+    public decimal AppraisalValue { get; private set; }
     public Guid WorkflowInstanceId { get; private set; }
     public string ActivityId { get; private set; } = default!;
     public Guid? MeetingId { get; private set; }
@@ -26,6 +27,7 @@ public class MeetingQueueItem : Entity<Guid>
         Guid appraisalId,
         string? appraisalNo,
         decimal facilityLimit,
+        decimal appraisalValue,
         Guid workflowInstanceId,
         string activityId)
     {
@@ -35,11 +37,17 @@ public class MeetingQueueItem : Entity<Guid>
             AppraisalId = appraisalId,
             AppraisalNo = appraisalNo,
             FacilityLimit = facilityLimit,
+            AppraisalValue = appraisalValue,
             WorkflowInstanceId = workflowInstanceId,
             ActivityId = activityId,
             Status = MeetingQueueItemStatus.Queued,
             EnqueuedAt = DateTime.Now
         };
+    }
+
+    public void UpdateAppraisalValue(decimal appraisalValue)
+    {
+        AppraisalValue = appraisalValue;
     }
 
     public void AssignTo(Guid meetingId)

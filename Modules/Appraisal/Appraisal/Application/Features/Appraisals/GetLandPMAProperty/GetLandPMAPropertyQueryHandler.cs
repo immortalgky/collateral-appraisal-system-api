@@ -32,6 +32,10 @@ public class GetLandPropertyQueryHandler(
             ForcedSalePrice = property.ForcedSalePrice,
             BuildingInsurancePrice = property.BuildingInsurancePrice,
 
+            ExternalSyncStatus = property.ExternalSyncStatus,
+            ExternalSyncError = property.ExternalSyncError,
+            ExternalSyncedAt = property.ExternalSyncedAt,
+
             SubDistrict = landDetail?.Address?.SubDistrict,
             District = landDetail?.Address?.District,
             Province = landDetail?.Address?.Province,

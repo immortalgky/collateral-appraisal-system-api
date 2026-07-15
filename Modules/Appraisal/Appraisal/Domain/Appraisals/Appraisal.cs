@@ -33,6 +33,11 @@ public class Appraisal : Aggregate<Guid>
     // construction-inspection fee (Progressive bypasses the normal tier/quotation pipeline).
     public Guid? PrevAppraisalId { get; private set; }
 
+    // For Progressive (construction-inspection) appraisals — which inspection round this is
+    // (1st, 2nd, ...). System-assigned at creation = (completed Progressive inspections already on
+    // the same collateral) + 1. NULL for non-Progressive appraisals.
+    public int? InspectionNumber { get; private set; }
+
     // Request-level properties for workflow routing
     public bool IsPma { get; private set; }
     public string? Purpose { get; private set; }
@@ -168,6 +173,17 @@ public class Appraisal : Aggregate<Guid>
     }
 
     /// <summary>
+    /// Raises <see cref="PmaUpdatedEvent"/> so the outbox pushes the just-saved PMA data for
+    /// <paramref name="propertyId"/> to the external LOS system asynchronously. Called by the
+    /// Land/Condo PMA save handlers after mutating price/detail fields, so the domain event
+    /// commits in the same transaction as the PMA save (atomic — no lost/phantom sends).
+    /// </summary>
+    public void MarkPmaUpdated(Guid propertyId)
+    {
+        AddDomainEvent(new PmaUpdatedEvent(Id, propertyId));
+    }
+
+    /// <summary>
     /// Sets the reappraisal batch group tag (e.g. "26G000001").
     /// System-only — called once during appraisal creation for reappraisal batches.
     /// Idempotent: re-setting the same value is allowed.
@@ -179,6 +195,17 @@ public class Appraisal : Aggregate<Guid>
         if (trimmed.Length > 40)
             throw new ArgumentException("GroupTag must not exceed 40 characters.", nameof(tag));
         GroupTag = trimmed;
+    }
+
+    /// <summary>
+    /// Sets the construction-inspection round number (1st, 2nd, ...).
+    /// System-only — called once during creation of a Progressive appraisal.
+    /// </summary>
+    public void SetInspectionNumber(int number)
+    {
+        if (number <= 0)
+            throw new ArgumentOutOfRangeException(nameof(number), "InspectionNumber must be positive.");
+        InspectionNumber = number;
     }
 
     #region Property Management

@@ -158,10 +158,25 @@ namespace Integration.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AuthType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("HMAC");
+
                     b.Property<string>("CallbackUrl")
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ClientId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ClientSecret")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -173,6 +188,17 @@ namespace Integration.Infrastructure.Migrations
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("EventType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("HttpMethod")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasDefaultValue("POST");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -180,7 +206,6 @@ namespace Integration.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("SecretKey")
-                        .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
@@ -188,6 +213,10 @@ namespace Integration.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("TokenEndpoint")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -201,12 +230,12 @@ namespace Integration.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("SystemCode")
+                    b.HasIndex("SystemCode", "EventType")
                         .IsUnique()
-                        .HasDatabaseName("IX_WebhookSubscription_SystemCode");
+                        .HasDatabaseName("IX_WebhookSubscription_SystemCode_EventType");
 
-                    b.HasIndex("SystemCode", "IsActive")
-                        .HasDatabaseName("IX_WebhookSubscription_SystemCode_IsActive");
+                    b.HasIndex("SystemCode", "EventType", "IsActive")
+                        .HasDatabaseName("IX_WebhookSubscription_SystemCode_EventType_IsActive");
 
                     b.ToTable("WebhookSubscriptions", "integration");
                 });

@@ -1,6 +1,7 @@
 using Dapper;
 using Shared.Data;
 using Shared.Time;
+using Workflow.Contracts.Sql;
 using Workflow.Meetings.Domain;
 
 namespace Workflow.Meetings.Features.GetMeetingDetail;
@@ -113,7 +114,7 @@ public class GetMeetingDetailQueryHandler(
 {
     public async Task<MeetingDetailDto> Handle(GetMeetingDetailQuery query, CancellationToken cancellationToken)
     {
-        const string sql = """
+        var sql = """
                            SELECT
                                Id, Title, Status, MeetingNo, StartAt, EndAt,
                                Location, Notes, CancelReason, EndedAt, CancelledAt, CutOffAt,
@@ -143,17 +144,7 @@ public class GetMeetingDetailQueryHandler(
                                LEFT JOIN appraisal.ValuationAnalyses v ON v.AppraisalId = a.Id
                                WHERE MeetingId = @Id
 
-                           -- Most recently Ended meeting before this one (by EndedAt). NULL if none.
-                           SELECT TOP 1 prev.MeetingNo
-                           FROM workflow.[Meetings] curr
-                           INNER JOIN workflow.[Meetings] prev
-                               ON prev.Status = 'Ended'
-                               AND prev.Id <> curr.Id
-                               AND prev.EndedAt IS NOT NULL
-                           WHERE curr.Id = @Id
-                             AND (curr.StartAt IS NULL OR prev.EndedAt < curr.StartAt)
-                           ORDER BY prev.EndedAt DESC
-                           """;
+                           """ + "\n\n" + PreviousMeetingNoQuery.Sql("Id");
 
         var connection = sqlConnectionFactory.GetOpenConnection();
         await using var multi = await connection.QueryMultipleAsync(sql, new { query.Id });

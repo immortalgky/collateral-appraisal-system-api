@@ -16,6 +16,8 @@
         <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
         <!-- Explicit: SftpFileSink uses Renci.SshNet directly (don't rely on the transitive ref via Shared). -->
         <PackageReference Include="SSH.NET" />
+        <!-- Explicit: RegulatoryExcelWriter builds the xlsx companion with ClosedXML. -->
+        <PackageReference Include="ClosedXML" />
     </ItemGroup>
 
     <ItemGroup>

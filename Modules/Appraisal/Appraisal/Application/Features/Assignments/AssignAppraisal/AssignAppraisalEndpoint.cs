@@ -23,7 +23,8 @@ public class AssignAppraisalEndpoint : ICarterModule
                         request.InternalAppraiserId,
                         request.InternalFollowupAssignmentMethod,
                         request.AssignedBy ?? string.Empty,
-                        request.DecisionTaken);
+                        request.DecisionTaken,
+                        request.Remark);
 
                     var result = await sender.Send(command, cancellationToken);
 

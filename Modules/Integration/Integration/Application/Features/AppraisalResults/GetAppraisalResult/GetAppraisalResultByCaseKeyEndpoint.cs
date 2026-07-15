@@ -12,6 +12,9 @@ public class GetAppraisalResultByCaseKeyEndpoint : ICarterModule
     {
         app.MapGet("/api/v1/appraisals/result", async (
             [Microsoft.AspNetCore.Mvc.FromQuery] string externalCaseKey,
+            [Microsoft.AspNetCore.Mvc.FromQuery] string? plotNumber,
+            [Microsoft.AspNetCore.Mvc.FromQuery] string? roomNumber,
+            [Microsoft.AspNetCore.Mvc.FromQuery] string? floorNumber,
             ISender sender,
             CancellationToken cancellationToken) =>
         {
@@ -19,7 +22,7 @@ public class GetAppraisalResultByCaseKeyEndpoint : ICarterModule
                 return Results.BadRequest("externalCaseKey is required");
 
             var results = await sender.Send(
-                new GetAppraisalResultsByCaseKeyQuery(externalCaseKey),
+                new GetAppraisalResultsByCaseKeyQuery(externalCaseKey, plotNumber, roomNumber, floorNumber),
                 cancellationToken);
 
             return Results.Ok(results);

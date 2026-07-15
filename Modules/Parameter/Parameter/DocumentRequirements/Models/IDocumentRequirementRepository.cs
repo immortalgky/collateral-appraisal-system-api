@@ -4,7 +4,7 @@ public interface IDocumentRequirementRepository
 {
     #region DocumentType Operations
 
-    Task<IReadOnlyList<DocumentType>> GetAllDocumentTypesAsync(bool includeInactive = false, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<DocumentType>> GetAllDocumentTypesAsync(bool includeInactive = false, string? category = null, CancellationToken cancellationToken = default);
     Task<DocumentType?> GetDocumentTypeByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<DocumentType?> GetDocumentTypeByCodeAsync(string code, CancellationToken cancellationToken = default);
     void AddDocumentType(DocumentType documentType);

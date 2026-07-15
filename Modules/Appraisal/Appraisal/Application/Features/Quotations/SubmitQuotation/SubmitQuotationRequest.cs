@@ -23,4 +23,6 @@ public record SubmitQuotationRequest(
     string? TermsAndConditions = null,
     string? ContactName = null,
     string? ContactEmail = null,
-    string? ContactPhone = null);
+    string? ContactPhone = null,
+    bool NotParticipating = false,
+    string? DeclineReason = null);

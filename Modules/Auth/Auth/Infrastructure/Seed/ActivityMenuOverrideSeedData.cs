@@ -33,5 +33,18 @@ public static class ActivityMenuOverrideSeedData
         new("provide-additional-documents", "appraisal.property-pma",   IsVisible: false, CanEdit: false),
         new("provide-additional-documents", "appraisal.administration", IsVisible: false, CanEdit: false),
         new("provide-additional-documents", "appraisal.summary",        IsVisible: false, CanEdit: false),
+
+        // Activity: int-pma-input (role: IntAppraisalStaff)
+        // Internal staff key in PMA property values here. Only the PMA property tab applies —
+        // hide the normal Property Information + block variants so the PMA tab takes over.
+        new("int-pma-input", "appraisal.property",       IsVisible: false, CanEdit: false),
+        new("int-pma-input", "appraisal.block-condo",    IsVisible: false, CanEdit: false),
+        new("int-pma-input", "appraisal.block-village",  IsVisible: false, CanEdit: false),
+
+        // Property Information (PMA) is granted ONLY to IntAppraisalStaff (see AuthDataSeed), so it
+        // would otherwise also appear on that role's other activities. Hide it there so the PMA tab
+        // is exclusive to int-pma-input; every other role never had the permission to begin with.
+        new("int-appraisal-execution",     "appraisal.property-pma", IsVisible: false, CanEdit: false),
+        new("appraisal-book-verification", "appraisal.property-pma", IsVisible: false, CanEdit: false),
     };
 }

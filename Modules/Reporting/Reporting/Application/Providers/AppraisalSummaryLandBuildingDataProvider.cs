@@ -434,6 +434,15 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
               AND ISNULL(lt.IsMissingFromSurvey, 0) = 0
               AND lt.GovernmentPricePerSqWa IS NOT NULL
             ORDER BY lt.GovernmentPricePerSqWa, lt.Id;
+
+            -- RS23: ราคาประเมินเดิม — live appraised value of the prior appraisal (reappraisal chain),
+            -- resolved through appraisal.Appraisals.PrevAppraisalId. Same field used for the current
+            -- appraisal in RS06; null when there is no prior appraisal or it has no valuation.
+            SELECT va.AppraisedValue
+            FROM appraisal.ValuationAnalyses va
+            WHERE va.AppraisalId = (
+                SELECT a7.PrevAppraisalId FROM appraisal.Appraisals a7
+                WHERE a7.Id = @AppraisalId AND a7.IsDeleted = 0);
             """;
 
         var batchParams = new DynamicParameters();
@@ -461,6 +470,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         RequestAddressRow? requestAddress;
         List<string> requestPropertyTypes;
         List<GovPriceRow> govPriceRows;
+        decimal? prevAppraisedValue;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, batchParams))
         {
@@ -536,6 +546,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
             // RS22
             govPriceRows = (await multi.ReadAsync<GovPriceRow>()).ToList();
+
+            // RS23
+            prevAppraisedValue = await multi.ReadFirstOrDefaultAsync<decimal?>();
         }
 
         var customerName = customerNames.Count > 0
@@ -871,7 +884,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         }).ToList();
 
         // ── Derived fields ───────────────────────────────────────────────────────
-        decimal? oldAppraisalValue = null;
+        // ราคาประเมินเดิม — prior appraisal's live appraised value (RS23), for reappraisals.
+        decimal? oldAppraisalValue = prevAppraisedValue;
 
         bool isReAppraisal = string.Equals(
             header.AppraisalType, "ReAppraisal", StringComparison.OrdinalIgnoreCase);

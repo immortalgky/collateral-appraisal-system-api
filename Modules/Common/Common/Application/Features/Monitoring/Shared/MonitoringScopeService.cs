@@ -27,8 +27,9 @@ public sealed record MonitoringScope(string[] AllActivityIds, string[] TeamActiv
 ///
 ///   A layer permission may carry an optional trailing ":TEAM" modifier
 ///   (e.g. "MONITORING:PENDING_INTERNAL:CHECKER:TEAM"). Without it the monitor sees every
-///   staff's tasks in that stage; with it the monitor sees only tasks assigned to members of
-///   their own auth.Teams team. The two can be mixed across layers.
+///   staff's tasks in that stage; with it the monitor is confined to their own "team" as
+///   resolved by <see cref="TeamScopePredicate"/> — same auth.Teams team for internal users,
+///   same company for external users. The two can be mixed across layers.
 ///
 ///   For the 4 admin-only screens (Quotation, Followup, Evaluation, MeetingFollowup)
 ///   there are no activity-ID layers — the handler skips this service.
@@ -37,24 +38,6 @@ public class MonitoringScopeService(ICurrentUserService currentUserService)
 {
     // Marks the optional scope modifier on a layer permission suffix (LAYER:TEAM).
     private const string TeamModifier = "TEAM";
-
-    // Correlated subquery: rows whose person assignee is a teammate of the current user.
-    // Matches person-assigned rows only (AssignedType='1'); AssignedTo is compared via UPPER()
-    // because the view stores it raw while auth.NormalizedUserName is uppercase.
-    // Pool/group rows (AssignedType='2', AssignedTo = group name) never match, so they are
-    // intentionally excluded from team-restricted activities.
-    // Multi-team membership resolves to the UNION of all the monitor's teams' members
-    // (confirmed intended behavior) — a monitor in two teams sees both teams' staff.
-    private const string TeamMemberPredicate = """
-        AssignedType = '1' AND UPPER(AssignedTo) IN (
-            SELECT tmateU.NormalizedUserName
-            FROM auth.TeamMembers myTm
-            INNER JOIN auth.AspNetUsers me ON me.Id = myTm.UserId AND me.NormalizedUserName = @MeNorm
-            INNER JOIN auth.Teams t ON t.Id = myTm.TeamId
-            INNER JOIN auth.TeamMembers tmate ON tmate.TeamId = t.Id
-            INNER JOIN auth.AspNetUsers tmateU ON tmateU.Id = tmate.UserId
-        )
-        """;
 
     /// <summary>Resolves the activity scope for the Pending Internal screen.</summary>
     public MonitoringScope ResolveInternalScope()
@@ -95,19 +78,16 @@ public class MonitoringScopeService(ICurrentUserService currentUserService)
             parameters.Add(p, scope.AllActivityIds);
         }
 
-        // Fail closed: a team-scoped layer needs a known username to resolve teammates.
-        // If the username is missing, drop the team branch entirely rather than emitting a
-        // query that can never match — the user simply doesn't see those team-scoped activities.
-        var meNorm = currentUserService.Username?.ToUpperInvariant();
-        if (scope.TeamActivityIds.Length > 0 && !string.IsNullOrEmpty(meNorm))
+        // Team-scoped layers are gated by the shared team predicate: same auth.Teams team for
+        // internal users, same company for external users. The builder fails closed (1 = 0) when
+        // the identity value needed to resolve the boundary is missing, so no additional guard
+        // is required here.
+        if (scope.TeamActivityIds.Length > 0)
         {
             var p = $"Team{paramSuffix}ActivityIds";
-            parts.Add($"(ActivityId IN @{p} AND ({TeamMemberPredicate}))");
+            var teamPredicate = TeamScopePredicate.Build(currentUserService, parameters);
+            parts.Add($"(ActivityId IN @{p} AND {teamPredicate})");
             parameters.Add(p, scope.TeamActivityIds);
-            // @MeNorm is intentionally shared (not paramSuffix-ed) across branches — the same
-            // user resolves the same teammates in every branch, so a single param is correct.
-            if (!parameters.ParameterNames.Contains("MeNorm"))
-                parameters.Add("MeNorm", meNorm);
         }
 
         return parts.Count == 0 ? null : "(" + string.Join(" OR ", parts) + ")";

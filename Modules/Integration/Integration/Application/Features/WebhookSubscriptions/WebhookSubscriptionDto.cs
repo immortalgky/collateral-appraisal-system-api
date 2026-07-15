@@ -8,6 +8,10 @@ public class WebhookSubscriptionDto
 {
     public Guid Id { get; set; }
     public string SystemCode { get; set; } = default!;
+
+    /// <summary>Null = catch-all (matches any event for the SystemCode).</summary>
+    public string? EventType { get; set; }
+
     public string CallbackUrl { get; set; } = default!;
     public bool IsActive { get; set; }
     public string? SecretLast4 { get; set; }

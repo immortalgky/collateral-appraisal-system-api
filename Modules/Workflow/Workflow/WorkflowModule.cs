@@ -51,6 +51,7 @@ public static class WorkflowModule
         services.AddScoped<WfIUserGroupService, UserGroupService>();
         services.AddScoped<IGroupHashService, GroupHashService>();
         services.AddScoped<IGroupMonitoringService, GroupMonitoringService>();
+        services.AddScoped<ITaskMonitorScope, TaskMonitorScope>();
 
         // Assignee selector services
         services.AddScoped<ManualAssigneeSelector>();

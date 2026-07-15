@@ -137,6 +137,19 @@ public class SaveHypothesisAnalysisCommandValidator : AbstractValidator<SaveHypo
                 .InclusiveBetween(0m, 100m)
                 .When(x => x.CondominiumSummary!.RiskProfitPercent.HasValue)
                 .WithMessage("RiskProfitPercent must be between 0 and 100.");
+
+            // Area / ratio inputs — must be non-negative and within the persisted column
+            // precision (FAR is decimal(7,2), max 99999.99). Guards against negative or
+            // mistyped-huge direct inputs that would otherwise overflow at SaveChanges.
+            RuleFor(x => x.CondominiumSummary!.TotalBuildingArea)   // FSD E05
+                .GreaterThanOrEqualTo(0m)
+                .When(x => x.CondominiumSummary!.TotalBuildingArea.HasValue)
+                .WithMessage("TotalBuildingArea must be >= 0.");
+
+            RuleFor(x => x.CondominiumSummary!.FAR)                 // FSD E03
+                .InclusiveBetween(0m, 99999.99m)
+                .When(x => x.CondominiumSummary!.FAR.HasValue)
+                .WithMessage("FAR must be between 0 and 99999.99.");
         });
     }
 

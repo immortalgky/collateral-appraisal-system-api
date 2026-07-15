@@ -702,9 +702,9 @@
         "id": "approval-tier-switch",
         "name": "Approval Tier Routing",
         "type": "SwitchActivity",
-        "description": "Routes appraisal to a meeting (>30M) or directly to committee approval based on facility limit",
+        "description": "Routes appraisal to a meeting (>30M) or directly to committee approval based on appraisal value",
         "properties": {
-          "expression": "facilityLimit",
+          "expression": "appraisalValue",
           "cases": [
             "<= 30000000",
             "> 30000000"
@@ -751,7 +751,7 @@
           },
           "memberSource": {
             "type": "threshold",
-            "valueExpression": "facilityLimit",
+            "valueExpression": "appraisalValue",
             "thresholds": [
               {
                 "maxValue": 9999999.99,
@@ -1256,6 +1256,7 @@
       "internalFollowupMethod": "",
       "isPma": false,
       "facilityLimit": 0,
+      "appraisalValue": 0,
       "priority": "normal",
       "hasAppraisalBook": false
     },

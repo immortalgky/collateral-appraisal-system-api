@@ -89,11 +89,15 @@ public class GetDecisionSummaryQueryHandler(
         // Stored decision
         var decision = await decisionRepository.GetByAppraisalIdAsync(query.AppraisalId, cancellationToken);
 
-        // Government price calculations
+        // Government price calculations — two separate area totals:
+        //   surveyedArea — non-missing titles only; drives the Baht/Sq.Wa average
+        //                  (missing-from-survey land has no government price, so it must not dilute the avg)
+        //   govTotalArea — ALL titles incl. missing-from-survey; shown as the TOTAL Sq.Wa (total land area)
         var surveyedTitles = governmentPrices.Where(g => !g.IsMissingFromSurvey).ToList();
-        var govTotalArea = surveyedTitles.Sum(g => g.AreaSquareWa ?? 0m);
+        var surveyedArea = surveyedTitles.Sum(g => g.AreaSquareWa ?? 0m);
         var govTotalPrice = surveyedTitles.Sum(g => g.GovernmentPrice ?? 0m);
-        var govAvgPerSqWa = govTotalArea > 0 ? govTotalPrice / govTotalArea : 0m;
+        var govTotalArea = governmentPrices.Sum(g => g.AreaSquareWa ?? 0m);
+        var govAvgPerSqWa = surveyedArea > 0 ? govTotalPrice / surveyedArea : 0m;
 
         // Review values come from ValuationAnalyses
         var totalAppraisalPriceReview = valuationReview?.TotalAppraisalPriceReview;
@@ -116,6 +120,7 @@ public class GetDecisionSummaryQueryHandler(
                 query.AppraisalId,
                 governmentPrices,
                 govTotalArea,
+                surveyedArea,
                 govAvgPerSqWa,
                 totalAppraisalPriceReview,
                 forceSellingPriceReview,
@@ -134,6 +139,7 @@ public class GetDecisionSummaryQueryHandler(
             param,
             governmentPrices,
             govTotalArea,
+            surveyedArea,
             govAvgPerSqWa,
             totalAppraisalPriceReview,
             forceSellingPriceReview,
@@ -152,6 +158,7 @@ public class GetDecisionSummaryQueryHandler(
         object param,
         List<GovernmentPriceRow> governmentPrices,
         decimal govTotalArea,
+        decimal surveyedArea,
         decimal govAvgPerSqWa,
         decimal? totalAppraisalPriceReview,
         decimal? forceSellingPriceReview,
@@ -203,6 +210,7 @@ public class GetDecisionSummaryQueryHandler(
             BuildingInsurance: buildingInsurance,
             GovernmentPrices: governmentPrices,
             GovernmentPriceTotalArea: govTotalArea,
+            GovernmentPriceSurveyedArea: surveyedArea,
             GovernmentPriceAvgPerSqWa: govAvgPerSqWa,
             TotalAppraisalPriceReview: totalAppraisalPriceReview,
             ForceSellingPriceReview: forceSellingPriceReview,
@@ -234,6 +242,7 @@ public class GetDecisionSummaryQueryHandler(
         Guid appraisalId,
         List<GovernmentPriceRow> governmentPrices,
         decimal govTotalArea,
+        decimal surveyedArea,
         decimal govAvgPerSqWa,
         decimal? totalAppraisalPriceReview,
         decimal? forceSellingPriceReview,
@@ -337,6 +346,7 @@ public class GetDecisionSummaryQueryHandler(
             BuildingInsurance: blockInsurance,
             GovernmentPrices: governmentPrices,
             GovernmentPriceTotalArea: govTotalArea,
+            GovernmentPriceSurveyedArea: surveyedArea,
             GovernmentPriceAvgPerSqWa: govAvgPerSqWa,
             TotalAppraisalPriceReview: totalAppraisalPriceReview,
             ForceSellingPriceReview: forceSellingPriceReview,

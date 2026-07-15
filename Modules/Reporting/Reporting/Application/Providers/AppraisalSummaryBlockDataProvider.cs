@@ -353,7 +353,8 @@ public sealed class AppraisalSummaryBlockDataProvider(
             CollateralAddress       = common.CollateralAddress,
             AdministrativeDistrict  = project.SubDistrict,
             LandOffice              = project.LandOffice,
-            OldAppraisalValue       = null,
+            OldAppraisalValue       = common.PrevAppraisedValue,
+            IsReAppraisal           = string.Equals(common.AppraisalType, "ReAppraisal", StringComparison.OrdinalIgnoreCase),
 
             Appraiser  = common.Appraiser,
             LoanValue  = common.LoanValue,

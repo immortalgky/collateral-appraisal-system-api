@@ -5,7 +5,7 @@ using Shared.Pagination;
 namespace Integration.Application.Features.WebhookSubscriptions.GetWebhookSubscriptions;
 
 public record GetWebhookSubscriptionsQuery(
-    int PageNumber, int PageSize, string? SystemCode, bool? IsActive)
+    int PageNumber, int PageSize, string? SystemCode, bool? IsActive, string? EventType = null)
     : IQuery<PaginatedResult<WebhookSubscriptionDto>>;
 
 public class GetWebhookSubscriptionsQueryHandler(ISqlConnectionFactory sqlConnectionFactory)
@@ -30,12 +30,19 @@ public class GetWebhookSubscriptionsQueryHandler(ISqlConnectionFactory sqlConnec
             parameters.Add("IsActive", request.IsActive.Value);
         }
 
+        if (!string.IsNullOrWhiteSpace(request.EventType))
+        {
+            conditions.Add("s.EventType = @EventType");
+            parameters.Add("EventType", request.EventType);
+        }
+
         var where = conditions.Count > 0 ? "WHERE " + string.Join(" AND ", conditions) : "";
 
         var sql = $"""
             SELECT
                 s.Id,
                 s.SystemCode,
+                s.EventType,
                 s.CallbackUrl,
                 s.IsActive,
                 RIGHT(s.SecretKey, 4) AS SecretLast4,

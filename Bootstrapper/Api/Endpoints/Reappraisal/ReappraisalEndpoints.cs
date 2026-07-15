@@ -39,7 +39,9 @@ public class ReappraisalEndpoints : ICarterModule
                     DateOnly? reviewDateFrom = null,
                     DateOnly? reviewDateTo = null,
                     int? remainingDayFrom = null,
-                    int? remainingDayTo = null) =>
+                    int? remainingDayTo = null,
+                    string? sortBy = null,
+                    string? sortDir = null) =>
                 {
                     var query = new GetReappraisalCandidatesQuery(
                         Pagination: new PaginationRequest(pageNumber, pageSize),
@@ -51,7 +53,9 @@ public class ReappraisalEndpoints : ICarterModule
                         ReviewDateFrom: reviewDateFrom,
                         ReviewDateTo: reviewDateTo,
                         RemainingDayFrom: remainingDayFrom,
-                        RemainingDayTo: remainingDayTo);
+                        RemainingDayTo: remainingDayTo,
+                        SortBy: sortBy,
+                        SortDir: sortDir);
 
                     var result = await sender.Send(query, cancellationToken);
                     return Results.Ok(result.Items);

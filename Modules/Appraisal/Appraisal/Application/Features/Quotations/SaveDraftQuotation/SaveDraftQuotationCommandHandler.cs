@@ -84,6 +84,14 @@ public class SaveDraftQuotationCommandHandler(
             AddItems(companyQuotation, command.Items);
         }
 
+        // "Not participate": persist the decline marker (reason) and drop any pricing. Otherwise ensure a
+        // draft flipped back to participating loses a stale decline marker. The record still flows through
+        // Send-to-Checker → Submit; the final submit decides Declined vs Submitted.
+        if (command.NotParticipating)
+            companyQuotation.SetNotParticipating(command.DeclineReason ?? string.Empty);
+        else
+            companyQuotation.ClearDeclineIntent();
+
         return new SaveDraftQuotationResult(companyQuotation.Id, companyQuotation.Status);
     }
 

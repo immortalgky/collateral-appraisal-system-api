@@ -76,6 +76,7 @@ public static class IntegrationModule
         services.AddScoped<CollatrevTestFileBuilder>();
         services.AddSingleton<CollateralResultFileWriter>();
         services.AddSingleton<RegulatoryFileWriter>();
+        services.AddSingleton<RegulatoryExcelWriter>();
 
         // File interface jobs (moved from Collateral — thin orchestration only).
         services.AddScoped<As400ReappraisalJob>();
@@ -84,6 +85,7 @@ public static class IntegrationModule
 
         // Register services
         services.AddScoped<IWebhookService, WebhookService>();
+        services.AddScoped<IWebhookTokenProvider, LosTokenProvider>();
         services.AddScoped<IAppraisalLookupService, AppraisalLookupService>();
         services.AddScoped<IQuotationFinalizeLookupService, QuotationFinalizeLookupService>();
         services.AddTransient<IUpdateRequestService, UpdateRequestService>();
@@ -91,6 +93,15 @@ public static class IntegrationModule
         var webhookClientBuilder = services.AddHttpClient("Webhook");
         webhookClientBuilder.AddStandardResilienceHandler();
         webhookClientBuilder.AddHttpMessageHandler<WebhookAttemptCounterHandler>();
+
+        // Token-fetch client for TokenBearer webhook subscriptions (e.g. LOS). Separate named
+        // client from "Webhook" so the token endpoint's resilience/retry policy is independent of
+        // the update-callback policy.
+        services.AddHttpClient(LosTokenProvider.HttpClientName).AddStandardResilienceHandler();
+
+        // AddMemoryCache is idempotent — safe to call even though Auth/Reporting/Common/Parameter
+        // modules already register it. Backs IWebhookTokenProvider's per-subscription token cache.
+        services.AddMemoryCache();
 
         // Register unit of work
         services.AddScoped<IIntegrationUnitOfWork>(sp =>

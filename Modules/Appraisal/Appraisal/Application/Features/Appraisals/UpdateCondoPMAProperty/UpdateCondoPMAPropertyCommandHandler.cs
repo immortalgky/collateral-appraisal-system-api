@@ -1,10 +1,14 @@
+using Appraisal.Application.Features.Appraisals.Shared;
+using Shared.Time;
+
 namespace Appraisal.Application.Features.Appraisals.UpdateCondoProperty;
 
 /// <summary>
 /// Handler for updating a condo pma property detail
 /// </summary>
 public class UpdateCondoPMAPropertyCommandHandler(
-    IAppraisalRepository appraisalRepository
+    IAppraisalRepository appraisalRepository,
+    IDateTimeProvider dateTimeProvider
 ) : ICommandHandler<UpdateCondoPMAPropertyCommand>
 {
     public async Task<MediatR.Unit> Handle(
@@ -16,46 +20,29 @@ public class UpdateCondoPMAPropertyCommandHandler(
             command.AppraisalId, cancellationToken)
             ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
-        // 2. Find the property
-        var property = appraisal.GetProperty(command.PropertyId)
-            ?? throw new PropertyNotFoundException(command.PropertyId);
+        CondoPmaApplier.Apply(
+            appraisal,
+            command.PropertyId,
+            command.SellingPrice,
+            command.ForcedSalePrice,
+            command.BuildingInsurancePrice,
+            command.CondoName,
+            command.BuiltOnTitleNumber,
+            command.CondoRegistrationNumber,
+            command.RoomNumber,
+            command.FloorNumber,
+            command.BuildingNumber,
+            command.SubDistrict,
+            command.District,
+            command.Province,
+            dateTimeProvider);
 
-        // 3. Validate a property type
-        if (property.PropertyType != PropertyType.Condo)
-            throw new InvalidOperationException($"Property {command.PropertyId} is not a condo property");
+        // Push the updated PMA to the external LOS system asynchronously (outbox → integration
+        // event → webhook, delivered by the Integration module). Save stays atomic — the outbox
+        // row commits in the same transaction as the PMA data (TransactionalBehavior).
+        appraisal.MarkPmaUpdated(command.PropertyId);
 
-        var detail = property.CondoDetail
-            ?? throw new InvalidOperationException($"Condo detail not found for property {command.PropertyId}");
-
-        AdministrativeAddress? address = null;
-        if (command.SubDistrict is not null || command.District is not null ||
-            command.Province is not null)
-        {
-            address = AdministrativeAddress.Create(
-                command.SubDistrict,
-                command.District,
-                command.Province
-            );
-        }
-        property.UpdatePrice(
-            sellingPrice: command.SellingPrice,
-            forcedSalePrice: command.ForcedSalePrice,
-            buildingInsurancePrice: command.BuildingInsurancePrice
-        );
-
-        detail.Update(
-            condoName: command.CondoName,
-            ownerName: "",
-            buildingNumber: command.BuildingNumber,
-            builtOnTitleNumber: command.BuiltOnTitleNumber,
-            condoRegistrationNumber: command.CondoRegistrationNumber,
-            roomNumber: command.RoomNumber,
-            floorNumber: command.FloorNumber,
-            address: address
-        );
-
-
-        // 8. Save aggregate
+        // Save aggregate
         await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
 
         return MediatR.Unit.Value;

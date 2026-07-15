@@ -11,4 +11,7 @@ public record QuotationDto(
     string RequestedBy,
     int TotalAppraisals,
     int TotalCompaniesInvited,
-    int TotalQuotationsReceived);
+    int TotalQuotationsReceived,
+    string? CustomerName,
+    int CustomerCount,
+    string? CustomerNames);

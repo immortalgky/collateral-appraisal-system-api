@@ -235,6 +235,15 @@ internal static class AppraisalSummaryCommonLoader
             SELECT [Code] AS Code, [Description] AS Description
             FROM parameter.Parameters
             WHERE [Group] = 'CollateralType' AND [Language] = 'TH' AND IsActive = 1;
+
+            -- RS13: ราคาประเมินเดิม — live appraised value of the prior appraisal (reappraisal chain),
+            -- resolved through appraisal.Appraisals.PrevAppraisalId (same field as RS05 for the current
+            -- appraisal); null when there is no prior appraisal or it has no valuation.
+            SELECT va.AppraisedValue
+            FROM appraisal.ValuationAnalyses va
+            WHERE va.AppraisalId = (
+                SELECT ap.PrevAppraisalId FROM appraisal.Appraisals ap
+                WHERE ap.Id = @AppraisalId AND ap.IsDeleted = 0);
             """;
 
         var headerParams = new DynamicParameters();
@@ -252,6 +261,7 @@ internal static class AppraisalSummaryCommonLoader
         RequestorRow? requestorRow;
         List<CompletedTaskRow> completedTaskRows;
         List<ParamRow> collateralTypeParams;
+        decimal? prevAppraisedValue;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, headerParams))
         {
@@ -292,6 +302,9 @@ internal static class AppraisalSummaryCommonLoader
 
             // RS12
             collateralTypeParams = (await multi.ReadAsync<ParamRow>()).ToList();
+
+            // RS13
+            prevAppraisedValue = await multi.ReadFirstOrDefaultAsync<decimal?>();
         }
 
         var customerName = customerNames.Count > 0
@@ -541,7 +554,8 @@ internal static class AppraisalSummaryCommonLoader
             IsCompleted: isCompleted,
             ShowMeeting: showMeeting,
             GroupRows: groupRows,
-            CollateralTypeMap: collateralTypeMap);
+            CollateralTypeMap: collateralTypeMap,
+            PrevAppraisedValue: prevAppraisedValue);
     }
 
     // ── Private flat DTOs for Dapper mapping ─────────────────────────────────────
@@ -704,7 +718,8 @@ internal sealed record CommonAppraisalData(
     bool IsCompleted,
     bool ShowMeeting,
     List<AppraisalSummaryCommonLoader.GroupRow> GroupRows,
-    Dictionary<string, string?> CollateralTypeMap)
+    Dictionary<string, string?> CollateralTypeMap,
+    decimal? PrevAppraisedValue)
 {
     /// <summary>
     /// Translate a domain PropertyType family code to its Thai description; fall back to raw code.

@@ -325,8 +325,10 @@ public static class AuthModule
             .AddUserPermissionPolicy("WebhookSubscriptionsManage", "WEBHOOK_SUBSCRIPTIONS_MANAGE")
             .AddUserPermissionPolicy("OAuthTokensRevoke", "OAUTH_TOKENS_REVOKE")
             .AddUserPermissionPolicy("LogsView", "LOGS_VIEW")
-            .AddUserPermissionPolicy("task-monitor.view", "TASK_MONITOR_VIEW")
-            .AddUserPermissionPolicy("task-monitor.reassign", "TASK_MONITOR_REASSIGN")
+            // Prefix policies so the optional :TEAM scope variant satisfies the endpoint too
+            // (base "TASK_MONITOR_VIEW" is a prefix of "TASK_MONITOR_VIEW:TEAM").
+            .AddUserPermissionPrefixPolicy("task-monitor.view", "TASK_MONITOR_VIEW")
+            .AddUserPermissionPrefixPolicy("task-monitor.reassign", "TASK_MONITOR_REASSIGN")
             .AddUserPermissionPolicy("history-search.view", "HISTORY_SEARCH_VIEW")
             .AddUserPermissionPolicy("sla-config.manage", "SLA_CONFIG_MANAGE")
             .AddUserPermissionPolicy("reappraisal.generate-test-file", "REAPPRAISAL_GENERATE_TEST_FILE")
@@ -482,6 +484,17 @@ public static class AuthModule
         );
         return authorizationBuilder;
     }
+
+    /// <summary>
+    /// Generic prefix policy: passes when the user holds ANY "permissions" claim that starts with
+    /// the given prefix. Lets a base permission and its scoped variants (e.g. "TASK_MONITOR_VIEW"
+    /// and "TASK_MONITOR_VIEW:TEAM") share one endpoint policy.
+    /// </summary>
+    private static AuthorizationBuilder AddUserPermissionPrefixPolicy(
+        this AuthorizationBuilder authorizationBuilder,
+        string policyName,
+        string permissionPrefix
+    ) => authorizationBuilder.AddMonitoringPrefixPolicy(policyName, permissionPrefix);
 
     /// <summary>
     /// Policy for the top-breaches endpoint: passes when the user holds ANY OLA monitoring

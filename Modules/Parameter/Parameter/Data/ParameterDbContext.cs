@@ -1,4 +1,5 @@
 using Parameter.ConstructionWork.Models;
+using Parameter.Dealers.Models;
 using Parameter.DocumentRequirements.Models;
 using Parameter.PricingParameters.Models;
 using Parameter.PricingTemplates.Models;
@@ -40,6 +41,9 @@ public class ParameterDbContext : DbContext
     public DbSet<PricingParameterTaxBracket> PricingParameterTaxBrackets => Set<PricingParameterTaxBracket>();
     public DbSet<PricingParameterAssumptionType> PricingParameterAssumptionTypes => Set<PricingParameterAssumptionType>();
     public DbSet<PricingParameterAssumptionMethod> PricingParameterAssumptionMethods => Set<PricingParameterAssumptionMethod>();
+
+    // Dealers (reference lookup)
+    public DbSet<Dealer> Dealers => Set<Dealer>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

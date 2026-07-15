@@ -10,6 +10,7 @@ namespace Workflow.Tasks.Features.GetMonitoredTasks;
 public class GetMonitoredTasksQueryHandler(
     ISqlConnectionFactory connectionFactory,
     ICurrentUserService currentUserService,
+    ITaskMonitorScope taskMonitorScope,
     IBusinessTimeCalculator businessTime,
     IDateTimeProvider clock
 ) : IQueryHandler<GetMonitoredTasksQuery, GetMonitoredTasksResult>
@@ -46,6 +47,12 @@ public class GetMonitoredTasksQueryHandler(
             )
             """);
         parameters.Add("SupervisorNormalizedUserName", currentUser?.ToUpperInvariant() ?? "");
+
+        // Additional :TEAM scope: when the user holds only TASK_MONITOR_VIEW:TEAM (not the base
+        // permission), confine the list to their own team (internal) or company (external).
+        var teamScopeClause = taskMonitorScope.BuildScopeClause("TASK_MONITOR_VIEW", parameters);
+        if (teamScopeClause is not null)
+            conditions.Add(teamScopeClause);
 
         var filter = query.Filter;
         if (filter is not null)

@@ -28,5 +28,8 @@ public record SubmitQuotationCommand(
     string? TermsAndConditions = null,
     string? ContactName = null,
     string? ContactEmail = null,
-    string? ContactPhone = null)
+    string? ContactPhone = null,
+    // When true, the checker finalises this company as "not participate" → Declined (items ignored).
+    bool NotParticipating = false,
+    string? DeclineReason = null)
     : ICommand<SubmitQuotationResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

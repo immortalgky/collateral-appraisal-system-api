@@ -84,6 +84,12 @@ public class GroupService(
         var group = await groupRepository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException("Group", id);
 
+        // Guard: refuse to delete a group that still has users.
+        var userCount = await dbContext.GroupUsers.CountAsync(gu => gu.GroupId == id, cancellationToken);
+        if (userCount > 0)
+            throw new ConflictException(
+                $"Cannot delete group '{group.Name}' because it has {userCount} user(s). Remove them first.");
+
         group.Delete(deletedBy);
         auditWriter.Record(AuditAction.Deleted, AuditEntityType.Group, id, group.Name);
         await groupRepository.SaveChangesAsync(cancellationToken);

@@ -25,5 +25,7 @@ public record SaveDraftQuotationCommand(
     string? TermsAndConditions = null,
     string? ContactName = null,
     string? ContactEmail = null,
-    string? ContactPhone = null)
+    string? ContactPhone = null,
+    bool NotParticipating = false,
+    string? DeclineReason = null)
     : ICommand<SaveDraftQuotationResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

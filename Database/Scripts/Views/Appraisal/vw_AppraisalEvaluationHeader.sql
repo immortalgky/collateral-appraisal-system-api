@@ -17,6 +17,10 @@ SELECT
     comp.Name                               AS AppraiserCompanyName,
     ext.AssigneeCompanyId,
 
+    NULLIF(LTRIM(RTRIM(CONCAT(u.FirstName, ' ', u.LastName))), '')
+                                            AS InternalAppraiserName,
+    ext.InternalAppraiserId,
+
     -- Distinct collateral types across the appraisal's properties, humanized
     STUFF((
         SELECT DISTINCT ', ' +
@@ -68,6 +72,7 @@ FROM appraisal.Appraisals a
         SELECT
             aa.AppraisalId,
             aa.AssigneeCompanyId,
+            aa.InternalAppraiserId,
             aa.SubmittedAt,
             ROW_NUMBER() OVER (PARTITION BY aa.AppraisalId ORDER BY aa.AssignedAt DESC, aa.CreatedAt DESC, aa.Id DESC) AS rn
         FROM appraisal.AppraisalAssignments aa
@@ -78,5 +83,8 @@ FROM appraisal.Appraisals a
     -- Appraiser company
     LEFT JOIN auth.Companies comp
         ON comp.Id = TRY_CAST(ext.AssigneeCompanyId AS uniqueidentifier)
+
+    LEFT JOIN auth.AspNetUsers u
+        ON u.NormalizedUserName = UPPER(ext.InternalAppraiserId)
 
 WHERE a.IsDeleted = 0

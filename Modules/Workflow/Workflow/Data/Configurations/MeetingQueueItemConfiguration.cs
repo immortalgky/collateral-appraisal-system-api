@@ -13,6 +13,7 @@ public class MeetingQueueItemConfiguration : IEntityTypeConfiguration<MeetingQue
         builder.Property(q => q.AppraisalId).IsRequired();
         builder.Property(q => q.AppraisalNo).HasMaxLength(100);
         builder.Property(q => q.FacilityLimit).HasColumnType("decimal(18,2)").IsRequired();
+        builder.Property(q => q.AppraisalValue).HasColumnType("decimal(18,2)").IsRequired();
         builder.Property(q => q.WorkflowInstanceId).IsRequired();
         builder.Property(q => q.ActivityId).HasMaxLength(200).IsRequired();
         builder.Property(q => q.MeetingId);

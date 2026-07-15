@@ -15,11 +15,13 @@ public class GetPendingQuotationsSummaryEndpoint : ICarterModule
                 "/monitoring/quotations/summary",
                 async (
                     string[]? status,
-                    string? search,
+                    string? quotationNo,
+                    string? appraisalNo,
+                    string? customerName,
                     ISender sender,
                     CancellationToken cancellationToken) =>
                 {
-                    var filter = new PendingQuotationFilter(status, search, null, null);
+                    var filter = new PendingQuotationFilter(status, quotationNo, appraisalNo, customerName, null, null);
                     var result = await sender.Send(new GetPendingQuotationsSummaryQuery(filter), cancellationToken);
                     return Results.Ok(result);
                 })

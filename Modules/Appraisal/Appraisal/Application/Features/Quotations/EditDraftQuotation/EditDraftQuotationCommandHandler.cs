@@ -39,6 +39,9 @@ public class EditDraftQuotationCommandHandler(
         foreach (var entry in command.Appraisals)
             quotation.SetItemMaxAppraisalDays(entry.AppraisalId, entry.MaxAppraisalDays);
 
+        // Quotation-level special requirements (null/empty clears it).
+        quotation.SetSpecialRequirements(command.SpecialRequirements);
+
         quotationRepository.Update(quotation);
 
         return new EditDraftQuotationResult(quotation.Id);

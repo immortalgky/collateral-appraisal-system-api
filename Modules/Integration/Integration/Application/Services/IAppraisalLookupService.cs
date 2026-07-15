@@ -22,4 +22,63 @@ public interface IAppraisalLookupService
     /// most one row matches.
     /// </summary>
     Task<PriorAppraisalRef?> ResolvePriorAppraisalByNumberAsync(string appraisalNumber, CancellationToken ct = default);
+    
+    /// <summary>
+    /// Reads the committed PMA data for a single AppraisalProperty (land titles or condo fields) at
+    /// delivery time, for mapping to the external LOS update payload. Returns null if the
+    /// appraisal/property no longer exists.
+    /// </summary>
+    Task<PmaUpdateData?> GetPmaUpdateDataAsync(Guid appraisalId, Guid propertyId, CancellationToken ct = default);
 }
+
+/// <summary>
+/// Committed PMA data for one AppraisalProperty, read directly from the appraisal/request schemas
+/// (Dapper — no cross-module EF dependency). Exactly one of <see cref="LandTitles"/> (non-empty) or
+/// <see cref="Condo"/> (non-null) is populated, depending on the property's type.
+/// </summary>
+// ExternalSystem is the owning Request's ExternalSystem (e.g. "LOS") — the dynamic routing key
+// for the PMA push webhook subscription. Null/empty means an internal appraisal with nothing to sync.
+public sealed record PmaUpdateData(
+    string? AppraisalNumber,
+    string? ExternalSystem,
+    string? LoanApplicationNo,
+    string? PropertyType,
+    decimal? SellingPrice,
+    decimal? ForcedSalePrice,
+    decimal? BuildingInsurancePrice,
+    IReadOnlyList<PmaLandTitleData> LandTitles,
+    PmaCondoData? Condo);
+
+/// <summary>
+/// One land title deed row. Column order in <see cref="AppraisalLookupService"/>'s SQL SELECT must
+/// mirror this record's constructor parameter order exactly (Dapper binds positional records by
+/// position, not just by name).
+/// </summary>
+public sealed record PmaLandTitleData(
+    string? TitleNumber,
+    string? BookNumber,
+    string? PageNumber,
+    string? LandParcelNumber,
+    string? SurveyNumber,
+    string? Rawang,
+    decimal? Rai,
+    decimal? Ngan,
+    decimal? SquareWa,
+    string? SubDistrict,
+    string? District,
+    string? Province);
+
+/// <summary>
+/// Condo on-screen PMA fields. Column order in the SQL SELECT must mirror this record's
+/// constructor parameter order exactly (see <see cref="PmaLandTitleData"/> remarks).
+/// </summary>
+public sealed record PmaCondoData(
+    string? BuiltOnTitleNumber,
+    string? CondoRegistrationNumber,
+    string? RoomNumber,
+    string? FloorNumber,
+    string? BuildingNumber,
+    string? CondoName,
+    string? SubDistrict,
+    string? District,
+    string? Province);

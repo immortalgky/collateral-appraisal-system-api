@@ -27,6 +27,10 @@ public class GetTaskByIdQueryHandler(
             pt.ActivityId,
             pt.WorkingBy,
             pt.LockedAt,
+            pt.DecisionTaken,
+            pt.Comment,
+            pt.ReasonCode,
+            pt.DraftAssignee                   AS Assignee,
             -- Quotation context: pt.CorrelationId = QuotationRequestId for quotation-workflow tasks
             qr.Id                              AS QuotationRequestId,
             -- Resolve the effective RequestId:
@@ -45,7 +49,7 @@ public class GetTaskByIdQueryHandler(
                 qra_first.AppraisalId,
                 (SELECT TOP 1 Id FROM appraisal.Appraisals
                  WHERE RequestId = pt.CorrelationId
-                 ORDER BY CreatedAt DESC)
+                 ORDER BY Id)
             )                                  AS AppraisalId
         FROM workflow.PendingTasks pt
         -- Followup tasks: resolve RequestId / AppraisalId via FollowupWorkflowInstanceId
@@ -123,7 +127,11 @@ public class GetTaskByIdQueryHandler(
             TaskDescription = dto.TaskDescription,
             IsOwner = isOwner,
             WorkingBy = dto.WorkingBy,
-            LockedAt = dto.LockedAt
+            LockedAt = dto.LockedAt,
+            DecisionTaken = dto.DecisionTaken,
+            Comment = dto.Comment,
+            ReasonCode = dto.ReasonCode,
+            Assignee = dto.Assignee
         };
     }
 
@@ -140,6 +148,10 @@ public class GetTaskByIdQueryHandler(
         string ActivityId,
         string? WorkingBy,
         DateTime? LockedAt,
+        string? DecisionTaken,
+        string? Comment,
+        string? ReasonCode,
+        string? Assignee,
         Guid? QuotationRequestId,
         Guid RequestId,
         Guid? AppraisalId);

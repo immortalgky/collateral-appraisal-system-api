@@ -33,6 +33,7 @@ global using Workflow.Data;
 global using Workflow.Data.Repository;
 global using Workflow.Services.Groups;
 global using Workflow.Services.Hashing;
+global using Workflow.Services.TaskMonitor;
 global using Workflow.Tasks.Models;
 global using Workflow.Workflow.Resilience;
 

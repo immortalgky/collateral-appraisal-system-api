@@ -51,7 +51,7 @@ FROM appraisal.PropertyGroups PG
          LEFT JOIN appraisal.PropertyGroupItems PGI ON PGI.PropertyGroupId = PG.Id
          LEFT JOIN appraisal.AppraisalProperties AP ON AP.Id = PGI.AppraisalPropertyId
          LEFT JOIN appraisal.LandAppraisalDetails L ON L.AppraisalPropertyId = AP.Id
-    OUTER APPLY (SELECT SUM(ISNULL(AreaRai, 0) * 400 + ISNULL(AreaNgan, 0) * 100 + AreaSquareWa) AS TotalSquareWa
+    OUTER APPLY (SELECT SUM(ISNULL(AreaRai, 0) * 400 + ISNULL(AreaNgan, 0) * 100 + ISNULL(AreaSquareWa, 0)) AS TotalSquareWa
                       FROM appraisal.LandTitles
                       WHERE LandAppraisalDetailId = L.Id) LT
          OUTER APPLY (SELECT STRING_AGG(TitleNumber, ', ') WITHIN GROUP (ORDER BY TitleNumber) AS TitleNumbers

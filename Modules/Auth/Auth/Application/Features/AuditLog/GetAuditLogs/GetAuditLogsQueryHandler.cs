@@ -30,6 +30,12 @@ public class GetAuditLogsQueryHandler(ISqlConnectionFactory sqlConnectionFactory
             parameters.Add("ActorUserId", request.ActorUserId.Value);
         }
 
+        if (!string.IsNullOrWhiteSpace(request.ActorName))
+        {
+            conditions.Add("ActorName LIKE @ActorName ESCAPE '\\'");
+            parameters.Add("ActorName", "%" + EscapeLike(request.ActorName.Trim()) + "%");
+        }
+
         if (request.From.HasValue)
         {
             conditions.Add("OccurredAt >= @From");
@@ -76,4 +82,6 @@ public class GetAuditLogsQueryHandler(ISqlConnectionFactory sqlConnectionFactory
 
         return new GetAuditLogsResult(items, totalCount, pageNumber, pageSize);
     }
+    private static string EscapeLike(string input) =>
+    input.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_").Replace("[", "\\[");
 }

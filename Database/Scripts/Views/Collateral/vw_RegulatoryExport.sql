@@ -105,6 +105,7 @@ RepresentativeBuilding AS (
 SELECT
     m.Id                                                        AS CollateralMasterId,
     m.CollateralType,
+    m.HostCollateralId,
 
     -- Previous engagement (2nd-most-recent) → "Application Id" field
     prev.PreviousAppraisalNumber,

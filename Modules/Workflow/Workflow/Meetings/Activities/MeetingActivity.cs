@@ -47,6 +47,7 @@ public class MeetingActivity : WorkflowActivityBase
                 return ActivityResult.Failed("appraisalId variable is required for MeetingActivity");
 
             var facilityLimit = GetVariable<decimal>(context, "facilityLimit");
+            var appraisalValue = GetVariable<decimal>(context, "appraisalValue");
             var appraisalNo = GetVariable<string?>(context, "appraisalNumber");
 
             // Re-entry path: if this appraisal+workflowInstance already has a RoutedBack item
@@ -93,6 +94,7 @@ public class MeetingActivity : WorkflowActivityBase
                     appraisalId,
                     appraisalNo,
                     facilityLimit,
+                    appraisalValue,
                     context.WorkflowInstanceId,
                     context.ActivityId);
                 _dbContext.MeetingQueueItems.Add(queueItem);
@@ -106,12 +108,13 @@ public class MeetingActivity : WorkflowActivityBase
                 appraisalId,
                 appraisalNo,
                 facilityLimit,
+                appraisalValue,
                 context.WorkflowInstanceId,
                 context.ActivityId), cancellationToken);
 
             _logger.LogInformation(
-                "MeetingActivity {ActivityId} enqueued appraisal {AppraisalId} for meeting (facilityLimit={FacilityLimit})",
-                context.ActivityId, appraisalId, facilityLimit);
+                "MeetingActivity {ActivityId} enqueued appraisal {AppraisalId} for meeting (facilityLimit={FacilityLimit}, appraisalValue={AppraisalValue})",
+                context.ActivityId, appraisalId, facilityLimit, appraisalValue);
 
             var outputData = new Dictionary<string, object>
             {

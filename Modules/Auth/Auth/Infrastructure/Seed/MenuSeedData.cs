@@ -36,6 +36,7 @@ public static class MenuSeedData
             new List<MenuSeedNode>
             {
                 new("main.task.all", "All Tasks", "list", IconStyle.Solid, "text-purple-500", "/tasks", "TASK_LIST_VIEW", null),
+                new("main.task.int-pma-input", "PMA Property Input", "keyboard", IconStyle.Solid, "text-purple-500", "/tasks?activityId=int-pma-input", "TASK_INT_PMA_INPUT", null),
                 new("main.task.appraisal-initiation-check", "Appraisal Initiation Check", "clipboard-check", IconStyle.Solid, "text-purple-500", "/tasks?activityId=appraisal-initiation-check", "TASK_APPR_INITIATION_CHECK", null),
                 new("main.task.appraisal-initiation", "Appraisal Initiation", "file-pen", IconStyle.Solid, "text-purple-500", "/tasks?activityId=appraisal-initiation", "TASK_APPR_INITIATION", null),
                 new("main.task.appraisal-assignment", "Appraisal Assignment", "building", IconStyle.Solid, "text-purple-500", "/tasks?activityId=appraisal-assignment", "TASK_APPR_ASSIGNMENT", null),
@@ -56,7 +57,10 @@ public static class MenuSeedData
                 new("main.task.admin-finalize", "Finalize Quotation", "circle-check", IconStyle.Solid, "text-purple-500", "/tasks?activityId=admin-finalize", "TASK_QUOTATION_FINALIZE", null),
                 new("main.task.fee-appointment-approval", "Fee & Appointment Approval", "check-to-slot", IconStyle.Solid, "text-purple-500", "/tasks?activityId=fee-appointment-approval", "TASK_FEE_APPOINTMENT_APPROVAL", null),
             }),
-        new("main.task-monitor", "Task Monitor", "user-gear", IconStyle.Solid, "text-orange-500", "/task-monitor", "TASK_MONITOR_VIEW", "TASK_MONITOR_REASSIGN"),
+        // View gate is prefix-based so the :TEAM scope variant (TASK_MONITOR_VIEW:TEAM) also
+        // reveals the menu; base and :TEAM both start with "TASK_MONITOR_VIEW".
+        new("main.task-monitor", "Task Monitor", "user-gear", IconStyle.Solid, "text-orange-500", "/task-monitor", null, "TASK_MONITOR_REASSIGN",
+            ViewPermissionPrefix: "TASK_MONITOR_VIEW"),
         // Single tabbed Monitoring page — all 6 sections in one screen.
         // Visible to any user holding any MONITORING:* permission. Tabs are hidden client-side
         // based on the user's section-level permissions.
@@ -92,14 +96,14 @@ public static class MenuSeedData
                     {
                         new("main.reports.operational.rcas001", "Appraisal Books (RCAS001)", "book", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas001", "REPORT_OP_VIEW", null),
                         new("main.reports.operational.rcas002", "Reappraisal Due (RCAS002)", "calendar-check", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas002", "REPORT_OP_VIEW", null),
-                        new("main.reports.operational.rcas004", "Inspection < 100% (RCAS004)", "helmet-safety", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas004", "REPORT_OP_VIEW", null),
-                        new("main.reports.operational.rcas008", "Service Quality (RCAS008)", "star", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas008", "REPORT_OP_VIEW", null),
-                        new("main.reports.operational.rcas009", "Fee Summary (RCAS009)", "file-invoice-dollar", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas009", "REPORT_OP_VIEW", null),
-                        new("main.reports.operational.rcas010", "Bank-Absorbed Fees (RCAS010)", "sack-dollar", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas010", "REPORT_OP_VIEW", null),
                         new("main.reports.operational.rcas003", "Monthly Workload (RCAS003)", "gauge-high", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas003", "REPORT_OP_VIEW", null),
+                        new("main.reports.operational.rcas004", "Inspection < 100% (RCAS004)", "helmet-safety", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas004", "REPORT_OP_VIEW", null),
                         new("main.reports.operational.rcas005", "By External Company (RCAS005)", "building", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas005", "REPORT_OP_VIEW", null),
                         new("main.reports.operational.rcas006", "By Internal Staff (RCAS006)", "user-tie", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas006", "REPORT_OP_VIEW", null),
                         new("main.reports.operational.rcas007", "SLA Summary (RCAS007)", "stopwatch", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas007", "REPORT_OP_VIEW", null),
+                        new("main.reports.operational.rcas008", "Service Quality (RCAS008)", "star", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas008", "REPORT_OP_VIEW", null),
+                        new("main.reports.operational.rcas009", "Fee Summary (RCAS009)", "file-invoice-dollar", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas009", "REPORT_OP_VIEW", null),
+                        new("main.reports.operational.rcas010", "Bank-Absorbed Fees (RCAS010)", "sack-dollar", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas010", "REPORT_OP_VIEW", null),
                         new("main.reports.operational.rcas011", "Detail by RM (RCAS011)", "user-group", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas011", "REPORT_OP_VIEW", null),
                         new("main.reports.operational.rcas012", "Company Follow-up (RCAS012)", "magnifying-glass-chart", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas012", "REPORT_OP_VIEW", null),
                     }),

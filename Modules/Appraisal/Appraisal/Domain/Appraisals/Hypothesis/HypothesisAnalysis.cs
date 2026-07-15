@@ -1,6 +1,7 @@
 using Appraisal.Domain.Appraisals.Hypothesis.CostItems;
 using Appraisal.Domain.Appraisals.Hypothesis.Summaries;
 using Appraisal.Domain.Appraisals.Hypothesis.Uploads;
+using Shared.Exceptions;
 
 namespace Appraisal.Domain.Appraisals.Hypothesis;
 
@@ -128,7 +129,26 @@ public class HypothesisAnalysis : Entity<Guid>
     public void UpdateCondominiumSummary(CondominiumSummary summary)
     {
         AssertVariant(HypothesisVariant.Condominium);
+        AssertCondominiumSummaryInRange(summary);
         CondominiumSummary = summary;
+    }
+
+    /// <summary>
+    /// Guards the computed condo summary against persistence-time overflow / nonsensical data
+    /// before it reaches the tight decimal columns (Indoor/Common area % are decimal(5,2)).
+    /// The dominant real-world cause is a Total Building Area (E05) entered smaller than the
+    /// total uploaded unit sales area (E09), which drives Indoor Sales Area % (E08) above 100
+    /// and Common Area % (E06) negative. Throwing a <see cref="DomainException"/> here yields a
+    /// clean 400 with an actionable message instead of an opaque 500 at SaveChanges.
+    /// Runs on save only (not preview), so the live preview waterfall is unaffected.
+    /// </summary>
+    private static void AssertCondominiumSummaryInRange(CondominiumSummary summary)
+    {
+        if (summary.IndoorSalesAreaPercent is > 100m)
+            throw new DomainException(
+                "Total Building Area is smaller than the total unit sales area, " +
+                "so Indoor Sales Area % exceeds 100%. Increase Total Building Area (E05) " +
+                "so it is at least the total sales area of the uploaded units.");
     }
 
     // ── Cost items ────────────────────────────────────────────────────────
@@ -169,7 +189,7 @@ public class HypothesisAnalysis : Entity<Guid>
     private void AssertVariant(HypothesisVariant expected)
     {
         if (Variant != expected)
-            throw new InvalidOperationException(
+            throw new DomainException(
                 $"Operation requires variant {expected} but analysis has variant {Variant}.");
     }
 

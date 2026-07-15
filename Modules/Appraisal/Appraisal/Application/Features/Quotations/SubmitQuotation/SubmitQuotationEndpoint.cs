@@ -46,7 +46,9 @@ public class SubmitQuotationEndpoint : ICarterModule
                         TermsAndConditions: request.TermsAndConditions,
                         ContactName: request.ContactName,
                         ContactEmail: request.ContactEmail,
-                        ContactPhone: request.ContactPhone);
+                        ContactPhone: request.ContactPhone,
+                        NotParticipating: request.NotParticipating,
+                        DeclineReason: request.DeclineReason);
 
                     var result = await sender.Send(command, cancellationToken);
                     return Results.Ok(result);
