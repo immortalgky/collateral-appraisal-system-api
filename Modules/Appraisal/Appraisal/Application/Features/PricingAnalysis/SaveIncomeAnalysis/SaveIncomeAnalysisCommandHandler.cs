@@ -363,7 +363,7 @@ public class SaveIncomeAnalysisCommandHandler(
     /// Gathers the distinct room-type names present in all Method01 assumptions across all sections.
     /// Used to determine which RoomIncomeRef analyses are still valid after a save.
     /// </summary>
-    private static readonly string[] SkipMethodCodes = [ "01", "02", "05" ];
+    private static readonly string[] RoomIncomeMethodCodes = [ "01", "02", "05" ];
     private static IReadOnlyCollection<string> GatherMethodRoomNames(IReadOnlyList<IncomeSectionInput> sections)
     {
         var names = new HashSet<string>(StringComparer.Ordinal);
@@ -372,7 +372,7 @@ public class SaveIncomeAnalysisCommandHandler(
             foreach (var category in section.Categories)
                 foreach (var assumption in category.Assumptions)
                 {
-                    if (!SkipMethodCodes.Contains(assumption.MethodTypeCode, StringComparer.OrdinalIgnoreCase))
+                    if (!RoomIncomeMethodCodes.Contains(assumption.MethodTypeCode, StringComparer.OrdinalIgnoreCase))
                         continue;
 
                     var roomNames = PricingReferenceCleanupService.ExtractRoomNamesFromMethod01(
