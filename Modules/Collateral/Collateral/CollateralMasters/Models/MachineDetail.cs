@@ -22,6 +22,12 @@ public class MachineDetail
     /// </summary>
     public decimal? LifeYear { get; private set; }
 
+    /// <summary>
+    /// Appraisal-level total from the latest appraisal (ValuationAnalyses.AppraisedValue). Represents the
+    /// whole collateral; written on the IsMaster row only (aliases stay NULL), mirroring Land/Condo.
+    /// </summary>
+    public decimal? AppraisalValue { get; private set; }
+
     // Synced from CollateralMaster for filtered unique index support
     public bool IsDeleted { get; private set; }
 
@@ -60,6 +66,8 @@ public class MachineDetail
     }
 
     internal void SetLifeYear(decimal? lifeYear) => LifeYear = lifeYear;
+
+    internal void SetAppraisalValue(decimal? appraisalValue) => AppraisalValue = appraisalValue;
 
     internal void SetIsDeleted(bool isDeleted) => IsDeleted = isDeleted;
 

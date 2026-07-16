@@ -15,7 +15,8 @@ SELECT
     agg.LastAppraisedDate,
     -- PR-4: LastAppraisedValue now sourced from master detail AppraisalValue (IsMaster only).
     -- AppraisedValue column dropped from CollateralEngagements in PR-4.
-    COALESCE(ld.AppraisalValue, cd.AppraisalValue) AS LastAppraisedValue,
+    -- All master detail types carry the appraisal-level AppraisalValue (ValuationAnalyses total).
+    COALESCE(ld.AppraisalValue, cd.AppraisalValue, md.AppraisalValue, lhd.AppraisalValue) AS LastAppraisedValue,
 
     -- Land-specific columns (NULL when not Land type)
     ld.LandOfficeCode          AS Land_LandOfficeCode,

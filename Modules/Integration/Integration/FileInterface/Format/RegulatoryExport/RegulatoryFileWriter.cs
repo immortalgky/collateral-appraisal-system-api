@@ -134,7 +134,7 @@ public sealed class RegulatoryFileWriter
             ["AppraisalValueOrigination"]  = Money(originationValue),
             ["NumberOfFloors"]             = SmallInt(row.NumberOfFloors, 999),
             ["BuildingAge"]                = SmallInt(row.BuildingAge, 999),
-            ["MarketSellingPrice"]         = null,
+            ["MarketSellingPrice"]         = Money(row.SellingPrice),
             ["ValuationDate"]              = Date(row.LatestAppraisalDate),
             ["ValuationPrice"]             = Money(row.LatestAppraisalValue),
             ["MortgageValue"]              = null,

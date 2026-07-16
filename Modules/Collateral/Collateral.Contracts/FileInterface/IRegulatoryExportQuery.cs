@@ -23,6 +23,7 @@ public sealed record RegulatoryExportRow(
     decimal? ConstructionProgressPercent,
     decimal? LatestAppraisalValue,
     decimal? EarliestAppraisalValue,
+    decimal? SellingPrice,
     int? NumberOfFloors,
     int? BuildingAge,
     DateTime? LatestAppraisalDate,

@@ -21,6 +21,7 @@ public class RegulatoryExcelWriterTests
         ConstructionProgressPercent: null,
         LatestAppraisalValue: 2_000_000.00m,
         EarliestAppraisalValue: 1_000_000.00m,
+        SellingPrice: 3_000_000.00m,
         NumberOfFloors: 5,
         BuildingAge: 12,
         LatestAppraisalDate: new DateTime(2025, 1, 21),
@@ -75,6 +76,7 @@ public class RegulatoryExcelWriterTests
 
         // Money is a real decimal, NOT the implied-decimal ×100 the fixed-width file writes.
         Assert.Equal(2_000_000.00m, ws.Cell(3, 7).GetValue<decimal>());   // Appraisal Value as Completed
+        Assert.Equal(3_000_000.00m, ws.Cell(3, 11).GetValue<decimal>());  // Market Selling Price
         // Date is a real date cell.
         Assert.Equal(new DateTime(2025, 1, 21), ws.Cell(3, 12).GetDateTime()); // Valuation Date
         // Coded fields are readable text.

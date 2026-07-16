@@ -22,7 +22,7 @@ AS
 --
 -- MonitoringType discriminator:
 --   'External' when the current AppraisalAssignment is AssignmentType=External,
---               Status NOT IN ('Pending','Cancelled'), SubmittedAt IS NULL
+--               Status NOT IN ('Rejected','Cancelled'), SubmittedAt IS NULL
 --   'Internal' otherwise
 --
 -- OLA columns use wall-clock DATEDIFF(HOUR, ...) per FSD §2.6.8 semantics.
@@ -85,7 +85,7 @@ SELECT
     comp.Name                                                                   AS AppraisalCompanyName,
     CASE
         WHEN aa.AssignmentType = 'External'
-         AND aa.AssignmentStatus NOT IN ('Pending', 'Cancelled')
+         AND aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
          AND aa.SubmittedAt IS NULL
         THEN 'External'
         ELSE 'Internal'
@@ -122,13 +122,15 @@ FROM workflow.PendingTasks pt
     ) rp
     -- C4 fix: OUTER APPLY TOP 1 prevents fan-out from multiple active AppraisalAssignments
     --         during reassignment windows. Most-recent active External first, then any active.
+    -- Note: intentionally NOT gated on SubmittedAt — an appraisal keeps its single active
+    --       assignment (Id stable) after submission, so AppointmentDate/company stay resolvable
+    --       through UnderReview/Verified. SubmittedAt still drives the MonitoringType CASE above.
     OUTER APPLY (
         SELECT TOP 1 aa2.Id, aa2.AssignmentType, aa2.AssignmentStatus, aa2.SubmittedAt,
                      aa2.AssigneeCompanyId
         FROM appraisal.AppraisalAssignments aa2
         WHERE aa2.AppraisalId = appl.Id
-          AND aa2.SubmittedAt IS NULL
-          AND aa2.AssignmentStatus NOT IN ('Pending', 'Cancelled')
+          AND aa2.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
         ORDER BY
             CASE WHEN aa2.AssignmentType = 'External' THEN 0 ELSE 1 END,
             aa2.AssignedAt DESC, aa2.Id DESC
