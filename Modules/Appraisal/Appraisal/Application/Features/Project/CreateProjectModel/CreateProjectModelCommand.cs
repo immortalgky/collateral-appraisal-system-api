@@ -41,7 +41,6 @@ public record CreateProjectModelCommand(
     string? BuildingStyleType = null,
     bool? IsResidential = null,
     int? BuildingAge = null,
-    int? ConstructionYear = null,
     string? ResidentialRemark = null,
     string? ConstructionStyleType = null,
     string? ConstructionStyleRemark = null,
