@@ -69,7 +69,7 @@ public class Request : Aggregate<Guid>
         foreach (var customer in _customers) customer.Validate();
 
         // validate properties
-        foreach (var property in _properties) property.Validate();
+        foreach (var property in _properties) property.Validate(Detail.LoanDetail?.BankingSegment);
 
         // validate documents
         foreach (var document in _documents) document.Validate();

@@ -22,11 +22,14 @@ public class RequestProperty : ValueObject
         return new RequestProperty(propertyType, buildingType, sellingPrice);
     }
 
-    public void Validate()
+    public void Validate(string? bankingSegment)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(PropertyType);
         ArgumentException.ThrowIfNullOrWhiteSpace(BuildingType);
-        if (SellingPrice is null || SellingPrice <= 0)
-            throw new ArgumentException("SellingPrice must be greater than zero.");
+        if (bankingSegment != "IBG")
+        {
+            if (SellingPrice is null || SellingPrice <= 0)
+                throw new ArgumentException("SellingPrice must be greater than zero.");
+        }
     }
 }
