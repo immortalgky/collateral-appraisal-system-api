@@ -9,10 +9,10 @@
 -- Representative building: Sequence=1 CollateralEngagementBuilding on the latest engagement.
 --   Used for BuildingTypeCode, BuildingArea, and parameter-table description lookup.
 --
--- DOPA code: joined from parameter.DopaSubDistricts on the stored SubDistrict name (Land/LB/LS*
---   types only; Condo has no sub-district column on CondoDetails). If multiple DOPA rows share the
---   same NameTh, MIN(Code) is returned (deterministic best-effort; the spec says blank on ambiguity
---   but a stable single code is harmless and more useful).
+-- DOPA code: LandDetails.SubDistrict / CondoDetails.SubDistrict store the 6-digit sub-district geocode
+--   (the FE address picker's SubDistrictCode), NOT the Thai name. It is matched against
+--   parameter.DopaSubDistricts.Code (the PK) to validate it, so an unknown/legacy value yields blank
+--   rather than a truncated string in the 6-char field. Land/LB/LS*/Condo types only.
 --
 -- Numeric range guards (mirror CollateralResult LifeYear pattern — one bad value must not abort run):
 --   ConstructionProgressPercent: out of [0,100] → NULL (writer formats as 0.00)
@@ -50,6 +50,7 @@ LatestEngagement AS (
         e.AppraisalDate       AS LatestAppraisalDate,
         e.AppraisalValue      AS LatestAppraisalValue,
         e.AppraisalCompanyId  AS LatestAppraisalCompanyId,
+        e.RequestId           AS LatestRequestId,
         ROW_NUMBER() OVER (
             PARTITION BY e.CollateralMasterId
             ORDER BY e.AppraisalDate DESC, e.CreatedAt DESC
@@ -103,6 +104,10 @@ SELECT
     le.LatestAppraisalDate,
     le.LatestAppraisalValue,
     le.LatestAppraisalCompanyId,
+
+    -- Selling price (market price field): the request-level TotalSellingPrice of the master's latest
+    -- engagement's originating request (one row per request → deterministic per master).
+    rd.TotalSellingPrice                                         AS SellingPrice,
 
     -- Latest Progressive engagement date
     pe.LatestProgressiveAppraisalDate,
@@ -161,16 +166,16 @@ SELECT
         ELSE NULL
     END                                                           AS BuildingTypeDescription,
 
-    -- DOPA 6-digit sub-district code. Sourced from the official parameter.DopaSubDistricts table
-    -- (the "DOPA Location" field), NOT TitleSubDistricts (the title-deed address list). Land/LB/LS*
-    -- types use LandDetails.SubDistrict; condo (U) uses CondoDetails.SubDistrict (it has its own
-    -- address columns). MIN(Code) is a deterministic best-effort when multiple DOPA rows share NameTh.
+    -- DOPA 6-digit sub-district code. LandDetails.SubDistrict / CondoDetails.SubDistrict store the
+    -- 6-digit sub-district geocode (identical across parameter.TitleSubDistricts / DopaSubDistricts).
+    -- Validated against parameter.DopaSubDistricts.Code (the PK) so an unknown value yields blank.
+    -- Land/LB/LS* types use LandDetails.SubDistrict; condo (U) uses CondoDetails.SubDistrict.
     CASE
         WHEN m.CollateralType IN ('L', 'LB', 'LSL', 'LSB', 'LS', 'U')
             THEN (
-                SELECT MIN(dsd.Code)
+                SELECT dsd.Code
                 FROM parameter.DopaSubDistricts dsd
-                WHERE dsd.NameTh = COALESCE(ld.SubDistrict, cd.SubDistrict)
+                WHERE dsd.Code = COALESCE(ld.SubDistrict, cd.SubDistrict)
             )
         ELSE NULL
     END                                                           AS DopaCode
@@ -186,6 +191,10 @@ LEFT JOIN EarliestEngagement ee
 LEFT JOIN LatestEngagement le
     ON  le.CollateralMasterId = m.Id
     AND le.rn                 = 1
+
+-- Request detail of the latest engagement's originating request → selling price (one row per request)
+LEFT JOIN request.RequestDetails rd
+    ON  rd.RequestId = le.LatestRequestId
 
 -- Latest Progressive engagement (rn=1)
 LEFT JOIN LatestProgressiveEngagement pe

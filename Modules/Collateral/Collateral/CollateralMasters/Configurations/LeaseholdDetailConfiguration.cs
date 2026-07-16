@@ -20,6 +20,9 @@ public class LeaseholdDetailConfiguration : IEntityTypeConfiguration<LeaseholdDe
         // Last-known
         builder.Property(d => d.LeaseTermMonths);
 
+        // Appraisal-level total from the latest appraisal (IsMaster-only). Mirrors Land/Condo detail.
+        builder.Property(d => d.AppraisalValue).HasPrecision(18, 2);
+
         // AppraisalSummary (owned — flat columns)
         builder.OwnsOne(d => d.AppraisalSummary, s =>
         {

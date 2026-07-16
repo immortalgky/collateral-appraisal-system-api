@@ -70,7 +70,8 @@ public sealed record LeaseholdUpsertData(
     int? LeaseTermMonths,
     Guid AppraisalId,
     string AppraisalNumber,
-    DateTime AppraisalDate
+    DateTime AppraisalDate,
+    decimal? AppraisalValue // appraisal-level total (ValuationAnalyses); IsMaster-only
 );
 
 /// <summary>
@@ -82,7 +83,8 @@ public sealed record MachineUpsertData(
     string AppraisalNumber,
     DateTime AppraisalDate,
     // Useful-life years from the appraisal's machinery cost item (outbound Collateral Result).
-    decimal? LifeYear
+    decimal? LifeYear,
+    decimal? AppraisalValue // appraisal-level total (ValuationAnalyses); IsMaster-only
 );
 
 /// <summary>
@@ -691,6 +693,11 @@ public class CollateralMaster : Aggregate<Guid>
 
         LeaseholdDetail.UpdateLastKnown(data.LeaseTermEnd, data.LeaseTermMonths);
 
+        // AppraisalValue represents the whole collateral — written on the IsMaster row only, so a
+        // typed alias (one-collateral-per-appraisal model) does not claim the whole-appraisal total.
+        if (IsMaster)
+            LeaseholdDetail.SetAppraisalValue(data.AppraisalValue);
+
         LeaseholdDetail.UpdateAppraisalSummary(data.AppraisalId, data.AppraisalNumber, data.AppraisalDate);
     }
 
@@ -712,6 +719,11 @@ public class CollateralMaster : Aggregate<Guid>
         }
 
         MachineDetail.SetLifeYear(data.LifeYear);
+
+        // AppraisalValue represents the whole collateral — written on the IsMaster row only, so a
+        // typed alias (one-collateral-per-appraisal model) does not claim the whole-appraisal total.
+        if (IsMaster)
+            MachineDetail.SetAppraisalValue(data.AppraisalValue);
 
         MachineDetail.UpdateAppraisalSummary(data.AppraisalId, data.AppraisalNumber, data.AppraisalDate);
     }

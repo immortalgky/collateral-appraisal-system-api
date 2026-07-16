@@ -55,14 +55,14 @@ w/ Building (LS). "Land types" = Land (L), LB, Leasehold Land (LSL), LSB, LS.
 | 8 | 62–76 | 15 | Appraisal Value at Origination | decimal(15,2) | If the latest appraisal is a **Progressive** (construction) inspection → the **earliest** engagement's value (the first appraisal already estimated the as-completed value); otherwise the latest value. |
 | 9 | 77–79 | 3 | Number of Floors | decimal(3,0) | Building types → the representative building's floor count (bounded 0–999); otherwise `0`. |
 | 10 | 80–82 | 3 | Building Age (years) | decimal(3,0) | Building types → representative building's age; Condo → condo detail's building age; otherwise `0` (bounded 0–999). |
-| 11 | 83–97 | 15 | Market Selling Price | decimal(15,2) | **Not yet sourced — sent as zeros.** (Pending source confirmation.) |
+| 11 | 83–97 | 15 | Market Selling Price | decimal(15,2) | `request.RequestDetails.TotalSellingPrice` of the master's latest engagement's originating request (joined via `CollateralEngagement.RequestId`). Request-level — one value per request. Blank/zeros if none recorded. |
 | 12 | 98–105 | 8 | Valuation Date | YYYYMMDD | The **latest** engagement's appraisal date. |
 | 13 | 106–120 | 15 | Valuation Price in Baht | decimal(15,2) | The latest engagement's appraisal value (same figure as field 7). |
 | 14 | 121–135 | 15 | Mortgage Value | decimal(15,2) | **Not yet sourced — sent as zeros.** |
 | 15 | 136 | 1 | Appraiser Type | string(1) | `1` = external appraisal, `2` = internal. Determined by whether the latest engagement has an external appraisal-company id. |
 | 16 | 137 | 1 | Collateral Registration Flag | string(1) | **Not yet sourced — sent blank.** |
 | 17 | 138 | 1 | Land Ownership Flag | string(1) | **Not yet sourced — sent blank.** |
-| 18 | 139–144 | 6 | DOPA Location | string(6) | 6-digit DOPA sub-district code, matched by sub-district name against the official DOPA sub-district table. Land/building/condo types. |
+| 18 | 139–144 | 6 | DOPA Location | string(6) | 6-digit DOPA sub-district code. `LandDetails.SubDistrict` / `CondoDetails.SubDistrict` store the sub-district **geocode**, which is validated against `parameter.DopaSubDistricts.Code` (an unknown value → blank). Land/building/condo types. |
 | 19 | 145–151 | 7 | Land Area (Sq.Wa) | decimal(7,2) | Land types → the land detail's land area (must be ≤ 99,999.99); otherwise zeros. |
 | 20 | 152–158 | 7 | Area Utilization (building area) | decimal(7,2) | Building types → representative building's area; Condo → condo detail's usable area (≤ 99,999.99); otherwise zeros. |
 | 21 | 159–168 | 10 | Building Type ID | string(10) | Building types → representative building's building-type code; otherwise blank. |
@@ -85,6 +85,8 @@ w/ Building (LS). "Land types" = Land (L), LB, Leasehold Land (LSL), LSB, LS.
   - **Latest Progressive** = the latest engagement whose appraisal type is *Progressive* → construction review date.
 - **Representative building** (fields 9, 10, 20, 21, 22) = the first (`Sequence = 1`) building recorded on
   the **latest** engagement.
+- **Selling price** (field 11) = the latest engagement's originating request, via `CollateralEngagement.RequestId`
+  → `request.RequestDetails.TotalSellingPrice` (request-level, one value per request).
 
 ---
 
@@ -96,7 +98,6 @@ is not yet captured in the system. Each needs a source decision before it can be
 | # | Field | Status |
 |---|---|---|
 | 4 | HOST Collateral ID | Column exists; awaits the inbound host-mapping feed to populate it. |
-| 11 | Market Selling Price | No source column yet — needs a source decision. |
 | 14 | Mortgage Value | No source column yet — needs a source decision. |
 | 16 | Collateral Registration Flag | No source column yet — needs a source decision. |
 | 17 | Land Ownership Flag | No source column yet — needs a source decision. |

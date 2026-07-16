@@ -29,6 +29,7 @@ public class RegulatoryFileWriterTests
         ConstructionProgressPercent: null,
         LatestAppraisalValue: 2_000_000.00m,
         EarliestAppraisalValue: 1_000_000.00m,
+        SellingPrice: 3_000_000.00m,
         NumberOfFloors: 5,
         BuildingAge: 12,
         LatestAppraisalDate: new DateTime(2025, 1, 21),
@@ -138,6 +139,15 @@ public class RegulatoryFileWriterTests
         var line = new RegulatoryFileWriter().BuildDetail(row);
 
         Assert.Equal(new string('0', 19), line[21..40]);
+    }
+
+    [Fact]
+    public void Field11_MarketSellingPrice_IsSellingPrice()
+    {
+        var line = new RegulatoryFileWriter().BuildDetail(SampleRow());
+
+        // pos 83-97 (index 82..97) = SellingPrice 3,000,000 ×100 = 300000000, zero-filled to 15.
+        Assert.Equal("300000000".PadLeft(15, '0'), line[82..97]);
     }
 
     [Fact]

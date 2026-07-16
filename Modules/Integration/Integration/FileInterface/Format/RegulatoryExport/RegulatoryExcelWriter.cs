@@ -97,7 +97,7 @@ public sealed class RegulatoryExcelWriter
         Money(ws.Cell(r, c++), OriginationValue(row));
         Number(ws.Cell(r, c++), row.NumberOfFloors);
         Number(ws.Cell(r, c++), row.BuildingAge);
-        c++; // Market Selling Price — not yet sourced
+        Money(ws.Cell(r, c++), row.SellingPrice);   // Market Selling Price (RequestDetails.TotalSellingPrice)
         Date(ws.Cell(r, c++), row.LatestAppraisalDate);
         Money(ws.Cell(r, c++), row.LatestAppraisalValue);
         c++; // Mortgage Value — not yet sourced

@@ -24,6 +24,7 @@ public class RegulatoryExportQuery(ISqlConnectionFactory connectionFactory) : IR
         ConstructionProgressPercent: r.ConstructionProgressPercent,
         LatestAppraisalValue: r.LatestAppraisalValue,
         EarliestAppraisalValue: r.EarliestAppraisalValue,
+        SellingPrice: r.SellingPrice,
         NumberOfFloors: r.NumberOfFloors,
         BuildingAge: r.BuildingAge,
         LatestAppraisalDate: r.LatestAppraisalDate,
@@ -48,6 +49,7 @@ public class RegulatoryExportQuery(ISqlConnectionFactory connectionFactory) : IR
         public decimal? ConstructionProgressPercent { get; init; }
         public decimal? LatestAppraisalValue { get; init; }
         public decimal? EarliestAppraisalValue { get; init; }
+        public decimal? SellingPrice { get; init; }
         public int? NumberOfFloors { get; init; }
         public int? BuildingAge { get; init; }
         public DateTime? LatestAppraisalDate { get; init; }

@@ -302,12 +302,13 @@ public class CollateralMasterUpsertService(
                 if (primaryLandProps.Count > 0)
                     landAreaInSqWa = primaryLandProps[0].LandIdentity?.LandArea;
 
-                // Group-level appraisal value — PricingInfo is the same instance across all
-                // properties in the group (set at group level; see AppraisalForCollateralResult).
-                // Use the first in-scope property of the primary group that carries a PricingInfo.
+                // Appraisal-level total from ValuationAnalyses (Σ across all PropertyGroups) — the
+                // reliably-maintained appraisal value; the engagement represents this whole appraisal.
+                // Fall back to the primary group's per-group PricingInfo value only if the total is absent.
                 var primaryPricingProp = primaryGroup.Properties
                     .FirstOrDefault(p => p.PricingInfo is not null);
-                var engagementAppraisalValue = primaryPricingProp?.PricingInfo?.AppraisalValue;
+                var engagementAppraisalValue = appraisal.AppraisedValue
+                                               ?? primaryPricingProp?.PricingInfo?.AppraisalValue;
 
                 AppendEngagement(primaryMaster, appraisal, snapshot, appraisedCollateralType, landAreaInSqWa, engagementAppraisalValue);
 
@@ -777,8 +778,10 @@ public class CollateralMasterUpsertService(
             UnitPrice: pricingInfo?.UnitPrice,
             // BuildingValue: cost approach only — from PricingFinalValue.BuildingValue (PR-8).
             BuildingValue: pricingInfo?.BuildingValue,
-            // AppraisalValue: from PricingFinalValue (all approaches) (PR-8).
-            AppraisalValue: pricingInfo?.AppraisalValue
+            // AppraisalValue: appraisal-level total from ValuationAnalyses (the reliably-maintained
+            // Σ across all PropertyGroups), stored on the IsMaster as the whole collateral's representor.
+            // Fall back to the per-group PricingFinalValue only if the total is somehow absent.
+            AppraisalValue: appraisal.AppraisedValue ?? pricingInfo?.AppraisalValue
         );
 
         master.UpsertFromLandAppraisal(upsertData);
@@ -930,8 +933,10 @@ public class CollateralMasterUpsertService(
             UnitPrice: pricingInfo?.UnitPrice,
             // BuildingValue: cost approach only — from PricingFinalValue.BuildingValue (PR-8).
             BuildingValue: pricingInfo?.BuildingValue,
-            // AppraisalValue: from PricingFinalValue (all approaches) (PR-8).
-            AppraisalValue: pricingInfo?.AppraisalValue
+            // AppraisalValue: appraisal-level total from ValuationAnalyses (the reliably-maintained
+            // Σ across all PropertyGroups), stored on the IsMaster as the whole collateral's representor.
+            // Fall back to the per-group PricingFinalValue only if the total is somehow absent.
+            AppraisalValue: appraisal.AppraisedValue ?? pricingInfo?.AppraisalValue
         );
 
         master.UpsertFromCondoAppraisal(upsertData);
@@ -996,7 +1001,9 @@ public class CollateralMasterUpsertService(
             AppraisalId: appraisal.AppraisalId,
             AppraisalNumber: appraisal.AppraisalNumber ?? string.Empty,
             AppraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow,
-            LifeYear: m.LifeYear
+            LifeYear: m.LifeYear,
+            // Appraisal-level total from ValuationAnalyses; per-group PricingInfo as defensive fallback.
+            AppraisalValue: appraisal.AppraisedValue ?? p.PricingInfo?.AppraisalValue
         );
 
         master.UpsertFromMachineAppraisal(upsertData);
@@ -1162,7 +1169,9 @@ public class CollateralMasterUpsertService(
             LeaseTermMonths: leaseTermMonths,
             AppraisalId: appraisal.AppraisalId,
             AppraisalNumber: appraisal.AppraisalNumber ?? string.Empty,
-            AppraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow
+            AppraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow,
+            // Appraisal-level total from ValuationAnalyses; per-group PricingInfo as defensive fallback.
+            AppraisalValue: appraisal.AppraisedValue ?? p.PricingInfo?.AppraisalValue
         );
 
         // LATEST-wins: flip master CollateralType to the current appraisal's classification.
@@ -1297,7 +1306,9 @@ public class CollateralMasterUpsertService(
             decimal? buildingCost = isMasterRow.LandDetail?.BuildingValue
                                     ?? isMasterRow.CondoDetail?.BuildingValue;
             decimal? groupAppraisalValue = isMasterRow.LandDetail?.AppraisalValue
-                                           ?? isMasterRow.CondoDetail?.AppraisalValue;
+                                           ?? isMasterRow.CondoDetail?.AppraisalValue
+                                           ?? isMasterRow.MachineDetail?.AppraisalValue
+                                           ?? isMasterRow.LeaseholdDetail?.AppraisalValue;
 
             // Construction inspections for this group (land + buildings on those lands)
             var titleNumbers = group.Properties

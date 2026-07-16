@@ -15,6 +15,12 @@ public class LeaseholdDetail
     public DateOnly? LeaseTermEnd { get; private set; }
     public int? LeaseTermMonths { get; private set; }
 
+    /// <summary>
+    /// Appraisal-level total from the latest appraisal (ValuationAnalyses.AppraisedValue). Represents the
+    /// whole collateral; written on the IsMaster row only (aliases stay NULL), mirroring Land/Condo.
+    /// </summary>
+    public decimal? AppraisalValue { get; private set; }
+
     // Appraisal summary (owned)
     public AppraisalSummary AppraisalSummary { get; private set; } = null!;
 
@@ -57,6 +63,8 @@ public class LeaseholdDetail
     {
         AppraisalSummary.Update(appraisalId, appraisalNumber, appraisedDate);
     }
+
+    internal void SetAppraisalValue(decimal? appraisalValue) => AppraisalValue = appraisalValue;
 
     internal void SetIsDeleted(bool isDeleted) => IsDeleted = isDeleted;
 
