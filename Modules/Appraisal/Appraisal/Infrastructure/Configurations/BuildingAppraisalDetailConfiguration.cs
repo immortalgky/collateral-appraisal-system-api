@@ -39,7 +39,7 @@ public class
         builder.Property(e => e.BuildingTypeOther).HasMaxLength(200);
         builder.Property(e => e.DecorationType).HasMaxLength(100);
         builder.Property(e => e.DecorationTypeOther).HasMaxLength(200);
-        builder.Property(e => e.EncroachingOthersRemark).HasMaxLength(500);
+        builder.Property(e => e.EncroachingOthersRemark).HasMaxLength(4000);
         builder.Property(e => e.EncroachingOthersArea).HasPrecision(18, 4);
 
         // Construction Details
@@ -47,7 +47,7 @@ public class
         builder.Property(e => e.BuildingStyleType).HasMaxLength(100);
         builder.Property(e => e.ResidentialRemark).HasMaxLength(200);
         builder.Property(e => e.ConstructionStyleType).HasMaxLength(100);
-        builder.Property(e => e.ConstructionStyleRemark).HasMaxLength(500);
+        builder.Property(e => e.ConstructionStyleRemark).HasMaxLength(4000);
 
         // Structure Components
         builder.Property(e => e.StructureType)

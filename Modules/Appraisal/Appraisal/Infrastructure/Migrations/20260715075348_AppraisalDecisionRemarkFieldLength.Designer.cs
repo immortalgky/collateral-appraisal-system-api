@@ -4,16 +4,19 @@ using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace Appraisal.Infrastructure.Migrations
+namespace Appraisal.infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    partial class AppraisalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260715075348_AppraisalDecisionRemarkFieldLength")]
+    partial class AppraisalDecisionRemarkFieldLength
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -5620,6 +5623,9 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
+                    b.Property<int?>("ConstructionYear")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -8043,8 +8049,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("datetime2");
 
                             b1.Property<string>("ConstructionStyleRemark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("ConstructionStyleType")
                                 .HasMaxLength(100)
@@ -8084,8 +8090,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("decimal(18,4)");
 
                             b1.Property<string>("EncroachingOthersRemark")
-                                .HasMaxLength(4000)
-                                .HasColumnType("nvarchar(4000)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("ExteriorWallType")
                                 .HasColumnType("nvarchar(500)");
