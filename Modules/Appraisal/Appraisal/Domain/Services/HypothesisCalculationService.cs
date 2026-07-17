@@ -298,9 +298,9 @@ public class HypothesisCalculationService
         // FSD C78: Discount rate
         decimal c78 = input.DiscountRate ?? 0m;
 
-        // FSD C77: Current Property Value = revenue − total costs (no discount applied).
-        // The discount is applied only when computing C80 via C79 (discount factor).
-        decimal c77 = c15 - c76;
+        // FSD C77: Current Property Value = (revenue − total costs), deducted by
+        // discount rate % — i.e. (revenue − total costs) x (1 - discount rate/100).
+        decimal c77 = c78 > 0m ? (c15 - c76) * (1m - c78 / 100m) : c15 - c76;
 
         // FSD C79: Discount rate factor — standard PV factor:
         //   C79 = 1 / (1 + C78/100)^(C18/12)
@@ -577,9 +577,9 @@ public class HypothesisCalculationService
         // FSD E55: Discount rate
         decimal e55 = input.DiscountRate ?? 0m;
 
-        // FSD E54: Total remaining value = revenue − total costs (no discount applied).
-        // The discount is applied only when computing E57 via E56 (discount factor).
-        decimal e54 = e13 - e53;
+        // FSD E54: Total remaining value = (revenue − total costs), deducted by
+        // discount rate % — i.e. (revenue − total costs) x (1 - discount rate/100).
+        decimal e54 = e55 > 0m ? (e13 - e53) * (1m - e55 / 100m) : e13 - e53;
 
         // FSD E56: Discount rate factor — standard PV factor:
         //   E56 = 1 / (1 + E55/100)^(E14/12)

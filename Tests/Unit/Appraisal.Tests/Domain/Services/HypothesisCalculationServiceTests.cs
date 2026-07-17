@@ -10,11 +10,12 @@ namespace Appraisal.Tests.Domain.Services;
 /// Unit tests for <see cref="HypothesisCalculationService"/> FSD §2.1.3.7 formulas.
 ///
 /// Key invariants under test:
-///   - FSD C77: C15-C76 (no discount applied; discount handled via C79 factor)
+///   - FSD C77: (C15-C76) x (1 - C78/100) — residual deducted by discount rate %,
+///     then C79 applies the separate standard PV factor on top
 ///   - FSD C79: standard PV factor — 1 / (1 + C78/100)^(C18/12)
 ///   - FSD C81: Round(C80, 10000)
 ///   - FSD C82: Round(C81/C01, 100)
-///   - FSD E54: E13-E53 (mirrors C77)
+///   - FSD E54: E13-E53 deducted by discount rate % (mirrors C77)
 ///   - FSD E56: standard PV factor — 1 / (1 + E55/100)^(E14/12)
 ///   - FSD E58: Round(E57, 10000)
 ///   - FSD E59: Round(E58/E05, 100)
@@ -135,10 +136,10 @@ public class HypothesisCalculationServiceTests
     // ── L&B: Non-zero discount rate (Reading 2 formulas) ──────────────────────
 
     [Fact]
-    public void LandBuilding_NonZeroDiscountRate_C77IsResidual_C79IsStandardPV()
+    public void LandBuilding_NonZeroDiscountRate_C77IsResidualDeductedByRate_C79IsStandardPV()
     {
         // FSD C78 = 10 (10%), C18 = 1 month (from 1 unit / 1 per period)
-        // C77 = C15 - C76 (no discount applied here)
+        // C77 = (C15 - C76) x (1 - C78/100) — residual deducted by the discount rate %
         // C79 (standard PV) = 1 / (1.10)^(1/12) ≈ 0.9921
         var analysis = CreateLandBuildingAnalysis();
         var rows = new[] { MakeLbRow("M1", 50m, 1_000_000m) };
@@ -159,8 +160,10 @@ public class HypothesisCalculationServiceTests
         // FSD C18 = ceil(1/1) = 1
         Assert.Equal(1, s.EstimatedDurationMonths); // FSD C18
 
-        // FSD C77 = C15 - C76 (no percentage applied — discount happens via C79)
-        decimal expectedC77 = s.TotalRevenue!.Value - s.TotalDevCostsAndExpenses!.Value;
+        // FSD C77 = (C15 - C76) x (1 - C78/100) — residual deducted by the discount rate %.
+        // C79's PV factor is a separate, additional discount applied later at C80.
+        decimal residual = s.TotalRevenue!.Value - s.TotalDevCostsAndExpenses!.Value;
+        decimal expectedC77 = residual * (1m - 10m / 100m);
         Assert.Equal(expectedC77, s.CurrentPropertyValue); // FSD C77
 
         // FSD C79 standard PV: 1 / (1 + C78/100)^(C18/12) = 1 / (1.10)^(1/12)
@@ -547,10 +550,10 @@ public class HypothesisCalculationServiceTests
     // ── Condo: Non-zero discount rate (standard PV) ───────────────────────────
 
     [Fact]
-    public void Condominium_NonZeroDiscountRate_E54IsResidual_E56IsStandardPV()
+    public void Condominium_NonZeroDiscountRate_E54IsResidualDeductedByRate_E56IsStandardPV()
     {
         // FSD E55 = 12 (12%), E14 = 12 months
-        // E54 = E13 - E53 (no discount applied — discount handled via E56)
+        // E54 = (E13 - E53) x (1 - E55/100) — residual deducted by the discount rate %
         // E56 (standard PV) = 1 / (1.12)^(12/12) = 1 / 1.12 ≈ 0.8929
         var analysis = CreateCondoAnalysis();
         var rows = new[] { MakeCondoRow(60m, 2_000_000m) };
@@ -570,7 +573,8 @@ public class HypothesisCalculationServiceTests
 
         var result = Sut.ComputeCondominium(analysis, rows, input);
 
-        decimal expectedE54 = result.TotalRevenue!.Value - result.TotalDevCosts!.Value;
+        decimal residual = result.TotalRevenue!.Value - result.TotalDevCosts!.Value;
+        decimal expectedE54 = residual * (1m - 12m / 100m);
         Assert.Equal(expectedE54, result.TotalRemainingValue); // FSD E54
 
         // Standard PV: 1 / (1.12)^(12/12) = 1/1.12 ≈ 0.8929
