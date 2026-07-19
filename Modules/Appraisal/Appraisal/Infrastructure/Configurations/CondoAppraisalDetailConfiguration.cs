@@ -69,6 +69,27 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
                     : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
         builder.Property(e => e.PublicUtilityTypeOther).HasMaxLength(4000);
+        builder.Property(e => e.LandEntranceExitType)
+            .HasConversion(
+                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => string.IsNullOrWhiteSpace(v)
+                    ? null
+                    : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+            .HasColumnType("nvarchar(500)");
+        builder.Property(e => e.LandEntranceExitTypeOther).HasMaxLength(4000);
+
+        // Land Characteristics
+        builder.Property(e => e.LandFillType).HasMaxLength(100);
+        builder.Property(e => e.LandFillTypeOther).HasMaxLength(4000);
+        builder.Property(e => e.UrbanPlanningType).HasMaxLength(100);
+        builder.Property(e => e.LandUseType)
+            .HasConversion(
+                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => string.IsNullOrWhiteSpace(v)
+                    ? null
+                    : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+            .HasColumnType("nvarchar(500)");
+        builder.Property(e => e.LandUseTypeOther).HasMaxLength(4000);
 
         // Building Info
         builder.Property(e => e.NumberOfFloors).HasPrecision(5, 2);
@@ -141,6 +162,8 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
             .HasColumnType("nvarchar(500)");
 
         // Pricing
+        builder.Property(e => e.GovernmentPricePerSqm).HasPrecision(18, 2);
+        builder.Property(e => e.GovernmentPrice).HasPrecision(18, 2);
         builder.Property(e => e.BuildingInsurancePrice).HasPrecision(18, 2);
         builder.Property(e => e.SellingPrice).HasPrecision(18, 2);
         builder.Property(e => e.ForcedSalePrice).HasPrecision(18, 2);

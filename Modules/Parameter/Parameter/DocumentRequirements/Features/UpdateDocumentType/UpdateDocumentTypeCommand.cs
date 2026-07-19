@@ -6,4 +6,5 @@ public record UpdateDocumentTypeCommand(
     string? Description,
     string? Category,
     int SortOrder,
-    bool IsActive) : ICommand<UpdateDocumentTypeResult>;
+    bool IsActive,
+    string? NameTh = null) : ICommand<UpdateDocumentTypeResult>;

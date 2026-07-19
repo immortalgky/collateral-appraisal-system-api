@@ -5,4 +5,5 @@ public record CreateDocumentTypeCommand(
     string Name,
     string? Description,
     string? Category,
-    int SortOrder = 0) : ICommand<CreateDocumentTypeResult>;
+    int SortOrder = 0,
+    string? NameTh = null) : ICommand<CreateDocumentTypeResult>;

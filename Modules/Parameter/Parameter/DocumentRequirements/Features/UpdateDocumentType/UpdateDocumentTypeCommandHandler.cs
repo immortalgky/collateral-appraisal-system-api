@@ -29,7 +29,8 @@ public class UpdateDocumentTypeCommandHandler : ICommandHandler<UpdateDocumentTy
             command.Name,
             command.Description,
             command.Category,
-            command.SortOrder);
+            command.SortOrder,
+            command.NameTh);
 
         if (command.IsActive && !documentType.IsActive)
             documentType.Activate();

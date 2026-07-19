@@ -30,7 +30,8 @@ public class CreateDocumentTypeCommandHandler : ICommandHandler<CreateDocumentTy
             command.Name,
             command.Description,
             command.Category,
-            command.SortOrder);
+            command.SortOrder,
+            command.NameTh);
 
         _repository.AddDocumentType(documentType);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

@@ -72,4 +72,20 @@ internal static class ReportFilterSql
         var dir = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
         return $"{field} {dir}";
     }
+
+    /// <summary>
+    /// Allow-listed ORDER BY with a COMPOSITE default (e.g. FSD "Review Type, Remaining Day").
+    /// A caller-supplied <paramref name="sortBy"/> that is on the allow-list wins as a single column;
+    /// otherwise the report's fixed <paramref name="defaultFields"/> are emitted in order. Those
+    /// fields are report-defined constants (never user input), so they are safe to concatenate; the
+    /// allow-list still guards the only user-controlled value (<paramref name="sortBy"/>).
+    /// </summary>
+    public static string OrderBy(
+        string? sortBy, string? sortDir, HashSet<string> allowed, IReadOnlyList<string> defaultFields)
+    {
+        var dir = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
+        if (!string.IsNullOrWhiteSpace(sortBy) && allowed.Contains(sortBy))
+            return $"{sortBy} {dir}";
+        return string.Join(", ", defaultFields.Select(f => $"{f} {dir}"));
+    }
 }

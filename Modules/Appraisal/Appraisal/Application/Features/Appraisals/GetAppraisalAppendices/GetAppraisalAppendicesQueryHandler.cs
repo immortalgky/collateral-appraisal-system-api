@@ -30,7 +30,11 @@ public class GetAppraisalAppendicesQueryHandler(
 
         var galleryLookup = await dbContext.AppraisalGallery
             .Where(g => allGalleryPhotoIds.Contains(g.Id))
-            .Select(g => new { g.Id, g.DocumentId, g.FileName, g.FilePath, g.FileExtension, g.MimeType, g.FileSizeBytes })
+            .Select(g => new
+            {
+                g.Id, g.DocumentId, g.FileName, g.FilePath, g.FileExtension, g.MimeType, g.FileSizeBytes,
+                g.UploadedAt, g.UploadedBy, g.UploadedByName
+            })
             .ToDictionaryAsync(g => g.Id, cancellationToken);
 
         var dtos = appendices
@@ -59,7 +63,10 @@ public class GetAppraisalAppendicesQueryHandler(
                                 photo?.FilePath,
                                 photo?.FileExtension,
                                 photo?.MimeType,
-                                photo?.FileSizeBytes
+                                photo?.FileSizeBytes,
+                                photo?.UploadedAt,
+                                photo?.UploadedBy,
+                                photo?.UploadedByName
                             );
                         })
                         .ToList()

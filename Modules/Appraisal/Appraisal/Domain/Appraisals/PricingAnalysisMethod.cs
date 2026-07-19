@@ -29,7 +29,7 @@ public class PricingAnalysisMethod : Entity<Guid>
 
     public decimal? MethodValue { get; private set; }
     public decimal? ValuePerUnit { get; private set; }
-    public string? UnitType { get; private set; } // Sqm, Rai, Unit
+    public string? UnitType { get; private set; } // PerSqWa, PerSqm, PerUnit (PerUnit = whole-unit lumpsum)
     public bool IsSelected { get; private set; }
     public string? Remark { get; private set; }
 

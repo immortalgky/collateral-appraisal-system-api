@@ -43,7 +43,9 @@ SELECT c.Id,
        DATEADD(YEAR, 5, CAST(la.AppointmentDateTime AS DATE)) AS NextValuationDate,
        DATEDIFF(DAY,
                 CAST(GETDATE() AS DATE),
-                DATEADD(YEAR, 5, CAST(la.AppointmentDateTime AS DATE))) AS RemainingDays
+                DATEADD(YEAR, 5, CAST(la.AppointmentDateTime AS DATE))) AS RemainingDays,
+       -- Appended (not inserted mid-list) so the SELECT order still matches the positional Rcas002Row.
+       c.ReviewType                        AS ReviewTypeCode -- raw 1/2/3: filter binds the code, sort follows code order
 FROM collateral.ReappraisalCandidates c
          OUTER APPLY (
     SELECT TOP 1 al.AppointmentDateTime

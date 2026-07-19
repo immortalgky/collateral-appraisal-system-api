@@ -7,7 +7,7 @@ public class MachineryAppraisalSummaryConfiguration : IEntityTypeConfiguration<M
         builder.ToTable("MachineryAppraisalSummaries");
 
         builder.HasKey(e => e.Id);
-        builder.Property(e => e.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(e => e.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
 
         // 1:1 with Appraisal via unique index
         builder.Property(e => e.AppraisalId).IsRequired();
@@ -18,7 +18,8 @@ public class MachineryAppraisalSummaryConfiguration : IEntityTypeConfiguration<M
         builder.Property(e => e.Maintenance).HasMaxLength(500);
         builder.Property(e => e.Exterior).HasMaxLength(500);
         builder.Property(e => e.Performance).HasMaxLength(500);
-        builder.Property(e => e.MarketDemand).HasMaxLength(4000);
+        // FSD: Market Demand is "MAX" (unbounded) — nvarchar(max).
+        builder.Property(e => e.MarketDemand).HasColumnType("nvarchar(max)");
 
         // Section 3.3 — Rights & Legal
         builder.Property(e => e.Proprietor).HasMaxLength(500);
@@ -28,5 +29,10 @@ public class MachineryAppraisalSummaryConfiguration : IEntityTypeConfiguration<M
         builder.Property(e => e.Longitude).HasPrecision(11, 8);
         builder.Property(e => e.Obligation).HasMaxLength(2000);
         builder.Property(e => e.Other).HasMaxLength(4000);
+
+        // Section 1 — Book Intro (report-only free text)
+        builder.Property(e => e.Assignment).HasMaxLength(4000);
+        builder.Property(e => e.ValuationPurpose).HasMaxLength(4000);
+        builder.Property(e => e.PropertyCharacteristics).HasMaxLength(4000);
     }
 }

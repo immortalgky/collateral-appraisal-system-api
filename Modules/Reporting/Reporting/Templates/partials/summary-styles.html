@@ -72,6 +72,12 @@ table.grid { width:100%; border-collapse:collapse; font-size:8pt; }
 table.grid th, table.grid td { border:1px solid #000; padding:3px 5px; vertical-align:top; }
 table.grid th { background:#ececec; text-align:center; font-weight:700; }
 .num { text-align:right; white-space:nowrap; }
+/* Land titles: one title per line, numbered — single global style used by every land
+   row (cost & market/combined) so the layout never diverges by approach.
+   list-style-position:inside + zero padding keeps the number inline with the first line and
+   lets wrapped lines run flush to the cell's left edge (no hanging indent under the text). */
+.land-titles { margin:0; padding-left:0; list-style:decimal inside; }
+.land-titles li { margin-top:1px; }
 /* Per-group cost breakdown: suppress internal horizontal borders so a group's
    land / building / ส่วนพัฒนา / total lines read as one bordered block. */
 table.grid tr.grp-first td { border-bottom:0; }
@@ -93,6 +99,22 @@ table.totals td.tt { text-align:right; font-style:italic; color:#333; }
 
 /* Committee table: blank signature line above the printed position. */
 .sign-line { border-bottom:1px solid #000; height:20px; margin:2px 18px 3px; }
+
+/* Committee/approval block: centered title, and the whole block stays together — if it
+   doesn't fit on the current page it moves as a unit to the next page. */
+.committee-block { page-break-inside:avoid; break-inside:avoid; }
+.committee-block .section-bar { text-align:center; }
+
+/* Attributes block (กรรมสิทธิ์ / ภาระผูกพัน / พิกัด / ราคาประเมินราชการ / วิธีการประเมิน):
+   same convention as .committee-block — if it doesn't fit in the space left on the current
+   page the whole block moves to the next one rather than splitting mid-way. */
+.attrs-block { page-break-inside:avoid; break-inside:avoid; }
+
+/* Appraiser-opinion section (heading + comment + the 3-column signature row) travels as one
+   unit. The committee table is nested inside via the sign-off partial and keeps its own
+   .committee-block rule; when the combined height exceeds a page Chromium ignores the outer
+   avoid and falls back to normal pagination, so this can never strand content. */
+.opinion-block { page-break-inside:avoid; break-inside:avoid; }
 
 /* FSD-aligned: plain left-aligned bold heading, no grey fill / border. */
 .section-bar { font-weight:700; text-align:left; padding:2px 0; font-size:8.5pt; }
@@ -131,7 +153,9 @@ table.grid.comparison th:first-child, table.grid.comparison td:first-child { wid
 .opinion-type { display:inline-block; border-bottom:1px solid #000; font-weight:600; margin-bottom:3px; }
 
 /* ── Sign-off (name / fixed role / qualification) ───────── */
-.signoff { display:grid; grid-template-columns:1fr 1fr 1fr; }
+/* The signature row never splits across pages, including in the construction body, which has
+   no opinion section to wrap it. */
+.signoff { display:grid; grid-template-columns:1fr 1fr 1fr; page-break-inside:avoid; break-inside:avoid; }
 .signoff .cell { padding:26px 6px 8px; text-align:center; }
 .signoff .nm-paren { margin-top:3px; }
 /* Underlined name + small position — shared by the sign-off and the committee table. */

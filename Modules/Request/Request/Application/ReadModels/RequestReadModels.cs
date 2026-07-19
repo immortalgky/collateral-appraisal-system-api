@@ -72,69 +72,6 @@ internal record RequestDocumentRow
     public DateTime UploadedAt { get; set; }
 }
 
-internal record RequestTitleRow
-{
-    public Guid Id { get; set; }
-    public Guid RequestId { get; set; }
-    public string CollateralType { get; set; } = default!;
-    public bool CollateralStatus { get; set; }
-    public string? TitleNo { get; set; }
-    public string? DeedType { get; set; }
-    public string? TitleDetail { get; set; }
-    public string? Rawang { get; set; }
-    public string? LandNo { get; set; }
-    public string? SurveyNo { get; set; }
-    public int? AreaRai { get; set; }
-    public int? AreaNgan { get; set; }
-    public decimal? AreaSquareWa { get; set; }
-    public string? OwnerName { get; set; }
-    public string? VehicleType { get; set; }
-    public string? VehicleAppointmentLocation { get; set; }
-    public string? VIN { get; set; }
-    public string? LicensePlateNumber { get; set; }
-    public string? VesselType { get; set; }
-    public string? VesselAppointmentLocation { get; set; }
-    public string? HullIdentificationNumber { get; set; }
-    public string? VesselRegistrationNumber { get; set; }
-    public bool RegistrationStatus { get; set; }
-    public string? RegistrationNumber { get; set; }
-    public string? MachineType { get; set; }
-    public string? InstallationStatus { get; set; }
-    public string? InvoiceNumber { get; set; }
-    public int? NumberOfMachine { get; set; }
-    public string? BuildingType { get; set; }
-    public decimal? UsableArea { get; set; }
-    public int? NumberOfBuilding { get; set; }
-    public string? CondoName { get; set; }
-    public string? BuildingNo { get; set; }
-    public string? RoomNo { get; set; }
-    public string? FloorNo { get; set; }
-
-    // TitleAddress flat fields
-    public string? HouseNumber { get; set; }
-    public string? ProjectName { get; set; }
-    public string? Moo { get; set; }
-    public string? Soi { get; set; }
-    public string? Road { get; set; }
-    public string? SubDistrict { get; set; }
-    public string? District { get; set; }
-    public string? Province { get; set; }
-    public string? Postcode { get; set; }
-
-    // DopaAddress flat fields
-    public string? DopaHouseNumber { get; set; }
-    public string? DopaProjectName { get; set; }
-    public string? DopaMoo { get; set; }
-    public string? DopaSoi { get; set; }
-    public string? DopaRoad { get; set; }
-    public string? DopaSubDistrict { get; set; }
-    public string? DopaDistrict { get; set; }
-    public string? DopaProvince { get; set; }
-    public string? DopaPostcode { get; set; }
-
-    public string? Notes { get; set; }
-}
-
 internal record RequestTitleDocumentRow
 {
     public Guid? Id { get; set; }

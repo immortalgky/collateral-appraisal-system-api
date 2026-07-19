@@ -9,6 +9,8 @@ public sealed record Rcas002Filter(
     string? Stage,
     string? CustomerName,
     string? AppraisalNumber,
+    DateTime? CreatedFrom,
+    DateTime? CreatedTo,
     string? SortBy,
     string? SortDir);
 
@@ -17,14 +19,18 @@ internal static class Rcas002Report
 {
     private static readonly HashSet<string> AllowedSort = new(StringComparer.OrdinalIgnoreCase)
     {
-        "ReviewType", "RemainingDays", "AppraisalNumber", "ValuationDate", "PastDueDay"
+        "ReviewType", "ReviewTypeCode", "RemainingDays", "AppraisalNumber", "ValuationDate", "PastDueDay"
     };
+
+    // FSD sort sequence: "Review Type, Remaining Day". Sort by the raw code so the order is 1/2/3,
+    // not the alphabetical order of the resolved labels.
+    private static readonly string[] DefaultSort = ["ReviewTypeCode", "RemainingDays"];
 
     public static readonly ReportDefinition<Rcas002Row, Rcas002Filter> Definition = new()
     {
         BaseName = "RCAS002-ReappraisalDue",
         Title = "รายงานการครบกำหนดทบทวนหลักประกันตามประเภท",
-        OrderBy = f => ReportFilterSql.OrderBy(f.SortBy, f.SortDir, AllowedSort, "RemainingDays"),
+        OrderBy = f => ReportFilterSql.OrderBy(f.SortBy, f.SortDir, AllowedSort, DefaultSort),
         Build = Build,
         DescribeFilter = f =>
         [
@@ -33,6 +39,8 @@ internal static class Rcas002Report
             new("Stage", f.Stage),
             new("Customer Name", f.CustomerName),
             new("Appraisal No.", f.AppraisalNumber),
+            new("Created From", f.CreatedFrom?.ToString("yyyy-MM-dd")),
+            new("Created To", f.CreatedTo?.ToString("yyyy-MM-dd")),
         ],
         Columns =
         [
@@ -79,10 +87,16 @@ internal static class Rcas002Report
         var c = new List<string>();
         var p = new DynamicParameters();
 
-        ReportFilterSql.MultiValue(c, p, f.ReviewType, "ReviewType", "ReviewTypes");
+        // Bind the raw code (ReviewTypeCode); the ReviewType column is the resolved label, so binding
+        // codes against it would never match.
+        ReportFilterSql.MultiValue(c, p, f.ReviewType, "ReviewTypeCode", "ReviewTypes");
         ReportFilterSql.MultiValue(c, p, f.Stage, "Stage", "Stages");
         ReportFilterSql.Contains(c, p, f.CustomerName, "CustomerName", "CustomerName");
         ReportFilterSql.Contains(c, p, f.AppraisalNumber, "AppraisalNumber", "AppraisalNumber");
+        // FSD "Create Date from … to". RCAS002 has no appraisal-create timestamp (AS400 reappraisal
+        // candidates), so this binds ValuationDate (วันที่ประเมิน) as the closest date.
+        // ⚑ CONFIRM with business which candidate date "Create Date" means, then repoint this column.
+        ReportFilterSql.DateRange(c, p, f.CreatedFrom, f.CreatedTo, "ValuationDate", "Created");
 
         return ("SELECT * FROM reporting.vw_RCAS002_ReappraisalDue" + ReportFilterSql.Where(c), p);
     }

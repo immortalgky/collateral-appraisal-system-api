@@ -98,7 +98,16 @@ public class CreateCondoPropertyCommandHandler(
             command.BuildingInsurancePrice,
             command.SellingPrice,
             command.ForcedSalePrice,
-            command.Remark);
+            command.Remark,
+            command.LandEntranceExitType,
+            command.LandEntranceExitTypeOther,
+            command.LandFillType,
+            command.LandFillTypeOther,
+            command.UrbanPlanningType,
+            command.LandUseType,
+            command.LandUseTypeOther,
+            command.GovernmentPricePerSqm,
+            command.GovernmentPrice);
         
         // 5. Create CondoAreaDetails
         if (command.AreaDetails is { Count: > 0 })

@@ -294,7 +294,7 @@ public class ApprovalActivity : WorkflowActivityBase
                 // Publish task completed for this member
                 await _publisher.Publish(new TaskCompletedDomainEvent(
                     correlationGuid, $"{activityName}:{voter}", vote, _dateTimeProvider.ApplicationNow, voter,
-                    context.WorkflowInstance.Name, null, null, rbMovement,
+                    context.WorkflowInstance.Name, comments, null, rbMovement,
                     rbAppraisalId, context.ActivityId), cancellationToken);
 
                 var rbOutput = BuildOutputData(normalizedId, "route_back", 0, 0, 1,
@@ -350,7 +350,7 @@ public class ApprovalActivity : WorkflowActivityBase
             // Publish task completed for this member
             await _publisher.Publish(new TaskCompletedDomainEvent(
                 correlationGuid, $"{activityName}:{voter}", vote, _dateTimeProvider.ApplicationNow, voter,
-                context.WorkflowInstance.Name, null, null, voteMovement,
+                context.WorkflowInstance.Name, comments, null, voteMovement,
                 voteAppraisalId, context.ActivityId), cancellationToken);
 
             // Get all votes for this round

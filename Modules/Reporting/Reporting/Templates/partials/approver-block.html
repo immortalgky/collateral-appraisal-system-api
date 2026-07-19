@@ -6,6 +6,7 @@
   model.approver_summary_comment. Reused by every summary report.
 -->
 {{ if model.is_completed && model.approvers.size > 0 }}
+<div class="committee-block">
 <div class="section-bar">{{ if model.meeting_number }}มติคณะกรรมการกำหนดราคาประเมิน ในการประชุมครั้งที่ {{ model.meeting_number }} วันที่ {{ thai.date model.meeting_date }}{{ else }}มติคณะอนุกรรมการกำหนดราคาประเมิน วันที่ {{ thai.date model.approval_date }}{{ end }}</div>
 
 <table class="grid">
@@ -36,4 +37,5 @@
     <td colspan="2">{{ model.approver_summary_comment }}</td>
   </tr>
 </table>
+</div><!-- .committee-block -->
 {{ end }}

@@ -26,5 +26,9 @@ public record GetMachinerySummaryResponse(
     decimal? Latitude,
     decimal? Longitude,
     string? Obligation,
-    string? Other
+    string? Other,
+    // Section 1 — Book Intro (report-only free text)
+    string? Assignment,
+    string? ValuationPurpose,
+    string? PropertyCharacteristics
 );

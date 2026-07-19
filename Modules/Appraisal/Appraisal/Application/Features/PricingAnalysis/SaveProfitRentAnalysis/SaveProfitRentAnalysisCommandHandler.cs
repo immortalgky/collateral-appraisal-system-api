@@ -107,7 +107,7 @@ public class SaveProfitRentAnalysisCommandHandler(
 
         // Set method value (allow user override via EstimatePriceRounded)
         var finalPrice = command.EstimatePriceRounded ?? calcResult.FinalValueRounded;
-        method.SetValue(finalPrice);
+        method.SetValue(finalPrice, null, PricingUnit.PerUnit);
 
         // Ensure the shared PricingFinalValue row always carries the calc-derived value
         // as its base (FinalValue/FinalValueRounded ← calcResult).
@@ -139,7 +139,7 @@ public class SaveProfitRentAnalysisCommandHandler(
             finalValue.SetAppraisalPrice(appraisalPrice.Value);
 
             // Propagate building-inclusive price upward
-            method.SetValue(appraisalPrice.Value);
+            method.SetValue(appraisalPrice.Value, null, PricingUnit.PerUnit);
         }
         else
         {

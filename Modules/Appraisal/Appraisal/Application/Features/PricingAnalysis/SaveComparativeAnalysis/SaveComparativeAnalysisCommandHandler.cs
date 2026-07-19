@@ -1,3 +1,4 @@
+using Appraisal.Application.Services;
 using Appraisal.Domain.MarketComparables;
 using Appraisal.Domain.Services;
 
@@ -11,7 +12,8 @@ namespace Appraisal.Application.Features.PricingAnalysis.SaveComparativeAnalysis
 public class SaveComparativeAnalysisCommandHandler(
     IPricingAnalysisRepository pricingAnalysisRepository,
     IMarketComparableRepository marketComparableRepository,
-    PricingCalculationServiceResolver calculationServiceResolver
+    PricingCalculationServiceResolver calculationServiceResolver,
+    PricingPropertyDataService propertyDataService
 ) : ICommandHandler<SaveComparativeAnalysisCommand, SaveComparativeAnalysisResult>
 {
     public async Task<SaveComparativeAnalysisResult> Handle(
@@ -57,9 +59,15 @@ public class SaveComparativeAnalysisCommandHandler(
         var calculationService = calculationServiceResolver.Resolve(method.MethodType);
         calculationService?.Recalculate(method);
 
-        // Override method value with appraisal value if provided
+        // Override method value with appraisal value if provided.
+        // Preserve the price unit the calc service just resolved (single-arg SetValue would
+        // null UnitType/ValuePerUnit); fall back to re-resolving when no calc ran.
         if (command.AppraisalValue.HasValue)
-            method.SetValue(command.AppraisalValue.Value);
+        {
+            var unitType = method.UnitType ?? PricingCalculationHelper.ResolvePriceUnit(method.Calculations);
+            var valuePerUnit = PricingUnit.IsPerUnitRate(unitType) ? method.ValuePerUnit : null;
+            method.SetValue(command.AppraisalValue.Value, valuePerUnit, unitType);
+        }
 
         // Ensure a FinalValue row exists so user overrides persist even when
         // the calc service couldn't auto-create one (e.g. WQS with < 2 data points).
@@ -75,11 +83,34 @@ public class SaveComparativeAnalysisCommandHandler(
         // Applies to land cost (01/02), machinery cost (03), market, and with-building-cost.
         method.FinalValue.SetAppraisalPrice(command.AppraisalPrice);
 
-        // Land area + land value (only when land is part of the appraisal).
-        if (command.IncludeLandArea == true && command.LandArea.HasValue && command.LandValue.HasValue)
-            method.FinalValue.SetLandAreaValues(command.LandArea.Value, command.LandValue.Value);
-        else if (command.IncludeLandArea == false)
+        // Land area + land value. A per-unit RATE (PerSqWa/PerSqm) means the final value prices
+        // LAND per unit area, so both are derivable and must NOT be gated on the building-cost
+        // toggle (the old guard also required command.LandValue, which the WQS screen never sends
+        // unless building cost is on — so land area was silently never persisted).
+        // The area is authoritative from the property's land titles, never from the request.
+        // PerUnit is a whole-unit lumpsum carrying no land rate → leave the row alone.
+        // An explicit command.LandValue still wins (cost approach enters it by hand).
+        decimal? totalLandAreaFromTitles = null;
+        if (pricingAnalysis.SubjectType == PricingAnalysisSubjectType.PropertyGroup
+            && pricingAnalysis.AnchorId.HasValue)
+            totalLandAreaFromTitles = await propertyDataService.GetTotalLandAreaFromTitlesAsync(
+                pricingAnalysis.AnchorId.Value, cancellationToken);
+
+        var landAreaFromTitles = totalLandAreaFromTitles ?? 0m;
+
+        if (command.IncludeLandArea == false)
+        {
             method.FinalValue.ExcludeLandArea();
+        }
+        else if (PricingUnit.IsPerUnitRate(method.UnitType) && landAreaFromTitles > 0m)
+        {
+            var rate = method.ValuePerUnit ?? method.FinalValue.FinalValueAdjusted;
+            var landValue = command.LandValue
+                ?? (rate.HasValue ? landAreaFromTitles * rate.Value : (decimal?)null);
+
+            if (landValue.HasValue)
+                method.FinalValue.SetLandAreaValues(landAreaFromTitles, landValue.Value);
+        }
 
         // Building value toggle (separate from AppraisalPrice now).
         if (command.HasBuildingValue == true && command.BuildingValue.HasValue)

@@ -26,9 +26,17 @@ SELECT a.Id,
        -- Latest active assignment info
        la.AssigneeUserId,
        la.AssigneeCompanyId,
+       -- The bank's own appraiser following up an EXTERNAL assignment. AssigneeUserId is only
+       -- populated for Internal assignments, so consumers that need "the internal staff on this
+       -- book" must pick by AssignmentType (see reporting.vw_RCAS_OlaBase).
+       la.InternalAppraiserId,
+       la.InternalAppraiserName,
+       la.ExternalAppraiserId,
+       la.ExternalAppraiserName,
        la.AssignmentType,
        la.AssignmentStatus,
        la.AssignedAt                                                                       AS AssignedDate,
+       la.SubmittedAt,   -- first-submission timestamp (external: sent-to-bank; internal: execution→check); SLA end-point
        -- Company name for external assignments
        comp.Name                                                                           AS CompanyName,
        -- Customer name from request
@@ -52,9 +60,14 @@ FROM appraisal.Appraisals a
                            aa.AppraisalId,
                            aa.AssigneeUserId,
                            aa.AssigneeCompanyId,
+                           aa.InternalAppraiserId,
+                           aa.InternalAppraiserName,
+                           aa.ExternalAppraiserId,
+                           aa.ExternalAppraiserName,
                            aa.AssignmentType,
                            aa.AssignmentStatus,
                            aa.AssignedAt,
+                           aa.SubmittedAt,
                            ROW_NUMBER() OVER (PARTITION BY aa.AppraisalId ORDER BY aa.AssignedAt DESC, aa.CreatedAt DESC, aa.Id DESC) AS rn
                     FROM appraisal.AppraisalAssignments aa
                     WHERE aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')) la

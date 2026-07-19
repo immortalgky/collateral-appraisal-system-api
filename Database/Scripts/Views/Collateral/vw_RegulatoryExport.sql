@@ -112,13 +112,20 @@ SELECT
     -- Latest Progressive engagement date
     pe.LatestProgressiveAppraisalDate,
 
-    -- Under-construction flag and progress (Land/LB/LS* types only; driven by LandDetails)
+    -- Under-construction flag (drives field #5; the Y/N/L/blank string is formed in the writer)
     ISNULL(ld.IsUnderConstructionAtLastAppraisal, 0)  AS IsUnderConstruction,
+
+    -- Construction progress % (field #6) — the full regulatory rule is computed HERE so the fixed-width
+    -- and Excel writers only format the value (single source of truth, no duplication):
+    --   not land/building/land&building → 0; bare land (L / Leasehold land LSL) → 100;
+    --   building types (LB/LSB/LS): completed (not under construction) → 100,
+    --     under construction → progress% (guarded to 0–100; 0 when none recorded).
     CASE
-        WHEN ld.OverallConstructionProgressPercent IS NULL        THEN NULL
-        WHEN ld.OverallConstructionProgressPercent < 0           THEN NULL
-        WHEN ld.OverallConstructionProgressPercent > 100         THEN NULL
-        ELSE ld.OverallConstructionProgressPercent
+        WHEN m.CollateralType NOT IN ('L', 'LB', 'LSL', 'LSB', 'LS')      THEN 0
+        WHEN m.CollateralType IN ('L', 'LSL')                            THEN 100
+        WHEN ISNULL(ld.IsUnderConstructionAtLastAppraisal, 0) = 0        THEN 100
+        WHEN ld.OverallConstructionProgressPercent BETWEEN 0 AND 100     THEN ld.OverallConstructionProgressPercent
+        ELSE 0
     END                                                           AS ConstructionProgressPercent,
 
     -- Land area (sq.wa): Land/LB/LS* types; guard > 99999.99 which would overflow the dec(7,2) field

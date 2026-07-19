@@ -308,6 +308,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             AdministrativeDistrict = landAddr?.SubDistrict,
             LandOffice          = landAddr?.LandOffice,
             OldAppraisalValue   = common.PrevAppraisedValue,
+            HasPrevAppraisal    = common.HasPrevAppraisal,
             IsReAppraisal       = string.Equals(common.AppraisalType, "ReAppraisal", StringComparison.OrdinalIgnoreCase),
             Appraiser           = common.Appraiser,
             LoanValue           = common.LoanValue,

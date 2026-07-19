@@ -66,6 +66,10 @@ public static class ReportingModule
         services.AddScoped<Application.OperationalReports.Shared.IOlaTimingService,
             Application.OperationalReports.Shared.OlaTimingService>();
 
+        // SLA elapsed (RCAS007/012): appointment -> submission business-time in 8h days.
+        services.AddScoped<Application.OperationalReports.Shared.IReportSlaCalculator,
+            Application.OperationalReports.Shared.ReportSlaCalculator>();
+
         // Party-SLA evaluator: measures vendor vs bank elapsed business time across rework cycles.
         services.AddScoped<Application.OperationalReports.Shared.IPartySlaEvaluator,
             Application.OperationalReports.Shared.PartySlaEvaluator>();

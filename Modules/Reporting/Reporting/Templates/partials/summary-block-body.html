@@ -51,8 +51,8 @@
 
     <div class="kv"><span class="k">ราคาประเมิน</span><span class="v">{{ model.appraisal_value_wording }}</span></div>
 
-    <div class="kv"><span class="k">เงื่อนไข</span><span class="v brk">{{ model.condition }}</span></div>
-    <div class="kv"><span class="k">หมายเหตุ</span><span class="v brk">{{ model.remark }}</span></div>
+    {{ if model.condition }}<div class="kv"><span class="k">เงื่อนไข</span><span class="v brk">{{ model.condition }}</span></div>{{ end }}
+    {{ if model.remark }}<div class="kv"><span class="k">หมายเหตุ</span><span class="v brk">{{ model.remark }}</span></div>{{ end }}
 
     {{ if model.gps }}
     <div class="kv"><span class="k">พิกัด</span><span class="v">{{ model.gps }}</span></div>
@@ -71,13 +71,16 @@
   </div>
 
   <!-- ════ SECTION: สรุปความเห็นผู้ประเมิน ════ -->
+  <div class="opinion-block">
   <div class="section-bar">สรุปความเห็นผู้ประเมิน</div>
   <div class="pad">
-    <div class="comment-box">{{ model.appraiser_comment }}</div>
+    {{ if model.summary_property_type }}<div class="opinion-type">{{ model.summary_property_type }}</div>{{ else if model.property_type }}<div class="opinion-type">{{ model.property_type }}</div>{{ end }}
+    <div class="comment-box">{{ if model.appraiser_comment; model.appraiser_comment; else; "-"; end }}</div>
   </div>
 
   <!-- ════ SIGN-OFF + COMMITTEE BLOCK — shared partial ════ -->
   {{ include 'partials/summary-signoff' }}
+  </div><!-- .opinion-block -->
 
   <!-- ════ UNIT TABLE: LB / Land ════ -->
   {{ if model.building_units.size > 0 }}

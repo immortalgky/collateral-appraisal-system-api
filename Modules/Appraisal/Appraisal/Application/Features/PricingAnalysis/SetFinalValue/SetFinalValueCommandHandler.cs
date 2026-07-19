@@ -1,4 +1,6 @@
+using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
+using Appraisal.Domain.Services;
 using Shared.CQRS;
 
 namespace Appraisal.Application.Features.PricingAnalysis.SetFinalValue;
@@ -7,7 +9,8 @@ namespace Appraisal.Application.Features.PricingAnalysis.SetFinalValue;
 /// Handler for setting final value for a pricing method
 /// </summary>
 public class SetFinalValueCommandHandler(
-    IPricingAnalysisRepository pricingAnalysisRepository
+    IPricingAnalysisRepository pricingAnalysisRepository,
+    PricingPropertyDataService propertyDataService
 ) : ICommandHandler<SetFinalValueCommand, SetFinalValueResult>
 {
     public async Task<SetFinalValueResult> Handle(
@@ -48,7 +51,8 @@ public class SetFinalValueCommandHandler(
             finalValue.UpdateFinalValue(command.FinalValue, command.FinalValueRounded);
         }
 
-        method.SetValue(command.FinalValueRounded);
+        // Preserve the existing price unit — this manual override adjusts the value, not the unit.
+        method.SetValue(command.FinalValueRounded, method.ValuePerUnit, method.UnitType);
 
         // TODO: Temporary — propagate method value upward for manual frontend updates
         if (method.IsSelected && method.MethodValue.HasValue)
@@ -69,14 +73,31 @@ public class SetFinalValueCommandHandler(
         // TODO: Temporary — mark as manual calc since user is overriding values from frontend
         pricingAnalysis.SetUseSystemCalc(false);
 
-        // Handle land area
-        if (command.IncludeLandArea == true && command.LandArea.HasValue && command.LandValue.HasValue)
-        {
-            finalValue.SetLandAreaValues(command.LandArea.Value, command.LandValue.Value);
-        }
-        else if (command.IncludeLandArea == false)
+        // Handle land area. A per-unit RATE (PerSqWa/PerSqm) means the final value prices LAND per
+        // unit area, so area and value are derivable and must NOT be gated on the building-cost
+        // toggle. Area is authoritative from the property's land titles, never from the request.
+        // PerUnit is a whole-unit lumpsum carrying no land rate → leave the row alone.
+        // An explicit command.LandValue still wins (cost approach enters it by hand).
+        decimal? totalLandAreaFromTitles = null;
+        if (pricingAnalysis.SubjectType == PricingAnalysisSubjectType.PropertyGroup
+            && pricingAnalysis.AnchorId.HasValue)
+            totalLandAreaFromTitles = await propertyDataService.GetTotalLandAreaFromTitlesAsync(
+                pricingAnalysis.AnchorId.Value, cancellationToken);
+
+        var landAreaFromTitles = totalLandAreaFromTitles ?? 0m;
+
+        if (command.IncludeLandArea == false)
         {
             finalValue.ExcludeLandArea();
+        }
+        else if (PricingUnit.IsPerUnitRate(method.UnitType) && landAreaFromTitles > 0m)
+        {
+            var rate = method.ValuePerUnit ?? finalValue.FinalValueAdjusted;
+            var landValue = command.LandValue
+                ?? (rate.HasValue ? landAreaFromTitles * rate.Value : (decimal?)null);
+
+            if (landValue.HasValue)
+                finalValue.SetLandAreaValues(landAreaFromTitles, landValue.Value);
         }
 
         // Handle building value (toggle + amount); AppraisalPrice persists independently below.

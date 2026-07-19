@@ -26,7 +26,7 @@ public class RegulatoryFileWriterTests
         HostCollateralId: "6702522",
         LatestAppraisalType: "ReAppraisal",
         IsUnderConstruction: false,
-        ConstructionProgressPercent: null,
+        ConstructionProgressPercent: 100m, // view-computed final value (completed LB → 100)
         LatestAppraisalValue: 2_000_000.00m,
         EarliestAppraisalValue: 1_000_000.00m,
         SellingPrice: 3_000_000.00m,
@@ -63,14 +63,13 @@ public class RegulatoryFileWriterTests
     }
 
     [Fact]
-    public void Field5And6_AreBlankAndZero_ForCondo()
+    public void Field5_UnderConstruction_IsBlank_ForCondo()
     {
-        // Condo is NOT in the land/building/land&building group → Under Construction blank, progress 0.00.
-        var row = SampleRow() with { CollateralType = CollateralTypes.Condo, IsUnderConstruction = true };
+        // Condo is NOT in the land/building/land&building group → Under Construction blank (writer rule).
+        var row = SampleRow() with { CollateralType = CollateralTypes.Condo };
         var line = new RegulatoryFileWriter().BuildDetail(row);
 
         Assert.Equal(' ', line[40]);                       // pos 41 UnderConstruction → blank
-        Assert.Equal("00000", line[41..46]);               // pos 42-46 ConstructionProgress → 0.00 (×100)
     }
 
     [Fact]
@@ -139,6 +138,18 @@ public class RegulatoryFileWriterTests
         var line = new RegulatoryFileWriter().BuildDetail(row);
 
         Assert.Equal(new string('0', 19), line[21..40]);
+    }
+
+    [Fact]
+    public void Field6_ConstructionProgress_FormatsViewComputedValue()
+    {
+        // The 0 / 100 / progress% rule now lives in vw_RegulatoryExport; the writer only implied-decimal-
+        // formats the value. SampleRow carries 100 (a completed building, as the view would emit).
+        var line = new RegulatoryFileWriter().BuildDetail(SampleRow());
+        Assert.Equal("10000", line[41..46]);                              // 100.00 ×100
+
+        var partial = new RegulatoryFileWriter().BuildDetail(SampleRow() with { ConstructionProgressPercent = 75.00m });
+        Assert.Equal("07500", partial[41..46]);                           // 75.00 ×100
     }
 
     [Fact]

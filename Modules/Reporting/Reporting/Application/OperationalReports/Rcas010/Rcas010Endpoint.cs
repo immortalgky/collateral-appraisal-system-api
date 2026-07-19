@@ -17,12 +17,14 @@ public sealed class Rcas010Endpoint : ICarterModule
 
         group.MapGet("", async (
                 [FromQuery] DateTime? createdFrom, [FromQuery] DateTime? createdTo,
-                [FromQuery] string? channel, [FromQuery] string? assignType,
+                [FromQuery] string? channel,
+                [FromQuery] string? departmentCode, [FromQuery] string? aoCode, [FromQuery] string? status,
+                [FromQuery] string? feeType, [FromQuery] string? appraisalCompany,
                 [FromQuery] string? sortBy, [FromQuery] string? sortDir,
                 [FromQuery] int? pageNumber, [FromQuery] int? pageSize,
                 IOperationalReportRunner runner, CancellationToken ct) =>
             {
-                var filter = new Rcas010Filter(createdFrom, createdTo, channel, assignType, sortBy, sortDir);
+                var filter = new Rcas010Filter(createdFrom, createdTo, channel, departmentCode, aoCode, status, feeType, appraisalCompany, sortBy, sortDir);
                 var page = new PaginationRequest(pageNumber ?? 0, pageSize ?? 50);
                 return Results.Ok(await runner.PreviewAsync(Rcas010Report.Definition, filter, page));
             })
@@ -30,11 +32,13 @@ public sealed class Rcas010Endpoint : ICarterModule
 
         group.MapGet("/export", async (
                 [FromQuery] DateTime? createdFrom, [FromQuery] DateTime? createdTo,
-                [FromQuery] string? channel, [FromQuery] string? assignType,
+                [FromQuery] string? channel,
+                [FromQuery] string? departmentCode, [FromQuery] string? aoCode, [FromQuery] string? status,
+                [FromQuery] string? feeType, [FromQuery] string? appraisalCompany,
                 [FromQuery] string? sortBy, [FromQuery] string? sortDir, [FromQuery] string? format,
                 IOperationalReportRunner runner, CancellationToken ct) =>
             {
-                var filter = new Rcas010Filter(createdFrom, createdTo, channel, assignType, sortBy, sortDir);
+                var filter = new Rcas010Filter(createdFrom, createdTo, channel, departmentCode, aoCode, status, feeType, appraisalCompany, sortBy, sortDir);
                 var file = await runner.ExportAsync(Rcas010Report.Definition, filter, OperationalReportFormat.Parse(format), ct);
                 return Results.File(file.Bytes, file.ContentType, file.FileName);
             })

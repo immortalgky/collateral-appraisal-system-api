@@ -36,6 +36,14 @@ namespace Reporting.Application.Providers;
 internal static class AppraisalSummaryCommonLoader
 {
     /// <summary>
+    /// First non-blank value, or null when every candidate is null/whitespace. Used so a
+    /// whitespace-only opinion falls through to the next source — and ultimately to the
+    /// template's "-" placeholder — instead of rendering as an empty box.
+    /// </summary>
+    public static string? FirstNonBlank(params string?[] values) =>
+        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
+    /// <summary>
     /// Maps a set of pricing APPROACH types (Market / Cost / Income / Residual) to the four
     /// วิธีการประเมิน checkboxes. Callers pass the approaches of the groups a report actually shows.
     /// Flag names are kept for template compatibility: IsWqs→Market, IsHypothesis→Residual.
@@ -236,14 +244,16 @@ internal static class AppraisalSummaryCommonLoader
             FROM parameter.Parameters
             WHERE [Group] = 'CollateralType' AND [Language] = 'TH' AND IsActive = 1;
 
-            -- RS13: ราคาประเมินเดิม — live appraised value of the prior appraisal (reappraisal chain),
-            -- resolved through appraisal.Appraisals.PrevAppraisalId (same field as RS05 for the current
-            -- appraisal); null when there is no prior appraisal or it has no valuation.
-            SELECT va.AppraisedValue
-            FROM appraisal.ValuationAnalyses va
-            WHERE va.AppraisalId = (
-                SELECT ap.PrevAppraisalId FROM appraisal.Appraisals ap
-                WHERE ap.Id = @AppraisalId AND ap.IsDeleted = 0);
+            -- RS13: ราคาประเมินเดิม — the prior-appraisal link plus its LIVE appraised value,
+            -- resolved through appraisal.Appraisals.PrevAppraisalId (same field as RS05 for the
+            -- current appraisal). PrevAppraisalId is returned alongside the value so callers can
+            -- distinguish "no prior appraisal" (hide the field) from "prior appraisal exists but
+            -- has no valuation yet" (show the field with a dash). LEFT JOIN keeps one row either way.
+            SELECT ap.PrevAppraisalId,
+                   va.AppraisedValue AS PrevAppraisedValue
+            FROM appraisal.Appraisals ap
+            LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = ap.PrevAppraisalId
+            WHERE ap.Id = @AppraisalId AND ap.IsDeleted = 0;
             """;
 
         var headerParams = new DynamicParameters();
@@ -261,7 +271,7 @@ internal static class AppraisalSummaryCommonLoader
         RequestorRow? requestorRow;
         List<CompletedTaskRow> completedTaskRows;
         List<ParamRow> collateralTypeParams;
-        decimal? prevAppraisedValue;
+        PrevAppraisalRow? prevAppraisal;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, headerParams))
         {
@@ -304,7 +314,7 @@ internal static class AppraisalSummaryCommonLoader
             collateralTypeParams = (await multi.ReadAsync<ParamRow>()).ToList();
 
             // RS13
-            prevAppraisedValue = await multi.ReadFirstOrDefaultAsync<decimal?>();
+            prevAppraisal = await multi.ReadFirstOrDefaultAsync<PrevAppraisalRow>();
         }
 
         var customerName = customerNames.Count > 0
@@ -538,7 +548,7 @@ internal static class AppraisalSummaryCommonLoader
             IsLeasehold: globalFlags.IsLeasehold,
             IsProfitRent: globalFlags.IsProfitRent,
             GroupMethodTypes: groupMethodTypes,
-            AppraiserComment: decision?.AppraiserOpinion ?? decision?.CommitteeOpinion,
+            AppraiserComment: FirstNonBlank(decision?.AppraiserOpinion, decision?.CommitteeOpinion),
             Condition: decision?.Condition,
             Remark: decision?.Remark,
             CommitteeOpinion: decision?.CommitteeOpinion,
@@ -555,7 +565,8 @@ internal static class AppraisalSummaryCommonLoader
             ShowMeeting: showMeeting,
             GroupRows: groupRows,
             CollateralTypeMap: collateralTypeMap,
-            PrevAppraisedValue: prevAppraisedValue);
+            PrevAppraisedValue: prevAppraisal?.PrevAppraisedValue,
+            HasPrevAppraisal: prevAppraisal?.PrevAppraisalId is not null);
     }
 
     // ── Private flat DTOs for Dapper mapping ─────────────────────────────────────
@@ -665,6 +676,17 @@ internal static class AppraisalSummaryCommonLoader
         public string? Position { get; init; }
         public DateTime CompletedAt { get; init; }
     }
+
+    /// <summary>
+    /// RS13 / RS23 — the current appraisal's prior-appraisal link and that prior appraisal's live
+    /// appraised value. Shared by this loader and AppraisalSummaryLandBuildingDataProvider so the
+    /// two queries cannot drift apart.
+    /// </summary>
+    internal sealed class PrevAppraisalRow
+    {
+        public Guid? PrevAppraisalId { get; init; }
+        public decimal? PrevAppraisedValue { get; init; }
+    }
 }
 
 /// <summary>วิธีการประเมิน checkbox flags derived from pricing method types.</summary>
@@ -719,7 +741,10 @@ internal sealed record CommonAppraisalData(
     bool ShowMeeting,
     List<AppraisalSummaryCommonLoader.GroupRow> GroupRows,
     Dictionary<string, string?> CollateralTypeMap,
-    decimal? PrevAppraisedValue)
+    decimal? PrevAppraisedValue,
+    /// <summary>True when the appraisal has a PrevAppraisalId — drives whether ราคาประเมินเดิม
+    /// is rendered at all, independently of AppraisalType.</summary>
+    bool HasPrevAppraisal)
 {
     /// <summary>
     /// Translate a domain PropertyType family code to its Thai description; fall back to raw code.
