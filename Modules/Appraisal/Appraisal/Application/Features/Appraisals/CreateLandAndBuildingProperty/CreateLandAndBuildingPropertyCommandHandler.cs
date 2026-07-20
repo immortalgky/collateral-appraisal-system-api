@@ -28,11 +28,13 @@ public class CreateLandAndBuildingPropertyCommandHandler(
         if (command.Latitude.HasValue && command.Longitude.HasValue)
             coordinates = GpsCoordinate.Create(command.Latitude.Value, command.Longitude.Value);
 
-        AdministrativeAddress? address = null;
+        Address? address = null;
         if (!string.IsNullOrEmpty(command.SubDistrict) || !string.IsNullOrEmpty(command.District) ||
-            !string.IsNullOrEmpty(command.Province) || !string.IsNullOrEmpty(command.LandOffice))
-            address = AdministrativeAddress.Create(command.SubDistrict, command.District, command.Province,
-                command.LandOffice);
+            !string.IsNullOrEmpty(command.Province))
+            address = Address.Create(command.SubDistrict, command.District, command.Province);
+        Address? dopaAddress = null;
+        if (command.DopaSubDistrict is not null || command.DopaDistrict is not null || command.DopaProvince is not null)
+            dopaAddress = Address.Create(command.DopaSubDistrict, command.DopaDistrict, command.DopaProvince);
 
         // 4. Update Land detail with additional fields
         property.LandDetail!.Update(
@@ -118,7 +120,9 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             hasBuilding: command.HasBuilding,
             hasBuildingOther: command.HasBuildingOther,
             remark: command.Remark,
-            isRentedOut: command.IsRentedOut);
+            isRentedOut: command.IsRentedOut,
+            landOffice: command.LandOffice,
+            dopaAddress: dopaAddress);
 
         // Add land titles if provided
         if (command.Titles is { Count: > 0 })

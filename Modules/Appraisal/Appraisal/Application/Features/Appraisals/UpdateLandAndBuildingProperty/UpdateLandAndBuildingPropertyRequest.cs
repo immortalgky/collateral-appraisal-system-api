@@ -17,6 +17,9 @@ public record UpdateLandAndBuildingPropertyRequest(
     string? District = null,
     string? Province = null,
     string? LandOffice = null,
+    string? DopaSubDistrict = null,
+    string? DopaDistrict = null,
+    string? DopaProvince = null,
     // Owner Details
     string? OwnerName = null,
     bool? IsOwnerVerified = null,

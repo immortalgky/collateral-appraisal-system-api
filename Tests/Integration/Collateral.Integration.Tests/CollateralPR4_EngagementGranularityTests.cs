@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
 using AppraisalAggregate = Appraisal.Domain.Appraisals.Appraisal;
+using Address = Appraisal.Domain.Appraisals.Address;
 
 namespace Integration.Collateral.Integration.Tests;
 
@@ -47,7 +48,7 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
     {
         var prop = appraisal.AddLandProperty();
         prop.LandDetail!.Update(
-            address: AdministrativeAddress.Create(subDistrict, district, province, landOffice));
+            address: Address.Create(subDistrict, district, province), landOffice: landOffice);
         var title = LandTitle.Create(prop.LandDetail.Id, titleNo, titleType);
         prop.LandDetail.AddTitle(title);
         return prop;
@@ -67,7 +68,7 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
             titleNumber: titleNo,
             titleType: titleType,
             ownerName: "Test Owner",
-            address: AdministrativeAddress.Create("Test Subdistrict", "Test District", province, landOffice));
+            address: Address.Create("Test Subdistrict", "Test District", province), landOffice: landOffice);
         return prop;
     }
 

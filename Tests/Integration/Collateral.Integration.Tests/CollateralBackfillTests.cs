@@ -16,6 +16,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Pagination;
 using AppraisalAggregate = Appraisal.Domain.Appraisals.Appraisal;
+using Address = Appraisal.Domain.Appraisals.Address;
 
 namespace Integration.Collateral.Integration.Tests;
 
@@ -70,7 +71,7 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
         var appraisal = CreateAppraisalSeed(Guid.NewGuid());
         var prop = appraisal.AddLandProperty();
         prop.LandDetail!.Update(
-            address: AdministrativeAddress.Create(subDistrict, district, province, landOffice));
+            address: Address.Create(subDistrict, district, province), landOffice: landOffice);
         var title = LandTitle.Create(prop.LandDetail.Id, titleNo, "Chanote");
         prop.LandDetail.AddTitle(title);
 
@@ -97,7 +98,7 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
             titleNumber: titleNo,
             titleType: "Chanote",
             ownerName: "Test Owner",
-            address: AdministrativeAddress.Create("Test Subdistrict", "Test District", province, landOffice));
+            address: Address.Create("Test Subdistrict", "Test District", province), landOffice: landOffice);
 
         db.Appraisals.Add(appraisal);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -265,7 +266,7 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
 
             var landProp = appraisal.Properties.First(p => p.LandDetail != null);
             landProp.LandDetail!.Update(
-                address: AdministrativeAddress.Create("Silom", "Bangrak", "Bangkok", $"LO-{run}"));
+                address: Address.Create("Silom", "Bangrak", "Bangkok"), landOffice: $"LO-{run}");
             var title = LandTitle.Create(landProp.LandDetail.Id, $"T-FIX-{run}", "Chanote");
             landProp.LandDetail.AddTitle(title);
 

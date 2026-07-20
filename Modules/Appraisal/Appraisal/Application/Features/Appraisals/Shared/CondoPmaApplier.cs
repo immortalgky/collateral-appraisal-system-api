@@ -38,15 +38,12 @@ public static class CondoPmaApplier
         var detail = property.CondoDetail
                      ?? throw new InvalidOperationException($"Condo detail not found for property {propertyId}");
 
-        AdministrativeAddress? address = null;
-        if (subDistrict is not null || district is not null || province is not null)
-        {
-            address = AdministrativeAddress.Create(
-                subDistrict,
-                district,
-                province
-            );
-        }
+        // Preserve the existing title address when the caller doesn't supply new parts —
+        // mirrors the landOffice/dopaAddress preservation below (Update() is a full overwrite).
+        Address? address = subDistrict is not null || district is not null || province is not null
+            ? Address.Create(subDistrict, district, province)
+            : detail.Address;
+
         property.UpdatePrice(
             sellingPrice: sellingPrice,
             forcedSalePrice: forcedSalePrice,
@@ -61,7 +58,9 @@ public static class CondoPmaApplier
             condoRegistrationNumber: condoRegistrationNumber,
             roomNumber: roomNumber,
             floorNumber: floorNumber,
-            address: address
+            address: address,
+            landOffice: detail.LandOffice,
+            dopaAddress: detail.DopaAddress
         );
 
         // Stamp Pending — callers decide whether to also raise MarkPmaUpdated (full save only).

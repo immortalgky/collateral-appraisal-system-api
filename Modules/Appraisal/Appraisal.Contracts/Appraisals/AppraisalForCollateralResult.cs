@@ -168,11 +168,14 @@ public record PricingInfoForCollateral(
 /// </summary>
 public record LandIdentityForCollateral(
     // Dedup fields
-    string? Province,         // AdministrativeAddress.Province
-    string? District,         // AdministrativeAddress.District (Amphur)
-    string? SubDistrict,      // AdministrativeAddress.SubDistrict (Tambon)
-    string? LandOffice,       // AdministrativeAddress.LandOffice (free-text — NOT a code)
+    string? Province,         // LandAppraisalDetail.Address?.Province
+    string? District,         // LandAppraisalDetail.Address?.District (Amphur)
+    string? SubDistrict,      // LandAppraisalDetail.Address?.SubDistrict (Tambon)
+    string? LandOffice,       // LandAppraisalDetail.LandOffice (free-text — NOT a code)
     IReadOnlyList<LandTitleForCollateral> Titles,
+    string? DopaSubDistrict,  // LandAppraisalDetail.DopaAddress?.SubDistrict
+    string? DopaDistrict,     // LandAppraisalDetail.DopaAddress?.District
+    string? DopaProvince,     // LandAppraisalDetail.DopaAddress?.Province
     // Last-known populate fields (Phase C)
     string? OwnerName,        // LandAppraisalDetail.OwnerName
     string? Street,           // LandAppraisalDetail.Street
@@ -213,7 +216,10 @@ public record CondoIdentityForCollateral(
     string? Province,                // CondoAppraisalDetail.Address?.Province
     string? District,                // CondoAppraisalDetail.Address?.District
     string? SubDistrict,             // CondoAppraisalDetail.Address?.SubDistrict
-    string? LandOffice,              // CondoAppraisalDetail.Address?.LandOffice (= LandOfficeCode)
+    string? LandOffice,              // CondoAppraisalDetail.LandOffice (= LandOfficeCode)
+    string? DopaSubDistrict,         // CondoAppraisalDetail.DopaAddress?.SubDistrict
+    string? DopaDistrict,            // CondoAppraisalDetail.DopaAddress?.District
+    string? DopaProvince,            // CondoAppraisalDetail.DopaAddress?.Province
     // Last-known populate fields (Phase C)
     string? OwnerName,               // CondoAppraisalDetail.OwnerName
     string? CondoName,               // CondoAppraisalDetail.CondoName

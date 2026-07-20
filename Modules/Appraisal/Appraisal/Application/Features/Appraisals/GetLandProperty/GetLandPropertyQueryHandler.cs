@@ -41,7 +41,7 @@ public class GetLandPropertyQueryHandler(
 
             LandDetailId = landDetail?.Id,
             PropertyName = landDetail?.PropertyName,
-            LandOffice = landDetail?.Address?.LandOffice,
+            LandOffice = landDetail?.LandOffice,
             LandDescription = landDetail?.LandDescription,
             OwnerName = landDetail?.OwnerName,
             IsOwnerVerified = landDetail?.IsOwnerVerified ?? false,
@@ -54,6 +54,9 @@ public class GetLandPropertyQueryHandler(
             SubDistrict = landDetail?.Address?.SubDistrict,
             District = landDetail?.Address?.District,
             Province = landDetail?.Address?.Province,
+            DopaSubDistrict = landDetail?.DopaAddress?.SubDistrict,
+            DopaDistrict = landDetail?.DopaAddress?.District,
+            DopaProvince = landDetail?.DopaAddress?.Province,
 
             Latitude = landDetail?.Coordinates?.Latitude,
             Longitude = landDetail?.Coordinates?.Longitude,

@@ -442,10 +442,15 @@ public class AppraisalCreationService(
         var condoDetail = property.CondoDetail;
         if (condoDetail == null) return;
 
-        var adminAddress = AdministrativeAddress.Create(
+        var adminAddress = Address.Create(
             requestTitle.TitleAddress?.SubDistrict,
             requestTitle.TitleAddress?.District,
             requestTitle.TitleAddress?.Province);
+
+        var dopaAddress = Address.Create(
+            requestTitle.DopaAddress?.SubDistrict,
+            requestTitle.DopaAddress?.District,
+            requestTitle.DopaAddress?.Province);
 
         condoDetail.Update(
             requestTitle.TitleAddress?.ProjectName,
@@ -457,7 +462,8 @@ public class AppraisalCreationService(
             address: adminAddress,
             ownerName: requestTitle.OwnerName,
             street: requestTitle.TitleAddress?.Road,
-            soi: requestTitle.TitleAddress?.Soi);
+            soi: requestTitle.TitleAddress?.Soi,
+            dopaAddress: dopaAddress);
     }
 
     private void CreateLeaseAgreementCondoProperty(Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle)
@@ -470,10 +476,15 @@ public class AppraisalCreationService(
         var condoDetail = property.CondoDetail;
         if (condoDetail == null) return;
 
-        var adminAddress = AdministrativeAddress.Create(
+        var adminAddress = Address.Create(
             requestTitle.TitleAddress?.SubDistrict,
             requestTitle.TitleAddress?.District,
             requestTitle.TitleAddress?.Province);
+
+        var dopaAddress = Address.Create(
+            requestTitle.DopaAddress?.SubDistrict,
+            requestTitle.DopaAddress?.District,
+            requestTitle.DopaAddress?.Province);
 
         condoDetail.Update(
             requestTitle.TitleAddress?.ProjectName,
@@ -485,7 +496,8 @@ public class AppraisalCreationService(
             address: adminAddress,
             ownerName: requestTitle.OwnerName,
             street: requestTitle.TitleAddress?.Road,
-            soi: requestTitle.TitleAddress?.Soi);
+            soi: requestTitle.TitleAddress?.Soi,
+            dopaAddress: dopaAddress);
     }
 
     private void AddLandTitleFromRequest(LandAppraisalDetail landDetail, RequestTitleDto requestTitle)
@@ -520,10 +532,15 @@ public class AppraisalCreationService(
 
     private void UpdateLandDetailTopFields(LandAppraisalDetail landDetail, RequestTitleDto requestTitle)
     {
-        var adminAddress = AdministrativeAddress.Create(
+        var adminAddress = Address.Create(
             requestTitle.TitleAddress?.SubDistrict,
             requestTitle.TitleAddress?.District,
             requestTitle.TitleAddress?.Province);
+
+        var dopaAddress = Address.Create(
+            requestTitle.DopaAddress?.SubDistrict,
+            requestTitle.DopaAddress?.District,
+            requestTitle.DopaAddress?.Province);
 
         landDetail.Update(
             requestTitle.TitleAddress?.ProjectName,
@@ -532,7 +549,8 @@ public class AppraisalCreationService(
             street: requestTitle.TitleAddress?.Road,
             soi: requestTitle.TitleAddress?.Soi,
             village: requestTitle.TitleAddress?.Moo,
-            addressLocation: requestTitle.TitleAddress?.HouseNumber);
+            addressLocation: requestTitle.TitleAddress?.HouseNumber,
+            dopaAddress: dopaAddress);
     }
 
     private void CreateVehicleProperty(Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle)

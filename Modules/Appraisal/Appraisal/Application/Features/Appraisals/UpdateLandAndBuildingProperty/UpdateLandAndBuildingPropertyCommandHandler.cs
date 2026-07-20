@@ -40,11 +40,13 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
         if (command.Latitude.HasValue && command.Longitude.HasValue)
             coordinates = GpsCoordinate.Create(command.Latitude.Value, command.Longitude.Value);
 
-        AdministrativeAddress? address = null;
+        Address? address = null;
         if (!string.IsNullOrEmpty(command.SubDistrict) || !string.IsNullOrEmpty(command.District) ||
-            !string.IsNullOrEmpty(command.Province) || !string.IsNullOrEmpty(command.LandOffice))
-            address = AdministrativeAddress.Create(command.SubDistrict, command.District, command.Province,
-                command.LandOffice);
+            !string.IsNullOrEmpty(command.Province))
+            address = Address.Create(command.SubDistrict, command.District, command.Province);
+        Address? dopaAddress = null;
+        if (command.DopaSubDistrict is not null || command.DopaDistrict is not null || command.DopaProvince is not null)
+            dopaAddress = Address.Create(command.DopaSubDistrict, command.DopaDistrict, command.DopaProvince);
 
         // 6. Update Land detail via domain method
         landDetail.Update(
@@ -132,7 +134,9 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             hasBuilding: command.HasBuilding,
             hasBuildingOther: command.HasBuildingOther,
             remark: command.Remark,
-            isRentedOut: command.IsRentedOut);
+            isRentedOut: command.IsRentedOut,
+            landOffice: command.LandOffice,
+            dopaAddress: dopaAddress);
 
         // 6b. Sync land titles (null = no-op, empty list = clear all)
         if (command.Titles is not null)

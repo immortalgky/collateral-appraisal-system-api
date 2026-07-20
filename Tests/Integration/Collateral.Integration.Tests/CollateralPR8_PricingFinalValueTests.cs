@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
 using AppraisalAggregate = Appraisal.Domain.Appraisals.Appraisal;
+using Address = Appraisal.Domain.Appraisals.Address;
 
 namespace Integration.Collateral.Integration.Tests;
 
@@ -46,7 +47,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
     {
         var prop = appraisal.AddLandProperty();
         prop.LandDetail!.Update(
-            address: AdministrativeAddress.Create(subDistrict, district, province, landOffice));
+            address: Address.Create(subDistrict, district, province), landOffice: landOffice);
         var title = LandTitle.Create(prop.LandDetail.Id, titleNo, titleType);
         prop.LandDetail.AddTitle(title);
         return prop;
@@ -203,7 +204,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
 
             // One property with three titles → IsMaster + 2 aliases
             var prop = a.AddLandProperty();
-            prop.LandDetail!.Update(address: AdministrativeAddress.Create("S1", "D1", "BKK", "LO-PR8"));
+            prop.LandDetail!.Update(address: Address.Create("S1", "D1", "BKK"), landOffice: "LO-PR8");
             prop.LandDetail.AddTitle(LandTitle.Create(prop.LandDetail.Id, masterTitle, "Chanote"));
             prop.LandDetail.AddTitle(LandTitle.Create(prop.LandDetail.Id, alias1Title, "Chanote"));
             prop.LandDetail.AddTitle(LandTitle.Create(prop.LandDetail.Id, alias2Title, "Chanote"));

@@ -29,7 +29,11 @@ public class CondoAppraisalDetail : Entity<Guid>
     public GpsCoordinate? Coordinates { get; private set; }
 
     // Administrative Address (Value Object)
-    public AdministrativeAddress? Address { get; private set; }
+    public Address? Address { get; private set; }
+    public string? LandOffice { get; private set; }
+
+    // Dopa Address (Value Object)
+    public Address? DopaAddress { get; private set; }
 
     // Owner
     public string? OwnerName { get; private set; }
@@ -130,7 +134,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? titleType = null,
         // Value Objects
         GpsCoordinate? coordinates = null,
-        AdministrativeAddress? address = null,
+        Address? address = null,
         // Owner
         string? ownerName = null,
         bool? isOwnerVerified = null,
@@ -189,7 +193,10 @@ public class CondoAppraisalDetail : Entity<Guid>
         decimal? sellingPrice = null,
         decimal? forcedSalePrice = null,
         // Other
-        string? remark = null)
+        string? remark = null,
+        // Address scalar + Dopa (at end to avoid breaking existing positional callers)
+        string? landOffice = null,
+        Address? dopaAddress = null)
     {
         // Property Identification
         PropertyName = propertyName;
@@ -275,6 +282,10 @@ public class CondoAppraisalDetail : Entity<Guid>
 
         // Other
         Remark = remark;
+
+        // Address scalar + Dopa
+        LandOffice = landOffice;
+        DopaAddress = dopaAddress;
     }
 
 
@@ -299,7 +310,11 @@ public class CondoAppraisalDetail : Entity<Guid>
                 ? GpsCoordinate.Create(source.Coordinates.Latitude, source.Coordinates.Longitude)
                 : null,
             Address = source.Address is not null
-                ? AdministrativeAddress.Create(source.Address.SubDistrict, source.Address.District, source.Address.Province, source.Address.LandOffice)
+                ? Address.Create(source.Address.SubDistrict, source.Address.District, source.Address.Province)
+                : null,
+            LandOffice = source.LandOffice,
+            DopaAddress = source.DopaAddress is not null
+                ? Address.Create(source.DopaAddress.SubDistrict, source.DopaAddress.District, source.DopaAddress.Province)
                 : null,
             OwnerName = source.OwnerName,
             IsOwnerVerified = source.IsOwnerVerified,
@@ -362,7 +377,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         return copy;
     }
 
-    public void AddCondoAreaDetail(CondoAppraisalAreaDetail  areaDetails)
+    public void AddCondoAreaDetail(CondoAppraisalAreaDetail areaDetails)
     {
         _areaDetails.Add(areaDetails);
     }

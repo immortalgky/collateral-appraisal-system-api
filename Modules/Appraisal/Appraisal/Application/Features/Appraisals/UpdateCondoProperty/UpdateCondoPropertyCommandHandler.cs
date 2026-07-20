@@ -35,16 +35,17 @@ public class UpdateCondoPropertyCommandHandler(
             coordinates = GpsCoordinate.Create(command.Latitude.Value, command.Longitude.Value);
         }
 
-        AdministrativeAddress? address = null;
-        if (command.SubDistrict is not null || command.District is not null ||
-            command.Province is not null || command.LandOffice is not null)
+        Address? address = null;
+        if (command.SubDistrict is not null || command.District is not null || command.Province is not null)
         {
-            address = AdministrativeAddress.Create(
+            address = Address.Create(
                 command.SubDistrict,
                 command.District,
-                command.Province,
-                command.LandOffice);
+                command.Province);
         }
+        Address? dopaAddress = null;
+        if (command.DopaSubDistrict is not null || command.DopaDistrict is not null || command.DopaProvince is not null)
+            dopaAddress = Address.Create(command.DopaSubDistrict, command.DopaDistrict, command.DopaProvince);
 
         // 6. Update via domain method
         detail.Update(
@@ -109,10 +110,12 @@ public class UpdateCondoPropertyCommandHandler(
             buildingInsurancePrice: command.BuildingInsurancePrice,
             sellingPrice: command.SellingPrice,
             forcedSalePrice: command.ForcedSalePrice,
-            remark: command.Remark);
+            remark: command.Remark,
+            landOffice: command.LandOffice,
+            dopaAddress: dopaAddress);
 
         // 7. Update CondoAreaDetails if provided
-        if (command.AreaDetails is not null)SyncAreaDetail(detail,command.AreaDetails);
+        if (command.AreaDetails is not null) SyncAreaDetail(detail, command.AreaDetails);
 
         // 8. Save aggregate
         await appraisalRepository.UpdateAsync(appraisal, cancellationToken);

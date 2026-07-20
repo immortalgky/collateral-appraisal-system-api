@@ -19,16 +19,17 @@ public class CreateCondoPMAPropertyCommandHandler(
 
         var property = appraisal.AddCondoProperty();
 
-        AdministrativeAddress? address = null;
+        Address? address = null;
         if (command.SubDistrict is not null || command.District is not null ||
             command.Province is not null)
         {
-            address = AdministrativeAddress.Create(
+            address = Address.Create(
                 command.SubDistrict,
                 command.District,
                 command.Province
             );
         }
+
         property.UpdatePrice(
             sellingPrice: command.SellingPrice,
             forcedSalePrice: command.ForcedSalePrice,
@@ -43,11 +44,13 @@ public class CreateCondoPMAPropertyCommandHandler(
             condoRegistrationNumber: command.CondoRegistrationNumber,
             roomNumber: command.RoomNumber,
             floorNumber: command.FloorNumber,
-            address: address
+            address: address,
+            landOffice: null,
+            dopaAddress: null
         );
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        
+
         if (command.GroupId.HasValue) appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);
 
 

@@ -20,7 +20,8 @@ public class ProjectLand : Entity<Guid>
     public GpsCoordinate? Coordinates { get; private set; }
 
     // Administrative Address (Value Object)
-    public AdministrativeAddress? Address { get; private set; }
+    public Address? Address { get; private set; }
+    public string? LandOffice { get; private set; }
 
     // Owner
     public string? OwnerName { get; private set; }
@@ -136,7 +137,8 @@ public class ProjectLand : Entity<Guid>
         string? propertyName = null,
         string? landDescription = null,
         GpsCoordinate? coordinates = null,
-        AdministrativeAddress? address = null,
+        Address? address = null,
+        string? landOffice = null,
         // Owner
         string? ownerName = null,
         bool? isOwnerVerified = null,
@@ -224,6 +226,7 @@ public class ProjectLand : Entity<Guid>
         LandDescription = landDescription;
         Coordinates = coordinates;
         Address = address;
+        LandOffice = landOffice;
 
         // Owner
         OwnerName = ownerName;
