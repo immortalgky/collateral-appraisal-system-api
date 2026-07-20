@@ -104,7 +104,9 @@ public record BlockModelPriceRow(
 
 public record ConstructionSummaryData(
     string? Village,
-    IReadOnlyList<ConstructionSummaryRow> Rows
+    IReadOnlyList<ConstructionSummaryRow> Rows,
+    IReadOnlyList<ConstructionBuildingRow> Buildings,
+    IReadOnlyList<ConstructionCompletedBuildingRow> CompletedBuildings
 );
 
 public record ConstructionSummaryRow(
@@ -114,4 +116,26 @@ public record ConstructionSummaryRow(
     decimal TotalLandValue,
     decimal TotalBuildingValue,
     decimal BuildingValueConstructing
+);
+
+// หนึ่งแถวต่อหนึ่ง AppraisalProperty ที่มีการตรวจงวดงาน (ConstructionInspection 1:1 กับ AppraisalProperty)
+public record ConstructionBuildingRow(
+    Guid AppraisalPropertyId,
+    string? HouseNumber,
+    string? TitleNumber,
+    string? ModelName,
+    decimal TotalValue,
+    decimal PreviousValue,
+    decimal CurrentValue,
+    decimal PreviousProgressPct,
+    decimal CurrentProgressPct
+);
+
+// อาคารที่สร้างเสร็จ 100% ก่อนการตรวจงวดงาน = อาคารที่ไม่มีแถว ConstructionInspection
+public record ConstructionCompletedBuildingRow(
+    Guid AppraisalPropertyId,
+    string? HouseNumber,
+    string? TitleNumber,
+    string? ModelName,
+    decimal AppraisalValue
 );
