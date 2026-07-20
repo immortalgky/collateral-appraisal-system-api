@@ -430,6 +430,62 @@ public class GetDecisionSummaryQueryHandler(
             WHERE ap.AppraisalId = @AppraisalId
             """;
 
+        // รายละเอียดรายอาคาร — same IsFullDetail CASE as ciAggregateSql above, but per property
+        // instead of aggregated. ConstructionInspection is 1:1 with AppraisalProperty.
+        const string ciDetailSql = """
+            SELECT
+                ap.Id                             AS AppraisalPropertyId,
+                NULLIF(LTRIM(RTRIM(bad.HouseNumber)), '')      AS HouseNumber,
+                NULLIF(LTRIM(RTRIM(bad.BuiltOnTitleNumber)), '') AS TitleNumber,
+                COALESCE(NULLIF(LTRIM(RTRIM(bad.ModelName)), ''),
+                         NULLIF(LTRIM(RTRIM(bad.PropertyName)), '')) AS ModelName,
+                ci.TotalValue                     AS TotalValue,
+                CASE WHEN ci.IsFullDetail = 0
+                     THEN ISNULL(ci.SummaryPreviousValue, 0)
+                     ELSE ISNULL(wd_agg.PreviousPropertyValueSum, 0)
+                END AS PreviousValue,
+                CASE WHEN ci.IsFullDetail = 0
+                     THEN ISNULL(ci.SummaryCurrentValue, 0)
+                     ELSE ISNULL(wd_agg.CurrentPropertyValueSum, 0)
+                END AS CurrentValue
+            FROM appraisal.ConstructionInspections ci
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
+            LEFT JOIN appraisal.BuildingAppraisalDetails bad ON bad.AppraisalPropertyId = ap.Id
+            LEFT JOIN (
+                SELECT ConstructionInspectionId,
+                       SUM(PreviousPropertyValue) AS PreviousPropertyValueSum,
+                       SUM(CurrentPropertyValue)  AS CurrentPropertyValueSum
+                FROM appraisal.ConstructionWorkDetails
+                GROUP BY ConstructionInspectionId
+            ) wd_agg ON wd_agg.ConstructionInspectionId = ci.Id
+            WHERE ap.AppraisalId = @AppraisalId
+            ORDER BY ap.SequenceNumber, CONVERT(char(36), ap.Id)
+            """;
+
+        // อาคารที่สร้างเสร็จ 100% ก่อนการตรวจงวดงาน — same NOT EXISTS predicate as
+        // nonCiBuildingValueSql, grouped per property instead of summed flat, so the rows
+        // reconcile with the "Building Value Pre-inspection" column of the milestone table.
+        const string completedBuildingSql = """
+            SELECT
+                ap.Id                             AS AppraisalPropertyId,
+                NULLIF(LTRIM(RTRIM(bad.HouseNumber)), '')      AS HouseNumber,
+                NULLIF(LTRIM(RTRIM(bad.BuiltOnTitleNumber)), '') AS TitleNumber,
+                COALESCE(NULLIF(LTRIM(RTRIM(bad.ModelName)), ''),
+                         NULLIF(LTRIM(RTRIM(bad.PropertyName)), '')) AS ModelName,
+                ISNULL(SUM(bdd.PriceAfterDepreciation), 0) AS AppraisalValue
+            FROM appraisal.BuildingDepreciationDetails bdd
+            JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
+            WHERE ap.AppraisalId = @AppraisalId
+              AND NOT EXISTS (
+                  SELECT 1 FROM appraisal.ConstructionInspections ci
+                  WHERE ci.AppraisalPropertyId = ap.Id
+              )
+            GROUP BY ap.Id, ap.SequenceNumber, bad.HouseNumber, bad.BuiltOnTitleNumber,
+                     bad.ModelName, bad.PropertyName
+            ORDER BY ap.SequenceNumber, CONVERT(char(36), ap.Id)
+            """;
+
         // ชื่ออาคาร = village name of the first L/LB land property (same source as report RS04)
         const string villageSql = """
             SELECT TOP 1 lad.Village
@@ -448,6 +504,8 @@ public class GetDecisionSummaryQueryHandler(
             return null;
 
         var village = await connectionFactory.QueryFirstOrDefaultAsync<string?>(villageSql, p);
+        var detailRows = await connectionFactory.QueryAsync<CiDetailRow>(ciDetailSql, p);
+        var completedRows = await connectionFactory.QueryAsync<CompletedBuildingRow>(completedBuildingSql, p);
 
         var ciTotal = ci.CITotalValue;
         var ciPrev = ci.CIPreviousValue;
@@ -492,7 +550,55 @@ public class GetDecisionSummaryQueryHandler(
                 ciTotal),
         };
 
-        return new ConstructionSummaryData(village, rows);
+        // % derived from value ratios, consistent with the milestone rows above — deliberately
+        // NOT from SummaryCurrentProgressPct / SUM(CurrentProportionPct), so the detail rows
+        // reconcile against the card they sit under.
+        var buildings = detailRows
+            .Select(d => new ConstructionBuildingRow(
+                d.AppraisalPropertyId,
+                d.HouseNumber,
+                d.TitleNumber,
+                d.ModelName,
+                d.TotalValue,
+                d.PreviousValue,
+                d.CurrentValue,
+                d.TotalValue > 0 ? d.PreviousValue / d.TotalValue * 100m : 0m,
+                d.TotalValue > 0 ? d.CurrentValue / d.TotalValue * 100m : 0m))
+            .ToList();
+
+        var completedBuildings = completedRows
+            .Select(c => new ConstructionCompletedBuildingRow(
+                c.AppraisalPropertyId,
+                c.HouseNumber,
+                c.TitleNumber,
+                c.ModelName,
+                c.AppraisalValue))
+            .ToList();
+
+        return new ConstructionSummaryData(village, rows, buildings, completedBuildings);
+    }
+
+    // Mapped by NAME (settable properties), not by constructor position — the three adjacent
+    // string? columns would corrupt silently if a positional record were used and the SELECT
+    // column order ever changed.
+    private sealed class CiDetailRow
+    {
+        public Guid AppraisalPropertyId { get; init; }
+        public string? HouseNumber { get; init; }
+        public string? TitleNumber { get; init; }
+        public string? ModelName { get; init; }
+        public decimal TotalValue { get; init; }
+        public decimal PreviousValue { get; init; }
+        public decimal CurrentValue { get; init; }
+    }
+
+    private sealed class CompletedBuildingRow
+    {
+        public Guid AppraisalPropertyId { get; init; }
+        public string? HouseNumber { get; init; }
+        public string? TitleNumber { get; init; }
+        public string? ModelName { get; init; }
+        public decimal AppraisalValue { get; init; }
     }
 
     private record CiAggregateRow(
