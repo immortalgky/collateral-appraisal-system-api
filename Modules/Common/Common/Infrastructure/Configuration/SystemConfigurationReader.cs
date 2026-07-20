@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -22,7 +23,7 @@ public class SystemConfigurationReader(
         var raw = await GetRawAsync(key, ct);
         if (raw is null) return defaultValue;
 
-        if (int.TryParse(raw, out var parsed)) return parsed;
+        if (int.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)) return parsed;
 
         logger.LogWarning("SystemConfiguration key '{Key}' has value '{Value}' that cannot be parsed as int. Returning default {Default}.", key, raw, defaultValue);
         return defaultValue;
@@ -50,7 +51,7 @@ public class SystemConfigurationReader(
         var raw = await GetRawAsync(key, ct);
         if (raw is null) return defaultValue;
 
-        if (decimal.TryParse(raw, out var parsed)) return parsed;
+        if (decimal.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)) return parsed;
 
         logger.LogWarning("SystemConfiguration key '{Key}' has value '{Value}' that cannot be parsed as decimal. Returning default {Default}.", key, raw, defaultValue);
         return defaultValue;

@@ -105,6 +105,10 @@ public class CondoAppraisalDetail : Entity<Guid>
     // Pricing
     public decimal? GovernmentPricePerSqm { get; private set; }
     public decimal? GovernmentPrice { get; private set; }
+    // Fire-insurance condition selected by the appraiser (matches Parameter module's
+    // 'FireInsuranceCondition' group); BuildingInsurancePrice is derived from it server-side
+    // (RatePerSqm × UsableArea) rather than authored directly by the client.
+    public string? FireInsuranceCondition { get; private set; }
     public decimal? BuildingInsurancePrice { get; private set; }
     public decimal? SellingPrice { get; private set; }
     public decimal? ForcedSalePrice { get; private set; }
@@ -211,7 +215,9 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? landUseTypeOther = null,
         // Government Price
         decimal? governmentPricePerSqm = null,
-        decimal? governmentPrice = null)
+        decimal? governmentPrice = null,
+        // Fire Insurance (appended — see Update() ordering note)
+        string? fireInsuranceCondition = null)
     {
         // Property Identification
         PropertyName = propertyName;
@@ -310,6 +316,9 @@ public class CondoAppraisalDetail : Entity<Guid>
         // Government Price
         GovernmentPricePerSqm = governmentPricePerSqm;
         GovernmentPrice = governmentPrice;
+
+        // Fire Insurance
+        FireInsuranceCondition = fireInsuranceCondition;
     }
 
     /// <summary>
@@ -420,6 +429,7 @@ public class CondoAppraisalDetail : Entity<Guid>
             EnvironmentType = source.EnvironmentType?.ToList(),
             GovernmentPricePerSqm = source.GovernmentPricePerSqm,
             GovernmentPrice = source.GovernmentPrice,
+            FireInsuranceCondition = source.FireInsuranceCondition,
             BuildingInsurancePrice = source.BuildingInsurancePrice,
             SellingPrice = source.SellingPrice,
             ForcedSalePrice = source.ForcedSalePrice,

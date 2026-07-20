@@ -118,6 +118,20 @@
     </tr>
     {{ end }}
 
+    {{ if model.appraisal_purpose }}
+    <tr>
+      <th class="kv-label" scope="row">วัตถุประสงค์การประเมิน</th>
+      <td class="kv-value">{{ model.appraisal_purpose }}</td>
+    </tr>
+    {{ end }}
+
+    {{ if model.appraisal_criteria }}
+    <tr>
+      <th class="kv-label" scope="row">หลักเกณฑ์การประเมิน</th>
+      <td class="kv-value">{{ model.appraisal_criteria }}</td>
+    </tr>
+    {{ end }}
+
     {{ if model.price_method }}
     <tr>
       <th class="kv-label" scope="row">วิธีการประเมินมูลค่า</th>

@@ -1,3 +1,4 @@
+using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
 using Dapper;
@@ -10,7 +11,8 @@ namespace Appraisal.Application.Features.DecisionSummary.SaveDecisionSummary;
 public class SaveDecisionSummaryCommandHandler(
     IAppraisalDecisionRepository decisionRepository,
     AppraisalDbContext db,
-    ISqlConnectionFactory connectionFactory
+    ISqlConnectionFactory connectionFactory,
+    ForceSaleRateResolver forceSaleRateResolver
 ) : ICommandHandler<SaveDecisionSummaryCommand, SaveDecisionSummaryResult>
 {
     public async Task<SaveDecisionSummaryResult> Handle(
@@ -38,9 +40,31 @@ public class SaveDecisionSummaryCommandHandler(
             command.CommitteeOpinion,
             command.AdditionalAssumptions);
 
+        // Force-sale rate is no longer part of this form save — it's persisted immediately via
+        // UpdateForceSaleRateCommandHandler on blur (two writers to one column risked a stale
+        // overwrite: blur saves 50, user cancels so the form resets to 70, user Saves, 70 gets
+        // written back over the 50 the user actually committed). Load the row FIRST and resolve
+        // from the STORED override (valuation?.ForceSaleRate), never from this command, so an
+        // unrelated field edit here can't silently reset a rate the user already committed.
+        var valuation = db.ValuationAnalyses.Local
+                            .FirstOrDefault(v => v.AppraisalId == command.AppraisalId)
+                        ?? await db.ValuationAnalyses
+                            .FirstOrDefaultAsync(v => v.AppraisalId == command.AppraisalId, cancellationToken);
+
+        var forceSaleRate = await forceSaleRateResolver.ResolveAsync(
+            command.AppraisalId, valuation?.ForceSaleRate, cancellationToken);
+
         // Book Verification override: persist the 3 review values into ValuationAnalyses.
         // When IsPriceVerified != true, zero out all 3 fields.
         // When verified, null TotalAppraisalPriceReview is persisted as 0m (not skipped).
+        //
+        // NOTE: AppraisedValue/ForcedSaleValue/InsuranceValue are a SINGLE set of columns, written
+        // by two different paths — AppraisalFinalValuesChangedEventHandler (live computed totals)
+        // and this handler (Book Verification values). The read side aliases them as *Review.
+        // They must therefore always be written as a coherent triple: recomputing ForcedSaleValue
+        // here while leaving AppraisedValue at 0 would emit "force-sale 1.27M of appraised 0" to
+        // Collateral master and the AS400 feed. A rate-only change consequently reaches
+        // ForcedSaleValue when the event handler next fires.
         decimal appraisedReview;
         decimal forcedReview;
         decimal insuranceReview;
@@ -48,7 +72,7 @@ public class SaveDecisionSummaryCommandHandler(
         if (command.IsPriceVerified == true)
         {
             appraisedReview = command.TotalAppraisalPriceReview ?? 0m;
-            forcedReview = appraisedReview * 0.70m;
+            forcedReview = appraisedReview * forceSaleRate / 100m;
             insuranceReview = await ComputeBuildingInsuranceAsync(command.AppraisalId, cancellationToken);
         }
         else
@@ -57,11 +81,6 @@ public class SaveDecisionSummaryCommandHandler(
             forcedReview = 0m;
             insuranceReview = 0m;
         }
-
-        var valuation = db.ValuationAnalyses.Local
-                            .FirstOrDefault(v => v.AppraisalId == command.AppraisalId)
-                        ?? await db.ValuationAnalyses
-                            .FirstOrDefaultAsync(v => v.AppraisalId == command.AppraisalId, cancellationToken);
 
         if (valuation is null)
         {
@@ -121,4 +140,5 @@ public class SaveDecisionSummaryCommandHandler(
 
         return await BuildingInsuranceCalculator.ComputeAsync(connectionFactory, appraisalId);
     }
+
 }

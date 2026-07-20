@@ -23,7 +23,13 @@ public class SystemConfigurationDataSeed(
                 value: "5",
                 valueType: "int",
                 description: "Years after last appraisal before a block project is due for reappraisal.",
-                category: "Reappraisal")
+                category: "Reappraisal"),
+            SystemConfiguration.Create(
+                key: "ForceSaleRateDefaultPct",
+                value: "70",
+                valueType: "decimal",
+                description: "Default force-sale percentage applied to total appraisal price when an appraisal has no override.",
+                category: "Valuation")
         };
 
         foreach (var row in rows)

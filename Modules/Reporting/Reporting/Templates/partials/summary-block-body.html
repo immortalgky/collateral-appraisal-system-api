@@ -74,8 +74,12 @@
   <div class="opinion-block">
   <div class="section-bar">สรุปความเห็นผู้ประเมิน</div>
   <div class="pad">
+    {{ if model.appraiser_comment }}
     {{ if model.summary_property_type }}<div class="opinion-type">{{ model.summary_property_type }}</div>{{ else if model.property_type }}<div class="opinion-type">{{ model.property_type }}</div>{{ end }}
-    <div class="comment-box">{{ if model.appraiser_comment; model.appraiser_comment; else; "-"; end }}</div>
+    <div class="comment-box">{{ model.appraiser_comment }}</div>
+    {{ else }}
+    <div class="comment-box">-</div>
+    {{ end }}
   </div>
 
   <!-- ════ SIGN-OFF + COMMITTEE BLOCK — shared partial ════ -->

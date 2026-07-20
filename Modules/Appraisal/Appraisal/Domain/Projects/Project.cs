@@ -530,9 +530,15 @@ public class Project : Aggregate<Guid>
     ///   <c>IPricingAnalysisRepository.GetProjectModelPricingSummariesAsync</c>. PricingAnalysis is a
     ///   separate aggregate; the domain must not navigate to it directly.
     /// </param>
+    /// <param name="ratesByCondition">
+    ///   Fire-insurance coverage rate (Baht/sq.m.) keyed by <c>FireInsuranceCondition</c> — fetched by the
+    ///   handler from <c>Parameter.Contracts.PricingParameters.GetFireInsuranceRatesQuery</c>. Coverage
+    ///   rates are Parameter-module reference data; the domain must not navigate to it directly.
+    /// </param>
     public IReadOnlyList<ProjectUnitPrice> CalculateUnitPrices(
         IReadOnlyDictionary<Guid, ProjectUnitPrice> existingPriceMap,
-        IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId)
+        IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId,
+        IReadOnlyDictionary<string, decimal> ratesByCondition)
     {
         if (PricingAssumption is null)
             throw new InvalidProjectStateException(
@@ -540,13 +546,25 @@ public class Project : Aggregate<Guid>
 
         // TODO(Land): LandAndBuildingLike path — both LB and Land use the same calculation in v1
         return ProjectType == ProjectType.Condo
-            ? CalculateCondoUnitPrices(existingPriceMap, standardPriceByModelId)
-            : CalculateLandAndBuildingUnitPrices(existingPriceMap, standardPriceByModelId);
+            ? CalculateCondoUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCondition)
+            : CalculateLandAndBuildingUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCondition);
+    }
+
+    /// <summary>
+    /// Returns the coverage rate for a fire-insurance condition, or null if the condition is
+    /// null/empty or has no matching rate. Callers rely on null (not zero) to trigger their
+    /// own <c>??</c> fallback to a manually-entered CoverageAmount.
+    /// </summary>
+    private static decimal? LookupRate(IReadOnlyDictionary<string, decimal> ratesByCondition, string? condition)
+    {
+        if (string.IsNullOrEmpty(condition)) return null;
+        return ratesByCondition.TryGetValue(condition, out var rate) ? rate : null;
     }
 
     private IReadOnlyList<ProjectUnitPrice> CalculateCondoUnitPrices(
         IReadOnlyDictionary<Guid, ProjectUnitPrice> existingPriceMap,
-        IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId)
+        IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId,
+        IReadOnlyDictionary<string, decimal> ratesByCondition)
     {
         var assumption = PricingAssumption!;
         var hasPersistedAssumptions = assumption.ModelAssumptions.Count > 0;
@@ -563,7 +581,7 @@ public class Project : Aggregate<Guid>
                     var stdPrice = model is not null && standardPriceByModelId.TryGetValue(model.Id, out var p) ? p : null;
                     return (
                         StandardPrice: stdPrice ?? 0m,
-                        CoverageAmount: CoverageByCondition.Lookup(model?.FireInsuranceCondition) ?? ma.CoverageAmount);
+                        CoverageAmount: LookupRate(ratesByCondition, model?.FireInsuranceCondition) ?? ma.CoverageAmount);
                 })
             : _models
                 .Where(m => m.ModelName != null)
@@ -574,7 +592,7 @@ public class Project : Aggregate<Guid>
                     var stdPrice = standardPriceByModelId.TryGetValue(first.Id, out var p) ? p : null;
                     return (
                         StandardPrice: stdPrice ?? 0m,
-                        CoverageAmount: CoverageByCondition.Lookup(first.FireInsuranceCondition));
+                        CoverageAmount: LookupRate(ratesByCondition, first.FireInsuranceCondition));
                 });
 
         var results = new List<ProjectUnitPrice>();
@@ -640,7 +658,8 @@ public class Project : Aggregate<Guid>
 
     private IReadOnlyList<ProjectUnitPrice> CalculateLandAndBuildingUnitPrices(
         IReadOnlyDictionary<Guid, ProjectUnitPrice> existingPriceMap,
-        IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId)
+        IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId,
+        IReadOnlyDictionary<string, decimal> ratesByCondition)
     {
         var assumption = PricingAssumption!;
 
@@ -681,7 +700,7 @@ public class Project : Aggregate<Guid>
             }
 
             var usableArea = unit.UsableArea ?? 0m;
-            var coverageAmount = (CoverageByCondition.Lookup(fireInsuranceCondition) ?? modelAssumption?.CoverageAmount) * usableArea;
+            var coverageAmount = (LookupRate(ratesByCondition, fireInsuranceCondition) ?? modelAssumption?.CoverageAmount) * usableArea;
 
             var landArea = unit.LandArea ?? 0m;
             var landIncreaseDecreaseRate = assumption.LandIncreaseDecreaseRate ?? 0m;

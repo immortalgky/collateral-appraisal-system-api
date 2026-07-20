@@ -1,3 +1,4 @@
+using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Dapper;
 using Shared.CQRS;
@@ -7,7 +8,8 @@ namespace Appraisal.Application.Features.DecisionSummary.GetDecisionSummary;
 
 public class GetDecisionSummaryQueryHandler(
     ISqlConnectionFactory connectionFactory,
-    IAppraisalDecisionRepository decisionRepository
+    IAppraisalDecisionRepository decisionRepository,
+    ForceSaleRateResolver forceSaleRateResolver
 ) : IQueryHandler<GetDecisionSummaryQuery, GetDecisionSummaryResult>
 {
     public async Task<GetDecisionSummaryResult> Handle(
@@ -28,7 +30,8 @@ public class GetDecisionSummaryQueryHandler(
         const string valuationReviewSql = """
             SELECT AppraisedValue AS TotalAppraisalPriceReview,
                    ForcedSaleValue AS ForceSellingPriceReview,
-                   InsuranceValue AS BuildingInsuranceReview
+                   InsuranceValue AS BuildingInsuranceReview,
+                   ForceSaleRate
             FROM appraisal.ValuationAnalyses
             WHERE AppraisalId = @AppraisalId
             """;
@@ -42,6 +45,17 @@ public class GetDecisionSummaryQueryHandler(
             JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
             JOIN appraisal.PropertyGroupItems gi ON gi.AppraisalPropertyId = ap.Id
             WHERE ap.AppraisalId = @AppraisalId
+            """;
+
+        // Query 3b: Condo government prices — kept separate from govPriceSql above: condo area is
+        // in sq.m. while land area is in Sq.Wa, so mixing rows would corrupt the land AVG.
+        const string condoGovPriceSql = """
+            SELECT cad.TitleNumber, cad.RoomNumber, cad.UsableArea,
+                   cad.GovernmentPricePerSqm, cad.GovernmentPrice
+            FROM appraisal.CondoAppraisalDetails cad
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = cad.AppraisalPropertyId
+            WHERE ap.AppraisalId = @AppraisalId
+            ORDER BY ap.SequenceNumber, CONVERT(char(36), ap.Id)
             """;
 
         // Query 4: Approval list
@@ -83,6 +97,9 @@ public class GetDecisionSummaryQueryHandler(
 
         var valuationReview = await connectionFactory.QueryFirstOrDefaultAsync<ValuationReviewRow>(valuationReviewSql, param);
         var governmentPrices = (await connectionFactory.QueryAsync<GovernmentPriceRow>(govPriceSql, param)).ToList();
+        var condoGovernmentPrices = (await connectionFactory.QueryAsync<CondoGovernmentPriceQueryRow>(condoGovPriceSql, param))
+            .Select(r => new CondoGovernmentPriceRow(r.TitleNumber, r.RoomNumber, r.UsableArea, r.GovernmentPricePerSqm, r.GovernmentPrice))
+            .ToList();
         var approvalRows = (await connectionFactory.QueryAsync<ApprovalRow>(approvalSql, param)).ToList();
         var appraisalDate = await connectionFactory.QueryFirstOrDefaultAsync<DateTime?>(appraisalDateSql, param);
 
@@ -99,10 +116,20 @@ public class GetDecisionSummaryQueryHandler(
         var govTotalArea = governmentPrices.Sum(g => g.AreaSquareWa ?? 0m);
         var govAvgPerSqWa = surveyedArea > 0 ? govTotalPrice / surveyedArea : 0m;
 
+        // Condo government price totals — single area total (sq.m.); no IsMissingFromSurvey
+        // equivalent on condo, so every row contributes to both the total and the weighted AVG.
+        var condoGovTotalArea = condoGovernmentPrices.Sum(r => r.UsableArea ?? 0m);
+        var condoGovTotalPrice = condoGovernmentPrices.Sum(r => r.GovernmentPrice ?? 0m);
+        var condoGovAvgPerSqm = condoGovTotalArea > 0 ? condoGovTotalPrice / condoGovTotalArea : 0m;
+
         // Review values come from ValuationAnalyses
         var totalAppraisalPriceReview = valuationReview?.TotalAppraisalPriceReview;
         var forceSellingPriceReview = valuationReview?.ForceSellingPriceReview;
         var buildingInsuranceReview = valuationReview?.BuildingInsuranceReview;
+
+        // Per-appraisal force-sale rate override, if any. Final resolution (override -> system
+        // default, and for block also -> project assumption) happens in the Build*ResultAsync methods.
+        var forceSaleRateOverride = valuationReview?.ForceSaleRate;
 
         // Build approval list
         string? committeeName = approvalRows.Count > 0 ? approvalRows[0].CommitteeName : null;
@@ -122,9 +149,13 @@ public class GetDecisionSummaryQueryHandler(
                 govTotalArea,
                 surveyedArea,
                 govAvgPerSqWa,
+                condoGovernmentPrices,
+                condoGovTotalArea,
+                condoGovAvgPerSqm,
                 totalAppraisalPriceReview,
                 forceSellingPriceReview,
                 buildingInsuranceReview,
+                forceSaleRateOverride,
                 committeeName,
                 reviewStatus,
                 reviewId,
@@ -141,9 +172,13 @@ public class GetDecisionSummaryQueryHandler(
             govTotalArea,
             surveyedArea,
             govAvgPerSqWa,
+            condoGovernmentPrices,
+            condoGovTotalArea,
+            condoGovAvgPerSqm,
             totalAppraisalPriceReview,
             forceSellingPriceReview,
             buildingInsuranceReview,
+            forceSaleRateOverride,
             committeeName,
             reviewStatus,
             reviewId,
@@ -160,9 +195,13 @@ public class GetDecisionSummaryQueryHandler(
         decimal govTotalArea,
         decimal surveyedArea,
         decimal govAvgPerSqWa,
+        List<CondoGovernmentPriceRow> condoGovernmentPrices,
+        decimal condoGovTotalArea,
+        decimal condoGovAvgPerSqm,
         decimal? totalAppraisalPriceReview,
         decimal? forceSellingPriceReview,
         decimal? buildingInsuranceReview,
+        decimal? forceSaleRateOverride,
         string? committeeName,
         string? reviewStatus,
         Guid? reviewId,
@@ -201,17 +240,24 @@ public class GetDecisionSummaryQueryHandler(
             .ToList();
 
         var totalAppraisalPrice = approachMatrix.Sum(g => g.GroupSummaryValue ?? 0m);
-        var forceSellingPrice = totalAppraisalPrice * 0.70m;
+
+        var forceSaleRate = await forceSaleRateResolver.ResolveAsync(appraisalId, forceSaleRateOverride, cancellationToken);
+        var forceSellingPrice = totalAppraisalPrice * forceSaleRate / 100m;
 
         return new GetDecisionSummaryResult(
             ApproachMatrix: approachMatrix,
             TotalAppraisalPrice: totalAppraisalPrice,
             ForceSellingPrice: forceSellingPrice,
+            ForceSellingRate: forceSaleRate,
+            ForceSellingRateOverride: forceSaleRateOverride,
             BuildingInsurance: buildingInsurance,
             GovernmentPrices: governmentPrices,
             GovernmentPriceTotalArea: govTotalArea,
             GovernmentPriceSurveyedArea: surveyedArea,
             GovernmentPriceAvgPerSqWa: govAvgPerSqWa,
+            CondoGovernmentPrices: condoGovernmentPrices,
+            CondoGovernmentPriceTotalArea: condoGovTotalArea,
+            CondoGovernmentPriceAvgPerSqm: condoGovAvgPerSqm,
             TotalAppraisalPriceReview: totalAppraisalPriceReview,
             ForceSellingPriceReview: forceSellingPriceReview,
             BuildingInsuranceReview: buildingInsuranceReview,
@@ -244,9 +290,13 @@ public class GetDecisionSummaryQueryHandler(
         decimal govTotalArea,
         decimal surveyedArea,
         decimal govAvgPerSqWa,
+        List<CondoGovernmentPriceRow> condoGovernmentPrices,
+        decimal condoGovTotalArea,
+        decimal condoGovAvgPerSqm,
         decimal? totalAppraisalPriceReview,
         decimal? forceSellingPriceReview,
         decimal? buildingInsuranceReview,
+        decimal? forceSaleRateOverride,
         string? committeeName,
         string? reviewStatus,
         Guid? reviewId,
@@ -324,14 +374,16 @@ public class GetDecisionSummaryQueryHandler(
             })
             .ToList();
 
-        // Build per-model price rows. FSP per model = TotalAppraisalPrice × 0.70 (matches project-level rule).
+        var forceSaleRate = await forceSaleRateResolver.ResolveAsync(appraisalId, forceSaleRateOverride, cancellationToken);
+
+        // Build per-model price rows. FSP per model = TotalAppraisalPrice × resolved rate.
         var blockModelPrices = blockModelTotals
             .Select(r => new BlockModelPriceRow(
                 r.ProjectModelId,
                 r.ModelName,
                 r.UnitCount,
                 r.TotalAppraisalPrice,
-                r.TotalAppraisalPrice * 0.70m,
+                r.TotalAppraisalPrice * forceSaleRate / 100m,
                 r.BuildingInsurance))
             .ToList();
 
@@ -343,11 +395,16 @@ public class GetDecisionSummaryQueryHandler(
             ApproachMatrix: [],
             TotalAppraisalPrice: totalAppraisalPrice,
             ForceSellingPrice: forceSellingPrice,
+            ForceSellingRate: forceSaleRate,
+            ForceSellingRateOverride: forceSaleRateOverride,
             BuildingInsurance: blockInsurance,
             GovernmentPrices: governmentPrices,
             GovernmentPriceTotalArea: govTotalArea,
             GovernmentPriceSurveyedArea: surveyedArea,
             GovernmentPriceAvgPerSqWa: govAvgPerSqWa,
+            CondoGovernmentPrices: condoGovernmentPrices,
+            CondoGovernmentPriceTotalArea: condoGovTotalArea,
+            CondoGovernmentPriceAvgPerSqm: condoGovAvgPerSqm,
             TotalAppraisalPriceReview: totalAppraisalPriceReview,
             ForceSellingPriceReview: forceSellingPriceReview,
             BuildingInsuranceReview: buildingInsuranceReview,
@@ -601,6 +658,17 @@ public class GetDecisionSummaryQueryHandler(
         public decimal AppraisalValue { get; init; }
     }
 
+    // Mapped by NAME (settable properties) — TitleNumber/RoomNumber are adjacent string? columns,
+    // same positional-mapping risk documented on CiDetailRow above.
+    private sealed class CondoGovernmentPriceQueryRow
+    {
+        public string? TitleNumber { get; init; }
+        public string? RoomNumber { get; init; }
+        public decimal? UsableArea { get; init; }
+        public decimal? GovernmentPricePerSqm { get; init; }
+        public decimal? GovernmentPrice { get; init; }
+    }
+
     private record CiAggregateRow(
         decimal CITotalValue,
         decimal CIPreviousValue,
@@ -610,7 +678,8 @@ public class GetDecisionSummaryQueryHandler(
     private record ValuationReviewRow(
         decimal? TotalAppraisalPriceReview,
         decimal? ForceSellingPriceReview,
-        decimal? BuildingInsuranceReview
+        decimal? BuildingInsuranceReview,
+        decimal? ForceSaleRate
     );
 
     private record FlatApproachRow(

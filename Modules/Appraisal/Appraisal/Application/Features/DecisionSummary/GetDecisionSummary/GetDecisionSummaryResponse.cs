@@ -4,11 +4,19 @@ public record GetDecisionSummaryResponse(
     IReadOnlyList<ApproachMatrixGroup> ApproachMatrix,
     decimal TotalAppraisalPrice,
     decimal ForceSellingPrice,
+    // RESOLVED rate (e.g. 70.00 = 70%) — never null. DISPLAY-only; see ForceSellingRateOverride
+    // for the value a save should round-trip.
+    decimal ForceSellingRate,
+    // RAW per-appraisal override, or null when using the resolved default/project rate.
+    decimal? ForceSellingRateOverride,
     decimal BuildingInsurance,
     IReadOnlyList<GovernmentPriceRow> GovernmentPrices,
     decimal GovernmentPriceTotalArea,
     decimal GovernmentPriceSurveyedArea,
     decimal GovernmentPriceAvgPerSqWa,
+    IReadOnlyList<CondoGovernmentPriceRow> CondoGovernmentPrices,
+    decimal CondoGovernmentPriceTotalArea,
+    decimal CondoGovernmentPriceAvgPerSqm,
     decimal? TotalAppraisalPriceReview,
     decimal? ForceSellingPriceReview,
     decimal BuildingInsuranceReview,

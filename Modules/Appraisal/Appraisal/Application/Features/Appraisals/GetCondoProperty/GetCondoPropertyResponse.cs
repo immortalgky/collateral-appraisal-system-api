@@ -94,6 +94,7 @@ public record GetCondoPropertyResponse(
     // Pricing
     decimal? GovernmentPricePerSqm,
     decimal? GovernmentPrice,
+    string? FireInsuranceCondition,
     decimal? BuildingInsurancePrice,
     decimal? SellingPrice,
     decimal? ForceSellingPrice,

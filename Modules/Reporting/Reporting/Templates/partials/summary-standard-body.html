@@ -41,7 +41,7 @@
         <!-- Cost approach: land + building list + ส่วนพัฒนา, each line valued -->
         <tr class="grp-first">
           <td>{{ if g.has_land }}<span class="chk on"></span> <strong>ที่ดิน</strong>{{ end }}</td>
-          <td>{{ if multi }}<strong>กลุ่มที่ {{ g.group_number }}</strong>{{ end }}{{ if g.land_descriptions.size > 0 }}<ol class="land-titles">{{ for d in g.land_descriptions }}<li>{{ d }}</li>{{ end }}</ol>{{ end }}</td>
+          <td>{{ if multi }}<strong>กลุ่มที่ {{ g.group_number }}</strong>{{ end }}{{ if g.land_descriptions.size > 0 }}<ol class="land-titles{{ if g.land_descriptions.size == 1 }} no-num{{ end }}">{{ for d in g.land_descriptions }}<li>{{ d }}</li>{{ end }}</ol>{{ end }}</td>
           <td class="num">{{ if g.total_square_wa; g.total_square_wa | math.format "N2"; end }}</td>
           <td class="num">{{ if g.land_unit_price; g.land_unit_price | math.format "N2"; end }}</td>
           <td class="num">{{ if g.land_value; g.land_value | math.format "N2"; end }}</td>
@@ -49,7 +49,7 @@
         {{ for b in g.buildings }}
         <tr class="cont">
           <td>{{ if for.first }}<span class="chk on"></span> <strong>สิ่งปลูกสร้าง</strong>{{ end }}</td>
-          <td>{{ for.index + 1 }}. {{ b.description }}</td>
+          <td>{{ if g.buildings.size > 1 }}{{ for.index + 1 }}. {{ end }}{{ b.description }}</td>
           <td></td><td></td>
           <td class="num">{{ if b.value; b.value | math.format "N2"; end }}</td>
         </tr>
@@ -76,7 +76,7 @@
         <!-- Market / combined: single value, no per-unit breakdown -->
         <tr>
           <td><span class="chk on"></span> <strong>{{ g.property_type }}</strong></td>
-          <td>{{ if multi }}<strong>กลุ่มที่ {{ g.group_number }}</strong>{{ end }}{{ if g.land_descriptions.size > 0 }}<ol class="land-titles">{{ for d in g.land_descriptions }}<li>{{ d }}</li>{{ end }}</ol>{{ end }}{{ if g.building_description }}<div class="brk" style="margin-top:1px;">{{ g.building_description }}</div>{{ end }}</td>
+          <td>{{ if multi }}<strong>กลุ่มที่ {{ g.group_number }}</strong>{{ end }}{{ if g.land_descriptions.size > 0 }}<ol class="land-titles{{ if g.land_descriptions.size == 1 }} no-num{{ end }}">{{ for d in g.land_descriptions }}<li>{{ d }}</li>{{ end }}</ol>{{ end }}{{ if g.building_description }}<div class="brk" style="margin-top:1px;">{{ g.building_description }}</div>{{ end }}</td>
           <td class="num">{{ if g.show_land_unit_columns }}{{ g.market_land_area | math.format "N2" }}{{ end }}</td>
           <td class="num">{{ if g.show_land_unit_columns }}{{ g.market_land_unit_price | math.format "N2" }}{{ end }}</td>
           <td class="num">{{ if g.group_total; g.group_total | math.format "N2"; end }}</td>
@@ -147,8 +147,12 @@
   <div class="opinion-block">
   <div class="section-bar">สรุปความเห็นผู้ประเมิน</div>
   <div class="pad">
+    {{ if model.appraiser_comment }}
     {{ if model.summary_property_type }}<div class="opinion-type">{{ model.summary_property_type }}</div>{{ else if model.property_type }}<div class="opinion-type">{{ model.property_type }}</div>{{ end }}
-    <div class="comment-box">{{ if model.appraiser_comment; model.appraiser_comment; else; "-"; end }}</div>
+    <div class="comment-box">{{ model.appraiser_comment }}</div>
+    {{ else }}
+    <div class="comment-box">-</div>
+    {{ end }}
   </div>
 
   <!-- ════ SIGN-OFF (fields 36–41) + COMMITTEE BLOCK (fields 42–51) — shared partial ════ -->

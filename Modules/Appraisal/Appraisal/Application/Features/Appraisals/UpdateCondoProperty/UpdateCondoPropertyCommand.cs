@@ -92,7 +92,9 @@ public record UpdateCondoPropertyCommand(
     // Pricing
     decimal? GovernmentPricePerSqm = null,
     decimal? GovernmentPrice = null,
-    decimal? BuildingInsurancePrice = null,
+    // BuildingInsurancePrice is derived server-side from FireInsuranceCondition × UsableArea —
+    // not accepted from the client (see UpdateCondoPropertyCommandHandler).
+    string? FireInsuranceCondition = null,
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,
     // Other

@@ -1,3 +1,4 @@
+using Appraisal.Application.Services;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 using Shared.Time;
@@ -20,6 +21,7 @@ public class AppraisalFinalValuesChangedEventHandler(
     AppraisalDbContext db,
     IIntegrationEventOutbox outbox,
     IDateTimeProvider dateTimeProvider,
+    ForceSaleRateResolver forceSaleRateResolver,
     ILogger<AppraisalFinalValuesChangedEventHandler> logger
 ) : INotificationHandler<AppraisalFinalValuesChangedEvent>
 {
@@ -47,7 +49,6 @@ public class AppraisalFinalValuesChangedEventHandler(
             .ToListAsync(ct);
 
         var total = pricingAnalyses.Sum(pa => pa.FinalAppraisedValue ?? 0m);
-        var forced = total * 0.70m;
 
         var pricingAnalysisIds = pricingAnalyses.Select(pa => pa.Id).ToList();
         var distinctApproaches = await db.PricingAnalysisApproaches
@@ -67,11 +68,29 @@ public class AppraisalFinalValuesChangedEventHandler(
             .Where(ap => ap.AppraisalId == appraisalId)
             .ToListAsync(ct);
 
-        var insuranceTotal = properties
+        // Insurance is the sum of every insurable structure on the appraisal. The two property
+        // families derive their figure differently but land in the same column:
+        //   buildings — depreciated structure value (see claude/tasks/fix-building-insurance-source.md)
+        //   condos    — rate-derived coverage amount, RatePerSqm × UsableArea
+        //               (Features/Appraisals/CondoFireInsuranceCalculator.cs)
+        // Land is deliberately excluded, matching the "buildings only — excludes land" UI hint.
+        //
+        // KEEP IN SYNC with Features/DecisionSummary/BuildingInsuranceCalculator.cs, which computes
+        // the same total in SQL for the read/save path. The two cannot be collapsed — this handler
+        // runs pre-save and must aggregate over tracked entities (see class doc above) — so a change
+        // here needs the matching change there. They diverging is what caused condo to report 0.
+        var buildingInsurance = properties
             .Where(ap => ap.BuildingDetail != null)
             .SelectMany(ap => ap.BuildingDetail!.DepreciationDetails)
             .Where(d => d.IsBuilding)
             .Sum(d => d.PriceAfterDepreciation);
+
+        // Covers lease-agreement condo too — it populates this same CondoDetail nav.
+        var condoInsurance = properties
+            .Where(ap => ap.CondoDetail != null)
+            .Sum(ap => ap.CondoDetail!.BuildingInsurancePrice ?? 0m);
+
+        var insuranceTotal = buildingInsurance + condoInsurance;
 
         var assignmentIds = await db.AppraisalAssignments
             .Where(a => a.AppraisalId == appraisalId)
@@ -102,6 +121,18 @@ public class AppraisalFinalValuesChangedEventHandler(
             row = ValuationAnalysis.Create(appraisalId, approach, date);
             db.ValuationAnalyses.Add(row);
         }
+
+        // Force-sale rate resolution via the shared resolver (override -> block project assumption
+        // -> system default -> 70m). The project-assumption lookup is a plain Dapper read via
+        // ISqlConnectionFactory, not a tracked-entity query — it does NOT go through this
+        // interceptor's ChangeTracker, so it's safe to call mid-SaveChanges. Do not "optimise" this
+        // into a tracked-entity read the way the rest of this handler works: SumAsync/FirstOrDefaultAsync
+        // against DbSets here would bypass the ChangeTracker and return stale pre-save values (see the
+        // class doc comment above) — the resolver avoids that by never touching a tracked DbSet.
+        // Also, in practice this event only ever fires for SubjectType == PropertyGroup appraisals,
+        // so the resolver's block-project tier is a no-op here.
+        var rate = await forceSaleRateResolver.ResolveAsync(appraisalId, row.ForceSaleRate, ct);
+        var forced = total * rate / 100m;
 
         row.UpdateSummary(approach, date, total, forced, insuranceTotal);
 

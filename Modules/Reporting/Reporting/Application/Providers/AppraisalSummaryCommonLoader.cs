@@ -37,8 +37,8 @@ internal static class AppraisalSummaryCommonLoader
 {
     /// <summary>
     /// First non-blank value, or null when every candidate is null/whitespace. Used so a
-    /// whitespace-only opinion falls through to the next source — and ultimately to the
-    /// template's "-" placeholder — instead of rendering as an empty box.
+    /// whitespace-only opinion normalises to null and reaches the template's "-" placeholder
+    /// instead of rendering as an empty box (an empty string is truthy in Scriban).
     /// </summary>
     public static string? FirstNonBlank(params string?[] values) =>
         values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
@@ -79,6 +79,7 @@ internal static class AppraisalSummaryCommonLoader
     public static async Task<CommonAppraisalData?> LoadAsync(
         IDbConnection connection,
         Guid appraisalId,
+        decimal forceSaleRateDefault,
         CancellationToken cancellationToken = default)
     {
         // ── Batch 1: 12 independent result sets, single round-trip ───────────────
@@ -145,13 +146,20 @@ internal static class AppraisalSummaryCommonLoader
               AND aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
             ORDER BY aa.AssignedAt DESC, aa.Id DESC;
 
-            -- RS05: Q8 — Valuation totals
+            -- RS05: Q8 — Valuation totals + block project force-sale % (for the ForceSaleRate
+            -- resolution fallback below). Driven off Appraisals (not ValuationAnalyses) so the
+            -- project percentage is still returned even when no ValuationAnalyses row exists yet.
             SELECT
                 va.AppraisedValue,
                 va.ForcedSaleValue,
-                va.InsuranceValue
-            FROM appraisal.ValuationAnalyses va
-            WHERE va.AppraisalId = @AppraisalId;
+                va.InsuranceValue,
+                va.ForceSaleRate,
+                ppa.ForceSalePercentage AS ProjectForceSalePercentage
+            FROM appraisal.Appraisals ap
+            LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = ap.Id
+            LEFT JOIN appraisal.Projects p ON p.AppraisalId = ap.Id
+            LEFT JOIN appraisal.ProjectPricingAssumptions ppa ON ppa.ProjectId = p.Id
+            WHERE ap.Id = @AppraisalId AND ap.IsDeleted = 0;
 
             -- RS06: Q9 — Per-group skeleton rows.
             -- Per-group value comes from the selected PricingAnalysis → Approach → Method →
@@ -512,8 +520,14 @@ internal static class AppraisalSummaryCommonLoader
         decimal? totalAppraisalValue = valuation?.AppraisedValue
             ?? (groupRows.Count > 0 ? (decimal?)groupRows.Sum(g => g.GroupAppraisalValue ?? 0m) : null);
 
+        // Force-sale rate resolution: appraisal override -> block project's ForceSalePercentage
+        // (ProjectPricingAssumptions, joined in RS05 above) -> system default, passed in by the
+        // caller since this loader is static and cannot inject ISystemConfigurationReader. Only
+        // used as a fallback when ForcedSaleValue itself is not yet persisted (e.g. no
+        // PricingAnalysis committed yet).
+        var forceSaleRate = valuation?.ForceSaleRate ?? valuation?.ProjectForceSalePercentage ?? forceSaleRateDefault;
         decimal? forcedSaleValue = valuation?.ForcedSaleValue
-            ?? (totalAppraisalValue.HasValue ? totalAppraisalValue.Value * 0.70m : null);
+            ?? (totalAppraisalValue.HasValue ? totalAppraisalValue.Value * forceSaleRate / 100m : null);
 
         // ที่ตั้งทรัพย์สิน — built from the Request detail, identical to the land-building form.
         var reqCollateralAddress = ThaiAddressFormatter.FormatLandBuilding(
@@ -548,7 +562,7 @@ internal static class AppraisalSummaryCommonLoader
             IsLeasehold: globalFlags.IsLeasehold,
             IsProfitRent: globalFlags.IsProfitRent,
             GroupMethodTypes: groupMethodTypes,
-            AppraiserComment: FirstNonBlank(decision?.AppraiserOpinion, decision?.CommitteeOpinion),
+            AppraiserComment: FirstNonBlank(decision?.AppraiserOpinion),
             Condition: decision?.Condition,
             Remark: decision?.Remark,
             CommitteeOpinion: decision?.CommitteeOpinion,
@@ -604,6 +618,8 @@ internal static class AppraisalSummaryCommonLoader
         public decimal? AppraisedValue { get; init; }
         public decimal? ForcedSaleValue { get; init; }
         public decimal? InsuranceValue { get; init; }
+        public decimal? ForceSaleRate { get; init; }
+        public decimal? ProjectForceSalePercentage { get; init; }
     }
 
     internal sealed class GroupRow

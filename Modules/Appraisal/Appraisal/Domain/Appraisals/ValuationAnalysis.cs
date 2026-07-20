@@ -16,6 +16,13 @@ public class ValuationAnalysis : Entity<Guid>
     public decimal? ForcedSaleValue { get; private set; }
     public decimal? InsuranceValue { get; private set; }
 
+    /// <summary>
+    /// Per-appraisal override of the force-sale percentage, expressed as a percent
+    /// (e.g. 70.00 = 70%), NOT a fraction. Null means "use the system default"
+    /// (SystemConfiguration key "ForceSaleRateDefaultPct").
+    /// </summary>
+    public decimal? ForceSaleRate { get; private set; }
+
     // Currency
     public string Currency { get; private set; } = "THB";
 
@@ -53,5 +60,18 @@ public class ValuationAnalysis : Entity<Guid>
         AppraisedValue = appraisedValue;
         ForcedSaleValue = forcedSaleValue;
         InsuranceValue = insuranceValue;
+    }
+
+    /// <summary>
+    /// Sets the per-appraisal force-sale rate override. Deliberately kept separate from
+    /// <see cref="UpdateSummary"/>, which is called by two competing paths that must not
+    /// be able to clobber this value.
+    /// </summary>
+    public void SetForceSaleRate(decimal? rate)
+    {
+        if (rate is <= 0 or > 100)
+            throw new ArgumentException("Force sale rate must be between 0 (exclusive) and 100 (inclusive)", nameof(rate));
+
+        ForceSaleRate = rate;
     }
 }

@@ -572,6 +572,37 @@ namespace Parameter.Infrastructure.Migrations
                     b.ToTable("PricingParameterAssumptionTypes", "parameter");
                 });
 
+            modelBuilder.Entity("Parameter.PricingParameters.Models.PricingParameterFireInsuranceRate", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Condition")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("DisplaySeq")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PropertyKind")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<decimal>("RatePerSqm")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Code");
+
+                    b.HasIndex("Condition")
+                        .IsUnique();
+
+                    b.ToTable("PricingParameterFireInsuranceRates", "parameter");
+                });
+
             modelBuilder.Entity("Parameter.PricingParameters.Models.PricingParameterJobPosition", b =>
                 {
                     b.Property<string>("Code")

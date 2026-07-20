@@ -43,6 +43,9 @@ public sealed class AppraisalSummaryModel
     /// <summary>Field 5 — Appraisal purpose code/description.</summary>
     public string? AppraisalPurpose { get; init; }
 
+    /// <summary>Appraisal criteria / basis of value (หลักเกณฑ์การประเมิน) — fixed wording per FSD.</summary>
+    public string? AppraisalCriteria { get; init; }
+
     /// <summary>Field 6 — Property type (header) — the property's direct type.</summary>
     public string? PropertyType { get; init; }
 

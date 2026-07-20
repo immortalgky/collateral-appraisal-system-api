@@ -2,6 +2,7 @@ using Reporting.Application.Models;
 using Reporting.Application.Models.Sections;
 using Reporting.Application.Providers.Sections;
 using Reporting.Application.Services;
+using Shared.Configuration;
 
 namespace Reporting.Application.Providers;
 
@@ -24,6 +25,7 @@ namespace Reporting.Application.Providers;
 /// </summary>
 public sealed class AppraisalBookDataProvider(
     ISqlConnectionFactory connectionFactory,
+    ISystemConfigurationReader configReader,
     ILogger<AppraisalBookDataProvider> logger)
     : IReportDataProvider
 {
@@ -74,18 +76,20 @@ public sealed class AppraisalBookDataProvider(
         }
         else
         {
+            var forceSaleRateDefault = await configReader.GetDecimalAsync("ForceSaleRateDefaultPct", 70m, cancellationToken);
+
             switch (AppraisalBodyTypeClassifier.Classify(route.ProjectExists, route.AppraisalType))
             {
                 case AppraisalBodyType.Block:
-                    model = await AppraisalSummaryBlockDataProvider.BuildAsync(connection, appraisalId, cancellationToken);
+                    model = await AppraisalSummaryBlockDataProvider.BuildAsync(connection, appraisalId, forceSaleRateDefault, cancellationToken);
                     bodyType = "block";
                     break;
                 case AppraisalBodyType.Construction:
-                    model = await AppraisalSummaryConstructionDataProvider.BuildAsync(connection, appraisalId, cancellationToken);
+                    model = await AppraisalSummaryConstructionDataProvider.BuildAsync(connection, appraisalId, forceSaleRateDefault, cancellationToken);
                     bodyType = "construction";
                     break;
                 default:
-                    model = await AppraisalSummaryLandBuildingDataProvider.BuildAsync(connection, appraisalId, cancellationToken);
+                    model = await AppraisalSummaryLandBuildingDataProvider.BuildAsync(connection, appraisalId, forceSaleRateDefault, cancellationToken);
                     bodyType = "standard";
                     break;
             }

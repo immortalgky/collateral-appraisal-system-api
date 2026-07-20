@@ -15,6 +15,7 @@ public class AddAppendixDocumentEndpoint : ICarterModule
                     var command = new AddAppendixDocumentCommand(
                         appendixId,
                         request.GalleryPhotoId,
+                        request.DocumentId,
                         request.DisplaySequence);
 
                     var result = await sender.Send(command, cancellationToken);

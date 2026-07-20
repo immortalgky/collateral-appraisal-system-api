@@ -52,6 +52,40 @@ body {
 .machine-attrs .kv-block { display:block; }
 .machine-attrs .kv-block .k { width:auto; display:block; }
 .machine-attrs .kv-block .v { display:block; padding-left:18px; }
+/* §2.1/§2.2 machine summary rows carry much longer labels than the 110px default
+   (e.g. สภาพการบำรุงรักษาเครื่องจักรพร้อมอุปกรณ์), which would otherwise overflow the
+   nowrap label cell into the value column. The colon lives in its own fixed column so
+   every colon lines up regardless of label length (FSD machine layout). */
+.machine-summary .kv .k { width:250px; }
+.machine-summary .kv .c { width:16px; flex-shrink:0; }
+/* Each bold sub-heading opens a new block, so give it air above and below — otherwise the
+   heading collides with the preceding block's last row and reads as part of it. */
+.machine-summary .sub-bar { margin-top:14px; margin-bottom:6px; }
+/* Parenthetical qualifier printed under a row it annotates (FSD machine §2.1). */
+.machine-summary .note { padding-left:22px; margin:1px 0 6px; }
+/* §2 narratives sit flush with their heading — only the §1 book-intro blocks are indented,
+   and there the .numbered gutter already supplies the offset. */
+.machine-summary .narrative { padding-left:0; }
+/* §2.2 rights rows: no colon column, so the label cell is narrower than §2.1's and the
+   value starts immediately after it. Labels may wrap; values align to a single column. */
+.machine-summary .rights .kv .k { width:175px; white-space:normal; }
+/* FSD numbered sub-sections (1.1 / 1.2 / 2.1 ...): the number sits in a fixed left gutter
+   and the heading + body share the right column, so wrapped body text aligns under the
+   heading rather than under the number. */
+.numbered { display:flex; align-items:baseline; margin-bottom:7px; }
+.numbered > .no { width:42px; flex-shrink:0; font-weight:700; }
+.numbered > .body { flex:1; min-width:0; }
+.numbered > .body > .t { font-weight:700; margin-bottom:2px; }
+/* A heading nested inside a body block (e.g. the market-demand write-up under §2.1). */
+.numbered > .body > .t.sub { margin-top:4px; }
+/* Free-text narrative paragraphs (book intro §1, market-demand write-up). pre-line keeps
+   the appraiser's textarea line breaks — e.g. the (1)/(2) breakdown in §1.4 — from
+   collapsing onto a single line. Inside a numbered block the gutter already provides the
+   indent, so no extra padding there. */
+.narrative { padding-left:18px; margin-bottom:4px; white-space:pre-line; }
+.numbered .narrative { padding-left:0; }
+/* Centered section heading — used by the book-intro page (FSD §2.1.2.7 section 1). */
+.section-bar.center { text-align:center; }
 /* อ้างอิง (construction): 3-column grid — report type | เลขที่ | ตรวจครั้งที่. */
 .ref-grid { display:grid; grid-template-columns:200px 150px auto; row-gap:3px; align-items:baseline; }
 /* Construction value block: long labels — fixed label width so values line up per column;
@@ -78,6 +112,8 @@ table.grid th { background:#ececec; text-align:center; font-weight:700; }
    lets wrapped lines run flush to the cell's left edge (no hanging indent under the text). */
 .land-titles { margin:0; padding-left:0; list-style:decimal inside; }
 .land-titles li { margin-top:1px; }
+/* A lone title has nothing to enumerate — drop the "1." but keep the list markup/spacing. */
+.land-titles.no-num { list-style:none; }
 /* Per-group cost breakdown: suppress internal horizontal borders so a group's
    land / building / ส่วนพัฒนา / total lines read as one bordered block. */
 table.grid tr.grp-first td { border-bottom:0; }
@@ -167,3 +203,38 @@ table.grid.comparison th:first-child, table.grid.comparison td:first-child { wid
 .committee-member .c-pos { flex:1; text-align:left; }
 /* Member rows: taller (room for a handwritten signature) and vertically centered. */
 table.grid tr.cm-row td { vertical-align:middle; padding-top:24px; padding-bottom:24px; }
+
+/* Appendix / photo-topic image grid (shared by the formal appendix types and the Photos-tab
+   topics — both render through partials/section-appendix).
+   Images size to the cell width first (max-width:100%), so max-height only binds for tall
+   images: a 3:2 landscape at 1 column fills the ~664px content width (~443px tall, 2 per page)
+   while a 2:3 portrait stops at the cap (~620px tall, ~413px wide). That gives both orientations
+   comparable visual weight with no orientation detection — and stays correct for EXIF-rotated
+   phone photos, because the constraint applies to the displayed box after Chromium rotates it.
+   Caps shrink with the column count so a full row of portraits still fits one page. The base
+   rule is the 1-column case, so an out-of-range column count degrades to single-column. */
+/* max-width in mm, not a percentage: A4 is 210mm with 15mm margins => 180mm of printable
+   width, less this grid's own 8px padding. Pinning the grid to an absolute page-derived width
+   means the images inside it are capped against the PAPER, not against whatever the surrounding
+   container happens to compute to — so no upstream layout can push an image past the page edge
+   and get it clipped. Images below then use max-width:100% of a cell that is already page-safe. */
+.appendix-grid { display:grid; grid-template-columns:1fr; gap:8px; padding:8px; max-width:175mm; }
+/* min-width:0 defeats the grid item automatic-minimum-size rule: a 1fr track's `auto` minimum
+   resolves to the image's intrinsic (or aspect-transferred) width, which a percentage max-width
+   cannot override during intrinsic sizing — so a very wide image inflates the track past the
+   page and is clipped at the paper edge. With the minimum pinned to 0 the track sizes to 1fr of
+   the page and the max-width:100% below caps the image correctly. */
+.appendix-grid .cell { text-align:center; min-width:0; page-break-inside:avoid; break-inside:avoid; }
+.appendix-grid img { max-width:100%; height:auto; max-height:620px; border:1px solid #ccc; }
+.appendix-grid .cap { font-size:9pt; margin-top:4px; line-height:1.3; word-wrap:break-word; }
+
+.appendix-grid.cols-2 { grid-template-columns:repeat(2,1fr); }
+.appendix-grid.cols-2 img { max-height:430px; }
+.appendix-grid.cols-3 { grid-template-columns:repeat(3,1fr); }
+.appendix-grid.cols-3 img { max-height:300px; }
+
+/* A column count only means anything when there is something to sit beside. A group holding a
+   single image would otherwise render it at 1/2 or 1/3 width with the rest of the row empty, so
+   let a lone cell span every column and take the full-width height cap. */
+.appendix-grid .cell:only-child { grid-column:1 / -1; }
+.appendix-grid .cell:only-child img { max-height:620px; }

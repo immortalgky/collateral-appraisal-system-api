@@ -1,50 +1,106 @@
 {{ if model.machine_section }}
-<div class="section-bar">รายละเอียดเครื่องจักร</div>
+{{ $ms = model.machine_section }}
+
+{{ if $ms.assignment || $ms.valuation_purpose || model.appraisal_date || $ms.property_characteristics }}
+<div class="section-bar center">1. วัตถุประสงค์และที่ตั้งเครื่องจักร</div>
 
 <div class="pad">
 
-  {{ $ms = model.machine_section }}
-
-  {{ if $ms.surveyed_count != null || $ms.evaluated_count != null || $ms.installed_in_use_count != null || $ms.wreckage_count != null || $ms.not_installed_count != null }}
-  <div class="cols3">
-    <div class="kv"><span class="k">จำนวนที่สำรวจ :</span><span class="v">{{ $ms.surveyed_count }}</span></div>
-    <div class="kv"><span class="k">จำนวนที่ประเมิน :</span><span class="v">{{ $ms.evaluated_count }}</span></div>
-    <div class="kv"><span class="k">ติดตั้งและใช้งาน :</span><span class="v">{{ $ms.installed_in_use_count }}</span></div>
-    <div class="kv"><span class="k">จำนวนซาก :</span><span class="v">{{ $ms.wreckage_count }}</span></div>
-    <div class="kv"><span class="k">ยังไม่ติดตั้ง :</span><span class="v">{{ $ms.not_installed_count }}</span></div>
+  {{ if $ms.assignment }}
+  <div class="numbered">
+    <span class="no">1.1</span>
+    <div class="body">
+      <div class="t">การมอบหมาย</div>
+      <div class="narrative">{{ $ms.assignment }}</div>
+    </div>
   </div>
   {{ end }}
 
-  <div class="cols2">
-    {{ if $ms.maintenance_condition }}
-    <div class="kv"><span class="k">สภาพการบำรุงรักษา :</span><span class="v">{{ $ms.maintenance_condition }}</span></div>
-    {{ end }}
-    {{ if $ms.exterior_condition }}
-    <div class="kv"><span class="k">สภาพภายนอก :</span><span class="v">{{ $ms.exterior_condition }}</span></div>
-    {{ end }}
-    {{ if $ms.efficiency }}
-    <div class="kv"><span class="k">ประสิทธิภาพ :</span><span class="v">{{ $ms.efficiency }}</span></div>
-    {{ end }}
-    {{ if $ms.market_demand }}
-    <div class="kv"><span class="k">สภาพความต้องการของตลาด :</span><span class="v">{{ $ms.market_demand }}</span></div>
-    {{ end }}
+  {{ if $ms.valuation_purpose }}
+  <div class="numbered">
+    <span class="no">1.2</span>
+    <div class="body">
+      <div class="t">วัตถุประสงค์ในการประเมินมูลค่าทรัพย์สิน</div>
+      <div class="narrative">{{ $ms.valuation_purpose }}</div>
+    </div>
   </div>
+  {{ end }}
 
-  {{ if $ms.owner_name }}
-  <div class="kv"><span class="k">กรรมสิทธิ์เครื่องจักร :</span><span class="v">{{ $ms.owner_name }}</span></div>
+  <!-- FSD: the survey line is prefixed with the appraiser (internal → bank, external →
+       appraisal company). Prefix is omitted when the appraiser could not be resolved. -->
+  {{ if model.appraisal_date }}
+  <div class="numbered">
+    <span class="no">1.3</span>
+    <div class="body">
+      <div class="t">วันที่สำรวจและประเมินมูลค่าทรัพย์สิน</div>
+      <div class="narrative">{{ if model.appraiser }}{{ model.appraiser }} {{ end }}ได้ทำการสำรวจ เมื่อวันที่ {{ thai.date model.appraisal_date }}<br/>ประเมินมูลค่าทรัพย์สิน เมื่อวันที่ {{ thai.date model.appraisal_date }}</div>
+    </div>
+  </div>
   {{ end }}
-  {{ if $ms.machine_location }}
-  <div class="kv"><span class="k">ที่ตั้งเครื่องจักร :</span><span class="v">{{ $ms.machine_location }}</span></div>
+
+  {{ if $ms.property_characteristics }}
+  <div class="numbered">
+    <span class="no">1.4</span>
+    <div class="body">
+      <div class="t">ลักษณะทรัพย์สินที่ประเมินมูลค่า</div>
+      <div class="narrative">{{ $ms.property_characteristics }}</div>
+    </div>
+  </div>
   {{ end }}
-  {{ if $ms.obligation }}
-  <div class="kv"><span class="k">ภาระผูกพัน :</span><span class="v">{{ $ms.obligation }}</span></div>
+
+</div>
+
+<div style="page-break-before:always;"></div>
+{{ end }}
+
+<div class="section-bar center">2. รายละเอียดเครื่องจักร</div>
+
+<div class="pad machine-summary">
+
+  <!-- Every §2.1/§2.2 row always renders (FSD form layout): an absent value falls back to
+       "-" so the printed form keeps a constant shape across appraisals. Counts embed their
+       own dash because the surrounding จำนวน/เครื่อง text stops .v from being :empty. -->
+  <div class="sub-bar">2.1 ลักษณะทั่วไปของเครื่องจักร</div>
+
+  <div class="kv"><span class="k">เครื่องจักรและอุปกรณ์ที่ใช้ในอุตสาหกรรม</span><span class="c">:</span><span class="v">{{ $ms.in_industrial }}</span></div>
+  <div class="kv"><span class="k">จำนวนเครื่องจักรและอุปกรณ์ ที่สำรวจได้</span><span class="c">:</span><span class="v">จำนวน {{ if $ms.surveyed_count != null }}{{ $ms.surveyed_count }}{{ else }}-{{ end }} เครื่อง</span></div>
+  <div class="kv"><span class="k">จำนวนเครื่องจักรและอุปกรณ์ ที่ทำการประเมิน</span><span class="c">:</span><span class="v">จำนวน {{ if $ms.evaluated_count != null }}{{ $ms.evaluated_count }}{{ else }}-{{ end }} เครื่อง</span></div>
+
+  <!-- Checkbox state is derived from the count (> 0) — there is no bool column.
+       The scrap row repeats the value column with no label/colon, per the FSD layout. -->
+  <div class="kv"><span class="k">ณ วันที่ทำการสำรวจเครื่องจักรและอุปกรณ์</span><span class="c">:</span><span class="v"><span class="chk {{ if $ms.installed_in_use_count > 0 }}on{{ end }}"></span> ได้ทำการติดตั้งเสร็จและใช้งานแล้ว จำนวน {{ if $ms.installed_in_use_count != null }}{{ $ms.installed_in_use_count }}{{ else }}-{{ end }} เครื่อง</span></div>
+  <div class="kv"><span class="k"></span><span class="c"></span><span class="v"><span class="chk {{ if $ms.wreckage_count > 0 }}on{{ end }}"></span> ประเมินมูลค่าซาก จำนวน {{ if $ms.wreckage_count != null }}{{ $ms.wreckage_count }}{{ else }}-{{ end }} เครื่อง</span></div>
+
+  <div class="kv"><span class="k">จำนวนเครื่องจักรที่ประเมินมูลค่าตามเอกสาร</span><span class="c">:</span><span class="v">จำนวน {{ if $ms.appraised_by_document_count != null }}{{ $ms.appraised_by_document_count }}{{ else }}-{{ end }} รายการ</span></div>
+  <div class="kv"><span class="k">เครื่องจักรยังไม่ได้ติดตั้ง</span><span class="c">:</span><span class="v">จำนวน {{ if $ms.not_installed_count != null }}{{ $ms.not_installed_count }}{{ else }}-{{ end }} รายการ</span></div>
+  <!-- Fixed FSD boilerplate qualifying the two document-based rows above; not data-driven. -->
+  <div class="note">(บริษัทฯประเมินมูลค่าตามเอกสาร ซึ่งได้รับเอกสารจากผู้ว่าจ้างเป็นสำคัญ)</div>
+
+  <div class="kv"><span class="k">สภาพการบำรุงรักษาเครื่องจักรพร้อมอุปกรณ์</span><span class="c">:</span><span class="v">{{ $ms.maintenance_condition }}</span></div>
+  <div class="kv"><span class="k">สภาพภายนอกของเครื่องจักรพร้อมอุปกรณ์</span><span class="c">:</span><span class="v">{{ $ms.exterior_condition }}</span></div>
+  <div class="kv"><span class="k">ประสิทธิภาพการใช้งาน</span><span class="c">:</span><span class="v">{{ $ms.efficiency }}</span></div>
+  <!-- Tri-state bool renders as a tick: the label already states the condition.
+       Guard on != null, not truthiness — Scriban treats false as falsy, so a plain
+       check would render the unknown case identically to an explicit "no demand". -->
+  {{ if $ms.market_demand_available != null }}
+  <div class="kv"><span class="k">ความต้องการของตลาด ใช้งานได้ / ใช้งานอยู่</span><span class="c">:</span><span class="v"><span class="chk {{ if $ms.market_demand_available }}on{{ end }}"></span></span></div>
   {{ end }}
-  {{ if $ms.other }}
-  <div class="kv"><span class="k">อื่นๆ :</span><span class="v">{{ $ms.other }}</span></div>
+
+  {{ if $ms.market_demand }}
+  <div class="sub-bar">ความต้องการของตลาด</div>
+  <div class="narrative">{{ $ms.market_demand }}</div>
   {{ end }}
-  {{ if $ms.collateral_detail_narrative }}
-  <div class="kv"><span class="k">รายละเอียดหลักประกัน :</span><span class="v">{{ $ms.collateral_detail_narrative }}</span></div>
-  {{ end }}
+
+  <div class="sub-bar">2.2 สิทธิและเงื่อนไขข้อจำกัดทางกฎหมาย</div>
+
+  <!-- §2.2 has no colon column in the FSD: label sits directly against its value. -->
+  <div class="rights">
+    <div class="kv"><span class="k">ผู้ถือกรรมสิทธิ์</span><span class="v">{{ $ms.proprietor }}</span></div>
+    <div class="kv"><span class="k">ผู้ครอบครองเครื่องจักร</span><span class="v">{{ $ms.owner_name }}</span></div>
+    <div class="kv"><span class="k">สถานที่ตั้งเครื่องจักร</span><span class="v">{{ $ms.machine_location }}</span></div>
+    <div class="kv"><span class="k">ภาระผูกพันการจำนอง</span><span class="v">{{ $ms.obligation }}</span></div>
+    <div class="kv"><span class="k">อื่นๆ</span><span class="v">{{ $ms.other }}</span></div>
+  </div>
 
 </div>
 

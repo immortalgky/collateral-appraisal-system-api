@@ -1,10 +1,13 @@
+using Appraisal.Application.Features.Appraisals;
+
 namespace Appraisal.Application.Features.Appraisals.UpdateCondoProperty;
 
 /// <summary>
 /// Handler for updating a condo property detail
 /// </summary>
 public class UpdateCondoPropertyCommandHandler(
-    IAppraisalRepository appraisalRepository
+    IAppraisalRepository appraisalRepository,
+    ISender mediator
 ) : ICommandHandler<UpdateCondoPropertyCommand>
 {
     public async Task<MediatR.Unit> Handle(
@@ -27,6 +30,11 @@ public class UpdateCondoPropertyCommandHandler(
         // 4. Get the condo detail
         var detail = property.CondoDetail
             ?? throw new InvalidOperationException($"Condo detail not found for property {command.PropertyId}");
+
+        // 4b. Derive BuildingInsurancePrice from the selected fire-insurance condition
+        // (Parameter-module reference rate × UsableArea) — never taken from the client directly.
+        var buildingInsurancePrice = await CondoFireInsuranceCalculator.DeriveBuildingInsurancePriceAsync(
+            mediator, command.FireInsuranceCondition, command.UsableArea, cancellationToken);
 
         // 5. Create value objects if coordinates or address provided
         GpsCoordinate? coordinates = null;
@@ -107,7 +115,7 @@ public class UpdateCondoPropertyCommandHandler(
             facilityType: command.FacilityType,
             facilityTypeOther: command.FacilityTypeOther,
             environmentType: command.EnvironmentType,
-            buildingInsurancePrice: command.BuildingInsurancePrice,
+            buildingInsurancePrice: buildingInsurancePrice,
             sellingPrice: command.SellingPrice,
             forcedSalePrice: command.ForcedSalePrice,
             remark: command.Remark,
@@ -119,7 +127,8 @@ public class UpdateCondoPropertyCommandHandler(
             landUseType: command.LandUseType,
             landUseTypeOther: command.LandUseTypeOther,
             governmentPricePerSqm: command.GovernmentPricePerSqm,
-            governmentPrice: command.GovernmentPrice);
+            governmentPrice: command.GovernmentPrice,
+            fireInsuranceCondition: command.FireInsuranceCondition);
 
         // 7. Update CondoAreaDetails if provided
         if (command.AreaDetails is not null)SyncAreaDetail(detail,command.AreaDetails);
