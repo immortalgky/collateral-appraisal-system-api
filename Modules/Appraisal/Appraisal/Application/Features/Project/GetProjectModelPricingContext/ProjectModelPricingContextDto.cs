@@ -64,7 +64,6 @@ public record ModelContextDto(
     /// </summary>
     decimal? LandAreaSquareWa,
     // Building-level fields — populated for LandAndBuilding; null for Condo (use Tower instead)
-    int? ConstructionYear,
     decimal? NumberOfFloors,
     string? DecorationType,
     List<string>? RoofType,

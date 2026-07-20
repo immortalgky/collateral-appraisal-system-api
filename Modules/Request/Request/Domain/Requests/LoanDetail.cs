@@ -36,8 +36,12 @@ public class LoanDetail : ValueObject
             throw new ArgumentException("FacilityLimit is required or must be greater than zero.");
         if (AdditionalFacilityLimit is not null && (PreviousFacilityLimit is null || PreviousFacilityLimit <= 0))
             throw new ArgumentException("AdditionalFacilityLimit is required or must be greater than zero.");
-        if (TotalSellingPrice is null || TotalSellingPrice <= 0)
-            throw new ArgumentException("TotalSellingPrice is required or must be greater than zero.");
+        if (BankingSegment != "IBG") 
+        {
+            if (TotalSellingPrice is null || TotalSellingPrice <= 0)
+                throw new ArgumentException("TotalSellingPrice is required or must be greater than zero."); 
+        }
+        
     }
 }
 

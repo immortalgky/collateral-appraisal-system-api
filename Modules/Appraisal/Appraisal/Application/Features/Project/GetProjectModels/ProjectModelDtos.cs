@@ -99,7 +99,6 @@ public record ProjectModelDto(
     string? BuildingStyleType,
     bool? IsResidential,
     int? BuildingAge,
-    int? ConstructionYear,
     string? ResidentialRemark,
     string? ConstructionStyleType,
     string? ConstructionStyleRemark,

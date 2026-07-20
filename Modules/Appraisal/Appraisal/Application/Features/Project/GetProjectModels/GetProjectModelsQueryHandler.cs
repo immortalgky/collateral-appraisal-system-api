@@ -66,7 +66,6 @@ public class GetProjectModelsQueryHandler(
             BuildingStyleType: m.BuildingStyleType,
             IsResidential: m.IsResidential,
             BuildingAge: m.BuildingAge,
-            ConstructionYear: m.ConstructionYear,
             ResidentialRemark: m.ResidentialRemark,
             ConstructionStyleType: m.ConstructionStyleType,
             ConstructionStyleRemark: m.ConstructionStyleRemark,
