@@ -7,6 +7,14 @@ public record GetDecisionSummaryResult(
     // Summary Totals (read-only, calculated)
     decimal TotalAppraisalPrice,
     decimal ForceSellingPrice,
+    // RESOLVED rate (e.g. 70.00 = 70%) — never null: override -> project assumption (block only)
+    // -> system default, already applied to ForceSellingPrice above. DISPLAY-only — do not post
+    // this back as the save's override, that would permanently freeze it (see ForceSellingRateOverride).
+    decimal ForceSellingRate,
+    // RAW per-appraisal override (ValuationAnalyses.ForceSaleRate) — null means "no override, using
+    // the resolved default/project rate". This is what a save should round-trip as the command's
+    // ForceSellingRate so an unrelated edit (e.g. Remark) doesn't silently stamp an override.
+    decimal? ForceSellingRateOverride,
     decimal BuildingInsurance,
 
     // Government Appraisal Prices (read-only)
@@ -14,6 +22,13 @@ public record GetDecisionSummaryResult(
     decimal GovernmentPriceTotalArea,     // all titles incl. missing-from-survey (total land area)
     decimal GovernmentPriceSurveyedArea,  // non-missing titles only — the area the AVG is computed over
     decimal GovernmentPriceAvgPerSqWa,
+
+    // Condo Government Appraisal Prices (read-only) — kept separate from the land list above:
+    // land area is in Sq.Wa and condo area is in sq.m., so mixing them would corrupt the land AVG.
+    // Only ONE area total (no IsMissingFromSurvey equivalent on condo — every unit has a usable area).
+    IReadOnlyList<CondoGovernmentPriceRow> CondoGovernmentPrices,
+    decimal CondoGovernmentPriceTotalArea,   // sq.m.
+    decimal CondoGovernmentPriceAvgPerSqm,   // weighted: totalPrice / totalArea
 
     // Review fields (sourced from ValuationAnalyses — populated by event handler, overridden by Book Verification save)
     decimal? TotalAppraisalPriceReview,
@@ -69,6 +84,14 @@ public record GovernmentPriceRow(
     decimal? AreaSquareWa,
     bool IsMissingFromSurvey,
     decimal? GovernmentPricePerSqWa,
+    decimal? GovernmentPrice
+);
+
+public record CondoGovernmentPriceRow(
+    string? TitleNumber,
+    string? RoomNumber,
+    decimal? UsableArea,
+    decimal? GovernmentPricePerSqm,
     decimal? GovernmentPrice
 );
 

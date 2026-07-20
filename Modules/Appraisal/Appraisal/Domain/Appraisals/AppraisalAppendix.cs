@@ -47,7 +47,17 @@ public class AppraisalAppendix : Aggregate<Guid>
         int displaySequence)
     {
         var document = AppendixDocument.Create(
-            Id, galleryPhotoId, displaySequence);
+            Id, galleryPhotoId, null, displaySequence);
+        _documents.Add(document);
+        return document;
+    }
+
+    public AppendixDocument AddPdfDocument(
+        Guid documentId,
+        int displaySequence)
+    {
+        var document = AppendixDocument.Create(
+            Id, null, documentId, displaySequence);
         _documents.Add(document);
         return document;
     }

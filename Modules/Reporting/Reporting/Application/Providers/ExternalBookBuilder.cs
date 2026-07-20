@@ -22,6 +22,7 @@ internal static class ExternalBookBuilder
     private const string LetterSubject = "แจ้งผลการประเมินมูลค่าทรัพย์สิน";
     private const string ExternalAppraisalPurpose =
         "เพื่อใช้ในการพิจารณาขอสินเชื่อของ ธนาคารแลนด์ แอนด์ เฮ้าส์ จำกัด (มหาชน)";
+    private const string ExternalAppraisalCriteria = "เพื่อทราบมูลค่าตลาด";
 
     // ── Method type → Thai label map ─────────────────────────────────────────────
     private static readonly IReadOnlyDictionary<string, string> MethodTypeLabels =
@@ -414,10 +415,15 @@ internal static class ExternalBookBuilder
             BankName = BankName,
             Subject = LetterSubject,
             AppraisalPurpose = ExternalAppraisalPurpose,
+            AppraisalCriteria = ExternalAppraisalCriteria,
 
             CompanyName = companyName,
             CompanyAddress = companyAddress,
             CompanyTel = companyTel,
+            // Field 11 — on an external book the appraising entity IS the assignee company
+            // (the internal path resolves this to the bank in AppraisalSummaryCommonLoader).
+            // Consumed by the machine section's §1.3 survey line.
+            Appraiser = companyName,
             CustomerName = customerName,
             AppraisalBookNumber = header.AppraisalNumber,
             PropertyTypeSummary = propertyTypeSummary,

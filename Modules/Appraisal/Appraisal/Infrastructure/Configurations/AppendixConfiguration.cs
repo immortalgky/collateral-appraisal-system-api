@@ -57,9 +57,9 @@ public class AppendixDocumentConfiguration : IEntityTypeConfiguration<AppendixDo
         builder.Property(d => d.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 
         builder.Property(d => d.AppraisalAppendixId).IsRequired();
-        builder.Property(d => d.GalleryPhotoId).IsRequired();
         builder.Property(d => d.DisplaySequence).IsRequired();
 
         builder.HasIndex(d => d.AppraisalAppendixId);
+        builder.HasIndex(d => d.DocumentId);
     }
 }

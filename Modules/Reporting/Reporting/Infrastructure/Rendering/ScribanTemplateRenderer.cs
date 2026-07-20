@@ -144,22 +144,37 @@ internal sealed class ScribanTemplateRenderer(
         var segments = new List<RenderSegment>();
         var remaining = renderedHtml.AsSpan();
 
+        // The assembler renders EVERY HtmlSegment as its own standalone PDF, so each one must be
+        // a complete document. Splitting on SLOT markers leaves only the first chunk carrying the
+        // original <head> — every later fragment would render with NO stylesheet, so an appendix
+        // image would fall back to its intrinsic pixel size and overflow (and be clipped by) the
+        // page. Re-attach the document shell to those fragments.
+        var (prelude, epilogue) = ExtractDocumentShell(renderedHtml);
+        var isFirstHtmlChunk = true;
+
+        void AddHtml(string html)
+        {
+            if (!HasRenderableContent(html))
+                return;
+
+            // The first chunk already opens the document; later ones need the shell re-applied.
+            segments.Add(new HtmlSegment(
+                isFirstHtmlChunk ? html + epilogue : prelude + html + epilogue));
+            isFirstHtmlChunk = false;
+        }
+
         while (true)
         {
             var slotStart = remaining.IndexOf(SlotPrefix, StringComparison.Ordinal);
             if (slotStart < 0)
             {
                 // No more slot markers — everything remaining is an HTML fragment
-                var html = remaining.ToString();
-                if (HasRenderableContent(html))
-                    segments.Add(new HtmlSegment(html));
+                AddHtml(remaining.ToString());
                 break;
             }
 
             // Emit the HTML up to the marker
-            var htmlBefore = remaining[..slotStart].ToString();
-            if (HasRenderableContent(htmlBefore))
-                segments.Add(new HtmlSegment(htmlBefore));
+            AddHtml(remaining[..slotStart].ToString());
 
             // Parse the slot name
             remaining = remaining[(slotStart + SlotPrefix.Length)..];
@@ -182,6 +197,26 @@ internal sealed class ScribanTemplateRenderer(
             segments.Add(new HtmlSegment("<html><body></body></html>"));
 
         return segments.AsReadOnly();
+    }
+
+    /// <summary>
+    /// Splits the rendered document into the shell that must wrap every standalone fragment:
+    /// everything up to and including the opening <c>&lt;body&gt;</c> tag (doctype, &lt;html&gt;,
+    /// and critically the &lt;head&gt; with the stylesheet), plus the matching closing tags.
+    /// Returns empty strings when the template has no &lt;body&gt; (a bare fragment template),
+    /// in which case fragments are emitted unchanged.
+    /// </summary>
+    private static (string Prelude, string Epilogue) ExtractDocumentShell(string renderedHtml)
+    {
+        var bodyStart = renderedHtml.IndexOf("<body", StringComparison.OrdinalIgnoreCase);
+        if (bodyStart < 0)
+            return (string.Empty, string.Empty);
+
+        var bodyTagEnd = renderedHtml.IndexOf('>', bodyStart);
+        if (bodyTagEnd < 0)
+            return (string.Empty, string.Empty);
+
+        return (renderedHtml[..(bodyTagEnd + 1)], "</body></html>");
     }
 
     /// <summary>

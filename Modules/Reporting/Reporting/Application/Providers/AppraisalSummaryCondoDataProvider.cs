@@ -2,6 +2,7 @@ using System.Text.Json;
 using Reporting.Application.Formatting;
 using Reporting.Application.Models;
 using Reporting.Application.Services;
+using Shared.Configuration;
 
 namespace Reporting.Application.Providers;
 
@@ -22,6 +23,7 @@ namespace Reporting.Application.Providers;
 /// </summary>
 public sealed class AppraisalSummaryCondoDataProvider(
     ISqlConnectionFactory connectionFactory,
+    ISystemConfigurationReader configReader,
     ILogger<AppraisalSummaryCondoDataProvider> logger)
     : IReportDataProvider
 {
@@ -34,8 +36,10 @@ public sealed class AppraisalSummaryCondoDataProvider(
 
         using var connection = connectionFactory.CreateNewConnection();
 
+        var forceSaleRateDefault = await configReader.GetDecimalAsync("ForceSaleRateDefaultPct", 70m, cancellationToken);
+
         // ── Common data (Q1–Q14 + ColTypeMap) ───────────────────────────────────
-        var common = await AppraisalSummaryCommonLoader.LoadAsync(connection, appraisalId, cancellationToken);
+        var common = await AppraisalSummaryCommonLoader.LoadAsync(connection, appraisalId, forceSaleRateDefault, cancellationToken);
         if (common is null)
             throw new NotFoundException("Appraisal", entityId);
 
@@ -200,10 +204,10 @@ public sealed class AppraisalSummaryCondoDataProvider(
         var landUseMap = ToParamMap(landUseParams);
 
         // สิทธิทางเข้า-ออก / สภาพการใช้ประโยชน์ — JSON code-list columns, code 99 = "other"
-        // (paired *Other free text replaces the "อื่นๆ" description; see OtherCode below).
-        string? entryExitRights = DecodeJsonArrayWithTranslation(
+        // (paired *Other free text replaces the "อื่นๆ" description).
+        string? entryExitRights = ParameterCodeFormatter.DecodeJsonArray(
             firstCondo?.LandEntranceExitType, firstCondo?.LandEntranceExitTypeOther, entranceExitMap);
-        string? utilization = DecodeJsonArrayWithTranslation(
+        string? utilization = ParameterCodeFormatter.DecodeJsonArray(
             firstCondo?.LandUseType, firstCondo?.LandUseTypeOther, landUseMap);
 
         // ราคาประเมินราชการ — condo is priced per SQUARE METRE (not per sq-wa, unlike land).
@@ -266,7 +270,12 @@ public sealed class AppraisalSummaryCondoDataProvider(
                     foreach (var ar in areas)
                     {
                         if (ar.AreaSize is not { } sz || sz <= 0) continue;
-                        var label = string.IsNullOrWhiteSpace(ar.AreaDescription) ? "พื้นที่" : $"พื้นที่{ar.AreaDescription}";
+                        // AreaDescription is the appraiser's own label from the property screen and
+                        // already reads as one (e.g. "พื้นที่ภายในห้องชุด") — prefixing it here
+                        // produced "พื้นที่พื้นที่ภายในห้องชุด". Only unlabelled rows need the word.
+                        var label = string.IsNullOrWhiteSpace(ar.AreaDescription)
+                            ? "พื้นที่"
+                            : ar.AreaDescription!.Trim();
                         parts.Add($"{label} {sz:0.##} ตารางเมตร");
                     }
                     var totalArea = areas.Sum(a => a.AreaSize ?? 0m);
@@ -460,60 +469,12 @@ public sealed class AppraisalSummaryCondoDataProvider(
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────────
-    // Mirrors CondoSectionLoader's OtherCode / TranslateCode / DecodeJsonArrayWithTranslation
-    // (kept as a faithful copy per this module's existing convention — see the identical
-    // JsonCodesToThai mirrors in LandSectionLoader / SaleGridSectionLoader / ComparisonSectionLoader).
-
-    /// <summary>Parameter code that means "other" — its paired *Other free text is shown
-    /// instead of the generic "อื่นๆ" description.</summary>
-    private const string OtherCode = "99";
+    // Code/array translation lives in ParameterCodeFormatter — this provider's copy was the
+    // original and the only one that handled code 99 correctly.
 
     private static Dictionary<string, string?> ToParamMap(IEnumerable<ParamRow> rows) =>
         rows.Where(p => !string.IsNullOrWhiteSpace(p.Code))
             .GroupBy(p => p.Code!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First().Description, StringComparer.OrdinalIgnoreCase);
 
-    private static string? TranslateCode(string? code, IReadOnlyDictionary<string, string?> map)
-    {
-        if (string.IsNullOrWhiteSpace(code))
-            return null;
-        return map.TryGetValue(code, out var desc) && !string.IsNullOrWhiteSpace(desc) ? desc : code;
-    }
-
-    /// <summary>
-    /// Decodes a JSON array of codes, translates each code, then joins with comma.
-    /// Code 99 ("other") shows the paired free-text remark instead of the "อื่นๆ" description.
-    /// </summary>
-    private static string? DecodeJsonArrayWithTranslation(
-        string? json, string? other, IReadOnlyDictionary<string, string?> map)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-            return string.IsNullOrWhiteSpace(other) ? null : other;
-
-        List<string>? codes;
-        try
-        {
-            codes = JsonSerializer.Deserialize<List<string>>(json);
-        }
-        catch (JsonException)
-        {
-            return json.Trim() == OtherCode && !string.IsNullOrWhiteSpace(other) ? other : json.Trim();
-        }
-
-        var trimmedOther = string.IsNullOrWhiteSpace(other) ? null : other!.Trim();
-
-        if (codes is null or { Count: 0 })
-            return trimmedOther;
-
-        var present = codes.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
-        var hasOtherCode = present.Any(c => c == OtherCode);
-        var labels = present
-            .Select(c => c == OtherCode && trimmedOther != null ? trimmedOther : (TranslateCode(c, map) ?? c))
-            .ToList();
-
-        if (trimmedOther != null && !hasOtherCode)
-            labels.Add(trimmedOther);
-
-        return labels.Count > 0 ? string.Join(", ", labels) : null;
-    }
 }

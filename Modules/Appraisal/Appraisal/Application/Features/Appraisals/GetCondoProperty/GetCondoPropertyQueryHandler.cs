@@ -108,6 +108,7 @@ public class GetCondoPropertyQueryHandler(
             EnvironmentType: detail.EnvironmentType,
             GovernmentPricePerSqm: detail.GovernmentPricePerSqm,
             GovernmentPrice: detail.GovernmentPrice,
+            FireInsuranceCondition: detail.FireInsuranceCondition,
             BuildingInsurancePrice: detail.BuildingInsurancePrice,
             SellingPrice: detail.SellingPrice,
             ForceSellingPrice: detail.ForcedSalePrice,

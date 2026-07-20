@@ -16,6 +16,7 @@ public class ValuationAnalysisConfiguration : IEntityTypeConfiguration<Valuation
         builder.Property(v => v.AppraisedValue).HasPrecision(18, 2);
         builder.Property(v => v.ForcedSaleValue).HasPrecision(18, 2);
         builder.Property(v => v.InsuranceValue).HasPrecision(18, 2);
+        builder.Property(v => v.ForceSaleRate).HasPrecision(5, 2);
         builder.Property(v => v.Currency).HasMaxLength(3);
 
         builder.Property(v => v.AppraiserOpinion).HasMaxLength(4000);

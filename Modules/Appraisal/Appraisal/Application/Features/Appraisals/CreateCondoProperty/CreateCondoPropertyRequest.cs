@@ -89,7 +89,8 @@ public record CreateCondoPropertyRequest(
     // Pricing
     decimal? GovernmentPricePerSqm = null,
     decimal? GovernmentPrice = null,
-    decimal? BuildingInsurancePrice = null,
+    // BuildingInsurancePrice is derived server-side from FireInsuranceCondition × UsableArea.
+    string? FireInsuranceCondition = null,
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,
     // Other

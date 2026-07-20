@@ -1,6 +1,7 @@
 using Reporting.Application.Formatting;
 using Reporting.Application.Models;
 using Reporting.Application.Services;
+using Shared.Configuration;
 
 namespace Reporting.Application.Providers;
 
@@ -36,6 +37,7 @@ namespace Reporting.Application.Providers;
 /// </summary>
 public sealed class AppraisalSummaryBlockDataProvider(
     ISqlConnectionFactory connectionFactory,
+    ISystemConfigurationReader configReader,
     ILogger<AppraisalSummaryBlockDataProvider> logger)
     : IReportDataProvider
 {
@@ -47,7 +49,8 @@ public sealed class AppraisalSummaryBlockDataProvider(
             throw new NotFoundException("Appraisal", entityId);
 
         using var connection = connectionFactory.CreateNewConnection();
-        var model = await BuildAsync(connection, appraisalId, cancellationToken);
+        var forceSaleRateDefault = await configReader.GetDecimalAsync("ForceSaleRateDefaultPct", 70m, cancellationToken);
+        var model = await BuildAsync(connection, appraisalId, forceSaleRateDefault, cancellationToken);
 
         logger.LogDebug(
             "AppraisalSummaryBlock model assembled for appraisal {AppraisalId}: " +
@@ -67,10 +70,11 @@ public sealed class AppraisalSummaryBlockDataProvider(
     internal static async Task<AppraisalSummaryModel> BuildAsync(
         System.Data.IDbConnection connection,
         Guid appraisalId,
+        decimal forceSaleRateDefault,
         CancellationToken ct)
     {
         // ── Common data (Q1–Q14 + ColTypeMap) ───────────────────────────────────
-        var common = await AppraisalSummaryCommonLoader.LoadAsync(connection, appraisalId, ct);
+        var common = await AppraisalSummaryCommonLoader.LoadAsync(connection, appraisalId, forceSaleRateDefault, ct);
         if (common is null)
             throw new NotFoundException("Appraisal", appraisalId.ToString());
 

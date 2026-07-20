@@ -5,6 +5,7 @@ namespace Appraisal.Application.Features.Appraisals.AddAppendixDocument;
 
 public record AddAppendixDocumentCommand(
     Guid AppendixId,
-    Guid GalleryPhotoId,
+    Guid? GalleryPhotoId,
+    Guid? DocumentId,
     int DisplaySequence
 ) : ICommand<AddAppendixDocumentResult>, ITransactionalCommand<IAppraisalUnitOfWork>;
