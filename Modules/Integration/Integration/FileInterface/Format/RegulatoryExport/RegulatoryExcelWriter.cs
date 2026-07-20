@@ -92,7 +92,7 @@ public sealed class RegulatoryExcelWriter
         ws.Cell(r, c++).Value = row.LatestAppraisalNumber ?? "";
         ws.Cell(r, c++).Value = row.HostCollateralId ?? "";
         ws.Cell(r, c++).Value = UnderConstructionText(row);
-        Percent(ws.Cell(r, c++), ConstructionProgress(row));
+        Percent(ws.Cell(r, c++), row.ConstructionProgressPercent ?? 0m);   // computed in vw_RegulatoryExport
         Money(ws.Cell(r, c++), row.LatestAppraisalValue);
         Money(ws.Cell(r, c++), OriginationValue(row));
         Number(ws.Cell(r, c++), row.NumberOfFloors);
@@ -150,16 +150,6 @@ public sealed class RegulatoryExcelWriter
         if (IsBuildingType(row))
             return row.IsUnderConstruction ? "Under construction (Y)" : "Completed (N)";
         return "";
-    }
-
-    // Mirrors RegulatoryFileWriter's Construction Progress rule (condo and other non-land/building → 0.00).
-    private static decimal? ConstructionProgress(RegulatoryExportRow row)
-    {
-        if (IsBareLand(row))
-            return 100m;
-        if (IsBuildingType(row))
-            return row.ConstructionProgressPercent ?? 0m;
-        return 0m;
     }
 
     // Mirrors RegulatoryFileWriter's origination-value rule.

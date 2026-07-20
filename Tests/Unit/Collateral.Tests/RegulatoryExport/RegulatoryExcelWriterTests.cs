@@ -18,7 +18,7 @@ public class RegulatoryExcelWriterTests
         HostCollateralId: "6702522",
         LatestAppraisalType: "ReAppraisal",
         IsUnderConstruction: false,
-        ConstructionProgressPercent: null,
+        ConstructionProgressPercent: 100m, // view-computed final value (completed LB → 100)
         LatestAppraisalValue: 2_000_000.00m,
         EarliestAppraisalValue: 1_000_000.00m,
         SellingPrice: 3_000_000.00m,

@@ -23,6 +23,10 @@ public interface ITabularExporter
     /// Optional display-ready filter criteria rendered as an "Applied filters" block under the title,
     /// so a saved/shared file records which selection produced it.
     /// </param>
+    /// <param name="signoffs">
+    /// Optional sign-off lines rendered as a footer below the table (e.g. Print/Approve Report By).
+    /// An entry with a null value renders a blank line to be signed by hand.
+    /// </param>
     Task<ReportFile> ExportAsync<T>(
         IReadOnlyList<T> rows,
         IReadOnlyList<ReportColumn<T>> columns,
@@ -30,5 +34,6 @@ public interface ITabularExporter
         ReportFormat format,
         string? title = null,
         IReadOnlyList<FilterCriterion>? appliedFilters = null,
+        IReadOnlyList<ReportSignoff>? signoffs = null,
         CancellationToken cancellationToken = default);
 }

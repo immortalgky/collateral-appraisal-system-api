@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using Auth.Contracts.Users;
 using Dapper;
 using Reporting.Contracts;
 using Shared.Data;
+using Shared.Identity;
 using Shared.Pagination;
 using Shared.Time;
 
@@ -27,6 +29,8 @@ internal sealed class OperationalReportRunner(
     ITabularExporter exporter,
     IReportFilterResolver filterResolver,
     IReportAuditLogger auditLogger,
+    ICurrentUserService currentUser,
+    IUserLookupService userLookup,
     IDateTimeProvider dateTimeProvider) : IOperationalReportRunner
 {
     public async Task<PaginatedResult<TRow>> PreviewAsync<TRow, TFilter>(
@@ -39,6 +43,14 @@ internal sealed class OperationalReportRunner(
 
         if (definition.EnrichAsync is not null)
             await definition.EnrichAsync(result.Items.ToList(), cancellationToken);
+
+        // Post-enrich filter (e.g. SLA > 2 days) — preview filters the current page only, so the
+        // total count still reflects the pre-filter SQL count. The export path filters the full set.
+        if (definition.PostEnrichFilter is not null)
+        {
+            var filtered = result.Items.Where(definition.PostEnrichFilter).ToList();
+            result = new PaginatedResult<TRow>(filtered, result.Count, result.PageNumber, result.PageSize);
+        }
 
         return result;
     }
@@ -66,14 +78,22 @@ internal sealed class OperationalReportRunner(
             if (definition.EnrichAsync is not null)
                 await definition.EnrichAsync(rows, cancellationToken);
 
+            if (definition.PostEnrichFilter is not null)
+                rows = rows.Where(definition.PostEnrichFilter).ToList();
+            rowCount = rows.Count;
+
             // Resolve the applied-filter block (null => report declares no describer => no block).
             IReadOnlyList<FilterCriterion>? appliedFilters = definition.DescribeFilter is null
                 ? null
                 : await filterResolver.ResolveAsync(definition.DescribeFilter(filter), cancellationToken);
 
+            var signoffs = definition.IncludeSignoffFooter
+                ? await BuildSignoffsAsync(cancellationToken)
+                : null;
+
             file = await exporter.ExportAsync(
                 rows, definition.Columns, definition.BaseName, format, definition.Title,
-                appliedFilters, cancellationToken);
+                appliedFilters, signoffs, cancellationToken);
             return file;
         }
         catch (Exception ex)
@@ -88,5 +108,38 @@ internal sealed class OperationalReportRunner(
                 definition.BaseName, format.ToString(), generatedAt, (int)stopwatch.ElapsedMilliseconds,
                 rowCount, file?.Bytes.LongLength, error is null, error, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// FSD footer: "Print Report By" (ผู้สรุปรายงาน) defaults to the user running the export;
+    /// "Approve Report By" (ผู้ตรวจสอบ) is intentionally blank, to be signed by hand.
+    /// Resolution never throws — an unresolved user degrades to a blank line rather than failing
+    /// the export. Exports always run on an HTTP request, so UserCode is normally populated.
+    /// </summary>
+    private async Task<IReadOnlyList<ReportSignoff>> BuildSignoffsAsync(CancellationToken ct)
+    {
+        var code = currentUser.UserCode;
+        string? printedBy = code;
+
+        if (!string.IsNullOrWhiteSpace(code))
+        {
+            try
+            {
+                var users = await userLookup.GetByUsernamesAsync([code], ct);
+                if (users.TryGetValue(code, out var u))
+                {
+                    // "P5229 - First Last": the code matches what the export audit log records
+                    // (ReportGenerationLog.GeneratedBy), keeping a printed report reconcilable.
+                    var name = $"{u.FirstName} {u.LastName}".Trim();
+                    if (name.Length > 0) printedBy = $"{code} - {name}";
+                }
+            }
+            catch (Exception)
+            {
+                // Keep the bare code; a name lookup must never fail an export.
+            }
+        }
+
+        return [new ReportSignoff("Print Report By", printedBy), new ReportSignoff("Approve Report By", null)];
     }
 }

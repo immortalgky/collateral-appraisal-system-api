@@ -55,14 +55,14 @@ internal static class CondoSectionLoader
         //
         // QParam (RS01) — parameter.Parameters for code→display translation.
         //   Groups: FloorMaterial, BuildingForm, ConstructionMaterial, RoofType,
-        //           RoadSurface, PublicUtility, BathroomMaterial.
+        //           RoadSurface, PublicUtility, BathroomMaterial, Landfill,
+        //           TypeOfUrbanPlanning, LandEntranceExit, LandUse.
         //   Not scoped to @AppraisalId — fetches all relevant param rows once.
         //
         // QCond1 (RS02) — all CondoAppraisalDetails rows for the appraisal.
         //   Ordered by ap.SequenceNumber.
         //   Deferred (no source): WallMaterialType, CeilingMaterialType,
-        //   DoorMaterialType, WindowMaterialType, UrbanPlanningType, LandZoneType,
-        //   RoadZoneWidth/RoadFrontage.
+        //   DoorMaterialType, WindowMaterialType, RoadZoneWidth/RoadFrontage.
         //
         // QCond2 (RS03) — all CondoAppraisalAreaDetails rows for the appraisal.
         //   FK column: "CondoAppraisalDetailsId"
@@ -83,7 +83,11 @@ internal static class CondoSectionLoader
                   'Roof',
                   'RoadSurface',
                   'PublicUtility',
-                  'BathroomFlooringMaterials'
+                  'BathroomFlooringMaterials',
+                  'Landfill',
+                  'TypeOfUrbanPlanning',
+                  'LandEntranceExit',
+                  'LandUse'
               );
 
             -- RS02: QCond1 — condo detail rows (all properties, ordered by sequence)
@@ -122,7 +126,16 @@ internal static class CondoSectionLoader
                 cad.RoofTypeOther,
                 cad.BuildingAge,
                 cad.IsInExpropriationLine,
-                cad.Remark
+                cad.Remark,
+                cad.LandFillType,
+                cad.LandFillTypeOther,
+                cad.UrbanPlanningType,
+                cad.LandEntranceExitType,
+                cad.LandEntranceExitTypeOther,
+                cad.LandUseType,
+                cad.LandUseTypeOther,
+                cad.GovernmentPricePerSqm,
+                cad.GovernmentPrice
             FROM appraisal.CondoAppraisalDetails cad
             JOIN appraisal.AppraisalProperties ap ON ap.Id = cad.AppraisalPropertyId
             LEFT JOIN parameter.TitleProvinces    tprov ON tprov.Code = cad.Province
@@ -139,7 +152,10 @@ internal static class CondoSectionLoader
             FROM appraisal.CondoAppraisalAreaDetails cada
             JOIN appraisal.CondoAppraisalDetails cad ON cad.Id = cada.CondoAppraisalDetailsId
             JOIN appraisal.AppraisalProperties ap ON ap.Id = cad.AppraisalPropertyId
-            WHERE ap.AppraisalId = @AppraisalId;
+            WHERE ap.AppraisalId = @AppraisalId
+            -- Creation order: no Seq/CreatedOn column exists; the Guid v7 Id's text form
+            -- sorts by creation time (native uniqueidentifier sort does not).
+            ORDER BY cad.Id, CONVERT(char(36), cada.Id);
 
             -- RS04: QPrice — selected pricing for the property GROUP(S) the condo belongs to.
             --   The condo appraisal price comes from its group's value, NOT the application total.
@@ -284,8 +300,19 @@ internal static class CondoSectionLoader
         string? roadSurfaceType = TranslateWithOther(
             first.RoadSurfaceType, first.RoadSurfaceTypeOther, paramMap, "RoadSurface");
 
+        // เป็นพื้นที่สี (urban-planning colour zone). Its paired ที่ดินประเภท cell has no
+        // condo-side source — see the LandType assignment below.
+        string? urbanPlanningDisplay = TranslateCode(first.UrbanPlanningType, paramMap, "TypeOfUrbanPlanning");
+
+        // สิทธิทางเข้า-ออก / สภาพการใช้ประโยชน์ — JSON-serialised List<string> of codes
+        string? entryExitRights = DecodeJsonArrayWithTranslation(
+            first.LandEntranceExitType, first.LandEntranceExitTypeOther, paramMap, "LandEntranceExit");
+        string? utilization = DecodeJsonArrayWithTranslation(
+            first.LandUseType, first.LandUseTypeOther, paramMap, "LandUse");
+
         // ── Valuation table (รายละเอียดการประเมินมูลค่าทรัพย์สิน ห้องชุด) ──────────────
-        // Part A area components = sums across all units; per-sqm rate + amount have no source.
+        // Part A area components = sums across all units; the registration rate/amount
+        // come from the first condo detail's GovernmentPricePerSqm / GovernmentPrice.
         decimal interiorTotal = units.Sum(u => u.InteriorArea ?? 0m);
         decimal balconyTotal  = units.Sum(u => u.BalconyArea ?? 0m);
         decimal airConTotal   = units.Sum(u => u.AirConArea ?? 0m);
@@ -299,9 +326,9 @@ internal static class CondoSectionLoader
         // Aggregate the selected pricing across the appraisal's property groups.
         var pricedRows = pricingRows.Where(p => p.GroupValue.HasValue).ToList();
         decimal marketValue = pricedRows.Sum(p => p.GroupValue!.Value);
-        // Priced "by unit" only when every priced group is per-unit → per-sqm shows "-".
+        // Priced "by whole unit" (lumpsum) only when every priced group is PerUnit → per-sqm shows "-".
         bool pricedByUnit = pricedRows.Count > 0 &&
-            pricedRows.All(p => string.Equals(p.UnitType, "Unit", StringComparison.OrdinalIgnoreCase));
+            pricedRows.All(p => string.Equals(p.UnitType, "PerUnit", StringComparison.OrdinalIgnoreCase));
 
         decimal? marketPricePerSqm;
         decimal? marketAmount;
@@ -332,6 +359,8 @@ internal static class CondoSectionLoader
             BalconyArea       = balconyTotal  > 0 ? balconyTotal  : null,
             AirConArea        = airConTotal   > 0 ? airConTotal   : null,
             OtherArea         = otherTotal    > 0 ? otherTotal    : null,
+            RegistrationPricePerSqm = first.GovernmentPricePerSqm,
+            RegistrationAmount      = first.GovernmentPrice,
             MarketArea        = marketArea    > 0 ? marketArea    : null,
             MarketPricePerSqm = marketPricePerSqm,
             MarketAmount      = marketAmount,
@@ -377,8 +406,13 @@ internal static class CondoSectionLoader
             ConstructionMaterial  = constructionMaterial,
             RoofType              = roofType,
             IsInExpropriationLine = first.IsInExpropriationLine,
-            AreaColour            = null,           // no source — UrbanPlanningType only on LandAppraisalDetails
-            LandType              = null,           // no source — no LandZoneType on CondoAppraisalDetails
+            AreaColour            = urbanPlanningDisplay,
+            // ที่ดินประเภท — intentionally unset. It pairs with เป็นพื้นที่สี as a city-planning
+            // zone designation; none of the condo columns is that. LandFillType (การถมที่) is
+            // soil fill, not a zone type, so it is deliberately NOT used here.
+            LandType              = null,
+            EntryExitRights       = entryExitRights,
+            Utilization           = utilization,
             Remark                = first.Remark,
             Valuation             = valuation
         };
@@ -386,8 +420,14 @@ internal static class CondoSectionLoader
 
     // ── Private helpers ───────────────────────────────────────────────────────────
 
+    /// <summary>Parameter code that means "other" — its paired *Other free text is shown
+    /// instead of the generic "อื่นๆ" description.</summary>
+    private const string OtherCode = "99";
+
     /// <summary>
     /// Translates a code column to Thai display, appending *Other free text when set.
+    /// For code 99 ("other") the free-text remark REPLACES the "อื่นๆ" label (falling
+    /// back to the resolved 99 description when the remark is blank).
     /// Falls back to the raw code if no translation found.
     /// </summary>
     private static string? TranslateWithOther(
@@ -395,9 +435,11 @@ internal static class CondoSectionLoader
         Dictionary<string, Dictionary<string, string?>> paramMap, string group)
     {
         var display = TranslateCode(code, paramMap, group);
-        if (!string.IsNullOrWhiteSpace(other))
-            return string.IsNullOrWhiteSpace(display) ? other : $"{display} ({other})";
-        return display;
+        if (string.IsNullOrWhiteSpace(other))
+            return display;
+        if (code == OtherCode)
+            return other;
+        return string.IsNullOrWhiteSpace(display) ? other : $"{display} ({other})";
     }
 
     /// <summary>Translates a code to the Thai label; returns the raw code when not found.</summary>
@@ -420,25 +462,36 @@ internal static class CondoSectionLoader
     /// </summary>
     private static string? DecodeJsonArray(string? json, string? other = null)
     {
+        var trimmedOther = string.IsNullOrWhiteSpace(other) ? null : other!.Trim();
+
         if (string.IsNullOrWhiteSpace(json))
-            return string.IsNullOrWhiteSpace(other) ? null : other;
+            return trimmedOther;
 
         try
         {
             var items = JsonSerializer.Deserialize<List<string>>(json);
             if (items is null or { Count: 0 })
-                return string.IsNullOrWhiteSpace(other) ? null : other;
+                return trimmedOther;
 
             var parts = items.Where(i => !string.IsNullOrWhiteSpace(i)).ToList();
-            if (!string.IsNullOrWhiteSpace(other))
-                parts.Add(other!);
+            var hasOtherCode = parts.Any(c => c == OtherCode);
+            if (trimmedOther != null)
+            {
+                // Code 99 = "other": swap the remark in place of the "99" entry.
+                for (var i = 0; i < parts.Count; i++)
+                    if (parts[i] == OtherCode) parts[i] = trimmedOther;
+                if (!hasOtherCode)
+                    parts.Add(trimmedOther);
+            }
             return parts.Count > 0 ? string.Join(", ", parts) : null;
         }
         catch (JsonException)
         {
             // Stored value is a plain string rather than JSON array
             var plain = json.Trim();
-            return !string.IsNullOrWhiteSpace(other) ? $"{plain} ({other})" : plain;
+            if (trimmedOther == null)
+                return plain;
+            return plain == OtherCode ? trimmedOther : $"{plain} ({trimmedOther})";
         }
     }
 
@@ -463,16 +516,20 @@ internal static class CondoSectionLoader
             return DecodeJsonArray(json, other);
         }
 
-        if (codes is null or { Count: 0 })
-            return string.IsNullOrWhiteSpace(other) ? null : other;
+        var trimmedOther = string.IsNullOrWhiteSpace(other) ? null : other!.Trim();
 
-        var labels = codes
-            .Where(c => !string.IsNullOrWhiteSpace(c))
-            .Select(c => TranslateCode(c, paramMap, group) ?? c)
+        if (codes is null or { Count: 0 })
+            return trimmedOther;
+
+        var present = codes.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
+        var hasOtherCode = present.Any(c => c == OtherCode);
+        var labels = present
+            // Code 99 = "other": show the remark instead of the "อื่นๆ" description.
+            .Select(c => c == OtherCode && trimmedOther != null ? trimmedOther : (TranslateCode(c, paramMap, group) ?? c))
             .ToList();
 
-        if (!string.IsNullOrWhiteSpace(other))
-            labels.Add(other!);
+        if (trimmedOther != null && !hasOtherCode)
+            labels.Add(trimmedOther);
 
         return labels.Count > 0 ? string.Join(", ", labels) : null;
     }
@@ -516,6 +573,15 @@ internal static class CondoSectionLoader
         public int?    BuildingAge                  { get; init; }
         public bool?   IsInExpropriationLine        { get; init; }
         public string? Remark                       { get; init; }
+        public string? LandFillType                  { get; init; }
+        public string? LandFillTypeOther              { get; init; }
+        public string? UrbanPlanningType              { get; init; }
+        public string? LandEntranceExitType           { get; init; }
+        public string? LandEntranceExitTypeOther      { get; init; }
+        public string? LandUseType                    { get; init; }
+        public string? LandUseTypeOther               { get; init; }
+        public decimal? GovernmentPricePerSqm         { get; init; }
+        public decimal? GovernmentPrice               { get; init; }
     }
 
     private sealed class AreaDetailRow

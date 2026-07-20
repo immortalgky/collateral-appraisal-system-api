@@ -18,6 +18,16 @@ public interface ITemplateRenderer
         string templateHtml,
         object model,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Renders a Scriban HTML template against a model and returns the full rendered HTML
+    /// string as-is, without splitting on <c>&lt;!-- SLOT: name --&gt;</c> markers. Used by
+    /// the browser-preview (HTML) report path, which has no PDF attachment merge step.
+    /// </summary>
+    Task<string> RenderRawAsync(
+        string templateHtml,
+        object model,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>Base discriminated union for rendered segments.</summary>

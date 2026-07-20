@@ -33,7 +33,21 @@ internal sealed class ScribanTemplateRenderer(
         object model,
         CancellationToken cancellationToken)
     {
-        // ── 1. Build Scriban script context ─────────────────────────────────────
+        var renderedHtml = await RenderRawAsync(templateHtml, model, cancellationToken);
+
+        // ── Extract attachment slot map from model ────────────────────────────
+        var attachmentsBySlot = ExtractAttachmentsBySlot(model);
+
+        // ── Split on <!-- SLOT: name --> markers ──────────────────────────────
+        return SplitIntoSegments(renderedHtml, attachmentsBySlot);
+    }
+
+    public async Task<string> RenderRawAsync(
+        string templateHtml,
+        object model,
+        CancellationToken cancellationToken)
+    {
+        // ── Build Scriban script context ─────────────────────────────────────
         var template = Template.Parse(templateHtml);
 
         if (template.HasErrors)
@@ -65,13 +79,7 @@ internal sealed class ScribanTemplateRenderer(
         context.PushCulture(System.Globalization.CultureInfo.InvariantCulture);
         context.PushGlobal(scriptObject);
 
-        var renderedHtml = await template.RenderAsync(context);
-
-        // ── 2. Extract attachment slot map from model ────────────────────────────
-        var attachmentsBySlot = ExtractAttachmentsBySlot(model);
-
-        // ── 3. Split on <!-- SLOT: name --> markers ──────────────────────────────
-        return SplitIntoSegments(renderedHtml, attachmentsBySlot);
+        return await template.RenderAsync(context);
     }
 
     /// <summary>

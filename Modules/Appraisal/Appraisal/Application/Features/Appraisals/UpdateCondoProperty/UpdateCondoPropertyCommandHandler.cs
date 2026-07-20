@@ -75,6 +75,7 @@ public class UpdateCondoPropertyCommandHandler(
             accessRoadWidth: command.AccessRoadWidth,
             rightOfWay: command.RightOfWay,
             roadSurfaceType: command.RoadSurfaceType,
+            roadSurfaceTypeOther: command.RoadSurfaceTypeOther,
             publicUtilityType: command.PublicUtilityType,
             publicUtilityTypeOther: command.PublicUtilityTypeOther,
             decorationType: command.DecorationType,
@@ -109,7 +110,16 @@ public class UpdateCondoPropertyCommandHandler(
             buildingInsurancePrice: command.BuildingInsurancePrice,
             sellingPrice: command.SellingPrice,
             forcedSalePrice: command.ForcedSalePrice,
-            remark: command.Remark);
+            remark: command.Remark,
+            landEntranceExitType: command.LandEntranceExitType,
+            landEntranceExitTypeOther: command.LandEntranceExitTypeOther,
+            landFillType: command.LandFillType,
+            landFillTypeOther: command.LandFillTypeOther,
+            urbanPlanningType: command.UrbanPlanningType,
+            landUseType: command.LandUseType,
+            landUseTypeOther: command.LandUseTypeOther,
+            governmentPricePerSqm: command.GovernmentPricePerSqm,
+            governmentPrice: command.GovernmentPrice);
 
         // 7. Update CondoAreaDetails if provided
         if (command.AreaDetails is not null)SyncAreaDetail(detail,command.AreaDetails);

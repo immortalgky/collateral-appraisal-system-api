@@ -151,7 +151,7 @@ public class SaveLeaseholdAnalysisCommandHandler(
         // Set method value: user override > partial estimate > final value rounded
         var computedEstimate = computedEstimatePriceRounded ?? calcResult.FinalValueRounded;
         var finalPrice = command.EstimatePriceRounded ?? computedEstimate;
-        method.SetValue(finalPrice);
+        method.SetValue(finalPrice, null, PricingUnit.PerUnit);
 
         // Mirror the committed final value into the shared PricingFinalValue (single source of truth).
         // Land area and building value are not applicable for Leasehold.

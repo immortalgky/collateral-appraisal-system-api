@@ -47,7 +47,7 @@ public static class LandPmaApplier
                 district,
                 province
             );
-        landDetail.Update(
+        landDetail.UpdatePmaFields(
             address: address
         );
 

@@ -279,15 +279,16 @@ public sealed class AppraisalSummaryBlockDataProvider(
                 .Select(common.TranslateCollateralType)
                 .Where(s => !string.IsNullOrWhiteSpace(s))
                 .Distinct());
+        var projectTypeLabel = projectTypeCode switch
+        {
+            "U"  => "อาคารชุด/ห้องชุด",
+            "LB" => "บ้านพร้อมที่ดิน",
+            "L"  => "ที่ดินจัดสรร",
+            _    => projectTypeCode
+        };
         var propertyTypeDisplay = !string.IsNullOrWhiteSpace(requestTypeLabel)
             ? requestTypeLabel
-            : projectTypeCode switch
-            {
-                "U"  => "อาคารชุด/ห้องชุด",
-                "LB" => "บ้านพร้อมที่ดิน",
-                "L"  => "ที่ดินจัดสรร",
-                _    => projectTypeCode
-            };
+            : projectTypeLabel;
 
         // Per-unit table rows — branch on ProjectType
         var buildingUnits = new List<BlockBuildingUnitRow>();
@@ -348,12 +349,16 @@ public sealed class AppraisalSummaryBlockDataProvider(
             AoName              = common.AoName,
             AppraisalPurpose    = common.AppraisalPurpose,
             PropertyType        = propertyTypeDisplay,
+            // Field 22 — opinion-section property type: the project kind only, not the
+            // mix of Request collateral types shown in the header.
+            SummaryPropertyType = projectTypeLabel,
 
             // ที่ตั้งทรัพย์สิน from the Request detail (same as the land-building form)
             CollateralAddress       = common.CollateralAddress,
             AdministrativeDistrict  = project.SubDistrict,
             LandOffice              = project.LandOffice,
             OldAppraisalValue       = common.PrevAppraisedValue,
+            HasPrevAppraisal        = common.HasPrevAppraisal,
             IsReAppraisal           = string.Equals(common.AppraisalType, "ReAppraisal", StringComparison.OrdinalIgnoreCase),
 
             Appraiser  = common.Appraiser,

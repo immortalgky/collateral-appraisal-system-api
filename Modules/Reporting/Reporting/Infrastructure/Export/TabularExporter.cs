@@ -26,6 +26,7 @@ internal sealed class TabularExporter(
         ReportFormat format,
         string? title = null,
         IReadOnlyList<FilterCriterion>? appliedFilters = null,
+        IReadOnlyList<ReportSignoff>? signoffs = null,
         CancellationToken cancellationToken = default)
     {
         var timestamp = dateTimeProvider.ApplicationNow.ToString("yyyyMMdd-HHmmss", Inv);
@@ -33,20 +34,28 @@ internal sealed class TabularExporter(
         return format switch
         {
             ReportFormat.Csv => new ReportFile(
-                BuildCsv(rows, columns, appliedFilters),
+                BuildCsv(rows, columns, appliedFilters, signoffs),
                 "text/csv",
                 $"{baseName}-{timestamp}.csv"),
 
             ReportFormat.Pdf => new ReportFile(
-                await pdfRenderer.RenderAsync(BuildHtml(rows, columns, title, appliedFilters), cancellationToken),
+                await pdfRenderer.RenderAsync(BuildHtml(rows, columns, title, appliedFilters, signoffs), cancellationToken),
                 "application/pdf",
                 $"{baseName}-{timestamp}.pdf"),
 
             _ => new ReportFile(
-                BuildExcel(rows, columns, title, appliedFilters),
+                BuildExcel(rows, columns, ReportCode(baseName), title, appliedFilters, signoffs),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 $"{baseName}-{timestamp}.xlsx"),
         };
+    }
+
+    // The report code that heads the Excel sheet, taken from the file-name stem:
+    // "RCAS003-MonthlyWorkload" -> "RCAS003". Stems without a dash are used as-is.
+    private static string ReportCode(string baseName)
+    {
+        var dash = baseName.IndexOf('-');
+        return dash > 0 ? baseName[..dash] : baseName;
     }
 
     // "Label: Value" lines for the applied-filter block; a single "(none)" line when nothing was set.
@@ -60,14 +69,23 @@ internal sealed class TabularExporter(
     // ---------- Excel ----------
 
     private static byte[] BuildExcel<T>(
-        IReadOnlyList<T> rows, IReadOnlyList<ReportColumn<T>> columns, string? title,
-        IReadOnlyList<FilterCriterion>? appliedFilters)
+        IReadOnlyList<T> rows, IReadOnlyList<ReportColumn<T>> columns, string reportCode, string? title,
+        IReadOnlyList<FilterCriterion>? appliedFilters, IReadOnlyList<ReportSignoff>? signoffs)
     {
         using var workbook = new XLWorkbook();
         var ws = workbook.Worksheets.Add("Report");
         var span = Math.Max(1, columns.Count);
 
         var headerRow = 1;
+        if (!string.IsNullOrWhiteSpace(reportCode))
+        {
+            ws.Cell(headerRow, 1).Value = reportCode;
+            ws.Range(headerRow, 1, headerRow, span).Merge();
+            ws.Row(headerRow).Style.Font.Bold = true;
+            ws.Row(headerRow).Style.Font.FontSize = 13;
+            headerRow++;
+        }
+
         if (!string.IsNullOrWhiteSpace(title))
         {
             ws.Cell(headerRow, 1).Value = title;
@@ -80,11 +98,7 @@ internal sealed class TabularExporter(
         var filterLines = FilterLines(appliedFilters);
         if (filterLines.Count > 0)
         {
-            ws.Cell(headerRow, 1).Value = "Applied filters";
-            ws.Range(headerRow, 1, headerRow, span).Merge();
-            ws.Row(headerRow).Style.Font.Bold = true;
-            headerRow++;
-
+            // The criteria lines are self-describing ("Status: Approved"), so no heading above them.
             foreach (var line in filterLines)
             {
                 ws.Cell(headerRow, 1).Value = line;
@@ -125,6 +139,27 @@ internal sealed class TabularExporter(
             }
 
             ws.Row(r).Style.Font.Bold = true;
+            r++;
+        }
+
+        // Sign-off footer, below the table with a spacer row. A null value leaves an underlined
+        // blank cell to be signed by hand.
+        if (signoffs is { Count: > 0 })
+        {
+            r++;
+            foreach (var s in signoffs)
+            {
+                ws.Cell(r, 1).Value = $"{s.Label}:";
+                ws.Cell(r, 1).Style.Font.Bold = true;
+
+                if (string.IsNullOrWhiteSpace(s.Value))
+                    ws.Range(r, 2, r, Math.Min(3, Math.Max(2, span)))
+                        .Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+                else
+                    ws.Cell(r, 2).Value = s.Value;
+
+                r++;
+            }
         }
 
         ws.Columns().AdjustToContents();
@@ -170,7 +205,7 @@ internal sealed class TabularExporter(
 
     private static byte[] BuildCsv<T>(
         IReadOnlyList<T> rows, IReadOnlyList<ReportColumn<T>> columns,
-        IReadOnlyList<FilterCriterion>? appliedFilters)
+        IReadOnlyList<FilterCriterion>? appliedFilters, IReadOnlyList<ReportSignoff>? signoffs)
     {
         var sb = new StringBuilder();
 
@@ -188,6 +223,15 @@ internal sealed class TabularExporter(
 
         foreach (var row in rows)
             sb.AppendLine(string.Join(',', columns.Select(c => CsvCell(FormatText(c.Value(row), c.Format)))));
+
+        // Sign-off footer as trailing '#' comment lines, matching the applied-filter block above and
+        // keeping the data grid itself machine-readable.
+        if (signoffs is { Count: > 0 })
+        {
+            sb.AppendLine();
+            foreach (var s in signoffs)
+                sb.AppendLine("# " + CsvCell($"{s.Label}: {s.Value}".TrimEnd()));
+        }
 
         // UTF-8 BOM so Excel opens Thai text with the right encoding.
         return Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
@@ -211,7 +255,7 @@ internal sealed class TabularExporter(
 
     private static string BuildHtml<T>(
         IReadOnlyList<T> rows, IReadOnlyList<ReportColumn<T>> columns, string? title,
-        IReadOnlyList<FilterCriterion>? appliedFilters)
+        IReadOnlyList<FilterCriterion>? appliedFilters, IReadOnlyList<ReportSignoff>? signoffs)
     {
         var sb = new StringBuilder();
         sb.Append("""
@@ -226,6 +270,10 @@ internal sealed class TabularExporter(
             tr:nth-child(even) td{background:#f6f6f6}
             td.num{text-align:right}
             tfoot td{font-weight:bold;background:#e9e9e9}
+            .signoff{margin-top:24px;page-break-inside:avoid}
+            .signoff div{display:inline-block;margin-right:48px;vertical-align:bottom}
+            .signoff strong{display:block;margin-bottom:4px}
+            .sigline{border-bottom:1px solid #111;min-width:180px;height:18px}
             </style></head><body>
             """);
 
@@ -278,7 +326,20 @@ internal sealed class TabularExporter(
             sb.Append("</tr></tfoot>");
         }
 
-        sb.Append("</table></body></html>");
+        sb.Append("</table>");
+
+        if (signoffs is { Count: > 0 })
+        {
+            sb.Append("<div class=\"signoff\">");
+            foreach (var s in signoffs)
+            {
+                sb.Append("<div><strong>").Append(HtmlEnc(s.Label)).Append(":</strong>");
+                sb.Append("<div class=\"sigline\">").Append(HtmlEnc(s.Value ?? "")).Append("</div></div>");
+            }
+            sb.Append("</div>");
+        }
+
+        sb.Append("</body></html>");
         return sb.ToString();
     }
 

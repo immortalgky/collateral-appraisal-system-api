@@ -195,9 +195,14 @@ internal static class LandSectionLoader
                 rows.Sum(r => r.AreaNgan ?? 0m),
                 rows.Sum(r => r.AreaSquareWa ?? 0m));
 
-            // ตรวจสอบจาก — check-method code → Thai; fall back to the free-text "Other"
+            // ตรวจสอบจาก — check-method code → Thai. Code 99 ("other") shows the free-text
+            // remark instead of the "อื่นๆ" label; for any other code we still fall back to
+            // the remark only when the code resolves to nothing.
             string? checkedFrom = Resolve("CheckBy", landRow.LandCheckMethodType);
-            if (string.IsNullOrWhiteSpace(checkedFrom))
+            if (landRow.LandCheckMethodType == OtherCode &&
+                !string.IsNullOrWhiteSpace(landRow.LandCheckMethodTypeOther))
+                checkedFrom = landRow.LandCheckMethodTypeOther;
+            else if (string.IsNullOrWhiteSpace(checkedFrom))
                 checkedFrom = landRow.LandCheckMethodTypeOther;
 
             sections.Add(new LandSection
@@ -239,6 +244,10 @@ internal static class LandSectionLoader
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
+
+    /// <summary>Parameter code that means "other" — its paired *Other free text is shown
+    /// instead of the generic "อื่นๆ" description.</summary>
+    private const string OtherCode = "99";
 
     /// <summary>Shared empty map so unmapped groups fall through to the raw code.</summary>
     private static readonly IReadOnlyDictionary<string, string?> EmptyMap =

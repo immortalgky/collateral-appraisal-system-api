@@ -33,7 +33,10 @@ public class SaleGridCalculationService : IPricingCalculationService
             method.FinalValue.UpdateFinalValue(finalValue, finalValueRounded);
         }
 
-        method.SetValue(finalValueRounded);
+        // Persist the resolved price unit (PerSqWa/PerSqm → per-unit rate; PerUnit → lumpsum).
+        var unitType = PricingCalculationHelper.ResolvePriceUnit(method.Calculations);
+        var valuePerUnit = PricingUnit.IsPerUnitRate(unitType) ? finalValueRounded : (decimal?)null;
+        method.SetValue(finalValueRounded, valuePerUnit, unitType);
     }
 
     private static void RecalculateForComparable(PricingAnalysisMethod method, PricingCalculation calc)

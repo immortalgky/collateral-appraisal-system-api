@@ -14,4 +14,7 @@ public sealed record Rcas008Row(
     int? ScoreResponseTime,
     int? ScoreCoordination,
     string? Remark,
-    string? EvaluationStatus);
+    string? EvaluationStatus,
+    string? InternalAppraisalStaff,
+    string? PurposeCode,
+    string? AppraisalType);

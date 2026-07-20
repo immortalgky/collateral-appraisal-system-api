@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Reporting.Application.Formatting;
 using Reporting.Application.Models;
 using Reporting.Application.Services;
@@ -11,11 +12,13 @@ namespace Reporting.Application.Providers;
 /// Common queries (Q1–Q14 + ColTypeMap) are delegated to
 /// <see cref="AppraisalSummaryCommonLoader"/> (itself batched in Phase C).
 ///
-/// Phase C — this provider batches its own 3 condo-specific queries into one
+/// Phase C — this provider batches its own condo-specific queries into one
 /// QueryMultiple call (single round-trip):
 ///   RS01  QC1  appraisal.CondoAppraisalDetails — first-property header
 ///   RS02  QC2  appraisal.CondoAppraisalAreaDetails — area breakdown rows
 ///   RS03  QC3  appraisal.PropertyGroupItems + CondoAppraisalDetails — per-group detail
+///   RS04       parameter.Parameters — LandEntranceExit code→Thai map (สิทธิทางเข้า-ออก)
+///   RS05       parameter.Parameters — LandUse code→Thai map (สภาพการใช้ประโยชน์)
 /// </summary>
 public sealed class AppraisalSummaryCondoDataProvider(
     ISqlConnectionFactory connectionFactory,
@@ -50,7 +53,9 @@ public sealed class AppraisalSummaryCondoDataProvider(
                 cad.UsableArea,
                 cad.BuildingConditionType,
                 cad.BuildingConditionTypeOther,
-                COALESCE(ptBC.Description, cad.BuildingConditionTypeOther, cad.BuildingConditionType)
+                CASE WHEN cad.BuildingConditionType = '99' AND NULLIF(cad.BuildingConditionTypeOther, '') IS NOT NULL
+                     THEN cad.BuildingConditionTypeOther
+                     ELSE COALESCE(ptBC.Description, cad.BuildingConditionTypeOther, cad.BuildingConditionType) END
                     AS BuildingConditionDisplay,
                 cad.BuildingAge,
                 cad.OwnerName,
@@ -63,7 +68,18 @@ public sealed class AppraisalSummaryCondoDataProvider(
                 COALESCE(tprov.NameTh, cad.Province)    AS Province,
                 COALESCE(pLandOffice.[description], cad.LandOffice) AS LandOffice,
                 cad.Latitude,
-                cad.Longitude
+                cad.Longitude,
+                cad.LandEntranceExitType,
+                cad.LandEntranceExitTypeOther,
+                CASE WHEN cad.LandFillType = '99' AND NULLIF(cad.LandFillTypeOther, '') IS NOT NULL
+                     THEN cad.LandFillTypeOther
+                     ELSE COALESCE(pFill.Description, cad.LandFillTypeOther, cad.LandFillType) END
+                    AS LandFillDisplay,
+                COALESCE(pUrban.Description, cad.UrbanPlanningType) AS UrbanPlanningType,
+                cad.LandUseType,
+                cad.LandUseTypeOther,
+                cad.GovernmentPricePerSqm,
+                cad.GovernmentPrice
             FROM appraisal.CondoAppraisalDetails cad
             JOIN appraisal.AppraisalProperties ap ON ap.Id = cad.AppraisalPropertyId
             LEFT JOIN parameter.Parameters ptBC
@@ -79,6 +95,16 @@ public sealed class AppraisalSummaryCondoDataProvider(
                AND pLandOffice.[language] = 'TH'
                AND pLandOffice.[isactive] = 1
                AND pLandOffice.[code]     = cad.LandOffice
+            LEFT JOIN parameter.Parameters pFill
+                ON pFill.[Group] = 'Landfill'
+               AND pFill.[Language] = 'TH'
+               AND pFill.[Code] = cad.LandFillType
+               AND pFill.IsActive = 1
+            LEFT JOIN parameter.Parameters pUrban
+                ON pUrban.[Group] = 'TypeOfUrbanPlanning'
+               AND pUrban.[Language] = 'TH'
+               AND pUrban.[Code] = cad.UrbanPlanningType
+               AND pUrban.IsActive = 1
             WHERE ap.AppraisalId = @AppraisalId
             ORDER BY ap.SequenceNumber;
 
@@ -91,7 +117,10 @@ public sealed class AppraisalSummaryCondoDataProvider(
             JOIN appraisal.CondoAppraisalAreaDetails cada ON cada.CondoAppraisalDetailsId = cad.Id
             JOIN appraisal.AppraisalProperties ap ON ap.Id = cad.AppraisalPropertyId
             WHERE ap.AppraisalId = @AppraisalId
-            ORDER BY cad.Id, cada.AreaDescription;
+            -- Order by creation sequence: CondoAppraisalAreaDetails has no Seq/CreatedOn
+            -- column, but its Id is a Guid v7 whose canonical text form sorts by creation
+            -- time (native uniqueidentifier sort does not).
+            ORDER BY cad.Id, CONVERT(char(36), cada.Id);
 
             -- RS03: QC3 — Per-group condo detail rows
             SELECT
@@ -111,7 +140,9 @@ public sealed class AppraisalSummaryCondoDataProvider(
                 COALESCE(tsub.NameTh,  cad.SubDistrict) AS SubDistrict,
                 COALESCE(tdist.NameTh, cad.District)    AS District,
                 COALESCE(tprov.NameTh, cad.Province)    AS Province,
-                COALESCE(ptBC.Description, cad.BuildingConditionTypeOther, cad.BuildingConditionType)
+                CASE WHEN cad.BuildingConditionType = '99' AND NULLIF(cad.BuildingConditionTypeOther, '') IS NOT NULL
+                     THEN cad.BuildingConditionTypeOther
+                     ELSE COALESCE(ptBC.Description, cad.BuildingConditionTypeOther, cad.BuildingConditionType) END
                     AS BuildingConditionDisplay
             FROM appraisal.PropertyGroupItems pgi
             JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
@@ -126,6 +157,16 @@ public sealed class AppraisalSummaryCondoDataProvider(
             LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = cad.SubDistrict
             WHERE ap.AppraisalId = @AppraisalId
             ORDER BY pgi.PropertyGroupId, pgi.SequenceInGroup;
+
+            -- RS04: LandEntranceExit code→Thai map (สิทธิทางเข้า-ออก, JSON code list)
+            SELECT [code] AS Code, [description] AS Description
+            FROM parameter.Parameters
+            WHERE [group] = 'LandEntranceExit' AND [language] = 'TH' AND [isactive] = 1;
+
+            -- RS05: LandUse code→Thai map (สภาพการใช้ประโยชน์, JSON code list)
+            SELECT [code] AS Code, [description] AS Description
+            FROM parameter.Parameters
+            WHERE [group] = 'LandUse' AND [language] = 'TH' AND [isactive] = 1;
             """;
 
         var p = new DynamicParameters();
@@ -134,6 +175,8 @@ public sealed class AppraisalSummaryCondoDataProvider(
         FirstCondoRow? firstCondo;
         List<CondoAreaDetailRow> areaDetailRows;
         List<GroupCondoDetailRow> groupCondoRows;
+        List<ParamRow> entranceExitParams;
+        List<ParamRow> landUseParams;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, p))
         {
@@ -145,7 +188,28 @@ public sealed class AppraisalSummaryCondoDataProvider(
 
             // RS03
             groupCondoRows = (await multi.ReadAsync<GroupCondoDetailRow>()).ToList();
+
+            // RS04
+            entranceExitParams = (await multi.ReadAsync<ParamRow>()).ToList();
+
+            // RS05
+            landUseParams = (await multi.ReadAsync<ParamRow>()).ToList();
         }
+
+        var entranceExitMap = ToParamMap(entranceExitParams);
+        var landUseMap = ToParamMap(landUseParams);
+
+        // สิทธิทางเข้า-ออก / สภาพการใช้ประโยชน์ — JSON code-list columns, code 99 = "other"
+        // (paired *Other free text replaces the "อื่นๆ" description; see OtherCode below).
+        string? entryExitRights = DecodeJsonArrayWithTranslation(
+            firstCondo?.LandEntranceExitType, firstCondo?.LandEntranceExitTypeOther, entranceExitMap);
+        string? utilization = DecodeJsonArrayWithTranslation(
+            firstCondo?.LandUseType, firstCondo?.LandUseTypeOther, landUseMap);
+
+        // ราคาประเมินราชการ — condo is priced per SQUARE METRE (not per sq-wa, unlike land).
+        string? governmentPriceText = firstCondo?.GovernmentPricePerSqm is { } gpps
+            ? $"ตารางเมตรละ {gpps:N2} บาท"
+            : null;
 
         var gps = ThaiAddressFormatter.FormatGps(firstCondo?.Latitude, firstCondo?.Longitude);
 
@@ -228,8 +292,9 @@ public sealed class AppraisalSummaryCondoDataProvider(
 
             var collateralDetails = detailParts.Count > 0 ? string.Join(" | ", detailParts) : null;
 
-            var unitCount = condoRows.Count > 0 ? condoRows.Count : g.PropertyCount;
-            var areaOrUnit = unitCount > 0 ? $"{unitCount:0.00}" : null;
+            // Condo does not show a unit count in the พื้นที่ / จำนวน column (a bare "1.00"
+            // is meaningless); the column is left blank.
+            var areaOrUnit = (string?)null;
 
             return new SummaryGroupRow
             {
@@ -265,6 +330,7 @@ public sealed class AppraisalSummaryCondoDataProvider(
             AdministrativeDistrict = firstCondo?.SubDistrict,
             LandOffice = firstCondo?.LandOffice,
             OldAppraisalValue = common.PrevAppraisedValue,
+            HasPrevAppraisal = common.HasPrevAppraisal,
             IsReAppraisal = string.Equals(common.AppraisalType, "ReAppraisal", StringComparison.OrdinalIgnoreCase),
             IsIncreaseLimit = common.IsIncreaseLimit,
             ExistingLoanValue = common.ExistingLoanValue,
@@ -277,14 +343,19 @@ public sealed class AppraisalSummaryCondoDataProvider(
             Condition = common.Condition,
             Remark = common.Remark,
             LandOwner = firstCondo?.OwnerName,
-            EntryExitRights = null,
+            EntryExitRights = entryExitRights,
             BuildingOwner = null,
-            LandCondition = null,
+            LandCondition = firstCondo?.LandFillDisplay,
+            LandConditions = string.IsNullOrWhiteSpace(firstCondo?.LandFillDisplay)
+                ? []
+                : [firstCondo!.LandFillDisplay!],
             Obligation = firstCondo?.ObligationDetails,
-            CityPlan = null,
+            CityPlan = firstCondo?.UrbanPlanningType,
             Gps = gps,
-            GovernmentAssessedValue = null,
-            Utilization = null,
+            GovernmentAssessedValue = firstCondo?.GovernmentPrice,
+            GovernmentPriceText = governmentPriceText,
+            Utilization = utilization,
+            Utilizations = string.IsNullOrWhiteSpace(utilization) ? [] : [utilization!],
             MachineType = null,
             MarketDemandConditions = null,
             IsWqs = methodFlags.IsWqs,
@@ -344,6 +415,14 @@ public sealed class AppraisalSummaryCondoDataProvider(
         public string? LandOffice { get; init; }
         public decimal? Latitude { get; init; }
         public decimal? Longitude { get; init; }
+        public string? LandEntranceExitType { get; init; }
+        public string? LandEntranceExitTypeOther { get; init; }
+        public string? LandFillDisplay { get; init; }
+        public string? UrbanPlanningType { get; init; }
+        public string? LandUseType { get; init; }
+        public string? LandUseTypeOther { get; init; }
+        public decimal? GovernmentPricePerSqm { get; init; }
+        public decimal? GovernmentPrice { get; init; }
     }
 
     private sealed class CondoAreaDetailRow
@@ -372,5 +451,69 @@ public sealed class AppraisalSummaryCondoDataProvider(
         public string? District { get; init; }
         public string? Province { get; init; }
         public string? BuildingConditionDisplay { get; init; }
+    }
+
+    private sealed class ParamRow
+    {
+        public string? Code { get; init; }
+        public string? Description { get; init; }
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────────
+    // Mirrors CondoSectionLoader's OtherCode / TranslateCode / DecodeJsonArrayWithTranslation
+    // (kept as a faithful copy per this module's existing convention — see the identical
+    // JsonCodesToThai mirrors in LandSectionLoader / SaleGridSectionLoader / ComparisonSectionLoader).
+
+    /// <summary>Parameter code that means "other" — its paired *Other free text is shown
+    /// instead of the generic "อื่นๆ" description.</summary>
+    private const string OtherCode = "99";
+
+    private static Dictionary<string, string?> ToParamMap(IEnumerable<ParamRow> rows) =>
+        rows.Where(p => !string.IsNullOrWhiteSpace(p.Code))
+            .GroupBy(p => p.Code!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Description, StringComparer.OrdinalIgnoreCase);
+
+    private static string? TranslateCode(string? code, IReadOnlyDictionary<string, string?> map)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+            return null;
+        return map.TryGetValue(code, out var desc) && !string.IsNullOrWhiteSpace(desc) ? desc : code;
+    }
+
+    /// <summary>
+    /// Decodes a JSON array of codes, translates each code, then joins with comma.
+    /// Code 99 ("other") shows the paired free-text remark instead of the "อื่นๆ" description.
+    /// </summary>
+    private static string? DecodeJsonArrayWithTranslation(
+        string? json, string? other, IReadOnlyDictionary<string, string?> map)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return string.IsNullOrWhiteSpace(other) ? null : other;
+
+        List<string>? codes;
+        try
+        {
+            codes = JsonSerializer.Deserialize<List<string>>(json);
+        }
+        catch (JsonException)
+        {
+            return json.Trim() == OtherCode && !string.IsNullOrWhiteSpace(other) ? other : json.Trim();
+        }
+
+        var trimmedOther = string.IsNullOrWhiteSpace(other) ? null : other!.Trim();
+
+        if (codes is null or { Count: 0 })
+            return trimmedOther;
+
+        var present = codes.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
+        var hasOtherCode = present.Any(c => c == OtherCode);
+        var labels = present
+            .Select(c => c == OtherCode && trimmedOther != null ? trimmedOther : (TranslateCode(c, map) ?? c))
+            .ToList();
+
+        if (trimmedOther != null && !hasOtherCode)
+            labels.Add(trimmedOther);
+
+        return labels.Count > 0 ? string.Join(", ", labels) : null;
     }
 }

@@ -45,6 +45,14 @@ public record CreateCondoPropertyCommand(
     string? RoadSurfaceTypeOther = null,
     List<string>? PublicUtilityType = null,
     string? PublicUtilityTypeOther = null,
+    List<string>? LandEntranceExitType = null,
+    string? LandEntranceExitTypeOther = null,
+    // Land Characteristics
+    string? LandFillType = null,
+    string? LandFillTypeOther = null,
+    string? UrbanPlanningType = null,
+    List<string>? LandUseType = null,
+    string? LandUseTypeOther = null,
     // Building Info
     string? DecorationType = null,
     string? DecorationTypeOther = null,
@@ -81,6 +89,8 @@ public record CreateCondoPropertyCommand(
     string? FacilityTypeOther = null,
     List<string>? EnvironmentType = null,
     // Pricing
+    decimal? GovernmentPricePerSqm = null,
+    decimal? GovernmentPrice = null,
     decimal? BuildingInsurancePrice = null,
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,

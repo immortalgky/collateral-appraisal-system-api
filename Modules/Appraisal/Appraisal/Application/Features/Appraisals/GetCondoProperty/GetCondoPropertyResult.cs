@@ -49,6 +49,14 @@ public record GetCondoPropertyResult(
     string? RoadSurfaceTypeOther,
     List<string>? PublicUtilityType,
     string? PublicUtilityTypeOther,
+    List<string>? LandEntranceExitType,
+    string? LandEntranceExitTypeOther,
+    // Land Characteristics
+    string? LandFillType,
+    string? LandFillTypeOther,
+    string? UrbanPlanningType,
+    List<string>? LandUseType,
+    string? LandUseTypeOther,
     // Building Info
     string? DecorationType,
     string? DecorationTypeOther,
@@ -84,6 +92,8 @@ public record GetCondoPropertyResult(
     string? FacilityTypeOther,
     List<string>? EnvironmentType,
     // Pricing
+    decimal? GovernmentPricePerSqm,
+    decimal? GovernmentPrice,
     decimal? BuildingInsurancePrice,
     decimal? SellingPrice,
     decimal? ForceSellingPrice,

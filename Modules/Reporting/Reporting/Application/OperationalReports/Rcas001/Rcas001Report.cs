@@ -9,6 +9,7 @@ public sealed record Rcas001Filter(
     DateTime? CreatedFrom,
     DateTime? CreatedTo,
     string? Status,
+    string? DepartmentCode,
     string? BankingSegment,
     string? AppraisalNumber,
     string? SortBy,
@@ -32,17 +33,27 @@ internal static class Rcas001Report
         Title = "รายงานเล่มประเมินตามช่วงเวลา & ตามสถานะของงาน & ตามฝ่ายงาน",
         Build = Build,
         OrderBy = f => ReportFilterSql.OrderBy(f.SortBy, f.SortDir, AllowedSort, "AppraisalNumber"),
+        // FSD field #1 "Running No." (Running Record): a 1..N ordinal over the sorted export set.
+        // Export sorts before this runs, so it matches display order; preview enriches per page, so
+        // the number restarts each page (acceptable — the report's deliverable is the Excel export).
+        EnrichAsync = (rows, _) =>
+        {
+            for (var i = 0; i < rows.Count; i++) rows[i].RunningNo = i + 1;
+            return Task.CompletedTask;
+        },
         DescribeFilter = f =>
         [
             new("Created From", f.CreatedFrom?.ToString("yyyy-MM-dd")),
             new("Created To", f.CreatedTo?.ToString("yyyy-MM-dd")),
             new("Status", f.Status),
+            new("Requestor Dept.", f.DepartmentCode),
             new("Retail/IBG", f.BankingSegment, "BankingSegment"),
             new("Appraisal No.", f.AppraisalNumber),
         ],
         Columns =
         [
-            new("Appraisal Create Date", r => r.AppraisalCreateDate, ColumnFormat.DateTime),
+            new("Running No.", r => r.RunningNo, ColumnFormat.Integer),
+            new("Created Date", r => r.AppraisalCreateDate, ColumnFormat.DateTime),
             new("Appraisal No.", r => r.AppraisalNumber),
             new("Customer Name", r => r.CustomerName),
             new("Purpose", r => r.AppraisalPurpose),
@@ -67,7 +78,8 @@ internal static class Rcas001Report
 
         ReportFilterSql.DateRange(c, p, f.CreatedFrom, f.CreatedTo, "AppraisalCreateDate", "Created");
         ReportFilterSql.MultiValue(c, p, f.Status, "AppraisalStatus", "Statuses");
-        ReportFilterSql.Exact(c, p, f.BankingSegment, "BankingSegment", "BankingSegment");
+        ReportFilterSql.Exact(c, p, f.DepartmentCode, "RequestorDepartment", "DepartmentCode");
+        ReportFilterSql.MultiValue(c, p, f.BankingSegment, "BankingSegment", "BankingSegments");
         ReportFilterSql.Contains(c, p, f.AppraisalNumber, "AppraisalNumber", "AppraisalNumber");
 
         return ("SELECT * FROM reporting.vw_RCAS001_AppraisalBooks" + ReportFilterSql.Where(c), p);

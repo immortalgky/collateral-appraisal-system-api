@@ -52,7 +52,11 @@ public class WqsCalculationService : IPricingCalculationService
                 method.FinalValue.UpdateFinalValue(fv, fvRounded);
             }
 
-            method.SetValue(fvRounded);
+            // Persist the resolved price unit so consumers read it instead of re-deriving.
+            // PerSqWa/PerSqm → per-unit rate (ValuePerUnit = the computed value); PerUnit → lumpsum.
+            var unitType = PricingCalculationHelper.ResolvePriceUnit(method.Calculations);
+            var valuePerUnit = PricingUnit.IsPerUnitRate(unitType) ? fvRounded : (decimal?)null;
+            method.SetValue(fvRounded, valuePerUnit, unitType);
 
             // Use user's FinalValueRounded (if set) for lowest/highest center
             var centerValue = (double)method.FinalValue!.FinalValueRounded;

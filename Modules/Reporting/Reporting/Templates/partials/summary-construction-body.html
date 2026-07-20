@@ -73,10 +73,12 @@
         <td class="ctr">{{ if model.additional_progress_pct }}{{ model.additional_progress_pct | math.format "N2" }}%{{ else }}-{{ end }}</td>
         <td class="ctr">{{ if model.total_progress_pct }}{{ model.total_progress_pct | math.format "N2" }}%{{ else }}-{{ end }}</td>
       </tr>
+      {{ if model.construction_remark }}
       <tr>
         <td><strong>หมายเหตุ</strong></td>
         <td colspan="3" class="brk">{{ model.construction_remark }}</td>
       </tr>
+      {{ end }}
     </tbody>
   </table>
 

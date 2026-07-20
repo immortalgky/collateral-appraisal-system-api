@@ -161,13 +161,13 @@
       </tr>
     </thead>
     <tbody>
-      <!-- PART A: registration value (per-sqm rate + amount have no source → "-") -->
+      <!-- PART A: registration value — rate/amount apply to the whole unit, shown on the interior-area row -->
       <tr><td colspan="4"><strong>ราคาประเมินทุนทรัพย์ห้องชุดในการจดทะเบียนสิทธิ์และนิติกรรม</strong></td></tr>
       <tr>
         <td>พื้นที่ภายในห้องชุด</td>
-        <td class="num">-</td>
+        <td class="num">{{ if cval.registration_price_per_sqm; cval.registration_price_per_sqm | math.format "N2"; else; "-"; end }}</td>
         <td class="num">{{ if cval.interior_area; cval.interior_area | math.format "N2"; else; "-"; end }}</td>
-        <td class="num">-</td>
+        <td class="num">{{ if cval.registration_amount; cval.registration_amount | math.format "N2"; else; "-"; end }}</td>
       </tr>
       <tr><td colspan="4">พื้นที่ภายนอกห้องชุด</td></tr>
       <tr>

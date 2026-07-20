@@ -37,6 +37,7 @@ public class MachineryCostCalculationService : IPricingCalculationService
                 totalFmv += item.FairMarketValue.Value;
         }
 
-        method.SetValue(totalFmv);
+        // Machinery cost is always a whole-unit lumpsum (sum of per-machine FMV).
+        method.SetValue(totalFmv, null, PricingUnit.PerUnit);
     }
 }

@@ -518,6 +518,12 @@ public class Appraisal : Aggregate<Guid>
         if (property is null)
             throw new InvalidOperationException($"Property {propertyId} not found");
 
+        // Remove the property from its group first so no dangling PropertyGroupItem is left
+        // behind (there is no FK to cascade this). Groups is an owned collection and is loaded
+        // with the aggregate, so this is safe when the appraisal was loaded for a delete.
+        var owningGroup = _groups.FirstOrDefault(g => g.Items.Any(i => i.AppraisalPropertyId == propertyId));
+        owningGroup?.RemoveProperty(propertyId);
+
         _properties.Remove(property);
 
         // Resequence remaining properties
@@ -563,17 +569,6 @@ public class Appraisal : Aggregate<Guid>
             throw new InvalidOperationException($"Property {propertyId} is already in group {existingGroup.GroupName}");
 
         group.AddProperty(propertyId);
-    }
-
-    /// <summary>
-    /// Remove a property from a group
-    /// </summary>
-    public void RemovePropertyFromGroup(Guid groupId, Guid propertyId)
-    {
-        var group = _groups.FirstOrDefault(g => g.Id == groupId)
-                    ?? throw new InvalidOperationException($"Group {groupId} not found");
-
-        group.RemoveProperty(propertyId);
     }
 
     /// <summary>

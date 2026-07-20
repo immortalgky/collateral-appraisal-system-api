@@ -198,6 +198,11 @@ public class AppraisalDbContext : DbContext
     public DbSet<AppendixDocument> AppendixDocuments => Set<AppendixDocument>();
 
     // =====================================================
+    // Valuation Document Checklist Entities
+    // =====================================================
+    public DbSet<AppraisalDocument> AppraisalDocuments => Set<AppraisalDocument>();
+
+    // =====================================================
     // Supporting Data Maintenance
     // =====================================================
     public DbSet<Domain.SupportingDataMaintenance.SupportingData> SupportingData => Set<Domain.SupportingDataMaintenance.SupportingData>();

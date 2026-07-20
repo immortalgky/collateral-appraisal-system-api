@@ -44,8 +44,8 @@
       {{ if model.groups.size == 0 }}
       <tr><td colspan="5" style="height:34px;">&nbsp;</td></tr>
       {{ end }}
-      <tr><td><strong>เงื่อนไข</strong></td><td colspan="4" class="brk">{{ model.condition }}</td></tr>
-      <tr><td><strong>หมายเหตุ</strong></td><td colspan="4" class="brk">{{ model.remark }}</td></tr>
+      {{ if model.condition }}<tr><td><strong>เงื่อนไข</strong></td><td colspan="4" class="brk">{{ model.condition }}</td></tr>{{ end }}
+      {{ if model.remark }}<tr><td><strong>หมายเหตุ</strong></td><td colspan="4" class="brk">{{ model.remark }}</td></tr>{{ end }}
     </tbody>
   </table>
 
@@ -69,7 +69,7 @@
   </table>
 
   <!-- ════ ATTRIBUTES (machine-specific) ════ -->
-  <div class="pad sep machine-attrs">
+  <div class="pad machine-attrs attrs-block">
     <div class="cols2">
       <div class="kv"><span class="k">กรรมสิทธิ์เครื่องจักร</span><span class="v">{{ model.land_owner }}</span></div>
       <div class="kv"><span class="k">สภาพความต้องการของตลาด</span><span class="v">{{ model.market_demand_conditions }}</span></div>
@@ -89,14 +89,16 @@
   </div>
 
   <!-- ════ APPRAISER OPINION ════ -->
+  <div class="opinion-block">
   <div class="section-bar">สรุปความเห็นผู้ประเมิน</div>
   <div class="pad">
     {{ if model.property_type }}<div class="opinion-type">{{ model.property_type }}</div>{{ end }}
-    <div class="comment-box">{{ model.appraiser_comment }}</div>
+    <div class="comment-box">{{ if model.appraiser_comment; model.appraiser_comment; else; "-"; end }}</div>
   </div>
 
   <!-- ════ SIGN-OFF + COMMITTEE (shared partial) ════ -->
   {{ include 'partials/summary-signoff' }}
+  </div><!-- .opinion-block -->
 
 </div>
 </body>

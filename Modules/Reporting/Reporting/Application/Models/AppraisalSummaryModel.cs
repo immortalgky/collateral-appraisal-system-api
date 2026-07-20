@@ -63,12 +63,20 @@ public sealed class AppraisalSummaryModel
     public string? LandOffice { get; init; }
 
     /// <summary>
-    /// Field 10 — Old appraisal value.
-    /// Only populated when AppraisalType is ReAppraisal; null otherwise.
+    /// Field 10 — Old appraisal value: the prior appraisal's live appraised value, resolved
+    /// through Appraisals.PrevAppraisalId. Null when there is no prior appraisal, or when the
+    /// prior appraisal has no valuation yet (in which case <see cref="HasPrevAppraisal"/> is
+    /// still true and the row renders with a dash).
     /// </summary>
     public decimal? OldAppraisalValue { get; init; }
 
-    /// <summary>True when AppraisalType is ReAppraisal — gates the ราคาประเมินเดิม row.</summary>
+    /// <summary>True when the appraisal has a PrevAppraisalId — gates the ราคาประเมินเดิม row.
+    /// Deliberately independent of AppraisalType: any appraisal carrying a prior-appraisal link
+    /// has a meaningful previous value to show.</summary>
+    public bool HasPrevAppraisal { get; init; }
+
+    /// <summary>True when AppraisalType is ReAppraisal. Still gates the วงเงินสินเชื่อ row
+    /// (hidden for reappraisals); no longer gates ราคาประเมินเดิม — see <see cref="HasPrevAppraisal"/>.</summary>
     public bool IsReAppraisal { get; init; }
 
     /// <summary>
@@ -528,14 +536,32 @@ public sealed class SummaryGroupRow
     /// <summary>Land title description (โฉนด…), without the building clause.</summary>
     public string? LandDescription { get; init; }
 
-    /// <summary>One entry per land title — rendered as separate lines in the cost-approach land row.</summary>
+    /// <summary>One entry per land title — rendered as separate lines in every land row.</summary>
     public List<string> LandDescriptions { get; init; } = [];
+
+    /// <summary>Building clause (พร้อม…), newline-joined per building. Shown after the land
+    /// titles in the market/combined land row (separated from the land title list).</summary>
+    public string? BuildingDescription { get; init; }
 
     /// <summary>Per-item detail lines (e.g. each machine) — rendered as a numbered list.</summary>
     public List<string> DetailItems { get; init; } = [];
 
     /// <summary>Total land area in square-wa (rai×400 + ngan×100 + sqwa). Cost approach only.</summary>
     public decimal? TotalSquareWa { get; init; }
+
+    // ── Market/combined land columns ──────────────────────────────────────────────
+    // Separate from TotalSquareWa/LandUnitPrice above, which the cost branch owns.
+
+    /// <summary>True when the market/combined row should render พื้นที่ + ราคาต่อหน่วย —
+    /// a land-only group priced at a per-unit rate (PerSqWa/PerSqm).</summary>
+    public bool ShowLandUnitColumns { get; init; }
+
+    /// <summary>Land area in square-wa for the market/combined row.</summary>
+    public decimal? MarketLandArea { get; init; }
+
+    /// <summary>Land rate per square-wa / square-metre for the market/combined row
+    /// (PricingAnalysisMethods.ValuePerUnit, else PricingFinalValues.FinalValueAdjusted).</summary>
+    public decimal? MarketLandUnitPrice { get; init; }
 
     /// <summary>Land price per square-wa (PricingFinalValues.FinalValueAdjusted). Cost approach only.</summary>
     public decimal? LandUnitPrice { get; init; }

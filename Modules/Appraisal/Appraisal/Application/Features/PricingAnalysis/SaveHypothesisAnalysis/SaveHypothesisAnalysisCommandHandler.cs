@@ -67,7 +67,7 @@ public class SaveHypothesisAnalysisCommandHandler(
 
             // Set method value from FSD C81 (TotalAssetValueRounded)
             var finalValue = snapshot.Summary.TotalAssetValueRounded ?? 0m;
-            method.SetValue(finalValue);
+            method.SetValue(finalValue, null, PricingUnit.PerUnit);
             MirrorToFinalValue(method, finalValue);
             // Land area and building value are not applicable for Hypothesis.
             method.FinalValue!.SetFinalValueAdjusted(command.FinalValueAdjusted);
@@ -89,7 +89,7 @@ public class SaveHypothesisAnalysisCommandHandler(
 
             // Set method value from FSD E58 (TotalAssetValueRounded)
             var finalValue = computedSummary.TotalAssetValueRounded ?? 0m;
-            method.SetValue(finalValue);
+            method.SetValue(finalValue, null, PricingUnit.PerUnit);
             MirrorToFinalValue(method, finalValue);
             // Land area and building value are not applicable for Hypothesis.
             method.FinalValue!.SetFinalValueAdjusted(command.FinalValueAdjusted);

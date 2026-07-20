@@ -13,8 +13,12 @@
   {{ include 'partials/summary-head' }}
     <div class="cols3">
       <div class="kv"><span class="k">เขตการปกครอง</span><span class="v">{{ model.administrative_district }}</span></div>
+      {{ if model.is_increase_limit || model.has_prev_appraisal }}
       <div class="kv"><span class="k">สำนักงานที่ดิน</span><span class="v">{{ model.land_office }}</span></div>
-      <div class="kv">{{ if model.is_increase_limit }}<span class="k">วงเงินสินเชื่อเดิม</span><span class="v">{{ if model.existing_loan_value; model.existing_loan_value | math.format "N2"; else; "-"; end }} บาท</span>{{ else if model.is_re_appraisal }}<span class="k">ราคาประเมินเดิม</span><span class="v">{{ if model.old_appraisal_value; model.old_appraisal_value | math.format "N2"; else; "-"; end }}</span>{{ end }}</div>
+      <div class="kv">{{ if model.is_increase_limit }}<span class="k">วงเงินสินเชื่อเดิม</span><span class="v">{{ if model.existing_loan_value; model.existing_loan_value | math.format "N2"; else; "-"; end }} บาท</span>{{ else if model.has_prev_appraisal }}<span class="k">ราคาประเมินเดิม</span><span class="v">{{ if model.old_appraisal_value; model.old_appraisal_value | math.format "N2"; else; "-"; end }}</span>{{ end }}</div>
+      {{ else }}
+      <div class="kv" style="grid-column:span 2;"><span class="k">สำนักงานที่ดิน</span><span class="v">{{ model.land_office }}</span></div>
+      {{ end }}
     </div>
     <div class="cols3">
       <div class="kv" style="grid-column:span 2;"><span class="k">ผู้ประเมินราคา</span><span class="v">{{ model.appraiser }}</span></div>
@@ -49,8 +53,8 @@
       {{ if model.groups.size == 0 }}
       <tr><td colspan="5" style="height:34px;">&nbsp;</td></tr>
       {{ end }}
-      <tr><td><strong>เงื่อนไข</strong></td><td colspan="4" class="brk">{{ model.condition }}</td></tr>
-      <tr><td><strong>หมายเหตุ</strong></td><td colspan="4" class="brk">{{ model.remark }}</td></tr>
+      {{ if model.condition }}<tr><td><strong>เงื่อนไข</strong></td><td colspan="4" class="brk">{{ model.condition }}</td></tr>{{ end }}
+      {{ if model.remark }}<tr><td><strong>หมายเหตุ</strong></td><td colspan="4" class="brk">{{ model.remark }}</td></tr>{{ end }}
     </tbody>
   </table>
 
@@ -74,7 +78,7 @@
   </table>
 
   <!-- ════ ATTRIBUTES (condo-specific) ════ -->
-  <div class="pad sep">
+  <div class="pad attrs-block">
     <div class="cols2">
       <div class="kv"><span class="k">กรรมสิทธิ์ห้องชุด</span><span class="v">{{ model.land_owner }}</span></div>
       <div class="kv"><span class="k">สิทธิทางเข้า-ออก</span><span class="v">{{ model.entry_exit_rights }}</span></div>
@@ -97,14 +101,16 @@
   </div>
 
   <!-- ════ APPRAISER OPINION ════ -->
+  <div class="opinion-block">
   <div class="section-bar">สรุปความเห็นผู้ประเมิน</div>
   <div class="pad">
     {{ if model.property_type }}<div class="opinion-type">{{ model.property_type }}</div>{{ end }}
-    <div class="comment-box">{{ model.appraiser_comment }}</div>
+    <div class="comment-box">{{ if model.appraiser_comment; model.appraiser_comment; else; "-"; end }}</div>
   </div>
 
   <!-- ════ SIGN-OFF + COMMITTEE (shared partial) ════ -->
   {{ include 'partials/summary-signoff' }}
+  </div><!-- .opinion-block -->
 
 </div>
 </body>

@@ -20,4 +20,5 @@ public sealed record Rcas002Row(
     int? PastDueDay,
     DateTime? ValuationDate,
     DateTime? NextValuationDate,
-    int? RemainingDays);
+    int? RemainingDays,
+    string? ReviewTypeCode);

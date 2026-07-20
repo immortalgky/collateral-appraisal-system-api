@@ -7,6 +7,7 @@ public record DocumentTypeDto
     public Guid Id { get; init; }
     public string Code { get; init; } = null!;
     public string Name { get; init; } = null!;
+    public string? NameTh { get; init; }
     public string? Description { get; init; }
     public string? Category { get; init; }
     public bool IsActive { get; init; }

@@ -31,7 +31,10 @@ SELECT f.Id,
            CAST(v.AssigneeUserId AS NVARCHAR(50))
        )                            AS InternalAppraisalStaff,
        inv.InvoiceNumber,
-       CAST(NULL AS NVARCHAR(50))   AS CostCenter,           -- not captured in the system (confirm w/ business)
+       -- Cost Center of the REQUESTOR: AspNetUsers.AoCode -> Officers.OfficerCode -> CostCenterCode
+       -- -> CostCenters.Description. NOTE a known 8-digit(SSONTH) vs 3-digit(G7CNTR) code mismatch
+       -- means the CostCenters join often finds no description; fall back to the raw code.
+       COALESCE(rcc.Description, rof.CostCenterCode) AS CostCenter,
        f.TotalFeeBeforeVAT          AS AppraisalFee,
        f.VATAmount                  AS VAT,
        f.TotalFeeAfterVAT           AS IncludeVAT,
@@ -40,6 +43,8 @@ FROM appraisal.vw_AppraisalFeeList f
          INNER JOIN appraisal.AppraisalAssignments aa ON aa.Id = f.AssignmentId
          INNER JOIN appraisal.vw_AppraisalList v ON v.Id = f.AppraisalId
          LEFT JOIN auth.AspNetUsers ru ON ru.UserName = v.RequestedBy
+         LEFT JOIN auth.Officers rof ON rof.OfficerCode = ru.AoCode
+         LEFT JOIN auth.CostCenters rcc ON rcc.Code = rof.CostCenterCode
          LEFT JOIN auth.AspNetUsers su ON su.NormalizedUserName = UPPER(v.AssigneeUserId)
          OUTER APPLY (SELECT TOP 1 Description FROM parameter.Parameters
                       WHERE [Group] = 'AppraisalPurpose' AND [Language] = 'EN' AND Code = v.Purpose) pp

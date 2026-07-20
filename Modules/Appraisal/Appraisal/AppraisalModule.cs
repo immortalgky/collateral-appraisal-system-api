@@ -66,6 +66,9 @@ public static class AppraisalModule
         // Register Appendix repository
         services.AddScoped<IAppraisalAppendixRepository, AppraisalAppendixRepository>();
 
+        // Register Appraisal Document (valuation document checklist) repository
+        services.AddScoped<IAppraisalDocumentRepository, AppraisalDocumentRepository>();
+
         // Register Decision repository
         services.AddScoped<IAppraisalDecisionRepository, AppraisalDecisionRepository>();
 

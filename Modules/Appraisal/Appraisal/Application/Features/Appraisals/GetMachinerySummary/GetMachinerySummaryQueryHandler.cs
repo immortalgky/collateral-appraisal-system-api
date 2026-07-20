@@ -39,6 +39,9 @@ public class GetMachinerySummaryQueryHandler(
             Latitude: summary.Latitude,
             Longitude: summary.Longitude,
             Obligation: summary.Obligation,
-            Other: summary.Other);
+            Other: summary.Other,
+            Assignment: summary.Assignment,
+            ValuationPurpose: summary.ValuationPurpose,
+            PropertyCharacteristics: summary.PropertyCharacteristics);
     }
 }

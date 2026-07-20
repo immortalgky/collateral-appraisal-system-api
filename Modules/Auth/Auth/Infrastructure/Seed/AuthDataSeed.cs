@@ -857,7 +857,36 @@ public class AuthDataSeed(
                 pmaInput.ViewPermissionPrefix);
         }
 
+        // One-off localization repair: BuildTranslations historically copied the English label into
+        // the `th` slot, so already-seeded items are English-only in Thai. UpsertTreeAsync is
+        // INSERT-ONLY and won't fix them. For any seed node that now defines a Thai label, set the
+        // `th` translation — but ONLY when the row's current `th` still equals its `en` (never
+        // localized), so a genuine admin rename via /admin/menus is never clobbered. Idempotent.
+        LocalizeSeededThaiLabels(mainRoots, existingByKey);
+        LocalizeSeededThaiLabels(appraisalRoots, existingByKey);
+
         await dbContext.SaveChangesAsync();
+    }
+
+    private static void LocalizeSeededThaiLabels(
+        List<MenuSeedData.MenuSeedNode> nodes,
+        Dictionary<string, MenuItem> existingByKey)
+    {
+        foreach (var node in nodes)
+        {
+            if (!string.IsNullOrWhiteSpace(node.LabelTh)
+                && existingByKey.TryGetValue(node.ItemKey, out var item))
+            {
+                var en = item.Translations.FirstOrDefault(t => t.LanguageCode == "en")?.Label;
+                var th = item.Translations.FirstOrDefault(t => t.LanguageCode == "th")?.Label;
+                // Keep the existing English (may be an admin edit); only fix a never-localized th.
+                if (en is not null && th == en && node.LabelTh != th)
+                    item.ReplaceTranslations(BuildTranslations(en, node.LabelTh));
+            }
+
+            if (node.Children is { Count: > 0 })
+                LocalizeSeededThaiLabels(node.Children, existingByKey);
+        }
     }
 
     private async Task UpsertTreeAsync(
@@ -908,7 +937,7 @@ public class AuthDataSeed(
                     sortOrder,
                     node.ViewPermissionCode,
                     node.EditPermissionCode,
-                    BuildTranslations(node.LabelEn),
+                    BuildTranslations(node.LabelEn, node.LabelTh),
                     isSystem: true,
                     viewPermissionPrefix: node.ViewPermissionPrefix);
                 dbContext.MenuItems.Add(item);
@@ -922,12 +951,12 @@ public class AuthDataSeed(
         }
     }
 
-    private static List<MenuItemTranslation> BuildTranslations(string labelEn)
+    private static List<MenuItemTranslation> BuildTranslations(string labelEn, string? labelTh = null)
     {
         return new List<MenuItemTranslation>
         {
             MenuItemTranslation.Create("en", labelEn),
-            MenuItemTranslation.Create("th", labelEn),
+            MenuItemTranslation.Create("th", labelTh ?? labelEn),
             MenuItemTranslation.Create("zh", labelEn)
         };
     }

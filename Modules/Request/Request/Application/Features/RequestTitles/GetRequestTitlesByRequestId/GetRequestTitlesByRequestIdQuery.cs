@@ -1,3 +1,0 @@
-namespace Request.Application.Features.RequestTitles.GetRequestTitlesByRequestId;
-
-public record GetRequestTitlesByRequestIdQuery(Guid RequestId) : IQuery<GetRequestTitlesByRequestIdResult>;
