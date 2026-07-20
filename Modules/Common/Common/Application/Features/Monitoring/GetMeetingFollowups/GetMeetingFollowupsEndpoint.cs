@@ -16,6 +16,7 @@ public class GetMeetingFollowupsEndpoint : ICarterModule
                 "/monitoring/meeting-followups",
                 async (
                     [AsParameters] PaginationRequest pagination,
+                    string? view,
                     string? search,
                     string? sortBy,
                     string? sortDir,
@@ -31,11 +32,20 @@ public class GetMeetingFollowupsEndpoint : ICarterModule
                     var filter = new MeetingFollowupFilter(
                         search, sortBy, sortDir, tier, slaStatus, slaBucket,
                         meetingNumber, meetingDateFrom, meetingDateTo);
+
+                    if (string.Equals(view, "committee", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var committee = await sender.Send(
+                            new GetCommitteeFollowupsQuery(pagination, filter), cancellationToken);
+                        return Results.Ok(committee);
+                    }
+
                     var result = await sender.Send(new GetMeetingFollowupsQuery(pagination, filter), cancellationToken);
                     return Results.Ok(result);
                 })
             .WithName("MonitoringGetMeetingFollowups")
             .Produces<PaginatedResult<MeetingFollowupDto>>()
+            .Produces<PaginatedResult<CommitteeFollowupDto>>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .WithSummary("Monitoring: Pending Approval Followup list")
