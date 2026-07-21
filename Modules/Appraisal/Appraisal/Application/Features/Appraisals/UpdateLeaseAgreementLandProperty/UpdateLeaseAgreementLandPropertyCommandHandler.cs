@@ -58,6 +58,7 @@ public class UpdateLeaseAgreementLandPropertyCommandHandler(
             command.Village,
             command.AddressLocation,
             command.LandShapeType,
+            command.LandShapeTypeOther,
             command.UrbanPlanningType,
             command.LandZoneType,
             command.LandZoneTypeOther,

@@ -577,7 +577,9 @@ VALUES
     (N'BuildingStyle', N'TH', N'EN', N'03', N'Moderate', 1, 3),
     (N'BuildingStyle', N'TH', N'TH', N'03', N'ปานกลาง', 1, 3),
     (N'BuildingStyle', N'TH', N'EN', N'04', N'Fair Enough', 1, 4),
-    (N'BuildingStyle', N'TH', N'TH', N'04', N'พอใช้', 1, 4);
+    (N'BuildingStyle', N'TH', N'TH', N'04', N'พอใช้', 1, 4),
+    (N'BuildingStyle', N'TH', N'EN', N'99', N'Other', 1, 99),
+    (N'BuildingStyle', N'TH', N'TH', N'99', N'อื่นๆ', 1, 99);
 GO
 
 -- ----------------------------------------
@@ -1353,7 +1355,9 @@ VALUES
     (N'Environment', N'TH', N'EN', N'09', N'Central business district', 1, 9),
     (N'Environment', N'TH', N'TH', N'09', N'Central business district', 1, 9),
     (N'Environment', N'TH', N'EN', N'10', N'Mixed residential and commercial area', 1, 10),
-    (N'Environment', N'TH', N'TH', N'10', N'Mixed residential and commercial area', 1, 10);
+    (N'Environment', N'TH', N'TH', N'10', N'Mixed residential and commercial area', 1, 10),
+    (N'Environment', N'TH', N'EN', N'99', N'Other', 1, 99),
+    (N'Environment', N'TH', N'TH', N'99', N'Other', 1, 99);
 GO
 
 -- ----------------------------------------
@@ -3462,7 +3466,9 @@ VALUES
     (N'LandShape', N'TH', N'EN', N'07', N'Pennant triangle', 1, 7),
     (N'LandShape', N'TH', N'TH', N'07', N'Pennant triangle', 1, 7),
     (N'LandShape', N'TH', N'EN', N'08', N'Polygon', 1, 8),
-    (N'LandShape', N'TH', N'TH', N'08', N'Polygon', 1, 8);
+    (N'LandShape', N'TH', N'TH', N'08', N'Polygon', 1, 8),
+    (N'LandShape', N'TH', N'EN', N'99', N'Other', 1, 99),
+    (N'LandShape', N'TH', N'TH', N'99', N'Other', 1, 99);
 GO
 
 -- ----------------------------------------
@@ -3632,7 +3638,13 @@ VALUES
     (N'LocationView', N'TH', N'EN', N'10', N'Mountain view', 1, 10),
     (N'LocationView', N'TH', N'TH', N'10', N'Mountain view', 1, 10),
     (N'LocationView', N'TH', N'EN', N'11', N'Central floor (or central area)', 1, 11),
-    (N'LocationView', N'TH', N'TH', N'11', N'Central floor (or central area)', 1, 11);
+    (N'LocationView', N'TH', N'TH', N'11', N'Central floor (or central area)', 1, 11),
+    (N'LocationView', N'TH', N'EN', N'12', N'Edge room', 1, 12),
+    (N'LocationView', N'TH', N'TH', N'12', N'Edge room', 1, 12),
+    (N'LocationView', N'TH', N'EN', N'13', N'Middle room', 1, 13),
+    (N'LocationView', N'TH', N'TH', N'13', N'Middle room', 1, 13),
+    (N'LocationView', N'TH', N'EN', N'99', N'Other', 1, 99),
+    (N'LocationView', N'TH', N'TH', N'99', N'Other', 1, 99);
 GO
 
 -- ----------------------------------------

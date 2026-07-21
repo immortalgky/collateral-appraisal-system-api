@@ -130,7 +130,7 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
             customer.Property<long>("Id");
             customer.HasKey("Id");
 
-            customer.Property(p => p.Name).HasMaxLength(80).HasColumnName("Name");
+            customer.Property(p => p.Name).HasMaxLength(260).HasColumnName("Name");
             customer.Property(p => p.ContactNumber).HasMaxLength(100).HasColumnName("ContactNumber");
 
             //Index

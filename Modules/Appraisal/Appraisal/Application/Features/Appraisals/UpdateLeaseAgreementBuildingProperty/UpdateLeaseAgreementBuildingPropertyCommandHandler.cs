@@ -53,6 +53,7 @@ public class UpdateLeaseAgreementBuildingPropertyCommandHandler(
             encroachingOthersArea: command.EncroachingOthersArea,
             buildingMaterialType: command.BuildingMaterialType,
             buildingStyleType: command.BuildingStyleType,
+            buildingStyleTypeOther: command.BuildingStyleTypeOther,
             isResidential: command.IsResidential,
             buildingAge: command.BuildingAge,
             constructionYear: command.ConstructionYear,
