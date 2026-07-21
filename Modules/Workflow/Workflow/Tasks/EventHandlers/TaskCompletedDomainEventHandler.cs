@@ -40,6 +40,8 @@ public class TaskCompletedDomainEventHandler(
         var wasOverdue = pendingTask.SlaStatus == "Breached";
         var assignedAt = pendingTask.AssignedAt;
         var originalAssignedTo = pendingTask.AssignedTo;
+        var originalWorkingBy = pendingTask.WorkingBy;
+        var originalAssignedType = pendingTask.AssignedType;
 
         // Implicit assignment: if pool task completed without claiming, assign to the completer
         if (pendingTask.AssignedType == "2" && !string.IsNullOrEmpty(notification.CompletedBy))
@@ -50,7 +52,12 @@ public class TaskCompletedDomainEventHandler(
                 pendingTask.Id, notification.CompletedBy);
         }
 
-        var completedBy = notification.CompletedBy ?? pendingTask.AssignedTo;
+        // Resolve the acting HUMAN. Never fall back to AssignedTo for a pool task (AssignedType "2")
+        // — that is the assignee GROUP (e.g. "IntAdmin"), not a person, and it leaks into downstream
+        // notifications/emails. Mirrors the ownership rule in ValidateTaskOwnershipStep.
+        var completedBy = notification.CompletedBy
+                          ?? originalWorkingBy
+                          ?? (originalAssignedType == "1" ? originalAssignedTo : null);
 
         var completedTask = CompletedTask.CreateFromPendingTask(
             pendingTask, notification.ActionTaken, notification.CompletedAt, notification.Remark,
