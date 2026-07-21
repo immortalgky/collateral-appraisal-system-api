@@ -154,6 +154,7 @@ public record UpdateLeaseAgreementLandAndBuildingPropertyRequest(
     string? ConstructionTypeOther = null,
     // Utilization
     string? UtilizationType = null,
+    string? UtilizationTypeOther = null,
     string? OtherPurposeUsage = null,
     // Area & Pricing
     decimal? TotalBuildingArea = null,

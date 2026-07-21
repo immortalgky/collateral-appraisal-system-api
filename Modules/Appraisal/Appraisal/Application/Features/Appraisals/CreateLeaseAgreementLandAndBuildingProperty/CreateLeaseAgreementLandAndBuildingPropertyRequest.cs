@@ -162,6 +162,7 @@ public record CreateLeaseAgreementLandAndBuildingPropertyRequest(
     string? DecorationTypeOther = null,
     // Building - Utilization
     string? UtilizationType = null,
+    string? UtilizationTypeOther = null,
     string? OtherPurposeUsage = null,
     // Building - Permits
     string? BuildingPermitNumber = null,
