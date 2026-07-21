@@ -39,7 +39,9 @@ public static class CondoPmaApplier
                      ?? throw new InvalidOperationException($"Condo detail not found for property {propertyId}");
 
         // Preserve the existing title address when the caller doesn't supply new parts —
-        // mirrors the landOffice/dopaAddress preservation below (Update() is a full overwrite).
+        // UpdatePmaFields still assigns Address unconditionally from this parameter.
+        // (LandOffice/DopaAddress need no such handling: UpdatePmaFields never references them,
+        // so they're left untouched by every PMA save regardless.)
         Address? address = subDistrict is not null || district is not null || province is not null
             ? Address.Create(subDistrict, district, province)
             : detail.Address;
@@ -58,9 +60,7 @@ public static class CondoPmaApplier
             condoRegistrationNumber: condoRegistrationNumber,
             roomNumber: roomNumber,
             floorNumber: floorNumber,
-            address: address,
-            landOffice: detail.LandOffice,
-            dopaAddress: detail.DopaAddress
+            address: address
         );
 
         // Stamp Pending — callers decide whether to also raise MarkPmaUpdated (full save only).

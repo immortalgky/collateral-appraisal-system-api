@@ -44,9 +44,7 @@ public class CreateCondoPMAPropertyCommandHandler(
             condoRegistrationNumber: command.CondoRegistrationNumber,
             roomNumber: command.RoomNumber,
             floorNumber: command.FloorNumber,
-            address: address,
-            landOffice: null,
-            dopaAddress: null
+            address: address
         );
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

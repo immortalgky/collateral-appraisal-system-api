@@ -350,10 +350,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? condoRegistrationNumber = null,
         string? roomNumber = null,
         string? floorNumber = null,
-        Address? address = null,
-        // Scalar + Dopa (appended, same reasoning as Update()'s ordering note)
-        string? landOffice = null,
-        Address? dopaAddress = null)
+        Address? address = null)
     {
         CondoName = condoName;
         OwnerName = ownerName;
@@ -363,8 +360,6 @@ public class CondoAppraisalDetail : Entity<Guid>
         RoomNumber = roomNumber;
         FloorNumber = floorNumber;
         Address = address;
-        LandOffice = landOffice;
-        DopaAddress = dopaAddress;
     }
 
 

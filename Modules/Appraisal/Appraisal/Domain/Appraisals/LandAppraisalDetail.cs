@@ -464,7 +464,7 @@ public class LandAppraisalDetail : Entity<Guid>
     /// </summary>
     public void UpdatePmaFields(
         string? ownerName = null,
-        AdministrativeAddress? address = null)
+        Address? address = null)
     {
         OwnerName = ownerName;
         Address = address;
