@@ -1,6 +1,12 @@
 using System.Text.Json;
+using Appraisal.Contracts.Appraisals;
+using Dapper;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Shared.Data;
+using Shared.Data.Outbox;
 using Shared.Identity;
+using Shared.Messaging.Events;
 using Workflow.DocumentFollowups.Domain;
 using Workflow.DocumentFollowups.Infrastructure;
 using Workflow.Workflow.Repositories;
@@ -14,6 +20,9 @@ public class RaiseDocumentFollowupCommandHandler(
     IWorkflowInstanceRepository instanceRepository,
     IWorkflowService workflowService,
     ICurrentUserService currentUser,
+    IIntegrationEventOutbox outbox,
+    ISender sender,
+    ISqlConnectionFactory connectionFactory,
     ILogger<RaiseDocumentFollowupCommandHandler> logger
 ) : ICommandHandler<RaiseDocumentFollowupCommand, RaiseDocumentFollowupResult>
 {
@@ -119,6 +128,38 @@ public class RaiseDocumentFollowupCommandHandler(
             cancellationToken: cancellationToken);
 
         followup.AttachFollowupWorkflowInstance(followupInstance.Id);
+
+        // Email the RM (parent StartedBy) that additional documents were requested. Staged on the
+        // outbox so it commits atomically with the SaveChanges below. Recipient email + acting-user
+        // display name are resolved in the Notification consumer via IUserLookupService.
+        var appraisalRef = await sender.Send(new GetAppraisalReferenceQuery(appraisalId), cancellationToken);
+
+        // Resolve document-type code (e.g. "D001") → display name (NameTh, fallback to Name).
+        var docTypeNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var docRows = await connectionFactory.GetOpenConnection().QueryAsync(
+            "SELECT Code, NameTh, Name FROM parameter.DocumentTypes WHERE IsActive = 1");
+        foreach (var d in docRows)
+        {
+            var nameTh = (string?)d.NameTh;
+            docTypeNames[(string)d.Code] = string.IsNullOrWhiteSpace(nameTh) ? (string)d.Name : nameTh;
+        }
+
+        var items = command.LineItems
+            .Select(li => new DocumentFollowupEmailItem(
+                docTypeNames.GetValueOrDefault(li.DocumentType, li.DocumentType),
+                li.Notes))
+            .ToList();
+
+        outbox.Publish(new DocumentFollowupEmailIntegrationEvent
+        {
+            FollowupId = followup.Id,
+            RmUsername = parentInstance.StartedBy,
+            ActingUsername = raisingUserId,
+            CustomerName = appraisalRef?.CustomerName,
+            AppraisalNumber = appraisalRef?.AppraisalNumber,
+            Items = items
+        }, correlationId: appraisalId.ToString());
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(

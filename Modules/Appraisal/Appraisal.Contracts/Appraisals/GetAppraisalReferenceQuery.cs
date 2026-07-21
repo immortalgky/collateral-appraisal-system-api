@@ -15,4 +15,5 @@ public record AppraisalReferenceResult(
     string? AppraisalNumber,
     decimal? AppraisalValue,
     DateTime? AppointmentDate,
-    string? Status);
+    string? Status,
+    string? CustomerName = null);
