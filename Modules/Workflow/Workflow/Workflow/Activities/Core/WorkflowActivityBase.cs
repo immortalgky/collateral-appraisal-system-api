@@ -150,7 +150,14 @@ public abstract class WorkflowActivityBase : IWorkflowActivity
             context.WorkflowInstance.SetCurrentActivity(context.ActivityId, assigneeId);
     }
 
-    private string GetCompletedBy(Dictionary<string, object> resumeInput)
+    /// <summary>
+    /// The authenticated human who completed the activity, taken from the resume input
+    /// (<c>WorkflowEngine</c> stamps <c>completedBy</c> = <c>currentUserService.Username</c>).
+    /// Returns the "system" sentinel when absent. Prefer this over
+    /// <c>WorkflowInstance.CurrentAssignee</c>, which is a routing target and is the assignee
+    /// GROUP for pool activities.
+    /// </summary>
+    protected string GetCompletedBy(Dictionary<string, object> resumeInput)
     {
         if (resumeInput.TryGetValue("completedBy", out var completedBy)) return completedBy.ToString() ?? "system";
 
