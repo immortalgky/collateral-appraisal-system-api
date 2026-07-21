@@ -3244,6 +3244,9 @@ namespace Appraisal.infrastructure.Migrations
                     b.Property<string>("UpdatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("UseSystemCalc")
+                        .HasColumnType("bit");
+
                     b.Property<decimal?>("ValuePerUnit")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");

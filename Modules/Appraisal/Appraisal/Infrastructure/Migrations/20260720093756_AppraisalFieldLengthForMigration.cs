@@ -10,6 +10,13 @@ namespace Appraisal.infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<bool>(
+                name: "UseSystemCalc",
+                schema: "appraisal",
+                table: "PricingAnalysisMethods",
+                type: "bit",
+                nullable: false,
+                defaultValue: false);
 
             migrationBuilder.AlterColumn<string>(
                 name: "LandDescription",
@@ -129,6 +136,10 @@ namespace Appraisal.infrastructure.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropColumn(
+                name: "UseSystemCalc",
+                schema: "appraisal",
+                table: "PricingAnalysisMethods");
 
             migrationBuilder.AlterColumn<string>(
                 name: "LandDescription",
