@@ -311,6 +311,10 @@ public static class AuthModule
             .AddUserPermissionPolicy("MeetingAdmin", "MEETING_ADMIN")
             .AddUserPermissionPolicy("MeetingSecretary", "MEETING_SECRETARY")
             .AddUserPermissionPolicy("CommitteeMember", "COMMITTEE_MEMBER")
+            // Shared read policy: any of the three meeting roles can view meetings/detail/documents.
+            // Write/action endpoints stay gated by the specific role policy above.
+            .AddMonitoringAnyPolicy("MeetingView",
+                new[] { "MEETING_ADMIN", "MEETING_SECRETARY", "COMMITTEE_MEMBER" })
             .AddScopePolicy("ClsReadAppraisal", "appraisal.read")
             .AddScopePolicy("ClsWriteRequest", "request.write")
             .AddScopePolicy("ClsReadDocument", "document.read")
