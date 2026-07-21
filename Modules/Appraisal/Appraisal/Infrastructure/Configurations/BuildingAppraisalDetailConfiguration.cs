@@ -19,7 +19,7 @@ public class
         builder.Property(e => e.PropertyName).HasMaxLength(200);
         builder.Property(e => e.BuildingNumber).HasMaxLength(50);
         builder.Property(e => e.ModelName).HasMaxLength(100);
-        builder.Property(e => e.BuiltOnTitleNumber).HasMaxLength(100);
+        builder.Property(e => e.BuiltOnTitleNumber).HasMaxLength(300);
         builder.Property(e => e.HouseNumber).HasMaxLength(50);
         builder.Property(e => e.NoHouseNumber).HasMaxLength(100);
 
@@ -45,6 +45,7 @@ public class
         // Construction Details
         builder.Property(e => e.BuildingMaterialType).HasMaxLength(100);
         builder.Property(e => e.BuildingStyleType).HasMaxLength(100);
+        builder.Property(e => e.BuildingStyleTypeOther).HasMaxLength(200);
         builder.Property(e => e.ResidentialRemark).HasMaxLength(200);
         builder.Property(e => e.ConstructionStyleType).HasMaxLength(100);
         builder.Property(e => e.ConstructionStyleRemark).HasMaxLength(4000);
@@ -160,9 +161,9 @@ public class
             surf.Property(s => s.ToFloorNumber).IsRequired();
             surf.Property(s => s.FloorType).HasMaxLength(50);
             surf.Property(s => s.FloorStructureType).HasMaxLength(50);
-            surf.Property(s => s.FloorStructureTypeOther).HasMaxLength(200);
+            surf.Property(s => s.FloorStructureTypeOther).HasMaxLength(300);
             surf.Property(s => s.FloorSurfaceType).HasMaxLength(50);
-            surf.Property(s => s.FloorSurfaceTypeOther).HasMaxLength(200);
+            surf.Property(s => s.FloorSurfaceTypeOther).HasMaxLength(300);
 
             surf.HasIndex(s => s.BuildingAppraisalDetailId);
         });

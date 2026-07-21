@@ -74,6 +74,7 @@ public class CondoAppraisalDetail : Entity<Guid>
     public string? RoomLayoutType { get; private set; }
     public string? RoomLayoutTypeOther { get; private set; }
     public List<string>? LocationViewType { get; private set; }
+    public string? LocationViewTypeOther { get; private set; }
     public string? GroundFloorMaterialType { get; private set; }
     public string? GroundFloorMaterialTypeOther { get; private set; }
     public string? UpperFloorMaterialType { get; private set; }
@@ -101,6 +102,7 @@ public class CondoAppraisalDetail : Entity<Guid>
     public List<string>? FacilityType { get; private set; }
     public string? FacilityTypeOther { get; private set; }
     public List<string>? EnvironmentType { get; private set; }
+    public string? EnvironmentTypeOther { get; private set; }
 
     // Pricing
     public decimal? GovernmentPricePerSqm { get; private set; }
@@ -177,6 +179,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? roomLayoutType = null,
         string? roomLayoutTypeOther = null,
         List<string>? locationViewType = null,
+        string? locationViewTypeOther = null,
         string? groundFloorMaterialType = null,
         string? groundFloorMaterialTypeOther = null,
         string? upperFloorMaterialType = null,
@@ -199,6 +202,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         List<string>? facilityType = null,
         string? facilityTypeOther = null,
         List<string>? environmentType = null,
+        string? environmentTypeOther = null,
         // Pricing
         decimal? buildingInsurancePrice = null,
         decimal? sellingPrice = null,
@@ -270,6 +274,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         RoomLayoutType = roomLayoutType;
         RoomLayoutTypeOther = roomLayoutTypeOther;
         LocationViewType = locationViewType;
+        LocationViewTypeOther = locationViewTypeOther;
         GroundFloorMaterialType = groundFloorMaterialType;
         GroundFloorMaterialTypeOther = groundFloorMaterialTypeOther;
         UpperFloorMaterialType = upperFloorMaterialType;
@@ -295,6 +300,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         FacilityType = facilityType;
         FacilityTypeOther = facilityTypeOther;
         EnvironmentType = environmentType;
+        EnvironmentTypeOther = environmentTypeOther;
 
         // Pricing
         BuildingInsurancePrice = buildingInsurancePrice;
@@ -408,6 +414,7 @@ public class CondoAppraisalDetail : Entity<Guid>
             RoomLayoutType = source.RoomLayoutType,
             RoomLayoutTypeOther = source.RoomLayoutTypeOther,
             LocationViewType = source.LocationViewType?.ToList(),
+            LocationViewTypeOther = source.LocationViewTypeOther,
             GroundFloorMaterialType = source.GroundFloorMaterialType,
             GroundFloorMaterialTypeOther = source.GroundFloorMaterialTypeOther,
             UpperFloorMaterialType = source.UpperFloorMaterialType,
@@ -427,6 +434,7 @@ public class CondoAppraisalDetail : Entity<Guid>
             FacilityType = source.FacilityType?.ToList(),
             FacilityTypeOther = source.FacilityTypeOther,
             EnvironmentType = source.EnvironmentType?.ToList(),
+            EnvironmentTypeOther = source.EnvironmentTypeOther,
             GovernmentPricePerSqm = source.GovernmentPricePerSqm,
             GovernmentPrice = source.GovernmentPrice,
             FireInsuranceCondition = source.FireInsuranceCondition,

@@ -48,6 +48,7 @@ public record GetLandPropertyResponse
 
     // Land Characteristics
     public string? LandShapeType { get; init; }
+    public string? LandShapeTypeOther { get; init; }
     public string? UrbanPlanningType { get; init; }
     public List<string>? LandZoneType { get; init; }
     public string? LandZoneTypeOther { get; init; }

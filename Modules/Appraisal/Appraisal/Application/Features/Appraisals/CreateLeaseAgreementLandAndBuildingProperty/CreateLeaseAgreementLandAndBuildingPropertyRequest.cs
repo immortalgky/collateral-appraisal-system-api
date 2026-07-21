@@ -36,6 +36,7 @@ public record CreateLeaseAgreementLandAndBuildingPropertyRequest(
     string? AddressLocation = null,
     // Land Characteristics
     string? LandShapeType = null,
+    string? LandShapeTypeOther = null,
     string? UrbanPlanningType = null,
     List<string>? LandZoneType = null,
     string? LandZoneTypeOther = null,
@@ -131,6 +132,7 @@ public record CreateLeaseAgreementLandAndBuildingPropertyRequest(
     // Building - Style
     string? BuildingMaterialType = null,
     string? BuildingStyleType = null,
+    string? BuildingStyleTypeOther = null,
     bool? IsResidential = null,
     string? ConstructionStyleType = null,
     string? ConstructionStyleRemark = null,

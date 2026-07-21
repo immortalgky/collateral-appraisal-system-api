@@ -43,6 +43,7 @@ public class LandAppraisalDetail : Entity<Guid>
 
     // Land Characteristics
     public string? LandShapeType { get; private set; }
+    public string? LandShapeTypeOther { get; private set; }
     public string? UrbanPlanningType { get; private set; }
     public List<string>? LandZoneType { get; private set; }
     public string? LandZoneTypeOther { get; private set; }
@@ -161,6 +162,7 @@ public class LandAppraisalDetail : Entity<Guid>
         string? addressLocation = null,
         // Land Characteristics
         string? landShapeType = null,
+        string? landShapeTypeOther = null,
         string? urbanPlanningType = null,
         List<string>? landZoneType = null,
         string? landZoneTypeOther = null,
@@ -254,6 +256,7 @@ public class LandAppraisalDetail : Entity<Guid>
 
         // Land Characteristics
         LandShapeType = landShapeType;
+        LandShapeTypeOther = landShapeTypeOther;
         UrbanPlanningType = urbanPlanningType;
         LandZoneType = landZoneType;
         LandZoneTypeOther = landZoneTypeOther;
@@ -354,6 +357,7 @@ public class LandAppraisalDetail : Entity<Guid>
             Village = source.Village,
             AddressLocation = source.AddressLocation,
             LandShapeType = source.LandShapeType,
+            LandShapeTypeOther = source.LandShapeTypeOther,
             UrbanPlanningType = source.UrbanPlanningType,
             LandZoneType = source.LandZoneType?.ToList(),
             LandZoneTypeOther = source.LandZoneTypeOther,

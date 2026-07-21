@@ -54,6 +54,7 @@ public record CreateLeaseAgreementCondoPropertyRequest(
     string? RoomLayoutType = null,
     string? RoomLayoutTypeOther = null,
     List<string>? LocationViewType = null,
+    string? LocationViewTypeOther = null,
     string? GroundFloorMaterialType = null,
     string? GroundFloorMaterialTypeOther = null,
     string? UpperFloorMaterialType = null,
@@ -77,6 +78,7 @@ public record CreateLeaseAgreementCondoPropertyRequest(
     List<string>? FacilityType = null,
     string? FacilityTypeOther = null,
     List<string>? EnvironmentType = null,
+    string? EnvironmentTypeOther = null,
     // Pricing
     decimal? BuildingInsurancePrice = null,
     decimal? SellingPrice = null,

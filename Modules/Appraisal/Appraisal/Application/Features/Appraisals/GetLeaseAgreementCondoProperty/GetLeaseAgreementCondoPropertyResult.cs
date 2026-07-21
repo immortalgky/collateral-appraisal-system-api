@@ -62,6 +62,7 @@ public record GetLeaseAgreementCondoPropertyResult(
     string? RoomLayoutType,
     string? RoomLayoutTypeOther,
     List<string>? LocationViewType,
+    string? LocationViewTypeOther,
     string? GroundFloorMaterialType,
     string? GroundFloorMaterialTypeOther,
     string? UpperFloorMaterialType,
@@ -85,6 +86,7 @@ public record GetLeaseAgreementCondoPropertyResult(
     List<string>? FacilityType,
     string? FacilityTypeOther,
     List<string>? EnvironmentType,
+    string? EnvironmentTypeOther,
     // Pricing
     decimal? BuildingInsurancePrice,
     decimal? SellingPrice,

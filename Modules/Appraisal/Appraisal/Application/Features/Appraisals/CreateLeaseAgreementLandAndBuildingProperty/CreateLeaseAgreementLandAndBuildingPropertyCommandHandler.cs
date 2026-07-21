@@ -57,6 +57,7 @@ public class CreateLeaseAgreementLandAndBuildingPropertyCommandHandler(
             command.AddressLocation,
             // Land - Characteristics
             command.LandShapeType,
+            command.LandShapeTypeOther,
             command.UrbanPlanningType,
             landZoneType: command.LandZoneType,
             landZoneTypeOther: command.LandZoneTypeOther,
@@ -184,6 +185,7 @@ public class CreateLeaseAgreementLandAndBuildingPropertyCommandHandler(
             // Building - Style
             buildingMaterialType: command.BuildingMaterialType,
             buildingStyleType: command.BuildingStyleType,
+            buildingStyleTypeOther: command.BuildingStyleTypeOther,
             isResidential: command.IsResidential,
             constructionStyleType: command.ConstructionStyleType,
             constructionStyleRemark: command.ConstructionStyleRemark,

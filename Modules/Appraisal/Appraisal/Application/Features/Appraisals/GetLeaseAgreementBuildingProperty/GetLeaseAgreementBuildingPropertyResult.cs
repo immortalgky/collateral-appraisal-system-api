@@ -45,6 +45,7 @@ public record GetLeaseAgreementBuildingPropertyResult(
     // Construction Details
     string? BuildingMaterialType,
     string? BuildingStyleType,
+    string? BuildingStyleTypeOther,
     bool IsResidential,
     int? BuildingAge,
     int? ConstructionYear,
