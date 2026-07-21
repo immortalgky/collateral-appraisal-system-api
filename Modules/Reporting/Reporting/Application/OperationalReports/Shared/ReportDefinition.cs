@@ -37,6 +37,19 @@ public sealed class ReportDefinition<TRow, TFilter>
     public int MaxRows { get; init; } = 10_000;
 
     /// <summary>
+    /// When true, the export renders a "Print Report By" / "Approve Report By" sign-off footer.
+    /// Per the FSD this belongs to RCAS003/005/006/009/011 only. Preview is unaffected.
+    /// </summary>
+    public bool IncludeSignoffFooter { get; init; }
+
+    /// <summary>
+    /// Optional row predicate applied AFTER <see cref="EnrichAsync"/>, for filters that depend on an
+    /// enriched (computed-in-C#) value the SQL WHERE can't see — e.g. RCAS012's "SLA &gt; 2 days".
+    /// Applied on the current page for preview and on the capped set for export.
+    /// </summary>
+    public Func<TRow, bool>? PostEnrichFilter { get; init; }
+
+    /// <summary>
     /// Optional: describes the filter as an ordered list of <see cref="FilterField"/>s so the export
     /// can print an "Applied filters" block (curated labels; coded values resolved to descriptions).
     /// Not used by preview (the UI already shows the filters on screen).

@@ -36,7 +36,7 @@ public class CreateCondoPMAPropertyCommandHandler(
             buildingInsurancePrice: command.BuildingInsurancePrice
         );
 
-        property.CondoDetail!.Update(
+        property.CondoDetail!.UpdatePmaFields(
             condoName: command.CondoName,
             ownerName: "",
             buildingNumber: command.BuildingNumber,

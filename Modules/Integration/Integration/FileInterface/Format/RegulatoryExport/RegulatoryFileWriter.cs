@@ -88,20 +88,6 @@ public sealed class RegulatoryFileWriter
             underConstruction = row.IsUnderConstruction ? "Y" : "N";
         }
 
-        string constructionProgress;
-        if (!isLandOrBuilding)
-        {
-            constructionProgress = Money(0m)!;
-        }
-        else if (row.CollateralType is CollateralTypes.Land or CollateralTypes.Leasehold)
-        {
-            constructionProgress = Money(100m)!;
-        }
-        else
-        {
-            constructionProgress = Money(row.ConstructionProgressPercent ?? 0m)!;
-        }
-
         var appraiserType = row.LatestAppraisalCompanyId.HasValue ? "1" : "2";
 
         string? landAreaSqWa = isLandType
@@ -129,7 +115,8 @@ public sealed class RegulatoryFileWriter
             ["NewestApplicationId"]        = row.LatestAppraisalNumber,
             ["CollateralIdHost"]           = row.HostCollateralId,
             ["UnderConstruction"]          = underConstruction,
-            ["ConstructionProgress"]       = constructionProgress,
+            // Field #6 is computed in vw_RegulatoryExport (0 / 100 / progress%); here we only format it.
+            ["ConstructionProgress"]       = Money(row.ConstructionProgressPercent ?? 0m),
             ["AppraisalValueCompleted"]    = Money(row.LatestAppraisalValue),
             ["AppraisalValueOrigination"]  = Money(originationValue),
             ["NumberOfFloors"]             = SmallInt(row.NumberOfFloors, 999),

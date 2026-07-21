@@ -41,6 +41,7 @@ public class ParameterDbContext : DbContext
     public DbSet<PricingParameterTaxBracket> PricingParameterTaxBrackets => Set<PricingParameterTaxBracket>();
     public DbSet<PricingParameterAssumptionType> PricingParameterAssumptionTypes => Set<PricingParameterAssumptionType>();
     public DbSet<PricingParameterAssumptionMethod> PricingParameterAssumptionMethods => Set<PricingParameterAssumptionMethod>();
+    public DbSet<PricingParameterFireInsuranceRate> PricingParameterFireInsuranceRates => Set<PricingParameterFireInsuranceRate>();
 
     // Dealers (reference lookup)
     public DbSet<Dealer> Dealers => Set<Dealer>();

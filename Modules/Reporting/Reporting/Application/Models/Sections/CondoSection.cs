@@ -192,18 +192,32 @@ public sealed class CondoSection
 
     /// <summary>
     /// พื้นที่สี (urban-planning colour zone) —
-    /// no UrbanPlanningType column on CondoAppraisalDetails; deferred (null).
-    /// UrbanPlanningType exists only on LandAppraisalDetails and ProjectLand.
+    /// source: CondoAppraisalDetails.UrbanPlanningType (parameter-translated display string).
     /// </summary>
-    // no source — CondoAppraisalDetailConfiguration has no UrbanPlanningType column
     public string? AreaColour { get; init; }
 
     /// <summary>
-    /// ที่ดินประเภท —
-    /// no LandZoneType / LandType column on CondoAppraisalDetails; deferred (null).
+    /// ที่ดินประเภท (land condition) —
+    /// source: CondoAppraisalDetails.LandFillType (parameter-translated display string;
+    /// Other suffix appended when present).
     /// </summary>
-    // no source — CondoAppraisalDetailConfiguration has no LandZoneType / LandType column
     public string? LandType { get; init; }
+
+    // ── Legal restrictions, continued ────────────────────────────────────────────
+
+    /// <summary>
+    /// สิทธิทางเข้า-ออก — source: CondoAppraisalDetails.LandEntranceExitType
+    /// (JSON-array-of-codes column, parameter-translated, comma-joined; code 99 shows the
+    /// paired *Other free text instead of the generic "อื่นๆ" description).
+    /// </summary>
+    public string? EntryExitRights { get; init; }
+
+    /// <summary>
+    /// สภาพการใช้ประโยชน์ — source: CondoAppraisalDetails.LandUseType
+    /// (JSON-array-of-codes column, parameter-translated, comma-joined; code 99 shows the
+    /// paired *Other free text instead of the generic "อื่นๆ" description).
+    /// </summary>
+    public string? Utilization { get; init; }
 
     // ── Remark ────────────────────────────────────────────────────────────────────
 
@@ -223,9 +237,9 @@ public sealed class CondoSection
 /// Condo valuation table — FSD "รายละเอียดการประเมินมูลค่าทรัพย์สิน ห้องชุด" (Image #4).
 ///
 /// PART A — ราคาประเมินทุนทรัพย์ห้องชุดในการจดทะเบียนสิทธิ์และนิติกรรม (government registration value).
-///   Area components are sourced from CondoAppraisalAreaDetails; the per-sqm rate and amount have
-///   NO source column on the condo schema (government price exists only on LandTitles), so they are
-///   rendered empty for now ("show empty first").
+///   Area components are sourced from CondoAppraisalAreaDetails; the per-sqm rate and amount come
+///   from CondoAppraisalDetails.GovernmentPricePerSqm / GovernmentPrice (condo is priced per square
+///   metre, unlike land which is priced per square wa).
 ///
 /// PART B — ราคาประเมินโดยวิธีเปรียบเทียบราคาตลาด (market comparison value), sourced from the selected
 ///   PricingAnalysis → Approach → Method → PricingFinalValue.
@@ -235,7 +249,7 @@ public sealed class CondoSection
 /// </summary>
 public sealed class CondoValuationDetail
 {
-    // ── PART A: registration value area components (areas only; rate/amount have no source) ──
+    // ── PART A: registration value ────────────────────────────────────────────────
 
     /// <summary>พื้นที่ภายในห้องชุด (ตร.ม.) — sum of all units' interior area.</summary>
     public decimal? InteriorArea { get; init; }
@@ -249,6 +263,16 @@ public sealed class CondoValuationDetail
     /// <summary>พื้นที่อื่นๆ (ตร.ม.) — sum of all units' other area.</summary>
     public decimal? OtherArea { get; init; }
 
+    /// <summary>
+    /// ตร.ม. ละ (บาท) — government registration rate. Source: CondoAppraisalDetails.GovernmentPricePerSqm.
+    /// </summary>
+    public decimal? RegistrationPricePerSqm { get; init; }
+
+    /// <summary>
+    /// จำนวนเงิน (บาท) — government registration total. Source: CondoAppraisalDetails.GovernmentPrice.
+    /// </summary>
+    public decimal? RegistrationAmount { get; init; }
+
     // ── PART B: market comparison value ────────────────────────────────────────────
 
     /// <summary>พื้นที่ห้องชุดรวมระเบียง (ตร.ม.) — interior + balcony total.</summary>
@@ -256,8 +280,8 @@ public sealed class CondoValuationDetail
 
     /// <summary>
     /// ตร.ม. ละ (บาท) — market price per sqm. Null (renders as "-") when the method is priced
-    /// per UNIT (UnitType == "Unit"). Otherwise sourced from PricingAnalysisMethod.ValuePerUnit,
-    /// or derived as value ÷ area when not stored.
+    /// as a whole unit / lumpsum (UnitType == "PerUnit"). Otherwise sourced from
+    /// PricingAnalysisMethod.ValuePerUnit, or derived as value ÷ area when not stored.
     /// </summary>
     public decimal? MarketPricePerSqm { get; init; }
 

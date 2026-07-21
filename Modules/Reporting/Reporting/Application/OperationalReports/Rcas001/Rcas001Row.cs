@@ -17,4 +17,9 @@ public sealed record Rcas001Row(
     string? BankingSegment,
     string? InternalAppraisalStaff,
     string? AppraisalCompany,
-    DateTime? ApproveDate);
+    DateTime? ApproveDate)
+{
+    /// <summary>FSD "Running No." (Running Record). Assigned post-sort by the report's enrichment;
+    /// not a SQL column, so it sits outside the positional (Dapper-mapped) constructor.</summary>
+    public int? RunningNo { get; set; }
+}

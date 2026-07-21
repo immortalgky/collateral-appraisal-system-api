@@ -50,7 +50,7 @@ public static class CondoPmaApplier
             buildingInsurancePrice: buildingInsurancePrice
         );
 
-        detail.Update(
+        detail.UpdatePmaFields(
             condoName: condoName,
             ownerName: "",
             buildingNumber: buildingNumber,

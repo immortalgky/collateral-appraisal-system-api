@@ -1,6 +1,7 @@
 using Reporting.Application.Formatting;
 using Reporting.Application.Models;
 using Reporting.Application.Services;
+using Shared.Configuration;
 
 namespace Reporting.Application.Providers;
 
@@ -34,6 +35,7 @@ namespace Reporting.Application.Providers;
 /// </summary>
 public sealed class AppraisalSummaryLandBuildingDataProvider(
     ISqlConnectionFactory connectionFactory,
+    ISystemConfigurationReader configReader,
     ILogger<AppraisalSummaryLandBuildingDataProvider> logger)
     : IReportDataProvider
 {
@@ -45,7 +47,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             throw new NotFoundException("Appraisal", entityId);
 
         using var connection = connectionFactory.CreateNewConnection();
-        var model = await BuildAsync(connection, appraisalId, cancellationToken);
+        var forceSaleRateDefault = await configReader.GetDecimalAsync("ForceSaleRateDefaultPct", 70m, cancellationToken);
+        var model = await BuildAsync(connection, appraisalId, forceSaleRateDefault, cancellationToken);
 
         logger.LogDebug(
             "AppraisalSummaryLandBuilding model assembled for appraisal {AppraisalId}: " +
@@ -63,6 +66,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     internal static async Task<AppraisalSummaryModel> BuildAsync(
         System.Data.IDbConnection connection,
         Guid appraisalId,
+        decimal forceSaleRateDefault,
         CancellationToken cancellationToken)
     {
         // ── Batch 1: 15 result sets, single round-trip ───────────────────────────
@@ -111,7 +115,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 lad.Soi,
                 lad.Street                AS Road,
                 lad.LandUseType,
+                lad.LandUseTypeOther,
                 lad.LandEntranceExitType,
+                lad.LandEntranceExitTypeOther,
                 COALESCE(tsub.NameTh,  lad.SubDistrict) AS SubDistrict,
                 COALESCE(tdist.NameTh, lad.District)    AS District,
                 COALESCE(tprov.NameTh, lad.Province)    AS Province,
@@ -160,7 +166,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             SELECT
                 va.AppraisedValue,
                 va.ForcedSaleValue,
-                va.InsuranceValue
+                va.InsuranceValue,
+                va.ForceSaleRate
             FROM appraisal.ValuationAnalyses va
             WHERE va.AppraisalId = @AppraisalId;
 
@@ -178,6 +185,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 pfv.FinalValueAdjusted AS LandUnitPrice,
                 pfv.AppraisalPrice,
                 pfv.FinalValueRounded,
+                pfv.ValuePerUnit,
+                pfv.UnitType,
+                pfv.IncludeLandArea,
                 (SELECT TOP 1 ap.PropertyType
                  FROM appraisal.PropertyGroupItems gi2
                  JOIN appraisal.AppraisalProperties ap ON ap.Id = gi2.AppraisalPropertyId
@@ -221,7 +231,10 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                     fv.BuildingValue,
                     fv.FinalValueAdjusted,
                     fv.AppraisalPrice,
-                    fv.FinalValueRounded
+                    fv.FinalValueRounded,
+                    fv.IncludeLandArea,
+                    pm.ValuePerUnit,
+                    pm.UnitType
                 FROM appraisal.PricingAnalysisApproaches pap
                 JOIN appraisal.PricingAnalysisMethods pm
                     ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
@@ -320,16 +333,21 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 pgi.SequenceInGroup,
                 bad.Id               AS BuildingId,
                 bad.PropertyName,
+                bad.OwnerName,
                 bad.BuildingType,
                 bad.BuildingTypeOther,
-                COALESCE(ptBT.Description, bad.BuildingTypeOther, bad.BuildingType)   AS BuildingTypeDisplay,
+                CASE WHEN bad.BuildingType = '99' AND NULLIF(bad.BuildingTypeOther, '') IS NOT NULL
+                     THEN bad.BuildingTypeOther
+                     ELSE COALESCE(ptBT.Description, bad.BuildingTypeOther, bad.BuildingType) END AS BuildingTypeDisplay,
                 bad.NumberOfFloors,
                 bad.HouseNumber,
                 bad.TotalBuildingArea,
                 bad.BuildingAge,
                 bad.BuildingConditionType,
                 bad.BuildingConditionTypeOther,
-                COALESCE(ptBC.Description, bad.BuildingConditionTypeOther, bad.BuildingConditionType) AS BuildingConditionDisplay
+                CASE WHEN bad.BuildingConditionType = '99' AND NULLIF(bad.BuildingConditionTypeOther, '') IS NOT NULL
+                     THEN bad.BuildingConditionTypeOther
+                     ELSE COALESCE(ptBC.Description, bad.BuildingConditionTypeOther, bad.BuildingConditionType) END AS BuildingConditionDisplay
             FROM appraisal.PropertyGroupItems pgi
             JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
             JOIN appraisal.BuildingAppraisalDetails bad ON bad.AppraisalPropertyId = ap.Id
@@ -382,8 +400,11 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             SELECT
                 pgi.PropertyGroupId,
                 pgi.SequenceInGroup,
-                COALESCE(pFill.[description], lad.LandFillTypeOther, lad.LandFillType) AS LandFill,
-                lad.LandUseType
+                CASE WHEN lad.LandFillType = '99' AND NULLIF(lad.LandFillTypeOther, '') IS NOT NULL
+                     THEN lad.LandFillTypeOther
+                     ELSE COALESCE(pFill.[description], lad.LandFillTypeOther, lad.LandFillType) END AS LandFill,
+                lad.LandUseType,
+                lad.LandUseTypeOther
             FROM appraisal.PropertyGroupItems pgi
             JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
             JOIN appraisal.LandAppraisalDetails lad ON lad.AppraisalPropertyId = ap.Id
@@ -435,14 +456,16 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
               AND lt.GovernmentPricePerSqWa IS NOT NULL
             ORDER BY lt.GovernmentPricePerSqWa, lt.Id;
 
-            -- RS23: ราคาประเมินเดิม — live appraised value of the prior appraisal (reappraisal chain),
+            -- RS23: ราคาประเมินเดิม — the prior-appraisal link plus its LIVE appraised value,
             -- resolved through appraisal.Appraisals.PrevAppraisalId. Same field used for the current
-            -- appraisal in RS06; null when there is no prior appraisal or it has no valuation.
-            SELECT va.AppraisedValue
-            FROM appraisal.ValuationAnalyses va
-            WHERE va.AppraisalId = (
-                SELECT a7.PrevAppraisalId FROM appraisal.Appraisals a7
-                WHERE a7.Id = @AppraisalId AND a7.IsDeleted = 0);
+            -- appraisal in RS06. PrevAppraisalId is returned alongside the value so callers can
+            -- distinguish "no prior appraisal" (hide the field) from "prior appraisal exists but has
+            -- no valuation yet" (show the field with a dash). LEFT JOIN keeps one row either way.
+            SELECT a7.PrevAppraisalId,
+                   va.AppraisedValue AS PrevAppraisedValue
+            FROM appraisal.Appraisals a7
+            LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = a7.PrevAppraisalId
+            WHERE a7.Id = @AppraisalId AND a7.IsDeleted = 0;
             """;
 
         var batchParams = new DynamicParameters();
@@ -470,7 +493,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         RequestAddressRow? requestAddress;
         List<string> requestPropertyTypes;
         List<GovPriceRow> govPriceRows;
-        decimal? prevAppraisedValue;
+        AppraisalSummaryCommonLoader.PrevAppraisalRow? prevAppraisal;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, batchParams))
         {
@@ -548,7 +571,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             govPriceRows = (await multi.ReadAsync<GovPriceRow>()).ToList();
 
             // RS23
-            prevAppraisedValue = await multi.ReadFirstOrDefaultAsync<decimal?>();
+            prevAppraisal = await multi.ReadFirstOrDefaultAsync<AppraisalSummaryCommonLoader.PrevAppraisalRow>();
         }
 
         var customerName = customerNames.Count > 0
@@ -751,6 +774,25 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         string? TranslateCollateralType(string? code) =>
             CollateralFamilyTranslator.ToThai(code, collateralTypeMap);
 
+        // RS07 gives us only the FIRST member by SequenceInGroup, so a mixed Land+Building group
+        // mislabels itself as สิ่งปลูกสร้าง whenever the building happens to sort first. Derive the
+        // family from what the group actually contains instead. Leasehold families (LS*) pass
+        // through — they carry their own CollateralType codes (LS→09, LSL→29, LSB→05) that the
+        // plain L/B/LB triple cannot express.
+        static string? DeriveFamily(string? stored, bool hasLand, bool hasBuilding)
+        {
+            if (stored is not null && stored.StartsWith("LS", StringComparison.OrdinalIgnoreCase))
+                return stored;
+
+            return (hasLand, hasBuilding) switch
+            {
+                (true, true) => "LB",
+                (true, false) => "L",
+                (false, true) => "B",
+                _ => stored,   // no composition signal — keep whatever RS07 gave us
+            };
+        }
+
         // ── Build per-group summary rows ──────────────────────────────────────────
         var summaryGroups = groupRows.Select(g =>
         {
@@ -821,6 +863,12 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 new[] { landDescription }.Concat(buildingDescParts).Where(s => !string.IsNullOrWhiteSpace(s)));
             collateralDetails = string.IsNullOrWhiteSpace(collateralDetails) ? null : collateralDetails;
 
+            // Building clause shown separately (below the land-title list) in the
+            // market/combined row — newline-joined so multiple buildings line-break.
+            var buildingDescription = buildingDescParts.Count > 0
+                ? string.Join("\n", buildingDescParts)
+                : null;
+
             var totalRai = titles.Sum(t => t.AreaRai ?? 0m);
             var totalNgan = titles.Sum(t => t.AreaNgan ?? 0m);
             var totalSqwa = titles.Sum(t => t.AreaSquareWa ?? 0m);
@@ -858,11 +906,37 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
             var groupTotal = g.GroupAppraisalValue ?? g.AppraisalPrice ?? g.FinalValueRounded;
 
+            // Group composition — also drives the first-column label (see DeriveFamily).
+            var hasLand = titles.Count > 0 || g.LandValue.HasValue;
+            var hasBuilding = buildingItems.Count > 0 || buildings.Count > 0;
+
+            // Market/combined row only: show พื้นที่ + ราคาต่อหน่วย for a LAND-ONLY group priced at a
+            // per-unit rate, where the rate genuinely prices the land. A Land+Building market group
+            // has a single blended figure with nothing to divide, so both cells stay blank.
+            // Mirrors Appraisal.Domain.Services.PricingUnit.IsPerUnitRate — Reporting cannot
+            // reference the Appraisal assembly. KEEP IN SYNC with PricingUnit.cs.
+            var isLandRate = g.UnitType is "PerSqWa" or "PerSqm";
+
+            // Land area is title-derived on both sides (the save path resolves it via
+            // PricingPropertyDataService.GetTotalLandAreaFromTitlesAsync over the same LandTitles),
+            // so totalSquareWa equals PricingFinalValues.LandArea by construction — and it is
+            // populated for historical rows that predate that fix.
+            var marketLandArea = totalSquareWa == 0m ? null : (decimal?)totalSquareWa;
+            var marketLandUnitPrice = g.ValuePerUnit ?? g.LandUnitPrice;   // else FinalValueAdjusted
+
+            var showLandUnitColumns = !isCost
+                                      && hasLand
+                                      && !hasBuilding
+                                      && isLandRate
+                                      && g.IncludeLandArea != false
+                                      && marketLandArea.HasValue
+                                      && marketLandUnitPrice.HasValue;
+
             return new SummaryGroupRow
             {
                 GroupNumber = g.GroupNumber,
                 GroupName = g.GroupName,
-                PropertyType = TranslateCollateralType(g.PropertyType),
+                PropertyType = TranslateCollateralType(DeriveFamily(g.PropertyType, hasLand, hasBuilding)),
                 CollateralDetails = collateralDetails,
                 AreaOrUnit = areaOrUnit,
                 PricePerAreaOrUnit = g.LandUnitPrice,
@@ -870,10 +944,14 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 Condition = null,
                 Remark = null,
                 IsCostApproach = isCost,
-                HasLand = titles.Count > 0 || g.LandValue.HasValue,
-                HasBuilding = buildingItems.Count > 0 || buildings.Count > 0,
+                HasLand = hasLand,
+                HasBuilding = hasBuilding,
+                ShowLandUnitColumns = showLandUnitColumns,
+                MarketLandArea = marketLandArea,
+                MarketLandUnitPrice = marketLandUnitPrice,
                 LandDescription = landDescription,
                 LandDescriptions = landParts,
+                BuildingDescription = buildingDescription,
                 TotalSquareWa = totalSquareWa == 0m ? null : totalSquareWa,
                 LandUnitPrice = g.LandUnitPrice,
                 LandValue = g.LandValue,
@@ -884,8 +962,12 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         }).ToList();
 
         // ── Derived fields ───────────────────────────────────────────────────────
-        // ราคาประเมินเดิม — prior appraisal's live appraised value (RS23), for reappraisals.
-        decimal? oldAppraisalValue = prevAppraisedValue;
+        // ราคาประเมินเดิม — prior appraisal's live appraised value (RS23). Shown whenever the
+        // appraisal has a PrevAppraisalId, regardless of AppraisalType: any appraisal carrying a
+        // prior-appraisal link has a meaningful previous value, and keying off AppraisalType alone
+        // hid it for reappraisal chains not typed exactly "ReAppraisal".
+        decimal? oldAppraisalValue = prevAppraisal?.PrevAppraisedValue;
+        bool hasPrevAppraisal = prevAppraisal?.PrevAppraisalId is not null;
 
         bool isReAppraisal = string.Equals(
             header.AppraisalType, "ReAppraisal", StringComparison.OrdinalIgnoreCase);
@@ -925,7 +1007,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             .ToDictionary(
                 gp => gp.Key,
                 gp => gp.OrderBy(r => r.SequenceInGroup)
-                        .Select(r => JsonCodesToThai(r.LandUseType, landUseMap))
+                        .Select(r => ParameterCodeFormatter.DecodeJsonArray(r.LandUseType, r.LandUseTypeOther, landUseMap))
                         .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)));
         var utilizations = groupRows
             .Where(g => landUseByGroup.TryGetValue(g.GroupId, out var u) && !string.IsNullOrWhiteSpace(u))
@@ -975,7 +1057,11 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             ? "สรุปรายงานการประเมินราคาที่ดิน"
             : "สรุปรายงานการประเมินราคาทรัพย์สิน";
 
-        string? utilization = JsonCodesToThai(land?.LandUseType, landUseMap);
+        // ที่ดินพร้อมสิ่งปลูกสร้าง — drives the กรรมสิทธิ์สิ่งปลูกสร้าง fallback below.
+        bool isLandBuildingAppraisal = hasAnyLand && hasAnyBuilding;
+
+        string? utilization = ParameterCodeFormatter.DecodeJsonArray(
+            land?.LandUseType, land?.LandUseTypeOther, landUseMap);
 
         // วิธีการประเมิน — scoped to the methods of the (filtered) groups actually shown.
         var groupMethodTypes = methodRows
@@ -994,8 +1080,13 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             ? summaryGroups.Sum(g => g.AppraisalValue ?? 0m)
             : valuation?.AppraisedValue;
 
+        // Force-sale rate resolution: appraisal override (valuation.ForceSaleRate) -> system
+        // default, passed in by the caller since this method is static and cannot inject
+        // ISystemConfigurationReader. Only used as a fallback when ForcedSaleValue itself is
+        // not yet persisted (e.g. no PricingAnalysis committed yet).
+        var forceSaleRate = valuation?.ForceSaleRate ?? forceSaleRateDefault;
         decimal? forcedSaleValue = valuation?.ForcedSaleValue
-            ?? (totalAppraisalValue.HasValue ? totalAppraisalValue.Value * 0.70m : null);
+            ?? (totalAppraisalValue.HasValue ? totalAppraisalValue.Value * forceSaleRate / 100m : null);
 
         decimal? buildingCoverage = valuation?.InsuranceValue;
 
@@ -1014,6 +1105,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             AdministrativeDistrict = land?.SubDistrict,
             LandOffice = land?.LandOffice,
             OldAppraisalValue = oldAppraisalValue,
+            HasPrevAppraisal = hasPrevAppraisal,
             IsReAppraisal = isReAppraisal,
             IsIncreaseLimit = isIncreaseLimit,
             ExistingLoanValue = existingLoanValue,
@@ -1026,8 +1118,17 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             Condition = decision?.Condition,
             Remark = decision?.Remark,
             LandOwner = land?.OwnerName,
-            EntryExitRights = JsonCodesToThai(land?.LandEntranceExitType, entranceExitMap),
-            BuildingOwner = land?.OwnerName,
+            EntryExitRights = ParameterCodeFormatter.DecodeJsonArray(
+                land?.LandEntranceExitType, land?.LandEntranceExitTypeOther, entranceExitMap),
+            // Building ownership is its own column on BuildingAppraisalDetails. It only falls back to
+            // the land owner on ที่ดินพร้อมสิ่งปลูกสร้าง (LB), where the two are one collateral unit
+            // and a blank building owner means "same as the land" rather than "unknown". Land-only /
+            // building-only appraisals keep the two rows independent, so a blank there stays blank
+            // (rendered as "-" by .kv .v:empty::before) instead of echoing an unrelated name.
+            BuildingOwner = groupBuildingRows
+                .Select(b => b.OwnerName)
+                .FirstOrDefault(o => !string.IsNullOrWhiteSpace(o))
+                ?? (isLandBuildingAppraisal ? land?.OwnerName : null),
             LandCondition = landCondition,
             LandConditions = landConditions,
             Obligation = land?.ObligationDetails,
@@ -1044,7 +1145,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             IsHypothesis = methodFlags.IsHypothesis,
             IsLeasehold = methodFlags.IsLeasehold,
             IsProfitRent = methodFlags.IsProfitRent,
-            AppraiserComment = decision?.AppraiserOpinion ?? decision?.CommitteeOpinion,
+            AppraiserComment = AppraisalSummaryCommonLoader.FirstNonBlank(decision?.AppraiserOpinion),
             AppraisalStaffName = staffName,
             AppraisalStaffPosition = staffPosition,
             AppraisalCheckerName = checkerName,
@@ -1136,40 +1237,6 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             .GroupBy(p => p.Code!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First().Description, StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>
-    /// Parses a JSON array (or single value) of parameter codes and joins their Thai
-    /// descriptions via <paramref name="map"/>; falls back to the raw code when unmapped.
-    /// </summary>
-    private static string? JsonCodesToThai(string? raw, IReadOnlyDictionary<string, string?> map)
-    {
-        if (string.IsNullOrWhiteSpace(raw))
-            return null;
-
-        var s = raw.Trim();
-        List<string> codes;
-        if (s.StartsWith('['))
-        {
-            try
-            {
-                codes = System.Text.Json.JsonSerializer.Deserialize<List<string>>(s) ?? [];
-            }
-            catch (System.Text.Json.JsonException)
-            {
-                codes = [s];
-            }
-        }
-        else
-        {
-            codes = [s];
-        }
-
-        var labels = codes
-            .Where(c => !string.IsNullOrWhiteSpace(c))
-            .Select(c => map.TryGetValue(c, out var d) && !string.IsNullOrWhiteSpace(d) ? d! : c);
-
-        var joined = string.Join(", ", labels);
-        return string.IsNullOrWhiteSpace(joined) ? null : joined;
-    }
 
     // ── Private flat DTOs for Dapper mapping ─────────────────────────────────────
 
@@ -1193,7 +1260,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public string? Soi { get; init; }
         public string? Road { get; init; }
         public string? LandUseType { get; init; }
+        public string? LandUseTypeOther { get; init; }
         public string? LandEntranceExitType { get; init; }
+        public string? LandEntranceExitTypeOther { get; init; }
         public string? SubDistrict { get; init; }
         public string? District { get; init; }
         public string? Province { get; init; }
@@ -1232,6 +1301,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public decimal? AppraisedValue { get; init; }
         public decimal? ForcedSaleValue { get; init; }
         public decimal? InsuranceValue { get; init; }
+        public decimal? ForceSaleRate { get; init; }
     }
 
     private sealed class MethodTypeRow
@@ -1252,6 +1322,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public decimal? LandUnitPrice { get; init; }          // FinalValueAdjusted
         public decimal? AppraisalPrice { get; init; }
         public decimal? FinalValueRounded { get; init; }
+        public decimal? ValuePerUnit { get; init; }           // PricingAnalysisMethods.ValuePerUnit
+        public string? UnitType { get; init; }                // "PerSqWa" | "PerSqm" | "PerUnit"
+        public bool? IncludeLandArea { get; init; }
         public string? PropertyType { get; init; }
         public string? FirstTitleNumber { get; init; }
         public decimal? AreaRai { get; init; }
@@ -1276,6 +1349,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public int SequenceInGroup { get; init; }
         public string? LandFill { get; init; }
         public string? LandUseType { get; init; }
+        public string? LandUseTypeOther { get; init; }
     }
 
     private sealed class GovPriceRow
@@ -1360,6 +1434,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public Guid PropertyGroupId { get; init; }
         public Guid BuildingId { get; init; }
         public string? PropertyName { get; init; }
+        public string? OwnerName { get; init; }
         public int SequenceInGroup { get; init; }
         public string? BuildingTypeDisplay { get; init; }
         public decimal? NumberOfFloors { get; init; }

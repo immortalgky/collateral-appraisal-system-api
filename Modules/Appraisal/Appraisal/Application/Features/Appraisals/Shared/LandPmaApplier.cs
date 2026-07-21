@@ -46,7 +46,7 @@ public static class LandPmaApplier
             ? Address.Create(subDistrict, district, province)
             : landDetail.Address;
 
-        landDetail.Update(
+        landDetail.UpdatePmaFields(
             address: address,
             landOffice: landDetail.LandOffice,
             dopaAddress: landDetail.DopaAddress

@@ -19,6 +19,9 @@ public class DocumentTypeConfiguration : IEntityTypeConfiguration<DocumentType>
             .IsRequired()
             .HasMaxLength(200);
 
+        builder.Property(d => d.NameTh)
+            .HasMaxLength(200);
+
         builder.Property(d => d.Description)
             .HasMaxLength(500);
 

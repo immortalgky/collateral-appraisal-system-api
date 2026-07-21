@@ -35,13 +35,9 @@ public class UpdateLandPMAPropertyCommandHandler(
                 command.District,
                 command.Province
             );
-
-
-        property.LandDetail!.Update(
+        property.LandDetail!.UpdatePmaFields(
             ownerName: "",
-            address: address,
-            landOffice: null,
-            dopaAddress: null
+            address: address
         );
 
 

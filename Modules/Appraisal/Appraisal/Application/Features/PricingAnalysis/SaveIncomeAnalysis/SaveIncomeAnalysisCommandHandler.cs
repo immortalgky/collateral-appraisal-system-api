@@ -155,7 +155,7 @@ public class SaveIncomeAnalysisCommandHandler(
         {
             methodValue = result.FinalValueRounded;
         }
-        method.SetValue(methodValue);
+        method.SetValue(methodValue, null, PricingUnit.PerUnit);
 
         // Mirror the committed final value into the shared PricingFinalValue (single source of truth).
         if (method.FinalValue is null)

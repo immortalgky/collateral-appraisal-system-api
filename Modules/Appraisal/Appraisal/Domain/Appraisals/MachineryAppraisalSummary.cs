@@ -32,6 +32,12 @@ public class MachineryAppraisalSummary : Entity<Guid>
     public string? Obligation { get; private set; }
     public string? Other { get; private set; }
 
+    // Section 1 — Book Intro (report-only free text; 1.3 dates are derived from the
+    // appointment elsewhere and are intentionally not stored here)
+    public string? Assignment { get; private set; } // 1.1 การมอบหมาย
+    public string? ValuationPurpose { get; private set; } // 1.2 วัตถุประสงค์ในการประเมินมูลค่าทรัพย์สิน
+    public string? PropertyCharacteristics { get; private set; } // 1.4 ลักษณะทรัพย์สินที่ประเมินมูลค่า
+
     private MachineryAppraisalSummary()
     {
         // For EF Core
@@ -67,7 +73,11 @@ public class MachineryAppraisalSummary : Entity<Guid>
         decimal? latitude = null,
         decimal? longitude = null,
         string? obligation = null,
-        string? other = null)
+        string? other = null,
+        // Section 1 — Book Intro
+        string? assignment = null,
+        string? valuationPurpose = null,
+        string? propertyCharacteristics = null)
     {
         // Section 3.1
         if (inIndustrial is not null) InIndustrial = inIndustrial;
@@ -91,5 +101,10 @@ public class MachineryAppraisalSummary : Entity<Guid>
         if (longitude.HasValue) Longitude = longitude.Value;
         if (obligation is not null) Obligation = obligation;
         if (other is not null) Other = other;
+
+        // Section 1
+        if (assignment is not null) Assignment = assignment;
+        if (valuationPurpose is not null) ValuationPurpose = valuationPurpose;
+        if (propertyCharacteristics is not null) PropertyCharacteristics = propertyCharacteristics;
     }
 }

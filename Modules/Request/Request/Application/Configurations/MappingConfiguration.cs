@@ -122,30 +122,6 @@ public static class MappingConfiguration
             .Map(dest => dest.Source, src => (string?)null)
             .Map(dest => dest.IsRequired, src => false);
 
-        TypeAdapterConfig<RequestTitleRow, RequestTitleDto>
-            .NewConfig()
-            .Ignore(dest => dest.Documents)
-            .Map(dest => dest.TitleAddress, src => new AddressDto(
-                src.HouseNumber,
-                src.ProjectName,
-                src.Moo,
-                src.Soi,
-                src.Road,
-                src.SubDistrict,
-                src.District,
-                src.Province,
-                src.Postcode))
-            .Map(dest => dest.DopaAddress, src => new AddressDto(
-                src.DopaHouseNumber,
-                src.DopaProjectName,
-                src.DopaMoo,
-                src.DopaSoi,
-                src.DopaRoad,
-                src.DopaSubDistrict,
-                src.DopaDistrict,
-                src.DopaProvince,
-                src.DopaPostcode));
-
         TypeAdapterConfig<RequestRow, RequestDetailDto>
             .NewConfig()
             .Map(dest => dest.LoanDetail, src => src.Adapt<LoanDetailDto>())

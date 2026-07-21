@@ -20,6 +20,10 @@ public sealed class OlaReportRow
     public string? AssignmentType { get; set; }
     public string? AppraisalCompany { get; set; }
     public string? InternalAppraisalStaff { get; set; }
+    public string? InternalAppraisalStaffCode { get; set; }
+
+    /// <summary>The internal staff's Auth role(s), comma-joined (FSD "Role ผู้รับผิดชอบ").</summary>
+    public string? Role { get; set; }
     public string? RequestorCode { get; set; }
     public string? BankingSegment { get; set; }
     public DateTime? AppointmentDate { get; set; }

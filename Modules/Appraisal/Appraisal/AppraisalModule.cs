@@ -66,6 +66,9 @@ public static class AppraisalModule
         // Register Appendix repository
         services.AddScoped<IAppraisalAppendixRepository, AppraisalAppendixRepository>();
 
+        // Register Appraisal Document (valuation document checklist) repository
+        services.AddScoped<IAppraisalDocumentRepository, AppraisalDocumentRepository>();
+
         // Register Decision repository
         services.AddScoped<IAppraisalDecisionRepository, AppraisalDecisionRepository>();
 
@@ -78,6 +81,7 @@ public static class AppraisalModule
         // Register Application Services (pricing)
         services.AddScoped<PricingPropertyDataService>();
         services.AddScoped<PricingReferenceCleanupService>();
+        services.AddScoped<ForceSaleRateResolver>();
 
         // Register Domain Services
         // IncomeCalculationService is scoped so it can carry ILogger (injected by DI).

@@ -44,11 +44,15 @@ internal static class MachineSectionLoader
         // Both statements are parameterised only on @AppraisalId.
         //
         // QS1 column notes (MachineryAppraisalSummaryConfiguration.cs, no HasColumnName):
+        //   Assignment, ValuationPurpose, PropertyCharacteristics (book intro narrative,
+        //   FSD §2.1.2.7 section 1), InIndustrial,
         //   SurveyedNumber→SurveyedCount, AppraisalNumber→EvaluatedCount (count of
         //   evaluated machines, not the book number), InstalledAndUseCount→InstalledInUseCount,
-        //   AppraisalScrapCount→WreckageCount, NotInstalledCount→NotInstalledCount,
+        //   AppraisalScrapCount→WreckageCount, AppraisedByDocumentCount,
+        //   NotInstalledCount→NotInstalledCount,
         //   Maintenance→MaintenanceCondition, Exterior→ExteriorCondition,
-        //   Performance→Efficiency, MarketDemand, Owner→OwnerName,
+        //   Performance→Efficiency, MarketDemandAvailable, MarketDemand,
+        //   Proprietor, Owner→OwnerName,
         //   MachineAddress→MachineLocation, Obligation, Other.
         //   Deferred: CollateralDetailNarrative (no column).
         //
@@ -61,19 +65,26 @@ internal static class MachineSectionLoader
         const string batchSql = """
             -- RS01: QS1 — Machinery appraisal summary (appraisal-level, 1:1)
             SELECT
-                mas.SurveyedNumber       AS SurveyedCount,
-                mas.AppraisalNumber      AS EvaluatedCount,
-                mas.InstalledAndUseCount AS InstalledInUseCount,
-                mas.AppraisalScrapCount  AS WreckageCount,
-                mas.NotInstalledCount    AS NotInstalledCount,
-                mas.Maintenance          AS MaintenanceCondition,
-                mas.Exterior             AS ExteriorCondition,
-                mas.Performance          AS Efficiency,
-                mas.MarketDemand         AS MarketDemand,
-                mas.Owner                AS OwnerName,
-                mas.MachineAddress       AS MachineLocation,
-                mas.Obligation           AS Obligation,
-                mas.Other                AS Other
+                mas.Assignment               AS Assignment,
+                mas.ValuationPurpose         AS ValuationPurpose,
+                mas.PropertyCharacteristics  AS PropertyCharacteristics,
+                mas.InIndustrial             AS InIndustrial,
+                mas.SurveyedNumber           AS SurveyedCount,
+                mas.AppraisalNumber          AS EvaluatedCount,
+                mas.InstalledAndUseCount     AS InstalledInUseCount,
+                mas.AppraisalScrapCount      AS WreckageCount,
+                mas.AppraisedByDocumentCount AS AppraisedByDocumentCount,
+                mas.NotInstalledCount        AS NotInstalledCount,
+                mas.Maintenance              AS MaintenanceCondition,
+                mas.Exterior                 AS ExteriorCondition,
+                mas.Performance              AS Efficiency,
+                mas.MarketDemandAvailable    AS MarketDemandAvailable,
+                mas.MarketDemand             AS MarketDemand,
+                mas.Proprietor               AS Proprietor,
+                mas.Owner                    AS OwnerName,
+                mas.MachineAddress           AS MachineLocation,
+                mas.Obligation               AS Obligation,
+                mas.Other                    AS Other
             FROM appraisal.MachineryAppraisalSummaries mas
             WHERE mas.AppraisalId = @AppraisalId;
 
@@ -161,15 +172,22 @@ internal static class MachineSectionLoader
         // ── Build section ─────────────────────────────────────────────────────────
         return new MachineSection
         {
+            Assignment                = summary?.Assignment,
+            ValuationPurpose          = summary?.ValuationPurpose,
+            PropertyCharacteristics   = summary?.PropertyCharacteristics,
+            InIndustrial              = summary?.InIndustrial,
             SurveyedCount             = summary?.SurveyedCount,
             EvaluatedCount            = summary?.EvaluatedCount,
             InstalledInUseCount       = summary?.InstalledInUseCount,
             WreckageCount             = summary?.WreckageCount,
+            AppraisedByDocumentCount  = summary?.AppraisedByDocumentCount,
             NotInstalledCount         = summary?.NotInstalledCount,
             MaintenanceCondition      = summary?.MaintenanceCondition,
             ExteriorCondition         = summary?.ExteriorCondition,
             Efficiency                = summary?.Efficiency,
+            MarketDemandAvailable     = summary?.MarketDemandAvailable,
             MarketDemand              = summary?.MarketDemand,
+            Proprietor                = summary?.Proprietor,
             OwnerName                 = summary?.OwnerName,
             MachineLocation           = summary?.MachineLocation,
             Obligation                = summary?.Obligation,
@@ -183,15 +201,22 @@ internal static class MachineSectionLoader
 
     private sealed class SummaryRow
     {
+        public string? Assignment { get; init; }
+        public string? ValuationPurpose { get; init; }
+        public string? PropertyCharacteristics { get; init; }
+        public string? InIndustrial { get; init; }
         public int? SurveyedCount { get; init; }
         public int? EvaluatedCount { get; init; }
         public int? InstalledInUseCount { get; init; }
         public int? WreckageCount { get; init; }
+        public int? AppraisedByDocumentCount { get; init; }
         public int? NotInstalledCount { get; init; }
         public string? MaintenanceCondition { get; init; }
         public string? ExteriorCondition { get; init; }
         public string? Efficiency { get; init; }
+        public bool? MarketDemandAvailable { get; init; }
         public string? MarketDemand { get; init; }
+        public string? Proprietor { get; init; }
         public string? OwnerName { get; init; }
         public string? MachineLocation { get; init; }
         public string? Obligation { get; init; }

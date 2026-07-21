@@ -1,6 +1,7 @@
 using Reporting.Application.Formatting;
 using Reporting.Application.Models;
 using Reporting.Application.Services;
+using Shared.Configuration;
 
 namespace Reporting.Application.Providers;
 
@@ -46,6 +47,7 @@ namespace Reporting.Application.Providers;
 /// </summary>
 public sealed class AppraisalSummaryConstructionDataProvider(
     ISqlConnectionFactory connectionFactory,
+    ISystemConfigurationReader configReader,
     ILogger<AppraisalSummaryConstructionDataProvider> logger)
     : IReportDataProvider
 {
@@ -57,7 +59,8 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             throw new NotFoundException("Appraisal", entityId);
 
         using var connection = connectionFactory.CreateNewConnection();
-        var model = await BuildAsync(connection, appraisalId, cancellationToken);
+        var forceSaleRateDefault = await configReader.GetDecimalAsync("ForceSaleRateDefaultPct", 70m, cancellationToken);
+        var model = await BuildAsync(connection, appraisalId, forceSaleRateDefault, cancellationToken);
 
         logger.LogDebug(
             "AppraisalSummaryConstruction model assembled for appraisal {AppraisalId}: " +
@@ -85,10 +88,11 @@ public sealed class AppraisalSummaryConstructionDataProvider(
     internal static async Task<AppraisalSummaryModel> BuildAsync(
         System.Data.IDbConnection connection,
         Guid appraisalId,
+        decimal forceSaleRateDefault,
         CancellationToken ct)
     {
         // ── Common data (Q1–Q14 + ColTypeMap) ───────────────────────────────────
-        var common = await AppraisalSummaryCommonLoader.LoadAsync(connection, appraisalId, ct);
+        var common = await AppraisalSummaryCommonLoader.LoadAsync(connection, appraisalId, forceSaleRateDefault, ct);
         if (common is null)
             throw new NotFoundException("Appraisal", appraisalId.ToString());
 
@@ -308,6 +312,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             AdministrativeDistrict = landAddr?.SubDistrict,
             LandOffice          = landAddr?.LandOffice,
             OldAppraisalValue   = common.PrevAppraisedValue,
+            HasPrevAppraisal    = common.HasPrevAppraisal,
             IsReAppraisal       = string.Equals(common.AppraisalType, "ReAppraisal", StringComparison.OrdinalIgnoreCase),
             Appraiser           = common.Appraiser,
             LoanValue           = common.LoanValue,

@@ -66,7 +66,9 @@ internal static class BuildingSectionLoader
                 bad.HouseNumber,
                 bad.BuildingType,
                 bad.BuildingTypeOther,
-                COALESCE(ptBT.Description, bad.BuildingTypeOther, bad.BuildingType)
+                CASE WHEN bad.BuildingType = '99' AND NULLIF(bad.BuildingTypeOther, '') IS NOT NULL
+                     THEN bad.BuildingTypeOther
+                     ELSE COALESCE(ptBT.Description, bad.BuildingTypeOther, bad.BuildingType) END
                                               AS BuildingTypeText,
                 bad.NumberOfFloors,
                 bad.ModelName,
@@ -77,7 +79,9 @@ internal static class BuildingSectionLoader
                 bad.BuildingAge,
                 bad.BuildingConditionType,
                 bad.BuildingConditionTypeOther,
-                COALESCE(ptBC.Description, bad.BuildingConditionTypeOther, bad.BuildingConditionType)
+                CASE WHEN bad.BuildingConditionType = '99' AND NULLIF(bad.BuildingConditionTypeOther, '') IS NOT NULL
+                     THEN bad.BuildingConditionTypeOther
+                     ELSE COALESCE(ptBC.Description, bad.BuildingConditionTypeOther, bad.BuildingConditionType) END
                                               AS BuildingCondition,
                 bad.BuildingMaterialType      AS MaterialQuality,
                 bad.BuildingStyleType         AS BuildingForm,
@@ -197,16 +201,26 @@ internal static class BuildingSectionLoader
                     .ToDictionary(x => x.Key, x => x.First().Description, StringComparer.OrdinalIgnoreCase),
                 StringComparer.OrdinalIgnoreCase);
 
-        // Resolves a (group, raw code or JSON array) to comma-joined Thai descriptions,
-        // appending the free-text "Other" value when present. Falls back to the raw code.
+        // Resolves a (group, raw code or JSON array) to comma-joined Thai descriptions.
+        // Code "99" = "other": the free-text remark REPLACES the "อื่นๆ" label in place
+        // (falling back to the resolved 99 description when the remark is blank). When the
+        // array has no 99 code, a present remark is appended at the end (legacy safety).
+        const string OtherCode = "99";
         string? ResolveCodes(string group, string? raw, string? other = null)
         {
             var map = paramMaps.GetValueOrDefault(group);
-            var items = ParseJsonArray(raw)
-                .Select(c => map != null && map.TryGetValue(c, out var d) && !string.IsNullOrWhiteSpace(d) ? d! : c)
+            var trimmedOther = string.IsNullOrWhiteSpace(other) ? null : other.Trim();
+            var codes = ParseJsonArray(raw).ToList();
+            var hasOtherCode = codes.Any(c => c == OtherCode);
+            var items = codes
+                .Select(c =>
+                {
+                    var display = map != null && map.TryGetValue(c, out var d) && !string.IsNullOrWhiteSpace(d) ? d! : c;
+                    return c == OtherCode && trimmedOther != null ? trimmedOther : display;
+                })
                 .ToList();
-            if (!string.IsNullOrWhiteSpace(other))
-                items.Add(other.Trim());
+            if (trimmedOther != null && !hasOtherCode)
+                items.Add(trimmedOther);
             return items.Count > 0 ? string.Join(", ", items) : null;
         }
 

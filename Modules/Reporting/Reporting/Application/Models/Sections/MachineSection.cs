@@ -3,10 +3,13 @@ namespace Reporting.Application.Models.Sections;
 /// <summary>
 /// Sub-model for the "รายละเอียดเครื่องจักร" (Machine Details) section — FSD §2.1.2.7.
 ///
-/// Covers two visual blocks on the printed form:
-///   1. Summary header — appraisal-level counts and condition ratings from
+/// Covers three visual blocks on the printed form:
+///   1. Narrative intro — the free-text "1. วัตถุประสงค์และที่ตั้งเครื่องจักร" page,
+///      authored by the appraiser and stored on
 ///      <c>appraisal.MachineryAppraisalSummaries</c>.
-///   2. Per-machine grid — one row per registered machine from
+///   2. Summary header — appraisal-level counts and condition ratings from
+///      <c>appraisal.MachineryAppraisalSummaries</c>.
+///   3. Per-machine grid — one row per registered machine from
 ///      <c>appraisal.MachineryAppraisalDetails</c>.
 ///
 /// All scalar properties are nullable so that partial data renders as a blank
@@ -16,7 +19,38 @@ namespace Reporting.Application.Models.Sections;
 /// </summary>
 public sealed class MachineSection
 {
+    // ── Book intro narrative — FSD §2.1.2.7 section 1 ────────────────────────────
+    // Free text authored by the appraiser; rendered verbatim (no composition).
+
+    /// <summary>
+    /// 1.1 การมอบหมาย — Source: MachineryAppraisalSummaries.Assignment (nvarchar 4000).
+    /// </summary>
+    public string? Assignment { get; init; }
+
+    /// <summary>
+    /// 1.2 วัตถุประสงค์ในการประเมินมูลค่าทรัพย์สิน — Source:
+    /// MachineryAppraisalSummaries.ValuationPurpose (nvarchar 4000).
+    /// </summary>
+    public string? ValuationPurpose { get; init; }
+
+    /// <summary>
+    /// 1.4 ลักษณะทรัพย์สินที่ประเมินมูลค่า — Source:
+    /// MachineryAppraisalSummaries.PropertyCharacteristics (nvarchar 4000).
+    /// Includes the appraiser-typed (1)/(2) registered/unregistered breakdown.
+    /// </summary>
+    public string? PropertyCharacteristics { get; init; }
+
+    // 1.3 วันที่สำรวจและประเมินมูลค่าทรัพย์สิน has no field here — the template reads the
+    // appraisal-level appointment date from AppraisalSummaryModel.AppraisalDate.
+
     // ── Summary header — appraisal.MachineryAppraisalSummaries ───────────────────
+
+    /// <summary>
+    /// เครื่องจักรและอุปกรณ์ที่ใช้ในอุตสาหกรรม — Source:
+    /// MachineryAppraisalSummaries.InIndustrial (nvarchar 500).
+    /// The industry / plant type the machinery is used in, e.g. "โรงไฟฟ้าพลังงานชีวมวล".
+    /// </summary>
+    public string? InIndustrial { get; init; }
 
     /// <summary>
     /// จำนวนที่สำรวจ — Source: MachineryAppraisalSummaries.SurveyedNumber (int?).
@@ -41,6 +75,12 @@ public sealed class MachineSection
     public int? WreckageCount { get; init; }
 
     /// <summary>
+    /// จำนวนเครื่องจักรที่ประเมินมูลค่าตามเอกสาร — Source:
+    /// MachineryAppraisalSummaries.AppraisedByDocumentCount (int?).
+    /// </summary>
+    public int? AppraisedByDocumentCount { get; init; }
+
+    /// <summary>
     /// จำนวนที่ยังไม่ติดตั้ง — Source: MachineryAppraisalSummaries.NotInstalledCount (int?).
     /// </summary>
     public int? NotInstalledCount { get; init; }
@@ -61,14 +101,32 @@ public sealed class MachineSection
     public string? Efficiency { get; init; }
 
     /// <summary>
-    /// สภาพความต้องการของตลาด — Source: MachineryAppraisalSummaries.MarketDemand (nvarchar 4000).
+    /// ความต้องการของตลาด (ใช้งานได้ / ใช้งานอยู่) — Source:
+    /// MachineryAppraisalSummaries.MarketDemandAvailable (bit, nullable).
+    /// Tri-state, rendered as a tick against a label that already states the condition:
+    /// <see langword="true"/> ticks the box, <see langword="false"/> leaves it empty,
+    /// <see langword="null"/> hides the row entirely.
+    /// The template must guard on <c>!= null</c> — Scriban treats <c>false</c> as falsy, so a
+    /// plain truthiness check would render the unknown case identically to the negative one.
+    /// </summary>
+    public bool? MarketDemandAvailable { get; init; }
+
+    /// <summary>
+    /// สภาพความต้องการของตลาด — Source: MachineryAppraisalSummaries.MarketDemand (nvarchar max).
     /// </summary>
     public string? MarketDemand { get; init; }
 
     /// <summary>
-    /// กรรมสิทธิ์เครื่องจักร / ชื่อเจ้าของ — Source: MachineryAppraisalSummaries.Owner (nvarchar 500).
-    /// Proprietor (juristic registrant) is a separate field on the summary entity but is not
-    /// surfaced here; Owner is the display-facing ownership name per FSD §2.1.2.7.
+    /// ผู้ถือกรรมสิทธิ์ — Source: MachineryAppraisalSummaries.Proprietor (nvarchar 500).
+    /// The juristic registrant / legal title holder, printed above <see cref="OwnerName"/>
+    /// in the §2.2 rights block.
+    /// </summary>
+    public string? Proprietor { get; init; }
+
+    /// <summary>
+    /// ผู้ครอบครองเครื่องจักร — Source: MachineryAppraisalSummaries.Owner (nvarchar 500).
+    /// Distinct from <see cref="Proprietor"/>: this is the party in possession of the
+    /// machinery, which need not be the registered title holder.
     /// </summary>
     public string? OwnerName { get; init; }
 

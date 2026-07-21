@@ -64,6 +64,7 @@ internal static class PricingCalculationHelper
     /// Picks the dominant price unit from a method's calculations.
     /// Per row, prefer the offering unit when offering price is set & non-zero,
     /// else fall back to the selling unit. The most frequent unit wins.
+    /// Returns the stored vocabulary value (PerSqWa / PerSqm / PerUnit) or null.
     /// Matches the FE detectPriceUnit helper.
     /// </summary>
     public static string? DetectPriceUnit(IEnumerable<PricingCalculation> calculations)
@@ -86,13 +87,20 @@ internal static class PricingCalculationHelper
 
     /// <summary>
     /// Rounds a computed final value based on the comparable price unit.
-    /// Unit 01/02 (per-Sq.Wa / per-Sq.M) → no rounding (prices are small).
-    /// Else (e.g. 03 total price)        → floor to nearest 1,000.
+    /// PerSqWa / PerSqm (per-Sq.Wa / per-Sq.M rate) → no rounding (prices are small).
+    /// Else (PerUnit total price)                   → floor to nearest 1,000.
     /// </summary>
     public static decimal RoundFinalValue(decimal finalValue, IEnumerable<PricingCalculation> calculations)
     {
         var detectedUnit = DetectPriceUnit(calculations);
-        var isUnitPrice = detectedUnit is "01" or "02";
+        var isUnitPrice = PricingUnit.IsPerUnitRate(detectedUnit);
         return isUnitPrice ? finalValue : Math.Floor(finalValue / 1_000m) * 1_000m;
     }
+
+    /// <summary>
+    /// Resolves the method's committed price unit from its calculations,
+    /// defaulting to a whole-unit lumpsum (PerUnit) when no unit can be detected.
+    /// </summary>
+    public static string ResolvePriceUnit(IEnumerable<PricingCalculation> calculations)
+        => DetectPriceUnit(calculations) ?? PricingUnit.PerUnit;
 }

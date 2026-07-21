@@ -450,6 +450,26 @@ public class LandAppraisalDetail : Entity<Guid>
         return copy;
     }
 
+    /// <summary>
+    /// Narrow update for the PMA save path — touches ONLY the fields the PMA form authors
+    /// (owner and address; prices go through <c>AppraisalProperty.UpdatePrice</c> and titles
+    /// through the applier's title sync).
+    /// <para>
+    /// Deliberately NOT <see cref="Update"/>: that method is a full overwrite of all ~77
+    /// properties, so calling it from PMA (which supplies one or two arguments) silently reset
+    /// every unsupplied field to null — wiping appraiser-entered land detail including
+    /// LandEntranceExitType, LandFillType, UrbanPlanningType and LandUseType. Keep this method
+    /// narrow; do not grow it into a second full overwrite.
+    /// </para>
+    /// </summary>
+    public void UpdatePmaFields(
+        string? ownerName = null,
+        AdministrativeAddress? address = null)
+    {
+        OwnerName = ownerName;
+        Address = address;
+    }
+
     public void AddTitle(LandTitle title)
     {
         _titles.Add(title);

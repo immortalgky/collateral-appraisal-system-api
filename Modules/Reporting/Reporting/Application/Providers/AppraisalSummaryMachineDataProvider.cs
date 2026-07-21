@@ -1,6 +1,7 @@
 using Reporting.Application.Formatting;
 using Reporting.Application.Models;
 using Reporting.Application.Services;
+using Shared.Configuration;
 
 namespace Reporting.Application.Providers;
 
@@ -28,6 +29,7 @@ namespace Reporting.Application.Providers;
 /// </summary>
 public sealed class AppraisalSummaryMachineDataProvider(
     ISqlConnectionFactory connectionFactory,
+    ISystemConfigurationReader configReader,
     ILogger<AppraisalSummaryMachineDataProvider> logger)
     : IReportDataProvider
 {
@@ -40,8 +42,10 @@ public sealed class AppraisalSummaryMachineDataProvider(
 
         using var connection = connectionFactory.CreateNewConnection();
 
+        var forceSaleRateDefault = await configReader.GetDecimalAsync("ForceSaleRateDefaultPct", 70m, cancellationToken);
+
         // ── Common data (Q1–Q14 + ColTypeMap) ───────────────────────────────────
-        var common = await AppraisalSummaryCommonLoader.LoadAsync(connection, appraisalId, cancellationToken);
+        var common = await AppraisalSummaryCommonLoader.LoadAsync(connection, appraisalId, forceSaleRateDefault, cancellationToken);
         if (common is null)
             throw new NotFoundException("Appraisal", entityId);
 
@@ -193,6 +197,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
             AdministrativeDistrict = null,
             LandOffice = null,
             OldAppraisalValue = common.PrevAppraisedValue,
+            HasPrevAppraisal = common.HasPrevAppraisal,
             IsReAppraisal = string.Equals(common.AppraisalType, "ReAppraisal", StringComparison.OrdinalIgnoreCase),
             Appraiser = common.Appraiser,
             LoanValue = common.LoanValue,

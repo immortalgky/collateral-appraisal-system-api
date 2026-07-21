@@ -8,6 +8,7 @@ public class DocumentType : Entity<Guid>
 
     public string Code { get; private set; } = null!;
     public string Name { get; private set; } = null!;
+    public string? NameTh { get; private set; }
     public string? Description { get; private set; }
     public string? Category { get; private set; }
     public bool IsActive { get; private set; } = true;
@@ -17,11 +18,12 @@ public class DocumentType : Entity<Guid>
     {
     }
 
-    private DocumentType(string code, string name, string? description, string? category, int sortOrder)
+    private DocumentType(string code, string name, string? nameTh, string? description, string? category, int sortOrder)
     {
         Id = Guid.CreateVersion7();
         Code = code;
         Name = name;
+        NameTh = nameTh;
         Description = description;
         Category = category;
         SortOrder = sortOrder;
@@ -33,19 +35,21 @@ public class DocumentType : Entity<Guid>
         string name,
         string? description = null,
         string? category = null,
-        int sortOrder = 0)
+        int sortOrder = 0,
+        string? nameTh = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(code);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        return new DocumentType(code.ToUpperInvariant(), name, description, category, sortOrder);
+        return new DocumentType(code.ToUpperInvariant(), name, nameTh, description, category, sortOrder);
     }
 
-    public void Update(string name, string? description, string? category, int sortOrder)
+    public void Update(string name, string? description, string? category, int sortOrder, string? nameTh = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
         Name = name;
+        NameTh = nameTh;
         Description = description;
         Category = category;
         SortOrder = sortOrder;

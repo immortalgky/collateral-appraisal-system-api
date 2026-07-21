@@ -59,7 +59,6 @@ public class CreateProjectModelCommandHandler(
             buildingStyleType: command.BuildingStyleType,
             isResidential: command.IsResidential,
             buildingAge: command.BuildingAge,
-            constructionYear: command.ConstructionYear,
             residentialRemark: command.ResidentialRemark,
             constructionStyleType: command.ConstructionStyleType,
             constructionStyleRemark: command.ConstructionStyleRemark,

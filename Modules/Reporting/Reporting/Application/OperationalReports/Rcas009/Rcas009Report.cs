@@ -28,6 +28,8 @@ internal static class Rcas009Report
         Title = "รายงานสรุปค่าประเมิน",
         OrderBy = f => ReportFilterSql.OrderBy(f.SortBy, f.SortDir, AllowedSort, "AppraisalNumber"),
         Build = Build,
+        // FSD gives RCAS009 the Print/Approve Report By footer (as it does 003/005/006/011).
+        IncludeSignoffFooter = true,
         DescribeFilter = f =>
         [
             new("Created From", f.CreatedFrom?.ToString("yyyy-MM-dd")),
@@ -37,6 +39,8 @@ internal static class Rcas009Report
             new("Fee Status", f.FeeStatus),
             new("Appraisal No.", f.AppraisalNumber),
         ],
+        // FSD Table 26 order. Status (field 18) and Cost Center (field 17) sit AFTER the fee columns,
+        // not near the front. Fee Status stays a filter but is not displayed (not in the FSD).
         Columns =
         [
             new("Appraisal No.", r => r.AppraisalNumber),
@@ -44,20 +48,19 @@ internal static class Rcas009Report
             new("Assign Type", r => r.AssignType),
             new("Pay Type", r => r.PayType),
             new("Purpose", r => r.Purpose),
-            new("Appraisal Create Date", r => r.AppraisalCreateDate, ColumnFormat.Date),
+            new("Created Date", r => r.AppraisalCreateDate, ColumnFormat.Date),
             new("Collateral Type", r => r.CollateralType),
-            new("Status", r => r.AppraisalStatus),
             new("Requestor", r => r.RequestorCode),
             new("Requestor Dept.", r => r.RequestorDepartment),
             new("Retail/IBG", r => r.BankingSegment),
             new("Appraisal Company", r => r.AppraisalCompany),
             new("Internal Staff", r => r.InternalAppraisalStaff),
             new("Invoice No.", r => r.InvoiceNumber),
-            new("Cost Center", r => r.CostCenter),
             new("Appraisal Fee", r => r.AppraisalFee, ColumnFormat.Money, Total: true),
             new("VAT", r => r.VAT, ColumnFormat.Money, Total: true),
             new("Include VAT", r => r.IncludeVAT, ColumnFormat.Money, Total: true),
-            new("Fee Status", r => r.FeeStatus),
+            new("Cost Center", r => r.CostCenter),
+            new("Status", r => r.AppraisalStatus),
         ],
     };
 

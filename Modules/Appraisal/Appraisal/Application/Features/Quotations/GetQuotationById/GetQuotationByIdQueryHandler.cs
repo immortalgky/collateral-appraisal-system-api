@@ -460,7 +460,7 @@ public class GetQuotationByIdQueryHandler(
                            WHEN '32' THEN 'Condominium (BlockLand)'
                            WHEN '33' THEN 'Condominium (BlockCondo)'
                            ELSE rt.CollateralType
-                       END + ' · Title No. ' + ISNULL(rt.TitleNumber, '') AS SectionLabel,
+                       END + ' · Title Number ' + ISNULL(rt.TitleNumber, '') AS SectionLabel,
                        rt.TitleNumber AS TitleNumber,
                        td.UploadedAt,
                        td.UploadedByName,

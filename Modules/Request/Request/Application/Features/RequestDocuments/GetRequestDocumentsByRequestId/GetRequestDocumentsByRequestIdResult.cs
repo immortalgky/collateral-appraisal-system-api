@@ -26,4 +26,6 @@ public record DocumentItemDto(
     bool IsRequired,
     string? UploadedBy,
     string? UploadedByName,
-    DateTime? UploadedAt);
+    DateTime? UploadedAt,
+    long? FileSizeBytes,
+    string? MimeType);

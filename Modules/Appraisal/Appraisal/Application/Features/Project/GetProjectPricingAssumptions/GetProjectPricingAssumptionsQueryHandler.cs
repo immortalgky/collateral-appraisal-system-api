@@ -1,3 +1,5 @@
+using Parameter.Contracts.PricingParameters;
+
 namespace Appraisal.Application.Features.Project.GetProjectPricingAssumptions;
 
 /// <summary>
@@ -8,7 +10,8 @@ namespace Appraisal.Application.Features.Project.GetProjectPricingAssumptions;
 /// </summary>
 public class GetProjectPricingAssumptionsQueryHandler(
     IProjectRepository projectRepository,
-    IPricingAnalysisRepository pricingAnalysisRepository
+    IPricingAnalysisRepository pricingAnalysisRepository,
+    ISender mediator
 ) : IQueryHandler<GetProjectPricingAssumptionsQuery, GetProjectPricingAssumptionsResult>
 {
 
@@ -23,6 +26,14 @@ public class GetProjectPricingAssumptionsQueryHandler(
         var modelIds = project.Models.Select(m => m.Id);
         var paSummaries = await pricingAnalysisRepository
             .GetProjectModelPricingSummariesAsync(modelIds, cancellationToken);
+
+        // Fetch fire-insurance coverage rates (Parameter-module reference data; no kind filter —
+        // both Condo and LandAndBuilding conditions are needed).
+        var ratesResult = await mediator.Send(new GetFireInsuranceRatesQuery(), cancellationToken);
+        var ratesByCondition = ratesResult.Rates.ToDictionary(
+            r => r.Condition,
+            r => r.RatePerSqm,
+            StringComparer.Ordinal);
 
         var assumption = project.PricingAssumption;
         var isCondo = project.ProjectType == ProjectType.Condo;
@@ -52,7 +63,7 @@ public class GetProjectPricingAssumptionsQueryHandler(
                 FloorIncrementAmount: null,
                 NearGardenAdjustment: null,
                 LandIncreaseDecreaseRate: null,
-                ModelAssumptions: DeriveFromModels(project.Models, isCondo, paSummaries));
+                ModelAssumptions: DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCondition));
 
             return new GetProjectPricingAssumptionsResult(shellDto);
         }
@@ -85,7 +96,7 @@ public class GetProjectPricingAssumptionsQueryHandler(
                         FinalAppraisedValue: paSum?.FinalAppraisedValue);
                 })
                 .ToList()
-            : DeriveFromModels(project.Models, isCondo, paSummaries);
+            : DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCondition);
 
         var dto = new ProjectPricingAssumptionDto(
             assumption.Id,
@@ -112,7 +123,8 @@ public class GetProjectPricingAssumptionsQueryHandler(
     private static List<ProjectModelAssumptionDto> DeriveFromModels(
         IReadOnlyList<ProjectModel> models,
         bool isCondo,
-        IReadOnlyDictionary<Guid, ProjectModelPricingSummary> paSummaries) =>
+        IReadOnlyDictionary<Guid, ProjectModelPricingSummary> paSummaries,
+        IReadOnlyDictionary<string, decimal> ratesByCondition) =>
         models.Select(m =>
         {
             paSummaries.TryGetValue(m.Id, out var pa);
@@ -124,8 +136,9 @@ public class GetProjectPricingAssumptionsQueryHandler(
                 m.UsableAreaMax,
                 // StandardLandArea is LB-only; null for Condo
                 isCondo ? null : m.StandardLandArea,
-                // CoverageAmount: both Condo and LB derive from FireInsuranceCondition via CoverageByCondition
-                LookupCoverageAmount(m.FireInsuranceCondition),
+                // CoverageAmount: both Condo and LB derive from FireInsuranceCondition via the
+                // fire-insurance rate table (Parameter module).
+                LookupCoverageAmount(ratesByCondition, m.FireInsuranceCondition),
                 m.FireInsuranceCondition,
                 PricingAnalysisId: pa?.PricingAnalysisId,
                 PricingAnalysisStatus: pa?.Status,
@@ -133,6 +146,10 @@ public class GetProjectPricingAssumptionsQueryHandler(
         })
         .ToList();
 
-    private static decimal? LookupCoverageAmount(string? condition)
-        => CoverageByCondition.Lookup(condition);
+    /// <summary>Returns the coverage amount for a condition, or null if the condition is null/empty or unmatched.</summary>
+    private static decimal? LookupCoverageAmount(IReadOnlyDictionary<string, decimal> ratesByCondition, string? condition)
+    {
+        if (string.IsNullOrEmpty(condition)) return null;
+        return ratesByCondition.TryGetValue(condition, out var rate) ? rate : null;
+    }
 }

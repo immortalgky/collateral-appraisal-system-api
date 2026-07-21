@@ -1,3 +1,4 @@
+using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Dapper;
 using Shared.CQRS;
@@ -7,7 +8,8 @@ namespace Appraisal.Application.Features.DecisionSummary.GetDecisionSummary;
 
 public class GetDecisionSummaryQueryHandler(
     ISqlConnectionFactory connectionFactory,
-    IAppraisalDecisionRepository decisionRepository
+    IAppraisalDecisionRepository decisionRepository,
+    ForceSaleRateResolver forceSaleRateResolver
 ) : IQueryHandler<GetDecisionSummaryQuery, GetDecisionSummaryResult>
 {
     public async Task<GetDecisionSummaryResult> Handle(
@@ -28,7 +30,8 @@ public class GetDecisionSummaryQueryHandler(
         const string valuationReviewSql = """
             SELECT AppraisedValue AS TotalAppraisalPriceReview,
                    ForcedSaleValue AS ForceSellingPriceReview,
-                   InsuranceValue AS BuildingInsuranceReview
+                   InsuranceValue AS BuildingInsuranceReview,
+                   ForceSaleRate
             FROM appraisal.ValuationAnalyses
             WHERE AppraisalId = @AppraisalId
             """;
@@ -42,6 +45,17 @@ public class GetDecisionSummaryQueryHandler(
             JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
             JOIN appraisal.PropertyGroupItems gi ON gi.AppraisalPropertyId = ap.Id
             WHERE ap.AppraisalId = @AppraisalId
+            """;
+
+        // Query 3b: Condo government prices — kept separate from govPriceSql above: condo area is
+        // in sq.m. while land area is in Sq.Wa, so mixing rows would corrupt the land AVG.
+        const string condoGovPriceSql = """
+            SELECT cad.TitleNumber, cad.RoomNumber, cad.UsableArea,
+                   cad.GovernmentPricePerSqm, cad.GovernmentPrice
+            FROM appraisal.CondoAppraisalDetails cad
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = cad.AppraisalPropertyId
+            WHERE ap.AppraisalId = @AppraisalId
+            ORDER BY ap.SequenceNumber, CONVERT(char(36), ap.Id)
             """;
 
         // Query 4: Approval list
@@ -83,6 +97,9 @@ public class GetDecisionSummaryQueryHandler(
 
         var valuationReview = await connectionFactory.QueryFirstOrDefaultAsync<ValuationReviewRow>(valuationReviewSql, param);
         var governmentPrices = (await connectionFactory.QueryAsync<GovernmentPriceRow>(govPriceSql, param)).ToList();
+        var condoGovernmentPrices = (await connectionFactory.QueryAsync<CondoGovernmentPriceQueryRow>(condoGovPriceSql, param))
+            .Select(r => new CondoGovernmentPriceRow(r.TitleNumber, r.RoomNumber, r.UsableArea, r.GovernmentPricePerSqm, r.GovernmentPrice))
+            .ToList();
         var approvalRows = (await connectionFactory.QueryAsync<ApprovalRow>(approvalSql, param)).ToList();
         var appraisalDate = await connectionFactory.QueryFirstOrDefaultAsync<DateTime?>(appraisalDateSql, param);
 
@@ -99,10 +116,20 @@ public class GetDecisionSummaryQueryHandler(
         var govTotalArea = governmentPrices.Sum(g => g.AreaSquareWa ?? 0m);
         var govAvgPerSqWa = surveyedArea > 0 ? govTotalPrice / surveyedArea : 0m;
 
+        // Condo government price totals — single area total (sq.m.); no IsMissingFromSurvey
+        // equivalent on condo, so every row contributes to both the total and the weighted AVG.
+        var condoGovTotalArea = condoGovernmentPrices.Sum(r => r.UsableArea ?? 0m);
+        var condoGovTotalPrice = condoGovernmentPrices.Sum(r => r.GovernmentPrice ?? 0m);
+        var condoGovAvgPerSqm = condoGovTotalArea > 0 ? condoGovTotalPrice / condoGovTotalArea : 0m;
+
         // Review values come from ValuationAnalyses
         var totalAppraisalPriceReview = valuationReview?.TotalAppraisalPriceReview;
         var forceSellingPriceReview = valuationReview?.ForceSellingPriceReview;
         var buildingInsuranceReview = valuationReview?.BuildingInsuranceReview;
+
+        // Per-appraisal force-sale rate override, if any. Final resolution (override -> system
+        // default, and for block also -> project assumption) happens in the Build*ResultAsync methods.
+        var forceSaleRateOverride = valuationReview?.ForceSaleRate;
 
         // Build approval list
         string? committeeName = approvalRows.Count > 0 ? approvalRows[0].CommitteeName : null;
@@ -122,9 +149,13 @@ public class GetDecisionSummaryQueryHandler(
                 govTotalArea,
                 surveyedArea,
                 govAvgPerSqWa,
+                condoGovernmentPrices,
+                condoGovTotalArea,
+                condoGovAvgPerSqm,
                 totalAppraisalPriceReview,
                 forceSellingPriceReview,
                 buildingInsuranceReview,
+                forceSaleRateOverride,
                 committeeName,
                 reviewStatus,
                 reviewId,
@@ -141,9 +172,13 @@ public class GetDecisionSummaryQueryHandler(
             govTotalArea,
             surveyedArea,
             govAvgPerSqWa,
+            condoGovernmentPrices,
+            condoGovTotalArea,
+            condoGovAvgPerSqm,
             totalAppraisalPriceReview,
             forceSellingPriceReview,
             buildingInsuranceReview,
+            forceSaleRateOverride,
             committeeName,
             reviewStatus,
             reviewId,
@@ -160,9 +195,13 @@ public class GetDecisionSummaryQueryHandler(
         decimal govTotalArea,
         decimal surveyedArea,
         decimal govAvgPerSqWa,
+        List<CondoGovernmentPriceRow> condoGovernmentPrices,
+        decimal condoGovTotalArea,
+        decimal condoGovAvgPerSqm,
         decimal? totalAppraisalPriceReview,
         decimal? forceSellingPriceReview,
         decimal? buildingInsuranceReview,
+        decimal? forceSaleRateOverride,
         string? committeeName,
         string? reviewStatus,
         Guid? reviewId,
@@ -201,17 +240,24 @@ public class GetDecisionSummaryQueryHandler(
             .ToList();
 
         var totalAppraisalPrice = approachMatrix.Sum(g => g.GroupSummaryValue ?? 0m);
-        var forceSellingPrice = totalAppraisalPrice * 0.70m;
+
+        var forceSaleRate = await forceSaleRateResolver.ResolveAsync(appraisalId, forceSaleRateOverride, cancellationToken);
+        var forceSellingPrice = totalAppraisalPrice * forceSaleRate / 100m;
 
         return new GetDecisionSummaryResult(
             ApproachMatrix: approachMatrix,
             TotalAppraisalPrice: totalAppraisalPrice,
             ForceSellingPrice: forceSellingPrice,
+            ForceSellingRate: forceSaleRate,
+            ForceSellingRateOverride: forceSaleRateOverride,
             BuildingInsurance: buildingInsurance,
             GovernmentPrices: governmentPrices,
             GovernmentPriceTotalArea: govTotalArea,
             GovernmentPriceSurveyedArea: surveyedArea,
             GovernmentPriceAvgPerSqWa: govAvgPerSqWa,
+            CondoGovernmentPrices: condoGovernmentPrices,
+            CondoGovernmentPriceTotalArea: condoGovTotalArea,
+            CondoGovernmentPriceAvgPerSqm: condoGovAvgPerSqm,
             TotalAppraisalPriceReview: totalAppraisalPriceReview,
             ForceSellingPriceReview: forceSellingPriceReview,
             BuildingInsuranceReview: buildingInsuranceReview,
@@ -244,9 +290,13 @@ public class GetDecisionSummaryQueryHandler(
         decimal govTotalArea,
         decimal surveyedArea,
         decimal govAvgPerSqWa,
+        List<CondoGovernmentPriceRow> condoGovernmentPrices,
+        decimal condoGovTotalArea,
+        decimal condoGovAvgPerSqm,
         decimal? totalAppraisalPriceReview,
         decimal? forceSellingPriceReview,
         decimal? buildingInsuranceReview,
+        decimal? forceSaleRateOverride,
         string? committeeName,
         string? reviewStatus,
         Guid? reviewId,
@@ -324,14 +374,16 @@ public class GetDecisionSummaryQueryHandler(
             })
             .ToList();
 
-        // Build per-model price rows. FSP per model = TotalAppraisalPrice × 0.70 (matches project-level rule).
+        var forceSaleRate = await forceSaleRateResolver.ResolveAsync(appraisalId, forceSaleRateOverride, cancellationToken);
+
+        // Build per-model price rows. FSP per model = TotalAppraisalPrice × resolved rate.
         var blockModelPrices = blockModelTotals
             .Select(r => new BlockModelPriceRow(
                 r.ProjectModelId,
                 r.ModelName,
                 r.UnitCount,
                 r.TotalAppraisalPrice,
-                r.TotalAppraisalPrice * 0.70m,
+                r.TotalAppraisalPrice * forceSaleRate / 100m,
                 r.BuildingInsurance))
             .ToList();
 
@@ -343,11 +395,16 @@ public class GetDecisionSummaryQueryHandler(
             ApproachMatrix: [],
             TotalAppraisalPrice: totalAppraisalPrice,
             ForceSellingPrice: forceSellingPrice,
+            ForceSellingRate: forceSaleRate,
+            ForceSellingRateOverride: forceSaleRateOverride,
             BuildingInsurance: blockInsurance,
             GovernmentPrices: governmentPrices,
             GovernmentPriceTotalArea: govTotalArea,
             GovernmentPriceSurveyedArea: surveyedArea,
             GovernmentPriceAvgPerSqWa: govAvgPerSqWa,
+            CondoGovernmentPrices: condoGovernmentPrices,
+            CondoGovernmentPriceTotalArea: condoGovTotalArea,
+            CondoGovernmentPriceAvgPerSqm: condoGovAvgPerSqm,
             TotalAppraisalPriceReview: totalAppraisalPriceReview,
             ForceSellingPriceReview: forceSellingPriceReview,
             BuildingInsuranceReview: buildingInsuranceReview,
@@ -430,6 +487,62 @@ public class GetDecisionSummaryQueryHandler(
             WHERE ap.AppraisalId = @AppraisalId
             """;
 
+        // รายละเอียดรายอาคาร — same IsFullDetail CASE as ciAggregateSql above, but per property
+        // instead of aggregated. ConstructionInspection is 1:1 with AppraisalProperty.
+        const string ciDetailSql = """
+            SELECT
+                ap.Id                             AS AppraisalPropertyId,
+                NULLIF(LTRIM(RTRIM(bad.HouseNumber)), '')      AS HouseNumber,
+                NULLIF(LTRIM(RTRIM(bad.BuiltOnTitleNumber)), '') AS TitleNumber,
+                COALESCE(NULLIF(LTRIM(RTRIM(bad.ModelName)), ''),
+                         NULLIF(LTRIM(RTRIM(bad.PropertyName)), '')) AS ModelName,
+                ci.TotalValue                     AS TotalValue,
+                CASE WHEN ci.IsFullDetail = 0
+                     THEN ISNULL(ci.SummaryPreviousValue, 0)
+                     ELSE ISNULL(wd_agg.PreviousPropertyValueSum, 0)
+                END AS PreviousValue,
+                CASE WHEN ci.IsFullDetail = 0
+                     THEN ISNULL(ci.SummaryCurrentValue, 0)
+                     ELSE ISNULL(wd_agg.CurrentPropertyValueSum, 0)
+                END AS CurrentValue
+            FROM appraisal.ConstructionInspections ci
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
+            LEFT JOIN appraisal.BuildingAppraisalDetails bad ON bad.AppraisalPropertyId = ap.Id
+            LEFT JOIN (
+                SELECT ConstructionInspectionId,
+                       SUM(PreviousPropertyValue) AS PreviousPropertyValueSum,
+                       SUM(CurrentPropertyValue)  AS CurrentPropertyValueSum
+                FROM appraisal.ConstructionWorkDetails
+                GROUP BY ConstructionInspectionId
+            ) wd_agg ON wd_agg.ConstructionInspectionId = ci.Id
+            WHERE ap.AppraisalId = @AppraisalId
+            ORDER BY ap.SequenceNumber, CONVERT(char(36), ap.Id)
+            """;
+
+        // อาคารที่สร้างเสร็จ 100% ก่อนการตรวจงวดงาน — same NOT EXISTS predicate as
+        // nonCiBuildingValueSql, grouped per property instead of summed flat, so the rows
+        // reconcile with the "Building Value Pre-inspection" column of the milestone table.
+        const string completedBuildingSql = """
+            SELECT
+                ap.Id                             AS AppraisalPropertyId,
+                NULLIF(LTRIM(RTRIM(bad.HouseNumber)), '')      AS HouseNumber,
+                NULLIF(LTRIM(RTRIM(bad.BuiltOnTitleNumber)), '') AS TitleNumber,
+                COALESCE(NULLIF(LTRIM(RTRIM(bad.ModelName)), ''),
+                         NULLIF(LTRIM(RTRIM(bad.PropertyName)), '')) AS ModelName,
+                ISNULL(SUM(bdd.PriceAfterDepreciation), 0) AS AppraisalValue
+            FROM appraisal.BuildingDepreciationDetails bdd
+            JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
+            WHERE ap.AppraisalId = @AppraisalId
+              AND NOT EXISTS (
+                  SELECT 1 FROM appraisal.ConstructionInspections ci
+                  WHERE ci.AppraisalPropertyId = ap.Id
+              )
+            GROUP BY ap.Id, ap.SequenceNumber, bad.HouseNumber, bad.BuiltOnTitleNumber,
+                     bad.ModelName, bad.PropertyName
+            ORDER BY ap.SequenceNumber, CONVERT(char(36), ap.Id)
+            """;
+
         // ชื่ออาคาร = village name of the first L/LB land property (same source as report RS04)
         const string villageSql = """
             SELECT TOP 1 lad.Village
@@ -448,6 +561,8 @@ public class GetDecisionSummaryQueryHandler(
             return null;
 
         var village = await connectionFactory.QueryFirstOrDefaultAsync<string?>(villageSql, p);
+        var detailRows = await connectionFactory.QueryAsync<CiDetailRow>(ciDetailSql, p);
+        var completedRows = await connectionFactory.QueryAsync<CompletedBuildingRow>(completedBuildingSql, p);
 
         var ciTotal = ci.CITotalValue;
         var ciPrev = ci.CIPreviousValue;
@@ -492,7 +607,66 @@ public class GetDecisionSummaryQueryHandler(
                 ciTotal),
         };
 
-        return new ConstructionSummaryData(village, rows);
+        // % derived from value ratios, consistent with the milestone rows above — deliberately
+        // NOT from SummaryCurrentProgressPct / SUM(CurrentProportionPct), so the detail rows
+        // reconcile against the card they sit under.
+        var buildings = detailRows
+            .Select(d => new ConstructionBuildingRow(
+                d.AppraisalPropertyId,
+                d.HouseNumber,
+                d.TitleNumber,
+                d.ModelName,
+                d.TotalValue,
+                d.PreviousValue,
+                d.CurrentValue,
+                d.TotalValue > 0 ? d.PreviousValue / d.TotalValue * 100m : 0m,
+                d.TotalValue > 0 ? d.CurrentValue / d.TotalValue * 100m : 0m))
+            .ToList();
+
+        var completedBuildings = completedRows
+            .Select(c => new ConstructionCompletedBuildingRow(
+                c.AppraisalPropertyId,
+                c.HouseNumber,
+                c.TitleNumber,
+                c.ModelName,
+                c.AppraisalValue))
+            .ToList();
+
+        return new ConstructionSummaryData(village, rows, buildings, completedBuildings);
+    }
+
+    // Mapped by NAME (settable properties), not by constructor position — the three adjacent
+    // string? columns would corrupt silently if a positional record were used and the SELECT
+    // column order ever changed.
+    private sealed class CiDetailRow
+    {
+        public Guid AppraisalPropertyId { get; init; }
+        public string? HouseNumber { get; init; }
+        public string? TitleNumber { get; init; }
+        public string? ModelName { get; init; }
+        public decimal TotalValue { get; init; }
+        public decimal PreviousValue { get; init; }
+        public decimal CurrentValue { get; init; }
+    }
+
+    private sealed class CompletedBuildingRow
+    {
+        public Guid AppraisalPropertyId { get; init; }
+        public string? HouseNumber { get; init; }
+        public string? TitleNumber { get; init; }
+        public string? ModelName { get; init; }
+        public decimal AppraisalValue { get; init; }
+    }
+
+    // Mapped by NAME (settable properties) — TitleNumber/RoomNumber are adjacent string? columns,
+    // same positional-mapping risk documented on CiDetailRow above.
+    private sealed class CondoGovernmentPriceQueryRow
+    {
+        public string? TitleNumber { get; init; }
+        public string? RoomNumber { get; init; }
+        public decimal? UsableArea { get; init; }
+        public decimal? GovernmentPricePerSqm { get; init; }
+        public decimal? GovernmentPrice { get; init; }
     }
 
     private record CiAggregateRow(
@@ -504,7 +678,8 @@ public class GetDecisionSummaryQueryHandler(
     private record ValuationReviewRow(
         decimal? TotalAppraisalPriceReview,
         decimal? ForceSellingPriceReview,
-        decimal? BuildingInsuranceReview
+        decimal? BuildingInsuranceReview,
+        decimal? ForceSaleRate
     );
 
     private record FlatApproachRow(

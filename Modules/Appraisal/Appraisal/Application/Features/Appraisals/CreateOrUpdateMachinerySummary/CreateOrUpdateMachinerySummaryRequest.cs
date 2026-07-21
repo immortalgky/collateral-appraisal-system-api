@@ -24,5 +24,9 @@ public record CreateOrUpdateMachinerySummaryRequest(
     decimal? Latitude = null,
     decimal? Longitude = null,
     string? Obligation = null,
-    string? Other = null
+    string? Other = null,
+    // Section 1 — Book Intro (report-only free text)
+    string? Assignment = null,
+    string? ValuationPurpose = null,
+    string? PropertyCharacteristics = null
 );

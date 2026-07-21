@@ -78,7 +78,6 @@ public class ProjectModel : Entity<Guid>
     public string? BuildingStyleType { get; private set; }
     public bool? IsResidential { get; private set; }
     public int? BuildingAge { get; private set; }
-    public int? ConstructionYear { get; private set; }
     public string? ResidentialRemark { get; private set; }
     public string? ConstructionStyleType { get; private set; }
     public string? ConstructionStyleRemark { get; private set; }
@@ -282,7 +281,6 @@ public class ProjectModel : Entity<Guid>
         BuildingStyleType = buildingStyleType;
         IsResidential = isResidential;
         BuildingAge = buildingAge;
-        ConstructionYear = constructionYear;
         ResidentialRemark = residentialRemark;
         ConstructionStyleType = constructionStyleType;
         ConstructionStyleRemark = constructionStyleRemark;

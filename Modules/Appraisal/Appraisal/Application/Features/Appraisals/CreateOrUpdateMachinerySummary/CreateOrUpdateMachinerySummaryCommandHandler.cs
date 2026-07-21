@@ -52,7 +52,10 @@ public class CreateOrUpdateMachinerySummaryCommandHandler(
             latitude: command.Latitude,
             longitude: command.Longitude,
             obligation: command.Obligation,
-            other: command.Other);
+            other: command.Other,
+            assignment: command.Assignment,
+            valuationPurpose: command.ValuationPurpose,
+            propertyCharacteristics: command.PropertyCharacteristics);
 
         // 4. Save
         await dbContext.SaveChangesAsync(cancellationToken);

@@ -21,5 +21,8 @@ public record AppendixDocumentResponse(
     string? FilePath,
     string? FileExtension,
     string? MimeType,
-    long? FileSizeBytes
+    long? FileSizeBytes,
+    DateTime? UploadedAt,
+    string? UploadedBy,
+    string? UploadedByName
 );

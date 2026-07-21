@@ -14,9 +14,11 @@ internal class GetRequestDocumentsByRequestIdQueryHandler(ISqlConnectionFactory 
                            -- Result set 1: Request-level documents
                            SELECT rd.[Id], rd.[DocumentId], rd.[DocumentType], dt.[Name] AS [DocumentTypeName],
                                   rd.[FileName], rd.[FilePath], rd.[Notes], rd.[IsRequired],
-                                  rd.[UploadedBy], rd.[UploadedByName], rd.[UploadedAt]
+                                  rd.[UploadedBy], rd.[UploadedByName], rd.[UploadedAt],
+                                  d.[FileSizeBytes], d.[MimeType]
                            FROM [request].[RequestDocuments] rd
                            LEFT JOIN [parameter].[DocumentTypes] dt ON dt.[Code] = rd.[DocumentType]
+                           LEFT JOIN [document].[Documents] d ON d.[Id] = rd.[DocumentId]
                            WHERE rd.[RequestId] = @RequestId
                            ORDER BY rd.[Id] ASC;
 
@@ -37,10 +39,12 @@ internal class GetRequestDocumentsByRequestIdQueryHandler(ISqlConnectionFactory 
                                t.[CollateralType],
                                td.[Id], td.[DocumentId], td.[DocumentType], dt.[Name] AS [DocumentTypeName],
                                td.[FileName], td.[FilePath], td.[Notes], td.[IsRequired],
-                               td.[UploadedBy], td.[UploadedByName], td.[UploadedAt]
+                               td.[UploadedBy], td.[UploadedByName], td.[UploadedAt],
+                               d.[FileSizeBytes], d.[MimeType]
                            FROM [request].[RequestTitles] t
                            LEFT JOIN [request].[RequestTitleDocuments] td ON t.[Id] = td.[TitleId]
                            LEFT JOIN [parameter].[DocumentTypes] dt ON dt.[Code] = td.[DocumentType]
+                           LEFT JOIN [document].[Documents] d ON d.[Id] = td.[DocumentId]
                            WHERE t.[RequestId] = @RequestId
                            ORDER BY t.[CreatedAt] ASC, td.[Id] ASC;
                            """;
@@ -90,7 +94,9 @@ internal class GetRequestDocumentsByRequestIdQueryHandler(ISqlConnectionFactory 
                     r.IsRequired ?? false,
                     r.UploadedBy,
                     r.UploadedByName,
-                    r.UploadedAt))
+                    r.UploadedAt,
+                    r.FileSizeBytes,
+                    r.MimeType))
                 .ToList();
 
             var collateralTypeCode = group.Key.CollateralType;
@@ -137,7 +143,7 @@ internal class GetRequestDocumentsByRequestIdQueryHandler(ISqlConnectionFactory 
             "10" => $"Vehicle · Plate {titleIdentifier}",
             "12" => $"Vessel · Reg. {titleIdentifier}",
             "11" => $"Machine · Reg. {titleIdentifier}",
-            _ => $"{collateralTypeName} · Title No. {titleIdentifier}",
+            _ => $"{collateralTypeName} · Title Number {titleIdentifier}",
         };
     }
 }
@@ -159,4 +165,6 @@ internal record TitleDocumentRow(
     bool? IsRequired,
     string? UploadedBy,
     string? UploadedByName,
-    DateTime? UploadedAt);
+    DateTime? UploadedAt,
+    long? FileSizeBytes,
+    string? MimeType);

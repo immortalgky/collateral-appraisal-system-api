@@ -1,3 +1,6 @@
+using Appraisal.Application.Configurations;
+
 namespace Appraisal.Application.Features.Appraisals.DeleteProperty;
 
-public record DeletePropertyCommand(Guid appraisalId, Guid propertyId) : ICommand<DeletePropertyResult>;
+public record DeletePropertyCommand(Guid appraisalId, Guid propertyId)
+    : ICommand<DeletePropertyResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

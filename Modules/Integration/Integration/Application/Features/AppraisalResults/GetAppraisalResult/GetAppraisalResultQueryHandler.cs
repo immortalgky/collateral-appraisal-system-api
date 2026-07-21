@@ -188,10 +188,26 @@ internal static class GetAppraisalResultSql
                                                ORDER BY pg.GroupNumber, pgi.SequenceInGroup
                                                """;
 
+    // Latest VAL_REPORT document per code for the appraisal (one row per DocumentTypeCode,
+    // newest by CreatedAt). DocumentId is the download identifier; the relative URL is built in C#.
     public const string Documents = """
-                                    SELECT rd.DocumentType, rd.FilePath AS DocumentPath
-                                    FROM request.RequestDocuments rd
-                                    WHERE rd.RequestId = @RequestId AND rd.FilePath IS NOT NULL
+                                    SELECT x.DocumentType, x.DocumentId
+                                    FROM (
+                                        SELECT ad.DocumentTypeCode AS DocumentType,
+                                               ad.DocumentId,
+                                               ROW_NUMBER() OVER (
+                                                   PARTITION BY ad.DocumentTypeCode
+                                                   ORDER BY ad.CreatedAt DESC, CONVERT(char(36), ad.Id) DESC
+                                               ) AS rn
+                                        FROM appraisal.AppraisalDocuments ad
+                                        JOIN parameter.DocumentTypes dt ON dt.Code = ad.DocumentTypeCode
+                                        WHERE ad.AppraisalId = @AppraisalId
+                                          AND dt.Category = 'VAL_REPORT'
+                                          AND dt.IsActive = 1
+                                          AND ad.DocumentId IS NOT NULL
+                                    ) x
+                                    WHERE x.rn = 1
+                                    ORDER BY x.DocumentType
                                     """;
 
     // A block/project appraisal has a row in appraisal.Projects (1:1 via AppraisalId).
@@ -305,7 +321,7 @@ internal sealed record CollateralRow(
     string? MachineModel,
     string? MachineSerialNo);
 
-internal sealed record DocumentRow(string? DocumentType, string? DocumentPath);
+internal sealed record DocumentRow(string? DocumentType, Guid DocumentId);
 
 // Optional unit selector for block/project appraisals.
 internal sealed record UnitSelector(string? PlotNumber, string? RoomNumber, string? FloorNumber);
@@ -450,12 +466,14 @@ internal static class AppraisalResultBuilder
         }
 
         var docParams = new DynamicParameters();
-        docParams.Add("RequestId", appraisal.RequestId);
+        docParams.Add("AppraisalId", appraisal.Id);
         var docRows = await conn.QueryAsync<DocumentRow>(
             new CommandDefinition(GetAppraisalResultSql.Documents, docParams, cancellationToken: cancellationToken));
 
         var documents = docRows
-            .Select(d => new AppraisalResultDocument(d.DocumentType, d.DocumentPath))
+            .Select(d => new AppraisalResultDocument(
+                d.DocumentType,
+                $"/documents/{d.DocumentId}/download?download=false"))
             .ToList();
 
         string? valuerName = null;

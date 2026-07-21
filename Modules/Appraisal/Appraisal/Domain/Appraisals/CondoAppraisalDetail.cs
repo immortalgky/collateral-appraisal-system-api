@@ -55,6 +55,15 @@ public class CondoAppraisalDetail : Entity<Guid>
     public string? RoadSurfaceTypeOther { get; private set; }
     public List<string>? PublicUtilityType { get; private set; }
     public string? PublicUtilityTypeOther { get; private set; }
+    public List<string>? LandEntranceExitType { get; private set; }
+    public string? LandEntranceExitTypeOther { get; private set; }
+
+    // Land Characteristics (underlying land attributes for the condo unit)
+    public string? LandFillType { get; private set; }
+    public string? LandFillTypeOther { get; private set; }
+    public string? UrbanPlanningType { get; private set; }
+    public List<string>? LandUseType { get; private set; }
+    public string? LandUseTypeOther { get; private set; }
 
     // Building Info
     public string? DecorationType { get; private set; }
@@ -98,6 +107,12 @@ public class CondoAppraisalDetail : Entity<Guid>
     public List<string>? EnvironmentType { get; private set; }
 
     // Pricing
+    public decimal? GovernmentPricePerSqm { get; private set; }
+    public decimal? GovernmentPrice { get; private set; }
+    // Fire-insurance condition selected by the appraiser (matches Parameter module's
+    // 'FireInsuranceCondition' group); BuildingInsurancePrice is derived from it server-side
+    // (RatePerSqm × UsableArea) rather than authored directly by the client.
+    public string? FireInsuranceCondition { get; private set; }
     public decimal? BuildingInsurancePrice { get; private set; }
     public decimal? SellingPrice { get; private set; }
     public decimal? ForcedSalePrice { get; private set; }
@@ -194,9 +209,23 @@ public class CondoAppraisalDetail : Entity<Guid>
         decimal? forcedSalePrice = null,
         // Other
         string? remark = null,
-        // Address scalar + Dopa (at end to avoid breaking existing positional callers)
+        // Scalar field
         string? landOffice = null,
-        Address? dopaAddress = null)
+        // DOPA address
+        Address? dopaAddress = null,
+        // Land Characteristics (appended — see Update() ordering note)
+        List<string>? landEntranceExitType = null,
+        string? landEntranceExitTypeOther = null,
+        string? landFillType = null,
+        string? landFillTypeOther = null,
+        string? urbanPlanningType = null,
+        List<string>? landUseType = null,
+        string? landUseTypeOther = null,
+        // Government Price
+        decimal? governmentPricePerSqm = null,
+        decimal? governmentPrice = null,
+        // Fire Insurance (appended — see Update() ordering note)
+        string? fireInsuranceCondition = null)
     {
         // Property Identification
         PropertyName = propertyName;
@@ -286,6 +315,56 @@ public class CondoAppraisalDetail : Entity<Guid>
         // Address scalar + Dopa
         LandOffice = landOffice;
         DopaAddress = dopaAddress;
+
+        // Land Characteristics
+        LandEntranceExitType = landEntranceExitType;
+        LandEntranceExitTypeOther = landEntranceExitTypeOther;
+        LandFillType = landFillType;
+        LandFillTypeOther = landFillTypeOther;
+        UrbanPlanningType = urbanPlanningType;
+        LandUseType = landUseType;
+        LandUseTypeOther = landUseTypeOther;
+
+        // Government Price
+        GovernmentPricePerSqm = governmentPricePerSqm;
+        GovernmentPrice = governmentPrice;
+
+        // Fire Insurance
+        FireInsuranceCondition = fireInsuranceCondition;
+    }
+
+    /// <summary>
+    /// Narrow update for the PMA save path — touches ONLY the fields the PMA form authors.
+    /// <para>
+    /// Deliberately NOT <see cref="Update"/>: that method is a full overwrite of every property,
+    /// so calling it from PMA (which supplies a handful of arguments) silently reset the ~60
+    /// unsupplied fields to null — wiping appraiser-entered condo detail, land attributes and
+    /// government price. Keep this method narrow; do not grow it into a second full overwrite.
+    /// </para>
+    /// </summary>
+    public void UpdatePmaFields(
+        string? condoName = null,
+        string? ownerName = null,
+        string? buildingNumber = null,
+        string? builtOnTitleNumber = null,
+        string? condoRegistrationNumber = null,
+        string? roomNumber = null,
+        string? floorNumber = null,
+        Address? address = null,
+        // Scalar + Dopa (appended, same reasoning as Update()'s ordering note)
+        string? landOffice = null,
+        Address? dopaAddress = null)
+    {
+        CondoName = condoName;
+        OwnerName = ownerName;
+        BuildingNumber = buildingNumber;
+        BuiltOnTitleNumber = builtOnTitleNumber;
+        CondoRegistrationNumber = condoRegistrationNumber;
+        RoomNumber = roomNumber;
+        FloorNumber = floorNumber;
+        Address = address;
+        LandOffice = landOffice;
+        DopaAddress = dopaAddress;
     }
 
 
@@ -333,6 +412,13 @@ public class CondoAppraisalDetail : Entity<Guid>
             RoadSurfaceTypeOther = source.RoadSurfaceTypeOther,
             PublicUtilityType = source.PublicUtilityType?.ToList(),
             PublicUtilityTypeOther = source.PublicUtilityTypeOther,
+            LandEntranceExitType = source.LandEntranceExitType?.ToList(),
+            LandEntranceExitTypeOther = source.LandEntranceExitTypeOther,
+            LandFillType = source.LandFillType,
+            LandFillTypeOther = source.LandFillTypeOther,
+            UrbanPlanningType = source.UrbanPlanningType,
+            LandUseType = source.LandUseType?.ToList(),
+            LandUseTypeOther = source.LandUseTypeOther,
             DecorationType = source.DecorationType,
             DecorationTypeOther = source.DecorationTypeOther,
             BuildingAge = source.BuildingAge,
@@ -362,6 +448,9 @@ public class CondoAppraisalDetail : Entity<Guid>
             FacilityType = source.FacilityType?.ToList(),
             FacilityTypeOther = source.FacilityTypeOther,
             EnvironmentType = source.EnvironmentType?.ToList(),
+            GovernmentPricePerSqm = source.GovernmentPricePerSqm,
+            GovernmentPrice = source.GovernmentPrice,
+            FireInsuranceCondition = source.FireInsuranceCondition,
             BuildingInsurancePrice = source.BuildingInsurancePrice,
             SellingPrice = source.SellingPrice,
             ForcedSalePrice = source.ForcedSalePrice,

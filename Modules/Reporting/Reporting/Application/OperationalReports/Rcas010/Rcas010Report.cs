@@ -8,44 +8,56 @@ public sealed record Rcas010Filter(
     DateTime? CreatedFrom,
     DateTime? CreatedTo,
     string? Channel,
-    string? AssignType,
+    string? DepartmentCode,
+    string? AoCode,
+    string? Status,
+    string? FeeType,
+    string? AppraisalCompany,
     string? SortBy,
     string? SortDir);
 
 /// <summary>
-/// RCAS010 — ค่าใช้จ่ายค่าประเมินที่ธนาคารจ่าย ประจำเดือน. Aggregated: the create-date filter is
-/// applied to the row-level base view BEFORE the GROUP BY, so it lives in the report SQL.
+/// RCAS010 — ค่าใช้จ่ายค่าประเมินที่ธนาคารจ่าย ประจำเดือน. A single SUMMARY row: Internal vs External
+/// appraisal, each split Total / Customer-Paid / Bank-Absorb (book count + fee), plus a Grand Total.
+/// The filters narrow the base rows BEFORE the aggregate, so the one row reflects the current
+/// selection (e.g. bank-absorbed fees for all channels, or only Retail).
 /// </summary>
 internal static class Rcas010Report
 {
-    private static readonly HashSet<string> AllowedSort = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Channel", "AssignType", "BookCount", "TotalFee"
-    };
-
     public static readonly ReportDefinition<Rcas010Row, Rcas010Filter> Definition = new()
     {
         BaseName = "RCAS010-FeeExpenseMonthly",
         Title = "ค่าใช้จ่ายค่าประเมินที่ธนาคารจ่าย ประจำเดือน",
-        OrderBy = f => ReportFilterSql.OrderBy(f.SortBy, f.SortDir, AllowedSort, "Channel"),
+        // Single row — sort is moot; order by a stable aggregate alias so the runner's ORDER BY binds.
+        OrderBy = _ => "GrandTotalCount",
         Build = Build,
         DescribeFilter = f =>
         [
             new("Created From", f.CreatedFrom?.ToString("yyyy-MM-dd")),
             new("Created To", f.CreatedTo?.ToString("yyyy-MM-dd")),
             new("Channel", f.Channel, "Channel"),
-            new("Assign Type", f.AssignType),
+            new("Department Code", f.DepartmentCode),
+            new("AO Code", f.AoCode),
+            new("Status", f.Status),
+            new("Fee Type", f.FeeType, "FeePaymentMethod"),
+            new("Appraisal Company", f.AppraisalCompany),
         ],
         Columns =
         [
-            new("Channel", r => r.Channel),
-            new("Assign Type", r => r.AssignType),
-            new("Book Count", r => r.BookCount, ColumnFormat.Integer, Total: true),
-            new("Total Fee", r => r.TotalFee, ColumnFormat.Money, Total: true),
-            new("Customer-Paid Count", r => r.CustomerPaidCount, ColumnFormat.Integer, Total: true),
-            new("Customer-Paid Fee", r => r.CustomerPaidFee, ColumnFormat.Money, Total: true),
-            new("Bank-Absorb Count", r => r.BankAbsorbCount, ColumnFormat.Integer, Total: true),
-            new("Bank-Absorb Fee", r => r.BankAbsorbFee, ColumnFormat.Money, Total: true),
+            new("Internal – Books", r => r.InternalBookCount, ColumnFormat.Integer),
+            new("Internal – Fee", r => r.InternalTotalFee, ColumnFormat.Money),
+            new("Internal – Customer-Paid Books", r => r.InternalCustomerPaidCount, ColumnFormat.Integer),
+            new("Internal – Customer-Paid Fee", r => r.InternalCustomerPaidFee, ColumnFormat.Money),
+            new("Internal – Bank-Absorb Books", r => r.InternalBankAbsorbCount, ColumnFormat.Integer),
+            new("Internal – Bank-Absorb Fee", r => r.InternalBankAbsorbFee, ColumnFormat.Money),
+            new("External – Books", r => r.ExternalBookCount, ColumnFormat.Integer),
+            new("External – Fee", r => r.ExternalTotalFee, ColumnFormat.Money),
+            new("External – Customer-Paid Books", r => r.ExternalCustomerPaidCount, ColumnFormat.Integer),
+            new("External – Customer-Paid Fee", r => r.ExternalCustomerPaidFee, ColumnFormat.Money),
+            new("External – Bank-Absorb Books", r => r.ExternalBankAbsorbCount, ColumnFormat.Integer),
+            new("External – Bank-Absorb Fee", r => r.ExternalBankAbsorbFee, ColumnFormat.Money),
+            new("Grand Total – Books", r => r.GrandTotalCount, ColumnFormat.Integer),
+            new("Grand Total – Fee", r => r.GrandTotalFee, ColumnFormat.Money),
         ],
     };
 
@@ -55,19 +67,34 @@ internal static class Rcas010Report
         var p = new DynamicParameters();
 
         ReportFilterSql.DateRange(c, p, f.CreatedFrom, f.CreatedTo, "CreatedAt", "Created");
-        ReportFilterSql.Exact(c, p, f.Channel, "Channel", "Channel");
-        ReportFilterSql.Exact(c, p, f.AssignType, "AssignType", "AssignType");
+        ReportFilterSql.MultiValue(c, p, f.Channel, "Channel", "Channels");
+        ReportFilterSql.Exact(c, p, f.DepartmentCode, "RequestorDepartment", "DepartmentCode");
+        ReportFilterSql.Exact(c, p, f.AoCode, "RequestorAoCode", "AoCode");
+        ReportFilterSql.MultiValue(c, p, f.Status, "AppraisalStatus", "Statuses");
+        ReportFilterSql.MultiValue(c, p, f.FeeType, "FeePaymentType", "FeeTypes");
+        ReportFilterSql.Contains(c, p, f.AppraisalCompany, "AppraisalCompany", "AppraisalCompany");
 
-        var inner =
-            // All three counts are distinct appraisal books (same grain); fee columns are per-fee sums.
-            "SELECT Channel, AssignType, COUNT(DISTINCT AppraisalId) AS BookCount, SUM(TotalFeeAfterVAT) AS TotalFee, " +
-            "COUNT(DISTINCT CASE WHEN CustomerPayableAmount > 0 THEN AppraisalId END) AS CustomerPaidCount, " +
-            "SUM(CustomerPayableAmount) AS CustomerPaidFee, " +
-            "COUNT(DISTINCT CASE WHEN BankAbsorbAmount > 0 THEN AppraisalId END) AS BankAbsorbCount, " +
-            "SUM(BankAbsorbAmount) AS BankAbsorbFee " +
-            "FROM reporting.vw_RCAS010_FeeExpenseBase" + ReportFilterSql.Where(c) +
-            " GROUP BY Channel, AssignType";
+        // Single-row aggregate. Internal/External are column groups (conditional aggregates), not row
+        // dimensions. Counts are distinct appraisal books; fees are per-fee sums. Column order matches
+        // the positional Rcas010Row.
+        const string agg =
+            "SELECT " +
+            "COUNT(DISTINCT CASE WHEN AssignType = 'Internal' THEN AppraisalId END) AS InternalBookCount, " +
+            "SUM(CASE WHEN AssignType = 'Internal' THEN TotalFeeAfterVAT ELSE 0 END) AS InternalTotalFee, " +
+            "COUNT(DISTINCT CASE WHEN AssignType = 'Internal' AND CustomerPayableAmount > 0 THEN AppraisalId END) AS InternalCustomerPaidCount, " +
+            "SUM(CASE WHEN AssignType = 'Internal' THEN CustomerPayableAmount ELSE 0 END) AS InternalCustomerPaidFee, " +
+            "COUNT(DISTINCT CASE WHEN AssignType = 'Internal' AND BankAbsorbAmount > 0 THEN AppraisalId END) AS InternalBankAbsorbCount, " +
+            "SUM(CASE WHEN AssignType = 'Internal' THEN BankAbsorbAmount ELSE 0 END) AS InternalBankAbsorbFee, " +
+            "COUNT(DISTINCT CASE WHEN AssignType = 'External' THEN AppraisalId END) AS ExternalBookCount, " +
+            "SUM(CASE WHEN AssignType = 'External' THEN TotalFeeAfterVAT ELSE 0 END) AS ExternalTotalFee, " +
+            "COUNT(DISTINCT CASE WHEN AssignType = 'External' AND CustomerPayableAmount > 0 THEN AppraisalId END) AS ExternalCustomerPaidCount, " +
+            "SUM(CASE WHEN AssignType = 'External' THEN CustomerPayableAmount ELSE 0 END) AS ExternalCustomerPaidFee, " +
+            "COUNT(DISTINCT CASE WHEN AssignType = 'External' AND BankAbsorbAmount > 0 THEN AppraisalId END) AS ExternalBankAbsorbCount, " +
+            "SUM(CASE WHEN AssignType = 'External' THEN BankAbsorbAmount ELSE 0 END) AS ExternalBankAbsorbFee, " +
+            "COUNT(DISTINCT AppraisalId) AS GrandTotalCount, " +
+            "SUM(TotalFeeAfterVAT) AS GrandTotalFee " +
+            "FROM reporting.vw_RCAS010_FeeExpenseBase";
 
-        return ($"SELECT * FROM ({inner}) g", p);
+        return ($"SELECT * FROM ({agg}{ReportFilterSql.Where(c)}) g", p);
     }
 }

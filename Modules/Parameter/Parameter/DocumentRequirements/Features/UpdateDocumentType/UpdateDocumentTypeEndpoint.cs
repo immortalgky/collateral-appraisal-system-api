@@ -5,7 +5,8 @@ public record UpdateDocumentTypeRequest(
     string? Description,
     string? Category,
     int SortOrder,
-    bool IsActive);
+    bool IsActive,
+    string? NameTh = null);
 
 public class UpdateDocumentTypeEndpoint : ICarterModule
 {
@@ -23,7 +24,8 @@ public class UpdateDocumentTypeEndpoint : ICarterModule
                     request.Description,
                     request.Category,
                     request.SortOrder,
-                    request.IsActive);
+                    request.IsActive,
+                    request.NameTh);
 
                 await sender.Send(command, cancellationToken);
 

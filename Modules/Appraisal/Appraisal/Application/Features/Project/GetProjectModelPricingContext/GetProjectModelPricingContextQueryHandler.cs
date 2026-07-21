@@ -92,7 +92,6 @@ public class GetProjectModelPricingContextQueryHandler(
             // (the canonical "typical plot" sq.wa). Null when project is not LB.
             LandAreaSquareWa: isLb ? model.StandardLandArea : null,
             // Building-level fields: LandAndBuilding only
-            ConstructionYear: isLb ? model.ConstructionYear : null,
             NumberOfFloors: isLb ? model.NumberOfFloors : null,
             DecorationType: isLb ? model.DecorationType : null,
             RoofType: isLb ? model.RoofType : null,

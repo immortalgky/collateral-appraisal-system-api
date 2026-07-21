@@ -21,7 +21,8 @@ public static class MenuSeedData
         string? ViewPermissionCode,
         string? EditPermissionCode,
         List<MenuSeedNode>? Children = null,
-        string? ViewPermissionPrefix = null);
+        string? ViewPermissionPrefix = null,
+        string? LabelTh = null);
 
     public static List<MenuSeedNode> GetMainMenuSeed() => new()
     {
@@ -94,20 +95,20 @@ public static class MenuSeedData
                 new("main.reports.operational", "Operational Reports", "table-list", IconStyle.Solid, "text-indigo-500", "/reports/operational", "REPORT_OP_VIEW", null,
                     new List<MenuSeedNode>
                     {
-                        new("main.reports.operational.rcas001", "Appraisal Books (RCAS001)", "book", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas001", "REPORT_OP_VIEW", null),
-                        new("main.reports.operational.rcas002", "Reappraisal Due (RCAS002)", "calendar-check", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas002", "REPORT_OP_VIEW", null),
-                        new("main.reports.operational.rcas003", "Monthly Workload (RCAS003)", "gauge-high", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas003", "REPORT_OP_VIEW", null),
-                        new("main.reports.operational.rcas004", "Inspection < 100% (RCAS004)", "helmet-safety", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas004", "REPORT_OP_VIEW", null),
-                        new("main.reports.operational.rcas005", "By External Company (RCAS005)", "building", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas005", "REPORT_OP_VIEW", null),
-                        new("main.reports.operational.rcas006", "By Internal Staff (RCAS006)", "user-tie", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas006", "REPORT_OP_VIEW", null),
-                        new("main.reports.operational.rcas007", "SLA Summary (RCAS007)", "stopwatch", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas007", "REPORT_OP_VIEW", null),
-                        new("main.reports.operational.rcas008", "Service Quality (RCAS008)", "star", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas008", "REPORT_OP_VIEW", null),
-                        new("main.reports.operational.rcas009", "Fee Summary (RCAS009)", "file-invoice-dollar", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas009", "REPORT_OP_VIEW", null),
-                        new("main.reports.operational.rcas010", "Bank-Absorbed Fees (RCAS010)", "sack-dollar", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas010", "REPORT_OP_VIEW", null),
-                        new("main.reports.operational.rcas011", "Detail by RM (RCAS011)", "user-group", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas011", "REPORT_OP_VIEW", null),
-                        new("main.reports.operational.rcas012", "Company Follow-up (RCAS012)", "magnifying-glass-chart", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas012", "REPORT_OP_VIEW", null),
-                    }),
-            }),
+                        new("main.reports.operational.rcas001", "Appraisal Books (RCAS001)", "book", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas001", "REPORT_OP_VIEW", null, LabelTh: "เล่มประเมินตามช่วงเวลา/สถานะ/ฝ่ายงาน (RCAS001)"),
+                        new("main.reports.operational.rcas002", "Reappraisal Due (RCAS002)", "calendar-check", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas002", "REPORT_OP_VIEW", null, LabelTh: "การครบกำหนดทบทวนหลักประกัน (RCAS002)"),
+                        new("main.reports.operational.rcas003", "Monthly Workload (RCAS003)", "gauge-high", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas003", "REPORT_OP_VIEW", null, LabelTh: "สรุปปริมาณงานประจำเดือน (RCAS003)"),
+                        new("main.reports.operational.rcas004", "Inspection < 100% (RCAS004)", "helmet-safety", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas004", "REPORT_OP_VIEW", null, LabelTh: "ตรวจงวดงานที่ยังไม่ครบ 100% (RCAS004)"),
+                        new("main.reports.operational.rcas005", "By External Company (RCAS005)", "building", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas005", "REPORT_OP_VIEW", null, LabelTh: "สรุปตามบริษัทประเมินภายนอก (RCAS005)"),
+                        new("main.reports.operational.rcas006", "By Internal Staff (RCAS006)", "user-tie", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas006", "REPORT_OP_VIEW", null, LabelTh: "สรุปตามเจ้าหน้าที่ประเมินภายใน (RCAS006)"),
+                        new("main.reports.operational.rcas007", "SLA Summary (RCAS007)", "stopwatch", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas007", "REPORT_OP_VIEW", null, LabelTh: "สรุป SLA Internal & External (RCAS007)"),
+                        new("main.reports.operational.rcas008", "Service Quality (RCAS008)", "star", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas008", "REPORT_OP_VIEW", null, LabelTh: "คุณภาพบริการบริษัทประเมิน (RCAS008)"),
+                        new("main.reports.operational.rcas009", "Fee Summary (RCAS009)", "file-invoice-dollar", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas009", "REPORT_OP_VIEW", null, LabelTh: "สรุปค่าประเมิน (RCAS009)"),
+                        new("main.reports.operational.rcas010", "Bank-Absorbed Fees (RCAS010)", "sack-dollar", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas010", "REPORT_OP_VIEW", null, LabelTh: "ค่าประเมินที่ธนาคารจ่ายประจำเดือน (RCAS010)"),
+                        new("main.reports.operational.rcas011", "Detail by RM (RCAS011)", "user-group", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas011", "REPORT_OP_VIEW", null, LabelTh: "รายละเอียดการประเมินตาม RM (RCAS011)"),
+                        new("main.reports.operational.rcas012", "Company Follow-up (RCAS012)", "magnifying-glass-chart", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas012", "REPORT_OP_VIEW", null, LabelTh: "ติดตามงานบริษัทประเมิน (RCAS012)"),
+                    }, LabelTh: "รายงานเชิงปฏิบัติการ"),
+            }, LabelTh: "รายงาน"),
         new("main.meetings", "Meetings", "people-arrows", IconStyle.Solid, "text-blue-500", "/meetings", "MEETING_MANAGE", null,
             new List<MenuSeedNode>
             {

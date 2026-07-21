@@ -10,8 +10,11 @@ namespace Reporting.Application.Providers.Sections;
 ///
 ///   appraisal.AppraisalAppendices   (AppraisalId, AppendixTypeId, SortOrder, LayoutColumns)
 ///   appraisal.AppendixTypes         (Id, Code, Name)
-///   appraisal.AppendixDocuments     (AppraisalAppendixId, GalleryPhotoId, DisplaySequence)
-///   appraisal.AppraisalGallery      (Id, DocumentId, FilePath, MimeType, Caption)
+///   appraisal.AppendixDocuments     (AppraisalAppendixId, GalleryPhotoId, DocumentId, DisplaySequence)
+///                                    — exactly one of GalleryPhotoId/DocumentId is set per row;
+///                                    PDFs link straight to DocumentId and never enter the gallery
+///   appraisal.AppraisalGallery      (Id, DocumentId, FilePath, MimeType, Caption) — LEFT JOINed,
+///                                    absent for PDF rows
 ///   document.Documents              (Id, StoragePath, MimeType) — authoritative file path/mime,
 ///                                    coalesced over the often-null denormalized gallery columns
 ///
@@ -68,12 +71,14 @@ internal static class AppendixSectionLoader
         // Columns confirmed:
         //   AppendixTypes.Code / Name — AppendixTypeConfiguration: HasMaxLength, no HasColumnName override
         //   AppraisalAppendices.SortOrder / LayoutColumns — AppendixConfiguration
-        //   AppendixDocuments.DisplaySequence / GalleryPhotoId — AppendixDocumentConfiguration
+        //   AppendixDocuments.DisplaySequence / GalleryPhotoId / DocumentId — AppendixDocumentConfiguration
         //   AppraisalGallery.DocumentId / FilePath / MimeType / Caption — AppraisalGalleryConfiguration
         // The denormalized AppraisalGallery.FilePath / MimeType are client-supplied on upload
         // and are frequently NULL (the upload form doesn't always forward them). The authoritative
         // on-disk path + mime live in document.Documents (same source the PDF merge resolves via
         // DapperAttachmentSource), so COALESCE onto the document row and use it as the primary value.
+        // AppraisalGallery is LEFT JOINed (not JOINed) because PDF rows have GalleryPhotoId = NULL
+        // and link straight to DocumentId instead — an inner join would silently drop them.
         const string sql = """
             SELECT
                 at.Code            AS AppendixTypeCode,
@@ -81,17 +86,30 @@ internal static class AppendixSectionLoader
                 aa.SortOrder,
                 aa.LayoutColumns,
                 ad.DisplaySequence,
-                g.DocumentId,
-                COALESCE(d.StoragePath, g.FilePath) AS FilePath,
-                COALESCE(g.MimeType, d.MimeType)    AS MimeType,
+                COALESCE(ad.DocumentId, g.DocumentId)                 AS DocumentId,
+                COALESCE(dd.StoragePath, dg.StoragePath, g.FilePath)  AS FilePath,
+                -- document.Documents FIRST (matching FilePath above and GetAppraisalAppendices).
+                -- AppraisalGallery.MimeType is browser-supplied on upload (`file.type || null`) and
+                -- can be '' or application/octet-stream. Preferring it meant an image with a junk
+                -- gallery mime matched neither the image/ nor the application/pdf branch below and
+                -- was SILENTLY dropped from the book while still rendering fine in the UI.
+                COALESCE(dd.MimeType, dg.MimeType, g.MimeType)        AS MimeType,
                 g.Caption
             FROM appraisal.AppraisalAppendices aa
             JOIN appraisal.AppendixTypes at         ON at.Id = aa.AppendixTypeId
             JOIN appraisal.AppendixDocuments ad      ON ad.AppraisalAppendixId = aa.Id
-            JOIN appraisal.AppraisalGallery g        ON g.Id = ad.GalleryPhotoId
-            LEFT JOIN document.Documents d           ON d.Id = g.DocumentId
-                                                    AND d.IsActive = 1
-                                                    AND d.IsDeleted = 0
+            LEFT JOIN appraisal.AppraisalGallery g   ON g.Id = ad.GalleryPhotoId
+            -- Two separate document joins rather than one on COALESCE(ad.DocumentId, g.DocumentId):
+            -- wrapping the outer side in COALESCE is non-sargable and costs the clustered-index
+            -- seek on document.Documents for EVERY book render. Exactly one of GalleryPhotoId /
+            -- DocumentId is set per row (domain XOR invariant), so at most one of dd/dg ever
+            -- matches and the COALESCE in the SELECT is equivalent to the old predicate.
+            LEFT JOIN document.Documents dd          ON dd.Id = ad.DocumentId          -- PDF path
+                                                    AND dd.IsActive = 1
+                                                    AND dd.IsDeleted = 0
+            LEFT JOIN document.Documents dg          ON dg.Id = g.DocumentId           -- image path
+                                                    AND dg.IsActive = 1
+                                                    AND dg.IsDeleted = 0
             WHERE aa.AppraisalId = @AppraisalId
             ORDER BY aa.SortOrder, ad.DisplaySequence
             """;
@@ -122,7 +140,9 @@ internal static class AppendixSectionLoader
                     ? mapped
                     : row.AppendixTypeName;
 
-                var cols = row.LayoutColumns > 0 ? row.LayoutColumns : 2;
+                // UI offers 1/2/3 columns; clamp to that range (default 1 when unset) so the
+                // template's .cols-N style always matches — same rule as the photo-topic path.
+                var cols = row.LayoutColumns >= 1 ? Math.Min(row.LayoutColumns, 3) : 1;
 
                 groupOrder.Add(key);
                 groupMeta[key] = (thaiName ?? key, cols);
@@ -145,11 +165,12 @@ internal static class AppendixSectionLoader
                     Caption = string.IsNullOrWhiteSpace(row.Caption) ? null : row.Caption,
                 });
             }
-            else if (string.Equals(mime, "application/pdf", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(mime, "application/pdf", StringComparison.OrdinalIgnoreCase)
+                     && row.DocumentId is not null)
             {
-                groupPdfs[key].Add(row.DocumentId);
+                groupPdfs[key].Add(row.DocumentId.Value);
             }
-            // Other mime types are silently skipped
+            // Other mime types — and orphan rows with no resolvable document — are silently skipped
         }
 
         // Build groups that have at least one image OR one PDF. Each surviving group gets a
@@ -308,7 +329,12 @@ internal static class AppendixSectionLoader
         public int     SortOrder        { get; init; }
         public int     LayoutColumns    { get; init; }
         public int     DisplaySequence  { get; init; }
-        public Guid    DocumentId       { get; init; }
+        // Nullable: AppraisalGallery is LEFT JOINed, so an AppendixDocument row whose
+        // GalleryPhotoId points at a deleted gallery row yields COALESCE(NULL, NULL) = NULL.
+        // Under the previous INNER JOIN such orphans were excluded from the result set; with
+        // the LEFT JOIN they come back, and a non-nullable Guid here would make Dapper throw
+        // and fail the WHOLE book render rather than skipping the one bad row.
+        public Guid?   DocumentId       { get; init; }
         public string? FilePath         { get; init; }
         public string? MimeType         { get; init; }
         public string? Caption          { get; init; }

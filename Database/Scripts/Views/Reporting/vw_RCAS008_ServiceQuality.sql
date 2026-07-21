@@ -16,7 +16,13 @@ SELECT el.AppraisalId           AS Id,
        e.Criteria4Rating        AS ScoreResponseTime,
        e.Criteria5Rating        AS ScoreCoordination,
        e.AdditionalComments     AS Remark,
-       el.EvaluationStatus
+       el.EvaluationStatus,
+       -- Appended (not inserted mid-list) so the SELECT order still matches the positional Rcas008Row.
+       -- FSD field 3: the bank's internal appraiser on this external book (name, fallback to code).
+       COALESCE(NULLIF(v.InternalAppraiserName, N''), v.InternalAppraiserId) AS InternalAppraisalStaff,
+       a.Purpose                AS PurposeCode,       -- filter-only (FSD selection criterion "Purpose")
+       a.AppraisalType                                -- filter-only (FSD selection criterion "Appraisal type")
 FROM appraisal.vw_AppraisalEvaluationList el
          INNER JOIN appraisal.Appraisals a ON a.Id = el.AppraisalId
+         LEFT JOIN appraisal.vw_AppraisalList v ON v.Id = el.AppraisalId
          LEFT JOIN appraisal.AppraisalEvaluations e ON e.AppraisalId = el.AppraisalId;

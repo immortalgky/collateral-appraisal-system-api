@@ -36,7 +36,10 @@ public class DirectComparisonCalculationService : IPricingCalculationService
                 method.FinalValue.UpdateFinalValue(fv, fvRounded);
             }
 
-            method.SetValue(fvRounded);
+            // Persist the resolved price unit (PerSqWa/PerSqm → per-unit rate; PerUnit → lumpsum).
+            var unitType = PricingCalculationHelper.ResolvePriceUnit(method.Calculations);
+            var valuePerUnit = PricingUnit.IsPerUnitRate(unitType) ? fvRounded : (decimal?)null;
+            method.SetValue(fvRounded, valuePerUnit, unitType);
         }
     }
 
