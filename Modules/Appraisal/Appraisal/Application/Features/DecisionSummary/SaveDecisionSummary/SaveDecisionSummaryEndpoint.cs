@@ -24,10 +24,12 @@ public class SaveDecisionSummaryEndpoint : ICarterModule
                         request.Condition,
                         request.RemarkType,
                         request.Remark,
-                        request.AppraiserOpinionType,
-                        request.AppraiserOpinion,
+                        request.ExternalAppraiserOpinionType,
+                        request.ExternalAppraiserOpinion,
                         request.CommitteeOpinionType,
                         request.CommitteeOpinion,
+                        request.InternalAppraiserOpinionType,
+                        request.InternalAppraiserOpinion,
                         request.TotalAppraisalPriceReview,
                         request.AdditionalAssumptions);
 

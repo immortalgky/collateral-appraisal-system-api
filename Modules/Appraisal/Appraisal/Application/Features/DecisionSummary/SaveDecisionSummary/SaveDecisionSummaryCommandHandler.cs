@@ -34,10 +34,12 @@ public class SaveDecisionSummaryCommandHandler(
             command.Condition,
             command.RemarkType,
             command.Remark,
-            command.AppraiserOpinionType,
-            command.AppraiserOpinion,
+            command.ExternalAppraiserOpinionType,
+            command.ExternalAppraiserOpinion,
             command.CommitteeOpinionType,
             command.CommitteeOpinion,
+            command.InternalAppraiserOpinionType,
+            command.InternalAppraiserOpinion,
             command.AdditionalAssumptions);
 
         // Force-sale rate is no longer part of this form save — it's persisted immediately via
@@ -103,10 +105,12 @@ public class SaveDecisionSummaryCommandHandler(
             decision.Condition,
             decision.RemarkType,
             decision.Remark,
-            decision.AppraiserOpinionType,
-            decision.AppraiserOpinion,
+            decision.ExternalAppraiserOpinionType,
+            decision.ExternalAppraiserOpinion,
             decision.CommitteeOpinionType,
             decision.CommitteeOpinion,
+            decision.InternalAppraiserOpinionType,
+            decision.InternalAppraiserOpinion,
             appraisedReview,
             decision.AdditionalAssumptions);
     }
