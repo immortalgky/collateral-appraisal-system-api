@@ -119,8 +119,20 @@ public class AppraisalValueChangedIntegrationEventConsumer(
         {
             await dbContext.SaveChangesAsync(ct);
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            // MUST precede the DbUpdateException catch — it derives from it. A lost RowVersion race
+            // is NOT an idempotent duplicate: the appraisalValue write did not land, and swallowing
+            // it here then calling MarkAsProcessedAsync discarded the update silently (which can
+            // leave the approval-tier switch routing on a stale/absent value). Surface it so
+            // MassTransit redelivers — the staged InboxMessage rolled back with the work, so there
+            // is no "Processing" row to block the retry.
+            throw;
+        }
         catch (DbUpdateException)
         {
+            // PK violation on the InboxMessage INSERT: another consumer committed the same message
+            // between our read and our save — idempotent skip.
             dbContext.ChangeTracker.Clear();
         }
     }
