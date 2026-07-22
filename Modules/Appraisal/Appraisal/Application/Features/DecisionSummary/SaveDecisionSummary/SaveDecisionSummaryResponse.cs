@@ -15,5 +15,8 @@ public record SaveDecisionSummaryResponse(
     string? InternalAppraiserOpinionType,
     string? InternalAppraiserOpinion,
     decimal? TotalAppraisalPriceReview,
-    string? AdditionalAssumptions
+    string? AdditionalAssumptions,
+    bool? HasConstructionLicenseDoc,
+    bool? HasConstructionProgressTableDoc,
+    bool? HasConstructionPhotoDoc
 );

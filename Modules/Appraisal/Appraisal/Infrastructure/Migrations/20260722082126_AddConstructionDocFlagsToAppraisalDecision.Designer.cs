@@ -4,6 +4,7 @@ using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Appraisal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    partial class AppraisalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260722082126_AddConstructionDocFlagsToAppraisalDecision")]
+    partial class AddConstructionDocFlagsToAppraisalDecision
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -814,6 +817,14 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<Guid>("AppraisalId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AppraiserOpinion")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("AppraiserOpinionType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("CommitteeOpinion")
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
@@ -840,22 +851,6 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ExternalAppraiserOpinion")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<string>("ExternalAppraiserOpinionType")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("InternalAppraiserOpinion")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<string>("InternalAppraiserOpinionType")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.Property<bool?>("HasConstructionLicenseDoc")
                         .HasColumnType("bit");
