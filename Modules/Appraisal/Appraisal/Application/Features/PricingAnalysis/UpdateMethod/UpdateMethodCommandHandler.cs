@@ -45,6 +45,12 @@ public class UpdateMethodCommandHandler(
                 command.UnitType ?? method.UnitType);
         }
 
+        if (command.UseSystemCalc.HasValue)
+        {
+            method.SetUseSystemCalc(command.UseSystemCalc.Value);
+            method.SetAsUnselected();
+        }
+
         // Propagate selected method's MethodValue → ApproachValue → FinalAppraisedValue
         if (method.IsSelected && method.MethodValue.HasValue)
         {
@@ -60,6 +66,7 @@ public class UpdateMethodCommandHandler(
             method.MethodValue,
             method.ValuePerUnit,
             method.UnitType,
+            method.UseSystemCalc,
             parentApproach!.ApproachValue,
             pricingAnalysis.FinalAppraisedValue);
     }
