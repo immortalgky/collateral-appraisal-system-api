@@ -19,7 +19,7 @@ public class
         builder.Property(e => e.PropertyName).HasMaxLength(200);
         builder.Property(e => e.BuildingNumber).HasMaxLength(50);
         builder.Property(e => e.ModelName).HasMaxLength(100);
-        builder.Property(e => e.BuiltOnTitleNumber).HasMaxLength(300);
+        builder.Property(e => e.BuiltOnTitleNumber).HasMaxLength(500);
         builder.Property(e => e.HouseNumber).HasMaxLength(50);
         builder.Property(e => e.NoHouseNumber).HasMaxLength(100);
 
