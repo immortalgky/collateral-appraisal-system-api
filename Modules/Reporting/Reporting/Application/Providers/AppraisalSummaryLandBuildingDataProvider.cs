@@ -256,8 +256,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
             -- RS09: Q11 — Appraisal decision
             SELECT
-                ad.AppraiserOpinion,
                 ad.CommitteeOpinion,
+                ad.InternalAppraiserOpinion,
                 ad.Condition,
                 ad.Remark
             FROM appraisal.AppraisalDecisions ad
@@ -1145,7 +1145,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             IsHypothesis = methodFlags.IsHypothesis,
             IsLeasehold = methodFlags.IsLeasehold,
             IsProfitRent = methodFlags.IsProfitRent,
-            AppraiserComment = AppraisalSummaryCommonLoader.FirstNonBlank(decision?.AppraiserOpinion),
+            AppraiserComment = AppraisalSummaryCommonLoader.FirstNonBlank(decision?.InternalAppraiserOpinion),
             AppraisalStaffName = staffName,
             AppraisalStaffPosition = staffPosition,
             AppraisalCheckerName = checkerName,
@@ -1360,8 +1360,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
     private sealed class DecisionRow
     {
-        public string? AppraiserOpinion { get; init; }
         public string? CommitteeOpinion { get; init; }
+        public string? InternalAppraiserOpinion { get; init; }
         public string? Condition { get; init; }
         public string? Remark { get; init; }
     }

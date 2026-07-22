@@ -10,10 +10,12 @@ public class AppraisalDecision : Entity<Guid>
     public string? Condition { get; private set; }
     public string? RemarkType { get; private set; }
     public string? Remark { get; private set; }
-    public string? AppraiserOpinionType { get; private set; }
-    public string? AppraiserOpinion { get; private set; }
+    public string? ExternalAppraiserOpinionType { get; private set; }
+    public string? ExternalAppraiserOpinion { get; private set; }
     public string? CommitteeOpinionType { get; private set; }
     public string? CommitteeOpinion { get; private set; }
+    public string? InternalAppraiserOpinionType { get; private set; }
+    public string? InternalAppraiserOpinion { get; private set; }
 
     // Review values
     public decimal? TotalAppraisalPriceReview { get; private set; }
@@ -38,10 +40,12 @@ public class AppraisalDecision : Entity<Guid>
         string? condition,
         string? remarkType,
         string? remark,
-        string? appraiserOpinionType,
-        string? appraiserOpinion,
+        string? externalAppraiserOpinionType,
+        string? externalAppraiserOpinion,
         string? committeeOpinionType,
         string? committeeOpinion,
+        string? internalAppraiserOpinionType,
+        string? internalAppraiserOpinion,
         string? additionalAssumptions)
     {
         IsPriceVerified = isPriceVerified;
@@ -49,10 +53,12 @@ public class AppraisalDecision : Entity<Guid>
         Condition = condition;
         RemarkType = remarkType;
         Remark = remark;
-        AppraiserOpinionType = appraiserOpinionType;
-        AppraiserOpinion = appraiserOpinion;
+        ExternalAppraiserOpinionType = externalAppraiserOpinionType;
+        ExternalAppraiserOpinion = externalAppraiserOpinion;
         CommitteeOpinionType = committeeOpinionType;
         CommitteeOpinion = committeeOpinion;
+        InternalAppraiserOpinionType = internalAppraiserOpinionType;
+        InternalAppraiserOpinion = internalAppraiserOpinion;
         AdditionalAssumptions = additionalAssumptions;
     }
 }

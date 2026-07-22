@@ -48,10 +48,12 @@ public record GetDecisionSummaryResult(
     string? Condition,
     string? RemarkType,
     string? Remark,
-    string? AppraiserOpinionType,
-    string? AppraiserOpinion,
+    string? ExternalAppraiserOpinionType,
+    string? ExternalAppraiserOpinion,
     string? CommitteeOpinionType,
     string? CommitteeOpinion,
+    string? InternalAppraiserOpinionType,
+    string? InternalAppraiserOpinion,
     string? AdditionalAssumptions,
 
     // Block appraisal fields (null for normal appraisals)

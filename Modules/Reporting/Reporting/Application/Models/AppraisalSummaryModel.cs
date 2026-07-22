@@ -276,7 +276,9 @@ public sealed class AppraisalSummaryModel
 
     // ── Appraiser comment ─────────────────────────────────────────────────────────
 
-    /// <summary>Field 39 — Appraiser opinion / comment (AppraiserOpinion or CommitteeOpinion).</summary>
+    /// <summary>Field 39 — Appraiser opinion / comment. Sourced uniformly from the bank's internal
+    /// opinion (AppraisalDecision.InternalAppraiserOpinion): the book-verifier's opinion on the
+    /// external assignment path, the internal appraiser's own opinion on the internal path.</summary>
     public string? AppraiserComment { get; init; }
 
     // ── Sign-off ──────────────────────────────────────────────────────────────────

@@ -203,8 +203,8 @@ internal static class AppraisalSummaryCommonLoader
 
             -- RS08: Q11 — Appraisal decision
             SELECT
-                ad.AppraiserOpinion,
                 ad.CommitteeOpinion,
+                ad.InternalAppraiserOpinion,
                 ad.Condition,
                 ad.Remark
             FROM appraisal.AppraisalDecisions ad
@@ -562,7 +562,7 @@ internal static class AppraisalSummaryCommonLoader
             IsLeasehold: globalFlags.IsLeasehold,
             IsProfitRent: globalFlags.IsProfitRent,
             GroupMethodTypes: groupMethodTypes,
-            AppraiserComment: FirstNonBlank(decision?.AppraiserOpinion),
+            AppraiserComment: FirstNonBlank(decision?.InternalAppraiserOpinion),
             Condition: decision?.Condition,
             Remark: decision?.Remark,
             CommitteeOpinion: decision?.CommitteeOpinion,
@@ -643,8 +643,8 @@ internal static class AppraisalSummaryCommonLoader
 
     internal sealed class DecisionRow
     {
-        public string? AppraiserOpinion { get; init; }
         public string? CommitteeOpinion { get; init; }
+        public string? InternalAppraiserOpinion { get; init; }
         public string? Condition { get; init; }
         public string? Remark { get; init; }
     }
