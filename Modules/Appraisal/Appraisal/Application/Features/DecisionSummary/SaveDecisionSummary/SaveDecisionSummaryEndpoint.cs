@@ -31,7 +31,10 @@ public class SaveDecisionSummaryEndpoint : ICarterModule
                         request.InternalAppraiserOpinionType,
                         request.InternalAppraiserOpinion,
                         request.TotalAppraisalPriceReview,
-                        request.AdditionalAssumptions);
+                        request.AdditionalAssumptions,
+                        request.HasConstructionLicenseDoc,
+                        request.HasConstructionProgressTableDoc,
+                        request.HasConstructionPhotoDoc);
 
                     var result = await sender.Send(command, cancellationToken);
                     var response = result.Adapt<SaveDecisionSummaryResponse>();

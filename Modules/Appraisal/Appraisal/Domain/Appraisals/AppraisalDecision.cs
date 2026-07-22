@@ -21,6 +21,14 @@ public class AppraisalDecision : Entity<Guid>
     public decimal? TotalAppraisalPriceReview { get; private set; }
     public string? AdditionalAssumptions { get; private set; }
 
+    // Construction summary "เอกสารประกอบ" checkbox overrides (สรุปรายงานการตรวจงานก่อสร้าง report).
+    // null = fall back to the auto-derived value (a matching document is attached); true/false = explicit
+    // override, used mainly when an external company bundles the documents into D001 (the appraisal book)
+    // so nothing can be auto-detected and the book-verification reviewer ticks manually.
+    public bool? HasConstructionLicenseDoc { get; private set; }
+    public bool? HasConstructionProgressTableDoc { get; private set; }
+    public bool? HasConstructionPhotoDoc { get; private set; }
+
     private AppraisalDecision()
     {
     }
@@ -46,7 +54,10 @@ public class AppraisalDecision : Entity<Guid>
         string? committeeOpinion,
         string? internalAppraiserOpinionType,
         string? internalAppraiserOpinion,
-        string? additionalAssumptions)
+        string? additionalAssumptions,
+        bool? hasConstructionLicenseDoc,
+        bool? hasConstructionProgressTableDoc,
+        bool? hasConstructionPhotoDoc)
     {
         IsPriceVerified = isPriceVerified;
         ConditionType = conditionType;
@@ -60,5 +71,8 @@ public class AppraisalDecision : Entity<Guid>
         InternalAppraiserOpinionType = internalAppraiserOpinionType;
         InternalAppraiserOpinion = internalAppraiserOpinion;
         AdditionalAssumptions = additionalAssumptions;
+        HasConstructionLicenseDoc = hasConstructionLicenseDoc;
+        HasConstructionProgressTableDoc = hasConstructionProgressTableDoc;
+        HasConstructionPhotoDoc = hasConstructionPhotoDoc;
     }
 }
