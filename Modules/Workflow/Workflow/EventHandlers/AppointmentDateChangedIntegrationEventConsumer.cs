@@ -234,6 +234,15 @@ public class AppointmentDateChangedIntegrationEventConsumer(
         {
             await dbContext.SaveChangesAsync(ct);
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            // MUST precede the DbUpdateException catch — it derives from it. A lost RowVersion race
+            // is NOT an idempotent duplicate: the appointmentDate write and the recomputed task
+            // deadlines did not land, and swallowing it here then calling MarkAsProcessedAsync
+            // discarded them silently. Surface it so MassTransit redelivers — the staged
+            // InboxMessage rolled back with the work, so no "Processing" row blocks the retry.
+            throw;
+        }
         catch (DbUpdateException)
         {
             // PK violation on InboxMessage INSERT: another consumer committed the same message
