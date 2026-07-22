@@ -33,10 +33,14 @@ body {
 /* ── Generic label:value rows ───────────────────────────── */
 /* No left/right padding so info/attribute rows align flush with the table edges. */
 .pad { padding:5px 0; }
-.kv { display:flex; align-items:baseline; gap:0; margin-bottom:2.5px; }
+/* min-width:0 on both levels defeats the automatic minimum size: .kv is a grid item inside
+   .cols2/.cols3 (a 1fr track is minmax(auto,1fr)) and .v is a flex item, so both would
+   otherwise floor at their min-content width and let an unbroken token push past the page —
+   the wrap rule on .v alone cannot override that. See the overflow-wrap note further down. */
+.kv { display:flex; align-items:baseline; gap:0; margin-bottom:2.5px; min-width:0; }
 /* Fixed-width label = longest label (~102px) + 8px, so the value sits 8px past it and aligns. */
 .kv .k { font-weight:500; white-space:nowrap; width:110px; flex-shrink:0; }
-.kv .v { flex:1; min-height:14px; }
+.kv .v { flex:1; min-width:0; min-height:14px; overflow-wrap:anywhere; }
 /* Empty field → show a dash placeholder. */
 .kv .v:empty::before { content:"-"; }
 /* Machine attributes have a longer label (สภาพความต้องการของตลาด) — widen so values align. */
@@ -47,6 +51,9 @@ body {
                 border-bottom:1px solid #000; padding-bottom:2px; margin-bottom:3px; }
 .machine-head .machine-seq { white-space:nowrap; }
 .machine-head .machine-qty { white-space:nowrap; font-weight:500; }
+/* The machine name is free text the appraiser types, and it is the flexible item in this
+   flex row — min-width:0 stops its min-content size from pushing the head past the page. */
+.machine-head .machine-title { min-width:0; overflow-wrap:anywhere; }
 .machine-attrs { padding-left:18px; }
 /* Narrative attributes (components / remarks / opinion) flow full width below the label. */
 .machine-attrs .kv-block { display:block; }
@@ -82,7 +89,7 @@ body {
    the appraiser's textarea line breaks — e.g. the (1)/(2) breakdown in §1.4 — from
    collapsing onto a single line. Inside a numbered block the gutter already provides the
    indent, so no extra padding there. */
-.narrative { padding-left:18px; margin-bottom:4px; white-space:pre-line; }
+.narrative { padding-left:18px; margin-bottom:4px; white-space:pre-line; overflow-wrap:anywhere; }
 .numbered .narrative { padding-left:0; }
 /* Centered section heading — used by the book-intro page (FSD §2.1.2.7 section 1). */
 .section-bar.center { text-align:center; }
@@ -91,7 +98,10 @@ body {
 /* Construction value block: long labels — fixed label width so values line up per column;
    values never wrap; slightly smaller font so the long labels fit on one line. */
 .construction-values { font-size:7.5pt; }
-.construction-values .kv { align-items:baseline; }
+/* These values are nowrap, so they have no wrap rule to fall back on: keep the default
+   min-content floor (overriding the global .kv min-width:0) so an over-long value widens
+   its grid track as it always has, rather than silently overlapping the next column. */
+.construction-values .kv { align-items:baseline; min-width:auto; }
 .construction-values .kv .k { width:165px; white-space:normal; }
 .construction-values .kv .v { white-space:nowrap; }
 /* Right column (even cells): label stays on one line; value pushed to the right edge. */
@@ -103,7 +113,18 @@ body {
 
 /* ── Tables ─────────────────────────────────────────────── */
 table.grid { width:100%; border-collapse:collapse; font-size:8pt; }
-table.grid th, table.grid td { border:1px solid #000; padding:3px 5px; vertical-align:top; }
+/* overflow-wrap:anywhere for the same reason as .brk below — several columns hold text the
+   appraiser typed (floor type, ประเภทพื้น, รายการสิ่งปลูกสร้าง, machine names, comparison
+   rows). Without it one unbroken token sets the cell's min-content width, and auto table
+   layout hands that column the space at every other column's expense. .num cells opt out
+   via white-space:nowrap, so figures still never break. */
+table.grid th, table.grid td { border:1px solid #000; padding:3px 5px; vertical-align:top;
+                               overflow-wrap:anywhere; }
+/* The income / leasehold / profit-rent parameter tables carry no other styling. Their values
+   are all math.format-ed figures today, so this is defensive rather than a fix for an
+   observed defect — it costs nothing on numeric content and keeps the table inside the page
+   if free text is ever bound to a .pv cell. */
+table.params td { overflow-wrap:anywhere; }
 table.grid th { background:#ececec; text-align:center; font-weight:700; }
 .num { text-align:right; white-space:nowrap; }
 /* Land titles: one title per line, numbered — single global style used by every land
@@ -111,7 +132,7 @@ table.grid th { background:#ececec; text-align:center; font-weight:700; }
    list-style-position:inside + zero padding keeps the number inline with the first line and
    lets wrapped lines run flush to the cell's left edge (no hanging indent under the text). */
 .land-titles { margin:0; padding-left:0; list-style:decimal inside; }
-.land-titles li { margin-top:1px; }
+.land-titles li { margin-top:1px; overflow-wrap:anywhere; }
 /* A lone title has nothing to enumerate — drop the "1." but keep the list markup/spacing. */
 .land-titles.no-num { list-style:none; }
 /* Per-group cost breakdown: suppress internal horizontal borders so a group's
@@ -146,10 +167,11 @@ table.totals td.tt { text-align:right; font-style:italic; color:#333; }
    page the whole block moves to the next one rather than splitting mid-way. */
 .attrs-block { page-break-inside:avoid; break-inside:avoid; }
 
-/* Appraiser-opinion section (heading + comment + the 3-column signature row) travels as one
-   unit. The committee table is nested inside via the sign-off partial and keeps its own
-   .committee-block rule; when the combined height exceeds a page Chromium ignores the outer
-   avoid and falls back to normal pagination, so this can never strand content. */
+/* The opinion section (heading + comment), the sign-off row and the committee block are three
+   SIBLING page-break units — never nested. Each stays internally intact but paginates
+   independently, so an overflowing committee table no longer drags the opinion text with it.
+   Nesting them would defeat this: Chromium honours the outermost avoid and moves the whole
+   subtree as one blob. */
 .opinion-block { page-break-inside:avoid; break-inside:avoid; }
 
 /* FSD-aligned: plain left-aligned bold heading, no grey fill / border. */
@@ -164,9 +186,19 @@ table.grid.comparison th:first-child, table.grid.comparison td:first-child { wid
 .methods .m { display:flex; align-items:center; gap:4px; }
 
 /* white-space:pre-line keeps the appraiser's line breaks (newlines render as breaks). */
-.comment-box { min-height:42px; padding:4px 0; margin-top:3px; white-space:pre-line; }
-/* Preserve line breaks in free-text fields (เงื่อนไข / หมายเหตุ). */
-.brk { white-space:pre-line; }
+.comment-box { min-height:42px; padding:4px 0; margin-top:3px; white-space:pre-line;
+               overflow-wrap:anywhere; }
+/* Free-text fields the appraiser types (เงื่อนไข / หมายเหตุ / construction remark /
+   building description). pre-line preserves their line breaks.
+
+   overflow-wrap:anywhere, not break-word: a line only breaks at a soft-wrap opportunity
+   (space, hyphen, ICU dictionary break for Thai), and a long unbroken run — e.g. a pasted
+   string of digits — offers none, so it used to run straight past the cell's right border.
+   Both values break such a run, but only `anywhere` also lowers the element's min-content
+   width, which is what stops that same string from inflating the auto-layout table wider
+   than the page. It never pre-empts a real break opportunity: a word that fits still moves
+   to the next line whole, and Thai still breaks on ICU word boundaries. */
+.brk { white-space:pre-line; overflow-wrap:anywhere; }
 /* Sections wrapped in .landscape-page start on a new A4 landscape page. */
 @page landscape { size: A4 landscape; margin: 10mm; }
 .landscape-page { page: landscape; break-before: page; }
@@ -183,7 +215,8 @@ table.grid.comparison th:first-child, table.grid.comparison td:first-child { wid
 /* Cost-machine grid: 17 columns — shrink font + padding so it fits A4 landscape. */
 .cm-cost-table { font-size:6.5pt; }
 .cm-cost-table th, .cm-cost-table td { padding:2px 3px; }
-.cm-notes { margin-top:8px; font-size:7.5pt; line-height:1.6; }
+/* Static literal notes today — overflow-wrap is defensive, same reasoning as table.params. */
+.cm-notes { margin-top:8px; font-size:7.5pt; line-height:1.6; overflow-wrap:anywhere; }
 .cm-notes .lbl { font-weight:600; }
 /* Appraiser-opinion property type, underlined. */
 .opinion-type { display:inline-block; border-bottom:1px solid #000; font-weight:600; margin-bottom:3px; }
