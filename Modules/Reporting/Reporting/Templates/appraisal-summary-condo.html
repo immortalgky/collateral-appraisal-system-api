@@ -111,10 +111,13 @@
     <div class="comment-box">-</div>
     {{ end }}
   </div>
-
-  <!-- ════ SIGN-OFF + COMMITTEE (shared partial) ════ -->
-  {{ include 'partials/summary-signoff' }}
   </div><!-- .opinion-block -->
+
+  <!-- ════ SIGN-OFF — own page-break unit ════ -->
+  {{ include 'partials/summary-signoff' }}
+
+  <!-- ════ COMMITTEE BLOCK — own page-break unit ════ -->
+  {{ include 'partials/approver-block' }}
 
 </div>
 </body>
