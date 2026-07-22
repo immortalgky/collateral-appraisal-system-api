@@ -19,7 +19,7 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
         builder.Property(e => e.CondoName).HasMaxLength(200);
         builder.Property(e => e.BuildingNumber).HasMaxLength(50);
         builder.Property(e => e.ModelName).HasMaxLength(100);
-        builder.Property(e => e.BuiltOnTitleNumber).HasMaxLength(300);
+        builder.Property(e => e.BuiltOnTitleNumber).HasMaxLength(500);
         builder.Property(e => e.CondoRegistrationNumber).HasMaxLength(100);
         builder.Property(e => e.RoomNumber).HasMaxLength(50);
         builder.Property(e => e.FloorNumber).HasMaxLength(50);
