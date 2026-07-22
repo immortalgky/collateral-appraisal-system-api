@@ -10,7 +10,27 @@
   .unit-table th { background:#f0f0f0; text-align:center; font-weight:bold; }
   .unit-table td.c { text-align:center; }
   .unit-table td.r { text-align:right; }
-  .project-details { white-space:pre-line; line-height:1.5; }
+
+  /* รายการทรัพย์สิน (FSD §2.1.5 fields 10–21): one bordered box — full-width header cell,
+     fixed label column, value column. "Open rows": no horizontal rules between rows 10–20,
+     only the box outline plus a rule above the วิธีการประเมิน band. */
+  .prop-table { width:100%; border-collapse:collapse; font-size:8.5pt; margin:6px 0; }
+  .prop-table th.hdr { border:1px solid #000; text-align:center; font-weight:700; padding:3px 5px; }
+  .prop-table td { border-left:1px solid #000; border-right:1px solid #000;
+                   padding:1.5px 6px; vertical-align:top; }
+  .prop-table td.k { width:150px; font-weight:500; white-space:nowrap;
+                     border-right:1px solid #000; }
+  /* First data row closes the header; last one closes the label/value block. */
+  .prop-table tr.first td { border-top:1px solid #000; }
+  .prop-table tr.last  td { border-bottom:1px solid #000; }
+  /* วิธีการประเมิน sits in its own band, closed top and bottom, and keeps the label/value
+     divider so the checkboxes line up with the value column above. */
+  .prop-table tr.methods-row td { border-top:1px solid #000; border-bottom:1px solid #000;
+                                  padding:3px 6px; }
+  /* Empty value → dash (same convention as .kv .v:empty in summary-styles). */
+  .prop-table td.v:empty::before { content:"-"; }
+  /* ลักษณะโครงการ: keep the provider's "\n1.) ..." line breaks. */
+  .prop-table td.v.project-details { white-space:pre-line; line-height:1.5; }
 </style>
 
 <div class="form">
@@ -22,53 +42,38 @@
     <div class="kv"><span class="k">ผู้ประเมินราคา</span><span class="v">{{ model.appraiser }}</span></div>
   </div>
 
-  <!-- ════ SECTION: รายการทรัพย์สิน ════ -->
-  <div class="section-bar">รายการทรัพย์สิน</div>
-  <div class="pad">
-
-    <div class="kv"><span class="k">ชื่อโครงการ</span><span class="v">{{ model.project_name }}</span></div>
-    <div class="kv"><span class="k">ที่ตั้งโครงการ</span><span class="v">{{ model.project_address }}</span></div>
-    <div class="kv"><span class="k">เจ้าของโครงการ</span><span class="v">{{ model.developer }}</span></div>
-
-    {{ if model.project_details }}
-    <div class="kv">
-      <span class="k">ลักษณะโครงการ</span>
-      <span class="v project-details">{{ model.project_details }}</span>
-    </div>
-    {{ end }}
-
-    {{ if model.project_sale_launch_date }}
-    <div class="kv"><span class="k">วันที่เปิดขายโครงการ</span><span class="v">{{ model.project_sale_launch_date }}</span></div>
-    {{ end }}
-
-    {{ if model.utilities }}
-    <div class="kv"><span class="k">สาธารณูปโภค</span><span class="v">{{ model.utilities }}</span></div>
-    {{ end }}
-
-    {{ if model.facilities }}
-    <div class="kv"><span class="k">สิ่งอำนวยความสะดวก</span><span class="v">{{ model.facilities }}</span></div>
-    {{ end }}
-
-    <div class="kv"><span class="k">ราคาประเมิน</span><span class="v">{{ model.appraisal_value_wording }}</span></div>
-
-    {{ if model.condition }}<div class="kv"><span class="k">เงื่อนไข</span><span class="v brk">{{ model.condition }}</span></div>{{ end }}
-    {{ if model.remark }}<div class="kv"><span class="k">หมายเหตุ</span><span class="v brk">{{ model.remark }}</span></div>{{ end }}
-
-    {{ if model.gps }}
-    <div class="kv"><span class="k">พิกัด</span><span class="v">{{ model.gps }}</span></div>
-    {{ end }}
-
-    <div class="kv" style="margin-top:4px;">
-      <span class="k">วิธีการประเมิน</span>
-      <span class="methods">
-        <span class="m"><span class="chk {{ if model.is_wqs || model.is_sale_grid }}on{{ end }}"></span> Market Comparison Approach</span>
-        <span class="m"><span class="chk {{ if model.is_cost }}on{{ end }}"></span> Cost Approach</span>
-        <span class="m"><span class="chk {{ if model.is_income }}on{{ end }}"></span> Income Approach</span>
-        <span class="m"><span class="chk {{ if model.is_hypothesis }}on{{ end }}"></span> Residual Approach</span>
-      </span>
-    </div>
-
-  </div>
+  <!-- ════ SECTION: รายการทรัพย์สิน (FSD §2.1.5 fields 10–21) ════ -->
+  <!-- Every row renders unconditionally so the form keeps its fixed shape; an absent value
+       falls through to the "-" supplied by .prop-table td.v:empty::before. -->
+  <table class="prop-table">
+    <thead>
+      <tr><th class="hdr" colspan="2">รายการทรัพย์สิน</th></tr>
+    </thead>
+    <tbody>
+      <tr class="first"><td class="k">ชื่อโครงการ</td><td class="v">{{ model.project_name }}</td></tr>
+      <tr><td class="k">ที่ตั้งโครงการ</td><td class="v">{{ model.project_address }}</td></tr>
+      <tr><td class="k">เจ้าของโครงการ</td><td class="v">{{ model.developer }}</td></tr>
+      <tr><td class="k">ลักษณะโครงการ</td><td class="v project-details">{{ model.project_details }}</td></tr>
+      <tr><td class="k">วันที่เปิดขายโครงการ</td><td class="v">{{ model.project_sale_launch_date }}</td></tr>
+      <tr><td class="k">สาธารณูปโภค</td><td class="v">{{ model.utilities }}</td></tr>
+      <tr><td class="k">สิ่งอำนวยความสะดวก</td><td class="v">{{ model.facilities }}</td></tr>
+      <tr><td class="k">ราคาประเมิน</td><td class="v">{{ model.appraisal_value_wording }}</td></tr>
+      <tr><td class="k">เงื่อนไข</td><td class="v brk">{{ model.condition }}</td></tr>
+      <tr><td class="k">หมายเหตุ</td><td class="v brk">{{ model.remark }}</td></tr>
+      <tr class="last"><td class="k">ค่าพิกัด</td><td class="v">{{ model.gps }}</td></tr>
+      <tr class="methods-row">
+        <td class="k">วิธีการประเมิน</td>
+        <td class="methods-cell">
+          <span class="methods">
+            <span class="m"><span class="chk {{ if model.is_wqs || model.is_sale_grid }}on{{ end }}"></span> Market Comparison Approach</span>
+            <span class="m"><span class="chk {{ if model.is_cost }}on{{ end }}"></span> Cost Approach</span>
+            <span class="m"><span class="chk {{ if model.is_income }}on{{ end }}"></span> Income Approach</span>
+            <span class="m"><span class="chk {{ if model.is_hypothesis }}on{{ end }}"></span> Residual Approach</span>
+          </span>
+        </td>
+      </tr>
+    </tbody>
+  </table>
 
   <!-- ════ SECTION: สรุปความเห็นผู้ประเมิน ════ -->
   <div class="opinion-block">
