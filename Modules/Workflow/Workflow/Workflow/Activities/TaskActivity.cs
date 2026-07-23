@@ -244,7 +244,7 @@ public class TaskActivity : WorkflowActivityBase
             }
 
             // Publish domain event to move PendingTask → CompletedTask
-            await PublishTaskCompletedEventAsync(context, outputData, cancellationToken);
+            await PublishTaskCompletedEventAsync(context, outputData, resumeInput, cancellationToken);
 
             _logger.LogInformation("TaskActivity {ActivityId} resumed with {InputCount} inputs, {OutputCount} outputs",
                 context.ActivityId, activityInputs.Count, outputData.Count);
@@ -741,6 +741,7 @@ public class TaskActivity : WorkflowActivityBase
 
     private async Task PublishTaskCompletedEventAsync(
         ActivityContext context, Dictionary<string, object> outputData,
+        Dictionary<string, object>? resumeInput,
         CancellationToken cancellationToken)
     {
         var taskName = GetStringProperty(context.Properties, "activityName") ?? context.ActivityId;
@@ -768,8 +769,16 @@ public class TaskActivity : WorkflowActivityBase
             : null;
         if (string.IsNullOrWhiteSpace(reasonCode)) reasonCode = null;
 
-        // Pass CompletedBy for pool task implicit assignment
-        var completedBy = context.WorkflowInstance.CurrentAssignee;
+        // The acting human, taken from the resume input (WorkflowEngine stamps it from
+        // currentUserService.Username). CurrentAssignee is only a routing target — for a POOL
+        // activity it is the assignee GROUP (e.g. "IntAdmin"), never the person — so it is used
+        // solely as a fallback for system/non-human completions.
+        var resumeCompletedBy = resumeInput is not null ? GetCompletedBy(resumeInput) : null;
+        var completedBy =
+            string.IsNullOrWhiteSpace(resumeCompletedBy) ||
+            string.Equals(resumeCompletedBy, "system", StringComparison.OrdinalIgnoreCase)
+                ? context.WorkflowInstance.CurrentAssignee
+                : resumeCompletedBy;
 
         var appraisalNumber = context.WorkflowInstance.Variables.TryGetValue("appraisalNumber", out var appraisalNumObj)
             ? appraisalNumObj?.ToString()

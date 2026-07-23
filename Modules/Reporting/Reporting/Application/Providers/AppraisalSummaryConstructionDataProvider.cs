@@ -40,10 +40,14 @@ namespace Reporting.Application.Providers;
 ///   Appraisals (appraisal.Appraisals):
 ///     PrevAppraisalId (uniqueidentifier nullable), AppraisalNumber, AppraisalType
 ///
-/// Deferred (no stored source — left null/false with inline comments):
+/// เอกสารประกอบ checkboxes (HasConstructionLicense/HasProgressTable/HasConstructionPhoto): effective value =
+///   manual override (appraisal.AppraisalDecisions.HasConstruction*Doc, null = auto) ?? auto-derived document
+///   presence — D026 (request.RequestDocuments) for the license, D012 (or the CI FileName slot) for the
+///   progress table, D011 for photos. The override covers external-company books that bundle everything into
+///   D001, where nothing can be auto-detected and the book-verification reviewer ticks manually.
+///
+/// Deferred (no stored source — left null with inline comments):
 ///   InspectionRound, InstallmentNumber — no dedicated column exists in ConstructionInspections.
-///   HasConstructionLicense — no document-type discriminator in ConstructionInspections; deferred.
-///   HasConstructionPhoto   — no document-type discriminator in ConstructionInspections; deferred.
 /// </summary>
 public sealed class AppraisalSummaryConstructionDataProvider(
     ISqlConnectionFactory connectionFactory,
@@ -199,6 +203,35 @@ public sealed class AppraisalSummaryConstructionDataProvider(
                 JOIN chain c ON p.Id = c.PrevAppraisalId
             )
             SELECT COUNT(*) FROM chain WHERE AppraisalType = 'Progressive';
+
+            -- RS08: QCI8 — เอกสารประกอบ checkbox overrides (AppraisalDecisions) plus auto-derived
+            -- document presence. Effective value in C# = override ?? auto. LEFT JOIN off a seed row so
+            -- exactly one row returns (all overrides NULL) even when no AppraisalDecisions row exists.
+            --   License      = D026 (สำเนาใบอนุญาตปลูกสร้าง) attached at request stage
+            --   ProgressTable = D012 attached on the Documents page (OR the CI FileName slot, folded in C#)
+            --   Photo        = D011 (ภาพถ่ายการก่อสร้าง) attached on the Documents page
+            SELECT
+                ad.HasConstructionLicenseDoc       AS OverrideLicense,
+                ad.HasConstructionProgressTableDoc AS OverrideProgressTable,
+                ad.HasConstructionPhotoDoc         AS OverridePhoto,
+                CAST(CASE WHEN EXISTS (
+                    SELECT 1 FROM appraisal.Appraisals a2
+                    JOIN request.RequestDocuments rd ON rd.RequestId = a2.RequestId
+                    WHERE a2.Id = @AppraisalId AND rd.DocumentType = 'D026'
+                      AND (rd.DocumentId IS NOT NULL OR rd.FilePath IS NOT NULL)
+                ) THEN 1 ELSE 0 END AS bit) AS AutoLicense,
+                CAST(CASE WHEN EXISTS (
+                    SELECT 1 FROM appraisal.AppraisalDocuments d
+                    WHERE d.AppraisalId = @AppraisalId AND d.DocumentTypeCode = 'D012'
+                      AND (d.DocumentId IS NOT NULL OR d.FileName IS NOT NULL)
+                ) THEN 1 ELSE 0 END AS bit) AS AutoProgressTable,
+                CAST(CASE WHEN EXISTS (
+                    SELECT 1 FROM appraisal.AppraisalDocuments d
+                    WHERE d.AppraisalId = @AppraisalId AND d.DocumentTypeCode = 'D011'
+                      AND (d.DocumentId IS NOT NULL OR d.FileName IS NOT NULL)
+                ) THEN 1 ELSE 0 END AS bit) AS AutoPhoto
+            FROM (SELECT 1 AS x) seed
+            LEFT JOIN appraisal.AppraisalDecisions ad ON ad.AppraisalId = @AppraisalId;
             """;
 
         var appraisalParams = new DynamicParameters();
@@ -211,6 +244,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         LandAddressRow? landAddr;
         PrevAppraisalRow? prevRow;
         int prevInspectionRound;
+        ConstructionDocRow? docRow;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, appraisalParams))
         {
@@ -234,6 +268,9 @@ public sealed class AppraisalSummaryConstructionDataProvider(
 
             // RS07 — scalar int: round of the previous inspection
             prevInspectionRound = await multi.ReadFirstOrDefaultAsync<int>();
+
+            // RS08 — เอกสารประกอบ overrides + auto-derived document presence
+            docRow = await multi.ReadFirstOrDefaultAsync<ConstructionDocRow>();
         }
 
         // ที่ตั้งทรัพย์สิน from the Request detail (same as the other summary reports).
@@ -283,10 +320,13 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             ? landAppraisalValue + ciCurrent : (decimal?)null;
         decimal? landAppraisalValueOut  = landAppraisalValue > 0m ? landAppraisalValue : (decimal?)null;
 
-        bool hasProgressTable = (ciRow?.HasDocument ?? 0) == 1;
-
-        bool hasConstructionLicense = false; // DEFERRED: no doc-type column in ConstructionInspections
-        bool hasConstructionPhoto   = false; // DEFERRED: no doc-type column in ConstructionInspections
+        // เอกสารประกอบ checkboxes — effective value = manual override (AppraisalDecisions) ?? auto-derived
+        // document presence. The override is how an external-company book (docs bundled into D001, so nothing
+        // to auto-detect) gets ticked at book verification; internal appraisals auto-derive from attachments.
+        bool progressTableAuto = (docRow?.AutoProgressTable ?? false) || (ciRow?.HasDocument ?? 0) == 1;
+        bool hasProgressTable       = docRow?.OverrideProgressTable ?? progressTableAuto;
+        bool hasConstructionLicense = docRow?.OverrideLicense ?? (docRow?.AutoLicense ?? false);
+        bool hasConstructionPhoto   = docRow?.OverridePhoto ?? (docRow?.AutoPhoto ?? false);
 
         // อ้างอิง: ตรวจครั้งที่ = round of the previous inspection being referenced (right branch only).
         string? inspectionRound = prevInspectionRound > 0 ? prevInspectionRound.ToString() : null;
@@ -425,5 +465,19 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         public Guid? PrevAppraisalId { get; init; }
         public string? PrevAppraisalNumber { get; init; }
         public string? PrevAppraisalType { get; init; }
+    }
+
+    /// <summary>
+    /// เอกสารประกอบ manual overrides (AppraisalDecisions, null = auto) and auto-derived document
+    /// presence. Effective checkbox value = override ?? auto.
+    /// </summary>
+    private sealed class ConstructionDocRow
+    {
+        public bool? OverrideLicense { get; init; }
+        public bool? OverrideProgressTable { get; init; }
+        public bool? OverridePhoto { get; init; }
+        public bool AutoLicense { get; init; }
+        public bool AutoProgressTable { get; init; }
+        public bool AutoPhoto { get; init; }
     }
 }

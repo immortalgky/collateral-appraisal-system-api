@@ -154,9 +154,12 @@
     <div class="comment-box">-</div>
     {{ end }}
   </div>
-
-  <!-- ════ SIGN-OFF (fields 36–41) + COMMITTEE BLOCK (fields 42–51) — shared partial ════ -->
-  {{ include 'partials/summary-signoff' }}
   </div><!-- .opinion-block -->
+
+  <!-- ════ SIGN-OFF (fields 36–41) — own page-break unit ════ -->
+  {{ include 'partials/summary-signoff' }}
+
+  <!-- ════ COMMITTEE BLOCK (fields 42–51) — own page-break unit ════ -->
+  {{ include 'partials/approver-block' }}
 
 </div><!-- .form -->

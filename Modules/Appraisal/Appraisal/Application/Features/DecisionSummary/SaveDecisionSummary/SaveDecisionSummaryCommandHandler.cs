@@ -34,11 +34,16 @@ public class SaveDecisionSummaryCommandHandler(
             command.Condition,
             command.RemarkType,
             command.Remark,
-            command.AppraiserOpinionType,
-            command.AppraiserOpinion,
+            command.ExternalAppraiserOpinionType,
+            command.ExternalAppraiserOpinion,
             command.CommitteeOpinionType,
             command.CommitteeOpinion,
-            command.AdditionalAssumptions);
+            command.InternalAppraiserOpinionType,
+            command.InternalAppraiserOpinion,
+            command.AdditionalAssumptions,
+            command.HasConstructionLicenseDoc,
+            command.HasConstructionProgressTableDoc,
+            command.HasConstructionPhotoDoc);
 
         // Force-sale rate is no longer part of this form save — it's persisted immediately via
         // UpdateForceSaleRateCommandHandler on blur (two writers to one column risked a stale
@@ -103,12 +108,17 @@ public class SaveDecisionSummaryCommandHandler(
             decision.Condition,
             decision.RemarkType,
             decision.Remark,
-            decision.AppraiserOpinionType,
-            decision.AppraiserOpinion,
+            decision.ExternalAppraiserOpinionType,
+            decision.ExternalAppraiserOpinion,
             decision.CommitteeOpinionType,
             decision.CommitteeOpinion,
+            decision.InternalAppraiserOpinionType,
+            decision.InternalAppraiserOpinion,
             appraisedReview,
-            decision.AdditionalAssumptions);
+            decision.AdditionalAssumptions,
+            decision.HasConstructionLicenseDoc,
+            decision.HasConstructionProgressTableDoc,
+            decision.HasConstructionPhotoDoc);
     }
 
     private async Task<decimal> ComputeBuildingInsuranceAsync(Guid appraisalId, CancellationToken ct)

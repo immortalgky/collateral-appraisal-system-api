@@ -21,9 +21,12 @@ public class GetAppraisalReferenceQueryHandler(
         parameters.Add("AppraisalId", query.AppraisalId);
 
         const string sql = """
-            SELECT AppraisalNumber, AppraisalValue, AppointmentDate, Status
-            FROM appraisal.vw_AppraisalCopyTemplate
-            WHERE AppraisalId = @AppraisalId
+            SELECT t.AppraisalNumber, t.AppraisalValue, t.AppointmentDate, t.Status, c.Name AS CustomerName
+            FROM appraisal.vw_AppraisalCopyTemplate t
+            OUTER APPLY (SELECT TOP 1 Name
+                         FROM request.RequestCustomers
+                         WHERE RequestId = t.RequestId) c
+            WHERE t.AppraisalId = @AppraisalId
             """;
 
         var row = await connection.QueryFirstOrDefaultAsync<AppraisalReferenceRow>(sql, parameters);
@@ -31,7 +34,8 @@ public class GetAppraisalReferenceQueryHandler(
         if (row is null)
             return null;
 
-        return new AppraisalReferenceResult(row.AppraisalNumber, row.AppraisalValue, row.AppointmentDate, row.Status);
+        return new AppraisalReferenceResult(
+            row.AppraisalNumber, row.AppraisalValue, row.AppointmentDate, row.Status, row.CustomerName);
     }
 
     private class AppraisalReferenceRow
@@ -40,5 +44,6 @@ public class GetAppraisalReferenceQueryHandler(
         public decimal? AppraisalValue { get; set; }
         public DateTime? AppointmentDate { get; set; }
         public string? Status { get; set; }
+        public string? CustomerName { get; set; }
     }
 }

@@ -1,4 +1,7 @@
+using Appraisal.Contracts.Appraisals;
 using MassTransit;
+using Parameter.Contracts.Parameters;
+using Parameter.Contracts.Parameters.Dtos;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 using Workflow.Workflow.Events;
@@ -9,6 +12,9 @@ public class TaskCompletedDomainEventHandler(
     IAssignmentRepository assignmentRepository,
     IPublishEndpoint publishEndpoint,
     IIntegrationEventOutbox outbox,
+    WorkflowDbContext workflowDbContext,
+    ISender sender,
+    IParameterLookupService parameterLookup,
     ILogger<TaskCompletedDomainEventHandler> logger
 ) : INotificationHandler<TaskCompletedDomainEvent>
 {
@@ -34,6 +40,8 @@ public class TaskCompletedDomainEventHandler(
         var wasOverdue = pendingTask.SlaStatus == "Breached";
         var assignedAt = pendingTask.AssignedAt;
         var originalAssignedTo = pendingTask.AssignedTo;
+        var originalWorkingBy = pendingTask.WorkingBy;
+        var originalAssignedType = pendingTask.AssignedType;
 
         // Implicit assignment: if pool task completed without claiming, assign to the completer
         if (pendingTask.AssignedType == "2" && !string.IsNullOrEmpty(notification.CompletedBy))
@@ -44,7 +52,12 @@ public class TaskCompletedDomainEventHandler(
                 pendingTask.Id, notification.CompletedBy);
         }
 
-        var completedBy = notification.CompletedBy ?? pendingTask.AssignedTo;
+        // Resolve the acting HUMAN. Never fall back to AssignedTo for a pool task (AssignedType "2")
+        // — that is the assignee GROUP (e.g. "IntAdmin"), not a person, and it leaks into downstream
+        // notifications/emails. Mirrors the ownership rule in ValidateTaskOwnershipStep.
+        var completedBy = notification.CompletedBy
+                          ?? originalWorkingBy
+                          ?? (originalAssignedType == "1" ? originalAssignedTo : null);
 
         var completedTask = CompletedTask.CreateFromPendingTask(
             pendingTask, notification.ActionTaken, notification.CompletedAt, notification.Remark,
@@ -116,6 +129,42 @@ public class TaskCompletedDomainEventHandler(
                     CancelReason = notification.Remark
                 }, notification.CorrelationId.ToString());
             }
+        }
+
+        // Route-back to appraisal-initiation ("Request More Info" by IntAdmin): email the RM to fix
+        // collateral data. Keyed on the appraisal-assignment backward "R" decision (see admin-request-info
+        // transition in appraisal-workflow.json). Analogous to the Movement=="C" cancel branch above.
+        if (notification.AppraisalId.HasValue
+            && string.Equals(notification.Movement, "B", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(notification.ActivityId, "appraisal-assignment", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(notification.ActionTaken, "R", StringComparison.OrdinalIgnoreCase)
+            && notification.TaskName?.Contains(':') != true)
+        {
+            var correlationKey = notification.CorrelationId.ToString();
+            var instance = await workflowDbContext.WorkflowInstances
+                .AsNoTracking()
+                .FirstOrDefaultAsync(w => w.CorrelationId == correlationKey, cancellationToken);
+
+            var appraisalRef = await sender.Send(
+                new GetAppraisalReferenceQuery(notification.AppraisalId.Value), cancellationToken);
+
+            // Resolve the route-back reason code (e.g. "04") → Thai description, used as the subject.
+            var reasonText = string.IsNullOrWhiteSpace(notification.ReasonCode)
+                ? null
+                : await parameterLookup.GetDescriptionAsync(
+                    new ParameterDto(null, "RoutebackReason", null, "TH", notification.ReasonCode, null, true, null),
+                    cancellationToken);
+
+            outbox.Publish(new RouteBackToInitiationEmailIntegrationEvent
+            {
+                AppraisalId = notification.AppraisalId.Value,
+                RmUsername = instance?.StartedBy,
+                ActingUsername = completedBy,
+                CustomerName = appraisalRef?.CustomerName,
+                AppraisalNumber = appraisalRef?.AppraisalNumber ?? notification.AppraisalNumber,
+                Remark = notification.Remark,
+                ReasonText = reasonText
+            }, notification.CorrelationId.ToString());
         }
     }
 }

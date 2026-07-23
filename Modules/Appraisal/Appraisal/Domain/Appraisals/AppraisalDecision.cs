@@ -10,14 +10,24 @@ public class AppraisalDecision : Entity<Guid>
     public string? Condition { get; private set; }
     public string? RemarkType { get; private set; }
     public string? Remark { get; private set; }
-    public string? AppraiserOpinionType { get; private set; }
-    public string? AppraiserOpinion { get; private set; }
+    public string? ExternalAppraiserOpinionType { get; private set; }
+    public string? ExternalAppraiserOpinion { get; private set; }
     public string? CommitteeOpinionType { get; private set; }
     public string? CommitteeOpinion { get; private set; }
+    public string? InternalAppraiserOpinionType { get; private set; }
+    public string? InternalAppraiserOpinion { get; private set; }
 
     // Review values
     public decimal? TotalAppraisalPriceReview { get; private set; }
     public string? AdditionalAssumptions { get; private set; }
+
+    // Construction summary "เอกสารประกอบ" checkbox overrides (สรุปรายงานการตรวจงานก่อสร้าง report).
+    // null = fall back to the auto-derived value (a matching document is attached); true/false = explicit
+    // override, used mainly when an external company bundles the documents into D001 (the appraisal book)
+    // so nothing can be auto-detected and the book-verification reviewer ticks manually.
+    public bool? HasConstructionLicenseDoc { get; private set; }
+    public bool? HasConstructionProgressTableDoc { get; private set; }
+    public bool? HasConstructionPhotoDoc { get; private set; }
 
     private AppraisalDecision()
     {
@@ -38,21 +48,31 @@ public class AppraisalDecision : Entity<Guid>
         string? condition,
         string? remarkType,
         string? remark,
-        string? appraiserOpinionType,
-        string? appraiserOpinion,
+        string? externalAppraiserOpinionType,
+        string? externalAppraiserOpinion,
         string? committeeOpinionType,
         string? committeeOpinion,
-        string? additionalAssumptions)
+        string? internalAppraiserOpinionType,
+        string? internalAppraiserOpinion,
+        string? additionalAssumptions,
+        bool? hasConstructionLicenseDoc,
+        bool? hasConstructionProgressTableDoc,
+        bool? hasConstructionPhotoDoc)
     {
         IsPriceVerified = isPriceVerified;
         ConditionType = conditionType;
         Condition = condition;
         RemarkType = remarkType;
         Remark = remark;
-        AppraiserOpinionType = appraiserOpinionType;
-        AppraiserOpinion = appraiserOpinion;
+        ExternalAppraiserOpinionType = externalAppraiserOpinionType;
+        ExternalAppraiserOpinion = externalAppraiserOpinion;
         CommitteeOpinionType = committeeOpinionType;
         CommitteeOpinion = committeeOpinion;
+        InternalAppraiserOpinionType = internalAppraiserOpinionType;
+        InternalAppraiserOpinion = internalAppraiserOpinion;
         AdditionalAssumptions = additionalAssumptions;
+        HasConstructionLicenseDoc = hasConstructionLicenseDoc;
+        HasConstructionProgressTableDoc = hasConstructionProgressTableDoc;
+        HasConstructionPhotoDoc = hasConstructionPhotoDoc;
     }
 }
