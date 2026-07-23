@@ -34,6 +34,7 @@ public record UpdateLandAndBuildingPropertyRequest(
     string? AddressLocation = null,
     // Land Characteristics
     string? LandShapeType = null,
+    string? LandShapeTypeOther = null,
     string? UrbanPlanningType = null,
     List<string>? LandZoneType = null,
     string? LandZoneTypeOther = null,
@@ -125,6 +126,7 @@ public record UpdateLandAndBuildingPropertyRequest(
     // Construction Details
     string? BuildingMaterialType = null,
     string? BuildingStyleType = null,
+    string? BuildingStyleTypeOther = null,
     bool? IsResidential = null,
     int? BuildingAge = null,
     int? ConstructionYear = null,
@@ -150,6 +152,7 @@ public record UpdateLandAndBuildingPropertyRequest(
     string? ConstructionTypeOther = null,
     // Utilization
     string? UtilizationType = null,
+    string? UtilizationTypeOther = null,
     string? OtherPurposeUsage = null,
     // Area & Pricing
     decimal? TotalBuildingArea = null,

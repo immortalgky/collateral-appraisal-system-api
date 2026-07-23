@@ -110,7 +110,6 @@ builder.Services.AddMassTransit(config =>
         });
 
         configurator.PrefetchCount = 16;
-        configurator.ConfigureEndpoints(context);
         configurator.UseMessageRetry(r =>
         {
             r.Exponential(5,
@@ -201,27 +200,36 @@ builder.Services.AddMassTransit(config =>
             e.UsePartitioner<AssignmentSlaRecalculatedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
         });
 
-        // #6 Appointment date changed — two concurrent reschedule events for the same appraisal
-        // must not publish the stale SLA recalculation last. Partitioned by AppraisalId so
-        // per-appraisal ordering holds. Consumer is [ExcludeFromConfigureEndpoints] to prevent
-        // ConfigureEndpoints from also creating an unordered auto-queue.
-        configurator.ReceiveEndpoint("workflow-appointment-changed", e =>
+        // #6 WorkflowInstance variable feeders. All three consumers read-modify-write the SAME
+        // WorkflowInstance row — the first two write Variables, AppraisalCreated additionally runs
+        // an entire workflow resume inside the optimistic window — guarded only by RowVersion.
+        // AppraisalCreated and AppraisalValueChanged are staged into the SAME outbox transaction on
+        // the CI carry-forward path (PricingAnalysis.CloneForGroup raises AppraisalFinalValuesChanged
+        // during appraisal creation), so on separate queues they ran concurrently and the slow resume
+        // lost the race — DbUpdateConcurrencyException on every CI submit.
+        //
+        // One endpoint + ONE SHARED partitioner makes them mutually exclusive per workflow instance.
+        // The partitioner must be a single instance across all three UsePartitioner calls; separate
+        // CreatePartitioner calls give no cross-type serialization at all.
+        //
+        // Partition key is the WORKFLOW key (CorrelationId = Appraisal.RequestId = Request.Id), not
+        // AppraisalId: the contended resource is the WorkflowInstance row, which is keyed by
+        // correlation id. This key is equal-or-coarser than the AppraisalId used previously, so the
+        // per-appraisal ordering these endpoints used to guarantee is preserved as a subset.
+        //
+        // All three consumers are [ExcludeFromConfigureEndpoints] so ConfigureEndpoints does not
+        // also create unordered auto-queues for them.
+        configurator.ReceiveEndpoint("workflow-instance-variables", e =>
         {
             var partitioner = e.CreatePartitioner(16);
-            e.ConfigureConsumer<AppointmentDateChangedIntegrationEventConsumer>(context);
-            e.UsePartitioner<AppointmentDateChangedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
-        });
 
-        // Appraisal value changed — drives the approval-tier switch (meeting vs direct committee) by
-        // writing appraisalValue into WorkflowInstance.Variables. Partitioned by AppraisalId so multiple
-        // pricing recomputes for the same appraisal serialize (no out-of-order stale appraisalValue write).
-        // Consumer is [ExcludeFromConfigureEndpoints] to prevent ConfigureEndpoints from also creating an
-        // unordered auto-queue.
-        configurator.ReceiveEndpoint("workflow-appraisal-value-changed", e =>
-        {
-            var partitioner = e.CreatePartitioner(16);
+            e.ConfigureConsumer<AppraisalCreatedIntegrationEventConsumer>(context);
             e.ConfigureConsumer<AppraisalValueChangedIntegrationEventConsumer>(context);
-            e.UsePartitioner<AppraisalValueChangedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
+            e.ConfigureConsumer<AppointmentDateChangedIntegrationEventConsumer>(context);
+
+            e.UsePartitioner<AppraisalCreatedIntegrationEvent>(partitioner, m => m.Message.RequestId);
+            e.UsePartitioner<AppraisalValueChangedIntegrationEvent>(partitioner, m => m.Message.CorrelationId);
+            e.UsePartitioner<AppointmentDateChangedIntegrationEvent>(partitioner, m => m.Message.CorrelationId);
         });
 
         // #7 PMA external-sync status round-trip — the Integration module's WebhookDispatchConsumer
@@ -241,6 +249,13 @@ builder.Services.AddMassTransit(config =>
         });
 
         // In-memory outbox removed — using per-module persistent outbox via IntegrationEventDeliveryService
+
+        // MUST be last: MassTransit applies bus-level filters (UseMessageRetry above) only to
+        // endpoints configured after they are declared. Called earlier, the auto-configured
+        // consumer endpoints were built without the retry filter, so a transient/concurrency
+        // failure dead-lettered on the first attempt. Explicit ReceiveEndpoint blocks above are
+        // unaffected — their consumers are [ExcludeFromConfigureEndpoints].
+        configurator.ConfigureEndpoints(context);
     });
 });
 

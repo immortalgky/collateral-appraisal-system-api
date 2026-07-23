@@ -726,8 +726,8 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnName("ContactNumber");
 
                             b1.Property<string>("Name")
-                                .HasMaxLength(80)
-                                .HasColumnType("nvarchar(80)")
+                                .HasMaxLength(260)
+                                .HasColumnType("nvarchar(260)")
                                 .HasColumnName("Name");
 
                             b1.Property<Guid>("RequestId")

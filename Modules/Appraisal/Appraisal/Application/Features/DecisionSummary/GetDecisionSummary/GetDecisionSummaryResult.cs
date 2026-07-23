@@ -48,11 +48,24 @@ public record GetDecisionSummaryResult(
     string? Condition,
     string? RemarkType,
     string? Remark,
-    string? AppraiserOpinionType,
-    string? AppraiserOpinion,
+    string? ExternalAppraiserOpinionType,
+    string? ExternalAppraiserOpinion,
     string? CommitteeOpinionType,
     string? CommitteeOpinion,
+    string? InternalAppraiserOpinionType,
+    string? InternalAppraiserOpinion,
     string? AdditionalAssumptions,
+
+    // Construction "เอกสารประกอบ" checkbox overrides (null = use the *Attached auto-derived value below).
+    bool? HasConstructionLicenseDoc,
+    bool? HasConstructionProgressTableDoc,
+    bool? HasConstructionPhotoDoc,
+
+    // Auto-derived document presence — whether the matching document type is actually attached.
+    // The UI shows `override ?? attached`; the report renders the same effective value.
+    bool ConstructionLicenseDocAttached,
+    bool ConstructionProgressTableDocAttached,
+    bool ConstructionPhotoDocAttached,
 
     // Block appraisal fields (null for normal appraisals)
     bool IsBlock,

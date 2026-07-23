@@ -227,6 +227,7 @@ public class GetDecisionSummaryQueryHandler(
         var flatRows = (await connectionFactory.QueryAsync<FlatApproachRow>(approachSql, param)).ToList();
         var buildingInsurance = await BuildingInsuranceCalculator.ComputeAsync(connectionFactory, appraisalId);
         var constructionSummary = await BuildConstructionSummaryAsync(connectionFactory, appraisalId);
+        var docPresence = await GetConstructionDocPresenceAsync(appraisalId);
 
         // Group flat rows into nested approach matrix
         var approachMatrix = flatRows
@@ -271,11 +272,19 @@ public class GetDecisionSummaryQueryHandler(
             Condition: decision?.Condition,
             RemarkType: decision?.RemarkType,
             Remark: decision?.Remark,
-            AppraiserOpinionType: decision?.AppraiserOpinionType,
-            AppraiserOpinion: decision?.AppraiserOpinion,
+            ExternalAppraiserOpinionType: decision?.ExternalAppraiserOpinionType,
+            ExternalAppraiserOpinion: decision?.ExternalAppraiserOpinion,
             CommitteeOpinionType: decision?.CommitteeOpinionType,
             CommitteeOpinion: decision?.CommitteeOpinion,
+            InternalAppraiserOpinionType: decision?.InternalAppraiserOpinionType,
+            InternalAppraiserOpinion: decision?.InternalAppraiserOpinion,
             AdditionalAssumptions: decision?.AdditionalAssumptions,
+            HasConstructionLicenseDoc: decision?.HasConstructionLicenseDoc,
+            HasConstructionProgressTableDoc: decision?.HasConstructionProgressTableDoc,
+            HasConstructionPhotoDoc: decision?.HasConstructionPhotoDoc,
+            ConstructionLicenseDocAttached: docPresence.License,
+            ConstructionProgressTableDocAttached: docPresence.ProgressTable,
+            ConstructionPhotoDocAttached: docPresence.Photo,
             IsBlock: false,
             BlockApproachMatrix: null,
             BlockModelPrices: null,
@@ -418,17 +427,70 @@ public class GetDecisionSummaryQueryHandler(
             Condition: decision?.Condition,
             RemarkType: decision?.RemarkType,
             Remark: decision?.Remark,
-            AppraiserOpinionType: decision?.AppraiserOpinionType,
-            AppraiserOpinion: decision?.AppraiserOpinion,
+            ExternalAppraiserOpinionType: decision?.ExternalAppraiserOpinionType,
+            ExternalAppraiserOpinion: decision?.ExternalAppraiserOpinion,
             CommitteeOpinionType: decision?.CommitteeOpinionType,
             CommitteeOpinion: decision?.CommitteeOpinion,
+            InternalAppraiserOpinionType: decision?.InternalAppraiserOpinionType,
+            InternalAppraiserOpinion: decision?.InternalAppraiserOpinion,
             AdditionalAssumptions: decision?.AdditionalAssumptions,
+            // Construction docs are not applicable to block appraisals — return the stored override
+            // (usually null) with no auto-derived presence.
+            HasConstructionLicenseDoc: decision?.HasConstructionLicenseDoc,
+            HasConstructionProgressTableDoc: decision?.HasConstructionProgressTableDoc,
+            HasConstructionPhotoDoc: decision?.HasConstructionPhotoDoc,
+            ConstructionLicenseDocAttached: false,
+            ConstructionProgressTableDocAttached: false,
+            ConstructionPhotoDocAttached: false,
             IsBlock: true,
             BlockApproachMatrix: blockApproachMatrix,
             BlockModelPrices: blockModelPrices,
             ConstructionSummary: null,
             AppraisalDate: appraisalDate
         );
+    }
+
+    // Auto-derived presence of the three "เอกสารประกอบ" documents that feed the construction summary
+    // report. Mirrors AppraisalSummaryConstructionDataProvider so the Decision screen pre-fills each
+    // checkbox with the same value the report would render (before any manual override):
+    //   License      = D026 (สำเนาใบอนุญาตปลูกสร้าง) attached at request stage (request.RequestDocuments)
+    //   ProgressTable = D012 attached on the Documents page OR the CI summary-mode document slot
+    //   Photo        = D011 (ภาพถ่ายการก่อสร้าง) attached on the Documents page
+    private async Task<ConstructionDocPresence> GetConstructionDocPresenceAsync(Guid appraisalId)
+    {
+        const string sql = """
+            SELECT
+                CAST(CASE WHEN EXISTS (
+                    SELECT 1 FROM appraisal.Appraisals a
+                    JOIN request.RequestDocuments rd ON rd.RequestId = a.RequestId
+                    WHERE a.Id = @AppraisalId
+                      AND rd.DocumentType = 'D026'
+                      AND (rd.DocumentId IS NOT NULL OR rd.FilePath IS NOT NULL)
+                ) THEN 1 ELSE 0 END AS bit) AS License,
+                CAST(CASE WHEN EXISTS (
+                    SELECT 1 FROM appraisal.AppraisalDocuments ad
+                    WHERE ad.AppraisalId = @AppraisalId AND ad.DocumentTypeCode = 'D012'
+                      AND (ad.DocumentId IS NOT NULL OR ad.FileName IS NOT NULL)
+                ) OR EXISTS (
+                    SELECT 1 FROM appraisal.ConstructionInspections ci
+                    JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
+                    WHERE ap.AppraisalId = @AppraisalId AND ci.FileName IS NOT NULL
+                ) THEN 1 ELSE 0 END AS bit) AS ProgressTable,
+                CAST(CASE WHEN EXISTS (
+                    SELECT 1 FROM appraisal.AppraisalDocuments ad
+                    WHERE ad.AppraisalId = @AppraisalId AND ad.DocumentTypeCode = 'D011'
+                      AND (ad.DocumentId IS NOT NULL OR ad.FileName IS NOT NULL)
+                ) THEN 1 ELSE 0 END AS bit) AS Photo;
+            """;
+
+        var row = await connectionFactory.QueryFirstOrDefaultAsync<ConstructionDocPresence>(
+            sql, new { AppraisalId = appraisalId });
+        return row ?? ConstructionDocPresence.Empty;
+    }
+
+    private sealed record ConstructionDocPresence(bool License, bool ProgressTable, bool Photo)
+    {
+        public static ConstructionDocPresence Empty { get; } = new(false, false, false);
     }
 
     private static async Task<ConstructionSummaryData?> BuildConstructionSummaryAsync(

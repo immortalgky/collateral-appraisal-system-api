@@ -106,6 +106,7 @@ public class GetLeaseAgreementBuildingPropertyQueryHandler(
             EncroachingOthersArea: detail.EncroachingOthersArea,
             BuildingMaterialType: detail.BuildingMaterialType,
             BuildingStyleType: detail.BuildingStyleType,
+            BuildingStyleTypeOther: detail.BuildingStyleTypeOther,
             IsResidential: detail.IsResidential ?? false,
             BuildingAge: detail.BuildingAge,
             ConstructionYear: detail.ConstructionYear,

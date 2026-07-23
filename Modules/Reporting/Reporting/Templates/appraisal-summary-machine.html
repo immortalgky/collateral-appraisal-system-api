@@ -44,6 +44,11 @@
       {{ if model.groups.size == 0 }}
       <tr><td colspan="5" style="height:34px;">&nbsp;</td></tr>
       {{ end }}
+      <tr class="grp-total">
+        <td></td>
+        <td colspan="3"><strong>รวมมูลค่าเครื่องจักร</strong></td>
+        <td class="num"><strong>{{ if model.total_appraisal_value; model.total_appraisal_value | math.format "N2"; end }}</strong></td>
+      </tr>
       {{ if model.condition }}<tr><td><strong>เงื่อนไข</strong></td><td colspan="4" class="brk">{{ model.condition }}</td></tr>{{ end }}
       {{ if model.remark }}<tr><td><strong>หมายเหตุ</strong></td><td colspan="4" class="brk">{{ model.remark }}</td></tr>{{ end }}
     </tbody>
@@ -99,10 +104,13 @@
     <div class="comment-box">-</div>
     {{ end }}
   </div>
-
-  <!-- ════ SIGN-OFF + COMMITTEE (shared partial) ════ -->
-  {{ include 'partials/summary-signoff' }}
   </div><!-- .opinion-block -->
+
+  <!-- ════ SIGN-OFF — own page-break unit ════ -->
+  {{ include 'partials/summary-signoff' }}
+
+  <!-- ════ COMMITTEE BLOCK — own page-break unit ════ -->
+  {{ include 'partials/approver-block' }}
 
 </div>
 </body>

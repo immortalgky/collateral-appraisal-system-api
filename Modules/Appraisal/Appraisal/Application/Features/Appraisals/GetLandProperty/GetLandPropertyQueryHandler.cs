@@ -64,6 +64,7 @@ public class GetLandPropertyQueryHandler(
             DistanceFromMainRoad = landDetail?.DistanceFromMainRoad,
             AddressLocation = landDetail?.AddressLocation,
             LandShapeType = landDetail?.LandShapeType,
+            LandShapeTypeOther = landDetail?.LandShapeTypeOther,
             UrbanPlanningType = landDetail?.UrbanPlanningType,
             LandZoneType = landDetail?.LandZoneType.Adapt<List<string>>(),
             LandZoneTypeOther = landDetail?.LandZoneTypeOther,

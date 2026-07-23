@@ -26,10 +26,11 @@ public class AppraisalCreatedIntegrationEventConsumerTests
         await using var db = NewDb();
         var instanceRepository = Substitute.For<IWorkflowInstanceRepository>();
         var unitOfWork = Substitute.For<IWorkflowUnitOfWork>();
+        var dateTimeProvider = Substitute.For<Shared.Time.IDateTimeProvider>();
         var inboxGuard = new InboxGuard<WorkflowDbContext>(
             db,
             Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>(),
-            Substitute.For<Shared.Time.IDateTimeProvider>());
+            dateTimeProvider);
 
         var requestId = Guid.NewGuid();
         var appraisalId = Guid.NewGuid();
@@ -43,7 +44,7 @@ public class AppraisalCreatedIntegrationEventConsumerTests
 
         var consumer = new AppraisalCreatedIntegrationEventConsumer(
             Substitute.For<ILogger<AppraisalCreatedIntegrationEventConsumer>>(),
-            instanceRepository, signalDispatcher, unitOfWork, inboxGuard);
+            db, instanceRepository, signalDispatcher, unitOfWork, dateTimeProvider, inboxGuard);
 
         var ctx = BuildContext(new AppraisalCreatedIntegrationEvent
         {
@@ -71,15 +72,16 @@ public class AppraisalCreatedIntegrationEventConsumerTests
     }
 
     [Fact]
-    public async Task Consume_NoWorkflowFound_MarksProcessedAndDoesNotSave()
+    public async Task Consume_NoWorkflowFound_StagesInboxRowAndDoesNotDispatch()
     {
         await using var db = NewDb();
         var instanceRepository = Substitute.For<IWorkflowInstanceRepository>();
         var unitOfWork = Substitute.For<IWorkflowUnitOfWork>();
+        var dateTimeProvider = Substitute.For<Shared.Time.IDateTimeProvider>();
         var inboxGuard = new InboxGuard<WorkflowDbContext>(
             db,
             Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>(),
-            Substitute.For<Shared.Time.IDateTimeProvider>());
+            dateTimeProvider);
 
         var requestId = Guid.NewGuid();
 
@@ -90,7 +92,7 @@ public class AppraisalCreatedIntegrationEventConsumerTests
 
         var consumer = new AppraisalCreatedIntegrationEventConsumer(
             Substitute.For<ILogger<AppraisalCreatedIntegrationEventConsumer>>(),
-            instanceRepository, signalDispatcher, unitOfWork, inboxGuard);
+            db, instanceRepository, signalDispatcher, unitOfWork, dateTimeProvider, inboxGuard);
 
         var ctx = BuildContext(new AppraisalCreatedIntegrationEvent
         {
@@ -102,7 +104,10 @@ public class AppraisalCreatedIntegrationEventConsumerTests
 
         await consumer.Consume(ctx);
 
-        await unitOfWork.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+        // The inbox claim is now staged transactionally even when there is no workflow to link,
+        // so the "acknowledge and move on" path still commits exactly once.
+        await unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await unitOfWork.Received(1).CommitTransactionAsync(Arg.Any<CancellationToken>());
         await signalDispatcher.DidNotReceive().DispatchAsync(
             Arg.Any<string>(), Arg.Any<string>(),
             Arg.Any<Dictionary<string, object>>(), Arg.Any<CancellationToken>());
@@ -114,10 +119,11 @@ public class AppraisalCreatedIntegrationEventConsumerTests
         await using var db = NewDb();
         var instanceRepository = Substitute.For<IWorkflowInstanceRepository>();
         var unitOfWork = Substitute.For<IWorkflowUnitOfWork>();
+        var dateTimeProvider = Substitute.For<Shared.Time.IDateTimeProvider>();
         var inboxGuard = new InboxGuard<WorkflowDbContext>(
             db,
             Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>(),
-            Substitute.For<Shared.Time.IDateTimeProvider>());
+            dateTimeProvider);
 
         var requestId = Guid.NewGuid();
         var appraisalId = Guid.NewGuid();
@@ -132,7 +138,7 @@ public class AppraisalCreatedIntegrationEventConsumerTests
 
         var consumer = new AppraisalCreatedIntegrationEventConsumer(
             Substitute.For<ILogger<AppraisalCreatedIntegrationEventConsumer>>(),
-            instanceRepository, signalDispatcher, unitOfWork, inboxGuard);
+            db, instanceRepository, signalDispatcher, unitOfWork, dateTimeProvider, inboxGuard);
 
         var ctx = BuildContext(new AppraisalCreatedIntegrationEvent
         {
@@ -157,10 +163,11 @@ public class AppraisalCreatedIntegrationEventConsumerTests
         await using var db = NewDb();
         var instanceRepository = Substitute.For<IWorkflowInstanceRepository>();
         var unitOfWork = Substitute.For<IWorkflowUnitOfWork>();
+        var dateTimeProvider = Substitute.For<Shared.Time.IDateTimeProvider>();
         var inboxGuard = new InboxGuard<WorkflowDbContext>(
             db,
             Substitute.For<ILogger<InboxGuard<WorkflowDbContext>>>(),
-            Substitute.For<Shared.Time.IDateTimeProvider>());
+            dateTimeProvider);
 
         var requestId = Guid.NewGuid();
         var instance = WorkflowInstance.Create(
@@ -173,7 +180,7 @@ public class AppraisalCreatedIntegrationEventConsumerTests
 
         var consumer = new AppraisalCreatedIntegrationEventConsumer(
             Substitute.For<ILogger<AppraisalCreatedIntegrationEventConsumer>>(),
-            instanceRepository, signalDispatcher, unitOfWork, inboxGuard);
+            db, instanceRepository, signalDispatcher, unitOfWork, dateTimeProvider, inboxGuard);
 
         var ctx = BuildContext(new AppraisalCreatedIntegrationEvent
         {

@@ -15,15 +15,17 @@ public class AppraisalDecisionConfiguration : IEntityTypeConfiguration<Appraisal
         // Parameter Code fields
         builder.Property(d => d.ConditionType).HasMaxLength(100);
         builder.Property(d => d.RemarkType).HasMaxLength(100);
-        builder.Property(d => d.AppraiserOpinionType).HasMaxLength(100);
+        builder.Property(d => d.ExternalAppraiserOpinionType).HasMaxLength(100);
         builder.Property(d => d.CommitteeOpinionType).HasMaxLength(100);
+        builder.Property(d => d.InternalAppraiserOpinionType).HasMaxLength(100);
 
         // Free text fields
-        builder.Property(d => d.Condition).HasMaxLength(4000);
-        builder.Property(d => d.Remark).HasMaxLength(4000);
-        builder.Property(d => d.AppraiserOpinion).HasMaxLength(4000);
-        builder.Property(d => d.CommitteeOpinion).HasMaxLength(4000);
-        builder.Property(d => d.AdditionalAssumptions).HasMaxLength(4000);
+        builder.Property(d => d.Condition);
+        builder.Property(d => d.Remark);
+        builder.Property(d => d.ExternalAppraiserOpinion);
+        builder.Property(d => d.InternalAppraiserOpinion);
+        builder.Property(d => d.CommitteeOpinion);
+        builder.Property(d => d.AdditionalAssumptions);
 
         // Decimal
         builder.Property(d => d.TotalAppraisalPriceReview).HasColumnType("decimal(18,2)");

@@ -8,10 +8,15 @@ public record SaveDecisionSummaryResult(
     string? Condition,
     string? RemarkType,
     string? Remark,
-    string? AppraiserOpinionType,
-    string? AppraiserOpinion,
+    string? ExternalAppraiserOpinionType,
+    string? ExternalAppraiserOpinion,
     string? CommitteeOpinionType,
     string? CommitteeOpinion,
+    string? InternalAppraiserOpinionType,
+    string? InternalAppraiserOpinion,
     decimal? TotalAppraisalPriceReview,
-    string? AdditionalAssumptions
+    string? AdditionalAssumptions,
+    bool? HasConstructionLicenseDoc,
+    bool? HasConstructionProgressTableDoc,
+    bool? HasConstructionPhotoDoc
 );

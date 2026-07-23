@@ -35,6 +35,7 @@ public record CreateLandAndBuildingPropertyRequest(
     string? AddressLocation = null,
     // Land Characteristics
     string? LandShapeType = null,
+    string? LandShapeTypeOther = null,
     string? UrbanPlanningType = null,
     List<string>? LandZoneType = null,
     string? LandZoneTypeOther = null,
@@ -130,6 +131,7 @@ public record CreateLandAndBuildingPropertyRequest(
     // Building - Style
     string? BuildingMaterialType = null,
     string? BuildingStyleType = null,
+    string? BuildingStyleTypeOther = null,
     bool? IsResidential = null,
     string? ConstructionStyleType = null,
     string? ConstructionStyleRemark = null,
@@ -159,6 +161,7 @@ public record CreateLandAndBuildingPropertyRequest(
     string? DecorationTypeOther = null,
     // Building - Utilization
     string? UtilizationType = null,
+    string? UtilizationTypeOther = null,
     string? OtherPurposeUsage = null,
     // Building - Permits
     string? BuildingPermitNumber = null,

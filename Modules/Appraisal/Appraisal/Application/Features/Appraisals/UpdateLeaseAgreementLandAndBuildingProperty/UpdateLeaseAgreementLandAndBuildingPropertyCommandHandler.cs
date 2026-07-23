@@ -69,6 +69,7 @@ public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
             addressLocation: command.AddressLocation,
             // Land - Characteristics
             landShapeType: command.LandShapeType,
+            landShapeTypeOther: command.LandShapeTypeOther,
             urbanPlanningType: command.UrbanPlanningType,
             landZoneType: command.LandZoneType,
             landZoneTypeOther: command.LandZoneTypeOther,
@@ -168,6 +169,7 @@ public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
             // Building - Style
             buildingMaterialType: command.BuildingMaterialType,
             buildingStyleType: command.BuildingStyleType,
+            buildingStyleTypeOther: command.BuildingStyleTypeOther,
             isResidential: command.IsResidential,
             constructionStyleType: command.ConstructionStyleType,
             constructionStyleRemark: command.ConstructionStyleRemark,

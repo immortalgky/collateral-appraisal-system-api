@@ -40,6 +40,7 @@ public record GetLandAndBuildingPropertyResult(
     string? AddressLocation,
     // Land - Characteristics
     string? LandShapeType,
+    string? LandShapeTypeOther,
     string? UrbanPlanningType,
     List<string>? LandZoneType,
     string? LandZoneTypeOther,
@@ -131,6 +132,7 @@ public record GetLandAndBuildingPropertyResult(
     // Construction Details
     string? BuildingMaterialType,
     string? BuildingStyleType,
+    string? BuildingStyleTypeOther,
     bool? IsResidential,
     int? BuildingAge,
     int? ConstructionYear,

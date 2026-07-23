@@ -38,6 +38,7 @@ public record UpdateLeaseAgreementBuildingPropertyRequest(
     // Construction Details
     string? BuildingMaterialType = null,
     string? BuildingStyleType = null,
+    string? BuildingStyleTypeOther = null,
     bool? IsResidential = null,
     int? BuildingAge = null,
     int? ConstructionYear = null,

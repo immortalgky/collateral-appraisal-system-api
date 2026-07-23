@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Workflow.Workflow.Activities;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Activities.Factories;
@@ -212,6 +213,16 @@ public class WorkflowEngine : IWorkflowEngine
         {
             _logger.LogInformation(
                 "ORCHESTRATION: Resume request canceled for workflow instance {WorkflowInstanceId} at activity {ActivityId}",
+                workflowInstanceId, activityId);
+            throw;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // A lost optimistic-concurrency race is retryable and must NOT drive the workflow to
+            // Failed — that would permanently kill a healthy instance over a transient collision.
+            // (The failure-checkpoint below would throw on the same stale token anyway.)
+            _logger.LogWarning(
+                "ORCHESTRATION: Concurrency conflict resuming workflow instance {WorkflowInstanceId} at activity {ActivityId}; propagating for caller retry",
                 workflowInstanceId, activityId);
             throw;
         }
@@ -489,6 +500,14 @@ public class WorkflowEngine : IWorkflowEngine
                 activityDefinition.Id, duration.TotalMilliseconds);
 
             return activityResult;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Infrastructure-level, not a business failure: the caller lost an optimistic-concurrency
+            // race and must reload and retry the whole unit. Converting it to ActivityResult.Failed
+            // would hide it from the caller's retry filter AND mark a perfectly healthy activity as
+            // failed. Let it propagate untouched — do NOT track a failed execution step.
+            throw;
         }
         catch (Exception ex)
         {

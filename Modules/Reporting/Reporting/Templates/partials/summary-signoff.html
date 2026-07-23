@@ -1,6 +1,9 @@
 <!--
-  Partial: shared 3-column sign-off (ผู้นำเสนอ / ผู้จัดการส่วน / ผู้ช่วยผู้อำนวยการ) + committee block,
-  identical across all summary bodies. Shares the parent Scriban scope; expects model.* fields.
+  Partial: shared 3-column sign-off (ผู้นำเสนอ / ผู้จัดการส่วน / ผู้ช่วยผู้อำนวยการ), identical across
+  all summary bodies. Shares the parent Scriban scope; expects model.* fields.
+
+  The committee block is NOT included here — each body includes partials/approver-block as a sibling
+  so the two paginate independently. See .signoff / .committee-block in partials/summary-styles.
 -->
 <div class="signoff">
   <div class="cell">
@@ -19,6 +22,3 @@
     <div>ผู้ช่วยผู้อำนวยการ</div>
   </div>
 </div>
-
-<!-- ════ COMMITTEE BLOCK (shared partial) ════ -->
-{{ include 'partials/approver-block' }}
