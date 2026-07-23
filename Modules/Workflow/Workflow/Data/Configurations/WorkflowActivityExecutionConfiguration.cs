@@ -52,7 +52,7 @@ public class WorkflowActivityExecutionConfiguration : IEntityTypeConfiguration<W
             .HasMaxLength(2000);
 
         builder.Property(x => x.Comments)
-            .HasMaxLength(1000);
+            .HasMaxLength(4000);
 
         builder.Property(x => x.Movement)
             .IsRequired()

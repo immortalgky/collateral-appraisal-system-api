@@ -50,33 +50,59 @@ public class MeetingActivity : WorkflowActivityBase
             var appraisalValue = GetVariable<decimal>(context, "appraisalValue");
             var appraisalNo = GetVariable<string?>(context, "appraisalNumber");
 
-            // Re-entry path: if this appraisal+workflowInstance already has a RoutedBack item
-            // on a meeting, reinstate it on that same meeting instead of enqueueing a new one.
-            var routedBackItem = await _dbContext.MeetingItems
-                .FirstOrDefaultAsync(mi =>
+            // Re-entry path: if this appraisal+workflowInstance already has a non-Released Decision
+            // item on a still-live meeting — RoutedBack (rework) or Pending (a secretary recall) —
+            // re-enter that same meeting instead of enqueueing a new queue row. Excludes Cancelled
+            // meetings: Meeting.Cancel() does not remove its items, so a stale Pending/RoutedBack row
+            // left behind by a cancel-and-reschedule must not win over the live meeting's row.
+            // OrderByDescending(AddedAt) makes the pick deterministic if more than one such row
+            // somehow exists.
+            //
+            // This predicate depends on the workflow engine having already flushed the Meeting
+            // aggregate's reset (Released → Pending on recall, or the RoutedBack reinstate) to the
+            // database before this activity runs. The engine checkpoints (persists) workflow state
+            // after every activity completes and before the next one executes, so by the time
+            // MeetingActivity re-enters here that write has already landed — this predicate would
+            // otherwise see stale data.
+            var existingItem = await _dbContext.MeetingItems
+                .Where(mi =>
                     mi.AppraisalId == appraisalId &&
                     mi.WorkflowInstanceId == context.WorkflowInstanceId &&
                     mi.Kind == MeetingItemKind.Decision &&
-                    mi.ItemDecision == ItemDecision.RoutedBack, cancellationToken);
+                    mi.ItemDecision != ItemDecision.Released &&
+                    _dbContext.Meetings.Any(m => m.Id == mi.MeetingId && m.Status != MeetingStatus.Cancelled))
+                .OrderByDescending(mi => mi.AddedAt)
+                .FirstOrDefaultAsync(cancellationToken);
 
-            if (routedBackItem is not null)
+            if (existingItem is not null)
             {
                 var meeting = await _dbContext.Meetings
                     .Include(m => m.Items)
-                    .FirstOrDefaultAsync(m => m.Id == routedBackItem.MeetingId, cancellationToken)
+                    .FirstOrDefaultAsync(m => m.Id == existingItem.MeetingId, cancellationToken)
                     ?? throw new InvalidOperationException(
-                        $"Meeting {routedBackItem.MeetingId} not found for routed-back item {routedBackItem.Id}");
+                        $"Meeting {existingItem.MeetingId} not found for existing item {existingItem.Id}");
 
-                meeting.ReinstateRoutedBackItem(appraisalId, _dateTimeProvider.ApplicationNow);
+                if (existingItem.ItemDecision == ItemDecision.RoutedBack)
+                {
+                    meeting.ReinstateRoutedBackItem(appraisalId, _dateTimeProvider.ApplicationNow);
 
-                _logger.LogInformation(
-                    "MeetingActivity {ActivityId} reinstated appraisal {AppraisalId} on meeting {MeetingId} after rework",
-                    context.ActivityId, appraisalId, meeting.Id);
+                    _logger.LogInformation(
+                        "MeetingActivity {ActivityId} reinstated appraisal {AppraisalId} on meeting {MeetingId} after rework",
+                        context.ActivityId, appraisalId, meeting.Id);
+                }
+                else
+                {
+                    // Pending: the recall command already reset the item back to Pending on the
+                    // Meeting aggregate — nothing further to do here.
+                    _logger.LogInformation(
+                        "MeetingActivity {ActivityId} re-entered for appraisal {AppraisalId} on meeting {MeetingId} after a recall",
+                        context.ActivityId, appraisalId, meeting.Id);
+                }
 
                 return ActivityResult.Pending(new Dictionary<string, object>
                 {
                     [$"{NormalizeActivityId(context.ActivityId)}_awaitingMeeting"] = true,
-                    [$"{NormalizeActivityId(context.ActivityId)}_reinstatedOnMeetingId"] = meeting.Id
+                    [$"{NormalizeActivityId(context.ActivityId)}_reenteredOnMeetingId"] = meeting.Id
                 });
             }
 

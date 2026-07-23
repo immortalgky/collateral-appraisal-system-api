@@ -75,4 +75,16 @@ public class MeetingQueueItem : Entity<Guid>
                 $"Cannot release queue item in status {Status}");
         Status = MeetingQueueItemStatus.Released;
     }
+
+    /// <summary>
+    /// Undoes a <see cref="Release"/>, putting the item back on the same meeting it was
+    /// released from. The inverse of <see cref="Release"/>; used by a secretary recall.
+    /// </summary>
+    public void Requeue()
+    {
+        if (Status != MeetingQueueItemStatus.Released)
+            throw new InvalidOperationException(
+                $"Cannot requeue queue item in status {Status}");
+        Status = MeetingQueueItemStatus.Assigned;
+    }
 }

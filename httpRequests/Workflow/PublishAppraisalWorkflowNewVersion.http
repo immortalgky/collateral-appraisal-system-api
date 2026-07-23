@@ -30,7 +30,7 @@ Content-Type: application/json
 { "createdBy": "{{actor}}" }
 
 ### versionId captured from the create-draft response
-@versionId = 019f3b77-b5f5-7d68-ae45-ed8f1c80094d
+@versionId = 019f8d12-5d98-7e0f-aa65-a75a72f185bb
 
 ### 2. Push the edited appraisal-workflow.json into the draft.
 ###    The file's top-level "workflowSchema" binds; name/description/category/createdBy are ignored.
