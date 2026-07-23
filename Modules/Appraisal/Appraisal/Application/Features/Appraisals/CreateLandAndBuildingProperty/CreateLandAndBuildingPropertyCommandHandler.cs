@@ -57,6 +57,7 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             command.AddressLocation,
             // Land - Characteristics
             command.LandShapeType,
+            command.LandShapeTypeOther,
             command.UrbanPlanningType,
             landZoneType: command.LandZoneType,
             landZoneTypeOther: command.LandZoneTypeOther,
@@ -185,6 +186,7 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             // Building - Style
             buildingMaterialType: command.BuildingMaterialType,
             buildingStyleType: command.BuildingStyleType,
+            buildingStyleTypeOther: command.BuildingStyleTypeOther,
             isResidential: command.IsResidential,
             constructionStyleType: command.ConstructionStyleType,
             constructionStyleRemark: command.ConstructionStyleRemark,

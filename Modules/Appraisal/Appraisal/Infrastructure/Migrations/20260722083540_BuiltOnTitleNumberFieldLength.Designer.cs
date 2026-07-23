@@ -4,16 +4,19 @@ using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace Appraisal.Infrastructure.Migrations
+namespace Appraisal.infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    partial class AppraisalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260722083540_BuiltOnTitleNumberFieldLength")]
+    partial class BuiltOnTitleNumberFieldLength
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -813,6 +816,13 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<Guid>("AppraisalId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AppraiserOpinion")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AppraiserOpinionType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("CommitteeOpinion")
                         .HasColumnType("nvarchar(max)");
 
@@ -837,29 +847,6 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ExternalAppraiserOpinion")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("ExternalAppraiserOpinionType")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<bool?>("HasConstructionLicenseDoc")
-                        .HasColumnType("bit");
-
-                    b.Property<bool?>("HasConstructionPhotoDoc")
-                        .HasColumnType("bit");
-
-                    b.Property<bool?>("HasConstructionProgressTableDoc")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("InternalAppraiserOpinion")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("InternalAppraiserOpinionType")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.Property<bool?>("IsPriceVerified")
                         .HasColumnType("bit");
@@ -3261,6 +3248,9 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.Property<string>("UpdatedWorkstation")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("UseSystemCalc")
+                        .HasColumnType("bit");
 
                     b.Property<decimal?>("ValuePerUnit")
                         .HasPrecision(18, 2)

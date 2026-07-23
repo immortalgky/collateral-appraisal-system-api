@@ -68,6 +68,7 @@ public record GetCondoPropertyResponse(
     string? RoomLayoutType,
     string? RoomLayoutTypeOther,
     List<string>? LocationViewType,
+    string? LocationViewTypeOther,
     string? GroundFloorMaterialType,
     string? GroundFloorMaterialTypeOther,
     string? UpperFloorMaterialType,
@@ -91,6 +92,7 @@ public record GetCondoPropertyResponse(
     List<string>? FacilityType,
     string? FacilityTypeOther,
     List<string>? EnvironmentType,
+    string? EnvironmentTypeOther,
     // Pricing
     decimal? GovernmentPricePerSqm,
     decimal? GovernmentPrice,

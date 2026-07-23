@@ -118,6 +118,7 @@ public class GetLandAndBuildingPropertyQueryHandler(
             landDetail.AddressLocation,
             // Land - Characteristics
             landDetail.LandShapeType,
+            landDetail.LandShapeTypeOther,
             landDetail.UrbanPlanningType,
             landDetail.LandZoneType,
             landDetail.LandZoneTypeOther,
@@ -232,6 +233,7 @@ public class GetLandAndBuildingPropertyQueryHandler(
             // Construction Details
             buildingDetail.BuildingMaterialType,
             buildingDetail.BuildingStyleType,
+            buildingDetail.BuildingStyleTypeOther,
             buildingDetail.IsResidential,
             buildingDetail.BuildingAge,
             buildingDetail.ConstructionYear,

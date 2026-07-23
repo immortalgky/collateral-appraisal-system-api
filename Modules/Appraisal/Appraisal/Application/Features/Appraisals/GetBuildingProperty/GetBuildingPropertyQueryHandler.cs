@@ -104,6 +104,7 @@ public class GetBuildingPropertyQueryHandler(
             EncroachingOthersArea: detail.EncroachingOthersArea,
             BuildingMaterialType: detail.BuildingMaterialType,
             BuildingStyleType: detail.BuildingStyleType,
+            BuildingStyleTypeOther: detail.BuildingStyleTypeOther,
             IsResidential: detail.IsResidential ?? false,
             BuildingAge: detail.BuildingAge,
             ConstructionYear: detail.ConstructionYear,

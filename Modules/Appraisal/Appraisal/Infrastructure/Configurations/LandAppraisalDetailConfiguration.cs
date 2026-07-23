@@ -16,7 +16,7 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
 
         // Property Identification
         builder.Property(e => e.PropertyName).HasMaxLength(200);
-        builder.Property(e => e.LandDescription).HasMaxLength(500);
+        builder.Property(e => e.LandDescription);
 
         // GPS Coordinates (Value Object)
         builder.OwnsOne(e => e.Coordinates, coord =>
@@ -52,6 +52,7 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
 
         // Land Characteristics
         builder.Property(e => e.LandShapeType).HasMaxLength(100);
+        builder.Property(e => e.LandShapeTypeOther).HasMaxLength(200);
         builder.Property(e => e.UrbanPlanningType).HasMaxLength(100);
         builder.Property(e => e.LandZoneType)
             .HasConversion(

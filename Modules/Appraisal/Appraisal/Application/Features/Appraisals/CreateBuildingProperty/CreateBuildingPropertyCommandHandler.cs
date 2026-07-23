@@ -47,6 +47,7 @@ public class CreateBuildingPropertyCommandHandler(
             command.EncroachingOthersArea,
             command.BuildingMaterialType,
             command.BuildingStyleType,
+            command.BuildingStyleTypeOther,
             command.IsResidential,
             command.BuildingAge,
             command.ConstructionYear,

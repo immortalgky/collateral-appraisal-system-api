@@ -66,6 +66,7 @@ public record UpdateCondoPropertyCommand(
     string? RoomLayoutType = null,
     string? RoomLayoutTypeOther = null,
     List<string>? LocationViewType = null,
+    string? LocationViewTypeOther = null,
     string? GroundFloorMaterialType = null,
     string? GroundFloorMaterialTypeOther = null,
     string? UpperFloorMaterialType = null,
@@ -89,6 +90,7 @@ public record UpdateCondoPropertyCommand(
     List<string>? FacilityType = null,
     string? FacilityTypeOther = null,
     List<string>? EnvironmentType = null,
+    string? EnvironmentTypeOther = null,
     // Pricing
     decimal? GovernmentPricePerSqm = null,
     decimal? GovernmentPrice = null,

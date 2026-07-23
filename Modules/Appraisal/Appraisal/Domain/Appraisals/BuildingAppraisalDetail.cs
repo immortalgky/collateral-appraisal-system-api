@@ -45,6 +45,7 @@ public class BuildingAppraisalDetail : Entity<Guid>
     // Construction Details
     public string? BuildingMaterialType { get; private set; }
     public string? BuildingStyleType { get; private set; }
+    public string? BuildingStyleTypeOther { get; private set; }
     public bool? IsResidential { get; private set; }
     public int? BuildingAge { get; private set; }
     public int? ConstructionYear { get; private set; }
@@ -139,6 +140,7 @@ public class BuildingAppraisalDetail : Entity<Guid>
         // Construction Details
         string? buildingMaterialType = null,
         string? buildingStyleType = null,
+        string? buildingStyleTypeOther = null,
         bool? isResidential = null,
         int? buildingAge = null,
         int? constructionYear = null,
@@ -209,6 +211,7 @@ public class BuildingAppraisalDetail : Entity<Guid>
         // Construction Details
         BuildingMaterialType = buildingMaterialType;
         BuildingStyleType = buildingStyleType;
+        BuildingStyleTypeOther = buildingStyleTypeOther;
         IsResidential = isResidential;
         BuildingAge = buildingAge;
         ConstructionYear = constructionYear;
@@ -279,6 +282,7 @@ public class BuildingAppraisalDetail : Entity<Guid>
             EncroachingOthersArea = source.EncroachingOthersArea,
             BuildingMaterialType = source.BuildingMaterialType,
             BuildingStyleType = source.BuildingStyleType,
+            BuildingStyleTypeOther = source.BuildingStyleTypeOther,
             IsResidential = source.IsResidential,
             BuildingAge = source.BuildingAge,
             ConstructionYear = source.ConstructionYear,

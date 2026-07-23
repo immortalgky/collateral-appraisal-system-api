@@ -19,7 +19,7 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
         builder.Property(e => e.CondoName).HasMaxLength(200);
         builder.Property(e => e.BuildingNumber).HasMaxLength(50);
         builder.Property(e => e.ModelName).HasMaxLength(100);
-        builder.Property(e => e.BuiltOnTitleNumber).HasMaxLength(100);
+        builder.Property(e => e.BuiltOnTitleNumber).HasMaxLength(500);
         builder.Property(e => e.CondoRegistrationNumber).HasMaxLength(100);
         builder.Property(e => e.RoomNumber).HasMaxLength(50);
         builder.Property(e => e.FloorNumber).HasMaxLength(50);
@@ -108,6 +108,7 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
                     ? null
                     : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
+        builder.Property(e => e.LocationViewTypeOther).HasMaxLength(200);
         builder.Property(e => e.GroundFloorMaterialType).HasMaxLength(100);
         builder.Property(e => e.GroundFloorMaterialTypeOther).HasMaxLength(4000);
         builder.Property(e => e.UpperFloorMaterialType).HasMaxLength(100);
@@ -161,6 +162,7 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
                     : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
 
+        builder.Property(e => e.EnvironmentTypeOther).HasMaxLength(200);
         // Pricing
         builder.Property(e => e.GovernmentPricePerSqm).HasPrecision(18, 2);
         builder.Property(e => e.GovernmentPrice).HasPrecision(18, 2);
