@@ -31,6 +31,7 @@ public class PricingAnalysisMethod : Entity<Guid>
     public decimal? ValuePerUnit { get; private set; }
     public string? UnitType { get; private set; } // PerSqWa, PerSqm, PerUnit (PerUnit = whole-unit lumpsum)
     public bool IsSelected { get; private set; }
+    public bool UseSystemCalc { get; private set; } = true;
     public string? Remark { get; private set; }
 
     // Final Value (1:1)
@@ -98,6 +99,7 @@ public class PricingAnalysisMethod : Entity<Guid>
             ValuePerUnit = source.ValuePerUnit,
             UnitType = source.UnitType,
             IsSelected = source.IsSelected,
+            UseSystemCalc = source.UseSystemCalc,
             Remark = source.Remark
         };
 
@@ -167,6 +169,12 @@ public class PricingAnalysisMethod : Entity<Guid>
         ValuePerUnit = valuePerUnit;
         UnitType = unitType;
     }
+    public void ClearValue()
+    {
+        MethodValue = null;
+        ValuePerUnit = null;
+        UnitType = null;
+    }
 
     public void SetComparativeAnalysisTemplate(Guid? templateId)
     {
@@ -192,7 +200,10 @@ public class PricingAnalysisMethod : Entity<Guid>
     {
         FinalValue = finalValue;
     }
-
+    public void SetUseSystemCalc(bool value)
+    {
+        UseSystemCalc = value;
+    }
     public void SetRsqResult(PricingRsqResult rsqResult)
     {
         RsqResult = rsqResult;
