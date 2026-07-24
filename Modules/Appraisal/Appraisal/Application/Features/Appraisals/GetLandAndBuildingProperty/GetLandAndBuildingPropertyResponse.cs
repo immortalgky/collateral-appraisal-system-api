@@ -22,6 +22,9 @@ public record GetLandAndBuildingPropertyResponse(
     string? District,
     string? Province,
     string? LandOffice,
+    string? DopaSubDistrict,
+    string? DopaDistrict,
+    string? DopaProvince,
     // Owner Fields
     string? OwnerName,
     bool? IsOwnerVerified,

@@ -1,31 +1,29 @@
 namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
-/// Value Object representing Thai administrative address divisions.
+/// Value Object representing Thai administrative address divisions (Tambon / Amphoe / Changwat).
+/// LandOffice is not part of this VO — it lives as a scalar on the owning entity.
 /// </summary>
-public record AdministrativeAddress
+public record Address
 {
     public string? SubDistrict { get; init; } // Tambon
     public string? District { get; init; } // Amphoe
     public string? Province { get; init; } // Changwat
-    public string? LandOffice { get; init; } // Related land office
 
-    private AdministrativeAddress()
+    private Address()
     {
     }
 
-    public static AdministrativeAddress Create(
+    public static Address Create(
         string? subDistrict,
         string? district,
-        string? province,
-        string? landOffice = null)
+        string? province)
     {
-        return new AdministrativeAddress
+        return new Address
         {
             SubDistrict = subDistrict,
             District = district,
-            Province = province,
-            LandOffice = landOffice
+            Province = province
         };
     }
 

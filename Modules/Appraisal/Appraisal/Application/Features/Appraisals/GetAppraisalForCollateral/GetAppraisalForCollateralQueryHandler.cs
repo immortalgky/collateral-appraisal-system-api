@@ -543,13 +543,16 @@ public class GetAppraisalForCollateralQueryHandler(
                 Province: p.LandDetail.Address?.Province,
                 District: p.LandDetail.Address?.District,
                 SubDistrict: p.LandDetail.Address?.SubDistrict,
-                LandOffice: p.LandDetail.Address?.LandOffice,
+                LandOffice: p.LandDetail.LandOffice,
                 Titles: p.LandDetail.Titles
                     .Select(t => new LandTitleForCollateral(
                         t.Id, t.TitleNumber, t.TitleType,
                         t.SurveyNumber, t.LandParcelNumber, t.Rawang))
                     .ToList(),
                 // Phase C: last-known populate fields from LandAppraisalDetail
+                DopaSubDistrict: p.LandDetail.DopaAddress?.SubDistrict,
+                DopaDistrict: p.LandDetail.DopaAddress?.District,
+                DopaProvince: p.LandDetail.DopaAddress?.Province,
                 OwnerName: p.LandDetail.OwnerName,
                 Street: p.LandDetail.Street,
                 Village: p.LandDetail.Village,
@@ -573,7 +576,10 @@ public class GetAppraisalForCollateralQueryHandler(
                 Province: p.CondoDetail.Address?.Province,
                 District: p.CondoDetail.Address?.District,
                 SubDistrict: p.CondoDetail.Address?.SubDistrict,
-                LandOffice: p.CondoDetail.Address?.LandOffice,
+                LandOffice: p.CondoDetail.LandOffice,
+                DopaSubDistrict: p.CondoDetail.DopaAddress?.SubDistrict,
+                DopaDistrict: p.CondoDetail.DopaAddress?.District,
+                DopaProvince: p.CondoDetail.DopaAddress?.Province,
                 // Phase C: last-known populate fields from CondoAppraisalDetail
                 OwnerName: p.CondoDetail.OwnerName,
                 CondoName: p.CondoDetail.CondoName,

@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Exceptions;
 using AppraisalAggregate = Appraisal.Domain.Appraisals.Appraisal;
+using Address = Appraisal.Domain.Appraisals.Address;
 
 namespace Integration.Collateral.Integration.Tests;
 
@@ -36,7 +37,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
     {
         var prop = appraisal.AddLandProperty();
         prop.LandDetail!.Update(
-            address: AdministrativeAddress.Create(subDistrict, district, province, landOffice));
+            address: Address.Create(subDistrict, district, province), landOffice: landOffice);
         var title = LandTitle.Create(prop.LandDetail.Id, titleNo, titleType);
         prop.LandDetail.AddTitle(title);
 
@@ -60,7 +61,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
             titleNumber: titleNo,
             titleType: titleType,
             ownerName: "Test Owner",   // Required NOT NULL by DB schema
-            address: AdministrativeAddress.Create("Test Subdistrict", "Test District", province, landOffice));
+            address: Address.Create("Test Subdistrict", "Test District", province), landOffice: landOffice);
         return prop;
     }
 
@@ -959,7 +960,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
     {
         var prop = appraisal.AddLandProperty();
         prop.LandDetail!.Update(
-            address: AdministrativeAddress.Create(subDistrict, district, province, landOffice));
+            address: Address.Create(subDistrict, district, province), landOffice: landOffice);
         foreach (var (titleNo, titleType) in titles)
         {
             var title = LandTitle.Create(prop.LandDetail.Id, titleNo, titleType);

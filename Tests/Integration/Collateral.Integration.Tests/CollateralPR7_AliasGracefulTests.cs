@@ -7,6 +7,7 @@ using Integration.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using AppraisalAggregate = Appraisal.Domain.Appraisals.Appraisal;
+using Address = Appraisal.Domain.Appraisals.Address;
 
 namespace Integration.Collateral.Integration.Tests;
 
@@ -53,7 +54,7 @@ public class CollateralPR7_AliasGracefulTests(IntegrationTestFixture fixture)
             titleNumber: titleNo,
             titleType: titleType,
             ownerName: "Test Owner",
-            address: AdministrativeAddress.Create("Test Subdistrict", "Test District", province, landOffice));
+            address: Address.Create("Test Subdistrict", "Test District", province), landOffice: landOffice);
         return prop;
     }
 

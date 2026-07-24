@@ -33,14 +33,15 @@ public class CreateCondoPropertyCommandHandler(
         if (command.Latitude.HasValue && command.Longitude.HasValue)
             coordinates = GpsCoordinate.Create(command.Latitude.Value, command.Longitude.Value);
 
-        AdministrativeAddress? address = null;
-        if (command.SubDistrict is not null || command.District is not null ||
-            command.Province is not null || command.LandOffice is not null)
-            address = AdministrativeAddress.Create(
+        Address? address = null;
+        if (command.SubDistrict is not null || command.District is not null || command.Province is not null)
+            address = Address.Create(
                 command.SubDistrict,
                 command.District,
-                command.Province,
-                command.LandOffice);
+                command.Province);
+        Address? dopaAddress = null;
+        if (command.DopaSubDistrict is not null || command.DopaDistrict is not null || command.DopaProvince is not null)
+            dopaAddress = Address.Create(command.DopaSubDistrict, command.DopaDistrict, command.DopaProvince);
 
         // 4. Update detail with additional fields
         property.CondoDetail!.Update(
@@ -109,6 +110,8 @@ public class CreateCondoPropertyCommandHandler(
             command.SellingPrice,
             command.ForcedSalePrice,
             command.Remark,
+            command.LandOffice,
+            dopaAddress,
             command.LandEntranceExitType,
             command.LandEntranceExitTypeOther,
             command.LandFillType,
@@ -119,7 +122,7 @@ public class CreateCondoPropertyCommandHandler(
             command.GovernmentPricePerSqm,
             command.GovernmentPrice,
             command.FireInsuranceCondition);
-        
+
         // 5. Create CondoAreaDetails
         if (command.AreaDetails is { Count: > 0 })
         {

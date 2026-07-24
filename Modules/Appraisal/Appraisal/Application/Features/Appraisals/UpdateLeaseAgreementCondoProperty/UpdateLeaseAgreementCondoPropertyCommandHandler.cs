@@ -35,14 +35,15 @@ public class UpdateLeaseAgreementCondoPropertyCommandHandler(
         if (command.Latitude.HasValue && command.Longitude.HasValue)
             coordinates = GpsCoordinate.Create(command.Latitude.Value, command.Longitude.Value);
 
-        AdministrativeAddress? address = null;
-        if (command.SubDistrict is not null || command.District is not null ||
-            command.Province is not null || command.LandOffice is not null)
-            address = AdministrativeAddress.Create(
+        Address? address = null;
+        if (command.SubDistrict is not null || command.District is not null || command.Province is not null)
+            address = Address.Create(
                 command.SubDistrict,
                 command.District,
-                command.Province,
-                command.LandOffice);
+                command.Province);
+        Address? dopaAddress = null;
+        if (command.DopaSubDistrict is not null || command.DopaDistrict is not null || command.DopaProvince is not null)
+            dopaAddress = Address.Create(command.DopaSubDistrict, command.DopaDistrict, command.DopaProvince);
 
         // 6. Update condo detail via domain method
         detail.Update(
@@ -108,7 +109,9 @@ public class UpdateLeaseAgreementCondoPropertyCommandHandler(
             buildingInsurancePrice: command.BuildingInsurancePrice,
             sellingPrice: command.SellingPrice,
             forcedSalePrice: command.ForcedSalePrice,
-            remark: command.Remark);
+            remark: command.Remark,
+            landOffice: command.LandOffice,
+            dopaAddress: dopaAddress);
 
         // 7. Sync area details (null = no-op, list = sync)
         if (command.AreaDetails is not null)

@@ -21,7 +21,11 @@ public class LandAppraisalDetail : Entity<Guid>
     public GpsCoordinate? Coordinates { get; private set; }
 
     // Administrative Address (Value Object)
-    public AdministrativeAddress? Address { get; private set; }
+    public Address? Address { get; private set; }
+    public string? LandOffice { get; private set; }
+
+    // Dopa Address (Value Object)
+    public Address? DopaAddress { get; private set; }
 
     // Owner
     public string? OwnerName { get; private set; } = null!;
@@ -144,7 +148,7 @@ public class LandAppraisalDetail : Entity<Guid>
         string? propertyName = null,
         string? landDescription = null,
         GpsCoordinate? coordinates = null,
-        AdministrativeAddress? address = null,
+        Address? address = null,
         // Owner
         string? ownerName = null,
         bool? isOwnerVerified = null,
@@ -228,7 +232,10 @@ public class LandAppraisalDetail : Entity<Guid>
         string? hasBuildingOther = null,
         string? remark = null,
         // Rental Flag
-        bool? isRentedOut = null)
+        bool? isRentedOut = null,
+        // Address scalar + Dopa (at end to avoid breaking existing positional callers)
+        string? landOffice = null,
+        Address? dopaAddress = null)
     {
         // Property Identification
         PropertyName = propertyName;
@@ -329,6 +336,10 @@ public class LandAppraisalDetail : Entity<Guid>
 
         // Rental Flag
         IsRentedOut = isRentedOut;
+
+        // Address scalar + Dopa
+        LandOffice = landOffice;
+        DopaAddress = dopaAddress;
     }
 
     public static LandAppraisalDetail CopyFrom(LandAppraisalDetail source, Guid newPropertyId)
@@ -342,7 +353,11 @@ public class LandAppraisalDetail : Entity<Guid>
                 ? GpsCoordinate.Create(source.Coordinates.Latitude, source.Coordinates.Longitude)
                 : null,
             Address = source.Address is not null
-                ? AdministrativeAddress.Create(source.Address.SubDistrict, source.Address.District, source.Address.Province, source.Address.LandOffice)
+                ? Address.Create(source.Address.SubDistrict, source.Address.District, source.Address.Province)
+                : null,
+            LandOffice = source.LandOffice,
+            DopaAddress = source.DopaAddress is not null
+                ? Address.Create(source.DopaAddress.SubDistrict, source.DopaAddress.District, source.DopaAddress.Province)
                 : null,
             OwnerName = source.OwnerName,
             IsOwnerVerified = source.IsOwnerVerified,
@@ -453,7 +468,7 @@ public class LandAppraisalDetail : Entity<Guid>
     /// </summary>
     public void UpdatePmaFields(
         string? ownerName = null,
-        AdministrativeAddress? address = null)
+        Address? address = null)
     {
         OwnerName = ownerName;
         Address = address;

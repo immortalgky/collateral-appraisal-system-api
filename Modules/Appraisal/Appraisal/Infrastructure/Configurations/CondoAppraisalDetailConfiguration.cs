@@ -42,7 +42,17 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
             addr.Property(a => a.SubDistrict).HasColumnName("SubDistrict").HasMaxLength(100);
             addr.Property(a => a.District).HasColumnName("District").HasMaxLength(100);
             addr.Property(a => a.Province).HasColumnName("Province").HasMaxLength(100);
-            addr.Property(a => a.LandOffice).HasColumnName("LandOffice").HasMaxLength(200);
+        });
+
+        // LandOffice is a scalar on the entity (not inside the Address VO)
+        builder.Property(e => e.LandOffice).HasColumnName("LandOffice").HasMaxLength(200);
+
+        // Dopa Address
+        builder.OwnsOne(e => e.DopaAddress, addr =>
+        {
+            addr.Property(a => a.SubDistrict).HasColumnName("DopaSubDistrict").HasMaxLength(100);
+            addr.Property(a => a.District).HasColumnName("DopaDistrict").HasMaxLength(100);
+            addr.Property(a => a.Province).HasColumnName("DopaProvince").HasMaxLength(100);
         });
 
         // Owner

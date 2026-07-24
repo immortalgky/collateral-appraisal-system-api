@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
 using AppraisalAggregate = Appraisal.Domain.Appraisals.Appraisal;
+using Address = Appraisal.Domain.Appraisals.Address;
 
 namespace Integration.Collateral.Integration.Tests;
 
@@ -51,7 +52,7 @@ public class CollateralPhaseC_PR2Tests(IntegrationTestFixture fixture)
     {
         var prop = appraisal.AddLandProperty();
         prop.LandDetail!.Update(
-            address: AdministrativeAddress.Create(subDistrict, district, province, landOffice));
+            address: Address.Create(subDistrict, district, province), landOffice: landOffice);
         var title = LandTitle.Create(prop.LandDetail.Id, titleNo, titleType);
         prop.LandDetail.AddTitle(title);
         if (inspection is not null)
@@ -76,7 +77,7 @@ public class CollateralPhaseC_PR2Tests(IntegrationTestFixture fixture)
     {
         var prop = appraisal.AddLandProperty();
         prop.LandDetail!.Update(
-            address: AdministrativeAddress.Create(subDistrict, district, province, landOffice),
+            address: Address.Create(subDistrict, district, province), landOffice: landOffice,
             ownerName: ownerName,
             street: street,
             village: village,
@@ -115,7 +116,7 @@ public class CollateralPhaseC_PR2Tests(IntegrationTestFixture fixture)
             titleNumber: titleNo,
             titleType: titleType,
             ownerName: ownerName ?? "Test Owner",
-            address: AdministrativeAddress.Create("Test Subdistrict", "Test District", province, landOffice),
+            address: Address.Create("Test Subdistrict", "Test District", province), landOffice: landOffice,
             condoName: condoName,
             usableArea: usableArea,
             locationType: locationType,
@@ -491,7 +492,7 @@ public class CollateralPhaseC_PR2Tests(IntegrationTestFixture fixture)
             // (two separate properties would each become independent masters)
             var prop = a.AddLandProperty();
             prop.LandDetail!.Update(
-                address: AdministrativeAddress.Create("S1", "D1", "BKK", "LO-001"));
+                address: Address.Create("S1", "D1", "BKK"), landOffice: "LO-001");
             var t1 = LandTitle.Create(prop.LandDetail.Id, $"3V-MASTER-{tag}", "Chanote");
             var t2 = LandTitle.Create(prop.LandDetail.Id, $"3V-ALIAS-{tag}", "Chanote");
             prop.LandDetail.AddTitle(t1);
@@ -640,7 +641,7 @@ public class CollateralPhaseC_PR2Tests(IntegrationTestFixture fixture)
     {
         var prop = appraisal.AddLandProperty();
         prop.LandDetail!.Update(
-            address: AdministrativeAddress.Create(subDistrict, district, province, landOffice));
+            address: Address.Create(subDistrict, district, province), landOffice: landOffice);
         var title = LandTitle.Create(prop.LandDetail.Id, titleNo, titleType);
         var area = LandArea.Create(rai, ngan, squareWa);
         title.Update(
