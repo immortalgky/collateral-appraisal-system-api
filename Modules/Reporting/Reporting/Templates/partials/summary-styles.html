@@ -167,12 +167,11 @@ table.totals td.tt { text-align:right; font-style:italic; color:#333; }
    page the whole block moves to the next one rather than splitting mid-way. */
 .attrs-block { page-break-inside:avoid; break-inside:avoid; }
 
-/* The opinion section (heading + comment), the sign-off row and the committee block are three
-   SIBLING page-break units — never nested. Each stays internally intact but paginates
-   independently, so an overflowing committee table no longer drags the opinion text with it.
-   Nesting them would defeat this: Chromium honours the outermost avoid and moves the whole
-   subtree as one blob. */
-.opinion-block { page-break-inside:avoid; break-inside:avoid; }
+/* The opinion section (heading + comment) is allowed to split across a page boundary: if the
+   comment is long it flows onto the next page in place rather than jumping the whole block down
+   and leaving a large gap. The sign-off row and committee block remain independent keep-together
+   units via their own rules above, so an overflowing committee table still can't drag the
+   opinion text with it. */
 
 /* FSD-aligned: plain left-aligned bold heading, no grey fill / border. */
 .section-bar { font-weight:700; text-align:left; padding:2px 0; font-size:8.5pt; }
