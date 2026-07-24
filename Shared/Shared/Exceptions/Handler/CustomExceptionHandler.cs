@@ -107,6 +107,9 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
         if (exception is BulkUploadParseException bulkEx)
             problemDetails.Extensions.Add("rowErrors", bulkEx.RowErrors);
 
+        if (exception is ConflictException { Code: not null } conflictEx)
+            problemDetails.Extensions.Add("errorCode", conflictEx.Code);
+
         await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
         return true;
     }

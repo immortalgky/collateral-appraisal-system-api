@@ -1240,6 +1240,14 @@
         "condition": "decision == 'route_back' && assignmentType == 'Internal'",
         "properties": {},
         "type": "Conditional"
+      },
+      {
+        "id": "approval-recall-to-meeting",
+        "from": "pending-approval",
+        "to": "pending-meeting",
+        "condition": "decision == 'recall_to_meeting'",
+        "properties": {},
+        "type": "Conditional"
       }
     ],
     "variables": {
