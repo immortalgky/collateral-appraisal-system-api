@@ -65,6 +65,7 @@ public static class WorkflowModule
         services.AddScoped<IAssigneeSelectorFactory, AssigneeSelectorFactory>();
         services.AddScoped<TeamConstrainedAssigneeSelector>();
         services.AddScoped<VariableAssigneeSelector>();
+        services.AddScoped<SameAssigneeAsActivitySelector>();
         services.AddScoped<ICascadingAssignmentEngine, CascadingAssignmentEngine>();
 
         // Team service — queries auth schema (Company = Team, Group = assignment group)

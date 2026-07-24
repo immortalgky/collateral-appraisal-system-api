@@ -510,12 +510,14 @@
           "assigneeGroup": "IntAppraisalStaff",
           "assignmentStrategies": "variable_assignee",
           "initialAssignmentStrategies": [
+            "same_assignee_as_activity",
             "variable_assignee",
             "round_robin"
           ],
           "revisitAssignmentStrategies": [
             "previous_owner"
           ],
+          "sameAssigneeAsActivity": "int-pma-input",
           "assigneeVariable": "internalFollowupStaffId",
           "timeoutDuration": "PT72H",
           "decisionConditions": {

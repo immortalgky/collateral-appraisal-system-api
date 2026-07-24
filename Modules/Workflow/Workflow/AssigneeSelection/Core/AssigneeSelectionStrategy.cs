@@ -50,7 +50,13 @@ public enum AssigneeSelectionStrategy
     /// <summary>
     /// Assign to a user specified in a named workflow variable
     /// </summary>
-    VariableAssignee
+    VariableAssignee,
+
+    /// <summary>
+    /// Assign to the same user who was assigned a different, named prior activity in this
+    /// workflow instance (positive counterpart of the excludeAssigneesFrom rule)
+    /// </summary>
+    SameAssigneeAsActivity
 }
 
 /// <summary>
@@ -75,6 +81,7 @@ public static class AssignmentStrategyExtensions
             AssigneeSelectionStrategy.StartedBy => "started_by",
             AssigneeSelectionStrategy.Pool => "pool",
             AssigneeSelectionStrategy.VariableAssignee => "variable_assignee",
+            AssigneeSelectionStrategy.SameAssigneeAsActivity => "same_assignee_as_activity",
             _ => throw new ArgumentOutOfRangeException(nameof(strategy), strategy, "Unknown assignment strategy")
         };
     }
@@ -96,6 +103,7 @@ public static class AssignmentStrategyExtensions
             "started_by" => AssigneeSelectionStrategy.StartedBy,
             "pool" => AssigneeSelectionStrategy.Pool,
             "variable_assignee" => AssigneeSelectionStrategy.VariableAssignee,
+            "same_assignee_as_activity" => AssigneeSelectionStrategy.SameAssigneeAsActivity,
             _ => throw new ArgumentException($"Unknown assignment strategy: {strategyString}", nameof(strategyString))
         };
     }
