@@ -94,6 +94,10 @@
   <!-- ════ COMMITTEE BLOCK — own page-break unit ════ -->
   {{ include 'partials/approver-block' }}
 
+  <!-- Close the running-table BEFORE the landscape unit tables: a table cannot host the
+       landscape @page break, and the unit tables intentionally carry no repeating header. -->
+  {{ include 'partials/summary-page-close' }}
+
   <!-- ════ UNIT TABLE: LB / Land ════ -->
   {{ if model.building_units.size > 0 }}
   <div class="landscape-page">
