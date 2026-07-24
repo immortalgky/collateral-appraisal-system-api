@@ -1,21 +1,20 @@
 <!--
   Partial: shared report header + common info-block opening of the three summary bodies
   (standard / construction / block). The includer MUST:
-    1. set {{ summary_title }} before the include (the report title differs per body), and
-    2. close the still-open div.pad after appending its body-specific info rows.
+    1. set {{ summary_title }} before the include (the report title differs per body),
+    2. close the still-open div.pad after appending its body-specific info rows, and
+    3. include partials/summary-page-close at the end of its PORTRAIT content (before any
+       .landscape-page section) to close the running-table this partial opens.
   Shares the parent Scriban scope; expects: model.* (AppraisalSummaryModel snake_case fields).
+
+  The header bar sits in the <thead> of a full-width running-table: Chromium repeats a
+  table-header-group on every page the table spans AND reserves its height, so the header
+  bar prints on all summary pages without content sliding underneath it.
 -->
-<!-- ════ HEADER ════ -->
-<div class="head">
-  <div class="logo">
-    <img src="logo-lh-bank.svg" class="brand-logo" alt="LH Bank"/>
-  </div>
-  <div class="title">{{ summary_title }}</div>
-  <div class="meta">
-    <div class="row"><span class="lbl">รายงานเลขที่</span><span class="val">{{ model.appraisal_book_number }}</span></div>
-    <div class="row"><span class="lbl">วันที่สำรวจและประเมินราคา</span><span class="val">{{ thai.date model.appraisal_date }}</span></div>
-  </div>
-</div>
+<!-- ════ HEADER (repeats every page via <thead>) ════ -->
+<table class="running">
+  <thead><tr><td>{{ include 'partials/summary-head-bar' }}</td></tr></thead>
+  <tbody><tr><td>
 
 <!-- ════ INFO BLOCK (common opening — includer adds its rows and closes .pad) ════ -->
 <div class="pad">

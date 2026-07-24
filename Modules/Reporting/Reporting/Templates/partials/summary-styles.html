@@ -30,6 +30,19 @@ body {
 .head .meta .lbl { color:#000; font-weight:600; white-space:nowrap; }
 .head .meta .val { text-align:right; flex:1; }
 
+/* Running-table: wraps the portrait flow of each summary body so the header bar in the
+   <thead> repeats on every page. Chromium repeats a table-header-group across page breaks
+   AND reserves its height, so no content slides under the bar (unlike position:fixed).
+   The wrapper is invisible — zero border/padding — and full-width so its single column
+   spans the content width; nested tables (grid / totals / prop-table / unit-table) are
+   class-scoped and unaffected. .head already draws the rule + gap under the bar.
+   NOTE: keep .landscape-page sections OUTSIDE this table — a table cannot host the
+   landscape @page break, so bodies close the running-table before their landscape units. */
+table.running { width:100%; border-collapse:collapse; }
+table.running > thead { display:table-header-group; }
+table.running > thead > tr > td,
+table.running > tbody > tr > td { border:0; padding:0; vertical-align:top; }
+
 /* ── Generic label:value rows ───────────────────────────── */
 /* No left/right padding so info/attribute rows align flush with the table edges. */
 .pad { padding:5px 0; }
