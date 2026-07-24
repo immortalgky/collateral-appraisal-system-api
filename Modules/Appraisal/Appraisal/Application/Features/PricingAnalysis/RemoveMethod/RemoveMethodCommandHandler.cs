@@ -46,6 +46,9 @@ public class RemoveMethodCommandHandler(
 
         approach.RemoveMethod(command.MethodId);
 
+        if (approach.Methods.Count == 0)
+            pricingAnalysis.RemoveApproach(approach.Id);
+
         await repository.UpdateAsync(pricingAnalysis, cancellationToken);
 
         return new RemoveMethodResult(command.MethodId, true);
