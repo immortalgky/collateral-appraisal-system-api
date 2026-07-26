@@ -23,12 +23,10 @@ public class UpdateApproachCommandHandler(
         if (approach == null)
             throw new InvalidOperationException($"Approach with ID '{command.ApproachId}' not found");
 
-        if (command.ApproachValue.HasValue)
-            approach.SetValue(command.ApproachValue.Value);
-
-        // Propagate selected approach's ApproachValue → FinalAppraisedValue
-        if (approach.IsSelected && approach.ApproachValue.HasValue)
-            pricingAnalysis.SetFinalValues(approach.ApproachValue.Value);
+        // Weight only — no value propagation. ApproachValue is derived from the selected method
+        // and is never client-supplied, so nothing here can change the rollup: no SetValue, and
+        // no RollUpFinalFromSelectedApproach. The values returned below are read-only echoes of
+        // whatever the last method-level save derived.
 
         return new UpdateApproachResult(
             approach.Id,

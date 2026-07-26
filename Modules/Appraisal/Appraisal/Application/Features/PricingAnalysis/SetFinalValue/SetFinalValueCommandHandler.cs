@@ -54,21 +54,8 @@ public class SetFinalValueCommandHandler(
         // Preserve the existing price unit — this manual override adjusts the value, not the unit.
         method.SetValue(command.FinalValueRounded, method.ValuePerUnit, method.UnitType);
 
-        // TODO: Temporary — propagate method value upward for manual frontend updates
-        if (method.IsSelected && method.MethodValue.HasValue)
-        {
-            var parentApproach = pricingAnalysis.Approaches
-                .FirstOrDefault(a => a.Id == method.ApproachId)
-                ?? throw new InvalidOperationException(
-                    $"Approach {method.ApproachId} not found in pricing analysis {command.PricingAnalysisId}");
-
-            parentApproach.SetValue(method.MethodValue.Value);
-
-            if (parentApproach.IsSelected)
-            {
-                pricingAnalysis.SetFinalValues(parentApproach.ApproachValue!.Value);
-            }
-        }
+        // Roll the new method value up through approach → analysis (null-safe, idempotent).
+        pricingAnalysis.RecalculateRollup();
 
         // TODO: Temporary — mark as manual calc since user is overriding values from frontend
         pricingAnalysis.SetUseSystemCalc(false);

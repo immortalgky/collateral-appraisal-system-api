@@ -151,16 +151,8 @@ public class SaveProfitRentAnalysisCommandHandler(
             finalValue.SetAppraisalPrice(command.AppraisalPrice);
         }
 
-        // Propagate value up if method is selected
-        if (method.IsSelected && method.MethodValue.HasValue)
-        {
-            var parentApproach = pricingAnalysis.Approaches
-                .First(a => a.Methods.Any(m => m.Id == method.Id));
-            parentApproach.SetValue(method.MethodValue.Value);
-
-            if (parentApproach.IsSelected)
-                pricingAnalysis.SetFinalValues(parentApproach.ApproachValue!.Value);
-        }
+        // Roll the new method value up through approach → analysis (null-safe, idempotent).
+        pricingAnalysis.RecalculateRollup();
 
         return new SaveProfitRentAnalysisResult(
             command.PricingAnalysisId,

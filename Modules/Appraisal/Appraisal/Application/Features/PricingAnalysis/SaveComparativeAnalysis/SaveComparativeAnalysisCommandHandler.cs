@@ -118,22 +118,8 @@ public class SaveComparativeAnalysisCommandHandler(
         else if (command.HasBuildingValue == false)
             method.FinalValue.ClearBuildingValue();
 
-        // Propagate: if method is selected and has a value, push it up
-        if (method.IsSelected && method.MethodValue.HasValue)
-        {
-            var parentApproach = pricingAnalysis.Approaches
-                .FirstOrDefault(a => a.Id == method.ApproachId)
-                ?? throw new InvalidOperationException(
-                    $"Approach {method.ApproachId} not found in pricing analysis {command.PricingAnalysisId}");
-
-            parentApproach.SetValue(method.MethodValue.Value);
-
-            // If approach is also selected, propagate to FinalAppraisedValue
-            if (parentApproach.IsSelected)
-            {
-                pricingAnalysis.SetFinalValues(parentApproach.ApproachValue!.Value);
-            }
-        }
+        // Roll the recalculated method value up through approach → analysis (null-safe, idempotent).
+        pricingAnalysis.RecalculateRollup();
 
         // TODO: Temporary — mark as system calc since this is a backend-calculated save
         pricingAnalysis.SetUseSystemCalc(true);

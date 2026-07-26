@@ -278,6 +278,127 @@ public class PricingAnalysis : Aggregate<Guid>
             SetFinalAppraisedValueInternal(parentApproach.ApproachValue);
     }
 
+    /// <summary>
+    /// Applies a COMPLETE selection — the primary method for each listed approach plus the
+    /// analysis's final approach — as one atomic operation, raising the final-value domain event
+    /// exactly ONCE.
+    /// <para>
+    /// This is the aggregate-level equivalent of calling <see cref="SelectMethod"/> once per
+    /// approach and then <see cref="SelectApproach"/>, which is what the pricing summary screen
+    /// used to do over N+1 HTTP requests: N+1 transactions, up to two ValuationAnalyses recomputes
+    /// per save, and a window where the method selections committed but the approach selection
+    /// failed, leaving a half-applied selection. Every method selection here goes through the
+    /// approach-level <see cref="PricingAnalysisApproach.SelectMethod"/>, which raises nothing —
+    /// only the single <see cref="SetFinalAppraisedValueInternal"/> call at the end does.
+    /// </para>
+    /// <para>
+    /// Validation is fully up front: nothing is mutated unless every approach and method resolves,
+    /// so a bad payload cannot leave a partially-applied selection behind.
+    /// </para>
+    /// </summary>
+    public void ApplySelection(
+        IReadOnlyCollection<ApproachMethodSelection> selections,
+        Guid finalApproachId)
+    {
+        ArgumentNullException.ThrowIfNull(selections);
+
+        var finalApproach = _approaches.FirstOrDefault(a => a.Id == finalApproachId);
+
+        if (finalApproach is null)
+            throw new NotFoundException("PricingAnalysisApproach", finalApproachId);
+
+        // ── Validate everything BEFORE mutating anything ──────────────────────────
+        var resolved = new List<(PricingAnalysisApproach Approach, Guid MethodId)>(selections.Count);
+
+        foreach (var selection in selections)
+        {
+            var approach = _approaches.FirstOrDefault(a => a.Id == selection.ApproachId);
+
+            if (approach is null)
+                throw new NotFoundException("PricingAnalysisApproach", selection.ApproachId);
+
+            if (approach.Methods.All(m => m.Id != selection.MethodId))
+                throw new NotFoundException("PricingAnalysisMethod", selection.MethodId);
+
+            resolved.Add((approach, selection.MethodId));
+        }
+
+        // The final approach must end up with a selected method — either one this payload selects,
+        // or one already selected from an earlier save. Checked before mutating so a rejected
+        // payload changes nothing.
+        var finalApproachHasMethod =
+            resolved.Any(r => r.Approach.Id == finalApproachId)
+            || finalApproach.Methods.Any(m => m.IsSelected);
+
+        RuleCheck.Valid()
+            .AddErrorIf(
+                !finalApproachHasMethod,
+                "Cannot select an approach that has no selected method.")
+            .ThrowIfInvalid();
+
+        // ── Apply ─────────────────────────────────────────────────────────────────
+        foreach (var (approach, methodId) in resolved)
+            approach.SelectMethod(methodId);
+
+        foreach (var approach in _approaches)
+        {
+            if (approach.Id == finalApproachId)
+                approach.Select();
+            else
+                approach.Unselect();
+        }
+
+        // The ONLY event-raising call in this operation.
+        SetFinalAppraisedValueInternal(finalApproach.ApproachValue);
+    }
+
+    /// <summary>
+    /// Single entry point for the method → approach → analysis rollup. Idempotent and null-safe:
+    /// every approach re-derives from its selected method, then FinalAppraisedValue re-derives from
+    /// the selected approach. Call this after ANY mutation that can change a MethodValue —
+    /// including recalculations and deletions.
+    /// </summary>
+    public void RecalculateRollup()
+    {
+        foreach (var approach in _approaches)
+            approach.SyncValueFromSelectedMethod();
+
+        RollUpFinalFromSelectedApproach();
+    }
+
+    /// <summary>
+    /// Rolls the selected approach's value up to <see cref="FinalAppraisedValue"/>. The second half
+    /// of <see cref="RecalculateRollup"/>, which is now its only caller — it was public while
+    /// UpdateApproach accepted a client-supplied ApproachValue and needed the roll-up without the
+    /// method re-sync that would have clobbered it. Approach values are always derived from the
+    /// selected method, so that path no longer exists.
+    /// <para>
+    /// An analysis with NO selected approach is left untouched — that is the manual final-value
+    /// entry path (<see cref="SetFinalValues"/> via UpdatePricingAnalysis), which must not be nulled
+    /// out. This mirrors <see cref="PricingAnalysisApproach.SyncValueFromSelectedMethod"/> at the
+    /// approach level. The (expensive) summary recompute + integration event fires only when the
+    /// rolled-up value actually changes.
+    /// </para>
+    /// </summary>
+    private void RollUpFinalFromSelectedApproach()
+    {
+        var selected = _approaches.FirstOrDefault(a => a.IsSelected);
+
+        // No selected approach (manual final-value entry path), or the selected approach has no
+        // derivable value yet (its selected method is blank): leave FinalAppraisedValue untouched
+        // rather than nulling a manually-set or previously-computed figure — which would drop the
+        // group's contribution to 0. Explicit selection (SelectApproach) still clears via
+        // SetFinalAppraisedValueInternal directly when the user deliberately switches approach.
+        if (selected?.ApproachValue is null)
+            return;
+
+        // Only fire the (expensive) summary recompute + integration event when the value changes.
+        if (FinalAppraisedValue == selected.ApproachValue)
+            return;
+
+        SetFinalAppraisedValueInternal(selected.ApproachValue);
+    }
+
     private void SetFinalAppraisedValueInternal(decimal? value)
     {
         FinalAppraisedValue = value;
@@ -330,11 +451,13 @@ public class PricingAnalysis : Aggregate<Guid>
         foreach (var a in source.Approaches)
             clone._approaches.Add(PricingAnalysisApproach.CloneForAnalysis(a, clone.Id, propertyIdMap));
 
-        // Trigger ValuationAnalyses recalc if a final value carries over. The handler subscribes
-        // to AppraisalFinalValuesChangedEvent and sums all PricingAnalyses.FinalAppraisedValue
-        // for the appraisal — emitting on every cloned PA with a non-null value backfills the total.
-        if (clone.FinalAppraisedValue.HasValue)
-            clone.AddDomainEvent(new AppraisalFinalValuesChangedEvent(newPropertyGroupId));
+        // Deliberately does NOT raise AppraisalFinalValuesChangedEvent. That event dispatches
+        // PRE-save (DispatchDomainEventInterceptor), when this clone is still Added and invisible to
+        // the SQL sum in the summary handler — emitting here wrote AppraisedValue = 0 on CI copy, and
+        // fired N times for N groups. The ValuationAnalyses summary is instead recomputed ONCE,
+        // POST-save, by AppraisalCreationService via AppraisalValuationSummaryService.RecomputeAsync.
+        // FinalAppraisedValue still carries forward verbatim (set in the initializer above, bypassing
+        // SetFinalAppraisedValueInternal).
 
         return clone;
     }
