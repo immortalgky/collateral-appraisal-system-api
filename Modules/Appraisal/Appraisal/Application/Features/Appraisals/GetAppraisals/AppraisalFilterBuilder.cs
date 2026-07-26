@@ -51,6 +51,8 @@ internal static class AppraisalFilterBuilder
             AddMultiValueFilter(conditions, parameters, filter.AppraisalType, "AppraisalType", "@AppraisalTypes");
             AddMultiValueFilter(conditions, parameters, filter.SlaStatus, "SLAStatus", "@SlaStatuses");
             AddMultiValueFilter(conditions, parameters, filter.AssignmentType, "AssignmentType", "@AssignmentTypes");
+            AddMultiValueFilter(conditions, parameters, filter.Purpose, "Purpose", "@Purposes");
+            AddPropertyTypeFilter(conditions, parameters, filter.PropertyType);
 
             // Exact match filters
             if (!string.IsNullOrWhiteSpace(filter.AssigneeUserId))
@@ -122,12 +124,6 @@ internal static class AppraisalFilterBuilder
                 parameters.Add("AppraisalNumber", filter.AppraisalNumber.Trim());
             }
 
-            if (!string.IsNullOrWhiteSpace(filter.Purpose))
-            {
-                conditions.Add("Purpose = @Purpose");
-                parameters.Add("Purpose", filter.Purpose);
-            }
-
             if (!string.IsNullOrWhiteSpace(filter.SubDistrict))
             {
                 conditions.Add("SubDistrict LIKE '%' + @SubDistrict + '%'");
@@ -182,6 +178,42 @@ internal static class AppraisalFilterBuilder
             conditions.Add($"{columnName} IN {paramName}");
             parameters.Add(paramName.TrimStart('@'), values);
         }
+    }
+
+    /// <summary>
+    /// Matches appraisals that carry at least one collateral of the given type(s).
+    ///
+    /// The type lives in two different places depending on how the appraisal was created, and both
+    /// must be searched or block appraisals silently disappear from the results:
+    ///   • Normal appraisals → appraisal.AppraisalProperties.PropertyType (N rows per appraisal).
+    ///   • Block appraisals  → appraisal.Projects.ProjectType (1:1 with the appraisal). Blocks have
+    ///     NO AppraisalProperties rows at all, so the property-side subquery alone misses them.
+    /// ProjectType codes ("U"/"LB"/"L") are a subset of the PropertyType codes and share the same
+    /// wire format (see Domain/Projects/ProjectType.cs), so no translation is needed.
+    /// </summary>
+    private static void AddPropertyTypeFilter(
+        List<string> conditions, DynamicParameters parameters, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return;
+
+        var values = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (values.Length == 0) return;
+
+        // Written as `Id IN (subquery)` rather than a correlated EXISTS on purpose:
+        // AppraisalProperties also has an `Id` column, so inside an EXISTS body an unqualified `Id`
+        // would bind to the inner table, and the outer query (SELECT * FROM appraisal.vw_AppraisalList)
+        // has no alias to qualify with. On the left of IN, `Id` is unambiguously the outer view's column.
+        // The two sources are unioned into one derived table so @PropertyTypes appears exactly
+        // once — a repeated list parameter would depend on Dapper expanding every occurrence.
+        conditions.Add(
+            """
+            Id IN (SELECT t.AppraisalId
+                   FROM (SELECT ap.AppraisalId, ap.PropertyType AS Code FROM appraisal.AppraisalProperties ap
+                         UNION ALL
+                         SELECT pr.AppraisalId, pr.ProjectType FROM appraisal.Projects pr) t
+                   WHERE t.Code IN @PropertyTypes)
+            """);
+        parameters.Add("PropertyTypes", values);
     }
 
     private static void AddDateRangeFilter(

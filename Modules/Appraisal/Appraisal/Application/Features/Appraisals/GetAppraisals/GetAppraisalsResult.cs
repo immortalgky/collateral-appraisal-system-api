@@ -31,6 +31,9 @@ public record AppraisalDto
     public DateTime? SLADueDate { get; init; }
     public string? SLAStatus { get; init; }
     public int PropertyCount { get; init; }
+
+    /// <summary>Distinct property type codes on this appraisal, comma-joined (e.g. "B, L, LB").</summary>
+    public string? PropertyTypes { get; init; }
     public DateTime? CreatedAt { get; init; }
     public decimal? AppraisalValue { get; init; }
 
