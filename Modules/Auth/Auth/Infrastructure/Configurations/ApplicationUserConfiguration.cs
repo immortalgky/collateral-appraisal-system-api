@@ -30,6 +30,10 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
         builder.Property(u => u.AoCode)
             .HasMaxLength(10);
 
+        // Bank staff employee id (fed to the legacy result feed as InternalValuerCode).
+        builder.Property(u => u.EmployeeId)
+            .HasMaxLength(50);
+
         builder.Property(u => u.AuthSource)
             .HasMaxLength(20)
             .IsRequired()

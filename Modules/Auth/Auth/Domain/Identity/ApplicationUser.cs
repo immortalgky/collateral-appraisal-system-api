@@ -10,6 +10,10 @@ public class ApplicationUser : IdentityUser<Guid>
     public Guid? CompanyId { get; set; }
     public string AuthSource { get; set; } = AuthSources.Local;
     public string? AoCode { get; set; }
+
+    /// <summary>Bank staff employee id. Surfaced to the legacy (AS400) result feed as InternalValuerCode.
+    /// Maintained manually or via LDAP sync (that population is a separate follow-up).</summary>
+    public string? EmployeeId { get; set; }
     public List<UserPermission> Permissions { get; set; } = default!;
 
     /// <summary>Whether the account is allowed to sign in. Defaults to true.</summary>
