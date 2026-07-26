@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
+<!-- PDF page-margin directives read by PuppeteerPdfRenderer: the summary forms use a
+     narrower 5mm margin on all four sides instead of the 15mm default, so the wide tables gain
+     usable width and the form starts near the paper edge. They MUST stay in this root, not in
+     partials/summary-head — appraisal-book.html shares that partial and must keep the 15mm
+     default.
+     pdf-margin-x:5mm -->
+<!-- pdf-margin-y:5mm -->
   <meta charset="UTF-8"/>
   <title>สรุปรายงานการประเมินราคาทรัพย์สิน – เครื่องจักร</title>
   <style>{{ include 'partials/summary-styles' }}</style>
@@ -15,6 +22,9 @@
       <div class="kv"><span class="k">ผู้ประเมินราคา</span><span class="v">{{ model.appraiser }}</span></div>
       <div class="kv"><span class="k">วงเงินสินเชื่อ</span><span class="v">{{ if model.loan_value; model.loan_value | math.format "N2"; else; "-"; end }} บาท</span></div>
     </div>
+    {{ if model.has_prev_appraisal }}
+    <div class="kv"><span class="k">ราคาประเมินเดิม</span><span class="v">{{ if model.old_appraisal_value; model.old_appraisal_value | math.format "N2"; else; "-"; end }}</span></div>
+    {{ end }}
   </div>
 
   <!-- ════ COLLATERAL TABLE (5 cols; machine: area/unit + price-per-unit blank per FSD) ════ -->
@@ -55,7 +65,7 @@
   </table>
 
   <!-- ════ TOTALS ════ -->
-  <table class="totals">
+  <table class="totals grid-aligned">
     <tr>
       <th class="tl" scope="row">รวมราคาประเมินทรัพย์สินเป็นเงินทั้งสิ้น</th>
       <td class="tv">{{ if model.total_appraisal_value; model.total_appraisal_value | math.format "N2"; else; "-"; end }}</td>

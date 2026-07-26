@@ -154,6 +154,10 @@ table.grid tr.grp-first td { border-bottom:0; }
 table.grid tr.cont td { border-top:0; border-bottom:0; }
 /* Group subtotal renders as its own bordered box. */
 table.grid tr.grp-total td { border:1px solid #000; background:#f2f2f2; }
+/* Under-construction split: sub-labels for the two ราคาประเมิน columns, carried as a body row
+   directly above the building block rather than a second header row — land sits above it and
+   colspans the pair. Centred + bold so it reads as a header despite living in the tbody. */
+table.grid tr.uc-head td { text-align:center; font-weight:700; padding:2px 5px; }
 .ctr { text-align:center; }
 /* CSS-drawn checkbox: a square outline, with a check mark when .on. Renders crisply
    in the PDF regardless of the Thai font's ballot-box glyphs. */
@@ -164,8 +168,15 @@ table.grid tr.grp-total td { border:1px solid #000; background:#f2f2f2; }
 table.totals { width:100%; border-collapse:collapse; font-size:8.5pt; margin-top:-1px; }
 table.totals td, table.totals th { border:1px solid #000; padding:3px 6px; }
 table.totals td.tl, table.totals th.tl { text-align:right; font-weight:600; }
-table.totals td.tv { text-align:right; width:150px; font-weight:700; }
+table.totals td.tv { text-align:right; width:185px; font-weight:700; }
 table.totals td.tt { text-align:right; font-style:italic; color:#333; }
+/* .grid-aligned: the totals block that sits directly under a collateral .grid (summary
+   land&building / condo / machine). 100px = the grid's last column (ราคาประเมิน) width, so the
+   label|value divider lines up with the grid's ราคาต่อหน่วย|ราคาประเมิน border instead of
+   sitting 85px further left. Both tables are width:100% in the same container, so matching the
+   column width is enough to match the divider position. Section totals (income / leasehold /
+   profit-rent / sale-grid / WQS) keep the wider 185px — their values carry a " บาท" suffix. */
+table.totals.grid-aligned td.tv { width:100px; }
 
 /* Committee table: blank signature line above the printed position. */
 .sign-line { border-bottom:1px solid #000; height:20px; margin:2px 18px 3px; }
