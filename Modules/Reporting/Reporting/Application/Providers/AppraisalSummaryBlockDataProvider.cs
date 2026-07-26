@@ -161,6 +161,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
                 u.SellingPrice,
                 u.Floor,
                 u.TowerName,
+                u.CondoRegistrationNumber,
                 u.RoomNumber,
                 up.TotalAppraisalValueRounded  AS AppraisalValue,
                 up.StandardPrice               AS PricePerSqm,
@@ -309,6 +310,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
                     Sequence       = u.SequenceNumber,
                     Floor          = u.Floor,
                     TowerName      = u.TowerName,
+                    CondoRegistrationNumber = u.CondoRegistrationNumber,
                     RoomNumber     = u.RoomNumber,
                     ModelType      = u.ModelType,
                     UsableArea     = u.UsableArea,
@@ -659,6 +661,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
         // Condo-side
         public int?     Floor           { get; init; }
         public string?  TowerName       { get; init; }
+        public string?  CondoRegistrationNumber { get; init; }
         public string?  RoomNumber      { get; init; }
         // Prices (from LEFT JOIN ProjectUnitPrices)
         public decimal? AppraisalValue  { get; init; }
