@@ -21,7 +21,6 @@ public class UpdateApproachEndpoint : ICarterModule
                     var command = new UpdateApproachCommand(
                         id,
                         approachId,
-                        request.ApproachValue,
                         request.Weight);
 
                     var result = await sender.Send(command, cancellationToken);
@@ -36,7 +35,7 @@ public class UpdateApproachEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update approach")
-            .WithDescription("Updates the value and/or weight of an existing approach.")
+            .WithDescription("Updates the weight of an existing approach. The approach's VALUE cannot be set here — it is always derived from the approach's selected method.")
             .WithTags("PricingAnalysis");
     }
 }

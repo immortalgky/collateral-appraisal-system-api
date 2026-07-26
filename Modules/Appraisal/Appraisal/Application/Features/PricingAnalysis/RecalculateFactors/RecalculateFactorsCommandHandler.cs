@@ -53,6 +53,10 @@ public class RecalculateFactorsCommandHandler(
             calculation.SetFactorAdjustment(totalAdjustmentPct, null);
         }
 
+        // Recalculate may have changed the selected method's value — roll it up so approach and
+        // appraisal totals do not go stale (null-safe, idempotent).
+        pricingAnalysis.RecalculateRollup();
+
         await pricingAnalysisRepository.UpdateAsync(pricingAnalysis, cancellationToken);
 
         return new RecalculateFactorsResult(

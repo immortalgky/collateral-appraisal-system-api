@@ -108,6 +108,16 @@ public interface IPricingAnalysisRepository : IRepository<PricingAnalysis, Guid>
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns the ids of every PricingAnalysis holding a MachineCostItem anchored to
+    /// <paramref name="appraisalPropertyId"/> (items → methods → approaches → analysis).
+    /// MachineCostItems carries AppraisalPropertyId with no FK, so property deletion must
+    /// find and clear these rows actively. Returns an empty list when nothing references it.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> GetAnalysisIdsByMachineCostPropertyAsync(
+        Guid appraisalPropertyId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Deletes RoomIncomeRef PricingAnalyses whose HostMethodId == <paramref name="hostMethodId"/>
     /// AND AnchorRefKey is NOT in <paramref name="keepCodes"/>.
     /// Used by PricingReferenceCleanupService when room types are removed from a Method01 save.

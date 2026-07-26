@@ -38,25 +38,13 @@ public class SaveMachineCostItemsCommandHandler(
 
         // Mirror the committed total into the shared PricingFinalValue (single source of truth).
         // Land area and building value are not applicable for MachineryCost.
-        var totalFmv = method.MachineCostItems.Sum(i => i.FairMarketValue ?? 0);
-        if (method.FinalValue is null)
-            method.SetFinalValue(PricingFinalValue.Create(method.Id, totalFmv, totalFmv));
-        else
-            method.FinalValue.UpdateFinalValue(totalFmv, totalFmv);
+        method.MirrorMachineCostTotalToFinalValue();
         method.FinalValue!.SetFinalValueAdjusted(command.FinalValueAdjusted);
         method.FinalValue.SetAppraisalPrice(command.AppraisalPrice);
+        var totalFmv = method.FinalValue.FinalValue;
 
-        // Propagate value up if method is selected
-        if (method.IsSelected && method.MethodValue.HasValue)
-        {
-            var parentApproach = pricingAnalysis.Approaches
-                .First(a => a.Methods.Any(m => m.Id == method.Id));
-
-            parentApproach.SetValue(method.MethodValue.Value);
-
-            if (parentApproach.IsSelected)
-                pricingAnalysis.SetFinalValues(parentApproach.ApproachValue!.Value);
-        }
+        // Roll the recalculated method value up through approach → analysis (null-safe, idempotent).
+        pricingAnalysis.RecalculateRollup();
 
         return new SaveMachineCostItemsResult(
             command.PricingAnalysisId,

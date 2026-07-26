@@ -11,6 +11,11 @@
   table-header-group on every page the table spans AND reserves its height, so the header
   bar prints on all summary pages without content sliding underneath it.
 -->
+<!-- NOTE: the pdf-margin-x directive does NOT belong in this partial. It lives in the five
+     appraisal-summary-*.html ROOTS instead, because appraisal-book.html also reaches this
+     partial (via summary-{standard,block,construction}-body) and the renderer scans the whole
+     rendered document for the first directive — putting it here silently narrowed every page
+     of the book, cover to appendix, from 15mm to 5mm. -->
 <!-- ════ HEADER (repeats every page via <thead>) ════ -->
 <table class="running">
   <thead><tr><td>{{ include 'partials/summary-head-bar' }}</td></tr></thead>

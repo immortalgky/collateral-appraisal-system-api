@@ -16,6 +16,12 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- Lets the Integration test project reach internal helpers (e.g. BuildingInsuranceCalculator)
+             for the read-vs-summary insurance consistency test. -->
+        <InternalsVisibleTo Include="Integration"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <Folder Include="Infrastructure\Migrations\"/>
     </ItemGroup>
 

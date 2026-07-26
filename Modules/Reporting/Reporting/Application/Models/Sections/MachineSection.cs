@@ -146,12 +146,6 @@ public sealed class MachineSection
     /// </summary>
     public string? Other { get; init; }
 
-    /// <summary>
-    /// รายละเอียดหลักประกัน (narrative) — no dedicated source column on
-    /// MachineryAppraisalSummaries; deferred. // no source
-    /// </summary>
-    public string? CollateralDetailNarrative { get; init; }
-
     // ── Per-machine rows — appraisal.MachineryAppraisalDetails ───────────────────
 
     /// <summary>
@@ -241,16 +235,6 @@ public sealed class MachineRow
     /// สภาพเครื่องจักร — Source: MachineryAppraisalDetails.MachineCondition (nvarchar 100).
     /// </summary>
     public string? MachineCondition { get; init; }
-
-    /// <summary>
-    /// มูลค่าทดแทน — Source: MachineryAppraisalDetails.ReplacementValue (decimal 18,2).
-    /// </summary>
-    public decimal? ReplacementValue { get; init; }
-
-    /// <summary>
-    /// มูลค่าตามสภาพ — Source: MachineryAppraisalDetails.ConditionValue (decimal 18,2).
-    /// </summary>
-    public decimal? ConditionValue { get; init; }
 
     /// <summary>หมายเหตุ — Source: MachineryAppraisalDetails.Remark (nvarchar 4000).</summary>
     public string? Remark { get; init; }

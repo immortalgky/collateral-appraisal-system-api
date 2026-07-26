@@ -52,7 +52,7 @@
       {
         "Name": "File",
         "Args": {
-          "path": "/var/log/collateral-appraisal/log-.txt",
+          "path": "logs/log-.txt",
           "rollingInterval": "Day",
           "retainedFileCountLimit": 30,
           "formatter": "Serilog.Formatting.Compact.CompactJsonFormatter, Serilog.Formatting.Compact"

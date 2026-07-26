@@ -1,5 +1,6 @@
 using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Appraisals.Income.MethodDetails;
+using Appraisal.Domain.Services;
 using System.Text.Json;
 
 namespace Appraisal.Application.Services;
@@ -12,7 +13,9 @@ namespace Appraisal.Application.Services;
 /// All methods use EF's RemoveRange on the tracked DbContext — no SaveChanges call;
 /// the outer handler's transaction commits everything together.
 /// </summary>
-public class PricingReferenceCleanupService(IPricingAnalysisRepository repository)
+public class PricingReferenceCleanupService(
+    IPricingAnalysisRepository repository,
+    PricingCalculationServiceResolver calculationServiceResolver)
 {
     /// <summary>
     /// Deletes the subject PricingAnalysis for a PropertyGroup together with all
@@ -51,7 +54,8 @@ public class PricingReferenceCleanupService(IPricingAnalysisRepository repositor
 
     /// <summary>
     /// Deletes all MachineryCostRef reference PricingAnalyses anchored to the given property
-    /// (AppraisalProperty = machine detail).
+    /// (AppraisalProperty = machine detail), then removes any MachineCostItem rows for that
+    /// property and recalculates the owning methods' totals.
     /// </summary>
     public async Task CleanupForPropertyAsync(Guid propertyId, CancellationToken ct = default)
     {
@@ -60,6 +64,54 @@ public class PricingReferenceCleanupService(IPricingAnalysisRepository repositor
             propertyId,
             anchorRefKey: null,
             ct);
+
+        await CleanupMachineCostItemsForPropertyAsync(propertyId, ct);
+    }
+
+    /// <summary>
+    /// Removes MachineCostItems anchored to a deleted property and re-derives the owning
+    /// method's totals. MachineCostItems has no FK to AppraisalProperties, so without this
+    /// the rows orphan and keep inflating the method's stored PricingFinalValue.
+    /// Mirrors the recalculation sequence in SaveMachineCostItemsCommandHandler.
+    /// </summary>
+    private async Task CleanupMachineCostItemsForPropertyAsync(Guid propertyId, CancellationToken ct)
+    {
+        var analysisIds = await repository.GetAnalysisIdsByMachineCostPropertyAsync(propertyId, ct);
+
+        foreach (var analysisId in analysisIds)
+        {
+            var analysis = await repository.GetByIdWithAllDataAsync(analysisId, ct);
+            if (analysis is null) continue;
+
+            var affectedMethods = analysis.Approaches
+                .SelectMany(a => a.Methods)
+                .Where(m => m.MachineCostItems.Any(i => i.AppraisalPropertyId == propertyId))
+                .ToList();
+
+            foreach (var method in affectedMethods)
+            {
+                var itemIds = method.MachineCostItems
+                    .Where(i => i.AppraisalPropertyId == propertyId)
+                    .Select(i => i.Id)
+                    .ToList();
+
+                // Cascade + required FK: orphaned items are deleted by EF on save.
+                foreach (var itemId in itemIds)
+                    method.RemoveMachineCostItem(itemId);
+
+                calculationServiceResolver.Resolve(method.MethodType)?.Recalculate(method);
+
+                // Mirror the remaining total into the shared PricingFinalValue.
+                // FinalValueAdjusted / AppraisalPrice are user-authored — left untouched.
+                method.MirrorMachineCostTotalToFinalValue();
+            }
+
+            // Roll the reduced method total up through approach → analysis so the appraisal-level
+            // ValuationAnalyses summary follows (null-safe, idempotent). For a PropertyGroup analysis
+            // this fires AppraisalFinalValuesChangedEvent; for a reference analysis it is a harmless
+            // no-op event-wise.
+            analysis.RecalculateRollup();
+        }
     }
 
     /// <summary>

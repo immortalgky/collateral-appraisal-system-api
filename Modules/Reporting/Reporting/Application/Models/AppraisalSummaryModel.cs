@@ -124,6 +124,23 @@ public sealed class AppraisalSummaryModel
     /// <summary>Field 22 — Forced sale value (70% of total appraisal value by convention).</summary>
     public decimal? ForcedSaleValue { get; init; }
 
+    // ── Under-construction split (land & building summary only) ──────────────────
+    // When some property carries a construction inspection below 100%, the ราคาประเมิน column
+    // splits into เมื่อแล้วเสร็จ 100% (the figures above) and ตามสภาพปัจจุบัน (the two below),
+    // and the totals block grows the current-condition rows. Left false/null by every other
+    // summary provider, which keeps the single-value layout.
+
+    /// <summary>True when the report renders the 100% / current-condition split.</summary>
+    public bool HasUnderConstruction { get; init; }
+
+    /// <summary>รวมมูลค่าทรัพย์สินตามสภาพปัจจุบัน — <see cref="TotalAppraisalValue"/> less the
+    /// not-yet-built portion of every under-construction building.</summary>
+    public decimal? CurrentConditionTotal { get; init; }
+
+    /// <summary>ราคาบังคับขายตามสภาพปัจจุบัน — <see cref="ForcedSaleValue"/> scaled by the same
+    /// ratio, so the two forced-sale figures share one rate.</summary>
+    public decimal? CurrentConditionForcedSaleValue { get; init; }
+
     /// <summary>Field 18 — Overall condition (from AppraisalDecisions.Condition).</summary>
     public string? Condition { get; init; }
 
@@ -529,8 +546,14 @@ public sealed class SummaryGroupRow
     // Populated only for the land-building summary. Condo/Machine leave these default
     // and keep using the flat fields above.
 
-    /// <summary>True when this group was valued by the Cost approach (per-item breakdown shown).</summary>
-    public bool IsCostApproach { get; init; }
+    /// <summary>
+    /// True when the group renders the per-item breakdown — ☑ ที่ดิน / ☑ สิ่งปลูกสร้าง /
+    /// ส่วนพัฒนา as separate valued rows — instead of one combined
+    /// ☑ ที่ดินพร้อมสิ่งปลูกสร้าง row. Requires the Cost approach (the only one storing
+    /// per-component values) on a group NOT entered as a single LandAndBuilding / Leasehold
+    /// property. A land-only cost group still uses this layout; it simply has no building rows.
+    /// </summary>
+    public bool SplitLandAndBuilding { get; init; }
 
     /// <summary>True when the group contains land (renders ☑ ที่ดิน).</summary>
     public bool HasLand { get; init; }
@@ -580,8 +603,26 @@ public sealed class SummaryGroupRow
     /// <summary>Development/improvement items (ส่วนพัฒนา; IsBuilding=0). Cost approach only.</summary>
     public IReadOnlyList<SummaryItemRow> DevelopmentItems { get; init; } = [];
 
+    // ── Per-property-type subtotals (รวมมูลค่าที่ดิน / รวมมูลค่าสิ่งปลูกสร้าง) ──────────────
+    // Rendered only on a SINGLE-group split report; multi-group keeps the group subtotal instead.
+
+    /// <summary>รวมมูลค่าที่ดิน — the land block's subtotal (PricingFinalValues.LandValue).</summary>
+    public decimal? LandSubtotal { get; init; }
+
+    /// <summary>รวมมูลค่าสิ่งปลูกสร้าง — building lines PLUS ส่วนพัฒนา lines, matching the
+    /// reference form where the two are totalled together.</summary>
+    public decimal? BuildingSubtotal { get; init; }
+
+    /// <summary>รวมมูลค่าสิ่งปลูกสร้าง at the current construction progress. Same as
+    /// <see cref="BuildingSubtotal"/> when nothing in the group is under construction.</summary>
+    public decimal? BuildingSubtotalCurrent { get; init; }
+
     /// <summary>Group total value (รวมมูลค่าทรัพย์สินกลุ่ม). Also the combined value for market groups.</summary>
     public decimal? GroupTotal { get; init; }
+
+    /// <summary>Group total at the current construction progress — <see cref="GroupTotal"/> less the
+    /// not-yet-built portion of its building lines.</summary>
+    public decimal? GroupTotalCurrent { get; init; }
 }
 
 /// <summary>One line item in a cost-approach group breakdown (a building or development item).</summary>
@@ -590,8 +631,16 @@ public sealed class SummaryItemRow
     /// <summary>Display description, e.g. "อาคารโรงงานชั้นเดียว พื้นที่ใช้สอย 1,800 ตารางเมตร อายุ 9 ปี".</summary>
     public string? Description { get; init; }
 
-    /// <summary>Appraised value (PriceAfterDepreciation).</summary>
+    /// <summary>Appraised value (PriceAfterDepreciation) — the value at 100% completion.</summary>
     public decimal? Value { get; init; }
+
+    /// <summary>
+    /// Value at the current construction progress = <see cref="Value"/> × the owning property's
+    /// inspection percent. Equals <see cref="Value"/> when the property has no inspection (complete),
+    /// and null when the work has not started (renders as "-"). Only read when the report shows the
+    /// เมื่อแล้วเสร็จ 100% / ตามสภาพปัจจุบัน split.
+    /// </summary>
+    public decimal? CurrentValue { get; init; }
 }
 
 /// <summary>One committee approver row (fields 45–50).</summary>
