@@ -9,7 +9,9 @@
     Produces  <OutDir>/CAS-<Version>.zip  containing:
         api/        framework-dependent publish of Bootstrapper/Api
         web/        Vite production build of the frontend repo
-        database/   publish of the DbUp migration tool (Database.csproj)
+        db/         plain .sql deployment scripts for the DBA (no exe needed)
+        database/   publish of the DbUp migration tool (Database.csproj) — the
+                    optional fallback; omit with -SkipDbTool
 
     Framework-dependent publish is portable: build on macOS, run on the Windows
     server (which needs the ASP.NET Core 9 Hosting Bundle installed).
@@ -17,13 +19,19 @@
 .EXAMPLE
     pwsh deploy/Publish.ps1
     pwsh deploy/Publish.ps1 -Version 2026.06.24-1 -FrontendRepo ../collateral-appraisal-system-app
+    pwsh deploy/Publish.ps1 -FrontendMode uat1        # build the SPA against .env.uat1
 #>
 [CmdletBinding()]
 param(
     [string]$Version      = (Get-Date -Format 'yyyyMMdd-HHmmss'),
     [string]$FrontendRepo = '../collateral-appraisal-system-app',
     [string]$OutDir       = './dist-artifacts',
-    [string]$Configuration = 'Release'
+    [string]$Configuration = 'Release',
+    # Vite mode -> which .env.<mode> file supplies VITE_API_URL. The SPA bakes the
+    # API URL in at BUILD time, so this must match the target environment.
+    [string]$FrontendMode = 'production',
+    [switch]$SkipDbScripts,
+    [switch]$SkipDbTool
 )
 
 $ErrorActionPreference = 'Stop'
@@ -51,21 +59,50 @@ Invoke-Step "Publish backend (Api)" {
 }
 
 # --- Database tool (DbUp: EF migrations + views/procs) -------------------
-Invoke-Step "Publish database tool" {
-    dotnet publish Database/Database.csproj -c $Configuration -o $dbOut --nologo
+if ($SkipDbTool) {
+    Write-Host "==> Publish database tool (skipped)" -ForegroundColor Yellow
+} else {
+    Invoke-Step "Publish database tool" {
+        dotnet publish Database/Database.csproj -c $Configuration -o $dbOut --nologo
+    }
+}
+
+# --- Database SQL scripts (what the DBA actually runs) -------------------
+if ($SkipDbScripts) {
+    Write-Host "==> Generate database SQL scripts (skipped)" -ForegroundColor Yellow
+} else {
+    Invoke-Step "Generate database SQL scripts" {
+        & "$PSScriptRoot/New-DbDeploymentScripts.ps1" -Version $Version -OutDir (Join-Path $stage 'db')
+    }
 }
 
 # --- Frontend ------------------------------------------------------------
+# The SPA reads VITE_API_URL at BUILD time (src/config/index.ts), so the env file
+# for the target environment must exist and carry the public API URL. A missing
+# value silently falls back to http://localhost:3000/api and the deployed SPA
+# cannot reach the backend — fail the build instead.
 $feFull = (Resolve-Path $FrontendRepo).Path
-Invoke-Step "Build frontend (Vite)" {
+$envFile = Join-Path $feFull ".env.$FrontendMode"
+if (-not (Test-Path $envFile)) {
+    throw "Missing $envFile. Create it on the build box with VITE_API_URL / VITE_APP_URL for the target environment (see .env.example), or pass -FrontendMode <name>."
+}
+if (-not (Select-String -Path $envFile -Pattern '^\s*VITE_API_URL\s*=\s*\S' -Quiet)) {
+    throw "VITE_API_URL is not set in $envFile — the SPA would fall back to http://localhost:3000/api."
+}
+Invoke-Step "Build frontend (Vite, mode=$FrontendMode)" {
     Push-Location $feFull
     try {
-        npm ci
-        npm run build      # outputs ./dist
+        # The repo enforces pnpm (package.json preinstall: only-allow pnpm).
+        pnpm install --frozen-lockfile
+        pnpm exec tsc -b                            # same type-check gate as `pnpm build`
+        pnpm exec vite build --mode $FrontendMode   # --mode selects .env.<mode>
     } finally { Pop-Location }
 }
 $feDist = Join-Path $feFull 'dist'
 if (-not (Test-Path $feDist)) { throw "Frontend build produced no dist/ at $feDist" }
+if (-not (Test-Path (Join-Path $feDist 'web.config'))) {
+    Write-Warning "dist/web.config missing — the IIS SPA-fallback rewrite will not be deployed."
+}
 Copy-Item $feDist $webOut -Recurse
 
 # --- Strip config that must NEVER ship (server owns its own copy) --------
@@ -81,5 +118,10 @@ Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
 
 Write-Host ""
 Write-Host "Built $zip" -ForegroundColor Green
-Write-Host "  contains: api/  web/  database/   (version $Version)"
-Write-Host "Next: copy this zip to C:\Deploy\temp on each app server and run Deploy-App.ps1 / Deploy-Web.ps1."
+Write-Host "  contains: api/  web/  db/$(if (-not $SkipDbTool) { '  database/' })   (version $Version)"
+Write-Host ""
+Write-Host "Next:"
+Write-Host "  1. Copy this zip to C:\Deploy\temp on each app server and expand it."
+Write-Host "  2. Give db\ to the DBA — run 00_Prepare, 01_EF_01..11, 02, 03 (in that order),"
+Write-Host "     with Invoke-SqlDeploy.ps1, sqlcmd or SSMS. Then run 99_Verify.sql."
+Write-Host "  3. Deploy-App.ps1 / Deploy-Web.ps1 on each node, one node at a time."
