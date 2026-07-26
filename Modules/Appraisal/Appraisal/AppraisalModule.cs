@@ -82,6 +82,7 @@ public static class AppraisalModule
         services.AddScoped<PricingPropertyDataService>();
         services.AddScoped<PricingReferenceCleanupService>();
         services.AddScoped<ForceSaleRateResolver>();
+        services.AddScoped<AppraisalValuationSummaryService>();
 
         // Register Domain Services
         // IncomeCalculationService is scoped so it can carry ILogger (injected by DI).
