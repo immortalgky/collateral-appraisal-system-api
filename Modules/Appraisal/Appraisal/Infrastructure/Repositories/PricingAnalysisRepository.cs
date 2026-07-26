@@ -275,6 +275,29 @@ public class PricingAnalysisRepository(AppraisalDbContext dbContext)
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<Guid>> GetAnalysisIdsByMachineCostPropertyAsync(
+        Guid appraisalPropertyId,
+        CancellationToken cancellationToken = default)
+    {
+        // MachineCostItem has no navigation to its method, so walk the keys manually:
+        // items → PricingMethodId → ApproachId → PricingAnalysisId.
+        var methodIds = await _dbContext.MachineCostItems
+            .Where(i => i.AppraisalPropertyId == appraisalPropertyId)
+            .Select(i => i.PricingMethodId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        if (methodIds.Count == 0) return [];
+
+        return await _dbContext.PricingAnalysisApproaches
+            .Where(a => _dbContext.PricingAnalysisMethods
+                .Any(m => m.ApproachId == a.Id && methodIds.Contains(m.Id)))
+            .Select(a => a.PricingAnalysisId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task DeleteRoomRefsByHostMethodExceptCodesAsync(
         Guid hostMethodId,
         IReadOnlyCollection<string> keepCodes,
