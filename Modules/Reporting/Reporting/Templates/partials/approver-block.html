@@ -35,8 +35,12 @@
   <tr>
     <th style="width:55px;">อนุมัติ</th>
     <th style="width:55px;">ไม่อนุมัติ</th>
-    <th>รายชื่อคณะกรรมการ (ลงนาม)</th>
-    <th style="width:230px;">ความเห็นเพิ่มเติม</th>
+    <!-- Sized to its content (130px signature line + 10px gap + the position text) rather than
+         left auto: as the auto column it swallowed all the slack and left ความเห็นเพิ่มเติม —
+         free text, the column that actually needs room — pinned at 230px. The table is not
+         table-layout:fixed, so an unusually long position still widens this column. -->
+    <th style="width:250px;">รายชื่อคณะกรรมการ (ลงนาม)</th>
+    <th>ความเห็นเพิ่มเติม</th>
   </tr>
   {{ for a in model.approvers }}
   <tr class="cm-row">
