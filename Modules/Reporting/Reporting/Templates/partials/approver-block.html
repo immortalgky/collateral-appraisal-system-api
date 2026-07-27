@@ -49,7 +49,11 @@
     <td class="ctr"><span class="chk {{ if a.approved == true }}on{{ end }}"></span></td>
     <td class="ctr"><span class="chk {{ if a.approved == false }}on{{ end }}"></span></td>
     <td><div class="committee-member"><span class="nm-name">{{ a.name }}</span><span class="c-pos">{{ a.position }}</span></div></td>
-    <td>{{ a.comment }}</td>
+    <!-- Comments come straight off workflow.ApprovalVotes and are often null / blank; an empty
+         cell reads as "not filled in yet" on a signed-off form, so say it explicitly. Tested
+         against null AND "" rather than for mere truthiness: Scriban follows Liquid, where an
+         empty string is true. string.strip also catches whitespace-only comments. -->
+    <td>{{ cmt = a.comment | string.strip }}{{ if cmt == null || cmt == "" }}ไม่มีความเห็นเพิ่มเติม{{ else }}{{ cmt }}{{ end }}</td>
   </tr>
   {{ end }}
   <tr>
