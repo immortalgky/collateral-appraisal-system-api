@@ -159,11 +159,12 @@ internal static class LegacyResultMapper
     public static LegacyAppraisalResult MapCondo(
         LegacyAppraisalRow header, AssignmentRow? assignment, decimal? fee, ValuationRow? valuation, CollateralRow row)
     {
-        var valuer = SplitValuer(assignment, valuation);
+        var appraisalValue = valuation?.AppraisedValue ?? 0m;
+        var valuer = SplitValuer(assignment, appraisalValue, valuation?.ValuationDate);
 
         return BaseResult(header, fee, valuation, valuer) with
         {
-            AppraisalValue = valuation?.AppraisedValue ?? 0m,
+            AppraisalValue = appraisalValue,
             ForceSaleValue = valuation?.ForcedSaleValue ?? 0m,
             LandOffice = Str(row.LandOfficeName ?? row.CadLandOfficeName),
             LandValue = row.GroupLandValue ?? 0m,
@@ -194,11 +195,12 @@ internal static class LegacyResultMapper
         LegacyAppraisalRow header, AssignmentRow? assignment, decimal? fee, ValuationRow? valuation,
         CollateralRow? land, CollateralRow? building, decimal? groupLandValue)
     {
-        var valuer = SplitValuer(assignment, valuation);
+        var appraisalValue = valuation?.AppraisedValue ?? 0m;
+        var valuer = SplitValuer(assignment, appraisalValue, valuation?.ValuationDate);
 
         return BaseResult(header, fee, valuation, valuer) with
         {
-            AppraisalValue = valuation?.AppraisedValue ?? 0m,
+            AppraisalValue = appraisalValue,
             ForceSaleValue = valuation?.ForcedSaleValue ?? 0m,
             LandOffice = Str(land?.LandOfficeName ?? building?.LandOfficeName),
             LandValue = groupLandValue ?? 0m,
@@ -227,13 +229,14 @@ internal static class LegacyResultMapper
         LegacyAppraisalRow header, AssignmentRow? assignment, decimal? fee, ValuationRow? valuation,
         ProjectRow project, BlockUnitRow unit)
     {
-        var valuer = SplitValuer(assignment, valuation);
         var isCondo = ProjectType.IsCondoCode(project.ProjectType);
         var (rai, ngan, wa) = SqWaToRaiNganWa(unit.LandArea);
+        var appraisalValue = unit.TotalAppraisalValueRounded ?? valuation?.AppraisedValue ?? 0m;
+        var valuer = SplitValuer(assignment, appraisalValue, valuation?.ValuationDate);
 
         return BaseResult(header, fee, valuation, valuer) with
         {
-            AppraisalValue = unit.TotalAppraisalValueRounded ?? valuation?.AppraisedValue ?? 0m,
+            AppraisalValue = appraisalValue,
             ForceSaleValue = unit.ForceSellingPrice ?? valuation?.ForcedSaleValue ?? 0m,
             // Block insurance = the unit's coverage amount (falls back to appraisal-level fire insurance).
             BuildingValue = unit.CoverageAmount ?? valuation?.InsuranceValue ?? 0m,
@@ -303,12 +306,14 @@ internal static class LegacyResultMapper
         };
     }
 
-    private static ValuerSplit SplitValuer(AssignmentRow? assignment, ValuationRow? valuation)
+    // The internal/external valuation amount mirrors the result's AppraisalValue (per-unit for block),
+    // so the caller passes the resolved appraisal value rather than reading ValuationAnalyses directly.
+    private static ValuerSplit SplitValuer(AssignmentRow? assignment, decimal appraisalValue, DateTime? valuationDate)
     {
         if (assignment is null) return new ValuerSplit();
 
-        var value = valuation?.AppraisedValue ?? 0m;
-        var date = IsoDate(valuation?.ValuationDate);
+        var value = appraisalValue;
+        var date = IsoDate(valuationDate);
 
         if (string.Equals(assignment.AssignmentType, AssignmentType.External.Code, StringComparison.OrdinalIgnoreCase))
         {
