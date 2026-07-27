@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Carter;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
@@ -16,6 +18,14 @@ public record LegacyAppraisalResultRequest(
 
 public class GetLegacyAppraisalResultEndpoint : ICarterModule
 {
+    // The legacy (AS400) contract uses PascalCase property names and keeps nulls, unlike the API's
+    // global camelCase / omit-null policy. Serialize this endpoint's response with these options only.
+    private static readonly JsonSerializerOptions LegacyJsonOptions = new()
+    {
+        PropertyNamingPolicy = null, // PascalCase — use the DTO property names as-is
+        DefaultIgnoreCondition = JsonIgnoreCondition.Never, // keep nulls (e.g. Decorate: null)
+    };
+
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapPost("/api/v1/appraisals/result", async (
@@ -29,7 +39,8 @@ public class GetLegacyAppraisalResultEndpoint : ICarterModule
                 cancellationToken);
 
             // Always 200: the { ResultCode, ResultValue } envelope carries success (1) / not-found (0).
-            return Results.Ok(result);
+            // PascalCase, nulls kept — per the legacy contract (overrides the global camelCase policy).
+            return Results.Json(result, LegacyJsonOptions, statusCode: StatusCodes.Status200OK);
         })
         .WithName("GetLegacyAppraisalResult")
         .WithTags("Integration - Appraisal Results")
