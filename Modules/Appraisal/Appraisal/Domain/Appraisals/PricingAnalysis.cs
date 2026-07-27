@@ -531,4 +531,13 @@ public class PricingAnalysis : Aggregate<Guid>
     {
         Remark = remark;
     }
+
+    public void RemoveApproach(Guid approachId)
+    {
+        var approach = _approaches.FirstOrDefault(m => m.Id == approachId);
+        if (approach is null)
+            throw new InvalidOperationException($"Approach with ID {approachId} not found in pricing analysis.");
+
+        _approaches.Remove(approach);
+    }
 }
