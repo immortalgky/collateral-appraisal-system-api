@@ -159,13 +159,21 @@ internal static class LegacyResultMapper
     public static LegacyAppraisalResult MapCondo(
         LegacyAppraisalRow header, AssignmentRow? assignment, decimal? fee, ValuationRow? valuation, CollateralRow row)
     {
-        var appraisalValue = valuation?.AppraisedValue ?? 0m;
-        var valuer = SplitValuer(assignment, appraisalValue, valuation?.ValuationDate);
+        // Completed → use ValuationAnalyses (same as every other appraisal). Before completion (e.g. PMA)
+        // there is no real valuation yet, so use the keyed-in property prices.
+        var completed = IsCompleted(header.Status);
+        var appraisalValue = completed ? (valuation?.AppraisedValue ?? 0m) : (row.PropSellingPrice ?? 0m);
+        // Internal/External valuer fields are only meaningful once completed; leave them empty before that.
+        var valuer = completed ? SplitValuer(assignment, appraisalValue, valuation?.ValuationDate) : new ValuerSplit();
 
-        return BaseResult(header, fee, valuation, valuer) with
+        return BaseResult(header, assignment, fee, valuation, valuer) with
         {
             AppraisalValue = appraisalValue,
-            ForceSaleValue = valuation?.ForcedSaleValue ?? 0m,
+            ForceSaleValue = completed ? (valuation?.ForcedSaleValue ?? 0m) : (row.PropForcedSalePrice ?? 0m),
+            BuildingValue = completed ? (valuation?.InsuranceValue ?? 0m) : (row.PropBuildingInsurancePrice ?? 0m),
+            MarketValue = completed ? (header.MarketValue ?? 0m) : (row.PropSellingPrice ?? header.MarketValue ?? 0m),
+            MethodOfAppraisal = MapMethod(row.AppraisalMethod),
+            AppraisalValueWaOrM = row.GroupValuePerUnit ?? 0m,  // selected method's per-Wa/Sqm rate (usually cost only)
             LandOffice = Str(row.LandOfficeName ?? row.CadLandOfficeName),
             LandValue = row.GroupLandValue ?? 0m,
             LandNo = Str(row.LandNo),
@@ -195,13 +203,24 @@ internal static class LegacyResultMapper
         LegacyAppraisalRow header, AssignmentRow? assignment, decimal? fee, ValuationRow? valuation,
         CollateralRow? land, CollateralRow? building, decimal? groupLandValue)
     {
-        var appraisalValue = valuation?.AppraisedValue ?? 0m;
-        var valuer = SplitValuer(assignment, appraisalValue, valuation?.ValuationDate);
+        // Completed → use ValuationAnalyses (same as others). Before completion (e.g. PMA), no real
+        // valuation yet → use the keyed-in property prices (land row first, then building).
+        var propSelling = land?.PropSellingPrice ?? building?.PropSellingPrice;
+        var propForced = land?.PropForcedSalePrice ?? building?.PropForcedSalePrice;
+        var propInsurance = land?.PropBuildingInsurancePrice ?? building?.PropBuildingInsurancePrice;
+        var completed = IsCompleted(header.Status);
+        var appraisalValue = completed ? (valuation?.AppraisedValue ?? 0m) : (propSelling ?? 0m);
+        // Internal/External valuer fields are only meaningful once completed; leave them empty before that.
+        var valuer = completed ? SplitValuer(assignment, appraisalValue, valuation?.ValuationDate) : new ValuerSplit();
 
-        return BaseResult(header, fee, valuation, valuer) with
+        return BaseResult(header, assignment, fee, valuation, valuer) with
         {
             AppraisalValue = appraisalValue,
-            ForceSaleValue = valuation?.ForcedSaleValue ?? 0m,
+            ForceSaleValue = completed ? (valuation?.ForcedSaleValue ?? 0m) : (propForced ?? 0m),
+            BuildingValue = completed ? (valuation?.InsuranceValue ?? 0m) : (propInsurance ?? 0m),
+            MarketValue = completed ? (header.MarketValue ?? 0m) : (propSelling ?? header.MarketValue ?? 0m),
+            MethodOfAppraisal = MapMethod(land?.AppraisalMethod ?? building?.AppraisalMethod),
+            AppraisalValueWaOrM = (land?.GroupValuePerUnit ?? building?.GroupValuePerUnit) ?? 0m,
             LandOffice = Str(land?.LandOfficeName ?? building?.LandOfficeName),
             LandValue = groupLandValue ?? 0m,
             // Land row
@@ -231,10 +250,12 @@ internal static class LegacyResultMapper
     {
         var isCondo = ProjectType.IsCondoCode(project.ProjectType);
         var (rai, ngan, wa) = SqWaToRaiNganWa(unit.LandArea);
+        var completed = IsCompleted(header.Status);
         var appraisalValue = unit.TotalAppraisalValueRounded ?? valuation?.AppraisedValue ?? 0m;
-        var valuer = SplitValuer(assignment, appraisalValue, valuation?.ValuationDate);
+        // Internal/External valuer fields are only meaningful once completed; leave them empty before that.
+        var valuer = completed ? SplitValuer(assignment, appraisalValue, valuation?.ValuationDate) : new ValuerSplit();
 
-        return BaseResult(header, fee, valuation, valuer) with
+        return BaseResult(header, assignment, fee, valuation, valuer) with
         {
             AppraisalValue = appraisalValue,
             ForceSaleValue = unit.ForceSellingPrice ?? valuation?.ForcedSaleValue ?? 0m,
@@ -278,9 +299,10 @@ internal static class LegacyResultMapper
 
     // Appraisal-level fields shared by both paths (identity, fee, dates, address, valuer, type).
     private static LegacyAppraisalResult BaseResult(
-        LegacyAppraisalRow header, decimal? fee, ValuationRow? valuation, ValuerSplit valuer)
+        LegacyAppraisalRow header, AssignmentRow? assignment, decimal? fee, ValuationRow? valuation, ValuerSplit valuer)
     {
-        var appraisalDate = IsoDate(valuation?.ValuationDate ?? header.CompletedAt);
+        // AppraisalDate = the appointment date (when the property was appraised), not the completed date.
+        var appraisalDate = IsoDate(assignment?.AppointmentDateTime);
 
         return new LegacyAppraisalResult
         {
@@ -288,7 +310,7 @@ internal static class LegacyResultMapper
             AppraisalFee = fee ?? 0m,
             SequenceOfApprove = Str(header.SequenceOfApprove),
             AppraisalType = MapAppraisalType(header.AppraisalType),
-            MethodOfAppraisal = 1, // TODO revisit: currently a fixed default per the legacy contract.
+            // MethodOfAppraisal + AppraisalValueWaOrM are set per selected collateral by the callers.
             MarketValue = header.MarketValue ?? 0m,
             BuildingValue = valuation?.InsuranceValue ?? 0m, // legacy BuildingValue = fire-insurance value
             Province = Str(header.Province),
@@ -350,6 +372,15 @@ internal static class LegacyResultMapper
         _ => 0,
     };
 
+    // Legacy MethodOfAppraisal ← our pricing ApproachType: 1 = Cost, 2 = Income, 3 = Market.
+    // Defaults to 3 (Market) when there is no selected approach (e.g. PMA / block / unknown).
+    private static int MapMethod(string? approachType) => approachType?.Trim().ToLowerInvariant() switch
+    {
+        "cost" => 1,
+        "income" => 2,
+        _ => 3,
+    };
+
     // Legacy Decorate is our DecorationType code with the leading zero stripped ("01" → 1, "99" → 99).
     // Returns null when there is no usable value (the legacy contract wants null, not 0, for "unknown").
     private static int? ParseDecorate(string? code) =>
@@ -369,6 +400,9 @@ internal static class LegacyResultMapper
 
     private static bool Eq(string? a, string? b) =>
         string.Equals((a ?? string.Empty).Trim(), (b ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsCompleted(string? status) =>
+        string.Equals(status, "Completed", StringComparison.OrdinalIgnoreCase);
 
     private static string Str(string? value) => value ?? string.Empty;
 

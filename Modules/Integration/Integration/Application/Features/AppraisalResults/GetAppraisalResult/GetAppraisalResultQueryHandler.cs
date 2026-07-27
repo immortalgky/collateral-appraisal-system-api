@@ -61,12 +61,12 @@ public class GetAppraisalResultsByCaseKeyQueryHandler(
 
 internal static class GetAppraisalResultSql
 {
-    // Only completed appraisals are served to external systems.
+    // Lookup by appraisal number returns any status (PMA / in-progress appraisals are retrieved before
+    // completion). The by-external-case-key path below still restricts to completed appraisals.
     public const string ByAppraisalNumber = """
                                             SELECT a.Id, a.AppraisalNumber, a.Status, a.Purpose, a.CompletedAt, a.RequestId
                                             FROM appraisal.Appraisals a
                                             WHERE a.AppraisalNumber = @AppraisalNumber AND a.IsDeleted = 0
-                                              AND a.Status = 'Completed'
                                             """;
 
     public const string ByExternalCaseKey = """
@@ -99,7 +99,6 @@ internal static class GetAppraisalResultSql
                                             LEFT JOIN parameter.DopaDistricts    ddist ON ddist.Code = rd.District
                                             LEFT JOIN parameter.DopaSubDistricts dsub  ON dsub.Code  = rd.SubDistrict
                                             WHERE a.AppraisalNumber = @AppraisalNumber AND a.IsDeleted = 0
-                                              AND a.Status = 'Completed'
                                             """;
 
     public const string ActiveAssignment = """
@@ -148,6 +147,7 @@ internal static class GetAppraisalResultSql
                                                    pfv.LandValue AS GroupLandValue,
                                                    pfv.BuildingValue AS GroupBuildingValue,
                                                    pfv.FinalValueAdjusted AS GroupUnitPrice,
+                                                   pfv.ValuePerUnit AS GroupValuePerUnit,   -- selected method's per-Wa/Sqm rate → AppraisalValueWaOrM
                                                    ap.Id AS PropertyId, ap.PropertyType,
                                                    -- Land/LB fields (from LandAppraisalDetails + first LandTitle)
                                                    lad.Province, lad.District, lad.SubDistrict, lad.LandOffice,
@@ -190,8 +190,16 @@ internal static class GetAppraisalResultSql
                                                    bad.TotalBuildingArea   AS TotalBuildingArea,
                                                    -- LandOffice code resolved to its Thai description (legacy variant only)
                                                    COALESCE(pLandOffice.[description],    lad.LandOffice) AS LandOfficeName,
-                                                   COALESCE(pCadLandOffice.[description], cad.LandOffice) AS CadLandOfficeName
-                                               FROM appraisal.PropertyGroups pg
+                                                   COALESCE(pCadLandOffice.[description], cad.LandOffice) AS CadLandOfficeName,
+                                                   -- PMA / pre-completion prices stored directly on the property (no ValuationAnalyses yet)
+                                                   ap.SellingPrice           AS PropSellingPrice,
+                                                   ap.ForcedSalePrice        AS PropForcedSalePrice,
+                                                   ap.BuildingInsurancePrice AS PropBuildingInsurancePrice
+                                               -- Keyed on AppraisalProperties (not PropertyGroups) so UNGROUPED properties
+                                               -- (e.g. PMA input) are still returned; grouping/pricing are LEFT JOINed.
+                                               FROM appraisal.AppraisalProperties ap
+                                               LEFT JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = ap.Id
+                                               LEFT JOIN appraisal.PropertyGroups pg ON pg.Id = pgi.PropertyGroupId
                                                LEFT JOIN appraisal.PricingAnalysis pa ON pa.AnchorId = pg.Id AND pa.SubjectType = 0
                                                OUTER APPLY (
                                                    SELECT TOP 1 ApproachType
@@ -200,15 +208,14 @@ internal static class GetAppraisalResultSql
                                                    ORDER BY Id
                                                ) paa
                                                OUTER APPLY (
-                                                   SELECT TOP 1 fv.LandValue, fv.BuildingValue, fv.FinalValueAdjusted
+                                                   SELECT TOP 1 fv.LandValue, fv.BuildingValue, fv.FinalValueAdjusted,
+                                                          pm.ValuePerUnit
                                                    FROM appraisal.PricingAnalysisApproaches pap
                                                    JOIN appraisal.PricingAnalysisMethods pm ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
                                                    JOIN appraisal.PricingFinalValues fv ON fv.PricingMethodId = pm.Id
                                                    WHERE pap.PricingAnalysisId = pa.Id AND pap.IsSelected = 1
                                                    ORDER BY pm.Id
                                                ) pfv
-                                               JOIN appraisal.PropertyGroupItems pgi ON pgi.PropertyGroupId = pg.Id
-                                               JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
                                                LEFT JOIN appraisal.LandAppraisalDetails lad ON lad.AppraisalPropertyId = ap.Id
                                                LEFT JOIN (
                                                    SELECT *, ROW_NUMBER() OVER (PARTITION BY LandAppraisalDetailId ORDER BY Id) AS rn
@@ -226,8 +233,8 @@ internal static class GetAppraisalResultSql
                                                LEFT JOIN parameter.Parameters pCadLandOffice
                                                    ON pCadLandOffice.[group] = 'LandOffice' AND pCadLandOffice.[language] = 'TH'
                                                   AND pCadLandOffice.[isactive] = 1 AND pCadLandOffice.[code] = cad.LandOffice
-                                               WHERE pg.AppraisalId = @AppraisalId
-                                               ORDER BY pg.GroupNumber, pgi.SequenceInGroup
+                                               WHERE ap.AppraisalId = @AppraisalId
+                                               ORDER BY pg.GroupNumber, pgi.SequenceInGroup, ap.Id
                                                """;
 
     // Latest VAL_REPORT document per code for the appraisal (one row per DocumentTypeCode,
@@ -326,13 +333,14 @@ internal sealed record ValuationRow(
     DateTime? ValuationDate);
 
 internal sealed record CollateralRow(
-    Guid GroupId,
+    Guid? GroupId,        // null for ungrouped properties (e.g. PMA input not assigned to a group)
     string? GroupName,
     decimal? GroupAppraisedValue,
     string? AppraisalMethod,
     decimal? GroupLandValue,
     decimal? GroupBuildingValue,
     decimal? GroupUnitPrice,
+    decimal? GroupValuePerUnit,
     Guid PropertyId,
     string? PropertyType,
     string? Province,
@@ -385,7 +393,11 @@ internal sealed record CollateralRow(
     string? Village,
     decimal? TotalBuildingArea,
     string? LandOfficeName,
-    string? CadLandOfficeName);
+    string? CadLandOfficeName,
+    // PMA / pre-completion prices stored on the property (used when ValuationAnalyses is absent)
+    decimal? PropSellingPrice,
+    decimal? PropForcedSalePrice,
+    decimal? PropBuildingInsurancePrice);
 
 // Legacy (AS400) appraisal header row: appraisal identity + type, request-level MarketValue and the
 // DOPA address already resolved to Thai names.
