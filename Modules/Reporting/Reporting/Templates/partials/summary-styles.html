@@ -256,7 +256,11 @@ table.grid.comparison th:first-child, table.grid.comparison td:first-child { wid
 /* Committee member: signature line (with name) on the LEFT, position to the RIGHT. */
 .committee-member { display:flex; align-items:center; gap:10px; }
 .committee-member .nm-name { flex:0 0 130px; text-align:center; }
-.committee-member .c-pos { flex:1; text-align:left; }
+/* nowrap: a real Thai position title ("ประธานเจ้าหน้าที่บริหารปฏิบัติการ") has no spaces, so it
+   wraps at any ICU break and would silently fold to 2–3 lines inside whatever width the column
+   happened to get. Keeping it on one line is what lets the shrink-to-fit column in
+   approver-block size itself to the longest title instead of squeezing it. */
+.committee-member .c-pos { flex:1; text-align:left; white-space:nowrap; }
 /* Member rows: taller (room for a handwritten signature) and vertically centered. */
 table.grid tr.cm-row td { vertical-align:middle; padding-top:24px; padding-bottom:24px; }
 
