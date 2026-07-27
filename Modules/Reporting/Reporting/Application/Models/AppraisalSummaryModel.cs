@@ -676,6 +676,11 @@ public sealed class BlockCondoUnitRow
     public int Sequence { get; init; }
     public int? Floor { get; init; }
     public string? TowerName { get; init; }
+
+    /// <summary>ห้องชุดเลขที่ (field 54) — the condo registration number on the unit title.</summary>
+    public string? CondoRegistrationNumber { get; init; }
+
+    /// <summary>ห้องชุด (field 56) — the room number as marketed/labelled.</summary>
     public string? RoomNumber { get; init; }
     public string? ModelType { get; init; }
     public decimal? UsableArea { get; init; }
