@@ -43,10 +43,14 @@ public record GetAppraisalsFilterRequest(
     string? SortDir = null
 )
 {
-    // Picker-only additive fields (not bound by GetAppraisalsEndpoint; opt-in via init setters)
+    // Additive fields set via init setters. Purpose and PropertyType are bound by the list and
+    // export endpoints; the rest remain picker-only.
     public string? CustomerName { get; init; }
     public string? AppraisalNumber { get; init; }
     public string? Purpose { get; init; }
+
+    // Matches appraisals having at least one property of the given type(s); comma-separated for IN.
+    public string? PropertyType { get; init; }
     public string? SubDistrict { get; init; }
     public DateTime? RequestedAtFrom { get; init; }
     public DateTime? RequestedAtTo { get; init; }

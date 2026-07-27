@@ -29,6 +29,8 @@ public class GetAppraisalsEndpoint : ICarterModule
                     // Request metadata
                     [FromQuery] string? channel,
                     [FromQuery] string? bankingSegment,
+                    [FromQuery] string? purpose,
+                    [FromQuery] string? propertyType,
                     [FromQuery] bool? isPma,
                     // Geographic
                     [FromQuery] string? province,
@@ -73,7 +75,11 @@ public class GetAppraisalsEndpoint : ICarterModule
                         AppointmentDateTo: appointmentDateTo,
                         SortBy: sortBy,
                         SortDir: sortDir
-                    );
+                    )
+                    {
+                        Purpose = purpose,
+                        PropertyType = propertyType,
+                    };
 
                     var query = new GetAppraisalsQuery(pagination, filter);
 
@@ -88,9 +94,10 @@ public class GetAppraisalsEndpoint : ICarterModule
             .WithSummary("Get all appraisals")
             .WithDescription(
                 "Retrieves all appraisals with pagination, filtering, sorting, and facet counts. " +
-                "Supports text search (search), multi-value filters (comma-separated status, priority, appraisalType, slaStatus, assignmentType), " +
+                "Supports text search (search), multi-value filters (comma-separated status, priority, appraisalType, slaStatus, assignmentType, purpose, propertyType), " +
                 "date ranges (createdFrom/To, slaDueDateFrom/To, assignedDateFrom/To, appointmentDateFrom/To), " +
-                "geographic filters (province, district), and sorting (sortBy, sortDir).")
+                "geographic filters (province, district), and sorting (sortBy, sortDir). " +
+                "propertyType matches appraisals having at least one property of the given type(s).")
             .WithTags("Appraisal");
     }
 }
