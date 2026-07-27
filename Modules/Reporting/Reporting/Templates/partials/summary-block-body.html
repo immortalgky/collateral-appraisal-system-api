@@ -7,7 +7,7 @@
   /* Each unit section starts a new PORTRAIT page (the default @page) and opens its own
      table.running, so the report header bar repeats on every page the section spans. */
   .unit-page { break-before: page; }
-  /* 10–11 columns on portrait A4: 7pt + tight padding is what keeps the numeric columns on
+  /* 10–12 columns on portrait A4: 7pt + tight padding is what keeps the numeric columns on
      one line at the 15mm margin appraisal-book.html uses (the standalone form gets 5mm). */
   .unit-table { width:100%; border-collapse:collapse; font-size:7pt; margin-top:6px;
                 table-layout:fixed; }
@@ -165,17 +165,18 @@
   <table class="unit-table">
     <thead>
       <tr>
-        <th style="width:34px;">ลำดับ</th>
-        <th style="width:34px;">ชั้นที่</th>
-        <th style="width:46px;">อาคาร</th>
-        <th style="width:56px;">ห้องชุดเลขที่</th>
+        <th style="width:30px;">ลำดับ</th>
+        <th style="width:30px;">ชั้นที่</th>
+        <th style="width:40px;">อาคาร</th>
+        <th style="width:52px;">ห้องชุดเลขที่</th>
         <th>แบบห้องชุด</th>
-        <th style="width:46px;">ห้องชุด</th>
-        <th style="width:52px;">พื้นที่ใช้สอย<br/>(ตร.ม.)</th>
-        <th style="width:72px;">ราคาประเมิน<br/>(บาท)</th>
+        <th style="width:44px;">ห้องชุด</th>
+        <th style="width:48px;">พื้นที่ใช้สอย<br/>(ตร.ม.)</th>
+        <th style="width:70px;">ราคาขาย<br/>โครงการ (บาท)</th>
+        <th style="width:70px;">ราคาประเมิน<br/>(บาท)</th>
         <th style="width:60px;">ราคา/ตร.ม.<br/>(บาท)</th>
-        <th style="width:72px;">ราคาบังคับขาย<br/>(บาท)</th>
-        <th style="width:72px;">มูลค่าประกัน<br/>อัคคีภัย (บาท)</th>
+        <th style="width:70px;">ราคาบังคับขาย<br/>(บาท)</th>
+        <th style="width:70px;">มูลค่าประกัน<br/>อัคคีภัย (บาท)</th>
       </tr>
     </thead>
     <tbody>
@@ -188,6 +189,7 @@
         <td class="c">{{ u.model_type }}</td>
         <td class="c">{{ u.room_number }}</td>
         <td class="c">{{ if u.usable_area; u.usable_area | math.format "N2"; end }}</td>
+        <td class="r">{{ if u.selling_price; u.selling_price | math.format "N2"; end }}</td>
         <td class="r">{{ if u.appraisal_value; u.appraisal_value | math.format "N2"; end }}</td>
         <td class="r">{{ if u.price_per_sqm; u.price_per_sqm | math.format "N2"; end }}</td>
         <td class="r">{{ if u.forced_sale_value; u.forced_sale_value | math.format "N2"; end }}</td>

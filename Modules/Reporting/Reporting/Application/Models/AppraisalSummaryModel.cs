@@ -684,6 +684,9 @@ public sealed class BlockCondoUnitRow
     public string? RoomNumber { get; init; }
     public string? ModelType { get; init; }
     public decimal? UsableArea { get; init; }
+
+    /// <summary>ราคาขายโครงการ — the project's own advertised selling price for the unit.</summary>
+    public decimal? SellingPrice { get; init; }
     public decimal? AppraisalValue { get; init; }
     public decimal? PricePerSqm { get; init; }
     public decimal? ForcedSaleValue { get; init; }

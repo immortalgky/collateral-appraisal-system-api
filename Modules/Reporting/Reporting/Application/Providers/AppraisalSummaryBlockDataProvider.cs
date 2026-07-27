@@ -314,6 +314,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
                     RoomNumber     = u.RoomNumber,
                     ModelType      = u.ModelType,
                     UsableArea     = u.UsableArea,
+                    SellingPrice   = u.SellingPrice,
                     AppraisalValue = u.AppraisalValue,
                     PricePerSqm    = u.PricePerSqm,
                     ForcedSaleValue = u.ForcedSaleValue,
