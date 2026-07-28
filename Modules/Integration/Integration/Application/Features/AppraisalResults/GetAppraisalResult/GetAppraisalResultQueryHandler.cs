@@ -284,11 +284,21 @@ internal static class GetAppraisalResultSql
                                                pt.NumberOfFloors AS TowerFloors,           -- total floors of the building → FloorNumber
                                                pt.BuildingAge    AS TowerBuildingAge,
                                                COALESCE(pm.DecorationType, pt.DecorationType) AS DecorationType,
+                                               modelApproach.ApproachType AS ModelApproachType,   -- selected approach of the unit's model → MethodOfAppraisal
                                                pp.TotalAppraisalValueRounded, pp.ForceSellingPrice, pp.CoverageAmount
                                            FROM appraisal.ProjectUnits pu
                                            LEFT JOIN appraisal.ProjectUnitPrices pp ON pp.ProjectUnitId = pu.Id
                                            LEFT JOIN appraisal.ProjectTowers pt ON pt.Id = pu.ProjectTowerId
                                            LEFT JOIN appraisal.ProjectModels pm ON pm.Id = pu.ProjectModelId
+                                           OUTER APPLY (
+                                               -- Block pricing method lives on the model's PricingAnalysis (SubjectType = 1).
+                                               SELECT TOP 1 papp.ApproachType
+                                               FROM appraisal.PricingAnalysis pamdl
+                                               JOIN appraisal.PricingAnalysisApproaches papp
+                                                   ON papp.PricingAnalysisId = pamdl.Id AND papp.IsSelected = 1
+                                               WHERE pamdl.AnchorId = pu.ProjectModelId AND pamdl.SubjectType = 1
+                                               ORDER BY papp.Id
+                                           ) modelApproach
                                            WHERE pu.ProjectId = @ProjectId
                                            """;
 
@@ -442,6 +452,7 @@ internal sealed record BlockUnitRow(
     int? TowerFloors,
     int? TowerBuildingAge,
     string? DecorationType,
+    string? ModelApproachType,
     decimal? TotalAppraisalValueRounded,
     decimal? ForceSellingPrice,
     decimal? CoverageAmount);

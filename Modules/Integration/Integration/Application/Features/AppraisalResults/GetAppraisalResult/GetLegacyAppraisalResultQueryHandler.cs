@@ -263,8 +263,8 @@ internal static class LegacyResultMapper
             BuildingValue = unit.CoverageAmount ?? valuation?.InsuranceValue ?? 0m,
             // Block market value = the unit's own selling price (falls back to the request-level total).
             MarketValue = unit.SellingPrice ?? header.MarketValue ?? 0m,
-            // Block has no PricingAnalysis approach → defaults to Market (3); no per-unit rate.
-            MethodOfAppraisal = MapMethod(null),
+            // Block method = the selected approach of the unit's model (defaults to Market when none).
+            MethodOfAppraisal = MapMethod(unit.ModelApproachType),
             // Project-level descriptors.
             BuildingDetails = Str(project.ProjectName),
             Developer = Str(project.Developer),
