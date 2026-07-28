@@ -12,6 +12,8 @@
         db/         plain .sql deployment scripts for the DBA (no exe needed)
         database/   publish of the DbUp migration tool (Database.csproj) — the
                     optional fallback; omit with -SkipDbTool
+        tools/      CasSecretTool — run on the app server to encrypt config
+                    secrets (produces ENC:v1: values for appsettings.Production.json)
 
     Framework-dependent publish is portable: build on macOS, run on the Windows
     server (which needs the ASP.NET Core 9 Hosting Bundle installed).
@@ -67,6 +69,11 @@ if ($SkipDbTool) {
     }
 }
 
+# --- Secret encryption tool (run on the app server to produce ENC:v1: values) --
+Invoke-Step "Publish secret tool (CasSecretTool)" {
+    dotnet publish tools/CasSecretTool/CasSecretTool.csproj -c $Configuration -o (Join-Path $stage 'tools') --nologo
+}
+
 # --- Database SQL scripts (what the DBA actually runs) -------------------
 if ($SkipDbScripts) {
     Write-Host "==> Generate database SQL scripts (skipped)" -ForegroundColor Yellow
@@ -118,7 +125,7 @@ Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
 
 Write-Host ""
 Write-Host "Built $zip" -ForegroundColor Green
-Write-Host "  contains: api/  web/  db/$(if (-not $SkipDbTool) { '  database/' })   (version $Version)"
+Write-Host "  contains: api/  web/  tools/  db/$(if (-not $SkipDbTool) { '  database/' })   (version $Version)"
 Write-Host ""
 Write-Host "Next:"
 Write-Host "  1. Copy this zip to C:\Deploy\temp on each app server and expand it."

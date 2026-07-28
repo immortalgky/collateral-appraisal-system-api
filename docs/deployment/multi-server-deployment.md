@@ -24,6 +24,7 @@ load-balanced node**:
 | ASP.NET Core **Data Protection keys** | Antiforgery cookies, OpenIddict reference refresh tokens, any `IDataProtector` payloads | `auth.DataProtectionKeys` table (shared via SQL Server) |
 | OpenIddict **signing certificate** | JWT signature on access/identity tokens | Windows cert store (prod) / auto-generated (dev) |
 | OpenIddict **encryption certificate** | Symmetric key wrap inside encrypted JWT access tokens | Windows cert store (prod) / auto-generated (dev) |
+| **Secrets certificate** (§2.12) | `ENC:v1:` config secrets in `appsettings.Production.json` (passwords, connection strings) | Windows cert store (`LocalMachine\My`), same cert on both nodes |
 
 If any of these differ across nodes, you get one of:
 
@@ -534,6 +535,119 @@ Run in order. Stop at the first failure and address it before continuing.
 
 ---
 
+## 2.12 Encrypting configuration secrets (no plaintext passwords)
+
+The bank requires that no password sits in plaintext in `appsettings.Production.json`. Each
+secret **value** is stored as `ENC:v1:<base64>` and decrypted at startup with a dedicated
+certificate. Non-secret settings (log levels, timeouts, NAS paths) stay readable so ops can
+still diff and tune config without a decrypt cycle.
+
+**What must be encrypted** (every value that is or contains a password):
+
+- `ConnectionStrings:Database`, `ConnectionStrings:Hangfire` (they contain `Password=…`)
+- `RabbitMQ:Password`, `Mail:Password`, `Ldap:BindPassword`, `SeedData:AdminUser:Password`
+- `FileTransfer:Inbound:Sftp:Password`, `FileTransfer:Outbound:Sftp:Password`
+
+A startup audit logs an **error** naming any of these keys still left in plaintext (outside
+Development), so nothing silently regresses. The value itself is never logged.
+
+> **Stronger option for the database:** run the IIS AppPool as a domain service account (ideally
+> a gMSA) and use `Integrated Security=True;Encrypt=True;` in the DB/Hangfire connection strings.
+> Then there is no password to encrypt or rotate at all. Recommended follow-up; not required for
+> the "no plaintext" requirement, which `ENC:v1:` already satisfies.
+
+### 2.12.1 Create the secrets certificate
+
+Identical to §2.2, but a **third, separate** cert so it can be rotated independently of the
+OAuth2 certs. Do it once on a build/admin workstation:
+
+```powershell
+$secCert = New-SelfSignedCertificate `
+  -Subject       "CN=CollateralAppraisal-Secrets" `
+  -KeyAlgorithm  RSA `
+  -KeyLength     2048 `
+  -HashAlgorithm SHA256 `
+  -KeyUsage      KeyEncipherment, DataEncipherment `
+  -NotAfter      (Get-Date).AddYears(10) `
+  -CertStoreLocation Cert:\CurrentUser\My
+
+$secPwd = ConvertTo-SecureString -String "<SECRETS_PFX_PASSWORD>" -AsPlainText -Force
+Export-PfxCertificate -Cert $secCert -FilePath .\cas-secrets.pfx -Password $secPwd
+Write-Host "Secrets thumbprint: $($secCert.Thumbprint)"
+Remove-Item "Cert:\CurrentUser\My\$($secCert.Thumbprint)"
+```
+
+Store the PFX **and** its password in the bank's secrets vault — losing the cert means the
+encrypted values are unrecoverable.
+
+### 2.12.2 Import + grant access on **every** app server
+
+Same as §2.3 and §2.4: import `cas-secrets.pfx` into `LocalMachine\My` with its private key on
+**both** servers, then grant the AppPool identity read access:
+
+```powershell
+Grant-CertReadAccess -Thumbprint "<secrets-thumbprint>" -AppPoolIdentity "IIS AppPool\<YourAppPool>"
+```
+
+### 2.12.3 Encrypt each secret value on the app server
+
+`CasSecretTool` ships in the artifact under `tools/`. Run it **on an app server** (that is where
+the private key lives). It uses the same code the app uses to decrypt, so a value it produces is
+guaranteed readable by the app. Full operator manual:
+[`cas-secret-tool-manual.md`](./cas-secret-tool-manual.md).
+
+```powershell
+cd C:\Deploy\temp\<version>\tools
+.\CasSecretTool.exe
+# Certificates with a private key:
+#   [1] CN=CollateralAppraisal-Secrets  (A1B2C3…)  [LocalMachine]
+# Select cert: 1
+# (e)ncrypt or (v)erify: e
+# Value: **********            <- paste the real password; not echoed
+# ENC:v1:AAEL...               <- paste this into appsettings.Production.json
+```
+
+Paste each `ENC:v1:…` result into the matching field. To confirm a value before restarting IIS:
+
+```powershell
+.\CasSecretTool.exe verify --thumbprint <secrets-thumbprint> --value "ENC:v1:AAEL..."
+# OK — decrypts successfully to: P@s****      (masked confirmation)
+```
+
+### 2.12.4 Point the app at the cert
+
+Set the thumbprint in `appsettings.Production.json` (the template already has the token):
+
+```jsonc
+{
+  "Secrets": { "CertificateThumbprint": "#{SECRETS_CERT_THUMBPRINT}#" }
+}
+```
+
+If unset, the app falls back to `DataProtection:CertificateThumbprint`. Strip any whitespace
+copied from `certlm.msc` (see §2.5) — the same normalisation caveat applies.
+
+### 2.12.5 Verify
+
+On each app server, this should return **only** `ENC:v1:` lines (no plaintext credential):
+
+```powershell
+Select-String -Path appsettings.Production.json -Pattern 'Password' | Select-String 'ENC:v1:' -NotMatch
+# (no output = clean)
+```
+
+Then start the app and confirm it boots — a wrong cert or corrupted value fails fast at startup
+with the offending key name (never its value).
+
+### 2.12.6 Rotation
+
+There is no dual-key transition. Keep the window short: install the new secrets cert on both
+nodes → re-encrypt every value with the new thumbprint using `CasSecretTool` → update
+`Secrets:CertificateThumbprint` → restart. Fold the new thumbprint into the same expiry
+monitoring as the OAuth2 certs.
+
+---
+
 ## 3. Development: macOS / Linux
 
 You generally **do not** need to do anything. In `Development`, `AuthModule.cs` calls
@@ -681,8 +795,15 @@ Tick every box before flipping traffic to the new build:
 **Infrastructure (per server)**
 - [ ] Signing PFX imported to `LocalMachine\My`.
 - [ ] Encryption PFX imported to `LocalMachine\My`.
-- [ ] Both private keys grant **Read** to the app pool identity.
+- [ ] Secrets PFX imported to `LocalMachine\My` (§2.12) — same cert on both nodes.
+- [ ] All three private keys grant **Read** to the app pool identity.
 - [ ] Both servers can reach the SQL Server hosting `auth.DataProtectionKeys`.
+
+**Secrets (§2.12)**
+- [ ] Every password / password-bearing connection string in `appsettings.Production.json` is
+      `ENC:v1:…` (or the DB uses Integrated Security). `Select-String 'Password'` shows no plaintext.
+- [ ] `Secrets:CertificateThumbprint` set to the secrets cert (or DataProtection thumbprint reused).
+- [ ] Each value confirmed with `CasSecretTool verify` before restart.
 - [ ] LB forwards `X-Forwarded-Proto` and `X-Forwarded-For` headers.
 - [ ] LB sticky sessions are **OFF** (proves the keyring fix actually works).
 
