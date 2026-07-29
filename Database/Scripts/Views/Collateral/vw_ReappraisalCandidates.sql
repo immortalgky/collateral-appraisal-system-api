@@ -11,17 +11,19 @@ SELECT
     c.ReviewType,
     c.ReviewDate,
     -- AppraisalDate / RemainingDay / DaysSinceLastAppraisal are all derived from the matched
-    -- in-system appraisal's AppointmentDateTime (see OUTER APPLY `last_appr` below):
-    --   AppraisalDate            = AppointmentDateTime
-    --   RemainingDay             = (AppointmentDateTime + 5 years) − today
-    --   DaysSinceLastAppraisal   = today − AppointmentDateTime
-    -- NULL when SurveyNumber doesn't resolve to any in-system appraisal.
-    CAST(last_appr.AppointmentDateTime AS DATE)                                            AS AppraisalDate,
+    -- in-system appraisal's appraisal date — ValuationAnalyses.ValuationDate, falling back to the
+    -- latest non-cancelled appointment (see OUTER APPLY `last_appr` below):
+    --   AppraisalDate            = AppraisalDate
+    --   RemainingDay             = (AppraisalDate + 5 years) − today
+    --   DaysSinceLastAppraisal   = today − AppraisalDate
+    -- NULL when SurveyNumber doesn't resolve to any in-system appraisal. Note c.ValuationDate
+    -- below is a DIFFERENT field — the AS400 inbound value off the Collatrev file, not ours.
+    CAST(last_appr.AppraisalDate AS DATE)                                                  AS AppraisalDate,
     DATEDIFF(DAY,
         CAST(GETDATE() AS DATE),
-        DATEADD(YEAR, 5, CAST(last_appr.AppointmentDateTime AS DATE)))                     AS RemainingDay,
+        DATEADD(YEAR, 5, CAST(last_appr.AppraisalDate AS DATE)))                           AS RemainingDay,
     DATEDIFF(DAY,
-        CAST(last_appr.AppointmentDateTime AS DATE),
+        CAST(last_appr.AppraisalDate AS DATE),
         CAST(GETDATE() AS DATE))                                                           AS DaysSinceLastAppraisal,
     c.CollateralId,
     c.SurveyNumber          AS OldAppraisalReportNumber,
@@ -88,11 +90,16 @@ OUTER APPLY (
 ) open_req
 -- Last in-system appraisal date for this candidate (matched via SurveyNumber = AppraisalNumber).
 -- Drives AppraisalDate / RemainingDay / DaysSinceLastAppraisal above. NULL when unmatched.
+-- a.CompletedAt is the last fallback: a legacy/migrated appraisal can have neither a
+-- ValuationAnalyses row nor an Appointment row, and without it AppraisalDate is NULL, so
+-- RemainingDay / DaysSinceLastAppraisal are NULL too and the candidate silently drops out of the
+-- reappraisal-due schedule despite having a perfectly good completion date.
 OUTER APPLY (
-    SELECT TOP 1 al.AppointmentDateTime
+    SELECT TOP 1 COALESCE(va.ValuationDate, al.AppointmentDateTime, a.CompletedAt) AS AppraisalDate
     FROM appraisal.Appraisals a
     JOIN appraisal.vw_AppraisalList al ON al.Id = a.Id
+    LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = a.Id
     WHERE a.AppraisalNumber = c.SurveyNumber
-    ORDER BY al.AppointmentDateTime DESC
+    ORDER BY COALESCE(va.ValuationDate, al.AppointmentDateTime, a.CompletedAt) DESC
 ) last_appr
 WHERE c.Status <> 'Deleted'

@@ -4,7 +4,7 @@ using Dapper;
 namespace Appraisal.Application.Features.Appraisals.GetAppraisalReference;
 
 /// <summary>
-/// Returns the minimum reference data (number, value, appointment date) for a given appraisal.
+/// Returns the minimum reference data (number, value, appraisal/valuation date) for a given appraisal.
 /// Used cross-module by the Request query to populate PrevAppraisalNumber/Value/Date at read time.
 /// Returns null (does not throw) when the appraisal does not exist.
 /// </summary>
@@ -21,7 +21,7 @@ public class GetAppraisalReferenceQueryHandler(
         parameters.Add("AppraisalId", query.AppraisalId);
 
         const string sql = """
-            SELECT t.AppraisalNumber, t.AppraisalValue, t.AppointmentDate, t.Status, c.Name AS CustomerName
+            SELECT t.AppraisalNumber, t.AppraisalValue, t.AppraisalDate, t.Status, c.Name AS CustomerName
             FROM appraisal.vw_AppraisalCopyTemplate t
             OUTER APPLY (SELECT TOP 1 Name
                          FROM request.RequestCustomers
@@ -35,14 +35,14 @@ public class GetAppraisalReferenceQueryHandler(
             return null;
 
         return new AppraisalReferenceResult(
-            row.AppraisalNumber, row.AppraisalValue, row.AppointmentDate, row.Status, row.CustomerName);
+            row.AppraisalNumber, row.AppraisalValue, row.AppraisalDate, row.Status, row.CustomerName);
     }
 
     private class AppraisalReferenceRow
     {
         public string? AppraisalNumber { get; set; }
         public decimal? AppraisalValue { get; set; }
-        public DateTime? AppointmentDate { get; set; }
+        public DateTime? AppraisalDate { get; set; }
         public string? Status { get; set; }
         public string? CustomerName { get; set; }
     }

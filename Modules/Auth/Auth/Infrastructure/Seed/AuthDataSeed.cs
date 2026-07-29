@@ -120,6 +120,7 @@ public class AuthDataSeed(
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
                 "TASK_APPR_BOOK_VERIFICATION", "TASK_INT_APPR_EXECUTION", "TASK_INT_PMA_INPUT",
+                "TASK_INT_OFFLINE_BOOK_KEYIN",
                 "STANDALONE_USE",
                 "HISTORY_SEARCH_VIEW",
                 "SUPPORTING_DATA_MAINT_EDIT",
@@ -641,6 +642,9 @@ public class AuthDataSeed(
                 "Access appraisal book verification tasks", "Workflow"),
             ("TASK_INT_APPR_EXECUTION", "Task: Internal Appraisal Execution",
                 "Access internal appraisal execution tasks", "Workflow"),
+            ("TASK_INT_OFFLINE_BOOK_KEYIN", "Task: Offline Appraisal Book Keyin",
+                "Access tasks for keying in an appraisal book from a company engaged outside the system",
+                "Workflow"),
             ("TASK_INT_APPR_CHECK", "Task: Internal Appraisal Check", "Access internal appraisal check tasks",
                 "Workflow"),
             ("TASK_INT_APPR_VERIFICATION", "Task: Internal Appraisal Verification",
@@ -855,6 +859,29 @@ public class AuthDataSeed(
                 pmaInput.ViewPermissionCode,
                 pmaInput.EditPermissionCode,
                 pmaInput.ViewPermissionPrefix);
+        }
+
+        // Pin `main.task.int-offline-book-keyin` directly BELOW "All Tasks", as requested.
+        //
+        // Computed relative to the live "All Tasks" row rather than hardcoded: UpsertTreeAsync
+        // derives SortOrder from seed-list position for NEW rows only, so an already-seeded
+        // `main.task.all` keeps whatever value it got when it was first inserted — which is NOT
+        // necessarily the 10 its current first-in-list position would imply. Anchoring to the real
+        // row places the key-in item immediately after "All Tasks" whatever that value turns out
+        // to be. `+ 1` cannot collide: every other row is a multiple of 10 (or the pinned 15).
+        // Idempotent: a no-op once normalised.
+        if (existingByKey.TryGetValue("main.task.all", out var allTasks)
+            && existingByKey.TryGetValue("main.task.int-offline-book-keyin", out var offlineKeyin)
+            && offlineKeyin.SortOrder != allTasks.SortOrder + 1)
+        {
+            offlineKeyin.Update(
+                offlineKeyin.Path,
+                offlineKeyin.Icon,
+                offlineKeyin.IconColor,
+                sortOrder: allTasks.SortOrder + 1,
+                offlineKeyin.ViewPermissionCode,
+                offlineKeyin.EditPermissionCode,
+                offlineKeyin.ViewPermissionPrefix);
         }
 
         // One-off localization repair: BuildTranslations historically copied the English label into

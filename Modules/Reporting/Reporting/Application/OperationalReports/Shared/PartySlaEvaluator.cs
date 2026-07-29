@@ -77,6 +77,11 @@ internal sealed class PartySlaEvaluator(
     private const string VendorStageKey = "ext-appraisal-execution";
     // Stage startActivityKey → budget source for bank in-house window.
     private const string BankStageKey = "int-appraisal-execution";
+    // Off-system external: the bank-side execution leg is the keyin task, which carries its own
+    // SLA policy. Legs already classify correctly as Bank (the id does not match VendorPrefix),
+    // but the BUDGET must come from this activity or an offline case is measured against the
+    // internal-execution budget and drifts the moment either policy is retuned.
+    private const string OfflineBankStageKey = "int-offline-book-keyin";
 
     public async Task<PartySlaResult?> EvaluateAsync(
         Guid correlationId,
@@ -150,8 +155,17 @@ internal sealed class PartySlaEvaluator(
         // Load stage budgets via direct Dapper query (raw DurationHours, not calendar-computed).
         var vendorBudgetMinutes = await GetStageBudgetMinutesAsync(
             workflowDefinitionId, VendorStageKey, companyId, loanType, appraisalType, ct);
+        // An offline case never runs int-appraisal-execution, so source its bank budget from the
+        // keyin activity it actually ran.
+        var ranOfflineKeyin = classified.Any(l =>
+            string.Equals(l.ActivityId, OfflineBankStageKey, StringComparison.OrdinalIgnoreCase));
+        var ranIntExecution = classified.Any(l =>
+            string.Equals(l.ActivityId, BankStageKey, StringComparison.OrdinalIgnoreCase));
+
         var bankBudgetMinutes = await GetStageBudgetMinutesAsync(
-            workflowDefinitionId, BankStageKey, companyId, loanType, appraisalType, ct);
+            workflowDefinitionId,
+            ranOfflineKeyin && !ranIntExecution ? OfflineBankStageKey : BankStageKey,
+            companyId, loanType, appraisalType, ct);
 
         var vendorParty = await BuildPartyAsync(vendorCycleBuckets, vendorBudgetMinutes, ct);
         var bankParty   = await BuildPartyAsync(bankCycleBuckets,   bankBudgetMinutes,   ct);

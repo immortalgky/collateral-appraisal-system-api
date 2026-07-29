@@ -30,7 +30,7 @@ Content-Type: application/json
 { "createdBy": "{{actor}}" }
 
 ### versionId captured from the create-draft response
-@versionId = 019f8d12-5d98-7e0f-aa65-a75a72f185bb
+@versionId = 019fa9b6-8243-7739-ad2e-5ee2c141ead2
 
 ### 2. Push the edited appraisal-workflow.json into the draft.
 ###    The file's top-level "workflowSchema" binds; name/description/category/createdBy are ignored.
@@ -48,7 +48,7 @@ X-Dev-Auth: dev-bypass
 ### confirmed hash captured from the preview response
 #@breakingChangeHash = {{preview.response.body.$.breakingChangeHash}}
 
-@breakingChangeHash = 
+@breakingChangeHash = e13c78a87479bed3716062e5b448aeb27871dbf63f80655da603ee5e6995db65
 
 ### 4. Publish. Prior published version auto-deprecates; in-flight instances are untouched.
 POST {{baseUrl}}/api/workflows/definitions/{{definitionId}}/versions/{{versionId}}/publish

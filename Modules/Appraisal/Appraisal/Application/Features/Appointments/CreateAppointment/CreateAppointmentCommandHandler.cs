@@ -1,3 +1,4 @@
+using Appraisal.Application.Services;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 using Shared.Time;
@@ -8,7 +9,8 @@ public class CreateAppointmentCommandHandler(
     IAppraisalRepository appraisalRepository,
     AppraisalDbContext dbContext,
     IIntegrationEventOutbox outbox,
-    IDateTimeProvider dateTimeProvider)
+    IDateTimeProvider dateTimeProvider,
+    AppraisalValuationSummaryService valuationSummaryService)
     : ICommandHandler<CreateAppointmentCommand, CreateAppointmentResult>
 {
     public async Task<CreateAppointmentResult> Handle(
@@ -43,6 +45,14 @@ public class CreateAppointmentCommandHandler(
             command.ContactPhone);
 
         dbContext.Appointments.Add(appointment);
+
+        // Point the appraisal date at the slot just booked. Nothing else does this on an appointment
+        // command — ValuationDate is otherwise only written by a pricing/property change — so without
+        // it the date shown on the book, the AS400 feeds and History Search would not pick this up
+        // until someone happened to re-save pricing. No-ops for an off-system engagement, whose
+        // hand-keyed book date outranks any appointment.
+        await valuationSummaryService.SyncValuationDateFromAppointmentAsync(
+            command.AppraisalId, command.AppointmentDateTime, cancellationToken);
 
         // Notify Workflow module so it can (a) store appointmentDate in WorkflowInstance.Variables
         // (read by TaskActivity on next task assignment as the SLA anchor) and (b) recompute

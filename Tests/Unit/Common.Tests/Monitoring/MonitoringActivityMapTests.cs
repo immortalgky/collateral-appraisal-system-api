@@ -13,10 +13,15 @@ public class MonitoringActivityMapTests
     // ── Internal map ──────────────────────────────────────────────────────────
 
     [Fact]
-    public void Internal_Staff_ResolvesToExecutionAndBookVerification()
+    public void Internal_Staff_ResolvesToExecutionBookVerificationAndOfflineKeyin()
     {
+        // int-offline-book-keyin is the bank-staff execution step for an appraisal the bank
+        // engaged a company for OUTSIDE the system, so it belongs to the same STAFF layer.
         var ids = MonitoringActivityMap.Internal["staff"];
-        ids.Should().BeEquivalentTo(new[] { "int-appraisal-execution", "appraisal-book-verification" });
+        ids.Should().BeEquivalentTo(new[]
+        {
+            "int-appraisal-execution", "appraisal-book-verification", "int-offline-book-keyin"
+        });
     }
 
     [Fact]

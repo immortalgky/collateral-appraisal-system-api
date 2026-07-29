@@ -47,6 +47,7 @@ public static class MenuSeedData
                 new("main.task.ext-appraisal-verification", "External Appraisal Verification", "shield-check", IconStyle.Solid, "text-purple-500", "/tasks?activityId=ext-appraisal-verification", "TASK_EXT_APPR_VERIFICATION", null),
                 new("main.task.appraisal-book-verification", "Appraisal Book Verification", "book-open", IconStyle.Solid, "text-purple-500", "/tasks?activityId=appraisal-book-verification", "TASK_APPR_BOOK_VERIFICATION", null),
                 new("main.task.int-appraisal-execution", "Internal Appraisal Execution", "user", IconStyle.Solid, "text-purple-500", "/tasks?activityId=int-appraisal-execution", "TASK_INT_APPR_EXECUTION", null),
+                new("main.task.int-offline-book-keyin", "Offline Appraisal Book Keyin", "keyboard", IconStyle.Solid, "text-purple-500", "/tasks?activityId=int-offline-book-keyin", "TASK_INT_OFFLINE_BOOK_KEYIN", null),
                 new("main.task.int-appraisal-check", "Internal Appraisal Check", "magnifying-glass-check", IconStyle.Solid, "text-purple-500", "/tasks?activityId=int-appraisal-check", "TASK_INT_APPR_CHECK", null),
                 new("main.task.int-appraisal-verification", "Internal Appraisal Verification", "badge-check", IconStyle.Solid, "text-purple-500", "/tasks?activityId=int-appraisal-verification", "TASK_INT_APPR_VERIFICATION", null),
                 new("main.task.pending-approval", "Pending Approval", "hourglass-half", IconStyle.Solid, "text-purple-500", "/tasks?activityId=pending-approval", "TASK_PENDING_APPROVAL", null),

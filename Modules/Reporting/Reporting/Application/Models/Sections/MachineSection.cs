@@ -41,7 +41,8 @@ public sealed class MachineSection
     public string? PropertyCharacteristics { get; init; }
 
     // 1.3 วันที่สำรวจและประเมินมูลค่าทรัพย์สิน has no field here — the template reads the
-    // appraisal-level appointment date from AppraisalSummaryModel.AppraisalDate.
+    // appraisal-level valuation date from AppraisalSummaryModel.AppraisalDate, which is
+    // appraisal.ValuationAnalyses.ValuationDate.
 
     // ── Summary header — appraisal.MachineryAppraisalSummaries ───────────────────
 

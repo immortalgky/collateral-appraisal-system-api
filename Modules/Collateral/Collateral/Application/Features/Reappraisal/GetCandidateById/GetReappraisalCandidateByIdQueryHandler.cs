@@ -92,7 +92,10 @@ public class GetReappraisalCandidateByIdQueryHandler(ISqlConnectionFactory conne
                         a.Id              AS AppraisalId,
                         a.AppraisalNumber,
                         al.CustomerName,
-                        al.AppointmentDateTime,
+                        -- Appraisal date = ValuationAnalyses.ValuationDate, appointment as fallback.
+                        -- ValuationDate leads because an off-system external engagement has no
+                        -- Appointment row at all.
+                        COALESCE(va.ValuationDate, al.AppointmentDateTime) AS AppraisalDate,
                         CAST(d.Latitude   AS decimal(10,7)) AS Latitude,
                         CAST(d.Longitude  AS decimal(10,7)) AS Longitude,
                         geography::Point(
@@ -102,6 +105,7 @@ public class GetReappraisalCandidateByIdQueryHandler(ISqlConnectionFactory conne
                         ) AS GeoPoint
                     FROM appraisal.Appraisals a
                     JOIN appraisal.vw_AppraisalList al ON al.Id = a.Id
+                    LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = a.Id
                     CROSS APPLY (
                         SELECT TOP 1 u.Latitude, u.Longitude
                         FROM (
@@ -142,14 +146,14 @@ public class GetReappraisalCandidateByIdQueryHandler(ISqlConnectionFactory conne
                     COALESCE(cand.SurveyNumber,   appl.AppraisalNumber)                         AS OldAppraisalReportNumber,
                     COALESCE(cand.CifName,         appl.CustomerName)                           AS CustomerName,
                     cand.CurrentValue,
-                    CAST(appl.AppointmentDateTime AS date)                                        AS AppraisalDate,
+                    CAST(appl.AppraisalDate AS date)                                              AS AppraisalDate,
                     DATEDIFF(DAY,
                         CAST(GETDATE() AS date),
-                        DATEADD(YEAR, 5, CAST(appl.AppointmentDateTime AS date))
+                        DATEADD(YEAR, 5, CAST(appl.AppraisalDate AS date))
                     )                                                                             AS RemainingDay,
                     cand.ReviewType,
                     DATEDIFF(DAY,
-                        CAST(appl.AppointmentDateTime AS date),
+                        CAST(appl.AppraisalDate AS date),
                         CAST(GETDATE() AS date)
                     )                                                                             AS DaysSinceLastAppraisal,
                     CAST(ROUND(

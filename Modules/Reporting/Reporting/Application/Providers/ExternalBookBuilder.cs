@@ -78,13 +78,26 @@ internal static class ExternalBookBuilder
               AND aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
             ORDER BY aa.AssignedAt DESC, aa.Id DESC;
 
-            -- RS04: Q5 — Appraisal date (latest non-cancelled appointment)
-            SELECT TOP 1 ap.AppointmentDateTime
-            FROM appraisal.Appointments ap
-            JOIN appraisal.AppraisalAssignments aa ON aa.Id = ap.AssignmentId
-            WHERE aa.AppraisalId = @AppraisalId
-              AND ap.Status <> 'Cancelled'
-            ORDER BY ap.AppointmentDateTime DESC;
+            -- RS04: Q5 — Appraisal date. ValuationAnalyses.ValuationDate wins; the latest
+            -- non-cancelled appointment across ALL the appraisal's assignments is the fallback
+            -- for an appraisal that has no ValuationAnalyses row yet (created on first pricing /
+            -- decision-summary save).
+            --
+            -- ValuationDate must win: an off-system external engagement (company engaged outside
+            -- CAS, its book keyed in by an internal appraiser) has NO Appointment row at all, so
+            -- appointment-first logic printed a BLANK date on every page of this document despite
+            -- the keyer having entered one. In-system cases agree either way — ValuationDate is
+            -- re-derived from the latest non-cancelled appointment on every pricing save.
+            SELECT COALESCE(
+                (SELECT TOP 1 va.ValuationDate
+                 FROM appraisal.ValuationAnalyses va
+                 WHERE va.AppraisalId = @AppraisalId),
+                (SELECT TOP 1 ap.AppointmentDateTime
+                 FROM appraisal.Appointments ap
+                 JOIN appraisal.AppraisalAssignments aa ON aa.Id = ap.AssignmentId
+                 WHERE aa.AppraisalId = @AppraisalId
+                   AND ap.Status <> 'Cancelled'
+                 ORDER BY ap.AppointmentDateTime DESC));
 
             -- RS05: Q6 — Property type counts
             SELECT

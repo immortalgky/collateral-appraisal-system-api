@@ -92,7 +92,7 @@ internal class UpdateRequestCommandHandler(
                 command.Detail?.Fee?.AbsorbedAmount),
             PrevAppraisalNumber: appraisalRef?.AppraisalNumber,
             PrevAppraisalValue: appraisalRef?.AppraisalValue,
-            PrevAppraisalDate: appraisalRef?.AppointmentDate
+            PrevAppraisalDate: appraisalRef?.AppraisalDate
         )));
 
         var customers = command.Customers?

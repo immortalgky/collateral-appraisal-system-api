@@ -26,6 +26,29 @@ public class HistorySearchQueryHandler(
     private const decimal MaxRadiusKm = 50m;
     private const int DefaultPageSize = 50;
 
+    /// <summary>
+    /// The appraisal date, as ONE expression shared by the SELECT, the ORDER BY and the date-window
+    /// filter — they must never disagree, or a row can display one date and be filtered by another.
+    /// Requires aliases <c>va</c> (ValuationAnalyses), <c>al</c> (vw_AppraisalList) and <c>a</c>
+    /// (Appraisals) in scope.
+    ///
+    /// <para>
+    /// ValuationDate leads: an off-system external engagement has no Appointment row at all, and its
+    /// hand-keyed book date is the only correct value.
+    /// </para>
+    ///
+    /// <para>
+    /// a.CompletedAt is the LAST resort and must stay. This screen only lists completed appraisals
+    /// (<c>WHERE a.CompletedAt IS NOT NULL</c>), so it guarantees the expression is never NULL. A
+    /// legacy/migrated appraisal can have neither a ValuationAnalyses row nor an Appointment row —
+    /// with a two-column COALESCE those rows evaluate to NULL, and because the SAME expression backs
+    /// the date-window filter, <c>NULL >= @DateFrom</c> is UNKNOWN and they silently vanish from any
+    /// date-ranged search. Dropping this fallback once already caused exactly that.
+    /// </para>
+    /// </summary>
+    private const string AppraisalDateSql =
+        "COALESCE(va.ValuationDate, al.AppointmentDateTime, a.CompletedAt)";
+
     public async Task<HistorySearchResult> Handle(
         HistorySearchQuery query,
         CancellationToken cancellationToken)
@@ -205,9 +228,12 @@ public class HistorySearchQueryHandler(
         // vw_AppraisalList provides: AppraisalNumber, CustomerName, AppraisalValue,
         // AssigneeCompanyId, AppointmentDateTime. The view already filters IsDeleted = 0.
         //
-        // "Appraisal Date" = the appointment date (when the property was inspected),
-        // NOT the completion date. Falls back to CompletedAt when an appraisal has no
-        // appointment so completed appraisals are never silently dropped.
+        // "Appraisal Date" — see AppraisalDateSql. Display, ORDER BY and the date-window filter all
+        // use that same constant so the shown date, the sort and the filter agree.
+        //
+        // NOTE the fallback is vw_AppraisalList.AppointmentDateTime, which is scoped to the LATEST
+        // ASSIGNMENT only — narrower than the all-assignments lookup the report providers use. It
+        // is the pre-existing behaviour of this screen and costs nothing extra (al is joined).
         var sql = $"""
             SELECT
                 a.Id                                                   AS AppraisalId,
@@ -217,7 +243,7 @@ public class HistorySearchQueryHandler(
                 rep.PropertyType                                       AS PropertyType,
                 rep.BuildingType                                       AS BuildingType,
                 al.AppraisalValue                                      AS AppraisedValue,
-                COALESCE(al.AppointmentDateTime, a.CompletedAt)        AS AppraisedDate,
+                {AppraisalDateSql}                                      AS AppraisedDate,
                 {distanceSelect}                                       AS DistanceKm,
                 rep.Province                                           AS Province,
                 rep.District                                           AS District,
@@ -225,6 +251,7 @@ public class HistorySearchQueryHandler(
                 al.CustomerName                                        AS CustomerName
             FROM appraisal.Appraisals a
             JOIN appraisal.vw_AppraisalList al ON al.Id = a.Id
+            LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = a.Id
             {repApply}
             WHERE a.CompletedAt IS NOT NULL
             """;
@@ -247,7 +274,7 @@ public class HistorySearchQueryHandler(
         // Order by distance when a centre is given; otherwise most-recent appraisal date first.
         var orderBy = center is not null
             ? $"rep.GeoPoint.STDistance({center}) ASC"
-            : "COALESCE(al.AppointmentDateTime, a.CompletedAt) DESC";
+            : $"{AppraisalDateSql} DESC";
 
         return await connection.QueryPaginatedAsync<AppraisalPinDto>(
             sql, orderBy, pagination, p);
@@ -255,7 +282,8 @@ public class HistorySearchQueryHandler(
 
     /// <summary>
     /// Appends the appraisal date-window + business + address criteria to <paramref name="sql"/>,
-    /// referencing aliases <c>a</c> (appraisal.Appraisals) and <c>al</c> (vw_AppraisalList).
+    /// referencing aliases <c>a</c> (appraisal.Appraisals), <c>al</c> (vw_AppraisalList) and
+    /// <c>va</c> (appraisal.ValuationAnalyses) — all three must be in scope at every call site.
     /// Used both at the top level of the appraisal query AND inside the MC "linked" EXISTS
     /// (where the same <c>a</c>/<c>al</c> aliases are in scope) so blue pins follow the same
     /// matched appraisals. The radius filter is NOT included here — it lives in the appraisal
@@ -268,16 +296,18 @@ public class HistorySearchQueryHandler(
         DateTime? dateFrom,
         DateTime? dateTo)
     {
-        // Date window filters on the appraisal date (appointment date, falling back to
-        // CompletedAt) — consistent with the displayed "Appraisal Date".
+        // Date window filters on the appraisal date — the same expression the list displays and
+        // sorts by, so the shown date, the filter and the ordering always agree. Both call sites
+        // LEFT JOIN appraisal.ValuationAnalyses as `va`, join vw_AppraisalList as `al` and have
+        // `a` in scope, so this is a three-column COALESCE with no per-row subquery.
         if (dateFrom.HasValue)
         {
-            sql += " AND COALESCE(al.AppointmentDateTime, a.CompletedAt) >= @DateFrom";
+            sql += $" AND {AppraisalDateSql} >= @DateFrom";
             p.Add("DateFrom", dateFrom.Value);
         }
         if (dateTo.HasValue)
         {
-            sql += " AND COALESCE(al.AppointmentDateTime, a.CompletedAt) <= @DateTo";
+            sql += $" AND {AppraisalDateSql} <= @DateTo";
             p.Add("DateTo", dateTo.Value);
         }
 
@@ -482,10 +512,12 @@ public class HistorySearchQueryHandler(
                     ORDER BY a.CompletedAt DESC, a.Id DESC
                 )                                                      AS CustomerName,
                 (
-                    SELECT TOP 1 COALESCE(al2.AppointmentDateTime, a.CompletedAt)
+                    -- Same three-column fallback as AppraisalDateSql, on the va2/al2 aliases.
+                    SELECT TOP 1 COALESCE(va2.ValuationDate, al2.AppointmentDateTime, a.CompletedAt)
                     FROM appraisal.AppraisalComparables ac
                     JOIN appraisal.Appraisals a ON a.Id = ac.AppraisalId
                     JOIN appraisal.vw_AppraisalList al2 ON al2.Id = a.Id
+                    LEFT JOIN appraisal.ValuationAnalyses va2 ON va2.AppraisalId = a.Id
                     WHERE ac.MarketComparableId = mc.Id
                     ORDER BY a.CompletedAt DESC, a.Id DESC
                 )                                                      AS AppraisalDate
@@ -541,6 +573,7 @@ public class HistorySearchQueryHandler(
                      FROM appraisal.AppraisalComparables ac
                      JOIN appraisal.Appraisals a ON a.Id = ac.AppraisalId
                      JOIN appraisal.vw_AppraisalList al ON al.Id = a.Id
+                     LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = a.Id
                      WHERE ac.MarketComparableId = mc.Id
                        AND a.CompletedAt IS NOT NULL
                 """;

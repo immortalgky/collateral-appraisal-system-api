@@ -38,7 +38,6 @@ public static class AppraisalModule
         services.AddScoped<ICommitteeRepository, CommitteeRepository>();
         services.AddScoped<IMarketComparableRepository, MarketComparableRepository>();
         services.AddScoped<IAppraisalSettingsRepository, AppraisalSettingsRepository>();
-        services.AddScoped<IAutoAssignmentRuleRepository, AutoAssignmentRuleRepository>();
 
         // Register Market Comparable Template repositories
         services.AddScoped<IMarketComparableTemplateRepository, MarketComparableTemplateRepository>();
@@ -82,6 +81,7 @@ public static class AppraisalModule
         services.AddScoped<PricingPropertyDataService>();
         services.AddScoped<PricingReferenceCleanupService>();
         services.AddScoped<ForceSaleRateResolver>();
+        services.AddScoped<AppraisalDateResolver>();
         services.AddScoped<AppraisalValuationSummaryService>();
 
         // Register Domain Services

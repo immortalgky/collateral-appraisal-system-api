@@ -130,7 +130,7 @@ public class CreateRequestService(
                     command.Detail.Fee?.AbsorbedAmount),
                 appraisalRef?.AppraisalNumber,
                 appraisalRef?.AppraisalValue,
-                appraisalRef?.AppointmentDate
+                appraisalRef?.AppraisalDate
             )));
         }
 

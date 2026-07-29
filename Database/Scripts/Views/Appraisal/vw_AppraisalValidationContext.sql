@@ -96,6 +96,43 @@ SELECT
             OR NULLIF(aa.AssigneeUserId, '') IS NOT NULL)
     ) THEN 1 ELSE 0 END                                                     AS HasAssignedAppraiser,
 
+    -- An EXTERNAL assignment must name the company that did the work. True when the active
+    -- assignment is not External (nothing to name), or when it is and a company is recorded.
+    -- Off-system engagements are the case this exists for: the bank engaged the company outside
+    -- the system, so no company-selection ever ran and only the keyer can supply it. Without a
+    -- company there is no fee to resolve, and the book and AS400 feed print a blank company.
+    CASE WHEN EXISTS (
+        SELECT 1
+        FROM appraisal.AppraisalAssignments aa
+        WHERE aa.AppraisalId = a.Id
+          AND aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
+          AND aa.AssignmentType = 'External'
+          AND NULLIF(aa.AssigneeCompanyId, '') IS NULL
+    ) THEN 0 ELSE 1 END                                                     AS ExternalCompanyRecorded,
+
+    -- An EXTERNAL assignment must have a real appraisal date behind it. Two legitimate sources:
+    -- a non-cancelled appointment (in-system work), or an off-system engagement where the keyer
+    -- typed the date off the company's book (AssignmentMethod = 'Offline').
+    --
+    -- Checking ValuationDate for a value would prove nothing: AppraisalCreationService seeds the
+    -- ValuationAnalyses row at creation, so the column is never empty — an in-system external case
+    -- that never had an appointment carries the time of the last pricing recompute, which reads as
+    -- an appraisal date but is not one. This catches that as well as an unrecorded book date.
+    CASE WHEN EXISTS (
+        SELECT 1
+        FROM appraisal.AppraisalAssignments aa
+        WHERE aa.AppraisalId = a.Id
+          AND aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
+          AND aa.AssignmentType = 'External'
+          AND aa.AssignmentMethod <> 'Offline'
+          AND NOT EXISTS (
+              SELECT 1
+              FROM appraisal.Appointments ap
+              WHERE ap.AssignmentId = aa.Id
+                AND ap.Status <> 'Cancelled'
+          )
+    ) THEN 0 ELSE 1 END                                                     AS ExternalAppraisalDateRecorded,
+
     -- ── Execution-stage readiness ────────────────────────────────────────
     -- Count of selected pricing methods (property-group-subject analyses).
     (

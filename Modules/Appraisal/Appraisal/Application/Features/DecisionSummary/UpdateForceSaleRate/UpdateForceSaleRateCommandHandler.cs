@@ -2,6 +2,7 @@ using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Shared.Time;
 
 namespace Appraisal.Application.Features.DecisionSummary.UpdateForceSaleRate;
 
@@ -13,7 +14,9 @@ namespace Appraisal.Application.Features.DecisionSummary.UpdateForceSaleRate;
 /// </summary>
 public class UpdateForceSaleRateCommandHandler(
     AppraisalDbContext db,
-    ForceSaleRateResolver forceSaleRateResolver
+    ForceSaleRateResolver forceSaleRateResolver,
+    AppraisalDateResolver appraisalDateResolver,
+    IDateTimeProvider dateTimeProvider
 ) : ICommandHandler<UpdateForceSaleRateCommand>
 {
     public async Task<Unit> Handle(UpdateForceSaleRateCommand command, CancellationToken cancellationToken)
@@ -34,7 +37,18 @@ public class UpdateForceSaleRateCommandHandler(
             // null correctly falls through to the computed value; writing 0m would pin reports to
             // zero. The next pricing change fires AppraisalFinalValuesChangedEventHandler, which
             // fills in the real values while preserving this override (it reads row.ForceSaleRate).
-            valuation = ValuationAnalysis.Create(command.AppraisalId, "Combined", DateTime.Now);
+            //
+            // ValuationDate is derived from the appraisal's appointments, NOT stamped with "now".
+            // This is a rate-only edit that happens to be the first writer of the row, and
+            // ValuationDate leads every appraisal-date read surface (the printed book, both AS400
+            // feeds, History Search, the +5-year reappraisal anchor) — seeding it with the moment
+            // someone changed a percentage would publish a save timestamp as the appraisal date.
+            // ApplicationNow remains only when no appointment exists to derive from.
+            var seedDate = await appraisalDateResolver
+                               .ResolveFromAppointmentsAsync(command.AppraisalId, cancellationToken)
+                           ?? dateTimeProvider.ApplicationNow;
+
+            valuation = ValuationAnalysis.Create(command.AppraisalId, "Combined", seedDate);
             db.ValuationAnalyses.Add(valuation);
             valuation.SetForceSaleRate(command.ForceSellingRateOverride);
             return Unit.Value;

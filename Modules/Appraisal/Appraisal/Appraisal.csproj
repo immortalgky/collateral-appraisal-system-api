@@ -8,6 +8,7 @@
         <ProjectReference Include="..\..\Parameter\Parameter.Contracts\Parameter.Contracts.csproj"/>
         <ProjectReference Include="..\..\Collateral\Collateral.Contracts\Collateral.Contracts.csproj"/>
         <ProjectReference Include="..\..\Workflow\Workflow.Contracts\Workflow.Contracts.csproj"/>
+        <ProjectReference Include="..\..\Auth\Auth.Contracts\Auth.Contracts.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

@@ -164,6 +164,13 @@ public sealed class AppraisalSummaryModel
     /// <summary>Field 26 — Land condition per group (rendered one line each).</summary>
     public IReadOnlyList<string> LandConditions { get; init; } = [];
 
+    /// <summary>
+    /// Text used for <see cref="Obligation"/> when the collateral has no obligation recorded.
+    /// Stating it explicitly beats falling through to the generic "-" placeholder
+    /// (.kv .v:empty::before in summary-styles), which reads as "unknown".
+    /// </summary>
+    public const string NoObligationText = "ไม่มีภาระผูกพัน";
+
     /// <summary>Field 27 — Obligation (encumbrance) details.</summary>
     public string? Obligation { get; init; }
 
