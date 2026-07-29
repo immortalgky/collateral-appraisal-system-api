@@ -1,5 +1,14 @@
 {
+  // Secret VALUES below (connection-string passwords, RabbitMQ/Mail/SFTP/admin passwords) must
+  // be encrypted as "ENC:v1:..." using CasSecretTool on the app server. The app decrypts them at
+  // startup with the certificate whose thumbprint is in Secrets:CertificateThumbprint. See
+  // docs/deployment/multi-server-deployment.md. Non-secret values stay plaintext.
+  "Secrets": {
+    "CertificateThumbprint": "#{SECRETS_CERT_THUMBPRINT}#"
+  },
   "ConnectionStrings": {
+    // Encrypt the whole connection string (it contains Password=...). Or, preferred long-term,
+    // use Integrated Security and a domain service-account AppPool so there is no password at all.
     "Database": "#{DATABASE_CONNECTION_STRING}#",
     "Redis": "#{REDIS_CONNECTION_STRING}#",
     "Hangfire": "#{HANGFIRE_CONNECTION_STRING}#"

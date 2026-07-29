@@ -36,13 +36,16 @@ deploy/
 **1. Build (build box):**
 ```bash
 pwsh deploy/Publish.ps1 -Version 20260723-101500 -FrontendMode production
-# -> dist-artifacts/CAS-20260723-101500.zip  (api/ web/ db/ database/)
+# -> dist-artifacts/CAS-20260723-101500.zip  (api/ web/ tools/ db/ database/)
 ```
 Backend & database tool are published *framework-dependent* (portable), so
 building on macOS is fine; the Windows server supplies the runtime.
 
 **2. Copy** `CAS-<ver>.zip` to `C:\Deploy\temp\` on each app server and expand it
-so you have `C:\Deploy\temp\<ver>\{api,web,db,database}`. Hand `db\` to the DBA.
+so you have `C:\Deploy\temp\<ver>\{api,web,tools,db,database}`. Hand `db\` to the DBA.
+The `tools\` folder holds `CasSecretTool` for encrypting config secrets — see the operator
+manual `docs/deployment/cas-secret-tool-manual.md` (background in
+`docs/deployment/multi-server-deployment.md` §2.12).
 
 **3. Deploy the database — ONCE per release**, before any new app instance starts.
 The `db/` folder is plain SQL; `Database.exe` is not needed on the server.
