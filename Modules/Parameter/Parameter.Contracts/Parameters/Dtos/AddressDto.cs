@@ -10,4 +10,4 @@ public record AddressDto(
     string SubDistrictCode,
     string SubDistrictName,
     string SubDistrictNameEn,
-    string Postcode);
+    string? Postcode);
