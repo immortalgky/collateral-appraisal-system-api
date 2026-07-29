@@ -197,9 +197,16 @@
     "TaskLockExpiry": { "Interval": "00:05:00", "LockTimeout": "00:30:00" }
   },
   "SeedData": {
+    "IncludeDemoData": false,
     "AdminUser": {
       "Username": "#{ADMIN_USERNAME}#",
       "Password": "#{ADMIN_PASSWORD}#"
+    }
+  },
+  "Authentication": {
+    "Clients": {
+      "los": { "ClientSecret": "#{LOS_CLIENT_SECRET}#" },
+      "cls": { "ClientSecret": "#{CLS_CLIENT_SECRET}#" }
     }
   },
   "Mail": {

@@ -187,7 +187,7 @@ internal static class LegacyResultMapper
             Wah = row.Wa ?? 0m,
             RoomNo = Str(row.RoomNo),
             FloorNo = Str(row.FloorNo),                 // the unit's own floor
-            FloorNumber = NumStr(row.CondoTotalFloor),  // total floors of the building
+            FloorNumber = FloorNumberStr(row.CondoTotalFloor, Str(row.FloorNo)),  // total floors (default from FloorNo)
             BuildingNo = Str(row.BuildingNo),
             BuildingAge = row.CondoBuildingAge ?? row.BuildingAge ?? 0,
             AreaUtilize = row.AreaUtilize ?? 0m,
@@ -237,7 +237,7 @@ internal static class LegacyResultMapper
             HouseNo = Str(building?.HouseNo),
             BuildingNo = Str(building?.BuildingNo),
             BuildingAge = building?.BuildingAge ?? 0,
-            FloorNumber = NumStr(building?.TotalFloor),   // total floors of the building
+            FloorNumber = FloorNumberStr(building?.TotalFloor, ""),   // non-condo has no unit floor → default 1
             AreaUtilize = building?.TotalBuildingArea ?? 0m,
             Decorate = ParseDecorate(building?.BuildingDecorationType),
             BuildingDetails = Str(FirstNonEmpty(land?.Village, building?.CondoName)),
@@ -275,7 +275,7 @@ internal static class LegacyResultMapper
             HouseNo = isCondo ? "" : Str(unit.HouseNumber),
             RoomNo = isCondo ? Str(unit.UnitRoomNo ?? unit.RoomNumber) : "",
             FloorNo = isCondo ? IntStr(unit.Floor) : "",                       // the unit's own floor
-            FloorNumber = IntStr(unit.TowerFloors ?? unit.NumberOfFloors),     // total floors (from the tower)
+            FloorNumber = FloorNumberStr(unit.TowerFloors ?? unit.NumberOfFloors, isCondo ? IntStr(unit.Floor) : ""),   // total floors from tower (default from FloorNo)
             BuildingAge = unit.TowerBuildingAge ?? 0,
             BuildingNo = isCondo ? Str(unit.TowerName) : "",
             BuildingRegisterNo = isCondo ? Str(unit.CondoRegistrationNumber) : "",
@@ -426,6 +426,23 @@ internal static class LegacyResultMapper
             : (value.Value == Math.Truncate(value.Value)
                 ? ((long)value.Value).ToString(CultureInfo.InvariantCulture)
                 : value.Value.ToString(CultureInfo.InvariantCulture));
+
+    // Total floors as a string. Uses the real value when present; otherwise derives from the unit's own
+    // floor (FloorNo): empty → "1"; contains a non-digit char (e.g. "25A") → floor + 1; else → the floor.
+    private static string FloorNumberStr(decimal? totalFloors, string floorNo)
+    {
+        if (totalFloors is > 0m) return NumStr(totalFloors);
+
+        floorNo = floorNo?.Trim() ?? string.Empty;
+        if (floorNo.Length == 0) return "1";
+
+        var leadingDigits = new string(floorNo.TakeWhile(char.IsDigit).ToArray());
+        if (!int.TryParse(leadingDigits, NumberStyles.Integer, CultureInfo.InvariantCulture, out var floor))
+            return "1";
+
+        var hasNonDigit = floorNo.Any(c => !char.IsDigit(c));
+        return (hasNonDigit ? floor + 1 : floor).ToString(CultureInfo.InvariantCulture);
+    }
 
     private static string IsoDate(DateTime? value) =>
         value?.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture) ?? string.Empty;

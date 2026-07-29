@@ -124,7 +124,7 @@ public static class IntegrationModule
 
     public static IApplicationBuilder UseIntegrationModule(this IApplicationBuilder app)
     {
-        app.UseMigration<IntegrationDbContext>();
+        app.UseDataSeeding<IntegrationDbContext>();
         app.UseModuleRecurringJobs<IntegrationDbContext>(IntegrationRecurringJobs.All);
         return app;
     }

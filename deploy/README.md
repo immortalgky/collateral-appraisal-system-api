@@ -33,6 +33,26 @@ deploy/
 
 ## Release flow
 
+**0. First deployment to a new environment only — configure the servers.** Skip this on a
+redeploy; `appsettings.Production.json` is preserved across deployments (see *What gets
+preserved* below), so it only has to be right once. See *First-time setup on a new server* for
+the IIS/certificate side.
+
+On each app server, create `appsettings.Production.json` from
+`Bootstrapper/Api/appsettings.Production.json.template` and substitute **every** `#{TOKEN}#`.
+It must be complete **before the app is started for the first time**, because that first start
+is when the data seeders run. Three values decide whether the environment is usable at all:
+
+| Setting | If it is wrong/missing at first start |
+|---|---|
+| `ConnectionStrings:Database` | app cannot start |
+| `SeedData:AdminUser` | no admin account is created — nobody can sign in |
+| `Cors:AllowedOrigins` | the `spa` OAuth client is skipped and logged as an error — the deployment looks healthy but **nobody can sign in** |
+
+Both sign-in failures self-heal on a restart once the config is corrected (the seeders are
+insert-only, so the missing rows are simply retried) — but they present as a *successful*
+deployment, which is an expensive thing to diagnose mid go-live.
+
 **1. Build (build box):**
 ```bash
 pwsh deploy/Publish.ps1 -Version 20260723-101500 -FrontendMode production
@@ -47,6 +67,12 @@ so you have `C:\Deploy\temp\<ver>\{api,web,db,database}`. Hand `db\` to the DBA.
 **3. Deploy the database — ONCE per release**, before any new app instance starts.
 The `db/` folder is plain SQL; `Database.exe` is not needed on the server.
 
+> This step is **mandatory, not a convenience**. The application does not apply migrations — on
+> startup it only checks for pending ones and refuses to boot if the schema is behind the build
+> (`Shared/Shared/Data/Extensions/MigrationExtension.cs`). Deploying the app first will simply
+> fail its health check. Data seeding is a separate thing that still happens at app start —
+> see step 4.
+
 ```powershell
 .\deploy\Invoke-SqlDeploy.ps1 -ServerInstance SQLHOST -Database CollateralAppraisal `
     -ScriptPath C:\Deploy\temp\20260723-101500\db -TrustedConnection
@@ -57,17 +83,37 @@ or, in SSMS/sqlcmd, run the files in this order — every one is idempotent:
 |---|---|
 | `00_Prepare.sql` | `dbo.DatabaseMigrationHistory` (the journal table) |
 | `01_EF_01..11_*.sql` | EF Core idempotent schema scripts, **in numeric order** |
-| `02_Repeatable_ViewsAndProcs.sql` | 61 views/procs, `CREATE OR ALTER`, dependency-ordered |
+| `02_Repeatable_ViewsAndProcs.sql` | 60 views/procs, `CREATE OR ALTER`, dependency-ordered |
 | `03_OneTime_DataScripts.sql` | 39 seed/data scripts, each skipped if already journaled |
 | `99_Verify.sql` | read-only verification — run last, read the output |
 
-**4. Deploy the app on each server** (elevated PowerShell, one server at a time):
+**4. Deploy the app on each server** (elevated PowerShell, **one server at a time**):
 ```powershell
 .\deploy\Deploy-App.ps1 -Version 20260723-101500
 .\deploy\Deploy-Web.ps1 -Version 20260723-101500
 ```
-Confirm `/health/ready` before moving to the next server so the F5 always has a
-healthy member.
+**This is where data seeding happens.** On startup each node verifies the schema is current and
+then runs its modules' data seeders — permissions, menus, roles, workflow assignment groups,
+lookup tables, workflow definitions. Seeding runs while the pipeline is being built, before the
+app listens (`Program.cs`: `MapCarter()` → the `UseXModule()` chain → `app.Run()`), so a node
+serves no traffic until its seeders have finished.
+
+Confirm `/health/ready` before moving to the next server. This is not only an F5 courtesy: a
+healthy server 1 means seeding is complete, so server 2's seeders find everything present and
+no-op. Starting both nodes at once would let the insert-only seeders race on check-then-insert.
+
+**5. Post-deployment steps that are NOT automated.** These are manual on purpose —
+they need per-environment values the repo cannot hold:
+
+| Step | Why it is manual |
+|---|---|
+| `Database/Scripts/Maintenance/WebhookSubscriptions_LOS_PMA.sql` | Registers the LOS PMA push subscription. Contains `<LOS-HOST>` and `<LOS-PROVIDED-CLIENT-SECRET>` placeholders that **must** be replaced with the real LOS values before running. Not in the `db/` bundle. |
+| Committee members | `CommitteeDataSeed` seeds the committees and their thresholds but resolves members by username, so a production database gets **no members**. Add them via the admin UI. |
+| `los` / `cls` OAuth clients | Seeded only when `Authentication:Clients:<id>:ClientSecret` is set in `appsettings.Production.json`; otherwise skipped with a warning. Either set the secrets or create the clients via `/admin/clients`. |
+
+Everything else — schema, views, procs, reference data, menus, permissions, roles and
+the workflow assignment groups — is applied by the `db/` bundle plus the application's
+own boot-time seeders.
 
 ## How the SQL bundle is generated
 
@@ -97,7 +143,10 @@ pwsh deploy/New-DbDeploymentScripts.ps1 -OutDir ./out/db -SkipEf
 `Deploy-App.ps1` uses `robocopy /MIR` (so stale DLLs are cleaned) but excludes,
 via `/XF` and `/XD`, the files configured in `deploy.config.ps1`:
 
-- `appsettings.Production.json` — generated on the server from the `.template`.
+- `appsettings.Production.json` — generated on the server from the `.template`. Every `#{TOKEN}#`
+  must be substituted. In particular `Cors:AllowedOrigins` drives the SPA's OAuth redirect URIs
+  (the `spa` client is skipped if it is empty, and nobody can sign in), and the `los` / `cls`
+  client secrets are skipped — with an error logged — if left as placeholders.
 - `web.config` — server-owned; also carries the raised `maxAllowedContentLength`.
 - `logs/`, `DataProtection-Keys/` — guarded. (Data Protection keys are actually
   stored in the DB here, so this is just belt-and-braces.)

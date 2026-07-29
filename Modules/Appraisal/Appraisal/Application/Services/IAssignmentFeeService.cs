@@ -5,8 +5,13 @@ namespace Appraisal.Application.Services;
 /// </summary>
 public abstract record AssignmentFeeSource
 {
-    /// <summary>Look up the applicable tier from FeeStructures (FeeCode="01") using TotalSellingPrice.</summary>
-    public sealed record TierBased : AssignmentFeeSource;
+    /// <summary>
+    /// Look up the applicable tier from FeeStructures (FeeCode="01") using TotalSellingPrice.
+    /// <paramref name="AppraisalType"/> selects the ladder: when the table holds rows scoped to
+    /// that type they are used exclusively, otherwise the generic (null-scoped) ladder applies.
+    /// Null means "no type known" and always resolves to the generic ladder.
+    /// </summary>
+    public sealed record TierBased(string? AppraisalType = null) : AssignmentFeeSource;
 
     /// <summary>
     /// Use the price agreed through the quotation process.
@@ -44,7 +49,8 @@ public interface IAssignmentFeeService
     /// Returns a CI-aware fee source: when the appraisal is a Construction Inspection follow-up
     /// (AppraisalType=ConstructionInspection AND PrevAppraisalId is set), looks up the prior
     /// engagement's CI fee via Collateral and returns <see cref="AssignmentFeeSource.ConstructionInspection"/>.
-    /// Otherwise returns <paramref name="defaultSource"/> unchanged.
+    /// A <see cref="AssignmentFeeSource.TierBased"/> default is stamped with the appraisal's type so
+    /// the tier lookup can pick the type-scoped ladder. Any other source is returned unchanged.
     /// </summary>
     Task<AssignmentFeeSource> ResolveSourceForAppraisalAsync(
         Domain.Appraisals.Appraisal appraisal,

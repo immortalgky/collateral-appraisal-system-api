@@ -256,7 +256,7 @@ public static class AuthModule
 
     public static IApplicationBuilder UseAuthModule(this IApplicationBuilder app)
     {
-        app.UseMigration<AuthDbContext>();
+        app.UseDataSeeding<AuthDbContext>();
 
         // Apply the DB-maintained lockout settings to the IdentityOptions snapshot once, after the
         // policy row has been migrated + seeded. Done here (not via IConfigureOptions) because reading

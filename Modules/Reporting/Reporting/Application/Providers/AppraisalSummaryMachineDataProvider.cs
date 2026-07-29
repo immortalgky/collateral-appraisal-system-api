@@ -207,7 +207,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
             SummaryPropertyType = "เครื่องจักร",
             // ที่ตั้งทรัพย์สิน from the Request detail (same as land-building); fall back to the machine's own address.
             CollateralAddress = common.CollateralAddress ?? collateralAddress,
-            AdministrativeDistrict = null,
+            AdministrativeDistrict = common.AdministrativeDistrict,
             LandOffice = null,
             OldAppraisalValue = common.PrevAppraisedValue,
             HasPrevAppraisal = common.HasPrevAppraisal,

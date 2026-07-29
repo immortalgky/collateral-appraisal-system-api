@@ -151,14 +151,15 @@ The project uses Docker Compose to run required infrastructure services:
 
 ### Database Setup
 
-1. **Run initial migrations**:
+1. **Build the database**. The application does **not** migrate on startup — it only verifies the
+   schema is current and refuses to boot otherwise. Run the migration tool, which applies EF Core
+   migrations for every module (in dependency order) and then the DbUp views, stored procedures
+   and one-time data scripts:
    ```bash
-   # For Request module
-   dotnet ef database update --project Modules/Request/Request --startup-project Bootstrapper/Api
-   
-   # For Auth module (if migrations exist)
-   dotnet ef database update --project Modules/Auth/Auth --startup-project Bootstrapper/Api
+   dotnet run --project Database/Database.csproj migrate
    ```
+   Do this once after cloning and again whenever you pull migrations or edit a view. Prefer it
+   over `dotnet ef database update`, which covers only one module and never applies views.
 
 2. **Verify database connection**:
    - Connect to SQL Server using your preferred tool
@@ -252,9 +253,10 @@ Daily development process:
    dotnet restore
    ```
 
-3. **Run migrations** (if new ones exist):
+3. **Apply migrations** (required if any new ones exist — the API refuses to start against a
+   schema that is behind the code):
    ```bash
-   dotnet ef database update --project Modules/Request/Request --startup-project Bootstrapper/Api
+   dotnet run --project Database/Database.csproj migrate
    ```
 
 4. **Start development**:
@@ -288,12 +290,18 @@ dotnet test
 ### Database Operations
 
 ```bash
-# Add new migration for a specific module
+# Add new migration for a specific module (writes files only, applies nothing)
 dotnet ef migrations add <MigrationName> --project Modules/Request/Request --startup-project Bootstrapper/Api
 
-# Update database
-dotnet ef database update --project Modules/Request/Request --startup-project Bootstrapper/Api
+# Apply everything: EF migrations for all modules, then views/procs/one-time data scripts
+dotnet run --project Database/Database.csproj migrate
+
+# Inspect what the tool has applied
+dotnet run --project Database/Database.csproj history
 ```
+
+The application never applies migrations itself. In production the DBA runs a generated plain-SQL
+bundle instead of this tool — see `deploy/README.md`.
 
 ### Project Structure Commands
 

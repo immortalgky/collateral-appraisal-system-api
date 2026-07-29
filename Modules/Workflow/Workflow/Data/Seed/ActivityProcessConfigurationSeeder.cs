@@ -10,9 +10,7 @@ namespace Workflow.Data.Seed;
 ///
 /// Idempotent and additive: inserts a managed row only when no row exists for its
 /// (ActivityName, ProcessorName) pair, so admin edits to existing rows are preserved and
-/// re-running never duplicates. Two legacy demo rows are removed up front
-/// (the placeholder `site-inspection` activity, and the misplaced property-mandatory-fields
-/// row on `ext-appraisal-assignment` — property data is validated at *execution*, not assignment).
+/// re-running never duplicates. It never updates or deletes.
 ///
 /// Design rules baked into the seed:
 ///  - Validate completeness where the data is ENTERED: appointment/fee/appraiser at assignment,
@@ -31,20 +29,6 @@ public class ActivityProcessConfigurationSeeder(
 
     public async Task SeedAllAsync()
     {
-        // ── Remove legacy demo rows (safe: system-authored placeholders) ──────────
-        var legacy = await context.ActivityProcessConfigurations
-            .Where(c =>
-                c.ActivityName == "site-inspection"
-                || (c.ActivityName == "ext-appraisal-assignment"
-                    && c.ProcessorName == "ValidatePropertyMandatoryFields"
-                    && c.CreatedBy == System))
-            .ToListAsync();
-        if (legacy.Count > 0)
-        {
-            context.ActivityProcessConfigurations.RemoveRange(legacy);
-            logger.LogInformation("Removed {Count} legacy demo activity-process rows", legacy.Count);
-        }
-
         // ── Desired managed rows (real workflow activities) ───────────────────────
         var desired = BuildDesiredConfigs();
 
@@ -65,9 +49,7 @@ public class ActivityProcessConfigurationSeeder(
         }
 
         await context.SaveChangesAsync();
-        logger.LogInformation(
-            "Activity-process seed reconciled: {Added} added, {Removed} legacy removed",
-            toAdd.Count, legacy.Count);
+        logger.LogInformation("Activity-process seed reconciled: {Added} added", toAdd.Count);
     }
 
     private static List<ActivityProcessConfiguration> BuildDesiredConfigs()

@@ -11,7 +11,7 @@ The frontend needs **two separate address datasets** for the address autocomplet
 
 ### Why two datasets?
 
-- **Title addresses** come from the Department of Lands (กรมที่ดิน). They include historical/merged sub-districts that still appear on land title documents. Used for title address fields (`titleAddress.*`) and detail address fields.
+- **Title addresses** come from the Department of Lands (กรมที่ดิน). They include historical/merged sub-districts that still appear on land title documents. Used for title address fields (`titleAddress.*`) and detail address fields. Seeded from `.claude/docs/MasterAddressCheckUseV2.xlsx` (rows the business flagged `UserDelete = 1` are excluded).
 - **DOPA addresses** come from the Department of Provincial Administration (กรมการปกครอง). They reflect current official administrative divisions only. Used for DOPA address fields (`dopaAddress.*`).
 
 ## Endpoints
@@ -42,29 +42,26 @@ GET /parameters/addresses/dopa
   {
     "provinceCode": "10",
     "provinceName": "กรุงเทพมหานคร",
+    "provinceNameEn": "Bangkok",
     "districtCode": "1001",
     "districtName": "พระนคร",
+    "districtNameEn": "Phra Nakhon",
     "subDistrictCode": "100101",
     "subDistrictName": "พระบรมมหาราชวัง",
+    "subDistrictNameEn": "Phra Borom Maha Ratchawang",
     "postcode": "10200"
   },
   {
     "provinceCode": "10",
     "provinceName": "กรุงเทพมหานคร",
-    "districtCode": "1001",
-    "districtName": "พระนคร",
-    "subDistrictCode": "100102",
-    "subDistrictName": "วังบูรพาภิรมย์",
-    "postcode": "10200"
-  },
-  {
-    "provinceCode": "50",
-    "provinceName": "เชียงใหม่",
-    "districtCode": "5001",
-    "districtName": "เมืองเชียงใหม่",
-    "subDistrictCode": "500101",
-    "subDistrictName": "ศรีภูมิ",
-    "postcode": "50200"
+    "provinceNameEn": "Bangkok",
+    "districtCode": "10A6",
+    "districtName": "สวนหลวง(พระโขนง)",
+    "districtNameEn": "สวนหลวง(พระโขนง)",
+    "subDistrictCode": "383798",
+    "subDistrictName": "สวนหลวง,คลองตัน(ที่8พระโขนงฝั่งเหนือ)",
+    "subDistrictNameEn": "สวนหลวง,คลองตัน(ที่8พระโขนงฝั่งเหนือ)",
+    "postcode": null
   }
 ]
 ```
@@ -73,28 +70,33 @@ GET /parameters/addresses/dopa
 
 | Field | Type | Format | Description | Example |
 |-------|------|--------|-------------|---------|
-| `provinceCode` | `string` | 2 digits | Province code | `"10"` |
+| `provinceCode` | `string` | 2 chars | Province code | `"10"` |
 | `provinceName` | `string` | Thai text | Province name in Thai | `"กรุงเทพมหานคร"` |
-| `districtCode` | `string` | 4 digits | District code (province prefix + 2 digits) | `"1001"` |
+| `provinceNameEn` | `string` | Latin text | Province name in English — **falls back to the Thai name** when no English name is known | `"Bangkok"` |
+| `districtCode` | `string` | 4 chars | District code | `"1001"` |
 | `districtName` | `string` | Thai text | District name in Thai | `"พระนคร"` |
-| `subDistrictCode` | `string` | 6 digits | Sub-district code (district prefix + 2 digits) | `"100101"` |
+| `districtNameEn` | `string` | Latin text | District name in English — falls back to the Thai name | `"Phra Nakhon"` |
+| `subDistrictCode` | `string` | 6 chars | Sub-district code | `"100101"` |
 | `subDistrictName` | `string` | Thai text | Sub-district name in Thai | `"พระบรมมหาราชวัง"` |
-| `postcode` | `string` | 5 digits | Postal/zip code | `"10200"` |
+| `subDistrictNameEn` | `string` | Latin text | Sub-district name in English — falls back to the Thai name | `"Phra Borom Maha Ratchawang"` |
+| `postcode` | `string \| null` | 5 digits | Postal/zip code. **Nullable** — `null` for the 3,715 Title sub-districts the master carries no postcode for. Always populated for DOPA. | `"10200"` |
 
 ## Dataset Comparison
 
 | | Title (`/parameters/addresses/title`) | DOPA (`/parameters/addresses/dopa`) |
 |---|---|---|
 | Source authority | กรมที่ดิน (Department of Lands) | กรมการปกครอง (DOPA) |
-| Size | More entries (includes historical/merged sub-districts) | Fewer entries (current administrative divisions only) |
-| Used for | Title address, detail address, appraisal land/condo/building address | DOPA address fields |
+| Size | 93 provinces / 1,640 districts / **11,144 sub-districts** | 77 / 928 / **7,436 sub-districts** |
+| Code format | Not always numeric — provinces `A0`/`A1`/`A2`, districts like `10G8`, `10A6` | Numeric TIS-1099 codes only |
+| `postcode` | Nullable (3,715 rows are `null`) | Always present |
+| Used for | Title (deed) address, appraisal land/condo/building address | Detail (Location) address, DOPA address fields |
 | Update frequency | Less frequent | Follows official administrative changes |
 
 ## Frontend Usage
 
 | Form field | Endpoint used |
 |------------|---------------|
-| Request → Detail Address (`detail.address.*`) | `title` |
+| Request → Detail Address / Location (`detail.address.*`) | `dopa` |
 | Request → Title Address (`titleAddress.*`) | `title` |
 | Request → DOPA Address (`dopaAddress.*`) | `dopa` |
 | Appraisal → Land Info address | `title` |
@@ -104,63 +106,43 @@ GET /parameters/addresses/dopa
 
 1. **Naming convention:** camelCase (matches frontend TypeScript interface)
 2. **One row per sub-district:** Each entry is fully denormalized — province and district info is repeated for every sub-district under them
-3. **All active records:** Return all active sub-districts for that source
-4. **Code hierarchy:** `subDistrictCode` starts with its parent `districtCode`, which starts with its parent `provinceCode`
+3. **All records:** Both masters return every seeded sub-district. There is no `IsActive` flag on these tables — rows the business flagged for deletion are already excluded at seed time.
+4. **Code hierarchy — DOPA only.** For DOPA, `subDistrictCode` starts with its parent `districtCode`, which starts with its parent `provinceCode`.
+   **This does NOT hold for Title.** In the Title master 118 sub-districts sit under a district that is not their code prefix, 206 district codes and 161 sub-district codes are not purely numeric, and three province codes are `A0`/`A1`/`A2`. Always resolve a Title parent by joining `DistrictCode` / `ProvinceCode` — never by slicing the code.
 5. **No pagination:** Frontend fetches all records at once and caches for the entire session
 6. **Both endpoints called on app load** — frontend calls both in parallel at startup
 7. **Fallback:** If either endpoint fails or returns empty, frontend falls back to mock data
+8. **The two datasets are different.** Title is the Land Department master (11,144 sub-districts,
+   incl. historical/merged ones that still appear on deeds); DOPA is the current administrative list
+   (7,436). 3,715 Title codes exist in **neither** DOPA table, so a geocode captured through the
+   Title picker will not resolve against `parameter.Dopa*` — this affects the DOPA-sourced fields in
+   `vw_RegulatoryExport` and `GetAppraisalResultQueryHandler`. Always resolve a stored geocode
+   against the master the capturing form used.
+9. **`postcode` can be `null` on the Title endpoint.** The Title master carries no postcode column;
+   postcodes are only present for the 7,429 codes that overlap the DOPA list. Do not assume a
+   postcode is available when auto-filling from the Title picker.
 
-## SQL Reference (if using separate tables per source)
-
-```sql
--- Title addresses
-SELECT
-    p.Code        AS provinceCode,
-    p.Name        AS provinceName,
-    d.Code        AS districtCode,
-    d.Name        AS districtName,
-    sd.Code       AS subDistrictCode,
-    sd.Name       AS subDistrictName,
-    sd.Postcode   AS postcode
-FROM TitleSubDistricts sd
-JOIN TitleDistricts d ON sd.DistrictCode = d.Code
-JOIN TitleProvinces p ON d.ProvinceCode = p.Code
-WHERE sd.IsActive = 1
-ORDER BY sd.Code
-
--- DOPA addresses
-SELECT
-    p.Code        AS provinceCode,
-    p.Name        AS provinceName,
-    d.Code        AS districtCode,
-    d.Name        AS districtName,
-    sd.Code       AS subDistrictCode,
-    sd.Name       AS subDistrictName,
-    sd.Postcode   AS postcode
-FROM DopaSubDistricts sd
-JOIN DopaDistricts d ON sd.DistrictCode = d.Code
-JOIN DopaProvinces p ON d.ProvinceCode = p.Code
-WHERE sd.IsActive = 1
-ORDER BY sd.Code
-```
-
-If both sources share the same table with a `Source` column:
+## SQL Reference
 
 ```sql
+-- Title addresses (what AddressRepository.GetTitleAddressesAsync produces)
 SELECT
     p.Code        AS provinceCode,
-    p.Name        AS provinceName,
+    p.NameTh      AS provinceName,
+    p.NameEn      AS provinceNameEn,
     d.Code        AS districtCode,
-    d.Name        AS districtName,
+    d.NameTh      AS districtName,
+    d.NameEn      AS districtNameEn,
     sd.Code       AS subDistrictCode,
-    sd.Name       AS subDistrictName,
-    sd.Postcode   AS postcode
-FROM SubDistricts sd
-JOIN Districts d ON sd.DistrictCode = d.Code
-JOIN Provinces p ON d.ProvinceCode = p.Code
-WHERE sd.IsActive = 1
-  AND sd.Source = @source  -- 'title' or 'dopa'
-ORDER BY sd.Code
+    sd.NameTh     AS subDistrictName,
+    sd.NameEn     AS subDistrictNameEn,
+    sd.Postcode   AS postcode          -- NULL for 3,715 rows
+FROM parameter.TitleSubDistricts sd
+JOIN parameter.TitleDistricts d ON sd.DistrictCode = d.Code
+JOIN parameter.TitleProvinces p ON d.ProvinceCode = p.Code
+ORDER BY sd.Code;
+
+-- DOPA addresses: identical, against parameter.Dopa*
 ```
 
 ## Caching Behavior

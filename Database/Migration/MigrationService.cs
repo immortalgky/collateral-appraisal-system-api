@@ -32,14 +32,10 @@ public class MigrationService : IMigrationService
                 await BackupDatabaseAsync();
             }
 
-            var result = await _migrator.MigrateAsync(environment);
-
-            if (result && _configuration.GetValue<bool>($"Environments:{environment}:EnableSeeding"))
-            {
-                await SeedDataAsync(environment);
-            }
-
-            return result;
+            // No seeding step here by design. Seed and reference data reach the database either
+            // as journaled one-time scripts under Database/Migration/Scripts (run by the migrator
+            // above) or through the application's IDataSeeder implementations at boot.
+            return await _migrator.MigrateAsync(environment);
         }
         catch (Exception ex)
         {
@@ -172,48 +168,6 @@ public class MigrationService : IMigrationService
         await command.ExecuteNonQueryAsync();
 
         _logger.LogInformation("Database backup created: {BackupPath}", backupPath);
-    }
-
-    private async Task SeedDataAsync(string environment)
-    {
-        _logger.LogInformation("Seeding data for environment: {Environment}", environment);
-
-        var seedingMode = _configuration.GetValue<string>($"Environments:{environment}:SeedingMode");
-
-        switch (seedingMode)
-        {
-            case "TestData":
-                await ExecuteSeedScriptsAsync("TestData");
-                await ExecuteSeedScriptsAsync("MasterData");
-                break;
-            case "MasterDataOnly":
-                await ExecuteSeedScriptsAsync("MasterData");
-                break;
-            default:
-                break;
-        }
-    }
-
-    private async Task ExecuteSeedScriptsAsync(string seedType)
-    {
-        var scriptsPath = Path.Combine("Scripts", "Seed", seedType);
-        if (!Directory.Exists(scriptsPath)) return;
-
-        var scripts = Directory.GetFiles(scriptsPath, "*.sql")
-            .OrderBy(f => f)
-            .ToList();
-
-        foreach (var script in scripts)
-        {
-            var sql = await File.ReadAllTextAsync(script);
-            var connectionString = GetConnectionString();
-            using var connection = new SqlConnection(connectionString);
-            await connection.OpenAsync();
-            using var command = new SqlCommand(sql, connection);
-            await command.ExecuteNonQueryAsync();
-
-            _logger.LogInformation("Executed seed script: {Script}", Path.GetFileName(script));
-        }
     }
 
     private async Task<string> GenerateRollbackContentAsync(string version)
