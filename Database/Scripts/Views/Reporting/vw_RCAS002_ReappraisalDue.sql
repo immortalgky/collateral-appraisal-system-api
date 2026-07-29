@@ -6,7 +6,10 @@
 -- exist yet on a fresh deploy. The base table exists after EF migrations, and
 -- appraisal.vw_AppraisalList (folder "Appraisal") sorts before this view.
 -- NOTE: the reappraisal vertical moved request -> collateral schema; this view follows it.
--- AppraisalDate / NextValuationDate are derived here the same way the Request view derives them.
+-- NextValuationDate / RemainingDays derive from the matched in-system appraisal's appraisal date
+-- (+5 years) — ValuationAnalyses.ValuationDate, falling back to the latest non-cancelled
+-- appointment — the same way vw_ReappraisalCandidates does.
+-- c.ValuationDate is a DIFFERENT field: the AS400 inbound value off the Collatrev file.
 --
 -- CODE -> DESCRIPTION RESOLUTION:
 --   * ReviewType : AS400 review code 1/2/3 -> readable label via CASE (documented enum:
@@ -40,18 +43,23 @@ SELECT c.Id,
        c.CurrentValue                      AS OldAppraisalValue,
        c.PastDueDay,
        c.ValuationDate,
-       DATEADD(YEAR, 5, CAST(la.AppointmentDateTime AS DATE)) AS NextValuationDate,
+       DATEADD(YEAR, 5, CAST(la.AppraisalDate AS DATE)) AS NextValuationDate,
        DATEDIFF(DAY,
                 CAST(GETDATE() AS DATE),
-                DATEADD(YEAR, 5, CAST(la.AppointmentDateTime AS DATE))) AS RemainingDays,
+                DATEADD(YEAR, 5, CAST(la.AppraisalDate AS DATE))) AS RemainingDays,
        -- Appended (not inserted mid-list) so the SELECT order still matches the positional Rcas002Row.
        c.ReviewType                        AS ReviewTypeCode -- raw 1/2/3: filter binds the code, sort follows code order
 FROM collateral.ReappraisalCandidates c
+         -- a.CompletedAt is the last fallback: a legacy/migrated appraisal can have neither a
+         -- ValuationAnalyses row nor an Appointment row, and without it NextValuationDate and
+         -- RemainingDays are NULL, so the collateral drops out of the reappraisal-due report
+         -- despite having a perfectly good completion date to anchor the +5 years on.
          OUTER APPLY (
-    SELECT TOP 1 al.AppointmentDateTime
+    SELECT TOP 1 COALESCE(va.ValuationDate, al.AppointmentDateTime, a.CompletedAt) AS AppraisalDate
     FROM appraisal.Appraisals a
              INNER JOIN appraisal.vw_AppraisalList al ON al.Id = a.Id
+             LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = a.Id
     WHERE a.AppraisalNumber = c.SurveyNumber
-    ORDER BY al.AppointmentDateTime DESC
+    ORDER BY COALESCE(va.ValuationDate, al.AppointmentDateTime, a.CompletedAt) DESC
     ) la
 WHERE c.Status <> 'Deleted';

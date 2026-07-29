@@ -56,6 +56,7 @@ public class WorkflowTransitionedIntegrationEventHandler(
             ["ext-appraisal-check"]         = AppraisalStatus.InProgress,
             ["ext-appraisal-verification"]  = AppraisalStatus.InProgress,
             ["int-appraisal-execution"]     = AppraisalStatus.InProgress,
+            ["int-offline-book-keyin"]      = AppraisalStatus.InProgress,
             ["int-appraisal-check"]         = AppraisalStatus.UnderReview,
             ["int-appraisal-verification"]  = AppraisalStatus.UnderReview,
             ["appraisal-book-verification"] = AppraisalStatus.UnderReview,
@@ -253,9 +254,13 @@ public class WorkflowTransitionedIntegrationEventHandler(
             && (string.Equals(destination, "ext-appraisal-assignment", StringComparison.OrdinalIgnoreCase)
              || string.Equals(destination, "ext-appraisal-check", StringComparison.OrdinalIgnoreCase));
 
+        // int-offline-book-keyin is treated as an internal rework target too: the case is External,
+        // but the person redoing the work is the bank's own keyer, so the appraiser-must-redo
+        // semantics match the internal path rather than the pull-back-to-the-company path.
         var isInternalRework = source is not null
             && BankReviewActivities.Contains(source)
-            && string.Equals(destination, "int-appraisal-execution", StringComparison.OrdinalIgnoreCase);
+            && (string.Equals(destination, "int-appraisal-execution", StringComparison.OrdinalIgnoreCase)
+             || string.Equals(destination, "int-offline-book-keyin", StringComparison.OrdinalIgnoreCase));
 
         if (isExternalRework || isInternalRework)
         {
@@ -308,6 +313,12 @@ public class WorkflowTransitionedIntegrationEventHandler(
         {
             case "ext-appraisal-execution":
             case "int-appraisal-execution":
+            case "int-offline-book-keyin":
+                // OFFLINE EXTERNAL: like INT, landing on this activity publishes
+                // InternalAssignedIntegrationEvent (WorkflowService.InternalAssigneeActivities),
+                // whose handler does Assign + StartWork and materialises the fee — so the row is
+                // already InProgress and this case is a no-op once that has run. It remains the
+                // fallback if that event is skipped (no assignee resolved).
                 // INT: InternalAssignedIntegrationEventHandler now owns the Assigned→InProgress
                 // transition (assign and start coincide on int-appraisal-execution), so this case is a
                 // no-op for internal once that has run. It remains authoritative for the EXT path,
@@ -333,6 +344,20 @@ public class WorkflowTransitionedIntegrationEventHandler(
                 if (assignment.AssignmentStatus == AssignmentStatus.InProgress)
                 {
                     assignment.MarkUnderReview();
+                    return true;
+                }
+                return false;
+
+            case "appraisal-assignment":
+                // The case came back to the admin queue (route-back or cancel from an execution
+                // activity, or company-selection finding no eligible company). The row is Assigned
+                // or InProgress by now, but AssignAppraisalCommandHandler only accepts a Pending
+                // assignment — without this reset the admin's re-decision 400s and the appraisal is
+                // stranded. Applies to the internal, external and offline paths alike.
+                if (assignment.AssignmentStatus == AssignmentStatus.Assigned
+                    || assignment.AssignmentStatus == AssignmentStatus.InProgress)
+                {
+                    assignment.ReturnToAssignmentQueue();
                     return true;
                 }
                 return false;

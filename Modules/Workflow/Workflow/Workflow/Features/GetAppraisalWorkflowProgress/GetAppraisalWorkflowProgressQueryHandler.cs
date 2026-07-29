@@ -25,6 +25,9 @@ public class GetAppraisalWorkflowProgressQueryHandler(
         ["ext-appraisal-check"] = "Execution",
         ["ext-appraisal-verification"] = "Execution",
         ["int-appraisal-execution"] = "Execution",
+        // Off-system external: the keyin IS the execution of the book, so it maps to Execution
+        // rather than Staff — the case skips appraisal-book-verification.
+        ["int-offline-book-keyin"] = "Execution",
         ["appraisal-book-verification"] = "Staff",
         ["int-appraisal-check"] = "Checker",
         ["int-appraisal-verification"] = "Verification",

@@ -324,10 +324,10 @@ public class WorkflowService : IWorkflowService
 
     /// <summary>
     /// Publishes integration events for activity landings that don't have a natural owning
-    /// activity to emit from. Currently only the internal path (int-appraisal-execution) — the
-    /// external path emits CompanyAssignedIntegrationEvent and InternalFollowupAssignedIntegrationEvent
-    /// directly from CompanySelectionActivity and InternalFollowupSelectionActivity, which are
-    /// bypassed on routeback.
+    /// activity to emit from — see <see cref="InternalAssigneeActivities"/> for which. The in-system
+    /// external path is not among them: it emits CompanyAssignedIntegrationEvent and
+    /// InternalFollowupAssignedIntegrationEvent directly from CompanySelectionActivity and
+    /// InternalFollowupSelectionActivity, which are bypassed on routeback.
     ///
     /// MUST be called WITHIN the workflow transaction, BEFORE SaveChanges: <see cref="IIntegrationEventOutbox.Publish"/>
     /// only appends to the scoped OutboxScope, and DispatchDomainEventInterceptor drains that scope
@@ -346,25 +346,61 @@ public class WorkflowService : IWorkflowService
             return;
         }
 
-        if (instance.CurrentActivityId == "int-appraisal-execution")
+        if (InternalAssigneeActivities.TryGetValue(instance.CurrentActivityId ?? "", out var assignmentType))
         {
-            PublishInternalAssignedEvent(instance, appraisalId.Value);
+            PublishInternalAssignedEvent(instance, appraisalId.Value, assignmentType);
         }
     }
 
-    private void PublishInternalAssignedEvent(WorkflowInstance instance, Guid correlationId)
+    /// <summary>
+    /// Activities where landing means "an internal staff member now owns the work", mapped to what
+    /// the CASE counts as. Both put bank staff on the job; only the second leaves the appraisal
+    /// External, because the book was produced by a company engaged outside the system.
+    /// Case-insensitive deliberately — the previous hardcoded <c>==</c> was the only ordinal
+    /// case-sensitive activity-id comparison in the codebase.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, string> InternalAssigneeActivities =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["int-appraisal-execution"] = "Internal",
+            ["int-offline-book-keyin"] = "External"
+        };
+
+    private void PublishInternalAssignedEvent(
+        WorkflowInstance instance, Guid correlationId, string assignmentType)
     {
         var assigneeUserId = instance.CurrentAssignee ?? "";
         if (string.IsNullOrEmpty(assigneeUserId))
         {
+            // Nothing else sets the assignment to Assigned on these paths, so bailing here leaves
+            // the row Pending indefinitely. Name the appraisal and activity so that state is
+            // diagnosable rather than mysterious.
             _logger.LogWarning(
-                "No assignee found for int-appraisal-execution, skipping InternalAssignedIntegrationEvent for {CorrelationId}",
-                correlationId);
+                "No assignee resolved for activity {ActivityId} on workflow {WorkflowInstanceId}; " +
+                "skipping InternalAssignedIntegrationEvent for appraisal {AppraisalId}. " +
+                "The assignment row will stay Pending until someone is assigned.",
+                instance.CurrentActivityId, instance.Id, correlationId);
             return;
         }
 
-        var method = instance.Variables.TryGetValue("assignmentMethod", out var am)
-            && !string.IsNullOrEmpty(am?.ToString()) ? am.ToString()! : "RoundRobin";
+        // The off-system path is identified downstream by AssignmentMethod == "Offline"
+        // (AppraisalAssignment.IsOfflineEngagement). Stamping it here rather than carrying the
+        // admin's manual/roundrobin choice is what keeps SetOfflineExternalEngagement's path guard,
+        // the ValuationDate preservation guard, the Rework() engagement-cycle suppression and the
+        // OfflineBookDate projection all correct from the moment the case is assigned.
+        // The admin's choice is not lost: the UI infers it from whether a keyer was named.
+        var isOfflineExternal = string.Equals(
+            instance.CurrentActivityId, "int-offline-book-keyin", StringComparison.OrdinalIgnoreCase);
+
+        // Literal rather than a shared symbol: the constant of record is
+        // AppraisalAssignment.OfflineAssignmentMethod in the Appraisal domain, which this module
+        // cannot reference (it sees only Appraisal.Contracts). Keep the two in step.
+        const string offlineAssignmentMethod = "Offline";
+
+        var method = isOfflineExternal
+            ? offlineAssignmentMethod
+            : instance.Variables.TryGetValue("assignmentMethod", out var am)
+              && !string.IsNullOrEmpty(am?.ToString()) ? am.ToString()! : "RoundRobin";
         var followupMethod = instance.Variables.TryGetValue("internalFollowupMethod", out var ifm)
             && !string.IsNullOrEmpty(ifm?.ToString()) ? ifm.ToString() : "RoundRobin";
         var internalStaffId = instance.Variables.TryGetValue("internalFollowupStaffId", out var ifs)
@@ -380,7 +416,8 @@ public class WorkflowService : IWorkflowService
             AssignmentMethod = method,
             InternalFollowupAssignmentMethod = followupMethod,
             CompletedBy = instance.LastCompletedBy,
-            AppraisalNumber = appraisalNumber
+            AppraisalNumber = appraisalNumber,
+            AssignmentType = assignmentType
         }, correlationId: correlationId.ToString());
 
         _logger.LogInformation(

@@ -5,6 +5,7 @@ using Auth.Infrastructure.Identity;
 using Auth.Infrastructure.Repository;
 using Auth.Infrastructure.Seed;
 using Auth.Application.Services;
+using Auth.Contracts.Companies;
 using Auth.Contracts.Users;
 using Auth.Services;
 using Microsoft.AspNetCore.Authentication;
@@ -236,6 +237,7 @@ public static class AuthModule
         services.AddScoped<ITeamService, TeamService>();
         services.AddScoped<IAuthAuditWriter, AuthAuditWriter>();
         services.AddScoped<IUserLookupService, UserLookupService>();
+        services.AddScoped<ICompanyLookupService, CompanyLookupService>();
         services.AddScoped<PermissionResolver>();
 
         // Menu tree cache (single-instance in-memory)

@@ -1,4 +1,5 @@
 using Auth.Domain.Companies;
+using Shared.Configuration;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 using Workflow.AssigneeSelection.Services;
@@ -14,8 +15,22 @@ namespace Workflow.Workflow.Activities;
 /// </summary>
 public class CompanySelectionActivity : WorkflowActivityBase
 {
+    /// <summary>
+    /// SystemConfiguration key gating whether an appraisal may be assigned to an external company
+    /// INSIDE the system at all — by round-robin, by an admin's manual pick, through a quotation
+    /// winner, or by Construction-Inspection carry-over.
+    ///
+    /// Set to "false" for the phase-1 go-live window, during which the bank engages appraisal
+    /// companies outside CAS; such cases are escalated to admin review instead, to be routed
+    /// internally or recorded as an off-system engagement (EXTO). Flip it to "true" through the
+    /// SystemConfiguration admin API to resume normal assignment — no redeploy and no new workflow
+    /// definition version.
+    /// </summary>
+    public const string CompanyAssignmentEnabledKey = "ExternalCompanyAssignmentEnabled";
+
     private readonly ICompanyRoundRobinService _companyRoundRobinService;
     private readonly ICompanyRepository _companyRepository;
+    private readonly ISystemConfigurationReader _configReader;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IIntegrationEventOutbox _outbox;
     private readonly ILogger<CompanySelectionActivity> _logger;
@@ -23,12 +38,14 @@ public class CompanySelectionActivity : WorkflowActivityBase
     public CompanySelectionActivity(
         ICompanyRoundRobinService companyRoundRobinService,
         ICompanyRepository companyRepository,
+        ISystemConfigurationReader configReader,
         IDateTimeProvider dateTimeProvider,
         IIntegrationEventOutbox outbox,
         ILogger<CompanySelectionActivity> logger)
     {
         _companyRoundRobinService = companyRoundRobinService;
         _companyRepository = companyRepository;
+        _configReader = configReader;
         _dateTimeProvider = dateTimeProvider;
         _outbox = outbox;
         _logger = logger;
@@ -57,6 +74,39 @@ public class CompanySelectionActivity : WorkflowActivityBase
             ["selectedAt"] = _dateTimeProvider.ApplicationNow,
             ["assignmentType"] = "External"
         };
+
+        // ── Go-live switch: no company may be engaged INSIDE the system at all ────────────────
+        // Deliberately ahead of every selection branch, so it blocks round-robin, admin Manual,
+        // Quotation and the Construction-Inspection carry-over alike. The bank engages appraisal
+        // companies outside CAS during phase 1, so an in-system assignment to a company is wrong
+        // however it was arrived at — an admin choosing one explicitly is no more correct than the
+        // system picking one. Such cases escalate to appraisal-assignment via the existing
+        // company-no-match transition, where the admin routes them Internal or records the
+        // off-system engagement (EXTO).
+        //
+        // The one exemption is a case that ALREADY holds a company: that engagement predates the
+        // switch and must not be torn up when this activity replays.
+        //
+        // This does NOT loop, because the admin screen stops offering "Route to External" while the
+        // switch is off — see AdministrationPage. The guard here is the backing enforcement for any
+        // caller that bypasses the UI.
+        var alreadyAssignedCompanyId = GetVariable<string>(context, "assignedCompanyId", "");
+
+        if (string.IsNullOrEmpty(alreadyAssignedCompanyId)
+            && !await _configReader.GetBoolAsync(CompanyAssignmentEnabledKey, defaultValue: true, cancellationToken))
+        {
+            SetNoMatch(outputData,
+                "Assigning an appraisal to an external company inside the system is currently " +
+                "disabled. Route the case to an internal appraiser, or record an engagement " +
+                "arranged outside the system.");
+
+            _logger.LogInformation(
+                "CompanySelectionActivity {ActivityId}: in-system company assignment disabled via '{Key}' " +
+                "(method '{Method}'); escalating to admin",
+                context.ActivityId, CompanyAssignmentEnabledKey, selectionMethod);
+
+            return ActivityResult.Success(outputData);
+        }
 
         // Construction Inspection: company is forced from the prior appraisal engagement.
         // Short-circuit selection entirely — no round-robin, no exclusion check.

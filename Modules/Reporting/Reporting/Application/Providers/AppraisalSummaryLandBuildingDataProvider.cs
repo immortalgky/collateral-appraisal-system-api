@@ -101,13 +101,26 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 WHERE a2.Id = @AppraisalId AND a2.IsDeleted = 0)
             ORDER BY rc.Name;
 
-            -- RS03: Q3 — Appraisal date (latest non-cancelled appointment)
-            SELECT TOP 1 ap.AppointmentDateTime
-            FROM appraisal.Appointments ap
-            JOIN appraisal.AppraisalAssignments aa ON aa.Id = ap.AssignmentId
-            WHERE aa.AppraisalId = @AppraisalId
-              AND ap.Status <> 'Cancelled'
-            ORDER BY ap.AppointmentDateTime DESC;
+            -- RS03: Q3 — Appraisal date. ValuationAnalyses.ValuationDate wins; the latest
+            -- non-cancelled appointment across ALL the appraisal's assignments is the fallback
+            -- for an appraisal that has no ValuationAnalyses row yet (created on first pricing /
+            -- decision-summary save).
+            --
+            -- ValuationDate must win: an off-system external engagement (company engaged outside
+            -- CAS, its book keyed in by an internal appraiser) has NO Appointment row at all, so
+            -- appointment-first logic printed a BLANK date on every page of this document despite
+            -- the keyer having entered one. In-system cases agree either way — ValuationDate is
+            -- re-derived from the latest non-cancelled appointment on every pricing save.
+            SELECT COALESCE(
+                (SELECT TOP 1 va.ValuationDate
+                 FROM appraisal.ValuationAnalyses va
+                 WHERE va.AppraisalId = @AppraisalId),
+                (SELECT TOP 1 ap.AppointmentDateTime
+                 FROM appraisal.Appointments ap
+                 JOIN appraisal.AppraisalAssignments aa ON aa.Id = ap.AssignmentId
+                 WHERE aa.AppraisalId = @AppraisalId
+                   AND ap.Status <> 'Cancelled'
+                 ORDER BY ap.AppointmentDateTime DESC));
 
             -- RS04: Q4 — Land detail (first property). Geocodes + codes resolved to Thai.
             SELECT TOP 1
@@ -309,6 +322,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 WHERE a4.Id = @AppraisalId AND a4.IsDeleted = 0)
               AND ct.ActivityId IN (
                   'int-appraisal-execution',
+                  'int-offline-book-keyin',
                   'int-appraisal-check',
                   'int-appraisal-verification',
                   'appraisal-book-verification')
@@ -777,12 +791,14 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 StringComparer.OrdinalIgnoreCase);
 
         // ผู้ประเมิน (sign-off appraiser): internal = int-appraisal-execution actor,
-        // external = appraisal-book-verification actor.
+        // external = appraisal-book-verification actor — except for an off-system external
+        // engagement, which skips book-verification entirely and is keyed at
+        // int-offline-book-keyin instead. Fall back to that so the name is not blank.
         CompletedTaskRow? staffTask;
         if (isInternal)
             latestByActivity.TryGetValue("int-appraisal-execution", out staffTask);
-        else
-            latestByActivity.TryGetValue("appraisal-book-verification", out staffTask);
+        else if (!latestByActivity.TryGetValue("appraisal-book-verification", out staffTask))
+            latestByActivity.TryGetValue("int-offline-book-keyin", out staffTask);
 
         // ผู้ตรวจสอบ / ผู้สอบทาน come only from their own activities; they stay blank
         // until int-appraisal-check / int-appraisal-verification are actually completed.
@@ -1299,7 +1315,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 ?? (isLandBuildingAppraisal ? land?.OwnerName : null),
             LandCondition = landCondition,
             LandConditions = landConditions,
-            Obligation = land?.ObligationDetails,
+            Obligation = string.IsNullOrWhiteSpace(land?.ObligationDetails)
+                ? AppraisalSummaryModel.NoObligationText
+                : land!.ObligationDetails,
             CityPlan = land?.UrbanPlanningType,
             Gps = gps,
             GovernmentAssessedValue = land?.GovernmentPrice,

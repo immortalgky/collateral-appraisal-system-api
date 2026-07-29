@@ -6,6 +6,13 @@ SELECT
     a.Id                    AS AppraisalId,
     a.AppraisalNumber,
     apt.AppointmentDateTime AS AppointmentDate,
+    -- The appraisal (valuation) date: ValuationAnalyses.ValuationDate, falling back to the latest
+    -- non-cancelled appointment when that row does not exist yet, then to a.CompletedAt so a
+    -- legacy/migrated appraisal with neither still shows a date. Kept separate from
+    -- AppointmentDate (the raw inspection slot) — the two diverge for off-system external
+    -- engagements, which have no Appointment row and only a hand-keyed book date.
+    COALESCE(va.ValuationDate, apt.AppointmentDateTime, a.CompletedAt)
+                            AS AppraisalDate,
     a.Status                AS Status,
     va.AppraisedValue       AS AppraisalValue,
 

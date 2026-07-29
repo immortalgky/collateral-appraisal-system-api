@@ -19,7 +19,9 @@ public record AssignAppraisalCommand(
     string AssignedBy = default,
     /// <summary>
     /// Workflow routing decision: "EXT" routes to company-selection (external company),
-    /// "INT" routes to int-appraisal-execution (internal assignment).
+    /// "INT" routes to int-appraisal-execution (internal assignment), "EXTO" routes to
+    /// int-offline-book-keyin (company engaged outside the system; internal staff keys the book,
+    /// the case stays External and the ext-* activities are skipped).
     /// </summary>
     string DecisionTaken = "EXT",
     /// <summary>Admin remark persisted onto the assignment row alongside the assign action.</summary>

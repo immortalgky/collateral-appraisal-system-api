@@ -165,29 +165,58 @@ public class AppraisalValuationSummaryService(
             .Select(a => a.Id)
             .ToListAsync(ct);
 
+        var row = db.ValuationAnalyses.Local.FirstOrDefault(v => v.AppraisalId == appraisalId)
+                  ?? await db.ValuationAnalyses.FirstOrDefaultAsync(v => v.AppraisalId == appraisalId, ct);
+
+        // Off-system external engagement (AssignmentMethod = "Offline"): the external company was
+        // engaged outside CAS and never booked an appointment, so the appointment-derived branch
+        // below would fall through to ApplicationNow and overwrite the date an internal appraiser
+        // keyed off the company's paper book — on EVERY pricing save. Preserve what is stored.
+        var preserveKeyedDate = row is not null
+                                && !valuationDate.HasValue
+                                && await IsOfflineExternalAsync(appraisalId, ct);
+
         DateTime date;
         if (valuationDate.HasValue)
         {
             // Explicit date from a caller that recomputes before the appointment row is persisted.
             date = valuationDate.Value;
         }
-        else if (assignmentIds.Count > 0)
+        else if (preserveKeyedDate)
         {
-            var appointments = await db.Appointments
-                .Where(ap => assignmentIds.Contains(ap.AssignmentId))
-                .ToListAsync(ct);
-
-            date = appointments.Count > 0
-                ? appointments.Max(ap => ap.AppointmentDateTime)
-                : dateTimeProvider.ApplicationNow;
+            date = row!.ValuationDate;
         }
         else
         {
-            date = dateTimeProvider.ApplicationNow;
-        }
+            // Cancelled appointments are excluded: every read-side surface that shows the appraisal
+            // date now reads this column, and they all filter Status <> 'Cancelled'. Including them
+            // here would let a cancelled (often later-dated) slot become the displayed valuation date.
+            // Status is a plain string on Appointment, so this translates server-side.
+            var appointments = assignmentIds.Count > 0
+                ? await db.Appointments
+                    .Where(ap => assignmentIds.Contains(ap.AssignmentId)
+                                 && ap.Status != "Cancelled")
+                    .ToListAsync(ct)
+                : [];
 
-        var row = db.ValuationAnalyses.Local.FirstOrDefault(v => v.AppraisalId == appraisalId)
-                  ?? await db.ValuationAnalyses.FirstOrDefaultAsync(v => v.AppraisalId == appraisalId, ct);
+            // No appointment-derived date available — either none was ever booked, or every one of
+            // them has been cancelled. Fall back to what is ALREADY STORED before inventing a date.
+            //
+            // ApplicationNow here is a moving target: this method re-runs on every pricing edit,
+            // property delete, unit-price calculation and final-values change, so an appraisal whose
+            // only appointment was cancelled would have its appraisal date silently dragged forward
+            // to "today" on each save. Since ValuationDate now LEADS every read surface — the printed
+            // book, both AS400 result feeds, the 360 view, decision summary, History Search — and
+            // anchors the +5-year reappraisal clock in vw_ReappraisalCandidates / RCAS002, that
+            // rewrite would propagate a wrong appraisal date to the bank's reappraisal schedule.
+            // Preserving keeps the last real date (usually the appointment that was later cancelled).
+            //
+            // ApplicationNow survives only for a genuinely new row with nothing to preserve;
+            // vw_AppraisalValidationContext.ExternalAppraisalDateRecorded is what flags those.
+            date = appointments.Count > 0
+                ? appointments.Max(ap => ap.AppointmentDateTime)
+                : row?.ValuationDate ?? dateTimeProvider.ApplicationNow;
+        }
 
         // Capture the prior appraised value so the integration event below is published only when it
         // actually changes (null = no prior row → always publish). The row itself is still upserted
@@ -228,5 +257,86 @@ public class AppraisalValuationSummaryService(
         logger.LogDebug(
             "ValuationAnalyses upserted for AppraisalId: {AppraisalId} — Total: {Total}, Forced: {Forced}, Insurance: {Insurance}",
             appraisalId, total, forced, insuranceTotal);
+    }
+
+    /// <summary>
+    /// Points ValuationDate at a newly booked or rescheduled appointment, WITHOUT recomputing the
+    /// monetary summary.
+    ///
+    /// <para>
+    /// ValuationDate is only otherwise written by <see cref="RecomputeAsync"/>, and every caller of
+    /// that is a pricing or property change — no appointment command triggers it. So an appointment
+    /// booked for 1 Mar, worked and priced (ValuationDate = 1 Mar), then rescheduled to 15 Mar with
+    /// no pricing save afterwards, left every appraisal-date surface reporting 1 Mar indefinitely:
+    /// the 360 view, decision summary, the printed book, both AS400 result APIs, History Search, and
+    /// the +5-year reappraisal anchor in vw_ReappraisalCandidates / vw_RCAS002_ReappraisalDue. The
+    /// two dates never reconverged unless someone happened to re-save pricing.
+    /// </para>
+    ///
+    /// <para>
+    /// The date is passed in rather than re-derived: the appointment is Added or Modified but not yet
+    /// flushed when the appointment handlers call this, and <see cref="AppraisalDateResolver"/>
+    /// projects to a scalar — a projection bypasses identity resolution and would read the stale
+    /// database value. Callers already hold the authoritative new date.
+    /// </para>
+    ///
+    /// <para>
+    /// No-ops when the row does not exist yet (the next recompute creates it with the right date) or
+    /// when the engagement is off-system, where the keyed book date outranks any appointment —
+    /// the same rule <see cref="RecomputeAsync"/> applies.
+    /// </para>
+    /// </summary>
+    public async Task SyncValuationDateFromAppointmentAsync(
+        Guid appraisalId,
+        DateTime appointmentDate,
+        CancellationToken ct)
+    {
+        var row = db.ValuationAnalyses.Local.FirstOrDefault(v => v.AppraisalId == appraisalId)
+                  ?? await db.ValuationAnalyses.FirstOrDefaultAsync(v => v.AppraisalId == appraisalId, ct);
+
+        if (row is null)
+            return;
+
+        if (await IsOfflineExternalAsync(appraisalId, ct))
+            return;
+
+        row.SetValuationDate(appointmentDate);
+
+        logger.LogDebug(
+            "ValuationDate synced from appointment for AppraisalId: {AppraisalId} — {Date}",
+            appraisalId, appointmentDate);
+    }
+
+    /// <summary>
+    /// True when the appraisal's active assignment records an engagement the bank arranged outside
+    /// the system (written by SetOfflineExternalEngagementCommandHandler). Uses the same
+    /// active-assignment rule as CompanyAssignedIntegrationEventHandler — latest row that is
+    /// neither Rejected nor Cancelled — so all three paths agree on which assignment is current.
+    /// </summary>
+    private async Task<bool> IsOfflineExternalAsync(Guid appraisalId, CancellationToken ct)
+    {
+        // Filter by status AFTER materialization: AssignmentStatus is a HasConversion value object
+        // (AppraisalAssignmentConfiguration.cs) and EF cannot decompose it in SQL — a server-side
+        // Where on AssignmentStatus.Code throws "could not be translated". Same reasoning and same
+        // shape as GetAssignmentsQueryHandler. Row count per appraisal is tiny.
+        var rows = await db.AppraisalAssignments
+            .AsNoTracking()
+            .Where(a => a.AppraisalId == appraisalId)
+            .Select(a => new { a.AssignmentStatus, a.AssignmentMethod, a.AssignedAt, a.CreatedAt, a.Id })
+            .ToListAsync(ct);
+
+        var method = rows
+            .Where(a => a.AssignmentStatus != AssignmentStatus.Rejected
+                        && a.AssignmentStatus != AssignmentStatus.Cancelled)
+            .OrderByDescending(a => a.AssignedAt)
+            .ThenByDescending(a => a.CreatedAt)
+            .ThenByDescending(a => a.Id)
+            .Select(a => a.AssignmentMethod)
+            .FirstOrDefault();
+
+        return string.Equals(
+            method,
+            AppraisalAssignment.OfflineAssignmentMethod,
+            StringComparison.OrdinalIgnoreCase);
     }
 }

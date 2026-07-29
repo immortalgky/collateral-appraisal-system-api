@@ -37,6 +37,8 @@ public static class AppraisalFieldRegistry
         new("appointmentInFuture",        "AppointmentInFuture",          "boolean", "Appointment In Future"),
         new("totalFeeAfterVat",           "TotalFeeAfterVat",             "number",  "Total Fee After VAT"),
         new("hasAssignedAppraiser",       "HasAssignedAppraiser",         "boolean", "Has Assigned Appraiser"),
+        new("externalCompanyRecorded",    "ExternalCompanyRecorded",      "boolean", "External Company Recorded"),
+        new("externalAppraisalDateRecorded", "ExternalAppraisalDateRecorded", "boolean", "External Appraisal Date Recorded"),
 
         // Execution-stage readiness
         new("selectedPricingMethodCount", "SelectedPricingMethodCount",   "number",  "Selected Pricing Method Count"),

@@ -49,6 +49,22 @@ public class AssignAppraisalCommandHandler(
         // activity in appraisal-workflow.json — TaskActivity filters anything not declared there.
         // CompanySelectionActivity reads: assignedCompanyId / selectedCompanyId, assignedCompanyName /
         // selectedCompanyName, assignmentMethod. The RoutingActivity reads: decisionTaken.
+        // EXTO path: the bank engaged an external company OUTSIDE the system and an internal
+        // appraiser keys the resulting book in. The case must count as External everywhere
+        // downstream (report rendering, AS400/LOS feed, fee) even though no ext-* activity ever
+        // runs, so stamp assignmentType here rather than letting int-* defaults claim it.
+        // isOfflineExternal is what the route-back transitions use to come back to
+        // int-offline-book-keyin instead of appraisal-book-verification, which this path skips.
+        //
+        // ALWAYS send isOfflineExternal, including `false`. TaskActivity's inputMappings loop only
+        // copies keys that are PRESENT in the resume input, so omitting it on a later EXT/INT
+        // decision would leave a stale `true` on the instance from an earlier EXTO — and every
+        // subsequent route-back would then divert the case into the keyin queue instead of
+        // appraisal-book-verification. Writing it unconditionally makes the flag track the CURRENT
+        // decision. Both keys are declared in appraisal-assignment's inputMappings; TaskActivity
+        // maps them onto workflow variables of the same name, preserving the bool.
+        var isOfflineExternal = IsOfflineExternal(command.DecisionTaken);
+
         var input = new Dictionary<string, object>
         {
             ["selectedCompanyId"] = command.AssigneeCompanyId ?? string.Empty,
@@ -56,21 +72,35 @@ public class AssignAppraisalCommandHandler(
             ["assignmentMethod"] = command.AssignmentMethod,
             ["decisionTaken"] = command.DecisionTaken,
             ["internalFollowupStaffId"] = command.InternalAppraiserId ?? string.Empty,
-            ["internalFollowupMethod"] = command.InternalFollowupAssignmentMethod ?? string.Empty
+            ["internalFollowupMethod"] = command.InternalFollowupAssignmentMethod ?? string.Empty,
+            ["isOfflineExternal"] = isOfflineExternal
         };
 
-        // INT path: pin the admin-selected internal appraiser (the int-appraisal-execution
-        // EXECUTOR, carried in AssigneeUserId) onto int-appraisal-execution; otherwise the
-        // activity's default round-robin strategy picks a different user. Note: InternalAppraiserId
-        // is the separate followup/checker field and feeds internalFollowupStaffId above — it is
-        // NOT the executor.
+        if (isOfflineExternal)
+            input["assignmentType"] = "External";
+
+        // Pin the admin-selected internal appraiser (the EXECUTOR, carried in AssigneeUserId) onto
+        // the activity that person will actually work; otherwise that activity's default
+        // round-robin strategy picks someone else. Both internal-facing paths need this:
+        //   INT  → int-appraisal-execution (the in-house appraisal itself)
+        //   EXTO → int-offline-book-keyin  (keying in the external company's book)
+        // Leaving AssigneeUserId empty means the admin chose round-robin, so no override is set and
+        // the activity's own strategy selects the assignee.
+        //
+        // Note: InternalAppraiserId is the separate followup/checker field and feeds
+        // internalFollowupStaffId above — it is NOT the executor.
+        var executorActivityId = isOfflineExternal
+            ? "int-offline-book-keyin"
+            : string.Equals(command.DecisionTaken, "INT", StringComparison.OrdinalIgnoreCase)
+                ? "int-appraisal-execution"
+                : null;
+
         IReadOnlyDictionary<string, WorkflowAssigneeOverride>? overrides = null;
-        if (string.Equals(command.DecisionTaken, "INT", StringComparison.OrdinalIgnoreCase)
-            && !string.IsNullOrEmpty(command.AssigneeUserId))
+        if (executorActivityId is not null && !string.IsNullOrEmpty(command.AssigneeUserId))
         {
             overrides = new Dictionary<string, WorkflowAssigneeOverride>
             {
-                ["int-appraisal-execution"] = new WorkflowAssigneeOverride(
+                [executorActivityId] = new WorkflowAssigneeOverride(
                     Assignee: command.AssigneeUserId,
                     Reason: "Admin-selected internal appraiser",
                     OverrideBy: command.AssignedBy)
@@ -87,4 +117,12 @@ public class AssignAppraisalCommandHandler(
 
         return new AssignAppraisalResult(pendingAssignment.Id);
     }
+
+    /// <summary>
+    /// "EXTO" — external company engaged outside the system, book keyed in by internal staff.
+    /// Kept as a named predicate so the literal lives in one place alongside the
+    /// route_external_offline decision condition in appraisal-workflow.json.
+    /// </summary>
+    private static bool IsOfflineExternal(string? decisionTaken) =>
+        string.Equals(decisionTaken, "EXTO", StringComparison.OrdinalIgnoreCase);
 }

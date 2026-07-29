@@ -771,7 +771,7 @@ public class CollateralMasterUpsertService(
             Longitude: land.Longitude,
             AppraisalId: appraisal.AppraisalId,
             AppraisalNumber: appraisal.AppraisalNumber ?? string.Empty,
-            AppraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow,
+            AppraisalDate: appraisal.AppraisalDate ?? dateTimeProvider.ApplicationNow,
             IsUnderConstruction: isUnderConstruction,
             OverallConstructionProgressPercent: overallPct,
             // UnitPrice: cost approach only — FinalValueAdjusted from PricingFinalValue (PR-8).
@@ -928,7 +928,7 @@ public class CollateralMasterUpsertService(
             Longitude: condo.Longitude,
             AppraisalId: appraisal.AppraisalId,
             AppraisalNumber: appraisal.AppraisalNumber ?? string.Empty,
-            AppraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow,
+            AppraisalDate: appraisal.AppraisalDate ?? dateTimeProvider.ApplicationNow,
             // UnitPrice: cost approach only — FinalValueAdjusted from PricingFinalValue (PR-8).
             UnitPrice: pricingInfo?.UnitPrice,
             // BuildingValue: cost approach only — from PricingFinalValue.BuildingValue (PR-8).
@@ -1000,7 +1000,7 @@ public class CollateralMasterUpsertService(
             IncomingRegistrationNo: m.RegistrationNumber,
             AppraisalId: appraisal.AppraisalId,
             AppraisalNumber: appraisal.AppraisalNumber ?? string.Empty,
-            AppraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow,
+            AppraisalDate: appraisal.AppraisalDate ?? dateTimeProvider.ApplicationNow,
             LifeYear: m.LifeYear,
             // Appraisal-level total from ValuationAnalyses; per-group PricingInfo as defensive fallback.
             AppraisalValue: appraisal.AppraisedValue ?? p.PricingInfo?.AppraisalValue
@@ -1169,7 +1169,7 @@ public class CollateralMasterUpsertService(
             LeaseTermMonths: leaseTermMonths,
             AppraisalId: appraisal.AppraisalId,
             AppraisalNumber: appraisal.AppraisalNumber ?? string.Empty,
-            AppraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow,
+            AppraisalDate: appraisal.AppraisalDate ?? dateTimeProvider.ApplicationNow,
             // Appraisal-level total from ValuationAnalyses; per-group PricingInfo as defensive fallback.
             AppraisalValue: appraisal.AppraisedValue ?? p.PricingInfo?.AppraisalValue
         );
@@ -1470,7 +1470,7 @@ public class CollateralMasterUpsertService(
             requestId: appraisal.RequestId,
             requestNumber: appraisal.RequestNumber ?? string.Empty,
             appraisalType: appraisal.AppraisalType,
-            appraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow,
+            appraisalDate: appraisal.AppraisalDate ?? dateTimeProvider.ApplicationNow,
             appraiserUserId: appraisal.AppraiserUserId,
             appraisalCompanyId: companyId,
             appraisalCompanyName: appraisal.CompanyName,
@@ -1584,7 +1584,7 @@ public class CollateralMasterUpsertService(
             CustomerName: appraisal.CustomerName,
             AppraisalId: appraisal.AppraisalId,
             AppraisalNumber: appraisal.AppraisalNumber ?? string.Empty,
-            AppraisalDate: appraisal.CompletedAt ?? dateTimeProvider.ApplicationNow
+            AppraisalDate: appraisal.AppraisalDate ?? dateTimeProvider.ApplicationNow
         );
 
         master.UpsertFromProjectAppraisal(upsertData);

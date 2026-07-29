@@ -303,8 +303,16 @@ internal static class LegacyResultMapper
     private static LegacyAppraisalResult BaseResult(
         LegacyAppraisalRow header, AssignmentRow? assignment, decimal? fee, ValuationRow? valuation, ValuerSplit valuer)
     {
-        // AppraisalDate = the appointment date (when the property was appraised), not the completed date.
-        var appraisalDate = IsoDate(assignment?.AppointmentDateTime);
+        // AppraisalDate = the valuation date: ValuationAnalyses.ValuationDate, falling back to the
+        // appointment (same value as Internal/ExternalValuationDate below). It previously led with
+        // the appointment date, which is blank for an off-system external engagement — that case
+        // has no Appointment row and only the hand-keyed book date is correct.
+        //
+        // header.CompletedAt is the last resort, not decoration: a legacy/migrated appraisal can
+        // have neither of the first two, and AS400 would then receive a blank appraisal date for a
+        // completed appraisal. This feed only ever serves completed work, so it resolves.
+        var appraisalDate = IsoDate(
+            valuation?.ValuationDate ?? assignment?.AppointmentDateTime ?? header.CompletedAt);
 
         return new LegacyAppraisalResult
         {

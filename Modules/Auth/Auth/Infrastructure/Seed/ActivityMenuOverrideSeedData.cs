@@ -46,5 +46,11 @@ public static class ActivityMenuOverrideSeedData
         // is exclusive to int-pma-input; every other role never had the permission to begin with.
         new("int-appraisal-execution",     "appraisal.property-pma", IsVisible: false, CanEdit: false),
         new("appraisal-book-verification", "appraisal.property-pma", IsVisible: false, CanEdit: false),
+        new("int-offline-book-keyin",      "appraisal.property-pma", IsVisible: false, CanEdit: false),
+        // Activity: int-offline-book-keyin (role: IntAppraisalStaff)
+        // The keyer reproduces the external company's whole book, so EVERY other appraisal tab
+        // stays open at its plain role-based state — that is the reason this activity exists
+        // rather than reusing appraisal-book-verification, whose property tabs are restricted.
+        // Only the PMA tab is trimmed, matching int-appraisal-execution above.
     };
 }

@@ -1,0 +1,3 @@
+namespace Appraisal.Application.Features.Assignments.SetOfflineExternalEngagement;
+
+public record SetOfflineExternalEngagementResponse(Guid AssignmentId);

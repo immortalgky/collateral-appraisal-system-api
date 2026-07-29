@@ -53,8 +53,10 @@ public class GetPreviousAppraisalChainQueryHandler(
         // excluded by "WHERE c.Depth > 1" below. "Depth < 20" together with the trailing
         // OPTION (MAXRECURSION 20) is the cycle guard — malformed/looping PrevAppraisalId
         // data must terminate the walk, not hang the query.
-        // vw_AppraisalCopyTemplate.AppraisalValue comes from appraisal.ValuationAnalyses,
-        // which carries a unique index on AppraisalId (1:1 with Appraisal) — no fan-out risk.
+        // vw_AppraisalCopyTemplate.AppraisalValue comes from appraisal.ValuationAnalyses, which
+        // carries a unique index on AppraisalId (1:1 with Appraisal) — no fan-out risk.
+        // .AppraisalDate is the valuation date (ValuationDate, appointment as fallback), not the
+        // raw appointment slot.
         var sql = $"""
             WITH chain AS (
                 SELECT a.Id, a.RequestId, d.PrevAppraisalId, 1 AS Depth
@@ -73,7 +75,7 @@ public class GetPreviousAppraisalChainQueryHandler(
             SELECT
                 v.AppraisalId,
                 v.AppraisalNumber,
-                v.AppointmentDate AS AppraisalDate,
+                v.AppraisalDate,
                 v.AppraisalValue,
                 v.Status,
                 c.Depth

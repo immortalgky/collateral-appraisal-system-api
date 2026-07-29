@@ -117,6 +117,15 @@ public class ActivityProcessConfigurationSeeder(
         rows.Add(Validation("int-appraisal-execution", "Require Document Followup Cleared",
             "RequireDocumentFollowupCleared", 4, null, ForwardOnly));
 
+        // ── int-offline-book-keyin: same completeness bar as int-appraisal-execution ──
+        // The keyer reproduces a full appraisal book from the external company's paper copy, so
+        // the same property-data and value/pricing/identity rules must hold before it proceeds.
+        rows.Add(Own("int-offline-book-keyin", 1));
+        rows.Add(PropertyMandatory("int-offline-book-keyin", 2));
+        rows.Add(Fields("int-offline-book-keyin", 3, ForwardOnly, OfflineKeyinHardRulesJson));
+        rows.Add(Validation("int-offline-book-keyin", "Require Document Followup Cleared",
+            "RequireDocumentFollowupCleared", 4, null, ForwardOnly));
+
         // ── int-appraisal-check: owner; comparables/photos (Warning); followups cleared ──
         rows.Add(Own("int-appraisal-check", 1));
         rows.Add(Fields("int-appraisal-check", 2, ForwardOnly, CheckSoftRulesJson, StepSeverity.Warning));
@@ -138,6 +147,23 @@ public class ActivityProcessConfigurationSeeder(
           {"fieldKey":"selectedPricingMethodCount","op":"GreaterThan","value":"0","message":"Select at least one pricing method before proceeding."},
           {"fieldKey":"propsMissingTitle","op":"Equals","value":"0","message":"Every land property needs a title number."},
           {"fieldKey":"propsMissingLandOffice","op":"Equals","value":"0","message":"Every land property needs a land office."}
+        ],"mode":"AllMustPass"}
+        """;
+
+    // The off-system key-in adds one rule to the shared execution set: the external company that
+    // produced the book must be recorded. Nothing upstream can supply it — the bank engaged the
+    // company outside the system, so company-selection never ran — and without it no assignment
+    // fee resolves and the book and AS400 feed print a blank company. Uses the existing
+    // ValidateAppraisalFields step rather than a bespoke one; the field is sourced from
+    // vw_AppraisalValidationContext.
+    private const string OfflineKeyinHardRulesJson = """
+        {"rules":[
+          {"fieldKey":"hasNoAppraisedValue","op":"Equals","value":"false","message":"Set an appraised value before proceeding."},
+          {"fieldKey":"selectedPricingMethodCount","op":"GreaterThan","value":"0","message":"Select at least one pricing method before proceeding."},
+          {"fieldKey":"propsMissingTitle","op":"Equals","value":"0","message":"Every land property needs a title number."},
+          {"fieldKey":"propsMissingLandOffice","op":"Equals","value":"0","message":"Every land property needs a land office."},
+          {"fieldKey":"externalCompanyRecorded","op":"Equals","value":"true","message":"Record the external appraisal company before proceeding."},
+          {"fieldKey":"externalAppraisalDateRecorded","op":"Equals","value":"true","message":"Record the appraisal date from the company's book before proceeding."}
         ],"mode":"AllMustPass"}
         """;
 

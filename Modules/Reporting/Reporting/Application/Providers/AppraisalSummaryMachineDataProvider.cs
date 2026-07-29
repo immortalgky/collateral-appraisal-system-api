@@ -230,7 +230,9 @@ public sealed class AppraisalSummaryMachineDataProvider(
             EntryExitRights = null,
             BuildingOwner = null,
             LandCondition = null,
-            Obligation = machSummary?.Obligation,
+            Obligation = string.IsNullOrWhiteSpace(machSummary?.Obligation)
+                ? AppraisalSummaryModel.NoObligationText
+                : machSummary!.Obligation,
             CityPlan = null,
             Gps = gps,
             GovernmentAssessedValue = null,

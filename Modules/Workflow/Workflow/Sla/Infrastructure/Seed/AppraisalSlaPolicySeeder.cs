@@ -123,7 +123,7 @@ public class AppraisalSlaPolicySeeder(
     {
         var policies = new List<SlaPolicy>();
 
-        // Activity scope (11 rows) — mirror timeoutDuration from appraisal-workflow.json.
+        // Activity scope (12 rows) — mirror timeoutDuration from appraisal-workflow.json.
         // Execution activities are appointment-anchored: the SLA clock starts from the confirmed
         // on-site visit, not from AssignedAt. This prevents re-assignments from granting a fresh window.
         var activityHours = new (string ActivityId, int Hours, SlaAnchorType? AnchorType)[]
@@ -139,6 +139,9 @@ public class AppraisalSlaPolicySeeder(
             ("int-appraisal-check",         48, null),
             ("int-appraisal-verification",  24, null),
             ("appraisal-book-verification", 72, null),
+            // Off-system external: bank staff keying the company's book. Not appointment-anchored —
+            // the visit happened outside CAS, so there is no Appointment row to anchor to.
+            ("int-offline-book-keyin",      72, null),
         };
         foreach (var (activityId, hours, anchorType) in activityHours)
         {

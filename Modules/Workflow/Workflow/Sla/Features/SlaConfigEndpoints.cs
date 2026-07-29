@@ -243,6 +243,7 @@ public class SlaConfigEndpoints : ICarterModule
         new("ext-appraisal-check", "External Appraisal Check", "External", "ExternalCase"),
         new("ext-appraisal-verification", "External Appraisal Verification", "External", "ExternalCase"),
         new("appraisal-book-verification", "Appraisal Book Verification", "Bank", "ExternalCase"),
+        new("int-offline-book-keyin", "Offline Appraisal Book Keyin", "Bank", "ExternalCase"),
         new("int-appraisal-execution", "Internal Appraisal Execution", "Bank", "InHouseCase"),
         new("int-appraisal-check", "Internal Appraisal Check", "Shared", "Both"),
         new("int-appraisal-verification", "Internal Appraisal Verification", "Shared", "Both"),

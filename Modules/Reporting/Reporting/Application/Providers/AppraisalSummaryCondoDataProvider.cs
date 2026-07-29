@@ -358,7 +358,9 @@ public sealed class AppraisalSummaryCondoDataProvider(
             LandConditions = string.IsNullOrWhiteSpace(firstCondo?.LandFillDisplay)
                 ? []
                 : [firstCondo!.LandFillDisplay!],
-            Obligation = firstCondo?.ObligationDetails,
+            Obligation = string.IsNullOrWhiteSpace(firstCondo?.ObligationDetails)
+                ? AppraisalSummaryModel.NoObligationText
+                : firstCondo!.ObligationDetails,
             CityPlan = firstCondo?.UrbanPlanningType,
             Gps = gps,
             GovernmentAssessedValue = firstCondo?.GovernmentPrice,

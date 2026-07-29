@@ -616,6 +616,10 @@ internal static class AppraisalResultBuilder
             }
         }
 
+        var appraisalDate =
+            (valuation?.ValuationDate ?? assignment?.AppointmentDateTime ?? appraisal.CompletedAt)
+            ?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
         return new GetAppraisalResultResponse(
             AppraisalNumber: appraisal.AppraisalNumber,
             Status: appraisal.Status,
@@ -624,8 +628,16 @@ internal static class AppraisalResultBuilder
             AppraisalSource: appraisalSource,
             ValuerName: valuerName,
             ValuerCode: valuerCode,
-            ValuationDate: (valuation?.ValuationDate ?? appraisal.CompletedAt)?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            AppraisalDate: assignment?.AppointmentDateTime?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            // Both dates are the valuation date: ValuationAnalyses.ValuationDate, falling back to
+            // the appointment and finally to CompletedAt. AppraisalDate previously led with the
+            // appointment, which is blank for an off-system external engagement (no Appointment row)
+            // and is the inspection slot rather than the valuation date.
+            //
+            // CompletedAt is the last resort, not decoration: a legacy/migrated appraisal can have
+            // neither of the first two, and AS400 would then receive a blank appraisal date for a
+            // completed appraisal. This endpoint only ever serves completed work, so it resolves.
+            ValuationDate: appraisalDate,
+            AppraisalDate: appraisalDate,
             TotalAppraisalValue: totalAppraisalValue,
             ForceSalePrice: forceSalePrice,
             FireInsurance: valuation?.InsuranceValue,
