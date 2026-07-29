@@ -1,5 +1,7 @@
--- Thailand DOPA Provinces (77 records)
--- Source: Department of Provincial Administration (DOPA)
+-- Thailand Title Provinces (93 records)
+-- Source: .claude/docs/MasterAddressCheckUseV2.xlsx, sheet Master_Province
+--         Land Department (กรมที่ดิน) title-deed geocodes
+--         NameEn falls back to the Thai name where no English name is known
 
 INSERT INTO parameter.TitleProvinces (Code, NameTh, NameEn) VALUES
 (N'10', N'กรุงเทพมหานคร', N'Bangkok'),
@@ -20,6 +22,8 @@ INSERT INTO parameter.TitleProvinces (Code, NameTh, NameEn) VALUES
 (N'25', N'ปราจีนบุรี', N'Prachin Buri'),
 (N'26', N'นครนายก', N'Nakhon Nayok'),
 (N'27', N'สระแก้ว', N'Sa Kaeo'),
+(N'28', N'พระนคร', N'พระนคร'),
+(N'29', N'(นครพนม)มุกดาหาร', N'(นครพนม)มุกดาหาร'),
 (N'30', N'นครราชสีมา', N'Nakhon Ratchasima'),
 (N'31', N'บุรีรัมย์', N'Buri Ram'),
 (N'32', N'สุรินทร์', N'Surin'),
@@ -49,6 +53,7 @@ INSERT INTO parameter.TitleProvinces (Code, NameTh, NameEn) VALUES
 (N'56', N'พะเยา', N'Phayao'),
 (N'57', N'เชียงราย', N'Chiang Rai'),
 (N'58', N'แม่ฮ่องสอน', N'Mae Hong Son'),
+(N'59', N'นครหลวงกรุงเทพธนบุรี', N'นครหลวงกรุงเทพธนบุรี'),
 (N'60', N'นครสวรรค์', N'Nakhon Sawan'),
 (N'61', N'อุทัยธานี', N'Uthai Thani'),
 (N'62', N'กำแพงเพชร', N'Kamphaeng Phet'),
@@ -57,6 +62,8 @@ INSERT INTO parameter.TitleProvinces (Code, NameTh, NameEn) VALUES
 (N'65', N'พิษณุโลก', N'Phitsanulok'),
 (N'66', N'พิจิตร', N'Phichit'),
 (N'67', N'เพชรบูรณ์', N'Phetchabun'),
+(N'68', N'ปราจีนบุรี (สระแก้ว)', N'ปราจีนบุรี (สระแก้ว)'),
+(N'69', N'(อุบลราชธานี)อำนาจเจริญ', N'(อุบลราชธานี)อำนาจเจริญ'),
 (N'70', N'ราชบุรี', N'Ratchaburi'),
 (N'71', N'กาญจนบุรี', N'Kanchanaburi'),
 (N'72', N'สุพรรณบุรี', N'Suphan Buri'),
@@ -65,6 +72,8 @@ INSERT INTO parameter.TitleProvinces (Code, NameTh, NameEn) VALUES
 (N'75', N'สมุทรสงคราม', N'Samut Songkhram'),
 (N'76', N'เพชรบุรี', N'Phetchaburi'),
 (N'77', N'ประจวบคีรีขันธ์', N'Prachuap Khiri Khan'),
+(N'78', N'ธนบุรี', N'ธนบุรี'),
+(N'79', N'สมุทรสาคร(นครไชยศรี)', N'สมุทรสาคร(นครไชยศรี)'),
 (N'80', N'นครศรีธรรมราช', N'Nakhon Si Thammarat'),
 (N'81', N'กระบี่', N'Krabi'),
 (N'82', N'พังงา', N'Phangnga'),
@@ -72,10 +81,19 @@ INSERT INTO parameter.TitleProvinces (Code, NameTh, NameEn) VALUES
 (N'84', N'สุราษฎร์ธานี', N'Surat Thani'),
 (N'85', N'ระนอง', N'Ranong'),
 (N'86', N'ชุมพร', N'Chumphon'),
+(N'87', N'พระนครศรีอยุธยา(กรุงเก่า)', N'พระนครศรีอยุธยา(กรุงเก่า)'),
+(N'88', N'นครปฐม(นครชัยศรี)', N'นครปฐม(นครชัยศรี)'),
+(N'89', N'กรุงเก่า', N'กรุงเก่า'),
 (N'90', N'สงขลา', N'Songkhla'),
 (N'91', N'สตูล', N'Satun'),
 (N'92', N'ตรัง', N'Trang'),
 (N'93', N'พัทลุง', N'Phatthalung'),
 (N'94', N'ปัตตานี', N'Pattani'),
 (N'95', N'ยะลา', N'Yala'),
-(N'96', N'นราธิวาส', N'Narathiwat');
+(N'96', N'นราธิวาส', N'Narathiwat'),
+(N'97', N'(หนองคาย)บึงกาฬ', N'(หนองคาย)บึงกาฬ'),
+(N'98', N'ปทุมธานี(มีนบุรี)', N'ปทุมธานี(มีนบุรี)'),
+(N'99', N'ปทุมธานี(ธัญบุรี)', N'ปทุมธานี(ธัญบุรี)'),
+(N'A0', N'นครปฐม, สมุทรสาคร', N'นครปฐม, สมุทรสาคร'),
+(N'A1', N'สมุทรปราการ, กรุงเทพมหานคร', N'สมุทรปราการ, กรุงเทพมหานคร'),
+(N'A2', N'อำนาจเจริญ(อุบลราชธานี)', N'อำนาจเจริญ(อุบลราชธานี)');
