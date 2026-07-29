@@ -43,7 +43,7 @@ public static class CommonModule
 
     public static IApplicationBuilder UseCommonModule(this IApplicationBuilder app)
     {
-        app.UseMigration<CommonDbContext>();
+        app.UseDataSeeding<CommonDbContext>();
         app.UseModuleRecurringJobs<CommonDbContext>(CommonRecurringJobs.All);
 
         return app;

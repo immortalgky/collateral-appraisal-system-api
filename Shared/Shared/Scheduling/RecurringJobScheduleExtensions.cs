@@ -11,7 +11,7 @@ public static class RecurringJobScheduleExtensions
 {
     /// <summary>
     /// Seeds + registers a module's recurring jobs from its own <c>{schema}.JobSchedules</c> table.
-    /// Call inside <c>UseXModule</c> AFTER <c>app.UseMigration&lt;TContext&gt;()</c> so the table exists.
+    /// Call inside <c>UseXModule</c> AFTER <c>app.UseDataSeeding&lt;TContext&gt;()</c> so the table exists.
     ///
     /// For each definition: a missing DB row is seeded from the code default; then the job is registered
     /// with the DB schedule (cron/timezone/enabled), falling back to the code default cron when the row
