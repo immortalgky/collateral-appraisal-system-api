@@ -349,7 +349,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             AppraisalPurpose    = common.AppraisalPurpose,
             PropertyType        = propertyType,
             CollateralAddress   = string.IsNullOrEmpty(collateralAddress) ? null : collateralAddress,
-            AdministrativeDistrict = landAddr?.SubDistrict,
+            AdministrativeDistrict = common.AdministrativeDistrict,
             LandOffice          = landAddr?.LandOffice,
             OldAppraisalValue   = common.PrevAppraisedValue,
             HasPrevAppraisal    = common.HasPrevAppraisal,

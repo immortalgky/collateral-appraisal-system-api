@@ -362,7 +362,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
 
             // ที่ตั้งทรัพย์สิน from the Request detail (same as the land-building form)
             CollateralAddress       = common.CollateralAddress,
-            AdministrativeDistrict  = project.SubDistrict,
+            AdministrativeDistrict  = common.AdministrativeDistrict,
             LandOffice              = project.LandOffice,
             OldAppraisalValue       = common.PrevAppraisedValue,
             HasPrevAppraisal        = common.HasPrevAppraisal,
