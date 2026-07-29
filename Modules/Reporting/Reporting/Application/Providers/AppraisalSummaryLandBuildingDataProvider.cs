@@ -445,20 +445,26 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             WHERE pg.AppraisalId = @AppraisalId
             ORDER BY pgi.PropertyGroupId, pgi.SequenceInGroup;
 
-            -- RS20: Collateral address + loan limits from the Request detail (geocodes resolved)
+            -- RS20: Collateral address + loan limits from the Request detail (geocodes resolved).
+            -- The Location form captures these as DOPA geocodes (กรมการปกครอง), so DOPA wins; Title
+            -- is the fallback for rows saved while that form still used the Title picker, and the
+            -- raw geocode is the last resort.
             SELECT TOP 1
                 rd.HouseNumber,
                 rd.ProjectName,
                 rd.Moo,
                 rd.Soi,
                 rd.Road,
-                COALESCE(tsub.NameTh,  rd.SubDistrict) AS SubDistrict,
-                COALESCE(tdist.NameTh, rd.District)    AS District,
-                COALESCE(tprov.NameTh, rd.Province)    AS Province,
+                COALESCE(dsub.NameTh,  tsub.NameTh,  rd.SubDistrict) AS SubDistrict,
+                COALESCE(ddist.NameTh, tdist.NameTh, rd.District)    AS District,
+                COALESCE(dprov.NameTh, tprov.NameTh, rd.Province)    AS Province,
                 rd.FacilityLimit,
                 rd.AdditionalFacilityLimit,
                 rd.PreviousFacilityLimit
             FROM request.RequestDetails rd
+            LEFT JOIN parameter.DopaProvinces     dprov ON dprov.Code = rd.Province
+            LEFT JOIN parameter.DopaDistricts     ddist ON ddist.Code = rd.District
+            LEFT JOIN parameter.DopaSubDistricts  dsub  ON dsub.Code  = rd.SubDistrict
             LEFT JOIN parameter.TitleProvinces    tprov ON tprov.Code = rd.Province
             LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = rd.District
             LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = rd.SubDistrict
@@ -806,11 +812,11 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         latestByActivity.TryGetValue("int-appraisal-verification", out var verifyTask);
 
         string? staffName = string.IsNullOrWhiteSpace(staffTask?.FullName) ? null : staffTask.FullName!.Trim();
-        string? staffPosition = string.IsNullOrWhiteSpace(staffTask?.Position) ? null : staffTask.Position;
+        string? staffPosition = AppraisalSummaryCommonLoader.NormalizePosition(staffTask?.Position);
         string? checkerName = string.IsNullOrWhiteSpace(checkerTask?.FullName) ? null : checkerTask.FullName!.Trim();
-        string? checkerPosition = string.IsNullOrWhiteSpace(checkerTask?.Position) ? null : checkerTask.Position;
+        string? checkerPosition = AppraisalSummaryCommonLoader.NormalizePosition(checkerTask?.Position);
         string? verifyName = string.IsNullOrWhiteSpace(verifyTask?.FullName) ? null : verifyTask.FullName!.Trim();
-        string? verifyPosition = string.IsNullOrWhiteSpace(verifyTask?.Position) ? null : verifyTask.Position;
+        string? verifyPosition = AppraisalSummaryCommonLoader.NormalizePosition(verifyTask?.Position);
 
         // ── Build group lookups ───────────────────────────────────────────────────
         var titlesByGroup = groupTitleRows
@@ -1283,7 +1289,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             PropertyType = firstPropertyType,
             SummaryPropertyType = firstPropertyType,
             CollateralAddress = string.IsNullOrEmpty(collateralAddress) ? null : collateralAddress,
-            AdministrativeDistrict = land?.SubDistrict,
+            AdministrativeDistrict = requestAddress?.SubDistrict,
             LandOffice = land?.LandOffice,
             OldAppraisalValue = oldAppraisalValue,
             HasPrevAppraisal = hasPrevAppraisal,

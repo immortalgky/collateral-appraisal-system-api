@@ -59,7 +59,13 @@ public sealed class AppraisalSummaryModel
     /// <summary>Field 7 — Full collateral address built via ThaiAddressFormatter.</summary>
     public string? CollateralAddress { get; init; }
 
-    /// <summary>Field 8 — Administrative sub-district (ตำบล/แขวง).</summary>
+    /// <summary>
+    /// Field 8 — Administrative sub-district (เขตการปกครอง). Sourced from
+    /// request.RequestDetails — the same sub-district that feeds the ตำบล/แขวง segment of
+    /// <see cref="CollateralAddress"/>, so the two header lines always agree. Resolved against
+    /// the DOPA master, falling back to Title for rows saved while the Location form still
+    /// captured Title geocodes.
+    /// </summary>
     public string? AdministrativeDistrict { get; init; }
 
     /// <summary>Field 9 — Land Office name.</summary>

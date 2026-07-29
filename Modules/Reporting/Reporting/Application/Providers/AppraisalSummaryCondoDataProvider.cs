@@ -336,7 +336,7 @@ public sealed class AppraisalSummaryCondoDataProvider(
             PropertyType = "ห้องชุด",
             SummaryPropertyType = "ห้องชุด",
             CollateralAddress = common.CollateralAddress,
-            AdministrativeDistrict = firstCondo?.SubDistrict,
+            AdministrativeDistrict = common.AdministrativeDistrict,
             LandOffice = firstCondo?.LandOffice,
             OldAppraisalValue = common.PrevAppraisedValue,
             HasPrevAppraisal = common.HasPrevAppraisal,

@@ -97,15 +97,18 @@ internal static class AppraisalSummaryCommonLoader
                 a.FacilityLimit,
                 rd.AdditionalFacilityLimit,
                 rd.PreviousFacilityLimit,
-                -- Collateral address (ที่ตั้งทรัพย์สิน) from the Request detail, same as land-building
+                -- Collateral address (ที่ตั้งทรัพย์สิน) from the Request detail, same as land-building.
+                -- The Location form captures these as DOPA geocodes (กรมการปกครอง), so DOPA wins;
+                -- Title is the fallback for rows saved while that form still used the Title picker,
+                -- and the raw geocode is the last resort.
                 rd.HouseNumber,
                 rd.ProjectName,
                 rd.Moo,
                 rd.Soi,
                 rd.Road,
-                COALESCE(tsub.NameTh,  rd.SubDistrict) AS ReqSubDistrict,
-                COALESCE(tdist.NameTh, rd.District)    AS ReqDistrict,
-                COALESCE(tprov.NameTh, rd.Province)    AS ReqProvince
+                COALESCE(dsub.NameTh,  tsub.NameTh,  rd.SubDistrict) AS ReqSubDistrict,
+                COALESCE(ddist.NameTh, tdist.NameTh, rd.District)    AS ReqDistrict,
+                COALESCE(dprov.NameTh, tprov.NameTh, rd.Province)    AS ReqProvince
             FROM appraisal.Appraisals a
             LEFT JOIN parameter.Parameters pPurpose
                 ON pPurpose.[group]    = 'AppraisalPurpose'
@@ -113,6 +116,9 @@ internal static class AppraisalSummaryCommonLoader
                AND pPurpose.[isactive] = 1
                AND pPurpose.[code]     = a.Purpose
             LEFT JOIN request.RequestDetails rd ON rd.RequestId = a.RequestId
+            LEFT JOIN parameter.DopaProvinces     dprov ON dprov.Code = rd.Province
+            LEFT JOIN parameter.DopaDistricts     ddist ON ddist.Code = rd.District
+            LEFT JOIN parameter.DopaSubDistricts  dsub  ON dsub.Code  = rd.SubDistrict
             LEFT JOIN parameter.TitleProvinces    tprov ON tprov.Code = rd.Province
             LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = rd.District
             LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = rd.SubDistrict
@@ -505,11 +511,11 @@ internal static class AppraisalSummaryCommonLoader
         latestByActivity.TryGetValue("int-appraisal-verification", out var verifyTask);
 
         string? staffName = string.IsNullOrWhiteSpace(staffTask?.FullName) ? null : staffTask.FullName!.Trim();
-        string? staffPosition = string.IsNullOrWhiteSpace(staffTask?.Position) ? null : staffTask.Position;
+        string? staffPosition = NormalizePosition(staffTask?.Position);
         string? checkerName = string.IsNullOrWhiteSpace(checkerTask?.FullName) ? null : checkerTask.FullName!.Trim();
-        string? checkerPosition = string.IsNullOrWhiteSpace(checkerTask?.Position) ? null : checkerTask.Position;
+        string? checkerPosition = NormalizePosition(checkerTask?.Position);
         string? verifyName = string.IsNullOrWhiteSpace(verifyTask?.FullName) ? null : verifyTask.FullName!.Trim();
-        string? verifyPosition = string.IsNullOrWhiteSpace(verifyTask?.Position) ? null : verifyTask.Position;
+        string? verifyPosition = NormalizePosition(verifyTask?.Position);
 
         // ── CollateralType map ───────────────────────────────────────────────────
         var collateralTypeMap = collateralTypeParams
@@ -558,6 +564,9 @@ internal static class AppraisalSummaryCommonLoader
             AppraisalType: header.AppraisalType,
             AppraisalPurpose: header.AppraisalPurpose,
             CollateralAddress: string.IsNullOrEmpty(reqCollateralAddress) ? null : reqCollateralAddress,
+            // เขตการปกครอง — the same Request-detail sub-district that feeds the ตำบล/แขวง segment
+            // of CollateralAddress above, so the two header lines can never disagree.
+            AdministrativeDistrict: header.ReqSubDistrict,
             FacilityLimit: header.FacilityLimit,
             CustomerName: customerName,
             AppraisalDate: appraisalDate,
@@ -598,6 +607,14 @@ internal static class AppraisalSummaryCommonLoader
             PrevAppraisedValue: prevAppraisal?.PrevAppraisedValue,
             HasPrevAppraisal: prevAppraisal?.PrevAppraisalId is not null);
     }
+
+    /// <summary>
+    /// Normalizes a sign-off position (auth.AspNetUsers.Position) for display. Blank — or a lone
+    /// "-", the placeholder convention used elsewhere in this module — becomes null so the
+    /// template drops the line rather than printing a stray dash under someone's name.
+    /// </summary>
+    internal static string? NormalizePosition(string? position) =>
+        string.IsNullOrWhiteSpace(position) || position.Trim() == "-" ? null : position.Trim();
 
     // ── Private flat DTOs for Dapper mapping ─────────────────────────────────────
 
@@ -736,6 +753,7 @@ internal sealed record CommonAppraisalData(
     string? AppraisalType,
     string? AppraisalPurpose,
     string? CollateralAddress,
+    string? AdministrativeDistrict,
     decimal? FacilityLimit,
     string? CustomerName,
     DateTime? AppraisalDate,

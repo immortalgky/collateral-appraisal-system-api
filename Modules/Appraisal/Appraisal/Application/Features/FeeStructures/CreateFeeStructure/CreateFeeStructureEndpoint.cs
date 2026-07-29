@@ -5,7 +5,9 @@ public record CreateFeeStructureRequest(
     decimal BaseAmount,
     decimal MinSellingPrice,
     decimal? MaxSellingPrice,
-    bool IsActive = true);
+    bool IsActive = true,
+    // Omit or send null to create a tier on the generic ladder that applies to any appraisal type.
+    string? AppraisalType = null);
 
 public class CreateFeeStructureEndpoint : ICarterModule
 {
@@ -24,7 +26,7 @@ public class CreateFeeStructureEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithTags("Fee Structure Config")
             .WithSummary("Create a fee structure")
-            .WithDescription("Creates a fee structure tier. The fee code must exist in the TypeOfFee parameter group and may not overlap an existing active tier of the same code.")
+            .WithDescription("Creates a fee structure tier. The fee code must exist in the TypeOfFee parameter group and may not overlap an existing active tier in the same ladder (same fee code and appraisal-type scope). Leave appraisalType null for the generic ladder used by any appraisal type.")
             .RequireAuthorization();
     }
 }
