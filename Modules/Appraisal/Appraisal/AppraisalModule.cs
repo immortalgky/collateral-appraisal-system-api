@@ -109,7 +109,7 @@ public static class AppraisalModule
 
     public static IApplicationBuilder UseAppraisalModule(this IApplicationBuilder app)
     {
-        app.UseMigration<AppraisalDbContext>();
+        app.UseDataSeeding<AppraisalDbContext>();
         app.UseModuleRecurringJobs<AppraisalDbContext>(AppraisalRecurringJobs.All);
         return app;
     }

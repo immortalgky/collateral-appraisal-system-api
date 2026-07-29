@@ -231,6 +231,9 @@ public static class WorkflowModule
         // Data seeders
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Data.Seed.ActivityProcessConfigurationSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Data.Seed.CommitteeDataSeed>();
+        // Workflow definitions first: AppraisalSlaPolicySeeder below looks the appraisal definition up
+        // by name and skips silently when it is missing, and seeders run in registration order.
+        services.AddScoped<IDataSeeder<WorkflowDbContext>, Workflow.Infrastructure.Seed.AppraisalWorkflowDefinitionSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, DocumentFollowupWorkflowDefinitionSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Workflow.Infrastructure.Seed.QuotationWorkflowDefinitionSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Sla.Infrastructure.Seed.BusinessHoursConfigSeeder>();
@@ -259,7 +262,7 @@ public static class WorkflowModule
 
     public static IApplicationBuilder UseWorkflowModule(this IApplicationBuilder app)
     {
-        app.UseMigration<WorkflowDbContext>();
+        app.UseDataSeeding<WorkflowDbContext>();
         app.UseModuleRecurringJobs<WorkflowDbContext>(WorkflowRecurringJobs.All);
 
         return app;

@@ -98,9 +98,15 @@ public class DatabaseValidationService
 
     private async Task<bool> CheckStoredProceduresExistAsync(SqlConnection connection)
     {
+        // The procedures actually shipped under Database/Scripts/StoredProcedures.
+        // sp_GetNextAppraisalNumber used to be listed here but was removed along with the
+        // procedure itself: appraisal numbers come from dbo.RunningNumbers
+        // (Request/Application/Services/AppraisalNumberGenerator.cs), and nothing had called the
+        // procedure — or created the request.seq_AppraisalNo sequence it read — for some time.
         var expectedStoredProcedures = new[]
         {
-            "sp_GetNextAppraisalNumber"
+            "sp_GetTaskList",
+            "sp_GetTaskGroupCounts"
         };
 
         var spNameParams = string.Join(",", expectedStoredProcedures.Select((_, i) => $"@sp{i}"));
