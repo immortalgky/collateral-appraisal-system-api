@@ -33,7 +33,15 @@ param(
     # API URL in at BUILD time, so this must match the target environment.
     [string]$FrontendMode = 'production',
     [switch]$SkipDbScripts,
-    [switch]$SkipDbTool
+    [switch]$SkipDbTool,
+    # Target RID for the .NET outputs. Framework-dependent either way (the server
+    # supplies the runtime), but naming the RID makes the build emit the WINDOWS
+    # apphosts — Api.exe, Database.exe, CasSecretTool.exe — instead of a host for
+    # whatever machine did the build. Building on macOS without this produces a
+    # Mach-O binary with no .exe at all, and the CasSecretTool operator manual
+    # tells the server operator to run `.\CasSecretTool.exe`.
+    # Pass '' to publish portable (no apphost) instead.
+    [string]$RuntimeIdentifier = 'win-x64'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -55,9 +63,17 @@ $webOut = Join-Path $stage 'web'
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 
+# Framework-dependent, but RID-qualified so the Windows apphosts (*.exe) are
+# emitted regardless of which OS built the bundle. --self-contained false keeps
+# the runtime off the artifact — the server's ASP.NET Core 9 Hosting Bundle
+# supplies it.
+$ridArgs = @()
+if ($RuntimeIdentifier) { $ridArgs = @('-r', $RuntimeIdentifier, '--self-contained', 'false') }
+Write-Host "==> Runtime identifier: $(if ($RuntimeIdentifier) { $RuntimeIdentifier } else { '(portable, no .exe)' })" -ForegroundColor DarkGray
+
 # --- Backend -------------------------------------------------------------
 Invoke-Step "Publish backend (Api)" {
-    dotnet publish Bootstrapper/Api/Api.csproj -c $Configuration -o $apiOut --nologo
+    dotnet publish Bootstrapper/Api/Api.csproj -c $Configuration -o $apiOut @ridArgs --nologo
 }
 
 # --- Database tool (DbUp: EF migrations + views/procs) -------------------
@@ -65,13 +81,15 @@ if ($SkipDbTool) {
     Write-Host "==> Publish database tool (skipped)" -ForegroundColor Yellow
 } else {
     Invoke-Step "Publish database tool" {
-        dotnet publish Database/Database.csproj -c $Configuration -o $dbOut --nologo
+        dotnet publish Database/Database.csproj -c $Configuration -o $dbOut @ridArgs --nologo
     }
 }
 
 # --- Secret encryption tool (run on the app server to produce ENC:v1: values) --
+# The operator manual (docs/deployment/cas-secret-tool-manual.md) tells the server
+# operator to run `.\CasSecretTool.exe`, so the .exe MUST be in the bundle.
 Invoke-Step "Publish secret tool (CasSecretTool)" {
-    dotnet publish tools/CasSecretTool/CasSecretTool.csproj -c $Configuration -o (Join-Path $stage 'tools') --nologo
+    dotnet publish tools/CasSecretTool/CasSecretTool.csproj -c $Configuration -o (Join-Path $stage 'tools') @ridArgs --nologo
 }
 
 # --- Database SQL scripts (what the DBA actually runs) -------------------
@@ -129,6 +147,8 @@ Write-Host "  contains: api/  web/  tools/  db/$(if (-not $SkipDbTool) { '  data
 Write-Host ""
 Write-Host "Next:"
 Write-Host "  1. Copy this zip to C:\Deploy\temp on each app server and expand it."
-Write-Host "  2. Give db\ to the DBA — run 00_Prepare, 01_EF_01..11, 02, 03 (in that order),"
-Write-Host "     with Invoke-SqlDeploy.ps1, sqlcmd or SSMS. Then run 99_Verify.sql."
+Write-Host "  2. Give db\ to the DBA — run 00_CreateDatabase (against master), then 00_Prepare,"
+Write-Host "     01_EF_01..11, 02, 03 in that order, with Invoke-SqlDeploy.ps1, sqlcmd or SSMS."
+Write-Host "     Review 00_CreateDatabase.sql's DECLARE block first on a NEW environment."
+Write-Host "     Then run 99_Verify.sql."
 Write-Host "  3. Deploy-App.ps1 / Deploy-Web.ps1 on each node, one node at a time."
