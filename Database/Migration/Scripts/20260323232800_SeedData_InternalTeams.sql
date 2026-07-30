@@ -1,6 +1,10 @@
 -- ============================================================
 -- Seed: Internal Teams + TeamMembers
--- Depends on: 20260323201000_SeedData_WorkflowUsersAndRoles.sql
+-- The TeamMembers insert below is an INSERT...SELECT against auth.AspNetUsers, so on a fresh
+-- database it matches nothing and the two teams are created empty — the accounts it used to
+-- pick up came from 20260323201000_SeedData_WorkflowUsersAndRoles.sql, which was retired
+-- (shared-password demo accounts must never reach production). Populate the teams via
+-- /admin/teams.
 -- Table creation is owned by the Auth EF migration
 -- (20260610094500_RenameTeamTypeToScopeDropIsActive); this script only seeds.
 -- Idempotent — safe to re-run.

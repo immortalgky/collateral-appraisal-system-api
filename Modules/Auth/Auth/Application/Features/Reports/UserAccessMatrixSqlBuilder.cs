@@ -1,3 +1,4 @@
+using Auth.Domain;
 using Dapper;
 
 namespace Auth.Application.Features.Reports;
@@ -33,9 +34,9 @@ internal static class UserAccessMatrixSqlBuilder
         // Scope: Bank users have no CompanyId; Company users do
         if (!string.IsNullOrWhiteSpace(scope))
         {
-            if (scope.Equals("Bank", StringComparison.OrdinalIgnoreCase))
+            if (scope.Equals(AuthScopes.Bank, StringComparison.OrdinalIgnoreCase))
                 conditions.Add("u.CompanyId IS NULL");
-            else if (scope.Equals("Company", StringComparison.OrdinalIgnoreCase))
+            else if (scope.Equals(AuthScopes.Company, StringComparison.OrdinalIgnoreCase))
                 conditions.Add("u.CompanyId IS NOT NULL");
         }
 
