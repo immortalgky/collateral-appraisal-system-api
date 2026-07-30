@@ -69,6 +69,7 @@ public class GetUserByIdQueryHandler(
             user.Position,
             user.Department,
             user.AoCode,
+            user.EmployeeId,
             user.CompanyId,
             companyName,
             user.AuthSource,

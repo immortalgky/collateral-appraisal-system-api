@@ -44,6 +44,10 @@ public class CreateUserCommandValidator : AbstractValidator<CreateUserCommand>
         RuleFor(x => x.AoCode)
             .MaximumLength(10).WithMessage("AO Code cannot exceed 10 characters.")
             .When(x => x.AoCode != null);
+        // 50 matches ApplicationUser.EmployeeId's column length.
+        RuleFor(x => x.EmployeeId)
+            .MaximumLength(50).WithMessage("Employee ID cannot exceed 50 characters.")
+            .When(x => x.EmployeeId != null);
         RuleFor(x => x.Roles).NotNull().WithMessage("Roles are required.");
         RuleForEach(x => x.Roles).NotEmpty().WithMessage("RoleId is required.");
     }

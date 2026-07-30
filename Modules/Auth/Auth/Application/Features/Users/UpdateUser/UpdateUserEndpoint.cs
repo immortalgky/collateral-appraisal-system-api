@@ -17,7 +17,8 @@ public class UpdateUserEndpoint : ICarterModule
                         request.Department,
                         request.CompanyId,
                         request.AuthSource,
-                        request.AoCode);
+                        request.AoCode,
+                        request.EmployeeId);
                     await sender.Send(command, cancellationToken);
                     return Results.NoContent();
                 })
