@@ -1,4 +1,5 @@
 using System.Linq;
+using Auth.Domain;
 using Auth.Domain.Companies;
 using Auth.Domain.Groups;
 using Auth.Domain.Menu;
@@ -72,11 +73,11 @@ public class AuthDataSeed(
 
         await SeedRoleWithPermissionsAsync(MeetingSecretaryRoleName,
             "Meeting Secretary — creates, schedules, updates, and ends approval meetings.",
-            "Bank",
+            AuthScopes.Bank,
             ["MEETING_MANAGE", "MEETING_SECRETARY"]);
         await SeedRoleWithPermissionsAsync(IntAdminRoleName,
             "Internal Admin — manages workflow assignments, appraisals, meetings, and internal staff.",
-            "Bank",
+            AuthScopes.Bank,
             [
                 "DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_ASSIGNMENT",
                 "TASK_MONITOR_VIEW", "TASK_MONITOR_REASSIGN",
@@ -96,7 +97,7 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(ExtAdminRoleName,
             "External Company Admin — manages external company users and external appraisal assignments.",
-            "Company",
+            AuthScopes.Company,
             [
                 "DASHBOARD_VIEW", "REQUEST_VIEW", "APPRAISAL_VIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_ASSIGNMENT", "USER_MANAGE",
@@ -108,7 +109,7 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(RequestMakerRoleName,
             "Request Maker — creates appraisal requests and handles initiation tasks.",
-            "Bank",
+            AuthScopes.Bank,
             [
                 "DASHBOARD_VIEW", "REQUEST_VIEW", "REQUEST_CREATE", "TASK_LIST_VIEW",
                 "TASK_APPR_INITIATION_CHECK", "TASK_APPR_INITIATION", "TASK_PROVIDE_ADDITIONAL_DOCS",
@@ -121,11 +122,11 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(RequestCheckerRoleName,
             "Request Checker — reviews and approves incoming appraisal requests.",
-            "Bank",
+            AuthScopes.Bank,
             ["DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_INITIATION_CHECK"]);
         await SeedRoleWithPermissionsAsync(IntAppraisalStaffRoleName,
             "Internal Appraisal Staff — executes internal appraisals and verifies appraisal books.",
-            "Bank",
+            AuthScopes.Bank,
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
                 "TASK_APPR_BOOK_VERIFICATION", "TASK_INT_APPR_EXECUTION", "TASK_INT_PMA_INPUT",
@@ -142,7 +143,7 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(IntAppraisalCheckerRoleName,
             "Internal Appraisal Checker — checks and validates internal appraisal reports.",
-            "Bank",
+            AuthScopes.Bank,
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_INT_APPR_CHECK",
@@ -154,7 +155,7 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(IntAppraisalVerifierRoleName,
             "Internal Appraisal Verifier — final verification of internal appraisal reports.",
-            "Bank",
+            AuthScopes.Bank,
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_INT_APPR_VERIFICATION", "REPORT_VIEW", "REPORT_EVALUATION_VIEW",
@@ -163,7 +164,7 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalStaffRoleName,
             "External Appraisal Staff — field appraisers from external companies who execute appraisals.",
-            "Company",
+            AuthScopes.Company,
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_ASSIGNMENT", "TASK_EXT_APPR_EXECUTION", "STANDALONE_USE",
@@ -172,7 +173,7 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalCheckerRoleName,
             "External Appraisal Checker — checks external appraisal reports before verification.",
-            "Company",
+            AuthScopes.Company,
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_CHECK",
@@ -182,7 +183,7 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalVerifierRoleName,
             "External Appraisal Verifier — final verification of external appraisal reports.",
-            "Company",
+            AuthScopes.Company,
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_VERIFICATION",
@@ -191,7 +192,7 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(AppraisalCommitteeRoleName,
             "Appraisal Committee — approves appraisals in committee meetings.",
-            "Bank",
+            AuthScopes.Bank,
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_PENDING_APPROVAL", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "REPORT_EVALUATION_VIEW",
@@ -226,15 +227,22 @@ public class AuthDataSeed(
                 throw new InvalidOperationException(
                     $"Failed to create {roleName} role: {string.Join(", ", createResult.Errors.Select(e => e.Description))}");
         }
-        else
+        else if (await dbContext.Set<RolePermission>().AnyAsync(rp => rp.RoleId == role.Id))
         {
-            // CREATE-ONLY: the role already exists, so its permission set belongs to the admin.
-            // Re-adding the seed permissions here would silently restore anything an admin had
-            // deliberately revoked via /admin/roles on the next app restart.
+            // The role exists AND already carries a permission set, so that set belongs to the
+            // admin. Re-adding the seed permissions here would silently restore anything they
+            // had deliberately revoked via /admin/roles on the next app restart.
             // To grant a NEW permission to an existing role in a later release, write a one-off
             // script in Database/Migration/Scripts/ — the same convention UpsertTreeAsync uses.
             return;
         }
+
+        // Falling through means the role exists but has never been granted anything, which only
+        // happens when something outside this seeder created it — as
+        // 20260323201000_SeedData_WorkflowUsersAndRoles.sql did before it was retired, leaving
+        // 10 roles permission-less on any database built while the migrator ran ahead of the
+        // API. Grant the seed set once so such a database repairs itself on the next boot; the
+        // guard above stops a second pass (AddRangeAsync below has no duplicate check).
 
         var permissionIds = await dbContext.Permissions
             .AsNoTracking()
@@ -275,13 +283,28 @@ public class AuthDataSeed(
     {
         // Deliberately excludes MeetingSecretary — it was not in the original seed set, and
         // meeting duties are not resolved through the group-assignment pipeline.
-        string[] workflowRoleNames =
+        //
+        // Each group carries the same Scope as the role it mirrors. The admin UI offers a user
+        // only the groups whose Scope equals that user's own (Bank when CompanyId is null,
+        // Company otherwise), so a group seeded with any other value is invisible there and can
+        // never be assigned. CompanyId stays null even for the Company-scoped groups: they are
+        // shared by every external company, and the workflow narrows candidates to one company
+        // through the ext-appraisal-assignment `assignedCompanyId` team variable, not through
+        // Group.CompanyId.
+        (string RoleName, string Scope)[] workflowGroups =
         [
-            AdminRoleName, IntAdminRoleName, ExtAdminRoleName,
-            RequestMakerRoleName, RequestCheckerRoleName,
-            IntAppraisalStaffRoleName, IntAppraisalCheckerRoleName, IntAppraisalVerifierRoleName,
-            ExtAppraisalStaffRoleName, ExtAppraisalCheckerRoleName, ExtAppraisalVerifierRoleName,
-            AppraisalCommitteeRoleName
+            (AdminRoleName, AuthScopes.Bank),
+            (IntAdminRoleName, AuthScopes.Bank),
+            (ExtAdminRoleName, AuthScopes.Company),
+            (RequestMakerRoleName, AuthScopes.Bank),
+            (RequestCheckerRoleName, AuthScopes.Bank),
+            (IntAppraisalStaffRoleName, AuthScopes.Bank),
+            (IntAppraisalCheckerRoleName, AuthScopes.Bank),
+            (IntAppraisalVerifierRoleName, AuthScopes.Bank),
+            (ExtAppraisalStaffRoleName, AuthScopes.Company),
+            (ExtAppraisalCheckerRoleName, AuthScopes.Company),
+            (ExtAppraisalVerifierRoleName, AuthScopes.Company),
+            (AppraisalCommitteeRoleName, AuthScopes.Bank)
         ];
 
         var existingNames = await dbContext.Groups
@@ -292,7 +315,7 @@ public class AuthDataSeed(
 
         var created = 0;
 
-        foreach (var roleName in workflowRoleNames)
+        foreach (var (roleName, scope) in workflowGroups)
         {
             if (existingNames.Contains(roleName)) continue;
 
@@ -303,7 +326,7 @@ public class AuthDataSeed(
                 continue;
             }
 
-            var group = Group.Create(roleName, $"Workflow assignment group: {roleName}", "System");
+            var group = Group.Create(roleName, $"Workflow assignment group: {roleName}", scope);
             dbContext.Groups.Add(group);
 
             var userIds = await dbContext.UserRoles
@@ -1097,7 +1120,7 @@ public class AuthDataSeed(
                 Description = "Full system access — granted every permission when first created.",
                 // CA-497: Scope must be non-null so the Edit-Roles modal can deselect this role
                 // from a user (a null Scope made it appear "unassignable/unremovable" in the UI).
-                Scope = "Bank"
+                Scope = AuthScopes.Bank
             };
 
             var createResult = await roleManager.CreateAsync(adminRole);
@@ -1105,14 +1128,18 @@ public class AuthDataSeed(
                 throw new InvalidOperationException(
                     $"Failed to create Admin role: {string.Join(", ", createResult.Errors.Select(e => e.Description))}");
         }
-        else
+        else if (await dbContext.Set<RolePermission>().AnyAsync(rp => rp.RoleId == adminRole.Id))
         {
-            // CREATE-ONLY, same reasoning as SeedRoleWithPermissionsAsync: once the Admin role
-            // exists its permission set is the admin's to manage. Re-granting every permission on
-            // each boot would undo any deliberate revocation. New permissions added in a later
+            // Same reasoning as SeedRoleWithPermissionsAsync: once the Admin role exists and has
+            // a permission set, that set is the admin's to manage. Re-granting every permission
+            // on each boot would undo any deliberate revocation. New permissions added in a later
             // release reach Admin via a one-off script in Database/Migration/Scripts/.
             return;
         }
+
+        // An Admin role with no permissions at all can only have been created outside this
+        // seeder, and one that cannot administer anything locks everybody out — so grant the
+        // full set rather than leaving it empty.
 
         var allPermissionIds = await dbContext.Permissions
             .AsNoTracking()
