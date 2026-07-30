@@ -58,8 +58,13 @@ deployment, which is an expensive thing to diagnose mid go-live.
 pwsh deploy/Publish.ps1 -Version 20260723-101500 -FrontendMode production
 # -> dist-artifacts/CAS-20260723-101500.zip  (api/ web/ tools/ db/ database/)
 ```
-Backend & database tool are published *framework-dependent* (portable), so
-building on macOS is fine; the Windows server supplies the runtime.
+Building on macOS is fine. The .NET outputs are published *framework-dependent*
+(the server's ASP.NET Core 9 Hosting Bundle supplies the runtime) but **RID-qualified
+to `win-x64`**, so the bundle always contains the Windows apphosts — `api\Api.exe`,
+`database\Database.exe` and `tools\CasSecretTool.exe` — whatever OS did the build.
+That matters: a plain publish on macOS emits a Mach-O binary and **no `.exe` at all**,
+which would leave the operator with no `CasSecretTool.exe` to run. Override with
+`-RuntimeIdentifier ''` to publish portable instead.
 
 **2. Copy** `CAS-<ver>.zip` to `C:\Deploy\temp\` on each app server and expand it
 so you have `C:\Deploy\temp\<ver>\{api,web,tools,db,database}`. Hand `db\` to the DBA.
