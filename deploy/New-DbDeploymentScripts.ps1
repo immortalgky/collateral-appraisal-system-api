@@ -35,7 +35,15 @@ param(
     [string]$Version = (Get-Date -Format 'yyyyMMdd-HHmmss'),
     [string]$OutDir,
     [string]$Environment = 'Production',
-    [switch]$SkipEf                       # regenerate only the SQL-file sections (fast)
+    [switch]$SkipEf,                      # regenerate only the SQL-file sections (fast)
+
+    # Defaults baked into 00_CreateDatabase.sql's DECLARE block. The DBA can edit
+    # them in the generated file; these only set the starting point.
+    [string]$Collation   = 'SQL_Latin1_General_CP1_CI_AS',
+    [int]$DataSizeMB     = 4096,
+    [int]$DataGrowthMB   = 512,
+    [int]$LogSizeMB      = 2048,
+    [int]$LogGrowthMB    = 256
 )
 
 $ErrorActionPreference = 'Stop'
@@ -107,10 +115,235 @@ $header = @"
    Collateral Appraisal System — database deployment
    Release  : $Version
    Generated: $stamp  (deploy/New-DbDeploymentScripts.ps1)
-   Target   : SQL Server 2019+   Run with SQLCMD mode / sqlcmd -b
+   Target   : SQL Server 2019+   Plain T-SQL - runs in SSMS or sqlcmd -b
    Every script in this bundle is IDEMPOTENT and safe to re-run.
    =========================================================================== */
 "@
+
+# ---------------------------------------------------------------------------
+# 00 — create the database (runs against [master], NOT the target database)
+#
+# The app no longer creates it: EF's Database.Migrate() used to do so implicitly,
+# but startup migration was removed, and every other script in this bundle runs
+# *inside* the database so none of them can create it.
+#
+# Uses the instance default data/log paths (SQL Server picks them from
+# InstanceDefaultDataPath / InstanceDefaultLogPath), then resizes the files
+# explicitly — production wants fixed-MB autogrowth, not the small defaults.
+# ---------------------------------------------------------------------------
+Write-Host '==> 00_CreateDatabase.sql' -ForegroundColor Cyan
+
+$createDbEditBlock = @"
+    ------------------------------------------------------------------------
+    -- EDIT THIS BLOCK, THEN RUN THE WHOLE FILE.
+    ------------------------------------------------------------------------
+    -- The database to create. If you change it, pass the same name to
+    -- Invoke-SqlDeploy.ps1 -Database (that script verifies the two agree).
+    DECLARE @DbName     sysname = N'CollateralAppraisal';
+
+    -- MUST match UAT. Nothing in the application pins a collation, so whatever
+    -- is set here is what production gets. Thai text is nvarchar, so this
+    -- governs sorting and comparison rather than storage -- but a database that
+    -- differs from UAT sorts and compares differently, silently.
+    DECLARE @Collation  sysname = N'$Collation';
+
+    -- Size up front so autogrowth never fires in normal operation.
+    -- Fixed MB, never percent.
+    DECLARE @DataSizeMB int = $DataSizeMB;
+    DECLARE @DataGrowMB int = $DataGrowthMB;
+    DECLARE @LogSizeMB  int = $LogSizeMB;
+    DECLARE @LogGrowMB  int = $LogGrowthMB;
+    ------------------------------------------------------------------------
+    -- END EDIT BLOCK
+    ------------------------------------------------------------------------
+"@
+
+# Single-quoted here-string: no PowerShell interpolation inside the T-SQL.
+$createDbBody = @'
+
+    SET NOCOUNT ON;
+
+    DECLARE @db  nvarchar(300) = QUOTENAME(@DbName);
+    DECLARE @sql nvarchar(max);
+
+    PRINT '=== Target database: ' + @DbName + ' ===';
+
+    -- Catch a mistyped collation here rather than via a cryptic CREATE failure.
+    IF NOT EXISTS (SELECT 1 FROM sys.fn_helpcollations() WHERE name = @Collation)
+    BEGIN
+        RAISERROR('Unknown collation "%s" - fix the EDIT block above.', 16, 1, @Collation);
+        RETURN;
+    END
+
+    /*------------------------------------------------------------------------
+      1. Create the database on the instance default data/log paths
+    ------------------------------------------------------------------------*/
+    IF DB_ID(@DbName) IS NULL
+    BEGIN
+        SET @sql = N'CREATE DATABASE ' + @db + N' COLLATE ' + @Collation + N';';
+        EXEC sys.sp_executesql @sql;
+        PRINT '  created (instance default data/log paths).';
+    END
+    ELSE
+        PRINT '  already exists - skipping CREATE; options below still applied.';
+
+    /*------------------------------------------------------------------------
+      2. File size and autogrowth
+
+      Logical file names are looked up rather than assumed, so this also works
+      on a database created by someone else. SIZE can only grow a file, so it is
+      applied only when the file is currently smaller - that keeps re-runs safe.
+    ------------------------------------------------------------------------*/
+    DECLARE @dataFile sysname, @logFile sysname, @dataMB int, @logMB int;
+
+    SELECT @dataFile = name, @dataMB = size / 128
+    FROM sys.master_files
+    WHERE database_id = DB_ID(@DbName) AND type = 0 AND file_id = 1;
+
+    SELECT TOP (1) @logFile = name, @logMB = size / 128
+    FROM sys.master_files
+    WHERE database_id = DB_ID(@DbName) AND type = 1
+    ORDER BY file_id;
+
+    IF @dataFile IS NULL OR @logFile IS NULL
+    BEGIN
+        RAISERROR('Could not resolve the data/log logical file names.', 16, 1);
+        RETURN;
+    END
+
+    IF @dataMB < @DataSizeMB
+    BEGIN
+        SET @sql = N'ALTER DATABASE ' + @db + N' MODIFY FILE (NAME = ' + QUOTENAME(@dataFile)
+                 + N', SIZE = ' + CAST(@DataSizeMB AS nvarchar(20)) + N'MB);';
+        EXEC sys.sp_executesql @sql;
+        PRINT '  data file grown to ' + CAST(@DataSizeMB AS varchar(20)) + ' MB.';
+    END
+    ELSE
+        PRINT '  data file already >= target size - left alone.';
+
+    SET @sql = N'ALTER DATABASE ' + @db + N' MODIFY FILE (NAME = ' + QUOTENAME(@dataFile)
+             + N', FILEGROWTH = ' + CAST(@DataGrowMB AS nvarchar(20)) + N'MB);';
+    EXEC sys.sp_executesql @sql;
+
+    IF @logMB < @LogSizeMB
+    BEGIN
+        SET @sql = N'ALTER DATABASE ' + @db + N' MODIFY FILE (NAME = ' + QUOTENAME(@logFile)
+                 + N', SIZE = ' + CAST(@LogSizeMB AS nvarchar(20)) + N'MB);';
+        EXEC sys.sp_executesql @sql;
+        PRINT '  log file grown to ' + CAST(@LogSizeMB AS varchar(20)) + ' MB.';
+    END
+    ELSE
+        PRINT '  log file already >= target size - left alone.';
+
+    SET @sql = N'ALTER DATABASE ' + @db + N' MODIFY FILE (NAME = ' + QUOTENAME(@logFile)
+             + N', FILEGROWTH = ' + CAST(@LogGrowMB AS nvarchar(20)) + N'MB);';
+    EXEC sys.sp_executesql @sql;
+
+    /*------------------------------------------------------------------------
+      3. Recovery model
+
+      FULL is required for point-in-time restore. It also means the log grows
+      until a LOG backup truncates it - a transaction-log backup schedule MUST
+      be in place before go-live, or the log volume will fill.
+    ------------------------------------------------------------------------*/
+    SET @sql = N'ALTER DATABASE ' + @db + N' SET RECOVERY FULL;';
+    EXEC sys.sp_executesql @sql;
+
+    /*------------------------------------------------------------------------
+      4. Read Committed Snapshot Isolation
+
+      Recommended by docs/SQL_Server_Locking_&_Isolation_Reference.md ("Enable
+      RCSI for OLTP systems to reduce reader/writer blocking", and again for
+      heavy reporting) - this system is both: OLTP writes plus many reporting
+      views and Dapper reads over the same tables.
+
+      Explicit lock hints keep working: AppraisalNumberGenerator's
+      UPDATE ... WITH (UPDLOCK, ROWLOCK, HOLDLOCK) still serialises, and the
+      background-job lease patterns are unaffected. Cost: row versions live in
+      tempdb, so size and monitor tempdb accordingly.
+
+      ROLLBACK IMMEDIATE is safe here only because this runs before the
+      application is deployed; it terminates open sessions on the database.
+    ------------------------------------------------------------------------*/
+    SET @sql = N'ALTER DATABASE ' + @db + N' SET READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE;';
+    EXEC sys.sp_executesql @sql;
+
+    /*------------------------------------------------------------------------
+      5. Standard production options
+    ------------------------------------------------------------------------*/
+    SET @sql =
+          N'ALTER DATABASE ' + @db + N' SET AUTO_SHRINK OFF;'                  -- fragments indexes; space is reused anyway
+        + N'ALTER DATABASE ' + @db + N' SET AUTO_CREATE_STATISTICS ON;'        -- plan quality
+        + N'ALTER DATABASE ' + @db + N' SET AUTO_UPDATE_STATISTICS ON;'
+        + N'ALTER DATABASE ' + @db + N' SET AUTO_UPDATE_STATISTICS_ASYNC ON;'
+        + N'ALTER DATABASE ' + @db + N' SET PAGE_VERIFY CHECKSUM;'             -- detect storage corruption on read
+        + N'ALTER DATABASE ' + @db + N' SET AUTO_CLOSE OFF;';                  -- keep the database warm
+    EXEC sys.sp_executesql @sql;
+
+    -- Query Store: the most useful thing to already have on when a production
+    -- query regresses. READ_WRITE so it captures from day one.
+    SET @sql = N'ALTER DATABASE ' + @db + N' SET QUERY_STORE = ON;';
+    EXEC sys.sp_executesql @sql;
+
+    SET @sql = N'ALTER DATABASE ' + @db + N' SET QUERY_STORE ('
+             + N'OPERATION_MODE = READ_WRITE, '
+             + N'CLEANUP_POLICY = (STALE_QUERY_THRESHOLD_DAYS = 30), '
+             + N'DATA_FLUSH_INTERVAL_SECONDS = 900, '
+             + N'INTERVAL_LENGTH_MINUTES = 60, '
+             + N'MAX_STORAGE_SIZE_MB = 1024, '
+             + N'QUERY_CAPTURE_MODE = AUTO, '
+             + N'SIZE_BASED_CLEANUP_MODE = AUTO);';
+    EXEC sys.sp_executesql @sql;
+
+    PRINT '  production options applied.';
+
+    /*------------------------------------------------------------------------
+      6. Report the result - read this before continuing to 00_Prepare.sql
+    ------------------------------------------------------------------------*/
+    SELECT
+        d.name                            AS [Database],
+        d.collation_name                  AS [Collation],
+        d.recovery_model_desc             AS [Recovery],
+        d.is_read_committed_snapshot_on   AS [RCSI],
+        d.is_auto_shrink_on               AS [AutoShrink],
+        d.page_verify_option_desc         AS [PageVerify],
+        d.is_query_store_on               AS [QueryStore],
+        d.compatibility_level             AS [CompatLevel]
+    FROM sys.databases d
+    WHERE d.name = @DbName;
+
+    SELECT
+        mf.name                                       AS [LogicalName],
+        mf.type_desc                                  AS [FileType],
+        mf.physical_name                              AS [Path],
+        CAST(mf.size * 8.0 / 1024 AS decimal(18,0))   AS [SizeMB],
+        CASE WHEN mf.is_percent_growth = 1
+             THEN CAST(mf.growth AS varchar(10)) + ' %'
+             ELSE CAST(CAST(mf.growth * 8.0 / 1024 AS decimal(18,0)) AS varchar(20)) + ' MB'
+        END                                           AS [Autogrowth]
+    FROM sys.master_files mf
+    WHERE mf.database_id = DB_ID(@DbName);
+END
+GO
+'@
+
+Write-Sql (Join-Path $OutDir '00_CreateDatabase.sql') (@"
+$header
+$(New-Banner '00 — Create the database.  RUN THIS AGAINST [master].
+
+   Plain T-SQL: no SQLCMD mode, no :setvar, no sqlcmd required. Open it in SSMS,
+   edit the DECLARE block at the top, press Execute. Invoke-SqlDeploy.ps1 also
+   runs it automatically, against master, as the first file in the bundle.
+
+   The database is created on the INSTANCE DEFAULT data/log paths; the files are
+   then resized explicitly. Idempotent - safe to re-run.')
+USE [master];
+GO
+
+BEGIN
+$createDbEditBlock
+$createDbBody
+"@)
 
 # ---------------------------------------------------------------------------
 # 00 — journal table (mirrors MigrationService.EnsureMigrationHistoryTableAsync)
@@ -349,7 +582,12 @@ WHERE t.name = N'__EFMigrationsHistory';
 IF @sql = N''
     PRINT '  *** NO __EFMigrationsHistory TABLE FOUND — the 01_EF_* scripts did not run. ***';
 ELSE
-    EXEC sp_executesql (@sql + N' ORDER BY [Schema];');
+BEGIN
+    -- sp_executesql takes a variable or literal, never an expression: passing
+    -- (@sql + N'...') is a syntax error, so build the statement first.
+    SET @sql = @sql + N' ORDER BY [Schema];';
+    EXEC sys.sp_executesql @sql;
+END
 GO
 
 PRINT '--- 1b. Stray history tables (expect none outside the module schemas) --';

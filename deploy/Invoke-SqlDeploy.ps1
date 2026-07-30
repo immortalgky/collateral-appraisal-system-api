@@ -6,10 +6,17 @@
 .DESCRIPTION
     Executes, in order and aborting on the first error (-b):
 
+        00_CreateDatabase.sql       (against [master]; -v DbName is supplied from -Database)
         00_Prepare.sql
         01_EF_01..11_*.sql          (EF Core schema, module dependency order)
         02_Repeatable_ViewsAndProcs.sql
         03_OneTime_DataScripts.sql
+
+    00_CreateDatabase.sql is the only one that runs against [master] — the target
+    database may not exist yet, and every other script runs inside it. Edit that
+    file's DECLARE block first if the environment needs a different collation or
+    file sizing. After it runs, the database's existence is verified before
+    anything else is attempted.
 
     Every file is idempotent, so a failed run can be fixed and re-run.
     99_Verify.sql is NOT run automatically — run it afterwards and read the output.
@@ -52,9 +59,14 @@ if (-not (Get-Command sqlcmd -ErrorAction SilentlyContinue)) {
     throw 'sqlcmd not found. Install "Microsoft ODBC Driver + sqlcmd utility" (or SSMS) on this machine.'
 }
 
+# 00_CreateDatabase.sql is special: it runs against [master] because the target
+# database may not exist yet. Everything else runs inside the target database.
+$createDbScript = Get-ChildItem -Path $ScriptPath -Filter '00_CreateDatabase.sql' -File |
+    Select-Object -First 1
+
 # Deterministic run order: 00, then 01_EF_* by their two-digit index, then 02, 03.
 $files = @(Get-ChildItem -Path $ScriptPath -Filter '*.sql' -File |
-    Where-Object { $_.Name -notlike '99_*' } |
+    Where-Object { $_.Name -notlike '99_*' -and $_.Name -ne '00_CreateDatabase.sql' } |
     Sort-Object Name)
 if ($files.Count -eq 0) { throw "No .sql files in '$ScriptPath'." }
 
@@ -77,6 +89,44 @@ if ($TrustedConnection) {
     $auth += @('-U', $Username, '-P', $plain)
 }
 if ($TrustServerCertificate) { $auth += '-C' }
+
+# Step 1 of 2 for the database itself: create it (against [master]) if the bundle
+# ships 00_CreateDatabase.sql. Idempotent — an existing database is left in place.
+if ($createDbScript -and $PSCmdlet.ShouldProcess($createDbScript.Name, "sqlcmd against $ServerInstance/master")) {
+    $log = Join-Path $LogDirectory "$runStamp`_$($createDbScript.BaseName).log"
+    Write-Host "  -> $($createDbScript.Name)  (against master)" -ForegroundColor Cyan
+    & sqlcmd -S $ServerInstance -d master @auth `
+             -i $createDbScript.FullName -o $log `
+             -b -V 16 -t $QueryTimeoutSeconds
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "FAILED on $($createDbScript.Name) — last lines of $log :"
+        Get-Content $log -Tail 25 | ForEach-Object { Write-Host "    $_" }
+        throw "sqlcmd exit $LASTEXITCODE on $($createDbScript.Name)."
+    }
+    Get-Content $log -Tail 40 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+}
+
+# Step 2: confirm the database is really there before running anything inside it,
+# so a missing one reports the fix instead of failing obscurely in 00_Prepare.sql.
+if (-not $WhatIfPreference) {
+    $probe = & sqlcmd -S $ServerInstance -d master @auth -h -1 -W -b `
+        -Q "SET NOCOUNT ON; SELECT ISNULL(DB_ID(N'$Database'), 0);" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Cannot query $ServerInstance with the supplied credentials: $probe"
+    }
+    $dbId = ($probe | Where-Object { $_ -match '^\s*\d+\s*$' } | Select-Object -Last 1)
+    if (-not $dbId -or $dbId.Trim() -eq '0') {
+        throw @"
+Database [$Database] does not exist on $ServerInstance.
+
+00_CreateDatabase.sql ran without error, so the most likely cause is a name
+mismatch: that script sets the name in its own `DECLARE @DbName` line, and it
+must match the -Database value passed here ('$Database').
+
+Open 00_CreateDatabase.sql, check the EDIT block at the top, and re-run.
+"@
+    }
+}
 
 try {
     foreach ($f in $files) {
