@@ -19,6 +19,8 @@ public record GetUserByIdResult(
     string? Department,
     // Bank-internal officer code (joins to auth.Officers); null for company users.
     string? AoCode,
+    // Bank staff employee id; null for company users.
+    string? EmployeeId,
     Guid? CompanyId,
     string? CompanyName,
     string AuthSource,

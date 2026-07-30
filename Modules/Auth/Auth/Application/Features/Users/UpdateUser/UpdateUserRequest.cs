@@ -11,4 +11,6 @@ public record UpdateUserRequest(
     // switch auth mode — omitting it must NOT silently flip an LDAP user to Local.
     string? AuthSource = null,
     // Bank-internal officer code; only persisted for bank users (CompanyId == null).
-    string? AoCode = null);
+    string? AoCode = null,
+    // Bank staff employee id; only persisted for bank users (CompanyId == null).
+    string? EmployeeId = null);

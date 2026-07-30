@@ -16,5 +16,7 @@ public record CreateUserCommand(
     List<Guid>? GroupIds = null,
     List<Guid>? TeamIds = null,
     // Bank-internal officer code; only persisted for bank users (CompanyId == null).
-    string? AoCode = null
+    string? AoCode = null,
+    // Bank staff employee id; only persisted for bank users (CompanyId == null).
+    string? EmployeeId = null
 ) : ICommand<CreateUserResult>, ITransactionalCommand<IAuthUnitOfWork>;

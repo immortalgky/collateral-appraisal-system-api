@@ -14,5 +14,7 @@ public record RegisterUserDto(
     List<Guid> Roles,
     string AuthSource = AuthSources.Local,
     // Bank-internal officer code; only set for bank users (CompanyId == null).
-    string? AoCode = null
+    string? AoCode = null,
+    // Bank staff employee id; only set for bank users (CompanyId == null).
+    string? EmployeeId = null
 );
