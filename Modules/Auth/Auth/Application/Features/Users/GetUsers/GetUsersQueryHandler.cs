@@ -1,3 +1,4 @@
+using Auth.Domain;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Shared.Time;
@@ -22,9 +23,9 @@ public class GetUsersQueryHandler(
                 (u.Email != null && u.Email.Contains(query.Search)));
 
         // Scope: Bank users have no CompanyId, Company users do
-        if (query.Scope == "Bank")
+        if (query.Scope == AuthScopes.Bank)
             q = q.Where(u => u.CompanyId == null);
-        else if (query.Scope == "Company")
+        else if (query.Scope == AuthScopes.Company)
             q = q.Where(u => u.CompanyId != null);
 
         // Role filter: restrict to users who have a role with the given name

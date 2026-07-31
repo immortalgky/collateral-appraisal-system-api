@@ -13,7 +13,7 @@ namespace Reporting.Application.Providers;
 /// loaded ONCE by <see cref="AppraisalBookDataProvider"/> regardless of internal/external, so this
 /// builder deliberately does NOT call the section loaders.
 ///
-/// Data is fetched in a single QueryMultiple batch (13 result sets, all off @AppraisalId) plus a
+/// Data is fetched in a single QueryMultiple batch (14 result sets, all off @AppraisalId) plus a
 /// conditional company lookup — identical to the former ExternalReportDataProvider.
 /// </summary>
 internal static class ExternalBookBuilder
@@ -48,7 +48,7 @@ internal static class ExternalBookBuilder
         Guid appraisalId,
         CancellationToken cancellationToken)
     {
-        // ── Batch 1: 13 result sets, single round-trip (all keyed off @AppraisalId) ──
+        // ── Batch 1: 14 result sets, single round-trip (all keyed off @AppraisalId) ──
         const string batchSql = """
             -- RS01: Q1 — Appraisal header
             SELECT
@@ -78,13 +78,26 @@ internal static class ExternalBookBuilder
               AND aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
             ORDER BY aa.AssignedAt DESC, aa.Id DESC;
 
-            -- RS04: Q5 — Appraisal date (latest non-cancelled appointment)
-            SELECT TOP 1 ap.AppointmentDateTime
-            FROM appraisal.Appointments ap
-            JOIN appraisal.AppraisalAssignments aa ON aa.Id = ap.AssignmentId
-            WHERE aa.AppraisalId = @AppraisalId
-              AND ap.Status <> 'Cancelled'
-            ORDER BY ap.AppointmentDateTime DESC;
+            -- RS04: Q5 — Appraisal date. ValuationAnalyses.ValuationDate wins; the latest
+            -- non-cancelled appointment across ALL the appraisal's assignments is the fallback
+            -- for an appraisal that has no ValuationAnalyses row yet (created on first pricing /
+            -- decision-summary save).
+            --
+            -- ValuationDate must win: an off-system external engagement (company engaged outside
+            -- CAS, its book keyed in by an internal appraiser) has NO Appointment row at all, so
+            -- appointment-first logic printed a BLANK date on every page of this document despite
+            -- the keyer having entered one. In-system cases agree either way — ValuationDate is
+            -- re-derived from the latest non-cancelled appointment on every pricing save.
+            SELECT COALESCE(
+                (SELECT TOP 1 va.ValuationDate
+                 FROM appraisal.ValuationAnalyses va
+                 WHERE va.AppraisalId = @AppraisalId),
+                (SELECT TOP 1 ap.AppointmentDateTime
+                 FROM appraisal.Appointments ap
+                 JOIN appraisal.AppraisalAssignments aa ON aa.Id = ap.AssignmentId
+                 WHERE aa.AppraisalId = @AppraisalId
+                   AND ap.Status <> 'Cancelled'
+                 ORDER BY ap.AppointmentDateTime DESC));
 
             -- RS05: Q6 — Property type counts
             SELECT
@@ -190,6 +203,11 @@ internal static class ExternalBookBuilder
             JOIN appraisal.PropertyGroups pg ON pg.Id = pa.AnchorId
             WHERE pg.AppraisalId = @AppraisalId
               AND pa.SubjectType = 0;
+
+            -- RS14: Q13 — Machinery surveyed count (appraisal-level, 1:1)
+            SELECT mas.SurveyedNumber
+            FROM appraisal.MachineryAppraisalSummaries mas
+            WHERE mas.AppraisalId = @AppraisalId;
             """;
 
         var batchParams = new DynamicParameters();
@@ -208,6 +226,7 @@ internal static class ExternalBookBuilder
         List<string> machineRegs;
         ValuationRow? valuation;
         HashSet<string> methodTypes;
+        int? machineSurveyedCount;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, batchParams))
         {
@@ -229,6 +248,7 @@ internal static class ExternalBookBuilder
             methodTypes = (await multi.ReadAsync<string>())
                 .Where(m => !string.IsNullOrWhiteSpace(m))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            machineSurveyedCount = await multi.ReadFirstOrDefaultAsync<int?>();
         }
 
         var customerName = customerNames.Count > 0
@@ -382,7 +402,12 @@ internal static class ExternalBookBuilder
             }
             else if (CollateralFamilyTranslator.IsEquipmentFamily(pc.PropertyType))
             {
-                section = $"{typeThai} จำนวน {pc.PropertyCount} เครื่อง";
+                // A stored SurveyedNumber of 0 is the default/unset value, not a real count —
+                // omit the "surveyed N" clause rather than print "สำรวจพบ 0 เครื่อง". Matches the
+                // sibling AppraisalSummaryMachineDataProvider, which also treats 0 as "not entered".
+                section = machineSurveyedCount is int surveyed && surveyed > 0
+                    ? $"{typeThai} จำนวน {pc.PropertyCount} เครื่อง สำรวจพบ {surveyed} เครื่อง"
+                    : $"{typeThai} จำนวน {pc.PropertyCount} เครื่อง";
             }
             else
             {

@@ -63,6 +63,19 @@ public class ValuationAnalysis : Entity<Guid>
     }
 
     /// <summary>
+    /// Sets the valuation date on its own. Used by the off-system external flow, where the date
+    /// comes off the external company's paper book rather than from an appointment — such an
+    /// appraisal has no Appointment row for AppraisalValuationSummaryService to derive it from.
+    /// Kept separate from <see cref="UpdateSummary"/> for the same reason as
+    /// <see cref="SetForceSaleRate"/>: the summary recompute must not be able to clobber a
+    /// hand-keyed value (it guards on AssignmentMethod == "Offline").
+    /// </summary>
+    public void SetValuationDate(DateTime valuationDate)
+    {
+        ValuationDate = valuationDate;
+    }
+
+    /// <summary>
     /// Sets the per-appraisal force-sale rate override. Deliberately kept separate from
     /// <see cref="UpdateSummary"/>, which is called by two competing paths that must not
     /// be able to clobber this value.

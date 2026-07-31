@@ -80,7 +80,7 @@ public static class NotificationModule
         app.UseRouting();
         app.UseEndpoints(endpoints => { endpoints.MapHub<NotificationHub>("/notificationHub"); });
 
-        app.UseMigration<NotificationDbContext>();
+        app.UseDataSeeding<NotificationDbContext>();
 
         return app;
     }

@@ -14,7 +14,10 @@
 
 # --- IIS -------------------------------------------------------------------
 # The application pool that hosts the API (No Managed Code, in-process ANCM).
-$Global:CasAppPoolName = 'CAS'
+# Must match the pool created in §6.5 of the production deployment guide. Older
+# servers commissioned before v2.0 of that guide may still use 'CAS' — set it to
+# whatever `Get-ChildItem IIS:\AppPools` actually reports on THIS server.
+$Global:CasAppPoolName = 'CAS-Api'
 
 # --- Live folders (what IIS actually serves) -------------------------------
 $Global:CasApiLivePath = 'C:\inetpub\CAS\api'   # backend physical path

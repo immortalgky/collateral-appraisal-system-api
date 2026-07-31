@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
+using Shared.Configuration;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 using Shared.Time;
@@ -18,6 +19,7 @@ public class CompanySelectionActivityTests
 {
     private readonly ICompanyRoundRobinService _roundRobinService;
     private readonly ICompanyRepository _companyRepository;
+    private readonly ISystemConfigurationReader _configReader;
     private readonly IIntegrationEventOutbox _outbox;
     private readonly CompanySelectionActivity _sut;
 
@@ -32,8 +34,18 @@ public class CompanySelectionActivityTests
         dateTimeProvider.ApplicationNow.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
         dateTimeProvider.Now.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
         _outbox = Substitute.For<IIntegrationEventOutbox>();
+
+        // Default: auto-assignment ENABLED, so the existing tests exercise the unchanged behaviour.
+        // The reader is asked with defaultValue:true, and NSubstitute returns the first matching
+        // configured value, so this mirrors an environment where the key is absent or "true".
+        _configReader = Substitute.For<ISystemConfigurationReader>();
+        _configReader
+            .GetBoolAsync(CompanySelectionActivity.CompanyAssignmentEnabledKey, Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+
         var logger = Substitute.For<ILogger<CompanySelectionActivity>>();
-        _sut = new CompanySelectionActivity(_roundRobinService, _companyRepository, dateTimeProvider, _outbox, logger);
+        _sut = new CompanySelectionActivity(
+            _roundRobinService, _companyRepository, _configReader, dateTimeProvider, _outbox, logger);
     }
 
     private static ActivityContext CreateContext(Dictionary<string, object>? variables = null)
@@ -295,5 +307,116 @@ public class CompanySelectionActivityTests
         result.Status.Should().Be(ActivityResultStatus.Completed);
         result.OutputData["decision"].Should().Be("no_match");
         _outbox.DidNotReceiveWithAnyArgs().Publish<CompanyAssignedIntegrationEvent>(default!);
+    }
+
+    // ── Global "no auto-assign" switch (ExternalCompanyAssignmentEnabled) ────────────────────
+
+    private void GivenAutoAssignDisabled() =>
+        _configReader
+            .GetBoolAsync(CompanySelectionActivity.CompanyAssignmentEnabledKey, Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(false);
+
+    [Fact]
+    public async Task ExecuteAsync_Disabled_EscalatesToAdminInsteadOfRoundRobin()
+    {
+        // Phase-1 go-live: the bank engages companies outside the system, so nothing may
+        // round-robin one. no_match is what the existing company-no-match transition routes to
+        // appraisal-assignment on.
+        GivenAutoAssignDisabled();
+
+        var result = await _sut.ExecuteAsync(CreateContext());
+
+        result.Status.Should().Be(ActivityResultStatus.Completed);
+        result.OutputData["decision"].Should().Be("no_match");
+        result.OutputData["assignedCompanyId"].Should().Be("");
+        await _roundRobinService.DidNotReceiveWithAnyArgs()
+            .SelectCompanyAsync(default, default, default);
+        _outbox.DidNotReceiveWithAnyArgs().Publish<CompanyAssignedIntegrationEvent>(default!);
+    }
+
+    [Theory]
+    [InlineData("manual", "selectedCompanyId")]
+    [InlineData("Quotation", "selectedCompanyId")]
+    public async Task ExecuteAsync_Disabled_BlocksAdminChosenCompanyToo(
+        string method, string companyVariable)
+    {
+        // The switch is NOT "no automatic assignment" — it is "no in-system company assignment at
+        // all". An admin picking the company by hand, or a quotation winner, is just as wrong while
+        // the bank engages companies outside CAS, so these are blocked too.
+        GivenAutoAssignDisabled();
+
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["assignmentMethod"] = method,
+            [companyVariable] = Guid.NewGuid().ToString(),
+            ["selectedCompanyName"] = "Chosen Co"
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["decision"].Should().Be("no_match");
+        result.OutputData["assignedCompanyId"].Should().Be("");
+        _outbox.DidNotReceiveWithAnyArgs().Publish<CompanyAssignedIntegrationEvent>(default!);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Disabled_BlocksForcedConstructionInspectionCarryOver()
+    {
+        // A CI follow-up carries the prior engagement's company over. That is still an in-system
+        // assignment to a company, so it escalates to admin like everything else; the admin routes
+        // it internally or records the off-system engagement.
+        GivenAutoAssignDisabled();
+
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["forceCompanyId"] = Guid.NewGuid().ToString(),
+            ["forceCompanyName"] = "Prior Co"
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["decision"].Should().Be("no_match");
+        _outbox.DidNotReceiveWithAnyArgs().Publish<CompanyAssignedIntegrationEvent>(default!);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Disabled_KeepsCompanyAlreadySelectedBeforeTheSwitch()
+    {
+        // The guard exempts a case that already holds a company: that engagement predates the
+        // switch and must not be torn up when the activity replays.
+        GivenAutoAssignDisabled();
+
+        var companyId = Guid.NewGuid();
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["assignedCompanyId"] = companyId.ToString(),
+            ["assignedCompanyName"] = "Already Co",
+            ["assignedCompanyLoanType"] = ""
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["decision"].Should().Be("company_selected");
+        result.OutputData["assignedCompanyId"].Should().Be(companyId.ToString());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_MissingConfigKey_DefaultsToAutoAssignEnabled()
+    {
+        // An environment that never seeded the key must behave exactly as before the switch existed.
+        var reader = Substitute.For<ISystemConfigurationReader>();
+        reader.GetBoolAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => callInfo.ArgAt<bool>(1));
+
+        var dateTimeProvider = Substitute.For<IDateTimeProvider>();
+        dateTimeProvider.ApplicationNow.Returns(new DateTime(2026, 4, 19, 12, 0, 0));
+
+        var sut = new CompanySelectionActivity(
+            _roundRobinService, _companyRepository, reader, dateTimeProvider, _outbox,
+            Substitute.For<ILogger<CompanySelectionActivity>>());
+
+        await sut.ExecuteAsync(CreateContext());
+
+        await _roundRobinService.ReceivedWithAnyArgs(1).SelectCompanyAsync(default, default, default);
     }
 }

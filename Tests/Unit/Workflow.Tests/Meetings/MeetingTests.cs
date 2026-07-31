@@ -429,6 +429,97 @@ public class MeetingTests
     }
 
     [Fact]
+    public void RecordApproverRouteBack_OnAutoEndedMeeting_ReopensAsRoutedBack()
+    {
+        var meeting = BuildNewMeeting();
+        var id1 = Guid.NewGuid();
+        meeting.AddItem(id1, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
+        meeting.SendInvitation(DateTime.UtcNow.AddDays(-1));
+
+        // Releasing the only decision item auto-ends the meeting.
+        meeting.ReleaseItem(id1, "secretary", DateTime.UtcNow);
+        meeting.Status.Should().Be(MeetingStatus.Ended);
+
+        meeting.RecordApproverRouteBack(id1, "jane.smith", "needs rework", DateTime.UtcNow);
+
+        meeting.Status.Should().Be(MeetingStatus.RoutedBack);
+        meeting.EndedAt.Should().BeNull("the meeting has unfinished business again");
+
+        var item = meeting.Items.Single(i => i.AppraisalId == id1);
+        item.ItemDecision.Should().Be(ItemDecision.RoutedBack,
+            "MeetingActivity only re-enters items whose decision is NOT Released");
+        item.DecisionBy.Should().Be("jane.smith");
+    }
+
+    [Fact]
+    public void RecordApproverRouteBack_RaisesNoDomainEvent()
+    {
+        var meeting = BuildNewMeeting();
+        var id1 = Guid.NewGuid();
+        meeting.AddItem(id1, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
+        meeting.SendInvitation(DateTime.UtcNow.AddDays(-1));
+        meeting.ReleaseItem(id1, "secretary", DateTime.UtcNow);
+        meeting.ClearDomainEvents();
+
+        meeting.RecordApproverRouteBack(id1, "jane.smith", "needs rework", DateTime.UtcNow);
+
+        meeting.DomainEvents.Should().BeEmpty(
+            "the approval activity already drives the workflow backward; raising " +
+            "MeetingItemRoutedBackDomainEvent would resume it a second time");
+    }
+
+    [Fact]
+    public void RecordApproverRouteBack_WhenItemNotReleased_Throws()
+    {
+        var meeting = BuildNewMeeting();
+        var id1 = Guid.NewGuid();
+        meeting.AddItem(id1, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
+        meeting.SendInvitation(DateTime.UtcNow.AddDays(-1));
+
+        var act = () => meeting.RecordApproverRouteBack(id1, "jane.smith", "reason", DateTime.UtcNow);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*expected Released*");
+    }
+
+    [Fact]
+    public void ReinstateRoutedBackItem_WhenLastRoutedBackItem_ReturnsMeetingToInvitationSent()
+    {
+        var meeting = BuildNewMeeting();
+        var id1 = Guid.NewGuid();
+        meeting.AddItem(id1, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
+        meeting.SendInvitation(DateTime.UtcNow.AddDays(-1));
+
+        meeting.RouteBackItem(id1, "secretary", "reason1", DateTime.UtcNow);
+        meeting.Status.Should().Be(MeetingStatus.RoutedBack);
+
+        meeting.ReinstateRoutedBackItem(id1, DateTime.UtcNow);
+
+        meeting.Status.Should().Be(MeetingStatus.InvitationSent,
+            "RoutedBack means something is currently routed back; once nothing is, it is stale");
+        meeting.Items.Single(i => i.AppraisalId == id1).ItemDecision
+            .Should().Be(ItemDecision.Pending);
+    }
+
+    [Fact]
+    public void ReinstateRoutedBackItem_WhileAnotherItemStillRoutedBack_StaysRoutedBack()
+    {
+        var meeting = BuildNewMeeting();
+        var id1 = Guid.NewGuid();
+        var id2 = Guid.NewGuid();
+        meeting.AddItem(id1, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
+        meeting.AddItem(id2, "APR-002", 600_000m, 600_000m, Guid.NewGuid(), "act-2", DateTime.UtcNow);
+        meeting.SendInvitation(DateTime.UtcNow.AddDays(-1));
+
+        meeting.RouteBackItem(id1, "secretary", "reason1", DateTime.UtcNow);
+        meeting.RouteBackItem(id2, "secretary", "reason2", DateTime.UtcNow);
+
+        meeting.ReinstateRoutedBackItem(id1, DateTime.UtcNow);
+
+        meeting.Status.Should().Be(MeetingStatus.RoutedBack,
+            "id2 is still routed back");
+    }
+
+    [Fact]
     public void RouteBackItem_OnAcknowledgementItem_Throws()
     {
         var ackMeeting = BuildInvitationSentMeetingWithAckItem();

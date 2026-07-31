@@ -8,7 +8,7 @@ namespace Common.Application.Features.Monitoring.Shared;
 /// check stage, regardless of that user's own workflow role.
 ///
 /// Internal activities (bank-side appraisal pipeline):
-///   STAFF    → int-appraisal-execution, appraisal-book-verification
+///   STAFF    → int-appraisal-execution, appraisal-book-verification, int-offline-book-keyin
 ///              (both are bank-staff TaskActivity work)
 ///   CHECKER  → int-appraisal-check
 ///   VERIFIER → int-appraisal-verification
@@ -34,7 +34,7 @@ public static class MonitoringActivityMap
     public static readonly IReadOnlyDictionary<string, string[]> Internal =
         new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
         {
-            ["STAFF"] = ["int-appraisal-execution", "appraisal-book-verification"],
+            ["STAFF"] = ["int-appraisal-execution", "appraisal-book-verification", "int-offline-book-keyin"],
             ["CHECKER"] = ["int-appraisal-check"],
             ["VERIFIER"] = ["int-appraisal-verification"],
             ["APPROVER"] = ["pending-approval"],

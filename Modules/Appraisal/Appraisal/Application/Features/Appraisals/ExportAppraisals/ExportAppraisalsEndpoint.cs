@@ -28,6 +28,8 @@ public class ExportAppraisalsEndpoint : ICarterModule
                     // Request metadata
                     [FromQuery] string? channel,
                     [FromQuery] string? bankingSegment,
+                    [FromQuery] string? purpose,
+                    [FromQuery] string? propertyType,
                     [FromQuery] bool? isPma,
                     // Geographic
                     [FromQuery] string? province,
@@ -74,7 +76,11 @@ public class ExportAppraisalsEndpoint : ICarterModule
                         AppointmentDateTo: appointmentDateTo,
                         SortBy: sortBy,
                         SortDir: sortDir
-                    );
+                    )
+                    {
+                        Purpose = purpose,
+                        PropertyType = propertyType,
+                    };
 
                     var query = new ExportAppraisalsQuery(filter, format ?? "xlsx");
                     var result = await sender.Send(query, cancellationToken);

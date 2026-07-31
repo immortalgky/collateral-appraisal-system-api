@@ -5,8 +5,17 @@ namespace Appraisal.Domain.Appraisals;
 public interface IAppraisalGalleryRepository : IRepository<AppraisalGallery, Guid>
 {
     Task<IEnumerable<AppraisalGallery>> GetByAppraisalIdAsync(Guid appraisalId, CancellationToken ct = default);
+    Task<IEnumerable<AppraisalGallery>> GetByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
     Task<int> GetMaxPhotoNumberAsync(Guid appraisalId, CancellationToken ct = default);
     Task<bool> IsPhotoLinkedAnywhereAsync(Guid galleryPhotoId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Batched form of <see cref="IsPhotoLinkedAnywhereAsync"/>: returns the subset of
+    /// <paramref name="galleryPhotoIds"/> that are still referenced by any linkable entity. Flushes
+    /// pending changes first (so just-removed mappings don't count), then checks all link tables with
+    /// one query each — a fixed number of round-trips regardless of how many photos are passed.
+    /// </summary>
+    Task<HashSet<Guid>> GetPhotosLinkedElsewhereAsync(IReadOnlyCollection<Guid> galleryPhotoIds, CancellationToken ct = default);
 
     // PropertyPhotoMapping operations
     Task<PropertyPhotoMapping?> GetMappingByIdAsync(Guid mappingId, CancellationToken ct = default);

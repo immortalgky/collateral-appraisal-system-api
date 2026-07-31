@@ -16,6 +16,8 @@ public class UpdateUserCommandValidator : AbstractValidator<UpdateUserCommand>
         RuleFor(x => x.Position).MaximumLength(100);
         RuleFor(x => x.Department).MaximumLength(100);
         RuleFor(x => x.AoCode).MaximumLength(10);
+        // 50 matches ApplicationUser.EmployeeId's column length.
+        RuleFor(x => x.EmployeeId).MaximumLength(50);
 
         // AuthSource is optional on update (null = unchanged). Validate only when a value is sent.
         When(x => x.AuthSource is not null, () =>

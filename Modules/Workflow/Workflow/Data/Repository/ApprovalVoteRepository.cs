@@ -20,6 +20,12 @@ public class ApprovalVoteRepository(WorkflowDbContext dbContext) : IApprovalVote
                 && v.Member == member, ct);
     }
 
+    public async Task<bool> HasAnyVoteAsync(Guid activityExecutionId, CancellationToken ct = default)
+    {
+        return await dbContext.ApprovalVotes
+            .AnyAsync(v => v.ActivityExecutionId == activityExecutionId, ct);
+    }
+
     public async Task AddVoteAsync(ApprovalVote vote, CancellationToken ct = default)
     {
         dbContext.ApprovalVotes.Add(vote);

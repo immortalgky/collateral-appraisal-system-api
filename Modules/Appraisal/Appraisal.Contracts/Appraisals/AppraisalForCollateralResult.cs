@@ -10,7 +10,11 @@ public record AppraisalForCollateralResult(
     Guid AppraisalId,
     string? AppraisalNumber,
     string AppraisalType,
-    DateTime? CompletedAt,
+    // appraisal.ValuationAnalyses.ValuationDate — the valuation date, and the value written to
+    // collateral.CollateralEngagements.AppraisalDate. Was previously named CompletedAt while
+    // actually carrying the appointment date; renamed so the lineage is not misread again.
+    // Null until the appraisal has a ValuationAnalyses row.
+    DateTime? AppraisalDate,
     Guid RequestId,
     // Sourced from request.Requests via cross-module Dapper sub-query in the handler.
     string? RequestNumber,

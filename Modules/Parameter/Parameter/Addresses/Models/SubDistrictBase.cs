@@ -6,5 +6,5 @@ public abstract class SubDistrictBase
     public string NameTh { get; private set; } = default!;
     public string NameEn { get; private set; } = default!;
     public string DistrictCode { get; private set; } = default!;
-    public string Postcode { get; private set; } = default!;
+    public string? Postcode { get; private set; }
 }

@@ -104,10 +104,34 @@ public class PricingAnalysisApproach : Entity<Guid>
                 method.SetAsUnselected();
         }
 
-        if (targetMethod.MethodValue.HasValue)
-            SetValue(targetMethod.MethodValue.Value);
-        else
-            ClearValue();
+        // Deliberate user selection: adopt the target method's value VERBATIM, null included.
+        // Deliberately not SyncValueFromSelectedMethod() — its null-skip is right for the
+        // recalculation path (don't let a not-yet-computed method zero a good total) but wrong
+        // here: skipping would leave the PREVIOUS method's number on an approach whose primary
+        // method the user just changed, and PricingAnalysis.SelectMethod would then roll that
+        // stale figure into FinalAppraisedValue.
+        ApproachValue = targetMethod.MethodValue;
+    }
+
+    /// <summary>
+    /// Re-derives <see cref="ApproachValue"/> from this approach's selected method, but only when
+    /// that method actually has a value. An approach with NO selected method, or whose selected
+    /// method has no value yet (e.g. incomplete comparables → no RSQ result), is left untouched:
+    /// this restores the old per-handler <c>method.MethodValue.HasValue</c> guard so a not-yet-computed
+    /// method value never clobbers a previously-computed approach total (which would drop the group's
+    /// contribution to 0).
+    /// <para>
+    /// Contrast <see cref="SelectMethod"/>, which adopts the target method's value verbatim
+    /// (null included): a deliberate selection must not leave the previous method's number behind,
+    /// whereas a recalculation must not zero a good total with a method that has not been computed.
+    /// </para>
+    /// </summary>
+    internal void SyncValueFromSelectedMethod()
+    {
+        var selected = _methods.FirstOrDefault(m => m.IsSelected);
+        if (selected?.MethodValue is null) return;
+
+        ApproachValue = selected.MethodValue;
     }
 
     public void Select()

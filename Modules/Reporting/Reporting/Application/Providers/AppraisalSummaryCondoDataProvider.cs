@@ -336,7 +336,7 @@ public sealed class AppraisalSummaryCondoDataProvider(
             PropertyType = "ห้องชุด",
             SummaryPropertyType = "ห้องชุด",
             CollateralAddress = common.CollateralAddress,
-            AdministrativeDistrict = firstCondo?.SubDistrict,
+            AdministrativeDistrict = common.AdministrativeDistrict,
             LandOffice = firstCondo?.LandOffice,
             OldAppraisalValue = common.PrevAppraisedValue,
             HasPrevAppraisal = common.HasPrevAppraisal,
@@ -358,7 +358,9 @@ public sealed class AppraisalSummaryCondoDataProvider(
             LandConditions = string.IsNullOrWhiteSpace(firstCondo?.LandFillDisplay)
                 ? []
                 : [firstCondo!.LandFillDisplay!],
-            Obligation = firstCondo?.ObligationDetails,
+            Obligation = string.IsNullOrWhiteSpace(firstCondo?.ObligationDetails)
+                ? AppraisalSummaryModel.NoObligationText
+                : firstCondo!.ObligationDetails,
             CityPlan = firstCondo?.UrbanPlanningType,
             Gps = gps,
             GovernmentAssessedValue = firstCondo?.GovernmentPrice,

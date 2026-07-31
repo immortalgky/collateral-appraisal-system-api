@@ -12,9 +12,10 @@ public class GetTaskTypesEndpoint : ICarterModule
     {
         app.MapGet(
                 "/monitoring/task-types",
-                async (ISender sender, CancellationToken cancellationToken) =>
+                async (string? monitoringType, ISender sender, CancellationToken cancellationToken) =>
                 {
-                    var result = await sender.Send(new GetTaskTypesQuery(), cancellationToken);
+                    var query = new GetTaskTypesQuery(MonitoringTypes.Normalize(monitoringType));
+                    var result = await sender.Send(query, cancellationToken);
                     return Results.Ok(result);
                 })
             .WithName("MonitoringGetTaskTypes")
@@ -22,7 +23,7 @@ public class GetTaskTypesEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .WithSummary("Monitoring: Task types")
-            .WithDescription("Returns the universe of all task types defined across active workflow definitions. Used to populate the taskType filter on monitoring screens.")
+            .WithDescription("Returns the task types present on the given monitoring screen (monitoringType=Internal|External, default Internal), scoped to the caller's monitoring permissions. Used to populate the taskType filter.")
             .WithTags("Monitoring")
             .RequireAuthorization();
     }

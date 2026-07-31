@@ -11,6 +11,7 @@ using Request.Infrastructure;
 using Collateral.Data;
 using Scalar.AspNetCore;
 using Dapper;
+using Shared.Configuration;
 using Shared.Configurations;
 using Shared.Data;
 using Shared.Data.Dapper;
@@ -31,6 +32,10 @@ using Notification.Infrastructure.Email.HealthChecks;
 using Integration.Infrastructure.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Decrypt any ENC:v1: configuration secrets before anything reads connection strings / options.
+// No-ops when nothing is encrypted (Development / tests).
+builder.Configuration.AddDecryptedSecrets();
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -291,6 +296,9 @@ builder.Services
 // load balancer so antiforgery cookies and OpenIddict reference tokens issued on one node can be
 // read by the others. MUST come after AddAuthModule so AuthDbContext is registered.
 builder.Services.AddSharedDataProtection<AuthDbContext>(builder.Configuration);
+
+// Warn at startup if any known secret key is still plaintext (outside Development).
+builder.Services.AddPlaintextSecretAudit(builder.Environment);
 
 // Reverse-proxy / load-balancer headers (IIS ARR, Nginx, etc.).
 // Allows OpenIddict discovery + HTTPS redirection to reflect the public scheme/host.

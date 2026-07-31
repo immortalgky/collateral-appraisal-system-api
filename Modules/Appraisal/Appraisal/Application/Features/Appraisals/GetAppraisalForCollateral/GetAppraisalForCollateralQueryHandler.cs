@@ -96,14 +96,22 @@ public class GetAppraisalForCollateralQueryHandler(
             ? latestAssignment?.InternalAppraiserName
             : resolvedNames.AppraiserName;
 
-        // AppraisalDate represents the *visit* (appointment) date, not the system completion.
-        // Source: latest non-Cancelled appointment for the assignment, regardless of status.
-        // Fallbacks: appraisal.CompletedAt → latestAssignment.CompletedAt (final fallback
-        // ApplicationNow handled at the upsert layer for safety).
-        DateTime? appointmentDate = null;
-        if (latestAssignment is not null)
+        // AppraisalDate is the valuation date: appraisal.ValuationAnalyses.ValuationDate, falling
+        // back to the latest non-Cancelled appointment. It used to LEAD with the appointment, which
+        // is wrong for an off-system external engagement — that case has no Appointment row at all
+        // and only the hand-keyed book date is correct.
+        //
+        // collateral.CollateralEngagements.AppraisalDate is NOT NULL, so the upsert layer keeps a
+        // final `?? ApplicationNow` for an appraisal that has neither.
+        var valuationDate = await dbContext.ValuationAnalyses
+            .AsNoTracking()
+            .Where(v => v.AppraisalId == appraisal.Id)
+            .Select(v => (DateTime?)v.ValuationDate)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (valuationDate is null && latestAssignment is not null)
         {
-            appointmentDate = await dbContext.Appointments
+            valuationDate = await dbContext.Appointments
                 .AsNoTracking()
                 .Where(ap => ap.AssignmentId == latestAssignment.Id
                     && ap.Status != "Cancelled")
@@ -111,9 +119,11 @@ public class GetAppraisalForCollateralQueryHandler(
                 .Select(ap => (DateTime?)ap.AppointmentDateTime)
                 .FirstOrDefaultAsync(cancellationToken);
         }
-        var completedAt = appointmentDate
-                          ?? appraisal.CompletedAt
-                          ?? latestAssignment?.CompletedAt;
+
+        // Last resort before the upsert layer's ApplicationNow: a legacy/migrated appraisal can have
+        // neither a ValuationAnalyses row nor an Appointment row, and its completion date is a far
+        // better answer than "today" — this value anchors the +5-year reappraisal clock downstream.
+        valuationDate ??= appraisal.CompletedAt;
 
         // Resolve per-property appraised value via PropertyGroup → PricingAnalysis.
         // PropertyGroup and PropertyGroupItem are owned entities; they were loaded above
@@ -214,7 +224,7 @@ public class GetAppraisalForCollateralQueryHandler(
             AppraisalId: appraisal.Id,
             AppraisalNumber: appraisal.AppraisalNumber,
             AppraisalType: appraisal.AppraisalType,
-            CompletedAt: completedAt,
+            AppraisalDate: valuationDate,
             RequestId: appraisal.RequestId,
             RequestNumber: requestNumber,
             AppraiserUserId: appraiserUserId,

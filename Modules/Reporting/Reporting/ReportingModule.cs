@@ -140,7 +140,7 @@ public static class ReportingModule
     /// </summary>
     public static IApplicationBuilder UseReportingModule(this IApplicationBuilder app)
     {
-        app.UseMigration<ReportingDbContext>();
+        app.UseDataSeeding<ReportingDbContext>();
         app.UseModuleRecurringJobs<ReportingDbContext>(ReportingRecurringJobs.All);
         return app;
     }

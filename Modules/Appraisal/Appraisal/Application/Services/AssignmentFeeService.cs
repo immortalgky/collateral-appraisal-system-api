@@ -94,30 +94,47 @@ public class AssignmentFeeService(
         // Step 3 — Add the appropriate item based on source.
         switch (source)
         {
-            case AssignmentFeeSource.TierBased:
+            case AssignmentFeeSource.TierBased tierSource:
             {
                 var totalSellingPrice = fee.TotalSellingPrice ?? 0m;
+                var appraisalType = tierSource.AppraisalType;
 
                 var tiers = await dbContext.FeeStructures
-                    .Where(fs => fs.IsActive && fs.FeeCode == "01")
+                    .Where(fs => fs.IsActive && fs.FeeCode == "01"
+                                 && (fs.AppraisalType == null || fs.AppraisalType == appraisalType))
                     .OrderBy(fs => fs.MinSellingPrice)
                     .ToListAsync(ct);
 
-                var matched = tiers.FirstOrDefault(t => t.IsApplicableFor(totalSellingPrice));
+                // A type-scoped ladder replaces the generic one outright rather than merging with
+                // it — otherwise a flat per-type rate (e.g. PreAppraisal 10,000) would be silently
+                // outranked by a generic selling-price band.
+                var candidates = tiers.Where(t => t.AppraisalType != null).ToList();
+                if (candidates.Count == 0)
+                    candidates = tiers;
+
+                if (candidates.Count == 0)
+                {
+                    logger.LogError(
+                        "No active fee tier (FeeCode=01) configured for AppraisalType={AppraisalType}. Leaving fee {FeeId} without items for AssignmentId={AssignmentId}.",
+                        appraisalType, fee.Id, assignmentId);
+                    return;
+                }
+
+                var matched = candidates.FirstOrDefault(t => t.IsApplicableFor(totalSellingPrice));
                 if (matched is null)
                 {
-                    matched = tiers.OrderByDescending(t => t.MinSellingPrice).First();
+                    matched = candidates.OrderByDescending(t => t.MinSellingPrice).First();
                     logger.LogWarning(
-                        "No fee tier matched TotalSellingPrice {TotalSellingPrice} for AppraisalFee {FeeId}. Falling back to highest tier (BaseAmount={BaseAmount})",
-                        totalSellingPrice, fee.Id, matched.BaseAmount);
+                        "No fee tier matched TotalSellingPrice {TotalSellingPrice} (AppraisalType={AppraisalType}) for AppraisalFee {FeeId}. Falling back to highest tier (BaseAmount={BaseAmount})",
+                        totalSellingPrice, appraisalType, fee.Id, matched.BaseAmount);
                 }
 
                 var feeName = await ResolveFeeNameAsync(matched.FeeCode, ct);
                 fee.AddItem(matched.FeeCode, feeName, matched.BaseAmount);
 
                 logger.LogInformation(
-                    "Appraisal fee created: fee {FeeId} assigned tier item (FeeCode={FeeCode}, BaseAmount={BaseAmount}) for AssignmentId={AssignmentId} (TotalSellingPrice={TotalSellingPrice})",
-                    fee.Id, matched.FeeCode, matched.BaseAmount, assignmentId, totalSellingPrice);
+                    "Appraisal fee created: fee {FeeId} assigned tier item (FeeCode={FeeCode}, BaseAmount={BaseAmount}, TierAppraisalType={TierAppraisalType}) for AssignmentId={AssignmentId} (AppraisalType={AppraisalType}, TotalSellingPrice={TotalSellingPrice})",
+                    fee.Id, matched.FeeCode, matched.BaseAmount, matched.AppraisalType, assignmentId, appraisalType, totalSellingPrice);
                 break;
             }
 
@@ -198,7 +215,12 @@ public class AssignmentFeeService(
         if (appraisal.AppraisalType != AppraisalTypes.Progressive ||
             appraisal.PrevAppraisalId is not { } prevId)
         {
-            return defaultSource;
+            // Stamp the appraisal type onto a tier lookup so it can pick the type-scoped ladder
+            // (e.g. the flat PreAppraisal/block rate). Quotation sources bypass tiers entirely and
+            // are returned untouched.
+            return defaultSource is AssignmentFeeSource.TierBased
+                ? new AssignmentFeeSource.TierBased(appraisal.AppraisalType)
+                : defaultSource;
         }
 
         var ciFee = await mediator.Send(

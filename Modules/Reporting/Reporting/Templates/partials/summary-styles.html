@@ -30,6 +30,19 @@ body {
 .head .meta .lbl { color:#000; font-weight:600; white-space:nowrap; }
 .head .meta .val { text-align:right; flex:1; }
 
+/* Running-table: wraps the portrait flow of each summary body so the header bar in the
+   <thead> repeats on every page. Chromium repeats a table-header-group across page breaks
+   AND reserves its height, so no content slides under the bar (unlike position:fixed).
+   The wrapper is invisible — zero border/padding — and full-width so its single column
+   spans the content width; nested tables (grid / totals / prop-table / unit-table) are
+   class-scoped and unaffected. .head already draws the rule + gap under the bar.
+   NOTE: keep .landscape-page sections OUTSIDE this table — a table cannot host the
+   landscape @page break, so bodies close the running-table before their landscape units. */
+table.running { width:100%; border-collapse:collapse; }
+table.running > thead { display:table-header-group; }
+table.running > thead > tr > td,
+table.running > tbody > tr > td { border:0; padding:0; vertical-align:top; }
+
 /* ── Generic label:value rows ───────────────────────────── */
 /* No left/right padding so info/attribute rows align flush with the table edges. */
 .pad { padding:5px 0; }
@@ -141,6 +154,10 @@ table.grid tr.grp-first td { border-bottom:0; }
 table.grid tr.cont td { border-top:0; border-bottom:0; }
 /* Group subtotal renders as its own bordered box. */
 table.grid tr.grp-total td { border:1px solid #000; background:#f2f2f2; }
+/* Under-construction split: sub-labels for the two ราคาประเมิน columns, carried as a body row
+   directly above the building block rather than a second header row — land sits above it and
+   colspans the pair. Centred + bold so it reads as a header despite living in the tbody. */
+table.grid tr.uc-head td { text-align:center; font-weight:700; padding:2px 5px; }
 .ctr { text-align:center; }
 /* CSS-drawn checkbox: a square outline, with a check mark when .on. Renders crisply
    in the PDF regardless of the Thai font's ballot-box glyphs. */
@@ -151,8 +168,15 @@ table.grid tr.grp-total td { border:1px solid #000; background:#f2f2f2; }
 table.totals { width:100%; border-collapse:collapse; font-size:8.5pt; margin-top:-1px; }
 table.totals td, table.totals th { border:1px solid #000; padding:3px 6px; }
 table.totals td.tl, table.totals th.tl { text-align:right; font-weight:600; }
-table.totals td.tv { text-align:right; width:150px; font-weight:700; }
+table.totals td.tv { text-align:right; width:185px; font-weight:700; }
 table.totals td.tt { text-align:right; font-style:italic; color:#333; }
+/* .grid-aligned: the totals block that sits directly under a collateral .grid (summary
+   land&building / condo / machine). 100px = the grid's last column (ราคาประเมิน) width, so the
+   label|value divider lines up with the grid's ราคาต่อหน่วย|ราคาประเมิน border instead of
+   sitting 85px further left. Both tables are width:100% in the same container, so matching the
+   column width is enough to match the divider position. Section totals (income / leasehold /
+   profit-rent / sale-grid / WQS) keep the wider 185px — their values carry a " บาท" suffix. */
+table.totals.grid-aligned td.tv { width:100px; }
 
 /* Committee table: blank signature line above the printed position. */
 .sign-line { border-bottom:1px solid #000; height:20px; margin:2px 18px 3px; }
@@ -167,12 +191,11 @@ table.totals td.tt { text-align:right; font-style:italic; color:#333; }
    page the whole block moves to the next one rather than splitting mid-way. */
 .attrs-block { page-break-inside:avoid; break-inside:avoid; }
 
-/* The opinion section (heading + comment), the sign-off row and the committee block are three
-   SIBLING page-break units — never nested. Each stays internally intact but paginates
-   independently, so an overflowing committee table no longer drags the opinion text with it.
-   Nesting them would defeat this: Chromium honours the outermost avoid and moves the whole
-   subtree as one blob. */
-.opinion-block { page-break-inside:avoid; break-inside:avoid; }
+/* The opinion section (heading + comment) is allowed to split across a page boundary: if the
+   comment is long it flows onto the next page in place rather than jumping the whole block down
+   and leaving a large gap. The sign-off row and committee block remain independent keep-together
+   units via their own rules above, so an overflowing committee table still can't drag the
+   opinion text with it. */
 
 /* FSD-aligned: plain left-aligned bold heading, no grey fill / border. */
 .section-bar { font-weight:700; text-align:left; padding:2px 0; font-size:8.5pt; }
@@ -233,7 +256,11 @@ table.grid.comparison th:first-child, table.grid.comparison td:first-child { wid
 /* Committee member: signature line (with name) on the LEFT, position to the RIGHT. */
 .committee-member { display:flex; align-items:center; gap:10px; }
 .committee-member .nm-name { flex:0 0 130px; text-align:center; }
-.committee-member .c-pos { flex:1; text-align:left; }
+/* nowrap: a real Thai position title ("ประธานเจ้าหน้าที่บริหารปฏิบัติการ") has no spaces, so it
+   wraps at any ICU break and would silently fold to 2–3 lines inside whatever width the column
+   happened to get. Keeping it on one line is what lets the shrink-to-fit column in
+   approver-block size itself to the longest title instead of squeezing it. */
+.committee-member .c-pos { flex:1; text-align:left; white-space:nowrap; }
 /* Member rows: taller (room for a handwritten signature) and vertically centered. */
 table.grid tr.cm-row td { vertical-align:middle; padding-top:24px; padding-bottom:24px; }
 

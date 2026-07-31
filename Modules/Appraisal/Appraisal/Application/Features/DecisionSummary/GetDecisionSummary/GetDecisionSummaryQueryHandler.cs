@@ -85,14 +85,30 @@ public class GetDecisionSummaryQueryHandler(
             ORDER BY cm.MemberName
             """;
 
-        // Query 5: Appraisal date — most recent non-cancelled appointment for this appraisal
+        // Query 5: Appraisal date — appraisal.ValuationAnalyses.ValuationDate, falling back to the
+        // most recent non-cancelled appointment when that row does not exist yet. Same expression
+        // as the 360 detail view, the printed book, history search and the AS400 result APIs.
+        //
+        // ValuationDate must win: it is the only place a HAND-KEYED date can live. An off-system
+        // external engagement (the bank engaged the company outside the system, an internal
+        // appraiser keys its book in) has no Appointment row at all, so appointment-first logic
+        // showed such appraisals no date despite the keyer having entered one from the book.
+        //
+        // For an in-system appraisal the two normally agree — AppraisalValuationSummaryService
+        // re-derives ValuationDate from the latest non-cancelled appointment on every pricing save.
+        // They diverge when an appointment is rescheduled AFTER the last pricing save (ValuationDate
+        // then lags until the next recompute).
         const string appraisalDateSql = """
-            SELECT TOP 1 ap.AppointmentDateTime
-            FROM appraisal.Appointments ap
-            JOIN appraisal.AppraisalAssignments aa ON aa.Id = ap.AssignmentId
-            WHERE aa.AppraisalId = @AppraisalId
-              AND ap.Status <> 'Cancelled'
-            ORDER BY ap.AppointmentDateTime DESC
+            SELECT COALESCE(
+                (SELECT TOP 1 va.ValuationDate
+                 FROM appraisal.ValuationAnalyses va
+                 WHERE va.AppraisalId = @AppraisalId),
+                (SELECT TOP 1 ap.AppointmentDateTime
+                 FROM appraisal.Appointments ap
+                 JOIN appraisal.AppraisalAssignments aa ON aa.Id = ap.AssignmentId
+                 WHERE aa.AppraisalId = @AppraisalId
+                   AND ap.Status <> 'Cancelled'
+                 ORDER BY ap.AppointmentDateTime DESC))
             """;
 
         var valuationReview = await connectionFactory.QueryFirstOrDefaultAsync<ValuationReviewRow>(valuationReviewSql, param);

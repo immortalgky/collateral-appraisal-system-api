@@ -72,7 +72,15 @@ public class SaveHypothesisAnalysisCommandHandler(
             // Land area and building value are not applicable for Hypothesis.
             method.FinalValue!.SetFinalValueAdjusted(command.FinalValueAdjusted);
             method.FinalValue.SetAppraisalPrice(command.AppraisalPrice);
-            PropagateValue(pricingAnalysis, method, finalValue);
+
+            // Only roll a POSITIVE value up. TotalAssetValueRounded is null while the hypothesis
+            // inputs are still incomplete, which lands here as 0 — propagating that would zero the
+            // approach and FinalAppraisedValue, and push AppraisedValue = 0 into ValuationAnalyses
+            // (and the workflow approval tier) on a mid-edit save. RecalculateRollup's own guard is
+            // null-only, so the > 0 test the old PropagateValue helper applied has to live here.
+            // Note this is hypothesis-specific: the other handlers guarded on HasValue, not > 0.
+            if (finalValue > 0)
+                pricingAnalysis.RecalculateRollup();
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -94,7 +102,10 @@ public class SaveHypothesisAnalysisCommandHandler(
             // Land area and building value are not applicable for Hypothesis.
             method.FinalValue!.SetFinalValueAdjusted(command.FinalValueAdjusted);
             method.FinalValue.SetAppraisalPrice(command.AppraisalPrice);
-            PropagateValue(pricingAnalysis, method, finalValue);
+
+            // See the LandBuilding branch above: 0 means "not computed yet", never a real value.
+            if (finalValue > 0)
+                pricingAnalysis.RecalculateRollup();
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -221,18 +232,5 @@ public class SaveHypothesisAnalysisCommandHandler(
             method.SetFinalValue(PricingFinalValue.Create(method.Id, value, value));
         else
             method.FinalValue.UpdateFinalValue(value, value);
-    }
-
-    private static void PropagateValue(Domain.Appraisals.PricingAnalysis pricingAnalysis, PricingAnalysisMethod method, decimal value)
-    {
-        if (!method.IsSelected || !(method.MethodValue > 0)) return;
-
-        var parentApproach = pricingAnalysis.Approaches
-            .FirstOrDefault(a => a.Methods.Any(m => m.Id == method.Id));
-        if (parentApproach is null) return;
-
-        parentApproach.SetValue(value);
-        if (parentApproach.IsSelected)
-            pricingAnalysis.SetFinalValues(value);
     }
 }

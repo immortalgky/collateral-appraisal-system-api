@@ -513,15 +513,120 @@ public class Meeting : Aggregate<Guid>
             Id, appraisalId, item.WorkflowInstanceId.Value, item.ActivityId, reason, actor));
     }
 
+    /// <summary>
+    /// Secretary undoes an accidental release, putting the item back on this meeting as
+    /// <see cref="ItemDecision.Pending"/> before any committee member has voted.
+    /// Deliberately does not use <see cref="EnsureDecisionAllowed"/>: a release commonly
+    /// auto-ends the meeting, so recall must also be allowed from <see cref="MeetingStatus.Ended"/>.
+    /// Reopens an Ended meeting to <see cref="MeetingStatus.InvitationSent"/> (or
+    /// <see cref="MeetingStatus.RoutedBack"/> if another item on it is still routed back).
+    /// </summary>
+    public void UndoRelease(Guid appraisalId, string actor, string reason, DateTime now)
+    {
+        if (Status != MeetingStatus.InvitationSent && Status != MeetingStatus.RoutedBack && Status != MeetingStatus.Ended)
+            throw new InvalidOperationException(
+                $"Cannot recall an item on a meeting in status {Status}");
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+
+        var item = GetDecisionItemOrThrow(appraisalId);
+
+        if (item.ItemDecision != ItemDecision.Released)
+            throw new InvalidOperationException(
+                $"Cannot recall item for appraisal {appraisalId}: decision is {item.ItemDecision}, expected Released");
+
+        item.ApplyDecision(ItemDecision.Pending, actor, reason, now);
+
+        // Decision items always have WorkflowInstanceId/ActivityId set — guard defensively.
+        if (!item.WorkflowInstanceId.HasValue || item.ActivityId is null)
+            throw new InvalidOperationException(
+                $"Decision item for appraisal {appraisalId} is missing WorkflowInstanceId or ActivityId");
+
+        // Reopen the meeting if the release had auto-ended it.
+        if (Status == MeetingStatus.Ended)
+        {
+            EndedAt = null;
+            Status = _items.Any(i => i.Kind == MeetingItemKind.Decision && i.ItemDecision == ItemDecision.RoutedBack)
+                ? MeetingStatus.RoutedBack
+                : MeetingStatus.InvitationSent;
+        }
+
+        // No domain event is raised here: the RecallMeetingItem command handler flushes this
+        // reset and then resumes the workflow inline. A domain-event-driven resume would run
+        // during SaveChanges — before the reset is flushed — and the recall gate in
+        // ApprovalActivity (a persisted-state query) would not see the Pending item.
+    }
+
+    // -------------------------------------------------------------------------
+    // Approver-driven route back
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Records that a COMMITTEE APPROVER voted route_back on an already-released item, as opposed
+    /// to the secretary routing it back from the meeting screen (<see cref="RouteBackItem"/>).
+    ///
+    /// Without this, the item stays <see cref="ItemDecision.Released"/> forever: the approval
+    /// activity drives the workflow backward on its own and never tells this aggregate. That
+    /// leaves the meeting's status stale, and — because
+    /// <see cref="Meetings.Activities.MeetingActivity"/> only re-enters items whose decision is
+    /// NOT Released — the reworked appraisal gets enqueued onto a different meeting instead of
+    /// returning to this one.
+    ///
+    /// Deliberately differs from <see cref="RouteBackItem"/> in three ways:
+    /// <list type="bullet">
+    /// <item>No <see cref="EnsureDecisionAllowed"/>: releasing the last item auto-ends the
+    /// meeting, so an approver's route-back almost always arrives while Ended. Reopening mirrors
+    /// <see cref="UndoRelease"/>.</item>
+    /// <item>Expects <see cref="ItemDecision.Released"/>, not Pending.</item>
+    /// <item>Raises NO domain event. <see cref="MeetingItemRoutedBackDomainEvent"/> resumes the
+    /// workflow, which is already moving itself here — publishing it would drive it twice.</item>
+    /// </list>
+    /// </summary>
+    public void RecordApproverRouteBack(Guid appraisalId, string actor, string? reason, DateTime now)
+    {
+        if (Status == MeetingStatus.Cancelled)
+            throw new InvalidOperationException(
+                "Cannot record an approver route-back on a cancelled meeting");
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
+
+        var item = GetDecisionItemOrThrow(appraisalId);
+
+        if (item.Kind != MeetingItemKind.Decision)
+            throw new InvalidOperationException(
+                $"Appraisal {appraisalId} is not a Decision item on this meeting");
+
+        if (item.ItemDecision != ItemDecision.Released)
+            throw new InvalidOperationException(
+                $"Cannot record an approver route-back for appraisal {appraisalId}: " +
+                $"decision is {item.ItemDecision}, expected Released");
+
+        item.ApplyDecision(ItemDecision.RoutedBack, actor, reason, now);
+
+        // Reopen an auto-ended meeting — it has unfinished business again.
+        if (Status == MeetingStatus.Ended) EndedAt = null;
+        Status = MeetingStatus.RoutedBack;
+    }
+
     // -------------------------------------------------------------------------
     // Reinstate
     // -------------------------------------------------------------------------
 
     /// <summary>
     /// Re-enters a routed-back appraisal onto this same meeting by resetting its item's
-    /// decision back to <see cref="ItemDecision.Pending"/>. The meeting remains in
-    /// <see cref="MeetingStatus.RoutedBack"/> — it can only leave that status once every
-    /// Decision item is Released (the existing <see cref="ReleaseItem"/> auto-end rule).
+    /// decision back to <see cref="ItemDecision.Pending"/>.
+    ///
+    /// When this was the LAST routed-back item, the meeting returns to
+    /// <see cref="MeetingStatus.InvitationSent"/> — <see cref="MeetingStatus.RoutedBack"/> means
+    /// "something is currently routed back", so once nothing is, the status is stale. If other
+    /// items are still routed back the meeting stays in <see cref="MeetingStatus.RoutedBack"/>.
+    ///
+    /// <see cref="MeetingStatus.InvitationSent"/> is the correct target because a route-back is
+    /// only reachable from <see cref="MeetingStatus.InvitationSent"/> or
+    /// <see cref="MeetingStatus.RoutedBack"/> (see <see cref="EnsureDecisionAllowed"/>), so the
+    /// invitation has necessarily gone out. Read models re-derive the effective
+    /// <c>InProgress</c> from InvitationSent + StartAt, so a live meeting still reads as live.
     /// </summary>
     /// <remarks>
     /// This is the only valid re-entry path. The <see cref="Meetings.Activities.MeetingActivity"/>
@@ -536,6 +641,13 @@ public class Meeting : Aggregate<Guid>
 
         var item = GetDecisionItemOrThrow(appraisalId);
         item.Reinstate(now);
+
+        // Same recomputation UndoRelease performs when a recall reopens an Ended meeting.
+        if (!_items.Any(i => i.Kind == MeetingItemKind.Decision
+                             && i.ItemDecision == ItemDecision.RoutedBack))
+        {
+            Status = MeetingStatus.InvitationSent;
+        }
     }
 
     // -------------------------------------------------------------------------

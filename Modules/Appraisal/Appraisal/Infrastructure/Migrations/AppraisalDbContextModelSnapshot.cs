@@ -1713,6 +1713,10 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
+                    b.Property<string>("AppraisalType")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<decimal>("BaseAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -1757,7 +1761,7 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FeeCode", "MinSellingPrice")
+                    b.HasIndex("FeeCode", "AppraisalType", "MinSellingPrice")
                         .IsUnique();
 
                     b.ToTable("FeeStructures", "appraisal");
@@ -1766,31 +1770,41 @@ namespace Appraisal.Infrastructure.Migrations
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000001"),
-                            BaseAmount = 3500m,
+                            BaseAmount = 2500m,
                             CreatedBy = "System",
                             FeeCode = "01",
                             IsActive = true,
-                            MaxSellingPrice = 5000000m,
+                            MaxSellingPrice = 7000000m,
                             MinSellingPrice = 0m
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000004"),
-                            BaseAmount = 5000m,
+                            BaseAmount = 3000m,
                             CreatedBy = "System",
                             FeeCode = "01",
                             IsActive = true,
                             MaxSellingPrice = 10000000m,
-                            MinSellingPrice = 5000001m
+                            MinSellingPrice = 7000001m
                         },
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000005"),
-                            BaseAmount = 7000m,
+                            BaseAmount = 3500m,
                             CreatedBy = "System",
                             FeeCode = "01",
                             IsActive = true,
                             MinSellingPrice = 10000001m
+                        },
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000006"),
+                            AppraisalType = "PreAppraisal",
+                            BaseAmount = 10000m,
+                            CreatedBy = "System",
+                            FeeCode = "01",
+                            IsActive = true,
+                            MinSellingPrice = 0m
                         });
                 });
 
@@ -7355,92 +7369,6 @@ namespace Appraisal.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("AppraisalSettings", "appraisal");
-                });
-
-            modelBuilder.Entity("Appraisal.Domain.Settings.AutoAssignmentRule", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
-                        .HasDefaultValueSql("NEWSEQUENTIALID()");
-
-                    b.Property<Guid?>("AssignToCompanyId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("AssignToTeamId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("AssignToUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("AssignmentMode")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("CreatedWorkstation")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("LoanTypes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<decimal?>("MaxEstimatedValue")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("MinEstimatedValue")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Priorities")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int>("Priority")
-                        .HasColumnType("int");
-
-                    b.Property<string>("PropertyTypes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("Provinces")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("RuleName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("UpdatedWorkstation")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsActive");
-
-                    b.HasIndex("Priority");
-
-                    b.ToTable("AutoAssignmentRules", "appraisal");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.SupportingDataMaintenance.SupportingData", b =>

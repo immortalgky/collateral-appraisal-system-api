@@ -7,8 +7,10 @@
     The Database tool's `migrate` command does two ordered steps internally:
       1. EF Core table migrations for every module (correct dependency order)
       2. DbUp database objects (views, stored procedures, functions)
-    so it is the complete schema deploy. It is idempotent (the app also runs
-    EF migrations at startup, which then find nothing pending).
+    so it is the complete schema deploy, and it is idempotent. The application
+    itself never applies migrations — it verifies at startup that none are
+    pending and refuses to boot otherwise — so this step (or the plain-SQL db/
+    bundle) MUST run before the app is deployed.
 
     Connection string: the tool resolves it from two different config keys
     depending on the step, so this script sets BOTH env vars from the single

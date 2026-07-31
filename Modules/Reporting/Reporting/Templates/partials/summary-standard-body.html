@@ -24,44 +24,73 @@
   </div>
 
   <!-- ════ COLLATERAL TABLE (fields 13–17) ════ -->
+  <!-- uc: some property carries a construction inspection below 100%, so the ราคาประเมิน column
+       splits into เมื่อแล้วเสร็จ 100% / ตามสภาพปัจจุบัน. The sub-labels are a body row above the
+       building block (not a second header row) because only the building block is split — land is
+       never under construction and colspans the pair. Off → the historic 5-column form, unchanged. -->
+  {{ uc = model.has_under_construction }}
   <table class="grid">
+    <colgroup>
+      <col style="width:130px;"><col><col style="width:90px;"><col style="width:85px;">
+      <col style="width:100px;">{{ if uc }}<col style="width:100px;">{{ end }}
+    </colgroup>
     <thead>
       <tr>
-        <th style="width:130px;"></th>
+        <th></th>
         <th>รายการทรัพย์สิน</th>
-        <th style="width:90px;">พื้นที่ / จำนวน</th>
-        <th style="width:85px;">ราคาต่อหน่วย</th>
-        <th style="width:100px;">ราคาประเมิน</th>
+        <th>พื้นที่ / จำนวน</th>
+        <th>ราคาต่อหน่วย</th>
+        <th{{ if uc }} colspan="2"{{ end }}>ราคาประเมิน</th>
       </tr>
     </thead>
     <tbody>
       {{ multi = model.groups.size > 1 }}
       {{ for g in model.groups }}
-        {{ if g.is_cost_approach }}
-        <!-- Cost approach: land + building list + ส่วนพัฒนา, each line valued -->
+        {{ if g.split_land_and_building }}
+        <!-- Split: land + building list + ส่วนพัฒนา, each line valued. With a SINGLE group the
+             land and building blocks are separated by their own รวมมูลค่า… subtotal rows (the
+             .grp-total box draws the dividing border); multi-group keeps them in one block and
+             closes with รวมมูลค่าทรัพย์สินกลุ่ม N instead. -->
         <tr class="grp-first">
           <td>{{ if g.has_land }}<span class="chk on"></span> <strong>ที่ดิน</strong>{{ end }}</td>
           <td>{{ if multi }}<strong>กลุ่มที่ {{ g.group_number }}</strong>{{ end }}{{ if g.land_descriptions.size > 0 }}<ol class="land-titles{{ if g.land_descriptions.size == 1 }} no-num{{ end }}">{{ for d in g.land_descriptions }}<li>{{ d }}</li>{{ end }}</ol>{{ end }}</td>
           <td class="num">{{ if g.total_square_wa; g.total_square_wa | math.format "N2"; end }}</td>
           <td class="num">{{ if g.land_unit_price; g.land_unit_price | math.format "N2"; end }}</td>
-          <td class="num">{{ if g.land_value; g.land_value | math.format "N2"; end }}</td>
+          <td class="num"{{ if uc }} colspan="2"{{ end }}>{{ if g.land_value; g.land_value | math.format "N2"; end }}</td>
         </tr>
+        {{ per_type_subtotals = !multi && g.has_land && g.has_building }}
+        {{ if per_type_subtotals }}
+        <tr class="grp-total">
+          <td></td>
+          <td colspan="3" style="text-align:right;"><strong>รวมมูลค่าที่ดิน</strong></td>
+          <td class="num"{{ if uc }} colspan="2"{{ end }}><strong>{{ if g.land_subtotal; g.land_subtotal | math.format "N2"; end }}</strong></td>
+        </tr>
+        {{ end }}
+        {{ if uc && (g.buildings.size > 0 || g.development_items.size > 0) }}
+        <tr class="uc-head">
+          <td></td><td></td><td></td><td></td>
+          <td>เมื่อแล้วเสร็จ 100%</td>
+          <td>ตามสภาพปัจจุบัน</td>
+        </tr>
+        {{ end }}
         {{ for b in g.buildings }}
-        <tr class="cont">
+        <tr class="{{ if for.first && per_type_subtotals }}grp-first{{ else }}cont{{ end }}">
           <td>{{ if for.first }}<span class="chk on"></span> <strong>สิ่งปลูกสร้าง</strong>{{ end }}</td>
           <td>{{ if g.buildings.size > 1 }}{{ for.index + 1 }}. {{ end }}{{ b.description }}</td>
           <td></td><td></td>
           <td class="num">{{ if b.value; b.value | math.format "N2"; end }}</td>
+          {{ if uc }}<td class="num">{{ if b.current_value; b.current_value | math.format "N2"; else; "-"; end }}</td>{{ end }}
         </tr>
         {{ end }}
         {{ if g.development_items.size > 0 }}
-        <tr class="cont"><td></td><td><strong>ส่วนพัฒนา</strong></td><td></td><td></td><td></td></tr>
+        <tr class="cont"><td></td><td><strong>ส่วนพัฒนา</strong></td><td></td><td></td><td></td>{{ if uc }}<td></td>{{ end }}</tr>
         {{ for d in g.development_items }}
         <tr class="cont">
           <td></td>
           <td>- {{ d.description }}</td>
           <td></td><td></td>
           <td class="num">{{ if d.value; d.value | math.format "N2"; end }}</td>
+          {{ if uc }}<td class="num">{{ if d.current_value; d.current_value | math.format "N2"; else; "-"; end }}</td>{{ end }}
         </tr>
         {{ end }}
         {{ end }}
@@ -70,6 +99,14 @@
           <td></td>
           <td colspan="3" style="text-align:right;"><strong>รวมมูลค่าทรัพย์สินกลุ่ม {{ g.group_number }}</strong></td>
           <td class="num"><strong>{{ if g.group_total; g.group_total | math.format "N2"; end }}</strong></td>
+          {{ if uc }}<td class="num"><strong>{{ if g.group_total_current; g.group_total_current | math.format "N2"; end }}</strong></td>{{ end }}
+        </tr>
+        {{ else if per_type_subtotals }}
+        <tr class="grp-total">
+          <td></td>
+          <td colspan="3" style="text-align:right;"><strong>รวมมูลค่าสิ่งปลูกสร้าง</strong></td>
+          <td class="num"><strong>{{ if g.building_subtotal; g.building_subtotal | math.format "N2"; end }}</strong></td>
+          {{ if uc }}<td class="num"><strong>{{ if g.building_subtotal_current; g.building_subtotal_current | math.format "N2"; else; "-"; end }}</strong></td>{{ end }}
         </tr>
         {{ end }}
         {{ else }}
@@ -79,27 +116,50 @@
           <td>{{ if multi }}<strong>กลุ่มที่ {{ g.group_number }}</strong>{{ end }}{{ if g.land_descriptions.size > 0 }}<ol class="land-titles{{ if g.land_descriptions.size == 1 }} no-num{{ end }}">{{ for d in g.land_descriptions }}<li>{{ d }}</li>{{ end }}</ol>{{ end }}{{ if g.building_description }}<div class="brk" style="margin-top:1px;">{{ g.building_description }}</div>{{ end }}</td>
           <td class="num">{{ if g.show_land_unit_columns }}{{ g.market_land_area | math.format "N2" }}{{ end }}</td>
           <td class="num">{{ if g.show_land_unit_columns }}{{ g.market_land_unit_price | math.format "N2" }}{{ end }}</td>
-          <td class="num">{{ if g.group_total; g.group_total | math.format "N2"; end }}</td>
+          <td class="num"{{ if uc }} colspan="2"{{ end }}>{{ if g.group_total; g.group_total | math.format "N2"; end }}</td>
         </tr>
         {{ if multi }}
         <tr class="grp-total">
           <td></td>
           <td colspan="3" style="text-align:right;"><strong>รวมมูลค่าทรัพย์สินกลุ่ม {{ g.group_number }}</strong></td>
-          <td class="num"><strong>{{ if g.group_total; g.group_total | math.format "N2"; end }}</strong></td>
+          <td class="num"{{ if uc }} colspan="2"{{ end }}><strong>{{ if g.group_total; g.group_total | math.format "N2"; end }}</strong></td>
         </tr>
         {{ end }}
         {{ end }}
       {{ end }}
       {{ if model.groups.size == 0 }}
-      <tr><td colspan="5" style="height:34px;">&nbsp;</td></tr>
+      <tr><td colspan="{{ if uc }}6{{ else }}5{{ end }}" style="height:34px;">&nbsp;</td></tr>
       {{ end }}
-      {{ if model.condition }}<tr><td><strong>เงื่อนไข</strong></td><td colspan="4" class="brk">{{ model.condition }}</td></tr>{{ end }}
-      {{ if model.remark }}<tr><td><strong>หมายเหตุ</strong></td><td colspan="4" class="brk">{{ model.remark }}</td></tr>{{ end }}
+      {{ if model.condition }}<tr><td><strong>เงื่อนไข</strong></td><td colspan="{{ if uc }}5{{ else }}4{{ end }}" class="brk">{{ model.condition }}</td></tr>{{ end }}
+      {{ if model.remark }}<tr><td><strong>หมายเหตุ</strong></td><td colspan="{{ if uc }}5{{ else }}4{{ end }}" class="brk">{{ model.remark }}</td></tr>{{ end }}
     </tbody>
   </table>
 
   <!-- ════ TOTALS (fields 20–23) — label/value layout table, not tabular data ════ -->
-  <table class="totals">
+  <!-- Under construction: the current-condition pair leads (that is the value the collateral is
+       worth today), then the 100% pair. ทุนประกันภัย is not split — one insured sum covers the
+       finished building either way. -->
+  <table class="totals grid-aligned">
+    {{ if uc }}
+    <tr>
+      <th class="tl" scope="row">รวมมูลค่าทรัพย์สินตามสภาพปัจจุบันเป็นเงินทั้งสิ้น</th>
+      <td class="tv">{{ if model.current_condition_total; model.current_condition_total | math.format "N2"; else; "-"; end }}</td>
+    </tr>
+    <tr>
+      <td class="tt" colspan="2">( {{ thai.baht_text model.current_condition_total }} )</td>
+    </tr>
+    <tr>
+      <th class="tl" scope="row">ราคาบังคับขายตามสภาพปัจจุบัน</th>
+      <td class="tv">{{ if model.current_condition_forced_sale_value; model.current_condition_forced_sale_value | math.format "N2"; else; "-"; end }}</td>
+    </tr>
+    <tr>
+      <th class="tl" scope="row">รวมราคาประเมินทรัพย์สินเมื่อแล้วเสร็จ 100% เป็นเงินทั้งสิ้น</th>
+      <td class="tv">{{ if model.total_appraisal_value; model.total_appraisal_value | math.format "N2"; else; "-"; end }}</td>
+    </tr>
+    <tr>
+      <td class="tt" colspan="2">( {{ thai.baht_text model.total_appraisal_value }} )</td>
+    </tr>
+    {{ else }}
     <tr>
       <th class="tl" scope="row">รวมราคาประเมินทรัพย์สินเป็นเงินทั้งสิ้น</th>
       <td class="tv">{{ if model.total_appraisal_value; model.total_appraisal_value | math.format "N2"; else; "-"; end }}</td>
@@ -107,6 +167,7 @@
     <tr>
       <td class="tt" colspan="2">( {{ thai.baht_text model.total_appraisal_value }} )</td>
     </tr>
+    {{ end }}
     <tr>
       <th class="tl" scope="row">ทุนประกันภัยสิ่งปลูกสร้าง</th>
       <td class="tv">{{ if model.building_coverage_amount; model.building_coverage_amount | math.format "N2"; else; "-"; end }}</td>
@@ -162,4 +223,5 @@
   <!-- ════ COMMITTEE BLOCK (fields 42–51) — own page-break unit ════ -->
   {{ include 'partials/approver-block' }}
 
+  {{ include 'partials/summary-page-close' }}
 </div><!-- .form -->

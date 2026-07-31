@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Notification.Domain.Notifications.Models;
 using Shared.Data.Seed;
 
@@ -7,15 +8,19 @@ namespace Notification.Data.Seed;
 public class NotificationDataSeed : IDataSeeder<NotificationDbContext>
 {
     private readonly NotificationDbContext _context;
+    private readonly IConfiguration _configuration;
 
-    public NotificationDataSeed(NotificationDbContext context)
+    public NotificationDataSeed(NotificationDbContext context, IConfiguration configuration)
     {
         _context = context;
+        _configuration = configuration;
     }
 
     public async Task SeedAllAsync()
     {
-        await _context.Database.MigrateAsync();
+        // Demo-only: sample notifications addressed to the `admin`/`testuser` accounts.
+        // Never seeded in production — see SeedData:IncludeDemoData.
+        if (!_configuration.GetValue<bool>("SeedData:IncludeDemoData")) return;
 
         if (await _context.UserNotifications.AnyAsync())
         {

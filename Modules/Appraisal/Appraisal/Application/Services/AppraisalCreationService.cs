@@ -22,6 +22,7 @@ public class AppraisalCreationService(
     ILogger<AppraisalCreationService> logger,
     ISlaCalculatorClient slaCalculatorClient,
     IDateTimeProvider dateTimeProvider,
+    AppraisalValuationSummaryService valuationSummaryService,
     ISender sender) : IAppraisalCreationService
 {
     public async Task<Guid> CreateAppraisalFromRequest(
@@ -302,6 +303,20 @@ public class AppraisalCreationService(
                     prevAppraisalId!.Value, appraisal.Id, cancellationToken);
 
                 await unitOfWork.SaveChangesAsync(cancellationToken);
+
+                // Clones are now real rows, so the summary service's SQL reads see them. Doing this
+                // here rather than via a per-clone domain event is deliberate: the event dispatches
+                // PRE-save, when the clones are still Added and invisible to a query — that is what
+                // wrote AppraisedValue = 0. The staged ValuationAnalyses upsert + outbox message are
+                // flushed by CommitTransactionAsync below (which SaveChangesAsync before committing),
+                // so the recompute stays inside this CI transaction.
+                //
+                // Pass the appointment date explicitly: the Appointment row is only created in Phase 3
+                // (below), so RecomputeAsync's appointment-derived fallback would see no rows here and
+                // stamp DateTime.Now. This mirrors the non-CI path, where ValuationDate is the
+                // appointment date.
+                await valuationSummaryService.RecomputeAsync(
+                    appraisal.Id, cancellationToken, appointment?.AppointmentDateTime);
             }
 
             // Phase 3: Create fee shell + appointment (both FK to assignment, which now exists in DB)
@@ -860,8 +875,10 @@ public class AppraisalCreationService(
     /// Clones every PricingAnalysis from the prior appraisal onto the new CI appraisal.
     /// Loads the full Approaches → Methods → children chain (incl. 1:1 method analyses with their
     /// nested collections) AsNoTracking, then constructs new aggregates via the domain Clone* factories.
-    /// Status is reset to "Draft"; FinalAppraisedValue carries forward (and re-derives ValuationAnalyses
-    /// via AppraisalFinalValuesChangedEvent).
+    /// Status is reset to "Draft"; FinalAppraisedValue carries forward verbatim. The ValuationAnalyses
+    /// summary is NOT re-derived via a domain event here — the clones are Added and invisible to the
+    /// summary's SQL sum until they are saved — the caller recomputes it once POST-save via
+    /// AppraisalValuationSummaryService.RecomputeAsync.
     /// </summary>
     private async Task ClonePricingFromPriorAsync(
         Guid prevAppraisalId,

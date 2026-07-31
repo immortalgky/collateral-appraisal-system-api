@@ -22,9 +22,10 @@ public class UpdateUserCommandHandler(
         user.Position = command.Position;
         user.Department = command.Department;
         user.CompanyId = command.CompanyId;
-        // AO Code is a bank-internal attribute — only persist it for bank users (no company);
-        // company users must never carry one.
+        // AO Code and Employee ID are bank-internal attributes — only persist them for bank users
+        // (no company); company users must never carry one.
         user.AoCode = command.CompanyId is null ? command.AoCode : null;
+        user.EmployeeId = command.CompanyId is null ? command.EmployeeId : null;
 
         // AuthSource changes only when explicitly sent (null = unchanged) and only to a different
         // value. Switching an LDAP account to Local would strand it — the account has no local

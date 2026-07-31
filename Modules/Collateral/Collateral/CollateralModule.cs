@@ -52,7 +52,7 @@ public static class CollateralModule
 
     public static IApplicationBuilder UseCollateralModule(this IApplicationBuilder app)
     {
-        app.UseMigration<CollateralDbContext>();
+        app.UseDataSeeding<CollateralDbContext>();
         app.UseModuleRecurringJobs<CollateralDbContext>(CollateralRecurringJobs.All);
 
         return app;

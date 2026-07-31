@@ -45,14 +45,8 @@ public class UpdateMethodCommandHandler(
                 command.UnitType ?? method.UnitType);
         }
 
-        // Propagate selected method's MethodValue → ApproachValue → FinalAppraisedValue
-        if (method.IsSelected && method.MethodValue.HasValue)
-        {
-            parentApproach!.SetValue(method.MethodValue.Value);
-
-            if (parentApproach.IsSelected)
-                pricingAnalysis.SetFinalValues(method.MethodValue.Value);
-        }
+        // Roll the new method value up through approach → analysis (null-safe, idempotent).
+        pricingAnalysis.RecalculateRollup();
 
         return new UpdateMethodResult(
             method.Id,

@@ -42,7 +42,7 @@ public static class ParameterModule
 
     public static IApplicationBuilder UseParameterModule(this IApplicationBuilder app)
     {
-        app.UseMigration<ParameterDbContext>();
+        app.UseDataSeeding<ParameterDbContext>();
 
         return app;
     }

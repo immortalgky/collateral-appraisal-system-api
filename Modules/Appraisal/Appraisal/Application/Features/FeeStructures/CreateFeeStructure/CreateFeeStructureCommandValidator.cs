@@ -14,6 +14,13 @@ public class CreateFeeStructureCommandValidator : AbstractValidator<CreateFeeStr
         RuleFor(x => x.MinSellingPrice)
             .GreaterThanOrEqualTo(0).WithMessage("Min selling price cannot be negative.");
 
+        // Null/blank = generic ladder; anything else must be a recognised appraisal type, otherwise
+        // the tier would be scoped to a value no appraisal can ever carry.
+        RuleFor(x => x.AppraisalType)
+            .Must(AppraisalTypes.IsValid)
+            .When(x => !string.IsNullOrWhiteSpace(x.AppraisalType))
+            .WithMessage($"Appraisal type must be one of: {string.Join(", ", AppraisalTypes.ValidValues)}.");
+
         RuleFor(x => x.MaxSellingPrice)
             .GreaterThanOrEqualTo(x => x.MinSellingPrice)
             .When(x => x.MaxSellingPrice.HasValue)

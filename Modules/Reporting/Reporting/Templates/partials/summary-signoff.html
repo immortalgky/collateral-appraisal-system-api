@@ -2,6 +2,10 @@
   Partial: shared 3-column sign-off (ผู้นำเสนอ / ผู้จัดการส่วน / ผู้ช่วยผู้อำนวยการ), identical across
   all summary bodies. Shares the parent Scriban scope; expects model.* fields.
 
+  Each column ends with the signer's own position (auth.AspNetUsers.Position of whoever completed
+  the activity), under the fixed role label. It is omitted entirely when unknown — a column whose
+  activity has not been completed yet has neither a name nor a position.
+
   The committee block is NOT included here — each body includes partials/approver-block as a sibling
   so the two paginate independently. See .signoff / .committee-block in partials/summary-styles.
 -->
@@ -10,15 +14,18 @@
     <div class="nm-name">{{ model.appraisal_staff_name }}</div>
     <div class="nm-paren">{{ if model.appraisal_staff_name }}( {{ model.appraisal_staff_name }} ){{ end }}</div>
     <div>ผู้นำเสนอ</div>
+    {{ if model.appraisal_staff_position }}<div class="pos">{{ model.appraisal_staff_position }}</div>{{ end }}
   </div>
   <div class="cell">
     <div class="nm-name">{{ model.appraisal_checker_name }}</div>
     <div class="nm-paren">{{ if model.appraisal_checker_name }}( {{ model.appraisal_checker_name }} ){{ end }}</div>
     <div>ผู้จัดการส่วน</div>
+    {{ if model.appraisal_checker_position }}<div class="pos">{{ model.appraisal_checker_position }}</div>{{ end }}
   </div>
   <div class="cell">
     <div class="nm-name">{{ model.appraisal_verify_name }}</div>
     <div class="nm-paren">{{ if model.appraisal_verify_name }}( {{ model.appraisal_verify_name }} ){{ end }}</div>
     <div>ผู้ช่วยผู้อำนวยการ</div>
+    {{ if model.appraisal_verify_position }}<div class="pos">{{ model.appraisal_verify_position }}</div>{{ end }}
   </div>
 </div>

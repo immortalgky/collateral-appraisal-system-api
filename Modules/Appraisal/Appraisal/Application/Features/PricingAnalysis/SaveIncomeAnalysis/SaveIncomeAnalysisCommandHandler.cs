@@ -165,16 +165,8 @@ public class SaveIncomeAnalysisCommandHandler(
         method.FinalValue.SetFinalValueAdjusted(command.FinalValueAdjust);
         method.FinalValue.SetAppraisalPrice(command.AppraisalPriceRounded);
 
-        // Propagate up the approach/analysis chain if this method is selected
-        if (method.IsSelected)
-        {
-            var parentApproach = pricingAnalysis.Approaches
-                .First(a => a.Methods.Any(m => m.Id == method.Id));
-            parentApproach.SetValue(methodValue);
-
-            if (parentApproach.IsSelected)
-                pricingAnalysis.SetFinalValues(methodValue);
-        }
+        // Roll the new method value up through approach → analysis (null-safe, idempotent).
+        pricingAnalysis.RecalculateRollup();
 
         // Active cleanup (DL10): reconcile RoomIncomeRef analyses when Method01 room types change.
         // Collect all remaining room-type names from Method01 assumptions in the current sections.

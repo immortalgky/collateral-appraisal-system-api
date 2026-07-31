@@ -10,7 +10,7 @@ public class GetAppraisalResultByNumberEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/v1/appraisals/{appraisalNumber}/result", async (
+        app.MapGet("/api/v2/appraisals/{appraisalNumber}/result", async (
             string appraisalNumber,
             [Microsoft.AspNetCore.Mvc.FromQuery] string? plotNumber,
             [Microsoft.AspNetCore.Mvc.FromQuery] string? roomNumber,

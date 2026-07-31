@@ -24,7 +24,19 @@ public class AppraisalAssignment : Entity<Guid>
     public string? InternalAppraiserName { get; private set; }
 
     // Assignment Method
-    public string AssignmentMethod { get; private set; } = null!; // Manual, AutoRule, Quotation
+    /// <summary>
+    /// How the assignee was chosen: Manual, RoundRobin, Quotation, Forced, AutoRule, or
+    /// <see cref="OfflineAssignmentMethod"/>.
+    /// </summary>
+    public string AssignmentMethod { get; private set; } = null!;
+
+    /// <summary>
+    /// The bank engaged the external company OUTSIDE the system; an internal appraiser keys the
+    /// company's book in at int-offline-book-keyin. Read as a discriminator by
+    /// AppraisalValuationSummaryService, which must not overwrite the hand-keyed ValuationDate
+    /// for these appraisals (they have no Appointment row to derive it from).
+    /// </summary>
+    public const string OfflineAssignmentMethod = "Offline";
     public string? InternalFollowupAssignmentMethod { get; private set; } // Manual, RoundRobin
     public Guid? AutoRuleId { get; private set; }
     // TODO: remove with a follow-up EF migration. The workflow-driven assignment flow no longer
@@ -355,10 +367,43 @@ public class AppraisalAssignment : Entity<Guid>
             Notes = string.IsNullOrWhiteSpace(Notes) ? stamp : $"{Notes}\n{stamp}";
         }
 
-        if (AssignmentType == AssignmentType.External)
+        // An engagement cycle measures how long the external COMPANY holds the work in CAS. It is
+        // closed by exactly one edge — ext-appraisal-verification → appraisal-book-verification
+        // (ExternalCycleTrackingHandler) — so opening one for an off-system engagement, whose
+        // company never touches CAS and which never runs the ext-* activities, would leave a cycle
+        // Open forever and inflate vendor OLA reporting. Offline rework is bank-side work.
+        if (AssignmentType == AssignmentType.External && !IsOfflineEngagement)
         {
             OpenExternalCycle(cycleOpenedAt);
         }
+    }
+
+    /// <summary>
+    /// True when the company was engaged outside the system and an internal appraiser keys the
+    /// book in — External for reporting/fee purposes, but no vendor time is measurable in CAS.
+    /// </summary>
+    public bool IsOfflineEngagement =>
+        string.Equals(AssignmentMethod, OfflineAssignmentMethod, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Return the row to the admin assignment queue after the workflow routed the case back to
+    /// appraisal-assignment. AssignAppraisalCommandHandler only accepts a Pending assignment, so
+    /// without this a routed-back case is stranded: the admin's re-decision is rejected with
+    /// "No pending assignment found" and there is no other way to move the appraisal.
+    ///
+    /// Selections (company / assignee / method) are deliberately left on the row so the admin sees
+    /// what was previously chosen; Assign() overwrites them on the next decision.
+    /// Idempotent, and a no-op from terminal states, which never route back here.
+    /// </summary>
+    public void ReturnToAssignmentQueue()
+    {
+        if (AssignmentStatus == AssignmentStatus.Pending) return;
+
+        if (AssignmentStatus != AssignmentStatus.Assigned
+            && AssignmentStatus != AssignmentStatus.InProgress)
+            return;
+
+        AssignmentStatus = AssignmentStatus.Pending;
     }
 
     /// <summary>
