@@ -311,7 +311,7 @@ public class MeetingTests
     }
 
     [Fact]
-    public void ReleaseItem_IncludesMemberUserIds_InEvent()
+    public void ReleaseItem_IncludesMembersWithPositions_InEvent()
     {
         var committee = BuildCommittee();
         committee.AddMember("m1", "Alice", CommitteeMemberPosition.Chairman);
@@ -322,10 +322,74 @@ public class MeetingTests
 
         meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);
 
-        var evt = (MeetingItemReleasedDomainEvent)meeting.DomainEvents
-            .Single(e => e is MeetingItemReleasedDomainEvent);
-        evt.MemberUserIds.Should().BeEquivalentTo(["m1", "m2"]);
+        // The position travels with the user id: downstream it becomes the approval role that
+        // committee RoleRequired conditions are matched against.
+        ReleasedMembers(meeting).Should().BeEquivalentTo(
+        [
+            new MeetingApprover("m1", nameof(CommitteeMemberPosition.Chairman)),
+            new MeetingApprover("m2", nameof(CommitteeMemberPosition.Member))
+        ]);
     }
+
+    [Fact]
+    public void ReleaseItem_AfterMemberAddedToThisMeeting_IncludesTheAddedMember()
+    {
+        var committee = BuildCommittee();
+        committee.AddMember("m1", "Alice", CommitteeMemberPosition.Chairman);
+
+        var meeting = BuildInvitationSentMeetingWithOneItem(committee);
+        meeting.AddMember(
+            MeetingMember.CreateManual(meeting.Id, "extra", "Dave", CommitteeMemberPosition.UW),
+            DateTime.UtcNow);
+
+        var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
+        meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);
+
+        ReleasedMembers(meeting).Should().BeEquivalentTo(
+        [
+            new MeetingApprover("m1", nameof(CommitteeMemberPosition.Chairman)),
+            new MeetingApprover("extra", nameof(CommitteeMemberPosition.UW))
+        ]);
+    }
+
+    [Fact]
+    public void ReleaseItem_AfterMemberRemovedFromThisMeeting_ExcludesTheRemovedMember()
+    {
+        var committee = BuildCommittee();
+        committee.AddMember("m1", "Alice", CommitteeMemberPosition.Chairman);
+        committee.AddMember("m2", "Bob", CommitteeMemberPosition.Member);
+
+        var meeting = BuildInvitationSentMeetingWithOneItem(committee);
+        var bob = meeting.Members.Single(m => m.UserId == "m2");
+        meeting.RemoveMember(bob.Id, DateTime.UtcNow);
+
+        var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
+        meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);
+
+        ReleasedMembers(meeting).Should().BeEquivalentTo(
+            [new MeetingApprover("m1", nameof(CommitteeMemberPosition.Chairman))]);
+    }
+
+    [Fact]
+    public void ReleaseItem_AfterPositionChangedOnThisMeeting_CarriesTheNewPosition()
+    {
+        var committee = BuildCommittee();
+        committee.AddMember("m1", "Alice", CommitteeMemberPosition.Member);
+
+        var meeting = BuildInvitationSentMeetingWithOneItem(committee);
+        var alice = meeting.Members.Single(m => m.UserId == "m1");
+        meeting.ChangeMemberPosition(alice.Id, CommitteeMemberPosition.UW, DateTime.UtcNow);
+
+        var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
+        meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);
+
+        ReleasedMembers(meeting).Should().BeEquivalentTo(
+            [new MeetingApprover("m1", nameof(CommitteeMemberPosition.UW))]);
+    }
+
+    private static IReadOnlyList<MeetingApprover> ReleasedMembers(Meeting meeting)
+        => ((MeetingItemReleasedDomainEvent)meeting.DomainEvents
+            .Single(e => e is MeetingItemReleasedDomainEvent)).Members;
 
     [Fact]
     public void ReleaseItem_WhenAlreadyReleased_Throws()

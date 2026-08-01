@@ -467,10 +467,15 @@ public class Meeting : Aggregate<Guid>
             throw new InvalidOperationException(
                 $"Decision item for appraisal {appraisalId} is missing WorkflowInstanceId or ActivityId");
 
-        var memberUserIds = _members.Select(m => m.UserId).ToList().AsReadOnly();
+        // Carries the position as well as the user id: the approval activity uses this roster
+        // as its member list, and the position becomes each voter's approval role.
+        var approvers = _members
+            .Select(m => new MeetingApprover(m.UserId, m.Position.ToString()))
+            .ToList()
+            .AsReadOnly();
 
         AddDomainEvent(new MeetingItemReleasedDomainEvent(
-            Id, appraisalId, item.WorkflowInstanceId.Value, item.ActivityId, actor, memberUserIds));
+            Id, appraisalId, item.WorkflowInstanceId.Value, item.ActivityId, actor, approvers));
 
         // Auto-transition: if every Decision item has been Released, end the meeting.
         var allDecisionItems = _items.Where(i => i.Kind == MeetingItemKind.Decision).ToList();

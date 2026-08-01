@@ -11,8 +11,11 @@ namespace Workflow.Meetings.EventHandlers;
 /// Resume input carries:
 /// - <c>meetingId</c>: the meeting Guid.
 /// - <c>meetingOutcome</c>: "released" (see <see cref="MeetingOutcomes.Released"/>).
-/// - <c>meetingMemberUserIds</c>: user IDs of all meeting members — consumed by the downstream
-///   ApprovalActivity as its approver list.
+/// - <c>meetingMemberOverrides</c>: this meeting's roster as <c>{ userId, role }</c> pairs —
+///   consumed by the downstream ApprovalActivity as its member list, replacing the members it
+///   would otherwise resolve from the committee. Sending the roster (not just user ids) is what
+///   makes per-meeting add/remove/position edits actually govern who votes; the role carries the
+///   meeting position so committee <c>RoleRequired</c> conditions still evaluate.
 /// - <c>completedBy</c>: the secretary who released this item.
 /// </summary>
 public class MeetingItemReleasedDomainEventHandler(
@@ -36,7 +39,9 @@ public class MeetingItemReleasedDomainEventHandler(
             {
                 ["meetingId"] = notification.MeetingId,
                 ["meetingOutcome"] = MeetingOutcomes.Released,
-                ["meetingMemberUserIds"] = notification.MemberUserIds.ToArray(),
+                ["meetingMemberOverrides"] = notification.Members
+                    .Select(m => new { userId = m.UserId, role = m.Role })
+                    .ToArray(),
                 ["completedBy"] = notification.ReleasedBy
             },
             cancellationToken: cancellationToken);

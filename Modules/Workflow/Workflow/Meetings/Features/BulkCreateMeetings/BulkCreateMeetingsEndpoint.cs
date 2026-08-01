@@ -40,8 +40,6 @@ public class BulkCreateMeetingsCommandHandler(
     IDateTimeProvider dateTimeProvider)
     : ICommandHandler<BulkCreateMeetingsCommand, BulkCreateMeetingsResponse>
 {
-    private const string COMMITTEE_WITH_MEETING = "COMMITTEE_WITH_MEETING";
-
     public async Task<BulkCreateMeetingsResponse> Handle(
         BulkCreateMeetingsCommand command, CancellationToken ct)
     {
@@ -58,8 +56,8 @@ public class BulkCreateMeetingsCommandHandler(
         }
         else
         {
-            committee = await committeeRepository.GetByCodeAsync(COMMITTEE_WITH_MEETING, ct)
-                ?? throw new NotFoundException($"Committee {COMMITTEE_WITH_MEETING} not found");
+            committee = await committeeRepository.GetByCodeAsync(MeetingCommittee.WithMeetingCode, ct)
+                ?? throw new NotFoundException($"Committee {MeetingCommittee.WithMeetingCode} not found");
         }
 
         var now = dateTimeProvider.ApplicationNow;
