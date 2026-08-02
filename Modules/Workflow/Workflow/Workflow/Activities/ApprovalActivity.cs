@@ -72,8 +72,11 @@ public class ApprovalActivity : WorkflowActivityBase
             var groupInfo = await _memberResolver.ResolveMembersAsync(
                 memberSourceConfig, context.Variables, inlineQuorum, inlineMajority, cancellationToken);
 
-            // Member override: if the pending-meeting step supplied a manual member list, use it
-            // instead of the committee's configured members. Quorum/majority still come from groupInfo.
+            // Member override: the pending-meeting step supplies the roster of the meeting that
+            // released this appraisal, so per-meeting add/remove/position edits govern who votes
+            // here. Used instead of the committee's configured members; quorum/majority/conditions
+            // still come from groupInfo. Each member's meeting position becomes their approval role,
+            // which is what lands on ApprovalVote.MemberRole and what RoleRequired conditions match.
             var overrideMembers = GetVariable<List<MeetingMemberOverride>>(context, "meetingMemberOverrides", []);
             var resolvedMembers = overrideMembers.Count > 0
                 ? overrideMembers.Select(m => new ApprovalMemberInfo(m.UserId, m.Role)).ToList()
@@ -113,6 +116,14 @@ public class ApprovalActivity : WorkflowActivityBase
                 [$"{NormalizeActivityId(context.ActivityId)}_votesReceived"] = 0,
                 ["activityName"] = activityName
             };
+
+            // Consume-once: meetingMemberOverrides is a GLOBAL variable, so clear it now that this
+            // round has snapshotted it into _members. Without this, a route_back from here sends the
+            // appraisal back for rework, and if the revised appraisalValue then falls into a tier
+            // that skips the meeting (approval-tier-switch → pending-approval directly), that round
+            // would silently inherit the old meeting's roster instead of its own committee.
+            if (overrideMembers.Count > 0)
+                outputData["meetingMemberOverrides"] = new List<MeetingMemberOverride>();
 
             // Calculate the SLA deadline via the business-time SLA calculator — the same path
             // TaskActivity uses — so approval activities (a) count in BUSINESS hours (excl.
@@ -800,15 +811,10 @@ public class ApprovalActivity : WorkflowActivityBase
         return true;
     }
 
+    // Delegates to the shared domain rule (single source of truth) so the meeting release gate,
+    // which pre-checks a roster against this same number, cannot drift from it.
     private static int GetRequiredQuorum(QuorumConfig config, int totalMembers)
-    {
-        return config.Type.ToLowerInvariant() switch
-        {
-            "fixed" => config.Value,
-            "percentage" => (int)Math.Ceiling(totalMembers * config.Value / 100.0),
-            _ => totalMembers
-        };
-    }
+        => QuorumRule.Required(config.Type, config.Value, totalMembers);
 
     // Majority is evaluated against the FULL committee (totalMembers), not the votes cast. The string
     // MajorityConfig.Type is the round-tripped MajorityType name, so parse it back to the enum and

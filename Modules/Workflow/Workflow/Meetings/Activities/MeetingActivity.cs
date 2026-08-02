@@ -177,15 +177,8 @@ public class MeetingActivity : WorkflowActivityBase
         if (resumeInput.TryGetValue("cancelReason", out var reason))
             outputData[$"{normalized}_cancelReason"] = reason;
 
-        // Propagate meeting member user IDs so downstream ApprovalActivity can consume
-        // them as its approver list (released items only).
-        if (resumeInput.TryGetValue("meetingMemberUserIds", out var memberIds))
-        {
-            outputData[$"{normalized}_meetingMemberUserIds"] = memberIds;
-            outputData["meetingMemberUserIds"] = memberIds;
-        }
-
-        // Propagate override member list so downstream ApprovalActivity can replace its committee members.
+        // Propagate this meeting's roster ({ userId, role } pairs) so the downstream
+        // ApprovalActivity replaces its committee-resolved members with it (released items only).
         if (resumeInput.TryGetValue("meetingMemberOverrides", out var memberOverrides))
         {
             outputData[$"{normalized}_meetingMemberOverrides"] = memberOverrides;
