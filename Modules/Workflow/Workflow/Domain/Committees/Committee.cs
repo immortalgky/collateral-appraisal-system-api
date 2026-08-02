@@ -111,10 +111,31 @@ public class Committee : Aggregate<Guid>
         return threshold;
     }
 
+    /// <param name="roleRequired">
+    /// For <see cref="ConditionType.RoleRequired"/>, the <see cref="CommitteeMemberPosition"/> that
+    /// must cast an approving vote. It is matched — case-insensitively, as a plain string — against
+    /// the role stamped on each <c>ApprovalVote</c>, which is the voter's
+    /// <see cref="CommitteeMember.Position"/>. A value outside the enum therefore matches nothing:
+    /// the condition can never be satisfied, and the approval round sits Pending forever with no
+    /// error raised anywhere. Validated here rather than at the endpoint so every caller is covered.
+    /// </param>
     public CommitteeApprovalCondition AddCondition(
         ConditionType conditionType, string? roleRequired, int? minVotesRequired,
         int priority, string? description)
     {
+        // Name comparison, not Enum.TryParse: TryParse also accepts the numeric form ("3" -> UW),
+        // and roleRequired is persisted as the raw string, so "3" would pass validation and then
+        // match no vote's role at runtime — the exact failure this guard exists to prevent.
+        if (conditionType == ConditionType.RoleRequired
+            && !Enum.GetNames<CommitteeMemberPosition>()
+                .Contains(roleRequired, StringComparer.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException(
+                $"Invalid RoleRequired '{roleRequired}'. Allowed values: " +
+                $"{string.Join(", ", Enum.GetNames<CommitteeMemberPosition>())}",
+                nameof(roleRequired));
+        }
+
         var condition = CommitteeApprovalCondition.Create(
             Id, conditionType, roleRequired, minVotesRequired, priority, description);
         _conditions.Add(condition);

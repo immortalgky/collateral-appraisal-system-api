@@ -90,6 +90,17 @@ public class ApprovalActivity : WorkflowActivityBase
                         "ApprovalActivity {ActivityId}: override member count ({OverrideCount}) is below required quorum ({Quorum}); approval may never reach quorum",
                         context.ActivityId, overrideMembers.Count, requiredQuorum);
             }
+            else if (context.Variables.ContainsKey("meetingMemberOverrides"))
+            {
+                // The variable exists but carries no members, so the ternary above silently fell
+                // back to the committee's own members — the substitution this path exists to
+                // prevent. MeetingRosterEligibility refuses to release an empty roster, so reaching
+                // here means either that gate was bypassed or the roster was emptied after release.
+                _logger.LogWarning(
+                    "ApprovalActivity {ActivityId}: meetingMemberOverrides was present but empty; " +
+                    "falling back to committee {CommitteeCode} members instead of the meeting roster",
+                    context.ActivityId, groupInfo.CommitteeCode ?? "inline");
+            }
 
             var activityName = GetProperty(context, "activityName", context.ActivityId);
             var voteOptions = GetProperty<List<string>>(context, "voteOptions",

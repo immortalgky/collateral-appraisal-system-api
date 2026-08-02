@@ -30,6 +30,7 @@ public record ReleaseMeetingItemCommand(Guid MeetingId, Guid AppraisalId)
 public class ReleaseMeetingItemCommandHandler(
     IMeetingRepository meetingRepository,
     ICommitteeRepository committeeRepository,
+    IUserDirectory userDirectory,
     ICurrentUserService currentUserService,
     IDateTimeProvider dateTimeProvider)
     : ICommandHandler<ReleaseMeetingItemCommand>
@@ -48,7 +49,12 @@ public class ReleaseMeetingItemCommandHandler(
         var committee = await committeeRepository.GetByCodeAsync(MeetingCommittee.WithMeetingCode, ct)
             ?? throw new NotFoundException($"Committee {MeetingCommittee.WithMeetingCode} not found");
 
-        var failures = MeetingRosterEligibility.Check(meeting.Members, committee);
+        // Resolved here rather than inside the domain check: the roster stores usernames, and only
+        // infrastructure can say which of them are real users.
+        var knownUsernames = await userDirectory.GetExistingAsync(
+            meeting.Members.Select(m => m.UserId), ct);
+
+        var failures = MeetingRosterEligibility.Check(meeting.Members, committee, knownUsernames);
         if (failures.Count > 0)
             throw new ConflictException(
                 $"Meeting roster cannot satisfy committee {committee.Code}: " +

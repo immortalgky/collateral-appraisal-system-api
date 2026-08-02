@@ -132,17 +132,93 @@ public class MeetingRosterEligibilityTests
     }
 
     [Fact]
-    public void Check_EmptyRoster_FailsQuorum()
+    public void Check_EmptyRoster_Fails()
     {
         var committee = BuildCommittee(QuorumType.Fixed, 1);
 
         var failures = MeetingRosterEligibility.Check([], committee);
 
         failures.Should().ContainSingle()
-            .Which.Should().Be("0 member(s) but quorum requires 1");
+            .Which.Should().Be("the meeting has no members");
+    }
+
+    [Fact]
+    public void Check_EmptyRoster_FailsEvenWhenQuorumWouldAcceptIt()
+    {
+        // The case a quorum check alone cannot catch: a Percentage of zero members is zero, so
+        // `roster.Count < requiredQuorum` is 0 < 0 = false. Released with an empty roster,
+        // ApprovalActivity's `overrideMembers.Count > 0` switch reads it as "no override" and
+        // silently runs the round with the COMMITTEE's members instead.
+        var committee = BuildCommittee(QuorumType.Percentage, 100);
+
+        var failures = MeetingRosterEligibility.Check([], committee);
+
+        failures.Should().ContainSingle()
+            .Which.Should().Be("the meeting has no members");
+    }
+
+    [Fact]
+    public void Check_MemberWithNoMatchingUser_Fails()
+    {
+        var committee = BuildCommittee(QuorumType.Fixed, 2);
+
+        var failures = MeetingRosterEligibility.Check(
+            Roster(("alice", CommitteeMemberPosition.Chairman),
+                   ("ghost", CommitteeMemberPosition.UW)),
+            committee,
+            knownUsernames: Known("alice"));
+
+        failures.Should().ContainSingle()
+            .Which.Should().Be("no such user: ghost");
+    }
+
+    [Fact]
+    public void Check_UnresolvedMembers_AreReportedTogether()
+    {
+        var committee = BuildCommittee(QuorumType.Fixed, 1);
+
+        var failures = MeetingRosterEligibility.Check(
+            Roster(("alice", CommitteeMemberPosition.Chairman),
+                   ("ghost", CommitteeMemberPosition.UW),
+                   ("phantom", CommitteeMemberPosition.Member)),
+            committee,
+            knownUsernames: Known("alice"));
+
+        failures.Should().ContainSingle()
+            .Which.Should().Be("no such user: ghost, phantom");
+    }
+
+    [Fact]
+    public void Check_KnownUsernamesMatchCaseInsensitively()
+    {
+        // Member usernames are compared case-insensitively everywhere else in the approval path
+        // (ApprovalActivity's voter lookup, RoleRequired matching), so this must agree.
+        var committee = BuildCommittee(QuorumType.Fixed, 1);
+
+        var failures = MeetingRosterEligibility.Check(
+            Roster(("Alice", CommitteeMemberPosition.Chairman)),
+            committee,
+            knownUsernames: Known("alice"));
+
+        failures.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Check_WithoutKnownUsernames_SkipsTheUserCheck()
+    {
+        // The domain cannot resolve users itself; callers that do not supply the set opt out.
+        var committee = BuildCommittee(QuorumType.Fixed, 1);
+
+        var failures = MeetingRosterEligibility.Check(
+            Roster(("ghost", CommitteeMemberPosition.Chairman)), committee);
+
+        failures.Should().BeEmpty();
     }
 
     // -- Helpers --
+
+    private static IReadOnlySet<string> Known(params string[] usernames)
+        => usernames.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     private static Committee BuildCommittee(QuorumType quorumType, int quorumValue)
         => Committee.Create("Committee With Meeting", MeetingCommittee.WithMeetingCode, null,
