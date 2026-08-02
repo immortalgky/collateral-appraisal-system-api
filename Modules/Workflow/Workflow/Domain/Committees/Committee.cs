@@ -11,6 +11,13 @@ public class Committee : Aggregate<Guid>
     public MajorityType MajorityType { get; private set; }
 
     /// <summary>
+    /// The approval count that resolves the round when <see cref="MajorityType"/> is
+    /// <see cref="MajorityType.FixedCount"/> — e.g. 3, meaning three approvals are enough
+    /// regardless of how many members the committee has. Unused (0) for the proportional types.
+    /// </summary>
+    public int MajorityValue { get; private set; }
+
+    /// <summary>
     /// Controls when the approval round resolves:
     ///   <see cref="VotingMode.WaitForAll"/> — every member must vote before the approve rule is
     ///   evaluated (consensus); quorum is ignored.
@@ -37,9 +44,13 @@ public class Committee : Aggregate<Guid>
         QuorumType quorumType,
         int quorumValue,
         MajorityType majorityType,
-        VotingMode votingMode = VotingMode.WaitForAll)
+        VotingMode votingMode = VotingMode.WaitForAll,
+        int majorityValue = 0)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(quorumValue, 0, nameof(quorumValue));
+        // No members exist yet at creation, so only the lower bound is checkable here; Update and
+        // the round-start guard in ApprovalActivity cover "more approvals than there are members".
+        RequirePositiveWhenFixedCount(majorityType, majorityValue);
 
         var committee = new Committee
         {
@@ -51,22 +62,44 @@ public class Committee : Aggregate<Guid>
             QuorumType = quorumType,
             QuorumValue = quorumValue,
             MajorityType = majorityType,
+            MajorityValue = majorityValue,
             VotingMode = votingMode
         };
         return committee;
     }
 
     public void Update(string name, string? description, QuorumType quorumType, int quorumValue,
-        MajorityType majorityType, bool isActive, VotingMode votingMode = VotingMode.WaitForAll)
+        MajorityType majorityType, bool isActive, VotingMode votingMode = VotingMode.WaitForAll,
+        int majorityValue = 0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        RequirePositiveWhenFixedCount(majorityType, majorityValue);
+
+        // Members are known by now, so a threshold nobody could ever reach is rejected outright —
+        // it would otherwise open a round that can never resolve and stalls with no error.
+        var activeMembers = GetActiveMembers().Count;
+        if (majorityType == MajorityType.FixedCount && activeMembers > 0 && majorityValue > activeMembers)
+            throw new ArgumentException(
+                $"MajorityValue {majorityValue} exceeds the committee's {activeMembers} active member(s); " +
+                "the approval round could never reach it",
+                nameof(majorityValue));
+
         Name = name;
         Description = description;
         QuorumType = quorumType;
         QuorumValue = quorumValue;
         MajorityType = majorityType;
+        MajorityValue = majorityValue;
         IsActive = isActive;
         VotingMode = votingMode;
+    }
+
+    private static void RequirePositiveWhenFixedCount(MajorityType majorityType, int majorityValue)
+    {
+        if (majorityType == MajorityType.FixedCount && majorityValue <= 0)
+            throw new ArgumentException(
+                $"MajorityType {nameof(MajorityType.FixedCount)} requires a MajorityValue greater than 0",
+                nameof(majorityValue));
     }
 
     public CommitteeMember AddMember(string userId, string memberName, CommitteeMemberPosition position,
@@ -182,7 +215,7 @@ public class Committee : Aggregate<Guid>
     /// the domain share one implementation.
     /// </summary>
     public bool HasMajority(int targetVoteCount, int totalVotes, int totalMembers)
-        => MajorityRule.IsMet(MajorityType, targetVoteCount, totalMembers);
+        => MajorityRule.IsMet(MajorityType, targetVoteCount, totalMembers, MajorityValue);
 }
 
 public enum QuorumType
@@ -193,9 +226,21 @@ public enum QuorumType
 
 public enum MajorityType
 {
+    /// <summary>More than half of ALL members approve.</summary>
     Simple,
+
+    /// <summary>At least two-thirds of ALL members approve.</summary>
     TwoThirds,
-    Unanimous
+
+    /// <summary>Every member approves.</summary>
+    Unanimous,
+
+    /// <summary>
+    /// An absolute number of approvals — <see cref="Committee.MajorityValue"/> — regardless of
+    /// member count. Note this replaces the majority bar only; whether the round resolves on the
+    /// Nth approval or after everyone has voted is still governed by <see cref="VotingMode"/>.
+    /// </summary>
+    FixedCount
 }
 
 public enum VotingMode

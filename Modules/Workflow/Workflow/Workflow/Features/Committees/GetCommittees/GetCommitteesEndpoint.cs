@@ -28,7 +28,7 @@ public record GetCommitteesResponse(List<CommitteeListItem> Committees);
 public record CommitteeListItem(
     Guid Id, string Name, string Code, string? Description,
     bool IsActive, string QuorumType, int QuorumValue, string MajorityType,
-    int MemberCount);
+    int MemberCount, int MajorityValue = 0);
 
 public class GetCommitteesQueryHandler(
     ICommitteeRepository committeeRepository
@@ -41,7 +41,7 @@ public class GetCommitteesQueryHandler(
         var items = committees.Select(c => new CommitteeListItem(
             c.Id, c.Name, c.Code, c.Description, c.IsActive,
             c.QuorumType.ToString(), c.QuorumValue, c.MajorityType.ToString(),
-            c.GetActiveMembers().Count)).ToList();
+            c.GetActiveMembers().Count, c.MajorityValue)).ToList();
 
         return new GetCommitteesResponse(items);
     }

@@ -63,6 +63,12 @@ public static class MeetingRosterEligibility
         if (roster.Count < requiredQuorum)
             failures.Add($"{roster.Count} member(s) but quorum requires {requiredQuorum}");
 
+        // Majority. Only FixedCount can be unreachable — the proportional types are taken of the
+        // roster itself and so are satisfiable by construction, exactly like a Percentage quorum.
+        if (committee.MajorityType == MajorityType.FixedCount && committee.MajorityValue > roster.Count)
+            failures.Add(
+                $"{committee.MajorityValue} approve vote(s) required but the roster has only {roster.Count} member(s)");
+
         foreach (var condition in committee.Conditions.Where(c => c.IsActive).OrderBy(c => c.Priority))
         {
             switch (condition.ConditionType)
