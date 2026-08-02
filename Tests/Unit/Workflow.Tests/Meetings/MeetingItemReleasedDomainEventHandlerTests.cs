@@ -6,6 +6,7 @@ using Workflow.Domain.Committees;
 using Workflow.Meetings.Domain;
 using Workflow.Meetings.Domain.Events;
 using Workflow.Meetings.EventHandlers;
+using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Models;
 using Workflow.Workflow.Services;
 using Xunit;
