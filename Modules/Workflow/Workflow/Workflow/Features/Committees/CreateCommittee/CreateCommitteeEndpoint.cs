@@ -32,7 +32,8 @@ public record CreateCommitteeRequest(
     string? VotingMode,
     List<CreateCommitteeMemberRequest>? Members,
     List<CreateCommitteeThresholdRequest>? Thresholds,
-    List<CreateCommitteeConditionRequest>? Conditions);
+    List<CreateCommitteeConditionRequest>? Conditions,
+    int MajorityValue = 0);
 
 public record CreateCommitteeMemberRequest(string UserId, string MemberName, string Role, string? Attendance = null);
 public record CreateCommitteeThresholdRequest(decimal? MinValue, decimal? MaxValue, int Priority);
@@ -65,7 +66,8 @@ public class CreateCommitteeCommandHandler(
             && !Enum.TryParse(req.VotingMode, ignoreCase: true, out votingMode))
             throw new ArgumentException($"Invalid VotingMode '{req.VotingMode}'. Allowed values: {string.Join(", ", Enum.GetNames<VotingMode>())}");
 
-        var committee = Committee.Create(req.Name, req.Code, req.Description, quorumType, req.QuorumValue, majorityType, votingMode);
+        var committee = Committee.Create(req.Name, req.Code, req.Description, quorumType,
+            req.QuorumValue, majorityType, votingMode, req.MajorityValue);
 
         if (req.Members is not null)
         {

@@ -215,6 +215,50 @@ public class MeetingRosterEligibilityTests
         failures.Should().BeEmpty();
     }
 
+    [Fact]
+    public void Check_RosterSmallerThanFixedCountMajority_Fails()
+    {
+        // The roster replaces the committee's members but the majority rule still comes from the
+        // committee, so a fixed threshold larger than the roster can never be reached.
+        var committee = Committee.Create("Committee With Meeting", MeetingCommittee.WithMeetingCode,
+            null, QuorumType.Fixed, 1, MajorityType.FixedCount, VotingMode.Quorum, majorityValue: 3);
+
+        var failures = MeetingRosterEligibility.Check(
+            Roster(("a", CommitteeMemberPosition.Chairman),
+                   ("b", CommitteeMemberPosition.UW)),
+            committee);
+
+        failures.Should().ContainSingle()
+            .Which.Should().Be("3 approve vote(s) required but the roster has only 2 member(s)");
+    }
+
+    [Fact]
+    public void Check_RosterMeetsFixedCountMajority_NoFailures()
+    {
+        var committee = Committee.Create("Committee With Meeting", MeetingCommittee.WithMeetingCode,
+            null, QuorumType.Fixed, 1, MajorityType.FixedCount, VotingMode.Quorum, majorityValue: 2);
+
+        var failures = MeetingRosterEligibility.Check(
+            Roster(("a", CommitteeMemberPosition.Chairman),
+                   ("b", CommitteeMemberPosition.UW)),
+            committee);
+
+        failures.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Check_ProportionalMajority_IsAlwaysSatisfiableByTheRosterItself()
+    {
+        // Unanimous of a 1-member roster is 1 — proportional rules are taken of the roster, so
+        // only FixedCount can be unreachable. Same reasoning as a Percentage quorum.
+        var committee = BuildCommittee(QuorumType.Fixed, 1);
+
+        var failures = MeetingRosterEligibility.Check(
+            Roster(("a", CommitteeMemberPosition.Chairman)), committee);
+
+        failures.Should().BeEmpty();
+    }
+
     // -- Helpers --
 
     private static IReadOnlySet<string> Known(params string[] usernames)

@@ -102,6 +102,19 @@ public class ApprovalActivity : WorkflowActivityBase
                     context.ActivityId, groupInfo.CommitteeCode ?? "inline");
             }
 
+            // A FixedCount threshold above the member count can never be reached, so the round
+            // would open and then sit Pending forever. Checked against resolvedMembers — a
+            // released meeting roster replaces the committee's members, so that is the count the
+            // round actually runs with.
+            if (string.Equals(groupInfo.Majority.Type, nameof(MajorityType.FixedCount),
+                    StringComparison.OrdinalIgnoreCase)
+                && groupInfo.Majority.Value > resolvedMembers.Count)
+            {
+                return ActivityResult.Failed(
+                    $"Approval requires {groupInfo.Majority.Value} approve vote(s) but the group has only " +
+                    $"{resolvedMembers.Count} member(s); the round could never resolve");
+            }
+
             var activityName = GetProperty(context, "activityName", context.ActivityId);
             var voteOptions = GetProperty<List<string>>(context, "voteOptions",
                 new List<string> { "approve", "reject", "route_back" });
@@ -834,7 +847,7 @@ public class ApprovalActivity : WorkflowActivityBase
     private static bool CheckMajority(MajorityConfig config, int targetCount, int totalVotes, int totalMembers)
     {
         return Enum.TryParse<MajorityType>(config.Type, ignoreCase: true, out var majorityType)
-            && MajorityRule.IsMet(majorityType, targetCount, totalMembers);
+            && MajorityRule.IsMet(majorityType, targetCount, totalMembers, config.Value);
     }
 
     private static Dictionary<string, object> BuildOutputData(

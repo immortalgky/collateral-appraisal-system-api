@@ -12,7 +12,12 @@ public record ThresholdConfig(decimal? MaxValue, string CommitteeCode);
 
 public record QuorumConfig(string Type, int Value);
 
-public record MajorityConfig(string Type, string TargetVote);
+/// <param name="Value">
+/// Only meaningful for <see cref="Workflow.Domain.Committees.MajorityType.FixedCount"/>. Defaults
+/// to 0 so every existing call site and every already-persisted <c>{activityId}_majority</c>
+/// workflow variable (these round-trip through JSON) keeps deserializing unchanged.
+/// </param>
+public record MajorityConfig(string Type, string TargetVote, int Value = 0);
 
 public record ApprovalGroupInfo(
     List<ApprovalMemberInfo> Members,

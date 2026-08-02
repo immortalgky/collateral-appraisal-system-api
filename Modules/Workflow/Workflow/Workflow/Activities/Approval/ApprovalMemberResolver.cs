@@ -40,10 +40,40 @@ public class ApprovalMemberResolver(
         return new ApprovalGroupInfo(
             members,
             quorum ?? new QuorumConfig("Fixed", members.Count),
-            majority ?? new MajorityConfig("Simple", "approve"),
+            NormalizeInlineMajority(majority),
             new List<ApprovalConditionInfo>(),
             null,
             null);
+    }
+
+    /// <summary>
+    /// The Workflow Builder writes <c>majority: { type: 'count' | 'percent', value: N }</c>, a
+    /// different vocabulary from <see cref="MajorityType"/>. Unmapped, <c>'count'</c> fails
+    /// <c>Enum.TryParse</c> in CheckMajority, which returns false — so the round could never
+    /// approve, silently. Map what we can and reject the rest loudly at Execute instead.
+    /// </summary>
+    private static MajorityConfig NormalizeInlineMajority(MajorityConfig? majority)
+    {
+        if (majority is null)
+            return new MajorityConfig("Simple", "approve");
+
+        if (Enum.GetNames<MajorityType>().Contains(majority.Type, StringComparer.OrdinalIgnoreCase))
+            return majority;
+
+        if (string.Equals(majority.Type, "count", StringComparison.OrdinalIgnoreCase))
+        {
+            if (majority.Value <= 0)
+                throw new InvalidOperationException(
+                    "Inline majority type 'count' requires a value greater than 0");
+
+            return majority with { Type = nameof(MajorityType.FixedCount) };
+        }
+
+        // 'percent' has no backend equivalent — Simple/TwoThirds are hardcoded fractions, there is
+        // no general percentage rule. Fail here rather than approve-never at vote time.
+        throw new InvalidOperationException(
+            $"Unsupported inline majority type '{majority.Type}'. Supported: " +
+            $"{string.Join(", ", Enum.GetNames<MajorityType>())}, count");
     }
 
     private async Task<ApprovalGroupInfo> ResolveFromCommittee(MemberSourceConfig config, CancellationToken ct)
@@ -160,7 +190,8 @@ public class ApprovalMemberResolver(
             .ToList();
 
         var quorum = new QuorumConfig(committee.QuorumType.ToString(), committee.QuorumValue);
-        var majority = new MajorityConfig(committee.MajorityType.ToString(), "approve");
+        var majority = new MajorityConfig(
+            committee.MajorityType.ToString(), "approve", committee.MajorityValue);
 
         var conditions = committee.Conditions
             .Where(c => c.IsActive)

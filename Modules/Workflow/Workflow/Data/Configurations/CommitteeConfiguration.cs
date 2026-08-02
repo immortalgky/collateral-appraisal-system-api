@@ -15,6 +15,8 @@ public class CommitteeConfiguration : IEntityTypeConfiguration<Committee>
         builder.Property(c => c.Description).HasMaxLength(500);
         builder.Property(c => c.QuorumType).HasConversion<string>().HasMaxLength(20);
         builder.Property(c => c.MajorityType).HasConversion<string>().HasMaxLength(20);
+        // 0 for the proportional majority types, which ignore it; only FixedCount reads it.
+        builder.Property(c => c.MajorityValue).HasDefaultValue(0);
         builder.Property(c => c.VotingMode).HasConversion<string>().HasMaxLength(20)
             .HasDefaultValue(VotingMode.WaitForAll);
 
