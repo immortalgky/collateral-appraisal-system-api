@@ -7,6 +7,7 @@ using Workflow.Domain.Committees;
 using Workflow.Meetings.Domain;
 using Workflow.Meetings.Domain.Events;
 using Workflow.Meetings.Features.ReleaseMeetingItem;
+using Workflow.Services.Users;
 using Xunit;
 
 namespace Workflow.Tests.Meetings;
@@ -20,6 +21,7 @@ public class ReleaseMeetingItemGateTests
 {
     private readonly IMeetingRepository _meetingRepository = Substitute.For<IMeetingRepository>();
     private readonly ICommitteeRepository _committeeRepository = Substitute.For<ICommitteeRepository>();
+    private readonly IUserDirectory _userDirectory = Substitute.For<IUserDirectory>();
     private readonly ICurrentUserService _currentUser = Substitute.For<ICurrentUserService>();
     private readonly IDateTimeProvider _clock = Substitute.For<IDateTimeProvider>();
 
@@ -27,10 +29,17 @@ public class ReleaseMeetingItemGateTests
     {
         _currentUser.Username.Returns("secretary");
         _clock.ApplicationNow.Returns(DateTime.UtcNow);
+
+        // Default: every username asked about resolves to a real user, so these tests exercise the
+        // quorum/condition rules in isolation. Overridden by the unresolved-member test below.
+        _userDirectory
+            .GetExistingAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
+            .Returns(ci => Task.FromResult<IReadOnlySet<string>>(
+                ci.Arg<IEnumerable<string>>().ToHashSet(StringComparer.OrdinalIgnoreCase)));
     }
 
     private ReleaseMeetingItemCommandHandler BuildHandler() =>
-        new(_meetingRepository, _committeeRepository, _currentUser, _clock);
+        new(_meetingRepository, _committeeRepository, _userDirectory, _currentUser, _clock);
 
     [Fact]
     public async Task Handle_RosterBelowFixedQuorum_ThrowsConflictAndDoesNotRelease()
@@ -93,6 +102,32 @@ public class ReleaseMeetingItemGateTests
             new MeetingApprover("alice", nameof(CommitteeMemberPosition.Chairman)),
             new MeetingApprover("bob", nameof(CommitteeMemberPosition.UW))
         ]);
+    }
+
+    [Fact]
+    public async Task Handle_RosterMemberIsNotARealUser_ThrowsConflictAndDoesNotRelease()
+    {
+        // A member who cannot sign in still counts toward the round's member total, so it raises
+        // the majority denominator while never being able to vote.
+        var committee = BuildCommittee(quorumValue: 2);
+        var meeting = BuildMeetingWithRoster(committee,
+            ("alice", CommitteeMemberPosition.Chairman),
+            ("ghost", CommitteeMemberPosition.UW));
+        var appraisalId = DecisionItemId(meeting);
+        Arrange(meeting, committee);
+
+        _userDirectory
+            .GetExistingAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlySet<string>>(
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "alice" }));
+
+        var act = () => BuildHandler().Handle(
+            new ReleaseMeetingItemCommand(meeting.Id, appraisalId), CancellationToken.None);
+
+        (await act.Should().ThrowAsync<ConflictException>())
+            .WithMessage("*no such user: ghost*");
+
+        meeting.DomainEvents.Should().NotContain(e => e is MeetingItemReleasedDomainEvent);
     }
 
     [Fact]

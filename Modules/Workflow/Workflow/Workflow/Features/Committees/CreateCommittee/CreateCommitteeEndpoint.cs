@@ -43,7 +43,8 @@ public record CreateCommitteeCommand(CreateCommitteeRequest Request) : ICommand<
 public record CreateCommitteeResponse(Guid Id, string Name, string Code);
 
 public class CreateCommitteeCommandHandler(
-    ICommitteeRepository committeeRepository
+    ICommitteeRepository committeeRepository,
+    IUserDirectory userDirectory
 ) : ICommandHandler<CreateCommitteeCommand, CreateCommitteeResponse>
 {
     public async Task<CreateCommitteeResponse> Handle(CreateCommitteeCommand command, CancellationToken ct)
@@ -68,6 +69,13 @@ public class CreateCommitteeCommandHandler(
 
         if (req.Members is not null)
         {
+            // Members are usernames and become approval voters — see AddCommitteeMember.
+            var known = await userDirectory.GetExistingAsync(req.Members.Select(m => m.UserId), ct);
+            var unknown = req.Members.Select(m => m.UserId).Where(u => !known.Contains(u)).ToList();
+            if (unknown.Count > 0)
+                throw new BadRequestException(
+                    $"No such user(s): {string.Join(", ", unknown)}. Committee members must be existing users");
+
             foreach (var m in req.Members)
             {
                 var position = Enum.Parse<CommitteeMemberPosition>(m.Role, ignoreCase: true);

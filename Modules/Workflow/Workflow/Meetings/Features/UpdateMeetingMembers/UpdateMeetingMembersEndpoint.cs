@@ -62,6 +62,7 @@ public record AddMeetingMemberCommand(Guid MeetingId, AddMeetingMemberRequest Re
 
 public class AddMeetingMemberCommandHandler(
     IMeetingRepository meetingRepository,
+    IUserDirectory userDirectory,
     IDateTimeProvider dateTimeProvider)
     : ICommandHandler<AddMeetingMemberCommand>
 {
@@ -69,6 +70,13 @@ public class AddMeetingMemberCommandHandler(
     {
         var meeting = await meetingRepository.GetByIdForDecisionAsync(command.MeetingId, ct)
             ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
+
+        // The roster is the approval round's voting group once the item is released, so a member
+        // who is not a real user would inflate the majority denominator while never being able to
+        // vote. Reject at the point of entry rather than at release.
+        if (!await userDirectory.ExistsAsync(command.Request.UserId, ct))
+            throw new BadRequestException(
+                $"No user '{command.Request.UserId}' exists; a meeting member must be an existing user");
 
         var member = MeetingMember.CreateManual(
             command.MeetingId,

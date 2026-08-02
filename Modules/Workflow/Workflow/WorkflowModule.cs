@@ -166,6 +166,7 @@ public static class WorkflowModule
         services.AddScoped<IApprovalMemberResolver, ApprovalMemberResolver>();
         services.AddScoped<IApprovalVoteRepository, ApprovalVoteRepository>();
         services.AddScoped<ICommitteeRepository, CommitteeRepository>();
+        services.AddScoped<IUserDirectory, UserDirectory>();
 
         // Company routing
         services.AddScoped<ICompanyRoundRobinService, CompanyRoundRobinService>();
