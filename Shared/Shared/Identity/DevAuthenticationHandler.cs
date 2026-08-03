@@ -47,6 +47,8 @@ public class DevAuthenticationHandler(
             new Claim("permissions", "USER_MANAGE"),
             new Claim("permissions", "USER_CHANGE_PASSWORD"),
             new Claim("permissions", "USER_RESET_PASSWORD"),
+            new Claim("permissions", "JOB_SCHEDULE_MANAGE"),
+            new Claim("permissions", "ADDRESS_MASTER_MANAGE"),
             // Roles
             new Claim("roles", "Admin"),
             // Scopes

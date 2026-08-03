@@ -32,6 +32,22 @@ public static class RecurringJobScheduleExtensions
 
         var set = db.Set<JobSchedule>();
 
+        // Publish this module's jobs to the cross-module admin catalog. Done here because this is
+        // the only place TContext is known, and JobSchedule is mapped once per module schema.
+        var registry = sp.GetService<IJobScheduleRegistry>();
+        if (registry is null)
+        {
+            logger.LogWarning(
+                "IJobScheduleRegistry is not registered; {Count} job(s) in {Context} will not be "
+                + "administrable. Call services.AddJobScheduleRegistry() during startup.",
+                jobs.Count, typeof(TContext).Name);
+        }
+        else
+        {
+            foreach (var def in jobs)
+                registry.Add(JobScheduleRegistryExtensions.BuildRegistration<TContext>(def));
+        }
+
         // Seed-if-missing: the code definition list is the single source of truth.
         var existingIds = set.AsNoTracking().Select(s => s.JobId).ToHashSet();
         var seeded = false;
