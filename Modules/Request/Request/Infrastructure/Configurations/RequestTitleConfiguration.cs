@@ -128,6 +128,10 @@ public class TitleLandConfiguration : IEntityTypeConfiguration<TitleLand>
                 .HasMaxLength(200)
                 .HasColumnName("TitleNumber");
 
+            titleDeedInfo.Property(p => p.BuiltOnTitleNumber)
+                .HasMaxLength(500)
+                .HasColumnName("BuiltOnTitleNumber");
+
             titleDeedInfo.Property(p => p.TitleType)
                 .HasMaxLength(50)
                 .HasColumnName("TitleType");
@@ -217,6 +221,10 @@ public class TitleLandBuildingConfiguration : IEntityTypeConfiguration<TitleLand
             titleDeedInfo.Property(p => p.TitleNumber)
                 .HasMaxLength(200)
                 .HasColumnName("TitleNumber");
+            
+            titleDeedInfo.Property(p => p.BuiltOnTitleNumber)
+                .HasMaxLength(500)
+                .HasColumnName("BuiltOnTitleNumber");
 
             titleDeedInfo.Property(p => p.TitleType)
                 .HasMaxLength(50)
@@ -298,6 +306,10 @@ public class TitleCondoConfiguration : IEntityTypeConfiguration<TitleCondo>
                 .HasMaxLength(200)
                 .HasColumnName("TitleNumber");
 
+            titleDeedInfo.Property(p => p.BuiltOnTitleNumber)
+                .HasMaxLength(500)
+                .HasColumnName("BuiltOnTitleNumber");
+
             titleDeedInfo.Property(p => p.TitleType)
                 .HasMaxLength(50)
                 .HasColumnName("TitleType");
@@ -338,6 +350,10 @@ public class TitleLeaseAgreementLandConfiguration : IEntityTypeConfiguration<Tit
             titleDeedInfo.Property(p => p.TitleNumber)
                 .HasMaxLength(200)
                 .HasColumnName("TitleNumber");
+
+            titleDeedInfo.Property(p => p.BuiltOnTitleNumber)
+                .HasMaxLength(500)
+                .HasColumnName("BuiltOnTitleNumber");
 
             titleDeedInfo.Property(p => p.TitleType)
                 .HasMaxLength(50)
@@ -426,6 +442,10 @@ public class TitleLeaseAgreementLandBuildingConfiguration : IEntityTypeConfigura
                 .HasMaxLength(200)
                 .HasColumnName("TitleNumber");
 
+            titleDeedInfo.Property(p => p.BuiltOnTitleNumber)
+                .HasMaxLength(500)
+                .HasColumnName("BuiltOnTitleNumber");
+
             titleDeedInfo.Property(p => p.TitleType)
                 .HasMaxLength(50)
                 .HasColumnName("TitleType");
@@ -505,6 +525,10 @@ public class TitleLeaseAgreementCondoConfiguration : IEntityTypeConfiguration<Ti
             titleDeedInfo.Property(p => p.TitleNumber)
                 .HasMaxLength(200)
                 .HasColumnName("TitleNumber");
+            
+            titleDeedInfo.Property(p => p.BuiltOnTitleNumber)
+                .HasMaxLength(500)
+                .HasColumnName("BuiltOnTitleNumber");
 
             titleDeedInfo.Property(p => p.TitleType)
                 .HasMaxLength(50)

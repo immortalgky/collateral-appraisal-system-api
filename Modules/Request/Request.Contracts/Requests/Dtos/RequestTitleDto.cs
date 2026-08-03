@@ -11,6 +11,7 @@ public record RequestTitleDto
     public string? TitleNumber { get; init; }
     public string? TitleType { get; init; }
     public string? TitleDetail { get; init; }
+    public string? BuiltOnTitleNumber { get; init; }
 
     // LandLocationInfo fields (renamed from SurveyInfo)
     public string? BookNumber { get; init; }

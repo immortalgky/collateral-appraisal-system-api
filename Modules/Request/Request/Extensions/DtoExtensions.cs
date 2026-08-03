@@ -206,7 +206,7 @@ public static class DtoExtensions
             case TitleCondo condo:
                 dto = dto with
                 {
-                    TitleNumber = condo.TitleDeedInfo?.TitleNumber,
+                    BuiltOnTitleNumber = condo.TitleDeedInfo?.BuiltOnTitleNumber,
                     TitleType = condo.TitleDeedInfo?.TitleType,
                     CondoName = condo.CondoInfo?.CondoName,
                     BuildingNumber = condo.CondoInfo?.BuildingNumber,
@@ -259,7 +259,7 @@ public static class DtoExtensions
             case TitleLeaseAgreementCondo leaseCondo:
                 dto = dto with
                 {
-                    TitleNumber = leaseCondo.TitleDeedInfo?.TitleNumber,
+                    BuiltOnTitleNumber = leaseCondo.TitleDeedInfo?.BuiltOnTitleNumber,
                     TitleType = leaseCondo.TitleDeedInfo?.TitleType,
                     CondoName = leaseCondo.CondoInfo?.CondoName,
                     BuildingNumber = leaseCondo.CondoInfo?.BuildingNumber,
@@ -413,7 +413,7 @@ public static class DtoExtensions
 
     public static TitleDeedInfo ToDomain(this TitleDeedInfoDto dto)
     {
-        return TitleDeedInfo.Create(dto.TitleNo, dto.DeedType);
+        return TitleDeedInfo.Create(dto.TitleNo, dto.DeedType, dto.BuiltOnTitleNumber);
     }
 
     public static LandLocationInfo ToDomain(this LandLocationInfoDto dto)
@@ -466,7 +466,7 @@ public static class DtoExtensions
             DopaAddress = dto.DopaAddress.ToDomain(),
             Notes = dto.Notes,
             // Land-related fields
-            TitleDeedInfo = TitleDeedInfo.Create(dto.TitleNumber, dto.TitleType),
+            TitleDeedInfo = TitleDeedInfo.Create(dto.TitleNumber, dto.TitleType, dto.BuiltOnTitleNumber),
             LandLocationInfo = LandLocationInfo.Create(dto.BookNumber, dto.PageNumber, dto.LandParcelNumber,
                 dto.SurveyNumber, dto.MapSheetNumber, dto.Rawang, dto.AerialMapName, dto.AerialMapNumber),
             LandArea = LandArea.Of(dto.AreaRai, dto.AreaNgan, dto.AreaSquareWa),
