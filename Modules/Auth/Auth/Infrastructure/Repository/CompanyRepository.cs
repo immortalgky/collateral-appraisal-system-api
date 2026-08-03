@@ -16,11 +16,23 @@ public class CompanyRepository(AuthDbContext dbContext) : ICompanyRepository
 
     public async Task<List<Company>> GetAllAsync(bool activeOnly = false, CancellationToken cancellationToken = default)
     {
-        // Read-only callers (selection, listing, seed lookups), so skip change tracking.
+        // Read-only callers (selection, listing), so skip change tracking. Seeding uses
+        // GetAllForSeedAsync below — it needs the soft-deleted rows this one hides.
         var query = dbContext.Companies.AsNoTracking();
         if (activeOnly)
             query = query.Where(c => c.IsActive);
         return await query.OrderBy(c => c.Name).ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<Company>> GetAllForSeedAsync(CancellationToken cancellationToken = default)
+    {
+        // IgnoreQueryFilters so soft-deleted rows are included: AuthDbContext filters them out
+        // globally, and without them the seeder cannot tell "never seeded" from "seeded, then
+        // deleted by an admin" — it would resurrect the deleted company on every restart.
+        return await dbContext.Companies
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<List<Company>> SearchAsync(string? searchTerm, bool activeOnly = false, CancellationToken cancellationToken = default)

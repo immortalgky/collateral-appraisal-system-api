@@ -656,8 +656,9 @@ public class AuthDataSeed(
     }
 
     // Seeds the real external-appraisal companies from the bank's parameter listing
-    // (embedded JSON, generated from the ExtAppraisalCompany sheet). Idempotent by Name
-    // (matches the unique index), so the test companies above and re-runs are unaffected.
+    // (embedded JSON, generated from the ExtAppraisalCompany sheet). Idempotent by
+    // LegacyCompanyCode, with Name as a fallback, so the test companies above and re-runs are
+    // unaffected.
     private async Task SeedExternalAppraisalCompaniesAsync()
     {
         const string resourceName = "Auth.Infrastructure.Seed.Data.external-appraisal-companies.json";
@@ -671,18 +672,39 @@ public class AuthDataSeed(
             new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
         if (seedCompanies is null || seedCompanies.Count == 0) return;
 
-        // Load existing names once instead of one GetByNameAsync per company — this method runs on
-        // every startup, so the per-row round-trips (~95) would otherwise be paid each restart.
-        // Case-insensitive to match the auth.Companies Name unique index (DB collation), so two seed
-        // rows differing only in case don't both insert and trip a unique-constraint violation.
-        var existingNames = (await companyRepository.GetAllAsync())
+        // Load the existing rows once instead of one GetByNameAsync per company — this method runs
+        // on every startup, so the per-row round-trips (~95) would otherwise be paid each restart.
+        // GetAllForSeedAsync (not GetAllAsync) so soft-deleted companies are included: a company an
+        // admin deleted must stay deleted, not reappear on the next restart.
+        var existing = await companyRepository.GetAllForSeedAsync();
+
+        // Match on LegacyCompanyCode, which is unique across every seed row and — unlike Name —
+        // survives an admin renaming the company (e.g. English -> Thai). Keying on Name alone meant
+        // a renamed company was no longer recognised and got re-inserted under its old English name.
+        var existingCodes = existing
+            .Where(c => !string.IsNullOrWhiteSpace(c.LegacyCompanyCode))
+            .Select(c => c.LegacyCompanyCode!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Name is still checked as a fallback: it covers rows created before a code was recorded
+        // (the demo companies above, anything added via /admin/companies) and, because the
+        // auth.Companies Name index is unique, it stops two seed rows that share a name — codes 85
+        // and 95 are both "Advance Property and Consultant Co.,Ltd." — from tripping it.
+        // Case-insensitive to match the index's DB collation.
+        var existingNames = existing
             .Select(c => c.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var added = false;
         foreach (var c in seedCompanies)
         {
-            if (string.IsNullOrWhiteSpace(c.Name) || !existingNames.Add(c.Name)) continue;
+            if (string.IsNullOrWhiteSpace(c.Name)) continue;
+
+            // Seen by code => already seeded, however it has since been renamed or deleted.
+            if (!string.IsNullOrWhiteSpace(c.LegacyCompanyCode) && !existingCodes.Add(c.LegacyCompanyCode))
+                continue;
+
+            if (!existingNames.Add(c.Name)) continue;
 
             Company company;
             try
