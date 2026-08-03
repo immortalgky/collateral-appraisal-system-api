@@ -43,6 +43,12 @@ public class TaskAssignmentConfigurationConfiguration : IEntityTypeConfiguration
         builder.Property(x => x.BankingSegment)
             .HasMaxLength(20);
 
+        // Nullable on purpose: null means "inherit the workflow definition JSON".
+        builder.Property(x => x.TeamConstrained);
+
+        builder.Property(x => x.ExcludeAssigneesFrom)
+            .HasColumnType("nvarchar(max)");
+
         // NOTE: SupervisorId and ReplacementUserId properties removed - now handled by UserManagement mock data
 
         builder.Property(x => x.AdditionalConfiguration)

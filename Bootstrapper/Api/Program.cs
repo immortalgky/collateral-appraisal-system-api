@@ -17,6 +17,7 @@ using Shared.Data;
 using Shared.Data.Dapper;
 using Shared.Data.Outbox;
 using Shared.Logging;
+using Shared.Scheduling;
 using Shared.Security;
 using Integration.Application.EventHandlers.Outbound;
 using Appraisal.Application.EventHandlers;
@@ -63,6 +64,10 @@ var appraisalAssembly = typeof(AppraisalModule).Assembly;
 var integrationAssembly = typeof(IntegrationModule).Assembly;
 var commonAssembly = typeof(CommonModule).Assembly;
 var reportingAssembly = typeof(ReportingModule).Assembly;
+
+// Cross-module catalog of recurring jobs, populated by each UseModuleRecurringJobs<T>() below and
+// read by the job-schedule admin endpoints. Must be registered before those Use* calls run.
+builder.Services.AddJobScheduleRegistry();
 
 builder.Services.AddCarterWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
     parameterAssembly, documentAssembly, workflowAssembly, collateralAssembly, appraisalAssembly, integrationAssembly,

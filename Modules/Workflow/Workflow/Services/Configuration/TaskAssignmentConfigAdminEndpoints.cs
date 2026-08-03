@@ -10,7 +10,8 @@ using Workflow.AssigneeSelection.Core;
 using Workflow.Services.Configuration.Models;
 using Workflow.Workflow;
 using Workflow.Workflow.Features.GetVersions;
-using Workflow.Workflow.Features.GetWorkflowDefinitions;
+using Workflow.Workflow.Infrastructure.Seed;
+using Workflow.Workflow.Repositories;
 using Workflow.Workflow.Schema;
 
 namespace Workflow.Services.Configuration;
@@ -131,20 +132,28 @@ public class TaskAssignmentConfigAdminEndpoints : ICarterModule
     private static async Task<IResult> ListActivities(
         Guid? workflowDefinitionId,
         ISender sender,
+        IWorkflowDefinitionRepository definitionRepository,
         CancellationToken ct)
     {
         var definitionId = workflowDefinitionId;
 
-        // Default to the single active definition when not specified.
+        // Default to the appraisal workflow, resolved exactly the way the engine resolves it:
+        // by name, highest version (see RequestSubmittedIntegrationEventConsumer). Counting active
+        // definitions does not work here — every environment has several (Quotation, Document
+        // Followup, Fee Appointment Approval), plus any renamed "_bk*" backups, all left IsActive.
+        // The name lookup is what excludes those backups, which is why they are renamed.
         if (definitionId is null)
         {
-            var definitions = await sender.Send(new GetWorkflowDefinitionsQuery { ActiveOnly = true }, ct);
-            if (definitions.Definitions.Count == 1)
-                definitionId = definitions.Definitions[0].Id;
-            else
+            var definition = await definitionRepository.GetLatestVersion(
+                AppraisalWorkflowDefinitionSeeder.WorkflowName, ct);
+
+            if (definition is null)
                 return Results.Problem(
-                    detail: "workflowDefinitionId is required (multiple or no active workflow definitions exist).",
+                    detail: $"Workflow definition '{AppraisalWorkflowDefinitionSeeder.WorkflowName}' not found. " +
+                            "Pass workflowDefinitionId to target a different workflow.",
                     statusCode: StatusCodes.Status400BadRequest);
+
+            definitionId = definition.Id;
         }
 
         var version = await sender.Send(new GetLatestVersionQuery { DefinitionId = definitionId.Value }, ct);
@@ -154,9 +163,12 @@ public class TaskAssignmentConfigAdminEndpoints : ICarterModule
         WorkflowSchema? schema;
         try
         {
+            // Must use the engine's options, not bare PropertyNameCaseInsensitive: TransitionDefinition.Type
+            // is an enum stored as the string "Conditional", so without the JsonStringEnumConverter this
+            // throws and the picker silently degrades to "activity list unavailable".
             schema = JsonSerializer.Deserialize<WorkflowSchema>(
                 version.JsonSchema,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                WorkflowDefinitionSeedHelper.EngineJsonOptions);
         }
         catch (JsonException)
         {

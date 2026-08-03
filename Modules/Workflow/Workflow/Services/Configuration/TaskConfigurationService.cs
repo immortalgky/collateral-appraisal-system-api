@@ -113,7 +113,9 @@ public class TaskConfigurationService : ITaskConfigurationService
                 request.AdminPoolId,
                 request.EscalateToAdminPool,
                 request.AdditionalConfiguration != null ? JsonSerializer.Serialize(request.AdditionalConfiguration) : null,
-                request.IsActive);
+                request.IsActive,
+                request.TeamConstrained,
+                request.ExcludeAssigneesFrom != null ? JsonSerializer.Serialize(request.ExcludeAssigneesFrom) : null);
 
             _context.TaskAssignmentConfigurations.Add(entity);
             await _context.SaveChangesAsync(cancellationToken);
@@ -155,7 +157,9 @@ public class TaskConfigurationService : ITaskConfigurationService
                 request.AdminPoolId,
                 request.EscalateToAdminPool,
                 request.AdditionalConfiguration != null ? JsonSerializer.Serialize(request.AdditionalConfiguration) : null,
-                request.IsActive);
+                request.IsActive,
+                request.TeamConstrained,
+                request.ExcludeAssigneesFrom != null ? JsonSerializer.Serialize(request.ExcludeAssigneesFrom) : null);
 
             await _context.SaveChangesAsync(cancellationToken);
 
@@ -227,6 +231,8 @@ public class TaskConfigurationService : ITaskConfigurationService
             SpecificAssignee = entity.SpecificAssignee,
             AssigneeGroup = entity.AssigneeGroup,
             BankingSegment = entity.BankingSegment,
+            TeamConstrained = entity.TeamConstrained,
+            ExcludeAssigneesFrom = DeserializeOptionalList(entity.ExcludeAssigneesFrom),
             // NOTE: SupervisorId and ReplacementUserId removed - now handled by UserManagement mock data
             AdditionalConfiguration = DeserializeAdditionalConfiguration(entity.AdditionalConfiguration),
             IsActive = entity.IsActive,
@@ -247,6 +253,27 @@ public class TaskConfigurationService : ITaskConfigurationService
         {
             _logger.LogWarning("Failed to deserialize strategies JSON: {Json}", strategiesJson);
             return new List<string>();
+        }
+    }
+
+    /// <summary>
+    /// Nullable counterpart of <see cref="DeserializeStrategies"/>. Null is preserved (rather than
+    /// collapsed to an empty list) because null means "inherit the definition JSON" while an empty
+    /// array means "explicitly no exclusions".
+    /// </summary>
+    private List<string>? DeserializeOptionalList(string? json)
+    {
+        if (string.IsNullOrEmpty(json))
+            return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(json);
+        }
+        catch (JsonException)
+        {
+            _logger.LogWarning("Failed to deserialize activity id list JSON: {Json}", json);
+            return null;
         }
     }
 
