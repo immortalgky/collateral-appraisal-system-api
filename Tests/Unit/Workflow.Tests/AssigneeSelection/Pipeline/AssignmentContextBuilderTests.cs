@@ -58,6 +58,81 @@ public class AssignmentContextBuilderTests
         context.ExternalConfig.Should().BeNull();
     }
 
+    // ── assignmentRules precedence: DB override > JSON definition, per field ──
+
+    [Fact]
+    public async Task BuildAsync_DbTeamConstrainedFalse_OverridesJsonTrue()
+    {
+        // Arrange — JSON says team-constrained, the override forces it off (the whole-group pool case).
+        _configurationService
+            .GetConfigurationAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new TaskAssignmentConfigurationDto { TeamConstrained = false });
+
+        var context = CreatePipelineContext(
+            properties: new Dictionary<string, object>
+            {
+                ["assignmentRules"] = new Dictionary<string, object> { ["teamConstrained"] = true }
+            },
+            priorAssigneeId: "somchai");
+
+        // Act
+        await _sut.BuildAsync(context);
+
+        // Assert — constraint is off, so no team is derived from the previous assignee at all.
+        context.Rules.TeamConstrained.Should().BeFalse();
+        context.TeamId.Should().BeNullOrEmpty();
+        await _teamService.DidNotReceive().GetTeamForUserAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task BuildAsync_DbTeamConstrainedNull_InheritsJsonValue()
+    {
+        // Arrange — an override row that does not touch TeamConstrained (every pre-existing row).
+        // Regression guard for the ordering: the config is loaded before the rules are built.
+        _configurationService
+            .GetConfigurationAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new TaskAssignmentConfigurationDto { TeamConstrained = null });
+
+        var context = CreatePipelineContext(
+            properties: new Dictionary<string, object>
+            {
+                ["assignmentRules"] = new Dictionary<string, object> { ["teamConstrained"] = true }
+            });
+
+        // Act
+        await _sut.BuildAsync(context);
+
+        // Assert — the JSON baseline survives.
+        context.Rules.TeamConstrained.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task BuildAsync_DbExcludeAssigneesFrom_OverridesJsonList()
+    {
+        // Arrange
+        _configurationService
+            .GetConfigurationAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(new TaskAssignmentConfigurationDto
+            {
+                ExcludeAssigneesFrom = ["int-appraisal-check"]
+            });
+
+        var context = CreatePipelineContext(
+            properties: new Dictionary<string, object>
+            {
+                ["assignmentRules"] = new Dictionary<string, object>
+                {
+                    ["excludeAssigneesFrom"] = new List<string> { "some-other-activity" }
+                }
+            });
+
+        // Act
+        await _sut.BuildAsync(context);
+
+        // Assert
+        context.Rules.ExcludeAssigneesFrom.Should().BeEquivalentTo(["int-appraisal-check"]);
+    }
+
     [Fact]
     public async Task BuildAsync_TeamConstrainedWithTeamIdVariable_UsesExplicitVariable()
     {

@@ -257,7 +257,8 @@ public class AssignmentPipeline : IAssignmentPipeline
             Properties = activityCtx.Properties,
             StartedBy = activityCtx.WorkflowInstance.StartedBy,
             CandidatePool = pipelineCtx.CandidatePool,
-            Variables = activityCtx.Variables
+            Variables = activityCtx.Variables,
+            TeamId = pipelineCtx.TeamId
         };
 
         var engineResult = await _engine.ExecuteAsync(assignmentContext, cancellationToken);

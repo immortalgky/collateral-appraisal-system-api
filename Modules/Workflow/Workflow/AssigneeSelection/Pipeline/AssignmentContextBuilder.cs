@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Workflow.AssigneeSelection.Teams;
 using Workflow.Services.Configuration;
+using Workflow.Services.Configuration.Models;
 using Workflow.Workflow;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Models;
@@ -27,10 +28,21 @@ public class AssignmentContextBuilder : IAssignmentContextBuilder
     {
         var activityCtx = context.ActivityContext;
 
-        // 1. Parse assignmentRules from workflow definition JSON
-        context.Rules = ParseAssignmentRules(activityCtx);
+        // 1. Resolve the DB-backed assignment override (scoped by activity + workflow + banking segment).
+        //    The service returns null on miss/error, in which case the JSON definition stays the baseline.
+        //    This MUST run before the rules are built: the team derivation in step 3 reads
+        //    Rules.TeamConstrained, and the override is allowed to flip it.
+        var bankingSegment = GetJsonString(activityCtx.Variables, "bankingSegment");
+        context.ExternalConfig = await _configurationService.GetConfigurationAsync(
+            activityCtx.ActivityId,
+            activityCtx.WorkflowInstance.WorkflowDefinitionId.ToString(),
+            bankingSegment,
+            cancellationToken);
 
-        // 2a. Read TeamId — check activity-specific teamIdVariable first
+        // 2. Build assignmentRules: JSON definition is the baseline, the DB override wins per field.
+        context.Rules = MergeAssignmentRules(ParseAssignmentRules(activityCtx), context.ExternalConfig);
+
+        // 3a. Read TeamId — check activity-specific teamIdVariable first
         var teamVarName = GetJsonString(activityCtx.Properties, "teamIdVariable");
         if (!string.IsNullOrEmpty(teamVarName))
         {
@@ -39,7 +51,7 @@ public class AssignmentContextBuilder : IAssignmentContextBuilder
                 context.TeamId = activityTeamId;
         }
 
-        // 2b. If team-constrained but no explicit variable, derive from previous assignee's team.
+        // 3b. If team-constrained but no explicit variable, derive from previous assignee's team.
         //     Fan-out-aware path runs first: when we are inside a fan-out stage transition,
         //     the activity execution is still InProgress so GetMostRecentPriorAssignee (which only
         //     scans Completed executions) would miss the maker. We read CompletedBy from the
@@ -81,7 +93,7 @@ public class AssignmentContextBuilder : IAssignmentContextBuilder
             }
         }
 
-        // 2c. Fall back to global TeamId variable
+        // 3c. Fall back to global TeamId variable
         if (string.IsNullOrEmpty(context.TeamId))
         {
             var globalTeamId = GetJsonString(activityCtx.Variables, "TeamId");
@@ -89,26 +101,17 @@ public class AssignmentContextBuilder : IAssignmentContextBuilder
                 context.TeamId = globalTeamId;
         }
 
-        // 3. Extract RuntimeOverride for this activity
+        // 4. Extract RuntimeOverride for this activity
         context.RuntimeOverride = activityCtx.RuntimeOverrides;
 
-        // 3b. Resolve the DB-backed assignment override (scoped by activity + workflow + banking segment).
-        //     The service returns null on miss/error, in which case the JSON definition stays the baseline.
-        var bankingSegment = GetJsonString(activityCtx.Variables, "bankingSegment");
-        context.ExternalConfig = await _configurationService.GetConfigurationAsync(
-            activityCtx.ActivityId,
-            activityCtx.WorkflowInstance.WorkflowDefinitionId.ToString(),
-            bankingSegment,
-            cancellationToken);
-
-        // 3c. Resolve the assignee group ONCE with precedence RuntimeOverride > DB config > JSON definition.
+        // 4b. Resolve the assignee group ONCE with precedence RuntimeOverride > DB config > JSON definition.
         //     Stage 2 (TeamFilter) and Stage 3 (engine) both read this so they cannot drift apart.
         context.ResolvedAssigneeGroup =
             JsonPropertyReader.NullIfEmpty(context.RuntimeOverride?.RuntimeAssigneeGroup)
             ?? JsonPropertyReader.NullIfEmpty(context.ExternalConfig?.AssigneeGroup)
             ?? GetJsonString(activityCtx.Properties, "assigneeGroup");
 
-        // 4. Build PriorAssignees map from completed activity executions.
+        // 5. Build PriorAssignees map from completed activity executions.
         //    When FanOutKey is set on the ActivityContext, also include per-item stage history
         //    entries keyed as "<activityId>:<stageName>" so excludeAssigneesFrom can reference
         //    prior stages on the same fan-out item.
@@ -168,50 +171,27 @@ public class AssignmentContextBuilder : IAssignmentContextBuilder
             .FirstOrDefault();
     }
 
-    private ActivityAssignmentRules ParseAssignmentRules(ActivityContext activityCtx)
+    /// <summary>
+    /// Applies the DB override on top of the JSON-derived rules, per field. A null column means
+    /// "inherit the definition JSON", which is what every pre-existing row has — so untouched
+    /// overrides keep behaving exactly as before.
+    /// </summary>
+    private static ActivityAssignmentRules MergeAssignmentRules(
+        ActivityAssignmentRules fromJson,
+        TaskAssignmentConfigurationDto? config)
     {
-        // Try to get assignmentRules from activity properties (parsed from JSON definition)
-        if (activityCtx.Properties.TryGetValue("assignmentRules", out var rulesObj))
-            try
-            {
-                if (rulesObj is JsonElement jsonElement)
-                {
-                    var teamConstrained = false;
-                    var excludeFrom = new List<string>();
+        if (config is null)
+            return fromJson;
 
-                    if (jsonElement.TryGetProperty("teamConstrained", out var tc))
-                        teamConstrained = tc.GetBoolean();
-
-                    if (jsonElement.TryGetProperty("excludeAssigneesFrom", out var ea) &&
-                        ea.ValueKind == JsonValueKind.Array)
-                        foreach (var item in ea.EnumerateArray())
-                        {
-                            var val = item.GetString();
-                            if (!string.IsNullOrEmpty(val))
-                                excludeFrom.Add(val);
-                        }
-
-                    return new ActivityAssignmentRules(teamConstrained, excludeFrom);
-                }
-
-                if (rulesObj is Dictionary<string, object> dict)
-                {
-                    var teamConstrained = dict.TryGetValue("teamConstrained", out var tc) && tc is true;
-                    var excludeFrom = new List<string>();
-
-                    if (dict.TryGetValue("excludeAssigneesFrom", out var ea) && ea is List<string> list)
-                        excludeFrom = list;
-
-                    return new ActivityAssignmentRules(teamConstrained, excludeFrom);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to parse assignmentRules for {ActivityId}", activityCtx.ActivityId);
-            }
-
-        return ActivityAssignmentRules.Default;
+        return fromJson with
+        {
+            TeamConstrained = config.TeamConstrained ?? fromJson.TeamConstrained,
+            ExcludeAssigneesFrom = config.ExcludeAssigneesFrom ?? fromJson.ExcludeAssigneesFrom
+        };
     }
+
+    private ActivityAssignmentRules ParseAssignmentRules(ActivityContext activityCtx)
+        => ActivityAssignmentRules.Parse(activityCtx.Properties, _logger, activityCtx.ActivityId);
 
     /// <summary>
     /// Builds the prior-assignees map used by <see cref="ExclusionFilter"/>.

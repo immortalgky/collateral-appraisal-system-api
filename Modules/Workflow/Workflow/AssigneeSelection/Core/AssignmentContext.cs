@@ -28,4 +28,12 @@ public class AssignmentContext
     /// Workflow instance variables (runtime state). Used by VariableAssignee strategy.
     /// </summary>
     public Dictionary<string, object>? Variables { get; set; }
+
+    /// <summary>
+    /// The team the pipeline actually resolved for this assignment (Stage 1), or null when the
+    /// assignment is not scoped to a team. Selectors must use this rather than inferring a team
+    /// from <see cref="CandidatePool"/> — the pool holds every group member (each carrying their
+    /// own team) whenever no team constraint applied or no team could be derived.
+    /// </summary>
+    public string? TeamId { get; set; }
 }
