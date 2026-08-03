@@ -97,7 +97,7 @@ public static class MenuSeedData
         new("main.appraisal", "Appraisal", "magnifying-glass-chart", IconStyle.Solid, "text-cyan-500", "/appraisals", "APPRAISAL_VIEW", null,
             new List<MenuSeedNode>
             {
-                new("main.appraisal.search", "Search", "magnifying-glass", IconStyle.Solid, "text-cyan-500", "/appraisals/search", "APPRAISAL_VIEW", null),
+                new("main.appraisal.search", "Search", "magnifying-glass", IconStyle.Solid, "text-cyan-500", "/appraisals/list", "APPRAISAL_VIEW", null),
                 new("main.appraisal.my-appraisals", "My Appraisals", "folder-user", IconStyle.Solid, "text-cyan-500", "/appraisals/my-appraisals", "APPRAISAL_VIEW", null),
                 new("main.appraisal.pending-review", "Pending Review", "clipboard-check", IconStyle.Solid, "text-amber-500", "/appraisals/pending-review", "APPRAISAL_REVIEW", null),
             }),
@@ -195,6 +195,7 @@ public static class MenuSeedData
                 new("main.workflow-step-validation", "Workflow Step Validation", "shield-check", IconStyle.Solid, "text-orange-500", "/admin/workflow-step-validation", "WORKFLOW_ADMIN", "WORKFLOW_ADMIN"),
                 new("main.workflow-assignment-config", "Task Assignment Overrides", "users-gear", IconStyle.Solid, "text-orange-500", "/admin/workflow-assignment-config", "WORKFLOW_ADMIN", "WORKFLOW_ADMIN"),
                 new("main.workflow-roundrobin-config", "Company Round-Robin Pools", "shuffle", IconStyle.Solid, "text-orange-500", "/admin/workflow-roundrobin-config", "WORKFLOW_ADMIN", "WORKFLOW_ADMIN"),
+                new("main.auto-assignment-rules", "Auto Assignment Rules", "route", IconStyle.Solid, "text-orange-500", "/admin/auto-assignment-rules", "WORKFLOW_ADMIN", "WORKFLOW_ADMIN"),
             },
             ViewPermissionPrefix: "WORKFLOW_", LabelTh: "เวิร์กโฟลว์"),
 
@@ -210,7 +211,12 @@ public static class MenuSeedData
                 new("main.fee-approval-tiers", "Fee Approval Tiers", "layer-group", IconStyle.Solid, "text-orange-500", "/admin/fee-approval-tiers", "FEE_APPROVAL_CONFIG", "FEE_APPROVAL_CONFIG"),
                 new("main.appointment-approval-rule", "Appointment Approval Rule", "calendar-xmark", IconStyle.Solid, "text-orange-500", "/admin/appointment-approval-rule", "APPOINTMENT_APPROVAL_CONFIG", "APPOINTMENT_APPROVAL_CONFIG"),
                 new("main.evaluation-config", "Evaluation Criteria Config", "star-half-stroke", IconStyle.Solid, "text-orange-500", "/admin/evaluation-config", "EVALUATION_CONFIG_MANAGE", "EVALUATION_CONFIG_MANAGE"),
-                new("main.sla-config", "OLA / SLA Targets", "stopwatch", IconStyle.Solid, "text-orange-500", "/admin/sla-config", "SLA_CONFIG_MANAGE", "SLA_CONFIG_MANAGE"),
+                // Targets + holidays + business hours, all three tabs of the same screen.
+                new("main.sla-config", "SLA Configuration", "stopwatch", IconStyle.Solid, "text-orange-500", "/admin/sla-config", "SLA_CONFIG_MANAGE", "SLA_CONFIG_MANAGE"),
+                // Committee composition / quorum / thresholds. Endpoints are login-only, so this
+                // gate is what actually restricts the screen. MEETING_ADMIN = Admin + IntAdmin.
+                new("main.committees", "Committees", "users-line", IconStyle.Solid, "text-orange-500", "/admin/committees", "MEETING_ADMIN", "MEETING_ADMIN"),
+                new("main.system-configurations", "System Configuration", "gears", IconStyle.Solid, "text-rose-500", "/admin/system-configurations", "PARAMETER_MANAGE", "PARAMETER_MANAGE"),
                 // Title (Land Dept) and DOPA geocode hierarchies — two separate datasets.
                 new("main.address-masters", "Address Masters", "map-location-dot", IconStyle.Solid, "text-rose-500", "/admin/address-masters", "ADDRESS_MASTER_MANAGE", "ADDRESS_MASTER_MANAGE"),
             }, LabelTh: "กฎเกณฑ์ธุรกิจ"),
@@ -268,16 +274,22 @@ public static class MenuSeedData
             ":basePath/administration", "APPRAISAL_ADMINISTRATION_VIEW", "APPRAISAL_ADMINISTRATION_EDIT"),
         new("appraisal.appointment", "Appointment & Fee", "calendar-check", IconStyle.Solid, "text-orange-500",
             ":basePath/appointment", "APPRAISAL_APPOINTMENT_VIEW", "APPRAISAL_APPOINTMENT_EDIT"),
+        // EditPermissionCode = view code: this is an action tab, so anyone who can open the fee
+        // approval task can also act on it (approve/reject). Makes it editable for all fee-approver
+        // roles that hold TASK_FEE_APPOINTMENT_APPROVAL (IntAdmin, IntAppraisalChecker, Admin).
         new("appraisal.fee-appointment-approval", "Fee & Appointment Approval", "check-to-slot", IconStyle.Solid, "text-emerald-500",
-            ":basePath/fee-appointment-approval", "TASK_FEE_APPOINTMENT_APPROVAL", null),
+            ":basePath/fee-appointment-approval", "TASK_FEE_APPOINTMENT_APPROVAL", "TASK_FEE_APPOINTMENT_APPROVAL"),
+        // Action tabs: editable by whoever can open the task; scoped to their own activity via
+        // ActivityMenuOverrides (hidden on the other quotation/assignment/check activities).
         new("appraisal.quotation-submit", "Submit Quotation", "paper-plane", IconStyle.Solid, "text-pink-500",
-            ":basePath/quotation/submit", "TASK_QUOTATION_SUBMIT", null),
+            ":basePath/quotation/submit", "TASK_QUOTATION_SUBMIT", "TASK_QUOTATION_SUBMIT"),
         new("appraisal.quotation-respond-negotiation", "Respond to Negotiation", "comments-dollar", IconStyle.Solid, "text-pink-500",
-            ":basePath/quotation/respond-negotiation", "TASK_QUOTATION_NEGOTIATE", null),
+            ":basePath/quotation/respond-negotiation", "TASK_QUOTATION_NEGOTIATE", "TASK_QUOTATION_NEGOTIATE"),
         new("appraisal.quotation-review", "Review Quotation Bids", "magnifying-glass-chart", IconStyle.Solid, "text-pink-500",
             ":basePath/quotation/review", "TASK_QUOTATION_REVIEW", null),
+        // Action tab: editable, scoped to rm-pick-winner via ActivityMenuOverrides (hidden elsewhere).
         new("appraisal.quotation-pick-winner", "Pick Quotation Winner", "medal", IconStyle.Solid, "text-pink-500",
-            ":basePath/quotation/pick-winner", "TASK_QUOTATION_PICK_WINNER", null),
+            ":basePath/quotation/pick-winner", "TASK_QUOTATION_PICK_WINNER", "TASK_QUOTATION_PICK_WINNER"),
         new("appraisal.quotation-finalize", "Finalize Quotation", "circle-check", IconStyle.Solid, "text-pink-500",
             ":basePath/quotation/finalize", "TASK_QUOTATION_FINALIZE", null),
         new("appraisal.property", "Property Information", "buildings", IconStyle.Solid, "text-purple-500",
@@ -290,8 +302,9 @@ public static class MenuSeedData
             ":basePath/property-pma", "APPRAISAL_PROPERTY_PMA_VIEW", "APPRAISAL_PROPERTY_PMA_EDIT"),
         new("appraisal.documents", "Document Checklist", "file-circle-check", IconStyle.Solid, "text-teal-500",
             ":basePath/documents", "APPRAISAL_DOCUMENTS_VIEW", "APPRAISAL_DOCUMENTS_EDIT"),
+        // Action tab: editable, scoped to provide-additional-documents via ActivityMenuOverrides.
         new("appraisal.document-followup", "Provide Documents", "file-circle-plus", IconStyle.Solid, "text-amber-500",
-            ":basePath/provide-documents", "TASK_PROVIDE_ADDITIONAL_DOCS", null),
+            ":basePath/provide-documents", "TASK_PROVIDE_ADDITIONAL_DOCS", "TASK_PROVIDE_ADDITIONAL_DOCS"),
         new("appraisal.summary", "Summary & Decision", "paper-plane", IconStyle.Solid, "text-sky-500",
             ":basePath/summary", "APPRAISAL_SUMMARY_VIEW", "APPRAISAL_SUMMARY_EDIT"),
     };

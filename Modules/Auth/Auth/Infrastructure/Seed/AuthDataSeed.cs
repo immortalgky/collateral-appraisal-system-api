@@ -79,12 +79,13 @@ public class AuthDataSeed(
             "Internal Admin — manages workflow assignments, appraisals, meetings, and internal staff.",
             AuthScopes.Bank,
             [
-                "DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_ASSIGNMENT",
+                "DASHBOARD_VIEW", "REQUEST_VIEW", "REQUEST_CREATE", "TASK_LIST_VIEW", "TASK_APPR_ASSIGNMENT",
                 "TASK_MONITOR_VIEW", "TASK_MONITOR_REASSIGN",
                 "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "REPORT_OP_VIEW",
                 "MEETING_MANAGE", "MEETING_ADMIN", "WORKFLOW_MANAGE", "USER_MANAGE",
                 "QUOTATION_VIEW", "QUOTATION_DRAFT_VIEW", "QUOTATION_DRAFT_EDIT",
-                "TASK_QUOTATION_REVIEW", "TASK_QUOTATION_FINALIZE",
+                // TASK_QUOTATION_REVIEW / TASK_QUOTATION_FINALIZE removed: IntAdmin handles quotations
+                // via the standalone Quotation screen / administration, not as separate appraisal tabs.
                 "COLLATERAL_ADMIN",
                 "INVOICE_VIEW", "INVOICE_APPROVE", "REPORT_EVALUATION_VIEW", "EVALUATION_CONFIG_MANAGE",
                 "SLA_CONFIG_MANAGE",
@@ -93,7 +94,14 @@ public class AuthDataSeed(
                 "BLOCK_REAPPRAISAL_VIEW", "BLOCK_REAPPRAISAL_CREATE",
                 "TASK_FEE_APPOINTMENT_APPROVAL", "FEE_APPROVAL_CONFIG", "APPOINTMENT_APPROVAL_CONFIG",
                 "WORKFLOW_ADMIN",
-                ..appraisalSectionViews
+                // IntAdmin appraisal side-nav is trimmed: Request Information (view), Administration
+                // (view+edit) and Summary & Decision (view+edit) only. 360, Appointment & Fee,
+                // Property* and Document Checklist are removed, so this role does NOT use the shared
+                // appraisalSectionViews. (Fee & Appointment Approval is editable via its own menu-item
+                // EditPermissionCode = TASK_FEE_APPOINTMENT_APPROVAL, which IntAdmin holds above.)
+                "APPRAISAL_REQUEST_VIEW",
+                "APPRAISAL_ADMINISTRATION_VIEW", "APPRAISAL_ADMINISTRATION_EDIT",
+                "APPRAISAL_SUMMARY_VIEW", "APPRAISAL_SUMMARY_EDIT"
             ]);
         await SeedRoleWithPermissionsAsync(ExtAdminRoleName,
             "External Company Admin — manages external company users and external appraisal assignments.",
@@ -105,7 +113,14 @@ public class AuthDataSeed(
                 "TASK_MONITOR_VIEW:TEAM", "TASK_MONITOR_REASSIGN:TEAM",
                 "QUOTATION_EXT_VIEW", "TASK_QUOTATION_SUBMIT", "TASK_QUOTATION_NEGOTIATE",
                 "INVOICE_EXT_VIEW", "INVOICE_CREATE",
-                ..appraisalSectionViews
+                // ExtAdmin appraisal side-nav: Request Information (view-only), Appointment & Fee
+                // (view+edit) and Summary & Decision (view+edit). 360, Administration, Property* and
+                // Document Checklist are removed, so this role does NOT use the shared section arrays.
+                // Submit Quotation / Respond to Negotiation tabs remain (via the TASK_QUOTATION_* perms
+                // above), editable, and are scoped to their own activity via ActivityMenuOverrides.
+                "APPRAISAL_REQUEST_VIEW",
+                "APPRAISAL_APPOINTMENT_VIEW", "APPRAISAL_APPOINTMENT_EDIT",
+                "APPRAISAL_SUMMARY_VIEW", "APPRAISAL_SUMMARY_EDIT"
             ]);
         await SeedRoleWithPermissionsAsync(RequestMakerRoleName,
             "Request Maker — creates appraisal requests and handles initiation tasks.",
@@ -116,14 +131,20 @@ public class AuthDataSeed(
                 "QUOTATION_VIEW", "TASK_QUOTATION_PICK_WINNER",
                 "STANDALONE_USE", "REAPPRAISAL_VIEW",
                 "BLOCK_REAPPRAISAL_VIEW", "BLOCK_REAPPRAISAL_CREATE",
-                // Appraisal section perms are the ceiling for the initiation / provide-docs tabs.
-                // Activity overrides then restrict (hide / read-only) the rest per task.
-                ..appraisalSectionViews, ..appraisalSectionEdits
+                // Appraisal side-nav trimmed to Request Information and Summary & Decision only
+                // (view + edit). During the appraisal-initiation activity this leaves just the
+                // Request Information tab editable (Summary is hidden by the initiation override).
+                // Pick Quotation Winner / Provide Documents tabs remain via the TASK_* perms above.
+                "APPRAISAL_REQUEST_VIEW", "APPRAISAL_REQUEST_EDIT",
+                "APPRAISAL_SUMMARY_VIEW", "APPRAISAL_SUMMARY_EDIT"
             ]);
         await SeedRoleWithPermissionsAsync(RequestCheckerRoleName,
             "Request Checker — reviews and approves incoming appraisal requests.",
             AuthScopes.Bank,
-            ["DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_INITIATION_CHECK"]);
+            // Request Information is view-only; Summary & Decision is view + edit so the checker can
+            // record its decision on the appraisal it is reviewing.
+            ["DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_INITIATION_CHECK",
+             "APPRAISAL_REQUEST_VIEW", "APPRAISAL_SUMMARY_VIEW", "APPRAISAL_SUMMARY_EDIT"]);
         await SeedRoleWithPermissionsAsync(IntAppraisalStaffRoleName,
             "Internal Appraisal Staff — executes internal appraisals and verifies appraisal books.",
             AuthScopes.Bank,
@@ -139,7 +160,17 @@ public class AuthDataSeed(
                 // PMA property tab — granted here only (kept out of the shared arrays) so it appears
                 // exclusively on the int-pma-input activity, hidden on this role's other activities.
                 "APPRAISAL_PROPERTY_PMA_VIEW", "APPRAISAL_PROPERTY_PMA_EDIT",
-                ..appraisalSectionViews, ..appraisalSectionEdits
+                // Appraisal side-nav: 360 Summary, Request Information and Administration are
+                // view-only (no edit). The rest keep view+edit. Not using the shared section arrays.
+                "APPRAISAL_360_VIEW",
+                "APPRAISAL_REQUEST_VIEW",
+                "APPRAISAL_ADMINISTRATION_VIEW",
+                "APPRAISAL_APPOINTMENT_VIEW", "APPRAISAL_APPOINTMENT_EDIT",
+                "APPRAISAL_PROPERTY_VIEW", "APPRAISAL_PROPERTY_EDIT",
+                "APPRAISAL_BLOCK_CONDO_VIEW", "APPRAISAL_BLOCK_CONDO_EDIT",
+                "APPRAISAL_BLOCK_VILLAGE_VIEW", "APPRAISAL_BLOCK_VILLAGE_EDIT",
+                "APPRAISAL_DOCUMENTS_VIEW", "APPRAISAL_DOCUMENTS_EDIT",
+                "APPRAISAL_SUMMARY_VIEW", "APPRAISAL_SUMMARY_EDIT"
             ]);
         await SeedRoleWithPermissionsAsync(IntAppraisalCheckerRoleName,
             "Internal Appraisal Checker — checks and validates internal appraisal reports.",
@@ -151,7 +182,11 @@ public class AuthDataSeed(
                 "TASK_FEE_APPOINTMENT_APPROVAL",
                 "SUPPORTING_DATA_MAINT_DECISION",
                 "SUPPORTING_DATA_MAINT_VIEW",
-                ..appraisalSectionViews
+                // All section tabs view-only, EXCEPT Document Checklist and Summary & Decision
+                // which the checker can edit.
+                ..appraisalSectionViews,
+                "APPRAISAL_DOCUMENTS_EDIT",
+                "APPRAISAL_SUMMARY_EDIT"
             ]);
         await SeedRoleWithPermissionsAsync(IntAppraisalVerifierRoleName,
             "Internal Appraisal Verifier — final verification of internal appraisal reports.",
@@ -160,7 +195,11 @@ public class AuthDataSeed(
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_INT_APPR_VERIFICATION", "REPORT_VIEW", "REPORT_EVALUATION_VIEW",
                 "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
-                ..appraisalSectionViews
+                // All section tabs view-only, EXCEPT Document Checklist and Summary & Decision
+                // which the verifier can edit.
+                ..appraisalSectionViews,
+                "APPRAISAL_DOCUMENTS_EDIT",
+                "APPRAISAL_SUMMARY_EDIT"
             ]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalStaffRoleName,
             "External Appraisal Staff — field appraisers from external companies who execute appraisals.",
@@ -169,7 +208,16 @@ public class AuthDataSeed(
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_ASSIGNMENT", "TASK_EXT_APPR_EXECUTION", "STANDALONE_USE",
                 "HISTORY_SEARCH_VIEW",
-                ..appraisalSectionViews, ..appraisalSectionEdits
+                // Appraisal side-nav: Request Information is view-only and Administration is removed.
+                // The rest keep view+edit. Not using the shared section arrays.
+                "APPRAISAL_360_VIEW",
+                "APPRAISAL_REQUEST_VIEW",
+                "APPRAISAL_APPOINTMENT_VIEW", "APPRAISAL_APPOINTMENT_EDIT",
+                "APPRAISAL_PROPERTY_VIEW", "APPRAISAL_PROPERTY_EDIT",
+                "APPRAISAL_BLOCK_CONDO_VIEW", "APPRAISAL_BLOCK_CONDO_EDIT",
+                "APPRAISAL_BLOCK_VILLAGE_VIEW", "APPRAISAL_BLOCK_VILLAGE_EDIT",
+                "APPRAISAL_DOCUMENTS_VIEW", "APPRAISAL_DOCUMENTS_EDIT",
+                "APPRAISAL_SUMMARY_VIEW", "APPRAISAL_SUMMARY_EDIT"
             ]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalCheckerRoleName,
             "External Appraisal Checker — checks external appraisal reports before verification.",
@@ -179,7 +227,12 @@ public class AuthDataSeed(
                 "TASK_EXT_APPR_CHECK",
                 "QUOTATION_EXT_VIEW", "TASK_QUOTATION_SUBMIT", "TASK_QUOTATION_NEGOTIATE",
                 "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
-                ..appraisalSectionViews
+                // Section tabs view-only, EXCEPT Summary & Decision which the checker can edit.
+                // Administration is removed, so this role does NOT use the shared section arrays.
+                "APPRAISAL_360_VIEW", "APPRAISAL_REQUEST_VIEW", "APPRAISAL_APPOINTMENT_VIEW",
+                "APPRAISAL_PROPERTY_VIEW", "APPRAISAL_BLOCK_CONDO_VIEW", "APPRAISAL_BLOCK_VILLAGE_VIEW",
+                "APPRAISAL_DOCUMENTS_VIEW", "APPRAISAL_SUMMARY_VIEW",
+                "APPRAISAL_SUMMARY_EDIT"
             ]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalVerifierRoleName,
             "External Appraisal Verifier — final verification of external appraisal reports.",
@@ -188,7 +241,12 @@ public class AuthDataSeed(
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_VERIFICATION",
                 "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
-                ..appraisalSectionViews
+                // Section tabs view-only, EXCEPT Summary & Decision which the verifier can edit.
+                // Administration is removed, so this role does NOT use the shared section arrays.
+                "APPRAISAL_360_VIEW", "APPRAISAL_REQUEST_VIEW", "APPRAISAL_APPOINTMENT_VIEW",
+                "APPRAISAL_PROPERTY_VIEW", "APPRAISAL_BLOCK_CONDO_VIEW", "APPRAISAL_BLOCK_VILLAGE_VIEW",
+                "APPRAISAL_DOCUMENTS_VIEW", "APPRAISAL_SUMMARY_VIEW",
+                "APPRAISAL_SUMMARY_EDIT"
             ]);
         await SeedRoleWithPermissionsAsync(AppraisalCommitteeRoleName,
             "Appraisal Committee — approves appraisals in committee meetings.",
@@ -198,7 +256,9 @@ public class AuthDataSeed(
                 "TASK_PENDING_APPROVAL", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "REPORT_EVALUATION_VIEW",
                 "MEETING_MANAGE", "COMMITTEE_MEMBER",
                 "STANDALONE_USE",
-                ..appraisalSectionViews
+                // All section tabs view-only, EXCEPT Summary & Decision which the committee can edit.
+                ..appraisalSectionViews,
+                "APPRAISAL_SUMMARY_EDIT"
             ]);
         await SeedUsersAsync();
         // After SeedUsersAsync: group membership is copied from AspNetUserRoles, so the role
