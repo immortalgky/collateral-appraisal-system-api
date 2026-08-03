@@ -78,15 +78,13 @@ internal static class GetAppraisalResultSql
                                             ORDER BY a.CreatedAt DESC, a.AppraisalNumber
                                             """;
 
-    // Legacy (AS400) header: adds AppraisalType, the request-level selling price (MarketValue) and the
-    // request-detail DOPA address resolved to Thai names (RequestDetails geocodes → parameter.Dopa*).
-    // COALESCE falls back to the raw code if a geocode is absent from the reference tables.
+    // Legacy (AS400) header: adds AppraisalType and the request-level selling price (MarketValue).
+    // The Province/District/SubDistrict returned to AS400 is the TITLE address, sourced per collateral
+    // (land/condo detail, or the project for a block) — not the request-level DOPA address — so it is
+    // resolved in the collateral/project queries below, not here.
     public const string LegacyByAppraisalNumber = """
                                             SELECT a.Id, a.AppraisalNumber, a.AppraisalType, a.Status, a.CompletedAt, a.RequestId,
                                                    rd.TotalSellingPrice AS MarketValue,
-                                                   COALESCE(dprov.NameTh, rd.Province)    AS Province,
-                                                   COALESCE(ddist.NameTh, rd.District)    AS District,
-                                                   COALESCE(dsub.NameTh,  rd.SubDistrict) AS SubDistrict,
                                                    -- SequenceOfApprove = the committee meeting number the appraisal was reviewed in (latest).
                                                    (SELECT TOP 1 m.MeetingNo
                                                     FROM appraisal.AppraisalReviews ar
@@ -95,9 +93,6 @@ internal static class GetAppraisalResultSql
                                                     ORDER BY ar.ReviewedAt DESC) AS SequenceOfApprove
                                             FROM appraisal.Appraisals a
                                             LEFT JOIN request.RequestDetails rd ON rd.RequestId = a.RequestId
-                                            LEFT JOIN parameter.DopaProvinces    dprov ON dprov.Code = rd.Province
-                                            LEFT JOIN parameter.DopaDistricts    ddist ON ddist.Code = rd.District
-                                            LEFT JOIN parameter.DopaSubDistricts dsub  ON dsub.Code  = rd.SubDistrict
                                             WHERE a.AppraisalNumber = @AppraisalNumber AND a.IsDeleted = 0
                                             """;
 
@@ -191,6 +186,13 @@ internal static class GetAppraisalResultSql
                                                    -- LandOffice code resolved to its Thai description (legacy variant only)
                                                    COALESCE(pLandOffice.[description],    lad.LandOffice) AS LandOfficeName,
                                                    COALESCE(pCadLandOffice.[description], cad.LandOffice) AS CadLandOfficeName,
+                                                   -- Title-address geocodes resolved to Thai names (Title masters, NOT DOPA — legacy variant only)
+                                                   COALESCE(ltProv.NameTh, lad.Province)    AS ProvinceName,
+                                                   COALESCE(ltDist.NameTh, lad.District)    AS DistrictName,
+                                                   COALESCE(ltSub.NameTh,  lad.SubDistrict) AS SubDistrictName,
+                                                   COALESCE(ctProv.NameTh, cad.Province)    AS CadProvinceName,
+                                                   COALESCE(ctDist.NameTh, cad.District)    AS CadDistrictName,
+                                                   COALESCE(ctSub.NameTh,  cad.SubDistrict) AS CadSubDistrictName,
                                                    -- PMA / pre-completion prices stored directly on the property (no ValuationAnalyses yet)
                                                    ap.SellingPrice           AS PropSellingPrice,
                                                    ap.ForcedSalePrice        AS PropForcedSalePrice,
@@ -233,6 +235,13 @@ internal static class GetAppraisalResultSql
                                                LEFT JOIN parameter.Parameters pCadLandOffice
                                                    ON pCadLandOffice.[group] = 'LandOffice' AND pCadLandOffice.[language] = 'TH'
                                                   AND pCadLandOffice.[isactive] = 1 AND pCadLandOffice.[code] = cad.LandOffice
+                                               -- Title-address masters (land + condo detail geocodes → Thai names)
+                                               LEFT JOIN parameter.TitleProvinces    ltProv ON ltProv.Code = lad.Province
+                                               LEFT JOIN parameter.TitleDistricts    ltDist ON ltDist.Code = lad.District
+                                               LEFT JOIN parameter.TitleSubDistricts ltSub  ON ltSub.Code  = lad.SubDistrict
+                                               LEFT JOIN parameter.TitleProvinces    ctProv ON ctProv.Code = cad.Province
+                                               LEFT JOIN parameter.TitleDistricts    ctDist ON ctDist.Code = cad.District
+                                               LEFT JOIN parameter.TitleSubDistricts ctSub  ON ctSub.Code  = cad.SubDistrict
                                                WHERE ap.AppraisalId = @AppraisalId
                                                ORDER BY pg.GroupNumber, pgi.SequenceInGroup, ap.Id
                                                """;
@@ -264,11 +273,18 @@ internal static class GetAppraisalResultSql
     public const string ProjectByAppraisalId = """
                                                SELECT TOP 1 p.Id AS ProjectId, p.ProjectType,
                                                       p.ProjectName, p.Developer, p.BuiltOnTitleDeedNumber,
-                                                      COALESCE(pLandOffice.[description], p.LandOffice) AS LandOfficeName
+                                                      COALESCE(pLandOffice.[description], p.LandOffice) AS LandOfficeName,
+                                                      -- Block title address (project geocodes → Title masters, NOT DOPA)
+                                                      COALESCE(ltProv.NameTh, p.Province)    AS ProvinceName,
+                                                      COALESCE(ltDist.NameTh, p.District)    AS DistrictName,
+                                                      COALESCE(ltSub.NameTh,  p.SubDistrict) AS SubDistrictName
                                                FROM appraisal.Projects p
                                                LEFT JOIN parameter.Parameters pLandOffice
                                                    ON pLandOffice.[group] = 'LandOffice' AND pLandOffice.[language] = 'TH'
                                                   AND pLandOffice.[isactive] = 1 AND pLandOffice.[code] = p.LandOffice
+                                               LEFT JOIN parameter.TitleProvinces    ltProv ON ltProv.Code = p.Province
+                                               LEFT JOIN parameter.TitleDistricts    ltDist ON ltDist.Code = p.District
+                                               LEFT JOIN parameter.TitleSubDistricts ltSub  ON ltSub.Code  = p.SubDistrict
                                                WHERE p.AppraisalId = @AppraisalId
                                                """;
 
@@ -404,13 +420,20 @@ internal sealed record CollateralRow(
     decimal? TotalBuildingArea,
     string? LandOfficeName,
     string? CadLandOfficeName,
+    // Title-address geocodes resolved to Thai names (land detail / condo detail)
+    string? ProvinceName,
+    string? DistrictName,
+    string? SubDistrictName,
+    string? CadProvinceName,
+    string? CadDistrictName,
+    string? CadSubDistrictName,
     // PMA / pre-completion prices stored on the property (used when ValuationAnalyses is absent)
     decimal? PropSellingPrice,
     decimal? PropForcedSalePrice,
     decimal? PropBuildingInsurancePrice);
 
-// Legacy (AS400) appraisal header row: appraisal identity + type, request-level MarketValue and the
-// DOPA address already resolved to Thai names.
+// Legacy (AS400) appraisal header row: appraisal identity + type and the request-level MarketValue.
+// The title address is resolved per collateral (see CollateralRow / ProjectRow), not here.
 internal sealed record LegacyAppraisalRow(
     Guid Id,
     string AppraisalNumber,
@@ -419,9 +442,6 @@ internal sealed record LegacyAppraisalRow(
     DateTime? CompletedAt,
     Guid RequestId,
     decimal? MarketValue,
-    string? Province,
-    string? District,
-    string? SubDistrict,
     string? SequenceOfApprove);
 
 internal sealed record DocumentRow(string? DocumentType, Guid DocumentId);
@@ -435,7 +455,11 @@ internal sealed record ProjectRow(
     string? ProjectName = null,
     string? Developer = null,
     string? BuiltOnTitleDeedNumber = null,
-    string? LandOfficeName = null);
+    string? LandOfficeName = null,
+    // Block title address resolved to Thai names
+    string? ProvinceName = null,
+    string? DistrictName = null,
+    string? SubDistrictName = null);
 
 internal sealed record BlockUnitRow(
     string? RoomNumber,
