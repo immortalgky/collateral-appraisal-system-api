@@ -9,10 +9,10 @@ namespace Workflow.Data.Seed;
 
 /// <summary>
 /// Seeds committees, members, thresholds and conditions for committee approval voting.
-/// 3-tier approval routing by facilityLimit:
-///   - Sub Committee (SUB_COMMITTEE):          0 - 10M
-///   - Committee (COMMITTEE):                 10M - 30M
-///   - Committee With Meeting (COMMITTEE_WITH_MEETING): >30M, UW role vote required
+/// 3-tier approval routing by facilityLimit (bands are non-overlapping; tier 2 includes 30M):
+///   - Sub Committee (SUB_COMMITTEE):          0 - 9,999,999.99
+///   - Committee (COMMITTEE):                 10,000,000 - 30,000,000
+///   - Committee With Meeting (COMMITTEE_WITH_MEETING): above 30,000,000, UW role vote required
 /// </summary>
 public class CommitteeDataSeed(
     WorkflowDbContext context,
@@ -170,9 +170,12 @@ public class CommitteeDataSeed(
 
         logger.LogInformation("Seeding workflow committee thresholds...");
 
-        subCommittee.AddThreshold(0m, 10_000_000m, 1);
+        // Bands must not overlap: tier 2 owns 10,000,000 through 30,000,000 inclusive,
+        // tier 3 starts just above 30,000,000. This mirrors the routing rule in the
+        // appraisal workflow definition (pending-approval memberSource thresholds).
+        subCommittee.AddThreshold(0m, 9_999_999.99m, 1);
         committee.AddThreshold(10_000_000m, 30_000_000m, 2);
-        committeeWithMeeting.AddThreshold(30_000_000m, null, 3);
+        committeeWithMeeting.AddThreshold(30_000_000.01m, null, 3);
 
         await context.SaveChangesAsync();
 

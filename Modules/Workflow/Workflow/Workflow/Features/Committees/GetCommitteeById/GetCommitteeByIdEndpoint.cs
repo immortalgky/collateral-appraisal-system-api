@@ -25,9 +25,14 @@ public class GetCommitteeByIdEndpoint : ICarterModule
 
 public record GetCommitteeByIdQuery(Guid Id) : IQuery<GetCommitteeByIdResponse>;
 
+/// <param name="VotingMode">
+/// WaitForAll | Quorum. UpdateCommittee accepts this but the read side used to omit it, so an
+/// editor had no way to show the current value — include it so the admin screen round-trips.
+/// </param>
 public record GetCommitteeByIdResponse(
     Guid Id, string Name, string Code, string? Description,
     bool IsActive, string QuorumType, int QuorumValue, string MajorityType,
+    string VotingMode,
     List<CommitteeMemberDto> Members,
     List<CommitteeThresholdDto> Thresholds,
     List<CommitteeConditionDto> Conditions,
@@ -50,6 +55,7 @@ public class GetCommitteeByIdQueryHandler(
             committee.Id, committee.Name, committee.Code, committee.Description,
             committee.IsActive, committee.QuorumType.ToString(), committee.QuorumValue,
             committee.MajorityType.ToString(),
+            committee.VotingMode.ToString(),
             committee.Members.Select(m => new CommitteeMemberDto(
                 m.Id, m.UserId, m.MemberName, m.Position.ToString(), m.IsActive, m.Attendance.ToString())).ToList(),
             committee.Thresholds.Select(t => new CommitteeThresholdDto(
