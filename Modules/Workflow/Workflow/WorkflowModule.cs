@@ -1,4 +1,5 @@
 using Shared.Data.Seed;
+using Workflow.Data.Seed;
 using Workflow.AssigneeSelection.Engine;
 using Workflow.AssigneeSelection.Configuration;
 using Workflow.AssigneeSelection.Pipeline;
@@ -264,6 +265,9 @@ public static class WorkflowModule
     public static IApplicationBuilder UseWorkflowModule(this IApplicationBuilder app)
     {
         app.UseDataSeeding<WorkflowDbContext>();
+        // Read-only: seeding is off outside Development, so nothing else would notice if the
+        // activity-pipeline rows were never applied to this database.
+        app.UseActivityProcessAssertion();
         app.UseModuleRecurringJobs<WorkflowDbContext>(WorkflowRecurringJobs.All);
 
         return app;

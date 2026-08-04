@@ -1085,29 +1085,36 @@ public class AuthDataSeed(
         var seed = ActivityMenuOverrideSeedData.GetSeed();
         if (seed.Count == 0) return;
 
+        // Fresh-install only. "Inherit" is stored as the ABSENCE of a row (see
+        // UpdateActivityOverridesEndpoint, which deletes a row when the admin clears its
+        // restrictions), so a per-pair insert-only guard cannot tell "never seeded" from
+        // "admin deliberately cleared this restriction" — it re-imposed the blueprint on
+        // every app-pool recycle. Once the table has any row it belongs to the admin UI.
+        // Ship blueprint changes for existing databases as a one-off script in
+        // Database/Migration/Scripts/ instead.
+        if (await dbContext.ActivityMenuOverrides.AnyAsync())
+            return;
+
         var menuItemIdsByKey = await dbContext.MenuItems
             .Where(m => m.Scope == MenuScope.Appraisal)
             .ToDictionaryAsync(m => m.ItemKey, m => m.Id);
 
-        var existing = await dbContext.ActivityMenuOverrides
-            .ToDictionaryAsync(o => (o.ActivityId, o.MenuItemId));
-
-        var added = false;
         foreach (var entry in seed)
         {
             if (!menuItemIdsByKey.TryGetValue(entry.MenuItemKey, out var menuItemId))
-                continue; // menu item not seeded yet — skip gracefully
+            {
+                // This runs once per database, so an unresolved key is lost for good — make it loud.
+                logger.LogWarning(
+                    "ActivityMenuOverride seed skipped: appraisal menu item '{MenuItemKey}' not found (activity '{ActivityId}')",
+                    entry.MenuItemKey, entry.ActivityId);
+                continue;
+            }
 
-            if (existing.ContainsKey((entry.ActivityId, menuItemId)))
-                continue; // INSERT-ONLY, like MenuSeedData — admin edits win.
-
-            var row = ActivityMenuOverride.Create(entry.ActivityId, menuItemId, entry.IsVisible, entry.CanEdit);
-            dbContext.ActivityMenuOverrides.Add(row);
-            added = true;
+            dbContext.ActivityMenuOverrides.Add(
+                ActivityMenuOverride.Create(entry.ActivityId, menuItemId, entry.IsVisible, entry.CanEdit));
         }
 
-        if (added)
-            await dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync();
     }
 
     private async Task SeedAdminRoleAsync()

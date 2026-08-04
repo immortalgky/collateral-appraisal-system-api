@@ -206,6 +206,7 @@
     "TaskLockExpiry": { "Interval": "00:05:00", "LockTimeout": "00:30:00" }
   },
   "SeedData": {
+    "RunSeeders": false,
     "IncludeDemoData": false,
     "AdminUser": {
       "Username": "#{ADMIN_USERNAME}#",

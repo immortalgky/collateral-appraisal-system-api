@@ -303,6 +303,25 @@ dotnet run --project Database/Database.csproj history
 The application never applies migrations itself. In production the DBA runs a generated plain-SQL
 bundle instead of this tool — see `deploy/README.md`.
 
+### Reference data: the app does not seed outside Development
+
+`SeedData:RunSeeders` gates every `IDataSeeder` and **fails closed** — unset means off. It is `true`
+only in `appsettings.Development.json`. On a live database the per-key seeders silently re-inserted
+rows an admin had deleted, undoing their work on every app-pool recycle, so seeding is now treated as
+a fresh-install convenience rather than a production mechanism.
+
+When adding or changing reference data, decide by **who reads the value**:
+
+- **Code reads it by name → ship a script in `Database/Migration/Scripts/`, in the same PR as the
+  feature.** Permission codes, activity IDs, pipeline processor names, menu item keys wired to
+  frontend route guards. DbUp journals these once per database by filename. Also add it to the C#
+  seeder so fresh Development databases still get it — but the script is what reaches UAT/production.
+- **Only humans read it → the admin UI owns it. Do not ship it again after go-live.** SLA hours, fee
+  ladders, cron schedules, committee thresholds, business hours.
+
+Never "fix" seeded data by editing a seeder and relying on a restart: outside Development it will not
+run, and inside Development an already-populated table is usually skipped anyway.
+
 ### Project Structure Commands
 
 ```bash

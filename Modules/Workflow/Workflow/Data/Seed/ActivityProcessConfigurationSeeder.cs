@@ -27,6 +27,17 @@ public class ActivityProcessConfigurationSeeder(
     private const string ForwardOnly = "activity.movement === 'F'";
     private const string System = "system";
 
+    /// <summary>
+    /// The (ActivityName, ProcessorName) pairs the appraisal workflow requires in order to function.
+    /// Exposed so <see cref="ActivityProcessConfigurationAssertion"/> can verify them at boot without
+    /// duplicating the list — seeding is disabled outside Development, so on UAT/production these rows
+    /// arrive via a Database/Migration/Scripts/ script and nothing would otherwise notice a gap.
+    /// </summary>
+    public static IReadOnlyList<(string ActivityName, string ProcessorName)> RequiredPairs() =>
+        BuildDesiredConfigs()
+            .Select(c => (c.ActivityName, c.ProcessorName))
+            .ToList();
+
     public async Task SeedAllAsync()
     {
         // ── Desired managed rows (real workflow activities) ───────────────────────
