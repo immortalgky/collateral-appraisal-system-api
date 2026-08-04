@@ -147,9 +147,28 @@ ORDER BY sd.Code;
 
 ## Caching Behavior
 
-- Frontend caches both responses for the **entire browser session** (no re-fetching)
-- Consider adding `Cache-Control` headers for HTTP-level caching if desired
-- Address data changes infrequently
+### Frontend
+- Caches both responses for the **entire browser session** (no re-fetching). A user will not see a
+  master-data change until they reload the page.
+
+### Backend
+- `CachedAddressRepository` caches both responses in-process (`IMemoryCache`) with a **5-minute
+  absolute TTL**, keyed `addresses:title` / `addresses:dopa`.
+- **The cache is per app node and is never invalidated.** Production runs two IIS nodes, so each
+  holds and expires its own copy independently — there is no cross-node invalidation, and a
+  `cache.Remove` would only affect the node that served the request.
+- Consequence: after the masters are changed — via the admin CRUD under
+  `/parameters/addresses/{dataset}/…` (`Addresses/Features/AdminAddresses/AddressAdminEndpoints.cs`)
+  or via the DbUp seed scripts — the change takes **up to 5 minutes to appear**, on the node that
+  served the write as well as the other one. It then still requires a browser reload to reach the
+  user.
+- ⚠ The admin CRUD endpoints do **not** invalidate this cache. Adding a `cache.Remove` there would
+  make the change immediate on the writing node only, so the TTL remains the bound for the rest.
+- To publish a change immediately, recycle both app pools — that clears the in-process cache at
+  once rather than waiting out the TTL.
+- No HTTP-level caching is applied: these endpoints emit no `Cache-Control`, `ETag`, or
+  `Last-Modified`, and response compression is not enabled, so every client request re-serializes
+  and re-transfers the full array.
 
 ## Error Responses
 
