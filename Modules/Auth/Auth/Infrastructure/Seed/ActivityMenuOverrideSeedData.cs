@@ -7,6 +7,14 @@ namespace Auth.Infrastructure.Seed;
 /// is only visible/editable if the user's role already permits it. So only seed
 /// rows that take a right away; omitting a (activity, menu) pair (or a no-op
 /// IsVisible=true/CanEdit=true row) leaves the item at its plain role-based state.
+///
+/// FRESH-INSTALL BLUEPRINT ONLY. The seeder applies this list once, on a database whose
+/// auth.ActivityMenuOverrides table is still empty. From then on the table is owned by the
+/// admin UI (PUT /admin/activity-menu-overrides/{activityId}), because "inherit" is stored
+/// as the absence of a row — a seeder that re-inserted missing pairs would undo every
+/// cleared restriction on the next app-pool recycle. So editing this list does NOT change
+/// any existing database: ship those changes as a one-off script in
+/// Database/Migration/Scripts/, which DbUp journals once per database.
 /// </summary>
 public static class ActivityMenuOverrideSeedData
 {
