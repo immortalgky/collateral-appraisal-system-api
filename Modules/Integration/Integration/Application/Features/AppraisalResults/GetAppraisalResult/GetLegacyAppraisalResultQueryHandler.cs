@@ -174,6 +174,10 @@ internal static class LegacyResultMapper
             MarketValue = completed ? (header.MarketValue ?? 0m) : (row.PropSellingPrice ?? header.MarketValue ?? 0m),
             MethodOfAppraisal = MapMethod(row.AppraisalMethod),
             AppraisalValueWaOrM = row.GroupValuePerUnit ?? 0m,  // selected method's per-Wa/Sqm rate (usually cost only)
+            // Title address from the condo detail (falls back to the land detail on the same property).
+            Province = Str(row.CadProvinceName ?? row.ProvinceName),
+            District = Str(row.CadDistrictName ?? row.DistrictName),
+            SubDistrict = Str(row.CadSubDistrictName ?? row.SubDistrictName),
             LandOffice = Str(row.LandOfficeName ?? row.CadLandOfficeName),
             LandValue = row.GroupLandValue ?? 0m,
             LandNo = Str(row.LandNo),
@@ -221,6 +225,10 @@ internal static class LegacyResultMapper
             MarketValue = completed ? (header.MarketValue ?? 0m) : (propSelling ?? header.MarketValue ?? 0m),
             MethodOfAppraisal = MapMethod(land?.AppraisalMethod ?? building?.AppraisalMethod),
             AppraisalValueWaOrM = (land?.GroupValuePerUnit ?? building?.GroupValuePerUnit) ?? 0m,
+            // Title address from the land detail (the building detail carries no address).
+            Province = Str(land?.ProvinceName ?? building?.ProvinceName),
+            District = Str(land?.DistrictName ?? building?.DistrictName),
+            SubDistrict = Str(land?.SubDistrictName ?? building?.SubDistrictName),
             LandOffice = Str(land?.LandOfficeName ?? building?.LandOfficeName),
             LandValue = groupLandValue ?? 0m,
             // Land row
@@ -270,6 +278,10 @@ internal static class LegacyResultMapper
             Developer = Str(project.Developer),
             TitleNo = Str(project.BuiltOnTitleDeedNumber),
             LandOffice = Str(project.LandOfficeName),
+            // Title address from the project (block has no per-property detail address).
+            Province = Str(project.ProvinceName),
+            District = Str(project.DistrictName),
+            SubDistrict = Str(project.SubDistrictName),
             // Per-unit identity.
             LandNo = isCondo ? "" : Str(unit.PlotNumber),
             HouseNo = isCondo ? "" : Str(unit.HouseNumber),
@@ -323,9 +335,8 @@ internal static class LegacyResultMapper
             // MethodOfAppraisal + AppraisalValueWaOrM are set per selected collateral by the callers.
             MarketValue = header.MarketValue ?? 0m,
             BuildingValue = valuation?.InsuranceValue ?? 0m, // legacy BuildingValue = fire-insurance value
-            Province = Str(header.Province),
-            District = Str(header.District),
-            SubDistrict = Str(header.SubDistrict),
+            // Province/District/SubDistrict = the TITLE address, set per collateral by each caller below
+            // (land/condo detail, or the project for a block) — never the request-level DOPA address.
             AppraisalDate = appraisalDate,
             InternalValuerCode = valuer.InternalCode,
             InternalValuerName = valuer.InternalName,
