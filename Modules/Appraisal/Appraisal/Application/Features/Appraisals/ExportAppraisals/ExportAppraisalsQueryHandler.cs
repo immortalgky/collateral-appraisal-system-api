@@ -92,7 +92,7 @@ public class ExportAppraisalsQueryHandler(
             ws.Cell(row, 9).Value = item.SLAStatus ?? "";
             ws.Cell(row, 10).SetValue(item.SLADueDate);
             ws.Cell(row, 11).Value = item.AssignmentType ?? "";
-            ws.Cell(row, 12).Value = item.CompanyName ?? "";
+            ws.Cell(row, 12).Value = CompanyLabel(item) ?? "";
             ws.Cell(row, 13).SetValue(item.CreatedAt);
             ws.Cell(row, 14).SetValue(item.FacilityLimit ?? 0);
             ws.Cell(row, 15).Value = item.PropertyCount;
@@ -119,7 +119,7 @@ public class ExportAppraisalsQueryHandler(
                 $"\"{item.Status}\",\"{item.AppraisalType}\",\"{item.Priority}\"," +
                 $"\"{Esc(item.Province)}\",\"{Esc(item.District)}\",\"{item.SLAStatus}\"," +
                 $"\"{item.SLADueDate:yyyy-MM-dd}\",\"{item.AssignmentType}\"," +
-                $"\"{Esc(item.CompanyName)}\",\"{item.CreatedAt:yyyy-MM-dd HH:mm}\"," +
+                $"\"{Esc(CompanyLabel(item))}\",\"{item.CreatedAt:yyyy-MM-dd HH:mm}\"," +
                 $"{item.FacilityLimit ?? 0},{item.PropertyCount}");
         }
 
@@ -128,4 +128,11 @@ public class ExportAppraisalsQueryHandler(
     }
 
     private static string Esc(string? value) => (value ?? "").Replace("\"", "\"\"");
+
+    /// <summary>
+    /// Thai-first company label. The export has no request locale to pick from, so it follows the
+    /// same convention as the generated reports: prefer the Thai name, fall back to English.
+    /// </summary>
+    private static string? CompanyLabel(AppraisalDto item) =>
+        string.IsNullOrWhiteSpace(item.CompanyNameLocal) ? item.CompanyName : item.CompanyNameLocal;
 }

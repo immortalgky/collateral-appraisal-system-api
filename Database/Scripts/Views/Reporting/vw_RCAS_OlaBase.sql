@@ -28,7 +28,8 @@ SELECT v.Id,
        ct.CollateralType,
        v.Channel,
        v.AssignmentType,
-       v.CompanyName            AS AppraisalCompany,
+       COALESCE(NULLIF(v.CompanyNameLocal, N''), v.CompanyName)            AS AppraisalCompany,
+       v.CompanyName            AS AppraisalCompanyEn,   -- filter key: stays English so a company filter matches in either language
        -- "CODE - First Last" per the FSD sample; falls back to the bare code when the user or the
        -- name is missing, so an unmapped/legacy code still renders.
        CASE

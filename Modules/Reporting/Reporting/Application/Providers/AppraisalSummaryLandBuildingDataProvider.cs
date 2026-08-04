@@ -338,7 +338,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 lt.PageNumber,
                 lt.LandParcelNumber,
                 lt.SurveyNumber,
-                lt.MapSheetNumber,
+                lt.Rawang,
                 lt.AreaRai,
                 lt.AreaNgan,
                 lt.AreaSquareWa,
@@ -480,16 +480,21 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 WHERE a6.Id = @AppraisalId AND a6.IsDeleted = 0)
               AND rp.PropertyType IS NOT NULL;
 
-            -- RS22: Land titles for the government price (per sq.wa), excluding missing-from-survey
+            -- RS22: Land titles for the government price (per sq.wa). Missing-from-survey titles
+            -- are NOT filtered out here — they render as "ตกสำรวจ" instead of a price, so the flag
+            -- has to reach C#. They come through even without a price; a surveyed title still
+            -- needs one to be worth showing.
             SELECT
+                lt.Id AS TitleId,
                 lt.TitleNumber,
-                lt.GovernmentPricePerSqWa
+                lt.GovernmentPricePerSqWa,
+                lt.IsMissingFromSurvey
             FROM appraisal.LandTitles lt
             JOIN appraisal.LandAppraisalDetails lad ON lad.Id = lt.LandAppraisalDetailId
             JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
             WHERE ap.AppraisalId = @AppraisalId
-              AND ISNULL(lt.IsMissingFromSurvey, 0) = 0
-              AND lt.GovernmentPricePerSqWa IS NOT NULL
+              AND (lt.GovernmentPricePerSqWa IS NOT NULL
+                   OR ISNULL(lt.IsMissingFromSurvey, 0) = 1)
             ORDER BY lt.GovernmentPricePerSqWa, lt.Id;
 
             -- RS23: ราคาประเมินเดิม — the prior-appraisal link plus its LIVE appraised value,
@@ -679,8 +684,10 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             else if (!string.IsNullOrWhiteSpace(assignment.AssigneeCompanyId)
                      && Guid.TryParse(assignment.AssigneeCompanyId, out var companyGuid))
             {
+                // Thai-language document: prefer the Thai company name, fall back to English.
+                // Matches the internal branch above, which is already a hardcoded Thai bank name.
                 const string companySql = """
-                    SELECT c.Name FROM auth.Companies c WHERE c.Id = @CompanyId
+                    SELECT COALESCE(NULLIF(c.NameLocal, N''), c.Name) FROM auth.Companies c WHERE c.Id = @CompanyId
                     """;
                 var companyParams = new DynamicParameters();
                 companyParams.Add("CompanyId", companyGuid);
@@ -823,6 +830,15 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             .GroupBy(r => r.PropertyGroupId)
             .ToDictionary(g => g.Key, g => g.OrderBy(r => r.SequenceInGroup).ThenBy(r => r.TitleId).ToList());
 
+        // Position of each title in the printed รายการทรัพย์สิน list — groups in display order,
+        // titles within a group in the same order the list itself uses. ราคาประเมินราชการ below
+        // sorts by this so its segments read in the same sequence as the list above them.
+        var titleDisplayOrder = new Dictionary<Guid, int>();
+        foreach (var groupRow in groupRows)
+            if (titlesByGroup.TryGetValue(groupRow.GroupId, out var orderedTitles))
+                foreach (var title in orderedTitles)
+                    titleDisplayOrder.TryAdd(title.TitleId, titleDisplayOrder.Count);
+
         var buildingsByGroup = groupBuildingRows
             .GroupBy(r => r.PropertyGroupId)
             .ToDictionary(g => g.Key, g => g.OrderBy(r => r.SequenceInGroup).ToList());
@@ -917,8 +933,10 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                     titleParts.Add($"เลขที่ดิน {title.LandParcelNumber}");
                 if (!string.IsNullOrWhiteSpace(title.SurveyNumber))
                     titleParts.Add($"หน้าสำรวจ {title.SurveyNumber}");
-                if (!string.IsNullOrWhiteSpace(title.MapSheetNumber))
-                    titleParts.Add($"ระวาง {title.MapSheetNumber}");
+                // ระวาง lives in LandTitles.Rawang — MapSheetNumber is the separate
+                // "Sheet Number" (แผ่นที่) field the UI only collects for นส.3ก.
+                if (!string.IsNullOrWhiteSpace(title.Rawang))
+                    titleParts.Add($"ระวาง {title.Rawang}");
 
                 var titleArea = BuildAreaString(title.AreaRai, title.AreaNgan, title.AreaSquareWa);
                 if (!string.IsNullOrWhiteSpace(titleArea))
@@ -1172,22 +1190,51 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
         // ราคาประเมินราชการ — government price per sq.wa, grouped by same price. With >1 distinct
         // price, list the title numbers per price ("โฉนด… และ … ตารางวาละ X บาท") joined by " , ".
+        //
+        // Missing-from-survey land has no government valuation, so it reads "ตกสำรวจ" rather than a
+        // price. Partition on the FLAG first and never infer it from the price: the frontend only
+        // started forcing the price to 0 for flagged titles recently, so older rows carry a real
+        // non-zero price alongside the flag. The flag wins.
+        // Where a title sits in the printed list; titles outside every group sort last, keeping
+        // their existing relative order.
+        int TitleOrder(GovPriceRow r) =>
+            titleDisplayOrder.TryGetValue(r.TitleId, out var i) ? i : int.MaxValue;
+
+        var missingFromSurvey = govPriceRows
+            .Where(r => r.IsMissingFromSurvey == true)
+            .OrderBy(TitleOrder)
+            .ToList();
         var govPriceGroups = govPriceRows
-            .Where(r => r.GovernmentPricePerSqWa.HasValue)
+            .Where(r => r.IsMissingFromSurvey != true && r.GovernmentPricePerSqWa.HasValue)
             .GroupBy(r => r.GovernmentPricePerSqWa!.Value)
             .ToList();
+
+        // Prefixes a segment with its title numbers. Only used when there is more than one segment —
+        // a lone segment applies to the whole appraisal, so naming the titles would be noise.
+        static string DescribeTitles(IEnumerable<GovPriceRow> rows, string value)
+        {
+            var titles = string.Join(" และ ", rows
+                .Where(r => !string.IsNullOrWhiteSpace(r.TitleNumber))
+                .Select(r => r.TitleNumber));
+            return string.IsNullOrWhiteSpace(titles) ? value : $"โฉนดที่ดินเลขที่ {titles} {value}";
+        }
+
+        const string missingFromSurveyText = "ตกสำรวจ";
+        var govPriceSegments = new List<(IReadOnlyList<GovPriceRow> Rows, string Value)>();
+        if (missingFromSurvey.Count > 0)
+            govPriceSegments.Add((missingFromSurvey, missingFromSurveyText));
+        govPriceSegments.AddRange(govPriceGroups
+            .Select(g => ((IReadOnlyList<GovPriceRow>)[.. g.OrderBy(TitleOrder)], $"ตารางวาละ {g.Key:N2} บาท")));
+
+        // Follow the land-title list, not price order: a segment sits where its first title does.
+        govPriceSegments = govPriceSegments
+            .OrderBy(s => s.Rows.Min(TitleOrder))
+            .ToList();
+
         string? governmentPriceText =
-            govPriceGroups.Count == 0 ? null
-            : govPriceGroups.Count == 1 ? $"ตารางวาละ {govPriceGroups[0].Key:N2} บาท"
-            : string.Join(" , ", govPriceGroups.Select(g =>
-            {
-                var titles = string.Join(" และ ", g
-                    .Where(r => !string.IsNullOrWhiteSpace(r.TitleNumber))
-                    .Select(r => r.TitleNumber));
-                return string.IsNullOrWhiteSpace(titles)
-                    ? $"ตารางวาละ {g.Key:N2} บาท"
-                    : $"โฉนดที่ดินเลขที่ {titles} ตารางวาละ {g.Key:N2} บาท";
-            }));
+            govPriceSegments.Count == 0 ? null
+            : govPriceSegments.Count == 1 ? govPriceSegments[0].Value
+            : string.Join(" , ", govPriceSegments.Select(s => DescribeTitles(s.Rows, s.Value)));
 
         // Show the committee block only when this appraisal actually falls into a meeting.
         bool showMeeting = review?.MeetingId is not null;
@@ -1305,8 +1352,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             HasUnderConstruction = hasUnderConstruction,
             CurrentConditionTotal = currentConditionTotal,
             CurrentConditionForcedSaleValue = currentConditionForcedSale,
-            Condition = decision?.Condition,
-            Remark = decision?.Remark,
+            Condition = AppraisalSummaryCommonLoader.FirstNonBlank(decision?.Condition),
+            Remark = AppraisalSummaryCommonLoader.FirstNonBlank(decision?.Remark),
             LandOwner = land?.OwnerName,
             EntryExitRights = ParameterCodeFormatter.DecodeJsonArray(
                 land?.LandEntranceExitType, land?.LandEntranceExitTypeOther, entranceExitMap),
@@ -1351,7 +1398,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             ShowMeeting = showMeeting,
             ApproverDecisionApproved = approverDecisionApproved,
             Approvers = approvers,
-            ApproverSummaryComment = decision?.CommitteeOpinion
+            ApproverSummaryComment = AppraisalSummaryCommonLoader.FirstNonBlank(decision?.CommitteeOpinion)
         };
 
         return model;
@@ -1582,8 +1629,10 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
     private sealed class GovPriceRow
     {
+        public Guid TitleId { get; init; }
         public string? TitleNumber { get; init; }
         public decimal? GovernmentPricePerSqWa { get; init; }
+        public bool? IsMissingFromSurvey { get; init; }
     }
 
     private sealed class DecisionRow
@@ -1648,7 +1697,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public string? PageNumber { get; init; }
         public string? LandParcelNumber { get; init; }
         public string? SurveyNumber { get; init; }
-        public string? MapSheetNumber { get; init; }
+        public string? Rawang { get; init; }
         public decimal? AreaRai { get; init; }
         public decimal? AreaNgan { get; init; }
         public decimal? AreaSquareWa { get; init; }

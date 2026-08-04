@@ -97,7 +97,7 @@ internal static class OlaReport
 
         ReportFilterSql.DateRange(c, p, f.CreatedFrom, f.CreatedTo, "AppraisalCreateDate", "Created");
         ReportFilterSql.MultiValue(c, p, f.Status, "AppraisalStatus", "Statuses");
-        ReportFilterSql.Contains(c, p, f.AppraisalCompany, "AppraisalCompany", "AppraisalCompany");
+        ReportFilterSql.ContainsAny(c, p, f.AppraisalCompany, ["AppraisalCompany", "AppraisalCompanyEn"], "AppraisalCompany");
         // Filter on the raw assignee code (InternalAppraisalStaffCode); the InternalAppraisalStaff
         // column now emits the resolved "CODE - First Last" for display, so binding the code against it
         // would never match.

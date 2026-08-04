@@ -25,7 +25,8 @@ SELECT f.Id,
        v.RequestedBy                AS RequestorCode,
        ru.Department                AS RequestorDepartment,
        v.BankingSegment,
-       v.CompanyName                AS AppraisalCompany,
+       COALESCE(NULLIF(v.CompanyNameLocal, N''), v.CompanyName)                AS AppraisalCompany,
+       v.CompanyName                AS AppraisalCompanyEn,   -- filter key: stays English so a company filter matches in either language
        COALESCE(
            NULLIF(LTRIM(RTRIM(CONCAT(NULLIF(su.FirstName, N''), N' ', NULLIF(su.LastName, N'')))), N''),
            CAST(v.AssigneeUserId AS NVARCHAR(50))

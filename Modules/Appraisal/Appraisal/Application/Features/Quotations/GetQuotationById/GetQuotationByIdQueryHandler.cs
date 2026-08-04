@@ -50,7 +50,8 @@ public class GetQuotationByIdQueryHandler(
             .Select(cq => new CompanyQuotationResult(
                 Id: cq.Id,
                 CompanyId: cq.CompanyId,
-                CompanyName: visibleCompanyNames.GetValueOrDefault(cq.CompanyId),
+                CompanyName: visibleCompanyNames.GetValueOrDefault(cq.CompanyId).Name,
+                CompanyNameLocal: visibleCompanyNames.GetValueOrDefault(cq.CompanyId).NameLocal,
                 QuotationNumber: cq.QuotationNumber,
                 Status: cq.Status,
                 DeclineReason: cq.DeclineReason,
@@ -162,7 +163,7 @@ public class GetQuotationByIdQueryHandler(
             var companyInfoMap = await ResolveCompanyInfoAsync(invitationCompanyIds);
             invitedCompanies = invitationCompanyIds
                 .Where(id => companyInfoMap.ContainsKey(id))
-                .Select(id => new InvitedCompanyResult(id, companyInfoMap[id].Name, companyInfoMap[id].Email))
+                .Select(id => new InvitedCompanyResult(id, companyInfoMap[id].Name, companyInfoMap[id].NameLocal, companyInfoMap[id].Email))
                 .OrderBy(r => r.CompanyName)
                 .ToList();
         }
@@ -360,38 +361,40 @@ public class GetQuotationByIdQueryHandler(
             });
     }
 
-    private async Task<Dictionary<Guid, string>> ResolveCompanyNamesAsync(Guid[] companyIds)
-    {
-        if (companyIds.Length == 0)
-            return new Dictionary<Guid, string>();
-
-        var connection = connectionFactory.GetOpenConnection();
-        var rows = await connection.QueryAsync<(Guid Id, string Name)>(
-            """
-            SELECT c.Id, c.Name
-            FROM auth.Companies c
-            WHERE c.Id IN @CompanyIds
-            """,
-            new { CompanyIds = companyIds });
-
-        return rows.ToDictionary(r => r.Id, r => r.Name);
-    }
-
-    private async Task<Dictionary<Guid, (string Name, string? Email)>> ResolveCompanyInfoAsync(Guid[] companyIds)
+    // Both resolvers return the English and Thai names side by side; the API has no request locale,
+    // so the client picks. NULLIF collapses '' to NULL for a single absent-test on the FE.
+    private async Task<Dictionary<Guid, (string Name, string? NameLocal)>> ResolveCompanyNamesAsync(Guid[] companyIds)
     {
         if (companyIds.Length == 0)
             return new Dictionary<Guid, (string, string?)>();
 
         var connection = connectionFactory.GetOpenConnection();
-        var rows = await connection.QueryAsync<(Guid Id, string Name, string? Email)>(
+        var rows = await connection.QueryAsync<(Guid Id, string Name, string? NameLocal)>(
             """
-            SELECT c.Id, c.Name, c.Email
+            SELECT c.Id, c.Name, NULLIF(c.NameLocal, N'') AS NameLocal
+            FROM auth.Companies c
+            WHERE c.Id IN @CompanyIds
+            """,
+            new { CompanyIds = companyIds });
+
+        return rows.ToDictionary(r => r.Id, r => (r.Name, r.NameLocal));
+    }
+
+    private async Task<Dictionary<Guid, (string Name, string? NameLocal, string? Email)>> ResolveCompanyInfoAsync(Guid[] companyIds)
+    {
+        if (companyIds.Length == 0)
+            return new Dictionary<Guid, (string, string?, string?)>();
+
+        var connection = connectionFactory.GetOpenConnection();
+        var rows = await connection.QueryAsync<(Guid Id, string Name, string? NameLocal, string? Email)>(
+            """
+            SELECT c.Id, c.Name, NULLIF(c.NameLocal, N'') AS NameLocal, c.Email
             FROM [auth].[Companies] c
             WHERE c.Id IN @CompanyIds
             """,
             new { CompanyIds = companyIds });
 
-        return rows.ToDictionary(r => r.Id, r => (r.Name, r.Email));
+        return rows.ToDictionary(r => r.Id, r => (r.Name, r.NameLocal, r.Email));
     }
 
     private async Task<IReadOnlyList<QuotationSharedDocumentResult>> EnrichSharedDocumentsAsync(

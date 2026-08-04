@@ -39,7 +39,8 @@ public class UserLookupService(AuthDbContext db, UserManager<ApplicationUser> us
                     x.User.UserName!,
                     x.User.FirstName,
                     x.User.LastName,
-                    company != null ? company.Name : null))
+                    company != null ? company.Name : null,
+                    company != null ? company.NameLocal : null))
             .ToListAsync(cancellationToken);
 
         return users.ToDictionary(u => u.Username, StringComparer.OrdinalIgnoreCase);

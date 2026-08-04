@@ -5,6 +5,9 @@ public record GetEligibleCompaniesResult(List<EligibleCompanyDto> Companies);
 public record EligibleCompanyDto(
     Guid    Id,
     string  Name,
+    // Thai name. Nullable — the FE falls back to Name when it is absent. Returned alongside (not
+    // instead of) Name because the API has no request locale; the client picks by its own language.
+    string? NameLocal,
     string? ContactPerson,
     string? Phone,
     string? Email,

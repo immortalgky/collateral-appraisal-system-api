@@ -20,6 +20,9 @@ public record PendingTaskDto(
     int? OlaVarianceHours,
     string? ActivityId,
     string? AppraisalCompanyName,
+    // Thai name (null when absent); the client picks by its own locale. Position is load-bearing —
+    // it must stay directly after AppraisalCompanyName to match the handlers' SELECT order.
+    string? AppraisalCompanyNameLocal,
     string MonitoringType,
     string? AssignedTo,
     string? AssignedType,

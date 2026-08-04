@@ -19,6 +19,9 @@ public record EngagementListItemDto(
     string? AppraiserUserId,
     Guid? AppraisalCompanyId,
     string? AppraisalCompanyName,
+    // Thai name resolved live from auth.Companies (the name above is a frozen snapshot). Position is
+    // load-bearing — it must stay directly after AppraisalCompanyName to match the SELECT order.
+    string? AppraisalCompanyNameLocal,
     decimal? ConstructionInspectionFeeAmount,
     DateTime CreatedAt,
     string CollateralType,

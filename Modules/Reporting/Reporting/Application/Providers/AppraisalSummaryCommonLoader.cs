@@ -383,8 +383,10 @@ internal static class AppraisalSummaryCommonLoader
             else if (!string.IsNullOrWhiteSpace(assignment.AssigneeCompanyId)
                      && Guid.TryParse(assignment.AssigneeCompanyId, out var companyGuid))
             {
+                // Thai-language document: prefer the Thai company name, fall back to English.
+                // Matches the internal branch above, which is already a hardcoded Thai bank name.
                 const string companySql = """
-                    SELECT c.Name FROM auth.Companies c WHERE c.Id = @CompanyId
+                    SELECT COALESCE(NULLIF(c.NameLocal, N''), c.Name) FROM auth.Companies c WHERE c.Id = @CompanyId
                     """;
                 var companyParams = new DynamicParameters();
                 companyParams.Add("CompanyId", companyGuid);
@@ -588,9 +590,9 @@ internal static class AppraisalSummaryCommonLoader
             IsProfitRent: globalFlags.IsProfitRent,
             GroupMethodTypes: groupMethodTypes,
             AppraiserComment: FirstNonBlank(decision?.InternalAppraiserOpinion),
-            Condition: decision?.Condition,
-            Remark: decision?.Remark,
-            CommitteeOpinion: decision?.CommitteeOpinion,
+            Condition: FirstNonBlank(decision?.Condition),
+            Remark: FirstNonBlank(decision?.Remark),
+            CommitteeOpinion: FirstNonBlank(decision?.CommitteeOpinion),
             AoName: aoName,
             CheckerName: checkerName,
             CheckerPosition: checkerPosition,

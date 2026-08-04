@@ -6,6 +6,9 @@ public record InvoiceDetailDto(
     string Status,
     decimal TotalAmount,
     string? CompanyName,
+    // Thai name (null when absent); the client picks by its own locale. Position is load-bearing —
+    // it must stay directly after CompanyName to match headerSql's column order.
+    string? CompanyNameLocal,
     string? BankAccountNo,
     string? BankAccountName,
     string? Notes,

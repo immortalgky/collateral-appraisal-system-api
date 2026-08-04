@@ -83,7 +83,7 @@ internal static class SlaReport
 
         ReportFilterSql.DateRange(c, p, f.CreatedFrom, f.CreatedTo, "AppraisalCreateDate", "Created");
         ReportFilterSql.MultiValue(c, p, f.Status, "AppraisalStatus", "Statuses");
-        ReportFilterSql.Contains(c, p, f.AppraisalCompany, "AppraisalCompany", "AppraisalCompany");
+        ReportFilterSql.ContainsAny(c, p, f.AppraisalCompany, ["AppraisalCompany", "AppraisalCompanyEn"], "AppraisalCompany");
         ReportFilterSql.Exact(c, p, f.InternalStaff, "InternalAppraisalStaffCode", "InternalStaff");
         ReportFilterSql.Contains(c, p, f.AppraisalNumber, "AppraisalNumber", "AppraisalNumber");
         ReportFilterSql.MultiValue(c, p, f.Purpose, "PurposeCode", "Purposes");

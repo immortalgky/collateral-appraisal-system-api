@@ -14,12 +14,18 @@ public record MonitoringGroupedResult(
 /// </summary>
 /// <param name="Key">Grouping key: user id, company id, or activity id.</param>
 /// <param name="Label">Display label: PIC name, company name, or activity id (frontend resolves via MonitoringActivityMap).</param>
+/// <param name="LabelLocal">
+/// Thai display label, currently only for groupBy=company. Null for pic/activity grouping and for
+/// companies with no Thai name — the client falls back to <paramref name="Label"/>. Kept separate
+/// from Key so the grouping identity stays language-independent.
+/// </param>
 /// <param name="Count">Total rows in this group under the active filter.</param>
 /// <param name="Breached">Count of rows where OlaVarianceHours &gt; 0.</param>
 /// <param name="AtRisk">Count of rows where OlaVarianceHours &lt;= 0 AND remaining &lt;= 25% of target (excluding zero-target rows).</param>
 public record MonitoringGroupRow(
     string Key,
     string Label,
+    string? LabelLocal,
     int Count,
     int Breached,
     int AtRisk

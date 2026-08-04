@@ -6,7 +6,8 @@ OR ALTER VIEW reporting.vw_RCAS008_ServiceQuality
 AS
 SELECT el.AppraisalId           AS Id,
        el.AppraisalNumber,
-       el.AppraiserCompanyName  AS AppraisalCompany,
+       COALESCE(NULLIF(el.AppraiserCompanyNameLocal, N''), el.AppraiserCompanyName)  AS AppraisalCompany,
+       el.AppraiserCompanyName  AS AppraisalCompanyEn,   -- filter key: stays English so a company filter matches in either language
        a.CompletedAt            AS ApprovedDate,
        a.BankingSegment,
        el.TotalScore            AS TotalScorePct,

@@ -51,6 +51,9 @@ SELECT a.Id,
        --                a ValuationAnalyses row nor an Appointment row, and without it those rows
        --                report a NULL appraisal date on the 360 page and anywhere reading this view.
        c.Name                                                                              AS CompanyName,
+       -- Thai name, exposed alongside CompanyName so the client can pick by its own locale
+       -- (the API has no request locale). NULLIF collapses '' to NULL for a single absent-test.
+       NULLIF(c.NameLocal, N'')                                                            AS CompanyNameLocal,
        NULLIF(LTRIM(RTRIM(CONCAT(NULLIF(u.FirstName, N''), N' ', NULLIF(u.LastName, N'')))), N'')
                                                                                            AS AppraiserName,
        COALESCE(va.ValuationDate, lap.AppointmentDateTime, a.CompletedAt, la.CompletedAt)  AS AppraisalDate,

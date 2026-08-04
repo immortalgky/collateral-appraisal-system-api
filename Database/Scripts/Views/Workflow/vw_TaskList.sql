@@ -226,6 +226,10 @@ SELECT resolved.Id                                                              
                 AA.AssigneeUserId)
            WHEN AA.AssignmentType = 'External' THEN comp.Name
            END                                                                                  AS Appraiser,
+       -- Thai company name for EXTERNAL rows only — Appraiser is a union of two different things
+       -- (a person for Internal, a company for External), so it cannot be localized wholesale.
+       -- NULL here means "nothing to localize": the client falls back to Appraiser as-is.
+       CASE WHEN AA.AssignmentType = 'External' THEN NULLIF(comp.NameLocal, N'') END             AS AppraiserCompanyNameLocal,
        COALESCE(a.Priority, r.Priority)                                                         AS Priority,
        resolved.DueAt,
        resolved.SlaStartAt,

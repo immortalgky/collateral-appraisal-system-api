@@ -23,6 +23,8 @@ public record GetUserByIdResult(
     string? EmployeeId,
     Guid? CompanyId,
     string? CompanyName,
+    // Thai name; null when the company has none. The client picks by its own locale.
+    string? CompanyNameLocal,
     string AuthSource,
     bool IsActive,
     bool IsLocked,
