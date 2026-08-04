@@ -156,23 +156,89 @@ public class Committee : Aggregate<Guid>
         ConditionType conditionType, string? roleRequired, int? minVotesRequired,
         int priority, string? description)
     {
-        // Name comparison, not Enum.TryParse: TryParse also accepts the numeric form ("3" -> UW),
-        // and roleRequired is persisted as the raw string, so "3" would pass validation and then
-        // match no vote's role at runtime — the exact failure this guard exists to prevent.
-        if (conditionType == ConditionType.RoleRequired
-            && !Enum.GetNames<CommitteeMemberPosition>()
-                .Contains(roleRequired, StringComparer.OrdinalIgnoreCase))
-        {
-            throw new ArgumentException(
-                $"Invalid RoleRequired '{roleRequired}'. Allowed values: " +
-                $"{string.Join(", ", Enum.GetNames<CommitteeMemberPosition>())}",
-                nameof(roleRequired));
-        }
+        RequireSatisfiableCondition(conditionType, roleRequired, minVotesRequired);
 
         var condition = CommitteeApprovalCondition.Create(
             Id, conditionType, roleRequired, minVotesRequired, priority, description);
         _conditions.Add(condition);
         return condition;
+    }
+
+    public void UpdateCondition(
+        Guid conditionId, ConditionType conditionType, string? roleRequired,
+        int? minVotesRequired, int priority, string? description, bool isActive)
+    {
+        var condition = _conditions.FirstOrDefault(c => c.Id == conditionId)
+            ?? throw new NotFoundException($"CommitteeApprovalCondition {conditionId} not found");
+
+        // Only an ACTIVE condition is evaluated, so an unsatisfiable one is harmless while
+        // inactive — validate just the states that can actually block a round.
+        if (isActive)
+            RequireSatisfiableCondition(conditionType, roleRequired, minVotesRequired);
+
+        condition.Update(conditionType, roleRequired, minVotesRequired, priority, description, isActive);
+    }
+
+    /// <summary>Soft-removes, mirroring <see cref="RemoveMember"/> — history keeps the row.</summary>
+    public void RemoveCondition(Guid conditionId)
+    {
+        var condition = _conditions.FirstOrDefault(c => c.Id == conditionId)
+            ?? throw new NotFoundException($"CommitteeApprovalCondition {conditionId} not found");
+        condition.Deactivate();
+    }
+
+    /// <summary>
+    /// Rejects a condition the approval round could never satisfy, which would otherwise stall the
+    /// round with no error — the same class of guard as the MajorityValue check. Mirrors exactly
+    /// what <c>ApprovalActivity.CheckApprovalConditions</c> reads: it compares RoleRequired against
+    /// the voter's role case-insensitively, so a free-text role that matches no member silently
+    /// fails forever.
+    /// </summary>
+    private void RequireSatisfiableCondition(
+        ConditionType conditionType, string? roleRequired, int? minVotesRequired)
+    {
+        var activeMembers = GetActiveMembers();
+
+        if (conditionType == ConditionType.RoleRequired)
+        {
+            if (string.IsNullOrWhiteSpace(roleRequired))
+                throw new ArgumentException(
+                    $"ConditionType {nameof(ConditionType.RoleRequired)} requires a role.",
+                    nameof(roleRequired));
+
+            // Name comparison, not Enum.TryParse: TryParse also accepts the numeric form
+            // ("3" -> UW), and roleRequired is persisted as the RAW STRING, so "3" would pass
+            // validation and then match no vote's role at runtime — CheckApprovalConditions
+            // compares it as a plain case-insensitive string. That is the exact silent stall
+            // this guard exists to prevent.
+            if (!Enum.GetNames<CommitteeMemberPosition>()
+                    .Contains(roleRequired, StringComparer.OrdinalIgnoreCase))
+                throw new ArgumentException(
+                    $"Invalid role '{roleRequired}'. Allowed values: " +
+                    $"{string.Join(", ", Enum.GetNames<CommitteeMemberPosition>())}.",
+                    nameof(roleRequired));
+
+            var position = Enum.Parse<CommitteeMemberPosition>(roleRequired, ignoreCase: true);
+
+            if (activeMembers.Count > 0 && activeMembers.All(m => m.Position != position))
+                throw new ArgumentException(
+                    $"No active member holds the role '{position}'; the approval round could never " +
+                    "satisfy this condition.",
+                    nameof(roleRequired));
+
+            return;
+        }
+
+        if (minVotesRequired is not > 0)
+            throw new ArgumentException(
+                $"ConditionType {nameof(ConditionType.MinVotes)} requires a MinVotesRequired greater than 0.",
+                nameof(minVotesRequired));
+
+        if (activeMembers.Count > 0 && minVotesRequired > activeMembers.Count)
+            throw new ArgumentException(
+                $"MinVotesRequired {minVotesRequired} exceeds the committee's {activeMembers.Count} " +
+                "active member(s); the approval round could never reach it.",
+                nameof(minVotesRequired));
     }
 
     public List<CommitteeMember> GetActiveMembers() =>
