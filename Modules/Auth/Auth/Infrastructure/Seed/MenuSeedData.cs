@@ -211,6 +211,8 @@ public static class MenuSeedData
                 new("main.appointment-approval-rule", "Appointment Approval Rule", "calendar-xmark", IconStyle.Solid, "text-orange-500", "/admin/appointment-approval-rule", "APPOINTMENT_APPROVAL_CONFIG", "APPOINTMENT_APPROVAL_CONFIG"),
                 new("main.evaluation-config", "Evaluation Criteria Config", "star-half-stroke", IconStyle.Solid, "text-orange-500", "/admin/evaluation-config", "EVALUATION_CONFIG_MANAGE", "EVALUATION_CONFIG_MANAGE"),
                 new("main.sla-config", "OLA / SLA Targets", "stopwatch", IconStyle.Solid, "text-orange-500", "/admin/sla-config", "SLA_CONFIG_MANAGE", "SLA_CONFIG_MANAGE"),
+                // Title (Land Dept) and DOPA geocode hierarchies — two separate datasets.
+                new("main.address-masters", "Address Masters", "map-location-dot", IconStyle.Solid, "text-rose-500", "/admin/address-masters", "ADDRESS_MASTER_MANAGE", "ADDRESS_MASTER_MANAGE"),
             }, LabelTh: "กฎเกณฑ์ธุรกิจ"),
 
         // Gate USER_MANAGE: held by Admin + IntAdmin + ExtAdmin. OAuth / Audit Log / Access
@@ -251,6 +253,7 @@ public static class MenuSeedData
                 new("main.logs", "Application Logs", "file-lines", IconStyle.Solid, "text-slate-500", "/admin/logs", "LOGS_VIEW", null),
                 new("main.webhook-subscriptions", "Webhook Subscriptions", "plug-circle-bolt", IconStyle.Solid, "text-slate-500", "/admin/webhook-subscriptions", "WEBHOOK_SUBSCRIPTIONS_MANAGE", null),
                 new("main.webhook-deliveries", "Webhook Deliveries", "satellite-dish", IconStyle.Solid, "text-slate-500", "/admin/webhook-deliveries", "WEBHOOK_DELIVERIES_VIEW", null),
+                new("main.job-schedules", "Scheduled Jobs", "clock", IconStyle.Solid, "text-slate-500", "/admin/job-schedules", "JOB_SCHEDULE_MANAGE", "JOB_SCHEDULE_MANAGE"),
             }, LabelTh: "ระบบ"),
     };
 

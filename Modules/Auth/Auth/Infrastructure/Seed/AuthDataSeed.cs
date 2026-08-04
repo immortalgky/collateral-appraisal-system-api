@@ -227,22 +227,15 @@ public class AuthDataSeed(
                 throw new InvalidOperationException(
                     $"Failed to create {roleName} role: {string.Join(", ", createResult.Errors.Select(e => e.Description))}");
         }
-        else if (await dbContext.Set<RolePermission>().AnyAsync(rp => rp.RoleId == role.Id))
+        else
         {
-            // The role exists AND already carries a permission set, so that set belongs to the
-            // admin. Re-adding the seed permissions here would silently restore anything they
-            // had deliberately revoked via /admin/roles on the next app restart.
+            // CREATE-ONLY: the role already exists, so its permission set belongs to the admin.
+            // Re-adding the seed permissions here would silently restore anything an admin had
+            // deliberately revoked via /admin/roles on the next app restart.
             // To grant a NEW permission to an existing role in a later release, write a one-off
             // script in Database/Migration/Scripts/ — the same convention UpsertTreeAsync uses.
             return;
         }
-
-        // Falling through means the role exists but has never been granted anything, which only
-        // happens when something outside this seeder created it — as
-        // 20260323201000_SeedData_WorkflowUsersAndRoles.sql did before it was retired, leaving
-        // 10 roles permission-less on any database built while the migrator ran ahead of the
-        // API. Grant the seed set once so such a database repairs itself on the next boot; the
-        // guard above stops a second pass (AddRangeAsync below has no duplicate check).
 
         var permissionIds = await dbContext.Permissions
             .AsNoTracking()
@@ -985,7 +978,15 @@ public class AuthDataSeed(
                 "View the user/role/permission/group/team change history", "Auth"),
             // Company maintenance
             ("COMPANY_MANAGE", "Manage Companies",
-                "Create, update, and delete external appraisal companies", "Auth")
+                "Create, update, and delete external appraisal companies", "Auth"),
+            // Recurring background job schedules (per-module {schema}.JobSchedules)
+            ("JOB_SCHEDULE_MANAGE", "Manage Scheduled Jobs",
+                "Change the cron schedule, timezone, and enabled state of recurring background jobs",
+                "Common"),
+            // Thai address masters — Title (Department of Lands) and DOPA geocode hierarchies
+            ("ADDRESS_MASTER_MANAGE", "Manage Address Masters",
+                "Create, rename, and remove Title/DOPA provinces, districts, and sub-districts",
+                "Common")
         };
 
         foreach (var (code, displayName, description, module) in seedPermissions)
@@ -1128,18 +1129,14 @@ public class AuthDataSeed(
                 throw new InvalidOperationException(
                     $"Failed to create Admin role: {string.Join(", ", createResult.Errors.Select(e => e.Description))}");
         }
-        else if (await dbContext.Set<RolePermission>().AnyAsync(rp => rp.RoleId == adminRole.Id))
+        else
         {
-            // Same reasoning as SeedRoleWithPermissionsAsync: once the Admin role exists and has
-            // a permission set, that set is the admin's to manage. Re-granting every permission
-            // on each boot would undo any deliberate revocation. New permissions added in a later
+            // CREATE-ONLY, same reasoning as SeedRoleWithPermissionsAsync: once the Admin role
+            // exists its permission set is the admin's to manage. Re-granting every permission on
+            // each boot would undo any deliberate revocation. New permissions added in a later
             // release reach Admin via a one-off script in Database/Migration/Scripts/.
             return;
         }
-
-        // An Admin role with no permissions at all can only have been created outside this
-        // seeder, and one that cannot administer anything locks everybody out — so grant the
-        // full set rather than leaving it empty.
 
         var allPermissionIds = await dbContext.Permissions
             .AsNoTracking()
