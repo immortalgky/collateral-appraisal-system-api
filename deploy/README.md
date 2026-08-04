@@ -41,18 +41,36 @@ the IIS/certificate side.
 
 On each app server, create `appsettings.Production.json` from
 `Bootstrapper/Api/appsettings.Production.json.template` and substitute **every** `#{TOKEN}#`.
-It must be complete **before the app is started for the first time**, because that first start
-is when the data seeders run. Three values decide whether the environment is usable at all:
+`ConnectionStrings:Database` must be right or the app cannot start.
 
-| Setting | If it is wrong/missing at first start |
+> **The application no longer seeds data.** `SeedData:RunSeeders` gates every data seeder and
+> **fails closed** — unset means off, and the production template sets it to `false` explicitly.
+> Seeding is a fresh-install convenience for Development only. On a live database the
+> whole-table-guarded seeders were already no-ops, while the per-key ones silently re-inserted rows
+> an admin had deleted, undoing their work on every app-pool recycle. Reference data that code
+> depends on now ships as a one-off script in `Database/Migration/Scripts/`, applied once per
+> database by the `db/` bundle; everything else belongs to the admin UI and is never rewritten.
+
+### Standing up a brand-new environment
+
+Because seeding is off, a **new, empty** database will have no permissions, menus, roles, workflow
+groups or admin account, and — unlike before — **this no longer self-heals on restart**. For a new
+environment, one of the following is required:
+
+1. Restore or script the reference data from an existing environment (preferred — the C# blueprints
+   have drifted from the real databases in places, so the live data is the more truthful source), or
+2. Set `SeedData:RunSeeders: true` for the **first boot only**, confirm sign-in works, then set it
+   back to `false` before the environment is handed over.
+
+If you take option 2, these two values must be correct *at that first boot*, or the deployment looks
+healthy while nobody can sign in:
+
+| Setting | If it is wrong/missing at the seeding boot |
 |---|---|
-| `ConnectionStrings:Database` | app cannot start |
 | `SeedData:AdminUser` | no admin account is created — nobody can sign in |
-| `Cors:AllowedOrigins` | the `spa` OAuth client is skipped and logged as an error — the deployment looks healthy but **nobody can sign in** |
+| `Cors:AllowedOrigins` | the `spa` OAuth client is skipped and logged as an error — nobody can sign in |
 
-Both sign-in failures self-heal on a restart once the config is corrected (the seeders are
-insert-only, so the missing rows are simply retried) — but they present as a *successful*
-deployment, which is an expensive thing to diagnose mid go-live.
+This does not apply to an already-live environment, where those rows exist already.
 
 **1. Build (build box):**
 ```bash
@@ -139,15 +157,16 @@ nothing to enable. Just connect to the right database and press Execute. Two poi
 .\deploy\Deploy-App.ps1 -Version 20260723-101500
 .\deploy\Deploy-Web.ps1 -Version 20260723-101500
 ```
-**This is where data seeding happens.** On startup each node verifies the schema is current and
-then runs its modules' data seeders — permissions, menus, roles, workflow assignment groups,
-lookup tables, workflow definitions. Seeding runs while the pipeline is being built, before the
-app listens (`Program.cs`: `MapCarter()` → the `UseXModule()` chain → `app.Run()`), so a node
-serves no traffic until its seeders have finished.
+On startup each node verifies the schema is current and refuses to boot if it is behind the build.
+**No data is written at startup** — see the seeding note above. The Workflow module additionally
+logs `CRITICAL` if any required `workflow.ActivityProcessConfigurations` row is missing, which is
+the signal that a `Database/Migration/Scripts/` script shipped with a feature was not applied;
+it logs rather than throws, so it will not stop a node from serving.
 
-Confirm `/health/ready` before moving to the next server. This is not only an F5 courtesy: a
-healthy server 1 means seeding is complete, so server 2's seeders find everything present and
-no-op. Starting both nodes at once would let the insert-only seeders race on check-then-insert.
+Confirm `/health/ready` before moving to the next server — an F5 courtesy so one node keeps
+serving throughout the rollout. (This used to be a hard requirement because the insert-only
+seeders would race on check-then-insert if both nodes started together. With seeding disabled
+that race is gone, but rolling one server at a time is still the right way to deploy.)
 
 **5. Post-deployment steps that are NOT automated.** These are manual on purpose —
 they need per-environment values the repo cannot hold:
@@ -155,12 +174,17 @@ they need per-environment values the repo cannot hold:
 | Step | Why it is manual |
 |---|---|
 | `Database/Scripts/Maintenance/WebhookSubscriptions_LOS_PMA.sql` | Registers the LOS PMA push subscription. Contains `<LOS-HOST>` and `<LOS-PROVIDED-CLIENT-SECRET>` placeholders that **must** be replaced with the real LOS values before running. Not in the `db/` bundle. |
-| Committee members | `CommitteeDataSeed` seeds the committees and their thresholds but resolves members by username, so a production database gets **no members**. Add them via the admin UI. |
-| `los` / `cls` OAuth clients | Seeded only when `Authentication:Clients:<id>:ClientSecret` is set in `appsettings.Production.json`; otherwise skipped with a warning. Either set the secrets or create the clients via `/admin/clients`. |
+| Committee members | Committees and thresholds exist, but members resolve by username, so a production database gets **no members**. Add them via the admin UI. |
+| `los` / `cls` OAuth clients | Not created by the app (seeding is off). Create them via `/admin/clients`, or set `Authentication:Clients:<id>:ClientSecret` and use a first-boot seeding run on a new environment only. |
 
 Everything else — schema, views, procs, reference data, menus, permissions, roles and
-the workflow assignment groups — is applied by the `db/` bundle plus the application's
-own boot-time seeders.
+the workflow assignment groups — is applied by the `db/` bundle.
+
+The application writes no *reference data* at startup. The one exception is `JobSchedules`:
+`UseModuleRecurringJobs` inserts a row for any recurring job that does not have one yet
+(`Shared/Shared/Scheduling/RecurringJobScheduleExtensions.cs`), which is deliberate and safe — an
+existing row always wins over the code default, so a cron edited through `/admin/job-schedules`
+is re-applied on every boot and never overwritten.
 
 ## How the SQL bundle is generated
 
