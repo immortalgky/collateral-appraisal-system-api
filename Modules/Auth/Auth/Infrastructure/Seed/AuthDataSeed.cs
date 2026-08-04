@@ -1084,29 +1084,32 @@ public class AuthDataSeed(
         var seed = ActivityMenuOverrideSeedData.GetSeed();
         if (seed.Count == 0) return;
 
+        // CREATE-ONLY: seed the override blueprint once, on a fresh database.
+        // The admin API stores "inherit / revert to role default" as row ABSENCE
+        // (UpdateActivityOverridesEndpoint drops no-op IsVisible=true+CanEdit=true rows),
+        // so a per-row presence check cannot tell "never seeded" from "deliberately
+        // reverted" — and would resurrect the restriction on the next boot. Gate on the
+        // table instead. To add or change overrides on an existing database, write a
+        // one-off script in Database/Migration/Scripts/, as the menu scripts do.
+        // Known edge case: reverting ALL seeded overrides empties the table and lets it
+        // reseed on restart. Accepted — "no activity restrictions anywhere" is not a
+        // realistic configuration, and a seed-history table costs a migration.
+        if (await dbContext.ActivityMenuOverrides.AnyAsync()) return;
+
         var menuItemIdsByKey = await dbContext.MenuItems
             .Where(m => m.Scope == MenuScope.Appraisal)
             .ToDictionaryAsync(m => m.ItemKey, m => m.Id);
 
-        var existing = await dbContext.ActivityMenuOverrides
-            .ToDictionaryAsync(o => (o.ActivityId, o.MenuItemId));
-
-        var added = false;
         foreach (var entry in seed)
         {
             if (!menuItemIdsByKey.TryGetValue(entry.MenuItemKey, out var menuItemId))
                 continue; // menu item not seeded yet — skip gracefully
 
-            if (existing.ContainsKey((entry.ActivityId, menuItemId)))
-                continue; // INSERT-ONLY, like MenuSeedData — admin edits win.
-
             var row = ActivityMenuOverride.Create(entry.ActivityId, menuItemId, entry.IsVisible, entry.CanEdit);
             dbContext.ActivityMenuOverrides.Add(row);
-            added = true;
         }
 
-        if (added)
-            await dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync();
     }
 
     private async Task SeedAdminRoleAsync()
