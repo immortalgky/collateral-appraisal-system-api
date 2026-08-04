@@ -190,7 +190,7 @@
     </div>
     <div class="kv"><span class="k">พิกัด</span><span class="v">{{ model.gps }}</span></div>
     <div class="cols2">
-      <div class="kv"><span class="k">ราคาประเมินราชการ</span><span class="v">{{ model.government_price_text }}</span></div>
+      <div class="kv"><span class="k">ราคาประเมินราชการ</span><span class="v">{{ if model.government_price_text; model.government_price_text; else; "-"; end }}</span></div>
       <div class="kv"><span class="k">สภาพการใช้ประโยชน์</span><span class="v">{{ for u in model.utilizations }}{{ u }}{{ if !for.last }}<br>{{ end }}{{ end }}</span></div>
     </div>
     <div class="kv" style="margin-top:3px;">
