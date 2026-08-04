@@ -21,7 +21,7 @@ public class GetQuotationValuersQueryHandler(
                                          """;
 
     private const string SqlShortlistedCompanies = """
-                                                   SELECT cq.Id AS CompanyQuotationId, c.Name AS CompanyName, cq.TotalQuotedPrice, cq.EstimatedDays 
+                                                   SELECT cq.Id AS CompanyQuotationId, COALESCE(NULLIF(c.NameLocal, N''), c.Name) AS CompanyName, cq.TotalQuotedPrice, cq.EstimatedDays 
                                                    FROM appraisal.CompanyQuotations cq
                                                    JOIN auth.Companies c ON c.Id = cq.CompanyId
                                                    WHERE cq.QuotationRequestId = @QuotationId AND cq.IsShortlisted = 1

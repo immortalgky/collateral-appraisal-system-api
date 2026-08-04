@@ -16,7 +16,9 @@ WITH latest_assignment AS (
         a.CreatedAt,
         a.CompletedAt,
         TRY_CAST(aa.AssigneeCompanyId AS uniqueidentifier)  AS CompanyId,
-        comp.Name                                           AS CompanyName
+        comp.Name                                           AS CompanyName,
+        -- Thai name alongside the English one; the client picks by its own locale.
+        NULLIF(comp.NameLocal, N'')                         AS CompanyNameLocal
     FROM appraisal.Appraisals a
     INNER JOIN (
         SELECT AppraisalId, AssigneeCompanyId,
@@ -30,10 +32,10 @@ WITH latest_assignment AS (
     WHERE a.IsDeleted = 0
 ),
 events AS (
-    SELECT CompanyId, CompanyName, CAST(CreatedAt AS DATE) AS [Date], 1 AS AssignedCount, 0 AS CompletedCount
+    SELECT CompanyId, CompanyName, CompanyNameLocal, CAST(CreatedAt AS DATE) AS [Date], 1 AS AssignedCount, 0 AS CompletedCount
     FROM latest_assignment
     UNION ALL
-    SELECT CompanyId, CompanyName, CAST(CompletedAt AS DATE) AS [Date], 0, 1
+    SELECT CompanyId, CompanyName, CompanyNameLocal, CAST(CompletedAt AS DATE) AS [Date], 0, 1
     FROM latest_assignment
     WHERE CompletedAt IS NOT NULL
 )
@@ -41,6 +43,7 @@ SELECT
     CompanyId,
     [Date],
     MAX(CompanyName)        AS CompanyName,
+    MAX(CompanyNameLocal)   AS CompanyNameLocal,
     SUM(AssignedCount)      AS AssignedCount,
     SUM(CompletedCount)     AS CompletedCount
 FROM events

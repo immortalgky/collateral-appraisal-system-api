@@ -23,7 +23,8 @@ SELECT v.Id,
        ru.PhoneNumber           AS RequestorPhone,
        ru.Department            AS RequestorDepartment,
        v.BankingSegment,
-       v.CompanyName            AS AppraisalCompany,
+       COALESCE(NULLIF(v.CompanyNameLocal, N''), v.CompanyName)            AS AppraisalCompany,
+       v.CompanyName            AS AppraisalCompanyEn,   -- filter key: stays English so a company filter matches in either language
        v.ExternalAppraiserName  AS ExternalStaffName,
        v.ExternalAppraiserId    AS ExternalStaffCode,     -- filter-only: the External Appraisal Staff filter binds the code
        v.AssignmentType,                                  -- filter-only: RCAS012 scopes to External

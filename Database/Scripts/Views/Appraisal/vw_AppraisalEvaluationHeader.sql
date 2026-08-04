@@ -15,6 +15,8 @@ SELECT
 
     -- Current external assignment's appraiser
     comp.Name                               AS AppraiserCompanyName,
+    -- Thai name alongside the English one; the client picks by its own locale.
+    NULLIF(comp.NameLocal, N'')             AS AppraiserCompanyNameLocal,
     ext.AssigneeCompanyId,
 
     NULLIF(LTRIM(RTRIM(CONCAT(u.FirstName, ' ', u.LastName))), '')

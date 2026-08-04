@@ -102,7 +102,15 @@ internal static class GetAppraisalResultSql
                                                aa.AssignmentType,
                                                aa.AssigneeUserId,
                                                aa.AssigneeCompanyId,
-                                               c.Name AS CompanyName,
+                                               -- Thai-first. This SQL is shared by BOTH result endpoints, and both are JSON:
+                                               --   POST /api/v1/appraisals/result  (LegacyAppraisalResultEnvelope)
+                                               --   GET  /api/v2/appraisals/{no}/result
+                                               -- Neither is fixed-width, so there is no column-width or byte-offset limit here.
+                                               -- NOTE: the AS400 fixed-width ExternalValuerName is a DIFFERENT path — it reads
+                                               -- the frozen collateral.CollateralEngagements.AppraisalCompanyName snapshot via
+                                               -- Collateral/CollateralMasters/CollateralResult/CollateralResultQuery.cs, which
+                                               -- stays English. Don't conflate the two.
+                                               COALESCE(NULLIF(c.NameLocal, N''), c.Name) AS CompanyName,
                                                c.HostCompanyCode AS CompanyCode,
                                                u.FirstName AS UserFirstName,
                                                u.LastName  AS UserLastName,

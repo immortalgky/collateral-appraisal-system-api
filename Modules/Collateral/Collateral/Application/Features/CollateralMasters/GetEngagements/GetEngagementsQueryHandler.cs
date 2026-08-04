@@ -24,6 +24,7 @@ public class GetEngagementsQueryHandler(
             AppraiserUserId,
             AppraisalCompanyId,
             AppraisalCompanyName,
+            AppraisalCompanyNameLocal,
             ConstructionInspectionFeeAmount,
             CreatedAt,
             CollateralType,

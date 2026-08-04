@@ -75,12 +75,13 @@ public class GetPendingFollowupsGroupedQueryHandler(ISqlConnectionFactory connec
         }
 
         var where = "WHERE " + string.Join(" AND ", conditions);
-        var (keyExpr, labelExpr, groupByExpr) = ResolveGrouping(query.GroupBy);
+        var (keyExpr, labelExpr, labelLocalExpr, groupByExpr) = ResolveGrouping(query.GroupBy);
 
         var sql = $@"
 SELECT
     {keyExpr} AS [Key],
     {labelExpr} AS Label,
+    {labelLocalExpr} AS LabelLocal,
     COUNT(*) AS Count,
     SUM(CASE WHEN OlaVarianceHours > 0 THEN 1 ELSE 0 END) AS Breached,
     SUM(CASE WHEN OlaVarianceHours <= 0
@@ -107,6 +108,8 @@ FROM common.vw_MonitoringPendingTasks
             .Select(g => new MonitoringGroupRow(
                 g.Key ?? string.Empty,
                 g.Label ?? string.Empty,
+
+                g.LabelLocal,
                 g.Count,
                 g.Breached,
                 g.AtRisk))
@@ -115,20 +118,25 @@ FROM common.vw_MonitoringPendingTasks
         return new MonitoringGroupedResult(result, total);
     }
 
-    private static (string keyExpr, string labelExpr, string groupByExpr) ResolveGrouping(string groupBy) =>
+    private static (string keyExpr, string labelExpr, string labelLocalExpr, string groupByExpr) ResolveGrouping(string groupBy) =>
         groupBy.ToLowerInvariant() switch
         {
             "pic" => (
                 "AssignedTo",
                 "MAX(PIC)",
+                "CAST(NULL AS nvarchar(200))",
                 "AssignedTo"),
             "company" => (
+                // Key stays the ENGLISH name so the grouping identity (and drill-in) is
+                // language-independent; only LabelLocal varies by language.
                 "COALESCE(NULLIF(AppraisalCompanyName, ''), 'Unassigned')",
                 "COALESCE(NULLIF(AppraisalCompanyName, ''), 'Unassigned')",
+                "MAX(NULLIF(AppraisalCompanyNameLocal, ''))",
                 "COALESCE(NULLIF(AppraisalCompanyName, ''), 'Unassigned')"),
             "activity" => (
                 "ActivityId",
                 "ActivityId",
+                "CAST(NULL AS nvarchar(200))",
                 "ActivityId"),
             _ => throw new ArgumentException($"Unsupported groupBy value '{groupBy}'. Allowed: pic, company, activity.", nameof(groupBy))
         };
@@ -152,5 +160,5 @@ FROM common.vw_MonitoringPendingTasks
     private static string EscapeLike(string input) =>
         input.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_").Replace("[", "\\[");
 
-    private record GroupRow(string? Key, string? Label, int Count, int Breached, int AtRisk);
+    private record GroupRow(string? Key, string? Label, string? LabelLocal, int Count, int Breached, int AtRisk);
 }

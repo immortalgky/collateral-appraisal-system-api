@@ -33,7 +33,7 @@ public class GetEligibleCompaniesQueryHandler(
         {
             overviewMap.TryGetValue(c.Id, out var ov);
             return new EligibleCompanyDto(
-                c.Id, c.Name, c.ContactPerson, c.Phone, c.Email, c.TaxId,
+                c.Id, c.Name, c.NameLocal, c.ContactPerson, c.Phone, c.Email, c.TaxId,
                 AverageRating:    ov?.AverageRating    ?? 0m,
                 EvaluationCount:  ov?.EvaluationCount  ?? 0,
                 ActiveAssignments: ov?.ActiveAssignments ?? 0,

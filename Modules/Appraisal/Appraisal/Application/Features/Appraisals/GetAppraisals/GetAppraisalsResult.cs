@@ -44,6 +44,8 @@ public record AppraisalDto
     public string? AssignmentStatus { get; init; }
     public DateTime? AssignedDate { get; init; }
     public string? CompanyName { get; init; }
+    /// <summary>Thai name; null when the company has none. The client picks by its own locale.</summary>
+    public string? CompanyNameLocal { get; init; }
 
     // Customer Info
     public string? CustomerName { get; init; }

@@ -30,6 +30,8 @@ public record GetAppraisalByIdResult
     public int GroupCount { get; set; }
     public int AssignmentCount { get; set; }
     public string? CompanyName { get; set; }
+    /// <summary>Thai name; null when the company has none. The client picks by its own locale.</summary>
+    public string? CompanyNameLocal { get; set; }
     public string? AppraiserName { get; set; }
     public DateTime? AppraisalDate { get; set; }
     public decimal? AppraisalValue { get; set; }

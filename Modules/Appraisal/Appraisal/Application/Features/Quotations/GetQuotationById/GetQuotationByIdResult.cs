@@ -119,6 +119,8 @@ public record CompanyQuotationResult(
     Guid Id,
     Guid CompanyId,
     string? CompanyName,
+    /// <summary>Thai name; null when the company has none. The client picks by its own locale.</summary>
+    string? CompanyNameLocal,
     string QuotationNumber,
     string Status,
     /// <summary>Maker's "not participate" reason. Set while a decline is PendingCheckerReview (the intent
@@ -169,4 +171,4 @@ public record CompanyQuotationNegotiationResult(
     DateTime? RespondedAt
 );
 
-public sealed record InvitedCompanyResult(Guid CompanyId, string CompanyName, string? Email);
+public sealed record InvitedCompanyResult(Guid CompanyId, string CompanyName, string? CompanyNameLocal, string? Email);

@@ -55,8 +55,10 @@ SELECT a.Id,
        la.AssignmentStatus,
        la.AssignedAt                                                                       AS AssignedDate,
        la.SubmittedAt,   -- first-submission timestamp (external: sent-to-bank; internal: execution→check); SLA end-point
-       -- Company name for external assignments
+       -- Company name for external assignments. The Thai name rides alongside (not instead of) the
+       -- English one so the client can pick by its own locale; NULLIF collapses '' to NULL.
        comp.Name                                                                           AS CompanyName,
+       NULLIF(comp.NameLocal, N'')                                                         AS CompanyNameLocal,
        -- Customer name from request
        c.Name                                                                              AS CustomerName,
        -- First property location

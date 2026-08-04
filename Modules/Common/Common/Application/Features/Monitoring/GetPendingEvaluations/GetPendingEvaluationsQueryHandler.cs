@@ -34,6 +34,7 @@ SELECT
     ExternalAppraiserName,
     AssigneeCompanyId,
     AppraiserCompanyName,
+    AppraiserCompanyNameLocal,
     AppraisalValue,
     EvaluationId,
     EvaluationStatus,

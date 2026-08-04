@@ -36,5 +36,7 @@ public class ActivityLogItemDto
     public string? Group { get; set; }
     public string? ActivityId { get; set; }
     public string? CompanyName { get; set; }
+    /// <summary>Thai company name; null when absent. The client picks by its own locale.</summary>
+    public string? CompanyNameLocal { get; set; }
     public string? Movement { get; set; } // F | C (Cancel) | B (back) — "C" marks the cancelled activity
 }

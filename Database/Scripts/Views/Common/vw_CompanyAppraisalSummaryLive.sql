@@ -22,6 +22,8 @@ WITH latest_assignment AS (
         a.CreatedAt,
         TRY_CAST(aa.AssigneeCompanyId AS uniqueidentifier)  AS CompanyId,
         comp.Name                                           AS CompanyName,
+        -- Thai name alongside the English one; the client picks by its own locale.
+        NULLIF(comp.NameLocal, N'')                         AS CompanyNameLocal,
         aa.SubmittedAt,
         aa.SLADueDate
     FROM appraisal.Appraisals a
@@ -40,6 +42,7 @@ SELECT
     AppraisalId,
     CompanyId,
     CompanyName,
+    CompanyNameLocal,
     CreatedAt,
     CASE WHEN SubmittedAt IS NOT NULL THEN 1 ELSE 0 END AS IsCompleted,
     CASE WHEN SubmittedAt IS NULL AND SLADueDate IS NOT NULL

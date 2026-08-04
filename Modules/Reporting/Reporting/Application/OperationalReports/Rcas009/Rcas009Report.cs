@@ -73,7 +73,7 @@ internal static class Rcas009Report
         // Filter on the raw FeePaymentType code (PayTypeCode); the PayType column now emits the
         // resolved description for display, so binding the code against it would never match.
         ReportFilterSql.MultiValue(c, p, f.PayType, "PayTypeCode", "PayTypes");
-        ReportFilterSql.Contains(c, p, f.AppraisalCompany, "AppraisalCompany", "AppraisalCompany");
+        ReportFilterSql.ContainsAny(c, p, f.AppraisalCompany, ["AppraisalCompany", "AppraisalCompanyEn"], "AppraisalCompany");
         ReportFilterSql.MultiValue(c, p, f.FeeStatus, "FeeStatus", "FeeStatuses");
         ReportFilterSql.Contains(c, p, f.AppraisalNumber, "AppraisalNumber", "AppraisalNumber");
 

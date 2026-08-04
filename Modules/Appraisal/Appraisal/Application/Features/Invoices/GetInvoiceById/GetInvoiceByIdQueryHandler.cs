@@ -12,7 +12,7 @@ public class GetInvoiceByIdQueryHandler(ISqlConnectionFactory sqlConnectionFacto
         var connection = sqlConnectionFactory.GetOpenConnection();
 
         const string headerSql = """
-            SELECT Id, InvoiceNumber, Status, TotalAmount, CompanyName,
+            SELECT Id, InvoiceNumber, Status, TotalAmount, CompanyName, CompanyNameLocal,
                    BankAccountNo, BankAccountName, Notes,
                    PaymentOrderNo, PaidDate, ApprovedBy, ApprovedAt,
                    SubmittedAt, CompanyId

@@ -19,7 +19,7 @@ SELECT v.Id,
        v.FacilityLimit          AS ApplyLimitAmount,
        ct.CollateralType,
        v.Channel,
-       v.CompanyName            AS AppraisalCompany,
+       COALESCE(NULLIF(v.CompanyNameLocal, N''), v.CompanyName)            AS AppraisalCompany,
        COALESCE(
            NULLIF(LTRIM(RTRIM(CONCAT(NULLIF(su.FirstName, N''), N' ', NULLIF(su.LastName, N'')))), N''),
            CAST(v.AssigneeUserId AS NVARCHAR(50))

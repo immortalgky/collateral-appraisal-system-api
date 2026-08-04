@@ -71,7 +71,7 @@ internal static class Rcas008Report
 
         ReportFilterSql.DateRange(c, p, f.ApprovedFrom, f.ApprovedTo, "ApprovedDate", "Approved");
         ReportFilterSql.MultiValue(c, p, f.BankingSegment, "BankingSegment", "BankingSegments");
-        ReportFilterSql.Contains(c, p, f.AppraisalCompany, "AppraisalCompany", "AppraisalCompany");
+        ReportFilterSql.ContainsAny(c, p, f.AppraisalCompany, ["AppraisalCompany", "AppraisalCompanyEn"], "AppraisalCompany");
         ReportFilterSql.MultiValue(c, p, f.EvaluationStatus, "EvaluationStatus", "EvaluationStatuses");
         ReportFilterSql.Contains(c, p, f.AppraisalNumber, "AppraisalNumber", "AppraisalNumber");
         // Purpose binds the raw code (PurposeCode); Appraisal type binds its stored code.

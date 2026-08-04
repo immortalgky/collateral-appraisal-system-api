@@ -264,9 +264,11 @@ internal static class ExternalBookBuilder
             && !string.IsNullOrWhiteSpace(assignment.AssigneeCompanyId)
             && Guid.TryParse(assignment.AssigneeCompanyId, out var companyGuid))
         {
+            // The appraisal book is a Thai-language document, so prefer the Thai company name and
+            // fall back to the English one only when the company has none.
             const string companySql = """
                 SELECT
-                    c.Name,
+                    COALESCE(NULLIF(c.NameLocal, N''), c.Name) AS Name,
                     c.Phone,
                     c.AddressLine1,
                     c.AddressLine2
