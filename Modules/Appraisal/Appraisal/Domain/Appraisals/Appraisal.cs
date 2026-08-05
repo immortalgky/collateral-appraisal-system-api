@@ -259,13 +259,16 @@ public class Appraisal : Aggregate<Guid>
     /// <summary>
     /// Add a condo property with detail to this appraisal
     /// </summary>
-    public AppraisalProperty AddCondoProperty()
+    public AppraisalProperty AddCondoProperty(decimal? sellingPrice = null)
     {
         var sequenceNumber = _properties.Count + 1;
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Condo);
 
         var condoDetail = CondoAppraisalDetail.Create(property.Id);
         property.SetCondoDetail(condoDetail);
+
+        if (IsPma && sellingPrice.HasValue)
+            property.UpdatePrice(sellingPrice, sellingPrice * 70 / 100, sellingPrice);
 
         _properties.Add(property);
 
@@ -276,7 +279,7 @@ public class Appraisal : Aggregate<Guid>
     /// Add a land and building property with details to this appraisal.
     /// Creates both LandAppraisalDetail and BuildingAppraisalDetail linked to the same AppraisalProperty.
     /// </summary>
-    public AppraisalProperty AddLandAndBuildingProperty()
+    public AppraisalProperty AddLandAndBuildingProperty(decimal? sellingPrice = null)
     {
         var sequenceNumber = _properties.Count + 1;
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.LandAndBuilding);
@@ -285,6 +288,9 @@ public class Appraisal : Aggregate<Guid>
         var landDetail = LandAppraisalDetail.Create(property.Id);
         var buildingDetail = BuildingAppraisalDetail.Create(property.Id);
         property.SetLandAndBuildingDetails(landDetail, buildingDetail);
+
+        if (IsPma && sellingPrice.HasValue)
+            property.UpdatePrice(sellingPrice, sellingPrice * 70 / 100, sellingPrice);
 
         _properties.Add(property);
 

@@ -49,6 +49,7 @@ public class RequestSubmittedEventHandler(
         {
             RequestId = notification.Request.Id,
             RequestTitles = requestTitleDtos,
+            RequestProperties = notification.Request.Properties.Select(p => p.ToDto()).ToList(),
             Appointment = appointmentDto,
             Fee = feeDto,
             Contact = contactDto,
@@ -172,6 +173,7 @@ public class RequestSubmittedEventHandler(
             {
                 TitleNumber = condoTitle.TitleDeedInfo.TitleNumber,
                 TitleType = condoTitle.TitleDeedInfo.TitleType,
+                BuiltOnTitleNumber = condoTitle.TitleDeedInfo.BuiltOnTitleNumber,
                 CondoName = condoTitle.CondoInfo.CondoName,
                 BuildingNumber = condoTitle.CondoInfo.BuildingNumber,
                 RoomNumber = condoTitle.CondoInfo.RoomNumber,
