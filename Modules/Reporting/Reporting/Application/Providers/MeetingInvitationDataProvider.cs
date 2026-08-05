@@ -98,14 +98,15 @@ public sealed class MeetingInvitationDataProvider(
             PreviousMeetingNoQuery.Sql("MeetingId"), p);
 
         // ── Build model ───────────────────────────────────────────────────────
+        // The roster lists every member including the Secretary, who membersSql ranks last. They
+        // also get their own signature block above it, so their name appears twice by design.
         var members = memberRows.Select(m => new MeetingMemberRow
         {
             MemberName = m.MemberName,
             PositionThai = MapPositionThai(m.Position)
         }).ToList();
 
-        var secretary = memberRows.FirstOrDefault(m =>
-            string.Equals(m.Position, "Secretary", StringComparison.OrdinalIgnoreCase));
+        var secretary = memberRows.FirstOrDefault(m => IsSecretary(m.Position));
 
         var agendas = MeetingAgendaBuilder.Build(
             items,
@@ -143,6 +144,14 @@ public sealed class MeetingInvitationDataProvider(
         "Secretary" => "เลขานุการฯ",
         _           => "กรรมการ"
     };
+
+    /// <summary>
+    /// Identifies the member whose name fills the เลขานุการคณะกรรมการ ฯ signature block. The
+    /// Secretary is NOT filtered out of any roster — every committee list includes them, ranked
+    /// last by the ORDER BY in membersSql.
+    /// </summary>
+    internal static bool IsSecretary(string? position) =>
+        string.Equals(position, "Secretary", StringComparison.OrdinalIgnoreCase);
 
     // ── Private Dapper flat DTOs ──────────────────────────────────────────────
 

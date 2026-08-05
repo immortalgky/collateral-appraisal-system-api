@@ -705,6 +705,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             SELECT
                 COALESCE(NULLIF(LTRIM(RTRIM(u.FirstName + ' ' + u.LastName)), ''), av.Member) AS MemberName,
                 COALESCE(NULLIF(u.Position, ''), av.MemberRole) AS Position,
+                av.MemberRole AS MemberRole,
                 av.Vote,
                 av.Comments   AS Comment,
                 av.Member     AS Member,
@@ -717,10 +718,15 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         var voteParams = new DynamicParameters();
         voteParams.Add("AppraisalId", appraisalId);
 
-        // One row per member (latest vote), in case of re-approval rounds.
+        // One row per member (latest vote), in case of re-approval rounds, then ordered by committee
+        // rank. The sort has to sit AFTER the GroupBy — GroupBy re-imposes first-appearance order,
+        // so an ORDER BY in the SQL would be silently discarded here.
         var votes = (await connection.QueryAsync<VoteRow>(votesSql, voteParams))
             .GroupBy(v => v.Member, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.OrderByDescending(v => v.VotedAt).First())
+            .OrderBy(v => AppraisalSummaryCommonLoader.CommitteeRoleRank(v.MemberRole))
+            .ThenBy(v => v.VotedAt)
+            .ThenBy(v => v.MemberName, StringComparer.Ordinal)
             .ToList();
 
         List<ApproverRow> approvers = votes.Select(v => new ApproverRow
@@ -1749,6 +1755,12 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public string? Comment { get; init; }
         public string? Member { get; init; }
         public DateTime VotedAt { get; init; }
+
+        /// <summary>
+        /// Committee role (CommitteeMemberPosition name) copied onto the vote from the meeting
+        /// roster. Drives display order only — <see cref="Position"/> is what actually prints.
+        /// </summary>
+        public string? MemberRole { get; init; }
     }
 
     private sealed class RequestorRow
