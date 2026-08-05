@@ -276,20 +276,20 @@ public sealed class AppraisalSummaryCondoDataProvider(
                         var label = string.IsNullOrWhiteSpace(ar.AreaDescription)
                             ? "พื้นที่"
                             : ar.AreaDescription!.Trim();
-                        parts.Add($"{label} {sz:0.##} ตารางเมตร");
+                        parts.Add($"{label} {sz:#,##0.##} ตารางเมตร");
                     }
                     var totalArea = areas.Sum(a => a.AreaSize ?? 0m);
                     if (areas.Count > 1 && totalArea > 0)
-                        parts.Add($"รวมพื้นที่ {totalArea:0.##} ตารางเมตร");
+                        parts.Add($"รวมพื้นที่ {totalArea:#,##0.##} ตารางเมตร");
                 }
                 else if (c.UsableArea is { } ua && ua > 0)
                 {
-                    parts.Add($"พื้นที่ห้องชุด {ua:0.##} ตารางเมตร");
+                    parts.Add($"พื้นที่ห้องชุด {ua:#,##0.##} ตารางเมตร");
                 }
 
                 // Building height / age / condition
                 if (c.NumberOfFloors.HasValue)
-                    parts.Add($"อาคารสูง {c.NumberOfFloors:0.##} ชั้น");
+                    parts.Add($"อาคารสูง {c.NumberOfFloors:#,##0.##} ชั้น");
                 if (c.BuildingAge.HasValue)
                     parts.Add($"อายุอาคาร {c.BuildingAge} ปี");
                 if (!string.IsNullOrWhiteSpace(c.BuildingConditionDisplay))

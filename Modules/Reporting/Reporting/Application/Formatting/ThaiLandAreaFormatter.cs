@@ -19,7 +19,7 @@ public static class ThaiLandAreaFormatter
     public static string FormatTotal(decimal sumRai, decimal sumNgan, decimal sumSqWa)
     {
         var t = NormalizeTotal(sumRai, sumNgan, sumSqWa);
-        return $"{t.Rai} - {t.Ngan} - {t.Wa} ไร่ หรือ {t.TotalSquareWa:0.##} ตารางวา";
+        return $"{t.Rai:#,##0} - {t.Ngan} - {t.Wa} ไร่ หรือ {t.TotalSquareWa:#,##0.##} ตารางวา";
     }
 
     /// <summary>

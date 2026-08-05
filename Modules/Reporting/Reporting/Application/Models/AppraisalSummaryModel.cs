@@ -581,8 +581,15 @@ public sealed class SummaryGroupRow
     public List<string> LandDescriptions { get; init; } = [];
 
     /// <summary>Building clause (พร้อม…), newline-joined per building. Shown after the land
-    /// titles in the market/combined land row (separated from the land title list).</summary>
+    /// titles in the market/combined land row (separated from the land title list). Excludes
+    /// enhancement-only properties — see <see cref="DevelopmentDescriptions"/>.</summary>
     public string? BuildingDescription { get; init; }
+
+    /// <summary>ส่วนพัฒนา lines for the market/combined row — descriptive only, since that layout
+    /// carries a single blended figure with no per-line money column. Holds just the rows of
+    /// properties whose Building Detail is entirely non-building, which therefore print no
+    /// "พร้อม…" clause of their own.</summary>
+    public List<string> DevelopmentDescriptions { get; init; } = [];
 
     /// <summary>Per-item detail lines (e.g. each machine) — rendered as a numbered list.</summary>
     public List<string> DetailItems { get; init; } = [];
@@ -610,7 +617,9 @@ public sealed class SummaryGroupRow
     /// <summary>Land appraised value (PricingFinalValues.LandValue). Cost approach only.</summary>
     public decimal? LandValue { get; init; }
 
-    /// <summary>Building line items (BuildingDepreciationDetails where IsBuilding=1). Cost approach only.</summary>
+    /// <summary>Building line items — one per BuildingAppraisalDetail, valued by its IsBuilding=1
+    /// depreciation rows. Cost approach only. A property whose Building Detail holds ONLY
+    /// non-building rows is excluded: it prints under <see cref="DevelopmentItems"/> instead.</summary>
     public IReadOnlyList<SummaryItemRow> Buildings { get; init; } = [];
 
     /// <summary>Development/improvement items (ส่วนพัฒนา; IsBuilding=0). Cost approach only.</summary>

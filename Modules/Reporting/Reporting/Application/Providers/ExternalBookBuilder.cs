@@ -371,7 +371,7 @@ internal static class ExternalBookBuilder
             if (!string.IsNullOrWhiteSpace(building.BuildingTypeDisplay))
                 bParts.Add(building.BuildingTypeDisplay);
             if (building.NumberOfFloors.HasValue)
-                bParts.Add($"{building.NumberOfFloors:0.##} ชั้น");
+                bParts.Add($"{building.NumberOfFloors:#,##0.##} ชั้น");
             if (!string.IsNullOrWhiteSpace(building.ModelName))
                 bParts.Add($"แบบ {building.ModelName}");
             buildingDetailsText = bParts.Count > 0 ? string.Join(" ", bParts) : null;
@@ -399,7 +399,7 @@ internal static class ExternalBookBuilder
             if (CollateralFamilyTranslator.IsCondoFamily(pc.PropertyType))
             {
                 section = condoUsableAreaTotal > 0
-                    ? $"{typeThai} จำนวน {pc.PropertyCount} ยูนิต เนื้อที่ {condoUsableAreaTotal:0.##} ตารางเมตร"
+                    ? $"{typeThai} จำนวน {pc.PropertyCount} ยูนิต เนื้อที่ {condoUsableAreaTotal:#,##0.##} ตารางเมตร"
                     : $"{typeThai} จำนวน {pc.PropertyCount} ยูนิต";
             }
             else if (CollateralFamilyTranslator.IsEquipmentFamily(pc.PropertyType))
@@ -414,7 +414,7 @@ internal static class ExternalBookBuilder
             else
             {
                 section = landSqWaTotal > 0
-                    ? $"{typeThai} จำนวน {pc.PropertyCount} หลัง เนื้อที่ {landSqWaTotal:0.##} ตารางวา"
+                    ? $"{typeThai} จำนวน {pc.PropertyCount} หลัง เนื้อที่ {landSqWaTotal:#,##0.##} ตารางวา"
                     : $"{typeThai} จำนวน {pc.PropertyCount} หลัง";
             }
             summarySections.Add(section);

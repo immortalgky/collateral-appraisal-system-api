@@ -455,8 +455,8 @@ internal static class WqsSectionLoader
             LineY1 = lineY1.HasValue ? My(lineY1.Value) : 0,
             LineX2 = lineY2.HasValue ? Mx(xMax) : 0,
             LineY2 = lineY2.HasValue ? My(lineY2.Value) : 0,
-            XMinLabel = xMin.ToString("0.##"),
-            XMaxLabel = xMax.ToString("0.##"),
+            XMinLabel = xMin.ToString("#,##0.##"),
+            XMaxLabel = xMax.ToString("#,##0.##"),
             YMinLabel = yMin.ToString("N0"),
             YMaxLabel = yMax.ToString("N0")
         };

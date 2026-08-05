@@ -467,7 +467,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
         {
             parts.Append(
                 $" พื้นที่โครงการประมาณ " +
-                $"{project.LandAreaRai.GetValueOrDefault():0.##}-{project.LandAreaNgan.GetValueOrDefault():0.##}-{project.LandAreaSquareWa.GetValueOrDefault():0.##} ไร่");
+                $"{project.LandAreaRai.GetValueOrDefault():#,##0.##}-{project.LandAreaNgan.GetValueOrDefault():#,##0.##}-{project.LandAreaSquareWa.GetValueOrDefault():#,##0.##} ไร่");
         }
 
         if (project.UnitForSaleCount.HasValue && project.UnitForSaleCount.Value > 0)
@@ -494,7 +494,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
                     modelParts.Add(m.BuildingType);
 
                 if (m.NumberOfFloors.HasValue && m.NumberOfFloors.Value > 0)
-                    modelParts.Add($"{m.NumberOfFloors:0.##} ชั้น");
+                    modelParts.Add($"{m.NumberOfFloors:#,##0.##} ชั้น");
 
                 if (m.NumberOfHouse.HasValue && m.NumberOfHouse.Value > 0)
                     modelParts.Add($"จำนวน {m.NumberOfHouse} หลัง");
@@ -502,7 +502,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
                 // Area: prefer StandardUsableArea, fall back to UsableAreaMin
                 var area = m.StandardUsableArea ?? m.UsableAreaMin;
                 if (area.HasValue && area.Value > 0)
-                    modelParts.Add($"พื้นที่ใช้สอย {area:0.##} ตร.ม.");
+                    modelParts.Add($"พื้นที่ใช้สอย {area:#,##0.##} ตร.ม.");
 
                 // Price range
                 if (m.StartingPriceMin.HasValue && m.StartingPriceMax.HasValue

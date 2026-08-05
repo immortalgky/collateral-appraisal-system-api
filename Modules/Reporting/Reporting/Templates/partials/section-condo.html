@@ -99,8 +99,8 @@
 <div class="section-bar" style="font-size:8pt;">ทางเข้าออกอาคารชุด</div>
 <div class="pad">
   <div class="cols2">
-    <div class="kv"><span class="k">ผิวจราจรกว้าง :</span><span class="v">{{ if model.condo_section.road_surface_width; model.condo_section.road_surface_width | math.format "0.##"; end }}{{ if model.condo_section.road_surface_width }} เมตร{{ end }}</span></div>
-    <div class="kv"><span class="k">เขตทางกว้าง :</span><span class="v">{{ if model.condo_section.road_zone_width; model.condo_section.road_zone_width | math.format "0.##"; end }}{{ if model.condo_section.road_zone_width }} เมตร{{ end }}</span></div>
+    <div class="kv"><span class="k">ผิวจราจรกว้าง :</span><span class="v">{{ if model.condo_section.road_surface_width; model.condo_section.road_surface_width | math.format "#,##0.##"; end }}{{ if model.condo_section.road_surface_width }} เมตร{{ end }}</span></div>
+    <div class="kv"><span class="k">เขตทางกว้าง :</span><span class="v">{{ if model.condo_section.road_zone_width; model.condo_section.road_zone_width | math.format "#,##0.##"; end }}{{ if model.condo_section.road_zone_width }} เมตร{{ end }}</span></div>
   </div>
   <div class="cols2">
     <div class="kv"><span class="k">ลักษณะผิวจราจร :</span><span class="v">{{ model.condo_section.road_surface_type }}</span></div>
@@ -112,7 +112,7 @@
 <div class="pad">
   <div class="cols2">
     <div class="kv"><span class="k">อายุอาคาร :</span><span class="v">{{ model.condo_section.building_age }}{{ if model.condo_section.building_age }} ปี{{ end }}</span></div>
-    <div class="kv"><span class="k">ความสูง (ชั้น) :</span><span class="v">{{ if model.condo_section.building_height_floors; model.condo_section.building_height_floors | math.format "0.##"; end }}{{ if model.condo_section.building_height_floors }} ชั้น{{ end }}</span></div>
+    <div class="kv"><span class="k">ความสูง (ชั้น) :</span><span class="v">{{ if model.condo_section.building_height_floors; model.condo_section.building_height_floors | math.format "#,##0.##"; end }}{{ if model.condo_section.building_height_floors }} ชั้น{{ end }}</span></div>
   </div>
   <div class="cols3">
     <div class="kv"><span class="k">รูปแบบอาคารชุด :</span><span class="v">{{ model.condo_section.building_form }}</span></div>
