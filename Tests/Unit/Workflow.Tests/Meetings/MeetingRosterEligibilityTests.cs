@@ -329,6 +329,26 @@ public class MeetingRosterEligibilityTests
     }
 
     [Fact]
+    public void Check_RosterOfOnlySecretaries_StillReportsAnUnresolvedUsername()
+    {
+        // Both problems have to surface together. The no-voters check returns early, so if it ran
+        // before the username check the secretary would fix the roster, release again, and only then
+        // be told the username was wrong.
+        var committee = BuildCommittee(QuorumType.Fixed, 1);
+
+        var failures = MeetingRosterEligibility.Check(
+            Roster(("ghost", CommitteeMemberPosition.Secretary)),
+            committee,
+            knownUsernames: Known("alice"));
+
+        failures.Should().BeEquivalentTo(
+        [
+            "no such user: ghost",
+            "the meeting has no voting members (the secretary does not vote)"
+        ]);
+    }
+
+    [Fact]
     public void Check_UnresolvedSecretary_IsStillReported()
     {
         // The username check covers the whole roster, not just voters: a secretary who resolves to

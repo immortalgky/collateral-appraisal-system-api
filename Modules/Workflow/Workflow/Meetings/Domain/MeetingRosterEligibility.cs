@@ -53,19 +53,14 @@ public static class MeetingRosterEligibility
         // never reach it. Counting the same subset the round receives keeps the two in step.
         var voters = roster.Where(m => CommitteeMemberPositions.CanVote(m.Position)).ToList();
 
-        // No voting members. Checked before quorum for the same reason the empty-roster guard is:
-        // ApprovalActivity switches on `overrideMembers.Count > 0`, so an empty voting roster
-        // silently falls back to the committee's own members — the substitution this path prevents.
-        if (voters.Count == 0)
-        {
-            failures.Add("the meeting has no voting members (the secretary does not vote)");
-            return failures;
-        }
-
         // Members who do not resolve to a real user. Checked against the FULL roster: a bad username
         // is worth reporting whether or not that member votes. Voting ones still count toward the
         // round's member total — and therefore raise the majority denominator (MajorityRule
         // evaluates against ALL members, not votes cast) — while never being able to vote.
+        //
+        // Runs BEFORE the no-voters return so both problems surface in one message. An all-secretary
+        // roster that also carries a typo'd username would otherwise report only "no voting members",
+        // and the secretary would discover the bad username on the next attempt instead of this one.
         if (knownUsernames is not null)
         {
             var unresolved = roster
@@ -75,6 +70,16 @@ public static class MeetingRosterEligibility
 
             if (unresolved.Count > 0)
                 failures.Add($"no such user: {string.Join(", ", unresolved)}");
+        }
+
+        // No voting members. Returns early for the same reason the empty-roster guard does:
+        // ApprovalActivity switches on `overrideMembers.Count > 0`, so an empty voting roster
+        // silently falls back to the committee's own members — the substitution this path prevents.
+        // Everything past here divides by the voter count, which would be meaningless at zero.
+        if (voters.Count == 0)
+        {
+            failures.Add("the meeting has no voting members (the secretary does not vote)");
+            return failures;
         }
 
         // Quorum. The same rule the approval round applies, against the same member count it will
