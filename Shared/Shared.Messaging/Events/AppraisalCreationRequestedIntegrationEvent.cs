@@ -11,6 +11,7 @@ public record AppraisalCreationRequestedIntegrationEvent : IntegrationEvent
 {
     public Guid RequestId { get; set; }
     public List<RequestTitleDto> RequestTitles { get; set; } = default!;
+    public List<RequestPropertyDto> RequestProperties { get; set; } = [];
     public AppointmentDto? Appointment { get; set; }
     public FeeDto? Fee { get; set; }
     public ContactDto? Contact { get; set; }
