@@ -29,6 +29,7 @@ using Workflow.FeeAppointmentApprovals.Infrastructure;
 using Workflow.Meetings.Application;
 using Workflow.Meetings.Configuration;
 using Appraisal.Contracts.Services;
+using Workflow.Tasks.Authorization;
 using Workflow.Tasks.Services;
 using WfIUserGroupService = global::Workflow.Services.Groups.IUserGroupService;
 using WfITeamService = global::Workflow.AssigneeSelection.Teams.ITeamService;
@@ -133,6 +134,7 @@ public static class WorkflowModule
         services.AddScoped<IWorkflowAuditService, WorkflowAuditService>();
         services.AddScoped<IWorkflowResilienceService, WorkflowResilienceService>();
         services.AddScoped<ITaskConfigurationService, TaskConfigurationService>();
+        services.AddScoped<ISegregationOfDutiesGuard, SegregationOfDutiesGuard>();
         services.AddScoped<ICompanyRoundRobinConfigService, CompanyRoundRobinConfigService>();
         services.AddScoped<IAutoAssignmentRuleService, AutoAssignmentRuleService>();
 

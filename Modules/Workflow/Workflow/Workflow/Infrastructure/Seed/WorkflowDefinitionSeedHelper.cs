@@ -30,8 +30,14 @@ public static class WorkflowDefinitionSeedHelper
     /// The deserialization options the engine uses in
     /// <c>WorkflowPersistenceService.DeserializeWorkflowSchemaSecurely</c>. Kept identical here so the
     /// seeder validates the JSON exactly the way the runtime will read it.
+    /// <para>
+    /// Public so read-only consumers (e.g. the task-assignment admin activity picker) parse a stored
+    /// schema the same way. The <see cref="JsonStringEnumConverter"/> is load-bearing:
+    /// <c>TransitionDefinition.Type</c> is an enum and the stored JSON carries it as a string
+    /// (<c>"Conditional"</c>), so deserializing without it throws.
+    /// </para>
     /// </summary>
-    private static readonly JsonSerializerOptions EngineJsonOptions = new()
+    public static readonly JsonSerializerOptions EngineJsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
         MaxDepth = WorkflowEngineConstants.MaxJsonDeserializationDepth,

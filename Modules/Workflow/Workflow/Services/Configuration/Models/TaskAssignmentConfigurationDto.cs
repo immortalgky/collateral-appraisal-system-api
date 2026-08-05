@@ -15,6 +15,13 @@ public class TaskAssignmentConfigurationDto
     public string? SpecificAssignee { get; set; }
     public string? AssigneeGroup { get; set; }
     public string? BankingSegment { get; set; }
+
+    /// <summary>Null = inherit <c>assignmentRules.teamConstrained</c> from the definition JSON.</summary>
+    public bool? TeamConstrained { get; set; }
+
+    /// <summary>Null = inherit <c>assignmentRules.excludeAssigneesFrom</c> from the definition JSON.</summary>
+    public List<string>? ExcludeAssigneesFrom { get; set; }
+
     public Dictionary<string, object>? AdditionalConfiguration { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -40,6 +47,12 @@ public class CreateTaskAssignmentConfigurationRequest
 
     public string? BankingSegment { get; set; }
 
+    /// <summary>Null = inherit <c>assignmentRules.teamConstrained</c> from the definition JSON.</summary>
+    public bool? TeamConstrained { get; set; }
+
+    /// <summary>Null = inherit <c>assignmentRules.excludeAssigneesFrom</c> from the definition JSON.</summary>
+    public List<string>? ExcludeAssigneesFrom { get; set; }
+
     /// <summary>Whether the override is active. Defaults to true on create.</summary>
     public bool IsActive { get; set; } = true;
 
@@ -62,6 +75,12 @@ public class UpdateTaskAssignmentConfigurationRequest
     public string? AssigneeGroup { get; set; }
 
     public string? BankingSegment { get; set; }
+
+    /// <summary>Null = inherit <c>assignmentRules.teamConstrained</c> from the definition JSON.</summary>
+    public bool? TeamConstrained { get; set; }
+
+    /// <summary>Null = inherit <c>assignmentRules.excludeAssigneesFrom</c> from the definition JSON.</summary>
+    public List<string>? ExcludeAssigneesFrom { get; set; }
 
     /// <summary>Whether the override is active. Lets the admin enable/disable without deleting.</summary>
     public bool IsActive { get; set; } = true;

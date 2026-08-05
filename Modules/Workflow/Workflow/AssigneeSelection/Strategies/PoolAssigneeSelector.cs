@@ -21,23 +21,21 @@ public class PoolAssigneeSelector : IAssigneeSelector
         AssignmentContext context,
         CancellationToken cancellationToken = default)
     {
-        // Build pool group identifier from UserGroups or CandidatePool
+        // Build pool group identifier from UserGroups, scoped to the team only when the pipeline
+        // actually resolved one.
         string poolGroups;
 
-        if (context.CandidatePool is { Count: > 0 })
+        if (context.UserGroups.Count > 0)
         {
-            // Team-constrained: use team ID from candidate pool for scoped group
-            var teamId = context.CandidatePool.First().TeamId;
-            var groups = context.UserGroups.Count > 0
-                ? string.Join(",", context.UserGroups)
-                : "Default";
-            poolGroups = !string.IsNullOrEmpty(teamId)
-                ? $"{groups}:Team_{teamId}"
+            var groups = string.Join(",", context.UserGroups);
+
+            // Scope to a team ONLY when Stage 1 resolved one. Deriving it from CandidatePool would be
+            // wrong whenever the pool holds the whole group (no team constraint, or a constraint whose
+            // team could not be derived) — the pool is unordered, so an arbitrary member's team would
+            // win and hide the task from every other team in the group.
+            poolGroups = !string.IsNullOrEmpty(context.TeamId)
+                ? $"{groups}:Team_{context.TeamId}"
                 : groups;
-        }
-        else if (context.UserGroups.Count > 0)
-        {
-            poolGroups = string.Join(",", context.UserGroups);
         }
         else
         {

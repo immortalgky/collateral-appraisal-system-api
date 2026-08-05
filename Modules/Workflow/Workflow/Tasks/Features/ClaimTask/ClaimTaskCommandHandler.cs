@@ -17,7 +17,8 @@ public class ClaimTaskCommandHandler(
     IPublishEndpoint publishEndpoint,
     ILogger<ClaimTaskCommandHandler> logger,
     IUserGroupService userGroupService,
-    ITeamService teamService
+    ITeamService teamService,
+    ISegregationOfDutiesGuard segregationOfDutiesGuard
 ) : ICommandHandler<ClaimTaskCommand, ClaimTaskResult>
 {
     public async Task<ClaimTaskResult> Handle(ClaimTaskCommand command, CancellationToken cancellationToken)
@@ -43,6 +44,14 @@ public class ClaimTaskCommandHandler(
             currentUserService.CompanyId);
         if (!isPoolMember)
             return new ClaimTaskResult(false, ErrorMessage: "You are not a member of this pool");
+
+        // Segregation of duties: pool membership alone is not enough — a user who already completed an
+        // excluded upstream activity on this instance (e.g. checked the appraisal) cannot also take this one.
+        var blockingActivity = await segregationOfDutiesGuard.GetBlockingActivityAsync(
+            task.WorkflowInstanceId, task.ActivityId, username, cancellationToken);
+        if (blockingActivity is not null)
+            return new ClaimTaskResult(false,
+                ErrorMessage: "You already completed an earlier step on this appraisal and cannot take this task.");
 
         // Capture pool group before reassignment for notification
         var poolGroup = task.AssignedTo;
