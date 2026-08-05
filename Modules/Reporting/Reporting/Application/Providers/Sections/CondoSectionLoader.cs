@@ -275,7 +275,7 @@ internal static class CondoSectionLoader
 
         // Distance display
         string? distanceText = first.DistanceFromMainRoad.HasValue
-            ? $"{first.DistanceFromMainRoad:0.##} เมตร"
+            ? $"{first.DistanceFromMainRoad:#,##0.##} เมตร"
             : null;
 
         // PublicUtilityType is a JSON-serialised List<string> of codes → translate each.

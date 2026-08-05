@@ -996,11 +996,11 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 if (!string.IsNullOrWhiteSpace(bld.BuildingTypeDisplay))
                     bldParts.Add($"พร้อม{bld.BuildingTypeDisplay}");
                 if (bld.NumberOfFloors.HasValue)
-                    bldParts.Add($"{bld.NumberOfFloors:0.##} ชั้น");
+                    bldParts.Add($"{bld.NumberOfFloors:#,##0.##} ชั้น");
                 if (!string.IsNullOrWhiteSpace(bld.HouseNumber))
                     bldParts.Add($"เลขที่ {bld.HouseNumber}");
                 if (bld.TotalBuildingArea.HasValue)
-                    bldParts.Add($"พื้นที่ใช้สอย {bld.TotalBuildingArea:0.##} ตารางเมตร");
+                    bldParts.Add($"พื้นที่ใช้สอย {bld.TotalBuildingArea:#,##0.##} ตารางเมตร");
                 if (bld.BuildingAge.HasValue)
                     bldParts.Add($"อายุอาคาร {bld.BuildingAge} ปี");
                 if (!string.IsNullOrWhiteSpace(bld.BuildingConditionDisplay))
@@ -1481,7 +1481,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
     private static string BuildAreaString(decimal? rai, decimal? ngan, decimal? sqwa)
         // Thai land-area shorthand rai-ngan-wa; every empty position shows 0 (e.g. "9-2-41 ไร่", "1-0-0 ไร่").
-        => $"{rai ?? 0:0.##}-{ngan ?? 0:0.##}-{sqwa ?? 0:0.##} ไร่";
+        => $"{rai ?? 0:#,##0.##}-{ngan ?? 0:#,##0.##}-{sqwa ?? 0:#,##0.##} ไร่";
 
     /// <summary>
     /// Builds a cost-breakdown line, e.g. "อาคารโรงงานชั้นเดียว พื้นที่ใช้สอย 1,800 ตารางเมตร อายุ 9 ปี".
@@ -1502,7 +1502,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         else if (!string.IsNullOrWhiteSpace(d.AreaDescription))
             parts.Add(d.AreaDescription!.Trim());
         if (d.Area is { } a && a != 0)
-            parts.Add($"{areaLabel} {a:0.##} ตารางเมตร");
+            parts.Add($"{areaLabel} {a:#,##0.##} ตารางเมตร");
         if (d.Year > 0)
             parts.Add($"อายุ {d.Year} ปี");
         if (ProgressSuffix(progressPct) is { } suffix)
@@ -1520,7 +1520,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         null => null,
         <= 0m => "(ยังไม่ก่อสร้าง)",
         >= 100m => null,
-        _ => $"(แล้วเสร็จ {progressPct.Value:0.##}%)"
+        _ => $"(แล้วเสร็จ {progressPct.Value:#,##0.##}%)"
     };
 
     /// <summary>
@@ -1544,9 +1544,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         if (BuildingDisplayName(b) is { } name)
             parts.Add(name);
         if (b.NumberOfFloors.HasValue)
-            parts.Add($"{b.NumberOfFloors:0.##} ชั้น");
+            parts.Add($"{b.NumberOfFloors:#,##0.##} ชั้น");
         if (b.TotalBuildingArea.HasValue)
-            parts.Add($"พื้นที่ใช้สอย {b.TotalBuildingArea:0.##} ตารางเมตร");
+            parts.Add($"พื้นที่ใช้สอย {b.TotalBuildingArea:#,##0.##} ตารางเมตร");
         if (b.BuildingAge.HasValue)
             parts.Add($"อายุอาคาร {b.BuildingAge} ปี");
         if (!string.IsNullOrWhiteSpace(b.BuildingConditionDisplay))
