@@ -48,6 +48,18 @@ public class CommitteeAddConditionTests
     }
 
     [Fact]
+    public void AllowedValueMessages_AreDeterministicAndInDisplayOrder()
+    {
+        // Built from an ordered array, not from the HashSet: a set's iteration order is not
+        // guaranteed, so the text a client sees could otherwise vary between runs.
+        CommitteeMemberPositions.SelectableNames
+            .Should().Be("Chairman, Director, Secretary, UW");
+
+        CommitteeMemberPositions.RequirableNames
+            .Should().Be("Chairman, Director, UW", "the secretary never votes");
+    }
+
+    [Fact]
     public void AddCondition_RoleRequired_InvalidNameMessageOnlyListsRolesItWouldAccept()
     {
         // The message used to advertise the selectable set, which includes the Secretary — so an

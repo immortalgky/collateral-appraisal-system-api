@@ -88,21 +88,30 @@ public enum CommitteeMemberPosition
 public static class CommitteeMemberPositions
 {
     /// <summary>
-    /// The positions a member may be assigned today.
+    /// The positions a member may be assigned today, in display order.
     /// <see cref="CommitteeMemberPosition.Risk"/>, <see cref="CommitteeMemberPosition.Appraisal"/>,
     /// <see cref="CommitteeMemberPosition.Credit"/> and <see cref="CommitteeMemberPosition.Member"/>
     /// stay on the enum because Position is persisted as the enum NAME — existing committee members,
     /// meeting rosters and historical ApprovalVote.MemberRole rows still hold them and must keep
     /// materializing. They simply may no longer be chosen for a new or edited member.
+    ///
+    /// Declared before <see cref="Selectable"/>: static initializers run in textual order, so the
+    /// set would be built from a null array if this came second.
     /// </summary>
-    public static readonly IReadOnlySet<CommitteeMemberPosition> Selectable =
-        new HashSet<CommitteeMemberPosition>
-        {
-            CommitteeMemberPosition.Chairman,
-            CommitteeMemberPosition.Director,
-            CommitteeMemberPosition.Secretary,
-            CommitteeMemberPosition.UW
-        };
+    private static readonly CommitteeMemberPosition[] SelectableOrder =
+    [
+        CommitteeMemberPosition.Chairman,
+        CommitteeMemberPosition.Director,
+        CommitteeMemberPosition.Secretary,
+        CommitteeMemberPosition.UW
+    ];
+
+    /// <summary>
+    /// <see cref="SelectableOrder"/> as a set, for O(1) membership tests. A HashSet's iteration
+    /// order is not contractually guaranteed, so anything user-facing is built from the array —
+    /// never from this.
+    /// </summary>
+    public static readonly IReadOnlySet<CommitteeMemberPosition> Selectable = SelectableOrder.ToHashSet();
 
     /// <summary>
     /// Whether a member holding this position casts an approval vote once a meeting item is released.
@@ -113,14 +122,14 @@ public static class CommitteeMemberPositions
         position != CommitteeMemberPosition.Secretary;
 
     /// <summary>Comma-separated <see cref="Selectable"/> names, for member validation messages.</summary>
-    public static string SelectableNames => string.Join(", ", Selectable);
+    public static string SelectableNames => string.Join(", ", SelectableOrder);
 
     /// <summary>
     /// Comma-separated positions valid for a RoleRequired condition: selectable AND able to vote.
     /// Narrower than <see cref="SelectableNames"/>, which would advertise the Secretary as allowed
     /// on a call that refuses them.
     /// </summary>
-    public static string RequirableNames => string.Join(", ", Selectable.Where(CanVote));
+    public static string RequirableNames => string.Join(", ", SelectableOrder.Where(CanVote));
 
     /// <summary>
     /// Parses a role string by NAME, without judging whether the position is still assignable.
