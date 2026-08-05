@@ -40,12 +40,24 @@ public class UpdateCommitteeMemberCommandHandler(
 
         var req = command.Request;
 
-        if (!Enum.TryParse<CommitteeMemberPosition>(req.Role, ignoreCase: true, out var position))
-            throw new ArgumentException(
-                $"Invalid Role '{req.Role}'. Allowed values: {string.Join(", ", Enum.GetNames<CommitteeMemberPosition>())}");
+        // Includes inactive members — reactivating one is exactly the case that must keep working.
+        var member = committee.Members.FirstOrDefault(m => m.Id == command.MemberId)
+            ?? throw new NotFoundException($"CommitteeMember {command.MemberId} not found");
+
+        if (!CommitteeMemberPositions.TryParseName(req.Role, out var position))
+            throw new BadRequestException(
+                $"Invalid Role '{req.Role}'. Allowed values: {CommitteeMemberPositions.SelectableNames}");
+
+        // This is a whole-record update, so deactivating or re-scheduling a member added before
+        // Risk/Appraisal/Credit/Member were retired still sends their existing role back. Only a
+        // CHANGE has to land on a currently-assignable position; an unchanged one may stand.
+        if (position != member.Position && !CommitteeMemberPositions.Selectable.Contains(position))
+            throw new BadRequestException(
+                $"Role '{position}' is retired and can no longer be assigned. " +
+                $"Allowed values: {CommitteeMemberPositions.SelectableNames}");
 
         if (!Enum.TryParse<CommitteeAttendance>(req.Attendance, ignoreCase: true, out var attendance))
-            throw new ArgumentException(
+            throw new BadRequestException(
                 $"Invalid Attendance '{req.Attendance}'. Allowed values: {string.Join(", ", Enum.GetNames<CommitteeAttendance>())}");
 
         committee.UpdateMember(command.MemberId, position, attendance, req.IsActive);

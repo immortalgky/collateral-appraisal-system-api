@@ -71,6 +71,13 @@ public class AddMeetingMemberCommandHandler(
         var meeting = await meetingRepository.GetByIdForDecisionAsync(command.MeetingId, ct)
             ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
 
+        // The request binds the enum directly, so a retired position (Risk/Appraisal/Credit/Member)
+        // would still deserialize. Existing rows keep theirs; new assignments may not use them.
+        if (!CommitteeMemberPositions.Selectable.Contains(command.Request.Position))
+            throw new BadRequestException(
+                $"Position '{command.Request.Position}' is retired and can no longer be assigned. " +
+                $"Allowed values: {CommitteeMemberPositions.SelectableNames}");
+
         // The roster is the approval round's voting group once the item is released, so a member
         // who is not a real user would inflate the majority denominator while never being able to
         // vote. Reject at the point of entry rather than at release.
@@ -126,6 +133,12 @@ public class ChangeMemberPositionCommandHandler(
 {
     public async Task<Unit> Handle(ChangeMemberPositionCommand command, CancellationToken ct)
     {
+        // Retired positions stay readable on existing rows but may not be assigned by an edit.
+        if (!CommitteeMemberPositions.Selectable.Contains(command.Position))
+            throw new BadRequestException(
+                $"Position '{command.Position}' is retired and can no longer be assigned. " +
+                $"Allowed values: {CommitteeMemberPositions.SelectableNames}");
+
         var meeting = await meetingRepository.GetByIdForDecisionAsync(command.MeetingId, ct)
             ?? throw new NotFoundException($"Meeting {command.MeetingId} not found");
 

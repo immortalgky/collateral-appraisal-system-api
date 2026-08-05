@@ -469,7 +469,12 @@ public class Meeting : Aggregate<Guid>
 
         // Carries the position as well as the user id: the approval activity uses this roster
         // as its member list, and the position becomes each voter's approval role.
+        // The Secretary is filtered out — they run the meeting and released this very item, so they
+        // are not one of its approvers. They stay on _members, and therefore on the invitation and
+        // the minutes; only the voting roster drops them. MeetingRosterEligibility validates against
+        // this same subset, so the gate and the round it opens can never disagree.
         var approvers = _members
+            .Where(m => CommitteeMemberPositions.CanVote(m.Position))
             .Select(m => new MeetingApprover(m.UserId, m.Position.ToString()))
             .ToList()
             .AsReadOnly();

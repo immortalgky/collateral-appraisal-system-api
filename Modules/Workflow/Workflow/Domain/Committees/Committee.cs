@@ -77,10 +77,12 @@ public class Committee : Aggregate<Guid>
 
         // Members are known by now, so a threshold nobody could ever reach is rejected outright —
         // it would otherwise open a round that can never resolve and stalls with no error.
-        var activeMembers = GetActiveMembers().Count;
-        if (majorityType == MajorityType.FixedCount && activeMembers > 0 && majorityValue > activeMembers)
+        // Counts VOTING members, the same subset MeetingRosterEligibility checks the roster against
+        // at release; counting the Secretary here would accept a threshold that gate then refuses.
+        var votingMembers = CountActiveVoters();
+        if (majorityType == MajorityType.FixedCount && votingMembers > 0 && majorityValue > votingMembers)
             throw new ArgumentException(
-                $"MajorityValue {majorityValue} exceeds the committee's {activeMembers} active member(s); " +
+                $"MajorityValue {majorityValue} exceeds the committee's {votingMembers} voting member(s); " +
                 "the approval round could never reach it",
                 nameof(majorityValue));
 
@@ -211,14 +213,29 @@ public class Committee : Aggregate<Guid>
             // validation and then match no vote's role at runtime — CheckApprovalConditions
             // compares it as a plain case-insensitive string. That is the exact silent stall
             // this guard exists to prevent.
-            if (!Enum.GetNames<CommitteeMemberPosition>()
-                    .Contains(roleRequired, StringComparer.OrdinalIgnoreCase))
+            // Advertises the requirable set, not the selectable one: the latter includes the
+            // Secretary, whom the guard below refuses — so the error would name a value that a
+            // retry with it copied verbatim would reject again.
+            if (!CommitteeMemberPositions.TryParseName(roleRequired, out var position))
                 throw new ArgumentException(
                     $"Invalid role '{roleRequired}'. Allowed values: " +
-                    $"{string.Join(", ", Enum.GetNames<CommitteeMemberPosition>())}.",
+                    $"{CommitteeMemberPositions.RequirableNames}.",
                     nameof(roleRequired));
 
-            var position = Enum.Parse<CommitteeMemberPosition>(roleRequired, ignoreCase: true);
+            if (!CommitteeMemberPositions.Selectable.Contains(position))
+                throw new ArgumentException(
+                    $"Role '{position}' is retired and can no longer be required. Allowed values: " +
+                    $"{CommitteeMemberPositions.RequirableNames}.",
+                    nameof(roleRequired));
+
+            // The Secretary never casts an approval vote (Meeting.ReleaseItem excludes them from the
+            // approver roster), and this condition is evaluated against the role recorded on a vote.
+            // Requiring it would produce a round that can never satisfy the condition.
+            if (!CommitteeMemberPositions.CanVote(position))
+                throw new ArgumentException(
+                    $"Role '{position}' does not vote, so the approval round could never satisfy " +
+                    "this condition.",
+                    nameof(roleRequired));
 
             if (activeMembers.Count > 0 && activeMembers.All(m => m.Position != position))
                 throw new ArgumentException(
@@ -234,12 +251,22 @@ public class Committee : Aggregate<Guid>
                 $"ConditionType {nameof(ConditionType.MinVotes)} requires a MinVotesRequired greater than 0.",
                 nameof(minVotesRequired));
 
-        if (activeMembers.Count > 0 && minVotesRequired > activeMembers.Count)
+        // Voting members, for the same reason as the MajorityValue guard in Update: votes are what
+        // this threshold counts, and the Secretary casts none.
+        var votingMembers = CountActiveVoters();
+        if (votingMembers > 0 && minVotesRequired > votingMembers)
             throw new ArgumentException(
-                $"MinVotesRequired {minVotesRequired} exceeds the committee's {activeMembers.Count} " +
-                "active member(s); the approval round could never reach it.",
+                $"MinVotesRequired {minVotesRequired} exceeds the committee's {votingMembers} " +
+                "voting member(s); the approval round could never reach it.",
                 nameof(minVotesRequired));
     }
+
+    /// <summary>
+    /// Active members who actually cast a vote — the denominator every approval threshold is
+    /// judged against. See <see cref="CommitteeMemberPositions.CanVote"/>.
+    /// </summary>
+    private int CountActiveVoters() =>
+        _members.Count(m => m.IsActive && CommitteeMemberPositions.CanVote(m.Position));
 
     public List<CommitteeMember> GetActiveMembers() =>
         _members.Where(m => m.IsActive).ToList();

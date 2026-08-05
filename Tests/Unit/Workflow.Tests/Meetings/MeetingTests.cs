@@ -54,7 +54,7 @@ public class MeetingTests
         var meeting = BuildNewMeeting();
         var committee = BuildCommittee();
         committee.AddMember("active-1", "Alice", CommitteeMemberPosition.Chairman);
-        committee.AddMember("active-2", "Bob", CommitteeMemberPosition.Member);
+        committee.AddMember("active-2", "Bob", CommitteeMemberPosition.Director);
         var inactiveMember = committee.AddMember("inactive-1", "Charlie", CommitteeMemberPosition.Secretary);
         inactiveMember.Deactivate();
 
@@ -315,7 +315,7 @@ public class MeetingTests
     {
         var committee = BuildCommittee();
         committee.AddMember("m1", "Alice", CommitteeMemberPosition.Chairman);
-        committee.AddMember("m2", "Bob", CommitteeMemberPosition.Member);
+        committee.AddMember("m2", "Bob", CommitteeMemberPosition.Director);
 
         var meeting = BuildInvitationSentMeetingWithOneItem(committee);
         var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
@@ -327,8 +327,33 @@ public class MeetingTests
         ReleasedMembers(meeting).Should().BeEquivalentTo(
         [
             new MeetingApprover("m1", nameof(CommitteeMemberPosition.Chairman)),
-            new MeetingApprover("m2", nameof(CommitteeMemberPosition.Member))
+            new MeetingApprover("m2", nameof(CommitteeMemberPosition.Director))
         ]);
+    }
+
+    [Fact]
+    public void ReleaseItem_ExcludesTheSecretary_FromTheApproverRoster()
+    {
+        // The secretary convenes the meeting and releases the item; they are not one of its
+        // approvers. They stay on the roster (invitation and minutes still list them) — only the
+        // voting set handed to the approval round drops them.
+        var committee = BuildCommittee();
+        committee.AddMember("m1", "Alice", CommitteeMemberPosition.Chairman);
+        committee.AddMember("m2", "Bob", CommitteeMemberPosition.Secretary);
+        committee.AddMember("m3", "Carol", CommitteeMemberPosition.UW);
+
+        var meeting = BuildInvitationSentMeetingWithOneItem(committee);
+        var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
+
+        meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);
+
+        ReleasedMembers(meeting).Should().BeEquivalentTo(
+        [
+            new MeetingApprover("m1", nameof(CommitteeMemberPosition.Chairman)),
+            new MeetingApprover("m3", nameof(CommitteeMemberPosition.UW))
+        ]);
+
+        meeting.Members.Select(m => m.UserId).Should().Contain("m2");
     }
 
     [Fact]
@@ -357,7 +382,7 @@ public class MeetingTests
     {
         var committee = BuildCommittee();
         committee.AddMember("m1", "Alice", CommitteeMemberPosition.Chairman);
-        committee.AddMember("m2", "Bob", CommitteeMemberPosition.Member);
+        committee.AddMember("m2", "Bob", CommitteeMemberPosition.Director);
 
         var meeting = BuildInvitationSentMeetingWithOneItem(committee);
         var bob = meeting.Members.Single(m => m.UserId == "m2");
@@ -374,7 +399,7 @@ public class MeetingTests
     public void ReleaseItem_AfterPositionChangedOnThisMeeting_CarriesTheNewPosition()
     {
         var committee = BuildCommittee();
-        committee.AddMember("m1", "Alice", CommitteeMemberPosition.Member);
+        committee.AddMember("m1", "Alice", CommitteeMemberPosition.Director);
 
         var meeting = BuildInvitationSentMeetingWithOneItem(committee);
         var alice = meeting.Members.Single(m => m.UserId == "m1");
@@ -718,7 +743,7 @@ public class MeetingTests
     public void AddMember_DuplicateUser_Throws()
     {
         var meeting = BuildNewMeeting();
-        var member1 = MeetingMember.CreateManual(meeting.Id, "user-dup", "Duper", CommitteeMemberPosition.Member);
+        var member1 = MeetingMember.CreateManual(meeting.Id, "user-dup", "Duper", CommitteeMemberPosition.Director);
         meeting.AddMember(member1, DateTime.UtcNow);
         var member2 = MeetingMember.CreateManual(meeting.Id, "user-dup", "Duper Clone", CommitteeMemberPosition.Credit);
 
@@ -731,7 +756,7 @@ public class MeetingTests
     public void ChangeMemberPosition_InNew_UpdatesPosition()
     {
         var meeting = BuildNewMeeting();
-        var member = MeetingMember.CreateManual(meeting.Id, "user-pos", "Posie", CommitteeMemberPosition.Member);
+        var member = MeetingMember.CreateManual(meeting.Id, "user-pos", "Posie", CommitteeMemberPosition.Director);
         meeting.AddMember(member, DateTime.UtcNow);
 
         meeting.ChangeMemberPosition(member.Id, CommitteeMemberPosition.Director, DateTime.UtcNow);
@@ -749,9 +774,9 @@ public class MeetingTests
         var committee = BuildCommittee();
         var always = committee.AddMember("u1", "Always", CommitteeMemberPosition.Chairman);
         // always.Attendance is Always by default
-        var odd = committee.AddMember("u2", "Odd", CommitteeMemberPosition.Member);
+        var odd = committee.AddMember("u2", "Odd", CommitteeMemberPosition.Director);
         odd.UpdateAttendance(CommitteeAttendance.Odd);
-        var even = committee.AddMember("u3", "Even", CommitteeMemberPosition.Member);
+        var even = committee.AddMember("u3", "Even", CommitteeMemberPosition.Director);
         even.UpdateAttendance(CommitteeAttendance.Even);
 
         var result = committee.GetActiveMembers(meetingSeq: 1);
@@ -764,9 +789,9 @@ public class MeetingTests
     {
         var committee = BuildCommittee();
         var always = committee.AddMember("u1", "Always", CommitteeMemberPosition.Chairman);
-        var odd = committee.AddMember("u2", "Odd", CommitteeMemberPosition.Member);
+        var odd = committee.AddMember("u2", "Odd", CommitteeMemberPosition.Director);
         odd.UpdateAttendance(CommitteeAttendance.Odd);
-        var even = committee.AddMember("u3", "Even", CommitteeMemberPosition.Member);
+        var even = committee.AddMember("u3", "Even", CommitteeMemberPosition.Director);
         even.UpdateAttendance(CommitteeAttendance.Even);
 
         var result = committee.GetActiveMembers(meetingSeq: 2);
@@ -779,7 +804,7 @@ public class MeetingTests
     {
         var committee = BuildCommittee();
         var active = committee.AddMember("u1", "Active", CommitteeMemberPosition.Chairman);
-        var inactive = committee.AddMember("u2", "Inactive", CommitteeMemberPosition.Member);
+        var inactive = committee.AddMember("u2", "Inactive", CommitteeMemberPosition.Director);
         inactive.Deactivate();
 
         var result = committee.GetActiveMembers(meetingSeq: 1);
@@ -792,7 +817,7 @@ public class MeetingTests
     {
         var committee = BuildCommittee();
         var always = committee.AddMember("u1", "Always", CommitteeMemberPosition.Chairman);
-        var odd = committee.AddMember("u2", "Odd", CommitteeMemberPosition.Member);
+        var odd = committee.AddMember("u2", "Odd", CommitteeMemberPosition.Director);
         odd.UpdateAttendance(CommitteeAttendance.Odd);
 
         // No-arg overload must still return all active members regardless of Attendance

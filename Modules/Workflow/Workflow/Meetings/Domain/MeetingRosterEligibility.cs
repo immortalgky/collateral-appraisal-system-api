@@ -10,6 +10,10 @@ namespace Workflow.Meetings.Domain;
 /// come from the committee. A roster that cannot satisfy them produces a round that can never
 /// resolve, with the appraisal stuck in Committee Approval and no error anywhere. The release
 /// endpoint runs this first and refuses instead.
+///
+/// Counts are taken of the roster's VOTING members, since that is the subset
+/// <see cref="Meeting.ReleaseItem"/> actually hands to the round — the Secretary is excluded. The
+/// full roster is used only where membership itself is what matters (the username check).
 /// </summary>
 public static class MeetingRosterEligibility
 {
@@ -42,9 +46,26 @@ public static class MeetingRosterEligibility
             return failures;
         }
 
-        // Members who do not resolve to a real user. They still count toward the round's member
-        // total — and therefore raise the majority denominator (MajorityRule evaluates against ALL
-        // members, not votes cast) — while never being able to vote.
+        // Everything below counts VOTERS, not roster members. Release hands the approval round only
+        // the members who can vote (the Secretary is excluded — see Meeting.ReleaseItem), so the
+        // roster total would overstate the set the round actually runs with: a roster of
+        // Chairman + Secretary + UW clears a quorum of 3 but opens a round with 2 voters that can
+        // never reach it. Counting the same subset the round receives keeps the two in step.
+        var voters = roster.Where(m => CommitteeMemberPositions.CanVote(m.Position)).ToList();
+
+        // No voting members. Checked before quorum for the same reason the empty-roster guard is:
+        // ApprovalActivity switches on `overrideMembers.Count > 0`, so an empty voting roster
+        // silently falls back to the committee's own members — the substitution this path prevents.
+        if (voters.Count == 0)
+        {
+            failures.Add("the meeting has no voting members (the secretary does not vote)");
+            return failures;
+        }
+
+        // Members who do not resolve to a real user. Checked against the FULL roster: a bad username
+        // is worth reporting whether or not that member votes. Voting ones still count toward the
+        // round's member total — and therefore raise the majority denominator (MajorityRule
+        // evaluates against ALL members, not votes cast) — while never being able to vote.
         if (knownUsernames is not null)
         {
             var unresolved = roster
@@ -57,17 +78,17 @@ public static class MeetingRosterEligibility
         }
 
         // Quorum. The same rule the approval round applies, against the same member count it will
-        // run with (the roster), so this check and that round can never disagree. Only a Fixed
-        // quorum can fail here — a Percentage of the roster is satisfiable by construction.
-        var requiredQuorum = QuorumRule.Required(committee.QuorumType, committee.QuorumValue, roster.Count);
-        if (roster.Count < requiredQuorum)
-            failures.Add($"{roster.Count} member(s) but quorum requires {requiredQuorum}");
+        // run with (the voters), so this check and that round can never disagree. Only a Fixed
+        // quorum can fail here — a Percentage of the voters is satisfiable by construction.
+        var requiredQuorum = QuorumRule.Required(committee.QuorumType, committee.QuorumValue, voters.Count);
+        if (voters.Count < requiredQuorum)
+            failures.Add($"{voters.Count} voting member(s) but quorum requires {requiredQuorum}");
 
         // Majority. Only FixedCount can be unreachable — the proportional types are taken of the
-        // roster itself and so are satisfiable by construction, exactly like a Percentage quorum.
-        if (committee.MajorityType == MajorityType.FixedCount && committee.MajorityValue > roster.Count)
+        // voters themselves and so are satisfiable by construction, exactly like a Percentage quorum.
+        if (committee.MajorityType == MajorityType.FixedCount && committee.MajorityValue > voters.Count)
             failures.Add(
-                $"{committee.MajorityValue} approve vote(s) required but the roster has only {roster.Count} member(s)");
+                $"{committee.MajorityValue} approve vote(s) required but the roster has only {voters.Count} voting member(s)");
 
         foreach (var condition in committee.Conditions.Where(c => c.IsActive).OrderBy(c => c.Priority))
         {
@@ -78,15 +99,15 @@ public static class MeetingRosterEligibility
                 // no vote can ever carry that role.
                 case ConditionType.RoleRequired
                     when !string.IsNullOrWhiteSpace(condition.RoleRequired)
-                         && !roster.Any(m => string.Equals(
+                         && !voters.Any(m => string.Equals(
                              m.Position.ToString(), condition.RoleRequired, StringComparison.OrdinalIgnoreCase)):
-                    failures.Add($"no member holds the required role {condition.RoleRequired}");
+                    failures.Add($"no voting member holds the required role {condition.RoleRequired}");
                     break;
 
                 case ConditionType.MinVotes
-                    when condition.MinVotesRequired > roster.Count:
+                    when condition.MinVotesRequired > voters.Count:
                     failures.Add(
-                        $"{condition.MinVotesRequired} approve vote(s) required but the roster has only {roster.Count} member(s)");
+                        $"{condition.MinVotesRequired} approve vote(s) required but the roster has only {voters.Count} voting member(s)");
                     break;
             }
         }

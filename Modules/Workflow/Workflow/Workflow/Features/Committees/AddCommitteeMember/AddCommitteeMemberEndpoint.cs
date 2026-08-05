@@ -54,9 +54,9 @@ public class AddCommitteeMemberCommandHandler(
 
         var req = command.Request;
 
-        if (!Enum.TryParse<CommitteeMemberPosition>(req.Role, ignoreCase: true, out var position))
-            throw new ArgumentException(
-                $"Invalid Role '{req.Role}'. Allowed values: {string.Join(", ", Enum.GetNames<CommitteeMemberPosition>())}");
+        if (!CommitteeMemberPositions.TryParseSelectable(req.Role, out var position))
+            throw new BadRequestException(
+                $"Invalid Role '{req.Role}'. Allowed values: {CommitteeMemberPositions.SelectableNames}");
 
         // UserId is a username and becomes an approval voter — counted into the round's member
         // total whether or not anyone can actually sign in as it. Validated alongside Role.
