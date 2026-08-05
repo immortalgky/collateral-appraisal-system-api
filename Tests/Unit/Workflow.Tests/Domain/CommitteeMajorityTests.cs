@@ -76,7 +76,7 @@ public class CommitteeMajorityTests
         var act = () => committee.Update("C", null, QuorumType.Fixed, 1,
             MajorityType.FixedCount, isActive: true, VotingMode.WaitForAll, majorityValue: 3);
 
-        act.Should().Throw<ArgumentException>().WithMessage("*exceeds*2 active member(s)*");
+        act.Should().Throw<ArgumentException>().WithMessage("*exceeds*2 voting member(s)*");
     }
 
     [Fact]

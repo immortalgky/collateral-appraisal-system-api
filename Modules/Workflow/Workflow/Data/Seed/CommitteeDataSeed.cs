@@ -124,24 +124,30 @@ public class CommitteeDataSeed(
 
         logger.LogInformation("Seeding workflow committee members...");
 
-        // Sub Committee: 3 members (tier 1: 0-10M)
+        // Positions are limited to CommitteeMemberPositions.Selectable — Risk/Credit/Appraisal are
+        // retired and would seed members the admin UI can no longer edit.
+
+        // Sub Committee: 3 members (tier 1: 0-10M) — quorum 2
         AddMemberIfUserExists(subCommittee, userMap, "john.doe", "John Doe", CommitteeMemberPosition.Chairman);
         AddMemberIfUserExists(subCommittee, userMap, "jane.smith", "Jane Smith", CommitteeMemberPosition.UW);
-        AddMemberIfUserExists(subCommittee, userMap, "m.wilson", "Mike Wilson", CommitteeMemberPosition.Risk);
+        AddMemberIfUserExists(subCommittee, userMap, "m.wilson", "Mike Wilson", CommitteeMemberPosition.Director);
 
-        // Committee: 5 members (tier 2: 10-30M)
+        // Committee: 5 members (tier 2: 10-30M) — quorum 3
         AddMemberIfUserExists(committee, userMap, "john.doe", "John Doe", CommitteeMemberPosition.Chairman);
         AddMemberIfUserExists(committee, userMap, "jane.smith", "Jane Smith", CommitteeMemberPosition.UW);
-        AddMemberIfUserExists(committee, userMap, "m.wilson", "Mike Wilson", CommitteeMemberPosition.Risk);
-        AddMemberIfUserExists(committee, userMap, "s.johnson", "Sarah Johnson", CommitteeMemberPosition.Credit);
-        AddMemberIfUserExists(committee, userMap, "thitipornw", "Thitiporn W", CommitteeMemberPosition.Appraisal);
+        AddMemberIfUserExists(committee, userMap, "m.wilson", "Mike Wilson", CommitteeMemberPosition.Director);
+        AddMemberIfUserExists(committee, userMap, "s.johnson", "Sarah Johnson", CommitteeMemberPosition.Director);
+        AddMemberIfUserExists(committee, userMap, "thitipornw", "Thitiporn W", CommitteeMemberPosition.Director);
 
-        // Committee With Meeting: 5 members (tier 3: >30M) — UW vote mandatory
+        // Committee With Meeting: 5 members (tier 3: >30M) — UW vote mandatory, quorum 3.
+        // One Secretary on purpose: they convene the meeting but are excluded from the approver
+        // roster at release, leaving 4 voters — so dev data exercises that path and still clears
+        // quorum.
         AddMemberIfUserExists(committeeWithMeeting, userMap, "john.doe", "John Doe", CommitteeMemberPosition.Chairman);
         AddMemberIfUserExists(committeeWithMeeting, userMap, "jane.smith", "Jane Smith", CommitteeMemberPosition.UW);
-        AddMemberIfUserExists(committeeWithMeeting, userMap, "m.wilson", "Mike Wilson", CommitteeMemberPosition.Risk);
-        AddMemberIfUserExists(committeeWithMeeting, userMap, "s.johnson", "Sarah Johnson", CommitteeMemberPosition.Credit);
-        AddMemberIfUserExists(committeeWithMeeting, userMap, "thitipornw", "Thitiporn W", CommitteeMemberPosition.Appraisal);
+        AddMemberIfUserExists(committeeWithMeeting, userMap, "m.wilson", "Mike Wilson", CommitteeMemberPosition.Director);
+        AddMemberIfUserExists(committeeWithMeeting, userMap, "s.johnson", "Sarah Johnson", CommitteeMemberPosition.Director);
+        AddMemberIfUserExists(committeeWithMeeting, userMap, "thitipornw", "Thitiporn W", CommitteeMemberPosition.Secretary);
 
         await context.SaveChangesAsync();
 

@@ -3691,16 +3691,21 @@ VALUES
 GO
 
 -- ----------------------------------------
--- Group: MeetingPosition (EN=3, TH=3)
+-- Group: MeetingPosition (EN=4, TH=4)
+-- Codes are the CommitteeMemberPosition enum NAMES, not ordinals: the meeting/committee APIs bind
+-- the enum by name, so the dropdown posts this code straight through with no mapping layer.
+-- Keep in sync with CommitteeMemberPositions.Selectable (Modules/Workflow/.../CommitteeMember.cs).
 -- ----------------------------------------
 INSERT INTO parameter.Parameters ([group], [country], [language], [code], [description], [isactive], [seqno])
 VALUES
-    (N'MeetingPosition', N'TH', N'EN', N'01', N'Chairman', 1, 1),
-    (N'MeetingPosition', N'TH', N'TH', N'01', N'Chairman', 1, 1),
-    (N'MeetingPosition', N'TH', N'EN', N'02', N'Director', 1, 2),
-    (N'MeetingPosition', N'TH', N'TH', N'02', N'Director', 1, 2),
-    (N'MeetingPosition', N'TH', N'EN', N'03', N'Secretary', 1, 3),
-    (N'MeetingPosition', N'TH', N'TH', N'03', N'Secretary', 1, 3);
+    (N'MeetingPosition', N'TH', N'EN', N'Chairman', N'Chairman', 1, 1),
+    (N'MeetingPosition', N'TH', N'TH', N'Chairman', N'ประธาน', 1, 1),
+    (N'MeetingPosition', N'TH', N'EN', N'Director', N'Director', 1, 2),
+    (N'MeetingPosition', N'TH', N'TH', N'Director', N'กรรมการ', 1, 2),
+    (N'MeetingPosition', N'TH', N'EN', N'Secretary', N'Secretary', 1, 3),
+    (N'MeetingPosition', N'TH', N'TH', N'Secretary', N'เลขานุการฯ', 1, 3),
+    (N'MeetingPosition', N'TH', N'EN', N'UW', N'UW', 1, 4),
+    (N'MeetingPosition', N'TH', N'TH', N'UW', N'ผู้พิจารณาสินเชื่อ', 1, 4);
 GO
 
 -- ----------------------------------------

@@ -80,10 +80,17 @@ public class CreateCommitteeCommandHandler(
 
             foreach (var m in req.Members)
             {
-                var position = Enum.Parse<CommitteeMemberPosition>(m.Role, ignoreCase: true);
-                var attendance = string.IsNullOrWhiteSpace(m.Attendance)
-                    ? CommitteeAttendance.Always
-                    : Enum.Parse<CommitteeAttendance>(m.Attendance, ignoreCase: true);
+                if (!CommitteeMemberPositions.TryParseSelectable(m.Role, out var position))
+                    throw new BadRequestException(
+                        $"Invalid Role '{m.Role}'. Allowed values: {CommitteeMemberPositions.SelectableNames}");
+
+                var attendance = CommitteeAttendance.Always;
+                if (!string.IsNullOrWhiteSpace(m.Attendance)
+                    && !Enum.TryParse(m.Attendance, ignoreCase: true, out attendance))
+                    throw new BadRequestException(
+                        $"Invalid Attendance '{m.Attendance}'. Allowed values: " +
+                        $"{string.Join(", ", Enum.GetNames<CommitteeAttendance>())}");
+
                 committee.AddMember(m.UserId, m.MemberName, position, attendance);
             }
         }
@@ -98,8 +105,23 @@ public class CreateCommitteeCommandHandler(
         {
             foreach (var c in req.Conditions)
             {
-                var conditionType = Enum.Parse<ConditionType>(c.ConditionType, ignoreCase: true);
-                committee.AddCondition(conditionType, c.RoleRequired, c.MinVotesRequired, c.Priority, c.Description);
+                if (!Enum.TryParse<ConditionType>(c.ConditionType, ignoreCase: true, out var conditionType))
+                    throw new BadRequestException(
+                        $"Invalid ConditionType '{c.ConditionType}'. Allowed values: " +
+                        $"{string.Join(", ", Enum.GetNames<ConditionType>())}");
+
+                // The domain signals an unsatisfiable condition with ArgumentException, which the
+                // global CustomExceptionHandler does not map — translate it so the caller gets 400,
+                // not a 500 with a stack-traced ProblemDetails. Same as AddCommitteeCondition.
+                try
+                {
+                    committee.AddCondition(
+                        conditionType, c.RoleRequired, c.MinVotesRequired, c.Priority, c.Description);
+                }
+                catch (ArgumentException ex)
+                {
+                    throw new BadRequestException(ex.Message);
+                }
             }
         }
 

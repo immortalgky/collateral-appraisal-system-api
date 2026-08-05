@@ -72,12 +72,78 @@ public enum CommitteeMemberPosition
     Secretary,
     /// <summary>Underwriter representative.</summary>
     UW,
-    /// <summary>Risk representative.</summary>
+    /// <summary>Risk representative. Retired — see <see cref="CommitteeMemberPositions.Selectable"/>.</summary>
     Risk,
-    /// <summary>Appraisal representative.</summary>
+    /// <summary>Appraisal representative. Retired — see <see cref="CommitteeMemberPositions.Selectable"/>.</summary>
     Appraisal,
-    /// <summary>Credit representative.</summary>
+    /// <summary>Credit representative. Retired — see <see cref="CommitteeMemberPositions.Selectable"/>.</summary>
     Credit,
-    /// <summary>General committee member.</summary>
+    /// <summary>General committee member. Retired — see <see cref="CommitteeMemberPositions.Selectable"/>.</summary>
     Member
+}
+
+/// <summary>
+/// Business rules over <see cref="CommitteeMemberPosition"/>.
+/// </summary>
+public static class CommitteeMemberPositions
+{
+    /// <summary>
+    /// The positions a member may be assigned today.
+    /// <see cref="CommitteeMemberPosition.Risk"/>, <see cref="CommitteeMemberPosition.Appraisal"/>,
+    /// <see cref="CommitteeMemberPosition.Credit"/> and <see cref="CommitteeMemberPosition.Member"/>
+    /// stay on the enum because Position is persisted as the enum NAME — existing committee members,
+    /// meeting rosters and historical ApprovalVote.MemberRole rows still hold them and must keep
+    /// materializing. They simply may no longer be chosen for a new or edited member.
+    /// </summary>
+    public static readonly IReadOnlySet<CommitteeMemberPosition> Selectable =
+        new HashSet<CommitteeMemberPosition>
+        {
+            CommitteeMemberPosition.Chairman,
+            CommitteeMemberPosition.Director,
+            CommitteeMemberPosition.Secretary,
+            CommitteeMemberPosition.UW
+        };
+
+    /// <summary>
+    /// Whether a member holding this position casts an approval vote once a meeting item is released.
+    /// The Secretary convenes the meeting, releases its items and signs the minutes, but never votes —
+    /// so they are excluded from the approver roster handed to the approval round.
+    /// </summary>
+    public static bool CanVote(CommitteeMemberPosition position) =>
+        position != CommitteeMemberPosition.Secretary;
+
+    /// <summary>Comma-separated <see cref="Selectable"/> names, for member validation messages.</summary>
+    public static string SelectableNames => string.Join(", ", Selectable);
+
+    /// <summary>
+    /// Comma-separated positions valid for a RoleRequired condition: selectable AND able to vote.
+    /// Narrower than <see cref="SelectableNames"/>, which would advertise the Secretary as allowed
+    /// on a call that refuses them.
+    /// </summary>
+    public static string RequirableNames => string.Join(", ", Selectable.Where(CanVote));
+
+    /// <summary>
+    /// Parses a role string by NAME, without judging whether the position is still assignable.
+    /// Name comparison rather than a bare <see cref="Enum.TryParse{T}(string, bool, out T)"/>:
+    /// TryParse also accepts the numeric form ("3" -> UW), which would pass validation and then
+    /// match no vote's role at runtime, since roles are compared as plain strings.
+    /// </summary>
+    public static bool TryParseName(string? role, out CommitteeMemberPosition position)
+    {
+        position = default;
+
+        if (!Enum.GetNames<CommitteeMemberPosition>().Contains(role, StringComparer.OrdinalIgnoreCase))
+            return false;
+
+        position = Enum.Parse<CommitteeMemberPosition>(role!, ignoreCase: true);
+        return true;
+    }
+
+    /// <summary>
+    /// Parses a role string to a currently-assignable position, rejecting unknown names and retired
+    /// ones alike. Use <see cref="TryParseName"/> instead where an existing retired value must be
+    /// allowed to survive unchanged.
+    /// </summary>
+    public static bool TryParseSelectable(string? role, out CommitteeMemberPosition position) =>
+        TryParseName(role, out position) && Selectable.Contains(position);
 }

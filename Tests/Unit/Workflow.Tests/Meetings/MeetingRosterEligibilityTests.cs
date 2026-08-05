@@ -19,8 +19,8 @@ public class MeetingRosterEligibilityTests
 
         var failures = MeetingRosterEligibility.Check(
             Roster(("a", CommitteeMemberPosition.Chairman),
-                   ("b", CommitteeMemberPosition.Member),
-                   ("c", CommitteeMemberPosition.Member)),
+                   ("b", CommitteeMemberPosition.Director),
+                   ("c", CommitteeMemberPosition.Director)),
             committee);
 
         failures.Should().BeEmpty();
@@ -33,11 +33,11 @@ public class MeetingRosterEligibilityTests
 
         var failures = MeetingRosterEligibility.Check(
             Roster(("a", CommitteeMemberPosition.Chairman),
-                   ("b", CommitteeMemberPosition.Member)),
+                   ("b", CommitteeMemberPosition.Director)),
             committee);
 
         failures.Should().ContainSingle()
-            .Which.Should().Be("2 member(s) but quorum requires 3");
+            .Which.Should().Be("2 voting member(s) but quorum requires 3");
     }
 
     [Fact]
@@ -62,11 +62,11 @@ public class MeetingRosterEligibilityTests
 
         var failures = MeetingRosterEligibility.Check(
             Roster(("a", CommitteeMemberPosition.Chairman),
-                   ("b", CommitteeMemberPosition.Member)),
+                   ("b", CommitteeMemberPosition.Director)),
             committee);
 
         failures.Should().ContainSingle()
-            .Which.Should().Be("no member holds the required role UW");
+            .Which.Should().Be("no voting member holds the required role UW");
     }
 
     [Fact]
@@ -107,11 +107,11 @@ public class MeetingRosterEligibilityTests
 
         var failures = MeetingRosterEligibility.Check(
             Roster(("a", CommitteeMemberPosition.Chairman),
-                   ("b", CommitteeMemberPosition.Member)),
+                   ("b", CommitteeMemberPosition.Director)),
             committee);
 
         failures.Should().ContainSingle()
-            .Which.Should().Be("3 approve vote(s) required but the roster has only 2 member(s)");
+            .Which.Should().Be("3 approve vote(s) required but the roster has only 2 voting member(s)");
     }
 
     [Fact]
@@ -126,8 +126,8 @@ public class MeetingRosterEligibilityTests
 
         failures.Should().BeEquivalentTo(
         [
-            "1 member(s) but quorum requires 3",
-            "no member holds the required role UW"
+            "1 voting member(s) but quorum requires 3",
+            "no voting member holds the required role UW"
         ]);
     }
 
@@ -180,7 +180,7 @@ public class MeetingRosterEligibilityTests
         var failures = MeetingRosterEligibility.Check(
             Roster(("alice", CommitteeMemberPosition.Chairman),
                    ("ghost", CommitteeMemberPosition.UW),
-                   ("phantom", CommitteeMemberPosition.Member)),
+                   ("phantom", CommitteeMemberPosition.Director)),
             committee,
             knownUsernames: Known("alice"));
 
@@ -229,7 +229,7 @@ public class MeetingRosterEligibilityTests
             committee);
 
         failures.Should().ContainSingle()
-            .Which.Should().Be("3 approve vote(s) required but the roster has only 2 member(s)");
+            .Which.Should().Be("3 approve vote(s) required but the roster has only 2 voting member(s)");
     }
 
     [Fact]
@@ -257,6 +257,92 @@ public class MeetingRosterEligibilityTests
             Roster(("a", CommitteeMemberPosition.Chairman)), committee);
 
         failures.Should().BeEmpty();
+    }
+
+    // -- The secretary attends but does not vote --
+
+    [Fact]
+    public void Check_SecretaryDoesNotCountTowardQuorum()
+    {
+        // The exact stall this guard exists for: three people on the roster clears a quorum of 3,
+        // but release hands the round only the two who vote, so it could never reach quorum.
+        var committee = BuildCommittee(QuorumType.Fixed, 3);
+
+        var failures = MeetingRosterEligibility.Check(
+            Roster(("a", CommitteeMemberPosition.Chairman),
+                   ("b", CommitteeMemberPosition.Secretary),
+                   ("c", CommitteeMemberPosition.UW)),
+            committee);
+
+        failures.Should().ContainSingle()
+            .Which.Should().Be("2 voting member(s) but quorum requires 3");
+    }
+
+    [Fact]
+    public void Check_RosterOfOnlySecretaries_Fails()
+    {
+        // Non-empty, so the empty-roster guard does not catch it, yet it yields no approvers at all.
+        // Released, ApprovalActivity's `overrideMembers.Count > 0` switch would read the empty list
+        // as "no override" and silently run the round with the COMMITTEE's members.
+        var committee = BuildCommittee(QuorumType.Percentage, 100);
+
+        var failures = MeetingRosterEligibility.Check(
+            Roster(("a", CommitteeMemberPosition.Secretary)), committee);
+
+        failures.Should().ContainSingle()
+            .Which.Should().Be("the meeting has no voting members (the secretary does not vote)");
+    }
+
+    [Fact]
+    public void Check_SecretaryCannotSatisfyARequiredRole()
+    {
+        // No vote can ever carry the Secretary role, so a roster that leans on them for a
+        // RoleRequired condition is unsatisfiable even though someone "holds" the position.
+        var committee = BuildCommittee(QuorumType.Fixed, 1);
+        committee.AddCondition(ConditionType.RoleRequired, nameof(CommitteeMemberPosition.UW),
+            null, 1, "UW must approve");
+
+        var failures = MeetingRosterEligibility.Check(
+            Roster(("a", CommitteeMemberPosition.Chairman),
+                   ("b", CommitteeMemberPosition.Secretary)),
+            committee);
+
+        failures.Should().ContainSingle()
+            .Which.Should().Be("no voting member holds the required role UW");
+    }
+
+    [Fact]
+    public void Check_SecretaryAlongsideEnoughVoters_NoFailures()
+    {
+        // The Secretary is not a problem in itself — only when the voters left behind fall short.
+        var committee = BuildCommittee(QuorumType.Fixed, 2);
+        committee.AddCondition(ConditionType.RoleRequired, nameof(CommitteeMemberPosition.UW),
+            null, 1, "UW must approve");
+
+        var failures = MeetingRosterEligibility.Check(
+            Roster(("a", CommitteeMemberPosition.Chairman),
+                   ("b", CommitteeMemberPosition.Secretary),
+                   ("c", CommitteeMemberPosition.UW)),
+            committee);
+
+        failures.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Check_UnresolvedSecretary_IsStillReported()
+    {
+        // The username check covers the whole roster, not just voters: a secretary who resolves to
+        // nobody is a roster error worth surfacing before release.
+        var committee = BuildCommittee(QuorumType.Fixed, 1);
+
+        var failures = MeetingRosterEligibility.Check(
+            Roster(("alice", CommitteeMemberPosition.Chairman),
+                   ("ghost", CommitteeMemberPosition.Secretary)),
+            committee,
+            knownUsernames: Known("alice"));
+
+        failures.Should().ContainSingle()
+            .Which.Should().Be("no such user: ghost");
     }
 
     // -- Helpers --

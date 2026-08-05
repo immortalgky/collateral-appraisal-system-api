@@ -17,7 +17,7 @@ public class CommitteeAddConditionTests
     [InlineData("UW")]
     [InlineData("uw")]
     [InlineData("Chairman")]
-    [InlineData("Member")]
+    [InlineData("Director")]
     public void AddCondition_RoleRequired_AcceptsAPositionName(string role)
     {
         var committee = BuildCommittee();
@@ -48,6 +48,27 @@ public class CommitteeAddConditionTests
     }
 
     [Fact]
+    public void AddCondition_RoleRequired_InvalidNameMessageOnlyListsRolesItWouldAccept()
+    {
+        // The message used to advertise the selectable set, which includes the Secretary — so an
+        // admin could copy a value straight out of the error and be refused again by the next guard.
+        var committee = BuildCommittee();
+
+        var act = () => committee.AddCondition(
+            ConditionType.RoleRequired, "Cheirman", minVotesRequired: null, priority: 1, description: null);
+
+        var message = act.Should().Throw<ArgumentException>().Which.Message;
+
+        message.Should().NotContain(nameof(CommitteeMemberPosition.Secretary));
+        foreach (var retired in Enum.GetValues<CommitteeMemberPosition>()
+                     .Where(p => !CommitteeMemberPositions.Selectable.Contains(p)))
+            message.Should().NotContain(retired.ToString());
+
+        message.Should().Contain(nameof(CommitteeMemberPosition.Chairman));
+        message.Should().Contain(nameof(CommitteeMemberPosition.UW));
+    }
+
+    [Fact]
     public void AddCondition_RoleRequired_RejectsTheNumericFormOfAPosition()
     {
         // Enum.TryParse would accept "3" and map it to UW, but RoleRequired is persisted as the raw
@@ -72,17 +93,52 @@ public class CommitteeAddConditionTests
     }
 
     [Fact]
-    public void AddCondition_RoleRequired_AcceptsEveryDefinedPosition()
+    public void AddCondition_RoleRequired_AcceptsEverySelectableVotingPosition()
     {
-        // The guard must not drift from the enum the vote role is produced from.
-        foreach (var name in Enum.GetNames<CommitteeMemberPosition>())
+        // The guard must not drift from the positions a vote role can actually be produced from:
+        // currently selectable, and able to vote. The Secretary is selectable but never votes.
+        var expected = CommitteeMemberPositions.Selectable
+            .Where(CommitteeMemberPositions.CanVote)
+            .ToList();
+
+        foreach (var position in expected)
         {
             var committee = BuildCommittee();
             var act = () => committee.AddCondition(
-                ConditionType.RoleRequired, name, null, 1, null);
+                ConditionType.RoleRequired, position.ToString(), null, 1, null);
 
-            act.Should().NotThrow($"{name} is a valid CommitteeMemberPosition");
+            act.Should().NotThrow($"{position} is selectable and votes");
         }
+    }
+
+    [Fact]
+    public void AddCondition_RoleRequired_RejectsSecretary_BecauseTheyNeverVote()
+    {
+        // Meeting.ReleaseItem drops the Secretary from the approver roster, so no vote can ever
+        // carry that role — requiring it would open a round that can never satisfy the condition.
+        var committee = BuildCommittee();
+
+        var act = () => committee.AddCondition(
+            ConditionType.RoleRequired, nameof(CommitteeMemberPosition.Secretary), null, 1, null);
+
+        act.Should().Throw<ArgumentException>().WithMessage("*does not vote*");
+    }
+
+    [Theory]
+    [InlineData("Risk")]
+    [InlineData("Appraisal")]
+    [InlineData("Credit")]
+    [InlineData("Member")]
+    public void AddCondition_RoleRequired_RejectsRetiredPositions(string role)
+    {
+        // Still on the enum so existing rows materialize, but no longer assignable — a condition
+        // requiring one could only be satisfied by a member nobody can create any more.
+        var committee = BuildCommittee();
+
+        var act = () => committee.AddCondition(
+            ConditionType.RoleRequired, role, null, 1, null);
+
+        act.Should().Throw<ArgumentException>().WithMessage("*retired*");
     }
 
     private static Committee BuildCommittee()
