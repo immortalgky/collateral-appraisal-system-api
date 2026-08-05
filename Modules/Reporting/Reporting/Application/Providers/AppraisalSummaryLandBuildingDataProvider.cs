@@ -917,6 +917,38 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             depreciationByGroup.TryGetValue(g.GroupId, out var deps);
             deps ??= [];
 
+            // Appraisers now enter an enhancement (fence, paving, water tank, roofed open area) as
+            // its OWN property, whose Building Detail carries only Non-Building rows. Such a
+            // property is not a สิ่งปลูกสร้าง and must not print as one — neither as a numbered cost
+            // line (it would be blank-valued, duplicating the ส่วนพัฒนา rows below) nor as a
+            // "พร้อม…" clause on the combined row ("พร้อมถังน้ำ 3 ชั้น … อายุอาคาร 0 ปี"). Both
+            // layouts list it under ส่วนพัฒนา instead. A building with NO rows at all is NOT one of
+            // these: nothing was entered yet, so it keeps printing as an unvalued building.
+            // Neither is one carrying a house number: an enhancement never has one, so it is proof
+            // the appraiser meant a real สิ่งปลูกสร้าง and its rows were merely flagged wrong —
+            // reclassifying would erase the house, its เลขที่ and its พื้นที่ใช้สอย from the document.
+            var depRowsByBuilding = deps
+                .GroupBy(d => d.BuildingAppraisalDetailId)
+                .ToDictionary(grp => grp.Key, grp => grp.ToList());
+
+            bool IsDevelopmentOnly(GroupBuildingRow b) =>
+                !HasHouseNumber(b.HouseNumber)
+                && depRowsByBuilding.TryGetValue(b.BuildingId, out var rows)
+                && rows.TrueForAll(r => !r.IsBuilding);
+
+            // Rows moved out of the สิ่งปลูกสร้าง list lose the only place their type was printed, so
+            // they lead with it under ส่วนพัฒนา — "รั้วตาข่ายเหล็ก …" instead of a bare "พื้นที่ใช้สอย …".
+            // Rows under a normal building are left alone: that building still names itself on its
+            // own line, so a prefix would only repeat it.
+            // GroupBy (not a bare ToDictionary): RS14 joins parameter.Parameters on Group+Language
+            // +Code while that table is unique on (Group, Country, Language, Code), so a second
+            // active row for the same code can fan one building into two — a duplicate key here
+            // would 500 the whole report.
+            var movedNameByBuilding = buildings
+                .Where(IsDevelopmentOnly)
+                .GroupBy(b => b.BuildingId)
+                .ToDictionary(grp => grp.Key, grp => BuildingDisplayName(grp.First()));
+
             // Land description (titles only — no building clause).
             var landParts = new List<string>();
             foreach (var title in titles)
@@ -957,6 +989,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             var buildingDescParts = new List<string>();
             foreach (var bld in buildings)
             {
+                if (IsDevelopmentOnly(bld))
+                    continue;   // listed under ส่วนพัฒนา instead — see DevelopmentDescriptions below
+
                 var bldParts = new List<string>();
                 if (!string.IsNullOrWhiteSpace(bld.BuildingTypeDisplay))
                     bldParts.Add($"พร้อม{bld.BuildingTypeDisplay}");
@@ -1012,6 +1047,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 .ToDictionary(grp => grp.Key, grp => grp.Sum(d => d.PriceAfterDepreciation ?? 0m));
 
             var buildingItems = buildings
+                .Where(b => !IsDevelopmentOnly(b))
                 .Select(b =>
                 {
                     var value = buildingValueById.TryGetValue(b.BuildingId, out var v) ? v : (decimal?)null;
@@ -1025,24 +1061,51 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 })
                 .ToList();
 
+            // Print the moved rows in property order rather than the ORDER BY bdd.Id the query gives
+            // (a Guid v7 sorts arbitrarily under SQL Server's uniqueidentifier collation), so each
+            // property's items stay together. OrderBy is stable — rows within a property keep their
+            // existing relative order.
+            var sequenceByProperty = buildings
+                .GroupBy(b => b.AppraisalPropertyId)
+                .ToDictionary(grp => grp.Key, grp => grp.Min(b => b.SequenceInGroup));
+
             // ส่วนพัฒนา: development items are the non-building (IsBuilding=0) depreciation rows.
-            var developmentItems = deps.Where(d => !d.IsBuilding)
+            var developmentRows = deps.Where(d => !d.IsBuilding)
+                .OrderBy(d => sequenceByProperty.TryGetValue(d.AppraisalPropertyId, out var seq) ? seq : int.MaxValue)
                 .Select(d =>
                 {
                     var pct = ProgressPctOf(d.AppraisalPropertyId);
-                    return new SummaryItemRow
-                    {
-                        Description = BuildItemDesc(d, "พื้นที่", pct),
-                        Value = d.PriceAfterDepreciation,
-                        CurrentValue = CurrentValueOf(d.PriceAfterDepreciation, pct)
-                    };
+                    var isMoved = movedNameByBuilding.TryGetValue(d.BuildingAppraisalDetailId, out var namePrefix);
+                    return (
+                        IsMoved: isMoved,
+                        Row: new SummaryItemRow
+                        {
+                            Description = BuildItemDesc(d, "พื้นที่", pct, namePrefix),
+                            Value = d.PriceAfterDepreciation,
+                            CurrentValue = CurrentValueOf(d.PriceAfterDepreciation, pct)
+                        });
                 })
+                .ToList();
+
+            var developmentItems = developmentRows.ConvertAll(x => x.Row);
+
+            // The combined/market row carries ONE blended figure and has no valued ส่วนพัฒนา block,
+            // so it lists only the rows whose property just lost its "พร้อม…" clause — as plain text
+            // under a ส่วนพัฒนา heading. Rows belonging to a normal building stay unlisted there,
+            // exactly as before.
+            var developmentDescriptions = developmentRows
+                .Where(x => x.IsMoved && !string.IsNullOrWhiteSpace(x.Row.Description))
+                .Select(x => x.Row.Description!)
                 .ToList();
 
             var groupTotal = g.GroupAppraisalValue ?? g.AppraisalPrice ?? g.FinalValueRounded;
 
             // Group composition — also drives the first-column label (see DeriveFamily).
             var hasLand = titles.Count > 0 || g.LandValue.HasValue;
+            // Counts enhancement-only properties too, deliberately: their ส่วนพัฒนา rows ARE the
+            // group's building block — they total into รวมมูลค่าสิ่งปลูกสร้าง, and the template gates
+            // both per-type subtotals on has_building. Narrowing this to buildingItems deletes those
+            // subtotal rows from a land + fence cost group.
             var hasBuilding = buildingItems.Count > 0 || buildings.Count > 0;
 
             // Whether the group renders the per-item breakdown (☑ ที่ดิน / ☑ สิ่งปลูกสร้าง as
@@ -1112,6 +1175,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 LandDescription = landDescription,
                 LandDescriptions = landParts,
                 BuildingDescription = buildingDescription,
+                DevelopmentDescriptions = developmentDescriptions,
                 TotalSquareWa = totalSquareWa == 0m ? null : totalSquareWa,
                 LandUnitPrice = g.LandUnitPrice,
                 LandValue = g.LandValue,
@@ -1406,6 +1470,15 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Whether a Building Detail actually carries a house number. Appraisers type "-" for "none"
+    /// (35 of the 232 rows on the dev database), so a dash-only value must read as absent — it is
+    /// used as proof that a mis-flagged building is a real สิ่งปลูกสร้าง, and a placeholder is not
+    /// proof of anything.
+    /// </summary>
+    private static bool HasHouseNumber(string? houseNumber) =>
+        !string.IsNullOrWhiteSpace(houseNumber) && houseNumber.Trim().Trim('-', '–', '—').Length > 0;
+
     private static string BuildAreaString(decimal? rai, decimal? ngan, decimal? sqwa)
         // Thai land-area shorthand rai-ngan-wa; every empty position shows 0 (e.g. "9-2-41 ไร่", "1-0-0 ไร่").
         => $"{rai ?? 0:0.##}-{ngan ?? 0:0.##}-{sqwa ?? 0:0.##} ไร่";
@@ -1413,11 +1486,20 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     /// <summary>
     /// Builds a cost-breakdown line, e.g. "อาคารโรงงานชั้นเดียว พื้นที่ใช้สอย 1,800 ตารางเมตร อายุ 9 ปี".
     /// <paramref name="areaLabel"/> is "พื้นที่ใช้สอย" for buildings, "พื้นที่" for development items.
+    /// <paramref name="namePrefix"/> is the owning property's building type, passed for ส่วนพัฒนา
+    /// rows whose property prints no สิ่งปลูกสร้าง line of its own. It NAMES the item, replacing the
+    /// row's free-text <c>AreaDescription</c> — the two describe the same thing, and the building
+    /// type is the curated one. Rows under a normal building pass none and keep their own text.
+    /// An enhancement property carries a single Non-Building row in practice, so the replacement
+    /// loses nothing; were it to carry several, they would all print under this one name.
     /// </summary>
-    private static string? BuildItemDesc(GroupDepreciationRow d, string areaLabel, decimal? progressPct = null)
+    private static string? BuildItemDesc(
+        GroupDepreciationRow d, string areaLabel, decimal? progressPct = null, string? namePrefix = null)
     {
         var parts = new List<string>();
-        if (!string.IsNullOrWhiteSpace(d.AreaDescription))
+        if (!string.IsNullOrWhiteSpace(namePrefix))
+            parts.Add(namePrefix!.Trim());
+        else if (!string.IsNullOrWhiteSpace(d.AreaDescription))
             parts.Add(d.AreaDescription!.Trim());
         if (d.Area is { } a && a != 0)
             parts.Add($"{areaLabel} {a:0.##} ตารางเมตร");
@@ -1442,17 +1524,25 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     };
 
     /// <summary>
+    /// How a building names itself: the building TYPE (BuildingTypeDisplay already resolves code 99
+    /// "อื่นๆ" to the appraiser's remark), with the free-text property name as a last-resort
+    /// fallback. Null when neither is filled in.
+    /// </summary>
+    private static string? BuildingDisplayName(GroupBuildingRow b)
+    {
+        var name = !string.IsNullOrWhiteSpace(b.BuildingTypeDisplay) ? b.BuildingTypeDisplay : b.PropertyName;
+        return string.IsNullOrWhiteSpace(name) ? null : name!.Trim();
+    }
+
+    /// <summary>
     /// Builds a per-building cost line: building type + floors + usable area + age + condition,
     /// e.g. "อาคารโรงงาน ชั้นเดียว พื้นที่ใช้สอย 1,800 ตารางเมตร อายุอาคาร 9 ปี สภาพอาคารปานกลาง".
     /// </summary>
     private static string? BuildBuildingLine(GroupBuildingRow b, decimal? progressPct = null)
     {
         var parts = new List<string>();
-        // Lead with the building TYPE (BuildingTypeDisplay already resolves code 99 "อื่นๆ" to the
-        // appraiser's remark); the free-text property name is only a last-resort fallback.
-        var name = !string.IsNullOrWhiteSpace(b.BuildingTypeDisplay) ? b.BuildingTypeDisplay : b.PropertyName;
-        if (!string.IsNullOrWhiteSpace(name))
-            parts.Add(name!.Trim());
+        if (BuildingDisplayName(b) is { } name)
+            parts.Add(name);
         if (b.NumberOfFloors.HasValue)
             parts.Add($"{b.NumberOfFloors:0.##} ชั้น");
         if (b.TotalBuildingArea.HasValue)

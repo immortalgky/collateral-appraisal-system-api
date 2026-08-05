@@ -83,7 +83,10 @@
         </tr>
         {{ end }}
         {{ if g.development_items.size > 0 }}
-        <tr class="cont"><td></td><td><strong>ส่วนพัฒนา</strong></td><td></td><td></td><td></td>{{ if uc }}<td></td>{{ end }}</tr>
+        <!-- A group whose building properties are ALL enhancement-only has no สิ่งปลูกสร้าง rows to
+             carry the ☑ marker, yet still totals its ส่วนพัฒนา into รวมมูลค่าสิ่งปลูกสร้าง — so the
+             marker moves onto this header row instead of leaving the block unlabelled. -->
+        <tr class="{{ if g.buildings.size == 0 && per_type_subtotals }}grp-first{{ else }}cont{{ end }}"><td>{{ if g.buildings.size == 0 }}<span class="chk on"></span> <strong>สิ่งปลูกสร้าง</strong>{{ end }}</td><td><strong>ส่วนพัฒนา</strong></td><td></td><td></td><td></td>{{ if uc }}<td></td>{{ end }}</tr>
         {{ for d in g.development_items }}
         <tr class="cont">
           <td></td>
@@ -113,7 +116,8 @@
         <!-- Market / combined: single value, no per-unit breakdown -->
         <tr>
           <td><span class="chk on"></span> <strong>{{ g.property_type }}</strong></td>
-          <td>{{ if multi }}<strong>กลุ่มที่ {{ g.group_number }}</strong>{{ end }}{{ if g.land_descriptions.size > 0 }}<ol class="land-titles{{ if g.land_descriptions.size == 1 }} no-num{{ end }}">{{ for d in g.land_descriptions }}<li>{{ d }}</li>{{ end }}</ol>{{ end }}{{ if g.building_description }}<div class="brk" style="margin-top:1px;">{{ g.building_description }}</div>{{ end }}</td>
+          <td>{{ if multi }}<strong>กลุ่มที่ {{ g.group_number }}</strong>{{ end }}{{ if g.land_descriptions.size > 0 }}<ol class="land-titles{{ if g.land_descriptions.size == 1 }} no-num{{ end }}">{{ for d in g.land_descriptions }}<li>{{ d }}</li>{{ end }}</ol>{{ end }}{{ if g.building_description }}<div class="brk" style="margin-top:1px;">{{ g.building_description }}</div>{{ end }}{{ if g.development_descriptions.size > 0 }}<div class="brk" style="margin-top:1px;"><strong>ส่วนพัฒนา</strong>{{ for d in g.development_descriptions }}
+- {{ d }}{{ end }}</div>{{ end }}</td>
           <td class="num">{{ if g.show_land_unit_columns }}{{ g.market_land_area | math.format "N2" }}{{ end }}</td>
           <td class="num">{{ if g.show_land_unit_columns }}{{ g.market_land_unit_price | math.format "N2" }}{{ end }}</td>
           <td class="num"{{ if uc }} colspan="2"{{ end }}>{{ if g.group_total; g.group_total | math.format "N2"; end }}</td>
