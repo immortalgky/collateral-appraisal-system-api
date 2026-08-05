@@ -124,8 +124,10 @@
 
   <!-- ── Agenda groups ─────────────────────────────────────────── -->
   {{ for ag in model.agendas }}
-    {{ if ag.number >= 3 && ag.number <= 8 }}
-    <!-- Decision agenda → bordered table (always shown, even with no items) -->
+    <!-- Branch on ag.wara, the fixed 1–9 identity: ag.number is the printed position and shifts
+         whenever an earlier วาระ is dropped as empty. -->
+    {{ if ag.wara >= 3 && ag.wara <= 8 }}
+    <!-- Decision agenda → bordered table (empty ones never reach here — see MeetingAgendaBuilder) -->
     <div class="agenda-block">
       <div class="wara-title">
         วาระที่ {{ ag.number }} {{ ag.title }}
@@ -135,7 +137,7 @@
         <thead>
           <tr>
             <th>รายการ</th>
-            <th>{{ if ag.number == 6 }}อนุมัติ/ไม่อนุมัติ{{ else }}อนุมัติราคาประเมิน (ตามเอกสารแนบ){{ end }}</th>
+            <th>{{ if ag.wara == 6 }}อนุมัติ/ไม่อนุมัติ{{ else }}อนุมัติราคาประเมิน (ตามเอกสารแนบ){{ end }}</th>
           </tr>
         </thead>
         <tbody>
@@ -143,16 +145,13 @@
           <tr>
             <td class="col-item">{{ for.index + 1 }}. {{ item.customer_name }}</td>
             <td class="col-value">
-              {{- if ag.number == 6 -}}
+              {{- if ag.wara == 6 -}}
               <div class="val-cell"><span>ราคาประเมิน</span><span>รายละเอียดดูตาม สรุปราคา</span></div>
               {{- else if item.value_text -}}
               <div class="val-cell"><span>ราคาประเมิน</span><span>{{ item.value_text }}{{ if item.value_text != "ไม่รับรองราคา" }} บาท{{ end }}</span></div>
               {{- end -}}
             </td>
           </tr>
-          {{ end }}
-          {{ if ag.items.size == 0 }}
-          <tr><td class="col-item">&nbsp;</td><td class="col-value">&nbsp;</td></tr>
           {{ end }}
         </tbody>
       </table>

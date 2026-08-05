@@ -60,7 +60,10 @@
     .agenda-items .item-value-unit { width:34px; text-align:left; padding-left:6px; }
 
     /* ── Closing + secretary block (centered, FSD img39) ─────────── */
-    .closing { text-align:center; margin:20px 0 24px; }
+    /* Wide top margin separates the closing sentence — and the whole signature half of the
+       page below it — from the agenda list. It collapses with the last .agenda-group's 10px
+       bottom margin (the larger wins), so the gap is 64px, not 74px. */
+    .closing { text-align:center; margin:64px 0 24px; }
     .secretary-block { text-align:center; margin-bottom:28px; }
     /* Top margin reserves a wet-signature area above the dotted line (~16mm). */
     .secretary-block .sig-line {
@@ -71,12 +74,12 @@
     /* ── Signature roster (FSD รายนาม / ลายเซ็น) ─────────────────── */
     .roster-header { text-align:center; margin-bottom:16px; }
     .roster-header div { line-height:1.6; }
-    /* Keep the whole signature table on one page: if it does not fit in the remaining
-       space it moves to the next page intact, instead of splitting and repeating the
-       รายนาม/ลายเซ็น header over a stray row or two. The 3-line roster heading above is
-       deliberately NOT included — it may stay behind on the previous page. */
-    table.roster-table { width:100%; border-collapse:collapse;
-      break-inside:avoid; page-break-inside:avoid; }
+    /* The 3-line heading and the signature table are one unit: if the pair does not fit in
+       the remaining space the whole block moves to the next page, instead of stranding the
+       heading alone at the bottom of a page with the table overleaf. A roster taller than a
+       full page still splits — Chromium drops the constraint rather than lose content. */
+    .roster-block { break-inside:avoid; page-break-inside:avoid; }
+    table.roster-table { width:100%; border-collapse:collapse; }
     table.roster-table th {
       text-decoration:underline; font-weight:400; padding:4px 8px; text-align:center;
     }
@@ -142,8 +145,10 @@
       <div class="item-row">
         <span class="item-seq">{{ for.index + 1 }}.</span>
         <span class="item-customer">{{ item.customer_name }}</span>
-        <!-- FSD: การตรวจงวดงานก่อสร้าง (วาระ 5) and MF/block (วาระ 6) carry no appraisal value -->
-        {{- if item.value_text && ag.number != 5 && ag.number != 6 }}
+        <!-- FSD: การตรวจงวดงานก่อสร้าง (วาระ 5) and MF/block (วาระ 6) carry no appraisal value.
+             Tested on ag.wara, the fixed identity — ag.number is the printed position and shifts
+             whenever an earlier วาระ is dropped as empty. -->
+        {{- if item.value_text && ag.wara != 5 && ag.wara != 6 }}
         <span class="item-value"><span class="item-value-label">ราคาประเมิน</span><span
           class="item-value-amount">{{ item.value_text }}</span><span
           class="item-value-unit">{{ if item.value_text != "ไม่รับรองราคา" }}บาท{{ end }}</span></span>
@@ -166,6 +171,7 @@
   </div>
 
   <!-- ── Signature roster (รายนาม / ลายเซ็น) ───────────────────── -->
+  <div class="roster-block">
   <div class="roster-header">
     <div>คณะกรรมการกำหนดราคาประเมินหลักประกันและทรัพย์สิน</div>
     <div>การประชุมคณะกรรมการกำหนดราคาประเมินหลักประกัน และทรัพย์สิน ครั้งที่ {{ model.meeting_no }}</div>
@@ -184,6 +190,7 @@
       {{ end }}
     </tbody>
   </table>
+  </div><!-- .roster-block -->
 
 </div>
 </body>

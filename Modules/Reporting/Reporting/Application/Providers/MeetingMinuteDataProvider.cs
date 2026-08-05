@@ -157,7 +157,7 @@ public sealed class MeetingMinuteDataProvider(
             header.AgendaChairmanInformed,
             header.AgendaOthers);
 
-        var presenters = MeetingAgendaBuilder.BuildPresenters(items);
+        var presenters = MeetingAgendaBuilder.BuildPresenters(items, agendas);
 
         var committeeOpinions = voteRows.Select(v => new CommitteeOpinionRow
         {

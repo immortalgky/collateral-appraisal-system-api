@@ -399,6 +399,7 @@ internal static class AppraisalSummaryCommonLoader
             SELECT
                 COALESCE(NULLIF(LTRIM(RTRIM(u.FirstName + ' ' + u.LastName)), ''), av.Member) AS MemberName,
                 COALESCE(NULLIF(u.Position, ''), av.MemberRole) AS Position,
+                av.MemberRole AS MemberRole,
                 av.Vote,
                 av.Comments   AS Comment,
                 av.Member     AS Member,
@@ -411,10 +412,15 @@ internal static class AppraisalSummaryCommonLoader
         var voteParams = new DynamicParameters();
         voteParams.Add("AppraisalId", appraisalId);
 
-        // One row per member (latest vote), in case of re-approval rounds.
+        // One row per member (latest vote), in case of re-approval rounds, then ordered by committee
+        // rank. The sort has to sit AFTER the GroupBy — GroupBy re-imposes first-appearance order,
+        // so an ORDER BY in the SQL would be silently discarded here.
         var votes = (await connection.QueryAsync<VoteRow>(votesSql, voteParams))
             .GroupBy(v => v.Member, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.OrderByDescending(v => v.VotedAt).First())
+            .OrderBy(v => CommitteeRoleRank(v.MemberRole))
+            .ThenBy(v => v.VotedAt)
+            .ThenBy(v => v.MemberName, StringComparer.Ordinal)
             .ToList();
 
         List<ApproverRow> approvers = votes.Select(v => new ApproverRow
@@ -618,6 +624,20 @@ internal static class AppraisalSummaryCommonLoader
     internal static string? NormalizePosition(string? position) =>
         string.IsNullOrWhiteSpace(position) || position.Trim() == "-" ? null : position.Trim();
 
+    /// <summary>
+    /// Display rank for the committee sign-off block, matching the meeting reports:
+    /// Chairman → Director → everyone else → Secretary. Sorts on ApprovalVotes.MemberRole, which is
+    /// null on legacy-imported votes, and a Secretary normally cannot vote
+    /// (CommitteeMemberPositions.CanVote), so rank 9 is usually an empty slot.
+    /// </summary>
+    internal static int CommitteeRoleRank(string? role) => role?.Trim().ToLowerInvariant() switch
+    {
+        "chairman" => 1,
+        "director" => 2,
+        "secretary" => 9,
+        _ => 5
+    };
+
     // ── Private flat DTOs for Dapper mapping ─────────────────────────────────────
 
     internal sealed class HeaderRow
@@ -700,6 +720,12 @@ internal static class AppraisalSummaryCommonLoader
         public string? Comment { get; init; }
         public string? Member { get; init; }
         public DateTime VotedAt { get; init; }
+
+        /// <summary>
+        /// Committee role (CommitteeMemberPosition name) copied onto the vote from the meeting
+        /// roster. Drives display order only — <see cref="Position"/> is what actually prints.
+        /// </summary>
+        public string? MemberRole { get; init; }
     }
 
     internal sealed class RequestorRow

@@ -32,12 +32,22 @@ public sealed class MeetingInvitationModel
 
 /// <summary>
 /// One วาระ (agenda item group) in the meeting invitation.
-/// Only agendas with at least one item are included.
+/// วาระ 1 and 2 are always present; the rest appear only when they carry items or body text.
 /// </summary>
 public sealed class MeetingAgendaGroup
 {
-    /// <summary>Agenda number (1–9).</summary>
+    /// <summary>
+    /// Printed sequence number, 1..N over the วาระ that survived the empty-วาระ filter — so the
+    /// document never shows a gap. Use <see cref="Wara"/>, not this, to identify a วาระ.
+    /// </summary>
     public int Number { get; init; }
+
+    /// <summary>
+    /// Fixed FSD identity of this วาระ (1–9), stable regardless of renumbering. Templates branch
+    /// on this (e.g. วาระ 5/6 carry no ราคาประเมิน column) because <see cref="Number"/> shifts
+    /// whenever an earlier วาระ is dropped.
+    /// </summary>
+    public int Wara { get; init; }
 
     /// <summary>Thai title for this agenda วาระ.</summary>
     public string Title { get; init; } = string.Empty;
