@@ -223,10 +223,16 @@ table.grid.comparison th:first-child, table.grid.comparison td:first-child { wid
    to the next line whole, and Thai still breaks on ICU word boundaries. */
 .brk { white-space:pre-line; overflow-wrap:anywhere; }
 /* Business rule: a report carrying a เงื่อนไข prints it in red, so a condition attached to the
-   appraisal cannot be missed when scanning the document. Set on the row so the label and the
-   appraiser's text both turn red; the selector names td directly because body sets color:#000
-   and inheritance alone would not reach a cell. เงื่อนไข only — the หมายเหตุ row that sits
-   directly beneath it in every one of these tables deliberately stays black. */
+   appraisal cannot be missed when scanning the document. The class goes on the row so the label
+   and the appraiser's text both turn red.
+
+   `tr.cond` alone would suffice today — color inherits, and nothing sets a color on these cells.
+   Naming td is deliberate insurance: an inherited value loses to ANY direct rule on the cell, so
+   a future `table.grid td { color: … }` would silently undo this, whereas this rule matches such
+   a selector's specificity and wins on source order (it is declared after table.grid's).
+
+   เงื่อนไข only — the หมายเหตุ row that sits directly beneath it in every one of these tables
+   deliberately stays black, per the requirement. */
 tr.cond td { color:#C00000; }
 /* Sections wrapped in .landscape-page start on a new A4 landscape page. */
 @page landscape { size: A4 landscape; margin: 10mm; }
