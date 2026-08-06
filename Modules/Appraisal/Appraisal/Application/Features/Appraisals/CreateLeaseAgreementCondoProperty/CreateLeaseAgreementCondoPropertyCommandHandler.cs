@@ -108,7 +108,7 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
         // 5. Create CondoAreaDetails if provided
         if (command.AreaDetails is { Count: > 0 })
             foreach (var dto in command.AreaDetails)
-                property.CondoDetail.AddCondoAreaDetail(CondoAppraisalAreaDetail.Create(dto.AreaDescription, dto.AreaSize));
+                property.CondoDetail.AddCondoAreaDetail(CondoAppraisalAreaDetail.Create(dto.Sequence, dto.AreaDescription, dto.AreaSize));
 
         // 6. Update lease agreement detail if provided
         if (command.LeaseAgreement is not null)

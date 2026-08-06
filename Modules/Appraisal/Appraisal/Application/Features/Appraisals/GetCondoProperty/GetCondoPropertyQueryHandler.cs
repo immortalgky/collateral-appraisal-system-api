@@ -94,7 +94,7 @@ public class GetCondoPropertyQueryHandler(
             RoofType: detail.RoofType,
             RoofTypeOther: detail.RoofTypeOther,
             AreaDetails: detail.AreaDetails
-            .Select(a => new CondoAppraisalAreaDetailDto(a.Id, a.AreaDescription, a.AreaSize))
+            .Select(a => new CondoAppraisalAreaDetailDto(a.Id,a.Sequence, a.AreaDescription, a.AreaSize))
             .ToList(),
             TotalBuildingArea: detail.TotalBuildingArea,
             IsExpropriated: detail.IsExpropriated,
