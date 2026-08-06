@@ -30,6 +30,9 @@ public record GetCondoPropertyResult(
     string? District,
     string? Province,
     string? LandOffice,
+    string? DopaSubDistrict,
+    string? DopaDistrict,
+    string? DopaProvince,
     // Owner
     string? OwnerName,
     bool? IsOwnerVerified,

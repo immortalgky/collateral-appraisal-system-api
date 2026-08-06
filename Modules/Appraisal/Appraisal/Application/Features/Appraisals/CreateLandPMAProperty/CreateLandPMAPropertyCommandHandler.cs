@@ -27,10 +27,10 @@ public class UpdateLandPMAPropertyCommandHandler(
             buildingInsurancePrice: command.BuildingInsurancePrice
         );
 
-        AdministrativeAddress? address = null;
+        Address? address = null;
         if (command.SubDistrict is not null || command.District is not null ||
             command.Province is not null)
-            address = AdministrativeAddress.Create(
+            address = Address.Create(
                 command.SubDistrict,
                 command.District,
                 command.Province

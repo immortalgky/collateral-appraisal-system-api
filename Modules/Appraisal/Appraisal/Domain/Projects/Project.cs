@@ -38,7 +38,7 @@ public class Project : Aggregate<Guid>
 
     // Location (value objects)
     public GpsCoordinate? Coordinates { get; private set; }
-    public AdministrativeAddress? Address { get; private set; }
+    public Address? Address { get; private set; }
     public string? Postcode { get; private set; }
     public string? HouseNumber { get; private set; }
     public string? Road { get; private set; }
@@ -107,7 +107,7 @@ public class Project : Aggregate<Guid>
         string? landOffice = null,
         // Location
         GpsCoordinate? coordinates = null,
-        AdministrativeAddress? address = null,
+        Address? address = null,
         string? postcode = null,
         string? houseNumber = null,
         string? road = null,
@@ -182,7 +182,7 @@ public class Project : Aggregate<Guid>
         string? landOffice = null,
         // Location
         GpsCoordinate? coordinates = null,
-        AdministrativeAddress? address = null,
+        Address? address = null,
         string? postcode = null,
         string? houseNumber = null,
         string? road = null,
