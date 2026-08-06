@@ -26,6 +26,10 @@ public class CreateRequestCommandHandler(
     // Cross-module string contract for AppraisalStatus.Completed (mirrors PriorAppraisalSubmissionGuard).
     private const string CompletedStatus = "Completed";
 
+    // Condo family collateral types.
+    private static readonly HashSet<string> CondoCollateralTypes =
+        new(StringComparer.Ordinal) { "08", "28", "33" };
+
     public async Task<Guid> Handle(
         CreateRequestCommand command,
         CancellationToken cancellationToken)
@@ -46,6 +50,15 @@ public class CreateRequestCommandHandler(
 
             command = command with { Detail = command.Detail with { PrevAppraisalId = prior.Id } };
         }
+
+        command = command with
+        {
+            Titles = command.Titles?
+                .Select(t => CondoCollateralTypes.Contains(t.CollateralType)
+                    ? t with { TitleNumber = null, BuiltOnTitleNumber = t.TitleNumber }
+                    : t)
+                .ToList()
+        };
 
         var input = new DocumentValidationInput(
             command.Purpose,
