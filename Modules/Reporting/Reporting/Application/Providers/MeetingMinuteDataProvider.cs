@@ -77,7 +77,9 @@ public sealed class MeetingMinuteDataProvider(
                 u.FirstName + ' ' + u.LastName AS AppraisalStaff,
                 u.Position AS StaffPosition,
                 v.AppraisedValue,
-                ad.IsPriceVerified
+                ad.IsPriceVerified,
+                ciAgg.CiTotalValue,
+                ciAgg.CiCurrentValue
             FROM workflow.MeetingItems mi
             INNER JOIN appraisal.Appraisals a ON a.Id = mi.AppraisalId
             OUTER APPLY (
@@ -95,6 +97,28 @@ public sealed class MeetingMinuteDataProvider(
             LEFT JOIN appraisal.Projects pr ON pr.AppraisalId = a.Id
             LEFT JOIN appraisal.ValuationAnalyses v ON v.AppraisalId = a.Id
             LEFT JOIN appraisal.AppraisalDecisions ad ON ad.AppraisalId = a.Id
+            -- Construction-inspection values, summed over every property of the appraisal. วาระ 5
+            -- (การตรวจงวดงานก่อสร้าง) prints a progress percent instead of a value; the builder
+            -- derives it as CiCurrentValue / CiTotalValue. KEEP IN SYNC with RS01 of
+            -- AppraisalSummaryConstructionDataProvider, whose รวมผลการดำเนินงาน figure the minute
+            -- has to reconcile against ("ตามเอกสารแนบ"). OUTER APPLY over an aggregate always
+            -- yields exactly one row, so it cannot multiply agenda rows the way a join to the
+            -- one-row-per-property ConstructionInspections would.
+            OUTER APPLY (
+                SELECT
+                    SUM(ci.TotalValue) AS CiTotalValue,
+                    SUM(CASE WHEN ci.IsFullDetail = 0
+                             THEN ISNULL(ci.SummaryCurrentValue, 0)
+                             ELSE ISNULL(wd.CurrentPropertyValueSum, 0) END) AS CiCurrentValue
+                FROM appraisal.ConstructionInspections ci
+                INNER JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
+                OUTER APPLY (
+                    SELECT SUM(d.CurrentPropertyValue) AS CurrentPropertyValueSum
+                    FROM appraisal.ConstructionWorkDetails d
+                    WHERE d.ConstructionInspectionId = ci.Id
+                ) wd
+                WHERE ap.AppraisalId = a.Id
+            ) ciAgg
             WHERE mi.MeetingId = @MeetingId
             """;
 

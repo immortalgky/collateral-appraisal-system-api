@@ -204,6 +204,26 @@ internal static class MeetingAgendaBuilder
             };
         }
 
+        // Progressive items (วาระ 5, การตรวจงวดงานก่อสร้าง) approve a construction milestone, not a
+        // price — the minute prints รวมผลการดำเนินงานปัจจุบัน instead. ValueText stays empty so no
+        // template can fall back to a money figure; the invitation already suppresses วาระ 5 values.
+        if (IsProgressive(i))
+        {
+            var ciTotal = i.CiTotalValue ?? 0m;
+            var ciCurrent = i.CiCurrentValue ?? 0m;
+
+            return new MeetingAgendaItemRow
+            {
+                CustomerName = JoinThaiNames(i.CustomerName),
+                ValueText = string.Empty,
+                // No inspection data (or a zero 100%-value) leaves this empty → blank cell, rather
+                // than a misleading 0.00%.
+                ProgressText = ciTotal > 0m
+                    ? Math.Round(ciCurrent / ciTotal * 100m, 2).ToString("N2", CultureInfo.InvariantCulture)
+                    : string.Empty
+            };
+        }
+
         // When IsPriceVerified is explicitly false, show ไม่รับรองราคา instead of the value.
         var valueText = i.IsPriceVerified == false
             ? "ไม่รับรองราคา"
@@ -302,4 +322,17 @@ internal sealed class MeetingItemFlat
     /// Sourced from appraisal.AppraisalDecisions.IsPriceVerified.
     /// </summary>
     public bool? IsPriceVerified { get; init; }
+
+    /// <summary>
+    /// Building value at 100% complete, summed over the appraisal's construction inspections.
+    /// Null when the appraisal has none. Minute only — the invitation prints no value for วาระ 5.
+    /// </summary>
+    public decimal? CiTotalValue { get; init; }
+
+    /// <summary>
+    /// Building value as built so far, same summation. Divided by <see cref="CiTotalValue"/> this
+    /// gives รวมผลการดำเนินงานปัจจุบัน — the same value-ratio the construction summary report
+    /// prints as รวมผลการดำเนินงาน, deliberately NOT ConstructionInspection.OverallCurrentProgressPercent.
+    /// </summary>
+    public decimal? CiCurrentValue { get; init; }
 }

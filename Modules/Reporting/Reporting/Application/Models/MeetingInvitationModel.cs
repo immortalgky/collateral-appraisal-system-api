@@ -72,6 +72,14 @@ public sealed class MeetingAgendaItemRow
     /// when IsPriceVerified is false/null.
     /// </summary>
     public string ValueText { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Cumulative construction progress (รวมผลการดำเนินงานปัจจุบัน), pre-formatted e.g. "16.61" —
+    /// the template adds the % sign. Set only for วาระ 5 (Progressive) rows, which carry a
+    /// construction milestone instead of an appraisal value; empty when the appraisal has no
+    /// construction-inspection data, which prints a blank cell.
+    /// </summary>
+    public string ProgressText { get; init; } = string.Empty;
 }
 
 /// <summary>One committee member row in the sign-off block.</summary>
