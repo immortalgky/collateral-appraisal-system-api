@@ -183,11 +183,11 @@ public class UpdateLeaseAgreementCondoPropertyCommandHandler(
             if (dto.Id.HasValue)
             {
                 var existing = condoDetail.AreaDetails.FirstOrDefault(a => a.Id == dto.Id.Value);
-                existing?.UpdateArea(dto.AreaDescription, dto.AreaSize);
+                existing?.UpdateArea(dto.Sequence, dto.AreaDescription, dto.AreaSize);
             }
             else
             {
-                condoDetail.AddCondoAreaDetail(CondoAppraisalAreaDetail.Create(dto.AreaDescription, dto.AreaSize));
+                condoDetail.AddCondoAreaDetail(CondoAppraisalAreaDetail.Create(dto.Sequence, dto.AreaDescription, dto.AreaSize));
             }
         }
     }

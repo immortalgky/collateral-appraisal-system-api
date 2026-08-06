@@ -6,6 +6,7 @@ namespace Appraisal.Domain.Appraisals;
 public class CondoAppraisalAreaDetail : Entity<Guid>
 {
     // Area Details
+    public int? Sequence { get; set; }
     public string? AreaDescription { get; private set; } // Balcony, AirCondLedge, LivingRoom, Bedroom, etc.
     public decimal? AreaSize { get; private set; } // Size in Sq.m
 
@@ -14,6 +15,7 @@ public class CondoAppraisalAreaDetail : Entity<Guid>
     }
 
     public static CondoAppraisalAreaDetail Create(
+        int? sequence,
         string? areaDescription,
         decimal? areaSize)
     {
@@ -25,18 +27,19 @@ public class CondoAppraisalAreaDetail : Entity<Guid>
         return new CondoAppraisalAreaDetail
         {
             Id = Guid.CreateVersion7(),
+            Sequence = sequence,
             AreaDescription = areaDescription,
             AreaSize = areaSize
         };
     }
 
-    public void UpdateArea(string? description, decimal? size)
+    public void UpdateArea(int? sequence, string? description, decimal? size)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(description);
 
         if (size < 0)
             throw new ArgumentException("AreaSize cannot be negative");
-
+        Sequence = sequence;
         AreaDescription = description;
         AreaSize = size;
     }

@@ -446,7 +446,7 @@ public class CondoAppraisalDetail : Entity<Guid>
 
         foreach (var area in source.AreaDetails)
         {
-            var areaCopy = CondoAppraisalAreaDetail.Create(area.AreaDescription, area.AreaSize);
+            var areaCopy = CondoAppraisalAreaDetail.Create(area.Sequence ,area.AreaDescription, area.AreaSize);
             copy._areaDetails.Add(areaCopy);
         }
 
