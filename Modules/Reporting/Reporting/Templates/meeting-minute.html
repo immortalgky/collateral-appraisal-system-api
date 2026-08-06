@@ -51,10 +51,18 @@
     .agenda-text .body-text { margin-left:1.5em; white-space:pre-wrap; }
 
     /* ── Agenda decision tables (วาระ 3–8) — monochrome bordered ─── */
-    .agenda-block { margin-bottom:14px; }
+    /* A วาระ heading must never be stranded at the foot of a page with its table overleaf, so the
+       heading + table are one unbreakable unit. "avoid" is a hint, not a guarantee: a วาระ with
+       more items than fit on a page still breaks — it just starts on a fresh page first, which
+       keeps the heading with the opening rows. <thead> repeats across the break by default. */
+    .agenda-block { margin-bottom:14px; break-inside:avoid; page-break-inside:avoid; }
     .agenda-block .wara-title { font-weight:700; margin-bottom:4px; }
     .agenda-block .count-text { font-weight:400; }
+    /* Backstop for the case above, and the only protection the text-only วาระ get — their body is
+       free text of any length, so binding the whole block would be worse than a break inside it. */
+    .agenda-block .wara-title, .agenda-text .wara-title { break-after:avoid; page-break-after:avoid; }
     table.agenda-table { width:100%; border-collapse:collapse; font-size:10.5pt; }
+    table.agenda-table tr { break-inside:avoid; page-break-inside:avoid; }
     table.agenda-table th, table.agenda-table td { border:1px solid #000; padding:4px 8px; }
     table.agenda-table th { background:#eee; text-align:center; font-weight:700; }
     table.agenda-table td.col-item { width:62%; }
@@ -62,8 +70,12 @@
     table.agenda-table .val-cell { display:flex; justify-content:space-between; gap:12px; }
 
     /* ── Sign-off 3-column table (FSD img43) ─────────────────────── */
+    /* Heading + roster are one unbreakable unit: a signature sheet split across pages, or its
+       "คณะกรรมการรับรองรายงานการประชุมครั้งที่ …" heading left behind, is not a signable document. */
+    .signoff-block { break-inside:avoid; page-break-inside:avoid; }
     .signoff-header { text-align:center; margin:18px 0 10px; }
     table.signoff-table { width:100%; border-collapse:collapse; font-size:10.5pt; }
+    table.signoff-table tr { break-inside:avoid; page-break-inside:avoid; }
     table.signoff-table th, table.signoff-table td { border:1px solid #000; padding:6px 8px; vertical-align:top; }
     table.signoff-table th { text-align:center; font-weight:700; }
     table.signoff-table td.col-sign { width:30%; }
@@ -147,6 +159,12 @@
             <td class="col-value">
               {{- if ag.wara == 6 -}}
               <div class="val-cell"><span>ราคาประเมิน</span><span>รายละเอียดดูตาม สรุปราคา</span></div>
+              {{- else if ag.wara == 5 -}}
+              <!-- การตรวจงวดงานก่อสร้าง approves a construction milestone, not a price. One
+                   continuous string (not .val-cell, which is flex space-between and would push the
+                   label and the figure to opposite edges). Empty progress_text = no inspection
+                   data → blank cell. -->
+              {{- if item.progress_text }}รวมผลการดำเนินงานปัจจุบัน = {{ item.progress_text }}%{{ end -}}
               {{- else if item.value_text -}}
               <div class="val-cell"><span>ราคาประเมิน</span><span>{{ item.value_text }}{{ if item.value_text != "ไม่รับรองราคา" }} บาท{{ end }}</span></div>
               {{- end -}}
@@ -165,7 +183,8 @@
     {{ end }}
   {{ end }}
 
-  <!-- ── Sign-off 3-column table ───────────────────────────────── -->
+  <!-- ── Sign-off 3-column table — one page-break unit with its heading ── -->
+  <div class="signoff-block">
   <div class="signoff-header">
     คณะกรรมการรับรองรายงานการประชุมครั้งที่ {{ model.meeting_no }} วันที่ {{ thai.date model.minute_date }}
   </div>
@@ -197,6 +216,7 @@
       {{ end }}
     </tbody>
   </table>
+  </div>
 
 </div>
 </body>
