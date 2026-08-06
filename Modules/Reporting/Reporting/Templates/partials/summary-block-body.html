@@ -67,7 +67,11 @@
       <tr><td class="k">สาธารณูปโภค</td><td class="v">{{ model.utilities }}</td></tr>
       <tr><td class="k">สิ่งอำนวยความสะดวก</td><td class="v">{{ model.facilities }}</td></tr>
       <tr><td class="k">ราคาประเมิน</td><td class="v">{{ model.appraisal_value_wording }}</td></tr>
-      <tr><td class="k">เงื่อนไข</td><td class="v brk">{{ model.condition }}</td></tr>
+      <!-- .cond is gated: this table renders every row unconditionally to keep the form's fixed
+           shape, so an absent condition still emits the row and falls through to the "-" from
+           td.v:empty::before. An ungated class would print that dash — and the label — in red on
+           every block report with no condition, reading as a defect rather than a highlight. -->
+      <tr{{ if model.condition }} class="cond"{{ end }}><td class="k">เงื่อนไข</td><td class="v brk">{{ model.condition }}</td></tr>
       <tr><td class="k">หมายเหตุ</td><td class="v brk">{{ model.remark }}</td></tr>
       <tr class="last"><td class="k">ค่าพิกัด</td><td class="v">{{ model.gps }}</td></tr>
       <tr class="methods-row">
