@@ -15,6 +15,7 @@ public interface IAppraisalCreationService
     Task<Guid> CreateAppraisalFromRequest(
         Guid requestId,
         List<RequestTitleDto> requestTitles,
+        List<RequestPropertyDto> requestProperties,
         AppointmentDto? appointment = null,
         FeeDto? fee = null,
         ContactDto? contact = null,

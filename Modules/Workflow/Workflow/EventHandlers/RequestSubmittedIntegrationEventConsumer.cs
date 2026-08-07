@@ -235,6 +235,7 @@ public class RequestSubmittedIntegrationEventConsumer(
             WorkflowDefinitionId = workflowDefinitionId,
             RequestId = message.RequestId,
             RequestTitles = message.RequestTitles,
+            RequestProperties = message.RequestProperties,
             Appointment = message.Appointment,
             Fee = message.Fee,
             Contact = message.Contact,
