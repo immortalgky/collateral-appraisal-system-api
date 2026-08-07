@@ -16,6 +16,9 @@ public record UpdateLeaseAgreementCondoPropertyRequest(
     string? RoomNumber = null,
     string? FloorNumber = null,
     decimal? UsableArea = null,
+    // Unit deed identifiers (collateral dedup key)
+    string? TitleNumber = null,
+    string? TitleType = null,
     // Coordinates
     decimal? Latitude = null,
     decimal? Longitude = null,
@@ -46,6 +49,14 @@ public record UpdateLeaseAgreementCondoPropertyRequest(
     string? RoadSurfaceTypeOther = null,
     List<string>? PublicUtilityType = null,
     string? PublicUtilityTypeOther = null,
+    List<string>? LandEntranceExitType = null,
+    string? LandEntranceExitTypeOther = null,
+    // Land Characteristics
+    string? LandFillType = null,
+    string? LandFillTypeOther = null,
+    string? UrbanPlanningType = null,
+    List<string>? LandUseType = null,
+    string? LandUseTypeOther = null,
     // Building Info
     string? DecorationType = null,
     string? DecorationTypeOther = null,
@@ -84,7 +95,11 @@ public record UpdateLeaseAgreementCondoPropertyRequest(
     List<string>? EnvironmentType = null,
     string? EnvironmentTypeOther = null,
     // Pricing
-    decimal? BuildingInsurancePrice = null,
+    bool? IsMissingFromSurvey = null,
+    decimal? GovernmentPricePerSqm = null,
+    decimal? GovernmentPrice = null,
+    // BuildingInsurancePrice is derived server-side from FireInsuranceCondition × UsableArea.
+    string? FireInsuranceCondition = null,
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,
     // Other
