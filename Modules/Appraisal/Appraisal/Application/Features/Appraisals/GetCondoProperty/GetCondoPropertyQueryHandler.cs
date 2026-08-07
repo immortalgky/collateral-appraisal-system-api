@@ -108,6 +108,7 @@ public class GetCondoPropertyQueryHandler(
             FacilityTypeOther: detail.FacilityTypeOther,
             EnvironmentType: detail.EnvironmentType,
             EnvironmentTypeOther: detail.EnvironmentTypeOther,
+            IsMissingFromSurvey: detail.IsMissingFromSurvey,
             GovernmentPricePerSqm: detail.GovernmentPricePerSqm,
             GovernmentPrice: detail.GovernmentPrice,
             FireInsuranceCondition: detail.FireInsuranceCondition,

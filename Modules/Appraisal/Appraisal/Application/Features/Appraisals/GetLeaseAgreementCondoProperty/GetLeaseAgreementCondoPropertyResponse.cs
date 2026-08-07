@@ -51,6 +51,14 @@ public record GetLeaseAgreementCondoPropertyResponse(
     string? RoadSurfaceTypeOther,
     List<string>? PublicUtilityType,
     string? PublicUtilityTypeOther,
+    List<string>? LandEntranceExitType,
+    string? LandEntranceExitTypeOther,
+    // Land Characteristics
+    string? LandFillType,
+    string? LandFillTypeOther,
+    string? UrbanPlanningType,
+    List<string>? LandUseType,
+    string? LandUseTypeOther,
     // Building Info
     string? DecorationType,
     string? DecorationTypeOther,
@@ -88,6 +96,10 @@ public record GetLeaseAgreementCondoPropertyResponse(
     List<string>? EnvironmentType,
     string? EnvironmentTypeOther,
     // Pricing
+    bool? IsMissingFromSurvey,
+    decimal? GovernmentPricePerSqm,
+    decimal? GovernmentPrice,
+    string? FireInsuranceCondition,
     decimal? BuildingInsurancePrice,
     decimal? SellingPrice,
     decimal? ForceSellingPrice,

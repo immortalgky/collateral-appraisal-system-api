@@ -6,7 +6,8 @@ namespace Appraisal.Application.Features.Appraisals.UpdateLeaseAgreementCondoPro
 /// Handler for updating a lease agreement condo property detail
 /// </summary>
 public class UpdateLeaseAgreementCondoPropertyCommandHandler(
-    IAppraisalRepository appraisalRepository
+    IAppraisalRepository appraisalRepository,
+    ISender mediator
 ) : ICommandHandler<UpdateLeaseAgreementCondoPropertyCommand>
 {
     public async Task<Unit> Handle(
@@ -29,6 +30,11 @@ public class UpdateLeaseAgreementCondoPropertyCommandHandler(
         // 4. Get the condo detail
         var detail = property.CondoDetail
                      ?? throw new InvalidOperationException($"Condo detail not found for property {command.PropertyId}");
+
+        // 4b. Derive BuildingInsurancePrice from the selected fire-insurance condition
+        // (Parameter-module reference rate × UsableArea) — never taken from the client directly.
+        var buildingInsurancePrice = await CondoFireInsuranceCalculator.DeriveBuildingInsurancePriceAsync(
+            mediator, command.FireInsuranceCondition, command.UsableArea, cancellationToken);
 
         // 5. Create value objects if provided
         GpsCoordinate? coordinates = null;
@@ -55,6 +61,8 @@ public class UpdateLeaseAgreementCondoPropertyCommandHandler(
             roomNumber: command.RoomNumber,
             floorNumber: command.FloorNumber,
             usableArea: command.UsableArea,
+            titleNumber: command.TitleNumber,
+            titleType: command.TitleType,
             coordinates: coordinates,
             address: address,
             ownerName: command.OwnerName,
@@ -105,10 +113,21 @@ public class UpdateLeaseAgreementCondoPropertyCommandHandler(
             facilityTypeOther: command.FacilityTypeOther,
             environmentType: command.EnvironmentType,
             environmentTypeOther: command.EnvironmentTypeOther,
-            buildingInsurancePrice: command.BuildingInsurancePrice,
+            buildingInsurancePrice: buildingInsurancePrice,
             sellingPrice: command.SellingPrice,
             forcedSalePrice: command.ForcedSalePrice,
-            remark: command.Remark);
+            remark: command.Remark,
+            landEntranceExitType: command.LandEntranceExitType,
+            landEntranceExitTypeOther: command.LandEntranceExitTypeOther,
+            landFillType: command.LandFillType,
+            landFillTypeOther: command.LandFillTypeOther,
+            urbanPlanningType: command.UrbanPlanningType,
+            landUseType: command.LandUseType,
+            landUseTypeOther: command.LandUseTypeOther,
+            isMissingFromSurvey: command.IsMissingFromSurvey,
+            governmentPricePerSqm: command.GovernmentPricePerSqm,
+            governmentPrice: command.GovernmentPrice,
+            fireInsuranceCondition: command.FireInsuranceCondition);
 
         // 7. Sync area details (null = no-op, list = sync)
         if (command.AreaDetails is not null)

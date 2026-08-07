@@ -8,7 +8,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateLeaseAgreementCondoPro
 /// </summary>
 public class CreateLeaseAgreementCondoPropertyCommandHandler(
     IAppraisalRepository appraisalRepository,
-    IAppraisalUnitOfWork unitOfWork
+    IAppraisalUnitOfWork unitOfWork,
+    ISender mediator
 ) : ICommandHandler<CreateLeaseAgreementCondoPropertyCommand, CreateLeaseAgreementCondoPropertyResult>
 {
     public async Task<CreateLeaseAgreementCondoPropertyResult> Handle(
@@ -22,6 +23,12 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
 
         // 2. Execute domain operation via aggregate
         var property = appraisal.AddLeaseAgreementCondoProperty();
+
+        // 2b. Derive BuildingInsurancePrice from the selected fire-insurance condition
+        // (Parameter-module reference rate × UsableArea) — never taken from the client directly.
+        var buildingInsurancePrice = await CondoFireInsuranceCalculator.DeriveBuildingInsurancePriceAsync(
+            mediator, command.FireInsuranceCondition, command.UsableArea, cancellationToken);
+
 
         // 3. Create value objects if provided
         GpsCoordinate? coordinates = null;
@@ -100,10 +107,21 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
             command.FacilityTypeOther,
             command.EnvironmentType,
             command.EnvironmentTypeOther,
-            command.BuildingInsurancePrice,
+            buildingInsurancePrice,
             command.SellingPrice,
             command.ForcedSalePrice,
-            command.Remark);
+            command.Remark,
+            command.LandEntranceExitType,
+            command.LandEntranceExitTypeOther,
+            command.LandFillType,
+            command.LandFillTypeOther,
+            command.UrbanPlanningType,
+            command.LandUseType,
+            command.LandUseTypeOther,
+            command.IsMissingFromSurvey,
+            command.GovernmentPricePerSqm,
+            command.GovernmentPrice,
+            command.FireInsuranceCondition);
 
         // 5. Create CondoAreaDetails if provided
         if (command.AreaDetails is { Count: > 0 })

@@ -90,6 +90,7 @@ public record UpdateCondoPropertyRequest(
     List<string>? EnvironmentType = null,
     string? EnvironmentTypeOther = null,
     // Pricing
+    bool? IsMissingFromSurvey = null,
     decimal? GovernmentPricePerSqm = null,
     decimal? GovernmentPrice = null,
     // BuildingInsurancePrice is derived server-side from FireInsuranceCondition × UsableArea.

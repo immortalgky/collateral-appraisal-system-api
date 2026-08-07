@@ -50,7 +50,7 @@ public class GetDecisionSummaryQueryHandler(
         // Query 3b: Condo government prices — kept separate from govPriceSql above: condo area is
         // in sq.m. while land area is in Sq.Wa, so mixing rows would corrupt the land AVG.
         const string condoGovPriceSql = """
-            SELECT cad.TitleNumber, cad.RoomNumber, cad.UsableArea,
+            SELECT cad.TitleNumber, cad.RoomNumber, cad.UsableArea, cad.IsMissingFromSurvey,
                    cad.GovernmentPricePerSqm, cad.GovernmentPrice
             FROM appraisal.CondoAppraisalDetails cad
             JOIN appraisal.AppraisalProperties ap ON ap.Id = cad.AppraisalPropertyId
@@ -114,7 +114,7 @@ public class GetDecisionSummaryQueryHandler(
         var valuationReview = await connectionFactory.QueryFirstOrDefaultAsync<ValuationReviewRow>(valuationReviewSql, param);
         var governmentPrices = (await connectionFactory.QueryAsync<GovernmentPriceRow>(govPriceSql, param)).ToList();
         var condoGovernmentPrices = (await connectionFactory.QueryAsync<CondoGovernmentPriceQueryRow>(condoGovPriceSql, param))
-            .Select(r => new CondoGovernmentPriceRow(r.TitleNumber, r.RoomNumber, r.UsableArea, r.GovernmentPricePerSqm, r.GovernmentPrice))
+            .Select(r => new CondoGovernmentPriceRow(r.TitleNumber, r.RoomNumber, r.UsableArea, r.IsMissingFromSurvey , r.GovernmentPricePerSqm, r.GovernmentPrice))
             .ToList();
         var approvalRows = (await connectionFactory.QueryAsync<ApprovalRow>(approvalSql, param)).ToList();
         var appraisalDate = await connectionFactory.QueryFirstOrDefaultAsync<DateTime?>(appraisalDateSql, param);
@@ -743,6 +743,7 @@ public class GetDecisionSummaryQueryHandler(
         public string? TitleNumber { get; init; }
         public string? RoomNumber { get; init; }
         public decimal? UsableArea { get; init; }
+        public bool? IsMissingFromSurvey { get; init; }
         public decimal? GovernmentPricePerSqm { get; init; }
         public decimal? GovernmentPrice { get; init; }
     }

@@ -116,6 +116,7 @@ public class CreateCondoPropertyCommandHandler(
             command.UrbanPlanningType,
             command.LandUseType,
             command.LandUseTypeOther,
+            command.IsMissingFromSurvey,
             command.GovernmentPricePerSqm,
             command.GovernmentPrice,
             command.FireInsuranceCondition);

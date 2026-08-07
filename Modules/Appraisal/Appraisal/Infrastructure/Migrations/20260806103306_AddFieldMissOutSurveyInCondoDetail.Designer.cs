@@ -4,16 +4,19 @@ using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace Appraisal.Infrastructure.Migrations
+namespace Appraisal.infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    partial class AppraisalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260806103306_AddFieldMissOutSurveyInCondoDetail")]
+    partial class AddFieldMissOutSurveyInCondoDetail
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -8884,9 +8887,6 @@ namespace Appraisal.Infrastructure.Migrations
 
                                     b2.Property<string>("CreatedWorkstation")
                                         .HasColumnType("nvarchar(max)");
-
-                                    b2.Property<int?>("Sequence")
-                                        .HasColumnType("int");
 
                                     b2.Property<DateTime?>("UpdatedAt")
                                         .HasColumnType("datetime2");

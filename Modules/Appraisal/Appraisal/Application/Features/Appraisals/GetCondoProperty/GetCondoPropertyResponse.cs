@@ -94,6 +94,7 @@ public record GetCondoPropertyResponse(
     List<string>? EnvironmentType,
     string? EnvironmentTypeOther,
     // Pricing
+    bool? IsMissingFromSurvey,
     decimal? GovernmentPricePerSqm,
     decimal? GovernmentPrice,
     string? FireInsuranceCondition,
