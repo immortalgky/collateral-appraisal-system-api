@@ -31,7 +31,7 @@ public record CreateLeaseAgreementBuildingPropertyCommand(
     // Building Info
     string? BuildingType = null,
     string? BuildingTypeOther = null,
-    int? NumberOfFloors = null,
+    decimal? NumberOfFloors = null,
     string? DecorationType = null,
     string? DecorationTypeOther = null,
     bool? IsEncroachingOthers = null,
