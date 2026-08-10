@@ -7,30 +7,19 @@ public class CreateParameterCommandHandler(
     CreateParameterCommand command,
     CancellationToken cancellationToken)
 {
-    var paramTh = Parameter.Parameters.Models.Parameter.Create(
+    var param = Parameter.Parameters.Models.Parameter.Create(
         group: command.Group,
         country: command.Country,
-        language: "TH",
+        language: command.Language,
         code: command.Code,
-        description: command.DescriptionTh,
+        description: command.Description,
         isActive: command.IsActive,
         seqNo: command.SeqNo
     );
 
-    var paramEn = Parameter.Parameters.Models.Parameter.Create(
-        group: command.Group,
-        country: command.Country,
-        language: "EN",
-        code: command.Code,
-        description: command.DescriptionEn,
-        isActive: command.IsActive,
-        seqNo: command.SeqNo
-    );
-
-    await parameterRepository.AddAsync(paramTh, cancellationToken);
-    await parameterRepository.AddAsync(paramEn, cancellationToken);
+    await parameterRepository.AddAsync(param, cancellationToken);
     await parameterRepository.SaveChangesAsync(cancellationToken);
 
-    return new CreateParameterResult(paramTh.Id);
+    return new CreateParameterResult(param.Id);
 }
 }
