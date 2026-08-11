@@ -217,6 +217,9 @@ public class GetLandAndBuildingPropertyQueryHandler(
             buildingDetail.BuiltOnTitleNumber,
             buildingDetail.HouseNumber,
             buildingDetail.NoHouseNumber,
+            // Owner Detail
+            buildingDetail.OwnerName,
+            buildingDetail.IsOwnerVerified,
             // Building - Status
             buildingDetail.BuildingConditionType,
             buildingDetail.BuildingConditionTypeOther,

@@ -9,7 +9,7 @@ public record CreateLandPropertyCommand(
     Guid AppraisalId,
     Guid? GroupId = null,
     // Required
-    string? OwnerName = null,
+    string? OwnerNameLand = null,
     string? Description = null,
     // Property Identification
     string? PropertyName = null,
@@ -26,7 +26,7 @@ public record CreateLandPropertyCommand(
     string? DopaDistrict = null,
     string? DopaProvince = null,
     // Owner Details
-    bool? IsOwnerVerified = null,
+    bool? IsOwnerVerifiedLand = null,
     string? HasObligation = null,
     string? ObligationDetails = null,
     // Document Verification

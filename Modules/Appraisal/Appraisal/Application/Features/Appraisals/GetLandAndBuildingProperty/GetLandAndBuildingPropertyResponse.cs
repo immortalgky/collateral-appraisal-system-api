@@ -26,8 +26,8 @@ public record GetLandAndBuildingPropertyResponse(
     string? DopaDistrict,
     string? DopaProvince,
     // Owner Fields
-    string? OwnerName,
-    bool? IsOwnerVerified,
+    string? OwnerNameLand,
+    bool? IsOwnerVerifiedLand,
     string? HasObligation,
     string? ObligationDetails,
     // Land - Document Verification
@@ -115,6 +115,9 @@ public record GetLandAndBuildingPropertyResponse(
     string? BuiltOnTitleNumber,
     string? HouseNumber,
     string? NoHouseNumber,
+    // Owner Detail
+    string? OwnerNameBuilding,
+    bool? IsOwnerVerifiedBuilding,
     // Building Status
     string? BuildingConditionType,
     string? BuildingConditionTypeOther,

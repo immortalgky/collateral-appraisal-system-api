@@ -15,8 +15,8 @@ public record CreateLeaseAgreementBuildingPropertyCommand(
     string? ModelName = null,
     string? BuiltOnTitleNumber = null,
     // Owner
-    string? OwnerName = null,
-    bool? IsOwnerVerified = null,
+    string? OwnerNameBuilding = null,
+    bool? IsOwnerVerifiedBuilding = null,
     string? HouseNumber = null,
     string? NoHouseNumber = null,
     // Building Status
