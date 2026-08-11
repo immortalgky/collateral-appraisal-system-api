@@ -130,7 +130,7 @@ public record CreateLandAndBuildingPropertyRequest(
     string? BuildingAreaUnit = null,
     decimal? UsableArea = null,
     // Building - Structure
-    int? NumberOfFloors = null,
+    decimal? NumberOfFloors = null,
     // Building - Style
     string? BuildingMaterialType = null,
     string? BuildingStyleType = null,
