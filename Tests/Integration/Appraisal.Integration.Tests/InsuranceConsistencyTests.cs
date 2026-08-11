@@ -57,7 +57,7 @@ public class InsuranceConsistencyTests(IntegrationTestFixture fixture)
             var condo = appraisal.AddCondoProperty();
             condo.CondoDetail!.Update(
                 ownerName: "Test Owner", // required NOT NULL by DB schema
-                address: AdministrativeAddress.Create("Sub", "Dist", "Prov", "LO"));
+                address: Address.Create("Sub", "Dist", "Prov"));
             // BuildingInsurancePrice is server-derived (private setter); set it directly for the fixture.
             typeof(CondoAppraisalDetail).GetProperty(nameof(CondoAppraisalDetail.BuildingInsurancePrice))!
                 .SetValue(condo.CondoDetail, 300_000m);
