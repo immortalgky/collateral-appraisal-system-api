@@ -18,6 +18,9 @@ public record CreateLandPropertyRequest(
     string? District = null,
     string? Province = null,
     string? LandOffice = null,
+    string? DopaSubDistrict = null,
+    string? DopaDistrict = null,
+    string? DopaProvince = null,
     // Owner Details
     bool? IsOwnerVerified = null,
     string? HasObligation = null,

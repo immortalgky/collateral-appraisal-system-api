@@ -50,7 +50,7 @@ public class GetProjectLandQueryHandler(
             SubDistrict: land.Address?.SubDistrict,
             District: land.Address?.District,
             Province: land.Address?.Province,
-            LandOffice: land.Address?.LandOffice,
+            LandOffice: land?.LandOffice,
             OwnerName: land.OwnerName,
             IsOwnerVerified: land.IsOwnerVerified,
             HasObligation: land.HasObligation,

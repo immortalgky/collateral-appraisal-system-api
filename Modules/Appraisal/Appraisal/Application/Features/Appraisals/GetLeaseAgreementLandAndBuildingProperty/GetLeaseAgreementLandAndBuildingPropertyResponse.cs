@@ -22,6 +22,9 @@ public record GetLeaseAgreementLandAndBuildingPropertyResponse(
     string? District,
     string? Province,
     string? LandOffice,
+    string? DopaSubDistrict,
+    string? DopaDistrict,
+    string? DopaProvince,
     // Owner Fields
     string? OwnerName,
     bool? IsOwnerVerified,

@@ -24,10 +24,9 @@ public class ProjectSaveService(
         if (data.Latitude.HasValue && data.Longitude.HasValue)
             coordinates = GpsCoordinate.Create(data.Latitude.Value, data.Longitude.Value);
 
-        AdministrativeAddress? address = null;
+        Address? address = null;
         if (data.SubDistrict is not null || data.District is not null || data.Province is not null)
-            address = AdministrativeAddress.Create(
-                data.SubDistrict, data.District, data.Province, data.LandOffice);
+            address = Address.Create(data.SubDistrict, data.District, data.Province);
 
         var project = await projectRepository.GetByAppraisalIdAsync(data.AppraisalId, cancellationToken);
 

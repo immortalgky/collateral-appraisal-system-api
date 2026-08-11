@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
 using AppraisalAggregate = Appraisal.Domain.Appraisals.Appraisal;
+using Address = Appraisal.Domain.Appraisals.Address;
 
 namespace Integration.Collateral.Integration.Tests;
 
@@ -47,7 +48,7 @@ public class CollateralPR5_ConstructionInspectionsTests(IntegrationTestFixture f
     {
         var prop = appraisal.AddLandProperty();
         prop.LandDetail!.Update(
-            address: AdministrativeAddress.Create(subDistrict, district, province, landOffice));
+            address: Address.Create(subDistrict, district, province), landOffice: landOffice);
         var title = LandTitle.Create(prop.LandDetail.Id, titleNo, titleType);
         prop.LandDetail.AddTitle(title);
         if (inspection is not null)
@@ -103,7 +104,7 @@ public class CollateralPR5_ConstructionInspectionsTests(IntegrationTestFixture f
 
             var prop = a.AddLandProperty();
             prop.LandDetail!.Update(
-                address: AdministrativeAddress.Create("Silom", "Bangrak", "Bangkok", "LO-BKK"));
+                address: Address.Create("Silom", "Bangrak", "Bangkok"), landOffice: "LO-BKK");
             var title = LandTitle.Create(prop.LandDetail.Id, titleNo, "Chanote");
             prop.LandDetail.AddTitle(title);
 
@@ -179,7 +180,7 @@ public class CollateralPR5_ConstructionInspectionsTests(IntegrationTestFixture f
             // Land property with a CI
             var landProp = a.AddLandProperty();
             landProp.LandDetail!.Update(
-                address: AdministrativeAddress.Create("Wattana", "Wattana", "Bangkok", "LO-BKK2"));
+                address: Address.Create("Wattana", "Wattana", "Bangkok"), landOffice: "LO-BKK2");
             var title = LandTitle.Create(landProp.LandDetail.Id, titleNo, "Chanote");
             landProp.LandDetail.AddTitle(title);
 

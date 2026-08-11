@@ -28,13 +28,15 @@ public class ProjectLandConfiguration : IEntityTypeConfiguration<ProjectLand>
         });
 
         // Administrative Address (Value Object)
+        // Note: Address VO contains only SubDistrict/District/Province.
+        // LandOffice is a separate scalar on ProjectLand (below), not part of the VO.
         builder.OwnsOne(e => e.Address, addr =>
         {
             addr.Property(a => a.SubDistrict).HasColumnName("SubDistrict").HasMaxLength(100);
             addr.Property(a => a.District).HasColumnName("District").HasMaxLength(100);
             addr.Property(a => a.Province).HasColumnName("Province").HasMaxLength(100);
-            addr.Property(a => a.LandOffice).HasColumnName("LandOffice").HasMaxLength(200);
         });
+        builder.Property(e => e.LandOffice).HasMaxLength(200);
 
         // Owner
         builder.Property(e => e.OwnerName).HasMaxLength(200);

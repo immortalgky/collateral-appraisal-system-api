@@ -21,15 +21,15 @@ public class SaveProjectLandCommandHandler(
         if (command.Latitude.HasValue && command.Longitude.HasValue)
             coordinates = GpsCoordinate.Create(command.Latitude.Value, command.Longitude.Value);
 
-        AdministrativeAddress? address = null;
+        Address? address = null;
         if (command.SubDistrict is not null || command.District is not null || command.Province is not null)
-            address = AdministrativeAddress.Create(command.SubDistrict, command.District, command.Province, command.LandOffice);
+            address = Address.Create(command.SubDistrict, command.District, command.Province);
 
         // Domain guard: throws InvalidOperationException if ProjectType != LandAndBuilding
         var land = project.GetOrCreateLand();
 
         land.Update(
-            command.PropertyName, command.LandDescription, coordinates, address,
+            command.PropertyName, command.LandDescription, coordinates, address, command.LandOffice,
             command.OwnerName, command.IsOwnerVerified, command.HasObligation, command.ObligationDetails,
             command.IsLandLocationVerified, command.LandCheckMethodType, command.LandCheckMethodTypeOther,
             command.Street, command.Soi, command.DistanceFromMainRoad, command.Village, command.AddressLocation,
