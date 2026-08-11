@@ -20,8 +20,8 @@ public record CreateLeaseAgreementLandAndBuildingPropertyRequest(
     string? Province = null,
     string? LandOffice = null,
     // Owner Details
-    string? OwnerName = null,
-    bool? IsOwnerVerified = null,
+    string? OwnerNameLand = null,
+    bool? IsOwnerVerifiedLand = null,
     string? HasObligation = null,
     string? ObligationDetails = null,
     // Document Verification
@@ -107,6 +107,9 @@ public record CreateLeaseAgreementLandAndBuildingPropertyRequest(
     string? BuiltOnTitleNumber = null,
     string? HouseNumber = null,
     string? NoHouseNumber = null,
+    // Owner Details
+    string? OwnerNameBuilding = null,
+    bool? IsOwnerVerifiedBuilding = null,
     // Building - Info
     string? BuildingType = null,
     string? BuildingTypeOther = null,

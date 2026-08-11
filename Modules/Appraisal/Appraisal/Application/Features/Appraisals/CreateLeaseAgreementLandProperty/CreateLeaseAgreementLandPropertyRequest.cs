@@ -8,7 +8,7 @@ namespace Appraisal.Application.Features.Appraisals.CreateLeaseAgreementLandProp
 /// </summary>
 public record CreateLeaseAgreementLandPropertyRequest(
     // Required
-    string OwnerName,
+    string OwnerNameLand,
     string? Description = null,
     // Property Identification
     string? PropertyName = null,
@@ -22,7 +22,7 @@ public record CreateLeaseAgreementLandPropertyRequest(
     string? Province = null,
     string? LandOffice = null,
     // Owner Details
-    bool? IsOwnerVerified = null,
+    bool? IsOwnerVerifiedLand = null,
     string? HasObligation = null,
     string? ObligationDetails = null,
     // Document Verification

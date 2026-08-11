@@ -53,8 +53,8 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             landDescription: command.LandDescription,
             coordinates: coordinates,
             address: address,
-            ownerName: command.OwnerName,
-            isOwnerVerified: command.IsOwnerVerified,
+            ownerName: command.OwnerNameLand,
+            isOwnerVerified: command.IsOwnerVerifiedLand,
             hasObligation: command.HasObligation,
             obligationDetails: command.ObligationDetails,
             // Land - Document Verification
@@ -147,7 +147,8 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             builtOnTitleNumber: command.BuiltOnTitleNumber,
             houseNumber: command.HouseNumber,
             noHouseNumber: command.NoHouseNumber,
-            isOwnerVerified: command.IsOwnerVerified,
+            ownerName: command.OwnerNameBuilding,
+            isOwnerVerified: command.IsOwnerVerifiedBuilding,
             hasObligation: command.HasObligation,
             obligationDetails: command.ObligationDetails,
             // Building - Info

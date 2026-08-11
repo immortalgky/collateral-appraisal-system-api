@@ -21,8 +21,8 @@ public record UpdateLandPropertyCommand(
     string? Province = null,
     string? LandOffice = null,
     // Owner Details
-    string? OwnerName = null,
-    bool? IsOwnerVerified = null,
+    string? OwnerNameLand = null,
+    bool? IsOwnerVerifiedLand = null,
     string? HasObligation = null,
     string? ObligationDetails = null,
     // Document Verification

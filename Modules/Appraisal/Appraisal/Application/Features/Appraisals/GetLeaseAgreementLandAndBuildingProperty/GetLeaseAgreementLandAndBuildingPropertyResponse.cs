@@ -23,8 +23,8 @@ public record GetLeaseAgreementLandAndBuildingPropertyResponse(
     string? Province,
     string? LandOffice,
     // Owner Fields
-    string? OwnerName,
-    bool? IsOwnerVerified,
+    string? OwnerNameLand,
+    bool? IsOwnerVerifiedLand,
     string? HasObligation,
     string? ObligationDetails,
     // Land - Document Verification
@@ -112,6 +112,9 @@ public record GetLeaseAgreementLandAndBuildingPropertyResponse(
     string? BuiltOnTitleNumber,
     string? HouseNumber,
     string? NoHouseNumber,
+    // Owner Fields
+    string? OwnerNameBuilding,
+    bool? IsOwnerVerifiedBuilding,
     // Building Status
     string? BuildingConditionType,
     string? BuildingConditionTypeOther,
