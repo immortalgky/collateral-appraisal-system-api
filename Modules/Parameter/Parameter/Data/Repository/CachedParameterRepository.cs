@@ -3,8 +3,11 @@ using Microsoft.Extensions.Primitives;
 
 namespace Parameter.Data.Repository;
 
-public class CachedParameterRepository(IParameterRepository inner,IMemoryCache cache) : IParameterRepository
+public class CachedParameterRepository(IParameterRepository inner, IMemoryCache cache) : IParameterRepository
 {
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(1);
+    private static CancellationTokenSource _cts = new();
+
     public async Task<List<Parameters.Models.Parameter>> GetParameter(
         ParameterDto request, bool asNoTracking = true,
         CancellationToken cancellationToken = default)
@@ -15,7 +18,11 @@ public class CachedParameterRepository(IParameterRepository inner,IMemoryCache c
 
         var result = await inner.GetParameter(request, asNoTracking, cancellationToken);
 
-        cache.Set(cacheKey, result);
+        var options = new MemoryCacheEntryOptions()
+            .SetAbsoluteExpiration(CacheDuration)
+            .AddExpirationToken(new CancellationChangeToken(_cts.Token));
+
+        cache.Set(cacheKey, result, options);
 
         return result;
     }
@@ -31,6 +38,7 @@ public class CachedParameterRepository(IParameterRepository inner,IMemoryCache c
         Parameters.Models.Parameter parameter,
         CancellationToken cancellationToken = default)
     {
+        InvalidateCache();
         await inner.AddAsync(parameter, cancellationToken);
     }
 
@@ -38,11 +46,20 @@ public class CachedParameterRepository(IParameterRepository inner,IMemoryCache c
         long id,
         CancellationToken cancellationToken = default)
     {
+        InvalidateCache();
         await inner.DeleteAsync(id, cancellationToken);
     }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         await inner.SaveChangesAsync(cancellationToken);
+        InvalidateCache();
+    }
+
+    private static void InvalidateCache()
+    {
+        var old = Interlocked.Exchange(ref _cts, new CancellationTokenSource());
+        old.Cancel();
+        old.Dispose();
     }
 }
