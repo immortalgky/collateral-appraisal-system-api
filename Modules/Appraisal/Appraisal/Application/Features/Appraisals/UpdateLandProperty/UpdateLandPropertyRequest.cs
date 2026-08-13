@@ -22,8 +22,8 @@ public record UpdateLandPropertyRequest(
     string? DopaDistrict = null,
     string? DopaProvince = null,
     // Owner Details
-    string? OwnerName = null,
-    bool? IsOwnerVerified = null,
+    string? OwnerNameLand = null,
+    bool? IsOwnerVerifiedLand = null,
     string? HasObligation = null,
     string? ObligationDetails = null,
     // Document Verification

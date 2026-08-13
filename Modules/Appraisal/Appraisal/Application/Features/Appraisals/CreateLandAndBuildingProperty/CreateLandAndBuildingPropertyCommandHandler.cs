@@ -43,8 +43,8 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             command.LandDescription,
             coordinates,
             address,
-            command.OwnerName,
-            command.IsOwnerVerified,
+            command.OwnerNameLand,
+            command.IsOwnerVerifiedLand,
             command.HasObligation,
             command.ObligationDetails,
             // Land - Document Verification
@@ -167,7 +167,8 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             builtOnTitleNumber: command.BuiltOnTitleNumber,
             houseNumber: command.HouseNumber,
             noHouseNumber: command.NoHouseNumber,
-            isOwnerVerified: command.IsOwnerVerified,
+            ownerName: command.OwnerNameBuilding,
+            isOwnerVerified: command.IsOwnerVerifiedBuilding,
             hasObligation: command.HasObligation,
             obligationDetails: command.ObligationDetails,
             // Building - Info

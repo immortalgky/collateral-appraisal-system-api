@@ -25,8 +25,8 @@ public record UpdateLeaseAgreementLandAndBuildingPropertyCommand(
     string? DopaDistrict = null,
     string? DopaProvince = null,
     // Owner Details
-    string? OwnerName = null,
-    bool? IsOwnerVerified = null,
+    string? OwnerNameLand = null,
+    bool? IsOwnerVerifiedLand = null,
     string? HasObligation = null,
     string? ObligationDetails = null,
     // Document Verification
@@ -114,6 +114,9 @@ public record UpdateLeaseAgreementLandAndBuildingPropertyCommand(
     string? BuiltOnTitleNumber = null,
     string? HouseNumber = null,
     string? NoHouseNumber = null,
+    // Owner Details
+    string? OwnerNameBuilding = null,
+    bool? IsOwnerVerifiedBuilding = null,
     // Building Status
     string? BuildingConditionType = null,
     string? BuildingConditionTypeOther = null,
