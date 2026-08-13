@@ -28,6 +28,7 @@ public class AppraisalCreationService(
     public async Task<Guid> CreateAppraisalFromRequest(
         Guid requestId,
         List<RequestTitleDto> requestTitles,
+        List<RequestPropertyDto> requestProperties,
         AppointmentDto? appointment = null,
         FeeDto? fee = null,
         ContactDto? contact = null,
@@ -178,8 +179,40 @@ public class AppraisalCreationService(
                     "Title {TitleNumber} ({Code}) will not be auto-created as a property; appraiser will add manually.",
                     t.TitleNumber, t.CollateralType);
 
+            // PMA: seed each new property's SellingPrice from the request property record whose
+            // PropertyType matches that property's family (e.g. "L"/"LB" for land, "U" for condo)
+            // instead of always the first record — a request with more than one property family
+            // (e.g. land + condo) would otherwise leak one family's price into another's.
+            // Within the same family, records are consumed in the order they were submitted, so
+            // duplicate families (e.g. two condo titles) are paired with their matching PMA row
+            // positionally — the request payload carries no stronger correlation key than order.
+            // If a family has fewer property records than titles (e.g. 1 "U" record for 3 condo
+            // titles), the last record for that family is reused for the remaining titles instead
+            // of leaving them without a price.
+            var pmaPriceQueuesByFamily = isPma
+                ? requestProperties
+                    .GroupBy(p => p.PropertyType ?? "", StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => new Queue<decimal?>(g.Select(p => p.SellingPrice)),
+                        StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, Queue<decimal?>>(StringComparer.OrdinalIgnoreCase);
+
+            var lastPmaPriceByFamily = new Dictionary<string, decimal?>(StringComparer.OrdinalIgnoreCase);
+
+            decimal? NextPmaPrice(string family)
+            {
+                if (pmaPriceQueuesByFamily.TryGetValue(family, out var queue) && queue.Count > 0)
+                    return lastPmaPriceByFamily[family] = queue.Dequeue();
+
+                return lastPmaPriceByFamily.GetValueOrDefault(family);
+            }
+
             if (landFamily.Any())
-                CreateLandFamilyProperty(appraisal, landFamily);
+            {
+                var landFamilyCode = landFamily.Any(t => GetAppraisalFamily(t) == "LB") ? "LB" : "L";
+                CreateLandFamilyProperty(appraisal, landFamily, NextPmaPrice(landFamilyCode));
+            }
 
             if (leaseLandFamily.Any())
                 CreateLeaseLandFamilyProperty(appraisal, leaseLandFamily);
@@ -187,7 +220,7 @@ public class AppraisalCreationService(
             foreach (var title in propertyTitles)
                 switch (GetAppraisalFamily(title))
                 {
-                    case "U": CreateCondoProperty(appraisal, title); break;
+                    case "U": CreateCondoProperty(appraisal, title, NextPmaPrice("U")); break;
                     case "LSU": CreateLeaseAgreementCondoProperty(appraisal, title); break;
                     case "VEH": CreateVehicleProperty(appraisal, title); break;
                     case "VES": CreateVesselProperty(appraisal, title); break;
@@ -403,12 +436,13 @@ public class AppraisalCreationService(
         return CodeToAppraisalFamily.TryGetValue(t.CollateralType ?? "", out var family) ? family : "";
     }
 
-    private void CreateLandFamilyProperty(Domain.Appraisals.Appraisal appraisal, List<RequestTitleDto> titles)
+    private void CreateLandFamilyProperty(
+        Domain.Appraisals.Appraisal appraisal, List<RequestTitleDto> titles, decimal? pmaSellingPrice)
     {
         // Promote to LB family if any LB-mapped code exists; otherwise plain L. All land titles merge into one LandDetail.
         var hasLandAndBuilding = titles.Any(t => GetAppraisalFamily(t) == "LB");
         var property = hasLandAndBuilding
-            ? appraisal.AddLandAndBuildingProperty()
+            ? appraisal.AddLandAndBuildingProperty(pmaSellingPrice)
             : appraisal.AddLandProperty();
 
         logger.LogInformation(
@@ -447,9 +481,10 @@ public class AppraisalCreationService(
         // BuildingDetail / LeaseAgreementDetail / RentalInfo stay empty — populated later by appraiser
     }
 
-    private void CreateCondoProperty(Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle)
+    private void CreateCondoProperty(
+        Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle, decimal? pmaSellingPrice)
     {
-        var property = appraisal.AddCondoProperty();
+        var property = appraisal.AddCondoProperty(pmaSellingPrice);
 
         logger.LogInformation("Added condo property {PropertyId} for title {TitleNumber}",
             property.Id, requestTitle.TitleNumber);
@@ -472,6 +507,7 @@ public class AppraisalCreationService(
             requestTitle.CondoName,
             requestTitle.BuildingNumber,
             roomNumber: requestTitle.RoomNumber,
+            builtOnTitleNumber: requestTitle.BuiltOnTitleNumber,
             floorNumber: requestTitle.FloorNumber,
             usableArea: requestTitle.UsableArea,
             address: adminAddress,
@@ -506,6 +542,7 @@ public class AppraisalCreationService(
             requestTitle.CondoName,
             requestTitle.BuildingNumber,
             roomNumber: requestTitle.RoomNumber,
+            builtOnTitleNumber: requestTitle.BuiltOnTitleNumber,
             floorNumber: requestTitle.FloorNumber,
             usableArea: requestTitle.UsableArea,
             address: adminAddress,

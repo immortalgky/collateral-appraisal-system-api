@@ -29,6 +29,7 @@ public class AppraisalCreationRequestedIntegrationEventHandler(
             var appraisalId = await appraisalCreationService.CreateAppraisalFromRequest(
                 message.RequestId,
                 message.RequestTitles,
+                message.RequestProperties,
                 message.Appointment,
                 message.Fee,
                 message.Contact,
