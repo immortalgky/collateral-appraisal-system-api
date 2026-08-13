@@ -131,6 +131,7 @@ public class UpdateCondoPropertyCommandHandler(
             urbanPlanningType: command.UrbanPlanningType,
             landUseType: command.LandUseType,
             landUseTypeOther: command.LandUseTypeOther,
+            isMissingFromSurvey: command.IsMissingFromSurvey,
             governmentPricePerSqm: command.GovernmentPricePerSqm,
             governmentPrice: command.GovernmentPrice,
             fireInsuranceCondition: command.FireInsuranceCondition);

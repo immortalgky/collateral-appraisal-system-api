@@ -104,6 +104,7 @@ public record CondoGovernmentPriceRow(
     string? TitleNumber,
     string? RoomNumber,
     decimal? UsableArea,
+    bool? IsMissingFromSurvey,
     decimal? GovernmentPricePerSqm,
     decimal? GovernmentPrice
 );

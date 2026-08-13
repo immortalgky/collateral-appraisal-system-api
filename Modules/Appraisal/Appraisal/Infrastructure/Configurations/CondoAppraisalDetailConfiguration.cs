@@ -175,6 +175,7 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
 
         builder.Property(e => e.EnvironmentTypeOther).HasMaxLength(200);
         // Pricing
+        builder.Property(e => e.IsMissingFromSurvey);
         builder.Property(e => e.GovernmentPricePerSqm).HasPrecision(18, 2);
         builder.Property(e => e.GovernmentPrice).HasPrecision(18, 2);
         // Insurance

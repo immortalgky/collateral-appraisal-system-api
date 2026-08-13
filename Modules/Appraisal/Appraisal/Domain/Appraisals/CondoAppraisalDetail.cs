@@ -109,6 +109,7 @@ public class CondoAppraisalDetail : Entity<Guid>
     public string? EnvironmentTypeOther { get; private set; }
 
     // Pricing
+    public bool? IsMissingFromSurvey { get; private set; }
     public decimal? GovernmentPricePerSqm { get; private set; }
     public decimal? GovernmentPrice { get; private set; }
     // Fire-insurance condition selected by the appraiser (matches Parameter module's
@@ -226,6 +227,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         List<string>? landUseType = null,
         string? landUseTypeOther = null,
         // Government Price
+        bool? isMissingFromSurvey = null,
         decimal? governmentPricePerSqm = null,
         decimal? governmentPrice = null,
         // Fire Insurance (appended — see Update() ordering note)
@@ -332,6 +334,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         LandUseTypeOther = landUseTypeOther;
 
         // Government Price
+        IsMissingFromSurvey = isMissingFromSurvey;
         GovernmentPricePerSqm = governmentPricePerSqm;
         GovernmentPrice = governmentPrice;
 
@@ -451,6 +454,7 @@ public class CondoAppraisalDetail : Entity<Guid>
             FacilityTypeOther = source.FacilityTypeOther,
             EnvironmentType = source.EnvironmentType?.ToList(),
             EnvironmentTypeOther = source.EnvironmentTypeOther,
+            IsMissingFromSurvey = source.IsMissingFromSurvey,
             GovernmentPricePerSqm = source.GovernmentPricePerSqm,
             GovernmentPrice = source.GovernmentPrice,
             FireInsuranceCondition = source.FireInsuranceCondition,
