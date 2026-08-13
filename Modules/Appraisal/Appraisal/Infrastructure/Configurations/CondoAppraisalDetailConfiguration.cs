@@ -143,6 +143,7 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
 
             areaDetail.Property(e => e.Id).ValueGeneratedNever();
 
+            areaDetail.Property(p => p.Sequence);
             areaDetail.Property(p => p.AreaDescription).HasMaxLength(200).HasColumnName("AreaDescription");
             areaDetail.Property(p => p.AreaSize).HasPrecision(10, 2).HasColumnName("AreaSize");
         });

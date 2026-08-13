@@ -128,7 +128,7 @@ public class CreateCondoPropertyCommandHandler(
         {
             foreach (var dto in command.AreaDetails)
             {
-                var areaDetail = CondoAppraisalAreaDetail.Create(dto.AreaDescription, dto.AreaSize);
+                var areaDetail = CondoAppraisalAreaDetail.Create(dto.Sequence, dto.AreaDescription, dto.AreaSize);
                 property.CondoDetail.AddCondoAreaDetail(areaDetail);
             }
         }
