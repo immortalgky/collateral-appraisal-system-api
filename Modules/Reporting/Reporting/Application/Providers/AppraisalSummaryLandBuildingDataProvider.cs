@@ -1260,51 +1260,19 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
         // ราคาประเมินราชการ — government price per sq.wa, grouped by same price. With >1 distinct
         // price, list the title numbers per price ("โฉนด… และ … ตารางวาละ X บาท") joined by " , ".
+        // Partitioning (ตกสำรวจ beats price) and segment ordering live in the shared
+        // GovernmentPriceTextBuilder, which the condo summary uses too.
         //
-        // Missing-from-survey land has no government valuation, so it reads "ตกสำรวจ" rather than a
-        // price. Partition on the FLAG first and never infer it from the price: the frontend only
-        // started forcing the price to 0 for flagged titles recently, so older rows carry a real
-        // non-zero price alongside the flag. The flag wins.
-        // Where a title sits in the printed list; titles outside every group sort last, keeping
-        // their existing relative order.
-        int TitleOrder(GovPriceRow r) =>
-            titleDisplayOrder.TryGetValue(r.TitleId, out var i) ? i : int.MaxValue;
-
-        var missingFromSurvey = govPriceRows
-            .Where(r => r.IsMissingFromSurvey == true)
-            .OrderBy(TitleOrder)
-            .ToList();
-        var govPriceGroups = govPriceRows
-            .Where(r => r.IsMissingFromSurvey != true && r.GovernmentPricePerSqWa.HasValue)
-            .GroupBy(r => r.GovernmentPricePerSqWa!.Value)
-            .ToList();
-
-        // Prefixes a segment with its title numbers. Only used when there is more than one segment —
-        // a lone segment applies to the whole appraisal, so naming the titles would be noise.
-        static string DescribeTitles(IEnumerable<GovPriceRow> rows, string value)
-        {
-            var titles = string.Join(" และ ", rows
-                .Where(r => !string.IsNullOrWhiteSpace(r.TitleNumber))
-                .Select(r => r.TitleNumber));
-            return string.IsNullOrWhiteSpace(titles) ? value : $"โฉนดที่ดินเลขที่ {titles} {value}";
-        }
-
-        const string missingFromSurveyText = "ตกสำรวจ";
-        var govPriceSegments = new List<(IReadOnlyList<GovPriceRow> Rows, string Value)>();
-        if (missingFromSurvey.Count > 0)
-            govPriceSegments.Add((missingFromSurvey, missingFromSurveyText));
-        govPriceSegments.AddRange(govPriceGroups
-            .Select(g => ((IReadOnlyList<GovPriceRow>)[.. g.OrderBy(TitleOrder)], $"ตารางวาละ {g.Key:N2} บาท")));
-
-        // Follow the land-title list, not price order: a segment sits where its first title does.
-        govPriceSegments = govPriceSegments
-            .OrderBy(s => s.Rows.Min(TitleOrder))
-            .ToList();
-
-        string? governmentPriceText =
-            govPriceSegments.Count == 0 ? null
-            : govPriceSegments.Count == 1 ? govPriceSegments[0].Value
-            : string.Join(" , ", govPriceSegments.Select(s => DescribeTitles(s.Rows, s.Value)));
+        // titleDisplayOrder places each title in the printed list; titles outside every group sort
+        // last, keeping their existing relative order.
+        string? governmentPriceText = GovernmentPriceTextBuilder.Build(
+            govPriceRows.Select(r => new GovernmentPriceTextBuilder.Item(
+                r.TitleNumber,
+                r.GovernmentPricePerSqWa,
+                r.IsMissingFromSurvey == true,
+                titleDisplayOrder.TryGetValue(r.TitleId, out var order) ? order : int.MaxValue)),
+            "โฉนดที่ดินเลขที่",
+            p => $"ตารางวาละ {p:N2} บาท");
 
         // Show the committee block only when this appraisal actually falls into a meeting.
         bool showMeeting = review?.MeetingId is not null;

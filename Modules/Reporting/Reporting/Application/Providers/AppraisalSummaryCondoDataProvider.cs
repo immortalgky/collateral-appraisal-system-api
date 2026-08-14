@@ -20,6 +20,7 @@ namespace Reporting.Application.Providers;
 ///   RS03  QC3  appraisal.PropertyGroupItems + CondoAppraisalDetails — per-group detail
 ///   RS04       parameter.Parameters — LandEntranceExit code→Thai map (สิทธิทางเข้า-ออก)
 ///   RS05       parameter.Parameters — LandUse code→Thai map (สภาพการใช้ประโยชน์)
+///   RS06  QC6  appraisal.CondoAppraisalDetails — ราคาประเมินราชการ per unit (incl. ตกสำรวจ flag)
 /// </summary>
 public sealed class AppraisalSummaryCondoDataProvider(
     ISqlConnectionFactory connectionFactory,
@@ -121,10 +122,12 @@ public sealed class AppraisalSummaryCondoDataProvider(
             JOIN appraisal.CondoAppraisalAreaDetails cada ON cada.CondoAppraisalDetailsId = cad.Id
             JOIN appraisal.AppraisalProperties ap ON ap.Id = cad.AppraisalPropertyId
             WHERE ap.AppraisalId = @AppraisalId
-            -- Order by creation sequence: CondoAppraisalAreaDetails has no Seq/CreatedOn
-            -- column, but its Id is a Guid v7 whose canonical text form sorts by creation
-            -- time (native uniqueidentifier sort does not).
-            ORDER BY cad.Id, CONVERT(char(36), cada.Id);
+            -- Sequence is the order the appraiser arranged the rows in on the property screen, so
+            -- the printed areas must follow it. Rows saved before that column existed carry NULL
+            -- and sort first — matching the screen, which reads a missing sequence as 0. The Guid
+            -- v7 Id's canonical text form breaks ties by creation time (native uniqueidentifier
+            -- sort does not).
+            ORDER BY cad.Id, cada.Sequence, CONVERT(char(36), cada.Id);
 
             -- RS03: QC3 — Per-group condo detail rows
             SELECT
@@ -171,6 +174,21 @@ public sealed class AppraisalSummaryCondoDataProvider(
             SELECT [code] AS Code, [description] AS Description
             FROM parameter.Parameters
             WHERE [group] = 'LandUse' AND [language] = 'TH' AND [isactive] = 1;
+
+            -- RS06: QC6 — ราคาประเมินราชการ per unit. RS01 is TOP 1, but the field lists every
+            -- distinct rate across the appraisal's units, so it needs them all. Missing-from-survey
+            -- units are NOT filtered out — they render as "ตกสำรวจ" instead of a rate, so the flag
+            -- has to reach C#. A surveyed unit still needs a rate to be worth showing.
+            SELECT
+                cad.RoomNumber,
+                cad.GovernmentPricePerSqm,
+                cad.IsMissingFromSurvey
+            FROM appraisal.CondoAppraisalDetails cad
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = cad.AppraisalPropertyId
+            WHERE ap.AppraisalId = @AppraisalId
+              AND (cad.GovernmentPricePerSqm IS NOT NULL
+                   OR ISNULL(cad.IsMissingFromSurvey, 0) = 1)
+            ORDER BY ap.SequenceNumber, cad.Id;
             """;
 
         var p = new DynamicParameters();
@@ -181,6 +199,7 @@ public sealed class AppraisalSummaryCondoDataProvider(
         List<GroupCondoDetailRow> groupCondoRows;
         List<ParamRow> entranceExitParams;
         List<ParamRow> landUseParams;
+        List<CondoGovPriceRow> govPriceRows;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, p))
         {
@@ -198,6 +217,9 @@ public sealed class AppraisalSummaryCondoDataProvider(
 
             // RS05
             landUseParams = (await multi.ReadAsync<ParamRow>()).ToList();
+
+            // RS06
+            govPriceRows = (await multi.ReadAsync<CondoGovPriceRow>()).ToList();
         }
 
         var entranceExitMap = ToParamMap(entranceExitParams);
@@ -210,10 +232,17 @@ public sealed class AppraisalSummaryCondoDataProvider(
         string? utilization = ParameterCodeFormatter.DecodeJsonArray(
             firstCondo?.LandUseType, firstCondo?.LandUseTypeOther, landUseMap);
 
-        // ราคาประเมินราชการ — condo is priced per SQUARE METRE (not per sq-wa, unlike land).
-        string? governmentPriceText = firstCondo?.GovernmentPricePerSqm is { } gpps
-            ? $"ตารางเมตรละ {gpps:N2} บาท"
-            : null;
+        // ราคาประเมินราชการ — condo is priced per SQUARE METRE (not per sq-wa, unlike land), and a
+        // unit the appraiser ticked ตกสำรวจ reads that instead of a rate. Same builder as the
+        // land/building summary; display order is the order RS06 came back in (ap.SequenceNumber).
+        string? governmentPriceText = GovernmentPriceTextBuilder.Build(
+            govPriceRows.Select((r, i) => new GovernmentPriceTextBuilder.Item(
+                r.RoomNumber,
+                r.GovernmentPricePerSqm,
+                r.IsMissingFromSurvey == true,
+                i)),
+            "ห้องชุดเลขที่",
+            gpps => $"ตารางเมตรละ {gpps:N2} บาท");
 
         var gps = ThaiAddressFormatter.FormatGps(firstCondo?.Latitude, firstCondo?.Longitude);
 
@@ -441,6 +470,13 @@ public sealed class AppraisalSummaryCondoDataProvider(
         public Guid CondoDetailId { get; init; }
         public string? AreaDescription { get; init; }
         public decimal? AreaSize { get; init; }
+    }
+
+    private sealed class CondoGovPriceRow
+    {
+        public string? RoomNumber { get; init; }
+        public decimal? GovernmentPricePerSqm { get; init; }
+        public bool? IsMissingFromSurvey { get; init; }
     }
 
     private sealed class GroupCondoDetailRow
