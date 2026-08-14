@@ -126,12 +126,21 @@ public class RequestTitleDocumentDtoValidator : AbstractValidator<RequestTitleDo
 
 public class RequestTitleDtoValidator : AbstractValidator<RequestTitleDto>
 {
+    private static readonly HashSet<string> CondoCollateralTypes =
+        new(StringComparer.Ordinal) { "08", "28", "33" };
     public RequestTitleDtoValidator()
     {
         RuleFor(x => x.CollateralType).NotEmpty().MaximumLength(10);
 
         // TitleDeedInfo
-        RuleFor(x => x.TitleNumber).MaximumLength(200);
+        RuleFor(x => x.TitleNumber)
+        .MaximumLength(500)
+        .When(x => CondoCollateralTypes.Contains(x.CollateralType));
+
+        RuleFor(x => x.TitleNumber)
+        .MaximumLength(200)
+        .When(x => !CondoCollateralTypes.Contains(x.CollateralType));
+
         RuleFor(x => x.TitleType).MaximumLength(50);
         RuleFor(x => x.TitleDetail).MaximumLength(ContractLengths.MaxFreeText); // nvarchar(max) in DB
 
