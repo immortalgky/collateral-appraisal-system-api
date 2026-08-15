@@ -19,7 +19,7 @@ public record GetLeaseAgreementCondoPropertyResult(
     string? CondoName,
     string? BuildingNumber,
     string? ModelName,
-    string? BuiltOnTitleNumber,
+    string? TitleNumber,
     string? CondoRegistrationNumber,
     string? RoomNumber,
     string? FloorNumber,

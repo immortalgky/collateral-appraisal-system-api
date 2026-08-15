@@ -42,7 +42,7 @@ public class GetLeaseAgreementCondoPropertyQueryHandler(
             CondoName: detail.CondoName,
             BuildingNumber: detail.BuildingNumber,
             ModelName: detail.ModelName,
-            BuiltOnTitleNumber: detail.BuiltOnTitleNumber,
+            TitleNumber: detail.TitleNumber,
             CondoRegistrationNumber: detail.CondoRegistrationNumber,
             RoomNumber: detail.RoomNumber,
             FloorNumber: detail.FloorNumber,

@@ -8,7 +8,6 @@ public record CreateCondoPropertyRequest(
     string? CondoName = null,
     string? BuildingNumber = null,
     string? ModelName = null,
-    string? BuiltOnTitleNumber = null,
     string? CondoRegistrationNumber = null,
     string? RoomNumber = null,
     string? FloorNumber = null,

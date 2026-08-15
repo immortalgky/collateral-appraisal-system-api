@@ -49,7 +49,6 @@ public class CreateCondoPropertyCommandHandler(
             command.CondoName,
             command.BuildingNumber,
             command.ModelName,
-            command.BuiltOnTitleNumber,
             command.CondoRegistrationNumber,
             command.RoomNumber,
             command.FloorNumber,
