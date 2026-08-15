@@ -125,7 +125,7 @@ public class TitleLandConfiguration : IEntityTypeConfiguration<TitleLand>
         builder.OwnsOne(p => p.TitleDeedInfo, titleDeedInfo =>
         {
             titleDeedInfo.Property(p => p.TitleNumber)
-                .HasMaxLength(200)
+                .HasMaxLength(500)
                 .HasColumnName("TitleNumber");
 
             titleDeedInfo.Property(p => p.BuiltOnTitleNumber)
@@ -219,7 +219,7 @@ public class TitleLandBuildingConfiguration : IEntityTypeConfiguration<TitleLand
         builder.OwnsOne(p => p.TitleDeedInfo, titleDeedInfo =>
         {
             titleDeedInfo.Property(p => p.TitleNumber)
-                .HasMaxLength(200)
+                .HasMaxLength(500)
                 .HasColumnName("TitleNumber");
             
             titleDeedInfo.Property(p => p.BuiltOnTitleNumber)
@@ -303,7 +303,7 @@ public class TitleCondoConfiguration : IEntityTypeConfiguration<TitleCondo>
         builder.OwnsOne(p => p.TitleDeedInfo, titleDeedInfo =>
         {
             titleDeedInfo.Property(p => p.TitleNumber)
-                .HasMaxLength(200)
+                .HasMaxLength(500)
                 .HasColumnName("TitleNumber");
 
             titleDeedInfo.Property(p => p.BuiltOnTitleNumber)
@@ -348,7 +348,7 @@ public class TitleLeaseAgreementLandConfiguration : IEntityTypeConfiguration<Tit
         builder.OwnsOne(p => p.TitleDeedInfo, titleDeedInfo =>
         {
             titleDeedInfo.Property(p => p.TitleNumber)
-                .HasMaxLength(200)
+                .HasMaxLength(500)
                 .HasColumnName("TitleNumber");
 
             titleDeedInfo.Property(p => p.BuiltOnTitleNumber)
@@ -439,7 +439,7 @@ public class TitleLeaseAgreementLandBuildingConfiguration : IEntityTypeConfigura
         builder.OwnsOne(p => p.TitleDeedInfo, titleDeedInfo =>
         {
             titleDeedInfo.Property(p => p.TitleNumber)
-                .HasMaxLength(200)
+                .HasMaxLength(500)
                 .HasColumnName("TitleNumber");
 
             titleDeedInfo.Property(p => p.BuiltOnTitleNumber)
@@ -523,7 +523,7 @@ public class TitleLeaseAgreementCondoConfiguration : IEntityTypeConfiguration<Ti
         builder.OwnsOne(p => p.TitleDeedInfo, titleDeedInfo =>
         {
             titleDeedInfo.Property(p => p.TitleNumber)
-                .HasMaxLength(200)
+                .HasMaxLength(500)
                 .HasColumnName("TitleNumber");
             
             titleDeedInfo.Property(p => p.BuiltOnTitleNumber)
