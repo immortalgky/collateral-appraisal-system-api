@@ -53,15 +53,15 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
                 .HasColumnName("Road");
 
             titleAddress.Property(p => p.SubDistrict)
-                .HasMaxLength(10)
+                .HasMaxLength(100)
                 .HasColumnName("SubDistrict");
 
             titleAddress.Property(p => p.District)
-                .HasMaxLength(10)
+                .HasMaxLength(100)
                 .HasColumnName("District");
 
             titleAddress.Property(p => p.Province)
-                .HasMaxLength(10)
+                .HasMaxLength(100)
                 .HasColumnName("Province");
 
             titleAddress.Property(p => p.Postcode)
@@ -221,7 +221,7 @@ public class TitleLandBuildingConfiguration : IEntityTypeConfiguration<TitleLand
             titleDeedInfo.Property(p => p.TitleNumber)
                 .HasMaxLength(200)
                 .HasColumnName("TitleNumber");
-            
+
             titleDeedInfo.Property(p => p.BuiltOnTitleNumber)
                 .HasMaxLength(500)
                 .HasColumnName("BuiltOnTitleNumber");
@@ -525,7 +525,7 @@ public class TitleLeaseAgreementCondoConfiguration : IEntityTypeConfiguration<Ti
             titleDeedInfo.Property(p => p.TitleNumber)
                 .HasMaxLength(200)
                 .HasColumnName("TitleNumber");
-            
+
             titleDeedInfo.Property(p => p.BuiltOnTitleNumber)
                 .HasMaxLength(500)
                 .HasColumnName("BuiltOnTitleNumber");
