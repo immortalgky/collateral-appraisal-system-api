@@ -4,4 +4,4 @@ namespace Integration.Application.Features.Appraisals.GetAppraisalStatus;
 
 public record GetAppraisalStatusQuery(string AppraisalNumber) : IQuery<GetAppraisalStatusResponse?>;
 
-public record GetAppraisalStatusResponse(string AppraisalNumber, string Status, DateTime LastUpdatedAt);
+public record GetAppraisalStatusResponse(string AppraisalNumber, string Status, DateTime LastUpdatedAt, string? PicName, string? PicPosition, string? PhoneNumber);
