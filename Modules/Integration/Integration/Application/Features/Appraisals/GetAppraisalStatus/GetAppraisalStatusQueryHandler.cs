@@ -21,7 +21,7 @@ public class GetAppraisalStatusQueryHandler(
                    u.FirstName, u.LastName, u.Position, u.PhoneNumber
             FROM appraisal.Appraisals a
                 OUTER APPLY (
-                    SELECT pt.AssignedTo
+                    SELECT TOP 1 pt.AssignedTo
                     FROM workflow.PendingTasks pt
                     WHERE pt.CorrelationId = a.RequestId
                     ORDER BY pt.AssignedAt DESC
