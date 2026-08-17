@@ -59,6 +59,7 @@ public record RequestTitleDto
     // CondoInfo fields (UsableArea is shared with Building)
     public string? CondoName { get; init; }
     public string? BuildingNumber { get; init; }
+    public string? CondoRegistrationNumber { get; init; }
     public string? RoomNumber { get; init; }
     public string? FloorNumber { get; init; }
 
