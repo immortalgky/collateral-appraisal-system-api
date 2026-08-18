@@ -17,7 +17,7 @@ public class ListMeetingDocumentsEndpoint : ICarterModule
             })
             .WithName("ListMeetingDocuments")
             .WithTags("Meetings")
-            .RequireAuthorization("MeetingAdmin")
+            .RequireAuthorization("MeetingView")
             .Produces<List<MeetingDocumentDto>>();
     }
 }
