@@ -13,9 +13,6 @@ public sealed class RegulatoryFileWriter
 {
     public const int RecordLength = 300;
 
-    // Engagement AppraisalType value for a construction (progressive) inspection.
-    private const string ProgressiveAppraisalType = "Progressive";
-
     private static readonly FixedWidthField[] DetailFields =
     [
         new("RecordType",                   1,   FixedWidthAlign.Left),
@@ -67,14 +64,21 @@ public sealed class RegulatoryFileWriter
                                                   or CollateralTypes.LeaseholdBuilding
                                                   or CollateralTypes.LeaseholdWithBuilding;
 
-        bool isCondoType = row.CollateralType == CollateralTypes.Condo;
+        // LSU is a leasehold OVER a condo unit: its area and age live on CondoDetails exactly like a
+        // freehold condo's, so it gates with U and stays out of isLandType / isBuildingType.
+        bool isCondoType = row.CollateralType is CollateralTypes.Condo or CollateralTypes.LeaseholdCondo;
 
-        // Under-construction and construction-progress apply only to land / building / land&building
-        // types. Condo (and everything else) → blank / 0.00.
-        bool isLandOrBuilding = isLandType || isBuildingType;
+        // Field #5 applies to every REAL-ESTATE collateral, condo and legacy (UNK) included — the
+        // business rule is "all real estate", not just the land/building types. Condo used to fall out
+        // of this gate and report blank, which the regulator reads as "not applicable" for a unit that
+        // is very much a structure. The bank's own 2026-08-02 file sends N for all 7,716 condo and all
+        // 1,209 legacy rows, so this matches the file we are replacing.
+        // Machinery / PRJ stay out → blank, same as before.
+        bool isRealEstate = isLandType || isBuildingType || isCondoType
+                            || row.CollateralType is CollateralTypes.Unidentified;
 
         string underConstruction;
-        if (!isLandOrBuilding)
+        if (!isRealEstate)
         {
             underConstruction = string.Empty;
         }
@@ -84,7 +88,7 @@ public sealed class RegulatoryFileWriter
         }
         else
         {
-            // Remaining in-group types are building types (LB / LSB / LS).
+            // Everything else in-group carries a structure: LB / LSB / LS, condo U / LSU, legacy UNK.
             underConstruction = row.IsUnderConstruction ? "Y" : "N";
         }
 
@@ -101,10 +105,11 @@ public sealed class RegulatoryFileWriter
         string? buildingTypeId = isBuildingType ? row.BuildingTypeCode : null;
         string? buildingName   = isBuildingType ? row.BuildingTypeDescription : null;
 
-        // Origination value: for a construction (Progressive) inspection the first appraisal already
-        // estimated the as-completed (100%) value, so use the earliest value; otherwise the latest.
-        var isProgressive = string.Equals(row.LatestAppraisalType, ProgressiveAppraisalType, StringComparison.Ordinal);
-        var originationValue = isProgressive ? row.EarliestAppraisalValue : row.LatestAppraisalValue;
+        // Field #7 — value as it stands today. When buildings are part-built it is the progress-adjusted
+        // figure (land + finished buildings + inspected buildings at their progress), computed upstream
+        // by IConstructionCurrentValueService and frozen on the engagement. NULL means nothing was under
+        // construction, so the as-completed appraised value already IS the current value.
+        var currentValue = row.CurrentValue ?? row.LatestAppraisalValue;
 
         var values = new Dictionary<string, string?>
         {
@@ -117,8 +122,11 @@ public sealed class RegulatoryFileWriter
             ["UnderConstruction"]          = underConstruction,
             // Field #6 is computed in vw_RegulatoryExport (0 / 100 / progress%); here we only format it.
             ["ConstructionProgress"]       = Money(row.ConstructionProgressPercent ?? 0m),
-            ["AppraisalValueCompleted"]    = Money(row.LatestAppraisalValue),
-            ["AppraisalValueOrigination"]  = Money(originationValue),
+            ["AppraisalValueCompleted"]    = Money(currentValue),
+            // Field #8 — the full appraised value, unconditionally. The bank dropped the previous
+            // "Progressive → use the earliest value" rule: this field is always the latest appraisal's
+            // value, so it now carries the same figure as ValuationPrice (field #13).
+            ["AppraisalValueOrigination"]  = Money(row.LatestAppraisalValue),
             ["NumberOfFloors"]             = SmallInt(row.NumberOfFloors, 999),
             ["BuildingAge"]                = SmallInt(row.BuildingAge, 999),
             ["MarketSellingPrice"]         = Money(row.SellingPrice),
@@ -134,7 +142,11 @@ public sealed class RegulatoryFileWriter
             ["BuildingTypeId"]             = buildingTypeId,
             ["BuildingName"]               = buildingName,
             ["ExpectedCompletionDate"]     = null,
-            ["ConstructionReviewDate"]     = Date(row.LatestProgressiveAppraisalDate),
+            // Field #24 — the date construction was last reviewed. Any appraisal that inspected the
+            // construction counts, not only a Progressive-type one, so this is the latest appraisal's
+            // date whenever the collateral is under construction. Blank when it is not: there is no
+            // construction left to review.
+            ["ConstructionReviewDate"]     = row.IsUnderConstruction ? Date(row.LatestAppraisalDate) : null,
             ["FirstValuationDate"]         = Date(row.EarliestAppraisalDate),
             ["LatestValuationDate"]        = Date(row.LatestAppraisalDate),
         };
@@ -156,7 +168,12 @@ public sealed class RegulatoryFileWriter
             : ((long)Math.Round(value.Value * 100m, MidpointRounding.AwayFromZero))
                 .ToString(CultureInfo.InvariantCulture);
 
-    private static string? SmallDecimal(decimal? value) => Money(value);
+    // Area fields are dec(7,2) in 8 characters, so ×100 must still fit 7 digits with no sign. The view
+    // already guards both ends, but this is the line where an out-of-range value throws and takes the
+    // WHOLE monthly file down with it — U3 had one appraisal with LandArea = -10258.60 and the export
+    // produced no file at all. Belt and braces: out of range → blank, same as the view's NULL.
+    private static string? SmallDecimal(decimal? value) =>
+        value is null or < 0m or > 99_999.99m ? null : Money(value);
 
     private static string? SmallInt(int? value, int maxValue) =>
         (value is not null && value >= 0 && value <= maxValue)

@@ -164,10 +164,13 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         Assert.Single(masters);
         var master = masters[0];
         Assert.Equal(CollateralTypes.Land, master.CollateralType);
-        Assert.True(master.LandDetail!.IsUnderConstructionAtLastAppraisal);
-        // PR-5: LastConstructionInspectionId removed from LandDetail; CI list is now in the engagement snapshot.
-        Assert.NotNull(master.LandDetail.OverallConstructionProgressPercent);
-        Assert.True(master.LandDetail.OverallConstructionProgressPercent < 100m);
+        // Construction status now lives on the engagement, value-weighted across every inspected
+        // building. The LandDetails columns it replaces read one property's inspection and were
+        // false/NULL on every real row, because the primary property is the LAND one while the
+        // inspection hangs off the BUILDING.
+        Assert.True(master.Engagements[0].IsUnderConstruction ?? false);
+        Assert.NotNull(master.Engagements[0].ConstructionProgressPercent);
+        Assert.True(master.Engagements[0].ConstructionProgressPercent < 100m);
 
         // Assert — Engagements
         Assert.Single(master.Engagements);
@@ -272,8 +275,12 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         Assert.Single(masters);
         var master = masters[0];
         Assert.Equal(2, master.Engagements.Count);
-        Assert.True(master.LandDetail!.IsUnderConstructionAtLastAppraisal);
-        Assert.Equal(70m, master.LandDetail.OverallConstructionProgressPercent);
+        // The LATEST engagement — this master has two after the progressive round, and the
+        // collection order is not guaranteed.
+        var latestEng = master.Engagements
+            .OrderByDescending(e => e.AppraisalDate).ThenByDescending(e => e.CreatedAt).First();
+        Assert.True(latestEng.IsUnderConstruction ?? false);
+        Assert.Equal(70m, latestEng.ConstructionProgressPercent);
         // PR-5: LastConstructionInspectionId removed from LandDetail; insp2Id is now traceable via engagement snapshot.
     }
 
@@ -328,7 +335,11 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
             .FirstAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleNo,
                 TestContext.Current.CancellationToken);
 
-        Assert.False(master.LandDetail!.IsUnderConstructionAtLastAppraisal,
+        // The LATEST engagement, not Engagements[0] — this master has two and the collection order
+        // is not guaranteed. The second appraisal is the one that reached 100%.
+        var latest = master.Engagements
+            .OrderByDescending(e => e.AppraisalDate).ThenByDescending(e => e.CreatedAt).First();
+        Assert.False(latest.IsUnderConstruction ?? false,
             "Flag should flip to false when progress reaches 100%");
         Assert.Equal(2, master.Engagements.Count);
     }
@@ -369,8 +380,8 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
             .FirstAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleNo,
                 TestContext.Current.CancellationToken);
 
-        Assert.True(master.LandDetail!.IsUnderConstructionAtLastAppraisal);
-        Assert.Equal(65m, master.LandDetail.OverallConstructionProgressPercent);
+        Assert.True(master.Engagements[0].IsUnderConstruction ?? false);
+        Assert.Equal(65m, master.Engagements[0].ConstructionProgressPercent);
 
         // Snapshot should contain summaryCurrentProgressPct, not workDetails
         var engagement = master.Engagements.Single();

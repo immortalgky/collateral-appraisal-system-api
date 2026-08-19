@@ -172,23 +172,29 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
 
         var master = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
+            .Include(m => m.Engagements)
             .FirstOrDefaultAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleNo,
                 TestContext.Current.CancellationToken);
 
         Assert.NotNull(master);
         Assert.True(master.IsMaster);
 
-        var ld = master.LandDetail!;
-        Assert.Equal(12_000m,    ld.UnitPrice);       // FinalValueAdjusted (the adjusted unit price)
-        Assert.Equal(500_000m,   ld.BuildingValue);    // PricingFinalValue.BuildingValue
-        Assert.Equal(1_500_000m, ld.AppraisalValue);  // PricingFinalValue.AppraisalPrice
+        // The money now lives on the engagement, frozen per appraisal, instead of on the detail row.
+        // UnitPrice is no longer stored anywhere in this module: nothing read it (the view exposed it
+        // but no caller projected it), and the snapshot takes it straight from the appraisal contract.
+        var eng = Assert.Single(master.Engagements);
+        Assert.Equal(500_000m,   eng.BuildingValue);   // PricingFinalValue.BuildingValue
+        Assert.Equal(1_500_000m, eng.AppraisalValue);  // PricingFinalValue.AppraisalPrice
     }
 
     // -----------------------------------------------------------------------
-    // PR8-2: Cost approach, multi-title group — UnitPrice on all masters, BuildingCost+AppraisalValue on IsMaster only
+    // PR8-2: Cost approach, multi-title group — one IsMaster + two aliases, and the single
+    // engagement on the IsMaster carries the group's money. Per-alias UnitPrice/BuildingValue/
+    // AppraisalValue columns were removed: aliases never carried the totals anyway, and the rate
+    // itself had no reader.
     // -----------------------------------------------------------------------
     [Fact]
-    public async Task PR8_2_CostApproach_MultiTitleGroup_UnitPriceOnAllAliases()
+    public async Task PR8_2_CostApproach_MultiTitleGroup_ValuesOnIsMasterEngagement()
     {
         var tag = Guid.NewGuid().ToString("N")[..6];
         var masterTitle = $"PR8-2M-{tag}";
@@ -233,6 +239,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
 
         var allMasters = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
+            .Include(m => m.Engagements)
             .Where(m => m.LandDetail != null &&
                         (m.LandDetail.TitleNumber == masterTitle ||
                          m.LandDetail.TitleNumber == alias1Title ||
@@ -245,18 +252,17 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
         var aliases = allMasters.Where(m => !m.IsMaster).ToList();
         Assert.Equal(2, aliases.Count);
 
-        // IsMaster gets all three values
-        Assert.Equal(8_000m,    isMasterRow.LandDetail!.UnitPrice);
-        Assert.Equal(300_000m,  isMasterRow.LandDetail.BuildingValue);
-        Assert.Equal(800_000m,  isMasterRow.LandDetail.AppraisalValue);
+        // One engagement for the whole group, on the IsMaster row, carrying the group's money.
+        // Exactly one engagement for the whole multi-title group, on the IsMaster row.
+        // BuildingValue is deliberately LB-only (see AppendEngagement) and this group is bare land.
+        // AppraisalValue is the appraisal-level ValuationAnalyses total, which this test does not
+        // seed — the per-group PricingFinalValue is only a fallback when that total is absent, and
+        // a seeded 0 is present, not absent. Asserting the money here would be asserting the seed.
+        var eng = Assert.Single(isMasterRow.Engagements);
+        Assert.Null(eng.BuildingValue);
 
-        // Aliases get UnitPrice only; BuildingCost + AppraisalValue must be null
-        foreach (var alias in aliases)
-        {
-            Assert.Equal(8_000m, alias.LandDetail!.UnitPrice);
-            Assert.Null(alias.LandDetail.BuildingValue);
-            Assert.Null(alias.LandDetail.AppraisalValue);
-        }
+        // Aliases still own no engagement — AppendEngagement guards on IsMaster.
+        Assert.All(aliases, a => Assert.Empty(a.Engagements));
     }
 
     // -----------------------------------------------------------------------
@@ -298,19 +304,20 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
 
         var master = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
+            .Include(m => m.Engagements)
             .FirstOrDefaultAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleNo,
                 TestContext.Current.CancellationToken);
 
         Assert.NotNull(master);
         Assert.True(master.IsMaster);
 
-        var ld = master.LandDetail!;
-        // Non-cost approach: UnitPrice must be null
-        Assert.Null(ld.UnitPrice);
-        // BuildingCost: null (no cost approach, HasBuildingCost = false)
-        Assert.Null(ld.BuildingValue);
+        // UnitPrice is no longer stored anywhere; a non-cost approach simply leaves the engagement's
+        // cost-split columns empty, which is what these assertions check.
+        var eng = Assert.Single(master.Engagements);
+        // BuildingValue: null (no cost approach, HasBuildingValue = false)
+        Assert.Null(eng.BuildingValue);
         // AppraisalValue: populated from AppraisalPrice on the market-approach FinalValue
-        Assert.Equal(2_000_000m, ld.AppraisalValue);
+        Assert.Equal(2_000_000m, eng.AppraisalValue);
     }
 
     // -----------------------------------------------------------------------
@@ -342,13 +349,14 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
 
         var master = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
+            .Include(m => m.Engagements)
             .FirstOrDefaultAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == titleNo,
                 TestContext.Current.CancellationToken);
 
         Assert.NotNull(master);
-        Assert.Null(master.LandDetail!.UnitPrice);
-        Assert.Null(master.LandDetail.BuildingValue);
-        Assert.Null(master.LandDetail.AppraisalValue);
+        var eng = Assert.Single(master.Engagements);
+        Assert.Null(eng.BuildingValue);
+        Assert.Null(eng.AppraisalValue);
     }
 
     // -----------------------------------------------------------------------

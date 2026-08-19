@@ -571,8 +571,24 @@ public sealed class SummaryGroupRow
     /// <summary>True when the group contains land (renders ☑ ที่ดิน).</summary>
     public bool HasLand { get; init; }
 
+    /// <summary>
+    /// First-column label of the land row in the split layout — normally "ที่ดิน", but a leasehold
+    /// group keeps its tenure ("สิทธิการเช่าที่ดิน"). Resolved from the CollateralType parameter map,
+    /// never a literal. The split branch used to hardcode the Thai text, so an LSL group silently lost
+    /// its tenure the moment a Cost approach was saved: only the combined branch reads
+    /// <see cref="PropertyType"/>, and Cost + non-(LB|LS) forces the split.
+    /// </summary>
+    public string? LandRowLabel { get; init; }
+
     /// <summary>True when the group contains buildings (renders ☑ สิ่งปลูกสร้าง).</summary>
     public bool HasBuilding { get; init; }
+
+    /// <summary>
+    /// First-column label of the building row (and of the ส่วนพัฒนา header row when the group has no
+    /// building lines to carry the marker). Resolved from the CollateralType parameter map for the
+    /// same reason as <see cref="LandRowLabel"/> — the form must not carry Thai text in markup.
+    /// </summary>
+    public string? BuildingRowLabel { get; init; }
 
     /// <summary>Land title description (โฉนด…), without the building clause.</summary>
     public string? LandDescription { get; init; }

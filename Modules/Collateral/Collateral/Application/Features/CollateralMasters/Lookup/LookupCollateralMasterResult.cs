@@ -57,8 +57,6 @@ public record LandDetailDto(
     string? LastAppraisalNumber,
     DateTime? LastAppraisedDate,
     // Three-value model (Phase C)
-    decimal? UnitPrice,
-    decimal? BuildingValue,
     decimal? AppraisalValue,
     /// <summary>
     /// Alias titles belonging to the same multi-title group as this master.
@@ -96,8 +94,6 @@ public record CondoDetailDto(
     string? LastAppraisalNumber,
     DateTime? LastAppraisedDate,
     // Three-value model (Phase C)
-    decimal? UnitPrice,
-    decimal? BuildingValue,
     decimal? AppraisalValue
 );
 

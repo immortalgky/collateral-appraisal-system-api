@@ -19,14 +19,20 @@ public class GetProjectMasterUnitsByPrevAppraisalQueryHandler(
         GetProjectMasterUnitsByPrevAppraisalQuery request,
         CancellationToken ct)
     {
-        // Step 1: resolve the CollateralMaster via AppraisalSummary.LastAppraisalId on ProjectDetails
+        // Step 1: resolve the CollateralMaster via the appraisal's engagement.
+        // CollateralEngagements is UNIQUE on AppraisalId, so this is an exact indexed hit — unlike
+        // ProjectDetails.LastAppraisalId, which is unindexed and only ever holds the most recently
+        // written appraisal, so it could not answer "which master did THIS appraisal value?" at all
+        // once a later round had overwritten it.
         const string headerSql = """
             SELECT pd.CollateralMasterId,
                    pd.ProjectType
             FROM   collateral.ProjectDetails pd
             INNER JOIN collateral.CollateralMasters cm ON cm.Id = pd.CollateralMasterId
-            WHERE  pd.LastAppraisalId = @PrevAppraisalId
-              AND  cm.CollateralType  = 'PRJ'
+            INNER JOIN collateral.CollateralEngagements e
+                   ON e.CollateralMasterId = pd.CollateralMasterId
+                  AND e.AppraisalId        = @PrevAppraisalId
+            WHERE  cm.CollateralType  = 'PRJ'
               AND  cm.IsMaster        = 1
               AND  cm.IsDeleted       = 0
               AND  pd.IsDeleted       = 0

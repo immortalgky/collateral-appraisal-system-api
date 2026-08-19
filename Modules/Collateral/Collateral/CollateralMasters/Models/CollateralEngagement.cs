@@ -78,6 +78,54 @@ public class CollateralEngagement
     /// </summary>
     public decimal? BuildingValue { get; private set; }
 
+    /// <summary>
+    /// Appraisal value AS IT STOOD at engagement time, with part-built buildings counted at their
+    /// construction progress rather than at 100%:
+    /// <c>land + buildings-with-no-inspection + inspected-buildings-at-current-progress</c>
+    ///
+    /// Computed by the Appraisal module's <c>IConstructionCurrentValueService</c> — the same code that
+    /// builds the Decision Summary construction card — and frozen here so the outbound interfaces never
+    /// recompute from later-overwritten master state.
+    ///
+    /// NULL when the appraisal had no construction inspection at all: nothing was part-built, so the
+    /// current value is simply <see cref="AppraisalValue"/>. Read by the regulatory export's
+    /// Appraisal-Value-as-Completed field, which falls back to the appraised value when this is NULL.
+    /// </summary>
+    public decimal? CurrentValue { get; private set; }
+
+    /// <summary>
+    /// Whether any building on this appraisal was still short of its finished value, frozen at
+    /// engagement time. Read by the regulatory export (field 5) and the collateral catalog's
+    /// under-construction filter.
+    ///
+    /// Previously lived on <c>LandDetails.IsUnderConstructionAtLastAppraisal</c>, which was a
+    /// latest-wins cache on a mutable row: re-processing an older appraisal after a newer one
+    /// overwrote it with the older state, silently. It also read a single property's inspection, so a
+    /// multi-building appraisal reported whatever the primary property happened to say.
+    ///
+    /// NULL for engagements created before this column, and for appraisals with no inspection at all.
+    /// </summary>
+    public bool? IsUnderConstruction { get; private set; }
+
+    /// <summary>
+    /// Construction progress 0–100, weighted by value across every inspected building
+    /// (<c>InspectedCurrentValue / InspectedTotalValue</c>), frozen at engagement time.
+    /// Read by the regulatory export (field 6). NULL under the same conditions as
+    /// <see cref="IsUnderConstruction"/>.
+    /// </summary>
+    public decimal? ConstructionProgressPercent { get; private set; }
+
+    // NOTE: AS400 host state (HostCollateralId / redemption) is NOT here.
+    //
+    // It used to be, on the reasoning that the feed addresses rows by appraisal number and an
+    // engagement is 1:1 with an appraisal. But that is only how the message is ADDRESSED — what it
+    // describes is the collateral: AS400 mints one id per collateral at drawdown and reports
+    // redemption against that same id, with no notion of which appraisal is involved. Holding it
+    // here forced every reader to re-derive "which appraisal speaks for this collateral now", and
+    // each did it slightly differently.
+    //
+    // → see CollateralMaster.HostCollateralId / IsRedeemed / RedeemedDate.
+
     // Buildings child collection — one row per Building property at engagement time.
     private readonly List<CollateralEngagementBuilding> _buildings = [];
     public IReadOnlyList<CollateralEngagementBuilding> Buildings => _buildings.AsReadOnly();
@@ -105,7 +153,10 @@ public class CollateralEngagement
         string? internalAppraiserName = null,
         decimal? landValue = null,
         decimal? buildingValue = null,
-        string? appraisalCompanyCode = null)
+        string? appraisalCompanyCode = null,
+        decimal? currentValue = null,
+        bool? isUnderConstruction = null,
+        decimal? constructionProgressPercent = null)
     {
         Id = Guid.CreateVersion7();
         CollateralMasterId = collateralMasterId;
@@ -129,6 +180,9 @@ public class CollateralEngagement
         LandValue = landValue;
         BuildingValue = buildingValue;
         AppraisalCompanyCode = appraisalCompanyCode;
+        CurrentValue = currentValue;
+        IsUnderConstruction = isUnderConstruction;
+        ConstructionProgressPercent = constructionProgressPercent;
     }
 
     /// <summary>

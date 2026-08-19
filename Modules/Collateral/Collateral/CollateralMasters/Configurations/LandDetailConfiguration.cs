@@ -10,14 +10,26 @@ public class LandDetailConfiguration : IEntityTypeConfiguration<LandDetail>
 
         builder.HasKey(d => d.CollateralMasterId);
 
-        // LandOfficeCode — descriptive column, retained but NOT part of the dedup key.
-        builder.Property(d => d.LandOfficeCode).IsRequired().HasMaxLength(20);
-        // Dedup key columns
+        // Widths mirror the appraisal columns these are copied from. Nothing on the write path trims or
+        // validates length, so a collateral column narrower than its source turns an over-length value
+        // into SqlException 8152 inside SaveChangesAsync — which CollateralMasterUpsertService does not
+        // catch, so it dead-letters AppraisalCompletedConsumer.
+
+        // LandOfficeCode ← appraisal.LandAppraisalDetails.LandOffice nvarchar(200) NULL.
+        // Descriptive, NOT part of the dedup key, and GetMissingFields deliberately does not require it —
+        // so it must be nullable here too. It was NOT NULL(20), which is what made seven backfill runs
+        // fail with "Cannot insert the value NULL into column 'LandOfficeCode'".
+        builder.Property(d => d.LandOfficeCode).HasMaxLength(200);
+
+        // Dedup key columns. Province/District/SubDistrict stay required: GetMissingFields rejects a
+        // property that lacks any of them before it can reach an INSERT.
         builder.Property(d => d.Province).IsRequired().HasMaxLength(100);
         builder.Property(d => d.District).IsRequired().HasMaxLength(100);
         builder.Property(d => d.SubDistrict).IsRequired().HasMaxLength(100);
-        builder.Property(d => d.TitleType).IsRequired().HasMaxLength(20);
-        builder.Property(d => d.TitleNumber).IsRequired().HasMaxLength(50);
+
+        // TitleType left the dedup key on 2026-08-09, so it is no longer identity and no longer required.
+        builder.Property(d => d.TitleType).HasMaxLength(50);
+        builder.Property(d => d.TitleNumber).IsRequired().HasMaxLength(200);
         builder.Property(d => d.SurveyNumber).HasMaxLength(50);
         builder.Property(d => d.LandParcelNumber).HasMaxLength(50);
         builder.Property(d => d.Rawang).HasMaxLength(100);
@@ -32,43 +44,38 @@ public class LandDetailConfiguration : IEntityTypeConfiguration<LandDetail>
         // Coordinates (owned — flat columns)
         builder.OwnsOne(d => d.Coordinates, c =>
         {
+            // Deliberately left at (9,6) even though appraisal stores (10,7). Widening means dropping
+            // and rebuilding the persisted computed column GeoPoint and its spatial index
+            // (IX_LandDetails_GeoPoint) — SQL Server error 5074 otherwise. The gap costs about a
+            // centimetre of precision on copy and never throws, which does not justify that on a live
+            // table. Same reasoning in CondoDetailConfiguration and ProjectDetailConfiguration.
             c.Property(x => x.Latitude).HasColumnName("Latitude").HasPrecision(9, 6);
             c.Property(x => x.Longitude).HasColumnName("Longitude").HasPrecision(9, 6);
         });
 
-        // Last-known land context
-        builder.Property(d => d.LandShapeType).HasMaxLength(50);
-        builder.Property(d => d.LandZoneType).HasMaxLength(50);
-        builder.Property(d => d.UrbanPlanningType).HasMaxLength(50);
+        // Last-known land context — widths from appraisal.LandAppraisalDetails
+        builder.Property(d => d.LandShapeType).HasMaxLength(100);
+        builder.Property(d => d.LandZoneType).HasMaxLength(500);
+        builder.Property(d => d.UrbanPlanningType).HasMaxLength(100);
         builder.Property(d => d.AccessRoadWidth).HasPrecision(10, 2);
         builder.Property(d => d.RoadFrontage).HasPrecision(10, 2);
         builder.Property(d => d.LandArea).HasPrecision(18, 4);
 
         // Construction tracking
-        builder.Property(d => d.IsUnderConstructionAtLastAppraisal).IsRequired().HasDefaultValue(false);
-        builder.Property(d => d.OverallConstructionProgressPercent).HasPrecision(7, 4);
 
         // Three-value model (Phase C)
-        builder.Property(d => d.UnitPrice).HasPrecision(18, 2);
-        builder.Property(d => d.BuildingValue).HasPrecision(18, 2);
-        builder.Property(d => d.AppraisalValue).HasPrecision(18, 2);
 
         // AppraisalSummary (owned — flat columns)
-        builder.OwnsOne(d => d.AppraisalSummary, s =>
-        {
-            s.Property(x => x.LastAppraisalId).HasColumnName("LastAppraisalId");
-            s.Property(x => x.LastAppraisalNumber).HasColumnName("LastAppraisalNumber").HasMaxLength(50);
-            s.Property(x => x.LastAppraisedDate).HasColumnName("LastAppraisedDate");
-        });
 
         builder.Property(d => d.IsDeleted).IsRequired().HasDefaultValue(false);
 
         // Filtered unique index for dedup — uses IsDeleted on THIS table (denormalized from master)
-        builder.HasIndex(d => new
-            {
-                d.Province, d.District, d.SubDistrict,
-                d.TitleType, d.TitleNumber, d.SurveyNumber, d.LandParcelNumber, d.Rawang
-            })
+        // Dedup key — narrowed from eight columns to four on 2026-08-09.
+        // TitleType / SurveyNumber / LandParcelNumber / Rawang were splitting one physical parcel
+        // across several masters whenever an appraiser recorded them differently.
+        // See CollateralMasterRepository.LandKeyMatches; CollateralMasterUpsertService.BuildTitleKey
+        // must stay in step.
+        builder.HasIndex(d => new { d.Province, d.District, d.SubDistrict, d.TitleNumber })
             .IsUnique()
             .HasFilter("[IsDeleted] = 0")
             .HasDatabaseName("UX_LandDetails_DedupKey_Active");
@@ -78,8 +85,5 @@ public class LandDetailConfiguration : IEntityTypeConfiguration<LandDetail>
             .HasDatabaseName("IX_LandDetails_LandOffice_TitleNumber");
 
         // Analytics: under-construction filter
-        builder.HasIndex(d => d.IsUnderConstructionAtLastAppraisal)
-            .HasFilter("[IsUnderConstructionAtLastAppraisal] = 1")
-            .HasDatabaseName("IX_LandDetails_UnderConstruction");
     }
 }

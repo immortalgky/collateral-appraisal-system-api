@@ -22,10 +22,9 @@ public class GetEngagementSnapshotQueryHandler(
                 e.AppraisalNumber,
                 e.RequestId,
                 e.RequestNumber,
-                e.PropertyId,
+                -- PropertyId and AppraisedValue removed in PR-4 (engagement is per-appraisal now)
                 e.AppraisalType,
                 e.AppraisalDate,
-                e.AppraisedValue,
                 e.AppraiserUserId,
                 e.AppraisalCompanyId,
                 e.AppraisalCompanyName,
@@ -54,10 +53,8 @@ public class GetEngagementSnapshotQueryHandler(
             row.AppraisalNumber,
             row.RequestId,
             row.RequestNumber,
-            row.PropertyId,
             row.AppraisalType,
             row.AppraisalDate,
-            row.AppraisedValue,
             row.AppraiserUserId,
             row.AppraisalCompanyId,
             row.AppraisalCompanyName,
@@ -73,10 +70,8 @@ public class GetEngagementSnapshotQueryHandler(
         public string AppraisalNumber { get; init; } = null!;
         public Guid RequestId { get; init; }
         public string RequestNumber { get; init; } = null!;
-        public Guid PropertyId { get; init; }
         public string AppraisalType { get; init; } = null!;
         public DateTime AppraisalDate { get; init; }
-        public decimal? AppraisedValue { get; init; }
         public string? AppraiserUserId { get; init; }
         public Guid? AppraisalCompanyId { get; init; }
         public string? AppraisalCompanyName { get; init; }

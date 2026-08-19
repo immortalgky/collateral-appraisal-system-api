@@ -16,7 +16,6 @@ public sealed class RegulatoryExcelWriter
     private const string MoneyFormat = "#,##0.00";
     private const string PercentFormat = "0.00";
     private const string DateFormat = "dd/MM/yyyy";
-    private const string ProgressiveAppraisalType = "Progressive";
 
     // Friendly column headers, in interface-file field order (Record Type is omitted; Collateral Type is
     // added up front so a reader can tell what each row is).
@@ -93,8 +92,10 @@ public sealed class RegulatoryExcelWriter
         ws.Cell(r, c++).Value = row.HostCollateralId ?? "";
         ws.Cell(r, c++).Value = UnderConstructionText(row);
         Percent(ws.Cell(r, c++), row.ConstructionProgressPercent ?? 0m);   // computed in vw_RegulatoryExport
+        // Field #7 = current (progress-adjusted) value; #8 = the full appraised value, unconditionally.
+        // Both rules mirror RegulatoryFileWriter so the .xlsx companion cannot drift from the .txt.
+        Money(ws.Cell(r, c++), row.CurrentValue ?? row.LatestAppraisalValue);
         Money(ws.Cell(r, c++), row.LatestAppraisalValue);
-        Money(ws.Cell(r, c++), OriginationValue(row));
         Number(ws.Cell(r, c++), row.NumberOfFloors);
         Number(ws.Cell(r, c++), row.BuildingAge);
         Money(ws.Cell(r, c++), row.SellingPrice);   // Market Selling Price (RequestDetails.TotalSellingPrice)
@@ -116,7 +117,8 @@ public sealed class RegulatoryExcelWriter
         ws.Cell(r, c++).Value = isBuildingType ? (row.BuildingTypeCode ?? "") : "";
         ws.Cell(r, c++).Value = isBuildingType ? (row.BuildingTypeDescription ?? "") : "";
         c++; // Expected Completion Date — not yet sourced
-        Date(ws.Cell(r, c++), row.LatestProgressiveAppraisalDate);
+        // Field #24 — latest appraisal date while under construction, blank otherwise.
+        Date(ws.Cell(r, c++), row.IsUnderConstruction ? row.LatestAppraisalDate : null);
         Date(ws.Cell(r, c++), row.EarliestAppraisalDate);
         Date(ws.Cell(r, c++), row.LatestAppraisalDate);
     }
@@ -135,28 +137,29 @@ public sealed class RegulatoryExcelWriter
                            or CollateralTypes.LeaseholdBuilding
                            or CollateralTypes.LeaseholdWithBuilding;
 
+    // LSU is a leasehold OVER a condo unit: its area and age live on CondoDetails exactly like a
+    // freehold condo's, so it must gate with U and stay out of the land / building predicates.
     private static bool IsCondo(RegulatoryExportRow row) =>
-        row.CollateralType == CollateralTypes.Condo;
+        row.CollateralType is CollateralTypes.Condo or CollateralTypes.LeaseholdCondo;
 
     private static bool IsBareLand(RegulatoryExportRow row) =>
         row.CollateralType is CollateralTypes.Land or CollateralTypes.Leasehold;
 
+    // Every real-estate type is in-group for field #5 — condo and legacy (UNK) included. Machinery /
+    // PRJ are not. Mirrors RegulatoryFileWriter.isRealEstate; keep the two bodies identical.
+    private static bool IsRealEstate(RegulatoryExportRow row) =>
+        IsLandType(row) || IsBuildingType(row) || IsCondo(row)
+        || row.CollateralType is CollateralTypes.Unidentified;
+
     // Mirrors RegulatoryFileWriter's Under Construction rule (Y/N/L/blank), rendered as readable text.
-    // Only land / building / land&building types are in-group; condo (and everything else) → blank.
     private static string UnderConstructionText(RegulatoryExportRow row)
     {
+        if (!IsRealEstate(row))
+            return "";
         if (IsBareLand(row))
             return "Vacant land (L)";
-        if (IsBuildingType(row))
-            return row.IsUnderConstruction ? "Under construction (Y)" : "Completed (N)";
-        return "";
+        return row.IsUnderConstruction ? "Under construction (Y)" : "Completed (N)";
     }
-
-    // Mirrors RegulatoryFileWriter's origination-value rule.
-    private static decimal? OriginationValue(RegulatoryExportRow row) =>
-        string.Equals(row.LatestAppraisalType, ProgressiveAppraisalType, StringComparison.Ordinal)
-            ? row.EarliestAppraisalValue
-            : row.LatestAppraisalValue;
 
     private static void Money(IXLCell cell, decimal? value)
     {

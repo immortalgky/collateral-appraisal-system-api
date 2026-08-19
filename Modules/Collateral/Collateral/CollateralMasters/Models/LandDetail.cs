@@ -4,14 +4,15 @@ public class LandDetail
 {
     public Guid CollateralMasterId { get; private set; }
 
-    // Dedup key: Province + District + SubDistrict + TitleType + TitleNumber
-    //          + SurveyNumber + LandParcelNumber + Rawang.
-    // LandOfficeCode is retained as a descriptive column but is NOT part of the dedup key.
-    public string LandOfficeCode { get; private set; } = null!;
+    // Dedup key: Province + District + SubDistrict + TitleNumber — four columns since 2026-08-09.
+    // TitleType, SurveyNumber, LandParcelNumber, Rawang and LandOfficeCode are descriptive only; they
+    // are stored and editable but take no part in identity, so none of them is required.
+    // See CollateralMasterRepository.LandKeyMatches.
+    public string? LandOfficeCode { get; private set; }
     public string Province { get; private set; } = null!;
     public string District { get; private set; } = null!;
     public string SubDistrict { get; private set; } = null!;
-    public string TitleType { get; private set; } = null!;
+    public string? TitleType { get; private set; }
     public string TitleNumber { get; private set; } = null!;
     public string? SurveyNumber { get; private set; }
     public string? LandParcelNumber { get; private set; }
@@ -31,21 +32,6 @@ public class LandDetail
     public decimal? RoadFrontage { get; private set; }
     public decimal? LandArea { get; private set; }
 
-    // Construction tracking
-    public bool IsUnderConstructionAtLastAppraisal { get; private set; }
-    public decimal? OverallConstructionProgressPercent { get; private set; }
-
-    // Three-value model (Phase C, wired in PR-8)
-    // UnitPrice: populated on every land master (IsMaster + aliases) — cost approach only, null otherwise.
-    // Source: PricingFinalValue.FinalValueAdjusted (the adjusted unit price per sq.wa).
-    public decimal? UnitPrice { get; private set; }
-    // BuildingValue: IsMaster only — from PricingFinalValue.BuildingValue, cost approach only.
-    public decimal? BuildingValue { get; private set; }
-    // AppraisalValue: IsMaster only — from PricingFinalValue.AppraisalPrice (fallbacks: FinalValueAdjusted, FinalValueRounded).
-    public decimal? AppraisalValue { get; private set; }
-
-    // Appraisal summary (owned)
-    public AppraisalSummary AppraisalSummary { get; private set; } = null!;
 
     // Synced from CollateralMaster for filtered unique index support
     public bool IsDeleted { get; private set; }
@@ -54,11 +40,11 @@ public class LandDetail
 
     internal LandDetail(
         Guid collateralMasterId,
-        string landOfficeCode,
+        string? landOfficeCode,
         string province,
         string district,
         string subDistrict,
-        string titleType,
+        string? titleType,
         string titleNumber,
         string? surveyNumber,
         string? landParcelNumber,
@@ -81,8 +67,6 @@ public class LandDetail
         Rawang = rawang;
         Address = new Address(street, village);
         Coordinates = new Coordinates(latitude, longitude);
-        AppraisalSummary = new AppraisalSummary(null, null, null);
-        IsUnderConstructionAtLastAppraisal = false;
         IsDeleted = isDeleted;
     }
 
@@ -106,30 +90,6 @@ public class LandDetail
         LandArea = landArea;
         Address.Update(street, village);
         Coordinates.Update(latitude, longitude);
-    }
-
-    public void UpdateAppraisalSummary(
-        Guid appraisalId,
-        string appraisalNumber,
-        DateTime appraisedDate,
-        bool isUnderConstruction,
-        decimal? overallConstructionProgressPercent)
-    {
-        AppraisalSummary.Update(appraisalId, appraisalNumber, appraisedDate);
-        IsUnderConstructionAtLastAppraisal = isUnderConstruction;
-        OverallConstructionProgressPercent = overallConstructionProgressPercent;
-    }
-
-    /// <summary>
-    /// Updates the three-value model fields.
-    /// <paramref name="unitPrice"/> is set on every land master (IsMaster + aliases).
-    /// <paramref name="buildingCost"/> (stored as BuildingValue) and <paramref name="appraisalValue"/> are IsMaster only (pass null for aliases).
-    /// </summary>
-    public void UpdateValues(decimal? unitPrice, decimal? buildingCost, decimal? appraisalValue)
-    {
-        UnitPrice = unitPrice;
-        BuildingValue = buildingCost;
-        AppraisalValue = appraisalValue;
     }
 
     internal void SetIsDeleted(bool isDeleted) => IsDeleted = isDeleted;

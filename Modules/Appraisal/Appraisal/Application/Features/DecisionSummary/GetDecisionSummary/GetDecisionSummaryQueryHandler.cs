@@ -9,7 +9,8 @@ namespace Appraisal.Application.Features.DecisionSummary.GetDecisionSummary;
 public class GetDecisionSummaryQueryHandler(
     ISqlConnectionFactory connectionFactory,
     IAppraisalDecisionRepository decisionRepository,
-    ForceSaleRateResolver forceSaleRateResolver
+    ForceSaleRateResolver forceSaleRateResolver,
+    IConstructionCurrentValueService currentValueService
 ) : IQueryHandler<GetDecisionSummaryQuery, GetDecisionSummaryResult>
 {
     public async Task<GetDecisionSummaryResult> Handle(
@@ -242,7 +243,7 @@ public class GetDecisionSummaryQueryHandler(
 
         var flatRows = (await connectionFactory.QueryAsync<FlatApproachRow>(approachSql, param)).ToList();
         var buildingInsurance = await BuildingInsuranceCalculator.ComputeAsync(connectionFactory, appraisalId);
-        var constructionSummary = await BuildConstructionSummaryAsync(connectionFactory, appraisalId);
+        var constructionSummary = await BuildConstructionSummaryAsync(appraisalId, cancellationToken);
         var docPresence = await GetConstructionDocPresenceAsync(appraisalId);
 
         // Group flat rows into nested approach matrix
@@ -509,64 +510,19 @@ public class GetDecisionSummaryQueryHandler(
         public static ConstructionDocPresence Empty { get; } = new(false, false, false);
     }
 
-    private static async Task<ConstructionSummaryData?> BuildConstructionSummaryAsync(
-        ISqlConnectionFactory connectionFactory,
-        Guid appraisalId)
+    private async Task<ConstructionSummaryData?> BuildConstructionSummaryAsync(
+        Guid appraisalId,
+        CancellationToken cancellationToken)
     {
         var p = new DynamicParameters();
         p.Add("AppraisalId", appraisalId);
 
-        const string landValueSql = """
-            SELECT ISNULL(SUM(pfv.LandValue), 0)
-            FROM appraisal.PricingFinalValues pfv
-            JOIN appraisal.PricingAnalysisMethods pam ON pam.Id = pfv.PricingMethodId
-            JOIN appraisal.PricingAnalysisApproaches paa ON paa.Id = pam.ApproachId
-            JOIN appraisal.PricingAnalysis pa ON pa.Id = paa.PricingAnalysisId AND pa.SubjectType = 0
-            JOIN appraisal.PropertyGroups pg ON pg.Id = pa.AnchorId
-            WHERE pg.AppraisalId = @AppraisalId
-            """;
-
-        const string nonCiBuildingValueSql = """
-            SELECT ISNULL(SUM(bdd.PriceAfterDepreciation), 0)
-            FROM appraisal.BuildingDepreciationDetails bdd
-            JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
-            JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
-            WHERE ap.AppraisalId = @AppraisalId
-              AND NOT EXISTS (
-                  SELECT 1 FROM appraisal.ConstructionInspections ci
-                  WHERE ci.AppraisalPropertyId = ap.Id
-              )
-            """;
-
-        const string ciAggregateSql = """
-            SELECT
-                ISNULL(SUM(ci.TotalValue), 0) AS CITotalValue,
-                ISNULL(SUM(
-                    CASE WHEN ci.IsFullDetail = 0
-                         THEN ISNULL(ci.SummaryPreviousValue, 0)
-                         ELSE ISNULL(wd_agg.PreviousPropertyValueSum, 0)
-                    END
-                ), 0) AS CIPreviousValue,
-                ISNULL(SUM(
-                    CASE WHEN ci.IsFullDetail = 0
-                         THEN ISNULL(ci.SummaryCurrentValue, 0)
-                         ELSE ISNULL(wd_agg.CurrentPropertyValueSum, 0)
-                    END
-                ), 0) AS CICurrentValue
-            FROM appraisal.ConstructionInspections ci
-            JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
-            LEFT JOIN (
-                SELECT ConstructionInspectionId,
-                       SUM(PreviousPropertyValue) AS PreviousPropertyValueSum,
-                       SUM(CurrentPropertyValue)  AS CurrentPropertyValueSum
-                FROM appraisal.ConstructionWorkDetails
-                GROUP BY ConstructionInspectionId
-            ) wd_agg ON wd_agg.ConstructionInspectionId = ci.Id
-            WHERE ap.AppraisalId = @AppraisalId
-            """;
-
-        // รายละเอียดรายอาคาร — same IsFullDetail CASE as ciAggregateSql above, but per property
-        // instead of aggregated. ConstructionInspection is 1:1 with AppraisalProperty.
+        // รายละเอียดรายอาคาร — must use the SAME summary-mode derivation as
+        // IConstructionCurrentValueService, or these rows will not add up to the card above them.
+        // Summary mode multiplies TotalValue by the stored percent instead of reading
+        // SummaryPreviousValue / SummaryCurrentValue: the CI screen computes those two figures for
+        // display but never writes them back into the form, so the persisted columns hold the default
+        // 0. The percent is bound to a real input and does persist.
         const string ciDetailSql = """
             SELECT
                 ap.Id                             AS AppraisalPropertyId,
@@ -576,11 +532,11 @@ public class GetDecisionSummaryQueryHandler(
                          NULLIF(LTRIM(RTRIM(bad.PropertyName)), '')) AS ModelName,
                 ci.TotalValue                     AS TotalValue,
                 CASE WHEN ci.IsFullDetail = 0
-                     THEN ISNULL(ci.SummaryPreviousValue, 0)
+                     THEN ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0) / 100.0
                      ELSE ISNULL(wd_agg.PreviousPropertyValueSum, 0)
                 END AS PreviousValue,
                 CASE WHEN ci.IsFullDetail = 0
-                     THEN ISNULL(ci.SummaryCurrentValue, 0)
+                     THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
                      ELSE ISNULL(wd_agg.CurrentPropertyValueSum, 0)
                 END AS CurrentValue
             FROM appraisal.ConstructionInspections ci
@@ -631,20 +587,22 @@ public class GetDecisionSummaryQueryHandler(
             ORDER BY ap.SequenceNumber
             """;
 
-        var landValue = await connectionFactory.QueryFirstOrDefaultAsync<decimal>(landValueSql, p);
-        var nonCiBuilding = await connectionFactory.QueryFirstOrDefaultAsync<decimal>(nonCiBuildingValueSql, p);
-        var ci = await connectionFactory.QueryFirstOrDefaultAsync<CiAggregateRow>(ciAggregateSql, p);
-
-        if (ci is null || ci.CITotalValue == 0m)
+        // Land / completed-building / part-built values all come from the shared service, so this card
+        // and the outbound regulatory file are computed by the same code. Returns null when the
+        // appraisal has no construction inspection at all.
+        var values = await currentValueService.GetAsync(appraisalId, cancellationToken);
+        if (values is null)
             return null;
+
+        var landValue = values.LandValue;
+        var nonCiBuilding = values.CompletedBuildingValue;
+        var ciTotal = values.InspectedTotalValue;
+        var ciPrev = values.InspectedPreviousValue;
+        var ciCurrent = values.InspectedCurrentValue;
 
         var village = await connectionFactory.QueryFirstOrDefaultAsync<string?>(villageSql, p);
         var detailRows = await connectionFactory.QueryAsync<CiDetailRow>(ciDetailSql, p);
         var completedRows = await connectionFactory.QueryAsync<CompletedBuildingRow>(completedBuildingSql, p);
-
-        var ciTotal = ci.CITotalValue;
-        var ciPrev = ci.CIPreviousValue;
-        var ciCurrent = ci.CICurrentValue;
 
         var prevPct = ciTotal > 0 ? ciPrev / ciTotal * 100m : 0m;
         var currentPct = ciTotal > 0 ? ciCurrent / ciTotal * 100m : 0m;
@@ -747,12 +705,6 @@ public class GetDecisionSummaryQueryHandler(
         public decimal? GovernmentPricePerSqm { get; init; }
         public decimal? GovernmentPrice { get; init; }
     }
-
-    private record CiAggregateRow(
-        decimal CITotalValue,
-        decimal CIPreviousValue,
-        decimal CICurrentValue
-    );
 
     private record ValuationReviewRow(
         decimal? TotalAppraisalPriceReview,

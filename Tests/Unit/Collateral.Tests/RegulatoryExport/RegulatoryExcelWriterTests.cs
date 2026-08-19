@@ -21,6 +21,8 @@ public class RegulatoryExcelWriterTests
         ConstructionProgressPercent: 100m, // view-computed final value (completed LB → 100)
         LatestAppraisalValue: 2_000_000.00m,
         EarliestAppraisalValue: 1_000_000.00m,
+        // Not under construction → no part-built value, so field #7 falls back to LatestAppraisalValue.
+        CurrentValue: null,
         SellingPrice: 3_000_000.00m,
         NumberOfFloors: 5,
         BuildingAge: 12,
@@ -110,5 +112,43 @@ public class RegulatoryExcelWriterTests
         Assert.True(ws.Cell(3, 20).IsEmpty());                            // Area Utilization — blank
         Assert.Equal("", ws.Cell(3, 21).GetString());                     // Building Type ID — blank
         Assert.Equal("", ws.Cell(3, 22).GetString());                     // Building Name — blank
+    }
+
+    // ── Under Construction text mirrors the fixed-width writer's Y/N/L/blank ──
+    // Same cases as RegulatoryFileWriterTests.Field5_* so the two writers cannot drift: every
+    // real-estate type is in-group (condo and legacy UNK included), machinery is not.
+
+    [Theory]
+    [InlineData(CollateralTypes.Condo, "Completed (N)")]
+    [InlineData(CollateralTypes.LeaseholdCondo, "Completed (N)")]
+    [InlineData(CollateralTypes.Unidentified, "Completed (N)")]
+    [InlineData(CollateralTypes.LandWithBuilding, "Completed (N)")]
+    [InlineData(CollateralTypes.Land, "Vacant land (L)")]
+    [InlineData(CollateralTypes.Machine, "")]
+    [InlineData(CollateralTypes.Project, "")]
+    public void UnderConstructionText_MatchesFixedWidthGating(string collateralType, string expected)
+    {
+        var ws = BuildAndOpen(SampleRow() with
+        {
+            CollateralType = collateralType,
+            IsUnderConstruction = false,
+        });
+
+        Assert.Equal(expected, ws.Cell(3, 5).GetString());
+    }
+
+    [Theory]
+    [InlineData(CollateralTypes.Condo)]
+    [InlineData(CollateralTypes.Unidentified)]
+    [InlineData(CollateralTypes.LandWithBuilding)]
+    public void UnderConstructionText_IsUnderConstruction_WhenPartBuilt(string collateralType)
+    {
+        var ws = BuildAndOpen(SampleRow() with
+        {
+            CollateralType = collateralType,
+            IsUnderConstruction = true,
+        });
+
+        Assert.Equal("Under construction (Y)", ws.Cell(3, 5).GetString());
     }
 }

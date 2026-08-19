@@ -23,6 +23,11 @@ public sealed record RegulatoryExportRow(
     decimal? ConstructionProgressPercent,
     decimal? LatestAppraisalValue,
     decimal? EarliestAppraisalValue,
+    // Value with part-built buildings counted at their construction progress rather than at 100%,
+    // frozen on the chain tip's engagement by the Appraisal module's IConstructionCurrentValueService.
+    // NULL when that appraisal had no construction inspection — nothing was part-built, so the writer
+    // falls back to LatestAppraisalValue.
+    decimal? CurrentValue,
     decimal? SellingPrice,
     int? NumberOfFloors,
     int? BuildingAge,
