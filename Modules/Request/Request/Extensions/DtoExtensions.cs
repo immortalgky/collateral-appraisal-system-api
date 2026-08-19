@@ -210,6 +210,7 @@ public static class DtoExtensions
                     TitleType = condo.TitleDeedInfo?.TitleType,
                     CondoName = condo.CondoInfo?.CondoName,
                     BuildingNumber = condo.CondoInfo?.BuildingNumber,
+                    CondoRegistrationNumber = condo.CondoInfo?.CondoRegistrationNumber,
                     RoomNumber = condo.CondoInfo?.RoomNumber,
                     FloorNumber = condo.CondoInfo?.FloorNumber,
                     UsableArea = condo.CondoInfo?.UsableArea
@@ -263,6 +264,7 @@ public static class DtoExtensions
                     TitleType = leaseCondo.TitleDeedInfo?.TitleType,
                     CondoName = leaseCondo.CondoInfo?.CondoName,
                     BuildingNumber = leaseCondo.CondoInfo?.BuildingNumber,
+                    CondoRegistrationNumber = leaseCondo.CondoInfo?.CondoRegistrationNumber,
                     RoomNumber = leaseCondo.CondoInfo?.RoomNumber,
                     FloorNumber = leaseCondo.CondoInfo?.FloorNumber,
                     UsableArea = leaseCondo.CondoInfo?.UsableArea
@@ -452,7 +454,7 @@ public static class DtoExtensions
 
     public static CondoInfo ToDomain(this CondoInfoDto dto)
     {
-        return CondoInfo.Create(dto.CondoName, dto.BuildingNo, dto.RoomNo, dto.FloorNo, dto.UsableArea);
+        return CondoInfo.Create(dto.CondoName, dto.BuildingNo, dto.CondoRegistrationNo,dto.RoomNo, dto.FloorNo, dto.UsableArea);
     }
 
     public static RequestTitleData ToRequestTitleData(this RequestTitleDto dto)
@@ -473,7 +475,7 @@ public static class DtoExtensions
             // Building-related fields
             BuildingInfo = BuildingInfo.Create(dto.BuildingType, dto.UsableArea, dto.NumberOfBuilding),
             // Condo-related fields (UsableArea shared with Building in the same column)
-            CondoInfo = CondoInfo.Create(dto.CondoName, dto.BuildingNumber, dto.RoomNumber, dto.FloorNumber,
+            CondoInfo = CondoInfo.Create(dto.CondoName, dto.BuildingNumber, dto.CondoRegistrationNumber,dto.RoomNumber, dto.FloorNumber,
                 dto.UsableArea),
             // Vehicle/Vessel/Machine fields
             VehicleInfo = VehicleInfo.Create(dto.VehicleType, dto.VehicleLocation, dto.VIN,

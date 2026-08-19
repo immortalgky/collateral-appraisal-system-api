@@ -325,6 +325,10 @@ public class TitleCondoConfiguration : IEntityTypeConfiguration<TitleCondo>
                 .HasMaxLength(100)
                 .HasColumnName("BuildingNumber");
 
+            condoInfo.Property(p => p.CondoRegistrationNumber)
+                .HasMaxLength(100)
+                .HasColumnName("CondoRegistrationNumber");
+
             condoInfo.Property(p => p.RoomNumber)
                 .HasMaxLength(30)
                 .HasColumnName("RoomNumber");
@@ -544,6 +548,10 @@ public class TitleLeaseAgreementCondoConfiguration : IEntityTypeConfiguration<Ti
             condoInfo.Property(p => p.BuildingNumber)
                 .HasMaxLength(100)
                 .HasColumnName("BuildingNumber");
+            
+            condoInfo.Property(p => p.CondoRegistrationNumber)
+                .HasMaxLength(100)
+                .HasColumnName("CondoRegistrationNumber");
 
             condoInfo.Property(p => p.RoomNumber)
                 .HasMaxLength(30)
