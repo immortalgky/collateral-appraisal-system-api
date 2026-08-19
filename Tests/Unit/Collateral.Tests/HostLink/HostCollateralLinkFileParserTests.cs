@@ -1,0 +1,266 @@
+using System.Text;
+using Integration.Contracts.HostLink;
+using Integration.FileInterface.Format.HostLink;
+
+namespace Collateral.Tests.HostLink;
+
+/// <summary>
+/// Pins <see cref="HostCollateralLinkFileParser"/> to the 39-char AS400 COLLATLINK layout:
+///
+///   pos  1     RecordType             'H' | 'D' | 'T'
+///   pos  2–11  AppraisalReportNumber  string(10)   (AS400 CCSURV = our AppraisalNumber)
+///   pos 12–30  HostCollateralId       dec(19)      (AS400 CCDCID)
+///   pos 31–38  RecordDate             DDMMYYYY
+///   pos 39     RecordIndicator        'D' (drawdown) | 'R' (redeemed)
+///
+/// The error cases matter as much as the happy path: the job maps FormatException to
+/// "quarantine this file" and every other exception to "leave it for retry", so anything
+/// that is permanently bad data MUST surface as FormatException rather than leaking a
+/// different exception type and being retried forever.
+/// </summary>
+public class HostCollateralLinkFileParserTests
+{
+    private const int RecordLength = 39;
+
+    private static string Header(string ddmmyyyy = "01082026")
+        => ("H" + ddmmyyyy).PadRight(RecordLength);
+
+    private static string Detail(
+        string appraisalNumber = "69000001",
+        string hostCollateralId = "12345",
+        string ddmmyyyy = "07082026",
+        string indicator = "D")
+    {
+        var line = "D"
+                   + appraisalNumber.PadRight(10)
+                   + hostCollateralId.PadLeft(19, '0')
+                   + ddmmyyyy
+                   + indicator;
+        Assert.Equal(RecordLength, line.Length);
+        return line;
+    }
+
+    private static string Trailer(int count)
+        => ("T" + count.ToString("D9")).PadRight(RecordLength);
+
+    private static ParsedHostLinkFile Parse(params string[] lines)
+    {
+        var content = string.Join("\r\n", lines);
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
+        return new HostCollateralLinkFileParser().ParseStream(stream);
+    }
+
+    // ── Happy path ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ParseStream_ValidFile_ReadsHeaderDateAndAllFields()
+    {
+        var parsed = Parse(
+            Header("01082026"),
+            Detail(appraisalNumber: "69000001", hostCollateralId: "12345",
+                   ddmmyyyy: "07082026", indicator: "D"),
+            Trailer(1));
+
+        Assert.Equal(new DateOnly(2026, 8, 1), parsed.EffectiveDate);
+
+        var record = Assert.Single(parsed.Records);
+        Assert.Equal("69000001", record.AppraisalReportNumber);
+        Assert.Equal("12345", record.HostCollateralId);
+        Assert.Equal(new DateOnly(2026, 8, 7), record.RecordDate);
+        Assert.Equal(HostLinkRecordIndicators.Drawdown, record.RecordIndicator);
+        Assert.Equal(64, record.RowHash.Length); // SHA-256 hex
+    }
+
+    [Fact]
+    public void ParseStream_StripsLeadingZerosFromHostCollateralId()
+    {
+        // AS400 zero-fills dec(19). The outbound writer re-pads with RightZeroFill, so stripping
+        // here round-trips and keeps the stored value human-readable.
+        var parsed = Parse(Header(), Detail(hostCollateralId: "42"), Trailer(1));
+
+        Assert.Equal("42", Assert.Single(parsed.Records).HostCollateralId);
+    }
+
+    [Fact]
+    public void ParseStream_FullWidthHostCollateralId_IsPreserved()
+    {
+        var nineteenDigits = "1234567890123456789";
+        var parsed = Parse(Header(), Detail(hostCollateralId: nineteenDigits), Trailer(1));
+
+        Assert.Equal(nineteenDigits, Assert.Single(parsed.Records).HostCollateralId);
+    }
+
+    [Fact]
+    public void ParseStream_RedeemedIndicator_IsParsed()
+    {
+        var parsed = Parse(Header(), Detail(indicator: "R"), Trailer(1));
+
+        var record = Assert.Single(parsed.Records);
+        Assert.Equal(HostLinkRecordIndicators.Redeemed, record.RecordIndicator);
+    }
+
+    [Fact]
+    public void ParseStream_ZeroRecordDate_YieldsNull()
+    {
+        var parsed = Parse(Header(), Detail(ddmmyyyy: "00000000"), Trailer(1));
+
+        Assert.Null(Assert.Single(parsed.Records).RecordDate);
+    }
+
+    [Fact]
+    public void ParseStream_MultipleDetails_AreAllReturnedInOrder()
+    {
+        var parsed = Parse(
+            Header(),
+            Detail(appraisalNumber: "69000001", hostCollateralId: "111"),
+            Detail(appraisalNumber: "69000002", hostCollateralId: "222"),
+            Detail(appraisalNumber: "69000003", hostCollateralId: "333"),
+            Trailer(3));
+
+        Assert.Equal(3, parsed.Records.Count);
+        Assert.Equal(["69000001", "69000002", "69000003"],
+            parsed.Records.Select(r => r.AppraisalReportNumber));
+        Assert.Equal(["111", "222", "333"],
+            parsed.Records.Select(r => r.HostCollateralId));
+    }
+
+    [Fact]
+    public void ParseStream_IdenticalLines_ProduceIdenticalRowHash_DifferentLinesDoNot()
+    {
+        // RowHash is what lets re-ingest skip unchanged rows, so it must be stable per line
+        // and sensitive to any change.
+        var a = Parse(Header(), Detail(hostCollateralId: "111"), Trailer(1)).Records[0];
+        var again = Parse(Header(), Detail(hostCollateralId: "111"), Trailer(1)).Records[0];
+        var different = Parse(Header(), Detail(hostCollateralId: "222"), Trailer(1)).Records[0];
+
+        Assert.Equal(a.RowHash, again.RowHash);
+        Assert.NotEqual(a.RowHash, different.RowHash);
+    }
+
+    // ── Permanently-bad data must be FormatException (⇒ quarantine, not retry) ─
+
+    [Fact]
+    public void ParseStream_DetailShorterThanRecordLength_Throws()
+    {
+        var ex = Assert.Throws<FormatException>(() =>
+            Parse(Header(), "D69000001", Trailer(1)));
+
+        Assert.Contains("expected 39", ex.Message);
+    }
+
+    [Fact]
+    public void ParseStream_TrailerCountMismatch_Throws()
+    {
+        var ex = Assert.Throws<FormatException>(() =>
+            Parse(Header(), Detail(), Trailer(5)));
+
+        Assert.Contains("Trailer count mismatch", ex.Message);
+    }
+
+    [Fact]
+    public void ParseStream_MissingTrailer_Throws()
+    {
+        var ex = Assert.Throws<FormatException>(() =>
+            Parse(Header(), Detail()));
+
+        Assert.Contains("no Trailer", ex.Message);
+    }
+
+    [Fact]
+    public void ParseStream_NonNumericTrailerCount_Throws()
+    {
+        var badTrailer = ("T" + "ABCDEFGHI").PadRight(RecordLength);
+
+        Assert.Throws<FormatException>(() => Parse(Header(), Detail(), badTrailer));
+    }
+
+    [Theory]
+    [InlineData("X")]
+    [InlineData(" ")]
+    [InlineData("1")]
+    public void ParseStream_UnrecognisedIndicator_Throws(string indicator)
+    {
+        var ex = Assert.Throws<FormatException>(() =>
+            Parse(Header(), Detail(indicator: indicator), Trailer(1)));
+
+        Assert.Contains("RecordIndicator", ex.Message);
+    }
+
+    [Fact]
+    public void ParseStream_BlankAppraisalNumber_Throws()
+    {
+        var ex = Assert.Throws<FormatException>(() =>
+            Parse(Header(), Detail(appraisalNumber: "          "), Trailer(1)));
+
+        Assert.Contains("AppraisalReportNumber", ex.Message);
+    }
+
+    [Fact]
+    public void ParseStream_ZeroHostCollateralId_IsSkippedWithoutDiscardingTheFile()
+    {
+        // All-zeros means AS400 sent no id — a link row with no id is meaningless, and silently
+        // storing "" would make the export emit a blank CCDCID against a real appraisal. So the row
+        // must not be linked. It must NOT, however, cost us the rest of the file: a single zero row
+        // used to throw, and the job quarantines the whole nightly feed on FormatException.
+        var file = Parse(
+            Header(),
+            Detail(appraisalNumber: "69000001", hostCollateralId: "0"),
+            Detail(appraisalNumber: "69000002", hostCollateralId: "12345"),
+            Trailer(2));
+
+        var record = Assert.Single(file.Records);
+        Assert.Equal("69000002", record.AppraisalReportNumber);
+        Assert.Equal("12345", record.HostCollateralId);
+    }
+
+    [Fact]
+    public void ParseStream_BlankHostCollateralId_Throws()
+    {
+        // An all-spaces field is malformed rather than "no id" (AS400 sends a zero-filled dec(19)),
+        // so it still fails the file. Built by hand: the Detail helper zero-pads, which would turn
+        // spaces into a zero id and exercise the skip path instead.
+        var blankIdLine = "D" + "69000001".PadRight(10) + new string(' ', 19) + "07082026" + "D";
+
+        var ex = Assert.Throws<FormatException>(() =>
+            Parse(Header(), blankIdLine, Trailer(1)));
+
+        Assert.Contains("HostCollateralId", ex.Message);
+    }
+
+    [Fact]
+    public void ParseStream_OutOfRangeHeaderDate_ThrowsFormatNotArgumentOutOfRange()
+    {
+        // dd=32 is syntactically fine but not a real date; it must not leak
+        // ArgumentOutOfRangeException, which the job would treat as transient and retry forever.
+        Assert.Throws<FormatException>(() =>
+            Parse(Header("32012026"), Detail(), Trailer(1)));
+    }
+
+    [Fact]
+    public void ParseStream_IndicatorIsCaseInsensitive()
+    {
+        var parsed = Parse(Header(), Detail(indicator: "r"), Trailer(1));
+
+        Assert.Equal(HostLinkRecordIndicators.Redeemed, Assert.Single(parsed.Records).RecordIndicator);
+    }
+
+    // ── Filename date ─────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("AS400_COLLATLINK_20260807.txt", 2026, 8, 7)]
+    [InlineData("AS400_COLLATLINK_20251231.txt", 2025, 12, 31)]
+    public void ParseFilenameDate_ValidName_ReturnsDate(string fileName, int y, int m, int d)
+    {
+        Assert.Equal(new DateOnly(y, m, d), HostCollateralLinkFileParser.ParseFilenameDate(fileName));
+    }
+
+    [Theory]
+    [InlineData("AS400_COLLATLINK.txt")]          // no date part
+    [InlineData("AS400_COLLATLINK_2026087.txt")]  // wrong length
+    [InlineData("AS400_COLLATLINK_20261307.txt")] // month 13
+    [InlineData("nonsense.txt")]
+    public void ParseFilenameDate_InvalidName_ReturnsNull(string fileName)
+    {
+        Assert.Null(HostCollateralLinkFileParser.ParseFilenameDate(fileName));
+    }
+}

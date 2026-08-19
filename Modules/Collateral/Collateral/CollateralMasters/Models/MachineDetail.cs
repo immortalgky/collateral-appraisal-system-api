@@ -13,8 +13,6 @@ public class MachineDetail
     public string? Model { get; private set; }
     public string? Manufacturer { get; private set; }
 
-    // Appraisal summary (owned)
-    public AppraisalSummary AppraisalSummary { get; private set; } = null!;
 
     /// <summary>
     /// Useful-life years from the latest appraisal's machinery cost item (MachineCostItem.LifeSpanYears).
@@ -22,11 +20,6 @@ public class MachineDetail
     /// </summary>
     public decimal? LifeYear { get; private set; }
 
-    /// <summary>
-    /// Appraisal-level total from the latest appraisal (ValuationAnalyses.AppraisedValue). Represents the
-    /// whole collateral; written on the IsMaster row only (aliases stay NULL), mirroring Land/Condo.
-    /// </summary>
-    public decimal? AppraisalValue { get; private set; }
 
     // Synced from CollateralMaster for filtered unique index support
     public bool IsDeleted { get; private set; }
@@ -48,16 +41,7 @@ public class MachineDetail
         Brand = brand;
         Model = model;
         Manufacturer = manufacturer;
-        AppraisalSummary = new AppraisalSummary(null, null, null);
         IsDeleted = isDeleted;
-    }
-
-    public void UpdateAppraisalSummary(
-        Guid appraisalId,
-        string appraisalNumber,
-        DateTime appraisedDate)
-    {
-        AppraisalSummary.Update(appraisalId, appraisalNumber, appraisedDate);
     }
 
     public void PromoteToRegistration(string machineRegistrationNo)
@@ -67,7 +51,6 @@ public class MachineDetail
 
     internal void SetLifeYear(decimal? lifeYear) => LifeYear = lifeYear;
 
-    internal void SetAppraisalValue(decimal? appraisalValue) => AppraisalValue = appraisalValue;
 
     internal void SetIsDeleted(bool isDeleted) => IsDeleted = isDeleted;
 

@@ -2,7 +2,7 @@ CREATE
 OR ALTER
 VIEW collateral.vw_BlockMaintenanceList AS
 SELECT cm.Id                  AS CollateralMasterId,
-       pd.LastAppraisalNumber AS AppraisalReportNo,
+       le.AppraisalNumber     AS AppraisalReportNo,
        cm.CustomerName,
        pd.ProjectName,
        pd.ProjectType,
@@ -14,6 +14,15 @@ SELECT cm.Id                  AS CollateralMasterId,
        la.UpdatedBy
 FROM collateral.CollateralMasters cm
          INNER JOIN collateral.ProjectDetails pd ON pd.CollateralMasterId = cm.Id
+         OUTER APPLY (
+    -- The project's last appraisal number, from its engagements. ProjectDetails.LastAppraisal*
+    -- was removed: it was a latest-WRITE-wins cache that an out-of-order replay left stale, while
+    -- engagements are immutable per appraisal.
+    SELECT TOP 1 e.AppraisalNumber
+    FROM collateral.CollateralEngagements e
+    WHERE e.CollateralMasterId = cm.Id
+    ORDER BY e.AppraisalDate DESC, e.CreatedAt DESC, e.Id DESC
+    ) le
          OUTER APPLY (
     SELECT COUNT(pu.Id)                                          AS TotalUnits,
            ISNULL(SUM(CAST(pu.IsSold AS INT)), 0)                AS SoldUnits,

@@ -510,6 +510,7 @@ public class CollateralPhaseC_PR2Tests(IntegrationTestFixture fixture)
 
         var allMasters = await collateralDb.CollateralMasters
             .Include(m => m.LandDetail)
+            .Include(m => m.Engagements)
             .Where(m => m.LandDetail != null &&
                         (m.LandDetail.TitleNumber == $"3V-MASTER-{tag}" ||
                          m.LandDetail.TitleNumber == $"3V-ALIAS-{tag}"))
@@ -523,16 +524,15 @@ public class CollateralPhaseC_PR2Tests(IntegrationTestFixture fixture)
         // UnitPrice: null because no PricingAnalysis (and no cost-approach method) is seeded here.
         // PR-8 wires UnitPrice from PricingAnalysisMethod.ValuePerUnit when a cost approach exists.
         // Without seeded pricing data, PricingInfo is null → UnitPrice is null. Correct behaviour.
-        Assert.Null(isMasterRow.LandDetail!.UnitPrice);
-        Assert.Null(aliasRow.LandDetail!.UnitPrice);
+        // UnitPrice / BuildingValue / AppraisalValue were removed from the detail rows; the money
+        // lives on the IsMaster row's engagement, and aliases own no engagement at all.
 
         // BuildingValue + AppraisalValue on alias must always be null
-        Assert.Null(aliasRow.LandDetail.BuildingValue);
-        Assert.Null(aliasRow.LandDetail.AppraisalValue);
+        Assert.Empty(aliasRow.Engagements);
 
         // IsMaster: null when no PricingAnalysis seeded (no pricing info available)
-        Assert.Null(isMasterRow.LandDetail.BuildingValue);
-        Assert.Null(isMasterRow.LandDetail.AppraisalValue);
+        Assert.Null(isMasterRow.Engagements[0].BuildingValue);
+        Assert.Null(isMasterRow.Engagements[0].AppraisalValue);
     }
 
     // -----------------------------------------------------------------------

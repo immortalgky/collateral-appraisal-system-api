@@ -11,7 +11,9 @@ public class LeaseholdDetailConfiguration : IEntityTypeConfiguration<LeaseholdDe
         builder.HasKey(d => d.CollateralMasterId);
 
         // Dedup key columns
-        builder.Property(d => d.LeaseRegistrationNo).IsRequired().HasMaxLength(50);
+        // ← appraisal.LeaseAgreementDetails.ContractNo nvarchar(100) — renamed on the way over, so a
+        // same-name schema comparison never spots the width gap.
+        builder.Property(d => d.LeaseRegistrationNo).IsRequired().HasMaxLength(100);
         builder.Property(d => d.UnderlyingMasterId).IsRequired();
         builder.Property(d => d.Lessor).IsRequired().HasMaxLength(200);
         builder.Property(d => d.Lessee).IsRequired().HasMaxLength(200);
@@ -21,15 +23,8 @@ public class LeaseholdDetailConfiguration : IEntityTypeConfiguration<LeaseholdDe
         builder.Property(d => d.LeaseTermMonths);
 
         // Appraisal-level total from the latest appraisal (IsMaster-only). Mirrors Land/Condo detail.
-        builder.Property(d => d.AppraisalValue).HasPrecision(18, 2);
 
         // AppraisalSummary (owned — flat columns)
-        builder.OwnsOne(d => d.AppraisalSummary, s =>
-        {
-            s.Property(x => x.LastAppraisalId).HasColumnName("LastAppraisalId");
-            s.Property(x => x.LastAppraisalNumber).HasColumnName("LastAppraisalNumber").HasMaxLength(50);
-            s.Property(x => x.LastAppraisedDate).HasColumnName("LastAppraisedDate");
-        });
 
         builder.Property(d => d.IsDeleted).IsRequired().HasDefaultValue(false);
 

@@ -12,7 +12,9 @@ namespace Collateral.CollateralMasters.Services;
 // Job status tracked in-memory per run
 // ---------------------------------------------------------------------------
 
-public enum BackfillJobState { Started, InProgress, Completed }
+// Failed is distinct from Completed on purpose: a run that threw must not read as successful to
+// anyone polling the status endpoint.
+public enum BackfillJobState { Started, InProgress, Completed, Failed }
 
 public record BackfillJobStatus(
     Guid JobId,

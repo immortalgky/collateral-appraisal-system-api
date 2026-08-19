@@ -32,9 +32,10 @@ public class EditCollateralMasterCommandHandler(
             var targetParcel = d.LandParcelNumber ?? ld.LandParcelNumber;
             var targetRawang = d.Rawang ?? ld.Rawang;
 
+            // Only the four dedup columns are checked; TitleType / SurveyNumber / LandParcelNumber /
+            // Rawang are still editable, they just no longer take part in identity.
             bool collides = await repository.LandDedupCollidesAsync(
-                master.Id, targetProv, targetDistrict, targetSubDistrict,
-                targetType, targetNo, targetSurvey, targetParcel, targetRawang, cancellationToken);
+                master.Id, targetProv, targetDistrict, targetSubDistrict, targetNo, cancellationToken);
 
             if (collides)
                 throw new ConflictException(

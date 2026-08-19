@@ -10,18 +10,29 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
     // UX_LandDetails_DedupKey_Active (LandDetailConfiguration) and the in-memory BuildTitleKey
     // (CollateralMasterUpsertService). LandOfficeCode is NOT part of the key. Nullable
     // survey/parcel/rawang use EF null-semantics: a null param matches NULL rows (IS NULL).
+    /// <summary>
+    /// The land dedup key: administrative location plus title number.
+    ///
+    /// Narrowed from eight columns to four on 2026-08-09 at the business owner's instruction.
+    /// TitleType, SurveyNumber, LandParcelNumber and Rawang are no longer part of it — they were
+    /// splitting one physical parcel across several masters whenever an appraiser recorded them
+    /// differently (Rawang in particular is blank on ~99.8% of title rows, so filling it in on a later
+    /// appraisal minted a second master for land that already had one).
+    ///
+    /// Consequence to be aware of: Thai title numbering runs per document type, so a โฉนด and a นส.3ก
+    /// bearing the same number in the same sub-district now resolve to ONE master. That trade-off was
+    /// raised and accepted.
+    ///
+    /// Mirrored in memory by <c>CollateralMasterUpsertService.BuildTitleKey</c> and in the database by
+    /// <c>UX_LandDetails_DedupKey_Active</c> — all three must change together.
+    /// </summary>
     private static Expression<Func<CollateralMaster, bool>> LandKeyMatches(
-        string province, string district, string subDistrict,
-        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber, string? rawang)
+        string province, string district, string subDistrict, string titleNumber)
         => m =>
             m.LandDetail!.Province == province &&
             m.LandDetail.District == district &&
             m.LandDetail.SubDistrict == subDistrict &&
-            m.LandDetail.TitleType == titleType &&
-            m.LandDetail.TitleNumber == titleNumber &&
-            m.LandDetail.SurveyNumber == surveyNumber &&
-            m.LandDetail.LandParcelNumber == landParcelNumber &&
-            m.LandDetail.Rawang == rawang;
+            m.LandDetail.TitleNumber == titleNumber;
 
     // Single source of truth for the Condo dedup-key predicate. MUST stay in sync with
     // UX_CondoDetails_DedupKey_Active (CondoDetailConfiguration). LandOfficeCode is NOT part of
@@ -63,8 +74,7 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
             .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
 
     public async Task<CollateralMaster?> FindLandByDedupKey(
-        string province, string district, string subDistrict,
-        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber, string? rawang,
+        string province, string district, string subDistrict, string titleNumber,
         CancellationToken ct = default)
     {
         // Dedup matches both L (bare land) and LB (land+building) — same physical title.
@@ -73,13 +83,12 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
             .Where(m => !m.IsDeleted && landTypes.Contains(m.CollateralType) && m.IsMaster)
-            .Where(LandKeyMatches(province, district, subDistrict, titleType, titleNumber, surveyNumber, landParcelNumber, rawang))
+            .Where(LandKeyMatches(province, district, subDistrict, titleNumber))
             .FirstOrDefaultAsync(ct);
     }
 
     public async Task<CollateralMaster?> FindLandByDedupKeyIncludingAliases(
-        string province, string district, string subDistrict,
-        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber, string? rawang,
+        string province, string district, string subDistrict, string titleNumber,
         CancellationToken ct = default)
     {
         // Same as FindLandByDedupKey but includes alias rows (IsMaster=false).
@@ -88,7 +97,7 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
             .Include(m => m.LandDetail)
             .Include(m => m.Engagements)
             .Where(m => !m.IsDeleted && landTypes.Contains(m.CollateralType))
-            .Where(LandKeyMatches(province, district, subDistrict, titleType, titleNumber, surveyNumber, landParcelNumber, rawang))
+            .Where(LandKeyMatches(province, district, subDistrict, titleNumber))
             .FirstOrDefaultAsync(ct);
     }
 
@@ -98,11 +107,77 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
             .Include(m => m.Engagements)
             .FirstOrDefaultAsync(m => m.Id == id && !m.IsDeleted, ct);
 
+    /// <summary>
+    /// Finds the master an appraisal is bound to, via that appraisal's engagement
+    /// (<c>CollateralEngagements</c> is UNIQUE on <c>AppraisalId</c>, so at most one row).
+    ///
+    /// Used as the <i>fallback</i> when a collateral's dedup key finds nothing — see
+    /// <c>CollateralMasterUpsertService.FindMasterViaPreviousAppraisalAsync</c>.
+    /// </summary>
+    public async Task<CollateralMaster?> FindMasterByAppraisalIdAsync(Guid appraisalId, CancellationToken ct = default)
+    {
+        var masterId = await dbContext.CollateralEngagements
+            .AsNoTracking()
+            .Where(e => e.AppraisalId == appraisalId)
+            .Select(e => (Guid?)e.CollateralMasterId)
+            .FirstOrDefaultAsync(ct);
+
+        if (masterId is null)
+            return null;
+
+        // Must Include EVERY type detail, not just LandDetail as FindByIdWithEngagementsAsync does:
+        // the callers include the condo / machine / leasehold paths, and UpsertFrom*Appraisal throws
+        // immediately when its type navigation is null (lazy loading is not enabled).
+        return await dbContext.CollateralMasters
+            .Include(m => m.LandDetail)
+            .Include(m => m.CondoDetail)
+            .Include(m => m.MachineDetail)
+            .Include(m => m.LeaseholdDetail)
+            .Include(m => m.ProjectDetail)
+            .Include(m => m.Engagements)
+            .FirstOrDefaultAsync(m => m.Id == masterId.Value && !m.IsDeleted, ct);
+    }
+
     public async Task<List<CollateralMaster>> FindAliasesByParentMasterIdAsync(Guid masterId, CancellationToken ct = default)
         => await dbContext.CollateralMasters
             .Include(m => m.LandDetail)
             .Where(m => m.ParentMasterId == masterId && !m.IsDeleted)
             .ToListAsync(ct);
+
+    // No IsDeleted filter and every detail Included — soft-delete/restore must reach rows that are
+    // already in the target state (idempotency) and must flip each alias's own detail row, which is
+    // what releases that alias from its dedup-key filtered index.
+    public async Task<List<CollateralMaster>> FindAllAliasesByParentMasterIdAsync(Guid masterId, CancellationToken ct = default)
+        => await dbContext.CollateralMasters
+            .Include(m => m.LandDetail)
+            .Include(m => m.CondoDetail)
+            .Include(m => m.LeaseholdDetail)
+            .Include(m => m.MachineDetail)
+            .Include(m => m.ProjectDetail)
+            .Where(m => m.ParentMasterId == masterId)
+            .ToListAsync(ct);
+
+    // Deliberately Include-free — see the interface. Tracked, because the caller mutates the rows.
+    public async Task<List<CollateralMaster>> FindAliasesByParentMasterIdsAsync(
+        IReadOnlyCollection<Guid> parentMasterIds, CancellationToken ct = default)
+    {
+        if (parentMasterIds.Count == 0) return [];
+
+        var result = new List<CollateralMaster>();
+
+        // Chunked for the same reason as HostCollateralLinkIngestor.LoadEngagementsAsync: a full
+        // AS400 dump would otherwise build an IN clause past SQL Server's parameter limit.
+        foreach (var chunk in parentMasterIds.Distinct().Chunk(1000))
+        {
+            var rows = await dbContext.CollateralMasters
+                .Where(m => m.ParentMasterId != null && chunk.Contains(m.ParentMasterId.Value))
+                .ToListAsync(ct);
+
+            result.AddRange(rows);
+        }
+
+        return result;
+    }
 
     public async Task<CollateralMaster?> FindCondoByDedupKey(
         string condoRegistrationNumber,
@@ -121,8 +196,8 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
         string lessor, string lessee, DateOnly leaseTermStart,
         CancellationToken ct = default)
     {
-        // Dedup matches LSL, LSB, LS — same physical leasehold registration.
-        var leaseholdTypes = new[] { CollateralTypes.Leasehold, CollateralTypes.LeaseholdBuilding, CollateralTypes.LeaseholdWithBuilding };
+        // Dedup matches the whole leasehold family — same physical leasehold registration.
+        var leaseholdTypes = CollateralTypes.LeaseholdFamily;
         return await dbContext.CollateralMasters
             .Include(m => m.LeaseholdDetail)
             .Include(m => m.Engagements)
@@ -204,14 +279,13 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
 
     public async Task<bool> LandDedupCollidesAsync(
         Guid excludeMasterId,
-        string province, string district, string subDistrict,
-        string titleType, string titleNumber, string? surveyNumber, string? landParcelNumber, string? rawang,
+        string province, string district, string subDistrict, string titleNumber,
         CancellationToken ct = default)
     {
         var landTypes = new[] { CollateralTypes.Land, CollateralTypes.LandWithBuilding };
         return await dbContext.CollateralMasters
             .Where(m => m.Id != excludeMasterId && !m.IsDeleted && landTypes.Contains(m.CollateralType))
-            .Where(LandKeyMatches(province, district, subDistrict, titleType, titleNumber, surveyNumber, landParcelNumber, rawang))
+            .Where(LandKeyMatches(province, district, subDistrict, titleNumber))
             .AnyAsync(ct);
     }
 
@@ -232,7 +306,7 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
         string lessor, string lessee, DateOnly leaseTermStart,
         CancellationToken ct = default)
     {
-        var leaseholdTypes = new[] { CollateralTypes.Leasehold, CollateralTypes.LeaseholdBuilding, CollateralTypes.LeaseholdWithBuilding };
+        var leaseholdTypes = CollateralTypes.LeaseholdFamily;
         return await dbContext.CollateralMasters
             .Where(m =>
                 m.Id != excludeMasterId &&
@@ -285,7 +359,7 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
         Guid underlyingMasterId,
         CancellationToken ct = default)
     {
-        var leaseholdTypes = new[] { CollateralTypes.Leasehold, CollateralTypes.LeaseholdBuilding, CollateralTypes.LeaseholdWithBuilding };
+        var leaseholdTypes = CollateralTypes.LeaseholdFamily;
         return await dbContext.CollateralMasters
             .Where(m =>
                 !m.IsDeleted &&
@@ -295,20 +369,35 @@ public class CollateralMasterRepository(CollateralDbContext dbContext) : ICollat
             .ToListAsync(ct);
     }
 
-    public async Task<CollateralMaster?> FindProjectMasterByLastAppraisalIdAsync(
-        Guid lastAppraisalId,
+    // Resolved through the engagement, not ProjectDetail.AppraisalSummary.LastAppraisalId.
+    // CollateralEngagements is UNIQUE on AppraisalId (UX_CollateralEngagements_Appraisal), so this is
+    // an exact indexed hit; ProjectDetails has no index at all, and its LastAppraisalId is a
+    // latest-WRITE-wins cache that an out-of-order replay can leave pointing at the wrong appraisal.
+    public async Task<CollateralMaster?> FindProjectMasterByAppraisalIdAsync(
+        Guid appraisalId,
         CancellationToken ct = default)
-        => await dbContext.CollateralMasters
+    {
+        var masterId = await dbContext.CollateralEngagements
+            .AsNoTracking()
+            .Where(e => e.AppraisalId == appraisalId)
+            .Select(e => (Guid?)e.CollateralMasterId)
+            .FirstOrDefaultAsync(ct);
+
+        if (masterId is null)
+            return null;
+
+        return await dbContext.CollateralMasters
             .Include(m => m.ProjectDetail)
             .ThenInclude(d => d!.Units)
             .Include(m => m.Engagements)
             .Where(m =>
+                m.Id == masterId.Value &&
                 !m.IsDeleted &&
                 m.CollateralType == CollateralTypes.Project &&
                 m.IsMaster &&
-                m.ProjectDetail != null &&
-                m.ProjectDetail.AppraisalSummary.LastAppraisalId == lastAppraisalId)
+                m.ProjectDetail != null)
             .FirstOrDefaultAsync(ct);
+    }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
         => await dbContext.SaveChangesAsync(cancellationToken);

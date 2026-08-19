@@ -20,18 +20,11 @@ public class MachineDetailConfiguration : IEntityTypeConfiguration<MachineDetail
         builder.Property(d => d.Manufacturer).HasMaxLength(200);
 
         // AppraisalSummary (owned — flat columns)
-        builder.OwnsOne(d => d.AppraisalSummary, s =>
-        {
-            s.Property(x => x.LastAppraisalId).HasColumnName("LastAppraisalId");
-            s.Property(x => x.LastAppraisalNumber).HasColumnName("LastAppraisalNumber").HasMaxLength(50);
-            s.Property(x => x.LastAppraisedDate).HasColumnName("LastAppraisedDate");
-        });
 
         // Useful-life years for the outbound Collateral Result interface (Life Year).
         builder.Property(d => d.LifeYear).HasPrecision(5, 1).IsRequired(false);
 
         // Appraisal-level total from the latest appraisal (IsMaster-only). Mirrors Land/Condo detail.
-        builder.Property(d => d.AppraisalValue).HasPrecision(18, 2);
 
         builder.Property(d => d.IsDeleted).IsRequired().HasDefaultValue(false);
 

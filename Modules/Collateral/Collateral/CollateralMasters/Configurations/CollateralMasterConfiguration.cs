@@ -13,7 +13,9 @@ public class CollateralMasterConfiguration : IEntityTypeConfiguration<Collateral
 
         builder.Property(m => m.CollateralType).IsRequired().HasMaxLength(20);
         builder.Property(m => m.OwnerName).HasMaxLength(200);
-        builder.Property(m => m.CustomerName).HasMaxLength(200).IsRequired(false);
+        // ← request.RequestCustomers.Name nvarchar(260) (TOP 1 for the request). Different table AND a
+        // different column name, so a schema comparison cannot see this one.
+        builder.Property(m => m.CustomerName).HasMaxLength(260).IsRequired(false);
         builder.Property(m => m.IsDeleted).IsRequired().HasDefaultValue(false);
 
         builder.Property(m => m.IsMaster)
@@ -110,10 +112,15 @@ public class CollateralMasterConfiguration : IEntityTypeConfiguration<Collateral
             .HasMaxLength(100)
             .IsRequired(false);
 
-        // Host (AS400) collateral identifier (CCDCID) — populated by a future inbound interface.
-        builder.Property(m => m.HostCollateralId)
-            .HasMaxLength(19)
-            .IsRequired(false);
+        // AS400 host state (HOST_COLLATERAL_LINK feed) — 19 chars matches AS400's decimal(19,0).
+        builder.Property(m => m.HostCollateralId).HasMaxLength(19);
+        builder.Property(m => m.IsRedeemed)
+            .IsRequired()
+            .HasDefaultValue(false);
+        builder.Property(m => m.RedeemedDate);
+
+        // Only a minority of masters are ever financed, so the index is filtered — same shape as the
+        // IX_CollateralEngagements_HostCollateralId it replaces.
         builder.HasIndex(m => m.HostCollateralId)
             .HasDatabaseName("IX_CollateralMasters_HostCollateralId")
             .HasFilter("[HostCollateralId] IS NOT NULL");

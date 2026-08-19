@@ -104,6 +104,25 @@ VALUES
 GO
 
 -- ============================================================
+-- NOTE: template factors referencing an unknown FactorCode are SKIPPED, not fatal
+--
+-- The inserts below use a JOIN instead of the subquery-inside-VALUES form they used to. That
+-- subquery returned NULL when a FactorCode could not be found, and the insert then failed with
+-- "Cannot insert the value NULL into column 'FactorId'", which stops the whole DbUp run and makes
+-- it impossible to provision a fresh database (Tests/Integration failed all 104 tests this way).
+--
+-- The actual gap: section 1 is titled "74 factors" but its VALUES list only covers 01-72, while the
+-- templates below reference N'73' (MACHINE_TEMPLATE) and N'74' (LAND_TEMPLATE,
+-- LEASE_AGREEMENT_TEMPLATE). The cited source, "LHB Parameter Listing Nov 13 2025.xlsx", is not in
+-- the repository, so the definitions of those two factors are unknown and must not be invented —
+-- they drive market-survey forms and pricing.
+--
+-- → Once the real values are available, add N'73' and N'74' to section 1 of this file and ship a
+--   separate script to insert the missing template factors (this file is already journalled and
+--   will not re-run).
+-- ============================================================
+
+-- ============================================================
 -- 3. MarketComparableTemplateFactors
 -- NOTE: Factor codes remapped from old numbering to new Excel numbering.
 -- Factors removed in new Excel: PropertyType(old 01), OfferingPrice(old 25),
@@ -119,17 +138,21 @@ GO
     -- NOTE: Old FactorCode N'36' was removed from the new MarketSurveyFactor list
 INSERT INTO appraisal.MarketComparableTemplateFactors
     (TemplateId, FactorId, DisplaySequence, IsMandatory, CreatedAt, CreatedBy)
-VALUES
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_BUILDING_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'33'), 1, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_BUILDING_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'34'), 2, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_BUILDING_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'49'), 3, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_BUILDING_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'17'), 4, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_BUILDING_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'45'), 5, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_BUILDING_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'43'), 6, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_BUILDING_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'10'), 7, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_BUILDING_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'01'), 8, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_BUILDING_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'13'), 9, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_BUILDING_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'30'), 10, 0, GETDATE(), N'SYSTEM');
+SELECT t.Id, f.Id, v.DisplaySequence, v.IsMandatory, GETDATE(), N'SYSTEM'
+FROM (VALUES
+        (N'33', 1, 0),
+        (N'34', 2, 0),
+        (N'49', 3, 0),
+        (N'17', 4, 0),
+        (N'45', 5, 0),
+        (N'43', 6, 0),
+        (N'10', 7, 0),
+        (N'01', 8, 0),
+        (N'13', 9, 0),
+        (N'30', 10, 0)
+    ) AS v(FactorCode, DisplaySequence, IsMandatory)
+JOIN appraisal.MarketComparableTemplates t ON t.TemplateCode = N'LAND_BUILDING_TEMPLATE'
+JOIN appraisal.MarketComparableFactors    f ON f.FactorCode  = v.FactorCode;
 GO
 -- Template: CONDO_TEMPLATE
     -- NOTE: Old FactorCode N'01' was removed from the new MarketSurveyFactor list
@@ -137,16 +160,20 @@ GO
     -- NOTE: Old FactorCode N'46' was removed from the new MarketSurveyFactor list
 INSERT INTO appraisal.MarketComparableTemplateFactors
     (TemplateId, FactorId, DisplaySequence, IsMandatory, CreatedAt, CreatedBy)
-VALUES
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'CONDO_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'16'), 1, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'CONDO_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'37'), 2, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'CONDO_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'17'), 3, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'CONDO_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'45'), 4, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'CONDO_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'30'), 5, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'CONDO_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'48'), 6, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'CONDO_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'49'), 7, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'CONDO_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'42'), 8, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'CONDO_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'23'), 9, 0, GETDATE(), N'SYSTEM');
+SELECT t.Id, f.Id, v.DisplaySequence, v.IsMandatory, GETDATE(), N'SYSTEM'
+FROM (VALUES
+        (N'16', 1, 0),
+        (N'37', 2, 0),
+        (N'17', 3, 0),
+        (N'45', 4, 0),
+        (N'30', 5, 0),
+        (N'48', 6, 0),
+        (N'49', 7, 0),
+        (N'42', 8, 0),
+        (N'23', 9, 0)
+    ) AS v(FactorCode, DisplaySequence, IsMandatory)
+JOIN appraisal.MarketComparableTemplates t ON t.TemplateCode = N'CONDO_TEMPLATE'
+JOIN appraisal.MarketComparableFactors    f ON f.FactorCode  = v.FactorCode;
 GO
 -- Template: LAND_TEMPLATE
     -- NOTE: Old FactorCode N'01' was removed from the new MarketSurveyFactor list
@@ -156,48 +183,60 @@ GO
     -- NOTE: Old FactorCode N'36' was removed from the new MarketSurveyFactor list
 INSERT INTO appraisal.MarketComparableTemplateFactors
     (TemplateId, FactorId, DisplaySequence, IsMandatory, CreatedAt, CreatedBy)
-VALUES
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'43'), 1, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'16'), 2, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'46'), 3, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'33'), 4, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'34'), 5, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'01'), 6, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'06'), 7, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'04'), 8, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'02'), 9, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'51'), 10, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'74'), 11, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'26'), 12, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LAND_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'29'), 13, 0, GETDATE(), N'SYSTEM');
+SELECT t.Id, f.Id, v.DisplaySequence, v.IsMandatory, GETDATE(), N'SYSTEM'
+FROM (VALUES
+        (N'43', 1, 0),
+        (N'16', 2, 0),
+        (N'46', 3, 0),
+        (N'33', 4, 0),
+        (N'34', 5, 0),
+        (N'01', 6, 0),
+        (N'06', 7, 0),
+        (N'04', 8, 0),
+        (N'02', 9, 0),
+        (N'51', 10, 0),
+        (N'74', 11, 0),
+        (N'26', 12, 0),
+        (N'29', 13, 0)
+    ) AS v(FactorCode, DisplaySequence, IsMandatory)
+JOIN appraisal.MarketComparableTemplates t ON t.TemplateCode = N'LAND_TEMPLATE'
+JOIN appraisal.MarketComparableFactors    f ON f.FactorCode  = v.FactorCode;
 GO
 -- Template: MACHINE_TEMPLATE
     -- NOTE: Old FactorCode N'25' was removed from the new MarketSurveyFactor list
     -- NOTE: Old FactorCode N'46' was removed from the new MarketSurveyFactor list
 INSERT INTO appraisal.MarketComparableTemplateFactors
     (TemplateId, FactorId, DisplaySequence, IsMandatory, CreatedAt, CreatedBy)
-VALUES
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'MACHINE_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'69'), 1, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'MACHINE_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'70'), 2, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'MACHINE_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'71'), 3, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'MACHINE_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'72'), 4, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'MACHINE_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'73'), 5, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'MACHINE_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'63'), 6, 0, GETDATE(), N'SYSTEM');
+SELECT t.Id, f.Id, v.DisplaySequence, v.IsMandatory, GETDATE(), N'SYSTEM'
+FROM (VALUES
+        (N'69', 1, 0),
+        (N'70', 2, 0),
+        (N'71', 3, 0),
+        (N'72', 4, 0),
+        (N'73', 5, 0),
+        (N'63', 6, 0)
+    ) AS v(FactorCode, DisplaySequence, IsMandatory)
+JOIN appraisal.MarketComparableTemplates t ON t.TemplateCode = N'MACHINE_TEMPLATE'
+JOIN appraisal.MarketComparableFactors    f ON f.FactorCode  = v.FactorCode;
 GO
 -- Template: LEASE_AGREEMENT_TEMPLATE
     -- NOTE: Old FactorCode N'01' was removed from the new MarketSurveyFactor list
 INSERT INTO appraisal.MarketComparableTemplateFactors
     (TemplateId, FactorId, DisplaySequence, IsMandatory, CreatedAt, CreatedBy)
-VALUES
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LEASE_AGREEMENT_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'16'), 1, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LEASE_AGREEMENT_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'51'), 2, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LEASE_AGREEMENT_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'30'), 3, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LEASE_AGREEMENT_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'74'), 4, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LEASE_AGREEMENT_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'46'), 5, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LEASE_AGREEMENT_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'04'), 6, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LEASE_AGREEMENT_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'06'), 7, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LEASE_AGREEMENT_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'01'), 8, 0, GETDATE(), N'SYSTEM'),
-    ((SELECT TOP 1 Id FROM appraisal.MarketComparableTemplates WHERE TemplateCode = N'LEASE_AGREEMENT_TEMPLATE'), (SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'29'), 9, 0, GETDATE(), N'SYSTEM');
+SELECT t.Id, f.Id, v.DisplaySequence, v.IsMandatory, GETDATE(), N'SYSTEM'
+FROM (VALUES
+        (N'16', 1, 0),
+        (N'51', 2, 0),
+        (N'30', 3, 0),
+        (N'74', 4, 0),
+        (N'46', 5, 0),
+        (N'04', 6, 0),
+        (N'06', 7, 0),
+        (N'01', 8, 0),
+        (N'29', 9, 0)
+    ) AS v(FactorCode, DisplaySequence, IsMandatory)
+JOIN appraisal.MarketComparableTemplates t ON t.TemplateCode = N'LEASE_AGREEMENT_TEMPLATE'
+JOIN appraisal.MarketComparableFactors    f ON f.FactorCode  = v.FactorCode;
 GO
 
 -- ============================================================
@@ -358,4 +397,17 @@ VALUES
     ((SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'70'), N'th', N'ข้อกำหนดกฎหมาย'),
     ((SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'71'), N'th', N'ประเภทอาคาร'),
     ((SELECT TOP 1 Id FROM appraisal.MarketComparableFactors WHERE FactorCode = N'72'), N'th', N'ราคาซื้อขาย');
+GO
+
+-- ============================================================
+-- Report any FactorCode that was skipped because the factor does not exist
+-- ============================================================
+DECLARE @missing nvarchar(max);
+SELECT @missing = STRING_AGG(v.FactorCode, ', ')
+FROM (VALUES (N'73'), (N'74')) AS v(FactorCode)
+WHERE NOT EXISTS (SELECT 1 FROM appraisal.MarketComparableFactors f WHERE f.FactorCode = v.FactorCode);
+
+IF @missing IS NOT NULL
+    PRINT '*** WARNING: skipped template factors referencing unknown FactorCode(s): ' + @missing
+        + ' -- obtain the definitions from the LHB Parameter Listing and add them.';
 GO

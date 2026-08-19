@@ -1,4 +1,37 @@
+-- Read model for the collateral master screens (catalog, lookup, get-by-id).
+--
+-- SOURCING RULE: anything that means "as at the latest appraisal" — the money figures, the
+-- appraisal identifiers, the construction status — comes from the latest CollateralEngagement,
+-- never from the xxxDetails rows.
+--
+-- Why: a detail row is a latest-WRITE-wins cache. CollateralBackfillJob walks appraisals
+-- oldest-first, and an older appraisal that completes late overwrites a newer one's values with
+-- no error and no signal. The engagement table keeps one immutable row per appraisal, so ordering
+-- by AppraisalDate gives the genuinely latest figures. Both were populated from the same upstream
+-- in the same transaction, so this is a change of source, not of value.
+--
+-- The per-type aliases (Land_*, Condo_*, Lh_*, Machine_*) are kept verbatim because the frontend
+-- COALESCEs across all four (useReappraisalPrefill.ts, CollateralLookupBanner.tsx). Feeding the
+-- same engagement-derived value into each is safe: a master carries exactly one detail type, and
+-- the query handlers only build the DTO for the type whose detail row exists.
 CREATE OR ALTER VIEW collateral.vw_CollateralMasters AS
+WITH LatestEngagement AS (
+    SELECT
+        e.CollateralMasterId,
+        e.AppraisalId,
+        e.AppraisalNumber,
+        e.AppraisalDate,
+        e.AppraisalValue,
+        e.IsUnderConstruction,
+        e.ConstructionProgressPercent,
+        COUNT(*) OVER (PARTITION BY e.CollateralMasterId) AS EngagementCount,
+        -- CreatedAt then Id break ties so the row chosen is stable across runs when two
+        -- appraisals share a date. Uses IX_CollateralEngagements_Master_Date directly.
+        ROW_NUMBER() OVER (
+            PARTITION BY e.CollateralMasterId
+            ORDER BY     e.AppraisalDate DESC, e.CreatedAt DESC, e.Id DESC) AS rn
+    FROM collateral.CollateralEngagements e
+)
 SELECT
     -- Master identity
     m.Id,
@@ -10,13 +43,25 @@ SELECT
     m.UpdatedAt,
     m.UpdatedBy,
 
-    -- Engagement aggregates (across all engagements for this master)
-    agg.EngagementCount,
-    agg.LastAppraisedDate,
-    -- PR-4: LastAppraisedValue now sourced from master detail AppraisalValue (IsMaster only).
-    -- AppraisedValue column dropped from CollateralEngagements in PR-4.
-    -- All master detail types carry the appraisal-level AppraisalValue (ValuationAnalyses total).
-    COALESCE(ld.AppraisalValue, cd.AppraisalValue, md.AppraisalValue, lhd.AppraisalValue) AS LastAppraisedValue,
+    -- Engagement-derived (latest appraisal for this master)
+    le.EngagementCount,
+    le.AppraisalDate                    AS LastAppraisedDate,
+    le.AppraisalValue                   AS LastAppraisedValue,
+
+    -- Construction status. Value-weighted across every inspected building; the LandDetails columns
+    -- these replace read a single property's inspection and were false/NULL on every dev row even
+    -- where buildings were genuinely part-built.
+    le.IsUnderConstruction              AS IsUnderConstructionAtLastAppraisal,
+    le.ConstructionProgressPercent      AS OverallConstructionProgressPercent,
+
+    -- AS400 hold state. Read straight off the master: AS400 keys collateral rather than appraisals,
+    -- so this is the current state of the physical thing, maintained by the nightly
+    -- HOST_COLLATERAL_LINK feed. Column names are unchanged from when the same answer was derived
+    -- from the latest engagement, so no caller had to be touched.
+    m.HostCollateralId                  AS CurrentHostCollateralId,
+    CASE WHEN m.HostCollateralId IS NOT NULL AND m.IsRedeemed = 0
+         THEN 1 ELSE 0 END              AS IsPledged,
+    m.RedeemedDate,
 
     -- Land-specific columns (NULL when not Land type)
     ld.LandOfficeCode          AS Land_LandOfficeCode,
@@ -38,15 +83,10 @@ SELECT
     ld.AccessRoadWidth         AS Land_AccessRoadWidth,
     ld.RoadFrontage            AS Land_RoadFrontage,
     ld.LandArea                AS Land_LandArea,
-    ld.IsUnderConstructionAtLastAppraisal,
-    ld.OverallConstructionProgressPercent,
-    -- PR-5: LastConstructionInspectionId removed from LandDetails — CI list is in the engagement snapshot.
-    ld.LastAppraisalId         AS Land_LastAppraisalId,
-    ld.LastAppraisalNumber     AS Land_LastAppraisalNumber,
-    ld.LastAppraisedDate       AS Land_LastAppraisedDate,
-    ld.UnitPrice               AS Land_UnitPrice,
-    ld.BuildingValue           AS Land_BuildingValue,
-    ld.AppraisalValue          AS Land_AppraisalValue,
+    le.AppraisalId             AS Land_LastAppraisalId,
+    le.AppraisalNumber         AS Land_LastAppraisalNumber,
+    le.AppraisalDate           AS Land_LastAppraisedDate,
+    le.AppraisalValue          AS Land_AppraisalValue,
 
     -- Condo-specific columns (NULL when not Condo type)
     cd.LandOfficeCode          AS Condo_LandOfficeCode,
@@ -66,12 +106,10 @@ SELECT
     cd.Latitude                AS Condo_Latitude,
     cd.Longitude               AS Condo_Longitude,
     cd.GeoPoint                AS Condo_GeoPoint,
-    cd.LastAppraisalId         AS Condo_LastAppraisalId,
-    cd.LastAppraisalNumber     AS Condo_LastAppraisalNumber,
-    cd.LastAppraisedDate       AS Condo_LastAppraisedDate,
-    cd.UnitPrice               AS Condo_UnitPrice,
-    cd.BuildingValue           AS Condo_BuildingValue,
-    cd.AppraisalValue          AS Condo_AppraisalValue,
+    le.AppraisalId             AS Condo_LastAppraisalId,
+    le.AppraisalNumber         AS Condo_LastAppraisalNumber,
+    le.AppraisalDate           AS Condo_LastAppraisedDate,
+    le.AppraisalValue          AS Condo_AppraisalValue,
 
     -- Leasehold-specific columns (NULL when not Leasehold type)
     lhd.LeaseRegistrationNo    AS Lh_LeaseRegistrationNo,
@@ -81,9 +119,9 @@ SELECT
     lhd.LeaseTermStart         AS Lh_LeaseTermStart,
     lhd.LeaseTermEnd           AS Lh_LeaseTermEnd,
     lhd.LeaseTermMonths        AS Lh_LeaseTermMonths,
-    lhd.LastAppraisalId        AS Lh_LastAppraisalId,
-    lhd.LastAppraisalNumber    AS Lh_LastAppraisalNumber,
-    lhd.LastAppraisedDate      AS Lh_LastAppraisedDate,
+    le.AppraisalId             AS Lh_LastAppraisalId,
+    le.AppraisalNumber         AS Lh_LastAppraisalNumber,
+    le.AppraisalDate           AS Lh_LastAppraisedDate,
 
     -- Machine-specific columns (NULL when not Machine type)
     md.MachineRegistrationNo   AS Machine_MachineRegistrationNo,
@@ -91,21 +129,13 @@ SELECT
     md.Brand                   AS Machine_Brand,
     md.Model                   AS Machine_Model,
     md.Manufacturer            AS Machine_Manufacturer,
-    md.LastAppraisalId         AS Machine_LastAppraisalId,
-    md.LastAppraisalNumber     AS Machine_LastAppraisalNumber,
-    md.LastAppraisedDate       AS Machine_LastAppraisedDate
+    le.AppraisalId             AS Machine_LastAppraisalId,
+    le.AppraisalNumber         AS Machine_LastAppraisalNumber,
+    le.AppraisalDate           AS Machine_LastAppraisedDate
 
 FROM collateral.CollateralMasters m
 
--- Aggregate engagement metrics per master
-LEFT JOIN (
-    SELECT
-        CollateralMasterId,
-        COUNT(*)           AS EngagementCount,
-        MAX(AppraisalDate) AS LastAppraisedDate
-    FROM collateral.CollateralEngagements e
-    GROUP BY CollateralMasterId
-) agg ON agg.CollateralMasterId = m.Id
+LEFT JOIN LatestEngagement le ON le.CollateralMasterId = m.Id AND le.rn = 1
 
 -- Type-specific detail joins (1:1 per type, only one will be non-NULL per row)
 LEFT JOIN collateral.LandDetails       ld  ON ld.CollateralMasterId  = m.Id

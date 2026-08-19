@@ -1127,6 +1127,27 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             // the per-type subtotals on the group actually having both blocks.
             var splitLandAndBuilding = isCost && !g.HasCombinedProperty;
 
+            var family = DeriveFamily(g.PropertyType, hasLand, hasBuilding);
+
+            // Row labels for the split branch. The template used to spell these out as Thai literals,
+            // which silently dropped the tenure of a leasehold group the moment a Cost approach was
+            // saved — only the combined branch consulted the parameter map. Both now resolve through
+            // it like every other label on the form.
+            //
+            // The label names a ROW, so it is resolved from the row's own family rather than the
+            // group's: the land row asks for LSL/L and the building row for B. Feeding the group's
+            // family in would put an LSB group's building label on its land row. Only LSL reaches the
+            // leasehold branch in practice — LS is caught by HasCombinedProperty and never splits, and
+            // LSB has no land, so the template's has_land gate blanks that cell anyway.
+            //
+            // LSB deliberately shares B's CollateralType code (05 = สิ่งปลูกสร้าง) — the scheme has no
+            // leasehold-building code — so a leasehold building still reads สิ่งปลูกสร้าง, unchanged.
+            var isLeaseholdFamily = family is not null
+                                    && family.StartsWith("LS", StringComparison.OrdinalIgnoreCase);
+
+            var landRowLabel = TranslateCollateralType(isLeaseholdFamily ? "LSL" : "L");
+            var buildingRowLabel = TranslateCollateralType("B");
+
             // ส่วนพัฒนา counts toward the building subtotal (matches the reference form, where
             // รวมมูลค่าสิ่งปลูกสร้าง = building lines + ส่วนพัฒนา lines).
             var buildingSubtotal = buildingItems.Sum(b => b.Value ?? 0m)
@@ -1165,7 +1186,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             {
                 GroupNumber = g.GroupNumber,
                 GroupName = g.GroupName,
-                PropertyType = TranslateCollateralType(DeriveFamily(g.PropertyType, hasLand, hasBuilding)),
+                PropertyType = TranslateCollateralType(family),
                 CollateralDetails = collateralDetails,
                 AreaOrUnit = areaOrUnit,
                 PricePerAreaOrUnit = g.LandUnitPrice,
@@ -1174,7 +1195,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 Remark = null,
                 SplitLandAndBuilding = splitLandAndBuilding,
                 HasLand = hasLand,
+                LandRowLabel = landRowLabel,
                 HasBuilding = hasBuilding,
+                BuildingRowLabel = buildingRowLabel,
                 ShowLandUnitColumns = showLandUnitColumns,
                 MarketLandArea = marketLandArea,
                 MarketLandUnitPrice = marketLandUnitPrice,

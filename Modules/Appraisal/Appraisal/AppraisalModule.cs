@@ -76,6 +76,10 @@ public static class AppraisalModule
         services.AddScoped<IProjectSaveService, ProjectSaveService>();
         services.AddScoped<IAppraisalStatusService, AppraisalStatusService>();
         services.AddScoped<IAssignmentFeeService, AssignmentFeeService>();
+        // Single source of truth for the part-built ("current") value — shared by the Decision
+        // Summary construction card and the AppraisalForCollateralResult contract, so the screen
+        // and the outbound regulatory file cannot drift apart.
+        services.AddScoped<IConstructionCurrentValueService, ConstructionCurrentValueService>();
 
         // Register Application Services (pricing)
         services.AddScoped<PricingPropertyDataService>();

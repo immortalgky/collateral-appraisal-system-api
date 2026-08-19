@@ -157,26 +157,36 @@ public class BlockReappraisalJob(
                 cm.Id                                              AS CollateralMasterId,
                 pd.ProjectName,
                 pd.ProjectType,
-                pd.LastAppraisalNumber                             AS OldAppraisalNumber,
+                le.AppraisalNumber                                 AS OldAppraisalNumber,
                 pd.ProjectSellingPrice,
                 pd.TotalUnits,
                 pd.RemainingUnits,
-                pd.LastAppraisedDate,
-                DATEADD(YEAR, @Years, pd.LastAppraisedDate)        AS DueDate
+                le.AppraisalDate                                   AS LastAppraisedDate,
+                DATEADD(YEAR, @Years, le.AppraisalDate)            AS DueDate
             FROM collateral.ProjectDetails pd
             JOIN collateral.CollateralMasters cm ON cm.Id = pd.CollateralMasterId
+            -- The project's last appraisal, taken from its engagements rather than from
+            -- ProjectDetails.LastAppraisal*. Those columns are a latest-WRITE-wins cache: the backfill
+            -- job walks appraisals oldest-first, so an older one completing late overwrote them with
+            -- stale values and pushed the due date backwards with no error. Engagements are immutable
+            -- per appraisal, so ordering by AppraisalDate gives the genuinely latest round.
+            OUTER APPLY (
+                SELECT TOP 1 e.AppraisalId, e.AppraisalNumber, e.AppraisalDate
+                FROM   collateral.CollateralEngagements e
+                WHERE  e.CollateralMasterId = cm.Id
+                ORDER BY e.AppraisalDate DESC, e.CreatedAt DESC, e.Id DESC
+            ) le
             WHERE cm.CollateralType = 'PRJ'
               AND cm.IsMaster        = 1
               AND cm.IsDeleted       = 0
               AND cm.ExcludedFromReappraisal = 0
               AND pd.IsDeleted       = 0
-              AND pd.LastAppraisedDate IS NOT NULL
-              AND pd.LastAppraisalId   IS NOT NULL
-              AND DATEADD(YEAR, @Years, pd.LastAppraisedDate) <= @Today
+              AND le.AppraisalDate IS NOT NULL
+              AND DATEADD(YEAR, @Years, le.AppraisalDate) <= @Today
               AND NOT EXISTS (
                   SELECT 1
                   FROM appraisal.Appraisals a
-                  WHERE a.PrevAppraisalId = pd.LastAppraisalId
+                  WHERE a.PrevAppraisalId = le.AppraisalId
                     AND a.IsDeleted = 0
                     AND a.Status NOT IN ('Completed', 'Cancelled')
               )

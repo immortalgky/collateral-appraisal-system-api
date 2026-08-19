@@ -39,8 +39,10 @@ public class BackfillHostCollateralIdEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .WithSummary("Start host-collateral-id backfill job (admin)")
             .WithDescription(
-                "Copies the AS400 HostCollateralId already stamped on appraisal source rows onto the owning "
-                + "CollateralMaster (one per appraisal). Idempotent. Returns job id immediately.")
+                "Copies the AS400 HostCollateralId already stamped on appraisal source rows onto the collateral "
+                + "side: onto the appraisal's CollateralEngagement for ordinary collateral, and onto the matching "
+                + "collateral.ProjectUnits row for block projects, where AS400 issues one id per financed unit. "
+                + "Idempotent. Returns job id immediately.")
             .WithTags("CollateralMaster")
             .RequireAuthorization();
     }
