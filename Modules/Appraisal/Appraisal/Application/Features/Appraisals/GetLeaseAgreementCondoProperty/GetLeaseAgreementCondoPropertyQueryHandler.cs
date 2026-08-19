@@ -47,6 +47,7 @@ public class GetLeaseAgreementCondoPropertyQueryHandler(
             RoomNumber: detail.RoomNumber,
             FloorNumber: detail.FloorNumber,
             UsableArea: detail.UsableArea,
+            ConstructionCompletionPercent: detail.ConstructionCompletionPercent,
             Latitude: detail.Coordinates?.Latitude,
             Longitude: detail.Coordinates?.Longitude,
             SubDistrict: detail.Address?.SubDistrict,

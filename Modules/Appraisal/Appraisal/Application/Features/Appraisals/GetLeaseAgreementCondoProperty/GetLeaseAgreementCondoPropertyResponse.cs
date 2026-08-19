@@ -24,6 +24,7 @@ public record GetLeaseAgreementCondoPropertyResponse(
     string? RoomNumber,
     string? FloorNumber,
     decimal? UsableArea,
+    decimal? ConstructionCompletionPercent,
     // Coordinates
     decimal? Latitude,
     decimal? Longitude,

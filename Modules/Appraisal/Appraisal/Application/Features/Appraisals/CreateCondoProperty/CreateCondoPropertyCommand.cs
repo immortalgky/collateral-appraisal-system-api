@@ -15,6 +15,7 @@ public record CreateCondoPropertyCommand(
     string? RoomNumber = null,
     string? FloorNumber = null,
     decimal? UsableArea = null,
+    decimal? ConstructionCompletionPercent = null,
     // Unit deed identifiers (collateral dedup key)
     string? TitleNumber = null,
     string? TitleType = null,
