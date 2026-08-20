@@ -27,6 +27,7 @@ public class GetPricingAnalysisQueryHandler(
                 m.MethodType,
                 m.MethodValue,
                 m.IsSelected,
+                m.UseSystemCalc,
                 m.ComparativeAnalysisTemplateId
             )).ToList()
         )).ToList();
@@ -68,5 +69,6 @@ public record MethodDto(
     string MethodType,
     decimal? MethodValue,
     bool IsSelected,
+    bool UseSystemCalc,
     Guid? ComparativeAnalysisTemplateId
 );

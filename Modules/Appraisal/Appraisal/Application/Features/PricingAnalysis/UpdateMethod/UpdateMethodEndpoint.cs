@@ -23,7 +23,8 @@ public class UpdateMethodEndpoint : ICarterModule
                         methodId,
                         request.MethodValue,
                         request.ValuePerUnit,
-                        request.UnitType);
+                        request.UnitType,
+                        request.UseSystemCalc);
 
                     var result = await sender.Send(command, cancellationToken);
 
