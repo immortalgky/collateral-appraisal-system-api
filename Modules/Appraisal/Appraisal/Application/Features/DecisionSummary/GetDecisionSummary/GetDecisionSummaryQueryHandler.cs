@@ -115,7 +115,7 @@ public class GetDecisionSummaryQueryHandler(
         var valuationReview = await connectionFactory.QueryFirstOrDefaultAsync<ValuationReviewRow>(valuationReviewSql, param);
         var governmentPrices = (await connectionFactory.QueryAsync<GovernmentPriceRow>(govPriceSql, param)).ToList();
         var condoGovernmentPrices = (await connectionFactory.QueryAsync<CondoGovernmentPriceQueryRow>(condoGovPriceSql, param))
-            .Select(r => new CondoGovernmentPriceRow(r.TitleNumber, r.RoomNumber, r.UsableArea, r.IsMissingFromSurvey , r.GovernmentPricePerSqm, r.GovernmentPrice))
+            .Select(r => new CondoGovernmentPriceRow(r.TitleNumber, r.RoomNumber, r.UsableArea, r.IsMissingFromSurvey, r.GovernmentPricePerSqm, r.GovernmentPrice))
             .ToList();
         var approvalRows = (await connectionFactory.QueryAsync<ApprovalRow>(approvalSql, param)).ToList();
         var appraisalDate = await connectionFactory.QueryFirstOrDefaultAsync<DateTime?>(appraisalDateSql, param);
@@ -260,7 +260,7 @@ public class GetDecisionSummaryQueryHandler(
         var totalAppraisalPrice = approachMatrix.Sum(g => g.GroupSummaryValue ?? 0m);
 
         var forceSaleRate = await forceSaleRateResolver.ResolveAsync(appraisalId, forceSaleRateOverride, cancellationToken);
-        var forceSellingPrice = totalAppraisalPrice * forceSaleRate / 100m;
+        var forceSellingPrice = Math.Round(totalAppraisalPrice * forceSaleRate / 100m / 1000, MidpointRounding.AwayFromZero) * 1000;
 
         return new GetDecisionSummaryResult(
             ApproachMatrix: approachMatrix,
@@ -409,8 +409,8 @@ public class GetDecisionSummaryQueryHandler(
                 r.ModelName,
                 r.UnitCount,
                 r.TotalAppraisalPrice,
-                r.TotalAppraisalPrice * forceSaleRate / 100m,
-                r.BuildingInsurance))
+                Math.Round(r.TotalAppraisalPrice * forceSaleRate / 100m / 1000, MidpointRounding.AwayFromZero) * 1000,
+                Math.Round(r.BuildingInsurance / 1000, MidpointRounding.AwayFromZero) * 1000))
             .ToList();
 
         var totalAppraisalPrice = blockModelPrices.Sum(r => r.TotalAppraisalPrice);
