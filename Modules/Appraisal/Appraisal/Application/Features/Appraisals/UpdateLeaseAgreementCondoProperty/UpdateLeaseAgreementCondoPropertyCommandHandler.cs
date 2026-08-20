@@ -57,7 +57,6 @@ public class UpdateLeaseAgreementCondoPropertyCommandHandler(
             condoName: command.CondoName,
             buildingNumber: command.BuildingNumber,
             modelName: command.ModelName,
-            builtOnTitleNumber: command.BuiltOnTitleNumber,
             condoRegistrationNumber: command.CondoRegistrationNumber,
             roomNumber: command.RoomNumber,
             floorNumber: command.FloorNumber,

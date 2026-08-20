@@ -144,7 +144,6 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? condoName = null,
         string? buildingNumber = null,
         string? modelName = null,
-        string? builtOnTitleNumber = null,
         string? condoRegistrationNumber = null,
         string? roomNumber = null,
         string? floorNumber = null,
@@ -240,7 +239,6 @@ public class CondoAppraisalDetail : Entity<Guid>
         CondoName = condoName;
         BuildingNumber = buildingNumber;
         ModelName = modelName;
-        BuiltOnTitleNumber = builtOnTitleNumber;
         CondoRegistrationNumber = condoRegistrationNumber;
         RoomNumber = roomNumber;
         FloorNumber = floorNumber;
@@ -358,7 +356,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? condoName = null,
         string? ownerName = null,
         string? buildingNumber = null,
-        string? builtOnTitleNumber = null,
+        string? titleNumber = null,
         string? condoRegistrationNumber = null,
         string? roomNumber = null,
         string? floorNumber = null,
@@ -367,7 +365,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         CondoName = condoName;
         OwnerName = ownerName;
         BuildingNumber = buildingNumber;
-        BuiltOnTitleNumber = builtOnTitleNumber;
+        TitleNumber = titleNumber;
         CondoRegistrationNumber = condoRegistrationNumber;
         RoomNumber = roomNumber;
         FloorNumber = floorNumber;
@@ -384,7 +382,6 @@ public class CondoAppraisalDetail : Entity<Guid>
             CondoName = source.CondoName,
             BuildingNumber = source.BuildingNumber,
             ModelName = source.ModelName,
-            BuiltOnTitleNumber = source.BuiltOnTitleNumber,
             CondoRegistrationNumber = source.CondoRegistrationNumber,
             RoomNumber = source.RoomNumber,
             FloorNumber = source.FloorNumber,

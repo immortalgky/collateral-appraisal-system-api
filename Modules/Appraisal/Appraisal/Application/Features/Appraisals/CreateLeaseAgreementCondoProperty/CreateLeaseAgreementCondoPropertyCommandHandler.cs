@@ -51,7 +51,6 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
             command.CondoName,
             command.BuildingNumber,
             command.ModelName,
-            command.BuiltOnTitleNumber,
             command.CondoRegistrationNumber,
             command.RoomNumber,
             command.FloorNumber,
