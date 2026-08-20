@@ -20,6 +20,7 @@ public class CondoAppraisalDetail : Entity<Guid>
     public string? FloorNumber { get; private set; }
     public int? PhysicalFloorNumber { get; private set; }
     public decimal? UsableArea { get; private set; }
+    public decimal? ConstructionCompletionPercent { get; private set; }
 
     // Unit deed identifiers (required for Collateral master dedup key)
     public string? TitleNumber { get; private set; }
@@ -147,6 +148,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? roomNumber = null,
         string? floorNumber = null,
         decimal? usableArea = null,
+        decimal? constructionCompletionPercent = null,
         string? titleNumber = null,
         string? titleType = null,
         // Value Objects
@@ -241,6 +243,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         RoomNumber = roomNumber;
         FloorNumber = floorNumber;
         UsableArea = usableArea;
+        ConstructionCompletionPercent = constructionCompletionPercent;
         TitleNumber = titleNumber;
         TitleType = titleType;
 
@@ -384,6 +387,7 @@ public class CondoAppraisalDetail : Entity<Guid>
             FloorNumber = source.FloorNumber,
             PhysicalFloorNumber = source.PhysicalFloorNumber,
             UsableArea = source.UsableArea,
+            ConstructionCompletionPercent = source.ConstructionCompletionPercent,
             TitleNumber = source.TitleNumber,
             TitleType = source.TitleType,
             Coordinates = source.Coordinates is not null

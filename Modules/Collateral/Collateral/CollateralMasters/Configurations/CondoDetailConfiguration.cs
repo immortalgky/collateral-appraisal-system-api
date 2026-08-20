@@ -27,25 +27,19 @@ public class CondoDetailConfiguration : IEntityTypeConfiguration<CondoDetail>
 
         // Last-known
         builder.Property(d => d.UsableArea).HasPrecision(18, 4);
-        builder.Property(d => d.LocationType).HasMaxLength(50);
+        // ← appraisal.CondoAppraisalDetails.LocationType nvarchar(500)
+        builder.Property(d => d.LocationType).HasMaxLength(500);
         builder.Property(d => d.ModelName).HasMaxLength(200);
 
         // GPS coordinates (Phase 1 — geo filter prerequisite)
+        // Stays (9,6) although appraisal stores (10,7) — the persisted computed column GeoPoint and
+        // IX_CondoDetails_GeoPoint depend on these. See LandDetailConfiguration for the full reasoning.
         builder.Property(d => d.Latitude).HasPrecision(9, 6);
         builder.Property(d => d.Longitude).HasPrecision(9, 6);
 
         // Three-value model (Phase C)
-        builder.Property(d => d.UnitPrice).HasPrecision(18, 2);
-        builder.Property(d => d.BuildingValue).HasPrecision(18, 2);
-        builder.Property(d => d.AppraisalValue).HasPrecision(18, 2);
 
         // AppraisalSummary (owned — flat columns)
-        builder.OwnsOne(d => d.AppraisalSummary, s =>
-        {
-            s.Property(x => x.LastAppraisalId).HasColumnName("LastAppraisalId");
-            s.Property(x => x.LastAppraisalNumber).HasColumnName("LastAppraisalNumber").HasMaxLength(50);
-            s.Property(x => x.LastAppraisedDate).HasColumnName("LastAppraisedDate");
-        });
 
         builder.Property(d => d.IsDeleted).IsRequired().HasDefaultValue(false);
 

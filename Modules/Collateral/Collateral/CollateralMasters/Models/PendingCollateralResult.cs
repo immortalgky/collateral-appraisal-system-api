@@ -5,10 +5,10 @@ namespace Collateral.CollateralMasters.Models;
 /// Written by <c>AppraisalRejectedConsumer</c> when an appraisal is rejected by committee;
 /// read and marked sent by <c>CollateralResultExportJob</c> on the next run.
 ///
-/// At rejection time the <see cref="HostCollateralId"/> (CCDCID) cannot be resolved because no
-/// <c>CollateralEngagement</c> exists yet — it is stored as NULL. The export writes the R row
-/// with a blank CCDCID field, which AS400 accepts (the AppraisalNumber is the join key).
-/// TODO: wire a HostCollateralId lookup once a pre-approval master-link is available.
+/// <see cref="HostCollateralId"/> (CCDCID) is always NULL, and that is correct: AS400 mints a
+/// collateral id at drawdown, which a rejected appraisal never reaches, so there is never an id to
+/// receive. R rows therefore go out with a blank CCDCID, which AS400 accepts because AppraisalNumber
+/// is the join key.
 ///
 /// Idempotency: <see cref="AppraisalId"/> has a unique index; duplicate delivery is suppressed
 /// by the InboxGuard on the consumer (first-write wins).
@@ -20,8 +20,8 @@ public class PendingCollateralResult
     public string AppraisalNumber { get; private set; } = null!;
 
     /// <summary>
-    /// NULL — not resolvable at rejection time (no CollateralEngagement exists before approval).
-    /// TODO: populate once a pre-approval master-link is available.
+    /// Always NULL — a rejected appraisal never reaches drawdown, so AS400 never issues an id.
+    /// The column is kept only so the outbound file layout stays complete per the contract.
     /// </summary>
     public string? HostCollateralId { get; private set; }
 

@@ -55,6 +55,7 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
             command.RoomNumber,
             command.FloorNumber,
             command.UsableArea,
+            command.ConstructionCompletionPercent,
             null,
             "DEED",
             coordinates,

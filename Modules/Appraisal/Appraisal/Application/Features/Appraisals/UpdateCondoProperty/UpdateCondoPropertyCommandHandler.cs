@@ -65,6 +65,7 @@ public class UpdateCondoPropertyCommandHandler(
             roomNumber: command.RoomNumber,
             floorNumber: command.FloorNumber,
             usableArea: command.UsableArea,
+            constructionCompletionPercent: command.ConstructionCompletionPercent,
             titleNumber: command.TitleNumber,
             titleType: command.TitleType,
             coordinates: coordinates,

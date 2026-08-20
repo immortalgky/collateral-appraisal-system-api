@@ -59,5 +59,16 @@ public class ProjectUnitConfiguration : IEntityTypeConfiguration<ProjectUnit>
         builder.Property(e => e.LastAppraisedValue)
             .HasPrecision(18, 2)
             .IsRequired(false);
+
+        // AS400 collateral id (CCDCID) — dec(19,0) on the host side.
+        // Same width as CollateralEngagement.HostCollateralId; filtered index mirrors
+        // IX_CollateralEngagements_HostCollateralId, since only a minority of units are ever financed.
+        builder.Property(e => e.HostCollateralId)
+            .HasMaxLength(19)
+            .IsRequired(false);
+
+        builder.HasIndex(e => e.HostCollateralId)
+            .HasDatabaseName("IX_ProjectUnits_HostCollateralId")
+            .HasFilter("[HostCollateralId] IS NOT NULL");
     }
 }

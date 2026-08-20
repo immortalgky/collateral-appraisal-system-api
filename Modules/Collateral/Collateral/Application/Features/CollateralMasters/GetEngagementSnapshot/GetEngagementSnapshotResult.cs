@@ -10,10 +10,10 @@ public record GetEngagementSnapshotResult(
     string AppraisalNumber,
     Guid RequestId,
     string RequestNumber,
-    Guid PropertyId,
+    // PropertyId and AppraisedValue dropped in PR-4: the engagement is per-appraisal, not
+    // per-property, and the appraisal-level value now lives on CollateralEngagements.AppraisalValue.
     string AppraisalType,
     DateTime AppraisalDate,
-    decimal? AppraisedValue,
     string? AppraiserUserId,
     Guid? AppraisalCompanyId,
     string? AppraisalCompanyName,

@@ -23,17 +23,7 @@ public sealed record LandUpsertData(
     // Appraisal summary
     Guid AppraisalId,
     string AppraisalNumber,
-    DateTime AppraisalDate,
-    // Construction tracking
-    bool IsUnderConstruction,
-    decimal? OverallConstructionProgressPercent,
-    // Three-value model (Phase C, wired in PR-8)
-    // UnitPrice: cost-approach only — from PricingFinalValue.FinalValueAdjusted. IsMaster + aliases.
-    decimal? UnitPrice,
-    // BuildingValue: cost-approach only — from PricingFinalValue.BuildingValue. IsMaster only.
-    decimal? BuildingValue,
-    // AppraisalValue: all approaches — from PricingFinalValue.AppraisalPrice (fallbacks: FinalValueAdjusted, FinalValueRounded). IsMaster only.
-    decimal? AppraisalValue
+    DateTime AppraisalDate
 );
 
 /// <summary>
@@ -55,11 +45,7 @@ public sealed record CondoUpsertData(
     // Appraisal summary
     Guid AppraisalId,
     string AppraisalNumber,
-    DateTime AppraisalDate,
-    // Three-value model (Phase C, wired in PR-8)
-    decimal? UnitPrice,     // cost-approach only — PricingFinalValue.FinalValueAdjusted
-    decimal? BuildingValue, // cost-approach only — PricingFinalValue.BuildingValue
-    decimal? AppraisalValue // all approaches — PricingFinalValue.AppraisalPrice (with fallbacks)
+    DateTime AppraisalDate
 );
 
 /// <summary>
@@ -70,8 +56,7 @@ public sealed record LeaseholdUpsertData(
     int? LeaseTermMonths,
     Guid AppraisalId,
     string AppraisalNumber,
-    DateTime AppraisalDate,
-    decimal? AppraisalValue // appraisal-level total (ValuationAnalyses); IsMaster-only
+    DateTime AppraisalDate
 );
 
 /// <summary>
@@ -83,8 +68,7 @@ public sealed record MachineUpsertData(
     string AppraisalNumber,
     DateTime AppraisalDate,
     // Useful-life years from the appraisal's machinery cost item (outbound Collateral Result).
-    decimal? LifeYear,
-    decimal? AppraisalValue // appraisal-level total (ValuationAnalyses); IsMaster-only
+    decimal? LifeYear
 );
 
 /// <summary>
@@ -162,22 +146,85 @@ public class CollateralMaster : Aggregate<Guid>
     public DateTime? ExcludedFromReappraisalAt { get; private set; }
     public string? ExcludedFromReappraisalBy { get; private set; }
 
+    // --- AS400 host state (HOST_COLLATERAL_LINK feed) ---
+    //
+    // Current state of the physical collateral, not a per-appraisal record. AS400 thinks in
+    // collateral, not in appraisals: it mints one id per collateral at drawdown and reports
+    // redemption against that same id. The outbound COLLATERAL_RESULT therefore sends one row per
+    // master carrying the latest engagement's figures, so the id belongs at this grain too.
+    //
+    // These columns are LATEST-WINS by design. That is safe here — unlike the detail-table columns
+    // removed earlier — because the value does not come from appraisal processing at all. It comes
+    // from the nightly AS400 feed, whose rows carry their own event date and are applied in date
+    // order (see HostCollateralLinkIngestor). Replaying an old appraisal cannot touch them.
+
     /// <summary>
-    /// Host (AS400) collateral identifier (CCDCID). Populated by a future inbound host-mapping
-    /// interface; NULL until then. Used as the key for the outbound Collateral Result interface —
-    /// only masters with a non-null HostCollateralId are exported.
+    /// AS400's collateral id (CCDCID). NULL until AS400 mints one, which happens at drawdown —
+    /// i.e. after an appraisal completes. Opaque token: never interpreted, never matched to a row
+    /// of ours. Survives redemption, so a redeemed collateral still shows which id it held.
     /// </summary>
     public string? HostCollateralId { get; private set; }
+
+    /// <summary>True once AS400 has reported this collateral released ('R').</summary>
+    public bool IsRedeemed { get; private set; }
+
+    /// <summary>AS400's redemption date. NULL whenever <see cref="IsRedeemed"/> is false.</summary>
+    public DateOnly? RedeemedDate { get; private set; }
+
+    /// <summary>
+    /// Applies a drawdown ('D') row: the collateral is pledged under this id.
+    ///
+    /// Always clears the redemption flag, including when the id is unchanged. A collateral that was
+    /// released and later re-pledged must come back as a live pledge rather than being merged with
+    /// its previous episode — otherwise it stays filtered out of the regulatory export forever
+    /// while the bank actually holds it.
+    /// </summary>
+    public void ApplyHostDrawdown(string? hostCollateralId)
+    {
+        HostCollateralId = Normalise(hostCollateralId);
+        SetHostRedemption(false, null);
+    }
+
+    /// <summary>
+    /// Applies a redemption ('R') row.
+    ///
+    /// The id is written too, not just the flag. AS400 reports the release against a specific
+    /// collateral id, so when it disagrees with the one we hold, theirs is the current mapping — and
+    /// the regulatory export names the id that was released, which would otherwise be the stale one.
+    /// </summary>
+    public void ApplyHostRedemption(string? hostCollateralId, DateOnly? redeemedDate)
+    {
+        HostCollateralId = Normalise(hostCollateralId);
+        SetHostRedemption(true, redeemedDate);
+    }
+
+    /// <summary>
+    /// Sets the redemption flags WITHOUT touching <see cref="HostCollateralId"/>.
+    ///
+    /// This is the alias path. An alias stands for another title in the same physical group and is
+    /// released or re-pledged together with its parent, but AS400 issued exactly one id for the whole
+    /// group — copying it onto every row would make the same id appear several times and break any
+    /// lookup by it.
+    /// </summary>
+    public void SetHostRedemption(bool isRedeemed, DateOnly? redeemedDate)
+    {
+        IsRedeemed = isRedeemed;
+        // Kept in lockstep so "not redeemed" can never carry a stale date.
+        RedeemedDate = isRedeemed ? redeemedDate : null;
+    }
+
+    private static string? Normalise(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private CollateralMaster() { }
 
     public static CollateralMaster CreateLand(
         string ownerName,
-        string landOfficeCode,
+        string? landOfficeCode,
         string province,
         string district,
         string subDistrict,
-        string titleType,
+        string? titleType,
         string titleNumber,
         string? surveyNumber,
         string? landParcelNumber,
@@ -221,11 +268,11 @@ public class CollateralMaster : Aggregate<Guid>
     /// </summary>
     public static CollateralMaster CreateLandAlias(
         Guid parentMasterId,
-        string landOfficeCode,
+        string? landOfficeCode,
         string province,
         string district,
         string subDistrict,
-        string titleType,
+        string? titleType,
         string titleNumber,
         string? surveyNumber,
         string? landParcelNumber,
@@ -321,6 +368,36 @@ public class CollateralMaster : Aggregate<Guid>
     }
 
     /// <summary>
+    /// Creates a master for collateral carried over from AS400 whose physical identity we do not
+    /// have — see <see cref="CollateralTypes.Unidentified"/>.
+    ///
+    /// <b>Deliberately attaches no detail row.</b> Every other factory creates one, but the AS400
+    /// legacy listing carries no title number and no location, and LandDetails / CondoDetails make
+    /// those columns NOT NULL because they are the dedup key. Inventing placeholders would be worse
+    /// than having none: two such rows would collide on the filtered unique index, and a real
+    /// appraisal of the same parcel could dedup onto the placeholder and inherit its history.
+    ///
+    /// With no detail row the master is invisible to every dedup lookup, which is the correct
+    /// behaviour — we genuinely cannot tell which physical collateral it is, so it must never be
+    /// merged with one. It is reachable only by its AS400 collateral id.
+    /// </summary>
+    public static CollateralMaster CreateUnidentified(string? ownerName)
+    {
+        var master = new CollateralMaster
+        {
+            Id = Guid.CreateVersion7(),
+            CollateralType = CollateralTypes.Unidentified,
+            OwnerName = string.IsNullOrWhiteSpace(ownerName) ? null : ownerName.Trim(),
+            IsDeleted = false,
+            IsMaster = true,
+            ParentMasterId = null,
+        };
+
+        master.AddDomainEvent(new CollateralMasterCreatedEvent(master.Id, master.CollateralType));
+        return master;
+    }
+
+    /// <summary>
     /// Overwrites last-known fields on a PRJ (block-project) master.
     /// </summary>
     public void UpsertFromProjectAppraisal(ProjectUpsertData data)
@@ -340,7 +417,7 @@ public class CollateralMaster : Aggregate<Guid>
             data.RemainingUnits,
             data.ProjectSellingPrice);
 
-        // Replace the unit set with the incoming snapshot. FindProjectMasterByLastAppraisalIdAsync
+        // Replace the unit set with the incoming snapshot. FindProjectMasterByAppraisalIdAsync
         // eager-loads ProjectDetail.Units, so clearing the tracked collection makes EF delete the
         // orphaned old rows (required FK + cascade) and insert the new ones in the SAME SaveChanges —
         // an atomic replace for both first-appraisal (empty) and reappraisal (full swap).
@@ -352,10 +429,6 @@ public class CollateralMaster : Aggregate<Guid>
 
         SetCustomerName(data.CustomerName);
 
-        ProjectDetail.UpdateAppraisalSummary(
-            data.AppraisalId,
-            data.AppraisalNumber,
-            data.AppraisalDate);
     }
 
     /// <summary>
@@ -387,14 +460,6 @@ public class CollateralMaster : Aggregate<Guid>
         ExcludedFromReappraisalBy = null;
     }
 
-    /// <summary>
-    /// Sets the host (AS400) collateral identifier. Called by the future inbound host-mapping
-    /// interface. Idempotent overwrite; blank is normalised to null.
-    /// </summary>
-    public void SetHostCollateralId(string? hostCollateralId)
-    {
-        HostCollateralId = string.IsNullOrWhiteSpace(hostCollateralId) ? null : hostCollateralId.Trim();
-    }
 
     /// <summary>
     /// Flips the CollateralType discriminator to reflect the latest appraisal classification.
@@ -616,8 +681,8 @@ public class CollateralMaster : Aggregate<Guid>
     }
 
     /// <summary>
-    /// Overwrites last-known fields on a Land master and updates construction tracking.
-    /// Raises ConstructionStatusChangedEvent when IsUnderConstructionAtLastAppraisal flips.
+    /// Overwrites last-known fields on a Land master. Construction status is no longer tracked here —
+    /// it is frozen per appraisal on the CollateralEngagement instead of overwritten on the master.
     /// </summary>
     public void UpsertFromLandAppraisal(LandUpsertData data)
     {
@@ -639,25 +704,6 @@ public class CollateralMaster : Aggregate<Guid>
             data.Street, data.Village,
             data.Latitude, data.Longitude);
 
-        LandDetail.UpdateValues(data.UnitPrice, data.BuildingValue, data.AppraisalValue);
-
-        bool wasUnderConstruction = LandDetail.IsUnderConstructionAtLastAppraisal;
-        decimal? fromPercent = LandDetail.OverallConstructionProgressPercent;
-
-        LandDetail.UpdateAppraisalSummary(
-            data.AppraisalId, data.AppraisalNumber, data.AppraisalDate,
-            data.IsUnderConstruction, data.OverallConstructionProgressPercent);
-
-        // Raise domain event when construction flag changes
-        if (wasUnderConstruction != data.IsUnderConstruction)
-        {
-            AddDomainEvent(new ConstructionStatusChangedEvent(
-                Id,
-                wasUnderConstruction,
-                data.IsUnderConstruction,
-                fromPercent,
-                data.OverallConstructionProgressPercent));
-        }
     }
 
     /// <summary>
@@ -677,10 +723,6 @@ public class CollateralMaster : Aggregate<Guid>
             data.BuildingAge, data.ConstructionYear, data.ModelName,
             data.Latitude, data.Longitude);
 
-        CondoDetail.UpdateValues(data.UnitPrice, data.BuildingValue, data.AppraisalValue);
-
-        CondoDetail.UpdateAppraisalSummary(
-            data.AppraisalId, data.AppraisalNumber, data.AppraisalDate);
     }
 
     /// <summary>
@@ -693,12 +735,6 @@ public class CollateralMaster : Aggregate<Guid>
 
         LeaseholdDetail.UpdateLastKnown(data.LeaseTermEnd, data.LeaseTermMonths);
 
-        // AppraisalValue represents the whole collateral — written on the IsMaster row only, so a
-        // typed alias (one-collateral-per-appraisal model) does not claim the whole-appraisal total.
-        if (IsMaster)
-            LeaseholdDetail.SetAppraisalValue(data.AppraisalValue);
-
-        LeaseholdDetail.UpdateAppraisalSummary(data.AppraisalId, data.AppraisalNumber, data.AppraisalDate);
     }
 
     /// <summary>
@@ -720,12 +756,6 @@ public class CollateralMaster : Aggregate<Guid>
 
         MachineDetail.SetLifeYear(data.LifeYear);
 
-        // AppraisalValue represents the whole collateral — written on the IsMaster row only, so a
-        // typed alias (one-collateral-per-appraisal model) does not claim the whole-appraisal total.
-        if (IsMaster)
-            MachineDetail.SetAppraisalValue(data.AppraisalValue);
-
-        MachineDetail.UpdateAppraisalSummary(data.AppraisalId, data.AppraisalNumber, data.AppraisalDate);
     }
 
     /// <summary>
@@ -799,7 +829,10 @@ public class CollateralMaster : Aggregate<Guid>
         string? internalAppraiserName = null,
         decimal? landValue = null,
         decimal? buildingValue = null,
-        string? appraisalCompanyCode = null)
+        string? appraisalCompanyCode = null,
+        decimal? currentValue = null,
+        bool? isUnderConstruction = null,
+        decimal? constructionProgressPercent = null)
     {
         if (!IsMaster)
             throw new InvalidOperationException(
@@ -813,7 +846,7 @@ public class CollateralMaster : Aggregate<Guid>
             constructionInspectionFeeAmount, snapshot, createdAt,
             appraisedCollateralType, landAreaInSqWa, appraisalValue,
             forcedSaleValue, internalAppraiserName, landValue, buildingValue,
-            appraisalCompanyCode);
+            appraisalCompanyCode, currentValue, isUnderConstruction, constructionProgressPercent);
 
         _engagements.Add(engagement);
         AddDomainEvent(new CollateralEngagementAddedEvent(Id, engagement.Id, appraisalId));

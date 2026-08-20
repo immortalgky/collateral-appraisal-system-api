@@ -8,7 +8,19 @@ public class RegulatoryExportQuery(ISqlConnectionFactory connectionFactory) : IR
 {
     public async Task<IReadOnlyList<RegulatoryExportRow>> GetRowsAsync(CancellationToken cancellationToken = default)
     {
-        const string sql = "SELECT * FROM collateral.vw_RegulatoryExport ORDER BY CollateralMasterId";
+        // Ordering by CollateralMasterId alone is no longer sufficient: the view is one record per
+        // (chain, master), and a master can belong to several chains, so CollateralMasterId repeats.
+        // Without a unique tie-breaker the row order in the file would vary between runs.
+        //
+        // OPTION (MAXRECURSION 0) MUST live here — SQL Server does not allow it inside a view.
+        // Without it the default limit of 100 levels applies, and a construction-inspection chain
+        // longer than 100 aborts the whole query with Msg 530, producing no regulatory file at all.
+        // The view already carries a Path-based cycle guard, so lifting the cap is safe.
+        const string sql = """
+            SELECT * FROM collateral.vw_RegulatoryExport
+            ORDER BY CollateralMasterId, LatestAppraisalNumber
+            OPTION (MAXRECURSION 0)
+            """;
 
         var connection = connectionFactory.GetOpenConnection();
         var rows = await connection.QueryAsync<RawRow>(sql);
@@ -24,6 +36,7 @@ public class RegulatoryExportQuery(ISqlConnectionFactory connectionFactory) : IR
         ConstructionProgressPercent: r.ConstructionProgressPercent,
         LatestAppraisalValue: r.LatestAppraisalValue,
         EarliestAppraisalValue: r.EarliestAppraisalValue,
+        CurrentValue: r.CurrentValue,
         SellingPrice: r.SellingPrice,
         NumberOfFloors: r.NumberOfFloors,
         BuildingAge: r.BuildingAge,
@@ -49,6 +62,7 @@ public class RegulatoryExportQuery(ISqlConnectionFactory connectionFactory) : IR
         public decimal? ConstructionProgressPercent { get; init; }
         public decimal? LatestAppraisalValue { get; init; }
         public decimal? EarliestAppraisalValue { get; init; }
+        public decimal? CurrentValue { get; init; }
         public decimal? SellingPrice { get; init; }
         public int? NumberOfFloors { get; init; }
         public int? BuildingAge { get; init; }

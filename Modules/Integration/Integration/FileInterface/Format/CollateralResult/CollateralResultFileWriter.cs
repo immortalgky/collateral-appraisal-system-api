@@ -5,7 +5,7 @@ using Integration.Contracts.FixedWidth;
 namespace Integration.FileInterface.Format.CollateralResult;
 
 /// <summary>
-/// Writes the outbound "Collateral Result" interface — a fixed-width 198-char UTF-8 H/D/T file
+/// Writes the outbound "Collateral Result" interface — a fixed-width 208-char UTF-8 H/D/T file
 /// sent to the host (AS400) to update collateral prices after an appraisal completes.
 ///
 /// Decimal format: implied-decimal, NO decimal point — the value is multiplied by 100 and the field
@@ -13,14 +13,18 @@ namespace Integration.FileInterface.Format.CollateralResult;
 /// which reserved a dot position). A null OR zero amount is emitted as an ALL-ZEROS numeric field
 /// (AS400 zoned-decimal fields cannot hold spaces). The trailer detail-count is zero-padded.
 ///
-/// Detail = 198 chars; Header/Trailer = 198 chars.
+/// Detail = 208 chars; Header/Trailer = 208 chars. Positions 199-208 (BuildingAge, AreaUtilization)
+/// were appended in the 2026-08 spec revision; positions 1-198 are unchanged.
 /// </summary>
 public sealed class CollateralResultFileWriter
 {
-    public const int RecordLength = 198;
+    public const int RecordLength = 208;
 
-    // Ordered Detail-record field map. Widths must sum to RecordLength (198).
-    // Verified: 1+19+10+15+15+15+15+8+8+4+40+4+40+3+1 = 198.
+    /// <summary>Largest value the 7-char implied-decimal AreaUtilization field can carry (dec(7,2)).</summary>
+    public const decimal MaxAreaUtilization = 99999.99m;
+
+    // Ordered Detail-record field map. Widths must sum to RecordLength (208).
+    // Verified: 1+19+10+15+15+15+15+8+8+4+40+4+40+3+1+3+7 = 208.
     private static readonly FixedWidthField[] DetailFields =
     [
         new("RecordType",             1,  FixedWidthAlign.Left),          // 'D'
@@ -38,6 +42,8 @@ public sealed class CollateralResultFileWriter
         new("ExternalValuerName",    40,  FixedWidthAlign.Left),          // pos 155-194
         new("LifeYear",               3,  FixedWidthAlign.RightZeroFill), // pos 195-197 dec(3,0)
         new("AppraisalStatus",        1,  FixedWidthAlign.Left),          // pos 198
+        new("BuildingAge",            3,  FixedWidthAlign.RightZeroFill), // pos 199-201 dec(3,0)  CCEBIL
+        new("AreaUtilization",        7,  FixedWidthAlign.RightZeroFill), // pos 202-208 implied dec(7,2) CCEARE
     ];
 
     private static readonly FixedWidthRecordBuilder DetailBuilder =
@@ -74,6 +80,15 @@ public sealed class CollateralResultFileWriter
             ["LifeYear"] = (row.LifeYear is { } ly && ly >= 0 && ly <= 999 ? ly : 0)
                 .ToString(CultureInfo.InvariantCulture),
             ["AppraisalStatus"] = row.AppraisalStatus,
+            // BuildingAge dec(3,0): null / out-of-range → all zeros, same rule as LifeYear.
+            ["BuildingAge"] = (row.BuildingAge is { } age && age >= 0 && age <= 999 ? age : 0)
+                .ToString(CultureInfo.InvariantCulture),
+            // AreaUtilization dec(7,2): the field holds at most 99999.99. Anything larger is clamped to
+            // zero here rather than left to overflow — FixedWidthOverflow.ThrowOnNumeric would abort the
+            // whole nightly run over one bad row. CollateralResultQuery already filters these out, so
+            // reaching this branch means a value slipped past it.
+            ["AreaUtilization"] = Money(
+                row.AreaUtilization is { } area && area >= 0m && area <= MaxAreaUtilization ? area : 0m),
         };
 
         return DetailBuilder.Build(values);

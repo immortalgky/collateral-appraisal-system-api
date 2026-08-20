@@ -9135,7 +9135,7 @@ erDiagram
 - **PK**: `CollateralMasterId`
 - INDEX `IX_LandDetails_UnderConstruction` on `IsUnderConstructionAtLastAppraisal` filter `[IsUnderConstructionAtLastAppraisal] = 1`
 - INDEX `IX_LandDetails_LandOffice_TitleNumber` on `LandOfficeCode`, `TitleNumber`
-- UNIQUE INDEX `UX_LandDetails_DedupKey_Active` on `LandOfficeCode`, `Province`, `District`, `SubDistrict`, `TitleType`, `TitleNumber`, `SurveyNumber`, `LandParcelNumber` filter `[IsDeleted] = 0`
+- UNIQUE INDEX `UX_LandDetails_DedupKey_Active` on `Province`, `District`, `SubDistrict`, `TitleNumber` filter `[IsDeleted] = 0` — narrowed to these four columns on 2026-08-09; `TitleType`, `SurveyNumber`, `LandParcelNumber` and `Rawang` are no longer part of land identity
 - **FK** → `CollateralMaster` (WithOne) via `Collateral.CollateralMasters.Models.LandDetail`, `CollateralMasterId` · ON DELETE Cascade
 
 #### `collateral.LeaseholdDetails`

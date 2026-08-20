@@ -53,6 +53,7 @@ public class CreateCondoPropertyCommandHandler(
             command.RoomNumber,
             command.FloorNumber,
             command.UsableArea,
+            command.ConstructionCompletionPercent,
             command.TitleNumber,
             command.TitleType,
             coordinates,

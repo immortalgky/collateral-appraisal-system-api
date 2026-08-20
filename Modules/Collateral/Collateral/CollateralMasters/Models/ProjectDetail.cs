@@ -33,8 +33,6 @@ public class ProjectDetail
     /// </summary>
     public IReadOnlyList<ProjectUnit> Units => _units.AsReadOnly();
 
-    // Appraisal summary (owned VO)
-    public AppraisalSummary AppraisalSummary { get; private set; } = null!;
 
     // Synced from CollateralMaster for filtered-index support
     public bool IsDeleted { get; private set; }
@@ -47,7 +45,6 @@ public class ProjectDetail
         ProjectType = projectType;
         ProjectName = projectName;
         IsDeleted = isDeleted;
-        AppraisalSummary = new AppraisalSummary(null, null, null);
     }
 
     /// <summary>
@@ -98,12 +95,6 @@ public class ProjectDetail
     public void RecountRemaining()
     {
         RemainingUnits = _units.Count(u => !u.IsSold);
-    }
-
-    /// <summary>Stamps the appraisal summary owned VO.</summary>
-    public void UpdateAppraisalSummary(Guid appraisalId, string appraisalNumber, DateTime appraisedDate)
-    {
-        AppraisalSummary.Update(appraisalId, appraisalNumber, appraisedDate);
     }
 
     internal void SetIsDeleted(bool isDeleted) => IsDeleted = isDeleted;

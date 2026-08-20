@@ -34,16 +34,6 @@ public class CondoDetail
     public decimal? Latitude { get; private set; }
     public decimal? Longitude { get; private set; }
 
-    // Three-value model (Phase C, wired in PR-8)
-    // UnitPrice: per-unit price — cost approach only. Source: PricingFinalValue.FinalValueAdjusted.
-    public decimal? UnitPrice { get; private set; }
-    // BuildingValue: IsMaster only — from PricingFinalValue.BuildingValue, cost approach only.
-    public decimal? BuildingValue { get; private set; }
-    // AppraisalValue: IsMaster only — from PricingFinalValue.AppraisalPrice (fallbacks: FinalValueAdjusted, FinalValueRounded).
-    public decimal? AppraisalValue { get; private set; }
-
-    // Appraisal summary (owned)
-    public AppraisalSummary AppraisalSummary { get; private set; } = null!;
 
     // Synced from CollateralMaster for filtered unique index support
     public bool IsDeleted { get; private set; }
@@ -73,7 +63,6 @@ public class CondoDetail
         District = district;
         SubDistrict = subDistrict;
         CondoName = condoName;
-        AppraisalSummary = new AppraisalSummary(null, null, null);
         IsDeleted = isDeleted;
     }
 
@@ -97,25 +86,6 @@ public class CondoDetail
         ModelName = modelName;
         Latitude = latitude;
         Longitude = longitude;
-    }
-
-    public void UpdateAppraisalSummary(
-        Guid appraisalId,
-        string appraisalNumber,
-        DateTime appraisedDate)
-    {
-        AppraisalSummary.Update(appraisalId, appraisalNumber, appraisedDate);
-    }
-
-    /// <summary>
-    /// Updates the three-value model fields.
-    /// <paramref name="buildingCost"/> and <paramref name="appraisalValue"/> are IsMaster only (pass null for aliases).
-    /// </summary>
-    public void UpdateValues(decimal? unitPrice, decimal? buildingCost, decimal? appraisalValue)
-    {
-        UnitPrice = unitPrice;
-        BuildingValue = buildingCost;
-        AppraisalValue = appraisalValue;
     }
 
     internal void SetIsDeleted(bool isDeleted) => IsDeleted = isDeleted;

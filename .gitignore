@@ -103,3 +103,33 @@ docs/security-review/*.patch
 # -------------------------------------
 .claude/worktrees/
 .claude/docs/
+
+# -------------------------------------
+# AS400 file-interface working folders
+# -------------------------------------
+# integration.FileInterfaceConfigs points the jobs at these paths, resolved against the app's
+# content root. They hold REAL bank data — inbound collateral-link files and the outbound
+# COLLATERAL_RESULT / REGULATORY files — so nothing in them may ever reach git. Only committed
+# samples belong in docs/, and those are hand-made, never a copy of a production file.
+#
+# ANCHORED TO THE CONTENT ROOT, NOT **/. A bare **/hostlink/ also matched the SOURCE folders
+# Modules/Integration/Integration/FileInterface/Jobs/HostLink and Tests/Unit/Collateral.Tests/HostLink
+# — ignore matching is case-insensitive wherever core.ignorecase is on, which is the default on macOS
+# and Windows — and silently swallowed three source files, one of which the build needs. Name the
+# runtime directories exactly, the way the older reappraisal/outbound rules above already do.
+Bootstrapper/Api/hostlink/
+Bootstrapper/Api/reappraisal/inbox/
+Bootstrapper/Api/reappraisal/processed/
+Bootstrapper/Api/outbound/
+
+# -------------------------------------
+# Row-level extracts and bank workbooks
+# -------------------------------------
+# Same rule as the working folders above, applied to docs/: the aggregate .md reports are the
+# committed artefact, never the rows behind them. These workbooks are dumps of the U3
+# (production-like) database and the bank's own comparison figures.
+docs/host-collateral-link/*.xlsx
+~$*
+
+# POC mocks belong to whichever feature branch picks them up, not to the shared history.
+docs/poc/

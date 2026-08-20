@@ -225,8 +225,6 @@ public class GetCollateralMasterByIdQueryHandler(
                     row.Land_LastAppraisalId,
                     row.Land_LastAppraisalNumber,
                     row.Land_LastAppraisedDate,
-                    row.Land_UnitPrice,
-                    row.Land_BuildingValue,
                     row.Land_AppraisalValue,
                     AliasTitles: []);   // GetById does not load alias titles — FE uses Lookup for that
                 break;
@@ -250,14 +248,13 @@ public class GetCollateralMasterByIdQueryHandler(
                     row.Condo_LastAppraisalId,
                     row.Condo_LastAppraisalNumber,
                     row.Condo_LastAppraisedDate,
-                    row.Condo_UnitPrice,
-                    row.Condo_BuildingValue,
                     row.Condo_AppraisalValue);
                 break;
 
             case CollateralTypes.Leasehold:
             case CollateralTypes.LeaseholdBuilding:
             case CollateralTypes.LeaseholdWithBuilding:
+            case CollateralTypes.LeaseholdCondo:
                 leaseholdDetail = new LeaseholdDetailDto(
                     row.Lh_LeaseRegistrationNo!,
                     row.Lh_UnderlyingMasterId!.Value,

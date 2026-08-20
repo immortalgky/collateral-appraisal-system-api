@@ -26,10 +26,15 @@ public class DatabaseMigrator
 
             var connectionString = GetConnectionString();
 
-            // First, handle repeatable scripts (views, stored procedures, functions)
-            await ExecuteRepeatableScripts(connectionString, environment);
-
-            // Then handle one-time migration scripts
+            // One-time migration scripts first, then the repeatable ones (views, stored procedures,
+            // functions). That is the dependency direction: a view can only be created once the
+            // tables and columns it names exist, and those arrive from EF migrations (already applied
+            // by this point) or from a one-time script. With the two the other way round, any view
+            // reading something a one-time script creates failed CREATE VIEW with error 208 on every
+            // database that had not been through that script yet — a fresh clone, a CI container, a
+            // new environment — and took the whole migration down with it. Nothing under
+            // Migration/Scripts reads a view, a procedure or a function, so no dependency runs the
+            // other way.
             var upgrader = DeployChanges.To
                 .SqlDatabase(connectionString)
                 .WithScriptsEmbeddedInAssembly(typeof(DatabaseMigrator).Assembly,
@@ -48,8 +53,12 @@ public class DatabaseMigrator
                 throw result.Error ?? new InvalidOperationException("DbUp migration failed (no error details available)");
             }
 
-            _logger.LogInformation("Database migration completed successfully. Scripts executed: {Count}",
+            _logger.LogInformation("One-time migration scripts completed. Scripts executed: {Count}",
                 result.Scripts.Count());
+
+            await ExecuteRepeatableScripts(connectionString, environment);
+
+            _logger.LogInformation("Database migration completed successfully");
 
             return true;
         }

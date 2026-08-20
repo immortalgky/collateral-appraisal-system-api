@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Integration.Contracts.FixedWidth;
 using Integration.Contracts.Reappraisal;
 
 namespace Integration.FileInterface.Format.Reappraisal;
@@ -128,14 +129,7 @@ public class CollatrevFileParser
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static string Slice(string line, int start, int length)
-    {
-        if (start >= line.Length) return new string(' ', length);
-        var available = Math.Min(length, line.Length - start);
-        var result = line.Substring(start, available);
-        if (available < length)
-            result = result.PadRight(length);
-        return result;
-    }
+        => FixedWidthRecordReader.Slice(line, start, length);
 
     private static string? TrimOrNull(string s)
     {
@@ -143,45 +137,13 @@ public class CollatrevFileParser
         return t.Length == 0 ? null : t;
     }
 
+    // Date rules are shared with the other inbound fixed-width feeds so a correction reaches all
+    // of them — see FixedWidthDateParser.
     private static DateOnly ParseDdmmyyyy(string s, string fieldName)
-    {
-        var v = s.Trim();
-        if (v.Length < 8 || v == "00000000")
-            throw new FormatException($"Invalid {fieldName}: '{v}'");
-
-        if (!int.TryParse(v[..2], out var dd) ||
-            !int.TryParse(v[2..4], out var mm) ||
-            !int.TryParse(v[4..8], out var yyyy))
-            throw new FormatException($"Invalid {fieldName}: '{v}'");
-
-        // A syntactically-valid but out-of-range date (e.g. dd=32, mm=13) must surface as a
-        // FormatException so the per-file handler treats it as bad data — not an unexpected
-        // ArgumentOutOfRangeException leaking through.
-        try
-        {
-            return new DateOnly(yyyy, mm, dd);
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            throw new FormatException($"Invalid {fieldName}: '{v}'");
-        }
-    }
+        => FixedWidthDateParser.ParseDdmmyyyy(s, fieldName);
 
     private static DateOnly? ParseDdmmyyyyOrNull(string s)
-    {
-        var v = s.Trim();
-        if (v.Length < 8 || v == "00000000" || v.All(c => c == ' '))
-            return null;
-
-        if (!int.TryParse(v[..2], out var dd) ||
-            !int.TryParse(v[2..4], out var mm) ||
-            !int.TryParse(v[4..8], out var yyyy) ||
-            yyyy == 0)
-            return null;
-
-        try { return new DateOnly(yyyy, mm, dd); }
-        catch { return null; }
-    }
+        => FixedWidthDateParser.ParseDdmmyyyyOrNull(s);
 
     private static decimal? ParseDecimalOrNull(string s)
     {

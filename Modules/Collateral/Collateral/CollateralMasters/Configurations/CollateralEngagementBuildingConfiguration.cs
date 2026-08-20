@@ -12,7 +12,9 @@ public class CollateralEngagementBuildingConfiguration : IEntityTypeConfiguratio
         builder.Property(b => b.Id).ValueGeneratedNever();
 
         builder.Property(b => b.EngagementId).IsRequired();
-        builder.Property(b => b.BuildingTypeCode).IsRequired().HasMaxLength(10);
+        // ← appraisal.BuildingAppraisalDetails.BuildingType nvarchar(100) — renamed on the way over.
+        // The name says "code" but the source is not width-limited to one, so match it.
+        builder.Property(b => b.BuildingTypeCode).IsRequired().HasMaxLength(100);
         builder.Property(b => b.BuildingArea).HasPrecision(18, 4);
         builder.Property(b => b.BuildingValue).HasPrecision(18, 2);
         builder.Property(b => b.Sequence).IsRequired();

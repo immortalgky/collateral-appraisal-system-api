@@ -68,7 +68,7 @@ public class UpdateForceSaleRateCommandHandler(
             valuation.ValuationApproach,
             valuation.ValuationDate,
             valuation.AppraisedValue,
-            valuation.AppraisedValue * rate / 100m,
+            Math.Round(valuation.AppraisedValue * rate / 100m / 1000, MidpointRounding.AwayFromZero) * 1000,
             valuation.InsuranceValue);
 
         return Unit.Value;

@@ -175,6 +175,7 @@ public class RequestSubmittedEventHandler(
                 TitleType = condoTitle.TitleDeedInfo.TitleType,
                 CondoName = condoTitle.CondoInfo.CondoName,
                 BuildingNumber = condoTitle.CondoInfo.BuildingNumber,
+                CondoRegistrationNumber = condoTitle.CondoInfo.CondoRegistrationNumber,
                 RoomNumber = condoTitle.CondoInfo.RoomNumber,
                 FloorNumber = condoTitle.CondoInfo.FloorNumber,
                 UsableArea = condoTitle.CondoInfo.UsableArea

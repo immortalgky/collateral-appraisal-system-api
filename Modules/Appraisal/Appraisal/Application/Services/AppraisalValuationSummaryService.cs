@@ -235,7 +235,12 @@ public class AppraisalValuationSummaryService(
         var rate = await forceSaleRateResolver.ResolveAsync(appraisalId, row.ForceSaleRate, ct);
         var forced = total * rate / 100m;
 
-        row.UpdateSummary(approach, date, total, forced, insuranceTotal);
+        row.UpdateSummary(
+            approach,
+            date,
+            total,
+            Math.Round(forced / 1000, MidpointRounding.AwayFromZero) * 1000,
+            Math.Round(insuranceTotal / 1000, MidpointRounding.AwayFromZero) * 1000);
 
         // Surface the new appraisal-level appraised value to the Workflow module so the
         // approval-tier switch / committee selection route on appraised value (not facility limit).

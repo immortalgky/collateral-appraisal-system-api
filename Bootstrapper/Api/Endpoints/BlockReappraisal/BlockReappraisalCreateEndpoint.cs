@@ -38,14 +38,19 @@ public class BlockReappraisalCreateEndpoint : ICarterModule
                     ICurrentUserService currentUser,
                     CancellationToken cancellationToken) =>
                 {
-                    // ── Resolve PrevAppraisalId from ProjectDetail.AppraisalSummary ──────
-                    // AppraisalSummary is an owned value object on ProjectDetail; the column
-                    // is ProjectDetails.LastAppraisalId (mapped by EF's owned-entity convention).
+                    // ── Resolve PrevAppraisalId from the project's latest engagement ──────
+                    // ProjectDetails.LastAppraisalId (the old AppraisalSummary owned VO) has been
+                    // removed: it was a latest-WRITE-wins cache that an out-of-order replay could
+                    // leave pointing at the wrong appraisal. Engagements are immutable, one per
+                    // appraisal, so ordering by AppraisalDate gives the genuinely latest round.
                     const string sql = """
-                        SELECT pd.LastAppraisalId
-                        FROM collateral.ProjectDetails pd
-                        WHERE pd.CollateralMasterId = @CollateralMasterId
-                          AND pd.IsDeleted = 0
+                        SELECT TOP 1 e.AppraisalId
+                        FROM collateral.CollateralEngagements e
+                        JOIN collateral.ProjectDetails pd
+                          ON pd.CollateralMasterId = e.CollateralMasterId
+                         AND pd.IsDeleted = 0
+                        WHERE e.CollateralMasterId = @CollateralMasterId
+                        ORDER BY e.AppraisalDate DESC, e.CreatedAt DESC, e.Id DESC
                         """;
 
                     var connection = connectionFactory.GetOpenConnection();
@@ -56,7 +61,7 @@ public class BlockReappraisalCreateEndpoint : ICarterModule
                     if (prevAppraisalId is null)
                         return Results.NotFound(new
                         {
-                            Detail = "No ProjectDetail or LastAppraisalId found for the given CollateralMasterId. " +
+                            Detail = "No ProjectDetail or completed appraisal found for the given CollateralMasterId. " +
                                      "The block project must have been appraised at least once before creating a reappraisal."
                         });
 

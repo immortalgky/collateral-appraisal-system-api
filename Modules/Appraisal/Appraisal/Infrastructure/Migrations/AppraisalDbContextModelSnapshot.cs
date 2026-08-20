@@ -8536,6 +8536,10 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)");
 
+                            b1.Property<decimal?>("ConstructionCompletionPercent")
+                                .HasPrecision(7, 4)
+                                .HasColumnType("decimal(7,4)");
+
                             b1.Property<string>("ConstructionMaterialType")
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)");

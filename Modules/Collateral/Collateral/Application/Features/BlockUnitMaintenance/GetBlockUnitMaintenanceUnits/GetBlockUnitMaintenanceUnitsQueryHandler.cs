@@ -15,11 +15,19 @@ public class GetBlockUnitMaintenanceUnitsQueryHandler(
         //   2. Unit rows from ProjectUnits, ordered by SequenceNumber.
         const string sql = """
             SELECT cm.Id                    AS CollateralMasterId,
-                   pd.LastAppraisalNumber   AS AppraisalReportNo,
+                   le.AppraisalNumber       AS AppraisalReportNo,
                    pd.ProjectName           AS ProjectName,
                    pd.ProjectType           AS ProjectType
             FROM   collateral.CollateralMasters cm
             INNER JOIN collateral.ProjectDetails pd ON pd.CollateralMasterId = cm.Id
+            -- Latest appraisal number from the engagements; ProjectDetails.LastAppraisalNumber was a
+            -- latest-write-wins cache and has been removed.
+            OUTER APPLY (
+                SELECT TOP 1 e.AppraisalNumber
+                FROM   collateral.CollateralEngagements e
+                WHERE  e.CollateralMasterId = cm.Id
+                ORDER BY e.AppraisalDate DESC, e.CreatedAt DESC, e.Id DESC
+            ) le
             WHERE  cm.Id = @CollateralMasterId
               AND  cm.CollateralType = 'PRJ'
               AND  cm.IsMaster = 1

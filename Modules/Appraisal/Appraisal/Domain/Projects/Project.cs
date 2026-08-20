@@ -608,7 +608,8 @@ public class Project : Aggregate<Guid>
             if (unit.ModelType != null && modelLookup.TryGetValue(unit.ModelType, out var matched))
             {
                 standardPrice = matched.StandardPrice;
-                coverageAmount = matched.CoverageAmount * unit.UsableArea ?? 0m;
+                coverageAmount = Math.Round(
+                    (matched.CoverageAmount * unit.UsableArea ?? 0m) / 1000, MidpointRounding.AwayFromZero) * 1000;
             }
 
             var rawLocationAdjustment = 0m;
@@ -643,7 +644,7 @@ public class Project : Aggregate<Guid>
             var totalAppraisalValue = standardPriceTotal + locationContribution + priceIncrementPerFloor;
             var totalAppraisalValueRounded = Math.Round(totalAppraisalValue, 0, MidpointRounding.AwayFromZero);
             var forceSellingPrice = assumption.ForceSalePercentage.HasValue
-                ? Math.Round(totalAppraisalValueRounded * assumption.ForceSalePercentage.Value / 100m, 0, MidpointRounding.AwayFromZero)
+                ? Math.Round(totalAppraisalValueRounded * assumption.ForceSalePercentage.Value / 100m / 1000, 0, MidpointRounding.AwayFromZero) * 1000
                 : (decimal?)null;
 
             unitPrice.UpdateCondoCalculatedValues(
@@ -700,7 +701,10 @@ public class Project : Aggregate<Guid>
             }
 
             var usableArea = unit.UsableArea ?? 0m;
-            var coverageAmount = (LookupRate(ratesByCondition, fireInsuranceCondition) ?? modelAssumption?.CoverageAmount) * usableArea;
+            var rawCoverageAmount = (LookupRate(ratesByCondition, fireInsuranceCondition) ?? modelAssumption?.CoverageAmount) * usableArea;
+            var coverageAmount = rawCoverageAmount.HasValue
+                ? Math.Round(rawCoverageAmount.Value / 1000, MidpointRounding.AwayFromZero) * 1000
+                : (decimal?)null;
 
             var landArea = unit.LandArea ?? 0m;
             var landIncreaseDecreaseRate = assumption.LandIncreaseDecreaseRate ?? 0m;
@@ -719,7 +723,7 @@ public class Project : Aggregate<Guid>
             var totalAppraisalValue = standardPrice + landIncreaseDecreaseAmount + locationContribution;
             var totalAppraisalValueRounded = RoundToNearest10000(totalAppraisalValue);
             var forceSellingPrice = assumption.ForceSalePercentage.HasValue
-                ? Math.Round(totalAppraisalValueRounded * assumption.ForceSalePercentage.Value / 100m, 0, MidpointRounding.AwayFromZero)
+                ? Math.Round(totalAppraisalValueRounded * assumption.ForceSalePercentage.Value / 100m / 1000, 0, MidpointRounding.AwayFromZero) * 1000
                 : (decimal?)null;
 
             unitPrice.UpdateLandAndBuildingCalculatedValues(

@@ -1228,6 +1228,12 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)")
                                 .HasColumnName("CondoName");
 
+                            b1.Property<string>("CondoRegistrationNumber")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("CondoRegistrationNumber");
+
                             b1.Property<string>("FloorNumber")
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(10)
@@ -1648,6 +1654,12 @@ namespace Request.Infrastructure.Migrations
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)")
                                 .HasColumnName("CondoName");
+
+                            b1.Property<string>("CondoRegistrationNumber")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("CondoRegistrationNumber");
 
                             b1.Property<string>("FloorNumber")
                                 .ValueGeneratedOnUpdateSometimes()

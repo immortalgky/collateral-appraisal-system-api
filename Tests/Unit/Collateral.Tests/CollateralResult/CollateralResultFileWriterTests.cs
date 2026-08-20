@@ -4,9 +4,9 @@ using Integration.FileInterface.Format.CollateralResult;
 namespace Collateral.Tests.CollateralResult;
 
 /// <summary>
-/// Pins <see cref="CollateralResultFileWriter"/> to the 198-char vendor layout with implied-decimal
+/// Pins <see cref="CollateralResultFileWriter"/> to the 208-char vendor layout with implied-decimal
 /// numerics (value ×100, NO decimal point, left zero-filled; null/zero → all zeros) and a zero-padded
-/// trailer count. Every record is exactly 198 chars; H/D/T present; fields land in their column ranges.
+/// trailer count. Every record is exactly 208 chars; H/D/T present; fields land in their column ranges.
 /// </summary>
 public class CollateralResultFileWriterTests
 {
@@ -25,7 +25,9 @@ public class CollateralResultFileWriterTests
         ExternalValuerCode: null,
         ExternalValuerName: "บริษัท เคแทค แอพเพรซัล แอนด์ เซอร์วิส",
         LifeYear: null,
-        AppraisalStatus: "A");
+        AppraisalStatus: "A",
+        BuildingAge: 12,
+        AreaUtilization: 250.50m);
 
     [Fact]
     public void Header_Is198Chars_AndStartsWithHAndDate()
@@ -33,9 +35,9 @@ public class CollateralResultFileWriterTests
         var writer = new CollateralResultFileWriter();
         var header = writer.BuildHeader(new DateOnly(2025, 1, 21));
 
-        Assert.Equal(198, header.Length);
+        Assert.Equal(208, header.Length);
         Assert.StartsWith("H21012025", header);
-        Assert.Equal(new string(' ', 198 - 9), header[9..]); // rest is filler
+        Assert.Equal(new string(' ', 208 - 9), header[9..]); // rest is filler
     }
 
     [Fact]
@@ -44,7 +46,7 @@ public class CollateralResultFileWriterTests
         var writer = new CollateralResultFileWriter();
         var trailer = writer.BuildTrailer(3);
 
-        Assert.Equal(198, trailer.Length);
+        Assert.Equal(208, trailer.Length);
         Assert.StartsWith("T" + "000000003", trailer); // 9-char zero-padded count
     }
 
@@ -54,7 +56,7 @@ public class CollateralResultFileWriterTests
         var writer = new CollateralResultFileWriter();
         var line = writer.BuildDetail(SampleRow());
 
-        Assert.Equal(198, line.Length);
+        Assert.Equal(208, line.Length);
         Assert.Equal('D', line[0]);
 
         // CollateralId pos 2-20 (index 1..20), implied-decimal id, left zero-filled.
@@ -73,8 +75,12 @@ public class CollateralResultFileWriterTests
         Assert.Equal("21012025", line[90..98]);
         // Next Appraisal Date pos 99-106.
         Assert.Equal("21012028", line[98..106]);
-        // Appraisal Status pos 198 (last char).
+        // Appraisal Status pos 198 — no longer the last char since the 2026-08 spec appended two fields.
         Assert.Equal('A', line[197]);
+        // Building Age pos 199-201 (index 198..201), zero-filled dec(3,0).
+        Assert.Equal("012", line[198..201]);
+        // Area Utilization pos 202-208 (index 201..208): 250.50 ×100 = 25050, zero-filled to 7.
+        Assert.Equal("0025050", line[201..208]);
     }
 
     [Fact]
@@ -88,16 +94,47 @@ public class CollateralResultFileWriterTests
             ForceSaleValue = null,
             LifeYear = null,
             InternalValuerName = null,
+            BuildingAge = null,
+            AreaUtilization = null,
         };
 
         var line = writer.BuildDetail(row);
 
-        Assert.Equal(198, line.Length);
+        Assert.Equal(208, line.Length);
         Assert.Equal(new string('0', 15), line[45..60]);   // Land Value null → all zeros
         Assert.Equal(new string('0', 15), line[60..75]);   // Building Value null → all zeros
         Assert.Equal(new string(' ', 4), line[106..110]);  // Internal Valuer Code always blank (alpha)
         Assert.Equal(new string(' ', 40), line[110..150]); // Internal Valuer Name blank (alpha)
         Assert.Equal("000", line[194..197]);               // Life Year null → all zeros
+        Assert.Equal("000", line[198..201]);               // Building Age null → all zeros
+        Assert.Equal("0000000", line[201..208]);           // Area Utilization null → all zeros
+    }
+
+    [Theory]
+    [InlineData(0, "000")]
+    [InlineData(5, "005")]
+    [InlineData(999, "999")]
+    [InlineData(1000, "000")]  // out of range → zeros, never a truncated "100"
+    [InlineData(-1, "000")]
+    public void BuildingAge_IsClampedToFieldWidth(int age, string expected)
+    {
+        var writer = new CollateralResultFileWriter();
+        var line = writer.BuildDetail(SampleRow() with { BuildingAge = age });
+
+        Assert.Equal(expected, line[198..201]);
+    }
+
+    [Fact]
+    public void AreaUtilization_OverflowIsZeroed_RatherThanAbortingTheRun()
+    {
+        var writer = new CollateralResultFileWriter();
+        // 99999.99 is the largest dec(7,2) the field holds; one satang more must not throw, because a
+        // single oversized collateral would otherwise kill the whole nightly export.
+        var line = writer.BuildDetail(SampleRow() with { AreaUtilization = 100000.00m });
+
+        Assert.Equal(208, line.Length);
+        Assert.Equal("0000000", line[201..208]);
+        Assert.Equal("9999999", writer.BuildDetail(SampleRow() with { AreaUtilization = 99999.99m })[201..208]);
     }
 
     [Fact]
@@ -119,7 +156,7 @@ public class CollateralResultFileWriterTests
         var lines = content.TrimEnd('\r', '\n').Split("\r\n");
 
         Assert.Equal(4, lines.Length);            // H + 2 D + T
-        Assert.All(lines, l => Assert.Equal(198, l.Length));
+        Assert.All(lines, l => Assert.Equal(208, l.Length));
         Assert.StartsWith("H", lines[0]);
         Assert.StartsWith("D", lines[1]);
         Assert.StartsWith("D", lines[2]);
