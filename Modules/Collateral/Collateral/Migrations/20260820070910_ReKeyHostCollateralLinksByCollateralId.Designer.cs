@@ -4,6 +4,7 @@ using Collateral.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Collateral.Migrations
 {
     [DbContext(typeof(CollateralDbContext))]
-    partial class CollateralDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260820070910_ReKeyHostCollateralLinksByCollateralId")]
+    partial class ReKeyHostCollateralLinksByCollateralId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -627,16 +630,15 @@ namespace Collateral.Migrations
                         .HasMaxLength(19)
                         .HasColumnType("nvarchar(19)");
 
+                    b.Property<bool>("IsMasterTitle")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsRedeemed")
                         .HasColumnType("bit");
 
                     b.Property<string>("LocationCode")
                         .HasMaxLength(6)
                         .HasColumnType("nvarchar(6)");
-
-                    b.Property<string>("MasterTitle")
-                        .HasMaxLength(1)
-                        .HasColumnType("nvarchar(1)");
 
                     b.Property<string>("PropertyType")
                         .HasMaxLength(3)
@@ -661,8 +663,8 @@ namespace Collateral.Migrations
                         .IsUnique()
                         .HasDatabaseName("UX_HostCollateralLinks_HostCollateralId");
 
-                    b.HasIndex("IsRedeemed", "MasterTitle")
-                        .HasDatabaseName("IX_HostCollateralLinks_IsRedeemed_MasterTitle");
+                    b.HasIndex("IsRedeemed", "IsMasterTitle")
+                        .HasDatabaseName("IX_HostCollateralLinks_IsRedeemed_IsMasterTitle");
 
                     b.ToTable("HostCollateralLinks", "collateral");
                 });

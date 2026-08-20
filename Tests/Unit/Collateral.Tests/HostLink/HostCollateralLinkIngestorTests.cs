@@ -21,7 +21,9 @@ public class HostCollateralLinkIngestorTests
         DateOnly? recordDate,
         string hostId = "111",
         string appraisalNumber = "69000001")
-        => new(appraisalNumber, hostId, recordDate, indicator, RowHash: $"{indicator}{recordDate}{hostId}");
+        => new(appraisalNumber, hostId, CollateralName: null, recordDate, indicator,
+            LocationCode: null, CollateralCode: null, PropertyType: null, PropertyTypeDesc: null,
+            MasterTitle: "Y", RowHash: $"{indicator}{recordDate}{hostId}");
 
     /// <summary>The newest RecordDate wins, not the file order.</summary>
     [Fact]
