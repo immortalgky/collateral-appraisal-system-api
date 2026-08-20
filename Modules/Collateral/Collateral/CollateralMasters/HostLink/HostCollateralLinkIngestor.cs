@@ -70,12 +70,25 @@ public class HostCollateralLinkIngestor(
         // This happens BEFORE any master resolution on purpose: it must not depend on a
         // CollateralMaster existing. 6,699 completed appraisals never get one on the production-like
         // dataset, and their AS400 ids used to have nowhere to land — they were reported as NotFound
-        // and the id was dropped. Keyed by appraisal number, nothing else has to have succeeded.
+        // and the id was dropped. Keyed by the feed's own collateral id, nothing else has to have
+        // succeeded.
         //
-        // The number is stored exactly as AS400 sent it (CCSURV), including the 'B' prefix on block
-        // projects. Normalising here would lose what the feed actually said, and block rows are out
-        // of scope for the readers of this table anyway.
-        await UpsertHostLinksAsync(records, cancellationToken);
+        // NOTE the argument: collapsed by COLLATERAL id, not by appraisal number. The feed is one row
+        // per collateral and 952 appraisals on the 2026-08-03 file carry more than one, so collapsing
+        // per appraisal is what used to drop 8,383 of 36,110 rows. Collapsing is still required
+        // though — one file can restate the same collateral twice (a drawdown and a redemption), and
+        // upserting both would hit UX_HostCollateralLinks_HostCollateralId. PickWinningRecord settles
+        // it the same way it settles the master's state: newest event date wins, redemption breaks a
+        // tie.
+        //
+        // The appraisal number is stored exactly as AS400 sent it (CCSURV), including the 'B' prefix
+        // on block projects. Normalising here would lose what the feed actually said.
+        var perCollateral = parsed.Records
+            .GroupBy(r => r.HostCollateralId, StringComparer.Ordinal)
+            .Select(g => PickWinningRecord([.. g]))
+            .ToList();
+
+        await UpsertHostLinksAsync(perCollateral, cancellationToken);
 
         var engagements = await LoadEngagementsAsync(
             records.Select(r => r.AppraisalReportNumber), cancellationToken);
@@ -254,31 +267,34 @@ public class HostCollateralLinkIngestor(
 
         foreach (var chunk in records.Chunk(BatchSize))
         {
-            var numbers = chunk.Select(r => r.AppraisalReportNumber).ToList();
+            var ids = chunk.Select(r => r.HostCollateralId).ToList();
 
             var existing = await dbContext.HostCollateralLinks
-                .Where(h => numbers.Contains(h.AppraisalNumber))
-                .ToDictionaryAsync(h => h.AppraisalNumber, StringComparer.Ordinal, cancellationToken);
+                .Where(h => ids.Contains(h.HostCollateralId))
+                .ToDictionaryAsync(h => h.HostCollateralId, StringComparer.Ordinal, cancellationToken);
 
             foreach (var record in chunk)
             {
-                var redeemed = record.RecordIndicator == HostLinkRecordIndicators.Redeemed;
+                var values = new HostCollateralLinkValues(
+                    AppraisalNumber: record.AppraisalReportNumber,
+                    CollateralName: record.CollateralName,
+                    IsRedeemed: record.RecordIndicator == HostLinkRecordIndicators.Redeemed,
+                    MasterTitle: record.MasterTitle,
+                    LocationCode: record.LocationCode,
+                    CollateralCode: record.CollateralCode,
+                    PropertyType: record.PropertyType,
+                    PropertyTypeDesc: record.PropertyTypeDesc,
+                    RecordDate: record.RecordDate);
 
-                if (existing.TryGetValue(record.AppraisalReportNumber, out var link))
+                if (existing.TryGetValue(record.HostCollateralId, out var link))
                 {
-                    if (link.Matches(record.HostCollateralId, redeemed, record.RecordDate))
-                        continue;
-
-                    link.Apply(record.HostCollateralId, redeemed, record.RecordDate, now);
+                    if (link.Matches(values)) continue;
+                    link.Apply(values, now);
                 }
                 else
                 {
-                    dbContext.HostCollateralLinks.Add(new HostCollateralLink(
-                        record.AppraisalReportNumber,
-                        record.HostCollateralId,
-                        redeemed,
-                        record.RecordDate,
-                        now));
+                    dbContext.HostCollateralLinks.Add(
+                        new HostCollateralLink(record.HostCollateralId, values, now));
                 }
             }
         }
