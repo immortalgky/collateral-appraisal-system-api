@@ -123,15 +123,36 @@ public sealed class RegulatoryFileWriter
             // Field #6 is computed in vw_RegulatoryExport (0 / 100 / progress%); here we only format it.
             ["ConstructionProgress"]       = Money(row.ConstructionProgressPercent ?? 0m),
             ["AppraisalValueCompleted"]    = Money(currentValue),
-            // Field #8 — the full appraised value, unconditionally. The bank dropped the previous
-            // "Progressive → use the earliest value" rule: this field is always the latest appraisal's
-            // value, so it now carries the same figure as ValuationPrice (field #13).
-            ["AppraisalValueOrigination"]  = Money(row.LatestAppraisalValue),
+            // Field #8 — the value at ORIGINATION: the FIRST appraisal of this collateral.
+            //
+            // ⚠ This reverses an earlier instruction. The bank once told us to drop the
+            // "Progressive → use the earliest value" rule and always send the latest appraisal's
+            // value, which made this field a duplicate of ValuationPrice (field #13). On 2026-08-20
+            // the business restated what the field is for: the price when the collateral was first
+            // taken on. They read the CURRENT price out of AS400 themselves via the collateral id and
+            // do not want ours here.
+            //
+            // Changing it moves 849 of v1's 45,661 rows — every collateral that has been appraised
+            // more than once. If the bank ever asks for the old behaviour back, this line is the
+            // whole change.
+            ["AppraisalValueOrigination"]  = Money(row.EarliestAppraisalValue),
             ["NumberOfFloors"]             = SmallInt(row.NumberOfFloors, 999),
             ["BuildingAge"]                = SmallInt(row.BuildingAge, 999),
             ["MarketSellingPrice"]         = Money(row.SellingPrice),
-            ["ValuationDate"]              = Date(row.LatestAppraisalDate),
-            ["ValuationPrice"]             = Money(row.LatestAppraisalValue),
+            // Fields #12 and #13 — the FIRST appraisal's date and price, as a matching pair.
+            //
+            // The bank's own 2026-08-02 file settles this. On the 1,631 collateral whose first and
+            // latest appraisals differ — the only rows where the two can be told apart — its
+            // Valuation Date is the first appraisal's on 796 and the latest's on 355, and its Date and
+            // Price ALWAYS come from the same appraisal: 792 rows pair first-date with first-price,
+            // 355 pair latest with latest, and not one row mixes them. Confirmed with the business
+            // 2026-08-20.
+            //
+            // This does make #13 carry the same figure as #8. That is expected: the file is about the
+            // collateral as first taken on, and the bank reads today's value out of AS400 itself by
+            // collateral id. The latest appraisal is still reported, in LatestValuationDate below.
+            ["ValuationDate"]              = Date(row.EarliestAppraisalDate),
+            ["ValuationPrice"]             = Money(row.EarliestAppraisalValue),
             ["MortgageValue"]              = null,
             ["AppraiserType"]              = appraiserType,
             ["CollateralRegistrationFlag"] = null,
