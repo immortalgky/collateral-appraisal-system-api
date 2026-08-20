@@ -364,6 +364,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 bad.PropertyName,
                 bad.OwnerName,
                 bad.BuildingType,
+                bad.ModelName,
                 bad.BuildingTypeOther,
                 CASE WHEN bad.BuildingType = '99' AND NULLIF(bad.BuildingTypeOther, '') IS NOT NULL
                      THEN bad.BuildingTypeOther
@@ -1005,6 +1006,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                     bldParts.Add($"{bld.NumberOfFloors:#,##0.##} ชั้น");
                 if (!string.IsNullOrWhiteSpace(bld.HouseNumber))
                     bldParts.Add($"เลขที่ {bld.HouseNumber}");
+                if (!string.IsNullOrWhiteSpace(bld.ModelName) && bld.ModelName.Trim().Trim('-', '–', '—').Length > 0)
+                    bldParts.Add($"ชื่อแบบ {bld.ModelName}");
                 if (bld.TotalBuildingArea.HasValue)
                     bldParts.Add($"พื้นที่ใช้สอย {bld.TotalBuildingArea:#,##0.##} ตารางเมตร");
                 if (bld.BuildingAge.HasValue)
@@ -1811,6 +1814,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public string? BuildingTypeDisplay { get; init; }
         public decimal? NumberOfFloors { get; init; }
         public string? HouseNumber { get; init; }
+        public string? ModelName { get; init; }
         public decimal? TotalBuildingArea { get; init; }
         public int? BuildingAge { get; init; }
         public string? BuildingConditionDisplay { get; init; }
