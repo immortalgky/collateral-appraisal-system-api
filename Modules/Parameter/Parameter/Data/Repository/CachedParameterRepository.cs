@@ -38,16 +38,16 @@ public class CachedParameterRepository(IParameterRepository inner, IMemoryCache 
         Parameters.Models.Parameter parameter,
         CancellationToken cancellationToken = default)
     {
-        InvalidateCache();
         await inner.AddAsync(parameter, cancellationToken);
+        InvalidateCache();
     }
 
     public async Task DeleteAsync(
         long id,
         CancellationToken cancellationToken = default)
     {
-        InvalidateCache();
         await inner.DeleteAsync(id, cancellationToken);
+        InvalidateCache();
     }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
