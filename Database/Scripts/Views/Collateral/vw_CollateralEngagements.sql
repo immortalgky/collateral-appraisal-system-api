@@ -14,6 +14,10 @@ SELECT
     e.AppraiserUserId,
     e.AppraisalCompanyId,
     e.AppraisalCompanyName,
+    -- Thai name resolved LIVE from auth.Companies (via the stored AppraisalCompanyId), NOT frozen.
+    -- The snapshot above is deliberately left untouched; this rides alongside it so a Thai-locale
+    -- client has something to display. Null when the company is gone or has no Thai name.
+    NULLIF(comp.NameLocal, N'')                          AS AppraisalCompanyNameLocal,
     e.ConstructionInspectionFeeAmount,
     e.CreatedAt,
 
@@ -54,6 +58,7 @@ SELECT
 
 FROM collateral.CollateralEngagements e
 INNER JOIN collateral.CollateralMasters m ON m.Id = e.CollateralMasterId
+LEFT JOIN  auth.Companies               comp ON comp.Id = e.AppraisalCompanyId
 LEFT JOIN  collateral.LandDetails       ld  ON ld.CollateralMasterId  = m.Id
 LEFT JOIN  collateral.CondoDetails      cd  ON cd.CollateralMasterId  = m.Id
 LEFT JOIN  collateral.LeaseholdDetails  lhd ON lhd.CollateralMasterId = m.Id

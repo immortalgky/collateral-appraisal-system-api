@@ -235,7 +235,7 @@ internal static class LandSectionLoader
                 IsInExpropriationLine  = landRow.IsInExpropriationLine,
                 UrbanPlanningType      = Resolve("TypeOfUrbanPlanning", landRow.UrbanPlanningType),
                 LandZoneType           = Resolve("Location", landRow.LandZoneType),
-                Remark                 = landRow.Remark,
+                Remark                 = AppraisalSummaryCommonLoader.FirstNonBlank(landRow.Remark),
                 Titles                 = titles
             });
         }

@@ -14,7 +14,8 @@ public class QuotationFinalizeLookupService(
         SELECT
             qr.QuotationNumber AS QuotationNumber,
             cq.Id AS CompanyQuotationId,
-            c.Name AS ValuerName,
+            -- Thai-first: this feed is Thai-facing, so prefer NameLocal and fall back to Name.
+            COALESCE(NULLIF(c.NameLocal, N''), c.Name) AS ValuerName,
             COALESCE(cq.CurrentNegotiatedPrice, cq.TotalQuotedPrice) AS TotalAppraisalFee,
             cq.EstimatedDays AS EstimatedDays
         FROM appraisal.CompanyQuotations cq

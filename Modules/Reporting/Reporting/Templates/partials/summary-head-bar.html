@@ -1,0 +1,16 @@
+<!--
+  Partial: the report header bar (LH Bank logo, title, report number + survey date).
+  Lives inside the <thead> of the summary running-table so Chromium repeats it on every
+  page of the summary body (see partials/summary-head + .running rules in summary-styles).
+  Shares the parent Scriban scope; expects {{ summary_title }} set and model.* fields.
+-->
+<div class="head">
+  <div class="logo">
+    <img src="logo-lh-bank.svg" class="brand-logo" alt="LH Bank"/>
+  </div>
+  <div class="title">{{ summary_title }}</div>
+  <div class="meta">
+    <div class="row"><span class="lbl">รายงานเลขที่</span><span class="val">{{ model.appraisal_book_number }}</span></div>
+    <div class="row"><span class="lbl">วันที่สำรวจและประเมินราคา</span><span class="val">{{ thai.date model.appraisal_date }}</span></div>
+  </div>
+</div>

@@ -54,7 +54,7 @@ public class MeetingTests
         var meeting = BuildNewMeeting();
         var committee = BuildCommittee();
         committee.AddMember("active-1", "Alice", CommitteeMemberPosition.Chairman);
-        committee.AddMember("active-2", "Bob", CommitteeMemberPosition.Member);
+        committee.AddMember("active-2", "Bob", CommitteeMemberPosition.Director);
         var inactiveMember = committee.AddMember("inactive-1", "Charlie", CommitteeMemberPosition.Secretary);
         inactiveMember.Deactivate();
 
@@ -311,21 +311,110 @@ public class MeetingTests
     }
 
     [Fact]
-    public void ReleaseItem_IncludesMemberUserIds_InEvent()
+    public void ReleaseItem_IncludesMembersWithPositions_InEvent()
     {
         var committee = BuildCommittee();
         committee.AddMember("m1", "Alice", CommitteeMemberPosition.Chairman);
-        committee.AddMember("m2", "Bob", CommitteeMemberPosition.Member);
+        committee.AddMember("m2", "Bob", CommitteeMemberPosition.Director);
 
         var meeting = BuildInvitationSentMeetingWithOneItem(committee);
         var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
 
         meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);
 
-        var evt = (MeetingItemReleasedDomainEvent)meeting.DomainEvents
-            .Single(e => e is MeetingItemReleasedDomainEvent);
-        evt.MemberUserIds.Should().BeEquivalentTo(["m1", "m2"]);
+        // The position travels with the user id: downstream it becomes the approval role that
+        // committee RoleRequired conditions are matched against.
+        ReleasedMembers(meeting).Should().BeEquivalentTo(
+        [
+            new MeetingApprover("m1", nameof(CommitteeMemberPosition.Chairman)),
+            new MeetingApprover("m2", nameof(CommitteeMemberPosition.Director))
+        ]);
     }
+
+    [Fact]
+    public void ReleaseItem_ExcludesTheSecretary_FromTheApproverRoster()
+    {
+        // The secretary convenes the meeting and releases the item; they are not one of its
+        // approvers. They stay on the roster (invitation and minutes still list them) — only the
+        // voting set handed to the approval round drops them.
+        var committee = BuildCommittee();
+        committee.AddMember("m1", "Alice", CommitteeMemberPosition.Chairman);
+        committee.AddMember("m2", "Bob", CommitteeMemberPosition.Secretary);
+        committee.AddMember("m3", "Carol", CommitteeMemberPosition.UW);
+
+        var meeting = BuildInvitationSentMeetingWithOneItem(committee);
+        var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
+
+        meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);
+
+        ReleasedMembers(meeting).Should().BeEquivalentTo(
+        [
+            new MeetingApprover("m1", nameof(CommitteeMemberPosition.Chairman)),
+            new MeetingApprover("m3", nameof(CommitteeMemberPosition.UW))
+        ]);
+
+        meeting.Members.Select(m => m.UserId).Should().Contain("m2");
+    }
+
+    [Fact]
+    public void ReleaseItem_AfterMemberAddedToThisMeeting_IncludesTheAddedMember()
+    {
+        var committee = BuildCommittee();
+        committee.AddMember("m1", "Alice", CommitteeMemberPosition.Chairman);
+
+        var meeting = BuildInvitationSentMeetingWithOneItem(committee);
+        meeting.AddMember(
+            MeetingMember.CreateManual(meeting.Id, "extra", "Dave", CommitteeMemberPosition.UW),
+            DateTime.UtcNow);
+
+        var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
+        meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);
+
+        ReleasedMembers(meeting).Should().BeEquivalentTo(
+        [
+            new MeetingApprover("m1", nameof(CommitteeMemberPosition.Chairman)),
+            new MeetingApprover("extra", nameof(CommitteeMemberPosition.UW))
+        ]);
+    }
+
+    [Fact]
+    public void ReleaseItem_AfterMemberRemovedFromThisMeeting_ExcludesTheRemovedMember()
+    {
+        var committee = BuildCommittee();
+        committee.AddMember("m1", "Alice", CommitteeMemberPosition.Chairman);
+        committee.AddMember("m2", "Bob", CommitteeMemberPosition.Director);
+
+        var meeting = BuildInvitationSentMeetingWithOneItem(committee);
+        var bob = meeting.Members.Single(m => m.UserId == "m2");
+        meeting.RemoveMember(bob.Id, DateTime.UtcNow);
+
+        var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
+        meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);
+
+        ReleasedMembers(meeting).Should().BeEquivalentTo(
+            [new MeetingApprover("m1", nameof(CommitteeMemberPosition.Chairman))]);
+    }
+
+    [Fact]
+    public void ReleaseItem_AfterPositionChangedOnThisMeeting_CarriesTheNewPosition()
+    {
+        var committee = BuildCommittee();
+        committee.AddMember("m1", "Alice", CommitteeMemberPosition.Director);
+
+        var meeting = BuildInvitationSentMeetingWithOneItem(committee);
+        var alice = meeting.Members.Single(m => m.UserId == "m1");
+        meeting.ChangeMemberPosition(alice.Id, CommitteeMemberPosition.UW, DateTime.UtcNow);
+
+        var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
+        meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);
+
+        ReleasedMembers(meeting).Should().BeEquivalentTo(
+            [new MeetingApprover("m1", nameof(CommitteeMemberPosition.UW))]);
+    }
+
+    private static IReadOnlyList<MeetingApprover> ReleasedMembers(Meeting meeting)
+        => ((MeetingItemReleasedDomainEvent)meeting.DomainEvents
+            .Single(e => e is MeetingItemReleasedDomainEvent)).Members;
 
     [Fact]
     public void ReleaseItem_WhenAlreadyReleased_Throws()
@@ -426,6 +515,97 @@ public class MeetingTests
 
         meeting.RouteBackItem(id2, "secretary", "reason2", DateTime.UtcNow);
         meeting.Status.Should().Be(MeetingStatus.RoutedBack);
+    }
+
+    [Fact]
+    public void RecordApproverRouteBack_OnAutoEndedMeeting_ReopensAsRoutedBack()
+    {
+        var meeting = BuildNewMeeting();
+        var id1 = Guid.NewGuid();
+        meeting.AddItem(id1, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
+        meeting.SendInvitation(DateTime.UtcNow.AddDays(-1));
+
+        // Releasing the only decision item auto-ends the meeting.
+        meeting.ReleaseItem(id1, "secretary", DateTime.UtcNow);
+        meeting.Status.Should().Be(MeetingStatus.Ended);
+
+        meeting.RecordApproverRouteBack(id1, "jane.smith", "needs rework", DateTime.UtcNow);
+
+        meeting.Status.Should().Be(MeetingStatus.RoutedBack);
+        meeting.EndedAt.Should().BeNull("the meeting has unfinished business again");
+
+        var item = meeting.Items.Single(i => i.AppraisalId == id1);
+        item.ItemDecision.Should().Be(ItemDecision.RoutedBack,
+            "MeetingActivity only re-enters items whose decision is NOT Released");
+        item.DecisionBy.Should().Be("jane.smith");
+    }
+
+    [Fact]
+    public void RecordApproverRouteBack_RaisesNoDomainEvent()
+    {
+        var meeting = BuildNewMeeting();
+        var id1 = Guid.NewGuid();
+        meeting.AddItem(id1, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
+        meeting.SendInvitation(DateTime.UtcNow.AddDays(-1));
+        meeting.ReleaseItem(id1, "secretary", DateTime.UtcNow);
+        meeting.ClearDomainEvents();
+
+        meeting.RecordApproverRouteBack(id1, "jane.smith", "needs rework", DateTime.UtcNow);
+
+        meeting.DomainEvents.Should().BeEmpty(
+            "the approval activity already drives the workflow backward; raising " +
+            "MeetingItemRoutedBackDomainEvent would resume it a second time");
+    }
+
+    [Fact]
+    public void RecordApproverRouteBack_WhenItemNotReleased_Throws()
+    {
+        var meeting = BuildNewMeeting();
+        var id1 = Guid.NewGuid();
+        meeting.AddItem(id1, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
+        meeting.SendInvitation(DateTime.UtcNow.AddDays(-1));
+
+        var act = () => meeting.RecordApproverRouteBack(id1, "jane.smith", "reason", DateTime.UtcNow);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*expected Released*");
+    }
+
+    [Fact]
+    public void ReinstateRoutedBackItem_WhenLastRoutedBackItem_ReturnsMeetingToInvitationSent()
+    {
+        var meeting = BuildNewMeeting();
+        var id1 = Guid.NewGuid();
+        meeting.AddItem(id1, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
+        meeting.SendInvitation(DateTime.UtcNow.AddDays(-1));
+
+        meeting.RouteBackItem(id1, "secretary", "reason1", DateTime.UtcNow);
+        meeting.Status.Should().Be(MeetingStatus.RoutedBack);
+
+        meeting.ReinstateRoutedBackItem(id1, DateTime.UtcNow);
+
+        meeting.Status.Should().Be(MeetingStatus.InvitationSent,
+            "RoutedBack means something is currently routed back; once nothing is, it is stale");
+        meeting.Items.Single(i => i.AppraisalId == id1).ItemDecision
+            .Should().Be(ItemDecision.Pending);
+    }
+
+    [Fact]
+    public void ReinstateRoutedBackItem_WhileAnotherItemStillRoutedBack_StaysRoutedBack()
+    {
+        var meeting = BuildNewMeeting();
+        var id1 = Guid.NewGuid();
+        var id2 = Guid.NewGuid();
+        meeting.AddItem(id1, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
+        meeting.AddItem(id2, "APR-002", 600_000m, 600_000m, Guid.NewGuid(), "act-2", DateTime.UtcNow);
+        meeting.SendInvitation(DateTime.UtcNow.AddDays(-1));
+
+        meeting.RouteBackItem(id1, "secretary", "reason1", DateTime.UtcNow);
+        meeting.RouteBackItem(id2, "secretary", "reason2", DateTime.UtcNow);
+
+        meeting.ReinstateRoutedBackItem(id1, DateTime.UtcNow);
+
+        meeting.Status.Should().Be(MeetingStatus.RoutedBack,
+            "id2 is still routed back");
     }
 
     [Fact]
@@ -563,7 +743,7 @@ public class MeetingTests
     public void AddMember_DuplicateUser_Throws()
     {
         var meeting = BuildNewMeeting();
-        var member1 = MeetingMember.CreateManual(meeting.Id, "user-dup", "Duper", CommitteeMemberPosition.Member);
+        var member1 = MeetingMember.CreateManual(meeting.Id, "user-dup", "Duper", CommitteeMemberPosition.Director);
         meeting.AddMember(member1, DateTime.UtcNow);
         var member2 = MeetingMember.CreateManual(meeting.Id, "user-dup", "Duper Clone", CommitteeMemberPosition.Credit);
 
@@ -576,7 +756,7 @@ public class MeetingTests
     public void ChangeMemberPosition_InNew_UpdatesPosition()
     {
         var meeting = BuildNewMeeting();
-        var member = MeetingMember.CreateManual(meeting.Id, "user-pos", "Posie", CommitteeMemberPosition.Member);
+        var member = MeetingMember.CreateManual(meeting.Id, "user-pos", "Posie", CommitteeMemberPosition.Director);
         meeting.AddMember(member, DateTime.UtcNow);
 
         meeting.ChangeMemberPosition(member.Id, CommitteeMemberPosition.Director, DateTime.UtcNow);
@@ -594,9 +774,9 @@ public class MeetingTests
         var committee = BuildCommittee();
         var always = committee.AddMember("u1", "Always", CommitteeMemberPosition.Chairman);
         // always.Attendance is Always by default
-        var odd = committee.AddMember("u2", "Odd", CommitteeMemberPosition.Member);
+        var odd = committee.AddMember("u2", "Odd", CommitteeMemberPosition.Director);
         odd.UpdateAttendance(CommitteeAttendance.Odd);
-        var even = committee.AddMember("u3", "Even", CommitteeMemberPosition.Member);
+        var even = committee.AddMember("u3", "Even", CommitteeMemberPosition.Director);
         even.UpdateAttendance(CommitteeAttendance.Even);
 
         var result = committee.GetActiveMembers(meetingSeq: 1);
@@ -609,9 +789,9 @@ public class MeetingTests
     {
         var committee = BuildCommittee();
         var always = committee.AddMember("u1", "Always", CommitteeMemberPosition.Chairman);
-        var odd = committee.AddMember("u2", "Odd", CommitteeMemberPosition.Member);
+        var odd = committee.AddMember("u2", "Odd", CommitteeMemberPosition.Director);
         odd.UpdateAttendance(CommitteeAttendance.Odd);
-        var even = committee.AddMember("u3", "Even", CommitteeMemberPosition.Member);
+        var even = committee.AddMember("u3", "Even", CommitteeMemberPosition.Director);
         even.UpdateAttendance(CommitteeAttendance.Even);
 
         var result = committee.GetActiveMembers(meetingSeq: 2);
@@ -624,7 +804,7 @@ public class MeetingTests
     {
         var committee = BuildCommittee();
         var active = committee.AddMember("u1", "Active", CommitteeMemberPosition.Chairman);
-        var inactive = committee.AddMember("u2", "Inactive", CommitteeMemberPosition.Member);
+        var inactive = committee.AddMember("u2", "Inactive", CommitteeMemberPosition.Director);
         inactive.Deactivate();
 
         var result = committee.GetActiveMembers(meetingSeq: 1);
@@ -637,7 +817,7 @@ public class MeetingTests
     {
         var committee = BuildCommittee();
         var always = committee.AddMember("u1", "Always", CommitteeMemberPosition.Chairman);
-        var odd = committee.AddMember("u2", "Odd", CommitteeMemberPosition.Member);
+        var odd = committee.AddMember("u2", "Odd", CommitteeMemberPosition.Director);
         odd.UpdateAttendance(CommitteeAttendance.Odd);
 
         // No-arg overload must still return all active members regardless of Attendance

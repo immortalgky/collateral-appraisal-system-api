@@ -15,6 +15,9 @@ public class CreateFeeStructureCommandHandler(
     {
         var feeCode = cmd.FeeCode.Trim();
 
+        // Blank from a form select means "generic ladder" — normalise so the scope is genuinely null.
+        var appraisalType = string.IsNullOrWhiteSpace(cmd.AppraisalType) ? null : cmd.AppraisalType.Trim();
+
         // The fee code must exist in the TypeOfFee parameter group — otherwise it has no
         // resolvable display name and tier matching keys off a meaningless code.
         var validCodes = await parameterLookup.GetValidCodesAsync(
@@ -23,10 +26,10 @@ public class CreateFeeStructureCommandHandler(
             throw new BadRequestException($"Fee code '{feeCode}' is not a valid {FeeTypeParameterGroup} code.");
 
         await FeeStructureMapping.EnsureNoActiveOverlapAsync(
-            db, feeCode, cmd.MinSellingPrice, cmd.MaxSellingPrice, cmd.IsActive, excludeId: null, ct);
+            db, feeCode, appraisalType, cmd.MinSellingPrice, cmd.MaxSellingPrice, cmd.IsActive, excludeId: null, ct);
 
         var entity = FeeStructure.Create(
-            feeCode, cmd.BaseAmount, cmd.MinSellingPrice, cmd.MaxSellingPrice, cmd.IsActive);
+            feeCode, cmd.BaseAmount, cmd.MinSellingPrice, cmd.MaxSellingPrice, cmd.IsActive, appraisalType);
 
         db.FeeStructures.Add(entity);
         // No SaveChangesAsync — TransactionalBehavior commits the unit of work.

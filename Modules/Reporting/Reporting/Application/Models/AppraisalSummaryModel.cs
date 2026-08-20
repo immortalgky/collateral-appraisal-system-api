@@ -59,7 +59,13 @@ public sealed class AppraisalSummaryModel
     /// <summary>Field 7 — Full collateral address built via ThaiAddressFormatter.</summary>
     public string? CollateralAddress { get; init; }
 
-    /// <summary>Field 8 — Administrative sub-district (ตำบล/แขวง).</summary>
+    /// <summary>
+    /// Field 8 — Administrative sub-district (เขตการปกครอง). Sourced from
+    /// request.RequestDetails — the same sub-district that feeds the ตำบล/แขวง segment of
+    /// <see cref="CollateralAddress"/>, so the two header lines always agree. Resolved against
+    /// the DOPA master, falling back to Title for rows saved while the Location form still
+    /// captured Title geocodes.
+    /// </summary>
     public string? AdministrativeDistrict { get; init; }
 
     /// <summary>Field 9 — Land Office name.</summary>
@@ -124,6 +130,23 @@ public sealed class AppraisalSummaryModel
     /// <summary>Field 22 — Forced sale value (70% of total appraisal value by convention).</summary>
     public decimal? ForcedSaleValue { get; init; }
 
+    // ── Under-construction split (land & building summary only) ──────────────────
+    // When some property carries a construction inspection below 100%, the ราคาประเมิน column
+    // splits into เมื่อแล้วเสร็จ 100% (the figures above) and ตามสภาพปัจจุบัน (the two below),
+    // and the totals block grows the current-condition rows. Left false/null by every other
+    // summary provider, which keeps the single-value layout.
+
+    /// <summary>True when the report renders the 100% / current-condition split.</summary>
+    public bool HasUnderConstruction { get; init; }
+
+    /// <summary>รวมมูลค่าทรัพย์สินตามสภาพปัจจุบัน — <see cref="TotalAppraisalValue"/> less the
+    /// not-yet-built portion of every under-construction building.</summary>
+    public decimal? CurrentConditionTotal { get; init; }
+
+    /// <summary>ราคาบังคับขายตามสภาพปัจจุบัน — <see cref="ForcedSaleValue"/> scaled by the same
+    /// ratio, so the two forced-sale figures share one rate.</summary>
+    public decimal? CurrentConditionForcedSaleValue { get; init; }
+
     /// <summary>Field 18 — Overall condition (from AppraisalDecisions.Condition).</summary>
     public string? Condition { get; init; }
 
@@ -146,6 +169,13 @@ public sealed class AppraisalSummaryModel
 
     /// <summary>Field 26 — Land condition per group (rendered one line each).</summary>
     public IReadOnlyList<string> LandConditions { get; init; } = [];
+
+    /// <summary>
+    /// Text used for <see cref="Obligation"/> when the collateral has no obligation recorded.
+    /// Stating it explicitly beats falling through to the generic "-" placeholder
+    /// (.kv .v:empty::before in summary-styles), which reads as "unknown".
+    /// </summary>
+    public const string NoObligationText = "ไม่มีภาระผูกพัน";
 
     /// <summary>Field 27 — Obligation (encumbrance) details.</summary>
     public string? Obligation { get; init; }
@@ -529,14 +559,36 @@ public sealed class SummaryGroupRow
     // Populated only for the land-building summary. Condo/Machine leave these default
     // and keep using the flat fields above.
 
-    /// <summary>True when this group was valued by the Cost approach (per-item breakdown shown).</summary>
-    public bool IsCostApproach { get; init; }
+    /// <summary>
+    /// True when the group renders the per-item breakdown — ☑ ที่ดิน / ☑ สิ่งปลูกสร้าง /
+    /// ส่วนพัฒนา as separate valued rows — instead of one combined
+    /// ☑ ที่ดินพร้อมสิ่งปลูกสร้าง row. Requires the Cost approach (the only one storing
+    /// per-component values) on a group NOT entered as a single LandAndBuilding / Leasehold
+    /// property. A land-only cost group still uses this layout; it simply has no building rows.
+    /// </summary>
+    public bool SplitLandAndBuilding { get; init; }
 
     /// <summary>True when the group contains land (renders ☑ ที่ดิน).</summary>
     public bool HasLand { get; init; }
 
+    /// <summary>
+    /// First-column label of the land row in the split layout — normally "ที่ดิน", but a leasehold
+    /// group keeps its tenure ("สิทธิการเช่าที่ดิน"). Resolved from the CollateralType parameter map,
+    /// never a literal. The split branch used to hardcode the Thai text, so an LSL group silently lost
+    /// its tenure the moment a Cost approach was saved: only the combined branch reads
+    /// <see cref="PropertyType"/>, and Cost + non-(LB|LS) forces the split.
+    /// </summary>
+    public string? LandRowLabel { get; init; }
+
     /// <summary>True when the group contains buildings (renders ☑ สิ่งปลูกสร้าง).</summary>
     public bool HasBuilding { get; init; }
+
+    /// <summary>
+    /// First-column label of the building row (and of the ส่วนพัฒนา header row when the group has no
+    /// building lines to carry the marker). Resolved from the CollateralType parameter map for the
+    /// same reason as <see cref="LandRowLabel"/> — the form must not carry Thai text in markup.
+    /// </summary>
+    public string? BuildingRowLabel { get; init; }
 
     /// <summary>Land title description (โฉนด…), without the building clause.</summary>
     public string? LandDescription { get; init; }
@@ -545,8 +597,15 @@ public sealed class SummaryGroupRow
     public List<string> LandDescriptions { get; init; } = [];
 
     /// <summary>Building clause (พร้อม…), newline-joined per building. Shown after the land
-    /// titles in the market/combined land row (separated from the land title list).</summary>
+    /// titles in the market/combined land row (separated from the land title list). Excludes
+    /// enhancement-only properties — see <see cref="DevelopmentDescriptions"/>.</summary>
     public string? BuildingDescription { get; init; }
+
+    /// <summary>ส่วนพัฒนา lines for the market/combined row — descriptive only, since that layout
+    /// carries a single blended figure with no per-line money column. Holds just the rows of
+    /// properties whose Building Detail is entirely non-building, which therefore print no
+    /// "พร้อม…" clause of their own.</summary>
+    public List<string> DevelopmentDescriptions { get; init; } = [];
 
     /// <summary>Per-item detail lines (e.g. each machine) — rendered as a numbered list.</summary>
     public List<string> DetailItems { get; init; } = [];
@@ -574,14 +633,34 @@ public sealed class SummaryGroupRow
     /// <summary>Land appraised value (PricingFinalValues.LandValue). Cost approach only.</summary>
     public decimal? LandValue { get; init; }
 
-    /// <summary>Building line items (BuildingDepreciationDetails where IsBuilding=1). Cost approach only.</summary>
+    /// <summary>Building line items — one per BuildingAppraisalDetail, valued by its IsBuilding=1
+    /// depreciation rows. Cost approach only. A property whose Building Detail holds ONLY
+    /// non-building rows is excluded: it prints under <see cref="DevelopmentItems"/> instead.</summary>
     public IReadOnlyList<SummaryItemRow> Buildings { get; init; } = [];
 
     /// <summary>Development/improvement items (ส่วนพัฒนา; IsBuilding=0). Cost approach only.</summary>
     public IReadOnlyList<SummaryItemRow> DevelopmentItems { get; init; } = [];
 
+    // ── Per-property-type subtotals (รวมมูลค่าที่ดิน / รวมมูลค่าสิ่งปลูกสร้าง) ──────────────
+    // Rendered only on a SINGLE-group split report; multi-group keeps the group subtotal instead.
+
+    /// <summary>รวมมูลค่าที่ดิน — the land block's subtotal (PricingFinalValues.LandValue).</summary>
+    public decimal? LandSubtotal { get; init; }
+
+    /// <summary>รวมมูลค่าสิ่งปลูกสร้าง — building lines PLUS ส่วนพัฒนา lines, matching the
+    /// reference form where the two are totalled together.</summary>
+    public decimal? BuildingSubtotal { get; init; }
+
+    /// <summary>รวมมูลค่าสิ่งปลูกสร้าง at the current construction progress. Same as
+    /// <see cref="BuildingSubtotal"/> when nothing in the group is under construction.</summary>
+    public decimal? BuildingSubtotalCurrent { get; init; }
+
     /// <summary>Group total value (รวมมูลค่าทรัพย์สินกลุ่ม). Also the combined value for market groups.</summary>
     public decimal? GroupTotal { get; init; }
+
+    /// <summary>Group total at the current construction progress — <see cref="GroupTotal"/> less the
+    /// not-yet-built portion of its building lines.</summary>
+    public decimal? GroupTotalCurrent { get; init; }
 }
 
 /// <summary>One line item in a cost-approach group breakdown (a building or development item).</summary>
@@ -590,8 +669,16 @@ public sealed class SummaryItemRow
     /// <summary>Display description, e.g. "อาคารโรงงานชั้นเดียว พื้นที่ใช้สอย 1,800 ตารางเมตร อายุ 9 ปี".</summary>
     public string? Description { get; init; }
 
-    /// <summary>Appraised value (PriceAfterDepreciation).</summary>
+    /// <summary>Appraised value (PriceAfterDepreciation) — the value at 100% completion.</summary>
     public decimal? Value { get; init; }
+
+    /// <summary>
+    /// Value at the current construction progress = <see cref="Value"/> × the owning property's
+    /// inspection percent. Equals <see cref="Value"/> when the property has no inspection (complete),
+    /// and null when the work has not started (renders as "-"). Only read when the report shows the
+    /// เมื่อแล้วเสร็จ 100% / ตามสภาพปัจจุบัน split.
+    /// </summary>
+    public decimal? CurrentValue { get; init; }
 }
 
 /// <summary>One committee approver row (fields 45–50).</summary>
@@ -627,9 +714,17 @@ public sealed class BlockCondoUnitRow
     public int Sequence { get; init; }
     public int? Floor { get; init; }
     public string? TowerName { get; init; }
+
+    /// <summary>ห้องชุดเลขที่ (field 54) — the condo registration number on the unit title.</summary>
+    public string? CondoRegistrationNumber { get; init; }
+
+    /// <summary>ห้องชุด (field 56) — the room number as marketed/labelled.</summary>
     public string? RoomNumber { get; init; }
     public string? ModelType { get; init; }
     public decimal? UsableArea { get; init; }
+
+    /// <summary>ราคาขายโครงการ — the project's own advertised selling price for the unit.</summary>
+    public decimal? SellingPrice { get; init; }
     public decimal? AppraisalValue { get; init; }
     public decimal? PricePerSqm { get; init; }
     public decimal? ForcedSaleValue { get; init; }

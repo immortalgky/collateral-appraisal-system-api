@@ -4,12 +4,21 @@
   Shares the parent Scriban scope; expects: model.* (AppraisalSummaryModel snake_case fields).
 -->
 <style>
-  .unit-table { width:100%; border-collapse:collapse; font-size:9.5pt; margin-top:6px; }
+  /* Each unit section starts a new PORTRAIT page (the default @page) and opens its own
+     table.running, so the report header bar repeats on every page the section spans. */
+  .unit-page { break-before: page; }
+  /* 10–12 columns on portrait A4: 7pt + tight padding is what keeps the numeric columns on
+     one line at the 15mm margin appraisal-book.html uses (the standalone form gets 5mm). */
+  .unit-table { width:100%; border-collapse:collapse; font-size:7pt; margin-top:6px;
+                table-layout:fixed; }
   .unit-table th,
-  .unit-table td { border:1px solid #888; padding:3px 5px; }
+  .unit-table td { border:1px solid #888; padding:2px 3px; overflow-wrap:anywhere; }
   .unit-table th { background:#f0f0f0; text-align:center; font-weight:bold; }
+  /* Repeat the column headers on each page the unit table spans — a long unit list runs to
+     several pages and the trailing ones are unreadable without them. */
+  .unit-table thead { display:table-header-group; }
   .unit-table td.c { text-align:center; }
-  .unit-table td.r { text-align:right; }
+  .unit-table td.r { text-align:right; white-space:nowrap; }
 
   /* รายการทรัพย์สิน (FSD §2.1.5 fields 10–21): one bordered box — full-width header cell,
      fixed label column, value column. "Open rows": no horizontal rules between rows 10–20,
@@ -58,7 +67,11 @@
       <tr><td class="k">สาธารณูปโภค</td><td class="v">{{ model.utilities }}</td></tr>
       <tr><td class="k">สิ่งอำนวยความสะดวก</td><td class="v">{{ model.facilities }}</td></tr>
       <tr><td class="k">ราคาประเมิน</td><td class="v">{{ model.appraisal_value_wording }}</td></tr>
-      <tr><td class="k">เงื่อนไข</td><td class="v brk">{{ model.condition }}</td></tr>
+      <!-- .cond is gated: this table renders every row unconditionally to keep the form's fixed
+           shape, so an absent condition still emits the row and falls through to the "-" from
+           td.v:empty::before. An ungated class would print that dash — and the label — in red on
+           every block report with no condition, reading as a defect rather than a highlight. -->
+      <tr{{ if model.condition }} class="cond"{{ end }}><td class="k">เงื่อนไข</td><td class="v brk">{{ model.condition }}</td></tr>
       <tr><td class="k">หมายเหตุ</td><td class="v brk">{{ model.remark }}</td></tr>
       <tr class="last"><td class="k">ค่าพิกัด</td><td class="v">{{ model.gps }}</td></tr>
       <tr class="methods-row">
@@ -94,25 +107,32 @@
   <!-- ════ COMMITTEE BLOCK — own page-break unit ════ -->
   {{ include 'partials/approver-block' }}
 
+  <!-- Close the running-table BEFORE the unit tables: each unit section opens its own
+       running-table so the header bar repeats across the pages that section spans. -->
+  {{ include 'partials/summary-page-close' }}
+
   <!-- ════ UNIT TABLE: LB / Land ════ -->
   {{ if model.building_units.size > 0 }}
-  <div class="landscape-page">
-  <div class="section-bar">
+  <div class="unit-page">
+  <table class="running">
+    <thead><tr><td>{{ include 'partials/summary-head-bar' }}</td></tr></thead>
+    <tbody><tr><td>
+  <div class="section-bar center">
     สรุปราคาประเมินรายแปลง เพื่อสนับสนุนรายย่อยโครงการ
   </div>
   <table class="unit-table">
     <thead>
       <tr>
-        <th style="width:38px;">ลำดับ</th>
-        <th>แปลงเลขที่</th>
-        <th>บ้านเลขที่</th>
+        <th style="width:34px;">ลำดับ</th>
+        <th style="width:58px;">แปลงเลขที่</th>
+        <th style="width:58px;">บ้านเลขที่</th>
         <th>แบบบ้าน</th>
-        <th style="width:70px;">เนื้อที่ดิน<br/>(ตร.วา)</th>
-        <th style="width:70px;">พื้นที่ใช้สอย<br/>(ตร.ม.)</th>
-        <th style="width:90px;">ราคาขาย<br/>(บาท)</th>
-        <th style="width:90px;">ราคาประเมิน<br/>(บาท)</th>
-        <th style="width:90px;">ราคาบังคับขาย<br/>(บาท)</th>
-        <th style="width:90px;">มูลค่าประกัน<br/>อัคคีภัย (บาท)</th>
+        <th style="width:52px;">เนื้อที่ดิน<br/>(ตร.วา)</th>
+        <th style="width:52px;">พื้นที่ใช้สอย<br/>(ตร.ม.)</th>
+        <th style="width:72px;">ราคาขาย<br/>(บาท)</th>
+        <th style="width:72px;">ราคาประเมิน<br/>(บาท)</th>
+        <th style="width:72px;">ราคาบังคับขาย<br/>(บาท)</th>
+        <th style="width:72px;">มูลค่าประกัน<br/>อัคคีภัย (บาท)</th>
       </tr>
     </thead>
     <tbody>
@@ -121,9 +141,9 @@
         <td class="c">{{ u.sequence }}</td>
         <td class="c">{{ u.plot_number }}</td>
         <td class="c">{{ u.house_number }}</td>
-        <td>{{ u.model_type }}</td>
-        <td class="r">{{ if u.land_area; u.land_area | math.format "N2"; end }}</td>
-        <td class="r">{{ if u.usable_area; u.usable_area | math.format "N2"; end }}</td>
+        <td class="c">{{ u.model_type }}</td>
+        <td class="c">{{ if u.land_area; u.land_area | math.format "N2"; end }}</td>
+        <td class="c">{{ if u.usable_area; u.usable_area | math.format "N2"; end }}</td>
         <td class="r">{{ if u.selling_price; u.selling_price | math.format "N2"; end }}</td>
         <td class="r">{{ if u.appraisal_value; u.appraisal_value | math.format "N2"; end }}</td>
         <td class="r">{{ if u.forced_sale_value; u.forced_sale_value | math.format "N2"; end }}</td>
@@ -132,28 +152,35 @@
       {{ end }}
     </tbody>
   </table>
-  </div><!-- .landscape-page -->
+    </td></tr></tbody>
+  </table>
+  </div><!-- .unit-page -->
   {{ end }}
 
   <!-- ════ UNIT TABLE: Condo ════ -->
   {{ if model.condo_units.size > 0 }}
-  <div class="landscape-page">
-  <div class="section-bar">
+  <div class="unit-page">
+  <table class="running">
+    <thead><tr><td>{{ include 'partials/summary-head-bar' }}</td></tr></thead>
+    <tbody><tr><td>
+  <div class="section-bar center">
     สรุปราคาประเมินรายยูนิต เพื่อสนับสนุนรายย่อยโครงการ
   </div>
   <table class="unit-table">
     <thead>
       <tr>
-        <th style="width:38px;">ลำดับ</th>
-        <th style="width:40px;">ชั้นที่</th>
-        <th>อาคาร</th>
-        <th>ห้องชุดเลขที่</th>
+        <th style="width:30px;">ลำดับ</th>
+        <th style="width:30px;">ชั้นที่</th>
+        <th style="width:40px;">อาคาร</th>
+        <th style="width:52px;">ห้องชุดเลขที่</th>
         <th>แบบห้องชุด</th>
-        <th style="width:70px;">พื้นที่ใช้สอย<br/>(ตร.ม.)</th>
-        <th style="width:90px;">ราคาประเมิน<br/>(บาท)</th>
-        <th style="width:80px;">ราคา/ตร.ม.<br/>(บาท)</th>
-        <th style="width:90px;">ราคาบังคับขาย<br/>(บาท)</th>
-        <th style="width:90px;">มูลค่าประกัน<br/>อัคคีภัย (บาท)</th>
+        <th style="width:44px;">ห้องชุด</th>
+        <th style="width:48px;">พื้นที่ใช้สอย<br/>(ตร.ม.)</th>
+        <th style="width:70px;">ราคาขาย<br/>โครงการ (บาท)</th>
+        <th style="width:70px;">ราคาประเมิน<br/>(บาท)</th>
+        <th style="width:60px;">ราคา/ตร.ม.<br/>(บาท)</th>
+        <th style="width:70px;">ราคาบังคับขาย<br/>(บาท)</th>
+        <th style="width:70px;">มูลค่าประกัน<br/>อัคคีภัย (บาท)</th>
       </tr>
     </thead>
     <tbody>
@@ -162,9 +189,11 @@
         <td class="c">{{ u.sequence }}</td>
         <td class="c">{{ u.floor }}</td>
         <td class="c">{{ u.tower_name }}</td>
+        <td class="c">{{ u.condo_registration_number }}</td>
+        <td class="c">{{ u.model_type }}</td>
         <td class="c">{{ u.room_number }}</td>
-        <td>{{ u.model_type }}</td>
-        <td class="r">{{ if u.usable_area; u.usable_area | math.format "N2"; end }}</td>
+        <td class="c">{{ if u.usable_area; u.usable_area | math.format "N2"; end }}</td>
+        <td class="r">{{ if u.selling_price; u.selling_price | math.format "N2"; end }}</td>
         <td class="r">{{ if u.appraisal_value; u.appraisal_value | math.format "N2"; end }}</td>
         <td class="r">{{ if u.price_per_sqm; u.price_per_sqm | math.format "N2"; end }}</td>
         <td class="r">{{ if u.forced_sale_value; u.forced_sale_value | math.format "N2"; end }}</td>
@@ -173,7 +202,9 @@
       {{ end }}
     </tbody>
   </table>
-  </div><!-- .landscape-page -->
+    </td></tr></tbody>
+  </table>
+  </div><!-- .unit-page -->
   {{ end }}
 
 </div>

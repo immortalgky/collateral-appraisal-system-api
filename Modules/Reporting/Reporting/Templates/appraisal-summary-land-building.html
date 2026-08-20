@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
+<!-- PDF page-margin directives read by PuppeteerPdfRenderer: the summary forms use a
+     narrower 5mm margin on all four sides instead of the 15mm default, so the wide tables gain
+     usable width and the form starts near the paper edge. They MUST stay in this root, not in
+     partials/summary-head — appraisal-book.html shares that partial and must keep the 15mm
+     default.
+     pdf-margin-x:5mm -->
+<!-- pdf-margin-y:5mm -->
   <meta charset="UTF-8"/>
   <title>สรุปรายงานการประเมินราคาทรัพย์สิน</title>
   <style>{{ include 'partials/summary-styles' }}</style>

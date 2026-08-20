@@ -259,13 +259,16 @@ public class Appraisal : Aggregate<Guid>
     /// <summary>
     /// Add a condo property with detail to this appraisal
     /// </summary>
-    public AppraisalProperty AddCondoProperty()
+    public AppraisalProperty AddCondoProperty(decimal? sellingPrice = null)
     {
         var sequenceNumber = _properties.Count + 1;
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Condo);
 
         var condoDetail = CondoAppraisalDetail.Create(property.Id);
         property.SetCondoDetail(condoDetail);
+
+        if (IsPma && sellingPrice.HasValue)
+            property.UpdatePrice(sellingPrice, sellingPrice * 70 / 100, sellingPrice);
 
         _properties.Add(property);
 
@@ -276,7 +279,7 @@ public class Appraisal : Aggregate<Guid>
     /// Add a land and building property with details to this appraisal.
     /// Creates both LandAppraisalDetail and BuildingAppraisalDetail linked to the same AppraisalProperty.
     /// </summary>
-    public AppraisalProperty AddLandAndBuildingProperty()
+    public AppraisalProperty AddLandAndBuildingProperty(decimal? sellingPrice = null)
     {
         var sequenceNumber = _properties.Count + 1;
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.LandAndBuilding);
@@ -285,6 +288,9 @@ public class Appraisal : Aggregate<Guid>
         var landDetail = LandAppraisalDetail.Create(property.Id);
         var buildingDetail = BuildingAppraisalDetail.Create(property.Id);
         property.SetLandAndBuildingDetails(landDetail, buildingDetail);
+
+        if (IsPma && sellingPrice.HasValue)
+            property.UpdatePrice(sellingPrice, sellingPrice * 70 / 100, sellingPrice);
 
         _properties.Add(property);
 
@@ -907,13 +913,15 @@ public class Appraisal : Aggregate<Guid>
     ///     Required — TitleNumber (unit deed number — new column)
     ///     Required — TitleType (unit deed type — new column)
     ///
-    ///   Leasehold (LSL, LSB, LS):
+    ///   Leasehold (LSL, LSB, LS, LSU):
     ///     Required — ContractNo (= LeaseRegistrationNo Tor Dor 11 reference)
     ///     Required — LessorName
     ///     Required — LesseeName
     ///     Required — LeaseStartDate
-    ///     Required — at least one sibling Land/LB property in the same appraisal
-    ///                (UnderlyingMasterId is derived at upsert time by scanning siblings)
+    ///     Required — an underlying land/condo identity, from EITHER the property's own
+    ///                LandDetail (LSL/LS) or CondoDetail (LSU), OR a sibling Land/LB/Condo
+    ///                property (the only route open to LSB). UnderlyingMasterId is derived at
+    ///                upsert time from whichever source carries a complete dedup key.
     ///
     ///   Machinery (MAC):
     ///     Tier-1 — RegistrationNumber present → sufficient on its own
@@ -1058,17 +1066,39 @@ public class Appraisal : Aggregate<Guid>
                 string.Join(", ", missing) + ".");
         }
 
-        // Leasehold requires at least one underlying Land or LandAndBuilding property in the same appraisal
-        // so the upsert service can derive UnderlyingMasterId
-        var hasUnderlyingProperty = allProperties.Any(p =>
-            p.PropertyType == PropertyType.Land ||
-            p.PropertyType == PropertyType.LandAndBuilding);
+        // The upsert service needs a land or condo dedup key to derive UnderlyingMasterId. It reads
+        // the leasehold property's OWN detail first — LSL/LS carry a LandAppraisalDetail and LSU a
+        // CondoAppraisalDetail, because the UI puts the deed fields and the lease-contract fields on
+        // one property — and only then looks at siblings. Requiring a separate Land/LB property here
+        // rejected appraisals that are keyed exactly as the UI intends.
+        var hasOwnLandKey = property.LandDetail is { } ownLand
+            && ownLand.Titles.Any(t => !string.IsNullOrWhiteSpace(t.TitleNumber))
+            && !string.IsNullOrWhiteSpace(ownLand.Address?.Province)
+            && !string.IsNullOrWhiteSpace(ownLand.Address?.District)
+            && !string.IsNullOrWhiteSpace(ownLand.Address?.SubDistrict);
 
-        if (!hasUnderlyingProperty)
+        var hasOwnCondoKey = property.CondoDetail is { } ownCondo
+            && !string.IsNullOrWhiteSpace(ownCondo.CondoRegistrationNumber)
+            && !string.IsNullOrWhiteSpace(ownCondo.BuildingNumber)
+            && !string.IsNullOrWhiteSpace(ownCondo.FloorNumber)
+            && !string.IsNullOrWhiteSpace(ownCondo.RoomNumber)
+            && !string.IsNullOrWhiteSpace(ownCondo.Address?.Province)
+            && !string.IsNullOrWhiteSpace(ownCondo.Address?.District)
+            && !string.IsNullOrWhiteSpace(ownCondo.Address?.SubDistrict);
+
+        // A sibling still satisfies it — that is the only route open to LSB, whose
+        // BuildingAppraisalDetail carries no address of its own.
+        var hasUnderlyingSibling = allProperties.Any(p =>
+            p.PropertyType == PropertyType.Land ||
+            p.PropertyType == PropertyType.LandAndBuilding ||
+            p.PropertyType == PropertyType.Condo);
+
+        if (!hasOwnLandKey && !hasOwnCondoKey && !hasUnderlyingSibling)
         {
             throw new InvalidAppraisalStateException(
-                $"Cannot complete appraisal: property #{propertyNum} (Leasehold) requires at least one " +
-                "Land or LandAndBuilding property in the same appraisal to resolve the underlying collateral master.");
+                $"Cannot complete appraisal: property #{propertyNum} (Leasehold) has no land or condo " +
+                "identity of its own, and the appraisal contains no Land, LandAndBuilding or Condo " +
+                "property, so the underlying collateral master cannot be resolved.");
         }
     }
 

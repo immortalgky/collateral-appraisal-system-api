@@ -34,6 +34,9 @@ public record GetLeaseAgreementLandPropertyResult
     public string? SubDistrict { get; init; }
     public string? District { get; init; }
     public string? Province { get; init; }
+    public string? DopaSubDistrict { get; init; }
+    public string? DopaDistrict { get; init; }
+    public string? DopaProvince { get; init; }
 
     // Coordinates
     public decimal? Latitude { get; init; }

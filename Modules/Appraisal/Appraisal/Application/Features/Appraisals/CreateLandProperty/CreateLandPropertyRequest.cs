@@ -5,7 +5,7 @@ namespace Appraisal.Application.Features.Appraisals.CreateLandProperty;
 /// </summary>
 public record CreateLandPropertyRequest(
     // Required
-    string OwnerName,
+    string OwnerNameLand,
     string? Description = null,
     // Property Identification
     string? PropertyName = null,
@@ -18,8 +18,11 @@ public record CreateLandPropertyRequest(
     string? District = null,
     string? Province = null,
     string? LandOffice = null,
+    string? DopaSubDistrict = null,
+    string? DopaDistrict = null,
+    string? DopaProvince = null,
     // Owner Details
-    bool? IsOwnerVerified = null,
+    bool? IsOwnerVerifiedLand = null,
     string? HasObligation = null,
     string? ObligationDetails = null,
     // Document Verification

@@ -12,6 +12,9 @@ public record AppraisalEvaluationHeader(
     string?   CustomerName,
     DateTime? ReportReceivedDate,
     string?   AppraiserCompanyName,
+    // Thai name (null when absent); the client picks by its own locale. Position is load-bearing —
+    // it must stay directly after AppraiserCompanyName to match the SELECT's column order.
+    string?   AppraiserCompanyNameLocal,
     string?   AssigneeCompanyId,
     string?   InternalAppraiserId,
     string?   InternalAppraiserName,
@@ -28,7 +31,7 @@ public class GetEvaluationHeaderQueryHandler(ISqlConnectionFactory connectionFac
     {
         const string sql =
             "SELECT AppraisalId, AppraisalNumber, AppraisalStatus, BankingSegment, CustomerName, " +
-            "ReportReceivedDate, AppraiserCompanyName, AssigneeCompanyId, " +
+            "ReportReceivedDate, AppraiserCompanyName, AppraiserCompanyNameLocal, AssigneeCompanyId, " +
             "InternalAppraiserId, InternalAppraiserName, " +
             "CollateralTypes, InspectionDates, DepartmentOfAppraisal " +
             "FROM appraisal.vw_AppraisalEvaluationHeader " +

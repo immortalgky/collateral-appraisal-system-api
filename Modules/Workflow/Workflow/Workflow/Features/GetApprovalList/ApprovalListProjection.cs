@@ -90,7 +90,7 @@ internal static class ApprovalListProjection
     internal static bool CheckMajority(MajorityConfig config, int targetCount, int totalVotes, int totalMembers)
     {
         return Enum.TryParse<MajorityType>(config.Type, ignoreCase: true, out var majorityType)
-            && MajorityRule.IsMet(majorityType, targetCount, totalMembers);
+            && MajorityRule.IsMet(majorityType, targetCount, totalMembers, config.Value);
     }
 
     /// <summary>

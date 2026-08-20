@@ -10,7 +10,11 @@ public record AppraisalForCollateralResult(
     Guid AppraisalId,
     string? AppraisalNumber,
     string AppraisalType,
-    DateTime? CompletedAt,
+    // appraisal.ValuationAnalyses.ValuationDate — the valuation date, and the value written to
+    // collateral.CollateralEngagements.AppraisalDate. Was previously named CompletedAt while
+    // actually carrying the appointment date; renamed so the lineage is not misread again.
+    // Null until the appraisal has a ValuationAnalyses row.
+    DateTime? AppraisalDate,
     Guid RequestId,
     // Sourced from request.Requests via cross-module Dapper sub-query in the handler.
     string? RequestNumber,
@@ -21,6 +25,23 @@ public record AppraisalForCollateralResult(
     string? CompanyCode,
     // Appraisal-level total from ValuationAnalyses (Σ PricingAnalyses.FinalAppraisedValue across all PropertyGroups).
     decimal? AppraisedValue,
+    // Appraisal-level value AS IT STANDS TODAY, with part-built buildings counted at their construction
+    // progress instead of at 100%:
+    //     land + buildings-with-no-inspection + inspected-buildings-at-current-progress
+    // Computed by IConstructionCurrentValueService — the same code that builds the Decision Summary
+    // construction card, so the screen and the outbound regulatory file cannot disagree.
+    // NULL when the appraisal has no construction inspection at all (nothing is part-built, so the
+    // current value is just AppraisedValue). Frozen onto collateral.CollateralEngagements.CurrentValue
+    // and read by the regulatory export's Appraisal-Value-as-Completed field.
+    decimal? CurrentValue,
+    // Construction status, from the SAME IConstructionCurrentValueService breakdown as CurrentValue —
+    // value-weighted across EVERY inspected building, unlike the old per-primary-property rule which
+    // reported the wrong figure whenever an appraisal covered more than one building.
+    // Both NULL when the appraisal has no construction inspection at all.
+    // Frozen onto collateral.CollateralEngagements and read by the regulatory export (fields 5 and 6)
+    // and the collateral catalog's under-construction filter.
+    bool? IsUnderConstruction,
+    decimal? ConstructionProgressPercent,
     // Construction Inspection Fee (per-assignment) — captured from the latest assignment's AppraisalFee.
     // Stamped onto every CollateralEngagement so a future Construction Inspection appraisal can reuse it.
     decimal? ConstructionInspectionFeeAmount,
@@ -30,6 +51,13 @@ public record AppraisalForCollateralResult(
     ProjectForCollateral? Project,
     // Lineage link used by the project branch for reappraisal dedup.
     Guid? PrevAppraisalId,
+    // The FULL ancestor chain reached by following PrevAppraisalId, nearest first, excluding this
+    // appraisal. PrevAppraisalId alone is not enough for the collateral chain fallback: a run of
+    // consecutive construction-inspection appraisals that record only a building (or no property at
+    // all) owns no CollateralMaster, so the nearest ancestor that DOES own one can be several hops
+    // up — 34 hops at the worst on the U3 dataset. Walking this list is a search for an existing
+    // master; it never creates one.
+    IReadOnlyList<Guid> AncestorAppraisalIds,
     // Customer name from request.RequestCustomers (TOP 1 by RequestId).
     // Populated only for block-project appraisals; null for all other types.
     string? CustomerName,
@@ -168,11 +196,14 @@ public record PricingInfoForCollateral(
 /// </summary>
 public record LandIdentityForCollateral(
     // Dedup fields
-    string? Province,         // AdministrativeAddress.Province
-    string? District,         // AdministrativeAddress.District (Amphur)
-    string? SubDistrict,      // AdministrativeAddress.SubDistrict (Tambon)
-    string? LandOffice,       // AdministrativeAddress.LandOffice (free-text — NOT a code)
+    string? Province,         // LandAppraisalDetail.Address?.Province
+    string? District,         // LandAppraisalDetail.Address?.District (Amphur)
+    string? SubDistrict,      // LandAppraisalDetail.Address?.SubDistrict (Tambon)
+    string? LandOffice,       // LandAppraisalDetail.LandOffice (free-text — NOT a code)
     IReadOnlyList<LandTitleForCollateral> Titles,
+    string? DopaSubDistrict,  // LandAppraisalDetail.DopaAddress?.SubDistrict
+    string? DopaDistrict,     // LandAppraisalDetail.DopaAddress?.District
+    string? DopaProvince,     // LandAppraisalDetail.DopaAddress?.Province
     // Last-known populate fields (Phase C)
     string? OwnerName,        // LandAppraisalDetail.OwnerName
     string? Street,           // LandAppraisalDetail.Street
@@ -213,7 +244,10 @@ public record CondoIdentityForCollateral(
     string? Province,                // CondoAppraisalDetail.Address?.Province
     string? District,                // CondoAppraisalDetail.Address?.District
     string? SubDistrict,             // CondoAppraisalDetail.Address?.SubDistrict
-    string? LandOffice,              // CondoAppraisalDetail.Address?.LandOffice (= LandOfficeCode)
+    string? LandOffice,              // CondoAppraisalDetail.LandOffice (= LandOfficeCode)
+    string? DopaSubDistrict,         // CondoAppraisalDetail.DopaAddress?.SubDistrict
+    string? DopaDistrict,            // CondoAppraisalDetail.DopaAddress?.District
+    string? DopaProvince,            // CondoAppraisalDetail.DopaAddress?.Province
     // Last-known populate fields (Phase C)
     string? OwnerName,               // CondoAppraisalDetail.OwnerName
     string? CondoName,               // CondoAppraisalDetail.CondoName

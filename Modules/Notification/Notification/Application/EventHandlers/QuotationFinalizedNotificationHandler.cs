@@ -80,7 +80,9 @@ public class QuotationFinalizedNotificationHandler(
             if (usernames.Length == 0) return null;
 
             var lookup = await userLookupService.GetByUsernamesAsync(usernames, ct);
-            return lookup.Values.FirstOrDefault(u => u.CompanyName != null)?.CompanyName;
+            // These notifications are Thai-language, so prefer the Thai company name.
+            var company = lookup.Values.FirstOrDefault(u => u.CompanyName != null);
+            return company is null ? null : (company.CompanyNameLocal ?? company.CompanyName);
         }
         catch (Exception ex)
         {

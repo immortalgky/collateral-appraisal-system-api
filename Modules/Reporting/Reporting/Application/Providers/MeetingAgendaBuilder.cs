@@ -21,7 +21,10 @@ namespace Reporting.Application.Providers;
 ///   วาระ 2 = AgendaChairmanInformed
 ///   วาระ 9 = AgendaOthers
 ///
-/// All 9 วาระ are always emitted (fixed form), even when a วาระ carries no items/data.
+/// วาระ 1 and 2 are always emitted. Every other วาระ is dropped when it carries nothing — 3–8 with
+/// no items, 9 with a blank body — and the survivors are renumbered 1..N so the printed sequence
+/// has no gaps. The fixed 1–9 identity above survives renumbering on <c>MeetingAgendaGroup.Wara</c>,
+/// which is what the templates branch on; <c>Number</c> is the printed position only.
 /// </summary>
 internal static class MeetingAgendaBuilder
 {
@@ -44,9 +47,7 @@ internal static class MeetingAgendaBuilder
         List<MeetingAgendaItemRow> Rows(int wara) =>
             byWara.TryGetValue(wara, out var rows) ? rows : new List<MeetingAgendaItemRow>();
 
-        // FSD §2.1.8 — all 9 วาระ are a fixed form and always rendered, even when a วาระ carries
-        // no items/data. Decision วาระ (3–8) always show their "จำนวน N ราย" count (N may be 0).
-        return new List<MeetingAgendaGroup>
+        var all = new List<MeetingAgendaGroup>
         {
             TextGroup(1, BuildCertifyTitle(previousMeetingNo), agendaCertifyMinutes),
             TextGroup(2, "ประธานแจ้งเพื่อทราบ", agendaChairmanInformed),
@@ -57,16 +58,53 @@ internal static class MeetingAgendaBuilder
             DecisionGroup(7, "อนุมัติเร่งด่วน", Rows(7)),
             DecisionGroup(8, "แจ้งเพื่อทราบ", Rows(8)),
             TextGroup(9, "อื่นๆ", agendaOthers),
-        }.AsReadOnly();
+        };
+
+        return Renumber(all.Where(Keep).ToList());
     }
+
+    /// <summary>
+    /// วาระ 1 and 2 are mandatory headings and print even when their text box is blank. Every other
+    /// วาระ is dropped when it carries nothing: decision วาระ 3–8 with no items (the old
+    /// "จำนวน 0 ราย" heading and its empty table), and วาระ 9 (อื่นๆ) with no body text.
+    /// </summary>
+    private static bool Keep(MeetingAgendaGroup g) =>
+        g.Wara is 1 or 2
+        || g.Items.Count > 0
+        || !string.IsNullOrWhiteSpace(g.BodyText);
+
+    /// <summary>
+    /// Assigns the printed 1..N sequence to the surviving วาระ, preserving each one's fixed
+    /// <see cref="MeetingAgendaGroup.Wara"/> identity so the templates' วาระ 5/6 special-casing
+    /// keeps pointing at the right topic.
+    /// </summary>
+    private static IReadOnlyList<MeetingAgendaGroup> Renumber(List<MeetingAgendaGroup> groups) =>
+        groups
+            .Select((g, idx) => new MeetingAgendaGroup
+            {
+                Number = idx + 1,
+                Wara = g.Wara,
+                Title = g.Title,
+                CountText = g.CountText,
+                BodyText = g.BodyText,
+                Items = g.Items
+            })
+            .ToList()
+            .AsReadOnly();
 
     /// <summary>
     /// FSD §2.1.9 fields 4.1–4.3: distinct appraisal staff (presenters) across all decision/ack
     /// agenda items, each with their position and the "{วาระ}.{seq}" references of the items they
-    /// presented (e.g. a staff on วาระ 8 item 1 → "8.1"; multiple → "8.1, 8.2"). Minute only.
+    /// presented (e.g. a staff on the วาระ printed as 8, item 1 → "8.1"; multiple → "8.1, 8.2").
+    /// Minute only. Takes the built <paramref name="agendas"/> so the references use the PRINTED
+    /// วาระ numbers — after empty วาระ are dropped these no longer match the fixed 1–9 identities.
     /// </summary>
-    public static IReadOnlyList<MeetingPresenterRow> BuildPresenters(IReadOnlyList<MeetingItemFlat> items)
+    public static IReadOnlyList<MeetingPresenterRow> BuildPresenters(
+        IReadOnlyList<MeetingItemFlat> items,
+        IReadOnlyList<MeetingAgendaGroup> agendas)
     {
+        var printedNumberByWara = agendas.ToDictionary(g => g.Wara, g => g.Number);
+
         var byStaff = new Dictionary<string, (string Position, List<string> Refs)>();
         var order = new List<string>();
 
@@ -76,13 +114,18 @@ internal static class MeetingAgendaBuilder
             if (string.IsNullOrWhiteSpace(name))
                 continue;
 
+            // A วาระ that produced this item necessarily has items, so it was never dropped and the
+            // lookup always hits. Skip rather than mis-reference if that ever stops holding.
+            if (!printedNumberByWara.TryGetValue(wara, out var printedNumber))
+                continue;
+
             if (!byStaff.TryGetValue(name, out var entry))
             {
                 entry = (item.StaffPosition?.Trim() ?? string.Empty, new List<string>());
                 byStaff[name] = entry;
                 order.Add(name);
             }
-            entry.Refs.Add($"{wara}.{seq}");
+            entry.Refs.Add($"{printedNumber}.{seq}");
         }
 
         return order
@@ -161,6 +204,26 @@ internal static class MeetingAgendaBuilder
             };
         }
 
+        // Progressive items (วาระ 5, การตรวจงวดงานก่อสร้าง) approve a construction milestone, not a
+        // price — the minute prints รวมผลการดำเนินงานปัจจุบัน instead. ValueText stays empty so no
+        // template can fall back to a money figure; the invitation already suppresses วาระ 5 values.
+        if (IsProgressive(i))
+        {
+            var ciTotal = i.CiTotalValue ?? 0m;
+            var ciCurrent = i.CiCurrentValue ?? 0m;
+
+            return new MeetingAgendaItemRow
+            {
+                CustomerName = JoinThaiNames(i.CustomerName),
+                ValueText = string.Empty,
+                // No inspection data (or a zero 100%-value) leaves this empty → blank cell, rather
+                // than a misleading 0.00%.
+                ProgressText = ciTotal > 0m
+                    ? Math.Round(ciCurrent / ciTotal * 100m, 2).ToString("N2", CultureInfo.InvariantCulture)
+                    : string.Empty
+            };
+        }
+
         // When IsPriceVerified is explicitly false, show ไม่รับรองราคา instead of the value.
         var valueText = i.IsPriceVerified == false
             ? "ไม่รับรองราคา"
@@ -196,21 +259,27 @@ internal static class MeetingAgendaBuilder
         };
     }
 
-    /// <summary>A decision วาระ (3–8): always carries a "จำนวน N ราย" count, items may be empty.</summary>
-    private static MeetingAgendaGroup DecisionGroup(int number, string title, List<MeetingAgendaItemRow> rows) =>
+    /// <summary>
+    /// A decision วาระ (3–8), carrying its "จำนวน N ราย" count. An empty one is dropped by
+    /// <see cref="Keep"/> before it reaches a template. <c>Number</c> is provisional — Renumber
+    /// overwrites it with the printed position.
+    /// </summary>
+    private static MeetingAgendaGroup DecisionGroup(int wara, string title, List<MeetingAgendaItemRow> rows) =>
         new()
         {
-            Number = number,
+            Number = wara,
+            Wara = wara,
             Title = title,
             CountText = $"จำนวน {rows.Count} ราย",
             Items = rows.AsReadOnly()
         };
 
-    /// <summary>A text วาระ (1/2/9): heading always shown; body text optional.</summary>
-    private static MeetingAgendaGroup TextGroup(int number, string title, string? bodyText) =>
+    /// <summary>A text วาระ (1/2/9): body text optional. See DecisionGroup on <c>Number</c>.</summary>
+    private static MeetingAgendaGroup TextGroup(int wara, string title, string? bodyText) =>
         new()
         {
-            Number = number,
+            Number = wara,
+            Wara = wara,
             Title = title,
             BodyText = string.IsNullOrWhiteSpace(bodyText) ? null : bodyText.Trim()
         };
@@ -253,4 +322,17 @@ internal sealed class MeetingItemFlat
     /// Sourced from appraisal.AppraisalDecisions.IsPriceVerified.
     /// </summary>
     public bool? IsPriceVerified { get; init; }
+
+    /// <summary>
+    /// Building value at 100% complete, summed over the appraisal's construction inspections.
+    /// Null when the appraisal has none. Minute only — the invitation prints no value for วาระ 5.
+    /// </summary>
+    public decimal? CiTotalValue { get; init; }
+
+    /// <summary>
+    /// Building value as built so far, same summation. Divided by <see cref="CiTotalValue"/> this
+    /// gives รวมผลการดำเนินงานปัจจุบัน — the same value-ratio the construction summary report
+    /// prints as รวมผลการดำเนินงาน, deliberately NOT ConstructionInspection.OverallCurrentProgressPercent.
+    /// </summary>
+    public decimal? CiCurrentValue { get; init; }
 }

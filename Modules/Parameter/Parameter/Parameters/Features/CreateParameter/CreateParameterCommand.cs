@@ -3,8 +3,7 @@ public record CreateParameterCommand(
     string Country,
     string Language,
     string Code,
-    string DescriptionTh,
-    string DescriptionEn,
+    string Description,
     bool IsActive,
     int SeqNo
 ) : ICommand<CreateParameterResult>;

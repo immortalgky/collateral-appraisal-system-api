@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collateral Appraisal System — Production Deployment Guide</title>
+<style>
+  :root {
+    --ink: #1f2933;
+    --muted: #6b7280;
+    --line: #e2e8f0;
+    --band: #f8fafc;
+    --brand: #1e3a5f;
+    --brand-soft: #eef3f9;
+    --mand: #b91c1c;
+    --mand-bg: #fef2f2;
+    --opt: #b45309;
+    --opt-bg: #fffbeb;
+    --rec: #1d4ed8;
+    --rec-bg: #eff6ff;
+    --ok: #047857;
+    --ok-bg: #ecfdf5;
+    --danger: #b91c1c;
+    --danger-bg: #fef2f2;
+    --warn: #b45309;
+    --warn-bg: #fffbeb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    line-height: 1.5;
+    margin: 0;
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 40px 32px 80px; }
+  header.doc {
+    border-bottom: 3px solid var(--brand);
+    padding-bottom: 18px;
+    margin-bottom: 8px;
+  }
+  header.doc h1 { margin: 0 0 4px; font-size: 27px; color: var(--brand); }
+  header.doc .sub { color: var(--muted); font-size: 14px; }
+  .meta { font-size: 12.5px; color: var(--muted); margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 3px 24px; }
+  .meta b { color: var(--ink); }
+
+  h2 {
+    font-size: 19px;
+    color: var(--brand);
+    margin: 42px 0 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+  }
+  h2 .tag { font-size: 12px; color: var(--muted); font-weight: 400; }
+  h2 .step-badge {
+    display: inline-block; background: var(--brand); color: #fff;
+    font-size: 12.5px; font-weight: 700; border-radius: 999px;
+    padding: 1px 10px; margin-right: 8px; vertical-align: middle;
+  }
+  h3 { font-size: 15.5px; margin: 26px 0 8px; }
+  h4 { font-size: 13.5px; margin: 18px 0 6px; color: var(--brand); }
+  p { margin: 8px 0; }
+  code {
+    background: var(--brand-soft);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    color: #0f3057;
+  }
+
+  pre.cmd {
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 10px 0;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  pre.cmd .c  { color: #7dd3fc; }                      /* command */
+  pre.cmd .k  { color: #fca5a5; }                      /* literal / danger */
+  pre.cmd .cm { color: #94a3b8; font-style: italic; }  /* comment */
+  pre.cmd .g  { color: #86efac; }                      /* good output */
+  pre.cmd .y  { color: #fcd34d; }                      /* warn output */
+  .cmd-cap {
+    font-size: 11.5px; color: var(--muted); margin: 14px 0 -4px;
+    font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  }
+  .cmd-cap .who {
+    display: inline-block; background: var(--brand-soft); border: 1px solid #cbd9ea;
+    color: var(--brand); border-radius: 3px; padding: 0 6px; margin-right: 8px;
+    text-transform: none; letter-spacing: 0; font-size: 11px;
+  }
+
+
+  .topo {
+    background: var(--band);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin: 16px 0;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    color: #334155;
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0 8px;
+    font-size: 13.5px;
+  }
+  thead th {
+    background: var(--brand);
+    color: #fff;
+    text-align: left;
+    padding: 9px 11px;
+    font-weight: 600;
+    font-size: 12.5px;
+  }
+  tbody td { padding: 9px 11px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr:nth-child(even) { background: var(--band); }
+  td.id { font-weight: 700; color: var(--brand); white-space: nowrap; width: 46px; }
+  td.center { text-align: center; white-space: nowrap; }
+  td.tok { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px; color: #0f3057; white-space: nowrap; }
+  td.wrap-tok { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px; color: #0f3057; }
+
+  .note {
+    border-left: 4px solid var(--brand);
+    background: var(--brand-soft);
+    padding: 12px 16px;
+    border-radius: 0 6px 6px 0;
+    margin: 16px 0;
+    font-size: 13.5px;
+  }
+  .note b { color: var(--brand); }
+  .note ul { margin: 8px 0 0; padding-left: 20px; }
+  .note li { margin: 4px 0; }
+  .note.danger { border-left-color: var(--danger); background: var(--danger-bg); }
+  .note.danger b { color: var(--danger); }
+  .note.warn { border-left-color: var(--warn); background: var(--warn-bg); }
+  .note.warn b { color: var(--warn); }
+  .note.ok { border-left-color: var(--ok); background: var(--ok-bg); }
+  .note.ok b { color: var(--ok); }
+
+  ul.check { list-style: none; padding-left: 0; margin: 8px 0; }
+  ul.check li { padding: 5px 0 5px 28px; position: relative; font-size: 13.5px; border-bottom: 1px dashed var(--line); }
+  ul.check li::before {
+    content: "\2610";
+    position: absolute; left: 4px; top: 3px;
+    font-size: 16px; color: var(--brand);
+  }
+  ol.steps { padding-left: 20px; }
+  ol.steps li { margin: 8px 0; font-size: 13.5px; }
+  ol.steps li b.ui { color: var(--brand); }
+  .verify { color: var(--ok); font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
+
+  /* UI navigation breadcrumb, e.g.  IIS Manager ▸ Application Pools ▸ CAS */
+  .navpath {
+    display: inline-block; background: #f1f5f9; border: 1px solid #dbe3ec;
+    border-radius: 4px; padding: 2px 9px; font-size: 12.5px; color: var(--brand);
+    font-weight: 600; margin: 6px 0;
+  }
+  .navpath span { color: #94a3b8; font-weight: 400; padding: 0 3px; }
+
+  /* ---- Windows UI recreations ------------------------------------------ */
+  .fig { margin: 18px 0 8px; }
+  .fig-cap { font-size: 12px; color: var(--muted); margin-top: 6px; font-style: italic; }
+  .fig-cap b { font-style: normal; color: var(--brand); }
+
+  .win {
+    border: 1px solid #7a7a7a;
+    border-radius: 6px 6px 4px 4px;
+    max-width: 470px;
+    background: #f0f0f0;
+    box-shadow: 0 6px 18px rgba(0,0,0,.14);
+    font-family: "Segoe UI", -apple-system, Tahoma, sans-serif;
+    overflow: hidden;
+  }
+  .win.wide { max-width: 660px; }
+  .win.full { max-width: 100%; }
+  .win-title {
+    background: linear-gradient(180deg,#2b5797,#1e3a5f);
+    color: #fff;
+    font-size: 12.5px;
+    padding: 6px 10px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .win-title .btns span {
+    display: inline-block; width: 16px; height: 14px; margin-left: 4px;
+    background: #ffffff22; border: 1px solid #ffffff44; border-radius: 2px;
+    text-align: center; line-height: 12px; font-size: 10px;
+  }
+  .win-menu {
+    background: #f5f5f5; border-bottom: 1px solid #dcdcdc; font-size: 11.5px;
+    padding: 3px 10px; color: #333;
+  }
+  .win-body { padding: 14px 16px; background: #f0f0f0; font-size: 12.5px; color: #202020; }
+  .win-body .row { display: flex; align-items: center; margin: 7px 0; }
+  .win-body .row label { width: 150px; color: #202020; }
+  .win-body .row .field {
+    flex: 1; background: #fff; border: 1px solid #9a9a9a; border-radius: 2px;
+    padding: 3px 7px; font-size: 12.5px; min-height: 22px;
+  }
+  .win-body .row .field.disabled { background: #eaeaea; color: #6b6b6b; }
+  .win-body .row select.field { appearance: none; position: relative; }
+  .win-body .caret { margin-left: -22px; color: #444; pointer-events: none; }
+  .win-body .hint { color: #555; font-size: 11.5px; margin: 6px 0 2px; }
+  .win-foot {
+    padding: 10px 16px; background: #f0f0f0; border-top: 1px solid #dcdcdc;
+    text-align: right;
+  }
+  .win-btn {
+    display: inline-block; min-width: 74px; padding: 4px 12px; margin-left: 8px;
+    background: linear-gradient(180deg,#fdfdfd,#e7e7e7);
+    border: 1px solid #adadad; border-radius: 3px; font-size: 12.5px; color: #202020;
+  }
+  .win-btn.primary { border-color: #4c7cc3; box-shadow: 0 0 0 1px #cfe0f5 inset; }
+
+  /* three-pane IIS Manager layout */
+  .iis { display: grid; grid-template-columns: 200px 1fr 168px; background: #fff; font-size: 12px; }
+  .iis .pane { border-right: 1px solid #d6d6d6; padding: 8px 10px; min-height: 190px; }
+  .iis .pane:last-child { border-right: 0; background: #f7f7f7; }
+  .iis .pane-h { font-weight: 700; font-size: 11.5px; color: #444; margin-bottom: 6px; border-bottom: 1px solid #e3e3e3; padding-bottom: 3px; }
+  .iis .tree div { padding: 2px 0 2px 12px; color: #202020; }
+  .iis .tree div.sel { background: #cde5fb; border: 1px solid #99c9f0; border-radius: 2px; font-weight: 600; }
+  .iis .tree div.lvl2 { padding-left: 24px; }
+  .iis .tree div.lvl3 { padding-left: 36px; }
+  .iis .icons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 6px; }
+  .iis .icons div { text-align: center; font-size: 10.5px; color: #1f3a60; line-height: 1.25; }
+  .iis .icons div .ic { display: block; font-size: 17px; margin-bottom: 2px; }
+  .iis .icons div.hi { background: #fff8dc; border: 1px dashed #e0b400; border-radius: 3px; padding: 2px 0; font-weight: 700; }
+  .iis .actions div { padding: 3px 0; color: #14509b; }
+  .iis .actions div.b { font-weight: 700; color: #202020; }
+  .iis .grid-rows .r { display: flex; border-bottom: 1px solid #eee; padding: 3px 2px; }
+  .iis .grid-rows .r.head { font-weight: 700; background: #f1f1f1; border-bottom: 1px solid #d8d8d8; }
+  .iis .grid-rows .r.sel { background: #cde5fb; }
+  .iis .grid-rows .r div { flex: 1; }
+
+  /* Advanced Settings property grid */
+  .propgrid { border: 1px solid #9a9a9a; background: #fff; font-size: 12px; }
+  .propgrid .grp { background: #eef1f5; font-weight: 700; padding: 4px 8px; border-bottom: 1px solid #dfe3e8; }
+  .propgrid .pr { display: flex; border-bottom: 1px solid #eef1f5; }
+  .propgrid .pr .pn { width: 55%; padding: 4px 8px; border-right: 1px solid #eef1f5; }
+  .propgrid .pr .pv { width: 45%; padding: 4px 8px; font-weight: 600; }
+  .propgrid .pr.hl { background: #fffaf0; }
+  .propgrid .pr.hl .pv { color: #b91c1c; }
+
+  /* SSMS mock */
+  .ssms .tab { background: #eef1f5; border-bottom: 1px solid #d0d7de; font-size: 11.5px; padding: 4px 10px; color: #333; }
+  .ssms .editor {
+    background: #fff; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 11.5px;
+    padding: 8px 10px; color: #1f2933; white-space: pre; overflow-x: auto; min-height: 80px;
+  }
+  .ssms .editor .kw { color: #0000ff; }
+  .ssms .editor .cmt { color: #008000; }
+  .ssms .messages {
+    background: #f7f7f7; border-top: 1px solid #d0d7de; font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11.5px; padding: 8px 10px; color: #333; white-space: pre; overflow-x: auto;
+  }
+
+  .toc { columns: 2; column-gap: 40px; font-size: 13px; margin: 10px 0; }
+  .toc a { color: var(--brand); text-decoration: none; }
+  .toc div { break-inside: avoid; padding: 2px 0; }
+
+  .tree {
+    background: var(--band); border: 1px solid var(--line); border-radius: 8px;
+    padding: 14px 18px; font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px; color: #334155; white-space: pre; overflow-x: auto; margin: 12px 0;
+  }
+
+  footer.doc { margin-top: 50px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+
+  @media print {
+    .wrap { padding: 0 12px; max-width: none; }
+    h2 { page-break-after: avoid; }
+    table, .note, .win, pre.cmd, .fig { page-break-inside: avoid; }
+    .toc { columns: 2; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <h1>Production Deployment Guide</h1>
+  <div class="sub">Collateral Appraisal System &mdash; Windows Server / IIS release runbook</div>
+</header>
+
+<h2>Contents</h2>
+<div class="toc">
+  <div><a href="#checklist">1. Pre-deployment checklist</a></div>
+  <div><a href="#s1">Step 1 &mdash; Configure the application</a></div>
+  <div><a href="#s2">Step 2 &mdash; Deploy the database (SQL scripts)</a></div>
+  <div><a href="#s3">Step 3 &mdash; Deploy the application per node</a></div>
+  <div><a href="#iis">6. IIS configuration (first-time commissioning)</a></div>
+  <div><a href="#verify">7. Post-deployment verification</a></div>
+  <div><a href="#trouble">8. Troubleshooting</a></div>
+  <div><a href="#appendix">9. Appendix &mdash; ports</a></div>
+</div>
+
+<!-- ==================================================================== -->
+<h2 id="checklist">1. Pre-deployment checklist</h2>
+<p>Tick every box before the change window. The PowerShell one-liners below prove each item rather
+  than assuming it.</p>
+
+<h4>1.1 Infrastructure reachable from <b>both</b> nodes</h4>
+<div class="cmd-cap"><span class="who">Run on: each app node</span>Elevated PowerShell</div>
+<pre class="cmd"><span class="cm"># Replace the host names with the bank's real values.</span>
+<span class="c">Test-NetConnection</span> SQLHOST   -Port 1433   <span class="cm"># SQL Server</span>
+<span class="c">Test-NetConnection</span> REDISHOST -Port 6379   <span class="cm"># Redis</span>
+<span class="c">Test-NetConnection</span> localhost -Port 5672   <span class="cm"># local RabbitMQ</span>
+<span class="c">Test-NetConnection</span> SMTPHOST  -Port 587    <span class="cm"># mail relay</span>
+<span class="c">Test-NetConnection</span> SFTPHOST  -Port 22     <span class="cm"># AS400 file drop</span>
+<span class="c">Test-NetConnection</span> DCHOST    -Port 389    <span class="cm"># LDAP (636 if LDAPS)</span>
+
+<span class="cm"># Each must print:</span>
+<span class="g">TcpTestSucceeded : True</span></pre>
+
+<div class="cmd-cap"><span class="who">Run on: each app node</span>As the app-pool service account &mdash; NAS write test</div>
+<pre class="cmd"><span class="cm"># Proves the SERVICE ACCOUNT (not your admin account) can write to the NAS.</span>
+<span class="c">Start-Process</span> powershell -Credential (Get-Credential BANK\svc_cas) -ArgumentList @(
+  '-NoProfile','-Command',
+  '"test" | Set-Content \\nas\CAS\uploads\_writetest.txt; Remove-Item \\nas\CAS\uploads\_writetest.txt'
+)</pre>
+
+<ul class="check">
+  <li>SQL Server reachable on <code>1433</code> from both nodes; a <b>fresh backup of the target database has been taken</b>.</li>
+  <li>Redis reachable on <code>6379</code> from both nodes.</li>
+  <li>RabbitMQ running <b>locally</b> on each node (<code>5672</code>) with the application user created.</li>
+  <li>NAS / SMB share reachable and <b>writable by the app-pool identity</b> on both nodes.</li>
+  <li>SMTP relay (<code>587</code>), SFTP (<code>22</code>) and AD/LDAP (<code>389</code>/<code>636</code>) reachable as required.</li>
+  <li>The F5 can reach <code>https://&lt;node&gt;:7111/health/ready</code> and the SPA port on both nodes.</li>
+</ul>
+
+<h4>1.2 Security material (both nodes identical)</h4>
+<ul class="check">
+  <li>OAuth2 <b>signing</b> certificate imported to <code>LocalMachine\My</code>; app-pool identity has <b>Read</b> on the private key.</li>
+  <li>OAuth2 <b>encryption</b> certificate imported to <code>LocalMachine\My</code>; app-pool identity has <b>Read</b> on the private key.</li>
+  <li>The <b>same two thumbprints</b> are configured on both nodes &mdash; verify with the command in §6.3.</li>
+</ul>
+
+<h4>1.3 Windows features</h4>
+<div class="cmd-cap"><span class="who">Run on: each app node</span>Elevated PowerShell</div>
+<pre class="cmd"><span class="c">Get-WindowsFeature</span> Web-Server, Web-Static-Content | Format-Table Name, InstallState
+<span class="cm"># Expect InstallState = Installed for both</span>
+
+<span class="cm"># ASP.NET Core Module v2 (from the .NET 9 Hosting Bundle)</span>
+<span class="c">Get-WebGlobalModule</span> | Where-Object Name -like '*AspNetCore*'
+<span class="cm"># Expect: AspNetCoreModuleV2</span>
+
+<span class="cm"># URL Rewrite (required by the SPA site)</span>
+<span class="c">Get-WebGlobalModule</span> | Where-Object Name -eq 'RewriteModule'
+<span class="cm"># Expect one row. Empty output = URL Rewrite is NOT installed</span></pre>
+
+<!-- ==================================================================== -->
+<h2 id="s1"><span class="step-badge">Step 1</span>Configure the application <span class="tag">(server-owned &mdash; authored once, edited later only when a value changes)</span></h2>
+<p>
+  Generate <code>appsettings.Production.json</code> from
+  <code>Bootstrapper/Api/appsettings.Production.json.template</code> and place it in
+  <code>&lt;APP_ROOT&gt;\api</code>. The deploy script <b>never overwrites</b> this file (it is on the
+  preserve list), so it survives every release. Substitute every <code>#{TOKEN}#</code>:
+</p>
+<table>
+  <thead><tr><th>Token</th><th>Setting</th><th>What to put</th></tr></thead>
+  <tbody>
+    <tr><td class="wrap-tok">#{DATABASE_CONNECTION_STRING}#</td><td><code>ConnectionStrings:Database</code></td><td>SQL Server connection string for the <code>cas_app</code> login. Identical on both nodes.</td></tr>
+    <tr><td class="wrap-tok">#{REDIS_CONNECTION_STRING}#</td><td><code>ConnectionStrings:Redis</code></td><td>Shared Redis endpoint (cache + SignalR backplane).</td></tr>
+    <tr><td class="wrap-tok">#{HANGFIRE_CONNECTION_STRING}#</td><td><code>ConnectionStrings:Hangfire</code></td><td>SQL Server for the Hangfire job store &mdash; normally the same database.</td></tr>
+    <tr><td class="wrap-tok">#{RABBITMQ_HOST}#</td><td><code>RabbitMQ:Host</code></td><td>Local broker, e.g. <code>amqp://localhost:5672</code>.</td></tr>
+    <tr><td class="wrap-tok">#{RABBITMQ_USERNAME}#<br>#{RABBITMQ_PASSWORD}#</td><td><code>RabbitMQ:*</code></td><td>Application user created per the RabbitMQ setup guide (not <code>guest</code>).</td></tr>
+    <tr><td class="wrap-tok">#{OAUTH2_SIGNING_CERT_THUMBPRINT}#</td><td><code>OAuth2:SigningCertificate:Thumbprint</code></td><td>Thumbprint of the signing certificate in <code>LocalMachine\My</code> (§6.3). <b>Identical on both nodes.</b></td></tr>
+    <tr><td class="wrap-tok">#{OAUTH2_ENCRYPTION_CERT_THUMBPRINT}#</td><td><code>OAuth2:EncryptionCertificate:Thumbprint</code></td><td>Thumbprint of the encryption certificate. <b>Identical on both nodes.</b></td></tr>
+    <tr><td class="wrap-tok">#{APP_BASE_URL}#</td><td><code>AppBaseUrl</code></td><td><b>Public API URL published by the F5</b>, e.g. <code>https://cas-api.lhbank.co.th</code>. Becomes the OpenIddict issuer &mdash; must match on both nodes and must match what the SPA was built against.</td></tr>
+    <tr><td class="wrap-tok">#{AUTH_INTERNAL_BASE_URL}#</td><td><code>Auth:InternalAuthBaseUrl</code></td><td>Loopback URL for in-process token calls: <code>https://localhost:7111</code> &mdash; must match the site's scheme and port.</td></tr>
+    <tr><td class="wrap-tok">#{ALLOWED_HOSTS}#</td><td><code>AllowedHosts</code></td><td>Host-header allow-list, e.g. <code>cas-api.lhbank.co.th;localhost</code>, or <code>*</code>.</td></tr>
+    <tr><td class="wrap-tok">#{FRONTEND_ORIGIN}#</td><td><code>Cors:AllowedOrigins</code></td><td>The <b>SPA origin</b>, e.g. <code>https://cas.lhbank.co.th</code>. Must match exactly &mdash; scheme, host and port, no trailing slash &mdash; or the browser blocks every API call.</td></tr>
+    <tr><td class="wrap-tok">#{FILESTORAGE_NAS_PATH}#</td><td><code>FileStorage:NasBasePath</code></td><td>Shared UNC path, e.g. <code>\\nas\CAS</code>. <code>Mode</code> is <code>Nas</code> &mdash; required with two nodes.</td></tr>
+    <tr><td class="wrap-tok">#{CHROMIUM_PATH}#</td><td><code>Reporting:ChromiumExecutablePath</code></td><td>Full path to Edge or Chrome, e.g. <code>C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe</code>.</td></tr>
+    <tr><td class="wrap-tok">#{ADMIN_USERNAME}#<br>#{ADMIN_PASSWORD}#</td><td><code>SeedData:AdminUser</code></td><td>Bootstrap administrator seeded on first boot. Change the password after the first sign-in.</td></tr>
+    <tr><td class="wrap-tok">#{MAIL_HOST}# #{MAIL_USERNAME}#<br>#{MAIL_PASSWORD}# #{MAIL_FROM_ADDRESS}#</td><td><code>Mail:*</code></td><td>SMTP relay (port 587, STARTTLS) and sender address.</td></tr>
+    <tr><td class="wrap-tok">#{AS400_SFTP_HOST}#<br>#{AS400_SFTP_USERNAME}#<br>#{AS400_SFTP_PASSWORD}#</td><td><code>FileTransfer:Inbound/Outbound:Sftp</code></td><td>AS400 reappraisal file-drop credentials.</td></tr>
+  </tbody>
+</table>
+<p>The <b>LDAP</b> block ships pre-filled for the bank domain (<code>Ldap:Enabled = true</code>,
+  <code>Server = LHB.NET</code>, <code>Domain = LHB</code>, integrated authentication). Fill
+  <code>BindDn</code> / <code>BindPassword</code> only if a service-account bind is required instead of
+  integrated auth.</p>
+
+<!-- ==================================================================== -->
+<h2 id="s2"><span class="step-badge">Step 2</span>Deploy the database <span class="tag">(DBA &mdash; ONCE per release, BEFORE any application node is deployed)</span></h2>
+
+<h3>What the <code>db\</code> folder contains</h3>
+<table>
+  <thead><tr><th>#</th><th>File</th><th>What it does</th><th>Approx. size</th></tr></thead>
+  <tbody>
+    <tr><td class="id">1</td><td class="tok">00_Prepare.sql</td><td>Creates <code>dbo.DatabaseMigrationHistory</code>, the journal table that records which scripts have run.</td><td>1 KB</td></tr>
+    <tr><td class="id">2</td><td class="tok">01_EF_01_CommonDbContext.sql<br>… through …<br>01_EF_11_ReportingDbContext.sql</td>
+        <td><b>Tables, keys, indexes</b> for all 11 modules. Each file is an EF Core <i>idempotent</i>
+            script: every migration is wrapped in <code>IF NOT EXISTS (SELECT … FROM
+            __EFMigrationsHistory)</code>, so already-applied migrations are skipped.
+            <b>The numbering is the required run order</b> &mdash; module dependencies rely on it.</td>
+        <td>7 KB – 690 KB<br>(~1.1 MB total)</td></tr>
+    <tr><td class="id">3</td><td class="tok">02_Repeatable_ViewsAndProcs.sql</td>
+        <td>All <b>61</b> views and stored procedures, emitted in dependency order. Each is
+            <code>CREATE OR ALTER</code>, so re-running always leaves the current definition in place.</td>
+        <td>~250 KB</td></tr>
+    <tr><td class="id">4</td><td class="tok">03_OneTime_DataScripts.sql</td>
+        <td><b>39</b> one-time reference-data and data-fix scripts (Thai province/district/sub-district
+            tables, parameters, document types, pricing templates, meeting configuration, …). Each block
+            is skipped if the journal already records it.</td>
+        <td>~1.9 MB</td></tr>
+    <tr><td class="id">5</td><td class="tok">99_Verify.sql</td><td><b>Read-only.</b> Run after the others and read the output.</td><td>2 KB</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <b>How re-running is made safe.</b> Three independent mechanisms, all standard:
+  <ul>
+    <li><b>EF migrations</b> — recorded in <code>__EFMigrationsHistory</code> inside each module's schema
+        (<code>request</code>, <code>workflow</code>, <code>appraisal</code>, …). The generated script tests
+        that table before every migration.</li>
+    <li><b>Views and stored procedures</b> — <code>CREATE OR ALTER</code>: no drop, no data loss, correct
+        result whether the object exists or not.</li>
+    <li><b>One-time data scripts</b> — each block starts with a lookup in
+        <code>dbo.DatabaseMigrationHistory</code>. If the script is already recorded, the block turns on
+        <code>SET NOEXEC ON</code> so SQL Server parses but does not execute the statements, then turns it
+        off again and moves on. The journal row is written at the end of the block.</li>
+  </ul>
+  Consequence: if a run fails halfway, fix the cause and <b>run the same file again</b>. Everything
+  already applied is skipped.
+</div>
+
+<h3>Method A &mdash; SQL Server Management Studio</h3>
+<p>Best when the DBA wants to review each script before executing it.</p>
+<div class="navpath">SSMS<span>▸</span>Connect to Server<span>▸</span>File<span>▸</span>Open<span>▸</span>File…<span>▸</span>Execute (F5)</div>
+<div class="fig">
+  <div class="win wide ssms">
+    <div class="win-title"><span>Microsoft SQL Server Management Studio</span><span class="btns"><span>&ndash;</span><span>□</span><span>&times;</span></span></div>
+    <div class="win-menu">File &nbsp; Edit &nbsp; View &nbsp; Query &nbsp; Project &nbsp; Tools &nbsp; Window &nbsp; Help &nbsp;&nbsp;|&nbsp;&nbsp; ▶ Execute &nbsp; ■ Stop</div>
+    <div class="tab">01_EF_03_RequestDbContext.sql &nbsp;— SQLHOST.CollateralAppraisal (cas_deploy)</div>
+    <div class="editor"><span class="cmt">/* ===========================================================================
+   Collateral Appraisal System — database deployment
+   Release  : &lt;release version&gt;
+   =========================================================================== */</span>
+<span class="kw">IF OBJECT_ID</span>(N'[request].[__EFMigrationsHistory]') <span class="kw">IS NULL</span>
+<span class="kw">BEGIN</span>
+    <span class="kw">IF</span> SCHEMA_ID(N'request') <span class="kw">IS NULL EXEC</span>(N'CREATE SCHEMA [request];');
+    <span class="kw">CREATE TABLE</span> [request].[__EFMigrationsHistory] ( … );
+<span class="kw">END</span>;
+<span class="kw">GO</span></div>
+    <div class="messages">Messages
+Commands completed successfully.
+
+Completion time: 2026-07-23T10:21:44.913+07:00</div>
+  </div>
+  <div class="fig-cap"><b>Figure 4.3</b> &mdash; SSMS with a deployment script open. Confirm the status bar
+    shows the <b>correct server and database</b> before pressing F5. Results appear on the
+    <b>Messages</b> tab, not the Results grid.</div>
+</div>
+<ol class="steps">
+  <li>Connect to the SQL instance as <code>cas_deploy</code>.</li>
+  <li><b class="ui">File ▸ Open ▸ File…</b> and open <code>00_Prepare.sql</code>.</li>
+  <li>Confirm the database dropdown in the toolbar shows <b>CollateralAppraisal</b> (not <code>master</code>).</li>
+  <li>Press <b class="ui">F5</b>. Read the <b>Messages</b> tab.</li>
+  <li>Repeat for <code>01_EF_01_…</code> through <code>01_EF_11_…</code> <b>in numeric order</b>, then
+      <code>02_Repeatable_ViewsAndProcs.sql</code>, then <code>03_OneTime_DataScripts.sql</code>.</li>
+  <li>Finally open <code>99_Verify.sql</code> and review its output (see <a href="#dbverify">Verify the database deployment</a>).</li>
+</ol>
+<h3>Method B &mdash; sqlcmd</h3>
+<p>Faster, scriptable, and produces a log file per script &mdash; the better choice for a change record.</p>
+<div class="cmd-cap"><span class="who">Run on: SQL host or a jump box with sqlcmd</span>Command prompt / PowerShell</div>
+<pre class="cmd"><span class="cm"># -b : stop with a non-zero exit code on the first SQL error</span>
+<span class="cm"># -V 16 : treat severity 16 and above as failure</span>
+<span class="cm"># -E : Windows authentication (use -U/-P for a SQL login)</span>
+<span class="c">cd</span> &lt;STAGING_ROOT&gt;\db
+
+<span class="c">sqlcmd</span> -S SQLHOST -d CollateralAppraisal -E -b -V 16 -i 00_Prepare.sql                 -o 00_Prepare.log
+<span class="c">sqlcmd</span> -S SQLHOST -d CollateralAppraisal -E -b -V 16 -i 01_EF_01_CommonDbContext.sql   -o 01_EF_01.log
+<span class="c">sqlcmd</span> -S SQLHOST -d CollateralAppraisal -E -b -V 16 -i 01_EF_02_ParameterDbContext.sql -o 01_EF_02.log
+<span class="cm">... continue in numeric order through 01_EF_11_ReportingDbContext.sql ...</span>
+<span class="c">sqlcmd</span> -S SQLHOST -d CollateralAppraisal -E -b -V 16 -i 02_Repeatable_ViewsAndProcs.sql -o 02.log
+<span class="c">sqlcmd</span> -S SQLHOST -d CollateralAppraisal -E -b -V 16 -i 03_OneTime_DataScripts.sql      -o 03.log -t 1800</pre>
+
+<p>Or run the whole sequence with the supplied wrapper, which enforces the order, aborts on the first
+   error and writes one log per file:</p>
+<div class="cmd-cap"><span class="who">Run on: SQL host or a jump box</span>PowerShell</div>
+<pre class="cmd"><span class="c">.\deploy\Invoke-SqlDeploy.ps1</span> -ServerInstance SQLHOST -Database CollateralAppraisal `
+    -ScriptPath &lt;STAGING_ROOT&gt;\db -TrustedConnection
+
+<span class="cm"># Dry run first — lists what would execute without touching the database:</span>
+<span class="c">.\deploy\Invoke-SqlDeploy.ps1</span> -ServerInstance SQLHOST -Database CollateralAppraisal `
+    -ScriptPath &lt;STAGING_ROOT&gt;\db -TrustedConnection -WhatIf</pre>
+
+<h4>Expected output</h4>
+<pre class="cmd">Database deploy
+  server : SQLHOST
+  database: CollateralAppraisal
+  scripts: &lt;STAGING_ROOT&gt;\db  (13 files)
+  -&gt; 00_Prepare.sql
+     <span class="g">ok (1s)</span>
+  -&gt; 01_EF_01_CommonDbContext.sql
+     <span class="g">ok (3s)</span>
+  ...
+  -&gt; 02_Repeatable_ViewsAndProcs.sql
+     <span class="g">ok (22s)</span>
+  -&gt; 03_OneTime_DataScripts.sql
+     <span class="g">ok (96s)</span>
+
+<span class="g">Database deployed. Now run 99_Verify.sql and review its output.</span></pre>
+<p>Inside the logs, <code>03_OneTime_DataScripts.log</code> shows one line per script &mdash; this is how
+   you see what a re-run skipped:</p>
+<pre class="cmd">  APPLY: 20260719140000_SeedData_VesselTypeParameter.sql
+  APPLY: 20260720120000_SeedData_FireInsuranceRates.sql
+<span class="y">  SKIP (already applied): 20250804170600_Initial.sql</span>
+<span class="y">  SKIP (already applied): 20260311162600_SeedData_DopaProvinces.sql</span></pre>
+
+<h3>Rules</h3>
+<div class="note danger">
+  <b>Four rules that must not be broken.</b>
+  <ul>
+    <li><b>Run once per release, from one place.</b> Never run the scripts concurrently from two sessions.</li>
+    <li><b>Run before deploying the application.</b> A node that starts against an un-migrated database
+        will either try to migrate it itself (if it has DDL rights) or fail to start.</li>
+    <li><b>Keep the numeric order.</b> <code>01_EF_01</code> creates tables that <code>01_EF_03</code>
+        references; <code>02</code> creates views over those tables; <code>03</code> populates them.</li>
+    <li><b>There is no automatic schema rollback.</b> Schema changes within a release are
+        backward-compatible so the previous application build keeps running during the rollout, but
+        reversing a migration means restoring the pre-release backup.</li>
+  </ul>
+</div>
+
+<h3 id="dbverify">Verify the database deployment</h3>
+<div class="cmd-cap"><span class="who">Run on: SQL host</span>Read-only</div>
+<pre class="cmd"><span class="c">sqlcmd</span> -S SQLHOST -d CollateralAppraisal -E -i 99_Verify.sql -o 99_Verify.log
+<span class="c">notepad</span> 99_Verify.log</pre>
+<table>
+  <thead><tr><th>Check in <code>99_Verify.sql</code></th><th>Expected result</th></tr></thead>
+  <tbody>
+    <tr><td>1. EF migrations applied per history table</td><td>One row per module schema (<code>appraisal</code>, <code>auth</code>, <code>collateral</code>, <code>common</code>, <code>dbo</code>, <code>document</code>, <code>integration</code>, <code>notification</code>, <code>reporting</code>, <code>request</code>, <code>workflow</code>), each with a non-zero count.</td></tr>
+    <tr><td>1b. Stray history tables</td><td><b>Zero rows.</b> A row means an <code>__EFMigrationsHistory</code> table landed outside the module schemas &mdash; usually because the deployment login's default schema is not <code>dbo</code>. Stop and fix it before releasing.</td></tr>
+    <tr><td>2. Journal totals</td><td><code>RepeatableObjects</code> &ge; <b>61</b>, <code>OneTimeScripts</code> &ge; <b>39</b>, <code>LastApplied</code> = today.</td></tr>
+    <tr><td>3. Objects present</td><td><code>VIEW</code> &ge; 55 and <code>SQL_STORED_PROCEDURE</code> &ge; 2.</td></tr>
+    <tr><td>4. Unresolved references</td><td><b>Zero rows.</b> Any row means a view or procedure references an object that does not exist &mdash; investigate before releasing.</td></tr>
+    <tr><td>5. Reference-data spot check</td><td><code>DopaProvinces</code> ≈ 77, <code>DopaDistricts</code> and <code>DopaSubDistricts</code> in the thousands.</td></tr>
+    <tr><td>6. Release stamp</td><td>The most recent rows all carry the release version of the scripts you just ran.</td></tr>
+  </tbody>
+</table>
+
+<!-- ==================================================================== -->
+<h2 id="s3"><span class="step-badge">Step 3</span>Deploy the application per node <span class="tag">(first installation &mdash; manual file copy)</span></h2>
+<p>
+  The application is a folder of files: deploying it means <b>copying two folders into place</b>. There
+  is no installer and no deployment program. On a first installation the target folders are empty, so
+  this is a straight copy &mdash; nothing to back up, nothing to remove.
+</p>
+<div class="note">
+  <b>Do &sect;6 first.</b> The application pool, the two websites and the certificates must exist before
+  the files are of any use. If &sect;6 has not been done on this node yet, do it now and come back.
+</div>
+
+<h3>3.1 Backend &mdash; <code>&lt;APP_ROOT&gt;\api</code></h3>
+<ol class="steps">
+  <li><b>Confirm the pool is stopped.</b>
+      <div class="navpath">IIS Manager<span>▸</span>Application Pools<span>▸</span>CAS<span>▸</span>Stop</div>
+      Not strictly required with no application running yet, but it keeps the node from serving a
+      half-copied folder.</li>
+  <li><b>Copy the build in.</b> Copy the entire contents of
+      <code>&lt;STAGING_ROOT&gt;\api\</code> into <code>&lt;APP_ROOT&gt;\api</code>.</li>
+  <li><b>Put the configuration file in place.</b> Copy the
+      <code>appsettings.Production.json</code> you prepared in Step 1 into
+      <code>&lt;APP_ROOT&gt;\api</code>. The release bundle deliberately does not contain it.</li>
+  <li><b>Confirm the folder contents.</b> <code>Api.dll</code>, <code>web.config</code> and
+      <code>appsettings.Production.json</code> are all present.</li>
+  <li><b>Create the <code>logs</code> folder</b> if it is not there, and confirm the app-pool service
+      account has <b>Modify</b> on it &mdash; otherwise the application starts but writes no log, which
+      makes every later problem harder to diagnose.</li>
+</ol>
+<div class="note warn">
+  <b>The upload limit is applied to this <code>web.config</code>.</b> The file that just arrived with the
+  build is the one &sect;6.5 edits. Apply &sect;6.5 <b>after</b> this copy, not before &mdash; otherwise the
+  copy overwrites the change.
+</div>
+
+<h3>3.2 Frontend &mdash; <code>&lt;APP_ROOT&gt;\web</code></h3>
+<ol class="steps">
+  <li><b>Copy the entire contents</b> of <code>&lt;STAGING_ROOT&gt;\web\</code> into
+      <code>&lt;APP_ROOT&gt;\web</code>, <b>including <code>web.config</code></b> &mdash; unlike the API,
+      the SPA's <code>web.config</code> comes from the release, because it carries the routing rules
+      that make deep links work.</li>
+  <li>Confirm <code>index.html</code>, <code>web.config</code> and <code>assets\</code> are all present.</li>
+</ol>
+
+<h3>3.3 Start the node and confirm it is healthy</h3>
+<ol class="steps">
+  <li><b>Start the application pool.</b>
+      <div class="navpath">IIS Manager<span>▸</span>Application Pools<span>▸</span>CAS<span>▸</span>Start</div>
+      Both websites share this pool, so one start covers the API and the SPA.</li>
+  <li>The application starts on the first request. That first request takes noticeably longer than
+      later ones: on a brand-new database it also seeds menus, permissions, roles, the OAuth2 client
+      applications and the workflow, SLA and committee configuration. Give it a minute before deciding
+      something is wrong.</li>
+</ol>
+<p>Then check the two addresses on the server itself:</p>
+<table>
+  <thead><tr><th>Address</th><th>Expected</th></tr></thead>
+  <tbody>
+    <tr><td class="tok">https://localhost:7111/health/ready</td><td>Loads and reports <b>Healthy</b>. This is what the F5 uses to decide whether the node takes traffic.</td></tr>
+    <tr><td class="tok">https://localhost:3000/</td><td>The application's sign-in page loads.</td></tr>
+  </tbody>
+</table>
+<div class="cmd-cap"><span class="who">Run on: the node just deployed</span>Command line alternative</div>
+<pre class="cmd"><span class="cm"># -k skips certificate validation: the cert is issued for the public host name, not localhost.</span>
+<span class="c">curl.exe</span> -k -s -o NUL -w "%{http_code}\n" https://localhost:7111/health/ready
+<span class="cm"># Expect 200. If it is not 200, see §7 for how to find out which dependency failed.</span></pre>
+<div class="note warn">
+  <b>If the health check does not come back within a minute or two</b>, do not move on to the second
+  node. Read <code>&lt;APP_ROOT&gt;\api\logs\log-*.txt</code> and the Windows Event Log
+  (&sect;<a href="#trouble">8.1</a>) &mdash; the first start is where a wrong connection string, a missing
+  certificate permission or an unreachable dependency shows up.
+</div>
+
+<h3>3.4 Then the second node</h3>
+<p>Repeat 3.1 to 3.3 on <b>node 2</b>, using the same release folder and the same
+  <code>appsettings.Production.json</code> values &mdash; the certificate thumbprints, database
+  connection string and <code>AppBaseUrl</code> must be identical on both nodes, or tokens issued by
+  one node are rejected by the other.</p>
+
+<div class="note">
+  <b>Later releases work differently.</b> Once a build is live, an upgrade is not a copy over the top:
+  the old files must be <b>removed first</b>, keeping <code>appsettings.Production.json</code>,
+  <code>web.config</code> and <code>logs\</code>. Leaving old DLLs behind mixes two builds and produces
+  errors such as <code>TypeLoadException</code> or <code>MissingMethodException</code>, often on one
+  screen and hours later. Take a copy of the live folders before overwriting them, so the previous
+  build can be put back.
+</div>
+
+<!-- ==================================================================== -->
+<h2 id="iis">6. IIS configuration <span class="tag">(first-time server commissioning &mdash; one-time per node)</span></h2>
+<p>
+  These steps are performed <b>once per server</b>. Each has both a UI path and a PowerShell equivalent;
+  use whichever the bank's change process prefers. The figures are faithful recreations of the real
+  dialogs.
+</p>
+<div class="fig">
+  <div class="win full">
+    <div class="win-title"><span>Internet Information Services (IIS) Manager</span><span class="btns"><span>&ndash;</span><span>□</span><span>&times;</span></span></div>
+    <div class="win-menu">File &nbsp; View &nbsp; Help</div>
+    <div class="iis">
+      <div class="pane tree">
+        <div class="pane-h">Connections</div>
+        <div>▾ CASAPP01 (BANK\admin)</div>
+        <div class="lvl2">Application Pools</div>
+        <div class="lvl2">▾ Sites</div>
+        <div class="lvl3 sel">CAS-Api</div>
+        <div class="lvl3">CAS-Web</div>
+        <div class="lvl3">Default Web Site</div>
+      </div>
+      <div class="pane">
+        <div class="pane-h">CAS-Api Home</div>
+        <div class="icons">
+          <div><span class="ic">&#128273;</span>Authentication</div>
+          <div class="hi"><span class="ic">&#128203;</span>Configuration Editor</div>
+          <div><span class="ic">&#128196;</span>Default Document</div>
+          <div><span class="ic">&#9888;</span>Error Pages</div>
+          <div><span class="ic">&#128193;</span>Handler Mappings</div>
+          <div><span class="ic">&#128278;</span>HTTP Response Headers</div>
+          <div><span class="ic">&#128269;</span>Logging</div>
+          <div><span class="ic">&#128736;</span>Modules</div>
+          <div class="hi"><span class="ic">&#128683;</span>Request Filtering</div>
+          <div class="hi"><span class="ic">&#8644;</span>URL Rewrite</div>
+          <div><span class="ic">&#128190;</span>Output Caching</div>
+          <div><span class="ic">&#128100;</span>SSL Settings</div>
+        </div>
+      </div>
+      <div class="pane actions">
+        <div class="pane-h">Actions</div>
+        <div class="b">Manage Website</div>
+        <div>&#9654; Start</div>
+        <div>&#9632; Stop</div>
+        <div>&#8635; Restart</div>
+        <div class="b" style="margin-top:8px">Edit Site</div>
+        <div>Bindings…</div>
+        <div>Basic Settings…</div>
+        <div>Advanced Settings…</div>
+        <div class="b" style="margin-top:8px">Browse Website</div>
+        <div>Browse *:7111 (https)</div>
+      </div>
+    </div>
+  </div>
+  <div class="fig-cap"><b>Figure 6.0</b> &mdash; IIS Manager after commissioning: two sites
+    (<code>CAS-Api</code>, <code>CAS-Web</code>). The highlighted feature icons are the ones this section
+    uses. Open with <code>inetmgr</code> or <b class="ui">Server Manager ▸ Tools ▸ Internet Information
+    Services (IIS) Manager</b>.</div>
+</div>
+
+<h3 id="iis1">6.1 Create the application pools</h3>
+<p>A single application pool named <code>CAS</code> hosts <b>both</b> websites &mdash; the API and the
+  SPA. It uses <b>No Managed Code</b>: the API self-hosts .NET through ANCM, and the SPA is static
+  files.</p>
+<div class="note">
+  <b>One pool means one worker process for both sites.</b> That keeps configuration simple and gives
+  both sites the same identity and the same NAS and certificate access. The trade-off to remember at
+  deployment time: <b>stopping the pool takes the SPA down as well as the API</b> &mdash; requests to the
+  SPA return HTTP 503 while it is stopped. Step 3 is written around that.
+</div>
+<div class="navpath">IIS Manager<span>▸</span>Application Pools<span>▸</span>Add Application Pool…</div>
+<div class="fig">
+  <div class="win">
+    <div class="win-title"><span>Add Application Pool</span><span class="btns"><span>&times;</span></span></div>
+    <div class="win-body">
+      <div class="row"><label>Name:</label><div class="field">CAS</div></div>
+      <div class="row"><label>.NET CLR version:</label><select class="field"><option>No Managed Code</option></select><span class="caret">&#9662;</span></div>
+      <div class="row"><label>Managed pipeline mode:</label><select class="field"><option>Integrated</option></select><span class="caret">&#9662;</span></div>
+      <div class="row" style="margin-top:12px"><input type="checkbox" checked style="margin-right:8px"><label style="width:auto">Start application pool immediately</label></div>
+    </div>
+    <div class="win-foot"><span class="win-btn primary">OK</span><span class="win-btn">Cancel</span></div>
+  </div>
+  <div class="fig-cap"><b>Figure 6.1</b> &mdash; Add Application Pool. <b>.NET CLR version = No Managed
+    Code</b>; pipeline stays <b>Integrated</b>. One pool serves both websites.</div>
+</div>
+<div class="cmd-cap"><span class="who">Run on: each app node</span>PowerShell equivalent</div>
+<pre class="cmd"><span class="c">Import-Module</span> WebAdministration
+
+<span class="c">New-WebAppPool</span> -Name 'CAS'
+<span class="c">Set-ItemProperty</span> IIS:\AppPools\CAS -Name managedRuntimeVersion -Value ''
+
+<span class="cm"># Verify — managedRuntimeVersion must be EMPTY (that is "No Managed Code")</span>
+<span class="c">Get-ChildItem</span> IIS:\AppPools | Select-Object Name, managedRuntimeVersion, state</pre>
+
+<h3 id="iis2">6.2 Application-pool advanced settings</h3>
+<p>Select the <code>CAS</code> pool, then <b class="ui">Advanced Settings…</b> in the Actions pane.
+  The idle and recycle timers are deliberately <b>0</b> so the worker is never killed mid-request or
+  mid-SignalR-stream; the pool recycles only on deployment.</p>
+<div class="navpath">IIS Manager<span>▸</span>Application Pools<span>▸</span>CAS<span>▸</span>Advanced Settings…</div>
+<div class="fig">
+  <div class="win wide">
+    <div class="win-title"><span>Advanced Settings</span><span class="btns"><span>&times;</span></span></div>
+    <div class="win-body" style="padding:12px">
+      <div class="propgrid">
+        <div class="grp">(General)</div>
+        <div class="pr"><div class="pn">.NET CLR Version</div><div class="pv">No Managed Code</div></div>
+        <div class="pr"><div class="pn">Managed Pipeline Mode</div><div class="pv">Integrated</div></div>
+        <div class="pr hl"><div class="pn">Start Mode</div><div class="pv">AlwaysRunning</div></div>
+        <div class="grp">CPU</div>
+        <div class="pr"><div class="pn">Limit Action</div><div class="pv">NoAction</div></div>
+        <div class="grp">Process Model</div>
+        <div class="pr hl"><div class="pn">Identity</div><div class="pv">BANK\svc_cas</div></div>
+        <div class="pr hl"><div class="pn">Idle Time-out (minutes)</div><div class="pv">0</div></div>
+        <div class="pr"><div class="pn">Load User Profile</div><div class="pv">True</div></div>
+        <div class="pr"><div class="pn">Maximum Worker Processes</div><div class="pv">1</div></div>
+        <div class="grp">Recycling</div>
+        <div class="pr hl"><div class="pn">Regular Time Interval (minutes)</div><div class="pv">0</div></div>
+        <div class="pr"><div class="pn">Disable Overlapped Recycle</div><div class="pv">True</div></div>
+      </div>
+    </div>
+    <div class="win-foot"><span class="win-btn primary">OK</span><span class="win-btn">Cancel</span></div>
+  </div>
+  <div class="fig-cap"><b>Figure 6.2</b> &mdash; Advanced Settings for the <code>CAS</code> pool. Highlighted
+    rows are the ones that matter for this application.</div>
+</div>
+<table>
+  <thead><tr><th>Setting</th><th>Value</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>.NET CLR Version</td><td class="center">No Managed Code</td><td>Standard for ANCM-hosted applications.</td></tr>
+    <tr><td>Identity</td><td class="center">BANK\svc_cas</td><td>Domain service account &mdash; needed for LDAP integrated auth, NAS access and certificate private keys.</td></tr>
+    <tr><td>Idle Time-out (minutes)</td><td class="center">0</td><td>The worker is never killed for inactivity; that would drop every SignalR connection.</td></tr>
+    <tr><td>Regular Time Interval (minutes)</td><td class="center">0</td><td>Recycle only on deployment &mdash; never on a clock, which would interrupt long report generation.</td></tr>
+    <tr><td>Start Mode</td><td class="center">AlwaysRunning</td><td>Warms the worker so the first request after a recycle is fast and background jobs resume immediately.</td></tr>
+    <tr><td>Maximum Worker Processes</td><td class="center">1</td><td>Must stay 1. A web garden would run duplicate background jobs and break in-memory state.</td></tr>
+    <tr><td>Disable Overlapped Recycle</td><td class="center">True</td><td>Prevents two workers holding the same log files and job leases during a recycle.</td></tr>
+    <tr><td>Load User Profile</td><td class="center">True</td><td>Required for certificate and temp-file access under the service account.</td></tr>
+  </tbody>
+</table>
+<div class="cmd-cap"><span class="who">Run on: each app node</span>PowerShell equivalent</div>
+<pre class="cmd"><span class="c">Import-Module</span> WebAdministration
+$pool = 'IIS:\AppPools\CAS'
+
+<span class="c">Set-ItemProperty</span> $pool -Name processModel.identityType   -Value SpecificUser
+<span class="c">Set-ItemProperty</span> $pool -Name processModel.userName       -Value 'BANK\svc_cas'
+<span class="c">Set-ItemProperty</span> $pool -Name processModel.password       -Value (Read-Host 'svc_cas password')
+<span class="c">Set-ItemProperty</span> $pool -Name processModel.idleTimeout     -Value '00:00:00'
+<span class="c">Set-ItemProperty</span> $pool -Name processModel.loadUserProfile -Value $true
+<span class="c">Set-ItemProperty</span> $pool -Name recycling.periodicRestart.time -Value '00:00:00'
+<span class="c">Set-ItemProperty</span> $pool -Name startMode                   -Value AlwaysRunning
+<span class="c">Set-ItemProperty</span> $pool -Name processModel.maxProcesses    -Value 1
+<span class="c">Set-ItemProperty</span> $pool -Name recycling.disallowOverlappingRotation -Value $true
+
+<span class="cm"># Verify</span>
+<span class="c">Get-ItemProperty</span> $pool | Select-Object name, startMode,
+    @{n='identity';e={$_.processModel.userName}},
+    @{n='idleTimeout';e={$_.processModel.idleTimeout}},
+    @{n='recycleTime';e={$_.recycling.periodicRestart.time}}</pre>
+
+<h3 id="iis3">6.3 Import the OAuth2 certificates and grant private-key access</h3>
+<p>
+  The application is its own OAuth2 / OpenID Connect server (OpenIddict) and requires <b>two</b> RSA-2048
+  certificates &mdash; a <b>signing</b> certificate and an <b>encryption</b> certificate &mdash; imported
+  into <code>LocalMachine\My</code> on <b>every</b> node, with <b>identical thumbprints</b>. Generation
+  and rotation are covered in <code>docs/deployment/multi-server-deployment.md</code> §2.
+</p>
+<p><b>Everything in this section can be done in the UI</b> &mdash; import, permissions and reading the
+   thumbprint. PowerShell equivalents are given after each part for anyone who prefers them; neither
+   path is required.</p>
+
+<h4>6.3.1 Import the two certificates <span class="tag">(UI)</span></h4>
+<div class="navpath">Run <span>▸</span>certlm.msc<span>▸</span>Personal<span>▸</span>Certificates<span>▸</span>right-click<span>▸</span>All Tasks<span>▸</span>Import…</div>
+<ol class="steps">
+  <li>Press <b>Win+R</b>, type <code>certlm.msc</code> and press Enter. This opens
+      <b>Certificates &mdash; Local Computer</b>. (Do <b>not</b> use <code>certmgr.msc</code> &mdash; that is
+      the <i>current user</i> store, and the app pool cannot read certificates from it.)</li>
+  <li>Expand <b class="ui">Personal</b>, right-click <b class="ui">Certificates</b>, then
+      <b class="ui">All Tasks ▸ Import…</b></li>
+  <li>In the wizard: <b>Store Location</b> is already <b>Local Machine</b>. Browse to
+      <code>CAS-Signing.pfx</code> &mdash; change the file-type filter to
+      <i>Personal Information Exchange (*.pfx;*.p12)</i> or the file will not appear.</li>
+  <li>Enter the PFX password. Leave <b>Mark this key as exportable</b> <b>unticked</b> unless the bank's
+      policy requires it &mdash; the application only needs to read the key.</li>
+  <li>Choose <b class="ui">Place all certificates in the following store</b> &rarr; <b>Personal</b>.
+      Finish.</li>
+  <li>Repeat for <code>CAS-Encryption.pfx</code>.</li>
+</ol>
+<div class="cmd-cap"><span class="who">Run on: each app node</span>PowerShell equivalent</div>
+<pre class="cmd">$pw = <span class="c">Read-Host</span> 'PFX password' -AsSecureString
+<span class="c">Import-PfxCertificate</span> -FilePath .\CAS-Signing.pfx    -CertStoreLocation Cert:\LocalMachine\My -Password $pw
+<span class="c">Import-PfxCertificate</span> -FilePath .\CAS-Encryption.pfx -CertStoreLocation Cert:\LocalMachine\My -Password $pw</pre>
+
+<h4>6.3.2 Read the thumbprints <span class="tag">(UI)</span></h4>
+<p>Double-click a certificate &rarr; <b class="ui">Details</b> tab &rarr; scroll to <b>Thumbprint</b>. The
+   value shown is what goes into <code>appsettings.Production.json</code>.</p>
+
+<div class="cmd-cap"><span class="who">Run on: each app node</span>PowerShell equivalent</div>
+<pre class="cmd"><span class="c">Get-ChildItem</span> Cert:\LocalMachine\My |
+    Where-Object Subject -like '*CollateralAppraisal*' |
+    Select-Object Subject, Thumbprint, NotAfter</pre>
+
+<h4>6.3.3 Grant the app pool Read on the private keys <span class="tag">(UI &mdash; no command-line equivalent needed)</span></h4>
+<p>This is the step operators most often forget.</p>
+<div class="navpath">certlm.msc<span>▸</span>Personal<span>▸</span>Certificates<span>▸</span>right-click the certificate<span>▸</span>All Tasks<span>▸</span>Manage Private Keys…</div>
+<div class="fig">
+  <div class="win">
+    <div class="win-title"><span>Permissions for CAS-Signing private keys</span><span class="btns"><span>&times;</span></span></div>
+    <div class="win-body">
+      <div class="hint">Group or user names:</div>
+      <div class="field" style="height:74px">BANK\svc_cas<br><span style="color:#6b6b6b">SYSTEM</span><br><span style="color:#6b6b6b">Administrators</span></div>
+      <div style="text-align:right;margin:6px 0"><span class="win-btn">Add…</span><span class="win-btn">Remove</span></div>
+      <div class="hint">Permissions for BANK\svc_cas:</div>
+      <div class="row"><label>Full control</label><div style="width:auto"><input type="checkbox" disabled></div></div>
+      <div class="row"><label>Read</label><div style="width:auto"><input type="checkbox" checked></div></div>
+    </div>
+    <div class="win-foot"><span class="win-btn primary">OK</span><span class="win-btn">Cancel</span></div>
+  </div>
+  <div class="fig-cap"><b>Figure 6.3</b> &mdash; Grant the app-pool identity <b>Read</b> on the certificate's
+    private key. Repeat for the encryption certificate. Without this the application fails at start-up
+    with <code>CryptographicException: Keyset does not exist</code>.</div>
+</div>
+<div class="cmd-cap"><span class="who">Run on: BOTH app nodes</span>Confirm the thumbprints match</div>
+<pre class="cmd"><span class="cm"># Run on node 1 and node 2 and compare the two outputs character by character.</span>
+<span class="c">Get-ChildItem</span> Cert:\LocalMachine\My |
+    Where-Object Subject -like '*CollateralAppraisal*' |
+    Sort-Object Subject | Format-Table Subject, Thumbprint -AutoSize</pre>
+
+<h3 id="iis4">6.4 Create the two websites</h3>
+<h4>6.4.1 The API site</h4>
+<div class="navpath">IIS Manager<span>▸</span>Sites<span>▸</span>Add Website…</div>
+<div class="fig">
+  <div class="win wide">
+    <div class="win-title"><span>Add Website</span><span class="btns"><span>&times;</span></span></div>
+    <div class="win-body">
+      <div class="row"><label>Site name:</label><div class="field">CAS-Api</div>
+        <div style="width:120px;text-align:right;color:#555">Application pool:</div></div>
+      <div class="row"><label>&nbsp;</label><div class="field" style="max-width:190px">CAS</div>
+        <span class="win-btn" style="margin-left:8px">Select…</span></div>
+      <div class="hint" style="margin-top:10px">Content Directory &mdash; Physical path:</div>
+      <div class="row"><label>&nbsp;</label><div class="field">&lt;APP_ROOT&gt;\api</div><span class="win-btn" style="margin-left:8px">…</span></div>
+      <div class="hint" style="margin-top:10px">Binding</div>
+      <div class="row"><label>Type:</label><select class="field" style="max-width:110px"><option>https</option></select><span class="caret">&#9662;</span>
+        <label style="width:auto;margin-left:14px">IP address:</label><div class="field" style="max-width:120px">All Unassigned</div>
+        <label style="width:auto;margin-left:14px">Port:</label><div class="field" style="max-width:70px">7111</div></div>
+      <div class="row"><label>Host name:</label><div class="field disabled">(leave empty)</div></div>
+      <div class="row"><label>SSL certificate:</label><select class="field"><option>CAS server certificate</option></select><span class="caret">&#9662;</span>
+        <span class="win-btn" style="margin-left:8px">View…</span></div>
+      <div class="row" style="margin-top:10px"><input type="checkbox" checked style="margin-right:8px"><label style="width:auto">Start Website immediately</label></div>
+    </div>
+    <div class="win-foot"><span class="win-btn primary">OK</span><span class="win-btn">Cancel</span></div>
+  </div>
+  <div class="fig-cap"><b>Figure 6.4.1</b> &mdash; The API site. Physical path
+    <code>&lt;APP_ROOT&gt;\api</code>, application pool <code>CAS</code>, binding type <b>https</b> on port
+    <b>7111</b>, with the server's TLS certificate selected. <b>Host name is left empty</b> &mdash; see the
+    note below.</div>
+</div>
+
+<h4>6.4.2 The SPA site</h4>
+<div class="fig">
+  <div class="win wide">
+    <div class="win-title"><span>Add Website</span><span class="btns"><span>&times;</span></span></div>
+    <div class="win-body">
+      <div class="row"><label>Site name:</label><div class="field">CAS-Web</div>
+        <div style="width:120px;text-align:right;color:#555">Application pool:</div></div>
+      <div class="row"><label>&nbsp;</label><div class="field" style="max-width:190px">CAS</div>
+        <span class="win-btn" style="margin-left:8px">Select…</span></div>
+      <div class="hint" style="margin-top:10px">Content Directory &mdash; Physical path:</div>
+      <div class="row"><label>&nbsp;</label><div class="field">&lt;APP_ROOT&gt;\web</div><span class="win-btn" style="margin-left:8px">…</span></div>
+      <div class="hint" style="margin-top:10px">Binding</div>
+      <div class="row"><label>Type:</label><select class="field" style="max-width:110px"><option>https</option></select><span class="caret">&#9662;</span>
+        <label style="width:auto;margin-left:14px">Port:</label><div class="field" style="max-width:70px">3000</div></div>
+      <div class="row"><label>Host name:</label><div class="field disabled">(leave empty)</div></div>
+      <div class="row"><label>SSL certificate:</label><select class="field"><option>CAS server certificate</option></select><span class="caret">&#9662;</span>
+        <span class="win-btn" style="margin-left:8px">View…</span></div>
+    </div>
+    <div class="win-foot"><span class="win-btn primary">OK</span><span class="win-btn">Cancel</span></div>
+  </div>
+  <div class="fig-cap"><b>Figure 6.4.2</b> &mdash; The SPA site. Physical path
+    <code>&lt;APP_ROOT&gt;\web</code>, application pool <code>CAS</code>, binding type <b>https</b> on port
+    <b>3000</b> &mdash; the <b>same pool</b> as the API site. Scheme and ports must match the URLs the SPA
+    was built with and what the F5 publishes.</div>
+</div>
+<div class="cmd-cap"><span class="who">Run on: each app node</span>PowerShell equivalent</div>
+<pre class="cmd"><span class="c">New-Item</span> -ItemType Directory -Path &lt;APP_ROOT&gt;\api, &lt;APP_ROOT&gt;\web, &lt;APP_ROOT&gt;\api\logs -Force
+
+<span class="cm"># The server TLS certificate must already be in LocalMachine\My. Grab its thumbprint:</span>
+$cert = <span class="c">Get-ChildItem</span> Cert:\LocalMachine\My | Where-Object Subject -like '*cas*lhbank*'
+
+<span class="c">New-Website</span> -Name 'CAS-Api' -PhysicalPath '&lt;APP_ROOT&gt;\api' `
+    -ApplicationPool 'CAS' -Port 7111 -Ssl
+<span class="c">New-Website</span> -Name 'CAS-Web' -PhysicalPath '&lt;APP_ROOT&gt;\web' `
+    -ApplicationPool 'CAS' -Port 3000 -Ssl
+
+<span class="cm"># Bind the certificate to each port. 0.0.0.0 = all IPs, no host header.</span>
+<span class="c">New-Item</span> -Path 'IIS:\SslBindings\0.0.0.0!7111' -Value $cert
+<span class="c">New-Item</span> -Path 'IIS:\SslBindings\0.0.0.0!3000' -Value $cert
+
+<span class="cm"># Verify</span>
+<span class="c">Get-Website</span> | Select-Object Name, State, PhysicalPath, applicationPool,
+    @{n='bindings';e={($_.bindings.Collection | ForEach-Object bindingInformation) -join ' '}}</pre>
+<h3 id="iis5">6.5 Raise the upload size limit</h3>
+<p>
+  The application accepts document uploads up to <b>50&nbsp;MB</b>
+  (<code>FileStorage:MaxFileSizeBytes</code> = 52,428,800). IIS request filtering, however, rejects
+  anything over its default of <b>30,000,000 bytes (~28.6&nbsp;MB)</b> before the request ever reaches
+  the application &mdash; the user sees a bare <b>HTTP 404.13</b> with no message from the app. Raise the
+  limit on the <b>API</b> site.
+</p>
+<div class="navpath">IIS Manager<span>▸</span>Sites<span>▸</span>CAS-Api<span>▸</span>Request Filtering<span>▸</span>Edit Feature Settings…</div>
+<div class="fig">
+  <div class="win">
+    <div class="win-title"><span>Edit Request Filtering Settings</span><span class="btns"><span>&times;</span></span></div>
+    <div class="win-body">
+      <div class="hint">General</div>
+      <div class="row"><input type="checkbox" checked style="margin-right:8px"><label style="width:auto">Allow unlisted file name extensions</label></div>
+      <div class="row"><input type="checkbox" checked style="margin-right:8px"><label style="width:auto">Allow unlisted verbs</label></div>
+      <div class="hint" style="margin-top:10px">Request Limits</div>
+      <div class="row"><label>Maximum allowed content length (Bytes):</label><div class="field" style="max-width:130px"><b>52428800</b></div></div>
+      <div class="row"><label>Maximum URL length (Bytes):</label><div class="field" style="max-width:130px">4096</div></div>
+      <div class="row"><label>Maximum query string (Bytes):</label><div class="field" style="max-width:130px">2048</div></div>
+    </div>
+    <div class="win-foot"><span class="win-btn primary">OK</span><span class="win-btn">Cancel</span></div>
+  </div>
+  <div class="fig-cap"><b>Figure 6.5</b> &mdash; Request Filtering. Set <b>Maximum allowed content length</b>
+    to <code>52428800</code> (50&nbsp;MB) on the API site.</div>
+</div>
+<div class="cmd-cap"><span class="who">Run on: each app node</span>PowerShell equivalent</div>
+<pre class="cmd"><span class="c">Set-WebConfigurationProperty</span> -PSPath 'IIS:\Sites\CAS-Api' `
+    -Filter 'system.webServer/security/requestFiltering/requestLimits' `
+    -Name maxAllowedContentLength -Value 52428800
+
+<span class="cm"># Verify</span>
+<span class="c">Get-WebConfigurationProperty</span> -PSPath 'IIS:\Sites\CAS-Api' `
+    -Filter 'system.webServer/security/requestFiltering/requestLimits' `
+    -Name maxAllowedContentLength | Select-Object Value</pre>
+<div class="note warn">
+  <b>This setting lives in <code>web.config</code>, which the deploy script preserves.</b> Set it once;
+  it survives releases. If you ever recreate <code>web.config</code> from a fresh publish, re-apply it.
+</div>
+
+<h3 id="iis6">6.6 Confirm the API <code>web.config</code></h3>
+<p>The publish output ships a <code>web.config</code> with <code>hostingModel="inprocess"</code>, the
+  correct choice here &mdash; in-process passes the WebSocket upgrade straight to Kestrel. The server's
+  own copy is preserved by the deploy script and never overwritten.</p>
+<div class="cmd-cap"><span class="who">Run on: each app node</span>Inspect</div>
+<pre class="cmd"><span class="c">Get-Content</span> &lt;APP_ROOT&gt;\api\web.config
+
+<span class="cm"># Expect, inside &lt;system.webServer&gt;:</span>
+<span class="cm">#   &lt;aspNetCore processPath="dotnet" arguments=".\Api.dll"</span>
+<span class="cm">#               stdoutLogEnabled="false" hostingModel="inprocess" /&gt;</span>
+<span class="cm">#   &lt;requestLimits maxAllowedContentLength="52428800" /&gt;   (from §6.5)</span></pre>
+<div class="note">
+  <b>Enabling the stdout log for troubleshooting.</b> If the application will not start and the Event
+  Log is not specific enough, temporarily set <code>stdoutLogEnabled="true"</code> and
+  <code>stdoutLogFile=".\logs\stdout"</code>, reproduce the failure, then read the file and
+  <b>set it back to false</b> &mdash; it grows without limit.
+</div>
+
+<h3 id="iis7">6.7 Verify the SPA site serves deep links</h3>
+<div class="cmd-cap"><span class="who">Run on: each app node</span>PowerShell</div>
+<pre class="cmd"><span class="cm"># Root document</span>
+<span class="c">curl.exe</span> -k -s -o NUL -w "%{http_code}\n" https://localhost:3000/              <span class="cm"># 200</span>
+
+<span class="cm"># A client-side route that is NOT a real file — proves the rewrite rule works</span>
+<span class="c">curl.exe</span> -k -s -o NUL -w "%{http_code}\n" https://localhost:3000/appraisals    <span class="cm"># 200, NOT 404</span></pre>
+<div class="note warn"><b>A 404 on the second command</b> means the URL Rewrite module is missing or
+  <code>web.config</code> was not deployed into <code>&lt;APP_ROOT&gt;\web</code>.</div>
+
+<!-- ==================================================================== -->
+<h2 id="verify">7. Post-deployment verification</h2>
+
+<h3>Health endpoints (anonymous)</h3>
+<table>
+  <thead><tr><th>Endpoint</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td class="tok">/health/live</td><td>The process is up. Nothing else is checked.</td></tr>
+    <tr><td class="tok">/health/ready</td><td>SQL + Redis + the message bus are ready &mdash; <b>this is the F5 rotation gate</b>. Must return 200 before a node takes traffic.</td></tr>
+    <tr><td class="tok">/health/external</td><td>LDAP / SMTP / SFTP status. Informational; a failure here does <b>not</b> pull the node out of rotation.</td></tr>
+    <tr><td class="tok">/health</td><td>Everything, with per-check detail. Use this when <code>/health/ready</code> is failing and you need to know which dependency.</td></tr>
+  </tbody>
+</table>
+<div class="cmd-cap"><span class="who">Run on: each app node</span>PowerShell</div>
+<pre class="cmd"><span class="c">curl.exe</span> -k -s -o NUL -w "%{http_code}\n" https://localhost:7111/health/ready
+<span class="cm"># Expect 200</span>
+
+<span class="cm"># If it is not 200, get the detail:</span>
+<span class="c">curl.exe</span> -k -s https://localhost:7111/health | <span class="c">ConvertFrom-Json</span> |
+    Select-Object -ExpandProperty checks |
+    <span class="c">Format-Table</span> name, status, exception</pre>
+<pre class="cmd"><span class="cm"># Healthy output looks like:</span>
+name              status
+----              ------
+<span class="g">sqlserver         Healthy</span>
+<span class="g">redis             Healthy</span>
+<span class="g">masstransit-bus   Healthy</span>
+<span class="g">ldap              Healthy</span>
+<span class="g">smtp              Healthy</span>
+<span class="g">sftp              Healthy</span></pre>
+
+<!-- ==================================================================== -->
+<h2 id="trouble">8. Troubleshooting</h2>
+<h3>8.1 Where to look first</h3>
+<table>
+  <thead><tr><th>Source</th><th>How to read it</th></tr></thead>
+  <tbody>
+    <tr><td>Application log</td><td class="tok">Get-Content &lt;APP_ROOT&gt;\api\logs\log-*.txt -Tail 100</td></tr>
+    <tr><td>Windows Event Log (start-up failures)</td><td class="tok">Get-EventLog -LogName Application -Source 'IIS AspNetCore Module V2' -Newest 20</td></tr>
+    <tr><td>Health detail</td><td class="tok">curl.exe -k https://localhost:7111/health</td></tr>
+    <tr><td>IIS request log</td><td class="tok">C:\inetpub\logs\LogFiles\W3SVC&lt;id&gt;\</td></tr>
+    <tr><td>Database journal</td><td class="tok">SELECT TOP 50 * FROM dbo.DatabaseMigrationHistory ORDER BY Applied DESC</td></tr>
+  </tbody>
+</table>
+
+<h3>8.2 Symptom index</h3>
+<table>
+  <thead><tr><th>Symptom</th><th>Cause &amp; fix</th></tr></thead>
+  <tbody>
+    <tr><td>HTTP <b>500.19</b> or <b>500.31</b> from IIS</td><td>.NET 9 Hosting Bundle missing, or IIS was not reset after installing it. Reinstall the Hosting Bundle and run <code>iisreset</code>.</td></tr>
+    <tr><td><code>CryptographicException: Keyset does not exist</code> at start-up</td><td>The app pool lacks Read on a certificate private key. Redo §6.3 for the certificate named in the stack trace.</td></tr>
+    <tr><td><i>Production requires OAuth2:SigningCertificate…</i> and the app will not start</td><td>Working as intended. Fill both certificate thumbprints in <code>appsettings.Production.json</code>.</td></tr>
+    <tr><td><code>IDX10503: Signature validation failed</code></td><td>The nodes have different <b>signing</b> certificates. Re-import the signing PFX on the deviating node; confirm identical thumbprints (§6.3).</td></tr>
+    <tr><td><code>IDX10609: Decryption failed</code></td><td>The nodes have different <b>encryption</b> certificates. Same fix, encryption certificate.</td></tr>
+    <tr><td><i>The antiforgery token could not be decrypted</i> after a deployment</td><td>Data Protection keyring problem: <code>auth.DataProtectionKeys</code> is empty (Step 2 not applied) or the nodes point at different databases. Apply the SQL scripts and restart both nodes.</td></tr>
+    <tr><td>Discovery document shows an internal hostname or <code>http://</code></td><td>Forwarded headers not arriving. Ensure the F5 sends <code>X-Forwarded-Proto</code> and <code>X-Forwarded-For</code> (§6.4).</td></tr>
+    <tr><td>Endless redirect loop on sign-in</td><td>Same cause: HTTPS redirection sees <code>http</code> because <code>X-Forwarded-Proto</code> is missing.</td></tr>
+    <tr><td>SPA loads but every API call fails with a CORS error</td><td><code>Cors:AllowedOrigins</code> does not exactly match the SPA origin, or the SPA was built with the wrong <code>VITE_API_URL</code>. Compare the browser console's origin with the config value (§Step 1).</td></tr>
+    <tr><td>SPA home page works, deep links return <b>404</b></td><td>URL Rewrite module not installed, or <code>web.config</code> absent from <code>&lt;APP_ROOT&gt;\web</code>.</td></tr>
+    <tr><td>SignalR returns <code>200</code> then falls back to polling (no <code>101</code>)</td><td>The Windows WebSocket Protocol feature is not enabled on that node. Realtime still works on the fallback transport; install the feature and recycle the pool to get the upgrade.</td></tr>
+    <tr><td>Realtime updates reach only some users</td><td>Redis backplane not shared: check <code>SignalR:UseRedisBackplane = true</code> and the same Redis endpoint and <code>ChannelPrefix</code> on both nodes.</td></tr>
+    <tr><td>Upload of a 40&nbsp;MB file returns <b>404.13</b></td><td>IIS request limit still at the 30&nbsp;MB default. Apply §6.5 on the API site.</td></tr>
+    <tr><td>Documents 404 when downloaded a second time</td><td>The nodes are not sharing storage: <code>FileStorage:Mode</code> must be <code>Nas</code> with the same <code>NasBasePath</code> on both.</td></tr>
+    <tr><td>Uploads fail with an access error</td><td>The app-pool service account lacks Modify on the NAS share. Test as that account, not as your admin account.</td></tr>
+    <tr><td>Report PDFs fail or hang</td><td>Chromium missing or <code>Reporting:ChromiumExecutablePath</code> wrong on that node. Install Edge/Chrome and correct the path.</td></tr>
+    <tr><td>Application starts, then fails with a pending-migration error</td><td>Step 2 was not applied for this release. Apply the SQL scripts, then restart the pool.</td></tr>
+    <tr><td><code>03_OneTime_DataScripts.sql</code> fails partway</td><td>Read the log for the last <code>APPLY:</code> line &mdash; that is the failing script. Fix the cause, then re-run the whole file; everything already applied is skipped.</td></tr>
+    <tr><td>A view is missing after Step 2</td><td>Check <code>99_Verify.sql</code> section 4 for unresolved references, and search <code>02.log</code> for the view name.</td></tr>
+    <tr><td>Two Hangfire servers become four</td><td>Stale server registrations from a previous run; they expire automatically. If a node shows more than one, check Maximum Worker Processes = 1 (§6.2).</td></tr>
+    <tr><td>Files copied, but <code>/health/ready</code> never returns 200</td><td>The build deployed but the application is unhealthy. Open <code>https://localhost:7111/health</code> to see which dependency failed, and read the application log.</td></tr>
+  </tbody>
+</table>
+
+<!-- ==================================================================== -->
+<h2 id="appendix">9. Appendix &mdash; ports</h2>
+
+<h3>Ports</h3>
+<table>
+  <thead><tr><th>Port</th><th>Direction</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td class="tok">7111</td><td>F5 &rarr; node (inbound, <b>HTTPS</b>)</td><td>API site. Health gate <code>/health/ready</code> &mdash; the F5 monitor must use HTTPS.</td></tr>
+    <tr><td class="tok">3000</td><td>F5 &rarr; node (inbound, <b>HTTPS</b>)</td><td>SPA site (static files).</td></tr>
+    <tr><td class="tok">1433</td><td>node &rarr; SQL (outbound)</td><td>Application database, Hangfire store, Data Protection keys, OpenIddict store.</td></tr>
+    <tr><td class="tok">6379</td><td>node &rarr; Redis (outbound)</td><td>Distributed cache and SignalR backplane.</td></tr>
+    <tr><td class="tok">5672 / 15672</td><td>local to the node</td><td>RabbitMQ broker (co-located) and its management UI.</td></tr>
+    <tr><td class="tok">587</td><td>node &rarr; SMTP (outbound)</td><td>Outbound email (STARTTLS).</td></tr>
+    <tr><td class="tok">445</td><td>node &rarr; NAS (outbound)</td><td>SMB document and report storage.</td></tr>
+    <tr><td class="tok">22</td><td>node &rarr; SFTP (outbound)</td><td>AS400 reappraisal file exchange.</td></tr>
+    <tr><td class="tok">389 / 636</td><td>node &rarr; AD (outbound)</td><td>LDAP / LDAPS sign-in and directory lookups.</td></tr>
+  </tbody>
+</table>
+
+<footer class="doc">
+  Collateral Appraisal System &mdash; Production Deployment Guide, version 2.0. Internal operations
+  document. Verify every command, path, port and account name against the live release and the bank's
+  own naming standards before executing in production.
+</footer>
+
+</div>
+</body>
+</html>

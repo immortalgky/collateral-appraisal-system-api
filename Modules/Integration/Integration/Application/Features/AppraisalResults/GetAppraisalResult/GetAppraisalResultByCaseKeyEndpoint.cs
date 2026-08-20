@@ -10,7 +10,7 @@ public class GetAppraisalResultByCaseKeyEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/v1/appraisals/result", async (
+        app.MapGet("/api/v2/appraisals/result", async (
             [Microsoft.AspNetCore.Mvc.FromQuery] string externalCaseKey,
             [Microsoft.AspNetCore.Mvc.FromQuery] string? plotNumber,
             [Microsoft.AspNetCore.Mvc.FromQuery] string? roomNumber,

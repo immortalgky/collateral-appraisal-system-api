@@ -64,12 +64,30 @@ public class InternalAssignedIntegrationEventHandler(
             || assignment.AssignmentStatus == AssignmentStatus.Assigned
             || assignment.AssignmentStatus == AssignmentStatus.InProgress;
 
+        // The assignee is internal on both paths this event covers, but the CASE is not: an
+        // off-system engagement stays External so reporting, the AS400/LOS feed and fee resolution
+        // keep treating it as external work. Hardcoding "Internal" here would silently flip those
+        // appraisals. Defaults to "Internal" on the event, so existing publishers are unchanged.
+        //
+        // Assign() defaults every optional parameter to null, so anything not passed back is WIPED.
+        // This event now re-fires on every landing at int-offline-book-keyin, including a route-back
+        // from int-appraisal-check — and unlike the internal path, an off-system case carries state
+        // this event does not know about:
+        //   AssigneeCompanyId  — the external company the keyer recorded via
+        //                        SetOfflineExternalEngagement. Losing it blanks the company on the
+        //                        printed book and the AS400/LOS feed, breaks fee/company linkage,
+        //                        and flips ExternalCompanyRecorded back to 0 so the keyer is blocked.
+        //   ReassignmentNumber — the rework count; resetting it to 1 discards the routeback history.
+        // Both are read off the row and passed straight back. The internal path is unaffected: an
+        // INT case has no company, and its ReassignmentNumber round-trips unchanged.
         assignment.Assign(
-            assignmentType: "Internal",
+            assignmentType: message.AssignmentType,
             assigneeUserId: message.AssigneeUserId,
+            assigneeCompanyId: assignment.AssigneeCompanyId,
             internalAppraiserId: message.InternalAppraiserId,
             assignmentMethod: message.AssignmentMethod,
             internalFollowupMethod: message.InternalFollowupAssignmentMethod,
+            reassignmentNumber: assignment.ReassignmentNumber,
             assignedBy: "System");
 
         // Internal path: the assignee IS the int-appraisal-execution executor, and this event is

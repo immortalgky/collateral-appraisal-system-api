@@ -32,7 +32,7 @@ SELECT v.Id,
            NULLIF(LTRIM(RTRIM(CONCAT(NULLIF(su.FirstName, N''), N' ', NULLIF(su.LastName, N'')))), N''),
            CAST(v.AssigneeUserId AS NVARCHAR(50))
        )                                        AS InternalAppraisalStaff,
-       v.CompanyName                            AS AppraisalCompany,
+       COALESCE(NULLIF(v.CompanyNameLocal, N''), v.CompanyName)                            AS AppraisalCompany,
        a.CompletedAt                            AS ApproveDate
 FROM appraisal.vw_AppraisalList v
          INNER JOIN appraisal.Appraisals a ON a.Id = v.Id

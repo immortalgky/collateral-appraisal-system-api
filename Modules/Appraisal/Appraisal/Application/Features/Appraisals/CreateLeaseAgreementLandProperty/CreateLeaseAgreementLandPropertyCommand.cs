@@ -10,7 +10,7 @@ public record CreateLeaseAgreementLandPropertyCommand(
     Guid AppraisalId,
     Guid? GroupId = null,
     // Required
-    string? OwnerName = null,
+    string? OwnerNameLand = null,
     string? Description = null,
     // Property Identification
     string? PropertyName = null,
@@ -23,8 +23,11 @@ public record CreateLeaseAgreementLandPropertyCommand(
     string? District = null,
     string? Province = null,
     string? LandOffice = null,
+    string? DopaSubDistrict = null,
+    string? DopaDistrict = null,
+    string? DopaProvince = null,
     // Owner Details
-    bool? IsOwnerVerified = null,
+    bool? IsOwnerVerifiedLand = null,
     string? HasObligation = null,
     string? ObligationDetails = null,
     // Document Verification

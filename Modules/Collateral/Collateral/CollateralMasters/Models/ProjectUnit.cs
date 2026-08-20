@@ -61,6 +61,28 @@ public class ProjectUnit : Entity<Guid>
     /// </summary>
     public decimal? LastAppraisedValue { get; private set; }
 
+    // ----- AS400 link -----
+
+    /// <summary>
+    /// The AS400 collateral id (CCDCID) for this unit, or null when AS400 has not issued one.
+    ///
+    /// AS400 mints one id per unit that has been sold AND financed by the bank; unsold units and
+    /// units financed elsewhere never get one. The id therefore belongs to the unit, not to the
+    /// project's appraisal — which is why it lives here and not on
+    /// <see cref="CollateralEngagement.HostCollateralId"/>, whose grain is one id per appraisal.
+    ///
+    /// Currently written only by <c>HostCollateralIdBackfillJob</c> from the legacy-system migration
+    /// and preserved across reappraisals by <c>CollateralMasterUpsertService</c>.
+    ///
+    /// The nightly HOST_COLLATERAL_LINK feed does not populate it yet, though it does carry the unit:
+    /// AS400 packs the project's 8-digit appraisal number and a 2-digit unit sequence into the
+    /// 10-character CCSURV field. Reading that is deferred until the bank confirms what AS400 sends
+    /// for unit 100 and beyond, since two digits stop at 99 and condos run to hundreds of units — a
+    /// wrapped sequence would attach one unit's id to another. See
+    /// <c>.claude/tasks/as400-host-collateral-link.md</c>.
+    /// </summary>
+    public string? HostCollateralId { get; private set; }
+
     private ProjectUnit() { }
 
     /// <summary>Creates a Condo unit record for a PRJ master.</summary>
@@ -182,5 +204,15 @@ public class ProjectUnit : Entity<Guid>
     internal void SetLastAppraisedValue(decimal? value)
     {
         LastAppraisedValue = value;
+    }
+
+    /// <summary>
+    /// Sets the AS400 collateral id. Blank input is stored as null so "no id" has one representation.
+    /// Public for the same reason as <see cref="CollateralEngagement.SetHostCollateralLink"/>: the AS400
+    /// link is written by ingest/backfill paths outside this aggregate, not by the appraisal upsert.
+    /// </summary>
+    public void SetHostCollateralId(string? hostCollateralId)
+    {
+        HostCollateralId = string.IsNullOrWhiteSpace(hostCollateralId) ? null : hostCollateralId.Trim();
     }
 }

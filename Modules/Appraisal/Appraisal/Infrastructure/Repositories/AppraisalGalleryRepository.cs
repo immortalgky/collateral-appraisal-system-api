@@ -19,6 +19,16 @@ public class AppraisalGalleryRepository(AppraisalDbContext dbContext)
             .ToListAsync(ct);
     }
 
+    public async Task<IEnumerable<AppraisalGallery>> GetByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0)
+            return [];
+
+        return await _dbContext.AppraisalGallery
+            .Where(g => ids.Contains(g.Id))
+            .ToListAsync(ct);
+    }
+
     public async Task<int> GetMaxPhotoNumberAsync(Guid appraisalId, CancellationToken ct = default)
     {
         var max = await _dbContext.AppraisalGallery
@@ -87,23 +97,48 @@ public class AppraisalGalleryRepository(AppraisalDbContext dbContext)
 
     public async Task<bool> IsPhotoLinkedAnywhereAsync(Guid galleryPhotoId, CancellationToken ct = default)
     {
-        // Flush pending changes (e.g. deletions) to DB so the check reflects current state.
+        // Single-photo form delegates to the batched check so the "what counts as a link" rule
+        // (the set of link tables below) lives in exactly one place.
+        var linked = await GetPhotosLinkedElsewhereAsync([galleryPhotoId], ct);
+        return linked.Contains(galleryPhotoId);
+    }
+
+    public async Task<HashSet<Guid>> GetPhotosLinkedElsewhereAsync(
+        IReadOnlyCollection<Guid> galleryPhotoIds, CancellationToken ct = default)
+    {
+        var linked = new HashSet<Guid>();
+
+        if (galleryPhotoIds.Count == 0)
+            return linked;
+
+        // Flush pending changes (e.g. mapping deletions) to DB so the check reflects current state.
         // Runs within the existing transaction from the pipeline behavior — no commit yet.
         await _dbContext.SaveChangesAsync(ct);
 
-        return await _dbContext.PropertyPhotoMappings
-                   .AnyAsync(m => m.GalleryPhotoId == galleryPhotoId, ct)
-               || await _dbContext.GalleryPhotoTopicMappings
-                   .AnyAsync(m => m.GalleryPhotoId == galleryPhotoId, ct)
-               || await _dbContext.Set<AppendixDocument>()
-                   .AnyAsync(d => d.GalleryPhotoId == galleryPhotoId, ct)
-               || await _dbContext.Set<MarketComparableImage>()
-                   .AnyAsync(i => i.GalleryPhotoId == galleryPhotoId, ct)
-               || await _dbContext.Set<LawAndRegulationImage>()
-                   .AnyAsync(i => i.GalleryPhotoId == galleryPhotoId, ct)
-               || await _dbContext.Set<ProjectModelImage>()
-                   .AnyAsync(i => i.GalleryPhotoId == galleryPhotoId, ct)
-               || await _dbContext.Set<ProjectTowerImage>()
-                   .AnyAsync(i => i.GalleryPhotoId == galleryPhotoId, ct);
+        // One query per link table (IN over the id set) instead of a per-photo scan. Each collects
+        // the ids that ARE referenced; their union is the set of still-linked photos.
+        linked.UnionWith(await _dbContext.PropertyPhotoMappings
+            .Where(m => galleryPhotoIds.Contains(m.GalleryPhotoId))
+            .Select(m => m.GalleryPhotoId).Distinct().ToListAsync(ct));
+        linked.UnionWith(await _dbContext.GalleryPhotoTopicMappings
+            .Where(m => galleryPhotoIds.Contains(m.GalleryPhotoId))
+            .Select(m => m.GalleryPhotoId).Distinct().ToListAsync(ct));
+        linked.UnionWith(await _dbContext.Set<AppendixDocument>()
+            .Where(d => d.GalleryPhotoId != null && galleryPhotoIds.Contains(d.GalleryPhotoId.Value))
+            .Select(d => d.GalleryPhotoId!.Value).Distinct().ToListAsync(ct));
+        linked.UnionWith(await _dbContext.Set<MarketComparableImage>()
+            .Where(i => galleryPhotoIds.Contains(i.GalleryPhotoId))
+            .Select(i => i.GalleryPhotoId).Distinct().ToListAsync(ct));
+        linked.UnionWith(await _dbContext.Set<LawAndRegulationImage>()
+            .Where(i => galleryPhotoIds.Contains(i.GalleryPhotoId))
+            .Select(i => i.GalleryPhotoId).Distinct().ToListAsync(ct));
+        linked.UnionWith(await _dbContext.Set<ProjectModelImage>()
+            .Where(i => galleryPhotoIds.Contains(i.GalleryPhotoId))
+            .Select(i => i.GalleryPhotoId).Distinct().ToListAsync(ct));
+        linked.UnionWith(await _dbContext.Set<ProjectTowerImage>()
+            .Where(i => galleryPhotoIds.Contains(i.GalleryPhotoId))
+            .Select(i => i.GalleryPhotoId).Distinct().ToListAsync(ct));
+
+        return linked;
     }
 }

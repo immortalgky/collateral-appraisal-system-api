@@ -43,4 +43,53 @@ public class CommitteeMajorityTests
             .HasMajority(approveCount, totalVotes: approveCount, totalMembers: 5)
             .Should().Be(expected);
     }
+
+    [Theory]
+    [InlineData(2, false)]
+    [InlineData(3, true)]
+    public void FixedCount_UsesTheCommitteesConfiguredValue(int approveCount, bool expected)
+    {
+        // 3 approvals is enough on a 7-member committee — where Simple would demand 4.
+        Committee.Create("C", "C", null, QuorumType.Fixed, 1,
+                MajorityType.FixedCount, VotingMode.WaitForAll, majorityValue: 3)
+            .HasMajority(approveCount, totalVotes: approveCount, totalMembers: 7)
+            .Should().Be(expected);
+    }
+
+    [Fact]
+    public void Create_FixedCountWithoutAValue_IsRejected()
+    {
+        // Would otherwise persist a committee whose every round approves on zero votes.
+        var act = () => Committee.Create("C", "C", null, QuorumType.Fixed, 1,
+            MajorityType.FixedCount, VotingMode.WaitForAll, majorityValue: 0);
+
+        act.Should().Throw<ArgumentException>().WithMessage("*MajorityValue*");
+    }
+
+    [Fact]
+    public void Update_FixedCountAboveActiveMemberCount_IsRejected()
+    {
+        var committee = Committee.Create("C", "C", null, QuorumType.Fixed, 1, MajorityType.Simple);
+        committee.AddMember("alice", "Alice", CommitteeMemberPosition.Chairman);
+        committee.AddMember("bob", "Bob", CommitteeMemberPosition.UW);
+
+        var act = () => committee.Update("C", null, QuorumType.Fixed, 1,
+            MajorityType.FixedCount, isActive: true, VotingMode.WaitForAll, majorityValue: 3);
+
+        act.Should().Throw<ArgumentException>().WithMessage("*exceeds*2 voting member(s)*");
+    }
+
+    [Fact]
+    public void Update_FixedCountAtTheMemberCount_IsAllowed()
+    {
+        var committee = Committee.Create("C", "C", null, QuorumType.Fixed, 1, MajorityType.Simple);
+        committee.AddMember("alice", "Alice", CommitteeMemberPosition.Chairman);
+        committee.AddMember("bob", "Bob", CommitteeMemberPosition.UW);
+
+        committee.Update("C", null, QuorumType.Fixed, 1,
+            MajorityType.FixedCount, isActive: true, VotingMode.WaitForAll, majorityValue: 2);
+
+        committee.MajorityValue.Should().Be(2);
+        committee.MajorityType.Should().Be(MajorityType.FixedCount);
+    }
 }

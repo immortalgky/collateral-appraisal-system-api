@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
+<!-- PDF page-margin directives read by PuppeteerPdfRenderer: the summary forms use a
+     narrower 5mm margin on all four sides instead of the 15mm default, so the wide tables gain
+     usable width and the form starts near the paper edge. They MUST stay in this root, not in
+     partials/summary-head — appraisal-book.html shares that partial and must keep the 15mm
+     default.
+     pdf-margin-x:5mm -->
+<!-- pdf-margin-y:5mm -->
   <meta charset="UTF-8"/>
   <title>สรุปรายงานการประเมินราคาทรัพย์สิน – ห้องชุด</title>
   <style>{{ include 'partials/summary-styles' }}</style>
@@ -53,13 +60,13 @@
       {{ if model.groups.size == 0 }}
       <tr><td colspan="5" style="height:34px;">&nbsp;</td></tr>
       {{ end }}
-      {{ if model.condition }}<tr><td><strong>เงื่อนไข</strong></td><td colspan="4" class="brk">{{ model.condition }}</td></tr>{{ end }}
+      {{ if model.condition }}<tr class="cond"><td><strong>เงื่อนไข</strong></td><td colspan="4" class="brk">{{ model.condition }}</td></tr>{{ end }}
       {{ if model.remark }}<tr><td><strong>หมายเหตุ</strong></td><td colspan="4" class="brk">{{ model.remark }}</td></tr>{{ end }}
     </tbody>
   </table>
 
   <!-- ════ TOTALS ════ -->
-  <table class="totals">
+  <table class="totals grid-aligned">
     <tr>
       <th class="tl" scope="row">รวมราคาประเมินทรัพย์สินเป็นเงินทั้งสิ้น</th>
       <td class="tv">{{ if model.total_appraisal_value; model.total_appraisal_value | math.format "N2"; else; "-"; end }}</td>
@@ -119,6 +126,7 @@
   <!-- ════ COMMITTEE BLOCK — own page-break unit ════ -->
   {{ include 'partials/approver-block' }}
 
+  {{ include 'partials/summary-page-close' }}
 </div>
 </body>
 </html>

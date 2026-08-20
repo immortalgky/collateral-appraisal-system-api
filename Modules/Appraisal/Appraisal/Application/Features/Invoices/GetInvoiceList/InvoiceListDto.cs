@@ -16,5 +16,8 @@ public record InvoiceListDto(
     DateTime? SentDate,
     Guid CompanyId,
     string? CompanyName,
+    // Thai name (null when absent); the client picks by its own locale. Position is load-bearing —
+    // it must stay directly after CompanyName to match listColumns' order.
+    string? CompanyNameLocal,
     DateTime CreatedAt
 );

@@ -1,4 +1,5 @@
 using Shared.Data.Seed;
+using Workflow.Data.Seed;
 using Workflow.AssigneeSelection.Engine;
 using Workflow.AssigneeSelection.Configuration;
 using Workflow.AssigneeSelection.Pipeline;
@@ -28,6 +29,7 @@ using Workflow.FeeAppointmentApprovals.Infrastructure;
 using Workflow.Meetings.Application;
 using Workflow.Meetings.Configuration;
 using Appraisal.Contracts.Services;
+using Workflow.Tasks.Authorization;
 using Workflow.Tasks.Services;
 using WfIUserGroupService = global::Workflow.Services.Groups.IUserGroupService;
 using WfITeamService = global::Workflow.AssigneeSelection.Teams.ITeamService;
@@ -132,7 +134,9 @@ public static class WorkflowModule
         services.AddScoped<IWorkflowAuditService, WorkflowAuditService>();
         services.AddScoped<IWorkflowResilienceService, WorkflowResilienceService>();
         services.AddScoped<ITaskConfigurationService, TaskConfigurationService>();
+        services.AddScoped<ISegregationOfDutiesGuard, SegregationOfDutiesGuard>();
         services.AddScoped<ICompanyRoundRobinConfigService, CompanyRoundRobinConfigService>();
+        services.AddScoped<IAutoAssignmentRuleService, AutoAssignmentRuleService>();
 
         // Workflow expression evaluator and action executor
         services.AddScoped<IExpressionEvaluator, ExpressionEvaluator>();
@@ -165,6 +169,7 @@ public static class WorkflowModule
         services.AddScoped<IApprovalMemberResolver, ApprovalMemberResolver>();
         services.AddScoped<IApprovalVoteRepository, ApprovalVoteRepository>();
         services.AddScoped<ICommitteeRepository, CommitteeRepository>();
+        services.AddScoped<IUserDirectory, UserDirectory>();
 
         // Company routing
         services.AddScoped<ICompanyRoundRobinService, CompanyRoundRobinService>();
@@ -230,6 +235,9 @@ public static class WorkflowModule
         // Data seeders
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Data.Seed.ActivityProcessConfigurationSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Data.Seed.CommitteeDataSeed>();
+        // Workflow definitions first: AppraisalSlaPolicySeeder below looks the appraisal definition up
+        // by name and skips silently when it is missing, and seeders run in registration order.
+        services.AddScoped<IDataSeeder<WorkflowDbContext>, Workflow.Infrastructure.Seed.AppraisalWorkflowDefinitionSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, DocumentFollowupWorkflowDefinitionSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Workflow.Infrastructure.Seed.QuotationWorkflowDefinitionSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Sla.Infrastructure.Seed.BusinessHoursConfigSeeder>();
@@ -237,6 +245,7 @@ public static class WorkflowModule
         services.AddScoped<IDataSeeder<WorkflowDbContext>, FeeAppointmentApprovalWorkflowDefinitionSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, FeeApprovalDefaultConfigSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, Services.Configuration.TaskAssignmentConfigSeeder>();
+        services.AddScoped<IDataSeeder<WorkflowDbContext>, Services.Configuration.AutoAssignmentRuleSeeder>();
         services.AddScoped<IDataSeeder<WorkflowDbContext>, AssigneeSelection.Seed.CompanyRoundRobinConfigSeeder>();
 
         // Workflow DbContext with its own migration assembly and history table
@@ -257,7 +266,10 @@ public static class WorkflowModule
 
     public static IApplicationBuilder UseWorkflowModule(this IApplicationBuilder app)
     {
-        app.UseMigration<WorkflowDbContext>();
+        app.UseDataSeeding<WorkflowDbContext>();
+        // Read-only: seeding is off outside Development, so nothing else would notice if the
+        // activity-pipeline rows were never applied to this database.
+        app.UseActivityProcessAssertion();
         app.UseModuleRecurringJobs<WorkflowDbContext>(WorkflowRecurringJobs.All);
 
         return app;

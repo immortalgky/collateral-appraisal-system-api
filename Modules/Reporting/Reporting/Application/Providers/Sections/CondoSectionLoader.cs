@@ -153,9 +153,12 @@ internal static class CondoSectionLoader
             JOIN appraisal.CondoAppraisalDetails cad ON cad.Id = cada.CondoAppraisalDetailsId
             JOIN appraisal.AppraisalProperties ap ON ap.Id = cad.AppraisalPropertyId
             WHERE ap.AppraisalId = @AppraisalId
-            -- Creation order: no Seq/CreatedOn column exists; the Guid v7 Id's text form
-            -- sorts by creation time (native uniqueidentifier sort does not).
-            ORDER BY cad.Id, CONVERT(char(36), cada.Id);
+            -- Sequence is the order the appraiser arranged the rows in on the property screen.
+            -- Rows saved before that column existed carry NULL and sort first, matching the screen.
+            -- The Guid v7 Id's text form breaks ties by creation time (native uniqueidentifier sort
+            -- does not). The rows below are pivoted by keyword, so this only keeps the two condo
+            -- readers consistent — it does not move anything in this section's output.
+            ORDER BY cad.Id, cada.Sequence, CONVERT(char(36), cada.Id);
 
             -- RS04: QPrice — selected pricing for the property GROUP(S) the condo belongs to.
             --   The condo appraisal price comes from its group's value, NOT the application total.
@@ -275,7 +278,7 @@ internal static class CondoSectionLoader
 
         // Distance display
         string? distanceText = first.DistanceFromMainRoad.HasValue
-            ? $"{first.DistanceFromMainRoad:0.##} เมตร"
+            ? $"{first.DistanceFromMainRoad:#,##0.##} เมตร"
             : null;
 
         // PublicUtilityType is a JSON-serialised List<string> of codes → translate each.

@@ -14,4 +14,7 @@ public static class MeetingOutcomes
 
     /// <summary>Meeting was cancelled; workflow stays paused until reassigned.</summary>
     public const string Cancelled = "cancelled";
+
+    /// <summary>Secretary recalled a released item back onto the meeting before any approver voted.</summary>
+    public const string Recalled = "recall_to_meeting";
 }

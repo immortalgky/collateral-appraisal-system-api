@@ -98,14 +98,18 @@ public sealed class MeetingInvitationDataProvider(
             PreviousMeetingNoQuery.Sql("MeetingId"), p);
 
         // ── Build model ───────────────────────────────────────────────────────
-        var members = memberRows.Select(m => new MeetingMemberRow
-        {
-            MemberName = m.MemberName,
-            PositionThai = MapPositionThai(m.Position)
-        }).ToList();
+        // The Secretary signs their own เลขานุการคณะกรรมการ ฯ block above the roster, so listing them
+        // again here would print the same name twice. Filtered in the projection rather than in
+        // membersSql — the SecretaryName lookup below still needs their row.
+        var members = memberRows
+            .Where(m => !IsSecretary(m.Position))
+            .Select(m => new MeetingMemberRow
+            {
+                MemberName = m.MemberName,
+                PositionThai = MapPositionThai(m.Position)
+            }).ToList();
 
-        var secretary = memberRows.FirstOrDefault(m =>
-            string.Equals(m.Position, "Secretary", StringComparison.OrdinalIgnoreCase));
+        var secretary = memberRows.FirstOrDefault(m => IsSecretary(m.Position));
 
         var agendas = MeetingAgendaBuilder.Build(
             items,
@@ -143,6 +147,16 @@ public sealed class MeetingInvitationDataProvider(
         "Secretary" => "เลขานุการฯ",
         _           => "กรรมการ"
     };
+
+    /// <summary>
+    /// Serves two purposes on the invitation: it picks the member whose name fills the
+    /// เลขานุการคณะกรรมการ ฯ signature block, and it keeps that same member out of the
+    /// รายนาม/ลายเซ็น roster below it, which would otherwise print the name a second time.
+    /// The minute's รายชื่อคณะกรรมการ and ลงนาม lists are unaffected — both still include the
+    /// Secretary, ranked last by the ORDER BY in their own queries.
+    /// </summary>
+    internal static bool IsSecretary(string? position) =>
+        string.Equals(position, "Secretary", StringComparison.OrdinalIgnoreCase);
 
     // ── Private Dapper flat DTOs ──────────────────────────────────────────────
 

@@ -313,7 +313,7 @@ internal static class BuildingSectionLoader
                 TotalArea = totalArea == 0 ? null : totalArea,
                 TotalPrice = totalPrice == 0 ? null : totalPrice,
                 TotalValueAfterDepreciation = totalValueAfterDepr == 0 ? null : totalValueAfterDepr,
-                Remark = hdr.Remark,
+                Remark = AppraisalSummaryCommonLoader.FirstNonBlank(hdr.Remark),
             });
         }
 

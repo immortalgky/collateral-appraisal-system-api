@@ -24,6 +24,9 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
         builder.Property(e => e.RoomNumber).HasMaxLength(50);
         builder.Property(e => e.FloorNumber).HasMaxLength(50);
         builder.Property(e => e.UsableArea).HasPrecision(18, 4);
+        builder.Property(e => e.ConstructionCompletionPercent).HasPrecision(7, 4);
+        
+
 
         // Unit deed identifiers — required for Collateral master dedup
         builder.Property(e => e.TitleNumber).HasMaxLength(50);
@@ -42,7 +45,17 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
             addr.Property(a => a.SubDistrict).HasColumnName("SubDistrict").HasMaxLength(100);
             addr.Property(a => a.District).HasColumnName("District").HasMaxLength(100);
             addr.Property(a => a.Province).HasColumnName("Province").HasMaxLength(100);
-            addr.Property(a => a.LandOffice).HasColumnName("LandOffice").HasMaxLength(200);
+        });
+
+        // LandOffice is a scalar on the entity (not inside the Address VO)
+        builder.Property(e => e.LandOffice).HasColumnName("LandOffice").HasMaxLength(200);
+
+        // Dopa Address
+        builder.OwnsOne(e => e.DopaAddress, addr =>
+        {
+            addr.Property(a => a.SubDistrict).HasColumnName("DopaSubDistrict").HasMaxLength(100);
+            addr.Property(a => a.District).HasColumnName("DopaDistrict").HasMaxLength(100);
+            addr.Property(a => a.Province).HasColumnName("DopaProvince").HasMaxLength(100);
         });
 
         // Owner
@@ -133,6 +146,7 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
 
             areaDetail.Property(e => e.Id).ValueGeneratedNever();
 
+            areaDetail.Property(p => p.Sequence);
             areaDetail.Property(p => p.AreaDescription).HasMaxLength(200).HasColumnName("AreaDescription");
             areaDetail.Property(p => p.AreaSize).HasPrecision(10, 2).HasColumnName("AreaSize");
         });
@@ -164,6 +178,7 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
 
         builder.Property(e => e.EnvironmentTypeOther).HasMaxLength(200);
         // Pricing
+        builder.Property(e => e.IsMissingFromSurvey);
         builder.Property(e => e.GovernmentPricePerSqm).HasPrecision(18, 2);
         builder.Property(e => e.GovernmentPrice).HasPrecision(18, 2);
         // Insurance

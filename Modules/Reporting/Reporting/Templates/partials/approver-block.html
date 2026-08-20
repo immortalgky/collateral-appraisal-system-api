@@ -3,7 +3,8 @@
   Shares the parent Scriban scope. Expects: model.show_meeting, model.meeting_number,
   model.meeting_date, model.collateral_address, model.total_appraisal_value,
   model.approver_decision_approved, model.approvers (name/position/comment/approved),
-  model.approver_summary_comment. Reused by every summary report.
+  model.approver_summary_comment, model.has_under_construction + model.current_condition_total.
+  Reused by every summary report.
 -->
 {{ if model.is_completed && model.approvers.size > 0 }}
 <div class="committee-block">
@@ -14,22 +15,45 @@
     <td colspan="2"><strong>รายการทรัพย์สิน</strong></td>
     <td colspan="2">{{ if model.approval_property_text }}{{ model.approval_property_text }}{{ else }}{{ model.collateral_address }}{{ end }}</td>
   </tr>
+  {{ if !model.approval_value_text && model.has_under_construction }}
+  <!-- Under construction: the committee resolves on both figures, so each gets its own row.
+       Only the land-building provider sets the flag; every other summary keeps the single row. -->
+  <tr>
+    <td colspan="2"><strong>ราคาประเมินตามสภาพปัจจุบัน</strong></td>
+    <td colspan="2">{{ if model.current_condition_total; model.current_condition_total | math.format "N2" }} ( {{ thai.baht_text model.current_condition_total }} ){{ end }}</td>
+  </tr>
+  <tr>
+    <td colspan="2"><strong>ราคาประเมินที่ดินพร้อมสิ่งปลูกสร้างแล้วเสร็จ 100%</strong></td>
+    <td colspan="2">{{ if model.total_appraisal_value; model.total_appraisal_value | math.format "N2" }} ( {{ thai.baht_text model.total_appraisal_value }} ){{ end }}</td>
+  </tr>
+  {{ else }}
   <tr>
     <td colspan="2"><strong>ราคาประเมิน</strong></td>
     <td colspan="2">{{ if model.approval_value_text }}{{ model.approval_value_text }}{{ else }}{{ if model.total_appraisal_value; model.total_appraisal_value | math.format "N2"; end }}{{ if model.total_appraisal_value }} ( {{ thai.baht_text model.total_appraisal_value }} ){{ end }}{{ end }}</td>
   </tr>
+  {{ end }}
   <tr>
     <th style="width:55px;">อนุมัติ</th>
     <th style="width:55px;">ไม่อนุมัติ</th>
-    <th>รายชื่อคณะกรรมการ (ลงนาม)</th>
-    <th style="width:230px;">ความเห็นเพิ่มเติม</th>
+    <!-- Shrink-to-fit: width:1px on an auto-layout table collapses the column to its
+         min-content width, and the nowrap on .c-pos (summary-styles) makes that min-content
+         the full one-line width of the signature line + position title. So the column is
+         exactly as wide as the longest member row needs and never wraps a title, and
+         ความเห็นเพิ่มเติม — free text, the column that actually needs room — takes the rest
+         instead of being pinned at 230px. -->
+    <th style="width:1px;">รายชื่อคณะกรรมการ (ลงนาม)</th>
+    <th>ความเห็นเพิ่มเติม</th>
   </tr>
   {{ for a in model.approvers }}
   <tr class="cm-row">
     <td class="ctr"><span class="chk {{ if a.approved == true }}on{{ end }}"></span></td>
     <td class="ctr"><span class="chk {{ if a.approved == false }}on{{ end }}"></span></td>
     <td><div class="committee-member"><span class="nm-name">{{ a.name }}</span><span class="c-pos">{{ a.position }}</span></div></td>
-    <td>{{ a.comment }}</td>
+    <!-- Comments come straight off workflow.ApprovalVotes and are often null / blank; an empty
+         cell reads as "not filled in yet" on a signed-off form, so say it explicitly. Tested
+         against null AND "" rather than for mere truthiness: Scriban follows Liquid, where an
+         empty string is true. string.strip also catches whitespace-only comments. -->
+    <td>{{ cmt = a.comment | string.strip }}{{ if cmt == null || cmt == "" }}ไม่มีความเห็นเพิ่มเติม{{ else }}{{ cmt }}{{ end }}</td>
   </tr>
   {{ end }}
   <tr>

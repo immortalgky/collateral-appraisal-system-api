@@ -20,6 +20,7 @@ public class CondoAppraisalDetail : Entity<Guid>
     public string? FloorNumber { get; private set; }
     public int? PhysicalFloorNumber { get; private set; }
     public decimal? UsableArea { get; private set; }
+    public decimal? ConstructionCompletionPercent { get; private set; }
 
     // Unit deed identifiers (required for Collateral master dedup key)
     public string? TitleNumber { get; private set; }
@@ -29,7 +30,11 @@ public class CondoAppraisalDetail : Entity<Guid>
     public GpsCoordinate? Coordinates { get; private set; }
 
     // Administrative Address (Value Object)
-    public AdministrativeAddress? Address { get; private set; }
+    public Address? Address { get; private set; }
+    public string? LandOffice { get; private set; }
+
+    // Dopa Address (Value Object)
+    public Address? DopaAddress { get; private set; }
 
     // Owner
     public string? OwnerName { get; private set; }
@@ -105,6 +110,7 @@ public class CondoAppraisalDetail : Entity<Guid>
     public string? EnvironmentTypeOther { get; private set; }
 
     // Pricing
+    public bool? IsMissingFromSurvey { get; private set; }
     public decimal? GovernmentPricePerSqm { get; private set; }
     public decimal? GovernmentPrice { get; private set; }
     // Fire-insurance condition selected by the appraiser (matches Parameter module's
@@ -143,11 +149,12 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? roomNumber = null,
         string? floorNumber = null,
         decimal? usableArea = null,
+        decimal? constructionCompletionPercent = null,
         string? titleNumber = null,
         string? titleType = null,
         // Value Objects
         GpsCoordinate? coordinates = null,
-        AdministrativeAddress? address = null,
+        Address? address = null,
         // Owner
         string? ownerName = null,
         bool? isOwnerVerified = null,
@@ -209,6 +216,10 @@ public class CondoAppraisalDetail : Entity<Guid>
         decimal? forcedSalePrice = null,
         // Other
         string? remark = null,
+        // Scalar field
+        string? landOffice = null,
+        // DOPA address
+        Address? dopaAddress = null,
         // Land Characteristics (appended — see Update() ordering note)
         List<string>? landEntranceExitType = null,
         string? landEntranceExitTypeOther = null,
@@ -218,6 +229,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         List<string>? landUseType = null,
         string? landUseTypeOther = null,
         // Government Price
+        bool? isMissingFromSurvey = null,
         decimal? governmentPricePerSqm = null,
         decimal? governmentPrice = null,
         // Fire Insurance (appended — see Update() ordering note)
@@ -233,6 +245,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         RoomNumber = roomNumber;
         FloorNumber = floorNumber;
         UsableArea = usableArea;
+        ConstructionCompletionPercent = constructionCompletionPercent;
         TitleNumber = titleNumber;
         TitleType = titleType;
 
@@ -310,6 +323,10 @@ public class CondoAppraisalDetail : Entity<Guid>
         // Other
         Remark = remark;
 
+        // Address scalar + Dopa
+        LandOffice = landOffice;
+        DopaAddress = dopaAddress;
+
         // Land Characteristics
         LandEntranceExitType = landEntranceExitType;
         LandEntranceExitTypeOther = landEntranceExitTypeOther;
@@ -320,6 +337,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         LandUseTypeOther = landUseTypeOther;
 
         // Government Price
+        IsMissingFromSurvey = isMissingFromSurvey;
         GovernmentPricePerSqm = governmentPricePerSqm;
         GovernmentPrice = governmentPrice;
 
@@ -344,7 +362,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? condoRegistrationNumber = null,
         string? roomNumber = null,
         string? floorNumber = null,
-        AdministrativeAddress? address = null)
+        Address? address = null)
     {
         CondoName = condoName;
         OwnerName = ownerName;
@@ -372,13 +390,18 @@ public class CondoAppraisalDetail : Entity<Guid>
             FloorNumber = source.FloorNumber,
             PhysicalFloorNumber = source.PhysicalFloorNumber,
             UsableArea = source.UsableArea,
+            ConstructionCompletionPercent = source.ConstructionCompletionPercent,
             TitleNumber = source.TitleNumber,
             TitleType = source.TitleType,
             Coordinates = source.Coordinates is not null
                 ? GpsCoordinate.Create(source.Coordinates.Latitude, source.Coordinates.Longitude)
                 : null,
             Address = source.Address is not null
-                ? AdministrativeAddress.Create(source.Address.SubDistrict, source.Address.District, source.Address.Province, source.Address.LandOffice)
+                ? Address.Create(source.Address.SubDistrict, source.Address.District, source.Address.Province)
+                : null,
+            LandOffice = source.LandOffice,
+            DopaAddress = source.DopaAddress is not null
+                ? Address.Create(source.DopaAddress.SubDistrict, source.DopaAddress.District, source.DopaAddress.Province)
                 : null,
             OwnerName = source.OwnerName,
             IsOwnerVerified = source.IsOwnerVerified,
@@ -435,6 +458,7 @@ public class CondoAppraisalDetail : Entity<Guid>
             FacilityTypeOther = source.FacilityTypeOther,
             EnvironmentType = source.EnvironmentType?.ToList(),
             EnvironmentTypeOther = source.EnvironmentTypeOther,
+            IsMissingFromSurvey = source.IsMissingFromSurvey,
             GovernmentPricePerSqm = source.GovernmentPricePerSqm,
             GovernmentPrice = source.GovernmentPrice,
             FireInsuranceCondition = source.FireInsuranceCondition,
@@ -446,14 +470,14 @@ public class CondoAppraisalDetail : Entity<Guid>
 
         foreach (var area in source.AreaDetails)
         {
-            var areaCopy = CondoAppraisalAreaDetail.Create(area.AreaDescription, area.AreaSize);
+            var areaCopy = CondoAppraisalAreaDetail.Create(area.Sequence ,area.AreaDescription, area.AreaSize);
             copy._areaDetails.Add(areaCopy);
         }
 
         return copy;
     }
 
-    public void AddCondoAreaDetail(CondoAppraisalAreaDetail  areaDetails)
+    public void AddCondoAreaDetail(CondoAppraisalAreaDetail areaDetails)
     {
         _areaDetails.Add(areaDetails);
     }

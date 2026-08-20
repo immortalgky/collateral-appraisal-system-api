@@ -87,3 +87,64 @@ public record AppraisalResultCollateral(
     string? MachineSerialNo);
 
 public record AppraisalResultDocument(string? DocumentType, string? DocumentPath);
+
+// ── Legacy-shaped variant (AS400 consumer): flat { ResultCode, ResultValue } envelope for ONE
+// collateral, selected via ApplicationNo (AppraisalNumber) + Filter1/Filter2. AssetTypeId is
+// currently ignored. See GetLegacyAppraisalResultQueryHandler for the selection/mapping logic.
+public record GetLegacyAppraisalResultQuery(
+    string ApplicationNo,
+    int AssetTypeId,
+    string? Filter1,
+    string? Filter2)
+    : IQuery<LegacyAppraisalResultEnvelope>;
+
+public record LegacyAppraisalResultEnvelope(int ResultCode, LegacyAppraisalResult ResultValue);
+
+// All fields default to the legacy "empty" representation ("" / 0 / 0.0) rather than null, so a
+// not-found/error result can be emitted as `new LegacyAppraisalResult()`.
+public record LegacyAppraisalResult(
+    string ErrorMessage = "",
+    string LandNo = "",
+    decimal Rai = 0m,
+    decimal Ngan = 0m,
+    decimal Wah = 0m,
+    string Rawang = "",
+    string SurveyNo = "",
+    decimal AreaUtilize = 0m,
+    string BuildingRegisterNo = "",
+    string BookNo = "",
+    string PageNo = "",
+    string InternalValuerCode = "",
+    string InternalValuerName = "",
+    decimal InternalValuation = 0m,
+    string InternalValuationDate = "",
+    string ExternalValuerCode = "",
+    string ExternalValuerName = "",
+    decimal ExternalValuation = 0m,
+    string ExternalValuationDate = "",
+    string BuildingDetails = "",
+    string TitleNo = "",
+    string BuildingNo = "",
+    int BuildingAge = 0,
+    string HouseNo = "",
+    string RoomNo = "",
+    string FloorNo = "",
+    string FloorNumber = "",
+    string Province = "",
+    string District = "",
+    string SubDistrict = "",
+    int AppraisalType = 0,
+    decimal AppraisalValue = 0m,
+    int MethodOfAppraisal = 0,
+    decimal ForceSaleValue = 0m,
+    string LandOffice = "",
+    int? Decorate = null,
+    string Developer = "",
+    decimal AppraisalValueWaOrM = 0.0m,
+    string AppraisalReportNo = "",
+    decimal AppraisalFee = 0m,
+    decimal LandValue = 0m,
+    string SequenceOfApprove = "",
+    decimal BuildingValue = 0m,
+    string AppraisalDate = "",
+    decimal MarketValue = 0m);

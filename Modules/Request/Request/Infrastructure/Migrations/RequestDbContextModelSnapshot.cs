@@ -1228,6 +1228,12 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)")
                                 .HasColumnName("CondoName");
 
+                            b1.Property<string>("CondoRegistrationNumber")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("CondoRegistrationNumber");
+
                             b1.Property<string>("FloorNumber")
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(10)
@@ -1258,6 +1264,12 @@ namespace Request.Infrastructure.Migrations
                         {
                             b1.Property<Guid>("TitleCondoId")
                                 .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("BuiltOnTitleNumber")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)")
+                                .HasColumnName("BuiltOnTitleNumber");
 
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()
@@ -1382,6 +1394,12 @@ namespace Request.Infrastructure.Migrations
                         {
                             b1.Property<Guid>("TitleLandId")
                                 .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("BuiltOnTitleNumber")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)")
+                                .HasColumnName("BuiltOnTitleNumber");
 
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()
@@ -1543,6 +1561,12 @@ namespace Request.Infrastructure.Migrations
                             b1.Property<Guid>("TitleLandBuildingId")
                                 .HasColumnType("uniqueidentifier");
 
+                            b1.Property<string>("BuiltOnTitleNumber")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)")
+                                .HasColumnName("BuiltOnTitleNumber");
+
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(200)
@@ -1631,6 +1655,12 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)")
                                 .HasColumnName("CondoName");
 
+                            b1.Property<string>("CondoRegistrationNumber")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("CondoRegistrationNumber");
+
                             b1.Property<string>("FloorNumber")
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(10)
@@ -1661,6 +1691,12 @@ namespace Request.Infrastructure.Migrations
                         {
                             b1.Property<Guid>("TitleLeaseAgreementCondoId")
                                 .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("BuiltOnTitleNumber")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)")
+                                .HasColumnName("BuiltOnTitleNumber");
 
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()
@@ -1785,6 +1821,12 @@ namespace Request.Infrastructure.Migrations
                         {
                             b1.Property<Guid>("TitleLeaseAgreementLandId")
                                 .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("BuiltOnTitleNumber")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)")
+                                .HasColumnName("BuiltOnTitleNumber");
 
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()
@@ -1942,6 +1984,12 @@ namespace Request.Infrastructure.Migrations
                         {
                             b1.Property<Guid>("TitleLeaseAgreementLandBuildingId")
                                 .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("BuiltOnTitleNumber")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)")
+                                .HasColumnName("BuiltOnTitleNumber");
 
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()

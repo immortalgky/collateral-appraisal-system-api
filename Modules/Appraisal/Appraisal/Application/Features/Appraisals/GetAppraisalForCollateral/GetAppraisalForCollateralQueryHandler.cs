@@ -1,3 +1,4 @@
+using Appraisal.Application.Services;
 using Appraisal.Contracts.Appraisals;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Projects;
@@ -14,7 +15,8 @@ namespace Appraisal.Application.Features.Appraisals.GetAppraisalForCollateral;
 public class GetAppraisalForCollateralQueryHandler(
     AppraisalDbContext dbContext,
     ISqlConnectionFactory connectionFactory,
-    IProjectRepository projectRepository
+    IProjectRepository projectRepository,
+    IConstructionCurrentValueService currentValueService
 ) : IQueryHandler<GetAppraisalForCollateralQuery, AppraisalForCollateralResult?>
 {
     public async Task<AppraisalForCollateralResult?> Handle(
@@ -96,14 +98,22 @@ public class GetAppraisalForCollateralQueryHandler(
             ? latestAssignment?.InternalAppraiserName
             : resolvedNames.AppraiserName;
 
-        // AppraisalDate represents the *visit* (appointment) date, not the system completion.
-        // Source: latest non-Cancelled appointment for the assignment, regardless of status.
-        // Fallbacks: appraisal.CompletedAt → latestAssignment.CompletedAt (final fallback
-        // ApplicationNow handled at the upsert layer for safety).
-        DateTime? appointmentDate = null;
-        if (latestAssignment is not null)
+        // AppraisalDate is the valuation date: appraisal.ValuationAnalyses.ValuationDate, falling
+        // back to the latest non-Cancelled appointment. It used to LEAD with the appointment, which
+        // is wrong for an off-system external engagement — that case has no Appointment row at all
+        // and only the hand-keyed book date is correct.
+        //
+        // collateral.CollateralEngagements.AppraisalDate is NOT NULL, so the upsert layer keeps a
+        // final `?? ApplicationNow` for an appraisal that has neither.
+        var valuationDate = await dbContext.ValuationAnalyses
+            .AsNoTracking()
+            .Where(v => v.AppraisalId == appraisal.Id)
+            .Select(v => (DateTime?)v.ValuationDate)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (valuationDate is null && latestAssignment is not null)
         {
-            appointmentDate = await dbContext.Appointments
+            valuationDate = await dbContext.Appointments
                 .AsNoTracking()
                 .Where(ap => ap.AssignmentId == latestAssignment.Id
                     && ap.Status != "Cancelled")
@@ -111,9 +121,11 @@ public class GetAppraisalForCollateralQueryHandler(
                 .Select(ap => (DateTime?)ap.AppointmentDateTime)
                 .FirstOrDefaultAsync(cancellationToken);
         }
-        var completedAt = appointmentDate
-                          ?? appraisal.CompletedAt
-                          ?? latestAssignment?.CompletedAt;
+
+        // Last resort before the upsert layer's ApplicationNow: a legacy/migrated appraisal can have
+        // neither a ValuationAnalyses row nor an Appointment row, and its completion date is a far
+        // better answer than "today" — this value anchors the +5-year reappraisal clock downstream.
+        valuationDate ??= appraisal.CompletedAt;
 
         // Resolve per-property appraised value via PropertyGroup → PricingAnalysis.
         // PropertyGroup and PropertyGroupItem are owned entities; they were loaded above
@@ -181,6 +193,49 @@ public class GetAppraisalForCollateralQueryHandler(
             "SELECT RequestNumber FROM request.Requests WHERE Id = @RequestId",
             new { RequestId = appraisal.RequestId });
 
+        // Full ancestor chain, nearest first. The collateral chain fallback needs more than
+        // PrevAppraisalId: a run of construction-inspection appraisals that recorded only a building
+        // (or no property at all) owns no CollateralMaster, so the nearest ancestor that does own one
+        // can be many hops up.
+        //
+        // Same recursive CTE as GetPreviousAppraisalChainQueryHandler — the cycle guard is the Path
+        // CHARINDEX test, NOT a depth limit, and OPTION (MAXRECURSION 0) lifts the default cap of 100.
+        // A depth predicate here would silently truncate long chains instead of erroring; see the long
+        // comment on that handler for why the previous "Depth < 20" version was broken.
+        //
+        // Runs through dbContext.Database, NOT the ISqlConnectionFactory used for RequestNumber above.
+        // That factory opens a SEPARATE connection, and TransactionalBehavior has this request inside a
+        // transaction that already holds locks on appraisal.Appraisals — the very table this reads. A
+        // second connection then waits on those locks until it times out. RequestNumber gets away with
+        // the factory because request.Requests is a different table. SqlQueryRaw enlists in the
+        // context's own connection and transaction, so it sees the uncommitted rows and blocks on
+        // nothing.
+        var ancestorAppraisalIds = await dbContext.Database
+            .SqlQueryRaw<Guid>(
+                """
+                WITH chain AS (
+                    SELECT a.Id, a.PrevAppraisalId, 1 AS Depth,
+                           CAST('|' + CAST(a.Id AS varchar(36)) + '|' AS varchar(max)) AS Path
+                    FROM appraisal.Appraisals a
+                    WHERE a.Id = {0} AND a.IsDeleted = 0
+
+                    UNION ALL
+
+                    SELECT p.Id, p.PrevAppraisalId, c.Depth + 1,
+                           CAST(c.Path + CAST(p.Id AS varchar(36)) + '|' AS varchar(max))
+                    FROM chain c
+                    JOIN appraisal.Appraisals p ON p.Id = c.PrevAppraisalId AND p.IsDeleted = 0
+                    WHERE CHARINDEX('|' + CAST(p.Id AS varchar(36)) + '|', c.Path) = 0
+                )
+                SELECT c.Id AS [Value]
+                FROM chain c
+                WHERE c.Depth > 1
+                ORDER BY c.Depth
+                OPTION (MAXRECURSION 0)
+                """,
+                appraisal.Id)
+            .ToListAsync(cancellationToken);
+
         // Block-project branch: load Project if one exists for this appraisal.
         // GetWithFullGraphAsync returns null for non-block appraisals — no overhead.
         var project = await projectRepository.GetWithFullGraphAsync(appraisal.Id, cancellationToken);
@@ -210,11 +265,17 @@ public class GetAppraisalForCollateralQueryHandler(
                 new { RequestId = appraisal.RequestId });
         }
 
+        // Part-built value — null when nothing on this appraisal is under construction. Same service
+        // the Decision Summary card uses, so the two can never disagree.
+        // One call, three outputs — CurrentValue and the construction status all come from the same
+        // breakdown so the frozen engagement row can never hold a value and a percent that disagree.
+        var construction = await currentValueService.GetAsync(appraisal.Id, cancellationToken);
+
         return new AppraisalForCollateralResult(
             AppraisalId: appraisal.Id,
             AppraisalNumber: appraisal.AppraisalNumber,
             AppraisalType: appraisal.AppraisalType,
-            CompletedAt: completedAt,
+            AppraisalDate: valuationDate,
             RequestId: appraisal.RequestId,
             RequestNumber: requestNumber,
             AppraiserUserId: appraiserUserId,
@@ -222,10 +283,14 @@ public class GetAppraisalForCollateralQueryHandler(
             CompanyName: companyName,
             CompanyCode: companyCode,
             AppraisedValue: appraisalTotal,
+            CurrentValue: construction?.CurrentValue,
+            IsUnderConstruction: construction?.IsUnderConstruction,
+            ConstructionProgressPercent: construction?.ConstructionProgressPercent,
             ConstructionInspectionFeeAmount: constructionInspectionFee,
             Properties: properties,
             Project: projectDto,
             PrevAppraisalId: appraisal.PrevAppraisalId,
+            AncestorAppraisalIds: ancestorAppraisalIds,
             CustomerName: customerName,
             ForcedSaleValue: forcedSaleValue,
             AppraiserName: appraiserName
@@ -543,13 +608,16 @@ public class GetAppraisalForCollateralQueryHandler(
                 Province: p.LandDetail.Address?.Province,
                 District: p.LandDetail.Address?.District,
                 SubDistrict: p.LandDetail.Address?.SubDistrict,
-                LandOffice: p.LandDetail.Address?.LandOffice,
+                LandOffice: p.LandDetail.LandOffice,
                 Titles: p.LandDetail.Titles
                     .Select(t => new LandTitleForCollateral(
                         t.Id, t.TitleNumber, t.TitleType,
                         t.SurveyNumber, t.LandParcelNumber, t.Rawang))
                     .ToList(),
                 // Phase C: last-known populate fields from LandAppraisalDetail
+                DopaSubDistrict: p.LandDetail.DopaAddress?.SubDistrict,
+                DopaDistrict: p.LandDetail.DopaAddress?.District,
+                DopaProvince: p.LandDetail.DopaAddress?.Province,
                 OwnerName: p.LandDetail.OwnerName,
                 Street: p.LandDetail.Street,
                 Village: p.LandDetail.Village,
@@ -573,7 +641,10 @@ public class GetAppraisalForCollateralQueryHandler(
                 Province: p.CondoDetail.Address?.Province,
                 District: p.CondoDetail.Address?.District,
                 SubDistrict: p.CondoDetail.Address?.SubDistrict,
-                LandOffice: p.CondoDetail.Address?.LandOffice,
+                LandOffice: p.CondoDetail.LandOffice,
+                DopaSubDistrict: p.CondoDetail.DopaAddress?.SubDistrict,
+                DopaDistrict: p.CondoDetail.DopaAddress?.District,
+                DopaProvince: p.CondoDetail.DopaAddress?.Province,
                 // Phase C: last-known populate fields from CondoAppraisalDetail
                 OwnerName: p.CondoDetail.OwnerName,
                 CondoName: p.CondoDetail.CondoName,

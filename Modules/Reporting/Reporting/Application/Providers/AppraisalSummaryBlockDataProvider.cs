@@ -161,6 +161,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
                 u.SellingPrice,
                 u.Floor,
                 u.TowerName,
+                u.CondoRegistrationNumber,
                 u.RoomNumber,
                 up.TotalAppraisalValueRounded  AS AppraisalValue,
                 up.StandardPrice               AS PricePerSqm,
@@ -309,9 +310,11 @@ public sealed class AppraisalSummaryBlockDataProvider(
                     Sequence       = u.SequenceNumber,
                     Floor          = u.Floor,
                     TowerName      = u.TowerName,
+                    CondoRegistrationNumber = u.CondoRegistrationNumber,
                     RoomNumber     = u.RoomNumber,
                     ModelType      = u.ModelType,
                     UsableArea     = u.UsableArea,
+                    SellingPrice   = u.SellingPrice,
                     AppraisalValue = u.AppraisalValue,
                     PricePerSqm    = u.PricePerSqm,
                     ForcedSaleValue = u.ForcedSaleValue,
@@ -359,7 +362,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
 
             // ที่ตั้งทรัพย์สิน from the Request detail (same as the land-building form)
             CollateralAddress       = common.CollateralAddress,
-            AdministrativeDistrict  = project.SubDistrict,
+            AdministrativeDistrict  = common.AdministrativeDistrict,
             LandOffice              = project.LandOffice,
             OldAppraisalValue       = common.PrevAppraisedValue,
             HasPrevAppraisal        = common.HasPrevAppraisal,
@@ -464,7 +467,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
         {
             parts.Append(
                 $" พื้นที่โครงการประมาณ " +
-                $"{project.LandAreaRai.GetValueOrDefault():0.##}-{project.LandAreaNgan.GetValueOrDefault():0.##}-{project.LandAreaSquareWa.GetValueOrDefault():0.##} ไร่");
+                $"{project.LandAreaRai.GetValueOrDefault():#,##0.##}-{project.LandAreaNgan.GetValueOrDefault():#,##0.##}-{project.LandAreaSquareWa.GetValueOrDefault():#,##0.##} ไร่");
         }
 
         if (project.UnitForSaleCount.HasValue && project.UnitForSaleCount.Value > 0)
@@ -491,7 +494,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
                     modelParts.Add(m.BuildingType);
 
                 if (m.NumberOfFloors.HasValue && m.NumberOfFloors.Value > 0)
-                    modelParts.Add($"{m.NumberOfFloors:0.##} ชั้น");
+                    modelParts.Add($"{m.NumberOfFloors:#,##0.##} ชั้น");
 
                 if (m.NumberOfHouse.HasValue && m.NumberOfHouse.Value > 0)
                     modelParts.Add($"จำนวน {m.NumberOfHouse} หลัง");
@@ -499,7 +502,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
                 // Area: prefer StandardUsableArea, fall back to UsableAreaMin
                 var area = m.StandardUsableArea ?? m.UsableAreaMin;
                 if (area.HasValue && area.Value > 0)
-                    modelParts.Add($"พื้นที่ใช้สอย {area:0.##} ตร.ม.");
+                    modelParts.Add($"พื้นที่ใช้สอย {area:#,##0.##} ตร.ม.");
 
                 // Price range
                 if (m.StartingPriceMin.HasValue && m.StartingPriceMax.HasValue
@@ -659,6 +662,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
         // Condo-side
         public int?     Floor           { get; init; }
         public string?  TowerName       { get; init; }
+        public string?  CondoRegistrationNumber { get; init; }
         public string?  RoomNumber      { get; init; }
         // Prices (from LEFT JOIN ProjectUnitPrices)
         public decimal? AppraisalValue  { get; init; }

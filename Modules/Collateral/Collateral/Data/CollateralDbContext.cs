@@ -22,6 +22,7 @@ public class CollateralDbContext : DbContext
     public DbSet<BlockReappraisalDue> BlockReappraisalDue => Set<BlockReappraisalDue>();
     public DbSet<ProjectUnit> ProjectUnits => Set<ProjectUnit>();
     public DbSet<ReappraisalCandidate> ReappraisalCandidates => Set<ReappraisalCandidate>();
+    public DbSet<HostCollateralLink> HostCollateralLinks => Set<HostCollateralLink>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

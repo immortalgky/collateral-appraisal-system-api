@@ -151,14 +151,15 @@ The project uses Docker Compose to run required infrastructure services:
 
 ### Database Setup
 
-1. **Run initial migrations**:
+1. **Build the database**. The application does **not** migrate on startup — it only verifies the
+   schema is current and refuses to boot otherwise. Run the migration tool, which applies EF Core
+   migrations for every module (in dependency order) and then the DbUp views, stored procedures
+   and one-time data scripts:
    ```bash
-   # For Request module
-   dotnet ef database update --project Modules/Request/Request --startup-project Bootstrapper/Api
-   
-   # For Auth module (if migrations exist)
-   dotnet ef database update --project Modules/Auth/Auth --startup-project Bootstrapper/Api
+   dotnet run --project Database/Database.csproj migrate
    ```
+   Do this once after cloning and again whenever you pull migrations or edit a view. Prefer it
+   over `dotnet ef database update`, which covers only one module and never applies views.
 
 2. **Verify database connection**:
    - Connect to SQL Server using your preferred tool
@@ -252,9 +253,10 @@ Daily development process:
    dotnet restore
    ```
 
-3. **Run migrations** (if new ones exist):
+3. **Apply migrations** (required if any new ones exist — the API refuses to start against a
+   schema that is behind the code):
    ```bash
-   dotnet ef database update --project Modules/Request/Request --startup-project Bootstrapper/Api
+   dotnet run --project Database/Database.csproj migrate
    ```
 
 4. **Start development**:
@@ -288,12 +290,37 @@ dotnet test
 ### Database Operations
 
 ```bash
-# Add new migration for a specific module
+# Add new migration for a specific module (writes files only, applies nothing)
 dotnet ef migrations add <MigrationName> --project Modules/Request/Request --startup-project Bootstrapper/Api
 
-# Update database
-dotnet ef database update --project Modules/Request/Request --startup-project Bootstrapper/Api
+# Apply everything: EF migrations for all modules, then views/procs/one-time data scripts
+dotnet run --project Database/Database.csproj migrate
+
+# Inspect what the tool has applied
+dotnet run --project Database/Database.csproj history
 ```
+
+The application never applies migrations itself. In production the DBA runs a generated plain-SQL
+bundle instead of this tool — see `deploy/README.md`.
+
+### Reference data: the app does not seed outside Development
+
+`SeedData:RunSeeders` gates every `IDataSeeder` and **fails closed** — unset means off. It is `true`
+only in `appsettings.Development.json`. On a live database the per-key seeders silently re-inserted
+rows an admin had deleted, undoing their work on every app-pool recycle, so seeding is now treated as
+a fresh-install convenience rather than a production mechanism.
+
+When adding or changing reference data, decide by **who reads the value**:
+
+- **Code reads it by name → ship a script in `Database/Migration/Scripts/`, in the same PR as the
+  feature.** Permission codes, activity IDs, pipeline processor names, menu item keys wired to
+  frontend route guards. DbUp journals these once per database by filename. Also add it to the C#
+  seeder so fresh Development databases still get it — but the script is what reaches UAT/production.
+- **Only humans read it → the admin UI owns it. Do not ship it again after go-live.** SLA hours, fee
+  ladders, cron schedules, committee thresholds, business hours.
+
+Never "fix" seeded data by editing a seeder and relying on a restart: outside Development it will not
+run, and inside Development an already-populated table is usually skipped anyway.
 
 ### Project Structure Commands
 

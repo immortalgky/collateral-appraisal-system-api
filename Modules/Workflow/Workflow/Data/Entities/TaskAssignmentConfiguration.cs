@@ -53,6 +53,18 @@ public class TaskAssignmentConfiguration : Entity<Guid>
     /// </summary>
     public string? BankingSegment { get; private set; }
 
+    /// <summary>
+    /// Overrides <c>assignmentRules.teamConstrained</c> from the workflow definition JSON.
+    /// Null = inherit the JSON value; true = force team scoping on; false = force it off.
+    /// </summary>
+    public bool? TeamConstrained { get; private set; }
+
+    /// <summary>
+    /// Overrides <c>assignmentRules.excludeAssigneesFrom</c> from the workflow definition JSON
+    /// (JSON array of activity ids). Null = inherit the JSON value.
+    /// </summary>
+    public string? ExcludeAssigneesFrom { get; private set; }
+
     // NOTE: SupervisorId and ReplacementUserId removed - now handled by UserManagement mock data
 
     /// <summary>
@@ -102,7 +114,9 @@ public class TaskAssignmentConfiguration : Entity<Guid>
         string? adminPoolId = null,
         bool escalateToAdminPool = true,
         string? additionalConfiguration = null,
-        bool isActive = true)
+        bool isActive = true,
+        bool? teamConstrained = null,
+        string? excludeAssigneesFrom = null)
     {
         return new TaskAssignmentConfiguration
         {
@@ -115,6 +129,8 @@ public class TaskAssignmentConfiguration : Entity<Guid>
             SpecificAssignee = specificAssignee,
             AssigneeGroup = assigneeGroup,
             BankingSegment = bankingSegment,
+            TeamConstrained = teamConstrained,
+            ExcludeAssigneesFrom = excludeAssigneesFrom,
             AdditionalConfiguration = additionalConfiguration,
             IsActive = isActive,
             CreatedAt = DateTime.Now,
@@ -134,13 +150,17 @@ public class TaskAssignmentConfiguration : Entity<Guid>
         string? adminPoolId = null,
         bool? escalateToAdminPool = null,
         string? additionalConfiguration = null,
-        bool isActive = true)
+        bool isActive = true,
+        bool? teamConstrained = null,
+        string? excludeAssigneesFrom = null)
     {
         PrimaryStrategies = primaryStrategies;
         RouteBackStrategies = routeBackStrategies;
         SpecificAssignee = specificAssignee;
         AssigneeGroup = assigneeGroup;
         BankingSegment = bankingSegment;
+        TeamConstrained = teamConstrained;
+        ExcludeAssigneesFrom = excludeAssigneesFrom;
         IsActive = isActive;
 
         if (adminPoolId != null)

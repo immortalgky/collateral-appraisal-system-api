@@ -72,7 +72,8 @@ internal static class SnapshotBuilder
         AppraisalPropertyForCollateral property,
         string role,
         string titleNumber,
-        string titleType,
+        // Nullable since TitleType left the land dedup key — a title may legitimately have none.
+        string? titleType,
         decimal? unitPrice = null)
     {
         var land = property.LandIdentity!;

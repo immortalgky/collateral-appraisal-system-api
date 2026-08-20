@@ -16,6 +16,7 @@ public record UpdateCondoPropertyCommand(
     string? RoomNumber = null,
     string? FloorNumber = null,
     decimal? UsableArea = null,
+    decimal? ConstructionCompletionPercent = null,
     // Unit deed identifiers (collateral dedup key)
     string? TitleNumber = null,
     string? TitleType = null,
@@ -27,6 +28,9 @@ public record UpdateCondoPropertyCommand(
     string? District = null,
     string? Province = null,
     string? LandOffice = null,
+    string? DopaSubDistrict = null,
+    string? DopaDistrict = null,
+    string? DopaProvince = null,
     // Owner
     string? OwnerName = null,
     bool? IsOwnerVerified = null,
@@ -92,6 +96,7 @@ public record UpdateCondoPropertyCommand(
     List<string>? EnvironmentType = null,
     string? EnvironmentTypeOther = null,
     // Pricing
+    bool? IsMissingFromSurvey = null,
     decimal? GovernmentPricePerSqm = null,
     decimal? GovernmentPrice = null,
     // BuildingInsurancePrice is derived server-side from FireInsuranceCondition × UsableArea —

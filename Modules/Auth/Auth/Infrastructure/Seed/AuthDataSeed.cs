@@ -1,5 +1,7 @@
 using System.Linq;
+using Auth.Domain;
 using Auth.Domain.Companies;
+using Auth.Domain.Groups;
 using Auth.Domain.Menu;
 using Auth.Infrastructure.Repository;
 using Microsoft.Extensions.Configuration;
@@ -18,6 +20,14 @@ public class AuthDataSeed(
     ILogger<AuthDataSeed> logger)
     : IDataSeeder<AuthDbContext>
 {
+    /// <summary>
+    /// Demo/test fixtures (sample user accounts and placeholder companies) are seeded only when
+    /// explicitly enabled — true in appsettings.Development.json, absent everywhere else. An
+    /// unset value therefore fails closed, so production never gets shared-password accounts.
+    /// Real bank staff arrive via LDAP/AD, not the seeder.
+    /// </summary>
+    private bool IncludeDemoData => configuration.GetValue<bool>("SeedData:IncludeDemoData");
+
     private const string AdminRoleName = "Admin";
     private const string MeetingSecretaryRoleName = "MeetingSecretary";
     private const string IntAdminRoleName = "IntAdmin";
@@ -63,11 +73,11 @@ public class AuthDataSeed(
 
         await SeedRoleWithPermissionsAsync(MeetingSecretaryRoleName,
             "Meeting Secretary — creates, schedules, updates, and ends approval meetings.",
-            "Bank",
+            AuthScopes.Bank,
             ["MEETING_MANAGE", "MEETING_SECRETARY"]);
         await SeedRoleWithPermissionsAsync(IntAdminRoleName,
             "Internal Admin — manages workflow assignments, appraisals, meetings, and internal staff.",
-            "Bank",
+            AuthScopes.Bank,
             [
                 "DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_ASSIGNMENT",
                 "TASK_MONITOR_VIEW", "TASK_MONITOR_REASSIGN",
@@ -87,7 +97,7 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(ExtAdminRoleName,
             "External Company Admin — manages external company users and external appraisal assignments.",
-            "Company",
+            AuthScopes.Company,
             [
                 "DASHBOARD_VIEW", "REQUEST_VIEW", "APPRAISAL_VIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_ASSIGNMENT", "USER_MANAGE",
@@ -99,7 +109,7 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(RequestMakerRoleName,
             "Request Maker — creates appraisal requests and handles initiation tasks.",
-            "Bank",
+            AuthScopes.Bank,
             [
                 "DASHBOARD_VIEW", "REQUEST_VIEW", "REQUEST_CREATE", "TASK_LIST_VIEW",
                 "TASK_APPR_INITIATION_CHECK", "TASK_APPR_INITIATION", "TASK_PROVIDE_ADDITIONAL_DOCS",
@@ -112,14 +122,15 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(RequestCheckerRoleName,
             "Request Checker — reviews and approves incoming appraisal requests.",
-            "Bank",
+            AuthScopes.Bank,
             ["DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_INITIATION_CHECK"]);
         await SeedRoleWithPermissionsAsync(IntAppraisalStaffRoleName,
             "Internal Appraisal Staff — executes internal appraisals and verifies appraisal books.",
-            "Bank",
+            AuthScopes.Bank,
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
                 "TASK_APPR_BOOK_VERIFICATION", "TASK_INT_APPR_EXECUTION", "TASK_INT_PMA_INPUT",
+                "TASK_INT_OFFLINE_BOOK_KEYIN",
                 "STANDALONE_USE",
                 "HISTORY_SEARCH_VIEW",
                 "SUPPORTING_DATA_MAINT_EDIT",
@@ -132,7 +143,7 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(IntAppraisalCheckerRoleName,
             "Internal Appraisal Checker — checks and validates internal appraisal reports.",
-            "Bank",
+            AuthScopes.Bank,
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_INT_APPR_CHECK",
@@ -144,7 +155,7 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(IntAppraisalVerifierRoleName,
             "Internal Appraisal Verifier — final verification of internal appraisal reports.",
-            "Bank",
+            AuthScopes.Bank,
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_INT_APPR_VERIFICATION", "REPORT_VIEW", "REPORT_EVALUATION_VIEW",
@@ -153,7 +164,7 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalStaffRoleName,
             "External Appraisal Staff — field appraisers from external companies who execute appraisals.",
-            "Company",
+            AuthScopes.Company,
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_ASSIGNMENT", "TASK_EXT_APPR_EXECUTION", "STANDALONE_USE",
@@ -162,7 +173,7 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalCheckerRoleName,
             "External Appraisal Checker — checks external appraisal reports before verification.",
-            "Company",
+            AuthScopes.Company,
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_CHECK",
@@ -172,7 +183,7 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(ExtAppraisalVerifierRoleName,
             "External Appraisal Verifier — final verification of external appraisal reports.",
-            "Company",
+            AuthScopes.Company,
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_VERIFICATION",
@@ -181,7 +192,7 @@ public class AuthDataSeed(
             ]);
         await SeedRoleWithPermissionsAsync(AppraisalCommitteeRoleName,
             "Appraisal Committee — approves appraisals in committee meetings.",
-            "Bank",
+            AuthScopes.Bank,
             [
                 "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_PENDING_APPROVAL", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "REPORT_EVALUATION_VIEW",
@@ -190,6 +201,9 @@ public class AuthDataSeed(
                 ..appraisalSectionViews
             ]);
         await SeedUsersAsync();
+        // After SeedUsersAsync: group membership is copied from AspNetUserRoles, so the role
+        // assignments made above must already exist.
+        await SeedWorkflowGroupsAsync();
         await SeedClientsAsync();
         await SeedCompaniesAsync();
         await SeedExternalAppraisalCompaniesAsync();
@@ -213,6 +227,15 @@ public class AuthDataSeed(
                 throw new InvalidOperationException(
                     $"Failed to create {roleName} role: {string.Join(", ", createResult.Errors.Select(e => e.Description))}");
         }
+        else
+        {
+            // CREATE-ONLY: the role already exists, so its permission set belongs to the admin.
+            // Re-adding the seed permissions here would silently restore anything an admin had
+            // deliberately revoked via /admin/roles on the next app restart.
+            // To grant a NEW permission to an existing role in a later release, write a one-off
+            // script in Database/Migration/Scripts/ — the same convention UpsertTreeAsync uses.
+            return;
+        }
 
         var permissionIds = await dbContext.Permissions
             .AsNoTracking()
@@ -220,21 +243,101 @@ public class AuthDataSeed(
             .Select(p => p.Id)
             .ToListAsync();
 
-        var existingLinkedIds = await dbContext.Set<RolePermission>()
-            .AsNoTracking()
-            .Where(rp => rp.RoleId == role.Id)
-            .Select(rp => rp.PermissionId)
-            .ToListAsync();
+        if (permissionIds.Count == 0) return;
 
-        var missingIds = permissionIds.Except(existingLinkedIds).ToList();
-        if (missingIds.Count == 0) return;
-
-        var newLinks = missingIds
+        var newLinks = permissionIds
             .Select(pid => new RolePermission { RoleId = role.Id, PermissionId = pid })
             .ToList();
 
         await dbContext.Set<RolePermission>().AddRangeAsync(newLinks);
         await dbContext.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Mirrors the workflow-relevant roles as entries in auth.Groups and copies their role
+    /// memberships into auth.GroupUsers, so the group-based assignment pipeline can resolve
+    /// candidates.
+    ///
+    /// Nothing else populates auth.Groups, yet IUserGroupService.GetUsersInGroupAsync resolves
+    /// groups BY NAME for the pool/task handlers (GetPoolTasks, ClaimTask, OpenTask, LockTask,
+    /// GetTaskCounts, …). On a database where this never ran, every group-assigned task resolves
+    /// to zero candidates.
+    ///
+    /// This lives in C# rather than in the DBA SQL bundle because it derives from
+    /// auth.AspNetRoles, which the seeder above creates at application boot — a script shipped in
+    /// the bundle runs before the app has ever started and would insert nothing. It replaces the
+    /// former Database/Scripts/Seed/SeedWorkflowGroups.sql, which no code path ever executed.
+    ///
+    /// CREATE-ONLY per group, matching SeedRoleWithPermissionsAsync: once a group exists, it and
+    /// its membership belong to the admin, who manages both through /admin/groups. Re-syncing on
+    /// every boot would silently restore anyone they had removed.
+    /// </summary>
+    private async Task SeedWorkflowGroupsAsync()
+    {
+        // Deliberately excludes MeetingSecretary — it was not in the original seed set, and
+        // meeting duties are not resolved through the group-assignment pipeline.
+        //
+        // Each group carries the same Scope as the role it mirrors. The admin UI offers a user
+        // only the groups whose Scope equals that user's own (Bank when CompanyId is null,
+        // Company otherwise), so a group seeded with any other value is invisible there and can
+        // never be assigned. CompanyId stays null even for the Company-scoped groups: they are
+        // shared by every external company, and the workflow narrows candidates to one company
+        // through the ext-appraisal-assignment `assignedCompanyId` team variable, not through
+        // Group.CompanyId.
+        (string RoleName, string Scope)[] workflowGroups =
+        [
+            (AdminRoleName, AuthScopes.Bank),
+            (IntAdminRoleName, AuthScopes.Bank),
+            (ExtAdminRoleName, AuthScopes.Company),
+            (RequestMakerRoleName, AuthScopes.Bank),
+            (RequestCheckerRoleName, AuthScopes.Bank),
+            (IntAppraisalStaffRoleName, AuthScopes.Bank),
+            (IntAppraisalCheckerRoleName, AuthScopes.Bank),
+            (IntAppraisalVerifierRoleName, AuthScopes.Bank),
+            (ExtAppraisalStaffRoleName, AuthScopes.Company),
+            (ExtAppraisalCheckerRoleName, AuthScopes.Company),
+            (ExtAppraisalVerifierRoleName, AuthScopes.Company),
+            (AppraisalCommitteeRoleName, AuthScopes.Bank)
+        ];
+
+        var existingNames = await dbContext.Groups
+            .AsNoTracking()
+            .Where(g => !g.IsDeleted)
+            .Select(g => g.Name)
+            .ToListAsync();
+
+        var created = 0;
+
+        foreach (var (roleName, scope) in workflowGroups)
+        {
+            if (existingNames.Contains(roleName)) continue;
+
+            var role = await roleManager.FindByNameAsync(roleName);
+            if (role is null)
+            {
+                logger.LogWarning("Role {RoleName} not found; skipping its workflow group.", roleName);
+                continue;
+            }
+
+            var group = Group.Create(roleName, $"Workflow assignment group: {roleName}", scope);
+            dbContext.Groups.Add(group);
+
+            var userIds = await dbContext.UserRoles
+                .AsNoTracking()
+                .Where(ur => ur.RoleId == role.Id)
+                .Select(ur => ur.UserId)
+                .ToListAsync();
+
+            foreach (var userId in userIds)
+                dbContext.GroupUsers.Add(new GroupUser { GroupId = group.Id, UserId = userId });
+
+            created++;
+        }
+
+        if (created == 0) return;
+
+        await dbContext.SaveChangesAsync();
+        logger.LogInformation("Seeded {Count} workflow assignment group(s).", created);
     }
 
     private async Task SeedUsersAsync()
@@ -282,7 +385,14 @@ public class AuthDataSeed(
                 await userManager.AddToRoleAsync(adminUser, AdminRoleName);
         }
 
-        // Seed additional test users
+        // Seed additional test users. These all share the well-known password below, so they are
+        // demo-only — production gets the configured admin account and nothing else.
+        if (!IncludeDemoData)
+        {
+            logger.LogInformation("Demo data disabled; skipping test-user seeding.");
+            return;
+        }
+
         var testUsers =
             new List<(string Username, string Email, string FirstName, string LastName, string? Position, string?
                 Department, string AvatarColor)>
@@ -345,21 +455,39 @@ public class AuthDataSeed(
             }
     }
 
+    /// <summary>
+    /// The browser origins this deployment serves. Derived from Cors:AllowedOrigins, which ops
+    /// already has to set correctly for the SPA to call the API at all — so the OAuth redirect
+    /// URIs can never drift from the origins the API actually trusts, and there is no extra key
+    /// to forget. Auto-detecting from the incoming request would be wrong: the public entry point
+    /// is the load-balancer endpoint, not the node's own URL.
+    /// </summary>
+    private string[] ClientOrigins =>
+        (configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [])
+        .Where(o => !string.IsNullOrWhiteSpace(o))
+        .Select(o => o.TrimEnd('/'))
+        .Distinct()
+        .ToArray();
+
     private async Task SeedClientsAsync()
     {
+        var origins = ClientOrigins;
+        if (origins.Length == 0)
+        {
+            // Without an origin the redirect URIs would be wrong, and a wrong `spa` row is worse
+            // than a missing one: it is insert-only, so the bad value would stick.
+            logger.LogError(
+                "Cors:AllowedOrigins is empty — skipping OAuth client seeding. The SPA cannot sign in until it is configured.");
+            return;
+        }
+
         if (await manager.FindByClientIdAsync("spa") is null)
-            await manager.CreateAsync(new OpenIddictApplicationDescriptor
+        {
+            var spa = new OpenIddictApplicationDescriptor
             {
                 ClientId = "spa",
-                //ClientSecret = "P@ssw0rd",
                 DisplayName = "SPA",
                 ClientType = OpenIddictConstants.ClientTypes.Public,
-                PostLogoutRedirectUris = { new Uri("https://localhost:3000/") },
-                RedirectUris =
-                {
-                    new Uri("https://localhost:7111/callback"),
-                    new Uri("https://localhost:3000/callback")
-                },
                 Permissions =
                 {
                     OpenIddictConstants.Permissions.Endpoints.Authorization,
@@ -377,21 +505,24 @@ public class AuthDataSeed(
                 {
                     OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange // ✅ PKCE required
                 }
-            });
+            };
+            AddOriginUris(spa, origins);
+            await manager.CreateAsync(spa);
+            logger.LogInformation("Seeded `spa` OAuth client for origin(s) {Origins}", string.Join(", ", origins));
+        }
 
-        if (await manager.FindByClientIdAsync("los") is null)
-            await manager.CreateAsync(new OpenIddictApplicationDescriptor
+        var losSecret = ReadClientSecret("los");
+        if (losSecret is null)
+            logger.LogWarning(
+                "Authentication:Clients:los:ClientSecret is not configured — skipping the `los` client. Create it via /admin/clients when the secret is available.");
+        else if (await manager.FindByClientIdAsync("los") is null)
+        {
+            var los = new OpenIddictApplicationDescriptor
             {
                 ClientId = "los",
-                ClientSecret = "P@ssw0rd",
+                ClientSecret = losSecret,
                 DisplayName = "LOS",
                 ClientType = OpenIddictConstants.ClientTypes.Confidential,
-                PostLogoutRedirectUris = { new Uri("https://localhost:3000") },
-                RedirectUris =
-                {
-                    new Uri("https://localhost:7111/callback"),
-                    new Uri("https://localhost:3000/callback")
-                },
                 Permissions =
                 {
                     OpenIddictConstants.Permissions.Endpoints.Authorization,
@@ -410,15 +541,22 @@ public class AuthDataSeed(
                 {
                     OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange // ✅ PKCE required
                 }
-            });
+            };
+            AddOriginUris(los, origins);
+            await manager.CreateAsync(los);
+        }
 
         // CLS (Corporate Loan Origination System) Integration Client
         // Uses client credentials flow for machine-to-machine communication
-        if (await manager.FindByClientIdAsync("cls") is null)
+        var clsSecret = ReadClientSecret("cls");
+        if (clsSecret is null)
+            logger.LogWarning(
+                "Authentication:Clients:cls:ClientSecret is not configured — skipping the `cls` client. Create it via /admin/clients when the secret is available.");
+        else if (await manager.FindByClientIdAsync("cls") is null)
             await manager.CreateAsync(new OpenIddictApplicationDescriptor
             {
                 ClientId = "cls",
-                ClientSecret = "CLS_SecretKey_2024!", // TODO: Use configuration for production
+                ClientSecret = clsSecret,
                 DisplayName = "CLS",
                 ClientType = OpenIddictConstants.ClientTypes.Confidential,
                 Permissions =
@@ -436,8 +574,53 @@ public class AuthDataSeed(
             });
     }
 
+    /// <summary>
+    /// Reads a confidential client's secret, or null when it has not really been configured.
+    ///
+    /// appsettings.Production.json is generated on the server from a template whose values are
+    /// `#{TOKEN}#` placeholders. If one is never substituted the raw token would otherwise become
+    /// the client's secret — a predictable credential that is worse than having no client at all —
+    /// so an unreplaced placeholder counts as missing.
+    /// </summary>
+    private string? ReadClientSecret(string clientId)
+    {
+        var secret = configuration[$"Authentication:Clients:{clientId}:ClientSecret"];
+        if (string.IsNullOrWhiteSpace(secret)) return null;
+
+        if (secret.StartsWith("#{", StringComparison.Ordinal) && secret.EndsWith("}#", StringComparison.Ordinal))
+        {
+            logger.LogError(
+                "Authentication:Clients:{ClientId}:ClientSecret is still the deployment placeholder {Placeholder}. Substitute it in appsettings.Production.json.",
+                clientId, secret);
+            return null;
+        }
+
+        return secret;
+    }
+
+    /// <summary>
+    /// Applies the configured origins as this client's callback and post-logout URIs, matching the
+    /// SPA's routes (<c>{origin}/callback</c> and <c>{origin}/</c>).
+    /// </summary>
+    private static void AddOriginUris(OpenIddictApplicationDescriptor descriptor, string[] origins)
+    {
+        foreach (var origin in origins)
+        {
+            descriptor.RedirectUris.Add(new Uri($"{origin}/callback"));
+            descriptor.PostLogoutRedirectUris.Add(new Uri($"{origin}/"));
+        }
+    }
+
     private async Task SeedCompaniesAsync()
     {
+        // Placeholder companies with invented tax IDs — demo only. The REAL external appraisal
+        // companies come from SeedExternalAppraisalCompaniesAsync below, which always runs.
+        if (!IncludeDemoData)
+        {
+            logger.LogInformation("Demo data disabled; skipping placeholder-company seeding.");
+            return;
+        }
+
         var seedCompanies = new List<(string Name, string? TaxId, string? AddressLine1, List<string> LoanTypes)>
         {
             ("Thai Appraisal Co., Ltd.", "0105550001234", "Bangkok", ["Retail", "IBG"]),
@@ -641,6 +824,9 @@ public class AuthDataSeed(
                 "Access appraisal book verification tasks", "Workflow"),
             ("TASK_INT_APPR_EXECUTION", "Task: Internal Appraisal Execution",
                 "Access internal appraisal execution tasks", "Workflow"),
+            ("TASK_INT_OFFLINE_BOOK_KEYIN", "Task: Offline Appraisal Book Keyin",
+                "Access tasks for keying in an appraisal book from a company engaged outside the system",
+                "Workflow"),
             ("TASK_INT_APPR_CHECK", "Task: Internal Appraisal Check", "Access internal appraisal check tasks",
                 "Workflow"),
             ("TASK_INT_APPR_VERIFICATION", "Task: Internal Appraisal Verification",
@@ -792,7 +978,15 @@ public class AuthDataSeed(
                 "View the user/role/permission/group/team change history", "Auth"),
             // Company maintenance
             ("COMPANY_MANAGE", "Manage Companies",
-                "Create, update, and delete external appraisal companies", "Auth")
+                "Create, update, and delete external appraisal companies", "Auth"),
+            // Recurring background job schedules (per-module {schema}.JobSchedules)
+            ("JOB_SCHEDULE_MANAGE", "Manage Scheduled Jobs",
+                "Change the cron schedule, timezone, and enabled state of recurring background jobs",
+                "Common"),
+            // Thai address masters — Title (Department of Lands) and DOPA geocode hierarchies
+            ("ADDRESS_MASTER_MANAGE", "Manage Address Masters",
+                "Create, rename, and remove Title/DOPA provinces, districts, and sub-districts",
+                "Common")
         };
 
         foreach (var (code, displayName, description, module) in seedPermissions)
@@ -817,76 +1011,17 @@ public class AuthDataSeed(
             .Include(m => m.Translations)
             .ToDictionaryAsync(m => m.ItemKey);
 
+        // NOTE: this used to be followed by four one-off repair blocks that patched rows the
+        // INSERT-ONLY UpsertTreeAsync cannot touch (main.monitoring's permission gate, SortOrder
+        // pinning for int-pma-input / int-offline-book-keyin, and a th-label backfill). They were
+        // retired for the production release: MenuSeedData now carries the corrected values and
+        // list order directly, so a freshly seeded database gets them on INSERT, and every
+        // long-lived database has already had the repairs applied. Keeping them would only risk
+        // clobbering a later admin edit to those specific rows on each restart.
         await UpsertTreeAsync(mainRoots, MenuScope.Main, null, existingByKey);
         await UpsertTreeAsync(appraisalRoots, MenuScope.Appraisal, null, existingByKey);
 
-        // One-off repair: `main.monitoring` originally seeded with a section-specific
-        // ViewPermissionCode (e.g. "MONITORING:PENDING_QUOTATION") so only users holding
-        // that exact permission saw the menu. The tabbed-monitoring refactor moved it to
-        // a ViewPermissionPrefix gate so any "MONITORING:*" permission grants access.
-        // The INSERT-ONLY UpsertTreeAsync above won't clear the stale ViewPermissionCode,
-        // so do it explicitly here. Idempotent: re-runs are no-ops once normalised.
-        if (existingByKey.TryGetValue("main.monitoring", out var monitoring)
-            && (monitoring.ViewPermissionCode is not null
-                || monitoring.ViewPermissionPrefix != "MONITORING:"))
-        {
-            monitoring.Update(
-                monitoring.Path,
-                monitoring.Icon,
-                monitoring.IconColor,
-                monitoring.SortOrder,
-                viewPermissionCode: null,
-                editPermissionCode: monitoring.EditPermissionCode,
-                viewPermissionPrefix: "MONITORING:");
-        }
-
-        // One-off repair: `main.task.int-pma-input` was first seeded mid-list (grouped with the
-        // internal-appraisal tasks) and so rendered above "All Tasks". The INSERT-ONLY UpsertTree
-        // above won't move an already-persisted row, so pin its SortOrder to 15 — just after
-        // "All Tasks" (10) and before the rest. Idempotent: a no-op once normalised.
-        if (existingByKey.TryGetValue("main.task.int-pma-input", out var pmaInput)
-            && pmaInput.SortOrder != 15)
-        {
-            pmaInput.Update(
-                pmaInput.Path,
-                pmaInput.Icon,
-                pmaInput.IconColor,
-                sortOrder: 15,
-                pmaInput.ViewPermissionCode,
-                pmaInput.EditPermissionCode,
-                pmaInput.ViewPermissionPrefix);
-        }
-
-        // One-off localization repair: BuildTranslations historically copied the English label into
-        // the `th` slot, so already-seeded items are English-only in Thai. UpsertTreeAsync is
-        // INSERT-ONLY and won't fix them. For any seed node that now defines a Thai label, set the
-        // `th` translation — but ONLY when the row's current `th` still equals its `en` (never
-        // localized), so a genuine admin rename via /admin/menus is never clobbered. Idempotent.
-        LocalizeSeededThaiLabels(mainRoots, existingByKey);
-        LocalizeSeededThaiLabels(appraisalRoots, existingByKey);
-
         await dbContext.SaveChangesAsync();
-    }
-
-    private static void LocalizeSeededThaiLabels(
-        List<MenuSeedData.MenuSeedNode> nodes,
-        Dictionary<string, MenuItem> existingByKey)
-    {
-        foreach (var node in nodes)
-        {
-            if (!string.IsNullOrWhiteSpace(node.LabelTh)
-                && existingByKey.TryGetValue(node.ItemKey, out var item))
-            {
-                var en = item.Translations.FirstOrDefault(t => t.LanguageCode == "en")?.Label;
-                var th = item.Translations.FirstOrDefault(t => t.LanguageCode == "th")?.Label;
-                // Keep the existing English (may be an admin edit); only fix a never-localized th.
-                if (en is not null && th == en && node.LabelTh != th)
-                    item.ReplaceTranslations(BuildTranslations(en, node.LabelTh));
-            }
-
-            if (node.Children is { Count: > 0 })
-                LocalizeSeededThaiLabels(node.Children, existingByKey);
-        }
     }
 
     private async Task UpsertTreeAsync(
@@ -901,29 +1036,13 @@ public class AuthDataSeed(
             MenuItem item;
 
             // INSERT-ONLY: if the ItemKey already exists, do NOT overwrite admin edits.
-            // The seeder runs on every boot via UseMigration<AuthDbContext>, so any Update/
-            // Reparent/ReplaceTranslations here would roll back label/icon/permission changes
-            // made via /admin/menus. For intentional shape changes to seeded items, write a
-            // one-off migration script rather than touching the seeder.
-            //
-            // Exception: ViewPermissionPrefix is a newly added column that didn't exist before,
-            // so it will be NULL on any row that was seeded before the migration. We backfill it
-            // only when the seed defines a prefix AND the DB row still has NULL — this cannot
-            // overwrite an admin edit because the column didn't exist before this migration.
+            // The seeder runs on every boot via UseDataSeeding<AuthDbContext>, so any Update/
+            // Reparent/ReplaceTranslations here would roll back label/icon/permission/SortOrder
+            // changes made via /admin/menus. For intentional shape changes to seeded items, write
+            // a one-off script in Database/Migration/Scripts/ rather than touching the seeder.
             if (existingByKey.TryGetValue(node.ItemKey, out var existing))
             {
                 item = existing;
-                if (existing.ViewPermissionPrefix is null && !string.IsNullOrWhiteSpace(node.ViewPermissionPrefix))
-                {
-                    existing.Update(
-                        existing.Path,
-                        existing.Icon,
-                        existing.IconColor,
-                        existing.SortOrder,
-                        existing.ViewPermissionCode,
-                        existing.EditPermissionCode,
-                        node.ViewPermissionPrefix);
-                }
             }
             else
             {
@@ -966,29 +1085,36 @@ public class AuthDataSeed(
         var seed = ActivityMenuOverrideSeedData.GetSeed();
         if (seed.Count == 0) return;
 
+        // Fresh-install only. "Inherit" is stored as the ABSENCE of a row (see
+        // UpdateActivityOverridesEndpoint, which deletes a row when the admin clears its
+        // restrictions), so a per-pair insert-only guard cannot tell "never seeded" from
+        // "admin deliberately cleared this restriction" — it re-imposed the blueprint on
+        // every app-pool recycle. Once the table has any row it belongs to the admin UI.
+        // Ship blueprint changes for existing databases as a one-off script in
+        // Database/Migration/Scripts/ instead.
+        if (await dbContext.ActivityMenuOverrides.AnyAsync())
+            return;
+
         var menuItemIdsByKey = await dbContext.MenuItems
             .Where(m => m.Scope == MenuScope.Appraisal)
             .ToDictionaryAsync(m => m.ItemKey, m => m.Id);
 
-        var existing = await dbContext.ActivityMenuOverrides
-            .ToDictionaryAsync(o => (o.ActivityId, o.MenuItemId));
-
-        var added = false;
         foreach (var entry in seed)
         {
             if (!menuItemIdsByKey.TryGetValue(entry.MenuItemKey, out var menuItemId))
-                continue; // menu item not seeded yet — skip gracefully
+            {
+                // This runs once per database, so an unresolved key is lost for good — make it loud.
+                logger.LogWarning(
+                    "ActivityMenuOverride seed skipped: appraisal menu item '{MenuItemKey}' not found (activity '{ActivityId}')",
+                    entry.MenuItemKey, entry.ActivityId);
+                continue;
+            }
 
-            if (existing.ContainsKey((entry.ActivityId, menuItemId)))
-                continue; // INSERT-ONLY, like MenuSeedData — admin edits win.
-
-            var row = ActivityMenuOverride.Create(entry.ActivityId, menuItemId, entry.IsVisible, entry.CanEdit);
-            dbContext.ActivityMenuOverrides.Add(row);
-            added = true;
+            dbContext.ActivityMenuOverrides.Add(
+                ActivityMenuOverride.Create(entry.ActivityId, menuItemId, entry.IsVisible, entry.CanEdit));
         }
 
-        if (added)
-            await dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync();
     }
 
     private async Task SeedAdminRoleAsync()
@@ -999,10 +1125,10 @@ public class AuthDataSeed(
             adminRole = new ApplicationRole
             {
                 Name = AdminRoleName,
-                Description = "Full system access — auto-granted every permission by the seeder.",
+                Description = "Full system access — granted every permission when first created.",
                 // CA-497: Scope must be non-null so the Edit-Roles modal can deselect this role
                 // from a user (a null Scope made it appear "unassignable/unremovable" in the UI).
-                Scope = "Bank"
+                Scope = AuthScopes.Bank
             };
 
             var createResult = await roleManager.CreateAsync(adminRole);
@@ -1010,22 +1136,23 @@ public class AuthDataSeed(
                 throw new InvalidOperationException(
                     $"Failed to create Admin role: {string.Join(", ", createResult.Errors.Select(e => e.Description))}");
         }
+        else
+        {
+            // CREATE-ONLY, same reasoning as SeedRoleWithPermissionsAsync: once the Admin role
+            // exists its permission set is the admin's to manage. Re-granting every permission on
+            // each boot would undo any deliberate revocation. New permissions added in a later
+            // release reach Admin via a one-off script in Database/Migration/Scripts/.
+            return;
+        }
 
         var allPermissionIds = await dbContext.Permissions
             .AsNoTracking()
             .Select(p => p.Id)
             .ToListAsync();
 
-        var existingLinkedIds = await dbContext.Set<RolePermission>()
-            .AsNoTracking()
-            .Where(rp => rp.RoleId == adminRole.Id)
-            .Select(rp => rp.PermissionId)
-            .ToListAsync();
+        if (allPermissionIds.Count == 0) return;
 
-        var missingIds = allPermissionIds.Except(existingLinkedIds).ToList();
-        if (missingIds.Count == 0) return;
-
-        var newLinks = missingIds
+        var newLinks = allPermissionIds
             .Select(pid => new RolePermission { RoleId = adminRole.Id, PermissionId = pid })
             .ToList();
 

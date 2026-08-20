@@ -27,6 +27,9 @@ public record AppraisalEvaluationListItem(
     string?   ExternalAppraiserName,
     string?   AssigneeCompanyId,
     string?   AppraiserCompanyName,
+    // Thai name (null when absent); the client picks by its own locale. Position is load-bearing —
+    // it must stay directly after AppraiserCompanyName to match BaseQuery's column order.
+    string?   AppraiserCompanyNameLocal,
     decimal?  AppraisalValue,
     Guid?     EvaluationId,
     string    EvaluationStatus,
@@ -48,6 +51,7 @@ public class GetEvaluationListQueryHandler(ISqlConnectionFactory connectionFacto
     private const string BaseQuery =
         "SELECT AppraisalId, AppraisalNumber, CustomerName, ReportReceivedDate, " +
         "AppraisalStatus, ExternalAppraiserName, AssigneeCompanyId, AppraiserCompanyName, " +
+        "AppraiserCompanyNameLocal, " +
         "AppraisalValue, EvaluationId, EvaluationStatus, TotalScore " +
         "FROM appraisal.vw_AppraisalEvaluationList " +
         "WHERE 1 = 1";

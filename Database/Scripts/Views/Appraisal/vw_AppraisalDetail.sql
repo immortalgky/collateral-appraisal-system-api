@@ -42,11 +42,21 @@ SELECT a.Id,
        -- Company: bank-counterparty for external assignments only; NULL for internal (FE renders "-").
        -- Appraiser: bank-side staff responsible — InternalAppraiserId for external assignments
        --            (the internal follow-up staff), AssigneeUserId for internal assignments.
-       -- AppraisalDate: latest non-Cancelled appointment, then appraisal.CompletedAt, then assignment.CompletedAt.
+       -- AppraisalDate: appraisal.ValuationAnalyses.ValuationDate (the valuation date), falling back
+       --                to the latest non-Cancelled appointment when that row does not exist yet,
+       --                then to appraisal.CompletedAt, then assignment.CompletedAt.
+       --                ValuationDate must win: an off-system external engagement has no Appointment
+       --                row at all, and only its hand-keyed book date is correct.
+       --                The CompletedAt tail must stay: a legacy/migrated appraisal can have neither
+       --                a ValuationAnalyses row nor an Appointment row, and without it those rows
+       --                report a NULL appraisal date on the 360 page and anywhere reading this view.
        c.Name                                                                              AS CompanyName,
+       -- Thai name, exposed alongside CompanyName so the client can pick by its own locale
+       -- (the API has no request locale). NULLIF collapses '' to NULL for a single absent-test.
+       NULLIF(c.NameLocal, N'')                                                            AS CompanyNameLocal,
        NULLIF(LTRIM(RTRIM(CONCAT(NULLIF(u.FirstName, N''), N' ', NULLIF(u.LastName, N'')))), N'')
                                                                                            AS AppraiserName,
-       COALESCE(lap.AppointmentDateTime, a.CompletedAt, la.CompletedAt)                    AS AppraisalDate,
+       COALESCE(va.ValuationDate, lap.AppointmentDateTime, a.CompletedAt, la.CompletedAt)  AS AppraisalDate,
        -- Final appraised value (same source as vw_AppraisalList.AppraisalValue).
        va.AppraisedValue                                                                   AS AppraisalValue,
        -- Committee approval tier + meeting linkage. Tier derives from the approving committee
@@ -83,6 +93,7 @@ FROM appraisal.Appraisals a
                       WHERE aa.AppraisalId = a.Id
                         AND aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
                       ORDER BY aa.AssignedAt DESC) la
+         -- Latest non-Cancelled appointment on the latest assignment — the AppraisalDate fallback.
          OUTER APPLY (SELECT TOP 1 ap.AppointmentDateTime
                       FROM appraisal.Appointments ap
                       WHERE ap.AssignmentId = la.Id

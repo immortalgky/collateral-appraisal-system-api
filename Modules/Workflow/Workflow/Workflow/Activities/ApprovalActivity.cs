@@ -5,6 +5,7 @@ using Shared.Messaging.Events;
 using Workflow.Data.Repository;
 using Workflow.Domain;
 using Workflow.Domain.Committees;
+using Workflow.Meetings.Domain;
 using Workflow.Workflow.Activities.Approval;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Engine.Expression;
@@ -22,6 +23,7 @@ public class ApprovalActivity : WorkflowActivityBase
     private readonly IPublisher _publisher;
     private readonly IIntegrationEventOutbox _outbox;
     private readonly ICommitteeRepository _committeeRepository;
+    private readonly WorkflowDbContext _dbContext;
     private readonly ExpressionEvaluator _expressionEvaluator;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ISlaCalculator _slaCalculator;
@@ -33,6 +35,7 @@ public class ApprovalActivity : WorkflowActivityBase
         IPublisher publisher,
         IIntegrationEventOutbox outbox,
         ICommitteeRepository committeeRepository,
+        WorkflowDbContext dbContext,
         IDateTimeProvider dateTimeProvider,
         ISlaCalculator slaCalculator,
         ILogger<ApprovalActivity> logger)
@@ -42,6 +45,7 @@ public class ApprovalActivity : WorkflowActivityBase
         _publisher = publisher;
         _outbox = outbox;
         _committeeRepository = committeeRepository;
+        _dbContext = dbContext;
         _dateTimeProvider = dateTimeProvider;
         _slaCalculator = slaCalculator;
         _expressionEvaluator = new ExpressionEvaluator();
@@ -68,8 +72,11 @@ public class ApprovalActivity : WorkflowActivityBase
             var groupInfo = await _memberResolver.ResolveMembersAsync(
                 memberSourceConfig, context.Variables, inlineQuorum, inlineMajority, cancellationToken);
 
-            // Member override: if the pending-meeting step supplied a manual member list, use it
-            // instead of the committee's configured members. Quorum/majority still come from groupInfo.
+            // Member override: the pending-meeting step supplies the roster of the meeting that
+            // released this appraisal, so per-meeting add/remove/position edits govern who votes
+            // here. Used instead of the committee's configured members; quorum/majority/conditions
+            // still come from groupInfo. Each member's meeting position becomes their approval role,
+            // which is what lands on ApprovalVote.MemberRole and what RoleRequired conditions match.
             var overrideMembers = GetVariable<List<MeetingMemberOverride>>(context, "meetingMemberOverrides", []);
             var resolvedMembers = overrideMembers.Count > 0
                 ? overrideMembers.Select(m => new ApprovalMemberInfo(m.UserId, m.Role)).ToList()
@@ -82,6 +89,30 @@ public class ApprovalActivity : WorkflowActivityBase
                     _logger.LogWarning(
                         "ApprovalActivity {ActivityId}: override member count ({OverrideCount}) is below required quorum ({Quorum}); approval may never reach quorum",
                         context.ActivityId, overrideMembers.Count, requiredQuorum);
+            }
+            else if (context.Variables.ContainsKey("meetingMemberOverrides"))
+            {
+                // The variable exists but carries no members, so the ternary above silently fell
+                // back to the committee's own members — the substitution this path exists to
+                // prevent. MeetingRosterEligibility refuses to release an empty roster, so reaching
+                // here means either that gate was bypassed or the roster was emptied after release.
+                _logger.LogWarning(
+                    "ApprovalActivity {ActivityId}: meetingMemberOverrides was present but empty; " +
+                    "falling back to committee {CommitteeCode} members instead of the meeting roster",
+                    context.ActivityId, groupInfo.CommitteeCode ?? "inline");
+            }
+
+            // A FixedCount threshold above the member count can never be reached, so the round
+            // would open and then sit Pending forever. Checked against resolvedMembers — a
+            // released meeting roster replaces the committee's members, so that is the count the
+            // round actually runs with.
+            if (string.Equals(groupInfo.Majority.Type, nameof(MajorityType.FixedCount),
+                    StringComparison.OrdinalIgnoreCase)
+                && groupInfo.Majority.Value > resolvedMembers.Count)
+            {
+                return ActivityResult.Failed(
+                    $"Approval requires {groupInfo.Majority.Value} approve vote(s) but the group has only " +
+                    $"{resolvedMembers.Count} member(s); the round could never resolve");
             }
 
             var activityName = GetProperty(context, "activityName", context.ActivityId);
@@ -109,6 +140,14 @@ public class ApprovalActivity : WorkflowActivityBase
                 [$"{NormalizeActivityId(context.ActivityId)}_votesReceived"] = 0,
                 ["activityName"] = activityName
             };
+
+            // Consume-once: meetingMemberOverrides is a GLOBAL variable, so clear it now that this
+            // round has snapshotted it into _members. Without this, a route_back from here sends the
+            // appraisal back for rework, and if the revised appraisalValue then falls into a tier
+            // that skips the meeting (approval-tier-switch → pending-approval directly), that round
+            // would silently inherit the old meeting's roster instead of its own committee.
+            if (overrideMembers.Count > 0)
+                outputData["meetingMemberOverrides"] = new List<MeetingMemberOverride>();
 
             // Calculate the SLA deadline via the business-time SLA calculator — the same path
             // TaskActivity uses — so approval activities (a) count in BUSINESS hours (excl.
@@ -237,6 +276,63 @@ public class ApprovalActivity : WorkflowActivityBase
 
             var comments = resumeInput.TryGetValue("comments", out var c) ? c?.ToString() : null;
 
+            // Recall short-circuit: the secretary undoing a release is a system action, not a
+            // member vote. Placed before the voteOptions/member checks below because the
+            // secretary is not a committee member and "recall_to_meeting" is not among the
+            // configured voteOptions for this activity.
+            //
+            // "recall_to_meeting" alone is just a string in the resume payload — nothing stops
+            // an arbitrary caller reaching this resume path (e.g. CompleteActivityEndpoint has
+            // no authorization) from forging it and closing the round with no vote guard. Only
+            // short-circuit when the state a genuine recall actually produces is present: the
+            // RecallMeetingItem command handler resets this instance's MeetingItem to Pending and
+            // FLUSHES it (explicit SaveChanges) before resuming pending-approval inline, so a real
+            // recall has a persisted Pending decision item by the time this query runs. A forged
+            // call ran no UndoRelease, so the committed row is still Released, this query is false,
+            // and "recall_to_meeting" falls through to the vote path where voteOptions rejects it.
+            if (vote.Equals(MeetingOutcomes.Recalled, StringComparison.OrdinalIgnoreCase))
+            {
+                // Cancelled meetings are excluded for the same reason MeetingActivity excludes
+                // them: Meeting.Cancel() leaves its items behind as Decision/Pending, so an
+                // appraisal that was ever cancel-and-rescheduled carries a stale Pending row for
+                // this same workflow instance. Without this filter that stale row satisfies the
+                // gate and a forged recall succeeds — which is the exact hole this check exists
+                // to close.
+                var recalledByAggregate = await _dbContext.MeetingItems.AnyAsync(mi =>
+                    mi.WorkflowInstanceId == context.WorkflowInstanceId &&
+                    mi.Kind == MeetingItemKind.Decision &&
+                    mi.ItemDecision == ItemDecision.Pending &&
+                    _dbContext.Meetings.Any(m => m.Id == mi.MeetingId && m.Status != MeetingStatus.Cancelled),
+                    cancellationToken);
+
+                if (recalledByAggregate)
+                {
+                    execution.StampMovement("B");
+
+                    // Tear down every per-member PendingTask fanned out for this round via the
+                    // existing ApprovalRoundClosedEventHandler. No ApprovalVote is written — a
+                    // recall never counted as a vote.
+                    await _publisher.Publish(new ApprovalRoundClosedEvent(
+                        context.WorkflowInstanceId, context.ActivityId,
+                        _dateTimeProvider.ApplicationNow, "Recalled"), cancellationToken);
+
+                    _logger.LogInformation(
+                        "ApprovalActivity {ActivityId}: recalled by {Actor} - round closed, returning to pending-meeting",
+                        context.ActivityId, voter);
+
+                    return ActivityResult.Success(new Dictionary<string, object>
+                    {
+                        ["decision"] = MeetingOutcomes.Recalled
+                    });
+                }
+
+                _logger.LogWarning(
+                    "ApprovalActivity {ActivityId}: received decisionTaken='recall_to_meeting' from {Voter} but " +
+                    "no Pending MeetingItem backs it - rejecting as an ordinary vote instead of recalling",
+                    context.ActivityId, voter);
+                // Falls through to the normal vote path below, which rejects it via voteOptions.
+            }
+
             // Get stored config from workflow variables
             var members = GetVariable<List<ApprovalMemberInfo>>(context, $"{normalizedId}_members",
                 new List<ApprovalMemberInfo>());
@@ -308,6 +404,23 @@ public class ApprovalActivity : WorkflowActivityBase
                 await _publisher.Publish(new ApprovalRoundClosedEvent(
                     context.WorkflowInstanceId, context.ActivityId, _dateTimeProvider.ApplicationNow,
                     "RouteBack"), cancellationToken);
+
+                // Mirror the route-back onto the meeting that released this appraisal.
+                //
+                // Without this the MeetingItem stays Released: the meeting's status goes stale,
+                // and because MeetingActivity only re-enters items whose decision is NOT Released,
+                // the reworked appraisal gets enqueued onto a DIFFERENT meeting instead of
+                // returning to the one that sent it back.
+                //
+                // The Meeting aggregate is mutated through the same DbContext MeetingActivity
+                // uses; the engine checkpoints workflow state after each activity, which flushes
+                // this alongside it.
+                if (rbAppraisalId is not null)
+                {
+                    await RecordRouteBackOnMeetingAsync(
+                        rbAppraisalId.Value, context.WorkflowInstanceId, voter, comments,
+                        context.ActivityId, cancellationToken);
+                }
 
                 _logger.LogInformation(
                     "ApprovalActivity {ActivityId}: {Voter} voted route_back - immediate return",
@@ -609,6 +722,73 @@ public class ApprovalActivity : WorkflowActivityBase
         return Task.FromResult(Core.ValidationResult.Success());
     }
 
+    /// <summary>
+    /// Flips this appraisal's meeting item from Released to RoutedBack after a committee approver
+    /// voted route_back, and reopens the meeting if the release had auto-ended it.
+    ///
+    /// Best-effort by design: an appraisal can reach an approval activity without ever passing
+    /// through a meeting gate, so "no released meeting item" is a normal outcome, not an error.
+    /// Failures are logged rather than thrown — the approver's vote and the workflow's backward
+    /// transition are already committed, and failing the activity here would strand the workflow
+    /// for a bookkeeping problem.
+    /// </summary>
+    private async Task RecordRouteBackOnMeetingAsync(
+        Guid appraisalId,
+        Guid workflowInstanceId,
+        string voter,
+        string? comments,
+        string activityId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var meetingItem = await _dbContext.MeetingItems
+                .Where(mi => mi.AppraisalId == appraisalId
+                             && mi.WorkflowInstanceId == workflowInstanceId
+                             && mi.Kind == MeetingItemKind.Decision
+                             && mi.ItemDecision == ItemDecision.Released)
+                .OrderByDescending(mi => mi.AddedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (meetingItem is null)
+            {
+                _logger.LogDebug(
+                    "ApprovalActivity {ActivityId}: no released meeting item for appraisal {AppraisalId}; " +
+                    "nothing to route back on the meeting side",
+                    activityId, appraisalId);
+                return;
+            }
+
+            var meeting = await _dbContext.Meetings
+                .Include(m => m.Items)
+                .FirstOrDefaultAsync(m => m.Id == meetingItem.MeetingId, cancellationToken);
+
+            if (meeting is null || meeting.Status == MeetingStatus.Cancelled)
+            {
+                _logger.LogWarning(
+                    "ApprovalActivity {ActivityId}: meeting {MeetingId} for appraisal {AppraisalId} is " +
+                    "missing or cancelled; skipping meeting-side route back",
+                    activityId, meetingItem.MeetingId, appraisalId);
+                return;
+            }
+
+            meeting.RecordApproverRouteBack(appraisalId, voter, comments, _dateTimeProvider.ApplicationNow);
+
+            _logger.LogInformation(
+                "ApprovalActivity {ActivityId}: approver {Voter} routed back appraisal {AppraisalId}; " +
+                "meeting {MeetingId} item set to RoutedBack and meeting status is now {Status}",
+                activityId, voter, appraisalId, meeting.Id, meeting.Status);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "ApprovalActivity {ActivityId}: failed to mirror approver route back onto the meeting " +
+                "for appraisal {AppraisalId}. The appraisal will re-queue onto a new meeting instead of " +
+                "returning to its original one.",
+                activityId, appraisalId);
+        }
+    }
+
     protected override WorkflowActivityExecution CreateActivityExecution(ActivityContext context)
     {
         return WorkflowActivityExecution.Create(
@@ -655,15 +835,10 @@ public class ApprovalActivity : WorkflowActivityBase
         return true;
     }
 
+    // Delegates to the shared domain rule (single source of truth) so the meeting release gate,
+    // which pre-checks a roster against this same number, cannot drift from it.
     private static int GetRequiredQuorum(QuorumConfig config, int totalMembers)
-    {
-        return config.Type.ToLowerInvariant() switch
-        {
-            "fixed" => config.Value,
-            "percentage" => (int)Math.Ceiling(totalMembers * config.Value / 100.0),
-            _ => totalMembers
-        };
-    }
+        => QuorumRule.Required(config.Type, config.Value, totalMembers);
 
     // Majority is evaluated against the FULL committee (totalMembers), not the votes cast. The string
     // MajorityConfig.Type is the round-tripped MajorityType name, so parse it back to the enum and
@@ -672,7 +847,7 @@ public class ApprovalActivity : WorkflowActivityBase
     private static bool CheckMajority(MajorityConfig config, int targetCount, int totalVotes, int totalMembers)
     {
         return Enum.TryParse<MajorityType>(config.Type, ignoreCase: true, out var majorityType)
-            && MajorityRule.IsMet(majorityType, targetCount, totalMembers);
+            && MajorityRule.IsMet(majorityType, targetCount, totalMembers, config.Value);
     }
 
     private static Dictionary<string, object> BuildOutputData(

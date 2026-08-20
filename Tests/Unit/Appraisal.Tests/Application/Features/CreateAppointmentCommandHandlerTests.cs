@@ -1,8 +1,12 @@
 using Appraisal.Application.Features.Appointments.CreateAppointment;
+using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Shared.Configuration;
+using Shared.Data;
 using Shared.Data.Outbox;
 using Shared.Exceptions;
 using Shared.Messaging.Events;
@@ -26,6 +30,23 @@ namespace Appraisal.Tests.Application.Features;
 /// </summary>
 public class CreateAppointmentCommandHandlerTests
 {
+    /// <summary>
+    /// The handler now also points ValuationAnalyses.ValuationDate at the slot it just booked, so it
+    /// takes AppraisalValuationSummaryService. Neither test here seeds a ValuationAnalyses row, so
+    /// the sync short-circuits on "no row" and none of these collaborators is actually exercised —
+    /// they exist to satisfy the constructor.
+    /// </summary>
+    private static AppraisalValuationSummaryService BuildSummaryService(
+        AppraisalDbContext db, IIntegrationEventOutbox outbox, IDateTimeProvider dateTimeProvider) =>
+        new(db,
+            outbox,
+            dateTimeProvider,
+            new ForceSaleRateResolver(
+                Substitute.For<ISqlConnectionFactory>(),
+                Substitute.For<ISystemConfigurationReader>(),
+                Substitute.For<ILogger<ForceSaleRateResolver>>()),
+            Substitute.For<ILogger<AppraisalValuationSummaryService>>());
+
     [Fact(DisplayName = "REGRESSION: first appointment creation publishes AppointmentDateChangedIntegrationEvent with correct CorrelationId and AppointmentDate")]
     public async Task Handle_FirstAppointmentCreation_PublishesAppointmentDateChangedEvent()
     {
@@ -52,7 +73,9 @@ public class CreateAppointmentCommandHandlerTests
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(DateTime.Now);
 
-        var handler = new CreateAppointmentCommandHandler(repository, db, outbox, dateTimeProvider);
+        var handler = new CreateAppointmentCommandHandler(
+            repository, db, outbox, dateTimeProvider,
+            BuildSummaryService(db, outbox, dateTimeProvider));
 
         var appointmentDate = new DateTime(2026, 7, 15, 9, 0, 0);
         var command = new CreateAppointmentCommand(
@@ -105,7 +128,9 @@ public class CreateAppointmentCommandHandlerTests
         var outbox = Substitute.For<IIntegrationEventOutbox>();
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
 
-        var handler = new CreateAppointmentCommandHandler(repository, db, outbox, dateTimeProvider);
+        var handler = new CreateAppointmentCommandHandler(
+            repository, db, outbox, dateTimeProvider,
+            BuildSummaryService(db, outbox, dateTimeProvider));
 
         var command = new CreateAppointmentCommand(
             AppraisalId: appraisal.Id,

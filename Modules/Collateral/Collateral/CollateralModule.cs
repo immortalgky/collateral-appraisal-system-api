@@ -1,8 +1,12 @@
+using Collateral.CollateralMasters.As400Legacy;
 using Collateral.CollateralMasters.CollateralResult;
+using Collateral.CollateralMasters.HostLink;
 using Collateral.CollateralMasters.Reappraisal;
 using Collateral.CollateralMasters.Reappraisal.Services;
 using Collateral.CollateralMasters.RegulatoryExport;
+using Collateral.Contracts.As400Legacy;
 using Collateral.Contracts.FileInterface;
+using Collateral.Contracts.HostLink;
 using Collateral.Contracts.Reappraisal;
 using Shared.Data.Interceptors;
 using Shared.Scheduling;
@@ -43,16 +47,19 @@ public static class CollateralModule
         // Collateral data impls exposed via Collateral.Contracts interfaces.
         // Query implementations: IInboundFileSource is registered by IntegrationModule (config-switched).
         services.AddScoped<IRegulatoryExportQuery, RegulatoryExportQuery>();
+        services.AddScoped<IRegulatoryExportV2Query, RegulatoryExportV2Query>();
         services.AddScoped<ICollateralResultQuery, CollateralResultQuery>();
         services.AddScoped<ICollateralResultLedger, CollateralResultLedger>();
         services.AddScoped<IReappraisalIngestor, ReappraisalIngestor>();
+        services.AddScoped<IHostCollateralLinkIngestor, HostCollateralLinkIngestor>();
+        services.AddScoped<IAs400LegacyImporter, As400LegacyImporter>();
 
         return services;
     }
 
     public static IApplicationBuilder UseCollateralModule(this IApplicationBuilder app)
     {
-        app.UseMigration<CollateralDbContext>();
+        app.UseDataSeeding<CollateralDbContext>();
         app.UseModuleRecurringJobs<CollateralDbContext>(CollateralRecurringJobs.All);
 
         return app;

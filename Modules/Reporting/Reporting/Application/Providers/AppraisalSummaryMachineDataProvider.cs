@@ -61,9 +61,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
                 mas.Latitude,
                 mas.Longitude,
                 mas.Obligation,
-                mas.SurveyedNumber,
-                mas.AppraisalNumber       AS MachineAppraisalCount,
-                mas.InstalledAndUseCount
+                mas.SurveyedNumber
             FROM appraisal.MachineryAppraisalSummaries mas
             WHERE mas.AppraisalId = @AppraisalId;
 
@@ -123,14 +121,29 @@ public sealed class AppraisalSummaryMachineDataProvider(
 
         // ── Build per-group summary rows (machine / vehicle / vessel groups only) ──
         var machineFamily = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "MAC", "VEH", "VES" };
-        var summaryGroups = common.GroupRows
+        var machineGroupList = common.GroupRows
             .Where(g => g.PropertyType != null && machineFamily.Contains(g.PropertyType))
+            .ToList();
+
+        // SurveyedNumber is appraisal-level ("global for all machines"). It is only a valid
+        // per-group count when there is a single machine group; with multiple groups it would
+        // print the appraisal-wide total on every group, so we fall back to per-group counts.
+        var singleMachineGroup = machineGroupList.Count == 1;
+
+        var summaryGroups = machineGroupList
             .Select(g =>
         {
             machineByGroup.TryGetValue(g.GroupId, out var machRows);
             machRows ??= [];
 
-            int machineCount = machRows.Count > 0 ? machRows.Count : g.PropertyCount;
+            // Per-group count: detail rows if present, else the group's property count.
+            // For a single machine group, prefer the appraiser-entered surveyed count — but only
+            // when it is a positive value; a stored 0 (default/unset) means "not entered" and must
+            // fall back to the per-group count rather than hiding the header line.
+            int perGroupCount = machRows.Count > 0 ? machRows.Count : g.PropertyCount;
+            int machineCount = singleMachineGroup && machSummary?.SurveyedNumber is int surveyed && surveyed > 0
+                ? surveyed
+                : perGroupCount;
             // Header line above the numbered item list.
             var collateralDetails = machineCount > 0
                 ? $"จดทะเบียนกรรมสิทธิ์เครื่องจักร จำนวน {machineCount} รายการ"
@@ -179,7 +192,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
         // วิธีการประเมิน — scoped to the methods of the machine groups actually shown.
         var methodFlags = AppraisalSummaryCommonLoader.FlagsForGroups(
             common.GroupMethodTypes,
-            common.GroupRows.Where(g => g.PropertyType != null && machineFamily.Contains(g.PropertyType)).Select(g => g.GroupId));
+            machineGroupList.Select(g => g.GroupId));
 
         // ── Build model ──────────────────────────────────────────────────────────
         var model = new AppraisalSummaryModel
@@ -194,7 +207,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
             SummaryPropertyType = "เครื่องจักร",
             // ที่ตั้งทรัพย์สิน from the Request detail (same as land-building); fall back to the machine's own address.
             CollateralAddress = common.CollateralAddress ?? collateralAddress,
-            AdministrativeDistrict = null,
+            AdministrativeDistrict = common.AdministrativeDistrict,
             LandOffice = null,
             OldAppraisalValue = common.PrevAppraisedValue,
             HasPrevAppraisal = common.HasPrevAppraisal,
@@ -207,13 +220,19 @@ public sealed class AppraisalSummaryMachineDataProvider(
             ForcedSaleValue = common.ForcedSaleValue,
             Condition = common.Condition,
             Remark = common.Remark,
-            // Machine owner = first machine's owner (normally the same across the appraisal).
-            LandOwner = groupMachineRows.Select(r => r.OwnerName).FirstOrDefault(o => !string.IsNullOrWhiteSpace(o))
-                ?? machSummary?.Owner ?? machSummary?.Proprietor,
+            // กรรมสิทธิ์เครื่องจักร = registered title holder. Prefer the appraisal-level
+            // Proprietor (ผู้ถือกรรมสิทธิ์) captured on the machinery summary; fall back to the
+            // possessor (Owner) then a per-machine owner name.
+            LandOwner = FirstNonBlank(
+                machSummary?.Proprietor,
+                machSummary?.Owner,
+                groupMachineRows.Select(r => r.OwnerName).FirstOrDefault(o => !string.IsNullOrWhiteSpace(o))),
             EntryExitRights = null,
             BuildingOwner = null,
             LandCondition = null,
-            Obligation = machSummary?.Obligation,
+            Obligation = string.IsNullOrWhiteSpace(machSummary?.Obligation)
+                ? AppraisalSummaryModel.NoObligationText
+                : machSummary!.Obligation,
             CityPlan = null,
             Gps = gps,
             GovernmentAssessedValue = null,
@@ -252,6 +271,10 @@ public sealed class AppraisalSummaryMachineDataProvider(
         return model;
     }
 
+    /// <summary>Returns the first argument that is not null/whitespace, or null.</summary>
+    private static string? FirstNonBlank(params string?[] values)
+        => values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
     // ── Private flat DTOs for Dapper mapping ─────────────────────────────────────
 
     private sealed class MachSummaryRow
@@ -265,8 +288,6 @@ public sealed class AppraisalSummaryMachineDataProvider(
         public decimal? Longitude { get; init; }
         public string? Obligation { get; init; }
         public int? SurveyedNumber { get; init; }
-        public int? MachineAppraisalCount { get; init; }
-        public int? InstalledAndUseCount { get; init; }
     }
 
     private sealed class GroupMachineDetailRow

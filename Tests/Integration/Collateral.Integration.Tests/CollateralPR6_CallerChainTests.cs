@@ -18,6 +18,7 @@ using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
 using System.Text.Json;
 using AppraisalAggregate = Appraisal.Domain.Appraisals.Appraisal;
+using Address = Appraisal.Domain.Appraisals.Address;
 
 namespace Integration.Collateral.Integration.Tests;
 
@@ -67,7 +68,7 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
     {
         var prop = appraisal.AddLandProperty();
         prop.LandDetail!.Update(
-            address: AdministrativeAddress.Create(subDistrict, district, province, landOffice));
+            address: Address.Create(subDistrict, district, province), landOffice: landOffice);
         var title = LandTitle.Create(prop.LandDetail.Id, titleNo, titleType);
         prop.LandDetail.AddTitle(title);
         return prop;

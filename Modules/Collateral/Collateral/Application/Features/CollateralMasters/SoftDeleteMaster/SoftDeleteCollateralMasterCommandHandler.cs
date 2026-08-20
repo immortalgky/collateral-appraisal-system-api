@@ -33,6 +33,16 @@ public class SoftDeleteCollateralMasterCommandHandler(
         var by = currentUser.Username ?? currentUser.UserId?.ToString() ?? "unknown";
         master.SoftDelete(command.Reason, by);
 
+        // Alias rows are separate CollateralMaster records pointing here via ParentMasterId, so
+        // SoftDelete cannot reach them from inside the aggregate. Leaving them behind orphans them:
+        // the dedup lookup still matches the live alias (FindLandByDedupKeyIncludingAliases filters
+        // on the alias's own IsDeleted), then resolving its parent returns null and the upsert
+        // throws — dead-lettering AppraisalCompletedConsumer on the next appraisal that touches one
+        // of those titles. An alias has no independent existence, so it follows its parent.
+        var aliases = await repository.FindAllAliasesByParentMasterIdAsync(master.Id, cancellationToken);
+        foreach (var alias in aliases.Where(a => !a.IsDeleted))
+            alias.SoftDelete(command.Reason, by);
+
         await repository.SaveChangesAsync(cancellationToken);
 
         return new SoftDeleteCollateralMasterResult(master.Id);

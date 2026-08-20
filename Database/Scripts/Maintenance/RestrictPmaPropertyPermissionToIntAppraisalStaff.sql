@@ -13,10 +13,15 @@
 -- every role EXCEPT IntAppraisalStaff and Admin (Admin intentionally keeps all
 -- permissions). Idempotent: re-running is a no-op once the rows are gone.
 --
--- The complementary additive changes (new TASK_INT_PMA_INPUT permission, the
--- int-pma-input task menu item, and the ActivityMenuOverride rows) are INSERT-ONLY
--- in the seeder and apply automatically on the next application boot — no script
--- needed for those.
+-- The complementary additive changes to permissions and menu items (new
+-- TASK_INT_PMA_INPUT permission, the int-pma-input task menu item) are INSERT-ONLY
+-- in the seeder and apply automatically on the next application boot.
+--
+-- The ActivityMenuOverride rows are NOT in that group: that seeder is fresh-install
+-- only (it skips entirely once auth.ActivityMenuOverrides has any row), because
+-- "inherit" is stored as the absence of a row and re-inserting missing pairs would
+-- undo admin edits on every app-pool recycle. On an already-seeded database the
+-- override rows must be added by an explicit script in Database/Migration/Scripts/.
 -- =============================================================================
 
 DELETE rp

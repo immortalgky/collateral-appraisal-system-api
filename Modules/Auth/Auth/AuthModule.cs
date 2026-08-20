@@ -5,6 +5,7 @@ using Auth.Infrastructure.Identity;
 using Auth.Infrastructure.Repository;
 using Auth.Infrastructure.Seed;
 using Auth.Application.Services;
+using Auth.Contracts.Companies;
 using Auth.Contracts.Users;
 using Auth.Services;
 using Microsoft.AspNetCore.Authentication;
@@ -236,6 +237,7 @@ public static class AuthModule
         services.AddScoped<ITeamService, TeamService>();
         services.AddScoped<IAuthAuditWriter, AuthAuditWriter>();
         services.AddScoped<IUserLookupService, UserLookupService>();
+        services.AddScoped<ICompanyLookupService, CompanyLookupService>();
         services.AddScoped<PermissionResolver>();
 
         // Menu tree cache (single-instance in-memory)
@@ -254,7 +256,7 @@ public static class AuthModule
 
     public static IApplicationBuilder UseAuthModule(this IApplicationBuilder app)
     {
-        app.UseMigration<AuthDbContext>();
+        app.UseDataSeeding<AuthDbContext>();
 
         // Apply the DB-maintained lockout settings to the IdentityOptions snapshot once, after the
         // policy row has been migrated + seeded. Done here (not via IConfigureOptions) because reading
@@ -331,6 +333,8 @@ public static class AuthModule
             .AddUserPermissionPrefixPolicy("task-monitor.reassign", "TASK_MONITOR_REASSIGN")
             .AddUserPermissionPolicy("history-search.view", "HISTORY_SEARCH_VIEW")
             .AddUserPermissionPolicy("sla-config.manage", "SLA_CONFIG_MANAGE")
+            .AddUserPermissionPolicy("job-schedule.manage", "JOB_SCHEDULE_MANAGE")
+            .AddUserPermissionPolicy("address-master.manage", "ADDRESS_MASTER_MANAGE")
             .AddUserPermissionPolicy("reappraisal.generate-test-file", "REAPPRAISAL_GENERATE_TEST_FILE")
             // ── Monitoring feature policies (FSD §2.6.8) ──────────────────────────
             // Any-prefix policies: caller needs ANY permission with the given prefix.

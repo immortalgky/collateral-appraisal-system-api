@@ -32,7 +32,8 @@ public record CreateCommitteeRequest(
     string? VotingMode,
     List<CreateCommitteeMemberRequest>? Members,
     List<CreateCommitteeThresholdRequest>? Thresholds,
-    List<CreateCommitteeConditionRequest>? Conditions);
+    List<CreateCommitteeConditionRequest>? Conditions,
+    int MajorityValue = 0);
 
 public record CreateCommitteeMemberRequest(string UserId, string MemberName, string Role, string? Attendance = null);
 public record CreateCommitteeThresholdRequest(decimal? MinValue, decimal? MaxValue, int Priority);
@@ -43,7 +44,8 @@ public record CreateCommitteeCommand(CreateCommitteeRequest Request) : ICommand<
 public record CreateCommitteeResponse(Guid Id, string Name, string Code);
 
 public class CreateCommitteeCommandHandler(
-    ICommitteeRepository committeeRepository
+    ICommitteeRepository committeeRepository,
+    IUserDirectory userDirectory
 ) : ICommandHandler<CreateCommitteeCommand, CreateCommitteeResponse>
 {
     public async Task<CreateCommitteeResponse> Handle(CreateCommitteeCommand command, CancellationToken ct)
@@ -64,16 +66,31 @@ public class CreateCommitteeCommandHandler(
             && !Enum.TryParse(req.VotingMode, ignoreCase: true, out votingMode))
             throw new ArgumentException($"Invalid VotingMode '{req.VotingMode}'. Allowed values: {string.Join(", ", Enum.GetNames<VotingMode>())}");
 
-        var committee = Committee.Create(req.Name, req.Code, req.Description, quorumType, req.QuorumValue, majorityType, votingMode);
+        var committee = Committee.Create(req.Name, req.Code, req.Description, quorumType,
+            req.QuorumValue, majorityType, votingMode, req.MajorityValue);
 
         if (req.Members is not null)
         {
+            // Members are usernames and become approval voters — see AddCommitteeMember.
+            var known = await userDirectory.GetExistingAsync(req.Members.Select(m => m.UserId), ct);
+            var unknown = req.Members.Select(m => m.UserId).Where(u => !known.Contains(u)).ToList();
+            if (unknown.Count > 0)
+                throw new BadRequestException(
+                    $"No such user(s): {string.Join(", ", unknown)}. Committee members must be existing users");
+
             foreach (var m in req.Members)
             {
-                var position = Enum.Parse<CommitteeMemberPosition>(m.Role, ignoreCase: true);
-                var attendance = string.IsNullOrWhiteSpace(m.Attendance)
-                    ? CommitteeAttendance.Always
-                    : Enum.Parse<CommitteeAttendance>(m.Attendance, ignoreCase: true);
+                if (!CommitteeMemberPositions.TryParseSelectable(m.Role, out var position))
+                    throw new BadRequestException(
+                        $"Invalid Role '{m.Role}'. Allowed values: {CommitteeMemberPositions.SelectableNames}");
+
+                var attendance = CommitteeAttendance.Always;
+                if (!string.IsNullOrWhiteSpace(m.Attendance)
+                    && !Enum.TryParse(m.Attendance, ignoreCase: true, out attendance))
+                    throw new BadRequestException(
+                        $"Invalid Attendance '{m.Attendance}'. Allowed values: " +
+                        $"{string.Join(", ", Enum.GetNames<CommitteeAttendance>())}");
+
                 committee.AddMember(m.UserId, m.MemberName, position, attendance);
             }
         }
@@ -88,8 +105,23 @@ public class CreateCommitteeCommandHandler(
         {
             foreach (var c in req.Conditions)
             {
-                var conditionType = Enum.Parse<ConditionType>(c.ConditionType, ignoreCase: true);
-                committee.AddCondition(conditionType, c.RoleRequired, c.MinVotesRequired, c.Priority, c.Description);
+                if (!Enum.TryParse<ConditionType>(c.ConditionType, ignoreCase: true, out var conditionType))
+                    throw new BadRequestException(
+                        $"Invalid ConditionType '{c.ConditionType}'. Allowed values: " +
+                        $"{string.Join(", ", Enum.GetNames<ConditionType>())}");
+
+                // The domain signals an unsatisfiable condition with ArgumentException, which the
+                // global CustomExceptionHandler does not map — translate it so the caller gets 400,
+                // not a 500 with a stack-traced ProblemDetails. Same as AddCommitteeCondition.
+                try
+                {
+                    committee.AddCondition(
+                        conditionType, c.RoleRequired, c.MinVotesRequired, c.Priority, c.Description);
+                }
+                catch (ArgumentException ex)
+                {
+                    throw new BadRequestException(ex.Message);
+                }
             }
         }
 

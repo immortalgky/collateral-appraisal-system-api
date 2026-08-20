@@ -84,9 +84,9 @@ public class ChangeProjectTypeCommandHandler(
             if (latitude.HasValue && longitude.HasValue)
                 coordinates = GpsCoordinate.Create(latitude, longitude);
 
-            AdministrativeAddress? address = null;
+            Address? address = null;
             if (subDistrict is not null || district is not null || province is not null)
-                address = AdministrativeAddress.Create(subDistrict, district, province, landOffice);
+                address = Address.Create(subDistrict, district, province);
 
             var newProject = DomainProject.Create(
                 appraisalId:          appraisalId,

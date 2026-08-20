@@ -18,6 +18,10 @@ public record UpdateLeaseAgreementCondoPropertyCommand(
     string? RoomNumber = null,
     string? FloorNumber = null,
     decimal? UsableArea = null,
+    decimal? ConstructionCompletionPercent = null,
+    // Unit deed identifiers (collateral dedup key)
+    string? TitleNumber = null,
+    string? TitleType = null,
     // Coordinates
     decimal? Latitude = null,
     decimal? Longitude = null,
@@ -26,6 +30,9 @@ public record UpdateLeaseAgreementCondoPropertyCommand(
     string? District = null,
     string? Province = null,
     string? LandOffice = null,
+    string? DopaSubDistrict = null,
+    string? DopaDistrict = null,
+    string? DopaProvince = null,
     // Owner
     string? OwnerName = null,
     bool? IsOwnerVerified = null,
@@ -45,6 +52,14 @@ public record UpdateLeaseAgreementCondoPropertyCommand(
     string? RoadSurfaceTypeOther = null,
     List<string>? PublicUtilityType = null,
     string? PublicUtilityTypeOther = null,
+    List<string>? LandEntranceExitType = null,
+    string? LandEntranceExitTypeOther = null,
+    // Land Characteristics
+    string? LandFillType = null,
+    string? LandFillTypeOther = null,
+    string? UrbanPlanningType = null,
+    List<string>? LandUseType = null,
+    string? LandUseTypeOther = null,
     // Building Info
     string? DecorationType = null,
     string? DecorationTypeOther = null,
@@ -57,7 +72,7 @@ public record UpdateLeaseAgreementCondoPropertyCommand(
     string? RoomLayoutType = null,
     string? RoomLayoutTypeOther = null,
     List<string>? LocationViewType = null,
-    string LocationViewTypeOther = null,
+    string? LocationViewTypeOther = null,
     string? GroundFloorMaterialType = null,
     string? GroundFloorMaterialTypeOther = null,
     string? UpperFloorMaterialType = null,
@@ -81,9 +96,14 @@ public record UpdateLeaseAgreementCondoPropertyCommand(
     List<string>? FacilityType = null,
     string? FacilityTypeOther = null,
     List<string>? EnvironmentType = null,
-    string EnvironmentTypeOther = null,
+    string? EnvironmentTypeOther = null,
     // Pricing
-    decimal? BuildingInsurancePrice = null,
+    bool? IsMissingFromSurvey = null,
+    decimal? GovernmentPricePerSqm = null,
+    decimal? GovernmentPrice = null,
+    // BuildingInsurancePrice is derived server-side from FireInsuranceCondition × UsableArea —
+    // not accepted from the client (see UpdateCondoPropertyCommandHandler).
+    string? FireInsuranceCondition = null,
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,
     // Other

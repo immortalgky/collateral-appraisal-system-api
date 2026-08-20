@@ -94,6 +94,7 @@ public class EmitAppraisalCreationRequestedStep(
                 WorkflowDefinitionId = ctx.WorkflowDefinitionId,
                 RequestId = source.RequestId,
                 RequestTitles = source.RequestTitles,
+                RequestProperties = source.RequestProperties,
                 Appointment = source.Appointment,
                 Fee = source.Fee,
                 Contact = source.Contact,

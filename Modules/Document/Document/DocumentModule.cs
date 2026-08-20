@@ -57,7 +57,7 @@ public static class DocumentModule
 
     public static IApplicationBuilder UseDocumentModule(this IApplicationBuilder app)
     {
-        app.UseMigration<DocumentDbContext>();
+        app.UseDataSeeding<DocumentDbContext>();
         app.UseModuleRecurringJobs<DocumentDbContext>(DocumentRecurringJobs.All);
         return app;
     }

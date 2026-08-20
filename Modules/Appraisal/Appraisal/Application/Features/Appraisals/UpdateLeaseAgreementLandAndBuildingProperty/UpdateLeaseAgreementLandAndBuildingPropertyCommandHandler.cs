@@ -40,11 +40,13 @@ public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
         if (command.Latitude.HasValue && command.Longitude.HasValue)
             coordinates = GpsCoordinate.Create(command.Latitude.Value, command.Longitude.Value);
 
-        AdministrativeAddress? address = null;
+        Address? address = null;
         if (!string.IsNullOrEmpty(command.SubDistrict) || !string.IsNullOrEmpty(command.District) ||
-            !string.IsNullOrEmpty(command.Province) || !string.IsNullOrEmpty(command.LandOffice))
-            address = AdministrativeAddress.Create(command.SubDistrict, command.District, command.Province,
-                command.LandOffice);
+            !string.IsNullOrEmpty(command.Province))
+            address = Address.Create(command.SubDistrict, command.District, command.Province);
+        Address? dopaAddress = null;
+        if (command.DopaSubDistrict is not null || command.DopaDistrict is not null || command.DopaProvince is not null)
+            dopaAddress = Address.Create(command.DopaSubDistrict, command.DopaDistrict, command.DopaProvince);
 
         // 6. Update Land detail via domain method
         landDetail.Update(
@@ -53,8 +55,8 @@ public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
             landDescription: command.LandDescription,
             coordinates: coordinates,
             address: address,
-            ownerName: command.OwnerName,
-            isOwnerVerified: command.IsOwnerVerified,
+            ownerName: command.OwnerNameLand,
+            isOwnerVerified: command.IsOwnerVerifiedLand,
             hasObligation: command.HasObligation,
             obligationDetails: command.ObligationDetails,
             // Land - Document Verification
@@ -132,7 +134,9 @@ public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
             pondDepth: command.PondDepth,
             hasBuilding: command.HasBuilding,
             hasBuildingOther: command.HasBuildingOther,
-            remark: command.Remark);
+            remark: command.Remark,
+            landOffice: command.LandOffice,
+            dopaAddress: dopaAddress);
 
         // 6b. Sync land titles (null = no-op, empty list = clear all)
         if (command.Titles is not null)
@@ -146,7 +150,8 @@ public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
             builtOnTitleNumber: command.BuiltOnTitleNumber,
             houseNumber: command.HouseNumber,
             noHouseNumber: command.NoHouseNumber,
-            isOwnerVerified: command.IsOwnerVerified,
+            ownerName: command.OwnerNameBuilding,
+            isOwnerVerified: command.IsOwnerVerifiedBuilding,
             hasObligation: command.HasObligation,
             obligationDetails: command.ObligationDetails,
             // Building - Info

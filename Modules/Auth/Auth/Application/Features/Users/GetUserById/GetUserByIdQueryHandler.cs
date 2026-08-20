@@ -46,13 +46,19 @@ public class GetUserByIdQueryHandler(
             .Select(up => new UserPermissionDto(up.Permission.Id, up.Permission.PermissionCode, up.IsGranted))
             .ToList();
 
-        // Resolve company name (null for bank-internal users who have no CompanyId)
+        // Resolve company name (null for bank-internal users who have no CompanyId).
+        // Both languages are returned side by side; the client picks by its own locale.
         string? companyName = null;
+        string? companyNameLocal = null;
         if (user.CompanyId.HasValue)
-            companyName = await dbContext.Companies
+        {
+            var company = await dbContext.Companies
                 .Where(c => c.Id == user.CompanyId.Value)
-                .Select(c => c.Name)
+                .Select(c => new { c.Name, c.NameLocal })
                 .FirstOrDefaultAsync(cancellationToken);
+            companyName = company?.Name;
+            companyNameLocal = string.IsNullOrWhiteSpace(company?.NameLocal) ? null : company!.NameLocal;
+        }
 
         // Compare in UTC: LockoutEnd is a DateTimeOffset; comparing its UTC instant
         // against UtcNow avoids implicit local-offset conversion bugs.
@@ -69,8 +75,10 @@ public class GetUserByIdQueryHandler(
             user.Position,
             user.Department,
             user.AoCode,
+            user.EmployeeId,
             user.CompanyId,
             companyName,
+            companyNameLocal,
             user.AuthSource,
             user.IsActive,
             isLocked,

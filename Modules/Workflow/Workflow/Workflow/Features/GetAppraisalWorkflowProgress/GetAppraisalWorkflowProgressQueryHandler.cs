@@ -25,6 +25,9 @@ public class GetAppraisalWorkflowProgressQueryHandler(
         ["ext-appraisal-check"] = "Execution",
         ["ext-appraisal-verification"] = "Execution",
         ["int-appraisal-execution"] = "Execution",
+        // Off-system external: the keyin IS the execution of the book, so it maps to Execution
+        // rather than Staff — the case skips appraisal-book-verification.
+        ["int-offline-book-keyin"] = "Execution",
         ["appraisal-book-verification"] = "Staff",
         ["int-appraisal-check"] = "Checker",
         ["int-appraisal-verification"] = "Verification",
@@ -386,6 +389,7 @@ public class GetAppraisalWorkflowProgressQueryHandler(
         {
             string? displayName = null;
             string? companyName = null;
+            string? companyNameLocal = null;
             if (r.AssignedType == userAssignedType && r.AssignedTo is not null)
             {
                 if (userMap.TryGetValue(r.AssignedTo, out var user))
@@ -393,6 +397,7 @@ public class GetAppraisalWorkflowProgressQueryHandler(
                     displayName = $"{user.FirstName} {user.LastName}".Trim();
                     if (string.IsNullOrWhiteSpace(displayName)) displayName = r.AssignedTo;
                     companyName = user.CompanyName;
+                    companyNameLocal = user.CompanyNameLocal;
                 }
                 else
                 {
@@ -426,6 +431,7 @@ public class GetAppraisalWorkflowProgressQueryHandler(
                 Group = group,
                 ActivityId = r.ActivityId,
                 CompanyName = companyName,
+                CompanyNameLocal = companyNameLocal,
                 Movement = r.Movement
             };
         }).ToList();

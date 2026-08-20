@@ -8,7 +8,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateLeaseAgreementCondoPro
 /// </summary>
 public class CreateLeaseAgreementCondoPropertyCommandHandler(
     IAppraisalRepository appraisalRepository,
-    IAppraisalUnitOfWork unitOfWork
+    IAppraisalUnitOfWork unitOfWork,
+    ISender mediator
 ) : ICommandHandler<CreateLeaseAgreementCondoPropertyCommand, CreateLeaseAgreementCondoPropertyResult>
 {
     public async Task<CreateLeaseAgreementCondoPropertyResult> Handle(
@@ -23,19 +24,26 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
         // 2. Execute domain operation via aggregate
         var property = appraisal.AddLeaseAgreementCondoProperty();
 
+        // 2b. Derive BuildingInsurancePrice from the selected fire-insurance condition
+        // (Parameter-module reference rate × UsableArea) — never taken from the client directly.
+        var buildingInsurancePrice = await CondoFireInsuranceCalculator.DeriveBuildingInsurancePriceAsync(
+            mediator, command.FireInsuranceCondition, command.UsableArea, cancellationToken);
+
+
         // 3. Create value objects if provided
         GpsCoordinate? coordinates = null;
         if (command.Latitude.HasValue && command.Longitude.HasValue)
             coordinates = GpsCoordinate.Create(command.Latitude.Value, command.Longitude.Value);
 
-        AdministrativeAddress? address = null;
-        if (command.SubDistrict is not null || command.District is not null ||
-            command.Province is not null || command.LandOffice is not null)
-            address = AdministrativeAddress.Create(
+        Address? address = null;
+        if (command.SubDistrict is not null || command.District is not null || command.Province is not null)
+            address = Address.Create(
                 command.SubDistrict,
                 command.District,
-                command.Province,
-                command.LandOffice);
+                command.Province);
+        Address? dopaAddress = null;
+        if (command.DopaSubDistrict is not null || command.DopaDistrict is not null || command.DopaProvince is not null)
+            dopaAddress = Address.Create(command.DopaSubDistrict, command.DopaDistrict, command.DopaProvince);
 
         // 4. Update condo detail with additional fields
         property.CondoDetail!.Update(
@@ -48,6 +56,7 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
             command.RoomNumber,
             command.FloorNumber,
             command.UsableArea,
+            command.ConstructionCompletionPercent,
             null,
             "DEED",
             coordinates,
@@ -100,15 +109,28 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
             command.FacilityTypeOther,
             command.EnvironmentType,
             command.EnvironmentTypeOther,
-            command.BuildingInsurancePrice,
+            buildingInsurancePrice,
             command.SellingPrice,
             command.ForcedSalePrice,
-            command.Remark);
+            command.Remark,
+            command.LandOffice,
+            dopaAddress,
+            command.LandEntranceExitType,
+            command.LandEntranceExitTypeOther,
+            command.LandFillType,
+            command.LandFillTypeOther,
+            command.UrbanPlanningType,
+            command.LandUseType,
+            command.LandUseTypeOther,
+            command.IsMissingFromSurvey,
+            command.GovernmentPricePerSqm,
+            command.GovernmentPrice,
+            command.FireInsuranceCondition);
 
         // 5. Create CondoAreaDetails if provided
         if (command.AreaDetails is { Count: > 0 })
             foreach (var dto in command.AreaDetails)
-                property.CondoDetail.AddCondoAreaDetail(CondoAppraisalAreaDetail.Create(dto.AreaDescription, dto.AreaSize));
+                property.CondoDetail.AddCondoAreaDetail(CondoAppraisalAreaDetail.Create(dto.Sequence, dto.AreaDescription, dto.AreaSize));
 
         // 6. Update lease agreement detail if provided
         if (command.LeaseAgreement is not null)

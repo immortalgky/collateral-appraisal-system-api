@@ -19,8 +19,12 @@ public record GetUserByIdResult(
     string? Department,
     // Bank-internal officer code (joins to auth.Officers); null for company users.
     string? AoCode,
+    // Bank staff employee id; null for company users.
+    string? EmployeeId,
     Guid? CompanyId,
     string? CompanyName,
+    // Thai name; null when the company has none. The client picks by its own locale.
+    string? CompanyNameLocal,
     string AuthSource,
     bool IsActive,
     bool IsLocked,

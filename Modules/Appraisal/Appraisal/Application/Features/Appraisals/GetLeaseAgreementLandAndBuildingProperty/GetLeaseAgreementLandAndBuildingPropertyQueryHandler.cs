@@ -100,7 +100,10 @@ public class GetLeaseAgreementLandAndBuildingPropertyQueryHandler(
             landDetail.Address?.SubDistrict,
             landDetail.Address?.District,
             landDetail.Address?.Province,
-            landDetail.Address?.LandOffice,
+            landDetail.LandOffice,
+            landDetail.DopaAddress?.SubDistrict,
+            landDetail.DopaAddress?.District,
+            landDetail.DopaAddress?.Province,
             // Owner Fields (from Land)
             landDetail.OwnerName,
             landDetail.IsOwnerVerified,
@@ -214,6 +217,8 @@ public class GetLeaseAgreementLandAndBuildingPropertyQueryHandler(
             buildingDetail.BuiltOnTitleNumber,
             buildingDetail.HouseNumber,
             buildingDetail.NoHouseNumber,
+            buildingDetail.OwnerName,
+            buildingDetail.IsOwnerVerified,
             // Building - Status
             buildingDetail.BuildingConditionType,
             buildingDetail.BuildingConditionTypeOther,

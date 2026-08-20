@@ -41,8 +41,6 @@ public class CreateMeetingCommandHandler(
     IDateTimeProvider dateTimeProvider)
     : ICommandHandler<CreateMeetingCommand, CreateMeetingResponse>
 {
-    private const string COMMITTEE_WITH_MEETING = "COMMITTEE_WITH_MEETING";
-
     public async Task<CreateMeetingResponse> Handle(CreateMeetingCommand command, CancellationToken ct)
     {
         var now = dateTimeProvider.ApplicationNow;
@@ -80,8 +78,8 @@ public class CreateMeetingCommandHandler(
         var title = defaults.TitleTemplate.Replace("{meetingNo}", meetingNo);
         var meeting = Meeting.Create(title, notes: null, meetingNo, seq, beYear);
 
-        var committee = await committeeRepository.GetByCodeAsync(COMMITTEE_WITH_MEETING, ct)
-                        ?? throw new NotFoundException($"Committee {COMMITTEE_WITH_MEETING} not found");
+        var committee = await committeeRepository.GetByCodeAsync(MeetingCommittee.WithMeetingCode, ct)
+                        ?? throw new NotFoundException($"Committee {MeetingCommittee.WithMeetingCode} not found");
 
         meeting.SnapshotCommittee(committee, meeting.MeetingNoSeq!.Value);
 

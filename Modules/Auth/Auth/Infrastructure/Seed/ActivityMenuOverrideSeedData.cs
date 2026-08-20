@@ -7,6 +7,14 @@ namespace Auth.Infrastructure.Seed;
 /// is only visible/editable if the user's role already permits it. So only seed
 /// rows that take a right away; omitting a (activity, menu) pair (or a no-op
 /// IsVisible=true/CanEdit=true row) leaves the item at its plain role-based state.
+///
+/// FRESH-INSTALL BLUEPRINT ONLY. The seeder applies this list once, on a database whose
+/// auth.ActivityMenuOverrides table is still empty. From then on the table is owned by the
+/// admin UI (PUT /admin/activity-menu-overrides/{activityId}), because "inherit" is stored
+/// as the absence of a row — a seeder that re-inserted missing pairs would undo every
+/// cleared restriction on the next app-pool recycle. So editing this list does NOT change
+/// any existing database: ship those changes as a one-off script in
+/// Database/Migration/Scripts/, which DbUp journals once per database.
 /// </summary>
 public static class ActivityMenuOverrideSeedData
 {
@@ -46,5 +54,11 @@ public static class ActivityMenuOverrideSeedData
         // is exclusive to int-pma-input; every other role never had the permission to begin with.
         new("int-appraisal-execution",     "appraisal.property-pma", IsVisible: false, CanEdit: false),
         new("appraisal-book-verification", "appraisal.property-pma", IsVisible: false, CanEdit: false),
+        new("int-offline-book-keyin",      "appraisal.property-pma", IsVisible: false, CanEdit: false),
+        // Activity: int-offline-book-keyin (role: IntAppraisalStaff)
+        // The keyer reproduces the external company's whole book, so EVERY other appraisal tab
+        // stays open at its plain role-based state — that is the reason this activity exists
+        // rather than reusing appraisal-book-verification, whose property tabs are restricted.
+        // Only the PMA tab is trimmed, matching int-appraisal-execution above.
     };
 }

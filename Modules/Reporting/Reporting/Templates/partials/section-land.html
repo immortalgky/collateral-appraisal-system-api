@@ -33,18 +33,18 @@
       <td>{{ t.land_parcel_number }}</td>
       <td>{{ t.survey_number }}</td>
       <td>{{ t.map_sheet }}</td>
-      <td class="num">{{ (t.area_rai ?? 0) | math.format "0.##" }}</td>
-      <td class="num">{{ (t.area_ngan ?? 0) | math.format "0.##" }}</td>
-      <td class="num">{{ (t.area_square_wa ?? 0) | math.format "0.##" }}</td>
+      <td class="num">{{ (t.area_rai ?? 0) | math.format "#,##0.##" }}</td>
+      <td class="num">{{ (t.area_ngan ?? 0) | math.format "#,##0.##" }}</td>
+      <td class="num">{{ (t.area_square_wa ?? 0) | math.format "#,##0.##" }}</td>
       <td>{{ t.owner_name }}</td>
     </tr>
     {{ end }}
     <tr style="font-weight:700; background:#f5f5f5;">
       <td colspan="5" style="text-align:right;">รวมเนื้อที่ดิน</td>
-      <td class="num">{{ land_section.total_rai }}</td>
-      <td class="num">{{ land_section.total_ngan }}</td>
-      <td class="num">{{ land_section.total_square_wa }}</td>
-      <td>หรือ {{ land_section.total_area_in_wa | math.format "0.##" }} ตารางวา</td>
+      <td class="num">{{ land_section.total_rai | math.format "#,##0" }}</td>
+      <td class="num">{{ land_section.total_ngan | math.format "#,##0" }}</td>
+      <td class="num">{{ land_section.total_square_wa | math.format "#,##0" }}</td>
+      <td>หรือ {{ land_section.total_area_in_wa | math.format "#,##0.##" }} ตารางวา</td>
     </tr>
   </tbody>
 </table>
@@ -88,10 +88,10 @@
     <div class="kv"><span class="k">ลักษณะผิวจราจร :</span><span class="v">{{ land_section.road_surface_type }}</span></div>
     {{ end }}
     {{ if land_section.access_road_width }}
-    <div class="kv"><span class="k">เขตทางกว้าง :</span><span class="v">{{ land_section.access_road_width | math.format "0.##" }} เมตร</span></div>
+    <div class="kv"><span class="k">เขตทางกว้าง :</span><span class="v">{{ land_section.access_road_width | math.format "#,##0.##" }} เมตร</span></div>
     {{ end }}
     {{ if land_section.road_frontage }}
-    <div class="kv"><span class="k">ผิวจราจรกว้าง :</span><span class="v">{{ land_section.road_frontage | math.format "0.##" }} เมตร</span></div>
+    <div class="kv"><span class="k">ผิวจราจรกว้าง :</span><span class="v">{{ land_section.road_frontage | math.format "#,##0.##" }} เมตร</span></div>
     {{ end }}
   </div>
 </div>

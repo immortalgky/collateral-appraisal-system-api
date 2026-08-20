@@ -22,11 +22,13 @@ public class AppraisalCreationService(
     ILogger<AppraisalCreationService> logger,
     ISlaCalculatorClient slaCalculatorClient,
     IDateTimeProvider dateTimeProvider,
+    AppraisalValuationSummaryService valuationSummaryService,
     ISender sender) : IAppraisalCreationService
 {
     public async Task<Guid> CreateAppraisalFromRequest(
         Guid requestId,
         List<RequestTitleDto> requestTitles,
+        List<RequestPropertyDto> requestProperties,
         AppointmentDto? appointment = null,
         FeeDto? fee = null,
         ContactDto? contact = null,
@@ -177,8 +179,40 @@ public class AppraisalCreationService(
                     "Title {TitleNumber} ({Code}) will not be auto-created as a property; appraiser will add manually.",
                     t.TitleNumber, t.CollateralType);
 
+            // PMA: seed each new property's SellingPrice from the request property record whose
+            // PropertyType matches that property's family (e.g. "L"/"LB" for land, "U" for condo)
+            // instead of always the first record — a request with more than one property family
+            // (e.g. land + condo) would otherwise leak one family's price into another's.
+            // Within the same family, records are consumed in the order they were submitted, so
+            // duplicate families (e.g. two condo titles) are paired with their matching PMA row
+            // positionally — the request payload carries no stronger correlation key than order.
+            // If a family has fewer property records than titles (e.g. 1 "U" record for 3 condo
+            // titles), the last record for that family is reused for the remaining titles instead
+            // of leaving them without a price.
+            var pmaPriceQueuesByFamily = isPma
+                ? requestProperties
+                    .GroupBy(p => p.PropertyType ?? "", StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => new Queue<decimal?>(g.Select(p => p.SellingPrice)),
+                        StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, Queue<decimal?>>(StringComparer.OrdinalIgnoreCase);
+
+            var lastPmaPriceByFamily = new Dictionary<string, decimal?>(StringComparer.OrdinalIgnoreCase);
+
+            decimal? NextPmaPrice(string family)
+            {
+                if (pmaPriceQueuesByFamily.TryGetValue(family, out var queue) && queue.Count > 0)
+                    return lastPmaPriceByFamily[family] = queue.Dequeue();
+
+                return lastPmaPriceByFamily.GetValueOrDefault(family);
+            }
+
             if (landFamily.Any())
-                CreateLandFamilyProperty(appraisal, landFamily);
+            {
+                var landFamilyCode = landFamily.Any(t => GetAppraisalFamily(t) == "LB") ? "LB" : "L";
+                CreateLandFamilyProperty(appraisal, landFamily, NextPmaPrice(landFamilyCode));
+            }
 
             if (leaseLandFamily.Any())
                 CreateLeaseLandFamilyProperty(appraisal, leaseLandFamily);
@@ -186,7 +220,7 @@ public class AppraisalCreationService(
             foreach (var title in propertyTitles)
                 switch (GetAppraisalFamily(title))
                 {
-                    case "U": CreateCondoProperty(appraisal, title); break;
+                    case "U": CreateCondoProperty(appraisal, title, NextPmaPrice("U")); break;
                     case "LSU": CreateLeaseAgreementCondoProperty(appraisal, title); break;
                     case "VEH": CreateVehicleProperty(appraisal, title); break;
                     case "VES": CreateVesselProperty(appraisal, title); break;
@@ -302,6 +336,20 @@ public class AppraisalCreationService(
                     prevAppraisalId!.Value, appraisal.Id, cancellationToken);
 
                 await unitOfWork.SaveChangesAsync(cancellationToken);
+
+                // Clones are now real rows, so the summary service's SQL reads see them. Doing this
+                // here rather than via a per-clone domain event is deliberate: the event dispatches
+                // PRE-save, when the clones are still Added and invisible to a query — that is what
+                // wrote AppraisedValue = 0. The staged ValuationAnalyses upsert + outbox message are
+                // flushed by CommitTransactionAsync below (which SaveChangesAsync before committing),
+                // so the recompute stays inside this CI transaction.
+                //
+                // Pass the appointment date explicitly: the Appointment row is only created in Phase 3
+                // (below), so RecomputeAsync's appointment-derived fallback would see no rows here and
+                // stamp DateTime.Now. This mirrors the non-CI path, where ValuationDate is the
+                // appointment date.
+                await valuationSummaryService.RecomputeAsync(
+                    appraisal.Id, cancellationToken, appointment?.AppointmentDateTime);
             }
 
             // Phase 3: Create fee shell + appointment (both FK to assignment, which now exists in DB)
@@ -388,12 +436,13 @@ public class AppraisalCreationService(
         return CodeToAppraisalFamily.TryGetValue(t.CollateralType ?? "", out var family) ? family : "";
     }
 
-    private void CreateLandFamilyProperty(Domain.Appraisals.Appraisal appraisal, List<RequestTitleDto> titles)
+    private void CreateLandFamilyProperty(
+        Domain.Appraisals.Appraisal appraisal, List<RequestTitleDto> titles, decimal? pmaSellingPrice)
     {
         // Promote to LB family if any LB-mapped code exists; otherwise plain L. All land titles merge into one LandDetail.
         var hasLandAndBuilding = titles.Any(t => GetAppraisalFamily(t) == "LB");
         var property = hasLandAndBuilding
-            ? appraisal.AddLandAndBuildingProperty()
+            ? appraisal.AddLandAndBuildingProperty(pmaSellingPrice)
             : appraisal.AddLandProperty();
 
         logger.LogInformation(
@@ -432,9 +481,10 @@ public class AppraisalCreationService(
         // BuildingDetail / LeaseAgreementDetail / RentalInfo stay empty — populated later by appraiser
     }
 
-    private void CreateCondoProperty(Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle)
+    private void CreateCondoProperty(
+        Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle, decimal? pmaSellingPrice)
     {
-        var property = appraisal.AddCondoProperty();
+        var property = appraisal.AddCondoProperty(pmaSellingPrice);
 
         logger.LogInformation("Added condo property {PropertyId} for title {TitleNumber}",
             property.Id, requestTitle.TitleNumber);
@@ -442,22 +492,30 @@ public class AppraisalCreationService(
         var condoDetail = property.CondoDetail;
         if (condoDetail == null) return;
 
-        var adminAddress = AdministrativeAddress.Create(
+        var adminAddress = Address.Create(
             requestTitle.TitleAddress?.SubDistrict,
             requestTitle.TitleAddress?.District,
             requestTitle.TitleAddress?.Province);
+
+        var dopaAddress = Address.Create(
+            requestTitle.DopaAddress?.SubDistrict,
+            requestTitle.DopaAddress?.District,
+            requestTitle.DopaAddress?.Province);
 
         condoDetail.Update(
             requestTitle.TitleAddress?.ProjectName,
             requestTitle.CondoName,
             requestTitle.BuildingNumber,
             roomNumber: requestTitle.RoomNumber,
+            builtOnTitleNumber: requestTitle.BuiltOnTitleNumber,
+            condoRegistrationNumber: requestTitle.CondoRegistrationNumber,
             floorNumber: requestTitle.FloorNumber,
             usableArea: requestTitle.UsableArea,
             address: adminAddress,
             ownerName: requestTitle.OwnerName,
             street: requestTitle.TitleAddress?.Road,
-            soi: requestTitle.TitleAddress?.Soi);
+            soi: requestTitle.TitleAddress?.Soi,
+            dopaAddress: dopaAddress);
     }
 
     private void CreateLeaseAgreementCondoProperty(Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle)
@@ -470,22 +528,30 @@ public class AppraisalCreationService(
         var condoDetail = property.CondoDetail;
         if (condoDetail == null) return;
 
-        var adminAddress = AdministrativeAddress.Create(
+        var adminAddress = Address.Create(
             requestTitle.TitleAddress?.SubDistrict,
             requestTitle.TitleAddress?.District,
             requestTitle.TitleAddress?.Province);
+
+        var dopaAddress = Address.Create(
+            requestTitle.DopaAddress?.SubDistrict,
+            requestTitle.DopaAddress?.District,
+            requestTitle.DopaAddress?.Province);
 
         condoDetail.Update(
             requestTitle.TitleAddress?.ProjectName,
             requestTitle.CondoName,
             requestTitle.BuildingNumber,
             roomNumber: requestTitle.RoomNumber,
+            builtOnTitleNumber: requestTitle.BuiltOnTitleNumber,
+            condoRegistrationNumber: requestTitle.CondoRegistrationNumber,
             floorNumber: requestTitle.FloorNumber,
             usableArea: requestTitle.UsableArea,
             address: adminAddress,
             ownerName: requestTitle.OwnerName,
             street: requestTitle.TitleAddress?.Road,
-            soi: requestTitle.TitleAddress?.Soi);
+            soi: requestTitle.TitleAddress?.Soi,
+            dopaAddress: dopaAddress);
     }
 
     private void AddLandTitleFromRequest(LandAppraisalDetail landDetail, RequestTitleDto requestTitle)
@@ -520,10 +586,15 @@ public class AppraisalCreationService(
 
     private void UpdateLandDetailTopFields(LandAppraisalDetail landDetail, RequestTitleDto requestTitle)
     {
-        var adminAddress = AdministrativeAddress.Create(
+        var adminAddress = Address.Create(
             requestTitle.TitleAddress?.SubDistrict,
             requestTitle.TitleAddress?.District,
             requestTitle.TitleAddress?.Province);
+
+        var dopaAddress = Address.Create(
+            requestTitle.DopaAddress?.SubDistrict,
+            requestTitle.DopaAddress?.District,
+            requestTitle.DopaAddress?.Province);
 
         landDetail.Update(
             requestTitle.TitleAddress?.ProjectName,
@@ -532,7 +603,8 @@ public class AppraisalCreationService(
             street: requestTitle.TitleAddress?.Road,
             soi: requestTitle.TitleAddress?.Soi,
             village: requestTitle.TitleAddress?.Moo,
-            addressLocation: requestTitle.TitleAddress?.HouseNumber);
+            addressLocation: requestTitle.TitleAddress?.HouseNumber,
+            dopaAddress: dopaAddress);
     }
 
     private void CreateVehicleProperty(Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle)
@@ -860,8 +932,10 @@ public class AppraisalCreationService(
     /// Clones every PricingAnalysis from the prior appraisal onto the new CI appraisal.
     /// Loads the full Approaches → Methods → children chain (incl. 1:1 method analyses with their
     /// nested collections) AsNoTracking, then constructs new aggregates via the domain Clone* factories.
-    /// Status is reset to "Draft"; FinalAppraisedValue carries forward (and re-derives ValuationAnalyses
-    /// via AppraisalFinalValuesChangedEvent).
+    /// Status is reset to "Draft"; FinalAppraisedValue carries forward verbatim. The ValuationAnalyses
+    /// summary is NOT re-derived via a domain event here — the clones are Added and invisible to the
+    /// summary's SQL sum until they are saved — the caller recomputes it once POST-save via
+    /// AppraisalValuationSummaryService.RecomputeAsync.
     /// </summary>
     private async Task ClonePricingFromPriorAsync(
         Guid prevAppraisalId,

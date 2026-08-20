@@ -88,11 +88,8 @@ public class GetAppraisalMapPinsEndpointTests(IntegrationTestFixture fixture)
             var prop = appraisal.AddLandProperty();
             prop.LandDetail!.Update(
                 coordinates: GpsCoordinate.Create(13.7563m, 100.5018m),
-                address: AdministrativeAddress.Create(
-                    subDistrict: "TEST-SD",
-                    district: "TEST-D",
-                    province: "TEST-P",
-                    landOffice: null));
+                address: Address.Create("TEST-SD", "TEST-D", "TEST-P"),
+                landOffice: null);
 
             db.Set<AppraisalAggregate>().Add(appraisal);
             await db.SaveChangesAsync();

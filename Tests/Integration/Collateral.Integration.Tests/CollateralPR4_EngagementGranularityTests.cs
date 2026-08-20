@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
 using AppraisalAggregate = Appraisal.Domain.Appraisals.Appraisal;
+using Address = Appraisal.Domain.Appraisals.Address;
 
 namespace Integration.Collateral.Integration.Tests;
 
@@ -47,7 +48,7 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
     {
         var prop = appraisal.AddLandProperty();
         prop.LandDetail!.Update(
-            address: AdministrativeAddress.Create(subDistrict, district, province, landOffice));
+            address: Address.Create(subDistrict, district, province), landOffice: landOffice);
         var title = LandTitle.Create(prop.LandDetail.Id, titleNo, titleType);
         prop.LandDetail.AddTitle(title);
         return prop;
@@ -67,7 +68,7 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
             titleNumber: titleNo,
             titleType: titleType,
             ownerName: "Test Owner",
-            address: AdministrativeAddress.Create("Test Subdistrict", "Test District", province, landOffice));
+            address: Address.Create("Test Subdistrict", "Test District", province), landOffice: landOffice);
         return prop;
     }
 
@@ -188,11 +189,10 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
 
         // BLOCKER 1 regression: newly-created alias must have UnitPrice propagated
         // (EF Core queries skip Added-but-unsaved entities; the fix tracks newAliases in memory).
-        Assert.Equal(expectedUnitPrice, isMaster.LandDetail!.UnitPrice);
-        Assert.Equal(expectedUnitPrice, alias.LandDetail!.UnitPrice);
+        // UnitPrice was removed from the detail rows (no reader anywhere); what still matters is
+        // that the alias carries no engagement and therefore no money of its own.
         // BuildingCost and AppraisalValue are IsMaster-only; alias must have null
-        Assert.Null(alias.LandDetail.BuildingValue);
-        Assert.Null(alias.LandDetail.AppraisalValue);
+        Assert.Empty(alias.Engagements);
     }
 
     // -----------------------------------------------------------------------

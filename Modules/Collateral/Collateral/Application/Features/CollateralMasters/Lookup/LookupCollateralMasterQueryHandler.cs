@@ -22,7 +22,7 @@ public class LookupCollateralMasterQueryHandler(
         // can lookup any code without 404ing on the variant. Family dispatch:
         //   L, LB                → Land family
         //   U                    → Condo
-        //   LSL, LSB, LS         → Leasehold family
+        //   LSL, LSB, LS, LSU    → Leasehold family
         //   MAC                  → Machine
         Guid? masterId = type switch
         {
@@ -31,7 +31,8 @@ public class LookupCollateralMasterQueryHandler(
             CollateralTypes.Condo                          => await FindCondoMasterIdAsync(query),
             CollateralTypes.Leasehold
                 or CollateralTypes.LeaseholdBuilding
-                or CollateralTypes.LeaseholdWithBuilding   => await FindLeaseholdMasterIdAsync(query),
+                or CollateralTypes.LeaseholdWithBuilding
+                or CollateralTypes.LeaseholdCondo          => await FindLeaseholdMasterIdAsync(query),
             CollateralTypes.Machine                        => await FindMachineMasterIdAsync(query),
             _                                              => null
         };
@@ -286,8 +287,6 @@ public class LookupCollateralMasterQueryHandler(
                     row.Land_LastAppraisalId,
                     row.Land_LastAppraisalNumber,
                     row.Land_LastAppraisedDate,
-                    row.Land_UnitPrice,
-                    row.Land_BuildingValue,
                     row.Land_AppraisalValue,
                     AliasTitles: aliasTitles ?? []);
                 break;
@@ -311,14 +310,13 @@ public class LookupCollateralMasterQueryHandler(
                     row.Condo_LastAppraisalId,
                     row.Condo_LastAppraisalNumber,
                     row.Condo_LastAppraisedDate,
-                    row.Condo_UnitPrice,
-                    row.Condo_BuildingValue,
                     row.Condo_AppraisalValue);
                 break;
 
             case CollateralTypes.Leasehold:
             case CollateralTypes.LeaseholdBuilding:
             case CollateralTypes.LeaseholdWithBuilding:
+            case CollateralTypes.LeaseholdCondo:
                 leaseholdDetail = new LeaseholdDetailDto(
                     row.Lh_LeaseRegistrationNo!,
                     row.Lh_UnderlyingMasterId!.Value,

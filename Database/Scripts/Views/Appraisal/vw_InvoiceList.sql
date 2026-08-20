@@ -16,6 +16,9 @@ SELECT i.Id,
        CAST(i.SubmittedAt AS DATE) AS SentDate,
        i.CompanyId,
        c.Name                  AS CompanyName,
+       -- Thai name, exposed alongside CompanyName so the client can pick by its own locale.
+       -- NULLIF collapses '' to NULL so the FE has a single "absent" test.
+       NULLIF(c.NameLocal, N'') AS CompanyNameLocal,
        c.BankAccountNo,
        c.BankAccountName,
        i.CreatedAt
@@ -25,4 +28,4 @@ FROM appraisal.Invoices i
 GROUP BY i.Id, i.InvoiceNumber, i.Status, i.TotalAmount, i.Notes,
          i.SubmittedAt, i.ApprovedAt, i.ApprovedBy,
          i.PaymentOrderNo, i.PaidDate,
-         i.CompanyId, c.Name, c.BankAccountNo, c.BankAccountName, i.CreatedAt
+         i.CompanyId, c.Name, c.NameLocal, c.BankAccountNo, c.BankAccountName, i.CreatedAt

@@ -25,12 +25,18 @@ public class GetCommitteeByIdEndpoint : ICarterModule
 
 public record GetCommitteeByIdQuery(Guid Id) : IQuery<GetCommitteeByIdResponse>;
 
+/// <param name="VotingMode">
+/// WaitForAll | Quorum. UpdateCommittee accepts this but the read side used to omit it, so an
+/// editor had no way to show the current value — include it so the admin screen round-trips.
+/// </param>
 public record GetCommitteeByIdResponse(
     Guid Id, string Name, string Code, string? Description,
     bool IsActive, string QuorumType, int QuorumValue, string MajorityType,
+    string VotingMode,
     List<CommitteeMemberDto> Members,
     List<CommitteeThresholdDto> Thresholds,
-    List<CommitteeConditionDto> Conditions);
+    List<CommitteeConditionDto> Conditions,
+    int MajorityValue = 0);
 
 public record CommitteeMemberDto(Guid Id, string UserId, string MemberName, string Role, bool IsActive, string Attendance);
 public record CommitteeThresholdDto(Guid Id, decimal? MinValue, decimal? MaxValue, int Priority, bool IsActive);
@@ -49,12 +55,14 @@ public class GetCommitteeByIdQueryHandler(
             committee.Id, committee.Name, committee.Code, committee.Description,
             committee.IsActive, committee.QuorumType.ToString(), committee.QuorumValue,
             committee.MajorityType.ToString(),
+            committee.VotingMode.ToString(),
             committee.Members.Select(m => new CommitteeMemberDto(
                 m.Id, m.UserId, m.MemberName, m.Position.ToString(), m.IsActive, m.Attendance.ToString())).ToList(),
             committee.Thresholds.Select(t => new CommitteeThresholdDto(
                 t.Id, t.MinValue, t.MaxValue, t.Priority, t.IsActive)).ToList(),
             committee.Conditions.Select(c => new CommitteeConditionDto(
                 c.Id, c.ConditionType.ToString(), c.RoleRequired, c.MinVotesRequired,
-                c.Priority, c.IsActive, c.Description)).ToList());
+                c.Priority, c.IsActive, c.Description)).ToList(),
+            committee.MajorityValue);
     }
 }

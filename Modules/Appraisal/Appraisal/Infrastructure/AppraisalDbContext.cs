@@ -94,7 +94,8 @@ public class AppraisalDbContext : DbContext
     // Settings & Rules
     // =====================================================
     public DbSet<AppraisalSettings> AppraisalSettings => Set<AppraisalSettings>();
-    public DbSet<AutoAssignmentRule> AutoAssignmentRules => Set<AutoAssignmentRule>();
+    // AutoAssignmentRules moved to the Workflow module (workflow.AutoAssignmentRules) — routing is
+    // a Workflow concern and the table here was never read at runtime.
     public DbSet<FeeStructure> FeeStructures => Set<FeeStructure>();
 
     // =====================================================

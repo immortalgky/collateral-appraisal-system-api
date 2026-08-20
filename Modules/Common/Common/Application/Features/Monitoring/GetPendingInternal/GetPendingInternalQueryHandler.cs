@@ -53,6 +53,7 @@ SELECT
     OlaVarianceHours,
     ActivityId,
     AppraisalCompanyName,
+    AppraisalCompanyNameLocal,
     MonitoringType,
     AssignedTo,
     AssignedType,

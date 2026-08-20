@@ -1,4 +1,5 @@
 using Appraisal.Application.Configurations;
+using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using MediatR;
 using Parameter.Contracts.PricingParameters;
@@ -17,6 +18,7 @@ public class CalculateProjectUnitPricesCommandHandler(
     IPricingAnalysisRepository pricingAnalysisRepository,
     AppraisalDbContext dbContext,
     IAppraisalUnitOfWork unitOfWork,
+    AppraisalValuationSummaryService valuationSummaryService,
     ISender mediator
 ) : ICommandHandler<CalculateProjectUnitPricesCommand>
 {
@@ -62,6 +64,16 @@ public class CalculateProjectUnitPricesCommandHandler(
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Persist the block's appraisal-level total to ValuationAnalyses so collateral master / AS400 /
+        // the workflow approval-tier switch (AppraisalValueChangedIntegrationEvent) see it. The unit
+        // prices are now saved, so RecomputeAsync's block branch (EF sums on this DbContext) reads them.
+        // CalculateProjectUnitPricesCommand is ITransactionalCommand, so this stays inside the
+        // transaction; the staged ValuationAnalyses upsert + outbox message flush on commit. No
+        // valuationDate override needed — the block appraisal's appointment already exists, so the
+        // service derives ValuationDate from it.
+        await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
+
         return Unit.Value;
     }
 }

@@ -26,6 +26,9 @@ namespace Reporting.Application.Providers;
 ///     RS13  Q15 appraisal.PropertyGroupItems + LandTitles — per-group titles
 ///     RS14  Q16 appraisal.PropertyGroupItems + BuildingAppraisalDetails — per-group buildings
 ///     RS15  CollateralType code→Thai map
+///     …
+///     RS24  appraisal.ConstructionInspections — per-property construction progress, which drives
+///           the เมื่อแล้วเสร็จ 100% / ตามสภาพปัจจุบัน split
 ///
 ///   Conditionally (Batch 2 — 0–2 extra round-trips):
 ///     Q6  auth.AspNetUsers — staff (only for Internal assignment)
@@ -98,13 +101,26 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 WHERE a2.Id = @AppraisalId AND a2.IsDeleted = 0)
             ORDER BY rc.Name;
 
-            -- RS03: Q3 — Appraisal date (latest non-cancelled appointment)
-            SELECT TOP 1 ap.AppointmentDateTime
-            FROM appraisal.Appointments ap
-            JOIN appraisal.AppraisalAssignments aa ON aa.Id = ap.AssignmentId
-            WHERE aa.AppraisalId = @AppraisalId
-              AND ap.Status <> 'Cancelled'
-            ORDER BY ap.AppointmentDateTime DESC;
+            -- RS03: Q3 — Appraisal date. ValuationAnalyses.ValuationDate wins; the latest
+            -- non-cancelled appointment across ALL the appraisal's assignments is the fallback
+            -- for an appraisal that has no ValuationAnalyses row yet (created on first pricing /
+            -- decision-summary save).
+            --
+            -- ValuationDate must win: an off-system external engagement (company engaged outside
+            -- CAS, its book keyed in by an internal appraiser) has NO Appointment row at all, so
+            -- appointment-first logic printed a BLANK date on every page of this document despite
+            -- the keyer having entered one. In-system cases agree either way — ValuationDate is
+            -- re-derived from the latest non-cancelled appointment on every pricing save.
+            SELECT COALESCE(
+                (SELECT TOP 1 va.ValuationDate
+                 FROM appraisal.ValuationAnalyses va
+                 WHERE va.AppraisalId = @AppraisalId),
+                (SELECT TOP 1 ap.AppointmentDateTime
+                 FROM appraisal.Appointments ap
+                 JOIN appraisal.AppraisalAssignments aa ON aa.Id = ap.AssignmentId
+                 WHERE aa.AppraisalId = @AppraisalId
+                   AND ap.Status <> 'Cancelled'
+                 ORDER BY ap.AppointmentDateTime DESC));
 
             -- RS04: Q4 — Land detail (first property). Geocodes + codes resolved to Thai.
             SELECT TOP 1
@@ -193,6 +209,17 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                  JOIN appraisal.AppraisalProperties ap ON ap.Id = gi2.AppraisalPropertyId
                  WHERE gi2.PropertyGroupId = pg.Id
                  ORDER BY gi2.SequenceInGroup) AS PropertyType,
+                -- PropertyType above is only the FIRST member, so it cannot tell an L+B group
+                -- from one entered as a single LandAndBuilding property. LB and LS are the two
+                -- families carrying land AND building detail on one property (LSL/LSB are
+                -- land-only / building-only leasehold, so they are excluded).
+                CASE WHEN EXISTS (
+                    SELECT 1
+                    FROM appraisal.PropertyGroupItems gi7
+                    JOIN appraisal.AppraisalProperties ap7 ON ap7.Id = gi7.AppraisalPropertyId
+                    WHERE gi7.PropertyGroupId = pg.Id
+                      AND ap7.PropertyType IN ('LB', 'LS')
+                ) THEN 1 ELSE 0 END AS HasCombinedProperty,
                 (SELECT TOP 1 lt.TitleNumber
                  FROM appraisal.PropertyGroupItems gi3
                  JOIN appraisal.AppraisalProperties ap3 ON ap3.Id = gi3.AppraisalPropertyId
@@ -295,6 +322,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 WHERE a4.Id = @AppraisalId AND a4.IsDeleted = 0)
               AND ct.ActivityId IN (
                   'int-appraisal-execution',
+                  'int-offline-book-keyin',
                   'int-appraisal-check',
                   'int-appraisal-verification',
                   'appraisal-book-verification')
@@ -310,7 +338,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 lt.PageNumber,
                 lt.LandParcelNumber,
                 lt.SurveyNumber,
-                lt.MapSheetNumber,
+                lt.Rawang,
                 lt.AreaRai,
                 lt.AreaNgan,
                 lt.AreaSquareWa,
@@ -332,6 +360,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 pgi.PropertyGroupId,
                 pgi.SequenceInGroup,
                 bad.Id               AS BuildingId,
+                ap.Id                AS AppraisalPropertyId,
                 bad.PropertyName,
                 bad.OwnerName,
                 bad.BuildingType,
@@ -383,6 +412,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             SELECT
                 pgi.PropertyGroupId,
                 bdd.BuildingAppraisalDetailId,
+                bad.AppraisalPropertyId,
                 bdd.IsBuilding,
                 bdd.AreaDescription,
                 bdd.Area,
@@ -415,20 +445,26 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             WHERE pg.AppraisalId = @AppraisalId
             ORDER BY pgi.PropertyGroupId, pgi.SequenceInGroup;
 
-            -- RS20: Collateral address + loan limits from the Request detail (geocodes resolved)
+            -- RS20: Collateral address + loan limits from the Request detail (geocodes resolved).
+            -- The Location form captures these as DOPA geocodes (กรมการปกครอง), so DOPA wins; Title
+            -- is the fallback for rows saved while that form still used the Title picker, and the
+            -- raw geocode is the last resort.
             SELECT TOP 1
                 rd.HouseNumber,
                 rd.ProjectName,
                 rd.Moo,
                 rd.Soi,
                 rd.Road,
-                COALESCE(tsub.NameTh,  rd.SubDistrict) AS SubDistrict,
-                COALESCE(tdist.NameTh, rd.District)    AS District,
-                COALESCE(tprov.NameTh, rd.Province)    AS Province,
+                COALESCE(dsub.NameTh,  tsub.NameTh,  rd.SubDistrict) AS SubDistrict,
+                COALESCE(ddist.NameTh, tdist.NameTh, rd.District)    AS District,
+                COALESCE(dprov.NameTh, tprov.NameTh, rd.Province)    AS Province,
                 rd.FacilityLimit,
                 rd.AdditionalFacilityLimit,
                 rd.PreviousFacilityLimit
             FROM request.RequestDetails rd
+            LEFT JOIN parameter.DopaProvinces     dprov ON dprov.Code = rd.Province
+            LEFT JOIN parameter.DopaDistricts     ddist ON ddist.Code = rd.District
+            LEFT JOIN parameter.DopaSubDistricts  dsub  ON dsub.Code  = rd.SubDistrict
             LEFT JOIN parameter.TitleProvinces    tprov ON tprov.Code = rd.Province
             LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = rd.District
             LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = rd.SubDistrict
@@ -444,16 +480,21 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 WHERE a6.Id = @AppraisalId AND a6.IsDeleted = 0)
               AND rp.PropertyType IS NOT NULL;
 
-            -- RS22: Land titles for the government price (per sq.wa), excluding missing-from-survey
+            -- RS22: Land titles for the government price (per sq.wa). Missing-from-survey titles
+            -- are NOT filtered out here — they render as "ตกสำรวจ" instead of a price, so the flag
+            -- has to reach C#. They come through even without a price; a surveyed title still
+            -- needs one to be worth showing.
             SELECT
+                lt.Id AS TitleId,
                 lt.TitleNumber,
-                lt.GovernmentPricePerSqWa
+                lt.GovernmentPricePerSqWa,
+                lt.IsMissingFromSurvey
             FROM appraisal.LandTitles lt
             JOIN appraisal.LandAppraisalDetails lad ON lad.Id = lt.LandAppraisalDetailId
             JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
             WHERE ap.AppraisalId = @AppraisalId
-              AND ISNULL(lt.IsMissingFromSurvey, 0) = 0
-              AND lt.GovernmentPricePerSqWa IS NOT NULL
+              AND (lt.GovernmentPricePerSqWa IS NOT NULL
+                   OR ISNULL(lt.IsMissingFromSurvey, 0) = 1)
             ORDER BY lt.GovernmentPricePerSqWa, lt.Id;
 
             -- RS23: ราคาประเมินเดิม — the prior-appraisal link plus its LIVE appraised value,
@@ -466,6 +507,33 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             FROM appraisal.Appraisals a7
             LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = a7.PrevAppraisalId
             WHERE a7.Id = @AppraisalId AND a7.IsDeleted = 0;
+
+            -- RS24: Construction-inspection progress, one row per property under construction.
+            -- ProgressPct mirrors Appraisal.Domain ConstructionInspection.OverallCurrentProgressPercent
+            -- (full-detail = Σ of the work details' already-weighted CurrentProportionPct; summary
+            -- mode = SummaryCurrentProgressPct). KEEP IN SYNC with ConstructionInspection.cs.
+            -- TotalValue is the 100%-complete building value and equals the sum of that property's
+            -- BuildingDepreciationDetails.PriceAfterDepreciation, so the grid's existing figures
+            -- already are the "เมื่อแล้วเสร็จ 100%" side; only the current side is derived.
+            SELECT
+                ci.AppraisalPropertyId,
+                ci.TotalValue,
+                CASE WHEN ci.IsFullDetail = 1
+                     THEN ISNULL(wd_agg.CurrentProportionPctSum, 0)
+                     ELSE ISNULL(ci.SummaryCurrentProgressPct, 0) END AS ProgressPct,
+                CASE WHEN ci.IsFullDetail = 1
+                     THEN ISNULL(wd_agg.CurrentPropertyValueSum, 0)
+                     ELSE ISNULL(ci.SummaryCurrentValue, 0) END      AS CurrentValue
+            FROM appraisal.ConstructionInspections ci
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
+            LEFT JOIN (
+                SELECT wd.ConstructionInspectionId,
+                       SUM(wd.CurrentProportionPct) AS CurrentProportionPctSum,
+                       SUM(wd.CurrentPropertyValue) AS CurrentPropertyValueSum
+                FROM appraisal.ConstructionWorkDetails wd
+                GROUP BY wd.ConstructionInspectionId
+            ) wd_agg ON wd_agg.ConstructionInspectionId = ci.Id
+            WHERE ap.AppraisalId = @AppraisalId;
             """;
 
         var batchParams = new DynamicParameters();
@@ -494,6 +562,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         List<string> requestPropertyTypes;
         List<GovPriceRow> govPriceRows;
         AppraisalSummaryCommonLoader.PrevAppraisalRow? prevAppraisal;
+        List<ConstructionProgressRow> constructionProgressRows;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, batchParams))
         {
@@ -572,6 +641,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
             // RS23
             prevAppraisal = await multi.ReadFirstOrDefaultAsync<AppraisalSummaryCommonLoader.PrevAppraisalRow>();
+
+            // RS24
+            constructionProgressRows = (await multi.ReadAsync<ConstructionProgressRow>()).ToList();
         }
 
         var customerName = customerNames.Count > 0
@@ -612,8 +684,10 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             else if (!string.IsNullOrWhiteSpace(assignment.AssigneeCompanyId)
                      && Guid.TryParse(assignment.AssigneeCompanyId, out var companyGuid))
             {
+                // Thai-language document: prefer the Thai company name, fall back to English.
+                // Matches the internal branch above, which is already a hardcoded Thai bank name.
                 const string companySql = """
-                    SELECT c.Name FROM auth.Companies c WHERE c.Id = @CompanyId
+                    SELECT COALESCE(NULLIF(c.NameLocal, N''), c.Name) FROM auth.Companies c WHERE c.Id = @CompanyId
                     """;
                 var companyParams = new DynamicParameters();
                 companyParams.Add("CompanyId", companyGuid);
@@ -631,6 +705,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             SELECT
                 COALESCE(NULLIF(LTRIM(RTRIM(u.FirstName + ' ' + u.LastName)), ''), av.Member) AS MemberName,
                 COALESCE(NULLIF(u.Position, ''), av.MemberRole) AS Position,
+                av.MemberRole AS MemberRole,
                 av.Vote,
                 av.Comments   AS Comment,
                 av.Member     AS Member,
@@ -643,10 +718,15 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         var voteParams = new DynamicParameters();
         voteParams.Add("AppraisalId", appraisalId);
 
-        // One row per member (latest vote), in case of re-approval rounds.
+        // One row per member (latest vote), in case of re-approval rounds, then ordered by committee
+        // rank. The sort has to sit AFTER the GroupBy — GroupBy re-imposes first-appearance order,
+        // so an ORDER BY in the SQL would be silently discarded here.
         var votes = (await connection.QueryAsync<VoteRow>(votesSql, voteParams))
             .GroupBy(v => v.Member, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.OrderByDescending(v => v.VotedAt).First())
+            .OrderBy(v => AppraisalSummaryCommonLoader.CommitteeRoleRank(v.MemberRole))
+            .ThenBy(v => v.VotedAt)
+            .ThenBy(v => v.MemberName, StringComparer.Ordinal)
             .ToList();
 
         List<ApproverRow> approvers = votes.Select(v => new ApproverRow
@@ -730,12 +810,14 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 StringComparer.OrdinalIgnoreCase);
 
         // ผู้ประเมิน (sign-off appraiser): internal = int-appraisal-execution actor,
-        // external = appraisal-book-verification actor.
+        // external = appraisal-book-verification actor — except for an off-system external
+        // engagement, which skips book-verification entirely and is keyed at
+        // int-offline-book-keyin instead. Fall back to that so the name is not blank.
         CompletedTaskRow? staffTask;
         if (isInternal)
             latestByActivity.TryGetValue("int-appraisal-execution", out staffTask);
-        else
-            latestByActivity.TryGetValue("appraisal-book-verification", out staffTask);
+        else if (!latestByActivity.TryGetValue("appraisal-book-verification", out staffTask))
+            latestByActivity.TryGetValue("int-offline-book-keyin", out staffTask);
 
         // ผู้ตรวจสอบ / ผู้สอบทาน come only from their own activities; they stay blank
         // until int-appraisal-check / int-appraisal-verification are actually completed.
@@ -743,16 +825,25 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         latestByActivity.TryGetValue("int-appraisal-verification", out var verifyTask);
 
         string? staffName = string.IsNullOrWhiteSpace(staffTask?.FullName) ? null : staffTask.FullName!.Trim();
-        string? staffPosition = string.IsNullOrWhiteSpace(staffTask?.Position) ? null : staffTask.Position;
+        string? staffPosition = AppraisalSummaryCommonLoader.NormalizePosition(staffTask?.Position);
         string? checkerName = string.IsNullOrWhiteSpace(checkerTask?.FullName) ? null : checkerTask.FullName!.Trim();
-        string? checkerPosition = string.IsNullOrWhiteSpace(checkerTask?.Position) ? null : checkerTask.Position;
+        string? checkerPosition = AppraisalSummaryCommonLoader.NormalizePosition(checkerTask?.Position);
         string? verifyName = string.IsNullOrWhiteSpace(verifyTask?.FullName) ? null : verifyTask.FullName!.Trim();
-        string? verifyPosition = string.IsNullOrWhiteSpace(verifyTask?.Position) ? null : verifyTask.Position;
+        string? verifyPosition = AppraisalSummaryCommonLoader.NormalizePosition(verifyTask?.Position);
 
         // ── Build group lookups ───────────────────────────────────────────────────
         var titlesByGroup = groupTitleRows
             .GroupBy(r => r.PropertyGroupId)
             .ToDictionary(g => g.Key, g => g.OrderBy(r => r.SequenceInGroup).ThenBy(r => r.TitleId).ToList());
+
+        // Position of each title in the printed รายการทรัพย์สิน list — groups in display order,
+        // titles within a group in the same order the list itself uses. ราคาประเมินราชการ below
+        // sorts by this so its segments read in the same sequence as the list above them.
+        var titleDisplayOrder = new Dictionary<Guid, int>();
+        foreach (var groupRow in groupRows)
+            if (titlesByGroup.TryGetValue(groupRow.GroupId, out var orderedTitles))
+                foreach (var title in orderedTitles)
+                    titleDisplayOrder.TryAdd(title.TitleId, titleDisplayOrder.Count);
 
         var buildingsByGroup = groupBuildingRows
             .GroupBy(r => r.PropertyGroupId)
@@ -769,6 +860,34 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
         var entranceExitMap = ToParamMap(entranceExitParams);
         var landUseMap = ToParamMap(landUseParams);
+
+        // ── Construction progress (RS24) ──────────────────────────────────────────
+        // One inspection per property; a property with no row is complete. The percent applies to
+        // every cost line of that property — its building line AND its ส่วนพัฒนา lines — which is
+        // exact rather than approximate: ConstructionInspections.TotalValue equals the sum of the
+        // property's PriceAfterDepreciation, and CurrentValue equals TotalValue × the percent.
+        var progressByProperty = constructionProgressRows
+            .GroupBy(r => r.AppraisalPropertyId)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        // A building flagged under construction but already 100% done renders exactly as a completed
+        // one — same predicate CollateralMasterUpsertService uses. This is a necessary but not
+        // sufficient condition for the split; see hasUnderConstruction below.
+        bool anyProgressBelow100 = progressByProperty.Values.Any(p => p.ProgressPct < 100m);
+
+        // Percent for a property, or null when it is not under construction.
+        decimal? ProgressPctOf(Guid propertyId) =>
+            progressByProperty.TryGetValue(propertyId, out var p) ? p.ProgressPct : null;
+
+        // Value at current progress. Null percent (no inspection) → the line is complete, so the
+        // current value IS the 100% value. Zero percent (ยังไม่ก่อสร้าง) → null, rendered as "-".
+        static decimal? CurrentValueOf(decimal? value100, decimal? pct)
+        {
+            if (value100 is null) return null;
+            if (pct is null) return value100;
+            if (pct.Value <= 0m) return null;
+            return Math.Round(value100.Value * pct.Value / 100m, 2, MidpointRounding.AwayFromZero);
+        }
 
         // PropertyType stores domain family codes, so map family → CollateralType code before lookup.
         string? TranslateCollateralType(string? code) =>
@@ -804,6 +923,38 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             depreciationByGroup.TryGetValue(g.GroupId, out var deps);
             deps ??= [];
 
+            // Appraisers now enter an enhancement (fence, paving, water tank, roofed open area) as
+            // its OWN property, whose Building Detail carries only Non-Building rows. Such a
+            // property is not a สิ่งปลูกสร้าง and must not print as one — neither as a numbered cost
+            // line (it would be blank-valued, duplicating the ส่วนพัฒนา rows below) nor as a
+            // "พร้อม…" clause on the combined row ("พร้อมถังน้ำ 3 ชั้น … อายุอาคาร 0 ปี"). Both
+            // layouts list it under ส่วนพัฒนา instead. A building with NO rows at all is NOT one of
+            // these: nothing was entered yet, so it keeps printing as an unvalued building.
+            // Neither is one carrying a house number: an enhancement never has one, so it is proof
+            // the appraiser meant a real สิ่งปลูกสร้าง and its rows were merely flagged wrong —
+            // reclassifying would erase the house, its เลขที่ and its พื้นที่ใช้สอย from the document.
+            var depRowsByBuilding = deps
+                .GroupBy(d => d.BuildingAppraisalDetailId)
+                .ToDictionary(grp => grp.Key, grp => grp.ToList());
+
+            bool IsDevelopmentOnly(GroupBuildingRow b) =>
+                !HasHouseNumber(b.HouseNumber)
+                && depRowsByBuilding.TryGetValue(b.BuildingId, out var rows)
+                && rows.TrueForAll(r => !r.IsBuilding);
+
+            // Rows moved out of the สิ่งปลูกสร้าง list lose the only place their type was printed, so
+            // they lead with it under ส่วนพัฒนา — "รั้วตาข่ายเหล็ก …" instead of a bare "พื้นที่ใช้สอย …".
+            // Rows under a normal building are left alone: that building still names itself on its
+            // own line, so a prefix would only repeat it.
+            // GroupBy (not a bare ToDictionary): RS14 joins parameter.Parameters on Group+Language
+            // +Code while that table is unique on (Group, Country, Language, Code), so a second
+            // active row for the same code can fan one building into two — a duplicate key here
+            // would 500 the whole report.
+            var movedNameByBuilding = buildings
+                .Where(IsDevelopmentOnly)
+                .GroupBy(b => b.BuildingId)
+                .ToDictionary(grp => grp.Key, grp => BuildingDisplayName(grp.First()));
+
             // Land description (titles only — no building clause).
             var landParts = new List<string>();
             foreach (var title in titles)
@@ -820,8 +971,10 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                     titleParts.Add($"เลขที่ดิน {title.LandParcelNumber}");
                 if (!string.IsNullOrWhiteSpace(title.SurveyNumber))
                     titleParts.Add($"หน้าสำรวจ {title.SurveyNumber}");
-                if (!string.IsNullOrWhiteSpace(title.MapSheetNumber))
-                    titleParts.Add($"ระวาง {title.MapSheetNumber}");
+                // ระวาง lives in LandTitles.Rawang — MapSheetNumber is the separate
+                // "Sheet Number" (แผ่นที่) field the UI only collects for นส.3ก.
+                if (!string.IsNullOrWhiteSpace(title.Rawang))
+                    titleParts.Add($"ระวาง {title.Rawang}");
 
                 var titleArea = BuildAreaString(title.AreaRai, title.AreaNgan, title.AreaSquareWa);
                 if (!string.IsNullOrWhiteSpace(titleArea))
@@ -842,19 +995,27 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             var buildingDescParts = new List<string>();
             foreach (var bld in buildings)
             {
+                if (IsDevelopmentOnly(bld))
+                    continue;   // listed under ส่วนพัฒนา instead — see DevelopmentDescriptions below
+
                 var bldParts = new List<string>();
                 if (!string.IsNullOrWhiteSpace(bld.BuildingTypeDisplay))
                     bldParts.Add($"พร้อม{bld.BuildingTypeDisplay}");
                 if (bld.NumberOfFloors.HasValue)
-                    bldParts.Add($"{bld.NumberOfFloors:0.##} ชั้น");
+                    bldParts.Add($"{bld.NumberOfFloors:#,##0.##} ชั้น");
                 if (!string.IsNullOrWhiteSpace(bld.HouseNumber))
                     bldParts.Add($"เลขที่ {bld.HouseNumber}");
                 if (bld.TotalBuildingArea.HasValue)
-                    bldParts.Add($"พื้นที่ใช้สอย {bld.TotalBuildingArea:0.##} ตารางเมตร");
+                    bldParts.Add($"พื้นที่ใช้สอย {bld.TotalBuildingArea:#,##0.##} ตารางเมตร");
                 if (bld.BuildingAge.HasValue)
                     bldParts.Add($"อายุอาคาร {bld.BuildingAge} ปี");
                 if (!string.IsNullOrWhiteSpace(bld.BuildingConditionDisplay))
                     bldParts.Add($"สภาพอาคาร{bld.BuildingConditionDisplay}");
+                // A market/combined group carries one blended value, so it never splits into the two
+                // ราคาประเมิน columns — the progress clause is the only place the reader learns the
+                // building is unfinished. Keep it.
+                if (ProgressSuffix(ProgressPctOf(bld.AppraisalPropertyId)) is { } bldProgress)
+                    bldParts.Add(bldProgress);
                 if (bldParts.Count > 0)
                     buildingDescParts.Add(string.Join(" ", bldParts));
             }
@@ -892,23 +1053,112 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 .ToDictionary(grp => grp.Key, grp => grp.Sum(d => d.PriceAfterDepreciation ?? 0m));
 
             var buildingItems = buildings
-                .Select(b => new SummaryItemRow
+                .Where(b => !IsDevelopmentOnly(b))
+                .Select(b =>
                 {
-                    Description = BuildBuildingLine(b),
-                    Value = buildingValueById.TryGetValue(b.BuildingId, out var v) ? v : (decimal?)null
+                    var value = buildingValueById.TryGetValue(b.BuildingId, out var v) ? v : (decimal?)null;
+                    var pct = ProgressPctOf(b.AppraisalPropertyId);
+                    return new SummaryItemRow
+                    {
+                        Description = BuildBuildingLine(b, pct),
+                        Value = value,
+                        CurrentValue = CurrentValueOf(value, pct)
+                    };
                 })
                 .ToList();
 
+            // Print the moved rows in property order rather than the ORDER BY bdd.Id the query gives
+            // (a Guid v7 sorts arbitrarily under SQL Server's uniqueidentifier collation), so each
+            // property's items stay together. OrderBy is stable — rows within a property keep their
+            // existing relative order.
+            var sequenceByProperty = buildings
+                .GroupBy(b => b.AppraisalPropertyId)
+                .ToDictionary(grp => grp.Key, grp => grp.Min(b => b.SequenceInGroup));
+
             // ส่วนพัฒนา: development items are the non-building (IsBuilding=0) depreciation rows.
-            var developmentItems = deps.Where(d => !d.IsBuilding)
-                .Select(d => new SummaryItemRow { Description = BuildItemDesc(d, "พื้นที่"), Value = d.PriceAfterDepreciation })
+            var developmentRows = deps.Where(d => !d.IsBuilding)
+                .OrderBy(d => sequenceByProperty.TryGetValue(d.AppraisalPropertyId, out var seq) ? seq : int.MaxValue)
+                .Select(d =>
+                {
+                    var pct = ProgressPctOf(d.AppraisalPropertyId);
+                    var isMoved = movedNameByBuilding.TryGetValue(d.BuildingAppraisalDetailId, out var namePrefix);
+                    return (
+                        IsMoved: isMoved,
+                        Row: new SummaryItemRow
+                        {
+                            Description = BuildItemDesc(d, "พื้นที่", pct, namePrefix),
+                            Value = d.PriceAfterDepreciation,
+                            CurrentValue = CurrentValueOf(d.PriceAfterDepreciation, pct)
+                        });
+                })
+                .ToList();
+
+            var developmentItems = developmentRows.ConvertAll(x => x.Row);
+
+            // The combined/market row carries ONE blended figure and has no valued ส่วนพัฒนา block,
+            // so it lists only the rows whose property just lost its "พร้อม…" clause — as plain text
+            // under a ส่วนพัฒนา heading. Rows belonging to a normal building stay unlisted there,
+            // exactly as before.
+            var developmentDescriptions = developmentRows
+                .Where(x => x.IsMoved && !string.IsNullOrWhiteSpace(x.Row.Description))
+                .Select(x => x.Row.Description!)
                 .ToList();
 
             var groupTotal = g.GroupAppraisalValue ?? g.AppraisalPrice ?? g.FinalValueRounded;
 
             // Group composition — also drives the first-column label (see DeriveFamily).
             var hasLand = titles.Count > 0 || g.LandValue.HasValue;
+            // Counts enhancement-only properties too, deliberately: their ส่วนพัฒนา rows ARE the
+            // group's building block — they total into รวมมูลค่าสิ่งปลูกสร้าง, and the template gates
+            // both per-type subtotals on has_building. Narrowing this to buildingItems deletes those
+            // subtotal rows from a land + fence cost group.
             var hasBuilding = buildingItems.Count > 0 || buildings.Count > 0;
+
+            // Whether the group renders the per-item breakdown (☑ ที่ดิน / ☑ สิ่งปลูกสร้าง as
+            // separate rows) instead of one combined ที่ดินพร้อมสิ่งปลูกสร้าง row.
+            //   • Only the Cost approach stores per-component figures; Market/Income/Residual
+            //     carry a single blended value, and blank money cells on a split row read as
+            //     zero. g.ApproachType is itself non-null only when a PricingFinalValues row
+            //     exists, so isCost already implies "the figures are there".
+            //   • A group entered as ONE LandAndBuilding / Leasehold property stays combined even
+            //     when it also holds a separate building — that building joins the same block.
+            // Deliberately NOT gated on hasLand/hasBuilding: a land-only cost group must keep
+            // rendering its land row with พื้นที่ / ราคาต่อหน่วย / ราคาประเมิน. The template gates
+            // the per-type subtotals on the group actually having both blocks.
+            var splitLandAndBuilding = isCost && !g.HasCombinedProperty;
+
+            var family = DeriveFamily(g.PropertyType, hasLand, hasBuilding);
+
+            // Row labels for the split branch. The template used to spell these out as Thai literals,
+            // which silently dropped the tenure of a leasehold group the moment a Cost approach was
+            // saved — only the combined branch consulted the parameter map. Both now resolve through
+            // it like every other label on the form.
+            //
+            // The label names a ROW, so it is resolved from the row's own family rather than the
+            // group's: the land row asks for LSL/L and the building row for B. Feeding the group's
+            // family in would put an LSB group's building label on its land row. Only LSL reaches the
+            // leasehold branch in practice — LS is caught by HasCombinedProperty and never splits, and
+            // LSB has no land, so the template's has_land gate blanks that cell anyway.
+            //
+            // LSB deliberately shares B's CollateralType code (05 = สิ่งปลูกสร้าง) — the scheme has no
+            // leasehold-building code — so a leasehold building still reads สิ่งปลูกสร้าง, unchanged.
+            var isLeaseholdFamily = family is not null
+                                    && family.StartsWith("LS", StringComparison.OrdinalIgnoreCase);
+
+            var landRowLabel = TranslateCollateralType(isLeaseholdFamily ? "LSL" : "L");
+            var buildingRowLabel = TranslateCollateralType("B");
+
+            // ส่วนพัฒนา counts toward the building subtotal (matches the reference form, where
+            // รวมมูลค่าสิ่งปลูกสร้าง = building lines + ส่วนพัฒนา lines).
+            var buildingSubtotal = buildingItems.Sum(b => b.Value ?? 0m)
+                                 + developmentItems.Sum(d => d.Value ?? 0m);
+
+            var buildingSubtotalCurrent = buildingItems.Sum(b => b.CurrentValue ?? 0m)
+                                        + developmentItems.Sum(d => d.CurrentValue ?? 0m);
+
+            // The not-yet-built portion of this group, subtracted from the group and appraisal
+            // totals to get the ตามสภาพปัจจุบัน figures.
+            var groupShortfall = buildingSubtotal - buildingSubtotalCurrent;
 
             // Market/combined row only: show พื้นที่ + ราคาต่อหน่วย for a LAND-ONLY group priced at a
             // per-unit rate, where the rate genuinely prices the land. A Land+Building market group
@@ -936,28 +1186,43 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             {
                 GroupNumber = g.GroupNumber,
                 GroupName = g.GroupName,
-                PropertyType = TranslateCollateralType(DeriveFamily(g.PropertyType, hasLand, hasBuilding)),
+                PropertyType = TranslateCollateralType(family),
                 CollateralDetails = collateralDetails,
                 AreaOrUnit = areaOrUnit,
                 PricePerAreaOrUnit = g.LandUnitPrice,
                 AppraisalValue = groupTotal,
                 Condition = null,
                 Remark = null,
-                IsCostApproach = isCost,
+                SplitLandAndBuilding = splitLandAndBuilding,
                 HasLand = hasLand,
+                LandRowLabel = landRowLabel,
                 HasBuilding = hasBuilding,
+                BuildingRowLabel = buildingRowLabel,
                 ShowLandUnitColumns = showLandUnitColumns,
                 MarketLandArea = marketLandArea,
                 MarketLandUnitPrice = marketLandUnitPrice,
                 LandDescription = landDescription,
                 LandDescriptions = landParts,
                 BuildingDescription = buildingDescription,
+                DevelopmentDescriptions = developmentDescriptions,
                 TotalSquareWa = totalSquareWa == 0m ? null : totalSquareWa,
                 LandUnitPrice = g.LandUnitPrice,
                 LandValue = g.LandValue,
+                LandSubtotal = g.LandValue,
+                BuildingSubtotal = buildingSubtotal == 0m ? null : buildingSubtotal,
+                BuildingSubtotalCurrent = buildingSubtotalCurrent == 0m ? null : buildingSubtotalCurrent,
                 Buildings = buildingItems,
                 DevelopmentItems = developmentItems,
-                GroupTotal = groupTotal
+                GroupTotal = groupTotal,
+                // Summed from the components this group actually prints — land subtotal plus the
+                // current-condition building subtotal — so the total always equals the rows above
+                // it. Anchoring to groupTotal instead would inherit a stale GroupValuations figure
+                // (e.g. a building added without re-running pricing) and contradict the grid.
+                // A market/combined group states one blended value with no components to sum, so it
+                // keeps its own total.
+                GroupTotalCurrent = splitLandAndBuilding
+                    ? (g.LandValue ?? 0m) + buildingSubtotalCurrent
+                    : groupTotal
             };
         }).ToList();
 
@@ -1018,22 +1283,19 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
         // ราคาประเมินราชการ — government price per sq.wa, grouped by same price. With >1 distinct
         // price, list the title numbers per price ("โฉนด… และ … ตารางวาละ X บาท") joined by " , ".
-        var govPriceGroups = govPriceRows
-            .Where(r => r.GovernmentPricePerSqWa.HasValue)
-            .GroupBy(r => r.GovernmentPricePerSqWa!.Value)
-            .ToList();
-        string? governmentPriceText =
-            govPriceGroups.Count == 0 ? null
-            : govPriceGroups.Count == 1 ? $"ตารางวาละ {govPriceGroups[0].Key:N2} บาท"
-            : string.Join(" , ", govPriceGroups.Select(g =>
-            {
-                var titles = string.Join(" และ ", g
-                    .Where(r => !string.IsNullOrWhiteSpace(r.TitleNumber))
-                    .Select(r => r.TitleNumber));
-                return string.IsNullOrWhiteSpace(titles)
-                    ? $"ตารางวาละ {g.Key:N2} บาท"
-                    : $"โฉนดที่ดินเลขที่ {titles} ตารางวาละ {g.Key:N2} บาท";
-            }));
+        // Partitioning (ตกสำรวจ beats price) and segment ordering live in the shared
+        // GovernmentPriceTextBuilder, which the condo summary uses too.
+        //
+        // titleDisplayOrder places each title in the printed list; titles outside every group sort
+        // last, keeping their existing relative order.
+        string? governmentPriceText = GovernmentPriceTextBuilder.Build(
+            govPriceRows.Select(r => new GovernmentPriceTextBuilder.Item(
+                r.TitleNumber,
+                r.GovernmentPricePerSqWa,
+                r.IsMissingFromSurvey == true,
+                titleDisplayOrder.TryGetValue(r.TitleId, out var order) ? order : int.MaxValue)),
+            "โฉนดที่ดินเลขที่",
+            p => $"ตารางวาละ {p:N2} บาท");
 
         // Show the committee block only when this appraisal actually falls into a meeting.
         bool showMeeting = review?.MeetingId is not null;
@@ -1090,6 +1352,39 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
         decimal? buildingCoverage = valuation?.InsuranceValue;
 
+        // ── ตามสภาพปัจจุบัน totals ────────────────────────────────────────────────
+        // The not-yet-built portion. Only a split (cost) group states its components separately, so
+        // only there can a shortfall be attributed — a market/combined group carries one blended
+        // figure with nothing to deduct from. An appraisal whose under-construction buildings sit
+        // entirely in market groups therefore yields a zero shortfall, and showing the split would
+        // print two identical columns asserting the current condition equals the completed value.
+        // Suppress it instead.
+        var constructionShortfall = summaryGroups
+            .Where(g => g.SplitLandAndBuilding)
+            .Sum(g => (g.BuildingSubtotal ?? 0m) - (g.BuildingSubtotalCurrent ?? 0m));
+
+        bool hasUnderConstruction = anyProgressBelow100 && constructionShortfall > 0m;
+
+        decimal? currentConditionTotal = null;
+        decimal? currentConditionForcedSale = null;
+
+        if (hasUnderConstruction)
+        {
+            // Summed from the per-group current totals, which a split group builds from the very
+            // rows it prints — so รวมมูลค่า…ตามสภาพปัจจุบัน always equals land + the current-condition
+            // building subtotal above it.
+            currentConditionTotal = summaryGroups.Sum(g => g.GroupTotalCurrent ?? g.GroupTotal ?? 0m);
+
+            // Scaled by the same ratio rather than re-applying the rate, so both forced-sale figures
+            // share one rate even when the appraiser has overridden ValuationAnalyses.ForcedSaleValue.
+            currentConditionForcedSale =
+                forcedSaleValue.HasValue && totalAppraisalValue is { } total100 && total100 != 0m
+                    ? Math.Round(
+                        forcedSaleValue.Value * currentConditionTotal.Value / total100,
+                        2, MidpointRounding.AwayFromZero)
+                    : currentConditionTotal.Value * forceSaleRate / 100m;
+        }
+
         // ── Build model ──────────────────────────────────────────────────────────
         var model = new AppraisalSummaryModel
         {
@@ -1102,7 +1397,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             PropertyType = firstPropertyType,
             SummaryPropertyType = firstPropertyType,
             CollateralAddress = string.IsNullOrEmpty(collateralAddress) ? null : collateralAddress,
-            AdministrativeDistrict = land?.SubDistrict,
+            AdministrativeDistrict = requestAddress?.SubDistrict,
             LandOffice = land?.LandOffice,
             OldAppraisalValue = oldAppraisalValue,
             HasPrevAppraisal = hasPrevAppraisal,
@@ -1115,8 +1410,11 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             TotalAppraisalValue = totalAppraisalValue,
             BuildingCoverageAmount = buildingCoverage,
             ForcedSaleValue = forcedSaleValue,
-            Condition = decision?.Condition,
-            Remark = decision?.Remark,
+            HasUnderConstruction = hasUnderConstruction,
+            CurrentConditionTotal = currentConditionTotal,
+            CurrentConditionForcedSaleValue = currentConditionForcedSale,
+            Condition = AppraisalSummaryCommonLoader.FirstNonBlank(decision?.Condition),
+            Remark = AppraisalSummaryCommonLoader.FirstNonBlank(decision?.Remark),
             LandOwner = land?.OwnerName,
             EntryExitRights = ParameterCodeFormatter.DecodeJsonArray(
                 land?.LandEntranceExitType, land?.LandEntranceExitTypeOther, entranceExitMap),
@@ -1131,7 +1429,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 ?? (isLandBuildingAppraisal ? land?.OwnerName : null),
             LandCondition = landCondition,
             LandConditions = landConditions,
-            Obligation = land?.ObligationDetails,
+            Obligation = string.IsNullOrWhiteSpace(land?.ObligationDetails)
+                ? AppraisalSummaryModel.NoObligationText
+                : land!.ObligationDetails,
             CityPlan = land?.UrbanPlanningType,
             Gps = gps,
             GovernmentAssessedValue = land?.GovernmentPrice,
@@ -1159,7 +1459,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             ShowMeeting = showMeeting,
             ApproverDecisionApproved = approverDecisionApproved,
             Approvers = approvers,
-            ApproverSummaryComment = decision?.CommitteeOpinion
+            ApproverSummaryComment = AppraisalSummaryCommonLoader.FirstNonBlank(decision?.CommitteeOpinion)
         };
 
         return model;
@@ -1167,45 +1467,89 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Whether a Building Detail actually carries a house number. Appraisers type "-" for "none"
+    /// (35 of the 232 rows on the dev database), so a dash-only value must read as absent — it is
+    /// used as proof that a mis-flagged building is a real สิ่งปลูกสร้าง, and a placeholder is not
+    /// proof of anything.
+    /// </summary>
+    private static bool HasHouseNumber(string? houseNumber) =>
+        !string.IsNullOrWhiteSpace(houseNumber) && houseNumber.Trim().Trim('-', '–', '—').Length > 0;
+
     private static string BuildAreaString(decimal? rai, decimal? ngan, decimal? sqwa)
         // Thai land-area shorthand rai-ngan-wa; every empty position shows 0 (e.g. "9-2-41 ไร่", "1-0-0 ไร่").
-        => $"{rai ?? 0:0.##}-{ngan ?? 0:0.##}-{sqwa ?? 0:0.##} ไร่";
+        => $"{rai ?? 0:#,##0.##}-{ngan ?? 0:#,##0.##}-{sqwa ?? 0:#,##0.##} ไร่";
 
     /// <summary>
     /// Builds a cost-breakdown line, e.g. "อาคารโรงงานชั้นเดียว พื้นที่ใช้สอย 1,800 ตารางเมตร อายุ 9 ปี".
     /// <paramref name="areaLabel"/> is "พื้นที่ใช้สอย" for buildings, "พื้นที่" for development items.
+    /// <paramref name="namePrefix"/> is the owning property's building type, passed for ส่วนพัฒนา
+    /// rows whose property prints no สิ่งปลูกสร้าง line of its own. It NAMES the item, replacing the
+    /// row's free-text <c>AreaDescription</c> — the two describe the same thing, and the building
+    /// type is the curated one. Rows under a normal building pass none and keep their own text.
+    /// An enhancement property carries a single Non-Building row in practice, so the replacement
+    /// loses nothing; were it to carry several, they would all print under this one name.
     /// </summary>
-    private static string? BuildItemDesc(GroupDepreciationRow d, string areaLabel)
+    private static string? BuildItemDesc(
+        GroupDepreciationRow d, string areaLabel, decimal? progressPct = null, string? namePrefix = null)
     {
         var parts = new List<string>();
-        if (!string.IsNullOrWhiteSpace(d.AreaDescription))
+        if (!string.IsNullOrWhiteSpace(namePrefix))
+            parts.Add(namePrefix!.Trim());
+        else if (!string.IsNullOrWhiteSpace(d.AreaDescription))
             parts.Add(d.AreaDescription!.Trim());
         if (d.Area is { } a && a != 0)
-            parts.Add($"{areaLabel} {a:0.##} ตารางเมตร");
+            parts.Add($"{areaLabel} {a:#,##0.##} ตารางเมตร");
         if (d.Year > 0)
             parts.Add($"อายุ {d.Year} ปี");
+        if (ProgressSuffix(progressPct) is { } suffix)
+            parts.Add(suffix);
         return parts.Count > 0 ? string.Join(" ", parts) : null;
     }
 
     /// <summary>
-    /// Builds a per-building cost line: property name (type) + floors + usable area + age + condition,
+    /// Construction-progress clause appended to a cost line: "(แล้วเสร็จ 47.07%)" while building,
+    /// "(ยังไม่ก่อสร้าง)" before work starts. Null (no clause) when the property carries no
+    /// inspection — that item is complete and reads as an ordinary line.
+    /// </summary>
+    private static string? ProgressSuffix(decimal? progressPct) => progressPct switch
+    {
+        null => null,
+        <= 0m => "(ยังไม่ก่อสร้าง)",
+        >= 100m => null,
+        _ => $"(แล้วเสร็จ {progressPct.Value:#,##0.##}%)"
+    };
+
+    /// <summary>
+    /// How a building names itself: the building TYPE (BuildingTypeDisplay already resolves code 99
+    /// "อื่นๆ" to the appraiser's remark), with the free-text property name as a last-resort
+    /// fallback. Null when neither is filled in.
+    /// </summary>
+    private static string? BuildingDisplayName(GroupBuildingRow b)
+    {
+        var name = !string.IsNullOrWhiteSpace(b.BuildingTypeDisplay) ? b.BuildingTypeDisplay : b.PropertyName;
+        return string.IsNullOrWhiteSpace(name) ? null : name!.Trim();
+    }
+
+    /// <summary>
+    /// Builds a per-building cost line: building type + floors + usable area + age + condition,
     /// e.g. "อาคารโรงงาน ชั้นเดียว พื้นที่ใช้สอย 1,800 ตารางเมตร อายุอาคาร 9 ปี สภาพอาคารปานกลาง".
     /// </summary>
-    private static string? BuildBuildingLine(GroupBuildingRow b)
+    private static string? BuildBuildingLine(GroupBuildingRow b, decimal? progressPct = null)
     {
         var parts = new List<string>();
-        // Lead with the building's property name; fall back to the building type.
-        var name = !string.IsNullOrWhiteSpace(b.PropertyName) ? b.PropertyName : b.BuildingTypeDisplay;
-        if (!string.IsNullOrWhiteSpace(name))
-            parts.Add(name!.Trim());
+        if (BuildingDisplayName(b) is { } name)
+            parts.Add(name);
         if (b.NumberOfFloors.HasValue)
-            parts.Add($"{b.NumberOfFloors:0.##} ชั้น");
+            parts.Add($"{b.NumberOfFloors:#,##0.##} ชั้น");
         if (b.TotalBuildingArea.HasValue)
-            parts.Add($"พื้นที่ใช้สอย {b.TotalBuildingArea:0.##} ตารางเมตร");
+            parts.Add($"พื้นที่ใช้สอย {b.TotalBuildingArea:#,##0.##} ตารางเมตร");
         if (b.BuildingAge.HasValue)
             parts.Add($"อายุอาคาร {b.BuildingAge} ปี");
         if (!string.IsNullOrWhiteSpace(b.BuildingConditionDisplay))
             parts.Add($"สภาพอาคาร{b.BuildingConditionDisplay}");
+        if (ProgressSuffix(progressPct) is { } suffix)
+            parts.Add(suffix);
         return parts.Count > 0 ? string.Join(" ", parts) : null;
     }
 
@@ -1326,6 +1670,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public string? UnitType { get; init; }                // "PerSqWa" | "PerSqm" | "PerUnit"
         public bool? IncludeLandArea { get; init; }
         public string? PropertyType { get; init; }
+        public bool HasCombinedProperty { get; init; }        // group holds an LB / LS property
         public string? FirstTitleNumber { get; init; }
         public decimal? AreaRai { get; init; }
         public decimal? AreaNgan { get; init; }
@@ -1336,11 +1681,28 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     {
         public Guid PropertyGroupId { get; init; }
         public Guid BuildingAppraisalDetailId { get; init; }
+        /// <summary>Owning AppraisalProperty — the key ConstructionInspections is stored against.</summary>
+        public Guid AppraisalPropertyId { get; init; }
         public bool IsBuilding { get; init; }
         public string? AreaDescription { get; init; }
         public decimal? Area { get; init; }
         public short Year { get; init; }
         public decimal? PriceAfterDepreciation { get; init; }
+    }
+
+    /// <summary>
+    /// One construction inspection (RS24), keyed by the property it hangs off. Present only for
+    /// properties flagged under construction; absent = the building is complete.
+    /// </summary>
+    private sealed class ConstructionProgressRow
+    {
+        public Guid AppraisalPropertyId { get; init; }
+        /// <summary>Building value at 100% completion.</summary>
+        public decimal TotalValue { get; init; }
+        /// <summary>Overall current progress, 0–100.</summary>
+        public decimal ProgressPct { get; init; }
+        /// <summary>Building value at the current progress.</summary>
+        public decimal CurrentValue { get; init; }
     }
 
     private sealed class GroupLandFillRow
@@ -1354,8 +1716,10 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
     private sealed class GovPriceRow
     {
+        public Guid TitleId { get; init; }
         public string? TitleNumber { get; init; }
         public decimal? GovernmentPricePerSqWa { get; init; }
+        public bool? IsMissingFromSurvey { get; init; }
     }
 
     private sealed class DecisionRow
@@ -1382,6 +1746,12 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public string? Comment { get; init; }
         public string? Member { get; init; }
         public DateTime VotedAt { get; init; }
+
+        /// <summary>
+        /// Committee role (CommitteeMemberPosition name) copied onto the vote from the meeting
+        /// roster. Drives display order only — <see cref="Position"/> is what actually prints.
+        /// </summary>
+        public string? MemberRole { get; init; }
     }
 
     private sealed class RequestorRow
@@ -1420,7 +1790,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public string? PageNumber { get; init; }
         public string? LandParcelNumber { get; init; }
         public string? SurveyNumber { get; init; }
-        public string? MapSheetNumber { get; init; }
+        public string? Rawang { get; init; }
         public decimal? AreaRai { get; init; }
         public decimal? AreaNgan { get; init; }
         public decimal? AreaSquareWa { get; init; }
@@ -1433,6 +1803,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     {
         public Guid PropertyGroupId { get; init; }
         public Guid BuildingId { get; init; }
+        /// <summary>Owning AppraisalProperty — the key ConstructionInspections is stored against.</summary>
+        public Guid AppraisalPropertyId { get; init; }
         public string? PropertyName { get; init; }
         public string? OwnerName { get; init; }
         public int SequenceInGroup { get; init; }

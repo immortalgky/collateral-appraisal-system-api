@@ -31,6 +31,9 @@ public record AppraisalDto
     public DateTime? SLADueDate { get; init; }
     public string? SLAStatus { get; init; }
     public int PropertyCount { get; init; }
+
+    /// <summary>Distinct property type codes on this appraisal, comma-joined (e.g. "B, L, LB").</summary>
+    public string? PropertyTypes { get; init; }
     public DateTime? CreatedAt { get; init; }
     public decimal? AppraisalValue { get; init; }
 
@@ -41,6 +44,8 @@ public record AppraisalDto
     public string? AssignmentStatus { get; init; }
     public DateTime? AssignedDate { get; init; }
     public string? CompanyName { get; init; }
+    /// <summary>Thai name; null when the company has none. The client picks by its own locale.</summary>
+    public string? CompanyNameLocal { get; init; }
 
     // Customer Info
     public string? CustomerName { get; init; }

@@ -63,6 +63,11 @@ public record PoolTaskDto
     public string? Movement { get; init; }
     public string? InternalFollowupStaff { get; init; }
     public string? Appraiser { get; init; }
+    /// <summary>
+    /// Thai company name, set only on external-assignment rows (Appraiser is a person for internal
+    /// ones). Null means "nothing to localize" — the client falls back to <see cref="Appraiser"/>.
+    /// </summary>
+    public string? AppraiserCompanyNameLocal { get; init; }
     public string? Priority { get; init; }
     public DateTime? DueAt { get; init; }
     public DateTime? SlaStartAt { get; init; }

@@ -9,14 +9,14 @@ namespace Appraisal.Application.Features.Appraisals.UpdateLeaseAgreementBuilding
 public record UpdateLeaseAgreementBuildingPropertyCommand(
     Guid AppraisalId,
     Guid PropertyId,
-  // Property Identification
-  string? PropertyName = null,
+    // Property Identification
+    string? PropertyName = null,
     string? BuildingNumber = null,
     string? ModelName = null,
     string? BuiltOnTitleNumber = null,
     // Owner
-    string? OwnerName = null,
-    bool? IsOwnerVerified = null,
+    string? OwnerNameBuilding = null,
+    bool? IsOwnerVerifiedBuilding = null,
     string? HouseNumber = null,
     string? NoHouseNumber = null,
     // Building Status
@@ -31,7 +31,7 @@ public record UpdateLeaseAgreementBuildingPropertyCommand(
     // Building Info
     string? BuildingType = null,
     string? BuildingTypeOther = null,
-    int? NumberOfFloors = null,
+    decimal? NumberOfFloors = null,
     string? DecorationType = null,
     string? DecorationTypeOther = null,
     bool? IsEncroachingOthers = null,

@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Shared;
+using Appraisal.Application.Services;
 using Shared.Data.Outbox;
 using Shared.Identity;
 using Shared.Messaging.Events;
@@ -13,7 +14,8 @@ public class RescheduleAppointmentCommandHandler(
     ISender sender,
     ICurrentUserService currentUser,
     IIntegrationEventOutbox outbox,
-    IDateTimeProvider dateTimeProvider)
+    IDateTimeProvider dateTimeProvider,
+    AppraisalValuationSummaryService valuationSummaryService)
     : ICommandHandler<RescheduleAppointmentCommand>
 {
     public async Task<Unit> Handle(
@@ -38,6 +40,16 @@ public class RescheduleAppointmentCommandHandler(
                 "Cannot reschedule: an approval is currently awaiting review. Wait for the approval to be resolved before making further changes.");
 
         appointment.Reschedule(command.ChangedBy, command.NewDateTime, command.LocationDetail, command.Reason);
+
+        // Follow the appraisal date to the new slot. Reschedule() has already moved the appointment's
+        // own date, so this runs on BOTH branches below — the read side derives its fallback from the
+        // appointment row without consulting approval state, and ValuationDate must not disagree with
+        // it. Without this the appraisal date stays pinned to the ORIGINAL slot on every surface that
+        // reads it (the printed book, both AS400 feeds, History Search, the +5-year reappraisal
+        // anchor) until an unrelated pricing save happens to re-derive it. No-ops for an off-system
+        // engagement, whose hand-keyed book date outranks any appointment.
+        await valuationSummaryService.SyncValuationDateFromAppointmentAsync(
+            command.AppraisalId, command.NewDateTime, cancellationToken);
 
         // Derive request source from the acting user — external companies use "Ext" approval rules;
         // internal bank users use "Int" rules (no company_id claim required).

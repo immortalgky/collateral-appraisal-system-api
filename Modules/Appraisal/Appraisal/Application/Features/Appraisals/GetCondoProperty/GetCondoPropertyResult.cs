@@ -22,6 +22,7 @@ public record GetCondoPropertyResult(
     string? RoomNumber,
     string? FloorNumber,
     decimal? UsableArea,
+    decimal? ConstructionCompletionPercent,
     // Coordinates
     decimal? Latitude,
     decimal? Longitude,
@@ -30,6 +31,9 @@ public record GetCondoPropertyResult(
     string? District,
     string? Province,
     string? LandOffice,
+    string? DopaSubDistrict,
+    string? DopaDistrict,
+    string? DopaProvince,
     // Owner
     string? OwnerName,
     bool? IsOwnerVerified,
@@ -94,6 +98,7 @@ public record GetCondoPropertyResult(
     List<string>? EnvironmentType,
     string? EnvironmentTypeOther,
     // Pricing
+    bool? IsMissingFromSurvey,
     decimal? GovernmentPricePerSqm,
     decimal? GovernmentPrice,
     string? FireInsuranceCondition,

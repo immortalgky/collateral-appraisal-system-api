@@ -16,7 +16,8 @@ public class OpenTaskCommandHandler(
     ISqlConnectionFactory connectionFactory,
     ILogger<OpenTaskCommandHandler> logger,
     IUserGroupService userGroupService,
-    ITeamService teamService
+    ITeamService teamService,
+    ISegregationOfDutiesGuard segregationOfDutiesGuard
 ) : ICommandHandler<OpenTaskCommand, OpenTaskResult>
 {
     public async Task<OpenTaskResult> Handle(OpenTaskCommand command, CancellationToken cancellationToken)
@@ -51,6 +52,19 @@ public class OpenTaskCommandHandler(
 
         if (!isOwner && !isPoolMember)
             return new OpenTaskResult(false, "You are not assigned to this task");
+
+        // Segregation of duties: a pool task is reachable by the whole group, so the exclusion the
+        // assignment pipeline could not apply (PoolAssigneeSelector emits a group, not a person) is
+        // enforced here. Claiming is not a prerequisite for opening, so guarding ClaimTask alone
+        // would be bypassable.
+        if (isPoolMember)
+        {
+            var blockingActivity = await segregationOfDutiesGuard.GetBlockingActivityAsync(
+                task.WorkflowInstanceId, task.ActivityId, username, cancellationToken);
+            if (blockingActivity is not null)
+                return new OpenTaskResult(false,
+                    "You already completed an earlier step on this appraisal and cannot work this task.");
+        }
 
         // For personal tasks: transition to InProgress on first open
         if (isOwner && task.TaskStatus != TaskStatus.InProgress)

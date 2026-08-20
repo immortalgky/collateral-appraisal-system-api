@@ -8,8 +8,11 @@ public class UpdateFeeStructureCommandHandler(AppraisalDbContext db)
         var entity = await db.FeeStructures.FindAsync([cmd.Id], ct)
             ?? throw new NotFoundException("FeeStructure", cmd.Id);
 
+        // FeeCode and AppraisalType are immutable — the ladder the tier belongs to is read off the
+        // entity, not the command.
         await FeeStructureMapping.EnsureNoActiveOverlapAsync(
-            db, entity.FeeCode, cmd.MinSellingPrice, cmd.MaxSellingPrice, cmd.IsActive, excludeId: cmd.Id, ct);
+            db, entity.FeeCode, entity.AppraisalType, cmd.MinSellingPrice, cmd.MaxSellingPrice, cmd.IsActive,
+            excludeId: cmd.Id, ct);
 
         entity.Update(cmd.BaseAmount, cmd.MinSellingPrice, cmd.MaxSellingPrice, cmd.IsActive);
         // No SaveChangesAsync — TransactionalBehavior commits the unit of work.

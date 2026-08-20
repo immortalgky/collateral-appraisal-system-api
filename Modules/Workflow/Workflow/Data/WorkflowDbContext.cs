@@ -30,6 +30,9 @@ public class WorkflowDbContext(DbContextOptions<WorkflowDbContext> options) : Db
     // External-company round-robin pool + weights
     public DbSet<CompanyRoundRobinConfiguration> CompanyRoundRobinConfigurations => Set<CompanyRoundRobinConfiguration>();
 
+    // Initial-routing rules (internal vs external vs admin review)
+    public DbSet<AutoAssignmentRule> AutoAssignmentRules => Set<AutoAssignmentRule>();
+
     // Activity process configuration (submission pipeline)
     public DbSet<ActivityProcessConfiguration> ActivityProcessConfigurations => Set<ActivityProcessConfiguration>();
 

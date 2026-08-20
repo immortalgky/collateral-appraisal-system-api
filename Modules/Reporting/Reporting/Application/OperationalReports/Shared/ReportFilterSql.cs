@@ -62,6 +62,21 @@ internal static class ReportFilterSql
         p.Add(name, value.Trim());
     }
 
+    /// <summary>
+    /// Contains-match against ANY of <paramref name="columns"/> (OR-ed). Used where one logical field
+    /// is projected in two languages — e.g. AppraisalCompany (Thai-first, for display) alongside
+    /// AppraisalCompanyEn — so a filter matches whichever name the caller happens to hold.
+    /// The column names are report-defined constants, never user input; only the value is bound.
+    /// </summary>
+    public static void ContainsAny(
+        List<string> conditions, DynamicParameters p, string? value, string[] columns, string name)
+    {
+        if (string.IsNullOrWhiteSpace(value) || columns.Length == 0) return;
+        conditions.Add("(" + string.Join(" OR ",
+            columns.Select(col => $"{col} LIKE '%' + @{name} + '%'")) + ")");
+        p.Add(name, value.Trim());
+    }
+
     public static string Where(List<string> conditions) =>
         conditions.Count > 0 ? " WHERE " + string.Join(" AND ", conditions) : "";
 

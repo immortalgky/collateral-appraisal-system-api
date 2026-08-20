@@ -61,12 +61,12 @@ public class GetAppraisalResultsByCaseKeyQueryHandler(
 
 internal static class GetAppraisalResultSql
 {
-    // Only completed appraisals are served to external systems.
+    // Lookup by appraisal number returns any status (PMA / in-progress appraisals are retrieved before
+    // completion). The by-external-case-key path below still restricts to completed appraisals.
     public const string ByAppraisalNumber = """
                                             SELECT a.Id, a.AppraisalNumber, a.Status, a.Purpose, a.CompletedAt, a.RequestId
                                             FROM appraisal.Appraisals a
                                             WHERE a.AppraisalNumber = @AppraisalNumber AND a.IsDeleted = 0
-                                              AND a.Status = 'Completed'
                                             """;
 
     public const string ByExternalCaseKey = """
@@ -78,16 +78,43 @@ internal static class GetAppraisalResultSql
                                             ORDER BY a.CreatedAt DESC, a.AppraisalNumber
                                             """;
 
+    // Legacy (AS400) header: adds AppraisalType and the request-level selling price (MarketValue).
+    // The Province/District/SubDistrict returned to AS400 is the TITLE address, sourced per collateral
+    // (land/condo detail, or the project for a block) — not the request-level DOPA address — so it is
+    // resolved in the collateral/project queries below, not here.
+    public const string LegacyByAppraisalNumber = """
+                                            SELECT a.Id, a.AppraisalNumber, a.AppraisalType, a.Status, a.CompletedAt, a.RequestId,
+                                                   rd.TotalSellingPrice AS MarketValue,
+                                                   -- SequenceOfApprove = the committee meeting number the appraisal was reviewed in (latest).
+                                                   (SELECT TOP 1 m.MeetingNo
+                                                    FROM appraisal.AppraisalReviews ar
+                                                    JOIN workflow.Meetings m ON m.Id = ar.MeetingId
+                                                    WHERE ar.AppraisalId = a.Id
+                                                    ORDER BY ar.ReviewedAt DESC) AS SequenceOfApprove
+                                            FROM appraisal.Appraisals a
+                                            LEFT JOIN request.RequestDetails rd ON rd.RequestId = a.RequestId
+                                            WHERE a.AppraisalNumber = @AppraisalNumber AND a.IsDeleted = 0
+                                            """;
+
     public const string ActiveAssignment = """
                                            SELECT TOP 1
                                                aa.Id AS AssignmentId,
                                                aa.AssignmentType,
                                                aa.AssigneeUserId,
                                                aa.AssigneeCompanyId,
-                                               c.Name AS CompanyName,
+                                               -- Thai-first. This SQL is shared by BOTH result endpoints, and both are JSON:
+                                               --   POST /api/v1/appraisals/result  (LegacyAppraisalResultEnvelope)
+                                               --   GET  /api/v2/appraisals/{no}/result
+                                               -- Neither is fixed-width, so there is no column-width or byte-offset limit here.
+                                               -- NOTE: the AS400 fixed-width ExternalValuerName is a DIFFERENT path — it reads
+                                               -- the frozen collateral.CollateralEngagements.AppraisalCompanyName snapshot via
+                                               -- Collateral/CollateralMasters/CollateralResult/CollateralResultQuery.cs, which
+                                               -- stays English. Don't conflate the two.
+                                               COALESCE(NULLIF(c.NameLocal, N''), c.Name) AS CompanyName,
                                                c.HostCompanyCode AS CompanyCode,
                                                u.FirstName AS UserFirstName,
                                                u.LastName  AS UserLastName,
+                                               u.EmployeeId AS EmployeeId,
                                                appt.AppointmentDateTime
                                            FROM appraisal.AppraisalAssignments aa
                                            LEFT JOIN auth.Companies   c ON c.Id = TRY_CAST(aa.AssigneeCompanyId AS uniqueidentifier)
@@ -123,6 +150,7 @@ internal static class GetAppraisalResultSql
                                                    pfv.LandValue AS GroupLandValue,
                                                    pfv.BuildingValue AS GroupBuildingValue,
                                                    pfv.FinalValueAdjusted AS GroupUnitPrice,
+                                                   pfv.ValuePerUnit AS GroupValuePerUnit,   -- selected method's per-Wa/Sqm rate → AppraisalValueWaOrM
                                                    ap.Id AS PropertyId, ap.PropertyType,
                                                    -- Land/LB fields (from LandAppraisalDetails + first LandTitle)
                                                    lad.Province, lad.District, lad.SubDistrict, lad.LandOffice,
@@ -154,8 +182,34 @@ internal static class GetAppraisalResultSql
                                                    mad.MachineName         AS MachineName,
                                                    mad.Brand               AS MachineBrand,
                                                    mad.Model               AS MachineModel,
-                                                   mad.SerialNo            AS MachineSerialNo
-                                               FROM appraisal.PropertyGroups pg
+                                                   mad.SerialNo            AS MachineSerialNo,
+                                                   -- Legacy-only descriptors (consumed by the AS400 variant)
+                                                   bad.DecorationType      AS BuildingDecorationType,
+                                                   cad.DecorationType      AS CondoDecorationType,
+                                                   cad.CondoRegistrationNumber AS CondoRegistrationNumber,
+                                                   cad.CondoName           AS CondoName,
+                                                   cad.BuiltOnTitleNumber  AS CondoBuiltOnTitleNo,
+                                                   lad.Village             AS Village,
+                                                   bad.TotalBuildingArea   AS TotalBuildingArea,
+                                                   -- LandOffice code resolved to its Thai description (legacy variant only)
+                                                   COALESCE(pLandOffice.[description],    lad.LandOffice) AS LandOfficeName,
+                                                   COALESCE(pCadLandOffice.[description], cad.LandOffice) AS CadLandOfficeName,
+                                                   -- Title-address geocodes resolved to Thai names (Title masters, NOT DOPA — legacy variant only)
+                                                   COALESCE(ltProv.NameTh, lad.Province)    AS ProvinceName,
+                                                   COALESCE(ltDist.NameTh, lad.District)    AS DistrictName,
+                                                   COALESCE(ltSub.NameTh,  lad.SubDistrict) AS SubDistrictName,
+                                                   COALESCE(ctProv.NameTh, cad.Province)    AS CadProvinceName,
+                                                   COALESCE(ctDist.NameTh, cad.District)    AS CadDistrictName,
+                                                   COALESCE(ctSub.NameTh,  cad.SubDistrict) AS CadSubDistrictName,
+                                                   -- PMA / pre-completion prices stored directly on the property (no ValuationAnalyses yet)
+                                                   ap.SellingPrice           AS PropSellingPrice,
+                                                   ap.ForcedSalePrice        AS PropForcedSalePrice,
+                                                   ap.BuildingInsurancePrice AS PropBuildingInsurancePrice
+                                               -- Keyed on AppraisalProperties (not PropertyGroups) so UNGROUPED properties
+                                               -- (e.g. PMA input) are still returned; grouping/pricing are LEFT JOINed.
+                                               FROM appraisal.AppraisalProperties ap
+                                               LEFT JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = ap.Id
+                                               LEFT JOIN appraisal.PropertyGroups pg ON pg.Id = pgi.PropertyGroupId
                                                LEFT JOIN appraisal.PricingAnalysis pa ON pa.AnchorId = pg.Id AND pa.SubjectType = 0
                                                OUTER APPLY (
                                                    SELECT TOP 1 ApproachType
@@ -164,15 +218,14 @@ internal static class GetAppraisalResultSql
                                                    ORDER BY Id
                                                ) paa
                                                OUTER APPLY (
-                                                   SELECT TOP 1 fv.LandValue, fv.BuildingValue, fv.FinalValueAdjusted
+                                                   SELECT TOP 1 fv.LandValue, fv.BuildingValue, fv.FinalValueAdjusted,
+                                                          pm.ValuePerUnit
                                                    FROM appraisal.PricingAnalysisApproaches pap
                                                    JOIN appraisal.PricingAnalysisMethods pm ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
                                                    JOIN appraisal.PricingFinalValues fv ON fv.PricingMethodId = pm.Id
                                                    WHERE pap.PricingAnalysisId = pa.Id AND pap.IsSelected = 1
                                                    ORDER BY pm.Id
                                                ) pfv
-                                               JOIN appraisal.PropertyGroupItems pgi ON pgi.PropertyGroupId = pg.Id
-                                               JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
                                                LEFT JOIN appraisal.LandAppraisalDetails lad ON lad.AppraisalPropertyId = ap.Id
                                                LEFT JOIN (
                                                    SELECT *, ROW_NUMBER() OVER (PARTITION BY LandAppraisalDetailId ORDER BY Id) AS rn
@@ -184,8 +237,21 @@ internal static class GetAppraisalResultSql
                                                LEFT JOIN appraisal.VesselAppraisalDetails vsad ON vsad.AppraisalPropertyId = ap.Id
                                                LEFT JOIN appraisal.MachineryAppraisalDetails mad ON mad.AppraisalPropertyId = ap.Id
                                                LEFT JOIN appraisal.LeaseAgreementDetails leasd ON leasd.AppraisalPropertyId = ap.Id
-                                               WHERE pg.AppraisalId = @AppraisalId
-                                               ORDER BY pg.GroupNumber, pgi.SequenceInGroup
+                                               LEFT JOIN parameter.Parameters pLandOffice
+                                                   ON pLandOffice.[group] = 'LandOffice' AND pLandOffice.[language] = 'TH'
+                                                  AND pLandOffice.[isactive] = 1 AND pLandOffice.[code] = lad.LandOffice
+                                               LEFT JOIN parameter.Parameters pCadLandOffice
+                                                   ON pCadLandOffice.[group] = 'LandOffice' AND pCadLandOffice.[language] = 'TH'
+                                                  AND pCadLandOffice.[isactive] = 1 AND pCadLandOffice.[code] = cad.LandOffice
+                                               -- Title-address masters (land + condo detail geocodes → Thai names)
+                                               LEFT JOIN parameter.TitleProvinces    ltProv ON ltProv.Code = lad.Province
+                                               LEFT JOIN parameter.TitleDistricts    ltDist ON ltDist.Code = lad.District
+                                               LEFT JOIN parameter.TitleSubDistricts ltSub  ON ltSub.Code  = lad.SubDistrict
+                                               LEFT JOIN parameter.TitleProvinces    ctProv ON ctProv.Code = cad.Province
+                                               LEFT JOIN parameter.TitleDistricts    ctDist ON ctDist.Code = cad.District
+                                               LEFT JOIN parameter.TitleSubDistricts ctSub  ON ctSub.Code  = cad.SubDistrict
+                                               WHERE ap.AppraisalId = @AppraisalId
+                                               ORDER BY pg.GroupNumber, pgi.SequenceInGroup, ap.Id
                                                """;
 
     // Latest VAL_REPORT document per code for the appraisal (one row per DocumentTypeCode,
@@ -213,8 +279,20 @@ internal static class GetAppraisalResultSql
     // A block/project appraisal has a row in appraisal.Projects (1:1 via AppraisalId).
     // ProjectType code: "U" (Condo) | "LB"/"L" (Land / Land&Building).
     public const string ProjectByAppraisalId = """
-                                               SELECT TOP 1 p.Id AS ProjectId, p.ProjectType
+                                               SELECT TOP 1 p.Id AS ProjectId, p.ProjectType,
+                                                      p.ProjectName, p.Developer, p.BuiltOnTitleDeedNumber,
+                                                      COALESCE(pLandOffice.[description], p.LandOffice) AS LandOfficeName,
+                                                      -- Block title address (project geocodes → Title masters, NOT DOPA)
+                                                      COALESCE(ltProv.NameTh, p.Province)    AS ProvinceName,
+                                                      COALESCE(ltDist.NameTh, p.District)    AS DistrictName,
+                                                      COALESCE(ltSub.NameTh,  p.SubDistrict) AS SubDistrictName
                                                FROM appraisal.Projects p
+                                               LEFT JOIN parameter.Parameters pLandOffice
+                                                   ON pLandOffice.[group] = 'LandOffice' AND pLandOffice.[language] = 'TH'
+                                                  AND pLandOffice.[isactive] = 1 AND pLandOffice.[code] = p.LandOffice
+                                               LEFT JOIN parameter.TitleProvinces    ltProv ON ltProv.Code = p.Province
+                                               LEFT JOIN parameter.TitleDistricts    ltDist ON ltDist.Code = p.District
+                                               LEFT JOIN parameter.TitleSubDistricts ltSub  ON ltSub.Code  = p.SubDistrict
                                                WHERE p.AppraisalId = @AppraisalId
                                                """;
 
@@ -224,10 +302,27 @@ internal static class GetAppraisalResultSql
                                            SELECT TOP 1
                                                pu.RoomNumber, pu.Floor, pu.TowerName,
                                                pu.PlotNumber, pu.HouseNumber, pu.NumberOfFloors, pu.LandArea,
-                                               pu.UsableArea,
-                                               pp.TotalAppraisalValueRounded, pp.ForceSellingPrice
+                                               pu.UsableArea, pu.SellingPrice,
+                                               pu.CondoRegistrationNumber AS UnitRoomNo,   -- actually the room number (column to be renamed)
+                                               pt.CondoRegistrationNumber,                 -- tower-level condo registration → BuildingRegisterNo
+                                               pt.NumberOfFloors AS TowerFloors,           -- total floors of the building → FloorNumber
+                                               pt.BuildingAge    AS TowerBuildingAge,
+                                               COALESCE(pm.DecorationType, pt.DecorationType) AS DecorationType,
+                                               modelApproach.ApproachType AS ModelApproachType,   -- selected approach of the unit's model → MethodOfAppraisal
+                                               pp.TotalAppraisalValueRounded, pp.ForceSellingPrice, pp.CoverageAmount
                                            FROM appraisal.ProjectUnits pu
                                            LEFT JOIN appraisal.ProjectUnitPrices pp ON pp.ProjectUnitId = pu.Id
+                                           LEFT JOIN appraisal.ProjectTowers pt ON pt.Id = pu.ProjectTowerId
+                                           LEFT JOIN appraisal.ProjectModels pm ON pm.Id = pu.ProjectModelId
+                                           OUTER APPLY (
+                                               -- Block pricing method lives on the model's PricingAnalysis (SubjectType = 1).
+                                               SELECT TOP 1 papp.ApproachType
+                                               FROM appraisal.PricingAnalysis pamdl
+                                               JOIN appraisal.PricingAnalysisApproaches papp
+                                                   ON papp.PricingAnalysisId = pamdl.Id AND papp.IsSelected = 1
+                                               WHERE pamdl.AnchorId = pu.ProjectModelId AND pamdl.SubjectType = 1
+                                               ORDER BY papp.Id
+                                           ) modelApproach
                                            WHERE pu.ProjectId = @ProjectId
                                            """;
 
@@ -239,7 +334,8 @@ internal static class GetAppraisalResultSql
 
     public const string BlockUnitByRoomFloor = BlockUnitSelect + """
 
-                                                  AND pu.RoomNumber = @RoomNumber AND pu.Floor = @Floor
+                                                  AND (pu.CondoRegistrationNumber = @RoomNumber OR pu.RoomNumber = @RoomNumber)
+                                                  AND pu.Floor = @Floor
                                               ORDER BY pu.SequenceNumber
                                               """;
 }
@@ -261,6 +357,7 @@ internal sealed record AssignmentRow(
     string? CompanyCode,
     string? UserFirstName,
     string? UserLastName,
+    string? EmployeeId,
     DateTime? AppointmentDateTime);
 
 internal sealed record ValuationRow(
@@ -270,13 +367,14 @@ internal sealed record ValuationRow(
     DateTime? ValuationDate);
 
 internal sealed record CollateralRow(
-    Guid GroupId,
+    Guid? GroupId,        // null for ungrouped properties (e.g. PMA input not assigned to a group)
     string? GroupName,
     decimal? GroupAppraisedValue,
     string? AppraisalMethod,
     decimal? GroupLandValue,
     decimal? GroupBuildingValue,
     decimal? GroupUnitPrice,
+    decimal? GroupValuePerUnit,
     Guid PropertyId,
     string? PropertyType,
     string? Province,
@@ -319,14 +417,57 @@ internal sealed record CollateralRow(
     string? MachineName,
     string? MachineBrand,
     string? MachineModel,
-    string? MachineSerialNo);
+    string? MachineSerialNo,
+    // Legacy-only descriptors
+    string? BuildingDecorationType,
+    string? CondoDecorationType,
+    string? CondoRegistrationNumber,
+    string? CondoName,
+    string? CondoBuiltOnTitleNo,
+    string? Village,
+    decimal? TotalBuildingArea,
+    string? LandOfficeName,
+    string? CadLandOfficeName,
+    // Title-address geocodes resolved to Thai names (land detail / condo detail)
+    string? ProvinceName,
+    string? DistrictName,
+    string? SubDistrictName,
+    string? CadProvinceName,
+    string? CadDistrictName,
+    string? CadSubDistrictName,
+    // PMA / pre-completion prices stored on the property (used when ValuationAnalyses is absent)
+    decimal? PropSellingPrice,
+    decimal? PropForcedSalePrice,
+    decimal? PropBuildingInsurancePrice);
+
+// Legacy (AS400) appraisal header row: appraisal identity + type and the request-level MarketValue.
+// The title address is resolved per collateral (see CollateralRow / ProjectRow), not here.
+internal sealed record LegacyAppraisalRow(
+    Guid Id,
+    string AppraisalNumber,
+    string? AppraisalType,
+    string? Status,
+    DateTime? CompletedAt,
+    Guid RequestId,
+    decimal? MarketValue,
+    string? SequenceOfApprove);
 
 internal sealed record DocumentRow(string? DocumentType, Guid DocumentId);
 
 // Optional unit selector for block/project appraisals.
 internal sealed record UnitSelector(string? PlotNumber, string? RoomNumber, string? FloorNumber);
 
-internal sealed record ProjectRow(Guid ProjectId, string ProjectType);
+internal sealed record ProjectRow(
+    Guid ProjectId,
+    string ProjectType,
+    string? ProjectName = null,
+    string? Developer = null,
+    string? BuiltOnTitleDeedNumber = null,
+    string? LandOfficeName = null,
+    // Block title address resolved to Thai names
+    string? ProvinceName = null,
+    string? DistrictName = null,
+    string? SubDistrictName = null);
 
 internal sealed record BlockUnitRow(
     string? RoomNumber,
@@ -337,8 +478,16 @@ internal sealed record BlockUnitRow(
     int? NumberOfFloors,
     decimal? LandArea,
     decimal? UsableArea,
+    decimal? SellingPrice,
+    string? UnitRoomNo,
+    string? CondoRegistrationNumber,
+    int? TowerFloors,
+    int? TowerBuildingAge,
+    string? DecorationType,
+    string? ModelApproachType,
     decimal? TotalAppraisalValueRounded,
-    decimal? ForceSellingPrice);
+    decimal? ForceSellingPrice,
+    decimal? CoverageAmount);
 
 internal static class AppraisalResultBuilder
 {
@@ -499,6 +648,10 @@ internal static class AppraisalResultBuilder
             }
         }
 
+        var appraisalDate =
+            (valuation?.ValuationDate ?? assignment?.AppointmentDateTime ?? appraisal.CompletedAt)
+            ?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
         return new GetAppraisalResultResponse(
             AppraisalNumber: appraisal.AppraisalNumber,
             Status: appraisal.Status,
@@ -507,8 +660,16 @@ internal static class AppraisalResultBuilder
             AppraisalSource: appraisalSource,
             ValuerName: valuerName,
             ValuerCode: valuerCode,
-            ValuationDate: (valuation?.ValuationDate ?? appraisal.CompletedAt)?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            AppraisalDate: assignment?.AppointmentDateTime?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            // Both dates are the valuation date: ValuationAnalyses.ValuationDate, falling back to
+            // the appointment and finally to CompletedAt. AppraisalDate previously led with the
+            // appointment, which is blank for an off-system external engagement (no Appointment row)
+            // and is the inspection slot rather than the valuation date.
+            //
+            // CompletedAt is the last resort, not decoration: a legacy/migrated appraisal can have
+            // neither of the first two, and AS400 would then receive a blank appraisal date for a
+            // completed appraisal. This endpoint only ever serves completed work, so it resolves.
+            ValuationDate: appraisalDate,
+            AppraisalDate: appraisalDate,
             TotalAppraisalValue: totalAppraisalValue,
             ForceSalePrice: forceSalePrice,
             FireInsurance: valuation?.InsuranceValue,
@@ -519,7 +680,7 @@ internal static class AppraisalResultBuilder
     // Resolves a single block/project unit by the selector. Throws ValidationException (→ 400) when
     // the selector is missing/wrong for the project type and strict is on; returns null (no match /
     // ignored selector) otherwise.
-    private static async Task<BlockUnitRow?> ResolveBlockUnitAsync(
+    internal static async Task<BlockUnitRow?> ResolveBlockUnitAsync(
         IDbConnection conn,
         ProjectRow project,
         UnitSelector selector,

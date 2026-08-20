@@ -11,4 +11,6 @@ public record UpdateUserCommand(
     // null = leave AuthSource unchanged (see UpdateUserRequest).
     string? AuthSource = null,
     // Bank-internal officer code; only persisted for bank users (CompanyId == null).
-    string? AoCode = null) : ICommand;
+    string? AoCode = null,
+    // Bank staff employee id; only persisted for bank users (CompanyId == null).
+    string? EmployeeId = null) : ICommand;

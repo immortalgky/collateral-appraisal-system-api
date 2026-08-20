@@ -28,9 +28,5 @@ public class BuildingInfo : ValueObject
     public void Validate()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(BuildingType);
-        if (UsableArea is null || UsableArea < 0)
-            throw new ArgumentException("usableArea must be >= 0.");
-        if (NumberOfBuilding is null || NumberOfBuilding < 0)
-            throw new ArgumentException("numberOfBuilding must be >= 0.");
     }
 }

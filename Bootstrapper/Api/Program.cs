@@ -11,11 +11,13 @@ using Request.Infrastructure;
 using Collateral.Data;
 using Scalar.AspNetCore;
 using Dapper;
+using Shared.Configuration;
 using Shared.Configurations;
 using Shared.Data;
 using Shared.Data.Dapper;
 using Shared.Data.Outbox;
 using Shared.Logging;
+using Shared.Scheduling;
 using Shared.Security;
 using Integration.Application.EventHandlers.Outbound;
 using Appraisal.Application.EventHandlers;
@@ -31,6 +33,10 @@ using Notification.Infrastructure.Email.HealthChecks;
 using Integration.Infrastructure.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Decrypt any ENC:v1: configuration secrets before anything reads connection strings / options.
+// No-ops when nothing is encrypted (Development / tests).
+builder.Configuration.AddDecryptedSecrets();
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -58,6 +64,10 @@ var appraisalAssembly = typeof(AppraisalModule).Assembly;
 var integrationAssembly = typeof(IntegrationModule).Assembly;
 var commonAssembly = typeof(CommonModule).Assembly;
 var reportingAssembly = typeof(ReportingModule).Assembly;
+
+// Cross-module catalog of recurring jobs, populated by each UseModuleRecurringJobs<T>() below and
+// read by the job-schedule admin endpoints. Must be registered before those Use* calls run.
+builder.Services.AddJobScheduleRegistry();
 
 builder.Services.AddCarterWithAssemblies(apiAssembly, requestAssembly, authAssembly, notificationAssembly,
     parameterAssembly, documentAssembly, workflowAssembly, collateralAssembly, appraisalAssembly, integrationAssembly,
@@ -291,6 +301,9 @@ builder.Services
 // load balancer so antiforgery cookies and OpenIddict reference tokens issued on one node can be
 // read by the others. MUST come after AddAuthModule so AuthDbContext is registered.
 builder.Services.AddSharedDataProtection<AuthDbContext>(builder.Configuration);
+
+// Warn at startup if any known secret key is still plaintext (outside Development).
+builder.Services.AddPlaintextSecretAudit(builder.Environment);
 
 // Reverse-proxy / load-balancer headers (IIS ARR, Nginx, etc.).
 // Allows OpenIddict discovery + HTTPS redirection to reflect the public scheme/host.

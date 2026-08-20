@@ -206,10 +206,11 @@ public static class DtoExtensions
             case TitleCondo condo:
                 dto = dto with
                 {
-                    TitleNumber = condo.TitleDeedInfo?.TitleNumber,
+                    BuiltOnTitleNumber = condo.TitleDeedInfo?.BuiltOnTitleNumber,
                     TitleType = condo.TitleDeedInfo?.TitleType,
                     CondoName = condo.CondoInfo?.CondoName,
                     BuildingNumber = condo.CondoInfo?.BuildingNumber,
+                    CondoRegistrationNumber = condo.CondoInfo?.CondoRegistrationNumber,
                     RoomNumber = condo.CondoInfo?.RoomNumber,
                     FloorNumber = condo.CondoInfo?.FloorNumber,
                     UsableArea = condo.CondoInfo?.UsableArea
@@ -259,10 +260,11 @@ public static class DtoExtensions
             case TitleLeaseAgreementCondo leaseCondo:
                 dto = dto with
                 {
-                    TitleNumber = leaseCondo.TitleDeedInfo?.TitleNumber,
+                    BuiltOnTitleNumber = leaseCondo.TitleDeedInfo?.BuiltOnTitleNumber,
                     TitleType = leaseCondo.TitleDeedInfo?.TitleType,
                     CondoName = leaseCondo.CondoInfo?.CondoName,
                     BuildingNumber = leaseCondo.CondoInfo?.BuildingNumber,
+                    CondoRegistrationNumber = leaseCondo.CondoInfo?.CondoRegistrationNumber,
                     RoomNumber = leaseCondo.CondoInfo?.RoomNumber,
                     FloorNumber = leaseCondo.CondoInfo?.FloorNumber,
                     UsableArea = leaseCondo.CondoInfo?.UsableArea
@@ -413,7 +415,7 @@ public static class DtoExtensions
 
     public static TitleDeedInfo ToDomain(this TitleDeedInfoDto dto)
     {
-        return TitleDeedInfo.Create(dto.TitleNo, dto.DeedType);
+        return TitleDeedInfo.Create(dto.TitleNo, dto.DeedType, dto.BuiltOnTitleNumber);
     }
 
     public static LandLocationInfo ToDomain(this LandLocationInfoDto dto)
@@ -452,7 +454,7 @@ public static class DtoExtensions
 
     public static CondoInfo ToDomain(this CondoInfoDto dto)
     {
-        return CondoInfo.Create(dto.CondoName, dto.BuildingNo, dto.RoomNo, dto.FloorNo, dto.UsableArea);
+        return CondoInfo.Create(dto.CondoName, dto.BuildingNo, dto.CondoRegistrationNo,dto.RoomNo, dto.FloorNo, dto.UsableArea);
     }
 
     public static RequestTitleData ToRequestTitleData(this RequestTitleDto dto)
@@ -466,14 +468,14 @@ public static class DtoExtensions
             DopaAddress = dto.DopaAddress.ToDomain(),
             Notes = dto.Notes,
             // Land-related fields
-            TitleDeedInfo = TitleDeedInfo.Create(dto.TitleNumber, dto.TitleType),
+            TitleDeedInfo = TitleDeedInfo.Create(dto.TitleNumber, dto.TitleType, dto.BuiltOnTitleNumber),
             LandLocationInfo = LandLocationInfo.Create(dto.BookNumber, dto.PageNumber, dto.LandParcelNumber,
                 dto.SurveyNumber, dto.MapSheetNumber, dto.Rawang, dto.AerialMapName, dto.AerialMapNumber),
             LandArea = LandArea.Of(dto.AreaRai, dto.AreaNgan, dto.AreaSquareWa),
             // Building-related fields
             BuildingInfo = BuildingInfo.Create(dto.BuildingType, dto.UsableArea, dto.NumberOfBuilding),
             // Condo-related fields (UsableArea shared with Building in the same column)
-            CondoInfo = CondoInfo.Create(dto.CondoName, dto.BuildingNumber, dto.RoomNumber, dto.FloorNumber,
+            CondoInfo = CondoInfo.Create(dto.CondoName, dto.BuildingNumber, dto.CondoRegistrationNumber,dto.RoomNumber, dto.FloorNumber,
                 dto.UsableArea),
             // Vehicle/Vessel/Machine fields
             VehicleInfo = VehicleInfo.Create(dto.VehicleType, dto.VehicleLocation, dto.VIN,

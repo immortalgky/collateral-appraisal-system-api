@@ -67,7 +67,7 @@ public static class RequestModule
 
     public static IApplicationBuilder UseRequestModule(this IApplicationBuilder app)
     {
-        app.UseMigration<RequestDbContext>();
+        app.UseDataSeeding<RequestDbContext>();
         app.UseModuleRecurringJobs<RequestDbContext>(RequestRecurringJobs.All);
 
         return app;

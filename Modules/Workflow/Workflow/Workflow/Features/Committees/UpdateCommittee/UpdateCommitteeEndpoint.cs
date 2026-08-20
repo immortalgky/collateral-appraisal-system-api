@@ -31,7 +31,8 @@ public record UpdateCommitteeRequest(
     int QuorumValue,
     string MajorityType,
     bool IsActive,
-    string? VotingMode = null);
+    string? VotingMode = null,
+    int MajorityValue = 0);
 
 public record UpdateCommitteeCommand(Guid Id, UpdateCommitteeRequest Request) : ICommand<UpdateCommitteeResponse>, ITransactionalCommand<IWorkflowUnitOfWork>;
 
@@ -58,7 +59,8 @@ public class UpdateCommitteeCommandHandler(
             && !Enum.TryParse(req.VotingMode, ignoreCase: true, out votingMode))
             throw new ArgumentException($"Invalid VotingMode '{req.VotingMode}'. Allowed values: {string.Join(", ", Enum.GetNames<VotingMode>())}");
 
-        committee.Update(req.Name, req.Description, quorumType, req.QuorumValue, majorityType, req.IsActive, votingMode);
+        committee.Update(req.Name, req.Description, quorumType, req.QuorumValue, majorityType,
+            req.IsActive, votingMode, req.MajorityValue);
 
         await committeeRepository.UpdateAsync(committee, ct);
 

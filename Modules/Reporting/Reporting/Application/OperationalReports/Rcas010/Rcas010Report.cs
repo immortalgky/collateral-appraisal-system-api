@@ -72,7 +72,7 @@ internal static class Rcas010Report
         ReportFilterSql.Exact(c, p, f.AoCode, "RequestorAoCode", "AoCode");
         ReportFilterSql.MultiValue(c, p, f.Status, "AppraisalStatus", "Statuses");
         ReportFilterSql.MultiValue(c, p, f.FeeType, "FeePaymentType", "FeeTypes");
-        ReportFilterSql.Contains(c, p, f.AppraisalCompany, "AppraisalCompany", "AppraisalCompany");
+        ReportFilterSql.ContainsAny(c, p, f.AppraisalCompany, ["AppraisalCompany", "AppraisalCompanyEn"], "AppraisalCompany");
 
         // Single-row aggregate. Internal/External are column groups (conditional aggregates), not row
         // dimensions. Counts are distinct appraisal books; fees are per-fee sums. Column order matches

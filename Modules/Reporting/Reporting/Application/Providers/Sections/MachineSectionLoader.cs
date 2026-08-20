@@ -60,8 +60,8 @@ internal static class MachineSectionLoader
         //   MachineName, RegistrationNumber, Brand, Model, Series (→แบบ/Type), SerialNo,
         //   Manufacturer, YearOfManufacture, MachineAge, Quantity, Location,
         //   MachineDimensions, EnergyUse, UsagePurpose, Capacity, MachineParts,
-        //   ConditionUse, MachineCondition, ReplacementValue, ConditionValue, Remark,
-        //   Other, AppraiserOpinion.
+        //   ConditionUse, MachineCondition, Remark, Other, AppraiserOpinion.
+        //   (ReplacementValue/ConditionValue live in the cost-machine table, not this card.)
         const string batchSql = """
             -- RS01: QS1 — Machinery appraisal summary (appraisal-level, 1:1)
             SELECT
@@ -109,8 +109,6 @@ internal static class MachineSectionLoader
                 mad.MachineParts,
                 mad.ConditionUse,
                 mad.MachineCondition,
-                mad.ReplacementValue,
-                mad.ConditionValue,
                 mad.Remark,
                 mad.Other,
                 mad.AppraiserOpinion
@@ -161,8 +159,6 @@ internal static class MachineSectionLoader
                 MachineParts      = r.MachineParts,
                 ConditionUse      = r.ConditionUse,
                 MachineCondition  = r.MachineCondition,
-                ReplacementValue  = r.ReplacementValue,
-                ConditionValue    = r.ConditionValue,
                 Remark            = r.Remark,
                 Other             = r.Other,
                 AppraiserOpinion  = r.AppraiserOpinion
@@ -192,7 +188,6 @@ internal static class MachineSectionLoader
             MachineLocation           = summary?.MachineLocation,
             Obligation                = summary?.Obligation,
             Other                     = summary?.Other,
-            CollateralDetailNarrative = null,   // no source — deferred
             Machines                  = machines
         };
     }
@@ -243,8 +238,6 @@ internal static class MachineSectionLoader
         public string? MachineParts { get; init; }
         public string? ConditionUse { get; init; }
         public string? MachineCondition { get; init; }
-        public decimal? ReplacementValue { get; init; }
-        public decimal? ConditionValue { get; init; }
         public string? Remark { get; init; }
         public string? Other { get; init; }
         public string? AppraiserOpinion { get; init; }

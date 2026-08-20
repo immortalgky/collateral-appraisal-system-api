@@ -213,6 +213,7 @@
           "timeoutDuration": "PT72H",
           "decisionConditions": {
             "route_external": "appraisal_assignment_decisionTaken == 'EXT'",
+            "route_external_offline": "appraisal_assignment_decisionTaken == 'EXTO'",
             "route_internal": "appraisal_assignment_decisionTaken == 'INT'",
             "reject": "appraisal_assignment_decisionTaken == 'C'",
             "request_more_info": "appraisal_assignment_decisionTaken == 'R'",
@@ -222,6 +223,12 @@
             {
               "value": "EXT",
               "label": "Route to External",
+              "assignmentMode": "user",
+              "movement": "F"
+            },
+            {
+              "value": "EXTO",
+              "label": "External (Appraised Offline)",
               "assignmentMode": "user",
               "movement": "F"
             },
@@ -256,7 +263,9 @@
             "selectedCompanyId": "selectedCompanyId",
             "selectedCompanyName": "selectedCompanyName",
             "internalFollowupStaffId": "internalFollowupStaffId",
-            "internalFollowupMethod": "internalFollowupMethod"
+            "internalFollowupMethod": "internalFollowupMethod",
+            "isOfflineExternal": "isOfflineExternal",
+            "assignmentType": "assignmentType"
           }
         },
         "position": {
@@ -592,6 +601,52 @@
         },
         "position": {
           "x": 300,
+          "y": 750
+        },
+        "requiredRoles": [
+          "IntAppraisalStaff"
+        ],
+        "isStartActivity": false,
+        "isEndActivity": false
+      },
+      {
+        "id": "int-offline-book-keyin",
+        "name": "Offline Appraisal Book Keyin",
+        "type": "TaskActivity",
+        "description": "Internal appraisal staff keys in an appraisal book produced by an external company that was engaged outside the system. The case stays External throughout; the ext-* activities are skipped because the company never works the case in CAS.",
+        "properties": {
+          "activityName": "IntOfflineBookKeyin",
+          "assigneeGroup": "IntAppraisalStaff",
+          "assignmentStrategies": "round_robin",
+          "initialAssignmentStrategies": [
+            "round_robin"
+          ],
+          "revisitAssignmentStrategies": [
+            "previous_owner"
+          ],
+          "canRaiseFollowup": true,
+          "timeoutDuration": "PT72H",
+          "decisionConditions": {
+            "proceed": "int_offline_book_keyin_decisionTaken == 'P'",
+            "route_back": "int_offline_book_keyin_decisionTaken == 'R'"
+          },
+          "actions": [
+            {
+              "value": "P",
+              "label": "Proceed",
+              "assignmentMode": "system",
+              "movement": "F"
+            },
+            {
+              "value": "R",
+              "label": "Route Back",
+              "assignmentMode": "system",
+              "movement": "B"
+            }
+          ]
+        },
+        "position": {
+          "x": 480,
           "y": 750
         },
         "requiredRoles": [
@@ -946,6 +1001,14 @@
         "type": "Conditional"
       },
       {
+        "id": "admin-route-external-offline",
+        "from": "appraisal-assignment",
+        "to": "int-offline-book-keyin",
+        "condition": "decision == 'route_external_offline'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
         "id": "admin-route-internal",
         "from": "appraisal-assignment",
         "to": "int-appraisal-execution",
@@ -973,7 +1036,15 @@
         "id": "admin-proceed-external",
         "from": "appraisal-assignment",
         "to": "company-selection",
-        "condition": "decision == 'proceed' && assignmentType == 'External'",
+        "condition": "decision == 'proceed' && assignmentType == 'External' && isOfflineExternal != true",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "admin-proceed-external-offline",
+        "from": "appraisal-assignment",
+        "to": "int-offline-book-keyin",
+        "condition": "decision == 'proceed' && isOfflineExternal == true",
         "properties": {},
         "type": "Conditional"
       },
@@ -1138,6 +1209,22 @@
         "type": "Conditional"
       },
       {
+        "id": "offline-keyin-proceed",
+        "from": "int-offline-book-keyin",
+        "to": "int-appraisal-check",
+        "condition": "decision == 'proceed'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "offline-keyin-route-back",
+        "from": "int-offline-book-keyin",
+        "to": "appraisal-assignment",
+        "condition": "decision == 'route_back'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
         "id": "int-check-proceed",
         "from": "int-appraisal-check",
         "to": "int-appraisal-verification",
@@ -1149,7 +1236,15 @@
         "id": "int-check-back-to-book-verification",
         "from": "int-appraisal-check",
         "to": "appraisal-book-verification",
-        "condition": "decision == 'route_back' && assignmentType == 'External'",
+        "condition": "decision == 'route_back' && assignmentType == 'External' && isOfflineExternal != true",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "int-check-back-to-offline-keyin",
+        "from": "int-appraisal-check",
+        "to": "int-offline-book-keyin",
+        "condition": "decision == 'route_back' && isOfflineExternal == true",
         "properties": {},
         "type": "Conditional"
       },
@@ -1205,7 +1300,15 @@
         "id": "meeting-back-to-book-verification",
         "from": "pending-meeting",
         "to": "appraisal-book-verification",
-        "condition": "meetingOutcome == 'route_back' && assignmentType == 'External'",
+        "condition": "meetingOutcome == 'route_back' && assignmentType == 'External' && isOfflineExternal != true",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "meeting-back-to-offline-keyin",
+        "from": "pending-meeting",
+        "to": "int-offline-book-keyin",
+        "condition": "meetingOutcome == 'route_back' && isOfflineExternal == true",
         "properties": {},
         "type": "Conditional"
       },
@@ -1229,7 +1332,15 @@
         "id": "approval-back-to-book-verification",
         "from": "pending-approval",
         "to": "appraisal-book-verification",
-        "condition": "decision == 'route_back' && assignmentType == 'External'",
+        "condition": "decision == 'route_back' && assignmentType == 'External' && isOfflineExternal != true",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "approval-back-to-offline-keyin",
+        "from": "pending-approval",
+        "to": "int-offline-book-keyin",
+        "condition": "decision == 'route_back' && isOfflineExternal == true",
         "properties": {},
         "type": "Conditional"
       },
@@ -1238,6 +1349,14 @@
         "from": "pending-approval",
         "to": "int-appraisal-execution",
         "condition": "decision == 'route_back' && assignmentType == 'Internal'",
+        "properties": {},
+        "type": "Conditional"
+      },
+      {
+        "id": "approval-recall-to-meeting",
+        "from": "pending-approval",
+        "to": "pending-meeting",
+        "condition": "decision == 'recall_to_meeting'",
         "properties": {},
         "type": "Conditional"
       }
@@ -1258,7 +1377,8 @@
       "facilityLimit": 0,
       "appraisalValue": 0,
       "priority": "normal",
-      "hasAppraisalBook": false
+      "hasAppraisalBook": false,
+      "isOfflineExternal": false
     },
     "metadata": {
       "author": "System Admin",

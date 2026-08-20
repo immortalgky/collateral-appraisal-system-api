@@ -43,16 +43,17 @@ public class UpdateCondoPropertyCommandHandler(
             coordinates = GpsCoordinate.Create(command.Latitude.Value, command.Longitude.Value);
         }
 
-        AdministrativeAddress? address = null;
-        if (command.SubDistrict is not null || command.District is not null ||
-            command.Province is not null || command.LandOffice is not null)
+        Address? address = null;
+        if (command.SubDistrict is not null || command.District is not null || command.Province is not null)
         {
-            address = AdministrativeAddress.Create(
+            address = Address.Create(
                 command.SubDistrict,
                 command.District,
-                command.Province,
-                command.LandOffice);
+                command.Province);
         }
+        Address? dopaAddress = null;
+        if (command.DopaSubDistrict is not null || command.DopaDistrict is not null || command.DopaProvince is not null)
+            dopaAddress = Address.Create(command.DopaSubDistrict, command.DopaDistrict, command.DopaProvince);
 
         // 6. Update via domain method
         detail.Update(
@@ -65,6 +66,7 @@ public class UpdateCondoPropertyCommandHandler(
             roomNumber: command.RoomNumber,
             floorNumber: command.FloorNumber,
             usableArea: command.UsableArea,
+            constructionCompletionPercent: command.ConstructionCompletionPercent,
             titleNumber: command.TitleNumber,
             titleType: command.TitleType,
             coordinates: coordinates,
@@ -121,6 +123,8 @@ public class UpdateCondoPropertyCommandHandler(
             sellingPrice: command.SellingPrice,
             forcedSalePrice: command.ForcedSalePrice,
             remark: command.Remark,
+            landOffice: command.LandOffice,
+            dopaAddress: dopaAddress,
             landEntranceExitType: command.LandEntranceExitType,
             landEntranceExitTypeOther: command.LandEntranceExitTypeOther,
             landFillType: command.LandFillType,
@@ -128,12 +132,13 @@ public class UpdateCondoPropertyCommandHandler(
             urbanPlanningType: command.UrbanPlanningType,
             landUseType: command.LandUseType,
             landUseTypeOther: command.LandUseTypeOther,
+            isMissingFromSurvey: command.IsMissingFromSurvey,
             governmentPricePerSqm: command.GovernmentPricePerSqm,
             governmentPrice: command.GovernmentPrice,
             fireInsuranceCondition: command.FireInsuranceCondition);
 
         // 7. Update CondoAreaDetails if provided
-        if (command.AreaDetails is not null)SyncAreaDetail(detail,command.AreaDetails);
+        if (command.AreaDetails is not null) SyncAreaDetail(detail, command.AreaDetails);
 
         // 8. Save aggregate
         await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
@@ -166,12 +171,12 @@ public class UpdateCondoPropertyCommandHandler(
                 // Update existing
                 var existing = condoDetail.AreaDetails
                     .FirstOrDefault(a => a.Id == dto.Id.Value);
-                existing?.UpdateArea(dto.AreaDescription, dto.AreaSize);
+                existing?.UpdateArea(dto.Sequence, dto.AreaDescription, dto.AreaSize);
             }
             else
             {
                 // Create new
-                var newDetail = CondoAppraisalAreaDetail.Create(dto.AreaDescription, dto.AreaSize);
+                var newDetail = CondoAppraisalAreaDetail.Create(dto.Sequence, dto.AreaDescription, dto.AreaSize);
                 condoDetail.AddCondoAreaDetail(newDetail);
             }
         }

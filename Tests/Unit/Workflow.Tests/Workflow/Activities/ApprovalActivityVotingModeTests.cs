@@ -1,10 +1,12 @@
 using FluentAssertions;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 using Shared.Time;
+using Workflow.Data;
 using Workflow.Data.Repository;
 using Workflow.Domain;
 using Workflow.Domain.Committees;
@@ -31,6 +33,10 @@ public class ApprovalActivityVotingModeTests
     private readonly IPublisher _publisher = Substitute.For<IPublisher>();
     private readonly IIntegrationEventOutbox _outbox = Substitute.For<IIntegrationEventOutbox>();
     private readonly ICommitteeRepository _committeeRepository = Substitute.For<ICommitteeRepository>();
+    private readonly WorkflowDbContext _dbContext = new(
+        new DbContextOptionsBuilder<WorkflowDbContext>()
+            .UseInMemoryDatabase($"approval-activity-voting-mode-{Guid.NewGuid()}")
+            .Options);
     private readonly IDateTimeProvider _clock = Substitute.For<IDateTimeProvider>();
 
     private const string ActivityId = "approval-1";
@@ -38,7 +44,7 @@ public class ApprovalActivityVotingModeTests
 
     private ApprovalActivity BuildActivity() =>
         new(_memberResolver, _voteRepository, _publisher, _outbox, _committeeRepository,
-            _clock, Substitute.For<global::Workflow.Sla.Services.ISlaCalculator>(),
+            _dbContext, _clock, Substitute.For<global::Workflow.Sla.Services.ISlaCalculator>(),
             Substitute.For<ILogger<ApprovalActivity>>());
 
     private static string Normalize(string id) =>

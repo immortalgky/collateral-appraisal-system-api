@@ -6,9 +6,11 @@ using Integration.Domain.IdempotencyRecords;
 using Integration.Domain.WebhookDeliveries;
 using Integration.Domain.WebhookSubscriptions;
 using Integration.FileInterface.Format.CollateralResult;
+using Integration.FileInterface.Format.HostLink;
 using Integration.FileInterface.Format.Reappraisal;
 using Integration.FileInterface.Format.RegulatoryExport;
 using Integration.FileInterface.Jobs.CollateralResult;
+using Integration.FileInterface.Jobs.HostLink;
 using Integration.FileInterface.Jobs.Reappraisal;
 using Integration.FileInterface.Jobs.RegulatoryExport;
 using Integration.Infrastructure;
@@ -74,14 +76,21 @@ public static class IntegrationModule
         services.AddSingleton<CollatrevFileParser>();
         services.AddSingleton<CollatrevFileWriter>();
         services.AddScoped<CollatrevTestFileBuilder>();
+        services.AddSingleton<HostCollateralLinkFileParser>();
         services.AddSingleton<CollateralResultFileWriter>();
         services.AddSingleton<RegulatoryFileWriter>();
         services.AddSingleton<RegulatoryExcelWriter>();
 
         // File interface jobs (moved from Collateral — thin orchestration only).
         services.AddScoped<As400ReappraisalJob>();
+        services.AddScoped<As400HostLinkJob>();
+        // Singleton, unlike the scheduled jobs: it hands the caller a job id and keeps the outcome
+        // in memory for polling, so the instance must outlive the request — same as
+        // CollateralBackfillJob. It opens its own scope for the actual work.
+        services.AddSingleton<As400LegacyImportJob>();
         services.AddScoped<CollateralResultExportJob>();
         services.AddScoped<RegulatoryExportJob>();
+        services.AddScoped<RegulatoryExportV2Job>();
 
         // Register services
         services.AddScoped<IWebhookService, WebhookService>();
@@ -124,7 +133,7 @@ public static class IntegrationModule
 
     public static IApplicationBuilder UseIntegrationModule(this IApplicationBuilder app)
     {
-        app.UseMigration<IntegrationDbContext>();
+        app.UseDataSeeding<IntegrationDbContext>();
         app.UseModuleRecurringJobs<IntegrationDbContext>(IntegrationRecurringJobs.All);
         return app;
     }

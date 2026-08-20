@@ -19,9 +19,12 @@ public record CreateLeaseAgreementLandAndBuildingPropertyRequest(
     string? District = null,
     string? Province = null,
     string? LandOffice = null,
+    string? DopaSubDistrict = null,
+    string? DopaDistrict = null,
+    string? DopaProvince = null,
     // Owner Details
-    string? OwnerName = null,
-    bool? IsOwnerVerified = null,
+    string? OwnerNameLand = null,
+    bool? IsOwnerVerifiedLand = null,
     string? HasObligation = null,
     string? ObligationDetails = null,
     // Document Verification
@@ -107,6 +110,9 @@ public record CreateLeaseAgreementLandAndBuildingPropertyRequest(
     string? BuiltOnTitleNumber = null,
     string? HouseNumber = null,
     string? NoHouseNumber = null,
+    // Owner Details
+    string? OwnerNameBuilding = null,
+    bool? IsOwnerVerifiedBuilding = null,
     // Building - Info
     string? BuildingType = null,
     string? BuildingTypeOther = null,
@@ -128,7 +134,7 @@ public record CreateLeaseAgreementLandAndBuildingPropertyRequest(
     string? BuildingAreaUnit = null,
     decimal? UsableArea = null,
     // Building - Structure
-    int? NumberOfFloors = null,
+    decimal? NumberOfFloors = null,
     // Building - Style
     string? BuildingMaterialType = null,
     string? BuildingStyleType = null,

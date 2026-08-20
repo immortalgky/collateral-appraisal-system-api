@@ -56,6 +56,7 @@ internal sealed class OlaTimingService(
     private const string ExtExecution = "ext-appraisal-execution";
     private const string ExtVerification = "ext-appraisal-verification";
     private const string IntExecution = "int-appraisal-execution";
+    private const string OfflineKeyin = "int-offline-book-keyin";
     private const string IntCheck = "int-appraisal-check";
     private const string IntVerification = "int-appraisal-verification";
     private const string Approval = "pending-approval";
@@ -108,10 +109,17 @@ internal sealed class OlaTimingService(
             DateTime? Assigned(string a) => acts.TryGetValue(a, out var t) ? t.AssignedAt : null;
             DateTime? Completed(string a) => acts.TryGetValue(a, out var t) ? t.CompletedAt : null;
 
-            var companySentToBank = Completed(ExtVerification);
+            // Off-system external: the company was engaged outside CAS, so ext-appraisal-verification
+            // never runs. The bank receives the book when the internal keyer finishes
+            // int-offline-book-keyin — that completion is the equivalent "received" moment, and
+            // without it ReceiveDate, OlaAppraisal and OlaInternalStaffVerify are all null for
+            // every EXTO case, silently excluding them from OLA reporting and breach counts.
+            var companySentToBank = Completed(ExtVerification) ?? Completed(OfflineKeyin);
             timings.ReceiveDate = companySentToBank;
 
-            // OLA Appraisal: appointment → company-sent-to-bank (external) or internal execution complete.
+            // OLA Appraisal: appointment → company-sent-to-bank (external / offline) or internal
+            // execution complete. An offline case has no appointment, so this stays null by design —
+            // the visit happened outside CAS and there is no in-system start to measure from.
             timings.OlaAppraisal = await HoursBetween(input.AppointmentDate, companySentToBank ?? Completed(IntExecution), ct);
             // OLA Internal Staff (Verify): company-sent-to-bank → internal staff sent to checker.
             timings.OlaInternalStaffVerify = await HoursBetween(companySentToBank, Assigned(IntCheck), ct);

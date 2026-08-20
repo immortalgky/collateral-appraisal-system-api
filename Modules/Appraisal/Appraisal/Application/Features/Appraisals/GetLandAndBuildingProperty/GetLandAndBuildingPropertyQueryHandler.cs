@@ -100,7 +100,10 @@ public class GetLandAndBuildingPropertyQueryHandler(
             landDetail.Address?.SubDistrict,
             landDetail.Address?.District,
             landDetail.Address?.Province,
-            landDetail.Address?.LandOffice,
+            landDetail.LandOffice,
+            landDetail.DopaAddress?.SubDistrict,
+            landDetail.DopaAddress?.District,
+            landDetail.DopaAddress?.Province,
             // Owner Fields (from Land)
             landDetail.OwnerName,
             landDetail.IsOwnerVerified,
@@ -214,6 +217,9 @@ public class GetLandAndBuildingPropertyQueryHandler(
             buildingDetail.BuiltOnTitleNumber,
             buildingDetail.HouseNumber,
             buildingDetail.NoHouseNumber,
+            // Owner Detail
+            buildingDetail.OwnerName,
+            buildingDetail.IsOwnerVerified,
             // Building - Status
             buildingDetail.BuildingConditionType,
             buildingDetail.BuildingConditionTypeOther,

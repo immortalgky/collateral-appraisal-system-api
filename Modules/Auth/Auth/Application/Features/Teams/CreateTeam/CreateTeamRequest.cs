@@ -1,3 +1,5 @@
+using Auth.Domain;
+
 namespace Auth.Application.Features.Teams.CreateTeam;
 
-public record CreateTeamRequest(string Name, string Scope = "Bank", string? Description = null);
+public record CreateTeamRequest(string Name, string Scope = AuthScopes.Bank, string? Description = null);

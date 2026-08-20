@@ -20,7 +20,8 @@ SELECT f.Id,
        ru.AoCode                AS RequestorAoCode,        -- filter
        v.Status                 AS AppraisalStatus,        -- filter
        f.FeePaymentType,                                   -- filter (fee type)
-       v.CompanyName            AS AppraisalCompany,       -- filter
+       COALESCE(NULLIF(v.CompanyNameLocal, N''), v.CompanyName)            AS AppraisalCompany,       -- filter
+       v.CompanyName            AS AppraisalCompanyEn,   -- filter key: stays English so a company filter matches in either language
        f.TotalFeeAfterVAT,
        f.CustomerPayableAmount,
        f.BankAbsorbAmount

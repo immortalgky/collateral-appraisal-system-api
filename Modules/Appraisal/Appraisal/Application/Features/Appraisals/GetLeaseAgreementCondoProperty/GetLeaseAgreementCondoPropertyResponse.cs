@@ -24,6 +24,7 @@ public record GetLeaseAgreementCondoPropertyResponse(
     string? RoomNumber,
     string? FloorNumber,
     decimal? UsableArea,
+    decimal? ConstructionCompletionPercent,
     // Coordinates
     decimal? Latitude,
     decimal? Longitude,
@@ -32,6 +33,9 @@ public record GetLeaseAgreementCondoPropertyResponse(
     string? District,
     string? Province,
     string? LandOffice,
+    string? DopaSubDistrict,
+    string? DopaDistrict,
+    string? DopaProvince,
     // Owner
     string? OwnerName,
     bool? IsOwnerVerified,
@@ -51,6 +55,14 @@ public record GetLeaseAgreementCondoPropertyResponse(
     string? RoadSurfaceTypeOther,
     List<string>? PublicUtilityType,
     string? PublicUtilityTypeOther,
+    List<string>? LandEntranceExitType,
+    string? LandEntranceExitTypeOther,
+    // Land Characteristics
+    string? LandFillType,
+    string? LandFillTypeOther,
+    string? UrbanPlanningType,
+    List<string>? LandUseType,
+    string? LandUseTypeOther,
     // Building Info
     string? DecorationType,
     string? DecorationTypeOther,
@@ -88,6 +100,10 @@ public record GetLeaseAgreementCondoPropertyResponse(
     List<string>? EnvironmentType,
     string? EnvironmentTypeOther,
     // Pricing
+    bool? IsMissingFromSurvey,
+    decimal? GovernmentPricePerSqm,
+    decimal? GovernmentPrice,
+    string? FireInsuranceCondition,
     decimal? BuildingInsurancePrice,
     decimal? SellingPrice,
     decimal? ForceSellingPrice,

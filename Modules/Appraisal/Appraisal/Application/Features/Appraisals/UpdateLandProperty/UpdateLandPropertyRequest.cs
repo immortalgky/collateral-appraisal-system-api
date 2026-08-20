@@ -17,9 +17,13 @@ public record UpdateLandPropertyRequest(
     string? District = null,
     string? Province = null,
     string? LandOffice = null,
+    // Dopa Address
+    string? DopaSubDistrict = null,
+    string? DopaDistrict = null,
+    string? DopaProvince = null,
     // Owner Details
-    string? OwnerName = null,
-    bool? IsOwnerVerified = null,
+    string? OwnerNameLand = null,
+    bool? IsOwnerVerifiedLand = null,
     string? HasObligation = null,
     string? ObligationDetails = null,
     // Document Verification

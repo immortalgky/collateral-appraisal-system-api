@@ -17,6 +17,8 @@ SELECT
     ext.ExternalAppraiserName,
     ext.AssigneeCompanyId,
     comp.Name                               AS AppraiserCompanyName,
+    -- Thai name alongside the English one; the client picks by its own locale.
+    NULLIF(comp.NameLocal, N'')             AS AppraiserCompanyNameLocal,
 
     -- Final appraised value from valuation analysis
     va.AppraisedValue                       AS AppraisalValue,

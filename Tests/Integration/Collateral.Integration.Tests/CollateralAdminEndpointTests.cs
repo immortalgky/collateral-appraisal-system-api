@@ -13,6 +13,7 @@ using Integration.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using AppraisalAggregate = Appraisal.Domain.Appraisals.Appraisal;
+using Address = Appraisal.Domain.Appraisals.Address;
 
 namespace Integration.Collateral.Integration.Tests;
 
@@ -64,7 +65,7 @@ public class CollateralAdminEndpointTests(IntegrationTestFixture fixture)
     {
         var prop = appraisal.AddLandProperty();
         prop.LandDetail!.Update(
-            address: AdministrativeAddress.Create(subDistrict, district, province, landOffice));
+            address: Address.Create(subDistrict, district, province), landOffice: landOffice);
         var title = LandTitle.Create(prop.LandDetail.Id, titleNo, titleType);
         prop.LandDetail.AddTitle(title);
         return prop;
@@ -456,8 +457,7 @@ public class CollateralAdminEndpointTests(IntegrationTestFixture fixture)
 
             var collides = await repo.LandDedupCollidesAsync(
                 master.Id,
-                ld.Province, ld.District, ld.SubDistrict,
-                ld.TitleType, ld.TitleNumber, ld.SurveyNumber, ld.LandParcelNumber, ld.Rawang,
+                ld.Province, ld.District, ld.SubDistrict, ld.TitleNumber,
                 TestContext.Current.CancellationToken);
 
             Assert.True(collides,
@@ -489,9 +489,7 @@ public class CollateralAdminEndpointTests(IntegrationTestFixture fixture)
             var collides = await repo.LandDedupCollidesAsync(
                 masterIdA,
                 ld.Province, ld.District, ld.SubDistrict,
-                ld.TitleType,
                 titleNoB,   // would match master B
-                ld.SurveyNumber, ld.LandParcelNumber, ld.Rawang,
                 TestContext.Current.CancellationToken);
 
             Assert.True(collides,

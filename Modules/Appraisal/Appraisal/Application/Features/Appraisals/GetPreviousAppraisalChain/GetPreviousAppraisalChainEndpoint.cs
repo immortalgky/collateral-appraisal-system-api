@@ -20,9 +20,11 @@ public class GetPreviousAppraisalChainEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .WithSummary("Get the chain of previous appraisals for an appraisal")
             .WithDescription(
-                "Walks appraisal.Appraisals -> request.RequestDetails.PrevAppraisalId ancestor " +
-                "links and returns the chain of prior appraisals, nearest ancestor first. The " +
-                "queried appraisal itself is excluded. Intended for the 360-summary page.")
+                "Walks appraisal.Appraisals.PrevAppraisalId ancestor links and returns the chain " +
+                "of prior appraisals, nearest ancestor first. The queried appraisal itself is " +
+                "excluded. The walk is not depth-limited — it stops only on a cycle — so a " +
+                "collateral inspected many times returns its full history. Intended for the " +
+                "360-summary page.")
             .WithTags("Appraisal")
             .RequireAuthorization();
     }

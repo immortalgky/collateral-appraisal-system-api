@@ -97,15 +97,18 @@ internal static class AppraisalSummaryCommonLoader
                 a.FacilityLimit,
                 rd.AdditionalFacilityLimit,
                 rd.PreviousFacilityLimit,
-                -- Collateral address (ที่ตั้งทรัพย์สิน) from the Request detail, same as land-building
+                -- Collateral address (ที่ตั้งทรัพย์สิน) from the Request detail, same as land-building.
+                -- The Location form captures these as DOPA geocodes (กรมการปกครอง), so DOPA wins;
+                -- Title is the fallback for rows saved while that form still used the Title picker,
+                -- and the raw geocode is the last resort.
                 rd.HouseNumber,
                 rd.ProjectName,
                 rd.Moo,
                 rd.Soi,
                 rd.Road,
-                COALESCE(tsub.NameTh,  rd.SubDistrict) AS ReqSubDistrict,
-                COALESCE(tdist.NameTh, rd.District)    AS ReqDistrict,
-                COALESCE(tprov.NameTh, rd.Province)    AS ReqProvince
+                COALESCE(dsub.NameTh,  tsub.NameTh,  rd.SubDistrict) AS ReqSubDistrict,
+                COALESCE(ddist.NameTh, tdist.NameTh, rd.District)    AS ReqDistrict,
+                COALESCE(dprov.NameTh, tprov.NameTh, rd.Province)    AS ReqProvince
             FROM appraisal.Appraisals a
             LEFT JOIN parameter.Parameters pPurpose
                 ON pPurpose.[group]    = 'AppraisalPurpose'
@@ -113,6 +116,9 @@ internal static class AppraisalSummaryCommonLoader
                AND pPurpose.[isactive] = 1
                AND pPurpose.[code]     = a.Purpose
             LEFT JOIN request.RequestDetails rd ON rd.RequestId = a.RequestId
+            LEFT JOIN parameter.DopaProvinces     dprov ON dprov.Code = rd.Province
+            LEFT JOIN parameter.DopaDistricts     ddist ON ddist.Code = rd.District
+            LEFT JOIN parameter.DopaSubDistricts  dsub  ON dsub.Code  = rd.SubDistrict
             LEFT JOIN parameter.TitleProvinces    tprov ON tprov.Code = rd.Province
             LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = rd.District
             LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = rd.SubDistrict
@@ -128,13 +134,26 @@ internal static class AppraisalSummaryCommonLoader
                 WHERE a2.Id = @AppraisalId AND a2.IsDeleted = 0)
             ORDER BY rc.Name;
 
-            -- RS03: Q3 — Appraisal date (latest non-cancelled appointment)
-            SELECT TOP 1 ap.AppointmentDateTime
-            FROM appraisal.Appointments ap
-            JOIN appraisal.AppraisalAssignments aa ON aa.Id = ap.AssignmentId
-            WHERE aa.AppraisalId = @AppraisalId
-              AND ap.Status <> 'Cancelled'
-            ORDER BY ap.AppointmentDateTime DESC;
+            -- RS03: Q3 — Appraisal date. ValuationAnalyses.ValuationDate wins; the latest
+            -- non-cancelled appointment across ALL the appraisal's assignments is the fallback
+            -- for an appraisal that has no ValuationAnalyses row yet (created on first pricing /
+            -- decision-summary save).
+            --
+            -- ValuationDate must win: an off-system external engagement (company engaged outside
+            -- CAS, its book keyed in by an internal appraiser) has NO Appointment row at all, so
+            -- appointment-first logic printed a BLANK date on every page of this document despite
+            -- the keyer having entered one. In-system cases agree either way — ValuationDate is
+            -- re-derived from the latest non-cancelled appointment on every pricing save.
+            SELECT COALESCE(
+                (SELECT TOP 1 va.ValuationDate
+                 FROM appraisal.ValuationAnalyses va
+                 WHERE va.AppraisalId = @AppraisalId),
+                (SELECT TOP 1 ap.AppointmentDateTime
+                 FROM appraisal.Appointments ap
+                 JOIN appraisal.AppraisalAssignments aa ON aa.Id = ap.AssignmentId
+                 WHERE aa.AppraisalId = @AppraisalId
+                   AND ap.Status <> 'Cancelled'
+                 ORDER BY ap.AppointmentDateTime DESC));
 
             -- RS04: Q5 — Assignment (latest non-rejected/cancelled)
             SELECT TOP 1
@@ -242,6 +261,7 @@ internal static class AppraisalSummaryCommonLoader
                 WHERE a4.Id = @AppraisalId AND a4.IsDeleted = 0)
               AND ct.ActivityId IN (
                   'int-appraisal-execution',
+                  'int-offline-book-keyin',
                   'int-appraisal-check',
                   'int-appraisal-verification',
                   'appraisal-book-verification')
@@ -363,8 +383,10 @@ internal static class AppraisalSummaryCommonLoader
             else if (!string.IsNullOrWhiteSpace(assignment.AssigneeCompanyId)
                      && Guid.TryParse(assignment.AssigneeCompanyId, out var companyGuid))
             {
+                // Thai-language document: prefer the Thai company name, fall back to English.
+                // Matches the internal branch above, which is already a hardcoded Thai bank name.
                 const string companySql = """
-                    SELECT c.Name FROM auth.Companies c WHERE c.Id = @CompanyId
+                    SELECT COALESCE(NULLIF(c.NameLocal, N''), c.Name) FROM auth.Companies c WHERE c.Id = @CompanyId
                     """;
                 var companyParams = new DynamicParameters();
                 companyParams.Add("CompanyId", companyGuid);
@@ -377,6 +399,7 @@ internal static class AppraisalSummaryCommonLoader
             SELECT
                 COALESCE(NULLIF(LTRIM(RTRIM(u.FirstName + ' ' + u.LastName)), ''), av.Member) AS MemberName,
                 COALESCE(NULLIF(u.Position, ''), av.MemberRole) AS Position,
+                av.MemberRole AS MemberRole,
                 av.Vote,
                 av.Comments   AS Comment,
                 av.Member     AS Member,
@@ -389,10 +412,15 @@ internal static class AppraisalSummaryCommonLoader
         var voteParams = new DynamicParameters();
         voteParams.Add("AppraisalId", appraisalId);
 
-        // One row per member (latest vote), in case of re-approval rounds.
+        // One row per member (latest vote), in case of re-approval rounds, then ordered by committee
+        // rank. The sort has to sit AFTER the GroupBy — GroupBy re-imposes first-appearance order,
+        // so an ORDER BY in the SQL would be silently discarded here.
         var votes = (await connection.QueryAsync<VoteRow>(votesSql, voteParams))
             .GroupBy(v => v.Member, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.OrderByDescending(v => v.VotedAt).First())
+            .OrderBy(v => CommitteeRoleRank(v.MemberRole))
+            .ThenBy(v => v.VotedAt)
+            .ThenBy(v => v.MemberName, StringComparer.Ordinal)
             .ToList();
 
         List<ApproverRow> approvers = votes.Select(v => new ApproverRow
@@ -476,12 +504,14 @@ internal static class AppraisalSummaryCommonLoader
                 StringComparer.OrdinalIgnoreCase);
 
         // ผู้ประเมิน (sign-off appraiser): internal = int-appraisal-execution actor,
-        // external = appraisal-book-verification actor.
+        // external = appraisal-book-verification actor — except for an off-system external
+        // engagement, which skips book-verification entirely and is keyed at
+        // int-offline-book-keyin instead. Fall back to that so the name is not blank.
         CompletedTaskRow? staffTask;
         if (isInternal)
             latestByActivity.TryGetValue("int-appraisal-execution", out staffTask);
-        else
-            latestByActivity.TryGetValue("appraisal-book-verification", out staffTask);
+        else if (!latestByActivity.TryGetValue("appraisal-book-verification", out staffTask))
+            latestByActivity.TryGetValue("int-offline-book-keyin", out staffTask);
 
         // ผู้ตรวจสอบ / ผู้สอบทาน come only from their own activities; they stay blank
         // until int-appraisal-check / int-appraisal-verification are actually completed.
@@ -489,11 +519,11 @@ internal static class AppraisalSummaryCommonLoader
         latestByActivity.TryGetValue("int-appraisal-verification", out var verifyTask);
 
         string? staffName = string.IsNullOrWhiteSpace(staffTask?.FullName) ? null : staffTask.FullName!.Trim();
-        string? staffPosition = string.IsNullOrWhiteSpace(staffTask?.Position) ? null : staffTask.Position;
+        string? staffPosition = NormalizePosition(staffTask?.Position);
         string? checkerName = string.IsNullOrWhiteSpace(checkerTask?.FullName) ? null : checkerTask.FullName!.Trim();
-        string? checkerPosition = string.IsNullOrWhiteSpace(checkerTask?.Position) ? null : checkerTask.Position;
+        string? checkerPosition = NormalizePosition(checkerTask?.Position);
         string? verifyName = string.IsNullOrWhiteSpace(verifyTask?.FullName) ? null : verifyTask.FullName!.Trim();
-        string? verifyPosition = string.IsNullOrWhiteSpace(verifyTask?.Position) ? null : verifyTask.Position;
+        string? verifyPosition = NormalizePosition(verifyTask?.Position);
 
         // ── CollateralType map ───────────────────────────────────────────────────
         var collateralTypeMap = collateralTypeParams
@@ -542,6 +572,9 @@ internal static class AppraisalSummaryCommonLoader
             AppraisalType: header.AppraisalType,
             AppraisalPurpose: header.AppraisalPurpose,
             CollateralAddress: string.IsNullOrEmpty(reqCollateralAddress) ? null : reqCollateralAddress,
+            // เขตการปกครอง — the same Request-detail sub-district that feeds the ตำบล/แขวง segment
+            // of CollateralAddress above, so the two header lines can never disagree.
+            AdministrativeDistrict: header.ReqSubDistrict,
             FacilityLimit: header.FacilityLimit,
             CustomerName: customerName,
             AppraisalDate: appraisalDate,
@@ -563,9 +596,9 @@ internal static class AppraisalSummaryCommonLoader
             IsProfitRent: globalFlags.IsProfitRent,
             GroupMethodTypes: groupMethodTypes,
             AppraiserComment: FirstNonBlank(decision?.InternalAppraiserOpinion),
-            Condition: decision?.Condition,
-            Remark: decision?.Remark,
-            CommitteeOpinion: decision?.CommitteeOpinion,
+            Condition: FirstNonBlank(decision?.Condition),
+            Remark: FirstNonBlank(decision?.Remark),
+            CommitteeOpinion: FirstNonBlank(decision?.CommitteeOpinion),
             AoName: aoName,
             CheckerName: checkerName,
             CheckerPosition: checkerPosition,
@@ -582,6 +615,28 @@ internal static class AppraisalSummaryCommonLoader
             PrevAppraisedValue: prevAppraisal?.PrevAppraisedValue,
             HasPrevAppraisal: prevAppraisal?.PrevAppraisalId is not null);
     }
+
+    /// <summary>
+    /// Normalizes a sign-off position (auth.AspNetUsers.Position) for display. Blank — or a lone
+    /// "-", the placeholder convention used elsewhere in this module — becomes null so the
+    /// template drops the line rather than printing a stray dash under someone's name.
+    /// </summary>
+    internal static string? NormalizePosition(string? position) =>
+        string.IsNullOrWhiteSpace(position) || position.Trim() == "-" ? null : position.Trim();
+
+    /// <summary>
+    /// Display rank for the committee sign-off block, matching the meeting reports:
+    /// Chairman → Director → everyone else → Secretary. Sorts on ApprovalVotes.MemberRole, which is
+    /// null on legacy-imported votes, and a Secretary normally cannot vote
+    /// (CommitteeMemberPositions.CanVote), so rank 9 is usually an empty slot.
+    /// </summary>
+    internal static int CommitteeRoleRank(string? role) => role?.Trim().ToLowerInvariant() switch
+    {
+        "chairman" => 1,
+        "director" => 2,
+        "secretary" => 9,
+        _ => 5
+    };
 
     // ── Private flat DTOs for Dapper mapping ─────────────────────────────────────
 
@@ -665,6 +720,12 @@ internal static class AppraisalSummaryCommonLoader
         public string? Comment { get; init; }
         public string? Member { get; init; }
         public DateTime VotedAt { get; init; }
+
+        /// <summary>
+        /// Committee role (CommitteeMemberPosition name) copied onto the vote from the meeting
+        /// roster. Drives display order only — <see cref="Position"/> is what actually prints.
+        /// </summary>
+        public string? MemberRole { get; init; }
     }
 
     internal sealed class RequestorRow
@@ -720,6 +781,7 @@ internal sealed record CommonAppraisalData(
     string? AppraisalType,
     string? AppraisalPurpose,
     string? CollateralAddress,
+    string? AdministrativeDistrict,
     decimal? FacilityLimit,
     string? CustomerName,
     DateTime? AppraisalDate,

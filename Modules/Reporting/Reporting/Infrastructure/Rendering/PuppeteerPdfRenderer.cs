@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using PuppeteerSharp;
 using PuppeteerSharp.Media;
 using Reporting.Application.Services;
@@ -24,6 +25,42 @@ internal sealed class PuppeteerPdfRenderer(
     private static readonly string TemplatesRoot =
         Path.Combine(AppContext.BaseDirectory, "Templates");
 
+    // Default page margin applied on all four sides (matches the historical behaviour).
+    private const string DefaultMargin = "15mm";
+
+    // A template can opt into narrower PDF page margins by emitting directive comments in its
+    // ROOT document — pdf-margin-x for LEFT/RIGHT, pdf-margin-y for TOP/BOTTOM (see
+    // appraisal-summary-*.html, which use 5mm on both axes). Each axis is independent: a template
+    // that declares only pdf-margin-x keeps the 15mm default top/bottom, and every report that
+    // declares neither keeps 15mm all round.
+    //
+    // The length token MUST be immediately followed by the HTML comment terminator "-->". This
+    // ties the directive to a template-authored comment: rendered report data is HTML-encoded, so a
+    // data field can never emit a literal "-->" (the '>' becomes "&gt;") — preventing arbitrary
+    // document content (e.g. an appraiser remark containing "pdf-margin-x:5mm") from changing the
+    // page margin. The match timeout is a belt-and-braces ReDoS guard on the caller-supplied HTML.
+    private static readonly Regex HorizontalMarginDirective = new(
+        @"pdf-margin-x:\s*(?<len>\d+(?:\.\d+)?(?:mm|cm|in|px))\s*-->",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled,
+        TimeSpan.FromSeconds(1));
+
+    private static readonly Regex VerticalMarginDirective = new(
+        @"pdf-margin-y:\s*(?<len>\d+(?:\.\d+)?(?:mm|cm|in|px))\s*-->",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled,
+        TimeSpan.FromSeconds(1));
+
+    private static string ResolveHorizontalMargin(string html)
+        => ResolveMargin(HorizontalMarginDirective, html);
+
+    private static string ResolveVerticalMargin(string html)
+        => ResolveMargin(VerticalMarginDirective, html);
+
+    private static string ResolveMargin(Regex directive, string html)
+    {
+        var match = directive.Match(html);
+        return match.Success ? match.Groups["len"].Value : DefaultMargin;
+    }
+
     public async Task<byte[]> RenderAsync(string html, CancellationToken cancellationToken)
     {
         // Write HTML to a temp file next to the Templates directory so @font-face
@@ -44,6 +81,11 @@ internal sealed class PuppeteerPdfRenderer(
                 Timeout = 30_000
             });
 
+            // Page margins can be narrowed per-report, per axis, via in-document directives
+            // (summary forms use 5mm on both); everything else keeps the 15mm default.
+            var horizontalMargin = ResolveHorizontalMargin(html);
+            var verticalMargin = ResolveVerticalMargin(html);
+
             var pdfBytes = await page.PdfDataAsync(new PdfOptions
             {
                 Format = PaperFormat.A4,
@@ -53,10 +95,10 @@ internal sealed class PuppeteerPdfRenderer(
                 PreferCSSPageSize = true,
                 MarginOptions = new MarginOptions
                 {
-                    Top = "15mm",
-                    Bottom = "15mm",
-                    Left = "15mm",
-                    Right = "15mm"
+                    Top = verticalMargin,
+                    Bottom = verticalMargin,
+                    Left = horizontalMargin,
+                    Right = horizontalMargin
                 }
             });
 

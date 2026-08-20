@@ -88,7 +88,7 @@ public class GetInvoiceListQueryHandler(
         const string listColumns = """
             Id, InvoiceNumber, Status, TotalAmount, ItemCount,
             PeriodStartDate, PeriodEndDate, SubmittedAt, ApprovedAt, ApprovedBy,
-            PaymentOrderNo, PaidDate, SentDate, CompanyId, CompanyName, CreatedAt
+            PaymentOrderNo, PaidDate, SentDate, CompanyId, CompanyName, CompanyNameLocal, CreatedAt
             """;
         var aggregateSql = $"SELECT COUNT(Id) AS GrandItemCount, ISNULL(SUM(TotalAmount), 0) AS GrandTotalAmount FROM appraisal.vw_InvoiceList {where}";
         // Group-by clustering is always the leading key so rows stay grouped under

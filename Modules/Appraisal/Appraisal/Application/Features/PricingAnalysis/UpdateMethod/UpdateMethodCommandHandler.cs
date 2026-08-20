@@ -59,6 +59,8 @@ public class UpdateMethodCommandHandler(
             if (parentApproach.IsSelected)
                 pricingAnalysis.SetFinalValues(method.MethodValue.Value);
         }
+        // Roll the new method value up through approach → analysis (null-safe, idempotent).
+        pricingAnalysis.RecalculateRollup();
 
         return new UpdateMethodResult(
             method.Id,

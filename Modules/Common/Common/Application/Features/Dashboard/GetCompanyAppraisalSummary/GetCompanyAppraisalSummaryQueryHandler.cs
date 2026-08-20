@@ -47,6 +47,7 @@ public class GetCompanyAppraisalSummaryQueryHandler(
         var sql = $"""
             SELECT CompanyId,
                    COALESCE(MAX(NULLIF(CompanyName, N'')), N'(pending)') AS CompanyName,
+                   MAX(NULLIF(CompanyNameLocal, N''))                    AS CompanyNameLocal,
                    COUNT(*)          AS AssignedCount,
                    SUM(IsCompleted)  AS CompletedCount,
                    SUM(IsOverdue)    AS OverdueCount,

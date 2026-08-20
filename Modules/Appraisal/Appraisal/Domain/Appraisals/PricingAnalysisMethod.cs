@@ -204,6 +204,25 @@ public class PricingAnalysisMethod : Entity<Guid>
     {
         UseSystemCalc = value;
     }
+
+    /// <summary>
+    /// Mirrors the current MachineCostItems FMV total into the shared <see cref="FinalValue"/>
+    /// (FinalValue / FinalValueRounded), creating it if absent. User-authored fields
+    /// (FinalValueAdjusted / AppraisalPrice) are deliberately left untouched. Call AFTER recalculation
+    /// so the items hold current values. Single source of the MachineryCost mirror formula — shared by
+    /// the save path (SaveMachineCostItemsCommandHandler) and the property-delete cleanup path
+    /// (PricingReferenceCleanupService).
+    /// </summary>
+    public void MirrorMachineCostTotalToFinalValue()
+    {
+        var totalFmv = _machineCostItems.Sum(i => i.FairMarketValue ?? 0);
+
+        if (FinalValue is null)
+            SetFinalValue(PricingFinalValue.Create(Id, totalFmv, totalFmv));
+        else
+            FinalValue.UpdateFinalValue(totalFmv, totalFmv);
+    }
+
     public void SetRsqResult(PricingRsqResult rsqResult)
     {
         RsqResult = rsqResult;

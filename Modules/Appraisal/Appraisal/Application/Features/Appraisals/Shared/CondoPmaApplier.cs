@@ -38,15 +38,14 @@ public static class CondoPmaApplier
         var detail = property.CondoDetail
                      ?? throw new InvalidOperationException($"Condo detail not found for property {propertyId}");
 
-        AdministrativeAddress? address = null;
-        if (subDistrict is not null || district is not null || province is not null)
-        {
-            address = AdministrativeAddress.Create(
-                subDistrict,
-                district,
-                province
-            );
-        }
+        // Preserve the existing title address when the caller doesn't supply new parts —
+        // UpdatePmaFields still assigns Address unconditionally from this parameter.
+        // (LandOffice/DopaAddress need no such handling: UpdatePmaFields never references them,
+        // so they're left untouched by every PMA save regardless.)
+        Address? address = subDistrict is not null || district is not null || province is not null
+            ? Address.Create(subDistrict, district, province)
+            : detail.Address;
+
         property.UpdatePrice(
             sellingPrice: sellingPrice,
             forcedSalePrice: forcedSalePrice,

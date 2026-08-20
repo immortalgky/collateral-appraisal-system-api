@@ -23,6 +23,24 @@ SELECT a.Id,
        a.CreatedAt,
        va.AppraisedValue                                                                    AS AppraisalValue,
        (SELECT COUNT(*) FROM appraisal.AppraisalProperties ap WHERE ap.AppraisalId = a.Id) AS PropertyCount,
+       -- Distinct collateral type codes on this appraisal, comma-joined (e.g. 'B, L, LB').
+       -- Sourced from BOTH places the type can live, because they are mutually exclusive in
+       -- practice: normal appraisals carry N AppraisalProperties, while block appraisals have no
+       -- AppraisalProperties at all and hold their type on the 1:1 Projects row. ProjectType codes
+       -- ('U'/'LB'/'L') share the PropertyType wire format, so they union directly.
+       -- This is a display aggregate — the propertyType FILTER runs the equivalent union as a
+       -- semi-join (see AppraisalFilterBuilder), it does not read this column.
+       -- UNION (not UNION ALL) dedupes across both sources.
+       (SELECT STRING_AGG(pt.PropertyType, ', ') WITHIN GROUP (ORDER BY pt.PropertyType)
+        FROM (SELECT ap3.PropertyType
+              FROM appraisal.AppraisalProperties ap3
+              WHERE ap3.AppraisalId = a.Id
+                AND ap3.PropertyType IS NOT NULL
+              UNION
+              SELECT pr.ProjectType
+              FROM appraisal.Projects pr
+              WHERE pr.AppraisalId = a.Id
+                AND pr.ProjectType IS NOT NULL) pt)                                 AS PropertyTypes,
        -- Latest active assignment info
        la.AssigneeUserId,
        la.AssigneeCompanyId,
@@ -37,8 +55,10 @@ SELECT a.Id,
        la.AssignmentStatus,
        la.AssignedAt                                                                       AS AssignedDate,
        la.SubmittedAt,   -- first-submission timestamp (external: sent-to-bank; internal: execution→check); SLA end-point
-       -- Company name for external assignments
+       -- Company name for external assignments. The Thai name rides alongside (not instead of) the
+       -- English one so the client can pick by its own locale; NULLIF collapses '' to NULL.
        comp.Name                                                                           AS CompanyName,
+       NULLIF(comp.NameLocal, N'')                                                         AS CompanyNameLocal,
        -- Customer name from request
        c.Name                                                                              AS CustomerName,
        -- First property location

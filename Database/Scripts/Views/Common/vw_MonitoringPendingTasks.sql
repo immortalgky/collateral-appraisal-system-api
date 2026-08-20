@@ -83,6 +83,8 @@ SELECT
     pt.AssigneeCompanyId                                                        AS AssigneeCompanyId,
     aa.AssigneeCompanyId                                                        AS AppraisalCompanyId,
     comp.Name                                                                   AS AppraisalCompanyName,
+    -- Thai name alongside the English one; the client picks by its own locale.
+    NULLIF(comp.NameLocal, N'')                                                 AS AppraisalCompanyNameLocal,
     CASE
         WHEN aa.AssignmentType = 'External'
          AND aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
