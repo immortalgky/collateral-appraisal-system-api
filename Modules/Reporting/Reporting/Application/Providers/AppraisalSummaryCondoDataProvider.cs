@@ -274,7 +274,7 @@ public sealed class AppraisalSummaryCondoDataProvider(
                     parts.Add($"ห้องชุดเลขที่ {c.RoomNumber}");
                 if (!string.IsNullOrWhiteSpace(c.FloorNumber))
                     parts.Add($"ชั้นที่ {c.FloorNumber}");
-                if (!string.IsNullOrWhiteSpace(c.BuildingNumber))
+                if (!string.IsNullOrWhiteSpace(c.BuildingNumber) && c.BuildingNumber.Trim() != "-")
                     parts.Add($"อาคารเลขที่ {c.BuildingNumber}");
 
                 // Condo name / registration number
