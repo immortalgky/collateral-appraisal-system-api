@@ -13,6 +13,9 @@ public static class FileInterfaceCodes
     /// produced side by side for comparison during the changeover.
     /// </summary>
     public const string RegulatoryV2 = "REGULATORY_V2";
+
+    /// <summary>Regulatory snapshot v3 — one row per collateral, from the AS400 feed.</summary>
+    public const string RegulatoryV3 = "REGULATORY_V3";
     public const string CollateralResult = "COLLATERAL_RESULT";
     public const string Reappraisal = "REAPPRAISAL";
 
