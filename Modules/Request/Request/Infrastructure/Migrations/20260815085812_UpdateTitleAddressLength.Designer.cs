@@ -3,17 +3,20 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Request.Infrastructure;
 
 #nullable disable
 
-namespace Request.Infrastructure.Migrations
+namespace Request.infrastructure.Migrations
 {
     [DbContext(typeof(RequestDbContext))]
-    partial class RequestDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260815085812_UpdateTitleAddressLength")]
+    partial class UpdateTitleAddressLength
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1228,12 +1231,6 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)")
                                 .HasColumnName("CondoName");
 
-                            b1.Property<string>("CondoRegistrationNumber")
-                                .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(100)
-                                .HasColumnType("nvarchar(100)")
-                                .HasColumnName("CondoRegistrationNumber");
-
                             b1.Property<string>("FloorNumber")
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(10)
@@ -1273,8 +1270,8 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(500)
-                                .HasColumnType("nvarchar(500)")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)")
                                 .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
@@ -1403,8 +1400,8 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(500)
-                                .HasColumnType("nvarchar(500)")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)")
                                 .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
@@ -1569,8 +1566,8 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(500)
-                                .HasColumnType("nvarchar(500)")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)")
                                 .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
@@ -1655,12 +1652,6 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)")
                                 .HasColumnName("CondoName");
 
-                            b1.Property<string>("CondoRegistrationNumber")
-                                .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(100)
-                                .HasColumnType("nvarchar(100)")
-                                .HasColumnName("CondoRegistrationNumber");
-
                             b1.Property<string>("FloorNumber")
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(10)
@@ -1700,8 +1691,8 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(500)
-                                .HasColumnType("nvarchar(500)")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)")
                                 .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
@@ -1830,8 +1821,8 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(500)
-                                .HasColumnType("nvarchar(500)")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)")
                                 .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
@@ -1993,8 +1984,8 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(500)
-                                .HasColumnType("nvarchar(500)")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)")
                                 .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
