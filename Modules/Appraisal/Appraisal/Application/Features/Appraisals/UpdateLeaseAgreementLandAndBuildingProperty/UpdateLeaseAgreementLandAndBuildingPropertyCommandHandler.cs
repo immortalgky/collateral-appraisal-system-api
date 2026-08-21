@@ -164,7 +164,6 @@ public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
             buildingConditionType: command.BuildingConditionType,
             buildingConditionTypeOther: command.BuildingConditionTypeOther,
             isUnderConstruction: command.IsUnderConstruction,
-            constructionCompletionPercent: command.ConstructionCompletionPercent,
             constructionLicenseExpirationDate: command.ConstructionLicenseExpirationDate,
             isAppraisable: command.IsAppraisable,
             // Building - Area

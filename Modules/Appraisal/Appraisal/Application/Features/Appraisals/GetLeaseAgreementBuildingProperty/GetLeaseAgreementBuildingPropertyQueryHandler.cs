@@ -93,7 +93,6 @@ public class GetLeaseAgreementBuildingPropertyQueryHandler(
             BuildingConditionType: detail.BuildingConditionType,
             BuildingConditionTypeOther: detail.BuildingConditionTypeOther,
             IsUnderConstruction: detail.IsUnderConstruction,
-            ConstructionCompletionPercent: detail.ConstructionCompletionPercent,
             ConstructionLicenseExpirationDate: detail.ConstructionLicenseExpirationDate,
             IsAppraisable: detail.IsAppraisable,
             BuildingType: detail.BuildingType,

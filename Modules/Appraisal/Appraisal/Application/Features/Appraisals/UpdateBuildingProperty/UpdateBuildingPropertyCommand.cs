@@ -22,7 +22,6 @@ public record UpdateBuildingPropertyCommand(
     string? BuildingConditionType = null,
     string? BuildingConditionTypeOther = null,
     bool? IsUnderConstruction = null,
-    decimal? ConstructionCompletionPercent = null,
     DateTime? ConstructionLicenseExpirationDate = null,
     bool? IsAppraisable = null,
     string? HasObligation = null,

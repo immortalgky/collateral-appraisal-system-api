@@ -24,7 +24,6 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
         builder.Property(e => e.RoomNumber).HasMaxLength(50);
         builder.Property(e => e.FloorNumber).HasMaxLength(50);
         builder.Property(e => e.UsableArea).HasPrecision(18, 4);
-        builder.Property(e => e.ConstructionCompletionPercent).HasPrecision(7, 4);
         
 
 
