@@ -123,7 +123,6 @@ public record GetLeaseAgreementLandAndBuildingPropertyResult(
     string? BuildingConditionType,
     string? BuildingConditionTypeOther,
     bool? IsUnderConstruction,
-    decimal? ConstructionCompletionPercent,
     DateTime? ConstructionLicenseExpirationDate,
     bool? IsAppraisable,
     // Building Info

@@ -28,7 +28,6 @@ public class BuildingAppraisalDetail : Entity<Guid>
     public string? BuildingConditionType { get; private set; }
     public string? BuildingConditionTypeOther { get; private set; }
     public bool? IsUnderConstruction { get; private set; }
-    public decimal? ConstructionCompletionPercent { get; private set; }
     public DateTime? ConstructionLicenseExpirationDate { get; private set; }
     public bool? IsAppraisable { get; private set; } = true;
 
@@ -125,7 +124,6 @@ public class BuildingAppraisalDetail : Entity<Guid>
         string? buildingConditionType = null,
         string? buildingConditionTypeOther = null,
         bool? isUnderConstruction = null,
-        decimal? constructionCompletionPercent = null,
         DateTime? constructionLicenseExpirationDate = null,
         bool? isAppraisable = null,
         // Building Info
@@ -193,7 +191,6 @@ public class BuildingAppraisalDetail : Entity<Guid>
         BuildingConditionType = buildingConditionType;
         BuildingConditionTypeOther = buildingConditionTypeOther;
         IsUnderConstruction = isUnderConstruction;
-        ConstructionCompletionPercent = constructionCompletionPercent;
 
         ConstructionLicenseExpirationDate = constructionLicenseExpirationDate;
         IsAppraisable = isAppraisable;
@@ -269,7 +266,6 @@ public class BuildingAppraisalDetail : Entity<Guid>
             BuildingConditionType = source.BuildingConditionType,
             BuildingConditionTypeOther = source.BuildingConditionTypeOther,
             IsUnderConstruction = source.IsUnderConstruction,
-            ConstructionCompletionPercent = source.ConstructionCompletionPercent,
             ConstructionLicenseExpirationDate = source.ConstructionLicenseExpirationDate,
             IsAppraisable = source.IsAppraisable,
             BuildingType = source.BuildingType,

@@ -22,7 +22,7 @@ public record GetCondoPropertyResult(
     string? RoomNumber,
     string? FloorNumber,
     decimal? UsableArea,
-    decimal? ConstructionCompletionPercent,
+    bool? IsUnderConstruction,
     // Coordinates
     decimal? Latitude,
     decimal? Longitude,
@@ -106,5 +106,7 @@ public record GetCondoPropertyResult(
     decimal? SellingPrice,
     decimal? ForceSellingPrice,
     // Other
-    string? Remark
+    string? Remark,
+    // Construction Inspection
+    ConstructionInspectionDto? ConstructionInspection
 );
