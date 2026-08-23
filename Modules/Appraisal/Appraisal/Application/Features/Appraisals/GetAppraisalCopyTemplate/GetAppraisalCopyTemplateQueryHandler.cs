@@ -1,4 +1,4 @@
-using Collateral.Contracts.Engagements;
+using Appraisal.Contracts.Appraisals;
 using Dapper;
 using MediatR;
 using Request.Contracts.RequestDocuments.Dto;
@@ -120,10 +120,15 @@ public class GetAppraisalCopyTemplateQueryHandler(
         // ── Map to DTOs ───────────────────────────────────────────────────
 
         // If a NEW Construction-Inspection request copies this appraisal, this is the round it would
-        // be: completed Progressive inspections already on this collateral + 1. Computed for every
-        // copy-template call (cheap count); the FE only surfaces it for CI purposes.
-        var priorInspectionCount = await sender.Send(
-            new GetProgressiveInspectionCountByPriorAppraisalQuery(header.AppraisalId), cancellationToken);
+        // be: inspections already in this appraisal's chain + 1. Computed for every copy-template
+        // call; the FE only surfaces it for CI purposes.
+        //
+        // Uses the SAME query AppraisalCreationService stamps from, over the SAME chain, so the
+        // number previewed here is the number the appraisal actually receives — including when the
+        // user picks the original appraisal rather than the newest inspection.
+        var chain = await sender.Send(
+            new ResolveLatestInAppraisalChainQuery(header.AppraisalId), cancellationToken);
+        var priorInspectionCount = chain?.ProgressiveCount ?? 0;
 
         var prevAppraisal = new PrevAppraisalSnapshotDto(
             header.AppraisalId,
