@@ -1,4 +1,4 @@
-using Collateral.Contracts.Engagements;
+using Appraisal.Contracts.Appraisals;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
@@ -69,11 +69,11 @@ public class RequestSubmittedIntegrationEventConsumer(
             var initialVariables = BuildInitialVariables(message);
 
             // Appeal and Progressive (construction inspection) both reference a prior appraisal and
-            // require PrevAppraisalId. Resolve the most-recent engagement on the collateral the prior
-            // appraisal touched (matched via the master link — an exact dedup-key match, not a fuzzy
-            // title match). Appeal EXCLUDES that company; Progressive FORCES it and copies/chains fee
-            // from the resolved appraisal (which may be newer than PrevAppraisalId — e.g. a 2nd
-            // inspection resolves to the 1st inspection, not the original).
+            // require PrevAppraisalId. Resolve the latest appraisal in the chain the prior appraisal
+            // belongs to, walked over appraisal.Appraisals.PrevAppraisalId. Appeal EXCLUDES that
+            // company; Progressive FORCES it and copies/chains fee from the resolved appraisal (which
+            // may be newer than PrevAppraisalId — e.g. a 2nd inspection resolves to the 1st
+            // inspection, not the original, even when the user picked the original).
             var resolvedSourceAppraisalId = message.PrevAppraisalId;
 
             var isAppeal = message.Purpose == AppealPurposeCode;
@@ -90,22 +90,46 @@ public class RequestSubmittedIntegrationEventConsumer(
                 else
                 {
                     var prior = await mediator.Send(
-                        new GetMostRecentEngagementByPriorAppraisalQuery(message.PrevAppraisalId.Value), ct);
+                        new ResolveLatestInAppraisalChainQuery(message.PrevAppraisalId.Value), ct);
 
-                    if (isProgressive)
+                    if (prior is null)
                     {
-                        if (prior is not null)
-                        {
-                            initialVariables["forceCompanyId"] = prior.CompanyId.ToString();
-                            initialVariables["forceCompanyName"] = prior.CompanyName;
-                            resolvedSourceAppraisalId = prior.AppraisalId;
-                        }
-                        // else: no engagement found — fall back to the raw PrevAppraisalId as the
-                        // copy/fee source (CopyPropertiesFromPriorAppraisalAsync handles not-found).
+                        // The prior appraisal does not exist or is soft-deleted. Submission is gated
+                        // on it being Completed, so this should be unreachable — log rather than
+                        // proceed silently, and fall back to the raw PrevAppraisalId.
+                        logger.LogWarning(
+                            "{Flow} request {RequestId}: prior appraisal {PrevAppraisalId} did not resolve to a chain; "
+                            + "using the raw PrevAppraisalId and leaving company selection to the normal rules.",
+                            isProgressive ? "Progressive" : "Appeal", message.RequestId, message.PrevAppraisalId);
                     }
-                    else if (prior is not null) // appeal
+                    else if (isProgressive)
                     {
-                        initialVariables["excludedCompanyId"] = prior.CompanyId.ToString();
+                        resolvedSourceAppraisalId = prior.AppraisalId;
+
+                        // A company-less chain tip is an internally-appraised case: there is no
+                        // external company to carry over, so selection follows the normal rules.
+                        if (prior.CompanyId is { } progressiveCompanyId)
+                        {
+                            initialVariables["forceCompanyId"] = progressiveCompanyId.ToString();
+                            initialVariables["forceCompanyName"] = prior.CompanyName;
+                        }
+                        else
+                        {
+                            logger.LogInformation(
+                                "Progressive request {RequestId}: chain tip {AppraisalId} has no external company; "
+                                + "not forcing a company.",
+                                message.RequestId, prior.AppraisalId);
+                        }
+                    }
+                    else if (prior.CompanyId is { } appealCompanyId) // appeal
+                    {
+                        // KNOWN LIMITATION, carried over unchanged from the engagement-based lookup:
+                        // this excludes the company that did the CHAIN TIP, not the one that did the
+                        // appraisal actually being appealed. Where a later re-appraisal by a different
+                        // company sits on the same chain, the disputed company is not the one excluded.
+                        // Deliberately not changed here — this PR swaps the data source, it does not
+                        // redesign appeal routing.
+                        initialVariables["excludedCompanyId"] = appealCompanyId.ToString();
                     }
                 }
             }
@@ -194,9 +218,9 @@ public class RequestSubmittedIntegrationEventConsumer(
 
     /// <summary>
     /// Resolves the source appraisal a Progressive (construction inspection) request should copy and
-    /// chain its fee from: the most-recent engagement on the collateral the prior appraisal touched,
-    /// falling back to the raw PrevAppraisalId when no engagement is found. Used by the crash-retry
-    /// republish path — re-running the query is deterministic.
+    /// chain its fee from: the latest appraisal in the prior appraisal's chain, falling back to the
+    /// raw PrevAppraisalId when the chain does not resolve. Used by the crash-retry republish path —
+    /// re-running the query is deterministic.
     /// </summary>
     private async Task<Guid?> ResolveProgressiveSourceAsync(
         RequestSubmittedIntegrationEvent message, CancellationToken ct)
@@ -205,7 +229,7 @@ public class RequestSubmittedIntegrationEventConsumer(
             return message.PrevAppraisalId;
 
         var prior = await mediator.Send(
-            new GetMostRecentEngagementByPriorAppraisalQuery(message.PrevAppraisalId.Value), ct);
+            new ResolveLatestInAppraisalChainQuery(message.PrevAppraisalId.Value), ct);
         return prior?.AppraisalId ?? message.PrevAppraisalId;
     }
 

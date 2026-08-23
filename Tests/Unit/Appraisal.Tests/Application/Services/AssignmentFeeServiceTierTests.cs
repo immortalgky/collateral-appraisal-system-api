@@ -1,7 +1,6 @@
 using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -143,7 +142,6 @@ public class AssignmentFeeServiceTierTests
 
         return new AssignmentFeeService(
             db,
-            Substitute.For<ISender>(),
             parameterLookup,
             NullLogger<AssignmentFeeService>.Instance);
     }
