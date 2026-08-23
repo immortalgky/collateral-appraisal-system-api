@@ -21,6 +21,11 @@ public record GetCondoPropertyResult(
     string? CondoRegistrationNumber,
     string? RoomNumber,
     string? FloorNumber,
+    // Surveyed floor and the unit deed's type. Exposed so the admin data-correction screen can show
+    // the stored value before someone corrects it — they were writable in the domain but invisible
+    // in every read model. (TitleNumber is already declared above.)
+    int? PhysicalFloorNumber,
+    string? TitleType,
     decimal? UsableArea,
     decimal? ConstructionCompletionPercent,
     // Coordinates

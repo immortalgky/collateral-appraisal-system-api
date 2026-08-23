@@ -31,6 +31,7 @@ public class UpdateCondoPropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update condo property detail")
             .WithDescription("Update the detail of a condo property.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

@@ -36,6 +36,7 @@ public class CreateCondoPropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Create a condo property")
             .WithDescription("Creates a new condo property with its appraisal detail for an appraisal.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

@@ -29,6 +29,7 @@ public class UnlinkPhotoFromPropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Unlink photo from property")
             .WithDescription("Removes a photo-to-property mapping.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("AppraisalGallery");
     }
 }

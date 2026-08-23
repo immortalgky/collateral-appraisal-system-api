@@ -35,6 +35,7 @@ public class CreateCondoPMAPropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Create condo pma property detail")
             .WithDescription("Create the detail of a condo pma property.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

@@ -155,6 +155,7 @@ public static class MenuSeedData
                 new("main.standalone.reappraisal", "Reappraisal (AS400)", "rotate", IconStyle.Solid, "text-teal-500", "/reappraisal", "REAPPRAISAL_VIEW", null),
                 new("main.standalone.reappraisal-testgen", "Generate Reappraisal File", "file-circle-plus", IconStyle.Solid, "text-teal-500", "/reappraisal/generate-test-file", "REAPPRAISAL_GENERATE_TEST_FILE", null),
                 new("main.standalone.block-reappraisal", "Block Reappraisal", "building-circle-arrow-right", IconStyle.Solid, "text-teal-500", "/standalone/block-reappraisal", "BLOCK_REAPPRAISAL_VIEW", "BLOCK_REAPPRAISAL_CREATE"),
+                new("main.standalone.appraisal-data-correction", "Appraisal Data Correction", "pen-to-square", IconStyle.Solid, "text-teal-500", "/standalone/appraisal-data-correction", "APPRAISAL_DATA_CORRECTION", "APPRAISAL_DATA_CORRECTION"),
             }),
 
         // ── Admin groups (containers: Path = null) ────────────────────────────────────────────

@@ -396,4 +396,71 @@ public class BuildingAppraisalDetail : Entity<Guid>
                       ?? throw new InvalidOperationException($"Surface {surfaceId} not found");
         _surfaces.Remove(surface);
     }
+
+    /// <summary>
+    /// Applies admin corrections to this building, recording each change in <paramref name="diff"/>.
+    /// Not routed through <see cref="Update"/>, which overwrites every property unconditionally.
+    /// </summary>
+    internal void ApplyCorrection(BuildingCorrection edit, Dictionary<string, object?> diff)
+    {
+        CorrectionDiff.Apply("Building.PropertyName", PropertyName, edit.PropertyName, v => PropertyName = v, diff);
+        CorrectionDiff.Apply("Building.BuildingNumber", BuildingNumber, edit.BuildingNumber, v => BuildingNumber = v, diff);
+        CorrectionDiff.Apply("Building.ModelName", ModelName, edit.ModelName, v => ModelName = v, diff);
+        CorrectionDiff.Apply("Building.BuiltOnTitleNumber", BuiltOnTitleNumber, edit.BuiltOnTitleNumber, v => BuiltOnTitleNumber = v, diff);
+        CorrectionDiff.Apply("Building.HouseNumber", HouseNumber, edit.HouseNumber, v => HouseNumber = v, diff);
+        CorrectionDiff.Apply("Building.NoHouseNumber", NoHouseNumber, edit.NoHouseNumber, v => NoHouseNumber = v, diff);
+        CorrectionDiff.Apply("Building.OwnerName", OwnerName, edit.OwnerName, v => OwnerName = v, diff);
+        CorrectionDiff.Apply("Building.IsOwnerVerified", IsOwnerVerified, edit.IsOwnerVerified, v => IsOwnerVerified = v, diff);
+        CorrectionDiff.Apply("Building.HasObligation", HasObligation, edit.HasObligation, v => HasObligation = v, diff);
+        CorrectionDiff.Apply("Building.ObligationDetails", ObligationDetails, edit.ObligationDetails, v => ObligationDetails = v, diff);
+        CorrectionDiff.Apply("Building.BuildingConditionType", BuildingConditionType, edit.BuildingConditionType, v => BuildingConditionType = v, diff);
+        CorrectionDiff.Apply("Building.BuildingConditionTypeOther", BuildingConditionTypeOther, edit.BuildingConditionTypeOther, v => BuildingConditionTypeOther = v, diff);
+        CorrectionDiff.Apply("Building.IsUnderConstruction", IsUnderConstruction, edit.IsUnderConstruction, v => IsUnderConstruction = v, diff);
+        CorrectionDiff.Apply("Building.ConstructionCompletionPercent", ConstructionCompletionPercent, edit.ConstructionCompletionPercent, v => ConstructionCompletionPercent = v, diff);
+        CorrectionDiff.Apply("Building.ConstructionLicenseExpirationDate", ConstructionLicenseExpirationDate, edit.ConstructionLicenseExpirationDate, v => ConstructionLicenseExpirationDate = v, diff);
+        CorrectionDiff.Apply("Building.IsAppraisable", IsAppraisable, edit.IsAppraisable, v => IsAppraisable = v, diff);
+        CorrectionDiff.Apply("Building.BuildingType", BuildingType, edit.BuildingType, v => BuildingType = v, diff);
+        CorrectionDiff.Apply("Building.BuildingTypeOther", BuildingTypeOther, edit.BuildingTypeOther, v => BuildingTypeOther = v, diff);
+        CorrectionDiff.Apply("Building.NumberOfFloors", NumberOfFloors, edit.NumberOfFloors, v => NumberOfFloors = v, diff);
+        CorrectionDiff.Apply("Building.DecorationType", DecorationType, edit.DecorationType, v => DecorationType = v, diff);
+        CorrectionDiff.Apply("Building.DecorationTypeOther", DecorationTypeOther, edit.DecorationTypeOther, v => DecorationTypeOther = v, diff);
+        CorrectionDiff.Apply("Building.IsEncroachingOthers", IsEncroachingOthers, edit.IsEncroachingOthers, v => IsEncroachingOthers = v, diff);
+        CorrectionDiff.Apply("Building.EncroachingOthersRemark", EncroachingOthersRemark, edit.EncroachingOthersRemark, v => EncroachingOthersRemark = v, diff);
+        CorrectionDiff.Apply("Building.EncroachingOthersArea", EncroachingOthersArea, edit.EncroachingOthersArea, v => EncroachingOthersArea = v, diff);
+        CorrectionDiff.Apply("Building.BuildingMaterialType", BuildingMaterialType, edit.BuildingMaterialType, v => BuildingMaterialType = v, diff);
+        CorrectionDiff.Apply("Building.BuildingStyleType", BuildingStyleType, edit.BuildingStyleType, v => BuildingStyleType = v, diff);
+        CorrectionDiff.Apply("Building.BuildingStyleTypeOther", BuildingStyleTypeOther, edit.BuildingStyleTypeOther, v => BuildingStyleTypeOther = v, diff);
+        CorrectionDiff.Apply("Building.IsResidential", IsResidential, edit.IsResidential, v => IsResidential = v, diff);
+        CorrectionDiff.Apply("Building.BuildingAge", BuildingAge, edit.BuildingAge, v => BuildingAge = v, diff);
+        CorrectionDiff.Apply("Building.ConstructionYear", ConstructionYear, edit.ConstructionYear, v => ConstructionYear = v, diff);
+        CorrectionDiff.Apply("Building.ResidentialRemark", ResidentialRemark, edit.ResidentialRemark, v => ResidentialRemark = v, diff);
+        CorrectionDiff.Apply("Building.ConstructionStyleType", ConstructionStyleType, edit.ConstructionStyleType, v => ConstructionStyleType = v, diff);
+        CorrectionDiff.Apply("Building.ConstructionStyleRemark", ConstructionStyleRemark, edit.ConstructionStyleRemark, v => ConstructionStyleRemark = v, diff);
+        CorrectionDiff.ApplyList("Building.StructureType", StructureType, edit.StructureType, v => StructureType = v, diff);
+        CorrectionDiff.Apply("Building.StructureTypeOther", StructureTypeOther, edit.StructureTypeOther, v => StructureTypeOther = v, diff);
+        CorrectionDiff.ApplyList("Building.RoofFrameType", RoofFrameType, edit.RoofFrameType, v => RoofFrameType = v, diff);
+        CorrectionDiff.Apply("Building.RoofFrameTypeOther", RoofFrameTypeOther, edit.RoofFrameTypeOther, v => RoofFrameTypeOther = v, diff);
+        CorrectionDiff.ApplyList("Building.RoofType", RoofType, edit.RoofType, v => RoofType = v, diff);
+        CorrectionDiff.Apply("Building.RoofTypeOther", RoofTypeOther, edit.RoofTypeOther, v => RoofTypeOther = v, diff);
+        CorrectionDiff.ApplyList("Building.CeilingType", CeilingType, edit.CeilingType, v => CeilingType = v, diff);
+        CorrectionDiff.Apply("Building.CeilingTypeOther", CeilingTypeOther, edit.CeilingTypeOther, v => CeilingTypeOther = v, diff);
+        CorrectionDiff.ApplyList("Building.InteriorWallType", InteriorWallType, edit.InteriorWallType, v => InteriorWallType = v, diff);
+        CorrectionDiff.Apply("Building.InteriorWallTypeOther", InteriorWallTypeOther, edit.InteriorWallTypeOther, v => InteriorWallTypeOther = v, diff);
+        CorrectionDiff.ApplyList("Building.ExteriorWallType", ExteriorWallType, edit.ExteriorWallType, v => ExteriorWallType = v, diff);
+        CorrectionDiff.Apply("Building.ExteriorWallTypeOther", ExteriorWallTypeOther, edit.ExteriorWallTypeOther, v => ExteriorWallTypeOther = v, diff);
+        CorrectionDiff.ApplyList("Building.FenceType", FenceType, edit.FenceType, v => FenceType = v, diff);
+        CorrectionDiff.Apply("Building.FenceTypeOther", FenceTypeOther, edit.FenceTypeOther, v => FenceTypeOther = v, diff);
+        CorrectionDiff.Apply("Building.ConstructionType", ConstructionType, edit.ConstructionType, v => ConstructionType = v, diff);
+        CorrectionDiff.Apply("Building.ConstructionTypeOther", ConstructionTypeOther, edit.ConstructionTypeOther, v => ConstructionTypeOther = v, diff);
+        CorrectionDiff.Apply("Building.UtilizationType", UtilizationType, edit.UtilizationType, v => UtilizationType = v, diff);
+        CorrectionDiff.Apply("Building.UtilizationTypeOther", UtilizationTypeOther, edit.UtilizationTypeOther, v => UtilizationTypeOther = v, diff);
+        // TotalBuildingArea is deliberately NOT correctable: the RCN/depreciation figures are
+        // computed from it, and this feature corrects descriptive data only — it neither
+        // recomputes prices nor returns the appraisal to the workflow. Same reasoning as the
+        // land title's area; see CorrectionDto_DoesNotExposeArea.
+        CorrectionDiff.Apply("Building.BuildingInsurancePrice", BuildingInsurancePrice, edit.BuildingInsurancePrice, v => BuildingInsurancePrice = v, diff);
+        CorrectionDiff.Apply("Building.SellingPrice", SellingPrice, edit.SellingPrice, v => SellingPrice = v, diff);
+        CorrectionDiff.Apply("Building.ForcedSalePrice", ForcedSalePrice, edit.ForcedSalePrice, v => ForcedSalePrice = v, diff);
+        CorrectionDiff.Apply("Building.Remark", Remark, edit.Remark, v => Remark = v, diff);
+    }
 }

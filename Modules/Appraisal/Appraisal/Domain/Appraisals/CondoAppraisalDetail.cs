@@ -484,4 +484,133 @@ public class CondoAppraisalDetail : Entity<Guid>
         var item = _areaDetails.FirstOrDefault(a => a.Id == areaDetailId);
         if (item != null) _areaDetails.Remove(item);
     }
+
+    /// <summary>
+    /// Applies admin corrections to this unit, recording each change in <paramref name="diff"/>.
+    /// Not routed through <see cref="Update"/>, which overwrites every property unconditionally.
+    ///
+    /// Note <see cref="PhysicalFloorNumber"/>: it had no mutator anywhere in the domain before this
+    /// method, so a wrong surveyed floor was previously uncorrectable.
+    /// </summary>
+    internal void ApplyCorrection(CondoCorrection edit, Dictionary<string, object?> diff)
+    {
+        CorrectionDiff.Apply("Condo.PropertyName", PropertyName, edit.PropertyName, v => PropertyName = v, diff);
+        CorrectionDiff.Apply("Condo.CondoName", CondoName, edit.CondoName, v => CondoName = v, diff);
+        CorrectionDiff.Apply("Condo.BuildingNumber", BuildingNumber, edit.BuildingNumber, v => BuildingNumber = v, diff);
+        CorrectionDiff.Apply("Condo.ModelName", ModelName, edit.ModelName, v => ModelName = v, diff);
+        CorrectionDiff.Apply("Condo.BuiltOnTitleNumber", BuiltOnTitleNumber, edit.BuiltOnTitleNumber, v => BuiltOnTitleNumber = v, diff);
+        CorrectionDiff.Apply("Condo.CondoRegistrationNumber", CondoRegistrationNumber, edit.CondoRegistrationNumber, v => CondoRegistrationNumber = v, diff);
+        CorrectionDiff.Apply("Condo.RoomNumber", RoomNumber, edit.RoomNumber, v => RoomNumber = v, diff);
+        CorrectionDiff.Apply("Condo.FloorNumber", FloorNumber, edit.FloorNumber, v => FloorNumber = v, diff);
+        CorrectionDiff.Apply("Condo.PhysicalFloorNumber", PhysicalFloorNumber, edit.PhysicalFloorNumber, v => PhysicalFloorNumber = v, diff);
+        // UsableArea and TotalBuildingArea are deliberately NOT correctable: the government
+        // price below is computed from the usable area, and this feature corrects descriptive
+        // data only — it neither recomputes prices nor returns the appraisal to the workflow.
+        // Same reasoning as the land title and building areas; see CorrectionDto_DoesNotExposeArea.
+        CorrectionDiff.Apply("Condo.ConstructionCompletionPercent", ConstructionCompletionPercent, edit.ConstructionCompletionPercent, v => ConstructionCompletionPercent = v, diff);
+        CorrectionDiff.Apply("Condo.TitleNumber", TitleNumber, edit.TitleNumber, v => TitleNumber = v, diff);
+        CorrectionDiff.Apply("Condo.TitleType", TitleType, edit.TitleType, v => TitleType = v, diff);
+        // Coordinates is an immutable record — compare components, rebuild once.
+        var latitude = Coordinates?.Latitude;
+        var longitude = Coordinates?.Longitude;
+        var coordinatesChanged = false;
+        CorrectionDiff.Apply("Condo.Latitude", latitude, edit.Latitude,
+            v => { latitude = v; coordinatesChanged = true; }, diff);
+        CorrectionDiff.Apply("Condo.Longitude", longitude, edit.Longitude,
+            v => { longitude = v; coordinatesChanged = true; }, diff);
+        if (coordinatesChanged)
+            Coordinates = Domain.Appraisals.GpsCoordinate.Create(latitude, longitude);
+
+        // Address is an immutable record — compare components, rebuild once.
+        var subDistrict = Address?.SubDistrict;
+        var district = Address?.District;
+        var province = Address?.Province;
+        var addressChanged = false;
+        CorrectionDiff.Apply("Condo.SubDistrict", subDistrict, edit.SubDistrict,
+            v => { subDistrict = v; addressChanged = true; }, diff);
+        CorrectionDiff.Apply("Condo.District", district, edit.District,
+            v => { district = v; addressChanged = true; }, diff);
+        CorrectionDiff.Apply("Condo.Province", province, edit.Province,
+            v => { province = v; addressChanged = true; }, diff);
+        if (addressChanged)
+            Address = Domain.Appraisals.Address.Create(subDistrict, district, province);
+
+        CorrectionDiff.Apply("Condo.LandOffice", LandOffice, edit.LandOffice, v => LandOffice = v, diff);
+        // DopaAddress is an immutable record — compare components, rebuild once.
+        var dopaSubDistrict = DopaAddress?.SubDistrict;
+        var dopaDistrict = DopaAddress?.District;
+        var dopaProvince = DopaAddress?.Province;
+        var dopaAddressChanged = false;
+        CorrectionDiff.Apply("Condo.DopaSubDistrict", dopaSubDistrict, edit.DopaSubDistrict,
+            v => { dopaSubDistrict = v; dopaAddressChanged = true; }, diff);
+        CorrectionDiff.Apply("Condo.DopaDistrict", dopaDistrict, edit.DopaDistrict,
+            v => { dopaDistrict = v; dopaAddressChanged = true; }, diff);
+        CorrectionDiff.Apply("Condo.DopaProvince", dopaProvince, edit.DopaProvince,
+            v => { dopaProvince = v; dopaAddressChanged = true; }, diff);
+        if (dopaAddressChanged)
+            DopaAddress = Domain.Appraisals.Address.Create(dopaSubDistrict, dopaDistrict, dopaProvince);
+
+        CorrectionDiff.Apply("Condo.OwnerName", OwnerName, edit.OwnerName, v => OwnerName = v, diff);
+        CorrectionDiff.Apply("Condo.IsOwnerVerified", IsOwnerVerified, edit.IsOwnerVerified, v => IsOwnerVerified = v, diff);
+        CorrectionDiff.Apply("Condo.BuildingConditionType", BuildingConditionType, edit.BuildingConditionType, v => BuildingConditionType = v, diff);
+        CorrectionDiff.Apply("Condo.BuildingConditionTypeOther", BuildingConditionTypeOther, edit.BuildingConditionTypeOther, v => BuildingConditionTypeOther = v, diff);
+        CorrectionDiff.Apply("Condo.HasObligation", HasObligation, edit.HasObligation, v => HasObligation = v, diff);
+        CorrectionDiff.Apply("Condo.ObligationDetails", ObligationDetails, edit.ObligationDetails, v => ObligationDetails = v, diff);
+        CorrectionDiff.Apply("Condo.DocumentValidationResultType", DocumentValidationResultType, edit.DocumentValidationResultType, v => DocumentValidationResultType = v, diff);
+        CorrectionDiff.Apply("Condo.LocationType", LocationType, edit.LocationType, v => LocationType = v, diff);
+        CorrectionDiff.Apply("Condo.Street", Street, edit.Street, v => Street = v, diff);
+        CorrectionDiff.Apply("Condo.Soi", Soi, edit.Soi, v => Soi = v, diff);
+        CorrectionDiff.Apply("Condo.DistanceFromMainRoad", DistanceFromMainRoad, edit.DistanceFromMainRoad, v => DistanceFromMainRoad = v, diff);
+        CorrectionDiff.Apply("Condo.AccessRoadWidth", AccessRoadWidth, edit.AccessRoadWidth, v => AccessRoadWidth = v, diff);
+        CorrectionDiff.Apply("Condo.RightOfWay", RightOfWay, edit.RightOfWay, v => RightOfWay = v, diff);
+        CorrectionDiff.Apply("Condo.RoadSurfaceType", RoadSurfaceType, edit.RoadSurfaceType, v => RoadSurfaceType = v, diff);
+        CorrectionDiff.Apply("Condo.RoadSurfaceTypeOther", RoadSurfaceTypeOther, edit.RoadSurfaceTypeOther, v => RoadSurfaceTypeOther = v, diff);
+        CorrectionDiff.ApplyList("Condo.PublicUtilityType", PublicUtilityType, edit.PublicUtilityType, v => PublicUtilityType = v, diff);
+        CorrectionDiff.Apply("Condo.PublicUtilityTypeOther", PublicUtilityTypeOther, edit.PublicUtilityTypeOther, v => PublicUtilityTypeOther = v, diff);
+        CorrectionDiff.ApplyList("Condo.LandEntranceExitType", LandEntranceExitType, edit.LandEntranceExitType, v => LandEntranceExitType = v, diff);
+        CorrectionDiff.Apply("Condo.LandEntranceExitTypeOther", LandEntranceExitTypeOther, edit.LandEntranceExitTypeOther, v => LandEntranceExitTypeOther = v, diff);
+        CorrectionDiff.Apply("Condo.LandFillType", LandFillType, edit.LandFillType, v => LandFillType = v, diff);
+        CorrectionDiff.Apply("Condo.LandFillTypeOther", LandFillTypeOther, edit.LandFillTypeOther, v => LandFillTypeOther = v, diff);
+        CorrectionDiff.Apply("Condo.UrbanPlanningType", UrbanPlanningType, edit.UrbanPlanningType, v => UrbanPlanningType = v, diff);
+        CorrectionDiff.ApplyList("Condo.LandUseType", LandUseType, edit.LandUseType, v => LandUseType = v, diff);
+        CorrectionDiff.Apply("Condo.LandUseTypeOther", LandUseTypeOther, edit.LandUseTypeOther, v => LandUseTypeOther = v, diff);
+        CorrectionDiff.Apply("Condo.DecorationType", DecorationType, edit.DecorationType, v => DecorationType = v, diff);
+        CorrectionDiff.Apply("Condo.DecorationTypeOther", DecorationTypeOther, edit.DecorationTypeOther, v => DecorationTypeOther = v, diff);
+        CorrectionDiff.Apply("Condo.BuildingAge", BuildingAge, edit.BuildingAge, v => BuildingAge = v, diff);
+        CorrectionDiff.Apply("Condo.ConstructionYear", ConstructionYear, edit.ConstructionYear, v => ConstructionYear = v, diff);
+        CorrectionDiff.Apply("Condo.NumberOfFloors", NumberOfFloors, edit.NumberOfFloors, v => NumberOfFloors = v, diff);
+        CorrectionDiff.Apply("Condo.BuildingFormType", BuildingFormType, edit.BuildingFormType, v => BuildingFormType = v, diff);
+        CorrectionDiff.Apply("Condo.ConstructionMaterialType", ConstructionMaterialType, edit.ConstructionMaterialType, v => ConstructionMaterialType = v, diff);
+        CorrectionDiff.Apply("Condo.RoomLayoutType", RoomLayoutType, edit.RoomLayoutType, v => RoomLayoutType = v, diff);
+        CorrectionDiff.Apply("Condo.RoomLayoutTypeOther", RoomLayoutTypeOther, edit.RoomLayoutTypeOther, v => RoomLayoutTypeOther = v, diff);
+        CorrectionDiff.ApplyList("Condo.LocationViewType", LocationViewType, edit.LocationViewType, v => LocationViewType = v, diff);
+        CorrectionDiff.Apply("Condo.LocationViewTypeOther", LocationViewTypeOther, edit.LocationViewTypeOther, v => LocationViewTypeOther = v, diff);
+        CorrectionDiff.Apply("Condo.GroundFloorMaterialType", GroundFloorMaterialType, edit.GroundFloorMaterialType, v => GroundFloorMaterialType = v, diff);
+        CorrectionDiff.Apply("Condo.GroundFloorMaterialTypeOther", GroundFloorMaterialTypeOther, edit.GroundFloorMaterialTypeOther, v => GroundFloorMaterialTypeOther = v, diff);
+        CorrectionDiff.Apply("Condo.UpperFloorMaterialType", UpperFloorMaterialType, edit.UpperFloorMaterialType, v => UpperFloorMaterialType = v, diff);
+        CorrectionDiff.Apply("Condo.UpperFloorMaterialTypeOther", UpperFloorMaterialTypeOther, edit.UpperFloorMaterialTypeOther, v => UpperFloorMaterialTypeOther = v, diff);
+        CorrectionDiff.Apply("Condo.BathroomFloorMaterialType", BathroomFloorMaterialType, edit.BathroomFloorMaterialType, v => BathroomFloorMaterialType = v, diff);
+        CorrectionDiff.Apply("Condo.BathroomFloorMaterialTypeOther", BathroomFloorMaterialTypeOther, edit.BathroomFloorMaterialTypeOther, v => BathroomFloorMaterialTypeOther = v, diff);
+        CorrectionDiff.ApplyList("Condo.RoofType", RoofType, edit.RoofType, v => RoofType = v, diff);
+        CorrectionDiff.Apply("Condo.RoofTypeOther", RoofTypeOther, edit.RoofTypeOther, v => RoofTypeOther = v, diff);
+        CorrectionDiff.Apply("Condo.IsExpropriated", IsExpropriated, edit.IsExpropriated, v => IsExpropriated = v, diff);
+        CorrectionDiff.Apply("Condo.ExpropriationRemark", ExpropriationRemark, edit.ExpropriationRemark, v => ExpropriationRemark = v, diff);
+        CorrectionDiff.Apply("Condo.IsInExpropriationLine", IsInExpropriationLine, edit.IsInExpropriationLine, v => IsInExpropriationLine = v, diff);
+        CorrectionDiff.Apply("Condo.ExpropriationLineRemark", ExpropriationLineRemark, edit.ExpropriationLineRemark, v => ExpropriationLineRemark = v, diff);
+        CorrectionDiff.Apply("Condo.RoyalDecree", RoyalDecree, edit.RoyalDecree, v => RoyalDecree = v, diff);
+        CorrectionDiff.Apply("Condo.IsForestBoundary", IsForestBoundary, edit.IsForestBoundary, v => IsForestBoundary = v, diff);
+        CorrectionDiff.Apply("Condo.ForestBoundaryRemark", ForestBoundaryRemark, edit.ForestBoundaryRemark, v => ForestBoundaryRemark = v, diff);
+        CorrectionDiff.ApplyList("Condo.FacilityType", FacilityType, edit.FacilityType, v => FacilityType = v, diff);
+        CorrectionDiff.Apply("Condo.FacilityTypeOther", FacilityTypeOther, edit.FacilityTypeOther, v => FacilityTypeOther = v, diff);
+        CorrectionDiff.ApplyList("Condo.EnvironmentType", EnvironmentType, edit.EnvironmentType, v => EnvironmentType = v, diff);
+        CorrectionDiff.Apply("Condo.EnvironmentTypeOther", EnvironmentTypeOther, edit.EnvironmentTypeOther, v => EnvironmentTypeOther = v, diff);
+        CorrectionDiff.Apply("Condo.IsMissingFromSurvey", IsMissingFromSurvey, edit.IsMissingFromSurvey, v => IsMissingFromSurvey = v, diff);
+        CorrectionDiff.Apply("Condo.GovernmentPricePerSqm", GovernmentPricePerSqm, edit.GovernmentPricePerSqm, v => GovernmentPricePerSqm = v, diff);
+        CorrectionDiff.Apply("Condo.GovernmentPrice", GovernmentPrice, edit.GovernmentPrice, v => GovernmentPrice = v, diff);
+        CorrectionDiff.Apply("Condo.FireInsuranceCondition", FireInsuranceCondition, edit.FireInsuranceCondition, v => FireInsuranceCondition = v, diff);
+        CorrectionDiff.Apply("Condo.BuildingInsurancePrice", BuildingInsurancePrice, edit.BuildingInsurancePrice, v => BuildingInsurancePrice = v, diff);
+        CorrectionDiff.Apply("Condo.SellingPrice", SellingPrice, edit.SellingPrice, v => SellingPrice = v, diff);
+        CorrectionDiff.Apply("Condo.ForcedSalePrice", ForcedSalePrice, edit.ForcedSalePrice, v => ForcedSalePrice = v, diff);
+        CorrectionDiff.Apply("Condo.Remark", Remark, edit.Remark, v => Remark = v, diff);
+    }
 }

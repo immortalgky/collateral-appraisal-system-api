@@ -90,4 +90,40 @@ public class LandTitle : Entity<Guid>
         GovernmentPrice = governmentPrice;
         Remark = remark;
     }
+
+    /// <summary>
+    /// Applies admin corrections to this title, recording each change in <paramref name="diff"/>.
+    ///
+    /// Reaches what <see cref="Update"/> cannot: <see cref="TitleNumber"/> and <see cref="TitleType"/>
+    /// have no mutator anywhere else, so a mistyped title number was previously uncorrectable. Both
+    /// are non-nullable, so a blank incoming value means "not supplied" rather than "clear".
+    /// </summary>
+    internal void ApplyCorrection(LandTitleCorrection edit, Dictionary<string, object?> diff)
+    {
+        var prefix = $"Land.Title[{Id}]";
+
+        if (!string.IsNullOrWhiteSpace(edit.TitleNumber))
+            CorrectionDiff.Apply($"{prefix}.TitleNumber", TitleNumber, edit.TitleNumber, v => TitleNumber = v!, diff);
+        if (!string.IsNullOrWhiteSpace(edit.TitleType))
+            CorrectionDiff.Apply($"{prefix}.TitleType", TitleType, edit.TitleType, v => TitleType = v!, diff);
+        CorrectionDiff.Apply($"{prefix}.BookNumber", BookNumber, edit.BookNumber, v => BookNumber = v, diff);
+        CorrectionDiff.Apply($"{prefix}.PageNumber", PageNumber, edit.PageNumber, v => PageNumber = v, diff);
+        CorrectionDiff.Apply($"{prefix}.LandParcelNumber", LandParcelNumber, edit.LandParcelNumber, v => LandParcelNumber = v, diff);
+        CorrectionDiff.Apply($"{prefix}.SurveyNumber", SurveyNumber, edit.SurveyNumber, v => SurveyNumber = v, diff);
+        CorrectionDiff.Apply($"{prefix}.MapSheetNumber", MapSheetNumber, edit.MapSheetNumber, v => MapSheetNumber = v, diff);
+        CorrectionDiff.Apply($"{prefix}.Rawang", Rawang, edit.Rawang, v => Rawang = v, diff);
+        CorrectionDiff.Apply($"{prefix}.AerialMapName", AerialMapName, edit.AerialMapName, v => AerialMapName = v, diff);
+        CorrectionDiff.Apply($"{prefix}.AerialMapNumber", AerialMapNumber, edit.AerialMapNumber, v => AerialMapNumber = v, diff);
+        // Area (Rai/Ngan/SquareWa) is deliberately NOT correctable: every valuation on the
+        // appraisal is computed from it, and this feature corrects descriptive data only — it
+        // does not recompute prices or send the appraisal back through the workflow. Changing
+        // the area here would leave the recorded values disagreeing with their own inputs.
+        CorrectionDiff.Apply($"{prefix}.BoundaryMarkerType", BoundaryMarkerType, edit.BoundaryMarkerType, v => BoundaryMarkerType = v, diff);
+        CorrectionDiff.Apply($"{prefix}.BoundaryMarkerRemark", BoundaryMarkerRemark, edit.BoundaryMarkerRemark, v => BoundaryMarkerRemark = v, diff);
+        CorrectionDiff.Apply($"{prefix}.DocumentValidationResultType", DocumentValidationResultType, edit.DocumentValidationResultType, v => DocumentValidationResultType = v, diff);
+        CorrectionDiff.Apply($"{prefix}.IsMissingFromSurvey", IsMissingFromSurvey, edit.IsMissingFromSurvey, v => IsMissingFromSurvey = v, diff);
+        CorrectionDiff.Apply($"{prefix}.GovernmentPricePerSqWa", GovernmentPricePerSqWa, edit.GovernmentPricePerSqWa, v => GovernmentPricePerSqWa = v, diff);
+        CorrectionDiff.Apply($"{prefix}.GovernmentPrice", GovernmentPrice, edit.GovernmentPrice, v => GovernmentPrice = v, diff);
+        CorrectionDiff.Apply($"{prefix}.Remark", Remark, edit.Remark, v => Remark = v, diff);
+    }
 }

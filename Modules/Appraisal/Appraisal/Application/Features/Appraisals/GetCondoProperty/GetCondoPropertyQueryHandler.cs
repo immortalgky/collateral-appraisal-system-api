@@ -44,6 +44,8 @@ public class GetCondoPropertyQueryHandler(
             CondoRegistrationNumber: detail.CondoRegistrationNumber,
             RoomNumber: detail.RoomNumber,
             FloorNumber: detail.FloorNumber,
+            PhysicalFloorNumber: detail.PhysicalFloorNumber,
+            TitleType: detail.TitleType,
             UsableArea: detail.UsableArea,
             ConstructionCompletionPercent: detail.ConstructionCompletionPercent,
             Latitude: detail.Coordinates?.Latitude,

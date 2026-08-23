@@ -1395,6 +1395,50 @@ namespace Appraisal.Infrastructure.Migrations
                     b.ToTable("AppraisalProperties", "appraisal");
                 });
 
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.AppraisalPropertyCorrectionLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppraisalId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppraisalPropertyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ChangedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ChangedFields")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PropertyType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppraisalPropertyId")
+                        .HasDatabaseName("IX_AppraisalPropertyCorrectionLogs_Property");
+
+                    b.HasIndex("AppraisalId", "ChangedAt")
+                        .HasDatabaseName("IX_AppraisalPropertyCorrectionLogs_Appraisal_ChangedAt");
+
+                    b.ToTable("AppraisalPropertyCorrectionLogs", "appraisal");
+                });
+
             modelBuilder.Entity("Appraisal.Domain.Appraisals.AppraisalReview", b =>
                 {
                     b.Property<Guid>("Id")

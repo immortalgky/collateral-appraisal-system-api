@@ -336,6 +336,7 @@ public static class AuthModule
             .AddUserPermissionPolicy("job-schedule.manage", "JOB_SCHEDULE_MANAGE")
             .AddUserPermissionPolicy("address-master.manage", "ADDRESS_MASTER_MANAGE")
             .AddUserPermissionPolicy("reappraisal.generate-test-file", "REAPPRAISAL_GENERATE_TEST_FILE")
+            .AddUserPermissionPolicy("appraisal.data-correction", "APPRAISAL_DATA_CORRECTION")
             // ── Monitoring feature policies (FSD §2.6.8) ──────────────────────────
             // Any-prefix policies: caller needs ANY permission with the given prefix.
             .AddMonitoringPrefixPolicy("monitoring.pending-internal", "MONITORING:PENDING_INTERNAL:")

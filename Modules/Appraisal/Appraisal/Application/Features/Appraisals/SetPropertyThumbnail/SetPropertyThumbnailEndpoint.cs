@@ -30,6 +30,7 @@ public class SetPropertyThumbnailEndpoint : ICarterModule
             .WithSummary("Set property thumbnail")
             .WithDescription(
                 "Sets the specified photo as the thumbnail for the property. Automatically unsets any existing thumbnail.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("AppraisalGallery");
     }
 }

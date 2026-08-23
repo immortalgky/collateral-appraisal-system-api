@@ -38,6 +38,7 @@ public class MovePropertyToGroupEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Move property to another group")
             .WithDescription("Move a property from its current group to a different group at an optional position.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal");
     }
 }

@@ -32,6 +32,7 @@ public class UpdateMachineryPropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update machinery property detail")
             .WithDescription("Update the detail of a machinery property.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

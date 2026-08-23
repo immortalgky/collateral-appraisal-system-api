@@ -31,6 +31,7 @@ public class UpdateLeaseAgreementCondoPropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update lease agreement condo property detail")
             .WithDescription("Update the detail of a lease agreement condo property.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

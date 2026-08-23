@@ -245,6 +245,53 @@ public class AppraisalProperty : Entity<Guid>
     }
 
     #endregion
+
+    #region Admin Data Correction
+
+    /// <summary>
+    /// Applies admin corrections to whichever detail records this property actually carries, and
+    /// records every change in <paramref name="diff"/>.
+    ///
+    /// Dispatch is by which navigation is populated rather than by PropertyType, because
+    /// LandAndBuilding and the lease variants populate more than one detail. A correction section
+    /// for a detail this property does not have is ignored: the caller may legitimately send a
+    /// generic payload, and the form only surfaces sections that exist.
+    ///
+    /// This entity is an <see cref="Entity{TId}"/>, not an aggregate root, so it cannot raise the
+    /// audit event itself — <see cref="Appraisal.CorrectPropertyData"/> does that with the diff
+    /// this method fills in.
+    /// </summary>
+    internal void ApplyCorrection(PropertyCorrectionData data, Dictionary<string, object?> diff)
+    {
+        CorrectionDiff.Apply("Property.Description", Description, data.Description,
+            v => Description = v, diff);
+
+        if (data.Land is not null && LandDetail is not null)
+            LandDetail.ApplyCorrection(data.Land, diff);
+
+        if (data.LandTitles is { Count: > 0 } && LandDetail is not null)
+            LandDetail.ApplyTitleCorrections(data.LandTitles, diff);
+
+        if (data.Building is not null && BuildingDetail is not null)
+            BuildingDetail.ApplyCorrection(data.Building, diff);
+
+        if (data.Condo is not null && CondoDetail is not null)
+            CondoDetail.ApplyCorrection(data.Condo, diff);
+
+        if (data.Vehicle is not null && VehicleDetail is not null)
+            VehicleDetail.ApplyCorrection(data.Vehicle, diff);
+
+        if (data.Vessel is not null && VesselDetail is not null)
+            VesselDetail.ApplyCorrection(data.Vessel, diff);
+
+        if (data.Machinery is not null && MachineryDetail is not null)
+            MachineryDetail.ApplyCorrection(data.Machinery, diff);
+
+        if (data.LeaseAgreement is not null && LeaseAgreementDetail is not null)
+            LeaseAgreementDetail.ApplyCorrection(data.LeaseAgreement, diff);
+    }
+
+    #endregion
 }
 
 /// <summary>

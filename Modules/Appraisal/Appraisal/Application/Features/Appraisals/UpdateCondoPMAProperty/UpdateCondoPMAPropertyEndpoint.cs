@@ -31,6 +31,7 @@ public class UpdateCondoPMAPropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update condo pma property detail")
             .WithDescription("Update the detail of a condo pma property.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

@@ -225,4 +225,48 @@ public class VesselAppraisalDetail : Entity<Guid>
         if (other is not null) Other = other;
         if (appraiserOpinion is not null) AppraiserOpinion = appraiserOpinion;
     }
+
+    /// <summary>
+    /// Applies admin corrections to this vessel, recording each change in <paramref name="diff"/>.
+    /// </summary>
+    internal void ApplyCorrection(VesselCorrection edit, Dictionary<string, object?> diff)
+    {
+        CorrectionDiff.Apply("Vessel.PropertyName", PropertyName, edit.PropertyName, v => PropertyName = v, diff);
+        CorrectionDiff.Apply("Vessel.VesselName", VesselName, edit.VesselName, v => VesselName = v, diff);
+        CorrectionDiff.Apply("Vessel.EngineNo", EngineNo, edit.EngineNo, v => EngineNo = v, diff);
+        CorrectionDiff.Apply("Vessel.RegistrationNumber", RegistrationNumber, edit.RegistrationNumber, v => RegistrationNumber = v, diff);
+        CorrectionDiff.Apply("Vessel.RegistrationDate", RegistrationDate, edit.RegistrationDate, v => RegistrationDate = v, diff);
+        CorrectionDiff.Apply("Vessel.Brand", Brand, edit.Brand, v => Brand = v, diff);
+        CorrectionDiff.Apply("Vessel.Model", Model, edit.Model, v => Model = v, diff);
+        CorrectionDiff.Apply("Vessel.YearOfManufacture", YearOfManufacture, edit.YearOfManufacture, v => YearOfManufacture = v, diff);
+        CorrectionDiff.Apply("Vessel.PlaceOfManufacture", PlaceOfManufacture, edit.PlaceOfManufacture, v => PlaceOfManufacture = v, diff);
+        CorrectionDiff.Apply("Vessel.VesselType", VesselType, edit.VesselType, v => VesselType = v, diff);
+        CorrectionDiff.Apply("Vessel.ClassOfVessel", ClassOfVessel, edit.ClassOfVessel, v => ClassOfVessel = v, diff);
+        CorrectionDiff.Apply("Vessel.PurchaseDate", PurchaseDate, edit.PurchaseDate, v => PurchaseDate = v, diff);
+        CorrectionDiff.Apply("Vessel.PurchasePrice", PurchasePrice, edit.PurchasePrice, v => PurchasePrice = v, diff);
+        CorrectionDiff.Apply("Vessel.EngineCapacity", EngineCapacity, edit.EngineCapacity, v => EngineCapacity = v, diff);
+        CorrectionDiff.Apply("Vessel.Width", Width, edit.Width, v => Width = v, diff);
+        CorrectionDiff.Apply("Vessel.Length", Length, edit.Length, v => Length = v, diff);
+        CorrectionDiff.Apply("Vessel.Height", Height, edit.Height, v => Height = v, diff);
+        CorrectionDiff.Apply("Vessel.GrossTonnage", GrossTonnage, edit.GrossTonnage, v => GrossTonnage = v, diff);
+        CorrectionDiff.Apply("Vessel.NetTonnage", NetTonnage, edit.NetTonnage, v => NetTonnage = v, diff);
+        CorrectionDiff.Apply("Vessel.EnergyUse", EnergyUse, edit.EnergyUse, v => EnergyUse = v, diff);
+        CorrectionDiff.Apply("Vessel.EnergyUseRemark", EnergyUseRemark, edit.EnergyUseRemark, v => EnergyUseRemark = v, diff);
+        CorrectionDiff.Apply("Vessel.OwnerName", OwnerName, edit.OwnerName, v => OwnerName = v, diff);
+        CorrectionDiff.ApplyRequired("Vessel.IsOwnerVerified", IsOwnerVerified, edit.IsOwnerVerified, v => IsOwnerVerified = v, diff);
+        CorrectionDiff.ApplyRequired("Vessel.CanUse", CanUse, edit.CanUse, v => CanUse = v, diff);
+        CorrectionDiff.Apply("Vessel.FormerName", FormerName, edit.FormerName, v => FormerName = v, diff);
+        CorrectionDiff.Apply("Vessel.VesselCurrentName", VesselCurrentName, edit.VesselCurrentName, v => VesselCurrentName = v, diff);
+        CorrectionDiff.Apply("Vessel.Location", Location, edit.Location, v => Location = v, diff);
+        CorrectionDiff.Apply("Vessel.ConditionUse", ConditionUse, edit.ConditionUse, v => ConditionUse = v, diff);
+        CorrectionDiff.Apply("Vessel.VesselCondition", VesselCondition, edit.VesselCondition, v => VesselCondition = v, diff);
+        CorrectionDiff.Apply("Vessel.VesselAge", VesselAge, edit.VesselAge, v => VesselAge = v, diff);
+        CorrectionDiff.Apply("Vessel.VesselEfficiency", VesselEfficiency, edit.VesselEfficiency, v => VesselEfficiency = v, diff);
+        CorrectionDiff.Apply("Vessel.VesselTechnology", VesselTechnology, edit.VesselTechnology, v => VesselTechnology = v, diff);
+        CorrectionDiff.Apply("Vessel.UsePurpose", UsePurpose, edit.UsePurpose, v => UsePurpose = v, diff);
+        CorrectionDiff.Apply("Vessel.VesselPart", VesselPart, edit.VesselPart, v => VesselPart = v, diff);
+        CorrectionDiff.Apply("Vessel.Remark", Remark, edit.Remark, v => Remark = v, diff);
+        CorrectionDiff.Apply("Vessel.Other", Other, edit.Other, v => Other = v, diff);
+        CorrectionDiff.Apply("Vessel.AppraiserOpinion", AppraiserOpinion, edit.AppraiserOpinion, v => AppraiserOpinion = v, diff);
+    }
 }
