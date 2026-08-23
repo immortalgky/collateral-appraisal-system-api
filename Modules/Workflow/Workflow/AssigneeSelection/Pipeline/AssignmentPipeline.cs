@@ -43,9 +43,22 @@ public class AssignmentPipeline : IAssignmentPipeline
         // Stage 1: Build context (also resolves the DB override onto pipelineCtx.ExternalConfig)
         await _contextBuilder.BuildAsync(pipelineCtx, cancellationToken);
 
+        // Route-back detection and strategy resolution: computed once per assignment attempt (not
+        // once per Stage 2-4 retry) and cached on pipelineCtx.IsRevisit/Strategies. Reused by Stage 2's
+        // short-circuit gate below and by Stage 3's engine call, so they cannot disagree and
+        // WorkflowActivityExecutions isn't re-queried. Skipped entirely for a manual pick
+        // (RuntimeOverride.RuntimeAssignee) — Stage 3 resolves that immediately and never consults
+        // either value, so the route-back DB round trip would be wasted on that hot path.
+        if (string.IsNullOrEmpty(pipelineCtx.RuntimeOverride?.RuntimeAssignee))
+        {
+            pipelineCtx.IsRevisit = await _engine.IsRouteBackScenarioAsync(
+                context.WorkflowInstance.Id, context.ActivityId, cancellationToken);
+            pipelineCtx.Strategies = ResolveStrategies(pipelineCtx, context, pipelineCtx.IsRevisit);
+        }
+
         _logger.LogInformation(
-            "Pipeline Stage 1 complete for {ActivityId}. TeamId={TeamId}, Rules={Rules}, PriorAssignees={Count}",
-            context.ActivityId, pipelineCtx.TeamId, pipelineCtx.Rules, pipelineCtx.PriorAssignees.Count);
+            "Pipeline Stage 1 complete for {ActivityId}. TeamId={TeamId}, Rules={Rules}, PriorAssignees={Count}, IsRevisit={IsRevisit}",
+            context.ActivityId, pipelineCtx.TeamId, pipelineCtx.Rules, pipelineCtx.PriorAssignees.Count, pipelineCtx.IsRevisit);
 
         var result = await RunStagesAsync(pipelineCtx, cancellationToken);
 
@@ -81,12 +94,29 @@ public class AssignmentPipeline : IAssignmentPipeline
 
             if (pipelineCtx.CandidatePool.Count == 0 && pipelineCtx.Rules.TeamConstrained)
             {
-                _logger.LogWarning("No candidates after filtering for {ActivityId}", context.ActivityId);
-                return new AssignmentResult
+                // Route-back: the team-scoped pool may legitimately be empty (the constrained team
+                // reflects whoever routed back, not necessarily the target activity's prior owner).
+                // Only bypass the hard-fail when every resolved strategy is previous_owner — the one
+                // strategy that ignores CandidatePool entirely and resolves from history instead.
+                // Any other strategy (e.g. pool, round_robin) genuinely needs real candidates, so an
+                // empty pool must still fail fast for those rather than produce an unusable assignment.
+                var bypassesEmptyPool = pipelineCtx.IsRevisit
+                    && pipelineCtx.Strategies.Count > 0
+                    && pipelineCtx.Strategies.All(s => string.Equals(s, "previous_owner", StringComparison.OrdinalIgnoreCase));
+
+                if (!bypassesEmptyPool)
                 {
-                    IsSuccess = false,
-                    ErrorMessage = "No eligible candidates found after team/exclusion filtering"
-                };
+                    _logger.LogWarning("No candidates after filtering for {ActivityId}", context.ActivityId);
+                    return new AssignmentResult
+                    {
+                        IsSuccess = false,
+                        ErrorMessage = "No eligible candidates found after team/exclusion filtering"
+                    };
+                }
+
+                _logger.LogInformation(
+                    "Empty candidate pool for {ActivityId} on route-back to previous_owner — " +
+                    "proceeding to Stage 3", context.ActivityId);
             }
 
             // Stage 3: Select assignee
@@ -223,20 +253,11 @@ public class AssignmentPipeline : IAssignmentPipeline
             };
         }
 
-        // Detect revisit (route-back) to choose correct strategy list
-        var isRevisit = await _engine.IsRouteBackScenarioAsync(
-            activityCtx.WorkflowInstance.Id, activityCtx.ActivityId, cancellationToken);
-
-        // Strategy precedence: RuntimeOverride > DB config (Primary/RouteBack) > JSON definition.
-        // An empty DB strategy list falls through; a DB SpecificAssignee with no strategies implies Manual.
-        var dbStrategies = isRevisit
-            ? pipelineCtx.ExternalConfig?.RouteBackStrategies
-            : pipelineCtx.ExternalConfig?.PrimaryStrategies;
-
-        var strategies = pipelineCtx.RuntimeOverride?.RuntimeAssignmentStrategies
-            ?? (dbStrategies is { Count: > 0 } ? dbStrategies
-                : !string.IsNullOrEmpty(pipelineCtx.ExternalConfig?.SpecificAssignee) ? ["Manual"] : null)
-            ?? GetStrategiesForScenario(activityCtx, isRevisit);
+        // Revisit flag and strategy list were resolved once in AssignAsync (cached on pipelineCtx) to
+        // avoid re-querying WorkflowActivityExecutions on every Stage 2-4 retry attempt, and so Stage
+        // 2's empty-pool gate and this engine call always agree on what will actually run.
+        var isRevisit = pipelineCtx.IsRevisit;
+        var strategies = pipelineCtx.Strategies;
 
         _logger.LogInformation(
             "Strategy selection for {ActivityId}: IsRevisit={IsRevisit}, Strategies=[{Strategies}]",
@@ -271,6 +292,20 @@ public class AssignmentPipeline : IAssignmentPipeline
             Metadata = engineResult.Metadata,
             ErrorMessage = engineResult.ErrorMessage
         };
+    }
+
+    // Strategy precedence: RuntimeOverride > DB config (Primary/RouteBack) > JSON definition.
+    // An empty DB strategy list falls through; a DB SpecificAssignee with no strategies implies Manual.
+    private static List<string> ResolveStrategies(AssignmentPipelineContext pipelineCtx, ActivityContext activityCtx, bool isRevisit)
+    {
+        var dbStrategies = isRevisit
+            ? pipelineCtx.ExternalConfig?.RouteBackStrategies
+            : pipelineCtx.ExternalConfig?.PrimaryStrategies;
+
+        return pipelineCtx.RuntimeOverride?.RuntimeAssignmentStrategies
+            ?? (dbStrategies is { Count: > 0 } ? dbStrategies
+                : !string.IsNullOrEmpty(pipelineCtx.ExternalConfig?.SpecificAssignee) ? ["Manual"] : null)
+            ?? GetStrategiesForScenario(activityCtx, isRevisit);
     }
 
     private static List<string> GetStrategiesForScenario(ActivityContext ctx, bool isRevisit)

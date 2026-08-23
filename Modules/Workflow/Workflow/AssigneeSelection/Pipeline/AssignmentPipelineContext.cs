@@ -38,6 +38,25 @@ public class AssignmentPipelineContext
 
     public Dictionary<string, string> PriorAssignees { get; set; } = new();
 
+    /// <summary>
+    /// True when the target activity already has a Completed execution in this workflow instance
+    /// (a route-back/revisit). Computed once per <see cref="AssignmentPipeline.AssignAsync"/> call
+    /// via <see cref="Engine.ICascadingAssignmentEngine.IsRouteBackScenarioAsync"/> and cached here so
+    /// Stage 2's empty-candidate-pool short-circuit can consult it. Left at the default (false) when
+    /// a manual pick (<see cref="RuntimeOverride"/>) is present, since Stage 3 resolves that before
+    /// either this or <see cref="Strategies"/> would be read.
+    /// </summary>
+    public bool IsRevisit { get; set; }
+
+    /// <summary>
+    /// The assignment strategy list, resolved once alongside <see cref="IsRevisit"/> (same
+    /// RuntimeOverride &gt; DB config &gt; JSON precedence Stage 3 used to apply per-attempt). Consulted
+    /// by Stage 2's empty-pool gate to confirm every strategy about to run is pool-independent (e.g.
+    /// <c>previous_owner</c>) before bypassing the hard-fail — a pool-dependent strategy (e.g.
+    /// <c>pool</c>) must still fail fast on a genuinely empty pool.
+    /// </summary>
+    public List<string> Strategies { get; set; } = [];
+
     // Stage 2 outputs
     public List<TeamMemberInfo> CandidatePool { get; set; } = [];
 
