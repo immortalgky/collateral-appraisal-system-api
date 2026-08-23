@@ -13,6 +13,7 @@ public record ConstructionInspectionData(
     decimal? SummaryPreviousValue = null,
     decimal? SummaryCurrentProgressPct = null,
     decimal? SummaryCurrentValue = null,
+    // Free-text note printed on the construction summary report - applies to BOTH modes
     string? Remark = null,
     // Document reference (summary mode)
     Guid? DocumentId = null,
