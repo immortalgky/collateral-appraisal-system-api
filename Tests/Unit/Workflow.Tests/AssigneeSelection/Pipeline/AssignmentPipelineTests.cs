@@ -880,6 +880,90 @@ public class AssignmentPipelineTests
         await _finalizer.DidNotReceive().FinalizeAsync(Arg.Any<AssignmentPipelineContext>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task AssignAsync_TeamConstrained_RouteBackWithEmptyPool_PreviousOwnerStillRuns()
+    {
+        // A revisit whose only configured strategy is previous_owner must not be blocked by an empty
+        // team-scoped pool — previous_owner resolves the assignee from history, not from the pool.
+        var context = CreateActivityContext(properties: new Dictionary<string, object>
+        {
+            ["revisitAssignmentStrategies"] = new List<string> { "previous_owner" }
+        });
+
+        _contextBuilder.BuildAsync(Arg.Any<AssignmentPipelineContext>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                var ctx = ci.ArgAt<AssignmentPipelineContext>(0);
+                ctx.Rules = new ActivityAssignmentRules(TeamConstrained: true, ExcludeAssigneesFrom: []);
+                ctx.CandidatePool = []; // TeamFilter scoped to the "wrong" team for this revisit — empty
+                return Task.CompletedTask;
+            });
+
+        _engine.IsRouteBackScenarioAsync(Arg.Any<Guid>(), context.ActivityId, Arg.Any<CancellationToken>())
+            .Returns(true);
+        SetupEngineSuccess("original-checker", "previous_owner");
+        SetupFinalizerPassthrough();
+
+        var result = await _pipeline.AssignAsync(context);
+
+        result.IsSuccess.Should().BeTrue();
+        result.AssigneeId.Should().Be("original-checker");
+        await _engine.Received(1).ExecuteAsync(Arg.Any<AssignmentContext>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AssignAsync_TeamConstrained_RouteBackWithEmptyPool_PoolStrategyStillFailsEarly()
+    {
+        // A revisit configured with a pool-DEPENDENT strategy must still fail fast on a genuinely
+        // empty pool — only previous_owner (which ignores CandidatePool) may bypass the short-circuit.
+        var context = CreateActivityContext(properties: new Dictionary<string, object>
+        {
+            ["revisitAssignmentStrategies"] = new List<string> { "pool" }
+        });
+
+        _contextBuilder.BuildAsync(Arg.Any<AssignmentPipelineContext>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                var ctx = ci.ArgAt<AssignmentPipelineContext>(0);
+                ctx.Rules = new ActivityAssignmentRules(TeamConstrained: true, ExcludeAssigneesFrom: []);
+                ctx.CandidatePool = [];
+                return Task.CompletedTask;
+            });
+
+        _engine.IsRouteBackScenarioAsync(Arg.Any<Guid>(), context.ActivityId, Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        var result = await _pipeline.AssignAsync(context);
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("No eligible candidates");
+        await _engine.DidNotReceive().ExecuteAsync(Arg.Any<AssignmentContext>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AssignAsync_ManualPick_DoesNotQueryRouteBackScenario()
+    {
+        // RuntimeOverride.RuntimeAssignee resolves immediately in Stage 3 without ever consulting
+        // IsRevisit/Strategies, so the route-back DB round trip must be skipped for this hot path.
+        var runtimeOverride = new RuntimeOverride { RuntimeAssignee = "manual-user" };
+        var context = CreateActivityContext(runtimeOverride: runtimeOverride);
+
+        SetupDefaultContextBuilder(new AssignmentPipelineContext
+        {
+            ActivityContext = context,
+            Rules = ActivityAssignmentRules.Default,
+            RuntimeOverride = runtimeOverride
+        });
+        SetupFinalizerPassthrough();
+
+        var result = await _pipeline.AssignAsync(context);
+
+        result.IsSuccess.Should().BeTrue();
+        result.AssigneeId.Should().Be("manual-user");
+        await _engine.DidNotReceive().IsRouteBackScenarioAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // 8. PIPELINE WITH REAL FILTERS (integration-style)
     // ═══════════════════════════════════════════════════════════════

@@ -72,11 +72,15 @@ public class ReassignTaskCommandHandler(
         // Use CreateAuditFromPendingTask (fresh Id) so the PendingTask row stays alive
         // and a future normal completion can still insert its own CompletedTask row
         // without a PK collision.
-        var auditRow = CompletedTask.CreateAuditFromPendingTask(task, "Reassigned", dateTimeProvider.ApplicationNow);
+        // One instant for both sides of the hand-off: the audit row closes at handedOverAt and the
+        // live task's holder clock opens at the same value, so the history timeline is a strictly
+        // increasing chain even though AssignedAt (the SLA anchor) stays frozen on every row.
+        var handedOverAt = dateTimeProvider.ApplicationNow;
+        var auditRow = CompletedTask.CreateAuditFromPendingTask(task, "Reassigned", handedOverAt);
         dbContext.CompletedTasks.Add(auditRow);
 
         // Mutate — raises PendingTaskReassignedDomainEvent (fired pre-save by interceptor)
-        task.Reassign(command.NewAssignedTo, "1", raiseEventFor: "supervisor");
+        task.Reassign(command.NewAssignedTo, "1", raiseEventFor: "supervisor", holderChangedAt: handedOverAt);
 
         try
         {

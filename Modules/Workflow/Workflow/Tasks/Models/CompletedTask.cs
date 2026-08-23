@@ -10,9 +10,38 @@ public class CompletedTask : Aggregate<Guid>
     public string AssignedTo { get; private set; } = default!;
     public string AssignedType { get; private set; } = default!;
     public DateTime AssignedAt { get; private set; }
+
+    /// <summary>
+    /// The moment the assignee on THIS row received the task — carried over from
+    /// <c>PendingTask.AssigneeAssignedAt</c>. Differs from <see cref="AssignedAt"/> only after a
+    /// supervisor reassign, which preserves the SLA anchor but hands the task to a new holder.
+    /// History timelines order and display on this column; SLA math still uses AssignedAt.
+    /// </summary>
+    public DateTime AssigneeAssignedAt { get; private set; }
+
     public string ActionTaken { get; private set; } = default!;
     public DateTime CompletedAt { get; private set; }
+
+    /// <summary>
+    /// When this row's holder first opened the task, carried over from <c>PendingTask.OpenedAt</c>.
+    /// Null means they never opened it — either the row predates this column, or the task was handed
+    /// on / completed without the holder ever touching it, which is itself worth showing.
+    /// </summary>
+    public DateTime? OpenedAt { get; private set; }
+
     public DateTime? DueAt { get; private set; }
+
+    /// <summary>
+    /// The SLA clock-start anchor in force for this leg, carried over from
+    /// <c>PendingTask.SlaStartAt</c>. Differs from <see cref="AssignedAt"/> for appointment-anchored
+    /// policies (anchors on the visit) and window-governed tasks (anchors on the window's start
+    /// activity). Null on rows written before this column existed.
+    /// </summary>
+    public DateTime? SlaStartAt { get; private set; }
+
+    /// <summary>The resolved SLA policy budget in hours that produced <see cref="DueAt"/>.</summary>
+    public int? SlaDurationHours { get; private set; }
+
     public string? SlaStatus { get; private set; }
     public DateTime? SlaBreachedAt { get; private set; }
     public string? Remark { get; private set; }
@@ -41,7 +70,9 @@ public class CompletedTask : Aggregate<Guid>
         string assignedType, DateTime assignedAt, string actionTaken, DateTime completedAt,
         DateTime? dueAt = null, string? slaStatus = null, DateTime? slaBreachedAt = null,
         string? taskDescription = null, string? remark = null, string movement = "F",
-        string? activityId = null, Guid? assigneeCompanyId = null, string? reasonCode = null)
+        string? activityId = null, Guid? assigneeCompanyId = null, string? reasonCode = null,
+        DateTime? assigneeAssignedAt = null, DateTime? openedAt = null, DateTime? slaStartAt = null,
+        int? slaDurationHours = null)
     {
         Id = id;
         CorrelationId = correlationId;
@@ -52,9 +83,13 @@ public class CompletedTask : Aggregate<Guid>
         AssignedTo = assignedTo;
         AssignedType = assignedType;
         AssignedAt = assignedAt;
+        AssigneeAssignedAt = assigneeAssignedAt ?? assignedAt;
         ActionTaken = actionTaken;
         CompletedAt = completedAt;
+        OpenedAt = openedAt;
         DueAt = dueAt;
+        SlaStartAt = slaStartAt;
+        SlaDurationHours = slaDurationHours;
         SlaStatus = slaStatus;
         SlaBreachedAt = slaBreachedAt;
         Remark = remark;
@@ -91,7 +126,11 @@ public class CompletedTask : Aggregate<Guid>
             movement ?? pendingTask.Movement,
             pendingTask.ActivityId,
             pendingTask.AssigneeCompanyId,
-            reasonCode
+            reasonCode,
+            pendingTask.AssigneeAssignedAt,
+            pendingTask.OpenedAt,
+            pendingTask.SlaStartAt,
+            pendingTask.SlaDurationHours
         );
     }
 
@@ -120,7 +159,12 @@ public class CompletedTask : Aggregate<Guid>
             remark,
             movement ?? pendingTask.Movement,
             pendingTask.ActivityId,
-            pendingTask.AssigneeCompanyId
+            pendingTask.AssigneeCompanyId,
+            null,
+            pendingTask.AssigneeAssignedAt,
+            pendingTask.OpenedAt,
+            pendingTask.SlaStartAt,
+            pendingTask.SlaDurationHours
         );
     }
 }

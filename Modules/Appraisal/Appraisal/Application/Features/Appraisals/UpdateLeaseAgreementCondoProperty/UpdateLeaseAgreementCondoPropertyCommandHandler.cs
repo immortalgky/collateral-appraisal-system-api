@@ -238,7 +238,7 @@ public class UpdateLeaseAgreementCondoPropertyCommandHandler(
             var inspection = property.ConstructionInspection;
             if (ci.IsFullDetail)
             {
-                inspection.UpdateFullDetail(ci.TotalValue);
+                inspection.UpdateFullDetail(ci.TotalValue, ci.Remark);
                 inspection.ClearWorkDetails();
                 if (ci.WorkDetails is { Count: > 0 })
                 {

@@ -88,7 +88,7 @@ public class ReassignTaskCommandHandlerTests : IDisposable
             dueAt: DateTime.Now.AddDays(1));
 
         if (status == TaskStatus.InProgress)
-            task.StartWorking(assignedTo);
+            task.StartWorking(assignedTo, DateTime.Now);
 
         _dbContext.PendingTasks.Add(task);
         await _dbContext.SaveChangesAsync();

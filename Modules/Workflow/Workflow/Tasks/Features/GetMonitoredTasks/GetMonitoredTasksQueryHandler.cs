@@ -17,7 +17,7 @@ public class GetMonitoredTasksQueryHandler(
 {
     private static readonly HashSet<string> AllowedSortFields = new(StringComparer.OrdinalIgnoreCase)
     {
-        "AssignedAt", "DueAt", "SlaStatus", "ElapsedHours", "RemainingHours",
+        "AssignedAt", "AssigneeAssignedAt", "DueAt", "SlaStatus", "ElapsedHours", "RemainingHours",
         "AppraisalNumber", "CustomerName", "TaskName", "AssignedTo", "GroupName",
         "Purpose", "AppraisalStatus"
     };

@@ -330,7 +330,7 @@ public class CreateLandAndBuildingPropertyCommandHandler(
         ConstructionInspection inspection;
         if (ci.IsFullDetail)
         {
-            inspection = ConstructionInspection.CreateFullDetail(property.Id, ci.TotalValue);
+            inspection = ConstructionInspection.CreateFullDetail(property.Id, ci.TotalValue, ci.Remark);
             if (ci.WorkDetails is { Count: > 0 })
             {
                 foreach (var wd in ci.WorkDetails)

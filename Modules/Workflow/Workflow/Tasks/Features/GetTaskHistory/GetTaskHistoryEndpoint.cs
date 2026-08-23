@@ -20,7 +20,9 @@ public class GetTaskHistoryEndpoint : ICarterModule
             .WithSummary("Get task history for a workflow instance")
             .WithDescription(
                 "Returns the merged completed + currently-pending task list for a workflow instance, " +
-                "ordered by AssignedAt. Pending tasks have null CompletedAt/ActionTaken/Remark.")
+                "ordered by AssigneeAssignedAt (when each row's holder received the task) so a " +
+                "reassigned task's rows follow the real hand-off order. Pending tasks have null " +
+                "CompletedAt/ActionTaken/Remark.")
             .WithTags("Tasks")
             .RequireAuthorization();
     }

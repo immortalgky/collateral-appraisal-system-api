@@ -31,7 +31,12 @@ SELECT
     rd.PrevAppraisalNumber                                             AS PrevAppraisalNumber,
     pt.TaskStatus                                                      AS TaskStatus,
     a.Status                                                           AS AppraisalStatus,
+    -- AssignedAt is the SLA anchor, frozen across a supervisor hand-off — it is what the business-time
+    -- Elapsed/Remaining calculation in GetMonitoredTasksQueryHandler runs from, so it must not move.
     pt.AssignedAt                                                      AS AssignedAt,
+    -- When the CURRENT assignee received the task. This is what the grid's "Assigned" column shows;
+    -- on a redirected task it is the hand-off, not the original assignment.
+    pt.AssigneeAssignedAt                                              AS AssigneeAssignedAt,
     pt.DueAt,
     pt.SlaStartAt,
     pt.SlaStatus,

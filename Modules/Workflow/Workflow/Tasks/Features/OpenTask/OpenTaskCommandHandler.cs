@@ -2,6 +2,7 @@ using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Shared.Data;
 using Shared.Identity;
+using Shared.Time;
 using Workflow.AssigneeSelection.Teams;
 using Workflow.Data;
 using Workflow.Services.Groups;
@@ -17,7 +18,8 @@ public class OpenTaskCommandHandler(
     ILogger<OpenTaskCommandHandler> logger,
     IUserGroupService userGroupService,
     ITeamService teamService,
-    ISegregationOfDutiesGuard segregationOfDutiesGuard
+    ISegregationOfDutiesGuard segregationOfDutiesGuard,
+    IDateTimeProvider dateTimeProvider
 ) : ICommandHandler<OpenTaskCommand, OpenTaskResult>
 {
     public async Task<OpenTaskResult> Handle(OpenTaskCommand command, CancellationToken cancellationToken)
@@ -69,7 +71,7 @@ public class OpenTaskCommandHandler(
         // For personal tasks: transition to InProgress on first open
         if (isOwner && task.TaskStatus != TaskStatus.InProgress)
         {
-            task.StartWorking(username);
+            task.StartWorking(username, dateTimeProvider.ApplicationNow);
 
             try
             {
