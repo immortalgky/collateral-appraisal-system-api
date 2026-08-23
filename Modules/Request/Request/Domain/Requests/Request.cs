@@ -218,10 +218,11 @@ public class Request : Aggregate<Guid>
     /// </summary>
     public void Submit(DateTime submittedAt, string? groupTag = null, string? entrySource = null)
     {
-        RuleCheck.Valid()
-            .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.New,
-                "Can only submit Draft or New requests.")
-            .ThrowIfInvalid();
+        // Guards on HasBeenSubmitted() rather than Status alone, so that a row whose Status was
+        // demoted back to New/Draft by the old post-submit-save bug still cannot be submitted a
+        // second time. Re-submitting such a row would re-stamp RequestedAt -- the date SLA and the
+        // regulatory export read -- and re-publish RequestSubmittedEvent.
+        EnsureNotSubmitted("submit");
 
         UpdateStatus(RequestStatus.Submitted);
         RequestedAt = submittedAt;
