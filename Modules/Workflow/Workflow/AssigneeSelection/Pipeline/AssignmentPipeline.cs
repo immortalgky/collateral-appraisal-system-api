@@ -43,9 +43,15 @@ public class AssignmentPipeline : IAssignmentPipeline
         // Stage 1: Build context (also resolves the DB override onto pipelineCtx.ExternalConfig)
         await _contextBuilder.BuildAsync(pipelineCtx, cancellationToken);
 
+        // Route-back detection: computed once per assignment attempt (not once per Stage 2-4 retry)
+        // and cached on pipelineCtx.IsRevisit. Reused by Stage 2's short-circuit gate below and by
+        // Stage 3's strategy selection, so both agree and WorkflowActivityExecutions isn't re-queried.
+        pipelineCtx.IsRevisit = await _engine.IsRouteBackScenarioAsync(
+            context.WorkflowInstance.Id, context.ActivityId, cancellationToken);
+
         _logger.LogInformation(
-            "Pipeline Stage 1 complete for {ActivityId}. TeamId={TeamId}, Rules={Rules}, PriorAssignees={Count}",
-            context.ActivityId, pipelineCtx.TeamId, pipelineCtx.Rules, pipelineCtx.PriorAssignees.Count);
+            "Pipeline Stage 1 complete for {ActivityId}. TeamId={TeamId}, Rules={Rules}, PriorAssignees={Count}, IsRevisit={IsRevisit}",
+            context.ActivityId, pipelineCtx.TeamId, pipelineCtx.Rules, pipelineCtx.PriorAssignees.Count, pipelineCtx.IsRevisit);
 
         var result = await RunStagesAsync(pipelineCtx, cancellationToken);
 
@@ -81,12 +87,23 @@ public class AssignmentPipeline : IAssignmentPipeline
 
             if (pipelineCtx.CandidatePool.Count == 0 && pipelineCtx.Rules.TeamConstrained)
             {
-                _logger.LogWarning("No candidates after filtering for {ActivityId}", context.ActivityId);
-                return new AssignmentResult
+                if (!pipelineCtx.IsRevisit)
                 {
-                    IsSuccess = false,
-                    ErrorMessage = "No eligible candidates found after team/exclusion filtering"
-                };
+                    _logger.LogWarning("No candidates after filtering for {ActivityId}", context.ActivityId);
+                    return new AssignmentResult
+                    {
+                        IsSuccess = false,
+                        ErrorMessage = "No eligible candidates found after team/exclusion filtering"
+                    };
+                }
+
+                // Route-back: the team-scoped pool may legitimately be empty (the constrained team
+                // reflects whoever routed back, not necessarily the target activity's prior owner).
+                // Don't hard-fail — let Stage 3 run so a pool-independent revisit strategy (e.g.
+                // previous_owner) can still resolve an assignee.
+                _logger.LogInformation(
+                    "Empty candidate pool for {ActivityId} on route-back — proceeding to Stage 3 " +
+                    "so pool-independent revisit strategies can still be attempted", context.ActivityId);
             }
 
             // Stage 3: Select assignee
@@ -223,9 +240,10 @@ public class AssignmentPipeline : IAssignmentPipeline
             };
         }
 
-        // Detect revisit (route-back) to choose correct strategy list
-        var isRevisit = await _engine.IsRouteBackScenarioAsync(
-            activityCtx.WorkflowInstance.Id, activityCtx.ActivityId, cancellationToken);
+        // Detect revisit (route-back) to choose correct strategy list — computed once in AssignAsync
+        // and cached on pipelineCtx.IsRevisit to avoid re-querying WorkflowActivityExecutions on
+        // every Stage 2-4 retry attempt.
+        var isRevisit = pipelineCtx.IsRevisit;
 
         // Strategy precedence: RuntimeOverride > DB config (Primary/RouteBack) > JSON definition.
         // An empty DB strategy list falls through; a DB SpecificAssignee with no strategies implies Manual.

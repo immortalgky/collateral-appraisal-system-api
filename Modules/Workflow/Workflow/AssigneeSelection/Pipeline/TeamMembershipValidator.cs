@@ -26,6 +26,13 @@ public class TeamMembershipValidator : IAssignmentValidator
             return AssignmentValidationResult.Valid();
         }
 
+        // Route-back to the previous owner already resolves a specific, historically-verified
+        // individual (PreviousOwnerAssigneeSelector reads WorkflowActivityExecutions directly) —
+        // that person may legitimately sit in a different team than the current constraint, so
+        // team membership must not be re-validated here.
+        if (string.Equals(context.SelectionStrategy, "previous_owner", StringComparison.OrdinalIgnoreCase))
+            return AssignmentValidationResult.Valid();
+
         // Pool assignees (e.g. "ExtAdmin:Team_<teamId>") are team-scoped by construction
         // and are not users — GetTeamForUserAsync would always return null for them.
         if (string.Equals(context.SelectionStrategy, "pool", StringComparison.OrdinalIgnoreCase))

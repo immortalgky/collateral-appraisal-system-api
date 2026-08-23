@@ -38,6 +38,14 @@ public class AssignmentPipelineContext
 
     public Dictionary<string, string> PriorAssignees { get; set; } = new();
 
+    /// <summary>
+    /// True when the target activity already has a Completed execution in this workflow instance
+    /// (a route-back/revisit). Computed once per <see cref="AssignmentPipeline.AssignAsync"/> call
+    /// via <see cref="Engine.ICascadingAssignmentEngine.IsRouteBackScenarioAsync"/> and cached here so
+    /// Stage 2's empty-candidate-pool short-circuit can consult it.
+    /// </summary>
+    public bool IsRevisit { get; set; }
+
     // Stage 2 outputs
     public List<TeamMemberInfo> CandidatePool { get; set; } = [];
 
