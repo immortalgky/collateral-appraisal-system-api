@@ -15,6 +15,13 @@
             or before that hand-off, so it belongs to the outgoing holder. NULL reads as "not
             opened yet"; StartWorking() re-stamps on the next open.
 
+  NOTE    : On a host whose local time IS the configured application timezone — the intended
+            deployment — the simpler `OpenedAt < AssigneeAssignedAt` test is a genuine invariant and
+            would be correct. The predicate below is hardening, not a fix for a live defect. It is
+            written this way because the application itself already refuses to trust host time
+            (ApplicationNow exists precisely to bypass it), and a one-time UPDATE that silently and
+            irreversibly discards data should not rest on the opposite assumption.
+
   WHY NOT `OpenedAt < AssigneeAssignedAt` alone: the two columns were written by DIFFERENT clocks
             before the fix. OpenedAt used DateTime.Now (the HOST's local time) while
             AssignedAt/AssigneeAssignedAt come from IDateTimeProvider.ApplicationNow, which resolves
