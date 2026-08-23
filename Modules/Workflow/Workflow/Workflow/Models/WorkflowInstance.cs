@@ -144,6 +144,26 @@ public class WorkflowInstance : Entity<Guid>
         }
     }
 
+    /// <summary>
+    /// Removes the runtime override for a single activity, making overrides ONE-SHOT: the pick
+    /// applies to the next entry into that activity and is consumed there. Without this, a stored
+    /// override keeps winning on every later re-entry — including route-backs — because
+    /// <c>AssignmentPipeline</c> short-circuits to ManualPick before it ever considers
+    /// <c>revisitAssignmentStrategies</c>, so <c>previous_owner</c> never runs and a supervisor
+    /// reassignment is silently ignored.
+    /// No-op when no override is stored for the activity.
+    /// </summary>
+    public void ClearRuntimeOverride(string activityId)
+    {
+        if (string.IsNullOrEmpty(activityId) || !RuntimeOverrides.ContainsKey(activityId))
+            return;
+
+        // New reference for the same reason as UpdateVariables (converter, no value comparer).
+        var updated = new Dictionary<string, RuntimeOverride>(RuntimeOverrides);
+        updated.Remove(activityId);
+        RuntimeOverrides = updated;
+    }
+
     public void IncrementRetryCount()
     {
         RetryCount++;

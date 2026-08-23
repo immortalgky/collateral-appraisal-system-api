@@ -89,4 +89,55 @@ public class PreviousOwnerAssigneeSelectorTests
         result.AssigneeId.Should().Be("th.admin1");
         result.Metadata.Should().ContainKey("PreviouslyCompletedBy");
     }
+
+    [Fact]
+    public async Task SelectAssigneeAsync_ActivityCompletedTwice_ReturnsTheLatestCompleter()
+    {
+        // A route-back re-enters the activity, so a revisited activity accumulates several
+        // Completed executions. The selector must return the most recent CompletedBy — this is
+        // the "went back to the wrong person" scenario: the task was reassigned from admin1 to
+        // admin2, admin2 finished it, and the next route-back must land on admin2.
+        var options = new DbContextOptionsBuilder<WorkflowDbContext>()
+            .UseInMemoryDatabase($"PreviousOwnerTests_{Guid.NewGuid()}")
+            .Options;
+        var dbContext = new WorkflowDbContext(options);
+
+        var workflowInstanceId = Guid.NewGuid();
+
+        var first = WorkflowActivityExecution.Create(
+            workflowInstanceId, "ext-appraisal-execution", "External Appraisal Execution", "TaskActivity",
+            "th.admin1", new Dictionary<string, object>());
+        first.Complete("th.admin1", new Dictionary<string, object>(), "First round");
+        SetCompletedOn(first, new DateTime(2026, 8, 1, 9, 0, 0));
+
+        var second = WorkflowActivityExecution.Create(
+            workflowInstanceId, "ext-appraisal-execution", "External Appraisal Execution", "TaskActivity",
+            "th.admin1", new Dictionary<string, object>());
+        second.Complete("th.admin2", new Dictionary<string, object>(), "Second round after reassignment");
+        SetCompletedOn(second, new DateTime(2026, 8, 5, 14, 30, 0));
+
+        // Insert newest-last: the InMemory provider enumerates in insertion order, so dropping the
+        // OrderByDescending from the selector would return admin1 and fail this test.
+        dbContext.WorkflowActivityExecutions.AddRange(first, second);
+        await dbContext.SaveChangesAsync();
+
+        var selector = new PreviousOwnerAssigneeSelector(
+            dbContext, Substitute.For<ILogger<PreviousOwnerAssigneeSelector>>());
+
+        var result = await selector.SelectAssigneeAsync(new AssignmentContext
+        {
+            WorkflowInstanceId = workflowInstanceId,
+            ActivityName = "ext-appraisal-execution"
+        });
+
+        result.IsSuccess.Should().BeTrue();
+        result.AssigneeId.Should().Be("th.admin2", "route-back goes to whoever completed the activity last");
+    }
+
+    /// <summary>Complete() stamps DateTime.Now, which two calls in the same test would tie on.
+    /// CompletedOn is the selector's only ordering key, so set it explicitly.</summary>
+    private static void SetCompletedOn(WorkflowActivityExecution execution, DateTime completedOn) =>
+        typeof(WorkflowActivityExecution)
+            .GetProperty(nameof(WorkflowActivityExecution.CompletedOn))!
+            .SetValue(execution, completedOn);
 }

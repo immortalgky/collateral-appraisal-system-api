@@ -111,6 +111,30 @@ public class TaskActivity : WorkflowActivityBase
             await PublishTaskAssignedEventAsync(context, assignmentResult.AssigneeId, assignedType, cancellationToken,
                 previousAssignee);
 
+            // Consume the runtime override: it names who does this activity NEXT (the API field is
+            // NextAssignmentOverrides), not forever. Left in place it would win again on every
+            // re-entry — AssignmentPipeline applies ManualPick before it looks at
+            // revisitAssignmentStrategies — so a route-back would ignore previous_owner and go back
+            // to the originally picked user even after a supervisor reassigned the task.
+            // The whole entry goes, not just RuntimeAssignee: RuntimeAssigneeGroup and
+            // RuntimeAssignmentStrategies go just as stale. A later manual pick simply writes a
+            // fresh entry, which is honoured and then consumed in turn.
+            //
+            // Placed after the task is actually assigned, audited and published: everything above
+            // can throw, and the engine persists the instance on the Failed path too, so consuming
+            // earlier would drop the supervisor's pick for a task that was never created.
+            // AdminPoolFallback is excluded because it means every strategy — including the
+            // override's own ManualPick — failed, so the pick was never applied and must survive
+            // for the next attempt.
+            if (context.RuntimeOverrides is not null &&
+                assignmentResult.Strategy != "AdminPoolFallback")
+            {
+                context.WorkflowInstance.ClearRuntimeOverride(context.ActivityId);
+                _logger.LogInformation(
+                    "Consumed runtime assignment override for activity {ActivityId} (set by {OverrideBy})",
+                    context.ActivityId, context.RuntimeOverrides.OverrideBy ?? "Unknown");
+            }
+
             var outputData = new Dictionary<string, object>
             {
                 ["assignee"] = assignmentResult.AssigneeId ?? "",
