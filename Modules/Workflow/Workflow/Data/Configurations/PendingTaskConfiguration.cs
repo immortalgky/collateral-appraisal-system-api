@@ -21,6 +21,9 @@ public class PendingTaskConfiguration : IEntityTypeConfiguration<PendingTask>
         builder.Property(p => p.AssignedType)
             .HasMaxLength(10);
 
+        builder.Property(p => p.AssigneeAssignedAt)
+            .IsRequired();
+
         builder.Property(p => p.WorkingBy)
             .HasMaxLength(255)
             .IsRequired(false)

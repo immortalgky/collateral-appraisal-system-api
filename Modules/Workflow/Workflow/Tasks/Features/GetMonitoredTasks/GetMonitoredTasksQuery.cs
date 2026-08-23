@@ -45,7 +45,13 @@ public record MonitoredTaskDto
     public string? GroupName { get; init; }
     public string? TaskStatus { get; init; }
     public string? AppraisalStatus { get; init; }
+    /// <summary>The SLA anchor — frozen across a supervisor hand-off. Drives Elapsed/Remaining.</summary>
     public DateTime? AssignedAt { get; init; }
+
+    /// <summary>When the CURRENT assignee received the task. What the grid's "Assigned" column shows;
+    /// differs from <see cref="AssignedAt"/> only on a redirected task.</summary>
+    public DateTime? AssigneeAssignedAt { get; init; }
+
     public DateTime? DueAt { get; init; }
     public DateTime? SlaStartAt { get; init; }
     public string? SlaStatus { get; init; }

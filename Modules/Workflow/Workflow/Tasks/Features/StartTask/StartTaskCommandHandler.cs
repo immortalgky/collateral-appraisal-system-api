@@ -1,4 +1,5 @@
 using Shared.Identity;
+using Shared.Time;
 using Workflow.Data;
 using Workflow.Tasks.ValueObjects;
 using Workflow.Workflow.Services;
@@ -9,7 +10,8 @@ public class StartTaskCommandHandler(
     WorkflowDbContext dbContext,
     ICurrentUserService currentUserService,
     IWorkflowNotificationService notificationService,
-    ILogger<StartTaskCommandHandler> logger
+    ILogger<StartTaskCommandHandler> logger,
+    IDateTimeProvider dateTimeProvider
 ) : ICommandHandler<StartTaskCommand, StartTaskResult>
 {
     public async Task<StartTaskResult> Handle(StartTaskCommand command, CancellationToken cancellationToken)
@@ -25,7 +27,7 @@ public class StartTaskCommandHandler(
         if (task.TaskStatus == TaskStatus.InProgress)
             return new StartTaskResult(false, $"Task is already being worked on by {task.WorkingBy}");
 
-        task.StartWorking(username);
+        task.StartWorking(username, dateTimeProvider.ApplicationNow);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation("User {Username} started working on task {TaskId}", username, command.TaskId);

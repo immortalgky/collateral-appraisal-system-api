@@ -54,7 +54,14 @@ SELECT
     appl.Status                                                                 AS AppraisalStatus,
     pt.SlaStatus                                                                AS SlaStatus,
     appl.RequestedAt                                                            AS RequestedDate,
-    pt.AssignedAt                                                               AS AssignedDate,
+    -- AssignedDate is when the CURRENT PIC received the task, so a redirected task reports the
+    -- hand-off rather than the original assignment. pt.AssignedAt stays frozen across a hand-off to
+    -- keep the SLA clock running, and the Ola* columns below deliberately still anchor on it.
+    pt.AssigneeAssignedAt                                                       AS AssignedDate,
+    -- The real deadline. Exposed so the client stops re-deriving it as AssignedDate + OlaTargetHours:
+    -- that derivation breaks the moment AssignedDate stops being the SLA anchor, and it was already
+    -- lossy (DueAt is business-time; the re-derivation counted calendar hours rounded to the hour).
+    pt.DueAt                                                                    AS DueDate,
     -- OpenDate: when the assignee first opened the task (first InProgress transition). Null while unopened.
     pt.OpenedAt                                                                 AS OpenDate,
     -- AppointmentDate: latest non-cancelled appointment for the active assignment. Null when none scheduled.
