@@ -17,6 +17,12 @@ public class ConstructionInspection : Entity<Guid>
     public decimal? SummaryPreviousValue { get; private set; }
     public decimal? SummaryCurrentProgressPct { get; private set; }
     public decimal? SummaryCurrentValue { get; private set; }
+
+    /// <summary>
+    /// Free-text note printed as the remark row of the construction summary report.
+    /// Mode-independent: captured in both Summary and Full Detail mode, and preserved
+    /// across a mode switch.
+    /// </summary>
     public string? Remark { get; private set; }
 
     // Document reference (summary mode)
@@ -40,13 +46,15 @@ public class ConstructionInspection : Entity<Guid>
     /// </summary>
     public static ConstructionInspection CreateFullDetail(
         Guid appraisalPropertyId,
-        decimal totalValue)
+        decimal totalValue,
+        string? remark = null)
     {
         return new ConstructionInspection
         {
             AppraisalPropertyId = appraisalPropertyId,
             IsFullDetail = true,
-            TotalValue = totalValue
+            TotalValue = totalValue,
+            Remark = remark
         };
     }
 
@@ -104,9 +112,16 @@ public class ConstructionInspection : Entity<Guid>
     }
 
     /// <summary>
-    /// Switch to full detail mode. Clears summary fields.
+    /// Switch to full detail mode. Clears the summary-only fields, but no longer clears
+    /// <see cref="Remark"/> as part of that: the remark is captured in both modes, so a mode
+    /// switch on its own must not wipe it.
+    ///
+    /// The remark is still a whole-value overwrite from the caller, exactly like every other
+    /// field on ConstructionInspectionData — the property endpoints replace the inspection from
+    /// the submitted form rather than patching it, so passing null means "store no remark", not
+    /// "leave the stored one alone".
     /// </summary>
-    public void UpdateFullDetail(decimal totalValue)
+    public void UpdateFullDetail(decimal totalValue, string? remark)
     {
         // Clear summary fields when switching to full detail mode
         if (!IsFullDetail)
@@ -116,12 +131,12 @@ public class ConstructionInspection : Entity<Guid>
             SummaryPreviousValue = null;
             SummaryCurrentProgressPct = null;
             SummaryCurrentValue = null;
-            Remark = null;
             ClearDocument();
         }
 
         IsFullDetail = true;
         TotalValue = totalValue;
+        Remark = remark;
     }
 
     public void SetDocument(
@@ -213,7 +228,7 @@ public class ConstructionInspection : Entity<Guid>
                 remark: null);
         }
 
-        var newCi = CreateFullDetail(newPropertyId, prior.TotalValue);
+        var newCi = CreateFullDetail(newPropertyId, prior.TotalValue, remark: null);
         foreach (var wd in prior.WorkDetails)
         {
             newCi.AddWorkDetail(

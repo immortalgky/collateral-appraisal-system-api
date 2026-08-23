@@ -204,6 +204,11 @@ table.totals.grid-aligned td.tv { width:100px; }
 /* Comparison table: pin the first column (รายละเอียด) to a fixed width so the data
    columns share the remaining width evenly across tables. */
 table.grid.comparison th:first-child, table.grid.comparison td:first-child { width:120px; }
+/* Construction progress table: the label column holds only two short labels
+   (the total row and the remark row), so pin it narrow and centred and give the width
+   back to the remark text, which is the only long content in the table. */
+table.grid.ci-progress th:first-child,
+table.grid.ci-progress td:first-child { width:110px; text-align:center; }
 
 .methods { display:flex; flex-wrap:wrap; gap:14px; align-items:center; }
 .methods .m { display:flex; align-items:center; gap:4px; }
