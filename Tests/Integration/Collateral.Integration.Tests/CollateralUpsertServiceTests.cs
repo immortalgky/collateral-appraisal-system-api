@@ -131,7 +131,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         var requestId = Guid.NewGuid();
         var appraisal = CreateAppraisalSeed(requestId);
 
-        var inspection = ConstructionInspection.CreateFullDetail(Guid.Empty, 10_000_000m);
+        var inspection = ConstructionInspection.CreateFullDetail(Guid.Empty, 10_000_000m, remark: null);
         // 3 work items summing to 50% overall
         var wg = Guid.NewGuid();
         inspection.AddWorkDetail(wg, "Foundation", 1, 20m, 0m, 100m); // 20% weight, 100% done → 20
@@ -236,7 +236,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         {
             var appraisalDb = GetAppraisalDbContext(seedScope);
             var a1 = CreateAppraisalSeed(Guid.NewGuid());
-            var insp1 = ConstructionInspection.CreateFullDetail(Guid.Empty, 10_000_000m);
+            var insp1 = ConstructionInspection.CreateFullDetail(Guid.Empty, 10_000_000m, remark: null);
             insp1.AddWorkDetail(wg, "Foundation", 1, 100m, 0m, 40m);
             insp1.ComputeAllValues();
             var p1 = SeedLandProperty(a1, "LO-001", "BKK", "D1", "S1", titleNo, "Chanote", insp1);
@@ -252,7 +252,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         {
             var appraisalDb = GetAppraisalDbContext(seedScope);
             var a2 = CreateAppraisalSeed(Guid.NewGuid());
-            var insp2 = ConstructionInspection.CreateFullDetail(Guid.Empty, 10_000_000m);
+            var insp2 = ConstructionInspection.CreateFullDetail(Guid.Empty, 10_000_000m, remark: null);
             insp2.AddWorkDetail(wg, "Foundation", 1, 100m, 40m, 70m);
             insp2.ComputeAllValues();
             var p2 = SeedLandProperty(a2, "LO-001", "BKK", "D1", "S1", titleNo, "Chanote", insp2);
@@ -299,7 +299,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         {
             var appraisalDb = GetAppraisalDbContext(seedScope);
             var a1 = CreateAppraisalSeed(Guid.NewGuid());
-            var insp1 = ConstructionInspection.CreateFullDetail(Guid.Empty, 10_000_000m);
+            var insp1 = ConstructionInspection.CreateFullDetail(Guid.Empty, 10_000_000m, remark: null);
             insp1.AddWorkDetail(wg, "All", 1, 100m, 0m, 80m);
             insp1.ComputeAllValues();
             var p1 = SeedLandProperty(a1, "LO-001", "BKK", "D1", "S1", titleNo, "Chanote", insp1);
@@ -315,7 +315,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         {
             var appraisalDb = GetAppraisalDbContext(seedScope);
             var a2 = CreateAppraisalSeed(Guid.NewGuid());
-            var insp2 = ConstructionInspection.CreateFullDetail(Guid.Empty, 10_000_000m);
+            var insp2 = ConstructionInspection.CreateFullDetail(Guid.Empty, 10_000_000m, remark: null);
             insp2.AddWorkDetail(wg, "All", 1, 100m, 80m, 100m);
             insp2.ComputeAllValues();
             var p2 = SeedLandProperty(a2, "LO-001", "BKK", "D1", "S1", titleNo, "Chanote", insp2);

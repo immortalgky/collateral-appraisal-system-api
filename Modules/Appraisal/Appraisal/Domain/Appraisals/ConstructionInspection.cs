@@ -41,20 +41,38 @@ public class ConstructionInspection : Entity<Guid>
     {
     }
 
+    /// <summary>Storage limit for <see cref="Remark"/>; mirrored by the EF configuration.</summary>
+    public const int RemarkMaxLength = 4000;
+
+    /// <summary>Storage limit for <see cref="SummaryDetail"/>; mirrored by the EF configuration.</summary>
+    public const int SummaryDetailMaxLength = 1000;
+
+    // Length is enforced here rather than in a request validator because five of the twelve
+    // commands that carry ConstructionInspectionData have no validator at all — the entity is the
+    // only chokepoint every write path passes through. DomainException surfaces as HTTP 400, so an
+    // over-long value is reported as bad input instead of failing at SaveChanges as a 500.
+    private static string? EnsureFits(string? value, int maxLength, string fieldName)
+    {
+        if (value is not null && value.Length > maxLength)
+            throw new DomainException($"{fieldName} must be at most {maxLength} characters.");
+
+        return value;
+    }
+
     /// <summary>
     /// Create a full-detail construction inspection.
     /// </summary>
     public static ConstructionInspection CreateFullDetail(
         Guid appraisalPropertyId,
         decimal totalValue,
-        string? remark = null)
+        string? remark)
     {
         return new ConstructionInspection
         {
             AppraisalPropertyId = appraisalPropertyId,
             IsFullDetail = true,
             TotalValue = totalValue,
-            Remark = remark
+            Remark = EnsureFits(remark, RemarkMaxLength, nameof(Remark))
         };
     }
 
@@ -76,12 +94,12 @@ public class ConstructionInspection : Entity<Guid>
             AppraisalPropertyId = appraisalPropertyId,
             IsFullDetail = false,
             TotalValue = totalValue,
-            SummaryDetail = summaryDetail,
+            SummaryDetail = EnsureFits(summaryDetail, SummaryDetailMaxLength, nameof(SummaryDetail)),
             SummaryPreviousProgressPct = summaryPreviousProgressPct,
             SummaryPreviousValue = summaryPreviousValue,
             SummaryCurrentProgressPct = summaryCurrentProgressPct,
             SummaryCurrentValue = summaryCurrentValue,
-            Remark = remark
+            Remark = EnsureFits(remark, RemarkMaxLength, nameof(Remark))
         };
     }
 
@@ -103,12 +121,12 @@ public class ConstructionInspection : Entity<Guid>
 
         IsFullDetail = false;
         TotalValue = totalValue;
-        SummaryDetail = summaryDetail;
+        SummaryDetail = EnsureFits(summaryDetail, SummaryDetailMaxLength, nameof(SummaryDetail));
         SummaryPreviousProgressPct = summaryPreviousProgressPct;
         SummaryPreviousValue = summaryPreviousValue;
         SummaryCurrentProgressPct = summaryCurrentProgressPct;
         SummaryCurrentValue = summaryCurrentValue;
-        Remark = remark;
+        Remark = EnsureFits(remark, RemarkMaxLength, nameof(Remark));
     }
 
     /// <summary>
@@ -136,7 +154,7 @@ public class ConstructionInspection : Entity<Guid>
 
         IsFullDetail = true;
         TotalValue = totalValue;
-        Remark = remark;
+        Remark = EnsureFits(remark, RemarkMaxLength, nameof(Remark));
     }
 
     public void SetDocument(
