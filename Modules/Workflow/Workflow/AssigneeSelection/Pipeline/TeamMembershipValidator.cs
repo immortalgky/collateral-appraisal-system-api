@@ -26,13 +26,6 @@ public class TeamMembershipValidator : IAssignmentValidator
             return AssignmentValidationResult.Valid();
         }
 
-        // Route-back to the previous owner already resolves a specific, historically-verified
-        // individual (PreviousOwnerAssigneeSelector reads WorkflowActivityExecutions directly) —
-        // that person may legitimately sit in a different team than the current constraint, so
-        // team membership must not be re-validated here.
-        if (string.Equals(context.SelectionStrategy, "previous_owner", StringComparison.OrdinalIgnoreCase))
-            return AssignmentValidationResult.Valid();
-
         // Pool assignees (e.g. "ExtAdmin:Team_<teamId>") are team-scoped by construction
         // and are not users — GetTeamForUserAsync would always return null for them.
         if (string.Equals(context.SelectionStrategy, "pool", StringComparison.OrdinalIgnoreCase))
@@ -50,6 +43,15 @@ public class TeamMembershipValidator : IAssignmentValidator
             return AssignmentValidationResult.Valid();
         }
 
+        // Route-back to the previous owner already resolves a specific, historically-verified
+        // individual (PreviousOwnerAssigneeSelector reads WorkflowActivityExecutions directly) — that
+        // person may legitimately sit in a different team than the current constraint, so the
+        // team-equality check below is skipped for them. They must still resolve to a real, currently
+        // active team member — the existence check right below still rejects a deleted/deactivated
+        // account (or an accidental "SYSTEM" completion sentinel, which is never a registered team
+        // member) the same as any other strategy.
+        var isPreviousOwner = string.Equals(context.SelectionStrategy, "previous_owner", StringComparison.OrdinalIgnoreCase);
+
         // Verify the selected assignee belongs to the workflow's team
         var assigneeTeam = await _teamService.GetTeamForUserAsync(context.SelectedAssignee, cancellationToken);
 
@@ -60,7 +62,7 @@ public class TeamMembershipValidator : IAssignmentValidator
                 $"Assignee '{context.SelectedAssignee}' does not belong to any team");
         }
 
-        if (assigneeTeam.TeamId != teamId)
+        if (!isPreviousOwner && assigneeTeam.TeamId != teamId)
         {
             _logger.LogWarning(
                 "Assignee {Assignee} is in team {AssigneeTeam} but workflow requires team {RequiredTeam}",
