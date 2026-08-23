@@ -247,19 +247,6 @@ public class PendingTaskReassignTests
     }
 
     [Fact]
-    public void Reassign_WithoutHolderChangedAt_KeepsOpenedAt()
-    {
-        // Claim / implicit-assign / fan-out advance: no audit row, no hand-off semantics.
-        var task = CreateAssignedTask("alice");
-        var openedAt = DateTime.Now.AddHours(-1);
-        task.StartWorking("alice", openedAt);
-
-        task.Reassign("bob", "1");
-
-        task.OpenedAt.Should().Be(openedAt);
-    }
-
-    [Fact]
     public void StartWorking_ReplacesAnOpenedAtThatPredatesTheHandOff()
     {
         // Reproduces a row handed off before Reassign started clearing OpenedAt: the previous
@@ -284,6 +271,51 @@ public class PendingTaskReassignTests
         typeof(PendingTask).GetProperty(propertyName)!
             .GetSetMethod(nonPublic: true)!
             .Invoke(task, [value]);
+
+    [Fact]
+    public void Reassign_WithoutHolderChangedAt_StillClearsOpenedAt()
+    {
+        // The fan-out stage advance takes this overload and writes no audit row, so nothing else
+        // would ever correct an inherited stamp: StartWorking's self-heal cannot fire either,
+        // because OpenedAt would still be >= the untouched AssigneeAssignedAt.
+        var task = CreateAssignedTask("alice");
+        task.StartWorking("alice", DateTime.Now.AddHours(-1));
+        task.OpenedAt.Should().NotBeNull();
+
+        task.Reassign("bob", "1");
+
+        task.OpenedAt.Should().BeNull(
+            because: "an open time is a fact about a person, and bob has not opened this task");
+    }
+
+    [Fact]
+    public void Reassign_BySupervisor_DiscardsTheOutgoingHoldersDecisionDraft()
+    {
+        var task = CreateAssignedTask("alice");
+        task.SaveDecisionDraft("APPROVE", "looks fine to me", "R01", "carol");
+
+        task.Reassign("bob", "1", raiseEventFor: "supervisor", holderChangedAt: DateTime.Now);
+
+        task.DecisionTaken.Should().BeNull();
+        task.Comment.Should().BeNull();
+        task.ReasonCode.Should().BeNull();
+        task.DraftAssignee.Should().BeNull(
+            because: "bob must not find alice's drafted decision pre-filled and submit it as his own");
+    }
+
+    [Fact]
+    public void Reassign_OnAPoolClaim_KeepsTheDecisionDraft()
+    {
+        // A claim is the same person taking their own drafted task off the pool. Wiping the draft
+        // here would destroy their work — which is why only the supervisor path discards it.
+        var task = CreateAssignedTask("IntAdmin");
+        task.SaveDecisionDraft("APPROVE", "half-written", null, null);
+
+        task.Reassign("alice", "1");
+
+        task.DecisionTaken.Should().Be("APPROVE");
+        task.Comment.Should().Be("half-written");
+    }
 
     // ── PK collision guard: audit row vs completion row ───────────────────────
 

@@ -142,13 +142,24 @@ public class PendingTask : Aggregate<Guid>
         LockedAt = null;
         // AssignedAt, DueAt, SlaStatus, SlaBreachedAt intentionally preserved —
         // reassignment must not reset the SLA clock.
+        // Cleared on EVERY path, not just the supervisor one. Reassign always means a different
+        // holder — a pool claim, the implicit assign on completion, a fan-out stage advance — and an
+        // open time is a fact about a person, never about the task. The fan-out advance is the case
+        // that proves it: it writes no audit row, so nothing else would ever correct an inherited
+        // stamp there. Clearing is harmless where the value was already null.
+        OpenedAt = null;
+
         if (holderChangedAt.HasValue)
         {
             AssigneeAssignedAt = holderChangedAt.Value;
-            // Same rule as WorkingBy/LockedAt above: this is the outgoing holder's state, not the
-            // incoming one's. Without this, OpenedAt's ??= would keep the first holder's open time
-            // forever and every later holder would inherit a time they never opened the task at.
-            OpenedAt = null;
+
+            // The in-progress decision draft belongs to the outgoing holder. Only the supervisor
+            // transfer discards it: a pool claim is the SAME person taking their own drafted task
+            // off the pool, and wiping their work there would be the bug, not the fix.
+            DecisionTaken = null;
+            Comment = null;
+            ReasonCode = null;
+            DraftAssignee = null;
         }
 
         if (raiseEventFor == "supervisor")
@@ -179,6 +190,12 @@ public class PendingTask : Aggregate<Guid>
         // task before receiving it — so it is a leftover from a previous holder and gets replaced.
         // This self-heals rows handed off before Reassign started clearing OpenedAt; without it the
         // stamp-once rule would preserve the stale value forever.
+        //
+        // On pre-fix rows this test can also fire from the old host-clock/application-clock gap
+        // rather than a real hand-off. That is acceptable HERE and not in a bulk script: this only
+        // runs on the row a user is actively opening, and it replaces a wrong value with the right
+        // one. The one-time backfill script keys off the reassign audit row instead, because a bulk
+        // UPDATE is irreversible and touches rows nobody is looking at.
         if (OpenedAt is null || OpenedAt < AssigneeAssignedAt)
             OpenedAt = openedAt;
         AddDomainEvent(new TaskStartedDomainEvent(CorrelationId, AssignedTo, AssignedAt, previousAssignedTo));
