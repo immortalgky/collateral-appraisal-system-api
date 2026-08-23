@@ -9,18 +9,40 @@
             row, and because of the `??=` the new holder opening the task could never correct it —
             the history tooltip reported an open time from before they were even involved.
 
-  Rule    : OpenedAt < AssigneeAssignedAt is impossible by definition — nobody opens a task before
-            receiving it. Every such row is a leftover, so NULL it out. NULL reads as "not opened
-            yet", which is honest; StartWorking() now re-stamps on the next open (it treats a stamp
-            older than AssigneeAssignedAt as stale), so these rows self-correct from here.
+  Rule    : Clear OpenedAt only where BOTH hold: a supervisor actually handed the task off (the
+            audit row ReassignTaskCommandHandler writes — ActionTaken='Reassigned', matching
+            CorrelationId + ActivityId and the same frozen AssignedAt), AND the stamp was made at
+            or before that hand-off, so it belongs to the outgoing holder. NULL reads as "not
+            opened yet"; StartWorking() re-stamps on the next open.
 
-  Scope   : Only rows that violate the invariant. Rows never reassigned are untouched, since their
-            OpenedAt is by construction >= AssigneeAssignedAt.
+  WHY NOT `OpenedAt < AssigneeAssignedAt` alone: the two columns were written by DIFFERENT clocks
+            before the fix. OpenedAt used DateTime.Now (the HOST's local time) while
+            AssignedAt/AssigneeAssignedAt come from IDateTimeProvider.ApplicationNow, which resolves
+            the configured application timezone (Asia/Bangkok, ForceUtc=false). On a host running
+            UTC the two sit seven hours apart, so nearly every legitimately-opened task satisfies
+            that test. Measured on dev by simulating the skew: 69 rows would match, 1 was real.
+
+  WHY NOT the audit row alone: a task handed off BEFORE this script runs may since have been opened
+            by its new holder. That stamp is correct and must survive, which is what the
+            `pt.OpenedAt <= ct.CompletedAt` comparison protects — ct.CompletedAt is the hand-off
+            instant, so only stamps predating it are the outgoing holder's.
+
+  RESIDUAL : On a skewed host the comparison can still over-match a row opened by its new holder
+            within the offset window after the hand-off. That is bounded to tasks that genuinely
+            changed hands, and the cost is a NULL that self-corrects the next time the holder opens
+            the task — unlike a bulk clear of rows that never changed hands at all.
 
   IDEMPOTENT: re-running matches nothing once the rows are cleared.
 */
 
-UPDATE workflow.PendingTasks
-SET    OpenedAt = NULL
-WHERE  OpenedAt IS NOT NULL
-  AND  OpenedAt < AssigneeAssignedAt;
+UPDATE pt
+SET    pt.OpenedAt = NULL
+FROM   workflow.PendingTasks pt
+WHERE  pt.OpenedAt IS NOT NULL
+  AND  EXISTS (SELECT 1
+               FROM   workflow.CompletedTasks ct
+               WHERE  ct.CorrelationId = pt.CorrelationId
+                 AND  ct.ActivityId    = pt.ActivityId
+                 AND  ct.ActionTaken   = 'Reassigned'
+                 AND  ct.AssignedAt    = pt.AssignedAt
+                 AND  pt.OpenedAt      <= ct.CompletedAt);

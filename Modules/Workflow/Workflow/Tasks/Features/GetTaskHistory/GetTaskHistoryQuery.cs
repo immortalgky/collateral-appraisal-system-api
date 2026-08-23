@@ -30,9 +30,12 @@ public record TaskHistoryItemDto
     public DateTime? OpenedAt { get; init; }
 
     /// <summary>
-    /// The task's own status (Assigned / InProgress / Completing / Completed). Lets the reader tell
-    /// a null <see cref="OpenedAt"/> that means "never opened" (still Assigned) from one that means
-    /// "opened, but before the column existed" — the two are not the same claim.
+    /// The task's own status (Assigned / InProgress / Completing / Completed).
+    ///
+    /// Use it to decide how to word a null <see cref="OpenedAt"/>: only a task still <c>Assigned</c>
+    /// has provably never been opened. Anything else — including every archived row, which is always
+    /// <c>Completed</c> — cannot separate "never opened" from "predates the column", so the honest
+    /// wording there is "no record" rather than a claim about the holder's behaviour.
     /// </summary>
     public string? TaskState { get; init; }
 
