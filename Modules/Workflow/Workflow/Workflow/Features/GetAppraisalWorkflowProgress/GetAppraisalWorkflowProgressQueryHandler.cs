@@ -64,7 +64,8 @@ public class GetAppraisalWorkflowProgressQueryHandler(
                                     -- Wrapped in a derived table because SQL Server only allows plain
                                     -- output-column references in a UNION's ORDER BY, not expressions.
                                     SELECT log.* FROM (
-                                        SELECT pt.TaskName, pt.TaskDescription, pt.AssignedTo, pt.AssignedType,
+                                        SELECT pt.Id AS RowId,
+                                               pt.TaskName, pt.TaskDescription, pt.AssignedTo, pt.AssignedType,
                                                pt.AssigneeAssignedAt, pt.AssignedAt, pt.OpenedAt,
                                                pt.TaskStatus                AS TaskState,
                                                pt.SlaStartAt, pt.DueAt, pt.SlaStatus, pt.SlaDurationHours,
@@ -79,7 +80,8 @@ public class GetAppraisalWorkflowProgressQueryHandler(
 
                                         UNION ALL
 
-                                        SELECT ct.TaskName, ct.TaskDescription, ct.AssignedTo, ct.AssignedType,
+                                        SELECT ct.Id AS RowId,
+                                               ct.TaskName, ct.TaskDescription, ct.AssignedTo, ct.AssignedType,
                                                ct.AssigneeAssignedAt, ct.AssignedAt, ct.OpenedAt,
                                                ct.TaskStatus                AS TaskState,
                                                ct.SlaStartAt, ct.DueAt, ct.SlaStatus, ct.SlaDurationHours,
@@ -95,9 +97,15 @@ public class GetAppraisalWorkflowProgressQueryHandler(
                                     -- incoming holder's row, so AssignedAt alone ties and SQL Server is free
                                     -- to return them in either order. CompletedAt breaks any residual tie
                                     -- (genuinely simultaneous fan-out tasks), pending rows sorting last.
+                                    -- RowId last so the order is a TOTAL order: two rows can genuinely
+                                    -- share both stamps (simultaneous fan-out items), and without this
+                                    -- the engine stays free to swap them between runs, drifting the
+                                    -- SequenceNo the client renders. Chronology is settled by the keys
+                                    -- above; this one only has to be stable.
                                     ORDER BY log.AssigneeAssignedAt,
                                              CASE WHEN log.CompletedAt IS NULL THEN 1 ELSE 0 END,
-                                             log.CompletedAt;
+                                             log.CompletedAt,
+                                             log.RowId;
 
                                     SELECT TOP 1 AssignmentType
                                     FROM appraisal.AppraisalAssignments

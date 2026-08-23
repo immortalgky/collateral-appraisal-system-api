@@ -113,7 +113,7 @@ public class PendingTaskReassignTests
     public void Reassign_ClearsWorkingBy()
     {
         var task = CreateAssignedTask("alice");
-        task.StartWorking("alice");
+        task.StartWorking("alice", DateTime.Now);
         task.ClearDomainEvents(); // clear the StartWorking event for isolation
 
         task.Reassign("bob", "1", raiseEventFor: "supervisor");
@@ -136,7 +136,7 @@ public class PendingTaskReassignTests
     public void Reassign_SetsTaskStatusToAssigned()
     {
         var task = CreateAssignedTask("alice");
-        task.StartWorking("alice");
+        task.StartWorking("alice", DateTime.Now);
 
         task.Reassign("bob", "1", raiseEventFor: "supervisor");
 
@@ -224,21 +224,26 @@ public class PendingTaskReassignTests
     {
         // OpenedAt uses ??= (stamped once, never overwritten). Without the reset, the incoming holder
         // inherits an open time they were never present for, and StartWorking can never re-stamp it.
-        var task = CreateAssignedTask("alice");
-        task.StartWorking("alice");
-        var aliceOpenedAt = task.OpenedAt;
-        aliceOpenedAt.Should().NotBeNull();
+        // Explicit, well-separated instants: two DateTime.Now reads microseconds apart can land on
+        // the same tick on a coarse clock, which would make the final assertion flaky.
+        var aliceOpenedAt = DateTime.Now.AddHours(-5);
+        var handedOverAt = DateTime.Now.AddHours(-2);
+        var bobOpenedAt = DateTime.Now.AddHours(-1);
 
-        var auditRow = CompletedTask.CreateAuditFromPendingTask(task, "Reassigned", DateTime.Now);
-        task.Reassign("bob", "1", raiseEventFor: "supervisor", holderChangedAt: DateTime.Now);
+        var task = CreateAssignedTask("alice");
+        task.StartWorking("alice", aliceOpenedAt);
+        task.OpenedAt.Should().Be(aliceOpenedAt);
+
+        var auditRow = CompletedTask.CreateAuditFromPendingTask(task, "Reassigned", handedOverAt);
+        task.Reassign("bob", "1", raiseEventFor: "supervisor", holderChangedAt: handedOverAt);
 
         auditRow.OpenedAt.Should().Be(aliceOpenedAt,
             because: "the audit row is snapshotted before the mutation, so it keeps alice's open time");
         task.OpenedAt.Should().BeNull(
             because: "bob has not opened the task yet — StartWorking must be free to stamp it");
 
-        task.StartWorking("bob");
-        task.OpenedAt.Should().NotBeNull().And.NotBe(aliceOpenedAt);
+        task.StartWorking("bob", bobOpenedAt);
+        task.OpenedAt.Should().Be(bobOpenedAt).And.NotBe(aliceOpenedAt);
     }
 
     [Fact]
@@ -246,8 +251,8 @@ public class PendingTaskReassignTests
     {
         // Claim / implicit-assign / fan-out advance: no audit row, no hand-off semantics.
         var task = CreateAssignedTask("alice");
-        task.StartWorking("alice");
-        var openedAt = task.OpenedAt;
+        var openedAt = DateTime.Now.AddHours(-1);
+        task.StartWorking("alice", openedAt);
 
         task.Reassign("bob", "1");
 
@@ -264,12 +269,13 @@ public class PendingTaskReassignTests
         var task = CreateAssignedTask("alice");
         var staleOpenedAt = DateTime.Now.AddDays(-30);   // alice opened it last month
         var handedOverAt = DateTime.Now.AddDays(-3);     // bob received it three days ago
+        var bobOpenedAt = DateTime.Now.AddDays(-1);      // bob opens it today
         SetPrivate(task, nameof(PendingTask.OpenedAt), staleOpenedAt);
         SetPrivate(task, nameof(PendingTask.AssigneeAssignedAt), handedOverAt);
 
-        task.StartWorking("bob");
+        task.StartWorking("bob", bobOpenedAt);
 
-        task.OpenedAt.Should().NotBe(staleOpenedAt, because: "that stamp belongs to alice");
+        task.OpenedAt.Should().Be(bobOpenedAt, because: "the stale stamp belongs to alice");
         task.OpenedAt.Should().BeAfter(handedOverAt,
             because: "an open time earlier than the hand-off cannot belong to the current holder");
     }

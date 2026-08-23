@@ -164,7 +164,13 @@ public class PendingTask : Aggregate<Guid>
         }
     }
 
-    public void StartWorking(string username, string? previousAssignedTo = null)
+    /// <param name="openedAt">
+    /// Required, and must come from <c>IDateTimeProvider.ApplicationNow</c> — the same clock that
+    /// stamps AssignedAt/AssigneeAssignedAt. <c>DateTime.Now</c> is the SERVER's local time, which on
+    /// a UTC host is hours away from the configured application timezone; comparing the two below
+    /// would then misjudge every stamp.
+    /// </param>
+    public void StartWorking(string username, DateTime openedAt, string? previousAssignedTo = null)
     {
         WorkingBy = username;
         TaskStatus = TaskStatus.InProgress;
@@ -172,9 +178,9 @@ public class PendingTask : Aggregate<Guid>
         // A stamp older than AssigneeAssignedAt cannot belong to the current holder — nobody opens a
         // task before receiving it — so it is a leftover from a previous holder and gets replaced.
         // This self-heals rows handed off before Reassign started clearing OpenedAt; without it the
-        // ??= below would preserve the stale value forever.
+        // stamp-once rule would preserve the stale value forever.
         if (OpenedAt is null || OpenedAt < AssigneeAssignedAt)
-            OpenedAt = DateTime.Now;
+            OpenedAt = openedAt;
         AddDomainEvent(new TaskStartedDomainEvent(CorrelationId, AssignedTo, AssignedAt, previousAssignedTo));
     }
 

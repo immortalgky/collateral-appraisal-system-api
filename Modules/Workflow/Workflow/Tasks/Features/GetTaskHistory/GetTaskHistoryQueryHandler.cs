@@ -70,9 +70,14 @@ public class GetTaskHistoryQueryHandler(
         -- AssignedAt across the outgoing audit row and the incoming holder's row, so AssignedAt alone
         -- ties and SQL Server is free to return them in either order. CompletedAt breaks any residual
         -- tie (genuinely simultaneous fan-out tasks), pending rows sorting last.
+        -- TaskId last so the order is a TOTAL order: two rows can genuinely share both stamps
+        -- (simultaneous fan-out items, or several unopened pending rows), and without this the
+        -- engine stays free to swap them between runs, drifting the displayed sequence numbers.
+        -- Chronology is already settled by the two keys above; this one only has to be stable.
         ORDER BY history.AssigneeAssignedAt,
                  CASE WHEN history.CompletedAt IS NULL THEN 1 ELSE 0 END,
-                 history.CompletedAt;
+                 history.CompletedAt,
+                 history.TaskId;
         """;
 
     public async Task<GetTaskHistoryResponse> Handle(
