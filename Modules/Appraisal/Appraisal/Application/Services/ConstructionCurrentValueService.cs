@@ -41,12 +41,21 @@ public interface IConstructionCurrentValueService
 /// <param name="InspectedTotalValue">Σ ConstructionInspections.TotalValue — the part-built buildings at 100%.</param>
 /// <param name="InspectedPreviousValue">Those same buildings at the previous round's progress.</param>
 /// <param name="InspectedCurrentValue">Those same buildings at the current round's progress.</param>
+/// <param name="UnweightedPreviousPercent">
+/// Plain average of each inspection's previous progress, read the way the CI screen records it:
+/// summary mode from <c>SummaryPreviousProgressPct</c>, full detail from Σ(ProportionPct ×
+/// PreviousProgressPct). Used only when there is no value base to weight by.
+/// </param>
+/// <param name="UnweightedCurrentPercent">The same for the current round's progress.</param>
 public record ConstructionValueBreakdown(
     decimal LandValue,
     decimal CompletedBuildingValue,
     decimal InspectedTotalValue,
     decimal InspectedPreviousValue,
-    decimal InspectedCurrentValue)
+    decimal InspectedCurrentValue,
+    decimal UnweightedPreviousPercent,
+    decimal UnweightedCurrentPercent,
+    bool HasOwnValueBase)
 {
     /// <summary>Value as it stands today, with part-built buildings counted at their progress.</summary>
     public decimal CurrentValue => LandValue + CompletedBuildingValue + InspectedCurrentValue;
@@ -64,18 +73,32 @@ public record ConstructionValueBreakdown(
     /// <c>primaryProperty.ConstructionInspection.OverallCurrentProgressPercent &lt; 100</c> rule, which
     /// read one property and silently ignored the rest of a multi-building appraisal.
     /// </summary>
-    public bool IsUnderConstruction => InspectedTotalValue > 0m && InspectedCurrentValue < InspectedTotalValue;
+    public bool IsUnderConstruction =>
+        HasOwnValueBase
+            ? InspectedTotalValue > 0m && InspectedCurrentValue < InspectedTotalValue
+            : UnweightedCurrentPercent < 100m;
 
     /// <summary>
     /// Construction progress as a value-weighted percentage of the inspected buildings, 0–100.
     /// A building worth ten times another moves this figure ten times as much — a plain average of
-    /// per-building percentages would not. Returns 100 when nothing is under inspection, matching the
-    /// regulatory export's "completed" case.
+    /// per-building percentages would not. When the inspected buildings carry no value at all — a
+    /// condo unit has no depreciation table to total — there is nothing to weight by, so this falls
+    /// back to the plain average of the percentages the inspector actually entered.
     /// </summary>
     public decimal ConstructionProgressPercent =>
-        InspectedTotalValue > 0m
-            ? Math.Clamp(InspectedCurrentValue / InspectedTotalValue * 100m, 0m, 100m)
-            : 100m;
+        Math.Clamp(
+            HasOwnValueBase && InspectedTotalValue > 0m
+                ? InspectedCurrentValue / InspectedTotalValue * 100m
+                : UnweightedCurrentPercent,
+            0m, 100m);
+
+    /// <summary>Previous round's progress, on the same basis as <see cref="ConstructionProgressPercent"/>.</summary>
+    public decimal PreviousProgressPercent =>
+        Math.Clamp(
+            HasOwnValueBase && InspectedTotalValue > 0m
+                ? InspectedPreviousValue / InspectedTotalValue * 100m
+                : UnweightedPreviousPercent,
+            0m, 100m);
 }
 
 public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFactory)
@@ -95,8 +118,12 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
         var ci = await connection.QueryFirstOrDefaultAsync<CiAggregate>(
             new CommandDefinition(CiAggregateSql, p, cancellationToken: cancellationToken));
 
-        // No inspection anywhere on this appraisal → nothing is part-built.
-        if (ci is null || ci.TotalValue == 0m)
+        // No inspection anywhere on this appraisal → nothing is part-built. Test the row count,
+        // not the value: CiAggregateSql is an ungrouped aggregate, so an appraisal with no inspection
+        // still returns one all-zero row. Keying "nothing here" off TotalValue = 0 also swallowed the
+        // inspections that legitimately carry no value base — a condo unit has no building
+        // depreciation table for the CI screen to total, so its TotalValue is always 0.
+        if (ci is null || ci.InspectionCount == 0)
             return null;
 
         var landValue = await connection.QueryFirstOrDefaultAsync<decimal>(
@@ -105,13 +132,62 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
         var completedBuilding = await connection.QueryFirstOrDefaultAsync<decimal>(
             new CommandDefinition(CompletedBuildingValueSql, p, cancellationToken: cancellationToken));
 
+        // A condo unit has no building depreciation table, so the CI screen has nothing to total and
+        // every inspection on the appraisal carries TotalValue = 0. The appraised value is the same
+        // "worth once finished" figure the depreciation table gives a house, so it stands in as the
+        // 100% base and the entered percentages turn it into the previous and current figures.
+        // Appraisal-level, so it can only substitute when NO inspection on the appraisal has a value
+        // of its own — otherwise it would be attributing one number across several properties.
+        if (ci.TotalValue > 0m)
+        {
+            return new ConstructionValueBreakdown(
+                LandValue: landValue,
+                CompletedBuildingValue: completedBuilding,
+                InspectedTotalValue: ci.TotalValue,
+                InspectedPreviousValue: ci.PreviousValue,
+                InspectedCurrentValue: ci.CurrentValue,
+                UnweightedPreviousPercent: ci.UnweightedPreviousPercent,
+                UnweightedCurrentPercent: ci.UnweightedCurrentPercent,
+                HasOwnValueBase: true);
+        }
+
+        var appraisedValue = await connection.QueryFirstOrDefaultAsync<decimal>(
+            new CommandDefinition(AppraisedValueSql, p, cancellationToken: cancellationToken));
+
+        // An inspection with no value base AND no appraised value has nothing to report. Keep the
+        // original null so the caller's "nothing is part-built" path — and the regulatory writer's
+        // CurrentValue ?? LatestAppraisalValue fallback — behave exactly as before.
+        if (appraisedValue == 0m)
+            return null;
+
+        // Unscaled on purpose. A house is financed against how much of it is built, so its value
+        // steps up with the percentage; a condo unit is not — the buyer is buying the finished unit
+        // and nothing is drawn down per milestone. The percentage is still reported, it just does
+        // not move the money.
+        //
+        // Land and completed buildings are dropped rather than added: AppraisedValue is the
+        // WHOLE-appraisal figure and already contains them, so leaving them in would count them
+        // twice in CurrentValue / CompleteValue / PreviousValue.
         return new ConstructionValueBreakdown(
-            LandValue: landValue,
-            CompletedBuildingValue: completedBuilding,
-            InspectedTotalValue: ci.TotalValue,
-            InspectedPreviousValue: ci.PreviousValue,
-            InspectedCurrentValue: ci.CurrentValue);
+            LandValue: 0m,
+            CompletedBuildingValue: 0m,
+            InspectedTotalValue: appraisedValue,
+            InspectedPreviousValue: appraisedValue,
+            InspectedCurrentValue: appraisedValue,
+            UnweightedPreviousPercent: ci.UnweightedPreviousPercent,
+            UnweightedCurrentPercent: ci.UnweightedCurrentPercent,
+            HasOwnValueBase: false);
     }
+
+    /// <summary>
+    /// The appraisal's own "worth once finished" figure, used as the 100% base for an inspection that
+    /// has no value of its own. Same column the Decision Summary and the regulatory export read.
+    /// </summary>
+    private const string AppraisedValueSql = """
+        SELECT ISNULL(MAX(va.AppraisedValue), 0)
+        FROM appraisal.ValuationAnalyses va
+        WHERE va.AppraisalId = @AppraisalId
+        """;
 
     /// <summary>
     /// Land component. NOTE: PricingFinalValues.LandValue is only written for per-unit-rate methods
@@ -163,18 +239,45 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
                      THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
                      ELSE ISNULL(wd.CurrentPropertyValueSum, 0)
                 END
-            ), 0) AS CurrentValue
+            ), 0) AS CurrentValue,
+            COUNT(*) AS InspectionCount,
+            -- The progress the inspector actually entered, read per the mode flag exactly as
+            -- ConstructionInspection.OverallCurrentProgressPercent does: summary mode keeps its own
+            -- percentage, full detail sums the weighted work rows. Averaged rather than weighted
+            -- because these are only consulted when there is no value to weight by.
+            ISNULL(AVG(
+                CASE WHEN ci.IsFullDetail = 0
+                     THEN ISNULL(ci.SummaryPreviousProgressPct, 0)
+                     ELSE ISNULL(wd.PreviousProportionPctSum, 0)
+                END
+            ), 0) AS UnweightedPreviousPercent,
+            ISNULL(AVG(
+                CASE WHEN ci.IsFullDetail = 0
+                     THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
+                     ELSE ISNULL(wd.CurrentProportionPctSum, 0)
+                END
+            ), 0) AS UnweightedCurrentPercent
         FROM appraisal.ConstructionInspections ci
         JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
         LEFT JOIN (
             SELECT ConstructionInspectionId,
                    SUM(PreviousPropertyValue) AS PreviousPropertyValueSum,
-                   SUM(CurrentPropertyValue)  AS CurrentPropertyValueSum
+                   SUM(CurrentPropertyValue)  AS CurrentPropertyValueSum,
+                   -- No PreviousProportionPct column exists; it is the same product the server
+                   -- computes into CurrentProportionPct, taken against the previous round.
+                   SUM(ProportionPct * PreviousProgressPct / 100.0) AS PreviousProportionPctSum,
+                   SUM(CurrentProportionPct)                        AS CurrentProportionPctSum
             FROM appraisal.ConstructionWorkDetails
             GROUP BY ConstructionInspectionId
         ) wd ON wd.ConstructionInspectionId = ci.Id
         WHERE ap.AppraisalId = @AppraisalId
         """;
 
-    private sealed record CiAggregate(decimal TotalValue, decimal PreviousValue, decimal CurrentValue);
+    private sealed record CiAggregate(
+        decimal TotalValue,
+        decimal PreviousValue,
+        decimal CurrentValue,
+        int InspectionCount,
+        decimal UnweightedPreviousPercent,
+        decimal UnweightedCurrentPercent);
 }

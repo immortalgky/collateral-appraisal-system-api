@@ -177,15 +177,45 @@ Ci AS (
             CASE WHEN ci.IsFullDetail = 0
                  THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
                  ELSE ISNULL(wd.CurrentSum, 0)
-            END), 0) AS CurrentValue
+            END), 0) AS CurrentValue,
+        -- The percentage the inspector entered, read off the mode flag. A condo unit has no building
+        -- depreciation table for the CI screen to total, so its TotalValue is always 0 and the
+        -- value ratio below degenerates — the entered figure is all there is to report.
+        ISNULL(AVG(
+            CASE WHEN ci.IsFullDetail = 0
+                 THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
+                 ELSE ISNULL(wd.CurrentPctSum, 0)
+            END), 0) AS EnteredCurrentPercent
     FROM appraisal.ConstructionInspections ci
     JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
     LEFT JOIN (
-        SELECT ConstructionInspectionId, SUM(CurrentPropertyValue) AS CurrentSum
+        SELECT ConstructionInspectionId,
+               SUM(CurrentPropertyValue)  AS CurrentSum,
+               SUM(CurrentProportionPct)  AS CurrentPctSum
         FROM appraisal.ConstructionWorkDetails
         GROUP BY ConstructionInspectionId
     ) wd ON wd.ConstructionInspectionId = ci.Id
     GROUP BY ap.AppraisalId
+),
+
+-- A condo unit has no building depreciation table, so the CI screen has nothing to total and every
+-- inspection on the appraisal stores TotalValue = 0. That is a different thing from having no
+-- inspection at all, and the two used to collapse into the same "TotalValue = 0 → 100%" arm below.
+-- HasOwnValueBase keeps them apart: with a value base the columns are read from the money, without
+-- one they are read from the percentage the inspector entered.
+--
+-- No appraised-value substitution here. The percentage is all this view needs, and CurrentValue is
+-- deliberately left NULL in that case so RegulatoryFileWriter's CurrentValue ?? LatestAppraisalValue
+-- supplies the whole-appraisal figure — mixing the two bases into one field would make it mean
+-- different things on different rows.
+CiEffective AS (
+    SELECT
+        c.AppraisalId,
+        CASE WHEN c.TotalValue > 0 THEN 1 ELSE 0 END AS HasOwnValueBase,
+        c.TotalValue,
+        c.CurrentValue,
+        c.EnteredCurrentPercent
+    FROM Ci c
 ),
 
 -- ── What each appraisal is made of ─────────────────────────────────────────────────────────────
@@ -424,7 +454,12 @@ SELECT
     an.HostCollateralId,
     an.AppraisalType                                             AS LatestAppraisalType,
 
-    CASE WHEN ISNULL(ci.TotalValue, 0) > 0 AND ci.CurrentValue < ci.TotalValue THEN CAST(1 AS bit)
+    CASE WHEN ci.HasOwnValueBase = 1 AND ci.CurrentValue < ci.TotalValue THEN CAST(1 AS bit)
+         -- Valueless inspection (condo): the value cannot say anything because it does not move
+         -- with the milestone, so read the entered percentage rather than reporting a unit that is
+         -- demonstrably mid-construction as finished.
+         WHEN ci.AppraisalId IS NOT NULL AND ci.HasOwnValueBase = 0
+              AND ISNULL(ci.EnteredCurrentPercent, 0) < 100 THEN CAST(1 AS bit)
          ELSE CAST(0 AS bit) END                                 AS IsUnderConstruction,
 
     -- Not real estate → 0; bare land → 0; anything with a structure → 100 when complete, else the
@@ -434,7 +469,17 @@ SELECT
              AND pm.HasLeaseBuilding = 0 AND pm.HasLeaseBoth = 0                     THEN 0
         WHEN pm.HasLeaseLand = 1 AND pm.HasLeaseBuilding = 0 AND pm.HasLeaseBoth = 0
              AND pm.HasBuilding = 0                                                  THEN 0
-        WHEN ISNULL(ci.TotalValue, 0) = 0                                            THEN 100
+        -- No inspection at all → finished. An inspection with no value base reports what was
+        -- entered; only a genuinely absent inspection still means 100.
+        WHEN ci.AppraisalId IS NULL                                                  THEN 100
+        -- Clamped, matching ConstructionValueBreakdown.ConstructionProgressPercent. Nothing
+        -- validates that ProportionPct sums to 100, and an unclamped value >= 1000 would overflow
+        -- decimal(5,2) and take the whole view down.
+        WHEN ci.HasOwnValueBase = 0
+             THEN CAST(
+                 CASE WHEN ci.EnteredCurrentPercent < 0   THEN 0
+                      WHEN ci.EnteredCurrentPercent > 100 THEN 100
+                      ELSE ci.EnteredCurrentPercent END AS decimal(5, 2))
         WHEN ci.CurrentValue >= ci.TotalValue                                        THEN 100
         ELSE CAST(ci.CurrentValue / ci.TotalValue * 100 AS decimal(5, 2))
     END                                                          AS ConstructionProgressPercent,
@@ -463,8 +508,8 @@ SELECT
               THEN lgc.ValuationPriceInBaht
          ELSE e.AppraisedValue END                               AS EarliestAppraisalValue,
 
-    CASE WHEN ISNULL(ci.TotalValue, 0) > 0 AND ci.CurrentValue < ci.TotalValue
-         THEN ci.CurrentValue ELSE NULL END                      AS CurrentValue,
+    CASE WHEN ci.HasOwnValueBase = 1 AND ci.CurrentValue < ci.TotalValue THEN ci.CurrentValue
+         ELSE NULL END                                           AS CurrentValue,
 
     rd.TotalSellingPrice                                         AS SellingPrice,
 
@@ -522,7 +567,7 @@ SELECT
 FROM Anchor an
 LEFT JOIN Val av           ON av.AppraisalId = an.AppraisalId
 LEFT JOIN Earliest e       ON e.AppraisalId  = an.AppraisalId
-LEFT JOIN Ci ci            ON ci.AppraisalId = an.AppraisalId
+LEFT JOIN CiEffective ci   ON ci.AppraisalId = an.AppraisalId
 LEFT JOIN PropSource ps    ON ps.AppraisalId = an.AppraisalId
 LEFT JOIN PropMix pm       ON pm.AppraisalId = ps.PropSourceAppraisalId
 LEFT JOIN LandAgg la       ON la.AppraisalId = ps.PropSourceAppraisalId

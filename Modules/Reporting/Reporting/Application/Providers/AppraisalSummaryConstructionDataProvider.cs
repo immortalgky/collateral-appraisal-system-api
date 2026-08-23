@@ -103,22 +103,43 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         // ── Batch: 6 construction-specific result sets, single round-trip ─────────
         const string batchSql = """
             -- RS01: QCI1 — Construction inspection aggregate (building under construction only).
-            -- Current/previous building value: summary fields when IsFullDetail=0, else the
-            -- aggregated work-detail values. Progress % is derived in C# from value ÷ 100%-value.
+            -- Current/previous building value: TotalValue x the entered percentage when
+            -- IsFullDetail=0, else the aggregated work-detail values — the same derivation as
+            -- IConstructionCurrentValueService and vw_RegulatoryExportV3. SummaryCurrentValue /
+            -- SummaryPreviousValue are NOT read: the CI screen computes those two figures in a
+            -- useMemo for display and never writes them back into the form, so the persisted
+            -- columns hold 0 and this report printed a blank building value for every
+            -- summary-mode inspection. The percentage is bound to a real input and does persist.
             SELECT
+                COUNT(*)                                                                     AS InspectionCount,
                 ISNULL(SUM(ci.TotalValue), 0)                                                AS CITotalValue,
                 ISNULL(SUM(
                     CASE WHEN ci.IsFullDetail = 0
-                         THEN ISNULL(ci.SummaryCurrentValue, 0)
+                         THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
                          ELSE ISNULL(wd_agg.CurrentPropertyValueSum, 0)
                     END
                 ), 0)                                                                        AS CICurrentValue,
                 ISNULL(SUM(
                     CASE WHEN ci.IsFullDetail = 0
-                         THEN ISNULL(ci.SummaryPreviousValue, 0)
+                         THEN ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0) / 100.0
                          ELSE ISNULL(wd_agg.PreviousPropertyValueSum, 0)
                     END
                 ), 0)                                                                        AS CIPreviousValue,
+                -- Progress as entered, per the mode flag. A condo unit has no building depreciation
+                -- table for the CI screen to total, so TotalValue is 0 and the value ratio the
+                -- percentages below are normally derived from degenerates to nothing.
+                ISNULL(AVG(
+                    CASE WHEN ci.IsFullDetail = 0
+                         THEN ISNULL(ci.SummaryPreviousProgressPct, 0)
+                         ELSE ISNULL(wd_agg.PreviousProportionPctSum, 0)
+                    END
+                ), 0)                                                                        AS EnteredPreviousPercent,
+                ISNULL(AVG(
+                    CASE WHEN ci.IsFullDetail = 0
+                         THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
+                         ELSE ISNULL(wd_agg.CurrentProportionPctSum, 0)
+                    END
+                ), 0)                                                                        AS EnteredCurrentPercent,
                 MAX(CASE WHEN ci.FileName IS NOT NULL THEN 1 ELSE 0 END)                    AS HasDocument,
                 STRING_AGG(CASE WHEN ci.Remark IS NOT NULL AND LEN(ci.Remark) > 0
                                 THEN ci.Remark ELSE NULL END, ' / ')
@@ -128,7 +149,9 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             LEFT JOIN (
                 SELECT wd.ConstructionInspectionId,
                        SUM(wd.CurrentPropertyValue)  AS CurrentPropertyValueSum,
-                       SUM(wd.PreviousPropertyValue) AS PreviousPropertyValueSum
+                       SUM(wd.PreviousPropertyValue) AS PreviousPropertyValueSum,
+                       SUM(wd.ProportionPct * wd.PreviousProgressPct / 100.0) AS PreviousProportionPctSum,
+                       SUM(wd.CurrentProportionPct)                           AS CurrentProportionPctSum
                 FROM appraisal.ConstructionWorkDetails wd
                 GROUP BY wd.ConstructionInspectionId
             ) wd_agg ON wd_agg.ConstructionInspectionId = ci.Id
@@ -304,20 +327,54 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         decimal ciCurrent = ciRow?.CICurrentValue  ?? 0m;   // building value now
         decimal ciPrev    = ciRow?.CIPreviousValue ?? 0m;   // building value previously
 
+        // A condo unit has no building depreciation table, so the CI screen has nothing to total and
+        // the inspection stores TotalValue = 0, leaving every money row on this report blank. The
+        // appraised value is the same "worth once finished" figure the depreciation table gives a
+        // house, so it stands in as the 100% base and the entered percentages turn it into the
+        // previous and current figures — the same substitution IConstructionCurrentValueService and
+        // vw_RegulatoryExportV3 make.
+        decimal appraisedValue = common.TotalAppraisalValue ?? 0m;
+        bool substituteAppraisedValue = (ciRow?.InspectionCount ?? 0) > 0 && ciTotal == 0m && appraisedValue > 0m;
+        if (substituteAppraisedValue)
+        {
+            // Unscaled: a condo unit is bought finished, so its value does not step up with the
+            // milestone the way a house being built against a drawdown does. The percentages below
+            // still report the progress; they just do not move the money.
+            ciTotal   = appraisedValue;
+            ciPrev    = appraisedValue;
+            ciCurrent = appraisedValue;
+        }
+
         // Progress % is derived from the building-under-construction values: value ÷ 100%-value.
-        decimal? previousProgressPct = ciTotal > 0m ? Math.Round(ciPrev / ciTotal * 100m, 2) : (decimal?)null;
-        decimal? totalProgressPct = ciTotal > 0m ? Math.Round(ciCurrent / ciTotal * 100m, 2) : (decimal?)null;
+        // With no value base — a condo unit has no depreciation table to total — the ratio says
+        // nothing, so report the percentage the inspector entered instead of leaving the row blank.
+        // Same row-count test as the substitution: ciRow is never null, so "no inspection" has to be
+        // read off InspectionCount or every ordinary appraisal would report 0% instead of a blank.
+        bool hasAnyInspection = (ciRow?.InspectionCount ?? 0) > 0;
+        bool hasOwnValueBase = (ciRow?.CITotalValue ?? 0m) > 0m;
+        decimal? previousProgressPct = hasOwnValueBase
+            ? Math.Round(ciPrev / ciTotal * 100m, 2)
+            : hasAnyInspection ? Math.Round(ciRow!.EnteredPreviousPercent, 2) : null;
+        decimal? totalProgressPct = hasOwnValueBase
+            ? Math.Round(ciCurrent / ciTotal * 100m, 2)
+            : hasAnyInspection ? Math.Round(ciRow!.EnteredCurrentPercent, 2) : null;
         decimal? additionalProgressPct = (previousProgressPct.HasValue && totalProgressPct.HasValue)
             ? totalProgressPct.Value - previousProgressPct.Value
             : null;
 
-        decimal? buildingValue100       = ciTotal > 0m ? ciTotal : null;
-        decimal? currentBuildingValue   = ciCurrent > 0m ? ciCurrent : (decimal?)null;   // building under construction, now
+        // The two building-only rows stay blank for a condo unit. There is no building figure to
+        // report separately: the unit is priced whole, so the appraised value that stood in above
+        // covers land and structure together and belongs only in the two combined rows below.
+        decimal? buildingValue100       = hasOwnValueBase && ciTotal > 0m ? ciTotal : null;
+        decimal? currentBuildingValue   = hasOwnValueBase && ciCurrent > 0m ? ciCurrent : (decimal?)null;   // building under construction, now
         // Totals = land + building UNDER CONSTRUCTION only (pre-inspection buildings excluded).
-        decimal? totalLandBuilding100   = (landAppraisalValue + ciTotal) > 0m
-            ? landAppraisalValue + ciTotal : (decimal?)null;
-        decimal? totalLandCurrentBuilding = (landAppraisalValue + ciCurrent) > 0m
-            ? landAppraisalValue + ciCurrent : (decimal?)null;
+        // The substituted figure is the WHOLE-appraisal appraised value and already contains the
+        // land, so adding landAppraisalValue on top of it would count the land twice.
+        decimal totalLand100Base    = substituteAppraisedValue ? 0m : landAppraisalValue;
+        decimal? totalLandBuilding100   = (totalLand100Base + ciTotal) > 0m
+            ? totalLand100Base + ciTotal : (decimal?)null;
+        decimal? totalLandCurrentBuilding = (totalLand100Base + ciCurrent) > 0m
+            ? totalLand100Base + ciCurrent : (decimal?)null;
         decimal? landAppraisalValueOut  = landAppraisalValue > 0m ? landAppraisalValue : (decimal?)null;
 
         // เอกสารประกอบ checkboxes — effective value = manual override (AppraisalDecisions) ?? auto-derived
@@ -444,6 +501,17 @@ public sealed class AppraisalSummaryConstructionDataProvider(
 
         /// <summary>Previous building value (summary or aggregated work-detail).</summary>
         public decimal CIPreviousValue { get; init; }
+
+    /// <summary>
+    /// Number of inspections on the appraisal. RS01 is an ungrouped aggregate, so it returns one
+    /// all-zero row even when there are none — this is the only way to tell the two apart.
+    /// </summary>
+    public int InspectionCount { get; init; }
+
+    /// <summary>Progress as entered, per the inspection's mode flag — used when there is no value base.</summary>
+    public decimal EnteredPreviousPercent { get; init; }
+
+    public decimal EnteredCurrentPercent { get; init; }
 
         /// <summary>1 if any CI row has a non-null FileName; 0 otherwise.</summary>
         public int HasDocument { get; init; }
