@@ -29,7 +29,7 @@ public class CreateRequestCommandHandler(
         request.Validate();
         foreach (var title in titles) title.Validate();
 
-        request.UpdateStatus(RequestStatus.New);
+        request.MarkAsNew();
 
         if (command.SessionId.HasValue)
             outbox.Publish(
