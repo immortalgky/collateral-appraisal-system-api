@@ -112,8 +112,14 @@ public class ConstructionInspection : Entity<Guid>
     }
 
     /// <summary>
-    /// Switch to full detail mode. Clears summary-only fields, but keeps <see cref="Remark"/>,
-    /// which is captured in both modes and therefore survives the mode switch.
+    /// Switch to full detail mode. Clears the summary-only fields, but no longer clears
+    /// <see cref="Remark"/> as part of that: the remark is captured in both modes, so a mode
+    /// switch on its own must not wipe it.
+    ///
+    /// The remark is still a whole-value overwrite from the caller, exactly like every other
+    /// field on ConstructionInspectionData — the property endpoints replace the inspection from
+    /// the submitted form rather than patching it, so passing null means "store no remark", not
+    /// "leave the stored one alone".
     /// </summary>
     public void UpdateFullDetail(decimal totalValue, string? remark)
     {
