@@ -1,9 +1,15 @@
+using Workflow.AssigneeSelection.Core;
 using Workflow.AssigneeSelection.Teams;
 
 namespace Workflow.AssigneeSelection.Pipeline;
 
 public class TeamMembershipValidator : IAssignmentValidator
 {
+    // Kept in sync with AssignmentPipeline's matching bypass via the canonical wire-string mapping
+    // instead of a second independent literal.
+    private static readonly string PreviousOwnerStrategy = AssigneeSelectionStrategy.PreviousOwner.ToStringValue();
+    private static readonly string PoolStrategy = AssigneeSelectionStrategy.Pool.ToStringValue();
+
     private readonly ITeamService _teamService;
     private readonly ILogger<TeamMembershipValidator> _logger;
 
@@ -28,7 +34,7 @@ public class TeamMembershipValidator : IAssignmentValidator
 
         // Pool assignees (e.g. "ExtAdmin:Team_<teamId>") are team-scoped by construction
         // and are not users — GetTeamForUserAsync would always return null for them.
-        if (string.Equals(context.SelectionStrategy, "pool", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(context.SelectionStrategy, PoolStrategy, StringComparison.OrdinalIgnoreCase))
         {
             var expectedSuffix = $":Team_{teamId}";
             if (!context.SelectedAssignee.EndsWith(expectedSuffix, StringComparison.Ordinal))
@@ -50,7 +56,7 @@ public class TeamMembershipValidator : IAssignmentValidator
         // active team member — the existence check right below still rejects a deleted/deactivated
         // account (or an accidental "SYSTEM" completion sentinel, which is never a registered team
         // member) the same as any other strategy.
-        var isPreviousOwner = string.Equals(context.SelectionStrategy, "previous_owner", StringComparison.OrdinalIgnoreCase);
+        var isPreviousOwner = string.Equals(context.SelectionStrategy, PreviousOwnerStrategy, StringComparison.OrdinalIgnoreCase);
 
         // Verify the selected assignee belongs to the workflow's team
         var assigneeTeam = await _teamService.GetTeamForUserAsync(context.SelectedAssignee, cancellationToken);

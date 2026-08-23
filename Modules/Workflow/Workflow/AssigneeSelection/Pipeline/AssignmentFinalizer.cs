@@ -20,17 +20,21 @@ public class AssignmentFinalizer : IAssignmentFinalizer
         var assignee = context.SelectedAssignee ?? "Unassigned";
         var instance = context.ActivityContext.WorkflowInstance;
 
-        // Set TeamId on first team-constrained assignment if not already set
-        if (context.Rules.TeamConstrained && string.IsNullOrEmpty(context.TeamId) && assignee != "Unassigned")
+        // Sync TeamId to the actual assignee's team — either setting it for the first time, or
+        // re-syncing it after a route-back to a previous_owner in a different team than whatever
+        // context.TeamId was pinned to (e.g. the team of whoever routed back, not the assignee's own).
+        // A no-op for pool assignees: GetTeamForUserAsync returns null for a pool string like
+        // "Group:Team_x" (it isn't a real userId), so the existing (already-validated) TeamId is kept.
+        if (context.Rules.TeamConstrained && assignee != "Unassigned")
         {
             var team = await _teamService.GetTeamForUserAsync(assignee, cancellationToken);
-            if (team is not null)
+            if (team is not null && team.TeamId != context.TeamId)
             {
                 instance.UpdateVariables(new Dictionary<string, object> { ["TeamId"] = team.TeamId });
                 context.TeamId = team.TeamId;
 
                 _logger.LogInformation(
-                    "Pipeline finalizer: Set TeamId={TeamId} from first assignee {Assignee}",
+                    "Pipeline finalizer: Set TeamId={TeamId} from assignee {Assignee}",
                     team.TeamId, assignee);
             }
         }

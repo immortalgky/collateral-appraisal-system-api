@@ -941,6 +941,68 @@ public class AssignmentPipelineTests
     }
 
     [Fact]
+    public async Task AssignAsync_TeamConstrained_RouteBackWithEmptyPool_PreviousOwnerFirstInFallbackChain_StillRuns()
+    {
+        // A revisit configured as a fallback chain — previous_owner first, pool as backup — must
+        // still bypass the empty-pool short-circuit: the cascading engine tries strategies strictly
+        // in order and stops at the first success, so previous_owner gets a chance before "pool"
+        // would ever be attempted against the empty pool.
+        var context = CreateActivityContext(properties: new Dictionary<string, object>
+        {
+            ["revisitAssignmentStrategies"] = new List<string> { "previous_owner", "pool" }
+        });
+
+        _contextBuilder.BuildAsync(Arg.Any<AssignmentPipelineContext>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                var ctx = ci.ArgAt<AssignmentPipelineContext>(0);
+                ctx.Rules = new ActivityAssignmentRules(TeamConstrained: true, ExcludeAssigneesFrom: []);
+                ctx.CandidatePool = [];
+                return Task.CompletedTask;
+            });
+
+        _engine.IsRouteBackScenarioAsync(Arg.Any<Guid>(), context.ActivityId, Arg.Any<CancellationToken>())
+            .Returns(true);
+        SetupEngineSuccess("original-checker", "previous_owner");
+        SetupFinalizerPassthrough();
+
+        var result = await _pipeline.AssignAsync(context);
+
+        result.IsSuccess.Should().BeTrue();
+        result.AssigneeId.Should().Be("original-checker");
+    }
+
+    [Fact]
+    public async Task AssignAsync_TeamConstrained_RouteBackWithEmptyPool_PoolFirstInFallbackChain_StillFailsEarly()
+    {
+        // The reverse ordering is NOT safe to bypass: pool would be tried first by the cascading
+        // engine, and PoolAssigneeSelector doesn't verify actual candidate presence, so letting this
+        // through could produce a phantom assignment to a team with no real members.
+        var context = CreateActivityContext(properties: new Dictionary<string, object>
+        {
+            ["revisitAssignmentStrategies"] = new List<string> { "pool", "previous_owner" }
+        });
+
+        _contextBuilder.BuildAsync(Arg.Any<AssignmentPipelineContext>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                var ctx = ci.ArgAt<AssignmentPipelineContext>(0);
+                ctx.Rules = new ActivityAssignmentRules(TeamConstrained: true, ExcludeAssigneesFrom: []);
+                ctx.CandidatePool = [];
+                return Task.CompletedTask;
+            });
+
+        _engine.IsRouteBackScenarioAsync(Arg.Any<Guid>(), context.ActivityId, Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        var result = await _pipeline.AssignAsync(context);
+
+        result.IsSuccess.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("No eligible candidates");
+        await _engine.DidNotReceive().ExecuteAsync(Arg.Any<AssignmentContext>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task AssignAsync_ManualPick_DoesNotQueryRouteBackScenario()
     {
         // RuntimeOverride.RuntimeAssignee resolves immediately in Stage 3 without ever consulting
@@ -1070,9 +1132,12 @@ public class AssignmentPipelineTests
     }
 
     [Fact]
-    public async Task Finalizer_TeamConstrained_TeamAlreadySet_DoesNotOverwrite()
+    public async Task Finalizer_TeamConstrained_TeamAlreadySetAndMatchesAssignee_LeavesUnchanged()
     {
         var finalizer = new AssignmentFinalizer(_teamService, Substitute.For<ILogger<AssignmentFinalizer>>());
+
+        _teamService.GetTeamForUserAsync("u2", Arg.Any<CancellationToken>())
+            .Returns(new TeamInfo("team-A", "Team A", TeamType.Internal, true));
 
         var instance = WorkflowInstance.Create(Guid.NewGuid(), "Test", null, "admin",
             new Dictionary<string, object> { ["TeamId"] = "team-A" });
@@ -1088,7 +1153,7 @@ public class AssignmentPipelineTests
                 Variables = new Dictionary<string, object> { ["TeamId"] = "team-A" }
             },
             Rules = new ActivityAssignmentRules(TeamConstrained: true, ExcludeAssigneesFrom: []),
-            TeamId = "team-A", // Already set
+            TeamId = "team-A", // Already set, and matches u2's real team
             SelectedAssignee = "u2",
             SelectionStrategy = "round_robin",
             CandidatePool = [Member("u2", "team-A", "second-activity")]
@@ -1097,8 +1162,81 @@ public class AssignmentPipelineTests
         var result = await finalizer.FinalizeAsync(ctx);
 
         result.IsSuccess.Should().BeTrue();
-        // GetTeamForUserAsync should NOT be called since TeamId is already set
-        await _teamService.DidNotReceive().GetTeamForUserAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        ctx.TeamId.Should().Be("team-A");
+    }
+
+    [Fact]
+    public async Task Finalizer_TeamConstrained_RouteBackToDifferentTeam_ResyncsTeamId()
+    {
+        // context.TeamId pinned in Stage 1 may reflect whoever routed back, not the actual
+        // previous_owner assignee's team — the finalizer must re-sync it to the real assignee's
+        // team, not just when TeamId was previously empty (was a bug: it only ever set TeamId once).
+        var finalizer = new AssignmentFinalizer(_teamService, Substitute.For<ILogger<AssignmentFinalizer>>());
+
+        _teamService.GetTeamForUserAsync("checker-in-team-b", Arg.Any<CancellationToken>())
+            .Returns(new TeamInfo("team-B", "Team B", TeamType.Internal, true));
+
+        var instance = WorkflowInstance.Create(Guid.NewGuid(), "Test", null, "admin",
+            new Dictionary<string, object> { ["TeamId"] = "team-A" });
+
+        var ctx = new AssignmentPipelineContext
+        {
+            ActivityContext = new ActivityContext
+            {
+                WorkflowInstanceId = instance.Id,
+                ActivityId = "int-appraisal-check",
+                WorkflowInstance = instance,
+                Properties = new Dictionary<string, object>(),
+                Variables = new Dictionary<string, object> { ["TeamId"] = "team-A" }
+            },
+            Rules = new ActivityAssignmentRules(TeamConstrained: true, ExcludeAssigneesFrom: []),
+            TeamId = "team-A", // Pinned from whoever routed back — not checker-in-team-b's own team
+            SelectedAssignee = "checker-in-team-b",
+            SelectionStrategy = "previous_owner",
+            CandidatePool = []
+        };
+
+        var result = await finalizer.FinalizeAsync(ctx);
+
+        result.IsSuccess.Should().BeTrue();
+        ctx.TeamId.Should().Be("team-B");
+        instance.Variables["TeamId"].Should().Be("team-B");
+    }
+
+    [Fact]
+    public async Task Finalizer_TeamConstrained_PoolAssignee_LeavesTeamIdUnchanged()
+    {
+        // GetTeamForUserAsync returns null for a pool string like "ExtAdmin:Team_team-A" — it isn't a
+        // real userId — so the already-validated pinned TeamId must be left as-is, not cleared.
+        var finalizer = new AssignmentFinalizer(_teamService, Substitute.For<ILogger<AssignmentFinalizer>>());
+
+        _teamService.GetTeamForUserAsync("ExtAdmin:Team_team-A", Arg.Any<CancellationToken>())
+            .Returns((TeamInfo?)null);
+
+        var instance = WorkflowInstance.Create(Guid.NewGuid(), "Test", null, "admin",
+            new Dictionary<string, object> { ["TeamId"] = "team-A" });
+
+        var ctx = new AssignmentPipelineContext
+        {
+            ActivityContext = new ActivityContext
+            {
+                WorkflowInstanceId = instance.Id,
+                ActivityId = "ext-appraisal-assignment",
+                WorkflowInstance = instance,
+                Properties = new Dictionary<string, object>(),
+                Variables = new Dictionary<string, object> { ["TeamId"] = "team-A" }
+            },
+            Rules = new ActivityAssignmentRules(TeamConstrained: true, ExcludeAssigneesFrom: []),
+            TeamId = "team-A",
+            SelectedAssignee = "ExtAdmin:Team_team-A",
+            SelectionStrategy = "pool",
+            CandidatePool = []
+        };
+
+        var result = await finalizer.FinalizeAsync(ctx);
+
+        result.IsSuccess.Should().BeTrue();
+        ctx.TeamId.Should().Be("team-A");
     }
 
     [Fact]
