@@ -22,12 +22,12 @@ public class
         builder.Property(e => e.TotalValue).HasPrecision(18, 2);
 
         // Summary Mode fields
-        builder.Property(e => e.SummaryDetail).HasMaxLength(1000);
+        builder.Property(e => e.SummaryDetail).HasMaxLength(ConstructionInspection.SummaryDetailMaxLength);
         builder.Property(e => e.SummaryPreviousProgressPct).HasPrecision(7, 4);
         builder.Property(e => e.SummaryPreviousValue).HasPrecision(18, 2);
         builder.Property(e => e.SummaryCurrentProgressPct).HasPrecision(7, 4);
         builder.Property(e => e.SummaryCurrentValue).HasPrecision(18, 2);
-        builder.Property(e => e.Remark).HasMaxLength(4000);
+        builder.Property(e => e.Remark).HasMaxLength(ConstructionInspection.RemarkMaxLength);
 
         // Document reference
         builder.Property(e => e.FileName).HasMaxLength(500);
