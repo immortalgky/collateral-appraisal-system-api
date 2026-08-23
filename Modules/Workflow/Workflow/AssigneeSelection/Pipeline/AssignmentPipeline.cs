@@ -18,6 +18,10 @@ public class AssignmentPipeline : IAssignmentPipeline
 
     private const int MaxRetries = 3;
 
+    // Shared with TeamMembershipValidator's matching exemption — kept in sync via the canonical
+    // wire-string mapping instead of a second independent literal.
+    private static readonly string PreviousOwnerStrategy = AssigneeSelectionStrategy.PreviousOwner.ToStringValue();
+
     public AssignmentPipeline(
         IAssignmentContextBuilder contextBuilder,
         IEnumerable<IAssignmentFilter> filters,
@@ -46,10 +50,15 @@ public class AssignmentPipeline : IAssignmentPipeline
         // Route-back detection and strategy resolution: computed once per assignment attempt (not
         // once per Stage 2-4 retry) and cached on pipelineCtx.IsRevisit/Strategies. Reused by Stage 2's
         // short-circuit gate below and by Stage 3's engine call, so they cannot disagree and
-        // WorkflowActivityExecutions isn't re-queried. Skipped entirely for a manual pick
-        // (RuntimeOverride.RuntimeAssignee) — Stage 3 resolves that immediately and never consults
-        // either value, so the route-back DB round trip would be wasted on that hot path.
-        if (string.IsNullOrEmpty(pipelineCtx.RuntimeOverride?.RuntimeAssignee))
+        // WorkflowActivityExecutions isn't re-queried. Skipped for a manual pick
+        // (RuntimeOverride.RuntimeAssignee) — Stage 3 resolves that immediately without consulting
+        // either value, so the route-back DB round trip would be wasted on that hot path. Note this
+        // leaves IsRevisit at its default (false) for a manual pick even if it IS actually a
+        // route-back — Stage 2's team-constrained empty-pool gate below still applies to a manual
+        // pick exactly as it did before this fix (a pre-existing gap, not something this change
+        // introduced or attempts to close).
+        var isManualPick = !string.IsNullOrEmpty(pipelineCtx.RuntimeOverride?.RuntimeAssignee);
+        if (!isManualPick)
         {
             pipelineCtx.IsRevisit = await _engine.IsRouteBackScenarioAsync(
                 context.WorkflowInstance.Id, context.ActivityId, cancellationToken);
@@ -58,7 +67,8 @@ public class AssignmentPipeline : IAssignmentPipeline
 
         _logger.LogInformation(
             "Pipeline Stage 1 complete for {ActivityId}. TeamId={TeamId}, Rules={Rules}, PriorAssignees={Count}, IsRevisit={IsRevisit}",
-            context.ActivityId, pipelineCtx.TeamId, pipelineCtx.Rules, pipelineCtx.PriorAssignees.Count, pipelineCtx.IsRevisit);
+            context.ActivityId, pipelineCtx.TeamId, pipelineCtx.Rules, pipelineCtx.PriorAssignees.Count,
+            isManualPick ? "N/A (manual pick)" : pipelineCtx.IsRevisit);
 
         var result = await RunStagesAsync(pipelineCtx, cancellationToken);
 
@@ -96,13 +106,16 @@ public class AssignmentPipeline : IAssignmentPipeline
             {
                 // Route-back: the team-scoped pool may legitimately be empty (the constrained team
                 // reflects whoever routed back, not necessarily the target activity's prior owner).
-                // Only bypass the hard-fail when every resolved strategy is previous_owner — the one
-                // strategy that ignores CandidatePool entirely and resolves from history instead.
-                // Any other strategy (e.g. pool, round_robin) genuinely needs real candidates, so an
-                // empty pool must still fail fast for those rather than produce an unusable assignment.
+                // Only bypass the hard-fail when the FIRST resolved strategy is previous_owner — the
+                // one strategy that ignores CandidatePool entirely and resolves from history instead.
+                // CascadingAssignmentEngine tries strategies strictly in order and stops at the first
+                // success, so previous_owner leading the list guarantees it runs before any
+                // pool-dependent fallback (e.g. ["previous_owner", "pool"]) gets a chance to "succeed"
+                // against a genuinely empty pool. A pool-dependent strategy leading the list still
+                // fails fast here, same as before this fix.
                 var bypassesEmptyPool = pipelineCtx.IsRevisit
                     && pipelineCtx.Strategies.Count > 0
-                    && pipelineCtx.Strategies.All(s => string.Equals(s, "previous_owner", StringComparison.OrdinalIgnoreCase));
+                    && string.Equals(pipelineCtx.Strategies[0], PreviousOwnerStrategy, StringComparison.OrdinalIgnoreCase);
 
                 if (!bypassesEmptyPool)
                 {
