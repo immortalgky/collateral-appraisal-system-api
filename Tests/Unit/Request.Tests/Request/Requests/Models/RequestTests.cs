@@ -146,6 +146,29 @@ public class RequestTests
     }
 
     [Fact]
+    public void Submit_OnARowWhoseStatusWasDemotedByTheOldBug_ShouldStillThrow()
+    {
+        // The old post-submit-save bug left rows with Status 'New' but RequestedAt set. Those rows
+        // still exist in any database where the backfill has not run, and the submit guard has to
+        // reject them -- re-submitting would re-stamp RequestedAt and re-publish the submitted
+        // event. Reflection is used because this shape can only be produced by EF materialising a
+        // corrupted row, never by the aggregate's own API.
+        var request = ModelsTestData.RequestGeneral();
+        request.Submit(new DateTime(2026, 8, 21, 9, 0, 0));
+
+        typeof(Domain.Requests.Request)
+            .GetProperty(nameof(Domain.Requests.Request.Status))!
+            .SetValue(request, RequestStatus.New);
+
+        Assert.Equal(RequestStatus.New, request.Status);
+        Assert.NotNull(request.RequestedAt);
+        Assert.True(request.HasBeenSubmitted());
+
+        Assert.Throws<DomainException>(() => request.Submit(new DateTime(2026, 8, 21, 10, 0, 0)));
+        Assert.Throws<DomainException>(() => request.Delete("01", new DateTime(2026, 8, 21, 10, 0, 0)));
+    }
+
+    [Fact]
     public void HasBeenSubmitted_ShouldFollowTheSubmitBoundary()
     {
         var request = ModelsTestData.RequestGeneral();
