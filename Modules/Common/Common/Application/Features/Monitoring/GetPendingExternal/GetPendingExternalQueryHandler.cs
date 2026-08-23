@@ -60,7 +60,8 @@ SELECT
     OpenDate,
     AppointmentDate,
     SlaDurationHours,
-    AppraisalStatus
+    AppraisalStatus,
+    DueDate
 FROM common.vw_MonitoringPendingTasks";
         var conditions = new List<string> { "MonitoringType = 'External'" };
         var parameters = new DynamicParameters();

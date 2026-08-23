@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Workflow.Data;
 
@@ -11,9 +12,11 @@ using Workflow.Data;
 namespace Workflow.Infrastructure.Migrations
 {
     [DbContext(typeof(WorkflowDbContext))]
-    partial class WorkflowDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260820173626_AddAssigneeAssignedAtToTasks")]
+    partial class AddAssigneeAssignedAtToTasks
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2030,9 +2033,6 @@ namespace Workflow.Infrastructure.Migrations
                         .HasColumnType("nvarchar(16)")
                         .HasDefaultValue("F");
 
-                    b.Property<DateTime?>("OpenedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("ReasonCode")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
@@ -2042,12 +2042,6 @@ namespace Workflow.Infrastructure.Migrations
                         .HasColumnType("nvarchar(4000)");
 
                     b.Property<DateTime?>("SlaBreachedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("SlaDurationHours")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("SlaStartAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("SlaStatus")

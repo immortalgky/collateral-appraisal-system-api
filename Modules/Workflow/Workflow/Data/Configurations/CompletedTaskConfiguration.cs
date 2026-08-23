@@ -25,6 +25,9 @@ public class CompletedTaskConfiguration : IEntityTypeConfiguration<CompletedTask
         builder.Property(p => p.AssignedType)
             .HasMaxLength(10);
 
+        builder.Property(p => p.AssigneeAssignedAt)
+            .IsRequired();
+
         builder.Property(p => p.ActionTaken)
             .HasMaxLength(255);
 
@@ -36,7 +39,16 @@ public class CompletedTaskConfiguration : IEntityTypeConfiguration<CompletedTask
                     .HasMaxLength(100);
             });
 
+        builder.Property(p => p.OpenedAt)
+            .IsRequired(false);
+
         builder.Property(p => p.DueAt)
+            .IsRequired(false);
+
+        builder.Property(p => p.SlaStartAt)
+            .IsRequired(false);
+
+        builder.Property(p => p.SlaDurationHours)
             .IsRequired(false);
 
         builder.Property(p => p.SlaStatus)

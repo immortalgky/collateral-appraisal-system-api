@@ -11,13 +11,23 @@ public class PendingTask : Aggregate<Guid>
     public string AssignedTo { get; private set; } = default!;
     public string AssignedType { get; private set; } = default!;
     public DateTime AssignedAt { get; private set; }
+
+    /// <summary>
+    /// The moment the CURRENT holder received this task. Stamped to AssignedAt at creation and
+    /// re-stamped by <see cref="Reassign"/> when the caller supplies a timestamp (the supervisor
+    /// reassign path). Display/ordering only — the SLA clock anchors on <see cref="AssignedAt"/> and
+    /// <see cref="SlaStartAt"/>, which reassignment must never move.
+    /// </summary>
+    public DateTime AssigneeAssignedAt { get; private set; }
+
     public string? WorkingBy { get; private set; }
     public DateTime? LockedAt { get; private set; }
 
     /// <summary>
-    /// The moment the assignee first opened the task (first transition to InProgress). Stamped once
-    /// in <see cref="StartWorking"/> and never overwritten, so it records the initial open time even
-    /// if the task is later re-opened. Null while the task is still Assigned/unopened.
+    /// The moment the CURRENT holder first opened the task (first transition to InProgress). Stamped
+    /// once in <see cref="StartWorking"/> and never overwritten, so it records the initial open time
+    /// even if the task is later re-opened. Null while the task is still Assigned/unopened — and
+    /// reset to null on a supervisor hand-off, since the incoming holder has not opened it yet.
     /// </summary>
     public DateTime? OpenedAt { get; private set; }
     public Guid WorkflowInstanceId { get; private set; }
@@ -87,6 +97,7 @@ public class PendingTask : Aggregate<Guid>
         AssignedTo = assignedTo;
         AssignedType = assignedType;
         AssignedAt = assignedAt;
+        AssigneeAssignedAt = assignedAt;
         WorkflowInstanceId = workflowInstanceId;
         ActivityId = activityId;
         Movement = movement;
@@ -112,7 +123,15 @@ public class PendingTask : Aggregate<Guid>
         return task;
     }
 
-    public void Reassign(string newAssignedTo, string newAssignedType, string? raiseEventFor = null)
+    /// <param name="holderChangedAt">
+    /// When supplied, re-stamps <see cref="AssigneeAssignedAt"/> so the history timeline can order
+    /// the outgoing audit row before the incoming holder's row. Only the supervisor reassign path
+    /// passes it — that is the one path that snapshots an audit row into CompletedTasks and would
+    /// otherwise leave two rows sharing an identical sort key. Claim/implicit-assign/fan-out advance
+    /// keep the original stamp so their single history row keeps showing the original start time.
+    /// </param>
+    public void Reassign(string newAssignedTo, string newAssignedType, string? raiseEventFor = null,
+        DateTime? holderChangedAt = null)
     {
         var previousAssignedTo = AssignedTo;
 
@@ -123,6 +142,14 @@ public class PendingTask : Aggregate<Guid>
         LockedAt = null;
         // AssignedAt, DueAt, SlaStatus, SlaBreachedAt intentionally preserved —
         // reassignment must not reset the SLA clock.
+        if (holderChangedAt.HasValue)
+        {
+            AssigneeAssignedAt = holderChangedAt.Value;
+            // Same rule as WorkingBy/LockedAt above: this is the outgoing holder's state, not the
+            // incoming one's. Without this, OpenedAt's ??= would keep the first holder's open time
+            // forever and every later holder would inherit a time they never opened the task at.
+            OpenedAt = null;
+        }
 
         if (raiseEventFor == "supervisor")
         {
@@ -142,7 +169,12 @@ public class PendingTask : Aggregate<Guid>
         WorkingBy = username;
         TaskStatus = TaskStatus.InProgress;
         // Record the first-open timestamp; keep the original once set even if re-opened later.
-        OpenedAt ??= DateTime.Now;
+        // A stamp older than AssigneeAssignedAt cannot belong to the current holder — nobody opens a
+        // task before receiving it — so it is a leftover from a previous holder and gets replaced.
+        // This self-heals rows handed off before Reassign started clearing OpenedAt; without it the
+        // ??= below would preserve the stale value forever.
+        if (OpenedAt is null || OpenedAt < AssigneeAssignedAt)
+            OpenedAt = DateTime.Now;
         AddDomainEvent(new TaskStartedDomainEvent(CorrelationId, AssignedTo, AssignedAt, previousAssignedTo));
     }
 

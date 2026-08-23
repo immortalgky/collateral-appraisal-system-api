@@ -61,27 +61,43 @@ public class GetAppraisalWorkflowProgressQueryHandler(
                                     FROM workflow.WorkflowInstances wi
                                     WHERE wi.CorrelationId = @CorrelationId;
 
-                                    SELECT pt.TaskName, pt.TaskDescription, pt.AssignedTo, pt.AssignedType, pt.AssignedAt,
-                                           CAST(NULL AS datetime2)      AS CompletedAt,
-                                           CAST(NULL AS nvarchar(10))   AS ActionTaken,
-                                           CAST(NULL AS nvarchar(1000)) AS Remark,
-                                           'Pending'                    AS TaskStatus,
-                                           pt.ActivityId,
-                                           CAST(NULL AS nvarchar(10))   AS Movement
-                                    FROM workflow.PendingTasks pt
-                                    WHERE pt.CorrelationId = @RequestId
+                                    -- Wrapped in a derived table because SQL Server only allows plain
+                                    -- output-column references in a UNION's ORDER BY, not expressions.
+                                    SELECT log.* FROM (
+                                        SELECT pt.TaskName, pt.TaskDescription, pt.AssignedTo, pt.AssignedType,
+                                               pt.AssigneeAssignedAt, pt.AssignedAt, pt.OpenedAt,
+                                               pt.TaskStatus                AS TaskState,
+                                               pt.SlaStartAt, pt.DueAt, pt.SlaStatus, pt.SlaDurationHours,
+                                               CAST(NULL AS datetime2)      AS CompletedAt,
+                                               CAST(NULL AS nvarchar(10))   AS ActionTaken,
+                                               CAST(NULL AS nvarchar(1000)) AS Remark,
+                                               'Pending'                    AS TaskStatus,
+                                               pt.ActivityId,
+                                               CAST(NULL AS nvarchar(10))   AS Movement
+                                        FROM workflow.PendingTasks pt
+                                        WHERE pt.CorrelationId = @RequestId
 
-                                    UNION ALL
+                                        UNION ALL
 
-                                    SELECT ct.TaskName, ct.TaskDescription, ct.AssignedTo, ct.AssignedType, ct.AssignedAt,
-                                           ct.CompletedAt, ct.ActionTaken, ct.Remark,
-                                           'Completed' AS TaskStatus,
-                                           ct.ActivityId,
-                                           ct.Movement
-                                    FROM workflow.CompletedTasks ct
-                                    WHERE ct.CorrelationId = @RequestId
-
-                                    ORDER BY AssignedAt;
+                                        SELECT ct.TaskName, ct.TaskDescription, ct.AssignedTo, ct.AssignedType,
+                                               ct.AssigneeAssignedAt, ct.AssignedAt, ct.OpenedAt,
+                                               ct.TaskStatus                AS TaskState,
+                                               ct.SlaStartAt, ct.DueAt, ct.SlaStatus, ct.SlaDurationHours,
+                                               ct.CompletedAt, ct.ActionTaken, ct.Remark,
+                                               'Completed' AS TaskStatus,
+                                               ct.ActivityId,
+                                               ct.Movement
+                                        FROM workflow.CompletedTasks ct
+                                        WHERE ct.CorrelationId = @RequestId
+                                    ) log
+                                    -- Order on the per-holder stamp, not AssignedAt: a supervisor reassign
+                                    -- deliberately freezes AssignedAt across the outgoing audit row and the
+                                    -- incoming holder's row, so AssignedAt alone ties and SQL Server is free
+                                    -- to return them in either order. CompletedAt breaks any residual tie
+                                    -- (genuinely simultaneous fan-out tasks), pending rows sorting last.
+                                    ORDER BY log.AssigneeAssignedAt,
+                                             CASE WHEN log.CompletedAt IS NULL THEN 1 ELSE 0 END,
+                                             log.CompletedAt;
 
                                     SELECT TOP 1 AssignmentType
                                     FROM appraisal.AppraisalAssignments
@@ -408,7 +424,7 @@ public class GetAppraisalWorkflowProgressQueryHandler(
             string? timeTaken = null;
             if (r.CompletedAt.HasValue)
             {
-                var elapsed = r.CompletedAt.Value - r.AssignedAt;
+                var elapsed = r.CompletedAt.Value - r.AssigneeAssignedAt;
                 if (elapsed.TotalSeconds >= 0)
                     timeTaken = $"{(int)elapsed.TotalHours}h {elapsed.Minutes}m";
             }
@@ -422,7 +438,14 @@ public class GetAppraisalWorkflowProgressQueryHandler(
                 TaskDescription = r.TaskDescription,
                 AssignedTo = r.AssignedTo,
                 AssignedToDisplayName = displayName,
-                StartDate = r.AssignedAt,
+                StartDate = r.AssigneeAssignedAt,
+                StepEnteredAt = r.AssignedAt,
+                OpenedAt = r.OpenedAt,
+                TaskState = r.TaskState,
+                SlaStartAt = r.SlaStartAt,
+                DueAt = r.DueAt,
+                SlaStatus = r.SlaStatus,
+                SlaDurationHours = r.SlaDurationHours,
                 EndDate = r.CompletedAt,
                 ActionTaken = r.ActionTaken,
                 TimeTaken = timeTaken,
@@ -453,7 +476,14 @@ public class GetAppraisalWorkflowProgressQueryHandler(
         public string? TaskDescription { get; set; }
         public string? AssignedTo { get; set; }
         public string? AssignedType { get; set; }
+        public DateTime AssigneeAssignedAt { get; set; }
         public DateTime AssignedAt { get; set; }
+        public DateTime? OpenedAt { get; set; }
+        public string? TaskState { get; set; }
+        public DateTime? SlaStartAt { get; set; }
+        public DateTime? DueAt { get; set; }
+        public string? SlaStatus { get; set; }
+        public int? SlaDurationHours { get; set; }
         public DateTime? CompletedAt { get; set; }
         public string? ActionTaken { get; set; }
         public string? Remark { get; set; }
