@@ -16,5 +16,7 @@ public record GetPricingAnalysisResponse(
     bool UseSystemCalc,
     List<ApproachDto> Approaches,
     List<PricingAnalysisDocumentDto> Documents,
-    string? Remark
+    string? Remark,
+    decimal? LandAreaInSqWa,
+    decimal? BuildingValue
 );

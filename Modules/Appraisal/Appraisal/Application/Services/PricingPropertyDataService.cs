@@ -64,6 +64,70 @@ public class PricingPropertyDataService(
     }
 
     /// <summary>
+    /// Returns the depreciated building total for a property group — the sum of
+    /// <c>BuildingDepreciationDetails.PriceAfterDepreciation</c> across its properties, which is the
+    /// same figure the appraisal-summary report totals as รวมมูลค่าสิ่งปลูกสร้าง.
+    /// Returns 0 when the group has no building schedule.
+    /// </summary>
+    public async Task<decimal> GetTotalBuildingCostAsync(
+        Guid propertyGroupId, CancellationToken cancellationToken)
+    {
+        using var connection = sqlConnectionFactory.GetOpenConnection();
+
+        return await connection.QueryFirstOrDefaultAsync<decimal>(
+            new CommandDefinition(
+                BuildingCostSql,
+                new { PropertyGroupId = propertyGroupId },
+                cancellationToken: cancellationToken));
+    }
+
+    /// <summary>
+    /// Land area for a property group, in square wa, read straight from the title deeds.
+    /// </summary>
+    /// <remarks>
+    /// A SQL-only counterpart to <see cref="GetTotalLandAreaFromTitlesAsync"/> for read paths:
+    /// that one loads the whole Appraisal aggregate with every property and detail just to sum a
+    /// computed property, which is far too much for an endpoint on a screen's load path.
+    /// The arithmetic is the same three terms as <c>LandArea.TotalSquareWa</c> over the same rows,
+    /// so the two agree — but the domain path stays authoritative for anything persisted.
+    /// KEEP IN SYNC with LandArea.TotalSquareWa.
+    /// </remarks>
+    public async Task<decimal?> GetTotalLandAreaInSqWaAsync(
+        Guid propertyGroupId, CancellationToken cancellationToken)
+    {
+        using var connection = sqlConnectionFactory.GetOpenConnection();
+
+        return await connection.QueryFirstOrDefaultAsync<decimal?>(
+            new CommandDefinition(
+                LandAreaSql,
+                new { PropertyGroupId = propertyGroupId },
+                cancellationToken: cancellationToken));
+    }
+
+    // SUM over zero rows yields NULL, which callers read as "this group has no land" — the same
+    // thing GetTotalLandAreaFromTitlesAsync returns for a group with no land properties.
+    private const string LandAreaSql =
+        """
+        SELECT SUM(ISNULL(lt.AreaRai, 0) * 400
+                 + ISNULL(lt.AreaNgan, 0) * 100
+                 + ISNULL(lt.AreaSquareWa, 0))
+        FROM appraisal.LandTitles lt
+        INNER JOIN appraisal.LandAppraisalDetails lad ON lad.Id = lt.LandAppraisalDetailId
+        INNER JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = lad.AppraisalPropertyId
+        WHERE pgi.PropertyGroupId = @PropertyGroupId
+        """;
+
+    private const string BuildingCostSql =
+        """
+        SELECT ISNULL(SUM(bdd.PriceAfterDepreciation), 0)
+        FROM appraisal.BuildingDepreciationDetails bdd
+        INNER JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
+        INNER JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
+        INNER JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = ap.Id
+        WHERE pgi.PropertyGroupId = @PropertyGroupId
+        """;
+
+    /// <summary>
     /// Fetches rental schedule, land area, and appointment date for a property group.
     /// </summary>
     public async Task<PropertyGroupData> GetPropertyDataAsync(
@@ -122,12 +186,7 @@ public class PricingPropertyDataService(
 
         // Total building cost from depreciation details
         var totalBuildingCost = await connection.QueryFirstOrDefaultAsync<decimal>(
-            @"SELECT ISNULL(SUM(bdd.PriceAfterDepreciation), 0)
-              FROM appraisal.BuildingDepreciationDetails bdd
-              INNER JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
-              INNER JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
-              INNER JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = ap.Id
-              WHERE pgi.PropertyGroupId = @PropertyGroupId",
+            BuildingCostSql,
             new { PropertyGroupId = propertyGroupId });
 
         return new PropertyGroupData(contractSchedule, totalLandArea, appointmentDate, totalBuildingCost);
