@@ -20,7 +20,7 @@ public class CondoAppraisalDetail : Entity<Guid>
     public string? FloorNumber { get; private set; }
     public int? PhysicalFloorNumber { get; private set; }
     public decimal? UsableArea { get; private set; }
-    public decimal? ConstructionCompletionPercent { get; private set; }
+    public bool? IsUnderConstruction { get; private set; }
 
     // Unit deed identifiers (required for Collateral master dedup key)
     public string? TitleNumber { get; private set; }
@@ -148,7 +148,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? roomNumber = null,
         string? floorNumber = null,
         decimal? usableArea = null,
-        decimal? constructionCompletionPercent = null,
+        bool? isUnderConstruction = null,
         string? titleNumber = null,
         string? titleType = null,
         // Value Objects
@@ -243,7 +243,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         RoomNumber = roomNumber;
         FloorNumber = floorNumber;
         UsableArea = usableArea;
-        ConstructionCompletionPercent = constructionCompletionPercent;
+        IsUnderConstruction = isUnderConstruction;
         TitleNumber = titleNumber;
         TitleType = titleType;
 
@@ -387,7 +387,7 @@ public class CondoAppraisalDetail : Entity<Guid>
             FloorNumber = source.FloorNumber,
             PhysicalFloorNumber = source.PhysicalFloorNumber,
             UsableArea = source.UsableArea,
-            ConstructionCompletionPercent = source.ConstructionCompletionPercent,
+            IsUnderConstruction = source.IsUnderConstruction,
             TitleNumber = source.TitleNumber,
             TitleType = source.TitleType,
             Coordinates = source.Coordinates is not null
@@ -507,7 +507,12 @@ public class CondoAppraisalDetail : Entity<Guid>
         // price below is computed from the usable area, and this feature corrects descriptive
         // data only — it neither recomputes prices nor returns the appraisal to the workflow.
         // Same reasoning as the land title and building areas; see CorrectionDto_DoesNotExposeArea.
-        CorrectionDiff.Apply("Condo.ConstructionCompletionPercent", ConstructionCompletionPercent, edit.ConstructionCompletionPercent, v => ConstructionCompletionPercent = v, diff);
+        //
+        // The completion percentage itself is no longer stored here: it moved into the
+        // Construction Inspection tab, and this flag is what opens that tab. Correcting the flag
+        // is therefore correcting whether the unit is under construction at all — see
+        // CorrectPropertyDataCommandHandler, which clears a stale inspection when it is turned off.
+        CorrectionDiff.Apply("Condo.IsUnderConstruction", IsUnderConstruction, edit.IsUnderConstruction, v => IsUnderConstruction = v, diff);
         CorrectionDiff.Apply("Condo.TitleNumber", TitleNumber, edit.TitleNumber, v => TitleNumber = v, diff);
         CorrectionDiff.Apply("Condo.TitleType", TitleType, edit.TitleType, v => TitleType = v, diff);
         // Coordinates is an immutable record — compare components, rebuild once.

@@ -27,6 +27,20 @@ public class GetCondoPropertyQueryHandler(
         // 4. Get the condo detail
         var detail = property.CondoDetail
                     ?? throw new InvalidOperationException($"Condo detail not found for property {query.PropertyId}");
+        
+        var constructionDto = property.ConstructionInspection is { } ci
+            ? new ConstructionInspectionDto(
+                ci.Id, ci.AppraisalPropertyId, ci.IsFullDetail, ci.TotalValue,
+                ci.SummaryDetail, ci.SummaryPreviousProgressPct, ci.SummaryPreviousValue,
+                ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.Remark,
+                ci.DocumentId, ci.FileName, ci.FilePath,
+                ci.FileExtension, ci.MimeType, ci.FileSizeBytes,
+                ci.WorkDetails.OrderBy(w => w.DisplayOrder).Select(w => new ConstructionWorkDetailDto(
+                    w.Id, w.ConstructionWorkGroupId, w.ConstructionWorkItemId, w.WorkItemName,
+                    w.DisplayOrder, w.ConstructionValue, w.PreviousProgressPct, w.CurrentProgressPct,
+                    w.ProportionPct, w.CurrentProportionPct, w.PreviousPropertyValue, w.CurrentPropertyValue
+                )).ToList())
+            : null;
 
         // 5. Map to result
         return new GetCondoPropertyResult(
@@ -47,7 +61,7 @@ public class GetCondoPropertyQueryHandler(
             PhysicalFloorNumber: detail.PhysicalFloorNumber,
             TitleType: detail.TitleType,
             UsableArea: detail.UsableArea,
-            ConstructionCompletionPercent: detail.ConstructionCompletionPercent,
+            IsUnderConstruction: detail.IsUnderConstruction,
             Latitude: detail.Coordinates?.Latitude,
             Longitude: detail.Coordinates?.Longitude,
             SubDistrict: detail.Address?.SubDistrict,
@@ -121,6 +135,7 @@ public class GetCondoPropertyQueryHandler(
             BuildingInsurancePrice: detail.BuildingInsurancePrice,
             SellingPrice: detail.SellingPrice,
             ForceSellingPrice: detail.ForcedSalePrice,
-            Remark: detail.Remark);
+            Remark: detail.Remark,
+            ConstructionInspection: constructionDto);
     }
 }

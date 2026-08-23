@@ -40,7 +40,6 @@ public class UpdateLeaseAgreementBuildingPropertyCommandHandler(
             buildingConditionType: command.BuildingConditionType,
             buildingConditionTypeOther: command.BuildingConditionTypeOther,
             isUnderConstruction: command.IsUnderConstruction,
-            constructionCompletionPercent: command.ConstructionCompletionPercent,
             constructionLicenseExpirationDate: command.ConstructionLicenseExpirationDate,
             isAppraisable: command.IsAppraisable,
             buildingType: command.BuildingType,

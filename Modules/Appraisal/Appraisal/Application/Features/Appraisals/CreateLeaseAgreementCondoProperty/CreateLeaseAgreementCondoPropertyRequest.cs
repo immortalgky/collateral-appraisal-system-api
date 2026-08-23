@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.Shared;
+using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
 
 namespace Appraisal.Application.Features.Appraisals.CreateLeaseAgreementCondoProperty;
 
@@ -14,7 +15,7 @@ public record CreateLeaseAgreementCondoPropertyRequest(
     string? RoomNumber = null,
     string? FloorNumber = null,
     decimal? UsableArea = null,
-    decimal? ConstructionCompletionPercent = null,
+    bool? IsUnderConstruction = null,
     // Unit deed identifiers (collateral dedup key)
     string? TitleNumber = null,
     string? TitleType = null,
@@ -104,5 +105,7 @@ public record CreateLeaseAgreementCondoPropertyRequest(
     // Other
     string? Remark = null,
     LeaseAgreementData? LeaseAgreement = null,
+    // Construction Inspection (null = skip)
+    ConstructionInspectionData? ConstructionInspection = null,
     RentalInfoData? RentalInfo = null
 );

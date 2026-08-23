@@ -276,7 +276,16 @@ public class AppraisalProperty : Entity<Guid>
             BuildingDetail.ApplyCorrection(data.Building, diff);
 
         if (data.Condo is not null && CondoDetail is not null)
+        {
             CondoDetail.ApplyCorrection(data.Condo, diff);
+
+            // The flag is what opens the Construction Inspection tab, so turning it off has to
+            // take the inspection with it. Left behind, those rows are unreachable from any
+            // screen yet still read by anything that loads the property. Mirrors what
+            // UpdateCondoPropertyCommandHandler does on the ordinary edit path.
+            if (data.Condo.IsUnderConstruction == false && ConstructionInspection is not null)
+                ClearConstructionInspection();
+        }
 
         if (data.Vehicle is not null && VehicleDetail is not null)
             VehicleDetail.ApplyCorrection(data.Vehicle, diff);

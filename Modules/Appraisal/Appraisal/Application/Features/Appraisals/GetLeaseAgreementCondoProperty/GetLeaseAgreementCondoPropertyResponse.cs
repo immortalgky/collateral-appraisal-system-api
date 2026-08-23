@@ -24,7 +24,7 @@ public record GetLeaseAgreementCondoPropertyResponse(
     string? RoomNumber,
     string? FloorNumber,
     decimal? UsableArea,
-    decimal? ConstructionCompletionPercent,
+    bool? IsUnderConstruction,
     // Coordinates
     decimal? Latitude,
     decimal? Longitude,
@@ -111,5 +111,7 @@ public record GetLeaseAgreementCondoPropertyResponse(
     string? Remark,
     // Lease Agreement & Rental Info
     LeaseAgreementDetailDto? LeaseAgreement,
-    RentalInfoDto? RentalInfo
+    RentalInfoDto? RentalInfo,
+    // Construction Inspection
+    ConstructionInspectionDto? ConstructionInspection
 );

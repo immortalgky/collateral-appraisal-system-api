@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals;
+using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
 
 namespace Appraisal.Application.Features.Appraisals.CreateCondoProperty;
 
@@ -53,7 +54,7 @@ public class CreateCondoPropertyCommandHandler(
             command.RoomNumber,
             command.FloorNumber,
             command.UsableArea,
-            command.ConstructionCompletionPercent,
+            command.IsUnderConstruction,
             command.TitleNumber,
             command.TitleType,
             coordinates,
@@ -134,6 +135,10 @@ public class CreateCondoPropertyCommandHandler(
             }
         }
 
+        // Add construction inspection if provided and building is under construction
+        if (command.ConstructionInspection is { } ci && command.IsUnderConstruction != false)
+            SetConstructionInspection(property, ci);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         // 6. Assign property to a group
@@ -141,5 +146,33 @@ public class CreateCondoPropertyCommandHandler(
 
         // 7. Return both IDs
         return new CreateCondoPropertyResult(property.Id, property.CondoDetail.Id);
+    }
+    private static void SetConstructionInspection(
+        AppraisalProperty property,
+        ConstructionInspectionData ci)
+    {
+        ConstructionInspection inspection;
+        if (ci.IsFullDetail)
+        {
+            inspection = ConstructionInspection.CreateFullDetail(property.Id, ci.TotalValue);
+            if (ci.WorkDetails is { Count: > 0 })
+            {
+                foreach (var wd in ci.WorkDetails)
+                    inspection.AddWorkDetail(wd.ConstructionWorkGroupId, wd.WorkItemName,
+                        wd.DisplayOrder, wd.ProportionPct, wd.PreviousProgressPct,
+                        wd.CurrentProgressPct, wd.ConstructionWorkItemId);
+                inspection.ComputeAllValues();
+            }
+        }
+        else
+        {
+            inspection = ConstructionInspection.CreateSummary(property.Id, ci.TotalValue,
+                ci.SummaryDetail, ci.SummaryPreviousProgressPct, ci.SummaryPreviousValue,
+                ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.Remark);
+            if (ci.DocumentId.HasValue)
+                inspection.SetDocument(ci.DocumentId.Value, ci.FileName, ci.FilePath, ci.FileExtension, ci.MimeType, ci.FileSizeBytes);
+        }
+
+        property.SetConstructionInspection(inspection);
     }
 }
