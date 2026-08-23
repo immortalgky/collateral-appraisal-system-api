@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.Shared;
+using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
 using Request.Contracts.Requests.Dtos;
 
 namespace Appraisal.Application.Features.Appraisals.CreateLeaseAgreementCondoProperty;
@@ -55,7 +56,7 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
             command.RoomNumber,
             command.FloorNumber,
             command.UsableArea,
-            command.ConstructionCompletionPercent,
+            command.IsUnderConstruction,
             null,
             "DEED",
             coordinates,
@@ -172,6 +173,10 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
             RentalScheduleComputer.ComputeAndSave(rentalInfo, command.RentalInfo.ScheduleOverrides);
         }
 
+        // Add construction inspection if provided and building is under construction
+        if (command.ConstructionInspection is { } ci && command.IsUnderConstruction != false)
+            SetConstructionInspection(property, ci);
+
         // 8. Save aggregate
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -179,5 +184,33 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
             appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);
 
         return new CreateLeaseAgreementCondoPropertyResult(property.Id, property.CondoDetail.Id);
+    }
+    private static void SetConstructionInspection(
+        AppraisalProperty property,
+        ConstructionInspectionData ci)
+    {
+        ConstructionInspection inspection;
+        if (ci.IsFullDetail)
+        {
+            inspection = ConstructionInspection.CreateFullDetail(property.Id, ci.TotalValue);
+            if (ci.WorkDetails is { Count: > 0 })
+            {
+                foreach (var wd in ci.WorkDetails)
+                    inspection.AddWorkDetail(wd.ConstructionWorkGroupId, wd.WorkItemName,
+                        wd.DisplayOrder, wd.ProportionPct, wd.PreviousProgressPct,
+                        wd.CurrentProgressPct, wd.ConstructionWorkItemId);
+                inspection.ComputeAllValues();
+            }
+        }
+        else
+        {
+            inspection = ConstructionInspection.CreateSummary(property.Id, ci.TotalValue,
+                ci.SummaryDetail, ci.SummaryPreviousProgressPct, ci.SummaryPreviousValue,
+                ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.Remark);
+            if (ci.DocumentId.HasValue)
+                inspection.SetDocument(ci.DocumentId.Value, ci.FileName, ci.FilePath, ci.FileExtension, ci.MimeType, ci.FileSizeBytes);
+        }
+
+        property.SetConstructionInspection(inspection);
     }
 }

@@ -216,6 +216,12 @@ public class AppraisalDbContext : DbContext
     public DbSet<Domain.Appraisals.AssetSummary> AssetSummaries => Set<Domain.Appraisals.AssetSummary>();
     public DbSet<Domain.Appraisals.AssetSummaryGroup> AssetSummaryGroups => Set<Domain.Appraisals.AssetSummaryGroup>();
 
+    // =====================================================
+    // Admin Data Correction — audit trail (append-only)
+    // =====================================================
+    public DbSet<Domain.Appraisals.AppraisalPropertyCorrectionLog> AppraisalPropertyCorrectionLogs =>
+        Set<Domain.Appraisals.AppraisalPropertyCorrectionLog>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Set default schema

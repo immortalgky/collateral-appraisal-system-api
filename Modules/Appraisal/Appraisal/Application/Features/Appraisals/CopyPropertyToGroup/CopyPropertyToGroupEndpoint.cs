@@ -34,6 +34,7 @@ public class CopyPropertyToGroupEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Copy a property to a group")
             .WithDescription("Deep-copies an existing property and adds it to a target group.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

@@ -32,6 +32,7 @@ public class UpdateVesselPropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update vessel property detail")
             .WithDescription("Update the detail of a vessel property.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

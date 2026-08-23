@@ -38,6 +38,7 @@ public class UpdatePropertyGroupEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update property group")
             .WithDescription("Update an existing property group.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal");
     }
 }

@@ -31,6 +31,7 @@ public class UpdateLeaseAgreementBuildingPropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update lease agreement building property detail")
             .WithDescription("Update the detail of a lease agreement building property.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

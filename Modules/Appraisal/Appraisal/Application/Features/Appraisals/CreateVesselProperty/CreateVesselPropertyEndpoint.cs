@@ -36,6 +36,7 @@ public class CreateVesselPropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Create a vessel property")
             .WithDescription("Creates a new vessel property with its appraisal detail for an appraisal.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

@@ -36,6 +36,7 @@ public class CreateMachineryPropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Create a machinery property")
             .WithDescription("Creates a new machinery property with its appraisal detail for an appraisal.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

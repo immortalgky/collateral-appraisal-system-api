@@ -31,6 +31,7 @@ public class DeletePropertyGroupEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Delete property group")
             .WithDescription("Delete a property group from an appraisal.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal");
     }
 }

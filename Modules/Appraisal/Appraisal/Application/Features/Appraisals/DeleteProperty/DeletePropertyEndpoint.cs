@@ -10,6 +10,7 @@ public class DeletePropertyEndpoint : ICarterModule
                     var command = new DeletePropertyCommand(appraisalId, propertyId);
                     var result = await sender.Send(command, cancellationToken);
                     return Results.Ok(result.IsSuccess);
-                });
+                })
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>();
     }
 }

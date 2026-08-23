@@ -36,6 +36,7 @@ public class CreatePropertyGroupEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Create property group")
             .WithDescription("Create a new property group within an appraisal.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal");
     }
 }

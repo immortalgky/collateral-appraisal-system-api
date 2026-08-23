@@ -36,6 +36,7 @@ public class CreateLeaseAgreementLandPropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Create a lease agreement land property")
             .WithDescription("Creates a new lease agreement land property with land detail, lease agreement, and rental info.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

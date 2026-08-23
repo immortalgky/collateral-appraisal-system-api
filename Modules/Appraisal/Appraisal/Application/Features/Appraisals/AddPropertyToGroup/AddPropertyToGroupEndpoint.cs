@@ -37,6 +37,7 @@ public class AddPropertyToGroupEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Add property to group")
             .WithDescription("Add a property to a property group.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal");
     }
 }

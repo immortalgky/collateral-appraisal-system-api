@@ -32,6 +32,7 @@ public class SaveCondoPMAPropertyDraftEndpoint : ICarterModule
             .WithSummary("Save condo pma property draft")
             .WithDescription(
                 "Persist a draft of the condo pma property detail (stamps ExternalSyncStatus=Pending) without triggering the LOS webhook.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }
