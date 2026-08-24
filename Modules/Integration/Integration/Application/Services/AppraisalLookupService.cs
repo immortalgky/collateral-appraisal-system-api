@@ -124,7 +124,9 @@ public class AppraisalLookupService(
         ORDER BY lt.Id;  -- deterministic "first" title; matches the GET's Titles[0] (clustered PK / NEWSEQUENTIALID order)
 
         SELECT
-            BuiltOnTitleNumber, CondoRegistrationNumber, RoomNumber, FloorNumber, BuildingNumber, CondoName,
+            -- Condo deed number moved to TitleNumber; BuiltOnTitleNumber is the pre-rename fallback.
+            COALESCE(NULLIF(LTRIM(RTRIM(TitleNumber)), ''), BuiltOnTitleNumber) AS BuiltOnTitleNumber,
+            CondoRegistrationNumber, RoomNumber, FloorNumber, BuildingNumber, CondoName,
             SubDistrict, District, Province
         FROM appraisal.CondoAppraisalDetails
         WHERE AppraisalPropertyId = @PropertyId;

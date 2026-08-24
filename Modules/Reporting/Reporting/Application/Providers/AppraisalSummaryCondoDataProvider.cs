@@ -53,7 +53,8 @@ public sealed class AppraisalSummaryCondoDataProvider(
                 cad.NumberOfFloors,
                 cad.CondoName,
                 cad.BuildingNumber,
-                cad.BuiltOnTitleNumber,
+                -- Condo deed number moved to cad.TitleNumber; BuiltOnTitleNumber is the pre-rename fallback.
+                COALESCE(NULLIF(LTRIM(RTRIM(cad.TitleNumber)), ''), cad.BuiltOnTitleNumber) AS BuiltOnTitleNumber,
                 cad.CondoRegistrationNumber,
                 cad.UsableArea,
                 cad.BuildingConditionType,
@@ -139,7 +140,8 @@ public sealed class AppraisalSummaryCondoDataProvider(
                 cad.NumberOfFloors,
                 cad.CondoName,
                 cad.BuildingNumber,
-                cad.BuiltOnTitleNumber,
+                -- Condo deed number moved to cad.TitleNumber; BuiltOnTitleNumber is the pre-rename fallback.
+                COALESCE(NULLIF(LTRIM(RTRIM(cad.TitleNumber)), ''), cad.BuiltOnTitleNumber) AS BuiltOnTitleNumber,
                 cad.CondoRegistrationNumber,
                 cad.UsableArea,
                 cad.BuildingAge,
