@@ -29,10 +29,18 @@ public class SetSystemCalcCommandHandler(
                 method.SetAsUnselected();
                 method.ClearValue();
                 method.SetUseSystemCalc(command.UseSystemCalc);
+                method.FinalValue?.ExcludeLandArea();
             }
         }
 
         pricingAnalysis.ClearFinalValues();
+
+        // Manual-evidence documents only exist to support a manual value — the loop above just
+        // forced every method back to system calc in lockstep, so "switched to System" and "no
+        // method is manual anymore" are the same instant here (unlike the per-method toggle in
+        // UpdateMethodCommandHandler, which has to check the other methods too).
+        if (command.UseSystemCalc)
+            pricingAnalysis.ClearDocuments();
 
         return new SetSystemCalcResult(
             pricingAnalysis.Id,
