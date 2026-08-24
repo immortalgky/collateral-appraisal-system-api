@@ -161,7 +161,6 @@ internal static class GetAppraisalResultSql
                                                    -- Building fields
                                                    bad.HouseNumber AS HouseNo, bad.BuildingType,
                                                    bad.BuildingAge, bad.NumberOfFloors AS TotalFloor,
-                                                   bad.ConstructionCompletionPercent AS ConstructionPct,
                                                    -- Condo fields
                                                    cad.RoomNumber AS RoomNo, cad.FloorNumber AS FloorNo,
                                                    cad.BuildingNumber AS BuildingNo, cad.BuildingAge AS CondoBuildingAge,
@@ -394,7 +393,6 @@ internal sealed record CollateralRow(
     string? BuildingType,
     int? BuildingAge,
     decimal? TotalFloor,
-    decimal? ConstructionPct,
     string? RoomNo,
     string? FloorNo,
     string? BuildingNo,
@@ -561,7 +559,6 @@ internal static class AppraisalResultBuilder
                         r.BuildingType,
                         r.BuildingAge ?? r.CondoBuildingAge,
                         r.TotalFloor ?? r.CondoTotalFloor,
-                        r.ConstructionPct,
                         r.RoomNo,
                         r.FloorNo,
                         r.BuildingNo,
@@ -747,7 +744,6 @@ internal static class AppraisalResultBuilder
             BuildingType: null,
             BuildingAge: null,
             TotalFloor: isCondo ? null : unit.NumberOfFloors,
-            ConstructionPct: null,
             RoomNo: isCondo ? unit.RoomNumber : null,
             FloorNo: isCondo ? unit.Floor?.ToString(CultureInfo.InvariantCulture) : null,
             BuildingNo: isCondo ? unit.TowerName : null,

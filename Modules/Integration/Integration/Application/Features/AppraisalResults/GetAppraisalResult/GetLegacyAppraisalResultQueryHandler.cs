@@ -3,6 +3,7 @@ using System.Globalization;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Projects;
 using Dapper;
+using Microsoft.Extensions.Logging;
 using Shared.CQRS;
 using Shared.Data;
 
@@ -12,7 +13,8 @@ namespace Integration.Application.Features.AppraisalResults.GetAppraisalResult;
 // ApplicationNo (= AppraisalNumber) + Filter1/Filter2. Any miss (not found / no matching collateral /
 // error) returns ResultCode = 0 with an empty ResultValue rather than throwing.
 public class GetLegacyAppraisalResultQueryHandler(
-    ISqlConnectionFactory connectionFactory
+    ISqlConnectionFactory connectionFactory,
+    ILogger<GetLegacyAppraisalResultQueryHandler> logger
 ) : IQueryHandler<GetLegacyAppraisalResultQuery, LegacyAppraisalResultEnvelope>
 {
     private const int Success = 1;
@@ -102,9 +104,15 @@ public class GetLegacyAppraisalResultQueryHandler(
 
             return new LegacyAppraisalResultEnvelope(Success, result);
         }
-        catch
+        catch (Exception ex)
         {
             // Legacy contract: never surface a 500 — any failure is an empty ResultCode = 0 result.
+            // Log it though: without this, a broken query is indistinguishable from a genuine miss,
+            // which is exactly how a dropped column went unnoticed through a release.
+            logger.LogError(ex,
+                "Legacy appraisal result lookup failed for ApplicationNo {ApplicationNo} " +
+                "(Filter1 {Filter1}, Filter2 {Filter2}); returning ResultCode 0",
+                query.ApplicationNo, query.Filter1, query.Filter2);
             return Empty();
         }
     }
