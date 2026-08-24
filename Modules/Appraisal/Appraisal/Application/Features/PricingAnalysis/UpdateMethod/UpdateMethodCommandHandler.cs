@@ -49,6 +49,20 @@ public class UpdateMethodCommandHandler(
         {
             method.SetUseSystemCalc(command.UseSystemCalc.Value);
             method.SetAsUnselected();
+            method.ClearValue();
+            method.FinalValue?.ExcludeLandArea();
+
+            // Manual-evidence documents are only required while something is manual. Unlike the
+            // analysis-wide toggle (SetSystemCalcCommandHandler), flipping one method to system
+            // doesn't tell you whether a sibling method is still manual — so only clear once this
+            // was the last one: the analysis itself is already System mode, and every method
+            // (including this one, already updated above) is now on system calc too.
+            if (command.UseSystemCalc.Value
+                && pricingAnalysis.UseSystemCalc
+                && pricingAnalysis.Approaches.SelectMany(a => a.Methods).All(m => m.UseSystemCalc))
+            {
+                pricingAnalysis.ClearDocuments();
+            }
         }
 
         // Propagate selected method's MethodValue → ApproachValue → FinalAppraisedValue

@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.PricingAnalysis.GetPricingAnalysisDocuments;
+using Appraisal.Application.Services;
 
 namespace Appraisal.Application.Features.PricingAnalysis.GetPricingAnalysis;
 
@@ -6,7 +7,8 @@ namespace Appraisal.Application.Features.PricingAnalysis.GetPricingAnalysis;
 /// Handler for getting a pricing analysis by ID
 /// </summary>
 public class GetPricingAnalysisQueryHandler(
-    IPricingAnalysisRepository pricingAnalysisRepository
+    IPricingAnalysisRepository pricingAnalysisRepository,
+    PricingPropertyDataService propertyDataService
 ) : IQueryHandler<GetPricingAnalysisQuery, GetPricingAnalysisResult>
 {
     public async Task<GetPricingAnalysisResult> Handle(
@@ -18,6 +20,15 @@ public class GetPricingAnalysisQueryHandler(
                                   cancellationToken)
                               ?? throw new InvalidOperationException($"Pricing analysis {query.Id} not found");
 
+        // Building value depends only on the analysis's anchor properties, not on any individual
+        // method — computed once and applied to every method DTO (cheap; the frontend already
+        // knows which method types to render it against).
+        decimal buildingValue = 0m;
+        if (pricingAnalysis.SubjectType == PricingAnalysisSubjectType.PropertyGroup
+            && pricingAnalysis.AnchorId.HasValue)
+            buildingValue = await propertyDataService.GetTotalBuildingValueAsync(
+                pricingAnalysis.AnchorId.Value, cancellationToken);
+
         var approaches = pricingAnalysis.Approaches.Select(a => new ApproachDto(
             a.Id,
             a.ApproachType,
@@ -28,7 +39,9 @@ public class GetPricingAnalysisQueryHandler(
                 m.MethodValue,
                 m.IsSelected,
                 m.UseSystemCalc,
-                m.ComparativeAnalysisTemplateId
+                m.ComparativeAnalysisTemplateId,
+                m.FinalValue?.LandValue,
+                buildingValue
             )).ToList()
         )).ToList();
 
@@ -70,5 +83,7 @@ public record MethodDto(
     decimal? MethodValue,
     bool IsSelected,
     bool UseSystemCalc,
-    Guid? ComparativeAnalysisTemplateId
+    Guid? ComparativeAnalysisTemplateId,
+    decimal? LandValue,
+    decimal BuildingValue
 );

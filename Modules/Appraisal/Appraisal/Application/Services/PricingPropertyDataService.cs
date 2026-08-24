@@ -64,6 +64,35 @@ public class PricingPropertyDataService(
     }
 
     /// <summary>
+    /// Returns the sum of building value (<c>PriceAfterDepreciation</c>, buildings only) across
+    /// all properties in a property group — same figure <c>CostBuildingPanel.tsx</c> computes
+    /// client-side, and the same "KEEP IN SYNC" pattern used server-side in
+    /// <c>AppraisalValuationSummaryService.cs</c> / <c>BuildingInsuranceCalculator.cs</c>.
+    /// Scoped to standalone Building / LeaseAgreementBuilding properties (PropertyType 'B'/'LSB')
+    /// — deliberately narrower than "has a BuildingDetail" so a combined LandAndBuilding property
+    /// (valued as one unit elsewhere) isn't double-counted here.
+    /// </summary>
+    public async Task<decimal> GetTotalBuildingValueAsync(
+        Guid propertyGroupId, CancellationToken cancellationToken)
+    {
+        using var connection = sqlConnectionFactory.GetOpenConnection();
+
+        var command = new CommandDefinition(
+            @"SELECT ISNULL(SUM(bdd.PriceAfterDepreciation), 0)
+              FROM appraisal.BuildingDepreciationDetails bdd
+              INNER JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
+              INNER JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
+              INNER JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = ap.Id
+              WHERE pgi.PropertyGroupId = @PropertyGroupId
+                AND bdd.IsBuilding = 1
+                AND ap.PropertyType IN ('B', 'LSB')",
+            new { PropertyGroupId = propertyGroupId },
+            cancellationToken: cancellationToken);
+
+        return await connection.QueryFirstOrDefaultAsync<decimal>(command);
+    }
+
+    /// <summary>
     /// Fetches rental schedule, land area, and appointment date for a property group.
     /// </summary>
     public async Task<PropertyGroupData> GetPropertyDataAsync(
