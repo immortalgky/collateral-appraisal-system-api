@@ -187,7 +187,8 @@ internal static class GetAppraisalResultSql
                                                    cad.DecorationType      AS CondoDecorationType,
                                                    cad.CondoRegistrationNumber AS CondoRegistrationNumber,
                                                    cad.CondoName           AS CondoName,
-                                                   cad.BuiltOnTitleNumber  AS CondoBuiltOnTitleNo,
+                                                   -- Condo deed number moved to cad.TitleNumber; BuiltOnTitleNumber is the pre-rename fallback.
+                                                   COALESCE(NULLIF(LTRIM(RTRIM(cad.TitleNumber)), ''), cad.BuiltOnTitleNumber) AS CondoBuiltOnTitleNo,
                                                    lad.Village             AS Village,
                                                    bad.TotalBuildingArea   AS TotalBuildingArea,
                                                    -- LandOffice code resolved to its Thai description (legacy variant only)

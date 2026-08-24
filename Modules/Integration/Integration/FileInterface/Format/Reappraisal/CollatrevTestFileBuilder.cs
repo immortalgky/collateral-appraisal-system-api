@@ -173,7 +173,8 @@ public sealed class CollatrevTestFileBuilder(
                            cd.PropertyName,
                            cd.OwnerName,
                            cd.Province, cd.District, cd.SubDistrict, cd.Street, cd.Soi,
-                           cd.BuiltOnTitleNumber AS TitleNumber
+                           -- Condo deed number moved to cd.TitleNumber; BuiltOnTitleNumber is the pre-rename fallback.
+                           COALESCE(NULLIF(LTRIM(RTRIM(cd.TitleNumber)), ''), cd.BuiltOnTitleNumber) AS TitleNumber
                     FROM appraisal.AppraisalProperties ap
                     JOIN appraisal.CondoAppraisalDetails cd ON cd.AppraisalPropertyId = ap.Id
                     WHERE ap.AppraisalId = a.Id
