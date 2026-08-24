@@ -99,16 +99,18 @@ public sealed class RegulatoryExcelWriter
         // RegulatoryFileWriter's AppraisalValueOrigination. The .xlsx is the copy people actually open,
         // so a divergence here is invisible in the .txt and gets reported as "the fix did not deploy" —
         // which is exactly what happened when #8/#12/#13 moved to the first appraisal and only the
-        // fixed-width writer was updated.
+        // fixed-width writer was updated. Whenever one writer's field moves, move the other's in the
+        // same commit.
         Money(ws.Cell(r, c++), row.CurrentValue ?? row.LatestAppraisalValue);
         Money(ws.Cell(r, c++), row.EarliestAppraisalValue);
         Number(ws.Cell(r, c++), row.NumberOfFloors);
         Number(ws.Cell(r, c++), row.BuildingAge);
         Money(ws.Cell(r, c++), row.SellingPrice);   // Market Selling Price (RequestDetails.TotalSellingPrice)
-        // Fields #12 and #13 — the FIRST appraisal's date and price, as a matching pair, same as
-        // RegulatoryFileWriter. The latest appraisal is still reported in the two columns at the end.
-        Date(ws.Cell(r, c++), row.EarliestAppraisalDate);
-        Money(ws.Cell(r, c++), row.EarliestAppraisalValue);
+        // Fields #12 and #13 — the LATEST appraisal's date and price, as a matching pair, same as
+        // RegulatoryFileWriter (reversed 2026-08-24; see the long note there). Only #8 above stays at
+        // origination. Both ends of the history are still reported in the two columns at the end.
+        Date(ws.Cell(r, c++), row.LatestAppraisalDate);
+        Money(ws.Cell(r, c++), row.LatestAppraisalValue);
         c++; // Mortgage Value — not yet sourced
         ws.Cell(r, c++).Value = row.LatestAppraisalCompanyId.HasValue ? "External (1)" : "Internal (2)";
         c++; // Registration Flag — not yet sourced
