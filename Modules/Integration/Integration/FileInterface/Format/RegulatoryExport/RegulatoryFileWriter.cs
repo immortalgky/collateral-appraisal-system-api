@@ -139,20 +139,24 @@ public sealed class RegulatoryFileWriter
             ["NumberOfFloors"]             = SmallInt(row.NumberOfFloors, 999),
             ["BuildingAge"]                = SmallInt(row.BuildingAge, 999),
             ["MarketSellingPrice"]         = Money(row.SellingPrice),
-            // Fields #12 and #13 — the FIRST appraisal's date and price, as a matching pair.
+            // Fields #12 and #13 — the LATEST appraisal's date and price, as a matching pair.
             //
-            // The bank's own 2026-08-02 file settles this. On the 1,631 collateral whose first and
-            // latest appraisals differ — the only rows where the two can be told apart — its
-            // Valuation Date is the first appraisal's on 796 and the latest's on 355, and its Date and
-            // Price ALWAYS come from the same appraisal: 792 rows pair first-date with first-price,
-            // 355 pair latest with latest, and not one row mixes them. Confirmed with the business
-            // 2026-08-20.
+            // ⚠ Reversed on 2026-08-24 at the business's request. These two briefly carried the FIRST
+            // appraisal (2026-08-20 restatement) alongside field #8; the business has since split them
+            // back apart. Only #8 stays at origination now — #12/#13 report the most recent valuation,
+            // which is also what they held before 2026-08-20. If this flips again, these two lines are
+            // the whole change.
             //
-            // This does make #13 carry the same figure as #8. That is expected: the file is about the
-            // collateral as first taken on, and the bank reads today's value out of AS400 itself by
-            // collateral id. The latest appraisal is still reported, in LatestValuationDate below.
-            ["ValuationDate"]              = Date(row.EarliestAppraisalDate),
-            ["ValuationPrice"]             = Money(row.EarliestAppraisalValue),
+            // Whichever end of the history they read, Date and Price must come from the SAME
+            // appraisal. The bank's own 2026-08-02 file never mixes them: on the 1,631 collateral
+            // whose first and latest appraisals differ, 792 rows pair first-date with first-price and
+            // 355 pair latest with latest, and not one row mixes the two. Keep these two lines
+            // together.
+            //
+            // Both ends are reported unconditionally regardless, in FirstValuationDate /
+            // LatestValuationDate at the end of the record.
+            ["ValuationDate"]              = Date(row.LatestAppraisalDate),
+            ["ValuationPrice"]             = Money(row.LatestAppraisalValue),
             ["MortgageValue"]              = null,
             ["AppraiserType"]              = appraiserType,
             ["CollateralRegistrationFlag"] = null,

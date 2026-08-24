@@ -150,24 +150,37 @@ public class RegulatoryFileWriterTests
     }
 
     [Fact]
-    public void Fields8And13_BothCarryTheEarliestValue()
+    public void Field8_IsOrigination_While_Field13_IsTheLatestValue()
     {
-        // #8 (origination) and #13 (valuation price) deliberately carry the SAME figure: the file
-        // describes the collateral as first taken on. The bank's own file pairs its Valuation Date and
-        // Valuation Price from one appraisal and never mixes them, and on the rows where first and
-        // latest differ that appraisal is the first one 792 times to 355.
+        // The two read opposite ends of the history and must not be collapsed into one figure:
+        // #8 (origination) is the FIRST appraisal, #13 (valuation price) the LATEST. They were briefly
+        // both the first — reversed 2026-08-24 — so this pins them apart on purpose.
         var line = new RegulatoryFileWriter().BuildDetail(SampleRow());
 
-        // ValuationPrice is field #13 at 106-120 → index 105..120.
+        // AppraisalValueOrigination is field #8 at 62-76 → index 61..76; earliest 1,000,000 ×100.
         Assert.Equal("100000000".PadLeft(15, '0'), line[61..76]);
-        Assert.Equal("100000000".PadLeft(15, '0'), line[105..120]);
+        // ValuationPrice is field #13 at 106-120 → index 105..120; latest 2,000,000 ×100.
+        Assert.Equal("200000000".PadLeft(15, '0'), line[105..120]);
     }
 
     [Fact]
-    public void LatestAppraisal_IsStillReported_InItsOwnField()
+    public void Fields12And13_ComeFromTheSameAppraisal()
     {
-        // Moving #12/#13 to the first appraisal must not lose the latest one: it has its own field at
-        // the end of the record (LatestValuationDate, the last 8 chars).
+        // Date and Price are a matching pair whichever end they read — the bank's own file never mixes
+        // a first-appraisal date with a latest-appraisal price. Both must be the latest here.
+        var line = new RegulatoryFileWriter().BuildDetail(SampleRow());
+
+        Assert.Equal("20250121", line[97..105]);                            // #12 ValuationDate
+        Assert.Equal("200000000".PadLeft(15, '0'), line[105..120]);         // #13 ValuationPrice
+        Assert.Equal(line[97..105], line[292..300]);                        // == LatestValuationDate
+        Assert.NotEqual(line[284..292], line[97..105]);                     // != FirstValuationDate
+    }
+
+    [Fact]
+    public void BothEndsOfTheHistory_AreStillReported_InTheirOwnFields()
+    {
+        // Whichever appraisal #12/#13 point at, first and latest each keep a dedicated field at the end
+        // of the record, so neither is ever lost.
         var line = new RegulatoryFileWriter().BuildDetail(SampleRow());
 
         Assert.Equal("20200121", line[284..292]);   // FirstValuationDate
@@ -300,9 +313,9 @@ public class RegulatoryFileWriterTests
     {
         var line = new RegulatoryFileWriter().BuildDetail(SampleRow());
 
-        // pos 98-105 (index 97..105), 8-char date, YYYYMMDD. The value is the EARLIEST appraisal
-        // (SampleRow: 2020-01-21), not the latest (2025-01-21) — see the field 8/13 tests for why.
-        Assert.Equal("20200121", line[97..105]);
+        // pos 98-105 (index 97..105), 8-char date, YYYYMMDD. The value is the LATEST appraisal
+        // (SampleRow: 2025-01-21), not the earliest (2020-01-21) — see the field 12/13 tests for why.
+        Assert.Equal("20250121", line[97..105]);
     }
 
     [Fact]
