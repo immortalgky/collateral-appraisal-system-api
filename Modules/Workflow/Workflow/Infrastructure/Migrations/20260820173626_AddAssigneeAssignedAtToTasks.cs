@@ -38,11 +38,17 @@ namespace Workflow.Infrastructure.Migrations
                 type: "datetime2",
                 nullable: true);
 
+            // EXEC-wrapped, and it MUST stay that way. `dotnet ef migrations script --idempotent` —
+            // what the DBA deploys — emits no GO between operations and wraps each one in
+            // `IF NOT EXISTS (…__EFMigrationsHistory…) BEGIN … END`. A column added inside a
+            // conditional block is invisible to the batch compiler, so a bare UPDATE naming it fails
+            // the WHOLE batch with "Invalid column name" before a single statement runs. EXEC defers
+            // compilation to execution time, which is the same trick EF uses for its own DDL there.
             migrationBuilder.Sql(
-                "UPDATE workflow.PendingTasks SET AssigneeAssignedAt = AssignedAt WHERE AssigneeAssignedAt IS NULL;");
+                "EXEC(N'UPDATE workflow.PendingTasks SET AssigneeAssignedAt = AssignedAt WHERE AssigneeAssignedAt IS NULL;');");
 
             migrationBuilder.Sql(
-                "UPDATE workflow.CompletedTasks SET AssigneeAssignedAt = AssignedAt WHERE AssigneeAssignedAt IS NULL;");
+                "EXEC(N'UPDATE workflow.CompletedTasks SET AssigneeAssignedAt = AssignedAt WHERE AssigneeAssignedAt IS NULL;');");
 
             migrationBuilder.AlterColumn<DateTime>(
                 name: "AssigneeAssignedAt",
