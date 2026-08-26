@@ -64,7 +64,7 @@ public record CreateLeaseAgreementCondoPropertyCommand(
     string? DecorationTypeOther = null,
     int? BuildingAge = null,
     int? ConstructionYear = null,
-    int? NumberOfFloors = null,
+    decimal? NumberOfFloors = null,
     string? BuildingFormType = null,
     string? ConstructionMaterialType = null,
     // Layout & Materials
