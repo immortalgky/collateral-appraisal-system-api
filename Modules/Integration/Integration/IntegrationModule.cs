@@ -78,6 +78,10 @@ public static class IntegrationModule
         // DB-driven file interface config provider (60s TTL cache).
         services.AddScoped<IFileInterfaceConfigProvider, FileInterfaceConfigProvider>();
 
+        // Decides which inbound files still need work and records the outcome. Shared by both AS400
+        // ingest jobs so the de-duplication rule cannot drift between them.
+        services.AddScoped<InboundFileLedger>();
+
         // Format utilities (moved from Collateral).
         services.AddSingleton<CollatrevFileParser>();
         services.AddSingleton<CollatrevFileWriter>();

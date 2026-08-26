@@ -85,21 +85,46 @@ public class HostCollateralLink
 
     public DateTime UpdatedAt { get; private set; }
 
+    /// <summary>
+    /// Date of the most recent COLLATLINK file that still listed this collateral.
+    ///
+    /// The feed is a full monthly replace, so this doubles as the active flag: a row whose value is
+    /// behind the latest ingested file is collateral AS400 no longer reports, and every reader must
+    /// filter it out. Keeping the row instead of deleting it means a partial file can be undone, and
+    /// it stays visible which round a collateral dropped out.
+    ///
+    /// It is also the ordering guard — <see cref="Apply"/> refuses values from a file older than the
+    /// one already recorded.
+    /// </summary>
+    public DateOnly LastSeenFileDate { get; private set; }
+
     private HostCollateralLink() { }
 
-    public HostCollateralLink(string hostCollateralId, HostCollateralLinkValues values, DateTime updatedAt)
+    public HostCollateralLink(
+        string hostCollateralId, HostCollateralLinkValues values, DateOnly fileDate, DateTime updatedAt)
     {
         Id = Guid.CreateVersion7();
         HostCollateralId = hostCollateralId;
-        Apply(values, updatedAt);
+        Apply(values, fileDate, updatedAt);
     }
 
     /// <summary>
-    /// Overwrites with the latest feed values. Deliberately unconditional: the feed is the authority
-    /// on this state, and a drawdown after a redemption must clear the flag rather than merge with it.
+    /// Overwrites with the feed's values and records which file they came from.
+    ///
+    /// Within one file the overwrite is unconditional: the feed is the authority on this state, and a
+    /// drawdown after a redemption must clear the flag rather than merge with it. Across files it is
+    /// not — an older file must never overwrite a newer one, which is why callers check
+    /// <see cref="IsStale"/> first and why this method refuses outright.
     /// </summary>
-    public void Apply(HostCollateralLinkValues values, DateTime updatedAt)
+    public void Apply(HostCollateralLinkValues values, DateOnly fileDate, DateTime updatedAt)
     {
+        if (IsStale(fileDate))
+            throw new InvalidOperationException(
+                $"Refusing to apply COLLATLINK file dated {fileDate:yyyy-MM-dd} to collateral "
+                + $"{HostCollateralId}, which already carries {LastSeenFileDate:yyyy-MM-dd}.");
+
+        LastSeenFileDate = fileDate;
+
         AppraisalNumber  = values.AppraisalNumber;
         CollateralName   = Clean(values.CollateralName);
         Address1         = Clean(values.Address1);
@@ -111,6 +136,19 @@ public class HostCollateralLink
         PropertyTypeDesc = Clean(values.PropertyTypeDesc);
         RecordDate       = values.RecordDate;
         UpdatedAt        = updatedAt;
+    }
+
+    /// <summary>True when this row was last seen by a file NEWER than the one being applied.</summary>
+    public bool IsStale(DateOnly fileDate) => fileDate < LastSeenFileDate;
+
+    /// <summary>
+    /// Marks the row as still present in this round without touching any of its values. Used for rows
+    /// the feed restates identically — they must keep their place in the active set.
+    /// </summary>
+    public void Touch(DateOnly fileDate)
+    {
+        if (!IsStale(fileDate))
+            LastSeenFileDate = fileDate;
     }
 
     /// <summary>

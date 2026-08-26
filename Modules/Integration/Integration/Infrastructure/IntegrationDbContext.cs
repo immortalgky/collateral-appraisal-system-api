@@ -15,6 +15,7 @@ public class IntegrationDbContext(DbContextOptions<IntegrationDbContext> options
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
     public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
     public DbSet<FileInterfaceConfigEntity> FileInterfaceConfigs => Set<FileInterfaceConfigEntity>();
+    public DbSet<InboundFileLog> InboundFileLogs => Set<InboundFileLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -28,7 +28,7 @@ not denote the same thing.
 | | |
 |---|---|
 | File | `AS400_COLLATLINK_YYYYMMDD.txt` |
-| Frequency | Daily at 22:00 — **must precede** `collateral-result-export` at 00:00 |
+| Frequency | **Monthly file, full replace.** The job runs daily (05:00) because delivery time is not guaranteed and a monthly schedule that fired early would skip the file for a whole month. `collateral-result-export` no longer waits for it. |
 | Length | 39 chars (H / D / T) |
 | Spec | `.claude/docs/AS400-COLLAT.xlsx`, sheet "Interface File" |
 | Parser | `HostCollateralLinkFileParser` |
@@ -42,11 +42,16 @@ not denote the same thing.
 | 1 | Record Type | `'D'` |
 | 2–11 | Appraisal Report Number | string(10) — our appraisal number (AS400 calls it CCSURV) |
 | 12–30 | Collateral ID | decimal(19,0) — CCDCID, **the master collateral only** |
-| 31–38 | Date | DDMMYYYY — first drawdown date for `'D'`, redemption date for `'R'` |
+| 31–38 | Date | DDMMYYYY — **the date the file was transmitted, not the event date.** Every row in a file carries the same value (verified across all 32,662 rows of 2026-08-04), so it cannot order events and must never be used to. Ordering across files uses the date in the file name, held on `HostCollateralLinks.LastSeenFileDate`. |
 | 39 | Record Indicator | `'D'` pledged / `'R'` redeemed (the spec marks this Use = Basel) |
 
 **AS400 sends only the master collateral's id**, and resends when its master changes — the `RowHash`
 differs, so the ingestor overwrites automatically.
+
+**The file replaces the whole set.** Rows it stops listing are collateral the bank no longer holds.
+They keep their previous `LastSeenFileDate`, which puts them outside the active set without deleting
+anything, and every reader filters on that column. A file older than the one already applied is
+refused outright rather than rolling the table back.
 
 **Except for block projects, where the grain is the unit** — see "Block projects" below.
 

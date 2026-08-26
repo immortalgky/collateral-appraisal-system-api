@@ -1,29 +1,44 @@
 using Collateral.Contracts.Reappraisal;
+using Hangfire;
 using Integration.Contracts.FileInterface;
 using Integration.Contracts.FileSource;
+using Integration.Contracts.Reappraisal;
 using Integration.FileInterface.Format.Reappraisal;
+using Integration.Infrastructure.FileInterface;
 using Microsoft.Extensions.Logging;
 
 namespace Integration.FileInterface.Jobs.Reappraisal;
 
 /// <summary>
-/// Hangfire recurring job that ingests the monthly AS400 COLLATREV file.
+/// Hangfire recurring job that ingests the AS400 COLLATREV file — the list of appraisals the bank
+/// wants reviewed.
 ///
-/// Algorithm per file:
+/// <b>The file is monthly but the job runs daily.</b> Nothing guarantees it lands at a given hour on
+/// a given day, and a monthly schedule that fires before delivery would leave the file sitting in the
+/// inbox for another month. A run that finds nothing new costs one directory listing.
+///
+/// Per run:
 ///   1. Resolve inbox directory + pattern from <c>integration.FileInterfaceConfigs</c>.
-///   2. List files from IInboundFileSource.
-///   3. Download + parse (UTF-8 fixed-width, 649-char Detail records; H/D/T).
-///   4. Delegate the upsert + lat/lon enrichment to <see cref="IReappraisalIngestor"/>.
-///   5. Archive file via IInboundFileSource.ArchiveAsync.
-///   6. Per-file try/catch so one bad file does not block others.
+///   2. List files, then drop the ones the ledger already recorded as ingested (name + size).
+///   3. Order what is left by the date in the file name, oldest first.
+///   4. Download, hash, and claim through the ledger; parse; hand to the ingestor.
+///   5. Archive only if the interface is configured with a processed directory.
+///   6. Per-file try/catch so one bad file does not block the rest.
 /// </summary>
 public class As400ReappraisalJob(
     IInboundFileSource fileSource,
     CollatrevFileParser parser,
     IReappraisalIngestor ingestor,
     IFileInterfaceConfigProvider configProvider,
+    InboundFileLedger ledger,
     ILogger<As400ReappraisalJob> logger)
 {
+    /// <summary>
+    /// Candidates are keyed by (file date, collateral id, survey number); two runs importing the same
+    /// file at once would race on that unique index. The second run waits, then gives up rather than
+    /// piling on.
+    /// </summary>
+    [DisableConcurrentExecution(timeoutInSeconds: 300)]
     public async Task ExecuteAsync(CancellationToken cancellationToken = default)
     {
         logger.LogInformation("[REAPPRAISAL-AS400] Starting ingestion run");
@@ -31,16 +46,20 @@ public class As400ReappraisalJob(
         var cfg = await configProvider.GetAsync(FileInterfaceCodes.Reappraisal, cancellationToken);
         if (cfg is null || !cfg.IsActive)
         {
-            logger.LogWarning("[REAPPRAISAL-AS400] No active config row for '{Code}'; skipping", FileInterfaceCodes.Reappraisal);
+            logger.LogWarning("[REAPPRAISAL-AS400] No active config row for '{Code}'; skipping",
+                FileInterfaceCodes.Reappraisal);
             return;
         }
 
         var directory = cfg.Directory ?? "./reappraisal/inbox";
         var filePattern = cfg.FilePattern ?? "AS400_COLLATREV_*.txt";
-        var processedDirectory = cfg.ProcessedDirectory ?? "./reappraisal/processed";
-        // Files that can never succeed (bad filename / invalid format) are moved here so they leave the
-        // inbox and are not re-listed and re-failed on every run.
-        var failedDirectory = $"{processedDirectory.TrimEnd('/')}/failed";
+
+        // Null means the drop folder is not ours to reorganise — the production case. The ledger is
+        // what prevents reprocessing; archiving is a local-run convenience.
+        var processedDirectory = cfg.ProcessedDirectory;
+        var failedDirectory = processedDirectory is null
+            ? null
+            : $"{processedDirectory.TrimEnd('/')}/failed";
 
         var files = await fileSource.ListFilesAsync(directory, filePattern, cancellationToken);
 
@@ -50,21 +69,30 @@ public class As400ReappraisalJob(
             return;
         }
 
-        foreach (var file in files)
+        var pending = await ledger.FilterUnprocessedAsync(
+            FileInterfaceCodes.Reappraisal, files, cancellationToken);
+
+        if (pending.Count == 0)
+        {
+            logger.LogInformation("[REAPPRAISAL-AS400] All {Count} file(s) already ingested", files.Count);
+            return;
+        }
+
+        var ordered = pending
+            .Select(f => (File: f, Date: CollatrevFileParser.ParseFilenameDate(f.FileName)))
+            .OrderBy(x => x.Date ?? DateOnly.MaxValue)
+            .ThenBy(x => x.File.FileName, StringComparer.Ordinal)
+            .ToList();
+
+        foreach (var (file, fileDate) in ordered)
         {
             try
             {
-                await IngestFileAsync(file, processedDirectory, failedDirectory, cancellationToken);
-            }
-            catch (FormatException ex)
-            {
-                // Bad data the file will never parse — quarantine so it is not reprocessed forever.
-                logger.LogError(ex, "[REAPPRAISAL-AS400] {File} has invalid format; quarantining", file.FileName);
-                await QuarantineAsync(file, failedDirectory, cancellationToken);
+                await IngestFileAsync(file, fileDate, processedDirectory, failedDirectory, cancellationToken);
             }
             catch (Exception ex)
             {
-                // Likely transient (DB/network) — leave the file in place so the next run retries it.
+                // Nothing recorded as succeeded, so the file stays eligible for the next run.
                 logger.LogError(ex, "[REAPPRAISAL-AS400] Failed to ingest {File}; leaving for retry", file.FileName);
             }
         }
@@ -74,36 +102,91 @@ public class As400ReappraisalJob(
 
     private async Task IngestFileAsync(
         InboundFileInfo file,
-        string processedDirectory,
-        string failedDirectory,
+        DateOnly? fileDate,
+        string? processedDirectory,
+        string? failedDirectory,
         CancellationToken cancellationToken)
     {
         logger.LogInformation("[REAPPRAISAL-AS400] Processing {File}", file.FileName);
 
-        var fileDate = CollatrevFileParser.ParseFilenameDate(file.FileName);
+        var entry = await ledger.BeginAsync(
+            FileInterfaceCodes.Reappraisal, file, fileDate, cancellationToken);
+
         if (fileDate is null)
         {
-            logger.LogWarning("[REAPPRAISAL-AS400] Cannot parse date from filename '{File}'; quarantining", file.FileName);
+            // Candidates are de-duplicated within a source file date; without one there is no scope
+            // to import into.
+            const string reason = "File name does not carry a parsable date.";
+            logger.LogWarning("[REAPPRAISAL-AS400] {File}: {Reason} Quarantining", file.FileName, reason);
+
+            await ledger.MarkQuarantinedAsync(entry, reason, cancellationToken);
             await QuarantineAsync(file, failedDirectory, cancellationToken);
             return;
         }
 
-        await using var stream = await fileSource.OpenReadAsync(file, cancellationToken);
-        var parsed = parser.ParseStream(stream);
+        byte[] content;
+        string hash;
+        await using (var stream = await fileSource.OpenReadAsync(file, cancellationToken))
+        {
+            (content, hash) = await InboundFileLedger.ReadAndHashAsync(stream, cancellationToken);
+        }
+
+        if (!await ledger.TryClaimAsync(entry, hash, cancellationToken))
+        {
+            await ArchiveAsync(file, processedDirectory, cancellationToken);
+            return;
+        }
+
+        ParsedReappraisalFile parsed;
+        try
+        {
+            using var buffer = new MemoryStream(content, writable: false);
+            parsed = parser.ParseStream(buffer);
+        }
+        catch (FormatException ex)
+        {
+            logger.LogError(ex, "[REAPPRAISAL-AS400] {File} has invalid format; quarantining", file.FileName);
+
+            await ledger.MarkQuarantinedAsync(entry, ex.Message, cancellationToken);
+            await QuarantineAsync(file, failedDirectory, cancellationToken);
+            return;
+        }
 
         await ingestor.IngestAsync(file.FileName, fileDate.Value, parsed, cancellationToken);
 
-        await fileSource.ArchiveAsync(file, processedDirectory, cancellationToken);
+        await ledger.MarkSucceededAsync(entry, parsed.Details.Count, 0, 0, cancellationToken);
 
-        logger.LogInformation("[REAPPRAISAL-AS400] Archived {File}", file.FileName);
+        await ArchiveAsync(file, processedDirectory, cancellationToken);
     }
 
     /// <summary>
-    /// Moves a permanently-unprocessable file out of the inbox into the failed directory.
-    /// Swallows move errors (logs them) so one un-movable file cannot break the run.
+    /// Best-effort: the ledger already guarantees the file will not be reprocessed, so a failed move
+    /// is housekeeping noise rather than a correctness problem.
     /// </summary>
-    private async Task QuarantineAsync(InboundFileInfo file, string failedDirectory, CancellationToken cancellationToken)
+    private async Task ArchiveAsync(
+        InboundFileInfo file, string? processedDirectory, CancellationToken cancellationToken)
     {
+        if (processedDirectory is null)
+            return;
+
+        try
+        {
+            await fileSource.ArchiveAsync(file, processedDirectory, cancellationToken);
+            logger.LogInformation("[REAPPRAISAL-AS400] Archived {File}", file.FileName);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "[REAPPRAISAL-AS400] Could not archive {File}; ledger still prevents reprocessing",
+                file.FileName);
+        }
+    }
+
+    private async Task QuarantineAsync(
+        InboundFileInfo file, string? failedDirectory, CancellationToken cancellationToken)
+    {
+        if (failedDirectory is null)
+            return;
+
         try
         {
             await fileSource.ArchiveAsync(file, failedDirectory, cancellationToken);
@@ -111,7 +194,7 @@ public class As400ReappraisalJob(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "[REAPPRAISAL-AS400] Could not quarantine {File}; it may be reprocessed", file.FileName);
+            logger.LogWarning(ex, "[REAPPRAISAL-AS400] Could not move {File} to the failed folder", file.FileName);
         }
     }
 }

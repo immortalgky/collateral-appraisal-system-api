@@ -118,6 +118,11 @@ Src AS (
     -- A blank is different: the row stopped short of pos 172 and AS400 said nothing at all.
     WHERE h.MasterTitle IS NOT NULL
       AND h.IsRedeemed = 0
+      -- Only collateral the newest COLLATLINK file still lists. The feed is a full monthly
+      -- replace, so a row left on an older LastSeenFileDate is collateral AS400 has stopped
+      -- reporting. Those rows are kept rather than deleted — a truncated file would otherwise
+      -- be unrecoverable — which means every reader has to apply this filter itself.
+      AND h.LastSeenFileDate = (SELECT MAX(LastSeenFileDate) FROM collateral.HostCollateralLinks)
 ),
 
 -- The appraisal AS400 named. A collateral whose appraisal number is not in appraisal.Appraisals

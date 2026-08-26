@@ -23,6 +23,7 @@ public class HostCollateralLinkConfiguration : IEntityTypeConfiguration<HostColl
         builder.Property(h => h.IsRedeemed).IsRequired();
         builder.Property(h => h.MasterTitle).HasMaxLength(1);
         builder.Property(h => h.UpdatedAt).IsRequired();
+        builder.Property(h => h.LastSeenFileDate).IsRequired();
 
         // One row per COLLATERAL — the grain AS400 actually sends. This index was previously on
         // AppraisalNumber, which forced the ingest to collapse an appraisal's several collateral into
@@ -38,5 +39,10 @@ public class HostCollateralLinkConfiguration : IEntityTypeConfiguration<HostColl
         // The regulatory export selects on both flags together: held AND a stated master-title flag.
         builder.HasIndex(h => new { h.IsRedeemed, h.MasterTitle })
             .HasDatabaseName("IX_HostCollateralLinks_IsRedeemed_MasterTitle");
+
+        // Every reader filters to the newest file's rows, and the ingestor takes MAX() of this column
+        // before it writes anything.
+        builder.HasIndex(h => h.LastSeenFileDate)
+            .HasDatabaseName("IX_HostCollateralLinks_LastSeenFileDate");
     }
 }

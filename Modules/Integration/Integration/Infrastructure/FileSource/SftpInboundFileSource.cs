@@ -27,8 +27,8 @@ public class SftpInboundFileSource(
                 var files = client
                     .ListDirectory(directory)
                     .Where(f => !f.IsDirectory && MatchesPattern(f.Name, filePattern))
-                    .OrderBy(f => f.Name)
-                    .Select(f => new InboundFileInfo(f.Name, f.FullName))
+                    .OrderBy(f => f.Name, StringComparer.Ordinal)
+                    .Select(f => new InboundFileInfo(f.Name, f.FullName, f.Length, f.LastWriteTime))
                     .ToList();
 
                 logger.LogInformation("[InboundFileSource:Sftp] Found {Count} file(s) in {Dir}",
