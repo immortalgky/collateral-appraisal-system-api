@@ -105,7 +105,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             -- RS01: QCI1 — Construction inspection aggregate (building under construction only).
             -- Current/previous building value: TotalValue x the entered percentage when
             -- IsFullDetail=0, else the aggregated work-detail values — the same derivation as
-            -- IConstructionCurrentValueService and vw_RegulatoryExportV3. SummaryCurrentValue /
+            -- IConstructionCurrentValueService and vw_RegulatoryExport. SummaryCurrentValue /
             -- SummaryPreviousValue are NOT read: the CI screen computes those two figures in a
             -- useMemo for display and never writes them back into the form, so the persisted
             -- columns hold 0 and this report printed a blank building value for every
@@ -332,7 +332,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         // appraised value is the same "worth once finished" figure the depreciation table gives a
         // house, so it stands in as the 100% base and the entered percentages turn it into the
         // previous and current figures — the same substitution IConstructionCurrentValueService and
-        // vw_RegulatoryExportV3 make.
+        // vw_RegulatoryExport make.
         decimal appraisedValue = common.TotalAppraisalValue ?? 0m;
         bool substituteAppraisedValue = (ciRow?.InspectionCount ?? 0) > 0 && ciTotal == 0m && appraisedValue > 0m;
         if (substituteAppraisedValue)

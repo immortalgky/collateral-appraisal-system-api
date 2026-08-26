@@ -5,17 +5,11 @@ namespace Integration.Contracts.FileInterface;
 /// </summary>
 public static class FileInterfaceCodes
 {
+    /// <summary>
+    /// Monthly Basel/RDT snapshot — one row per collateral the bank holds, taken from the AS400 feed.
+    /// </summary>
     public const string Regulatory = "REGULATORY";
 
-    /// <summary>
-    /// Version 2 of the regulatory snapshot, produced from the appraisal chain instead of
-    /// CollateralMaster. Its own config row so the two versions write different file names and can be
-    /// produced side by side for comparison during the changeover.
-    /// </summary>
-    public const string RegulatoryV2 = "REGULATORY_V2";
-
-    /// <summary>Regulatory snapshot v3 — one row per collateral, from the AS400 feed.</summary>
-    public const string RegulatoryV3 = "REGULATORY_V3";
     public const string CollateralResult = "COLLATERAL_RESULT";
     public const string Reappraisal = "REAPPRAISAL";
 

@@ -1,7 +1,13 @@
 namespace Collateral.Contracts.FileInterface;
 
 /// <summary>
-/// Returns one row per active IsMaster collateral master for the monthly regulatory snapshot.
+/// Returns one row per COLLATERAL the bank holds, as the AS400 feed reports it, carrying the date and
+/// value of that collateral's FIRST appraisal.
+///
+/// The row set is given, not derived: <c>collateral.HostCollateralLinks</c> is already one row per
+/// AS400 collateral id with the appraisal number attached, so nothing has to infer which collateral an
+/// appraisal stands for. PrevAppraisalId is still walked, but only to reach the oldest ancestor.
+///
 /// No sent-ledger: every run is a full re-extract.
 /// </summary>
 public interface IRegulatoryExportQuery
@@ -10,8 +16,9 @@ public interface IRegulatoryExportQuery
 }
 
 /// <summary>
-/// One row of the outbound CAS-AS400-Regulatory interface (per active IsMaster collateral master).
-/// Carries typed field values that <c>RegulatoryFileWriter</c> formats into a 300-char Detail record.
+/// One row of the outbound CAS-AS400-Regulatory interface — one per collateral the bank holds.
+/// Carries typed field values that <c>RegulatoryFileWriter</c> formats into a 300-char Detail record
+/// and <c>RegulatoryExcelWriter</c> renders into the companion workbook.
 /// Produced by <c>RegulatoryExportQuery</c> via <c>vw_RegulatoryExport</c>.
 /// </summary>
 public sealed record RegulatoryExportRow(
@@ -24,9 +31,9 @@ public sealed record RegulatoryExportRow(
     decimal? LatestAppraisalValue,
     decimal? EarliestAppraisalValue,
     // Value with part-built buildings counted at their construction progress rather than at 100%,
-    // frozen on the chain tip's engagement by the Appraisal module's IConstructionCurrentValueService.
-    // NULL when that appraisal had no construction inspection — nothing was part-built, so the writer
-    // falls back to LatestAppraisalValue.
+    // computed for the appraisal AS400 named by the same rule as the Appraisal module's
+    // IConstructionCurrentValueService. NULL when that appraisal had no construction inspection —
+    // nothing was part-built, so the writer falls back to LatestAppraisalValue.
     decimal? CurrentValue,
     decimal? SellingPrice,
     int? NumberOfFloors,

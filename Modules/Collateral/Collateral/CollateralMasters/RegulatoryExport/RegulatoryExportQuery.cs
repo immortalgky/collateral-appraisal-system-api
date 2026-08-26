@@ -8,22 +8,25 @@ public class RegulatoryExportQuery(ISqlConnectionFactory connectionFactory) : IR
 {
     public async Task<IReadOnlyList<RegulatoryExportRow>> GetRowsAsync(CancellationToken cancellationToken = default)
     {
-        // Ordering by CollateralMasterId alone is no longer sufficient: the view is one record per
-        // (chain, master), and a master can belong to several chains, so CollateralMasterId repeats.
-        // Without a unique tie-breaker the row order in the file would vary between runs.
+        // OPTION (MAXRECURSION 0) MUST live here — SQL Server does not allow it inside a view, and the
+        // view walks PrevAppraisalId back to each collateral's first appraisal. Without it the default
+        // cap of 100 levels aborts the whole query with Msg 530 and no file is produced at all. The
+        // view carries a Path-based cycle guard, so lifting the cap is safe.
         //
-        // OPTION (MAXRECURSION 0) MUST live here — SQL Server does not allow it inside a view.
-        // Without it the default limit of 100 levels applies, and a construction-inspection chain
-        // longer than 100 aborts the whole query with Msg 530, producing no regulatory file at all.
-        // The view already carries a Path-based cycle guard, so lifting the cap is safe.
+        // HostCollateralId is the sort key, not the appraisal number: the grain here is the collateral,
+        // and one appraisal legitimately covers several of them, so ordering by appraisal number alone
+        // would not be deterministic.
         const string sql = """
             SELECT * FROM collateral.vw_RegulatoryExport
-            ORDER BY CollateralMasterId, LatestAppraisalNumber
+            ORDER BY HostCollateralId
             OPTION (MAXRECURSION 0)
             """;
 
         var connection = connectionFactory.GetOpenConnection();
-        var rows = await connection.QueryAsync<RawRow>(sql);
+        var rows = await connection.QueryAsync<RawRow>(
+            new CommandDefinition(sql, cancellationToken: cancellationToken,
+                // The recursive walk over every completed appraisal takes longer than the 30s default.
+                commandTimeout: 600));
         return rows.Select(Map).ToList();
     }
 
@@ -53,7 +56,6 @@ public class RegulatoryExportQuery(ISqlConnectionFactory connectionFactory) : IR
 
     private sealed class RawRow
     {
-        public Guid CollateralMasterId { get; init; }
         public string CollateralType { get; init; } = null!;
         public string? HostCollateralId { get; init; }
         public string? LatestAppraisalNumber { get; init; }

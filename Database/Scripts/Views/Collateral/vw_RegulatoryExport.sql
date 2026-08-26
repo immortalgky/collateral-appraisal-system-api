@@ -1,452 +1,628 @@
 -- CAS-AS400-Regulatory export view.
--- One record per appraisal application, represented by the LATEST appraisal of its chain.
 --
--- SCOPE (confirmed by the business, 2026-08-14): report EVERYTHING we hold an appraisal for, not
--- only rows AS400 has already returned a collateral id for. An id arrives at drawdown, so gating on
--- it dropped every appraisal that had not reached drawdown yet — and dropped ALL of them wherever
--- the nightly COLLATLINK feed had not been ingested. Field 4 renders a missing id as zeros, which
--- is the agreed representation.
+-- ONE ROW PER COLLATERAL THE BANK HOLDS, carrying the date and value of the FIRST time CAS ever
+-- appraised it.
 --
--- Block projects (PRJ) are the one exclusion — see the WHERE clause at the end of this file.
+-- ── Why the row set comes from AS400, not from us ──────────────────────────────────────────────
+-- Two earlier designs started from an APPRAISAL and tried to work out which collateral it stood for —
+-- one via CollateralMaster, one via the PrevAppraisalId chain. Both were guesses, and both were wrong
+-- in ways that took weeks to characterise: the first lost 6,699 appraisals that never got a master,
+-- the second had to invent branch-point rules to stop unrelated parcels collapsing into one row, and
+-- neither could report a block project's units at all. Both were retired in favour of this view; the
+-- history is kept here because it is the reason the grain is what it is.
 --
--- A chain is the set of appraisals linked by appraisal.Appraisals.PrevAppraisalId, which belongs to
--- a single customer by construction and is therefore the correct unit for this report. The previous
--- grouping by CollateralMasterId mixed several owners' histories into one row: the origination value
--- from a former owner could sit alongside the latest value from the current one.
--- Supplies all typed columns consumed by RegulatoryExportRow / RegulatoryFileWriter (300-char layout).
+-- The AS400 feed answers the question directly. AS400_COLLAT (byte-identical to the COLLATLINK file
+-- we already ingest) is ONE ROW PER COLLATERAL with the appraisal number attached — 32,662 rows,
+-- 32,662 distinct collateral ids, no duplicates. Starting from it removes the guessing entirely:
 --
--- Engagement selection, per (chain, master):
---   Earliest: MIN(AppraisalDate) (tie-break CreatedAt ASC)  → origination values
---   Latest:   MAX(AppraisalDate) (tie-break CreatedAt DESC) → current values, and the record's identity
+--   * no chain-tip selection — AS400 says which collateral exists, we do not choose
+--   * no branch-point rule — two parcels that share an ancestor are simply two rows
+--   * block projects work — the per-unit key the project export was waiting on IS the collateral id
 --
--- Representative building: Sequence=1 CollateralEngagementBuilding on the chain tip's engagement.
---   Used for BuildingTypeCode, BuildingArea, and parameter-table description lookup.
+-- What the report is FOR (confirmed with the business 2026-08-20): for each collateral the bank
+-- holds, the value and date of its FIRST appraisal. The bank looks the CURRENT value up in AS400
+-- itself using the collateral id; it does not want ours.
 --
--- DOPA code: comes from request.RequestDetails.SubDistrict (the request's "Location" section), which
---   is DOPA-mastered. It is a 6-digit geocode, NOT the Thai name, and is matched against
---   parameter.DopaSubDistricts.Code (the PK) so an unknown/legacy value yields blank rather than a
---   truncated string in the 6-char field. Land/LB/LS*/Condo types only.
---   Do NOT switch this to LandDetails/CondoDetails.SubDistrict — those are DEED addresses on the
---   Title master, which no longer matches DOPA. See the field's own comment for the detail.
+-- ── Grain and filters ──────────────────────────────────────────────────────────────────────────
+--   collateral.HostCollateralLinks, one row per AS400 collateral id, filtered to
+--     MasterTitle stated  — 'Y' or 'N', both reported. A BLANK is not: AS400 truncates trailing
+--                           spaces, so 1,516 rows of the 2026-08-03 file stop short of pos 132 and
+--                           state nothing; only 37 of those are still held.
+--     IsRedeemed = 0      — released collateral is not reported.
+--   On the 2026-08-03 feed that is 24,574 of 32,662 rows.
 --
--- Numeric range guards (mirror CollateralResult LifeYear pattern — one bad value must not abort run):
---   ConstructionProgressPercent: out of [0,100]        → NULL (writer formats as 0.00)
---   LandAreaSqWa:                out of [0, 99999.99]  → NULL (dec(7,2) max in the 8-char field 151-158)
---   BuildingArea/UsableArea:     out of [0, 99999.99]  → NULL (dec(7,2) max in the 8-char field 159-166).
---                                For building types the guard applies to the TOTAL across every
---                                building, since two that each fit can still overflow together.
---   The guards are two-sided on purpose. A NEGATIVE area is just as fatal as an oversized one — the
---   writer multiplies by 100 and the minus sign consumes a character, so a single bad row threw
---   "Numeric field overflow: '-1025860' exceeds width 7" and aborted the WHOLE export, producing no
---   file at all (found on U3: appraisal 63A00115 carried LandArea = -10258.60).
---   BuildingAge / NumberOfFloors: handled in C# writer (clamped to [0,999])
+-- ── Walking back to the first appraisal ────────────────────────────────────────────────────────
+-- The appraisal AS400 names is usually, but NOT always, the first one: 91.3% of held master-title
+-- rows are already the head of their chain, and for the rest the first appraisal's value genuinely
+-- differs — 1,093 rows (4.9%) would report the wrong origination value without the walk. So
+-- PrevAppraisalId is still walked, but ONLY to find the oldest ancestor. It never decides which row
+-- exists.
 --
--- Multi-building rule: building area is the SUM and building age the MAX over every row in
---   CollateralEngagementBuildings for the engagement. Building type and floor count still come from
---   the Sequence=1 building — neither combines across buildings. The same rule is applied by the
---   AS400 Collateral Result export (CollateralResultQuery.ToBuildingAge / ToAreaUtilization); keep
---   the two in step.
+-- The walk follows PrevAppraisalId wherever it leads and does NOT stop at a branch point.
 --
--- No JSON/snapshot column reads. GETDATE() only (application-locale time; never GETUTCDATE()).
-
-CREATE OR ALTER VIEW collateral.vw_RegulatoryExport AS
-
+-- The chain-based design had to stop there: the walk DECIDED the grain, so crossing a branch merged
+-- unrelated parcels into one row. Here AS400 fixes the grain, and the walk only prices the collateral
+-- it was seeded from — there is nothing to merge. Stopping instead threw away real history: collateral
+-- 104428 sits on deed 12380, its appraisal 67A00231 continues 66A00583 which values that SAME deed at
+-- 30,000,000, and the only reason the walk halted was a sibling (67A02401) on an unrelated deed
+-- pointing at the same predecessor. PrevAppraisalId is the user's own assertion that one appraisal
+-- follows another; a sibling's existence is not evidence against it.
+--
+-- ── Building type now comes from AS400 ─────────────────────────────────────────────────────────
+-- The feed carries PropertyType (PCO/PSH/PTH/…) AND its Thai description, so the export reports
+-- AS400's own taxonomy instead of CAS's BuildingTypeCode — which is "99 อื่นๆ" for 85-100% of rows in
+-- every bucket and never mapped onto AS400's codes. This closes the long-standing building-type gap
+-- with no code table to request.
+--
+-- OPTION (MAXRECURSION 0) cannot live inside a view — the caller adds it. See RegulatoryExportQuery.
+CREATE OR ALTER VIEW collateral.vw_RegulatoryExport
+AS
 WITH
 
--- ── Walk each engagement's chain back to its root ──────────────────────────────────────
--- The cycle guard is the Path string, NOT a depth limit. Never add a depth cap here: construction
--- inspections (purpose 06/11) easily push a chain past 20 links, and truncation would be silent —
--- the Nth ancestor would be returned as the chain root, sending a wrong value to the regulator.
---
--- Uses appraisal.Appraisals.PrevAppraisalId as the chain link (confirmed by the product owner).
---
--- NOTE: that column is written once at appraisal creation (Appraisal.cs:117) and is not re-synced
--- when the request is edited later. The team's chosen answer is to block editing PrevAppraisalId
--- once an appraisal exists, rather than to sync it. If editing is ever re-enabled, this view and
--- GetPreviousAppraisalChainQueryHandler must both be revisited together.
--- LEFT JOIN, not INNER, because of the AS400 legacy engagements. Collateral the bank has held since
--- before this system existed was valued inside AS400 and never appraised in CAS, so its engagement
--- carries a synthetic AppraisalId with no row in appraisal.Appraisals — deliberately, since minting
--- fake appraisals would surface them on every screen that lists appraisals. An INNER JOIN silently
--- dropped all 2,444 of them from the regulator's file.
---
--- Such an engagement has no PrevAppraisalId, so the recursive half below matches nothing and it
--- becomes the root of its own chain. That is correct: the AS400 valuation is the only one there is,
--- so it supplies both the origination and the current figures.
---
--- ACCEPTED LIMITATION: a collateral that has BOTH an old AS400 valuation and a newer CAS appraisal
--- produces TWO records — the legacy chain and the CAS chain — because nothing links them. 242 of
--- them on the production-like set. The business accepted this to get the legacy collateral reported
--- at all. Collapsing them would mean pointing the CAS chain root's PrevAppraisalId at the legacy
--- appraisal, i.e. rewriting real data.
-ChainWalk AS (
+-- ── The row set: what AS400 says the bank holds ────────────────────────────────────────────────
+Src AS (
     SELECT
-        e.AppraisalId,
-        ISNULL(a.Id, e.AppraisalId) AS AncestorId,
-        a.PrevAppraisalId,
-        0                 AS Depth,
-        CAST('|' + CAST(ISNULL(a.Id, e.AppraisalId) AS varchar(36)) + '|' AS varchar(max)) AS Path
-    FROM collateral.CollateralEngagements e
-    LEFT JOIN appraisal.Appraisals a
-        ON  a.Id = e.AppraisalId
-    -- Keeps the old exclusion of soft-deleted appraisals while admitting the legacy engagements,
-    -- which have no appraisal row at all.
-    WHERE (a.Id IS NOT NULL AND a.IsDeleted = 0)
-       OR  a.Id IS NULL
+        h.HostCollateralId,
+        h.AppraisalNumber,
+        -- AS400 prefixes a block project's appraisal number with 'B'; CAS stores it without. All 107
+        -- prefixed numbers on the 2026-08-03 feed match a CAS appraisal once the letter is removed —
+        -- no exceptions — and the bank's own file carries them unprefixed too (not one of its 63,095
+        -- rows starts with 'B'). Not every block is prefixed, so this normalises rather than detects.
+        CASE WHEN LEFT(h.AppraisalNumber, 1) = 'B'
+             THEN SUBSTRING(h.AppraisalNumber, 2, LEN(h.AppraisalNumber))
+             ELSE h.AppraisalNumber
+        END AS CasAppraisalNumber,
+        -- For a block-project unit AS400 writes the name as "CONDO.<key> <deeds>", where <key>
+        -- identifies the unit. Everything up to the first space is that key; NULL for anything that
+        -- is not a CONDO row. See ProjectUnitValue for what it is matched against.
+        CASE WHEN h.CollateralName LIKE 'CONDO.%' THEN
+            CASE WHEN CHARINDEX(' ', SUBSTRING(h.CollateralName, 7, 200)) > 0
+                 THEN LEFT(SUBSTRING(h.CollateralName, 7, 200),
+                           CHARINDEX(' ', SUBSTRING(h.CollateralName, 7, 200)) - 1)
+                 ELSE SUBSTRING(h.CollateralName, 7, 200)
+            END
+        END AS UnitToken,
+        h.PropertyType,
+        h.PropertyTypeDesc
+    FROM collateral.HostCollateralLinks h
+    -- Both 'Y' and 'N' are reported; only a row where the feed never stated the flag is left out.
+    -- The bank's own file carries collateral flagged 'N' (collateral 59305 appears three times in the
+    -- 2026-08-02 file), so treating 'N' as unreportable dropped 114 collateral the bank does report.
+    -- A blank is different: the row stopped short of pos 132 and AS400 said nothing at all.
+    WHERE h.MasterTitle IS NOT NULL
+      AND h.IsRedeemed = 0
+),
+
+-- The appraisal AS400 named. A collateral whose appraisal number is not in appraisal.Appraisals
+-- drops out here — 1,930 rows on the 2026-08-03 feed. SOURCE 2 below recovers the 1,177 of them that
+-- are the legacy "99" series; the rest (604 block-project 'B' numbers, 146 in a numbering CAS does
+-- not use) are questions for AS400, not something this view can resolve.
+Anchor AS (
+    SELECT s.HostCollateralId, s.PropertyType, s.PropertyTypeDesc,
+           a.Id AS AppraisalId, a.AppraisalNumber, a.AppraisalType, a.RequestId, a.PrevAppraisalId,
+           -- A block-project appraisal holds no AppraisalProperties at all, so PropMix has nothing to
+           -- read and the collateral type would fall through to "bare land". The project's own type is
+           -- the only thing in CAS that says whether its units are condos or houses. It carries the
+           -- same codes the export already uses — 'U' or 'LB', nothing else.
+           pr.ProjectType
+    FROM Src s
+    JOIN appraisal.Appraisals a
+        ON  a.AppraisalNumber = s.CasAppraisalNumber
+        AND a.IsDeleted       = 0
+    LEFT JOIN appraisal.Projects pr ON pr.AppraisalId = a.Id
+),
+
+-- ── Walk each anchor back through its predecessors ─────────────────────────────────────────────
+-- Seeded from the anchors only, not from every appraisal in the database — the row set is fixed by
+-- AS400, so there is nothing to gain from walking the rest.
+--
+-- The cycle guard is the Path CHARINDEX test, NOT a depth limit. A depth predicate would stop the
+-- recursion before MAXRECURSION could fire and silently return the Nth ancestor as if it were the
+-- first.
+Walk AS (
+    SELECT
+        an.AppraisalId,
+        an.AppraisalId      AS AncestorId,
+        an.PrevAppraisalId,
+        0                   AS Depth,
+        CAST('|' + CAST(an.AppraisalId AS varchar(36)) + '|' AS varchar(max)) AS Path
+    FROM Anchor an
 
     UNION ALL
 
     SELECT
-        c.AppraisalId,
+        w.AppraisalId,
         p.Id,
         p.PrevAppraisalId,
-        c.Depth + 1,
-        CAST(c.Path + CAST(p.Id AS varchar(36)) + '|' AS varchar(max))
-    FROM ChainWalk c
+        w.Depth + 1,
+        CAST(w.Path + CAST(p.Id AS varchar(36)) + '|' AS varchar(max))
+    FROM Walk w
     JOIN appraisal.Appraisals p
-        ON  p.Id        = c.PrevAppraisalId
+        ON  p.Id        = w.PrevAppraisalId
         AND p.IsDeleted = 0
-    WHERE CHARINDEX('|' + CAST(p.Id AS varchar(36)) + '|', c.Path) = 0
+    WHERE CHARINDEX('|' + CAST(p.Id AS varchar(36)) + '|', w.Path) = 0
+      -- A block project is not a step in one collateral's history: many unrelated units point at the
+      -- same project, and a project can point back at a unit it absorbed. Dead end both ways.
+      AND NOT EXISTS (SELECT 1 FROM appraisal.Projects pr WHERE pr.AppraisalId = p.Id)
+      AND NOT EXISTS (SELECT 1 FROM appraisal.Projects pr WHERE pr.AppraisalId = w.AncestorId)
 ),
 
--- The deepest ancestor reached is the chain root.
-ChainRoot AS (
+Val AS (
+    SELECT v.AppraisalId, v.ValuationDate, v.AppraisedValue
+    FROM appraisal.ValuationAnalyses v
+),
+
+-- The oldest ancestor that actually has a valuation — that is the origination. Depth breaks ties so
+-- the result cannot change between runs when two rounds share a date.
+Earliest AS (
+    SELECT AppraisalId, AncestorId, ValuationDate, AppraisedValue
+    FROM (
+        SELECT w.AppraisalId, w.AncestorId, v.ValuationDate, v.AppraisedValue,
+               ROW_NUMBER() OVER (PARTITION BY w.AppraisalId
+                                  ORDER BY v.ValuationDate ASC, w.Depth DESC) AS rn
+        FROM Walk w
+        JOIN Val v ON v.AppraisalId = w.AncestorId
+    ) z
+    WHERE rn = 1
+),
+
+-- ── Construction status ────────────────────────────────────────────────────────────────────────
+-- Mirrors IConstructionCurrentValueService.CiAggregateSql exactly, so the screen and this file
+-- cannot disagree. A summary inspection carries its own percentage; a full-detail one is the sum of
+-- its work rows.
+Ci AS (
     SELECT
-        AppraisalId,
-        AncestorId AS RootAppraisalId,
-        ROW_NUMBER() OVER (PARTITION BY AppraisalId ORDER BY Depth DESC) AS rn
-    FROM ChainWalk
+        ap.AppraisalId,
+        ISNULL(SUM(ci.TotalValue), 0) AS TotalValue,
+        ISNULL(SUM(
+            CASE WHEN ci.IsFullDetail = 0
+                 THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
+                 ELSE ISNULL(wd.CurrentSum, 0)
+            END), 0) AS CurrentValue,
+        -- The percentage the inspector entered, read off the mode flag. A condo unit has no building
+        -- depreciation table for the CI screen to total, so its TotalValue is always 0 and the
+        -- value ratio below degenerates — the entered figure is all there is to report.
+        ISNULL(AVG(
+            CASE WHEN ci.IsFullDetail = 0
+                 THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
+                 ELSE ISNULL(wd.CurrentPctSum, 0)
+            END), 0) AS EnteredCurrentPercent
+    FROM appraisal.ConstructionInspections ci
+    JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
+    LEFT JOIN (
+        SELECT ConstructionInspectionId,
+               SUM(CurrentPropertyValue)  AS CurrentSum,
+               SUM(CurrentProportionPct)  AS CurrentPctSum
+        FROM appraisal.ConstructionWorkDetails
+        GROUP BY ConstructionInspectionId
+    ) wd ON wd.ConstructionInspectionId = ci.Id
+    GROUP BY ap.AppraisalId
 ),
 
--- Each engagement paired with its chain root. RootAppraisalId is the grouping key rather than
--- CollateralMasterId alone: a chain is one customer's facility, the correct unit for this report.
-EngagementWithRoot AS (
-    SELECT
-        e.Id                 AS EngagementId,
-        e.CollateralMasterId,
-        e.AppraisalId,
-        e.AppraisalNumber,
-        e.AppraisalType,
-        e.AppraisalDate,
-        e.AppraisalValue,
-        e.AppraisalCompanyId,
-        e.RequestId,
-        e.CreatedAt,
-        e.CurrentValue,
-        e.IsUnderConstruction,
-        e.ConstructionProgressPercent,
-        cr.RootAppraisalId
-    FROM collateral.CollateralEngagements e
-    JOIN ChainRoot cr
-        ON  cr.AppraisalId = e.AppraisalId
-        AND cr.rn          = 1
-),
-
--- IMPORTANT: every CTE below partitions by (RootAppraisalId, CollateralMasterId), not by
--- RootAppraisalId alone.
+-- A condo unit has no building depreciation table, so the CI screen has nothing to total and every
+-- inspection on the appraisal stores TotalValue = 0. That is a different thing from having no
+-- inspection at all, and the two used to collapse into the same "TotalValue = 0 → 100%" arm below.
+-- HasOwnValueBase keeps them apart: with a value base the columns are read from the money, without
+-- one they are read from the percentage the inspector entered.
 --
--- A single chain can span several masters — the customer substitutes collateral mid-facility, or a
--- dedup-key drift lands a reappraisal on a different master. Partitioning by RootAppraisalId alone
--- causes two problems:
---   1. the other masters in that chain vanish from the report even though the bank still holds them
---   2. the origination values are taken from a different master than the row reports on
--- Adding CollateralMasterId guarantees every value in a row describes the same physical collateral.
-
--- The latest appraisal of each (chain, master) represents the record.
-ChainTip AS (
+-- No appraised-value substitution here. The percentage is all this view needs, and CurrentValue is
+-- deliberately left NULL in that case so RegulatoryFileWriter's CurrentValue ?? LatestAppraisalValue
+-- supplies the whole-appraisal figure — mixing the two bases into one field would make it mean
+-- different things on different rows.
+CiEffective AS (
     SELECT
-        r.*,
-        ROW_NUMBER() OVER (
-            PARTITION BY r.RootAppraisalId, r.CollateralMasterId
-            ORDER BY r.AppraisalDate DESC, r.CreatedAt DESC
-        ) AS rn
-    FROM EngagementWithRoot r
+        c.AppraisalId,
+        CASE WHEN c.TotalValue > 0 THEN 1 ELSE 0 END AS HasOwnValueBase,
+        c.TotalValue,
+        c.CurrentValue,
+        c.EnteredCurrentPercent
+    FROM Ci c
 ),
 
--- The earliest appraisal of each (chain, master) supplies the origination values.
-ChainEarliest AS (
+-- ── What each appraisal is made of ─────────────────────────────────────────────────────────────
+PropMix AS (
     SELECT
-        r.RootAppraisalId,
-        r.CollateralMasterId,
-        r.AppraisalDate  AS EarliestAppraisalDate,
-        r.AppraisalValue AS EarliestAppraisalValue,
-        ROW_NUMBER() OVER (
-            PARTITION BY r.RootAppraisalId, r.CollateralMasterId
-            ORDER BY r.AppraisalDate ASC, r.CreatedAt ASC
-        ) AS rn
-    FROM EngagementWithRoot r
+        p.AppraisalId,
+        MAX(CASE WHEN p.PropertyType IN ('L', 'LB')  THEN 1 ELSE 0 END) AS HasLand,
+        -- 'LB' is a single property that IS land-and-building: it carries both a
+        -- LandAppraisalDetails and a BuildingAppraisalDetails row. Treating a separate 'B' row as the
+        -- only building signal typed 34,077 land-and-building records as bare land.
+        MAX(CASE WHEN p.PropertyType IN ('B', 'LB')  THEN 1 ELSE 0 END) AS HasBuilding,
+        MAX(CASE WHEN p.PropertyType = 'U'           THEN 1 ELSE 0 END) AS HasCondo,
+        MAX(CASE WHEN p.PropertyType = 'LSL'         THEN 1 ELSE 0 END) AS HasLeaseLand,
+        MAX(CASE WHEN p.PropertyType = 'LSB'         THEN 1 ELSE 0 END) AS HasLeaseBuilding,
+        MAX(CASE WHEN p.PropertyType = 'LS'          THEN 1 ELSE 0 END) AS HasLeaseBoth,
+        MAX(CASE WHEN p.PropertyType = 'LSU'         THEN 1 ELSE 0 END) AS HasLeaseCondo,
+        MAX(CASE WHEN p.PropertyType IN ('L','LB','U','LSL','LSB','LS','LSU','B') THEN 1 ELSE 0 END) AS HasRealEstate
+    FROM appraisal.AppraisalProperties p
+    GROUP BY p.AppraisalId
 ),
 
--- The latest construction-inspection appraisal within this (chain, master).
-ChainProgressive AS (
+LandAgg AS (
     SELECT
-        r.RootAppraisalId,
-        r.CollateralMasterId,
-        r.AppraisalDate AS LatestProgressiveAppraisalDate,
-        ROW_NUMBER() OVER (
-            PARTITION BY r.RootAppraisalId, r.CollateralMasterId
-            ORDER BY r.AppraisalDate DESC, r.CreatedAt DESC
-        ) AS rn
-    FROM EngagementWithRoot r
-    WHERE r.AppraisalType = 'Progressive'
+        p.AppraisalId,
+        SUM(ISNULL(t.AreaRai, 0) * 400 + ISNULL(t.AreaNgan, 0) * 100 + ISNULL(t.AreaSquareWa, 0)) AS LandAreaSqWa
+    FROM appraisal.AppraisalProperties p
+    JOIN appraisal.LandAppraisalDetails d ON d.AppraisalPropertyId = p.Id
+    JOIN appraisal.LandTitles t           ON t.LandAppraisalDetailId = d.Id
+    WHERE p.PropertyType IN ('L', 'LB', 'LSL', 'LS')
+    GROUP BY p.AppraisalId
 ),
 
--- ── AS400 state for this (chain, master) ────────────────────────────────────────────────
--- The ChainHostLink CTE that used to sit here is gone. Its whole job was to answer "which
--- engagement of this (chain, master) speaks for the collateral right now" — picking the latest one
--- that actually carried an id, because inspections and revaluations involve no drawdown and so
--- become the chain tip with a NULL id. That question no longer exists: AS400's state now lives on
--- collateral.CollateralMasters, maintained by the nightly HOST_COLLATERAL_LINK feed, which is the
--- grain AS400 itself uses. Read m.HostCollateralId / m.IsRedeemed directly.
-
--- Representative building: Sequence=1 on the latest engagement.
--- Used ONLY for BuildingTypeCode and NumberOfFloors — neither of which can be meaningfully combined
--- across several buildings. Age and area come from BuildingAggregate below instead.
-RepresentativeBuilding AS (
+-- Buildings combined: the OLDEST age and the TOTAL area across every building, matching the rule the
+-- AS400 result interface uses. A single building cannot speak for a plot that holds several.
+BuildingAgg AS (
     SELECT
-        ceb.EngagementId,
-        ceb.BuildingTypeCode,
-        ceb.NumberOfFloors,
-        ROW_NUMBER() OVER (
-            PARTITION BY ceb.EngagementId
-            ORDER BY ceb.Sequence ASC
-        ) AS rn
-    FROM collateral.CollateralEngagementBuildings ceb
+        p.AppraisalId,
+        MAX(b.BuildingAge)        AS MaxBuildingAge,
+        SUM(b.TotalBuildingArea)  AS TotalBuildingArea
+    FROM appraisal.AppraisalProperties p
+    JOIN appraisal.BuildingAppraisalDetails b ON b.AppraisalPropertyId = p.Id
+    WHERE p.PropertyType IN ('B', 'LB', 'LSB', 'LS')
+    GROUP BY p.AppraisalId
 ),
 
--- Every building on the engagement, combined: a title carrying a house plus an outbuilding must report
--- the whole footprint, and the age of the OLDEST structure is what drives the depreciation view.
--- Replaces the earlier Sequence=1 rule, which silently dropped the second and later buildings.
-BuildingAggregate AS (
+RepBuilding AS (
+    SELECT AppraisalId, NumberOfFloors
+    FROM (
+        SELECT p.AppraisalId, b.NumberOfFloors,
+               ROW_NUMBER() OVER (PARTITION BY p.AppraisalId ORDER BY p.SequenceNumber) AS rn
+        FROM appraisal.AppraisalProperties p
+        JOIN appraisal.BuildingAppraisalDetails b ON b.AppraisalPropertyId = p.Id
+        WHERE p.PropertyType IN ('B', 'LB', 'LSB', 'LS')
+    ) z
+    WHERE rn = 1
+),
+
+CondoAgg AS (
+    SELECT AppraisalId, UsableArea, BuildingAge
+    FROM (
+        SELECT p.AppraisalId, c.UsableArea, c.BuildingAge,
+               ROW_NUMBER() OVER (PARTITION BY p.AppraisalId ORDER BY p.SequenceNumber) AS rn
+        FROM appraisal.AppraisalProperties p
+        JOIN appraisal.CondoAppraisalDetails c ON c.AppraisalPropertyId = p.Id
+        WHERE p.PropertyType IN ('U', 'LSU')
+    ) z
+    WHERE rn = 1
+),
+
+-- ── Which appraisal the physical characteristics are read from ─────────────────────────────────
+-- The anchor when it has property rows of its own; otherwise the nearest ancestor that does. A
+-- Progressive round records construction progress on top of an earlier survey and often carries no
+-- AppraisalProperties at all.
+--
+-- This MUST be a CTE joined once, never an OUTER APPLY correlated on the anchor. SQL Server does not
+-- materialise a CTE: an APPLY over Walk re-runs the whole recursion once per output row, which took
+-- the chain-based design from 7 seconds to 108.
+PropSource AS (
+    SELECT AppraisalId, AncestorId AS PropSourceAppraisalId
+    FROM (
+        SELECT w.AppraisalId, w.AncestorId,
+               ROW_NUMBER() OVER (PARTITION BY w.AppraisalId ORDER BY w.Depth ASC) AS rn
+        FROM Walk w
+        WHERE EXISTS (SELECT 1 FROM appraisal.AppraisalProperties p
+                      WHERE p.AppraisalId = w.AncestorId)
+    ) z
+    WHERE rn = 1
+),
+
+-- ── Per-unit value for block-project collateral ───────────────────────────────────────────────
+-- A block project's own appraisal is a PreAppraisal of the whole development: it carries no
+-- AppraisalProperties and an AppraisedValue of 0. Reporting that as the collateral's value tells the
+-- regulator the unit is worth nothing. The per-unit figure lives with the APPRAISAL that surveyed the
+-- units — appraisal.Projects → appraisal.ProjectUnits → appraisal.ProjectUnitPrices.
+--
+-- ⚠ NOT collateral.ProjectUnits. That table is keyed by CollateralMasterId, and a project master is
+-- shared by every appraisal of that development, so reaching it through CollateralEngagements returns
+-- units belonging to a DIFFERENT appraisal. 65A04972 (PreAppraisal, 2022, no units of its own) was
+-- getting 13,604,000 from 67A06099's 2024 re-survey that way. It also reintroduces the dependency on
+-- CollateralMaster that this whole view exists to remove.
+--
+-- WHICH APPRAISAL'S UNIT. The same rule as everything else here: walk PrevAppraisalId back from the
+-- appraisal AS400 named, and take the unit from the OLDEST appraisal in that history that surveyed
+-- it — that is the origination. The anchor's own units win for the current value.
+ProjectWalk AS (
     SELECT
-        ceb.EngagementId,
-        -- Guard the TOTAL, not each building: two buildings that each fit can still overflow together.
-        -- Two-sided: a negative total overflows the fixed-width field just as an oversized one does.
-        CASE
-            WHEN SUM(ceb.BuildingArea) NOT BETWEEN 0 AND 99999.99 THEN NULL
-            ELSE SUM(ceb.BuildingArea)
-        END              AS TotalBuildingArea,
-        MAX(ceb.BuildingAge) AS MaxBuildingAge
-    FROM collateral.CollateralEngagementBuildings ceb
-    GROUP BY ceb.EngagementId
+        an.AppraisalId,
+        an.HostCollateralId,
+        s.UnitToken,
+        an.AppraisalId AS AncestorId,
+        an.PrevAppraisalId,
+        0              AS Depth,
+        CAST('|' + CAST(an.AppraisalId AS varchar(36)) + '|' AS varchar(max)) AS Path
+    FROM Anchor an
+    JOIN Src s ON s.HostCollateralId = an.HostCollateralId
+    WHERE s.UnitToken IS NOT NULL
+
+    UNION ALL
+
+    -- Unlike the main Walk this DOES step through project appraisals. There it is a dead end because
+    -- unrelated units point at a shared project and merging them would confuse two collateral; here
+    -- the unit token pins one specific unit, so following the project's own history is exactly right.
+    SELECT w.AppraisalId, w.HostCollateralId, w.UnitToken, p.Id, p.PrevAppraisalId, w.Depth + 1,
+           CAST(w.Path + CAST(p.Id AS varchar(36)) + '|' AS varchar(max))
+    FROM ProjectWalk w
+    JOIN appraisal.Appraisals p ON p.Id = w.PrevAppraisalId AND p.IsDeleted = 0
+    WHERE CHARINDEX('|' + CAST(p.Id AS varchar(36)) + '|', w.Path) = 0
+),
+
+-- Every appraisal in that history that actually priced this unit.
+ProjectUnitHit AS (
+    SELECT
+        w.HostCollateralId,
+        w.Depth,
+        v.ValuationDate,
+        pup.TotalAppraisalValueRounded AS UnitValue,
+        -- Registration first, room number second: migrated projects recorded the unit under
+        -- RoomNumber, newly appraised ones record CondoRegistrationNumber. Ordering rather than
+        -- branching keeps one rule working as the data shifts.
+        CASE WHEN pu.CondoRegistrationNumber = w.UnitToken THEN 0 ELSE 1 END AS KeyRank
+    FROM ProjectWalk w
+    JOIN appraisal.Projects pr      ON pr.AppraisalId = w.AncestorId
+    JOIN appraisal.ProjectUnits pu  ON pu.ProjectId   = pr.Id
+    JOIN appraisal.ProjectUnitPrices pup ON pup.ProjectUnitId = pu.Id
+    LEFT JOIN Val v ON v.AppraisalId = w.AncestorId
+    WHERE ISNULL(pup.TotalAppraisalValueRounded, 0) > 0
+      AND (pu.CondoRegistrationNumber = w.UnitToken OR pu.RoomNumber = w.UnitToken)
+),
+
+-- Collateral that IS a project unit: AS400 named a unit (CONDO.<key>) and the appraisal history runs
+-- through a block project. For these the unit table is the ONLY acceptable source of value — the
+-- appraisal-level figure belongs to whatever that appraisal covered, not to this one unit. When the
+-- unit cannot be found the row reports 0 rather than borrowing that figure.
+--
+-- 69A03063 is the case that forced this: a standalone condo appraisal worth 4,180,000 whose
+-- PrevAppraisalId runs back to project 65A03510, which holds no units at all. Reporting 4,180,000 as
+-- unit 99/1832's value was a guess dressed up as data.
+ProjectUnitRow AS (
+    SELECT DISTINCT w.HostCollateralId
+    FROM ProjectWalk w
+    WHERE EXISTS (SELECT 1 FROM appraisal.Projects pr WHERE pr.AppraisalId = w.AncestorId)
+),
+
+ProjectUnitValue AS (
+    SELECT
+        HostCollateralId,
+        MIN(CASE WHEN rnEarliest = 1 THEN UnitValue END) AS EarliestUnitValue,
+        MIN(CASE WHEN rnLatest   = 1 THEN UnitValue END) AS LatestUnitValue
+    FROM (
+        SELECT h.*,
+               -- Oldest survey of this unit = its origination.
+               ROW_NUMBER() OVER (PARTITION BY h.HostCollateralId
+                                  ORDER BY h.ValuationDate ASC, h.Depth DESC, h.KeyRank) AS rnEarliest,
+               -- Nearest to the appraisal AS400 named = its current value.
+               ROW_NUMBER() OVER (PARTITION BY h.HostCollateralId
+                                  ORDER BY h.Depth ASC, h.ValuationDate DESC, h.KeyRank) AS rnLatest
+        FROM ProjectUnitHit h
+    ) z
+    GROUP BY HostCollateralId
+),
+
+-- ── The legacy "99" series ─────────────────────────────────────────────────────────────────────
+-- Collateral the bank already held when CAS went live. It was never appraised here, so no row exists
+-- in appraisal.Appraisals and SOURCE 1 cannot see it — but the bank supplies its regulatory data
+-- separately in appraisal.AS400ReportListing, and the AS400 feed still reports the collateral with a
+-- '99…' appraisal number. 1,177 held master-title collateral on the 2026-08-03 feed.
+--
+-- Keyed by CollateralID, not ApplicationId: the grain of this view is the collateral, and matching on
+-- the collateral id is what makes the two sources line up on the same thing.
+--
+-- Aggregated before it is joined. The listing is NOT unique on CollateralID — one collateral has two
+-- rows on U3 — and joining the rows themselves would emit that collateral twice. MIN(ValuationDate)
+-- is the origination by definition; MIN over the price with it keeps the pair deterministic rather
+-- than letting the two columns come from different rows.
+LegacyByCollateral AS (
+    SELECT
+        CAST(CAST(l.CollateralID AS bigint) AS varchar(19)) AS HostCollateralId,
+        MIN(l.ValuationDate)                                AS ValuationDate,
+        MIN(l.ValuationPriceInBaht)                         AS ValuationPriceInBaht
+    FROM appraisal.AS400ReportListing l
+    WHERE l.CollateralID IS NOT NULL
+    GROUP BY CAST(CAST(l.CollateralID AS bigint) AS varchar(19))
 )
 
+-- ═══════════════════════════ SOURCE 1 — collateral CAS has appraised ═══════════════════════════
 SELECT
-    m.Id                                                        AS CollateralMasterId,
-    m.CollateralType,
+    an.AppraisalNumber                                           AS LatestAppraisalNumber,
 
-    -- Current AS400 state of the collateral itself, not of any one appraisal.
-    m.HostCollateralId,
+    -- Derived from the property mix of whichever appraisal actually described the property.
+    CASE
+        WHEN pm.HasLeaseBoth     = 1 THEN 'LS'
+        WHEN pm.HasLeaseBuilding = 1 THEN 'LSB'
+        -- Leased land with a building on it is LS, not LSL: the writer sends 'L' — "no structure" —
+        -- for L and LSL alike, so an LSL row carrying buildings would tell the regulator the plot is
+        -- empty.
+        WHEN pm.HasLeaseLand     = 1 AND pm.HasBuilding = 1 THEN 'LS'
+        WHEN pm.HasLeaseLand     = 1 THEN 'LSL'
+        WHEN pm.HasLeaseCondo    = 1 THEN 'LSU'
+        WHEN pm.HasLand = 1 AND pm.HasBuilding = 1 THEN 'LB'
+        WHEN pm.HasLand = 1 THEN 'L'
+        WHEN pm.HasCondo = 1 THEN 'U'
+        WHEN pm.HasBuilding = 1 THEN 'LB'
+        -- Nothing in CAS describes the property, which means a block-project appraisal: it is a
+        -- PreAppraisal of the whole development and carries no AppraisalProperties. Falling through to
+        -- 'L' reported all 1,607 project rows as bare land — 1,552 of them condo units — and the writer
+        -- turned that into field 5 = 'L', "no structure". The bank's own file sends 'N' for every one
+        -- of the 696 it holds, never 'L'.
+        --
+        -- ProjectType is CAS's own answer and agrees with what AS400 says in the feed on all 1,607
+        -- rows (U↔PCO, LB↔PSH/PTH/PWH), so no code mapping is needed and the undocumented AS400 codes
+        -- POT/PHR never have to be guessed at.
+        WHEN an.ProjectType IN ('U', 'LB') THEN an.ProjectType
+        ELSE 'L'
+    END                                                          AS CollateralType,
 
-    -- Origination values come from the earliest appraisal in the same chain, not the master's
-    -- oldest engagement, which may belong to a previous owner.
-    ce.EarliestAppraisalDate,
-    ce.EarliestAppraisalValue,
+    an.HostCollateralId,
+    an.AppraisalType                                             AS LatestAppraisalType,
 
-    -- The chain tip.
-    t.AppraisalNumber                                            AS LatestAppraisalNumber,
-    t.AppraisalType                                              AS LatestAppraisalType,
-    t.AppraisalDate                                              AS LatestAppraisalDate,
-    t.AppraisalValue                                             AS LatestAppraisalValue,
+    CASE WHEN ci.HasOwnValueBase = 1 AND ci.CurrentValue < ci.TotalValue THEN CAST(1 AS bit)
+         -- Valueless inspection (condo): the value cannot say anything because it does not move
+         -- with the milestone, so read the entered percentage rather than reporting a unit that is
+         -- demonstrably mid-construction as finished.
+         WHEN ci.AppraisalId IS NOT NULL AND ci.HasOwnValueBase = 0
+              AND ISNULL(ci.EnteredCurrentPercent, 0) < 100 THEN CAST(1 AS bit)
+         ELSE CAST(0 AS bit) END                                 AS IsUnderConstruction,
 
-    -- Value as it stood at the chain tip's engagement, with part-built buildings counted at their
-    -- construction progress rather than at 100%. Frozen by the Appraisal module's
-    -- IConstructionCurrentValueService (the same code behind the Decision Summary construction card).
-    -- NULL when that appraisal had no construction inspection — the writer then falls back to
-    -- LatestAppraisalValue, because nothing was part-built.
-    t.CurrentValue                                               AS CurrentValue,
+    -- Not real estate → 0; bare land → 0; anything with a structure → 100 when complete, else the
+    -- progress percentage.
+    CASE
+        WHEN pm.HasLand = 1 AND pm.HasBuilding = 0 AND pm.HasCondo = 0
+             AND pm.HasLeaseBuilding = 0 AND pm.HasLeaseBoth = 0                     THEN 0
+        WHEN pm.HasLeaseLand = 1 AND pm.HasLeaseBuilding = 0 AND pm.HasLeaseBoth = 0
+             AND pm.HasBuilding = 0                                                  THEN 0
+        -- No inspection at all → finished. An inspection with no value base reports what was
+        -- entered; only a genuinely absent inspection still means 100.
+        WHEN ci.AppraisalId IS NULL                                                  THEN 100
+        -- Clamped, matching ConstructionValueBreakdown.ConstructionProgressPercent. Nothing
+        -- validates that ProportionPct sums to 100, and an unclamped value >= 1000 would overflow
+        -- decimal(5,2) and take the whole view down.
+        WHEN ci.HasOwnValueBase = 0
+             THEN CAST(
+                 CASE WHEN ci.EnteredCurrentPercent < 0   THEN 0
+                      WHEN ci.EnteredCurrentPercent > 100 THEN 100
+                      ELSE ci.EnteredCurrentPercent END AS decimal(5, 2))
+        WHEN ci.CurrentValue >= ci.TotalValue                                        THEN 100
+        ELSE CAST(ci.CurrentValue / ci.TotalValue * 100 AS decimal(5, 2))
+    END                                                          AS ConstructionProgressPercent,
 
-    t.AppraisalCompanyId                                         AS LatestAppraisalCompanyId,
+    -- A project unit's own appraised value beats the project appraisal's 0. Everything else keeps
+    -- reading from the appraisal.
+    CASE WHEN puv.LatestUnitValue IS NOT NULL         THEN puv.LatestUnitValue
+         WHEN pur.HostCollateralId IS NOT NULL       THEN 0
+         ELSE av.AppraisedValue END                              AS LatestAppraisalValue,
 
-    -- Selling price (market price field): the request-level TotalSellingPrice of the chain tip's
-    -- originating request (one row per request → deterministic).
+    -- The origination value, from whichever source holds the older record. AS400 valued a lot of this
+    -- collateral before CAS existed, and those valuations live in appraisal.AS400ReportListing under a
+    -- '99…' number that is NOT in appraisal.Appraisals — so the PrevAppraisalId walk cannot reach them
+    -- however far back it goes. Without this test, 122 collateral report the first CAS appraisal as
+    -- their origination: 67A00393 would say 2024-01-26 / 5,750,000 when the bank first valued it on
+    -- 2008-11-27 at 4,670,000.
+    --
+    -- The date and the value must come from the SAME record. Taking MIN of each independently would
+    -- pair one source's date with the other's price.
+    -- Same for the origination value. A unit has one appraised figure, not a history — the project
+    -- was appraised once and the unit inherits that date — so the same number stands for both ends.
+    CASE WHEN puv.EarliestUnitValue IS NOT NULL THEN puv.EarliestUnitValue
+         -- A project unit with no unit data reports 0; see ProjectUnitRow.
+         WHEN pur.HostCollateralId IS NOT NULL THEN 0
+         WHEN lgc.ValuationDate IS NOT NULL AND lgc.ValuationDate < e.ValuationDate
+              THEN lgc.ValuationPriceInBaht
+         ELSE e.AppraisedValue END                               AS EarliestAppraisalValue,
+
+    CASE WHEN ci.HasOwnValueBase = 1 AND ci.CurrentValue < ci.TotalValue THEN ci.CurrentValue
+         ELSE NULL END                                           AS CurrentValue,
+
     rd.TotalSellingPrice                                         AS SellingPrice,
 
-    -- Latest Progressive engagement date within this chain.
-    cp.LatestProgressiveAppraisalDate,
+    CASE WHEN pm.HasBuilding = 1 OR pm.HasLeaseBuilding = 1 OR pm.HasLeaseBoth = 1
+         THEN CAST(rb.NumberOfFloors AS int) ELSE NULL END       AS NumberOfFloors,
 
-    -- Under-construction flag (drives field #5; the Y/N/L/blank string is formed in the writer)
-    -- Field 5. From the chain tip's engagement, not LandDetails: that column read a single
-    -- property's inspection (the primary is the LAND property while the inspection hangs off the
-    -- BUILDING property), so it was 0 on every dev row even where buildings were part-built — and
-    -- the progress CASE below then reported those as 100% complete.
-    ISNULL(t.IsUnderConstruction, 0)                 AS IsUnderConstruction,
-
-    -- Construction progress % (field #6) — the full regulatory rule is computed HERE so the fixed-width
-    -- and Excel writers only format the value (single source of truth, no duplication):
-    --   not real estate (machinery, …) → 0; bare land (L / Leasehold land LSL) → 0;
-    --   everything with a structure (LB/LSB/LS, condo U/LSU, legacy UNK):
-    --     completed (not under construction) → 100, under construction → progress%
-    --     (guarded to 0–100; 0 when none recorded).
-    --
-    -- Condo and UNK are in the allow-list on purpose: the business rule is "every REAL-ESTATE
-    -- collateral", and condo was the only real-estate type being reported as 0% built. The bank's own
-    -- 2026-08-02 file agrees — it sends N + 100.00% for all 7,716 condo and all 1,209 legacy rows.
-    -- Bare land sends 0% there too (1,112 of 1,155 rows), which is why L / LSL is 0 and not 100.
     CASE
-        WHEN m.CollateralType NOT IN ('L', 'LB', 'LSL', 'LSB', 'LS', 'U', 'LSU', 'UNK') THEN 0
-        WHEN m.CollateralType IN ('L', 'LSL')                            THEN 0
-        WHEN ISNULL(t.IsUnderConstruction, 0) = 0                        THEN 100
-        WHEN t.ConstructionProgressPercent BETWEEN 0 AND 100             THEN t.ConstructionProgressPercent
-        ELSE 0
-    END                                                           AS ConstructionProgressPercent,
-
-    -- Land area (sq.wa): Land/LB/LS* types. Two-sided guard on [0, 99999.99] — anything outside it
-    -- overflows the dec(7,2) field, and a negative value used to abort the entire export.
-    CASE
-        WHEN ld.LandArea NOT BETWEEN 0 AND 99999.99 THEN NULL
-        ELSE ld.LandArea
-    END                                                           AS LandAreaSqWa,
-
-    -- Number of floors: building types only (LB/LSB/LS), from the representative engagement building.
-    --   • Condo (U / LSU) / bare land / machinery: NULL → writer renders 0 (spec "else 0").
-    CASE
-        WHEN m.CollateralType IN ('LB', 'LSB', 'LS') THEN CAST(rb.NumberOfFloors AS int)
+        WHEN pm.HasBuilding = 1 OR pm.HasLeaseBuilding = 1 OR pm.HasLeaseBoth = 1 THEN ba.MaxBuildingAge
+        WHEN pm.HasCondo = 1 OR pm.HasLeaseCondo = 1                              THEN ca.BuildingAge
         ELSE NULL
-    END                                                           AS NumberOfFloors,
+    END                                                          AS BuildingAge,
 
-    -- Building age (years): all building types + condo.
-    --   • Building/L&B (LB, LSB, LS): age of the OLDEST building on the engagement
-    --   • Condo (U) and leasehold condo (LSU): BuildingAge from CondoDetails
-    --   • Others (bare land, machinery): NULL
+    av.ValuationDate                                             AS LatestAppraisalDate,
+
+
+    -- Only meaningful when the appraisal AS400 named is itself a construction round. The chain-based
+    -- design searched a chain for the newest Progressive; here the anchor IS the appraisal AS400 considers current, so
+    -- looking past it would report a date the bank never asked about.
+    CASE WHEN an.AppraisalType = 'Progressive' THEN av.ValuationDate END
+                                                                 AS LatestProgressiveAppraisalDate,
+
+    CASE WHEN lgc.ValuationDate IS NOT NULL AND lgc.ValuationDate < e.ValuationDate
+         THEN lgc.ValuationDate ELSE e.ValuationDate END      AS EarliestAppraisalDate,
+
+    NULL                                                         AS LatestAppraisalCompanyId,
+
+    -- DOPA 6-digit sub-district. Administrative address, so it must come from a DOPA-mastered source:
+    -- request.RequestDetails, whose picker uses the DOPA master. NOT the deed address, which is
+    -- mastered by parameter.TitleSubDistricts and has diverged from DOPA.
+    CASE WHEN pm.HasRealEstate = 1
+         THEN (SELECT dsd.Code FROM parameter.DopaSubDistricts dsd
+               WHERE dsd.Code = LTRIM(RTRIM(rd.SubDistrict)))
+         ELSE NULL END                                           AS DopaCode,
+
+    -- Two-sided range guards. A value outside [0, 99999.99] overflows the fixed-width field, and a
+    -- NEGATIVE one is as fatal as an oversized one because the writer multiplies by 100 and the minus
+    -- sign consumes a character. One bad row used to abort the entire file.
+    CASE WHEN la.LandAreaSqWa NOT BETWEEN 0 AND 99999.99 THEN NULL
+         ELSE la.LandAreaSqWa END                                AS LandAreaSqWa,
+
     CASE
-        WHEN m.CollateralType IN ('LB', 'LSB', 'LS') THEN ba.MaxBuildingAge
-        WHEN m.CollateralType IN ('U', 'LSU')        THEN cd.BuildingAge
+        WHEN (pm.HasBuilding = 1 OR pm.HasLeaseBuilding = 1 OR pm.HasLeaseBoth = 1)
+             AND ba.TotalBuildingArea BETWEEN 0 AND 99999.99 THEN ba.TotalBuildingArea
+        WHEN (pm.HasCondo = 1 OR pm.HasLeaseCondo = 1)
+             AND ca.UsableArea BETWEEN 0 AND 99999.99        THEN ca.UsableArea
         ELSE NULL
-    END                                                           AS BuildingAge,
+    END                                                          AS BuildingArea,
 
-    -- Building area (area utilization):
-    --   • Building/L&B (LB, LSB, LS): TOTAL area of every building on the engagement
-    --   • Condo (U) and leasehold condo (LSU): UsableArea from CondoDetails
-    --   • Others: NULL
-    CASE
-        WHEN m.CollateralType IN ('LB', 'LSB', 'LS') THEN ba.TotalBuildingArea       -- already guarded to [0, 99999.99] in CTE
-        WHEN m.CollateralType IN ('U', 'LSU') AND cd.UsableArea BETWEEN 0 AND 99999.99 THEN cd.UsableArea -- guard the condo path too (dec(7,2))
-        ELSE NULL
-    END                                                           AS BuildingArea,
+    -- AS400's own taxonomy, straight from the feed, description included. CAS's BuildingTypeCode is
+    -- deliberately not used: it is "99 อื่นๆ" for 85-100% of rows in every bucket and has no mapping
+    -- onto these codes.
+    an.PropertyType                                              AS BuildingTypeCode,
+    an.PropertyTypeDesc                                          AS BuildingTypeDescription
 
-    -- Building type code (Building/L&B/LS* only; blank for condo, bare land, machinery)
-    CASE
-        WHEN m.CollateralType IN ('LB', 'LSB', 'LS') THEN rb.BuildingTypeCode
-        ELSE NULL
-    END                                                           AS BuildingTypeCode,
+FROM Anchor an
+LEFT JOIN Val av           ON av.AppraisalId = an.AppraisalId
+LEFT JOIN Earliest e       ON e.AppraisalId  = an.AppraisalId
+LEFT JOIN CiEffective ci   ON ci.AppraisalId = an.AppraisalId
+LEFT JOIN PropSource ps    ON ps.AppraisalId = an.AppraisalId
+LEFT JOIN PropMix pm       ON pm.AppraisalId = ps.PropSourceAppraisalId
+LEFT JOIN LandAgg la       ON la.AppraisalId = ps.PropSourceAppraisalId
+LEFT JOIN BuildingAgg ba   ON ba.AppraisalId = ps.PropSourceAppraisalId
+LEFT JOIN RepBuilding rb   ON rb.AppraisalId = ps.PropSourceAppraisalId
+LEFT JOIN CondoAgg ca      ON ca.AppraisalId = ps.PropSourceAppraisalId
+LEFT JOIN request.RequestDetails rd ON rd.RequestId = an.RequestId
+-- The legacy listing for THIS collateral, if AS400 valued it before CAS existed. Joined on the
+-- collateral id, not the appraisal number: the '99…' number that owns the listing row is a
+-- different number from the one the feed reports today.
+LEFT JOIN LegacyByCollateral lgc ON lgc.HostCollateralId = an.HostCollateralId
+LEFT JOIN ProjectUnitValue puv     ON puv.HostCollateralId = an.HostCollateralId
+LEFT JOIN ProjectUnitRow pur       ON pur.HostCollateralId = an.HostCollateralId
+-- A collateral with no valuation anywhere in its history has no origination value to report, which is
+-- the one thing this file exists to carry.
+WHERE e.ValuationDate IS NOT NULL
 
-    -- Building type description (EN) from parameter.Parameters (group='BuildingType')
-    CASE
-        WHEN m.CollateralType IN ('LB', 'LSB', 'LS') THEN bt.[description]
-        ELSE NULL
-    END                                                           AS BuildingTypeDescription,
+UNION ALL
 
-    -- DOPA 6-digit sub-district code — an ADMINISTRATIVE address, so it has to come from a
-    -- DOPA-mastered source. That is request.RequestDetails: the request's "Location" section, whose
-    -- picker uses the DOPA master.
-    --
-    -- NOT LandDetails/CondoDetails.SubDistrict: those hold the DEED address, mastered by
-    -- parameter.TitleSubDistricts, which DIVERGED from DOPA on 2026-07-29 (11,144 vs 7,436 codes;
-    -- 3,715 Title codes exist in no DOPA table). Reading a deed code here silently blanks every one of
-    -- those, and the two addresses genuinely differ — they are not copies of each other.
-    --
-    -- Still validated against parameter.DopaSubDistricts.Code (the PK) so an unknown value yields blank
-    -- rather than a truncated string in the 6-char field. Land/LB/LS*/Condo types only.
-    --
-    -- LIMITATION: RequestDetails is request-level, so every collateral on one request reports the same
-    -- sub-district. The per-property source is appraisal.{Land,Condo}AppraisalDetails.DopaSubDistrict
-    -- (added by 7f366e4b and already carried on AppraisalForCollateralResult), but it is populated on
-    -- 1 of 105,469 rows today against 99.99% coverage here. Switch once it has been backfilled — that
-    -- also needs the column carried onto collateral.LandDetails / CondoDetails, which do not have it.
-    CASE
-        WHEN m.CollateralType IN ('L', 'LB', 'LSL', 'LSB', 'LS', 'U', 'LSU')
-            THEN (
-                SELECT dsd.Code
-                FROM parameter.DopaSubDistricts dsd
-                WHERE dsd.Code = rd.SubDistrict
-            )
-        ELSE NULL
-    END                                                           AS DopaCode
+-- ═══════════════════════════ SOURCE 2 — the legacy "99" series ═══════════════════════════
+-- Reported straight from the bank's own migrated data. Everything CAS would normally derive from an
+-- appraisal is absent by definition — there is no appraisal — so only the fields the listing actually
+-- carries are populated and the rest stay NULL, exactly as the retired designs emitted them here.
+SELECT
+    s.CasAppraisalNumber                                         AS LatestAppraisalNumber,
+    'UNK'                                                        AS CollateralType,
+    s.HostCollateralId,
+    NULL                                                         AS LatestAppraisalType,
+    CAST(0 AS bit)                                               AS IsUnderConstruction,
+    -- The bank's own file sends N + 100.00% for this whole series.
+    CAST(100 AS decimal(5, 2))                                   AS ConstructionProgressPercent,
+    lg.ValuationPriceInBaht                                      AS LatestAppraisalValue,
+    -- The listing IS the origination: this collateral has no earlier record anywhere.
+    lg.ValuationPriceInBaht                                      AS EarliestAppraisalValue,
+    NULL                                                         AS CurrentValue,
+    NULL                                                         AS SellingPrice,
+    NULL                                                         AS NumberOfFloors,
+    NULL                                                         AS BuildingAge,
+    lg.ValuationDate                                             AS LatestAppraisalDate,
+    NULL                                                         AS LatestProgressiveAppraisalDate,
+    lg.ValuationDate                                             AS EarliestAppraisalDate,
+    NULL                                                         AS LatestAppraisalCompanyId,
+    NULL                                                         AS DopaCode,
+    NULL                                                         AS LandAreaSqWa,
+    NULL                                                         AS BuildingArea,
+    -- AS400 supplies the type for these too, so the series is no longer typeless in the file.
+    s.PropertyType                                               AS BuildingTypeCode,
+    s.PropertyTypeDesc                                           AS BuildingTypeDescription
 
--- The view is driven by the latest appraisal of each chain, not by the master.
-FROM ChainTip t
-
--- The master supplies descriptive attributes only — it is neither the record's unit nor the home
--- of any AS400 state.
-JOIN collateral.CollateralMasters m
-    ON  m.Id = t.CollateralMasterId
-
--- Earliest appraisal of the (chain, master) (rn=1).
-LEFT JOIN ChainEarliest ce
-    ON  ce.RootAppraisalId    = t.RootAppraisalId
-    AND ce.CollateralMasterId = t.CollateralMasterId
-    AND ce.rn                 = 1
-
--- Request detail of the chain tip → selling price (one row per request).
-LEFT JOIN request.RequestDetails rd
-    ON  rd.RequestId = t.RequestId
-
--- Latest construction inspection within the (chain, master) (rn=1).
-LEFT JOIN ChainProgressive cp
-    ON  cp.RootAppraisalId    = t.RootAppraisalId
-    AND cp.CollateralMasterId = t.CollateralMasterId
-    AND cp.rn                 = 1
-
--- Representative building (rn=1) on the chain tip's engagement — building type and floors only.
-LEFT JOIN RepresentativeBuilding rb
-    ON  rb.EngagementId = t.EngagementId
-    AND rb.rn           = 1
-
--- All buildings on the chain tip's engagement, combined — supplies age and area.
-LEFT JOIN BuildingAggregate ba
-    ON  ba.EngagementId = t.EngagementId
-
--- BuildingType description (EN) from the parameter table
-LEFT JOIN parameter.Parameters bt
-    ON  bt.[group]    = 'BuildingType'
-    AND bt.[language] = 'EN'
-    AND bt.[code]     = rb.BuildingTypeCode
-    AND bt.[isactive] = 1
-
--- Type-specific detail rows (at most one per master).
---
--- A leasehold master (LSL / LSB / LS / LSU) carries ONLY collateral.LeaseholdDetails: every physical
--- attribute — land area, condo usable area, building age — lives on the UNDERLYING real-estate
--- master it points at, because one appraisal property produces two rows (the RE row and the lease
--- row, the lease being the one that owns the engagement).
---
--- Joining these on m.Id alone therefore sent every leasehold record out with zeros in fields 19/20,
--- which contradicts the spec: "Land types" = L, LB, LSL, LSB, LS and "Building types" = LB, LSB, LS
--- both include leasehold codes (docs/regulatory/regulatory-field-reference.md).
--- Redirect to the underlying master for leasehold rows; every other type resolves to itself.
-LEFT JOIN collateral.LeaseholdDetails lhd_attr ON lhd_attr.CollateralMasterId = m.Id
-LEFT JOIN collateral.LandDetails  ld ON ld.CollateralMasterId = COALESCE(lhd_attr.UnderlyingMasterId, m.Id)
-LEFT JOIN collateral.CondoDetails cd ON cd.CollateralMasterId = COALESCE(lhd_attr.UnderlyingMasterId, m.Id)
-
--- Filter
---   t.rn = 1                       → the latest appraisal of each (chain, master) only
---   m.IsDeleted = 0 / IsMaster = 1 → belt and braces (engagements always attach to IsMaster rows)
---   CollateralType IN (...)        → real estate only, as an ALLOW-list
---   IsRedeemed = 0                 → drop only what AS400 has explicitly reported as redeemed
---
--- IsRedeemed is a NOT NULL bit defaulting to 0, so collateral AS400 has said nothing about yet stays
--- in the report. That is deliberate: "no news" is not the same as "released", and excluding it would
--- hide collateral the bank holds.
---
--- The type filter is an ALLOW-list, not a list of exclusions. The report covers real estate, and an
--- exclusion list only holds while nobody adds a type code: it read `<> 'PRJ'` before, which looked
--- correct purely because the data happened to carry no machinery. The moment a MAC master exists it
--- would have gone to the regulator unannounced. Anything new must now be added here on purpose.
---
---   L / LB / U      — land, land-and-building, condo unit
---   LSL/LSB/LS/LSU  — leasehold over land or a condo; still real estate (product owner, 16 Aug)
---   UNK             — collateral carried over from AS400 with no identifying data. Reported on the
---                     strength of the source: every legacy row carries construction status, which
---                     only means anything for a building. Its location, land area, building age and
---                     usable area go out blank — the listing has no such data and there is no other
---                     source. Accepted by the business.
---
--- Deliberately absent: MAC (machinery is not real estate) and PRJ (block projects are out of scope —
--- AS400 issues one collateral id per financed unit, so a project would be one hollow row with its
--- construction, floors, age, area and building-type fields already blanked by the gates above).
-WHERE t.rn              = 1
-  AND m.IsDeleted       = 0
-  AND m.IsMaster        = 1
-  AND m.CollateralType IN ('L', 'LB', 'U', 'LSL', 'LSB', 'LS', 'LSU', 'UNK')
-  AND m.IsRedeemed      = 0
+FROM Src s
+JOIN LegacyByCollateral lg ON lg.HostCollateralId = s.HostCollateralId
+-- Only where SOURCE 1 could not report it. A collateral that CAS has appraised is reported from the
+-- appraisal; emitting the listing row as well would double-count one physical collateral.
+WHERE NOT EXISTS (
+        SELECT 1 FROM appraisal.Appraisals a
+        WHERE a.AppraisalNumber = s.CasAppraisalNumber AND a.IsDeleted = 0)
+  AND lg.ValuationDate IS NOT NULL;
