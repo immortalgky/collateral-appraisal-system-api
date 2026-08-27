@@ -16,7 +16,7 @@ namespace Appraisal.infrastructure.Migrations
                 table: "PricingAnalysisMethods",
                 type: "bit",
                 nullable: false,
-                defaultValue: false);
+                defaultValue: true);
         }
 
         /// <inheritdoc />
