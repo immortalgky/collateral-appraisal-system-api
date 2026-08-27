@@ -53,7 +53,8 @@ public sealed class AppraisalSummaryCondoDataProvider(
                 cad.NumberOfFloors,
                 cad.CondoName,
                 cad.BuildingNumber,
-                cad.BuiltOnTitleNumber,
+                -- Condo deed number moved to cad.TitleNumber; BuiltOnTitleNumber is the pre-rename fallback.
+                COALESCE(NULLIF(LTRIM(RTRIM(cad.TitleNumber)), ''), cad.BuiltOnTitleNumber) AS BuiltOnTitleNumber,
                 cad.CondoRegistrationNumber,
                 cad.UsableArea,
                 cad.BuildingConditionType,
@@ -139,7 +140,8 @@ public sealed class AppraisalSummaryCondoDataProvider(
                 cad.NumberOfFloors,
                 cad.CondoName,
                 cad.BuildingNumber,
-                cad.BuiltOnTitleNumber,
+                -- Condo deed number moved to cad.TitleNumber; BuiltOnTitleNumber is the pre-rename fallback.
+                COALESCE(NULLIF(LTRIM(RTRIM(cad.TitleNumber)), ''), cad.BuiltOnTitleNumber) AS BuiltOnTitleNumber,
                 cad.CondoRegistrationNumber,
                 cad.UsableArea,
                 cad.BuildingAge,
@@ -274,7 +276,7 @@ public sealed class AppraisalSummaryCondoDataProvider(
                     parts.Add($"ห้องชุดเลขที่ {c.RoomNumber}");
                 if (!string.IsNullOrWhiteSpace(c.FloorNumber))
                     parts.Add($"ชั้นที่ {c.FloorNumber}");
-                if (!string.IsNullOrWhiteSpace(c.BuildingNumber) && c.BuildingNumber.Trim() != "-")
+                if (!string.IsNullOrWhiteSpace(c.BuildingNumber) && c.BuildingNumber.Trim().Trim('-', '–', '—').Length > 0)
                     parts.Add($"อาคารเลขที่ {c.BuildingNumber}");
 
                 // Condo name / registration number

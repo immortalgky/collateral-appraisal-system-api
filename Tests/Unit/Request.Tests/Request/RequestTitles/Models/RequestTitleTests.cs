@@ -38,7 +38,7 @@ public class RequestTitleDataBuilder
     public Guid _requestId = Guid.NewGuid();
     public string _collateralType = "L";
     public bool _collateralStatus = true;
-    public TitleDeedInfo _titleDeedInfo = TitleDeedInfo.Create("123", "Chanote","123");
+    public TitleDeedInfo _titleDeedInfo = TitleDeedInfo.Create("123", "Chanote");
 
     public LandLocationInfo _landLocationInfo = LandLocationInfo.Create(
         "Book1", "Page1", "Parcel1", "Survey1", "Map1", "Rawang1", "AerialMap1", "AerialMapNum1");

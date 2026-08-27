@@ -36,6 +36,7 @@ public class CreateVehiclePropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Create a vehicle property")
             .WithDescription("Creates a new vehicle property with its appraisal detail for an appraisal.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

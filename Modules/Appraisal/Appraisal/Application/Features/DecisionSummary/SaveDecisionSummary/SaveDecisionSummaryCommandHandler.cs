@@ -80,7 +80,7 @@ public class SaveDecisionSummaryCommandHandler(
         if (command.IsPriceVerified == true)
         {
             appraisedReview = command.TotalAppraisalPriceReview ?? 0m;
-            forcedReview = appraisedReview * forceSaleRate / 100m;
+            forcedReview = Math.Round(appraisedReview * forceSaleRate / 100m / 1000, MidpointRounding.AwayFromZero) * 1000;
             insuranceReview = await ComputeBuildingInsuranceAsync(command.AppraisalId, cancellationToken);
         }
         else
@@ -151,7 +151,7 @@ public class SaveDecisionSummaryCommandHandler(
             // Exclude sold units — block building insurance covers remaining unsold inventory only,
             // consistent with the unit-price appraisal and the Decision Summary block totals.
             const string blockInsuranceSql = """
-                SELECT ISNULL(SUM(pup.CoverageAmount), 0)
+                SELECT ROUND(ISNULL(SUM(pup.CoverageAmount), 0), -3)
                 FROM appraisal.ProjectUnitPrices pup
                 JOIN appraisal.ProjectUnits pu ON pu.Id = pup.ProjectUnitId
                 JOIN appraisal.Projects p ON p.Id = pu.ProjectId

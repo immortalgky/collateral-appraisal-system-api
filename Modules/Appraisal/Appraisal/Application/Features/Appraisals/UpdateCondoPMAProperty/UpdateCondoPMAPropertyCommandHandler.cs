@@ -27,7 +27,7 @@ public class UpdateCondoPMAPropertyCommandHandler(
             command.ForcedSalePrice,
             command.BuildingInsurancePrice,
             command.CondoName,
-            command.BuiltOnTitleNumber,
+            command.TitleNumber,
             command.CondoRegistrationNumber,
             command.RoomNumber,
             command.FloorNumber,

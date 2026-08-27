@@ -809,7 +809,6 @@ namespace Workflow.Infrastructure.Migrations
             modelBuilder.Entity("Workflow.Domain.Committees.CommitteeApprovalCondition", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("CommitteeId")
@@ -1999,6 +1998,9 @@ namespace Workflow.Infrastructure.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
+                    b.Property<DateTime>("AssigneeAssignedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<Guid?>("AssigneeCompanyId")
                         .HasColumnType("uniqueidentifier");
 
@@ -2028,6 +2030,9 @@ namespace Workflow.Infrastructure.Migrations
                         .HasColumnType("nvarchar(16)")
                         .HasDefaultValue("F");
 
+                    b.Property<DateTime?>("OpenedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("ReasonCode")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
@@ -2037,6 +2042,12 @@ namespace Workflow.Infrastructure.Migrations
                         .HasColumnType("nvarchar(4000)");
 
                     b.Property<DateTime?>("SlaBreachedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("SlaDurationHours")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("SlaStartAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("SlaStatus")
@@ -2095,6 +2106,9 @@ namespace Workflow.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime>("AssigneeAssignedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<Guid?>("AssigneeCompanyId")
                         .HasColumnType("uniqueidentifier");

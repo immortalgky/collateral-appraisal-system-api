@@ -123,13 +123,38 @@ public sealed class RegulatoryFileWriter
             // Field #6 is computed in vw_RegulatoryExport (0 / 100 / progress%); here we only format it.
             ["ConstructionProgress"]       = Money(row.ConstructionProgressPercent ?? 0m),
             ["AppraisalValueCompleted"]    = Money(currentValue),
-            // Field #8 — the full appraised value, unconditionally. The bank dropped the previous
-            // "Progressive → use the earliest value" rule: this field is always the latest appraisal's
-            // value, so it now carries the same figure as ValuationPrice (field #13).
-            ["AppraisalValueOrigination"]  = Money(row.LatestAppraisalValue),
+            // Field #8 — the value at ORIGINATION: the FIRST appraisal of this collateral.
+            //
+            // ⚠ This reverses an earlier instruction. The bank once told us to drop the
+            // "Progressive → use the earliest value" rule and always send the latest appraisal's
+            // value, which made this field a duplicate of ValuationPrice (field #13). On 2026-08-20
+            // the business restated what the field is for: the price when the collateral was first
+            // taken on. They read the CURRENT price out of AS400 themselves via the collateral id and
+            // do not want ours here.
+            //
+            // Changing it moves 849 of v1's 45,661 rows — every collateral that has been appraised
+            // more than once. If the bank ever asks for the old behaviour back, this line is the
+            // whole change.
+            ["AppraisalValueOrigination"]  = Money(row.EarliestAppraisalValue),
             ["NumberOfFloors"]             = SmallInt(row.NumberOfFloors, 999),
             ["BuildingAge"]                = SmallInt(row.BuildingAge, 999),
             ["MarketSellingPrice"]         = Money(row.SellingPrice),
+            // Fields #12 and #13 — the LATEST appraisal's date and price, as a matching pair.
+            //
+            // ⚠ Reversed on 2026-08-24 at the business's request. These two briefly carried the FIRST
+            // appraisal (2026-08-20 restatement) alongside field #8; the business has since split them
+            // back apart. Only #8 stays at origination now — #12/#13 report the most recent valuation,
+            // which is also what they held before 2026-08-20. If this flips again, these two lines are
+            // the whole change.
+            //
+            // Whichever end of the history they read, Date and Price must come from the SAME
+            // appraisal. The bank's own 2026-08-02 file never mixes them: on the 1,631 collateral
+            // whose first and latest appraisals differ, 792 rows pair first-date with first-price and
+            // 355 pair latest with latest, and not one row mixes the two. Keep these two lines
+            // together.
+            //
+            // Both ends are reported unconditionally regardless, in FirstValuationDate /
+            // LatestValuationDate at the end of the record.
             ["ValuationDate"]              = Date(row.LatestAppraisalDate),
             ["ValuationPrice"]             = Money(row.LatestAppraisalValue),
             ["MortgageValue"]              = null,

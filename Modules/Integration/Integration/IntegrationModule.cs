@@ -91,6 +91,7 @@ public static class IntegrationModule
         services.AddScoped<CollateralResultExportJob>();
         services.AddScoped<RegulatoryExportJob>();
         services.AddScoped<RegulatoryExportV2Job>();
+        services.AddScoped<RegulatoryExportV3Job>();
 
         // Register services
         services.AddScoped<IWebhookService, WebhookService>();

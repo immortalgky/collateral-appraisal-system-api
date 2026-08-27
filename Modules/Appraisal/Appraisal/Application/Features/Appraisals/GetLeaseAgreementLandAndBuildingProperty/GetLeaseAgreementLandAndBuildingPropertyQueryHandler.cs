@@ -223,7 +223,6 @@ public class GetLeaseAgreementLandAndBuildingPropertyQueryHandler(
             buildingDetail.BuildingConditionType,
             buildingDetail.BuildingConditionTypeOther,
             buildingDetail.IsUnderConstruction,
-            buildingDetail.ConstructionCompletionPercent,
             buildingDetail.ConstructionLicenseExpirationDate,
             buildingDetail.IsAppraisable,
             // Building Info

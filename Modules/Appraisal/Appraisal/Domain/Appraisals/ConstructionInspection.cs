@@ -17,6 +17,12 @@ public class ConstructionInspection : Entity<Guid>
     public decimal? SummaryPreviousValue { get; private set; }
     public decimal? SummaryCurrentProgressPct { get; private set; }
     public decimal? SummaryCurrentValue { get; private set; }
+
+    /// <summary>
+    /// Free-text note printed as the remark row of the construction summary report.
+    /// Mode-independent: captured in both Summary and Full Detail mode, and preserved
+    /// across a mode switch.
+    /// </summary>
     public string? Remark { get; private set; }
 
     // Document reference (summary mode)
@@ -35,18 +41,38 @@ public class ConstructionInspection : Entity<Guid>
     {
     }
 
+    /// <summary>Storage limit for <see cref="Remark"/>; mirrored by the EF configuration.</summary>
+    public const int RemarkMaxLength = 4000;
+
+    /// <summary>Storage limit for <see cref="SummaryDetail"/>; mirrored by the EF configuration.</summary>
+    public const int SummaryDetailMaxLength = 1000;
+
+    // Length is enforced here rather than in a request validator because five of the twelve
+    // commands that carry ConstructionInspectionData have no validator at all — the entity is the
+    // only chokepoint every write path passes through. DomainException surfaces as HTTP 400, so an
+    // over-long value is reported as bad input instead of failing at SaveChanges as a 500.
+    private static string? EnsureFits(string? value, int maxLength, string fieldName)
+    {
+        if (value is not null && value.Length > maxLength)
+            throw new DomainException($"{fieldName} must be at most {maxLength} characters.");
+
+        return value;
+    }
+
     /// <summary>
     /// Create a full-detail construction inspection.
     /// </summary>
     public static ConstructionInspection CreateFullDetail(
         Guid appraisalPropertyId,
-        decimal totalValue)
+        decimal totalValue,
+        string? remark)
     {
         return new ConstructionInspection
         {
             AppraisalPropertyId = appraisalPropertyId,
             IsFullDetail = true,
-            TotalValue = totalValue
+            TotalValue = totalValue,
+            Remark = EnsureFits(remark, RemarkMaxLength, nameof(Remark))
         };
     }
 
@@ -68,12 +94,12 @@ public class ConstructionInspection : Entity<Guid>
             AppraisalPropertyId = appraisalPropertyId,
             IsFullDetail = false,
             TotalValue = totalValue,
-            SummaryDetail = summaryDetail,
+            SummaryDetail = EnsureFits(summaryDetail, SummaryDetailMaxLength, nameof(SummaryDetail)),
             SummaryPreviousProgressPct = summaryPreviousProgressPct,
             SummaryPreviousValue = summaryPreviousValue,
             SummaryCurrentProgressPct = summaryCurrentProgressPct,
             SummaryCurrentValue = summaryCurrentValue,
-            Remark = remark
+            Remark = EnsureFits(remark, RemarkMaxLength, nameof(Remark))
         };
     }
 
@@ -95,18 +121,25 @@ public class ConstructionInspection : Entity<Guid>
 
         IsFullDetail = false;
         TotalValue = totalValue;
-        SummaryDetail = summaryDetail;
+        SummaryDetail = EnsureFits(summaryDetail, SummaryDetailMaxLength, nameof(SummaryDetail));
         SummaryPreviousProgressPct = summaryPreviousProgressPct;
         SummaryPreviousValue = summaryPreviousValue;
         SummaryCurrentProgressPct = summaryCurrentProgressPct;
         SummaryCurrentValue = summaryCurrentValue;
-        Remark = remark;
+        Remark = EnsureFits(remark, RemarkMaxLength, nameof(Remark));
     }
 
     /// <summary>
-    /// Switch to full detail mode. Clears summary fields.
+    /// Switch to full detail mode. Clears the summary-only fields, but no longer clears
+    /// <see cref="Remark"/> as part of that: the remark is captured in both modes, so a mode
+    /// switch on its own must not wipe it.
+    ///
+    /// The remark is still a whole-value overwrite from the caller, exactly like every other
+    /// field on ConstructionInspectionData — the property endpoints replace the inspection from
+    /// the submitted form rather than patching it, so passing null means "store no remark", not
+    /// "leave the stored one alone".
     /// </summary>
-    public void UpdateFullDetail(decimal totalValue)
+    public void UpdateFullDetail(decimal totalValue, string? remark)
     {
         // Clear summary fields when switching to full detail mode
         if (!IsFullDetail)
@@ -116,12 +149,12 @@ public class ConstructionInspection : Entity<Guid>
             SummaryPreviousValue = null;
             SummaryCurrentProgressPct = null;
             SummaryCurrentValue = null;
-            Remark = null;
             ClearDocument();
         }
 
         IsFullDetail = true;
         TotalValue = totalValue;
+        Remark = EnsureFits(remark, RemarkMaxLength, nameof(Remark));
     }
 
     public void SetDocument(
@@ -213,7 +246,7 @@ public class ConstructionInspection : Entity<Guid>
                 remark: null);
         }
 
-        var newCi = CreateFullDetail(newPropertyId, prior.TotalValue);
+        var newCi = CreateFullDetail(newPropertyId, prior.TotalValue, remark: null);
         foreach (var wd in prior.WorkDetails)
         {
             newCi.AddWorkDetail(

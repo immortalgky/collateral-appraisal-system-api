@@ -17,12 +17,12 @@ public record GetCondoPropertyResponse(
     string? CondoName,
     string? BuildingNumber,
     string? ModelName,
-    string? BuiltOnTitleNumber,
+    string? TitleNumber,
     string? CondoRegistrationNumber,
     string? RoomNumber,
     string? FloorNumber,
     decimal? UsableArea,
-    decimal? ConstructionCompletionPercent,
+    bool? IsUnderConstruction,
     // Coordinates
     decimal? Latitude,
     decimal? Longitude,
@@ -106,5 +106,7 @@ public record GetCondoPropertyResponse(
     decimal? SellingPrice,
     decimal? ForceSellingPrice,
     // Other
-    string? Remark
+    string? Remark,
+    // Construction Inspection
+    ConstructionInspectionDto? ConstructionInspection
 );

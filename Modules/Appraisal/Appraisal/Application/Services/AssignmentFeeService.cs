@@ -1,7 +1,5 @@
 using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
-using Collateral.Contracts.ConstructionInspection;
-using MediatR;
 using Parameter.Contracts.Parameters;
 using Parameter.Contracts.Parameters.Dtos;
 
@@ -10,12 +8,11 @@ namespace Appraisal.Application.Services;
 /// <summary>
 /// Materialises fee items on the AppraisalFee shell once the real assignee is known.
 /// Handles three paths: tier-based (internal/external manual), quotation-price, and
-/// construction-inspection (seeded from prior engagement, bypasses tier/quotation).
+/// construction-inspection (chained from the prior appraisal's own fee, bypasses tier/quotation).
 /// Idempotent — safe to call multiple times for the same assignment.
 /// </summary>
 public class AssignmentFeeService(
     AppraisalDbContext dbContext,
-    ISender mediator,
     IParameterLookupService parameterLookup,
     ILogger<AssignmentFeeService> logger) : IAssignmentFeeService
 {
@@ -160,7 +157,7 @@ public class AssignmentFeeService(
 
             case AssignmentFeeSource.ConstructionInspection ciSource:
             {
-                // CI bypasses tier/quotation. If no prior engagement carries a CI fee,
+                // CI bypasses tier/quotation. If the prior appraisal carries no CI fee,
                 // leave the fee items empty per spec (no fallback to tier).
                 if (ciSource.Amount is null or <= 0m)
                 {
@@ -174,7 +171,7 @@ public class AssignmentFeeService(
                 // the quotation path. Amount is ex-VAT — RecalculateFromItems adds VAT on top.
                 fee.AddItem(
                     feeCode: "01",
-                    feeDescription: "Construction inspection fee from prior engagement",
+                    feeDescription: "Construction inspection fee from prior appraisal",
                     feeAmount: ciSource.Amount.Value);
 
                 logger.LogInformation(
@@ -223,13 +220,75 @@ public class AssignmentFeeService(
                 : defaultSource;
         }
 
-        var ciFee = await mediator.Send(
-            new GetConstructionInspectionFeeForAppraisalQuery(prevId), ct);
+        var ciFee = await ResolveChainedInspectionFeeAsync(prevId, ct);
 
         logger.LogInformation(
             "Resolved Construction Inspection fee source for AppraisalId={AppraisalId} from PrevAppraisalId={PrevAppraisalId}: Amount={Amount}",
             appraisal.Id, prevId, ciFee);
 
         return new AssignmentFeeSource.ConstructionInspection(ciFee);
+    }
+
+    /// <summary>
+    /// The inspection fee the NEXT Progressive appraisal should charge, read from the prior
+    /// appraisal's own fee rows rather than from its CollateralEngagement.
+    ///
+    /// The engagement column this replaces was only ever a copy of exactly this calculation, taken
+    /// at completion time by GetAppraisalForCollateralQueryHandler. Reading the origin keeps the
+    /// chain (original -> 1st inspection -> 2nd -> ...) intact even where no collateral master
+    /// exists, and removes the dependency on that row having been materialised first.
+    ///
+    /// Returns null when the prior appraisal, its assignment or its fee row is missing — the caller
+    /// leaves the fee empty in that case, deliberately, with no fallback to the tier ladder.
+    /// </summary>
+    private async Task<decimal?> ResolveChainedInspectionFeeAsync(
+        Guid prevAppraisalId,
+        CancellationToken ct)
+    {
+        var prior = await dbContext.Appraisals
+            .AsNoTracking()
+            .Include(a => a.Assignments)
+            .FirstOrDefaultAsync(a => a.Id == prevAppraisalId, ct);
+
+        if (prior is null)
+        {
+            logger.LogWarning(
+                "Construction Inspection fee: prior appraisal {PrevAppraisalId} not found; leaving the fee empty.",
+                prevAppraisalId);
+            return null;
+        }
+
+        // Same assignment election as the engagement writer: the newest one that was not rejected or
+        // cancelled, because a re-assigned case must bill from the assignment that did the work.
+        var latestAssignment = prior.Assignments
+            .Where(a => a.AssignmentStatus.Code != AssignmentStatus.Rejected.Code
+                        && a.AssignmentStatus.Code != AssignmentStatus.Cancelled.Code)
+            .OrderByDescending(a => a.AssignedAt)
+            .ThenByDescending(a => a.CreatedAt)
+            .ThenByDescending(a => a.Id)
+            .FirstOrDefault();
+
+        if (latestAssignment is null)
+            return null;
+
+        // A Progressive appraisal quotes nothing for the next round — it charges through its own
+        // fee line, so the next inspection inherits that. Sum only FeeCode "01" (the appraisal-fee
+        // line, ex-VAT) so travel ("02") and urgent ("03") surcharges do not propagate down the chain.
+        if (prior.AppraisalType == AppraisalTypes.Progressive)
+        {
+            return await dbContext.AppraisalFees
+                .AsNoTracking()
+                .Where(f => f.AssignmentId == latestAssignment.Id)
+                .Select(f => (decimal?)f.Items.Where(i => i.FeeCode == "01").Sum(i => i.FeeAmount))
+                .FirstOrDefaultAsync(ct);
+        }
+
+        // An original appraisal carries the quoted future-inspection fee explicitly, set via
+        // UpdateConstructionInspectionFeeCommand. Null when the user never filled it in.
+        return await dbContext.AppraisalFees
+            .AsNoTracking()
+            .Where(f => f.AssignmentId == latestAssignment.Id)
+            .Select(f => f.ConstructionInspectionFeeAmount)
+            .FirstOrDefaultAsync(ct);
     }
 }

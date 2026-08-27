@@ -115,7 +115,7 @@ public class GetDecisionSummaryQueryHandler(
         var valuationReview = await connectionFactory.QueryFirstOrDefaultAsync<ValuationReviewRow>(valuationReviewSql, param);
         var governmentPrices = (await connectionFactory.QueryAsync<GovernmentPriceRow>(govPriceSql, param)).ToList();
         var condoGovernmentPrices = (await connectionFactory.QueryAsync<CondoGovernmentPriceQueryRow>(condoGovPriceSql, param))
-            .Select(r => new CondoGovernmentPriceRow(r.TitleNumber, r.RoomNumber, r.UsableArea, r.IsMissingFromSurvey , r.GovernmentPricePerSqm, r.GovernmentPrice))
+            .Select(r => new CondoGovernmentPriceRow(r.TitleNumber, r.RoomNumber, r.UsableArea, r.IsMissingFromSurvey, r.GovernmentPricePerSqm, r.GovernmentPrice))
             .ToList();
         var approvalRows = (await connectionFactory.QueryAsync<ApprovalRow>(approvalSql, param)).ToList();
         var appraisalDate = await connectionFactory.QueryFirstOrDefaultAsync<DateTime?>(appraisalDateSql, param);
@@ -260,7 +260,7 @@ public class GetDecisionSummaryQueryHandler(
         var totalAppraisalPrice = approachMatrix.Sum(g => g.GroupSummaryValue ?? 0m);
 
         var forceSaleRate = await forceSaleRateResolver.ResolveAsync(appraisalId, forceSaleRateOverride, cancellationToken);
-        var forceSellingPrice = totalAppraisalPrice * forceSaleRate / 100m;
+        var forceSellingPrice = Math.Round(totalAppraisalPrice * forceSaleRate / 100m / 1000, MidpointRounding.AwayFromZero) * 1000;
 
         return new GetDecisionSummaryResult(
             ApproachMatrix: approachMatrix,
@@ -409,8 +409,8 @@ public class GetDecisionSummaryQueryHandler(
                 r.ModelName,
                 r.UnitCount,
                 r.TotalAppraisalPrice,
-                r.TotalAppraisalPrice * forceSaleRate / 100m,
-                r.BuildingInsurance))
+                Math.Round(r.TotalAppraisalPrice * forceSaleRate / 100m / 1000, MidpointRounding.AwayFromZero) * 1000,
+                Math.Round(r.BuildingInsurance / 1000, MidpointRounding.AwayFromZero) * 1000))
             .ToList();
 
         var totalAppraisalPrice = blockModelPrices.Sum(r => r.TotalAppraisalPrice);
@@ -538,14 +538,24 @@ public class GetDecisionSummaryQueryHandler(
                 CASE WHEN ci.IsFullDetail = 0
                      THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
                      ELSE ISNULL(wd_agg.CurrentPropertyValueSum, 0)
-                END AS CurrentValue
+                END AS CurrentValue,
+                CASE WHEN ci.IsFullDetail = 0
+                     THEN ISNULL(ci.SummaryPreviousProgressPct, 0)
+                     ELSE ISNULL(wd_agg.PreviousProportionPctSum, 0)
+                END AS EnteredPreviousPercent,
+                CASE WHEN ci.IsFullDetail = 0
+                     THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
+                     ELSE ISNULL(wd_agg.CurrentProportionPctSum, 0)
+                END AS EnteredCurrentPercent
             FROM appraisal.ConstructionInspections ci
             JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
             LEFT JOIN appraisal.BuildingAppraisalDetails bad ON bad.AppraisalPropertyId = ap.Id
             LEFT JOIN (
                 SELECT ConstructionInspectionId,
                        SUM(PreviousPropertyValue) AS PreviousPropertyValueSum,
-                       SUM(CurrentPropertyValue)  AS CurrentPropertyValueSum
+                       SUM(CurrentPropertyValue)  AS CurrentPropertyValueSum,
+                       SUM(ProportionPct * PreviousProgressPct / 100.0) AS PreviousProportionPctSum,
+                       SUM(CurrentProportionPct)                        AS CurrentProportionPctSum
                 FROM appraisal.ConstructionWorkDetails
                 GROUP BY ConstructionInspectionId
             ) wd_agg ON wd_agg.ConstructionInspectionId = ci.Id
@@ -604,8 +614,11 @@ public class GetDecisionSummaryQueryHandler(
         var detailRows = await connectionFactory.QueryAsync<CiDetailRow>(ciDetailSql, p);
         var completedRows = await connectionFactory.QueryAsync<CompletedBuildingRow>(completedBuildingSql, p);
 
-        var prevPct = ciTotal > 0 ? ciPrev / ciTotal * 100m : 0m;
-        var currentPct = ciTotal > 0 ? ciCurrent / ciTotal * 100m : 0m;
+        // Value-weighted while there is a value to weight by, otherwise the percentages the inspector
+        // entered — one rule, owned by ConstructionValueBreakdown so this card and the collateral
+        // contract cannot disagree.
+        var prevPct = values.PreviousProgressPercent;
+        var currentPct = values.ConstructionProgressPercent;
         var increasedPct = currentPct - prevPct;
         var remainingPct = 100m - currentPct;
 
@@ -646,17 +659,29 @@ public class GetDecisionSummaryQueryHandler(
         // % derived from value ratios, consistent with the milestone rows above — deliberately
         // NOT from SummaryCurrentProgressPct / SUM(CurrentProportionPct), so the detail rows
         // reconcile against the card they sit under.
-        var buildings = detailRows
+        // When the only inspected property carries no value of its own, the appraisal-level figure the
+        // breakdown substituted in belongs to it — there is nothing else to attribute it to. With
+        // several inspected properties there is no basis for splitting one number between them, so
+        // their value columns stay empty and only the entered percentages are reported.
+        // Count DISTINCT properties, not joined rows: ciDetailSql LEFT JOINs BuildingAppraisalDetails,
+        // so one inspected property carrying two of those rows would otherwise look like two.
+        var detailRowList = detailRows.ToList();
+        var soleDetailRow = detailRowList.Select(d => d.AppraisalPropertyId).Distinct().Count() == 1
+            ? detailRowList[0]
+            : null;
+        var substituteRowValues = soleDetailRow is { TotalValue: 0m } && ciTotal > 0m;
+
+        var buildings = detailRowList
             .Select(d => new ConstructionBuildingRow(
                 d.AppraisalPropertyId,
                 d.HouseNumber,
                 d.TitleNumber,
                 d.ModelName,
-                d.TotalValue,
-                d.PreviousValue,
-                d.CurrentValue,
-                d.TotalValue > 0 ? d.PreviousValue / d.TotalValue * 100m : 0m,
-                d.TotalValue > 0 ? d.CurrentValue / d.TotalValue * 100m : 0m))
+                substituteRowValues ? ciTotal : d.TotalValue,
+                substituteRowValues ? ciPrev : d.PreviousValue,
+                substituteRowValues ? ciCurrent : d.CurrentValue,
+                d.TotalValue > 0 ? d.PreviousValue / d.TotalValue * 100m : d.EnteredPreviousPercent,
+                d.TotalValue > 0 ? d.CurrentValue / d.TotalValue * 100m : d.EnteredCurrentPercent))
             .ToList();
 
         var completedBuildings = completedRows
@@ -683,6 +708,11 @@ public class GetDecisionSummaryQueryHandler(
         public decimal TotalValue { get; init; }
         public decimal PreviousValue { get; init; }
         public decimal CurrentValue { get; init; }
+
+        /// <summary>Progress as entered, per the inspection's mode flag. Used when the row has no value base.</summary>
+        public decimal EnteredPreviousPercent { get; init; }
+
+        public decimal EnteredCurrentPercent { get; init; }
     }
 
     private sealed class CompletedBuildingRow

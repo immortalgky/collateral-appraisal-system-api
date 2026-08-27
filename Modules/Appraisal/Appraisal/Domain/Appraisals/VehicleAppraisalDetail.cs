@@ -196,4 +196,42 @@ public class VehicleAppraisalDetail : Entity<Guid>
         if (other is not null) Other = other;
         if (appraiserOpinion is not null) AppraiserOpinion = appraiserOpinion;
     }
+
+    /// <summary>
+    /// Applies admin corrections to this vehicle, recording each change in <paramref name="diff"/>.
+    /// </summary>
+    internal void ApplyCorrection(VehicleCorrection edit, Dictionary<string, object?> diff)
+    {
+        CorrectionDiff.Apply("Vehicle.PropertyName", PropertyName, edit.PropertyName, v => PropertyName = v, diff);
+        CorrectionDiff.Apply("Vehicle.VehicleName", VehicleName, edit.VehicleName, v => VehicleName = v, diff);
+        CorrectionDiff.Apply("Vehicle.EngineNo", EngineNo, edit.EngineNo, v => EngineNo = v, diff);
+        CorrectionDiff.Apply("Vehicle.ChassisNo", ChassisNo, edit.ChassisNo, v => ChassisNo = v, diff);
+        CorrectionDiff.Apply("Vehicle.RegistrationNumber", RegistrationNumber, edit.RegistrationNumber, v => RegistrationNumber = v, diff);
+        CorrectionDiff.Apply("Vehicle.Brand", Brand, edit.Brand, v => Brand = v, diff);
+        CorrectionDiff.Apply("Vehicle.Model", Model, edit.Model, v => Model = v, diff);
+        CorrectionDiff.Apply("Vehicle.YearOfManufacture", YearOfManufacture, edit.YearOfManufacture, v => YearOfManufacture = v, diff);
+        CorrectionDiff.Apply("Vehicle.CountryOfManufacture", CountryOfManufacture, edit.CountryOfManufacture, v => CountryOfManufacture = v, diff);
+        CorrectionDiff.Apply("Vehicle.PurchaseDate", PurchaseDate, edit.PurchaseDate, v => PurchaseDate = v, diff);
+        CorrectionDiff.Apply("Vehicle.PurchasePrice", PurchasePrice, edit.PurchasePrice, v => PurchasePrice = v, diff);
+        CorrectionDiff.Apply("Vehicle.Capacity", Capacity, edit.Capacity, v => Capacity = v, diff);
+        CorrectionDiff.Apply("Vehicle.Width", Width, edit.Width, v => Width = v, diff);
+        CorrectionDiff.Apply("Vehicle.Length", Length, edit.Length, v => Length = v, diff);
+        CorrectionDiff.Apply("Vehicle.Height", Height, edit.Height, v => Height = v, diff);
+        CorrectionDiff.Apply("Vehicle.EnergyUse", EnergyUse, edit.EnergyUse, v => EnergyUse = v, diff);
+        CorrectionDiff.Apply("Vehicle.EnergyUseRemark", EnergyUseRemark, edit.EnergyUseRemark, v => EnergyUseRemark = v, diff);
+        CorrectionDiff.Apply("Vehicle.OwnerName", OwnerName, edit.OwnerName, v => OwnerName = v, diff);
+        CorrectionDiff.ApplyRequired("Vehicle.IsOwnerVerified", IsOwnerVerified, edit.IsOwnerVerified, v => IsOwnerVerified = v, diff);
+        CorrectionDiff.ApplyRequired("Vehicle.CanUse", CanUse, edit.CanUse, v => CanUse = v, diff);
+        CorrectionDiff.Apply("Vehicle.Location", Location, edit.Location, v => Location = v, diff);
+        CorrectionDiff.Apply("Vehicle.ConditionUse", ConditionUse, edit.ConditionUse, v => ConditionUse = v, diff);
+        CorrectionDiff.Apply("Vehicle.VehicleCondition", VehicleCondition, edit.VehicleCondition, v => VehicleCondition = v, diff);
+        CorrectionDiff.Apply("Vehicle.VehicleAge", VehicleAge, edit.VehicleAge, v => VehicleAge = v, diff);
+        CorrectionDiff.Apply("Vehicle.VehicleEfficiency", VehicleEfficiency, edit.VehicleEfficiency, v => VehicleEfficiency = v, diff);
+        CorrectionDiff.Apply("Vehicle.VehicleTechnology", VehicleTechnology, edit.VehicleTechnology, v => VehicleTechnology = v, diff);
+        CorrectionDiff.Apply("Vehicle.UsePurpose", UsePurpose, edit.UsePurpose, v => UsePurpose = v, diff);
+        CorrectionDiff.Apply("Vehicle.VehiclePart", VehiclePart, edit.VehiclePart, v => VehiclePart = v, diff);
+        CorrectionDiff.Apply("Vehicle.Remark", Remark, edit.Remark, v => Remark = v, diff);
+        CorrectionDiff.Apply("Vehicle.Other", Other, edit.Other, v => Other = v, diff);
+        CorrectionDiff.Apply("Vehicle.AppraiserOpinion", AppraiserOpinion, edit.AppraiserOpinion, v => AppraiserOpinion = v, diff);
+    }
 }

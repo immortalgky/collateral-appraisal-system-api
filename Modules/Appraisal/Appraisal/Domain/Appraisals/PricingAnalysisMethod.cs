@@ -206,6 +206,16 @@ public class PricingAnalysisMethod : Entity<Guid>
     }
 
     /// <summary>
+    /// Drops the final-value row. The relationship is required and cascades, so severing it deletes
+    /// the row rather than orphaning it — which is the point: consumers treat the row's existence as
+    /// "per-component figures were recorded", so a blanked-but-present row is worse than none.
+    /// </summary>
+    public void ClearFinalValue()
+    {
+        FinalValue = null;
+    }
+
+    /// <summary>
     /// Mirrors the current MachineCostItems FMV total into the shared <see cref="FinalValue"/>
     /// (FinalValue / FinalValueRounded), creating it if absent. User-authored fields
     /// (FinalValueAdjusted / AppraisalPrice) are deliberately left untouched. Call AFTER recalculation

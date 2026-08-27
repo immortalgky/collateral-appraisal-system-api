@@ -32,7 +32,7 @@ public sealed class TitleCondo : RequestTitle
 
         ArgumentException.ThrowIfNullOrWhiteSpace(OwnerName);
 
-        TitleDeedInfo.Validate(CollateralType);
+        TitleDeedInfo.Validate();
         CondoInfo.Validate();
     }
 }

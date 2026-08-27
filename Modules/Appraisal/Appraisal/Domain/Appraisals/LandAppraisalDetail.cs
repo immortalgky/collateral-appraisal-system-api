@@ -508,4 +508,154 @@ public class LandAppraisalDetail : Entity<Guid>
                 updatedTitle.Remark
             );
     }
+
+    /// <summary>
+    /// Applies admin corrections to this land detail, recording each change in <paramref name="diff"/>.
+    /// Only fields the caller actually supplied are touched.
+    ///
+    /// Deliberately NOT routed through <see cref="Update"/>: that method overwrites all ~77
+    /// properties unconditionally, so a partial correction would wipe everything unsupplied — the
+    /// data-loss trap documented on <see cref="UpdatePmaFields"/>.
+    /// </summary>
+    internal void ApplyCorrection(LandCorrection edit, Dictionary<string, object?> diff)
+    {
+        CorrectionDiff.Apply("Land.PropertyName", PropertyName, edit.PropertyName, v => PropertyName = v, diff);
+        CorrectionDiff.Apply("Land.LandDescription", LandDescription, edit.LandDescription, v => LandDescription = v, diff);
+        // Coordinates is an immutable record — compare components, rebuild once.
+        var latitude = Coordinates?.Latitude;
+        var longitude = Coordinates?.Longitude;
+        var coordinatesChanged = false;
+        CorrectionDiff.Apply("Land.Latitude", latitude, edit.Latitude,
+            v => { latitude = v; coordinatesChanged = true; }, diff);
+        CorrectionDiff.Apply("Land.Longitude", longitude, edit.Longitude,
+            v => { longitude = v; coordinatesChanged = true; }, diff);
+        if (coordinatesChanged)
+            Coordinates = Domain.Appraisals.GpsCoordinate.Create(latitude, longitude);
+
+        // Address is an immutable record — compare components, rebuild once.
+        var subDistrict = Address?.SubDistrict;
+        var district = Address?.District;
+        var province = Address?.Province;
+        var addressChanged = false;
+        CorrectionDiff.Apply("Land.SubDistrict", subDistrict, edit.SubDistrict,
+            v => { subDistrict = v; addressChanged = true; }, diff);
+        CorrectionDiff.Apply("Land.District", district, edit.District,
+            v => { district = v; addressChanged = true; }, diff);
+        CorrectionDiff.Apply("Land.Province", province, edit.Province,
+            v => { province = v; addressChanged = true; }, diff);
+        if (addressChanged)
+            Address = Domain.Appraisals.Address.Create(subDistrict, district, province);
+
+        CorrectionDiff.Apply("Land.LandOffice", LandOffice, edit.LandOffice, v => LandOffice = v, diff);
+        // DopaAddress is an immutable record — compare components, rebuild once.
+        var dopaSubDistrict = DopaAddress?.SubDistrict;
+        var dopaDistrict = DopaAddress?.District;
+        var dopaProvince = DopaAddress?.Province;
+        var dopaAddressChanged = false;
+        CorrectionDiff.Apply("Land.DopaSubDistrict", dopaSubDistrict, edit.DopaSubDistrict,
+            v => { dopaSubDistrict = v; dopaAddressChanged = true; }, diff);
+        CorrectionDiff.Apply("Land.DopaDistrict", dopaDistrict, edit.DopaDistrict,
+            v => { dopaDistrict = v; dopaAddressChanged = true; }, diff);
+        CorrectionDiff.Apply("Land.DopaProvince", dopaProvince, edit.DopaProvince,
+            v => { dopaProvince = v; dopaAddressChanged = true; }, diff);
+        if (dopaAddressChanged)
+            DopaAddress = Domain.Appraisals.Address.Create(dopaSubDistrict, dopaDistrict, dopaProvince);
+
+        CorrectionDiff.Apply("Land.OwnerName", OwnerName, edit.OwnerName, v => OwnerName = v, diff);
+        CorrectionDiff.Apply("Land.IsOwnerVerified", IsOwnerVerified, edit.IsOwnerVerified, v => IsOwnerVerified = v, diff);
+        CorrectionDiff.Apply("Land.HasObligation", HasObligation, edit.HasObligation, v => HasObligation = v, diff);
+        CorrectionDiff.Apply("Land.ObligationDetails", ObligationDetails, edit.ObligationDetails, v => ObligationDetails = v, diff);
+        CorrectionDiff.Apply("Land.IsLandLocationVerified", IsLandLocationVerified, edit.IsLandLocationVerified, v => IsLandLocationVerified = v, diff);
+        CorrectionDiff.Apply("Land.LandCheckMethodType", LandCheckMethodType, edit.LandCheckMethodType, v => LandCheckMethodType = v, diff);
+        CorrectionDiff.Apply("Land.LandCheckMethodTypeOther", LandCheckMethodTypeOther, edit.LandCheckMethodTypeOther, v => LandCheckMethodTypeOther = v, diff);
+        CorrectionDiff.Apply("Land.Street", Street, edit.Street, v => Street = v, diff);
+        CorrectionDiff.Apply("Land.Soi", Soi, edit.Soi, v => Soi = v, diff);
+        CorrectionDiff.Apply("Land.DistanceFromMainRoad", DistanceFromMainRoad, edit.DistanceFromMainRoad, v => DistanceFromMainRoad = v, diff);
+        CorrectionDiff.Apply("Land.Village", Village, edit.Village, v => Village = v, diff);
+        CorrectionDiff.Apply("Land.AddressLocation", AddressLocation, edit.AddressLocation, v => AddressLocation = v, diff);
+        CorrectionDiff.Apply("Land.LandShapeType", LandShapeType, edit.LandShapeType, v => LandShapeType = v, diff);
+        CorrectionDiff.Apply("Land.LandShapeTypeOther", LandShapeTypeOther, edit.LandShapeTypeOther, v => LandShapeTypeOther = v, diff);
+        CorrectionDiff.Apply("Land.UrbanPlanningType", UrbanPlanningType, edit.UrbanPlanningType, v => UrbanPlanningType = v, diff);
+        CorrectionDiff.ApplyList("Land.LandZoneType", LandZoneType, edit.LandZoneType, v => LandZoneType = v, diff);
+        CorrectionDiff.Apply("Land.LandZoneTypeOther", LandZoneTypeOther, edit.LandZoneTypeOther, v => LandZoneTypeOther = v, diff);
+        CorrectionDiff.ApplyList("Land.PlotLocationType", PlotLocationType, edit.PlotLocationType, v => PlotLocationType = v, diff);
+        CorrectionDiff.Apply("Land.PlotLocationTypeOther", PlotLocationTypeOther, edit.PlotLocationTypeOther, v => PlotLocationTypeOther = v, diff);
+        CorrectionDiff.Apply("Land.LandFillType", LandFillType, edit.LandFillType, v => LandFillType = v, diff);
+        CorrectionDiff.Apply("Land.LandFillTypeOther", LandFillTypeOther, edit.LandFillTypeOther, v => LandFillTypeOther = v, diff);
+        CorrectionDiff.Apply("Land.LandFillPercent", LandFillPercent, edit.LandFillPercent, v => LandFillPercent = v, diff);
+        CorrectionDiff.Apply("Land.SoilLevel", SoilLevel, edit.SoilLevel, v => SoilLevel = v, diff);
+        CorrectionDiff.Apply("Land.AccessRoadWidth", AccessRoadWidth, edit.AccessRoadWidth, v => AccessRoadWidth = v, diff);
+        CorrectionDiff.Apply("Land.RightOfWay", RightOfWay, edit.RightOfWay, v => RightOfWay = v, diff);
+        CorrectionDiff.Apply("Land.RoadFrontage", RoadFrontage, edit.RoadFrontage, v => RoadFrontage = v, diff);
+        CorrectionDiff.Apply("Land.NumberOfSidesFacingRoad", NumberOfSidesFacingRoad, edit.NumberOfSidesFacingRoad, v => NumberOfSidesFacingRoad = v, diff);
+        CorrectionDiff.Apply("Land.RoadPassInFrontOfLand", RoadPassInFrontOfLand, edit.RoadPassInFrontOfLand, v => RoadPassInFrontOfLand = v, diff);
+        CorrectionDiff.Apply("Land.LandAccessibilityType", LandAccessibilityType, edit.LandAccessibilityType, v => LandAccessibilityType = v, diff);
+        CorrectionDiff.Apply("Land.LandAccessibilityRemark", LandAccessibilityRemark, edit.LandAccessibilityRemark, v => LandAccessibilityRemark = v, diff);
+        CorrectionDiff.Apply("Land.RoadSurfaceType", RoadSurfaceType, edit.RoadSurfaceType, v => RoadSurfaceType = v, diff);
+        CorrectionDiff.Apply("Land.RoadSurfaceTypeOther", RoadSurfaceTypeOther, edit.RoadSurfaceTypeOther, v => RoadSurfaceTypeOther = v, diff);
+        CorrectionDiff.Apply("Land.HasElectricity", HasElectricity, edit.HasElectricity, v => HasElectricity = v, diff);
+        CorrectionDiff.Apply("Land.ElectricityDistance", ElectricityDistance, edit.ElectricityDistance, v => ElectricityDistance = v, diff);
+        CorrectionDiff.ApplyList("Land.PublicUtilityType", PublicUtilityType, edit.PublicUtilityType, v => PublicUtilityType = v, diff);
+        CorrectionDiff.Apply("Land.PublicUtilityTypeOther", PublicUtilityTypeOther, edit.PublicUtilityTypeOther, v => PublicUtilityTypeOther = v, diff);
+        CorrectionDiff.ApplyList("Land.LandUseType", LandUseType, edit.LandUseType, v => LandUseType = v, diff);
+        CorrectionDiff.Apply("Land.LandUseTypeOther", LandUseTypeOther, edit.LandUseTypeOther, v => LandUseTypeOther = v, diff);
+        CorrectionDiff.ApplyList("Land.LandEntranceExitType", LandEntranceExitType, edit.LandEntranceExitType, v => LandEntranceExitType = v, diff);
+        CorrectionDiff.Apply("Land.LandEntranceExitTypeOther", LandEntranceExitTypeOther, edit.LandEntranceExitTypeOther, v => LandEntranceExitTypeOther = v, diff);
+        CorrectionDiff.ApplyList("Land.TransportationAccessType", TransportationAccessType, edit.TransportationAccessType, v => TransportationAccessType = v, diff);
+        CorrectionDiff.Apply("Land.TransportationAccessTypeOther", TransportationAccessTypeOther, edit.TransportationAccessTypeOther, v => TransportationAccessTypeOther = v, diff);
+        CorrectionDiff.Apply("Land.PropertyAnticipationType", PropertyAnticipationType, edit.PropertyAnticipationType, v => PropertyAnticipationType = v, diff);
+        CorrectionDiff.Apply("Land.PropertyAnticipationTypeOther", PropertyAnticipationTypeOther, edit.PropertyAnticipationTypeOther, v => PropertyAnticipationTypeOther = v, diff);
+        CorrectionDiff.Apply("Land.IsExpropriated", IsExpropriated, edit.IsExpropriated, v => IsExpropriated = v, diff);
+        CorrectionDiff.Apply("Land.ExpropriationRemark", ExpropriationRemark, edit.ExpropriationRemark, v => ExpropriationRemark = v, diff);
+        CorrectionDiff.Apply("Land.IsInExpropriationLine", IsInExpropriationLine, edit.IsInExpropriationLine, v => IsInExpropriationLine = v, diff);
+        CorrectionDiff.Apply("Land.ExpropriationLineRemark", ExpropriationLineRemark, edit.ExpropriationLineRemark, v => ExpropriationLineRemark = v, diff);
+        CorrectionDiff.Apply("Land.RoyalDecree", RoyalDecree, edit.RoyalDecree, v => RoyalDecree = v, diff);
+        CorrectionDiff.Apply("Land.IsEncroached", IsEncroached, edit.IsEncroached, v => IsEncroached = v, diff);
+        CorrectionDiff.Apply("Land.EncroachmentRemark", EncroachmentRemark, edit.EncroachmentRemark, v => EncroachmentRemark = v, diff);
+        CorrectionDiff.Apply("Land.EncroachmentArea", EncroachmentArea, edit.EncroachmentArea, v => EncroachmentArea = v, diff);
+        CorrectionDiff.Apply("Land.IsLandlocked", IsLandlocked, edit.IsLandlocked, v => IsLandlocked = v, diff);
+        CorrectionDiff.Apply("Land.LandlockedRemark", LandlockedRemark, edit.LandlockedRemark, v => LandlockedRemark = v, diff);
+        CorrectionDiff.Apply("Land.IsForestBoundary", IsForestBoundary, edit.IsForestBoundary, v => IsForestBoundary = v, diff);
+        CorrectionDiff.Apply("Land.ForestBoundaryRemark", ForestBoundaryRemark, edit.ForestBoundaryRemark, v => ForestBoundaryRemark = v, diff);
+        CorrectionDiff.Apply("Land.OtherLegalLimitations", OtherLegalLimitations, edit.OtherLegalLimitations, v => OtherLegalLimitations = v, diff);
+        CorrectionDiff.ApplyList("Land.EvictionType", EvictionType, edit.EvictionType, v => EvictionType = v, diff);
+        CorrectionDiff.Apply("Land.EvictionTypeOther", EvictionTypeOther, edit.EvictionTypeOther, v => EvictionTypeOther = v, diff);
+        CorrectionDiff.Apply("Land.AllocationType", AllocationType, edit.AllocationType, v => AllocationType = v, diff);
+        CorrectionDiff.Apply("Land.NorthAdjacentArea", NorthAdjacentArea, edit.NorthAdjacentArea, v => NorthAdjacentArea = v, diff);
+        CorrectionDiff.Apply("Land.NorthBoundaryLength", NorthBoundaryLength, edit.NorthBoundaryLength, v => NorthBoundaryLength = v, diff);
+        CorrectionDiff.Apply("Land.SouthAdjacentArea", SouthAdjacentArea, edit.SouthAdjacentArea, v => SouthAdjacentArea = v, diff);
+        CorrectionDiff.Apply("Land.SouthBoundaryLength", SouthBoundaryLength, edit.SouthBoundaryLength, v => SouthBoundaryLength = v, diff);
+        CorrectionDiff.Apply("Land.EastAdjacentArea", EastAdjacentArea, edit.EastAdjacentArea, v => EastAdjacentArea = v, diff);
+        CorrectionDiff.Apply("Land.EastBoundaryLength", EastBoundaryLength, edit.EastBoundaryLength, v => EastBoundaryLength = v, diff);
+        CorrectionDiff.Apply("Land.WestAdjacentArea", WestAdjacentArea, edit.WestAdjacentArea, v => WestAdjacentArea = v, diff);
+        CorrectionDiff.Apply("Land.WestBoundaryLength", WestBoundaryLength, edit.WestBoundaryLength, v => WestBoundaryLength = v, diff);
+        CorrectionDiff.Apply("Land.PondArea", PondArea, edit.PondArea, v => PondArea = v, diff);
+        CorrectionDiff.Apply("Land.PondDepth", PondDepth, edit.PondDepth, v => PondDepth = v, diff);
+        CorrectionDiff.Apply("Land.HasBuilding", HasBuilding, edit.HasBuilding, v => HasBuilding = v, diff);
+        CorrectionDiff.Apply("Land.HasBuildingOther", HasBuildingOther, edit.HasBuildingOther, v => HasBuildingOther = v, diff);
+        CorrectionDiff.Apply("Land.Remark", Remark, edit.Remark, v => Remark = v, diff);
+        CorrectionDiff.Apply("Land.IsRentedOut", IsRentedOut, edit.IsRentedOut, v => IsRentedOut = v, diff);
+    }
+
+    /// <summary>
+    /// Applies corrections to existing titles, matched by id. Titles are corrected in place — never
+    /// removed and re-added — so the ids referenced by the audit trail stay stable.
+    /// </summary>
+    /// <exception cref="Shared.Exceptions.NotFoundException">
+    /// A supplied TitleId does not belong to this land detail. Not ignored: it means the caller sent
+    /// a correction for the wrong property, and silently dropping it would leave the admin believing
+    /// the edit was saved.
+    /// </exception>
+    internal void ApplyTitleCorrections(
+        IReadOnlyList<LandTitleCorrection> edits,
+        Dictionary<string, object?> diff)
+    {
+        foreach (var edit in edits)
+        {
+            var title = _titles.FirstOrDefault(t => t.Id == edit.TitleId)
+                        ?? throw new NotFoundException("LandTitle", edit.TitleId);
+
+            title.ApplyCorrection(edit, diff);
+        }
+    }
 }

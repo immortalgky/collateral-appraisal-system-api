@@ -3,7 +3,7 @@ public record UpdateCondoPMAPropertyRequest(
     decimal? ForcedSalePrice,
     decimal? BuildingInsurancePrice,
     string? CondoName = null,
-    string? BuiltOnTitleNumber = null,
+    string? TitleNumber = null,
     string? CondoRegistrationNumber = null,
     string? RoomNumber = null,
     string? FloorNumber = null,

@@ -180,7 +180,6 @@ public class CreateLeaseAgreementLandAndBuildingPropertyCommandHandler(
             buildingConditionType: command.BuildingConditionType,
             buildingConditionTypeOther: command.BuildingConditionTypeOther,
             isUnderConstruction: command.IsUnderConstruction,
-            constructionCompletionPercent: command.ConstructionCompletionPercent,
             constructionLicenseExpirationDate: command.ConstructionLicenseExpirationDate,
             isAppraisable: command.IsAppraisable,
             // Building - Area
@@ -324,7 +323,7 @@ public class CreateLeaseAgreementLandAndBuildingPropertyCommandHandler(
         ConstructionInspection inspection;
         if (ci.IsFullDetail)
         {
-            inspection = ConstructionInspection.CreateFullDetail(property.Id, ci.TotalValue);
+            inspection = ConstructionInspection.CreateFullDetail(property.Id, ci.TotalValue, ci.Remark);
             if (ci.WorkDetails is { Count: > 0 })
             {
                 foreach (var wd in ci.WorkDetails)

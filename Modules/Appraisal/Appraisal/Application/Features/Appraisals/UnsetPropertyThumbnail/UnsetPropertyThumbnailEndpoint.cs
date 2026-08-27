@@ -29,6 +29,7 @@ public class UnsetPropertyThumbnailEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Unset property thumbnail")
             .WithDescription("Removes the thumbnail designation from the specified photo for the property.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("AppraisalGallery");
     }
 }

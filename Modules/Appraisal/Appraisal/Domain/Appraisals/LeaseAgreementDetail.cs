@@ -107,4 +107,27 @@ public class LeaseAgreementDetail : Entity<Guid>
         if (terminationOfLease is not null) TerminationOfLease = terminationOfLease;
         if (remark is not null) Remark = remark;
     }
+
+    /// <summary>
+    /// Applies admin corrections to this lease agreement, recording each change in <paramref name="diff"/>.
+    /// </summary>
+    internal void ApplyCorrection(LeaseAgreementCorrection edit, Dictionary<string, object?> diff)
+    {
+        CorrectionDiff.Apply("Lease.LesseeName", LesseeName, edit.LesseeName, v => LesseeName = v, diff);
+        CorrectionDiff.Apply("Lease.LessorName", LessorName, edit.LessorName, v => LessorName = v, diff);
+        CorrectionDiff.Apply("Lease.LeasePeriodAsContract", LeasePeriodAsContract, edit.LeasePeriodAsContract, v => LeasePeriodAsContract = v, diff);
+        CorrectionDiff.Apply("Lease.RemainingLeaseAsAppraisalDate", RemainingLeaseAsAppraisalDate, edit.RemainingLeaseAsAppraisalDate, v => RemainingLeaseAsAppraisalDate = v, diff);
+        CorrectionDiff.Apply("Lease.ContractNo", ContractNo, edit.ContractNo, v => ContractNo = v, diff);
+        CorrectionDiff.Apply("Lease.LeaseStartDate", LeaseStartDate, edit.LeaseStartDate, v => LeaseStartDate = v, diff);
+        CorrectionDiff.Apply("Lease.LeaseEndDate", LeaseEndDate, edit.LeaseEndDate, v => LeaseEndDate = v, diff);
+        CorrectionDiff.Apply("Lease.LeaseRentFee", LeaseRentFee, edit.LeaseRentFee, v => LeaseRentFee = v, diff);
+        CorrectionDiff.Apply("Lease.RentAdjust", RentAdjust, edit.RentAdjust, v => RentAdjust = v, diff);
+        CorrectionDiff.Apply("Lease.Sublease", Sublease, edit.Sublease, v => Sublease = v, diff);
+        CorrectionDiff.Apply("Lease.AdditionalExpenses", AdditionalExpenses, edit.AdditionalExpenses, v => AdditionalExpenses = v, diff);
+        CorrectionDiff.Apply("Lease.LeaseTerminate", LeaseTerminate, edit.LeaseTerminate, v => LeaseTerminate = v, diff);
+        CorrectionDiff.Apply("Lease.ContractRenewal", ContractRenewal, edit.ContractRenewal, v => ContractRenewal = v, diff);
+        CorrectionDiff.Apply("Lease.RentalTermsImpactingPropertyUse", RentalTermsImpactingPropertyUse, edit.RentalTermsImpactingPropertyUse, v => RentalTermsImpactingPropertyUse = v, diff);
+        CorrectionDiff.Apply("Lease.TerminationOfLease", TerminationOfLease, edit.TerminationOfLease, v => TerminationOfLease = v, diff);
+        CorrectionDiff.Apply("Lease.Remark", Remark, edit.Remark, v => Remark = v, diff);
+    }
 }

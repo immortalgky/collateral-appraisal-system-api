@@ -22,7 +22,7 @@ internal class UpdateRequestCommandHandler(
             titles = await syncService.SyncTitlesAsync(command.Id, command.Titles, cancellationToken);
 
         request.Validate();
-        request.UpdateStatus(RequestStatus.New);
+        request.MarkAsNew();
 
         foreach (var title in titles)
             title.Validate();

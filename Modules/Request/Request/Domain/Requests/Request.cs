@@ -129,10 +129,52 @@ public class Request : Aggregate<Guid>
             _properties.AddRange(properties);
     }
 
-    public void UpdateStatus(RequestStatus status)
+    private void UpdateStatus(RequestStatus status)
     {
         ArgumentNullException.ThrowIfNull(status);
         Status = status;
+    }
+
+    /// <summary>
+    /// True once the request has been handed over to the appraisal workflow.
+    /// RequestedAt is stamped by <see cref="Submit"/> and never cleared, so it stays a reliable
+    /// marker even for rows whose Status was corrupted by an earlier post-submit save.
+    /// Deliberately a method, not a property, so EF Core never tries to map it.
+    /// </summary>
+    public bool HasBeenSubmitted()
+    {
+        return RequestedAt is not null || (Status != RequestStatus.Draft && Status != RequestStatus.New);
+    }
+
+    private void EnsureNotSubmitted(string action)
+    {
+        RuleCheck.Valid()
+            .AddErrorIf(HasBeenSubmitted(), $"Cannot {action} a request that has already been submitted.")
+            .ThrowIfInvalid();
+    }
+
+    /// <summary>
+    /// Promotes the request to "New" (validated, ready to submit) after a full save.
+    /// Silently does nothing once the request has been submitted: editing a submitted request --
+    /// for example after a route-back to appraisal-initiation -- is legitimate, but it must not
+    /// drag the request back into the pre-submission listing.
+    /// </summary>
+    public void MarkAsNew()
+    {
+        if (HasBeenSubmitted()) return;
+
+        UpdateStatus(RequestStatus.New);
+    }
+
+    /// <summary>
+    /// Demotes the request to "Draft". Rejected once the request has been submitted, because a
+    /// draft save skips validation and must never be applied to a request already in the workflow.
+    /// </summary>
+    public void MarkAsDraft()
+    {
+        EnsureNotSubmitted("save as draft");
+
+        UpdateStatus(RequestStatus.Draft);
     }
 
     /// <summary>
@@ -144,8 +186,15 @@ public class Request : Aggregate<Guid>
         RequestNumber = requestNumber;
     }
 
+    /// <summary>
+    /// Soft-deletes the request. Only requests that are still in the intake queue can be deleted --
+    /// a submitted request is owned by the appraisal workflow, and deleting it leaves an orphaned
+    /// task that can no longer be opened.
+    /// </summary>
     public void Delete(string deletedBy, DateTime deletedAt)
     {
+        EnsureNotSubmitted("delete");
+
         SoftDelete = SoftDelete.Delete(deletedBy, deletedAt);
     }
 
@@ -169,10 +218,11 @@ public class Request : Aggregate<Guid>
     /// </summary>
     public void Submit(DateTime submittedAt, string? groupTag = null, string? entrySource = null)
     {
-        RuleCheck.Valid()
-            .AddErrorIf(Status != RequestStatus.Draft && Status != RequestStatus.New,
-                "Can only submit Draft or New requests.")
-            .ThrowIfInvalid();
+        // Guards on HasBeenSubmitted() rather than Status alone, so that a row whose Status was
+        // demoted back to New/Draft by the old post-submit-save bug still cannot be submitted a
+        // second time. Re-submitting such a row would re-stamp RequestedAt -- the date SLA and the
+        // regulatory export read -- and re-publish RequestSubmittedEvent.
+        EnsureNotSubmitted("submit");
 
         UpdateStatus(RequestStatus.Submitted);
         RequestedAt = submittedAt;

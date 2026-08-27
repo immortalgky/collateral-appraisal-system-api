@@ -15,7 +15,9 @@ public class DeletePropertyCommandHandler(
             command.appraisalId, cancellationToken)
             ?? throw new AppraisalNotFoundException(command.appraisalId);
 
-        var property = appraisal.GetProperty(command.propertyId)
+        // Existence check only, so a missing property surfaces as PropertyNotFoundException
+        // instead of the InvalidOperationException RemoveProperty would throw further down.
+        _ = appraisal.GetProperty(command.propertyId)
             ?? throw new PropertyNotFoundException(command.propertyId);
 
         // Active cleanup: delete MachineryCostRef PricingAnalyses anchored to this property (DL10)
@@ -26,9 +28,9 @@ public class DeletePropertyCommandHandler(
         // explicitly or the delete fails with SQL 547.
         await RemovePhotoMappingsAsync(command.propertyId, cancellationToken);
 
+        // Removing the property from the aggregate is what deletes the row: AppraisalProperty.AppraisalId
+        // is non-nullable, so EF treats the relationship as required and cascade-deletes the orphan.
         appraisal.RemoveProperty(command.propertyId);
-
-        await appraisalRepository.DeleteAsync(property.Id, cancellationToken);
 
         // Flush the property removal BEFORE recomputing so RecomputeAsync's insurance sum (over
         // AppraisalProperties.BuildingDetail/CondoDetail) no longer counts the deleted structure.

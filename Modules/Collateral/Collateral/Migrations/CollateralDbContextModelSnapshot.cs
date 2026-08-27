@@ -614,12 +614,37 @@ namespace Collateral.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("CollateralCode")
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<string>("CollateralName")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<string>("HostCollateralId")
+                        .IsRequired()
                         .HasMaxLength(19)
                         .HasColumnType("nvarchar(19)");
 
                     b.Property<bool>("IsRedeemed")
                         .HasColumnType("bit");
+
+                    b.Property<string>("LocationCode")
+                        .HasMaxLength(6)
+                        .HasColumnType("nvarchar(6)");
+
+                    b.Property<string>("MasterTitle")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("PropertyType")
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<string>("PropertyTypeDesc")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
 
                     b.Property<DateOnly?>("RecordDate")
                         .HasColumnType("date");
@@ -630,11 +655,14 @@ namespace Collateral.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AppraisalNumber")
-                        .IsUnique()
-                        .HasDatabaseName("UX_HostCollateralLinks_AppraisalNumber");
+                        .HasDatabaseName("IX_HostCollateralLinks_AppraisalNumber");
 
-                    b.HasIndex("IsRedeemed")
-                        .HasDatabaseName("IX_HostCollateralLinks_IsRedeemed");
+                    b.HasIndex("HostCollateralId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_HostCollateralLinks_HostCollateralId");
+
+                    b.HasIndex("IsRedeemed", "MasterTitle")
+                        .HasDatabaseName("IX_HostCollateralLinks_IsRedeemed_MasterTitle");
 
                     b.ToTable("HostCollateralLinks", "collateral");
                 });

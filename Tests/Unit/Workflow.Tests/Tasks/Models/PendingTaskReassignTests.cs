@@ -113,7 +113,7 @@ public class PendingTaskReassignTests
     public void Reassign_ClearsWorkingBy()
     {
         var task = CreateAssignedTask("alice");
-        task.StartWorking("alice");
+        task.StartWorking("alice", DateTime.Now);
         task.ClearDomainEvents(); // clear the StartWorking event for isolation
 
         task.Reassign("bob", "1", raiseEventFor: "supervisor");
@@ -136,7 +136,7 @@ public class PendingTaskReassignTests
     public void Reassign_SetsTaskStatusToAssigned()
     {
         var task = CreateAssignedTask("alice");
-        task.StartWorking("alice");
+        task.StartWorking("alice", DateTime.Now);
 
         task.Reassign("bob", "1", raiseEventFor: "supervisor");
 
@@ -162,6 +162,159 @@ public class PendingTaskReassignTests
         task.Reassign("bob", "1", raiseEventFor: "supervisor");
 
         task.AssignedAt.Should().Be(originalAssignedAt);
+    }
+
+    // ── Holder clock vs SLA clock ─────────────────────────────────────────────
+
+    [Fact]
+    public void Create_StampsAssigneeAssignedAtToAssignedAt()
+    {
+        var task = CreateAssignedTask("alice");
+
+        task.AssigneeAssignedAt.Should().Be(task.AssignedAt);
+    }
+
+    [Fact]
+    public void Reassign_WithHolderChangedAt_RestampsAssigneeAssignedAtButNotAssignedAt()
+    {
+        var task = CreateAssignedTask("alice");
+        var originalAssignedAt = task.AssignedAt;
+        var handedOverAt = DateTime.Now;
+
+        task.Reassign("bob", "1", raiseEventFor: "supervisor", holderChangedAt: handedOverAt);
+
+        task.AssigneeAssignedAt.Should().Be(handedOverAt,
+            because: "the incoming holder's clock starts at the hand-off, which is what history timelines order on");
+        task.AssignedAt.Should().Be(originalAssignedAt,
+            because: "the SLA clock must not restart on reassignment");
+    }
+
+    [Fact]
+    public void Reassign_WithoutHolderChangedAt_LeavesAssigneeAssignedAtAlone()
+    {
+        // Claim / implicit-assign / fan-out advance take this overload. They write no audit row,
+        // so their single history row keeps reporting the original start.
+        var task = CreateAssignedTask("alice");
+        var original = task.AssigneeAssignedAt;
+
+        task.Reassign("bob", "1");
+
+        task.AssigneeAssignedAt.Should().Be(original);
+    }
+
+    [Fact]
+    public void CreateAuditFromPendingTask_CarriesOutgoingHoldersStamp_WhileTaskMovesOn()
+    {
+        // The reassign handler snapshots the audit row BEFORE mutating, so the two rows end up with
+        // a strictly increasing AssigneeAssignedAt chain even though AssignedAt is identical.
+        var task = CreateAssignedTask("alice");
+        var outgoingStart = task.AssigneeAssignedAt;
+        var handedOverAt = DateTime.Now;
+
+        var auditRow = CompletedTask.CreateAuditFromPendingTask(task, "Reassigned", handedOverAt);
+        task.Reassign("bob", "1", raiseEventFor: "supervisor", holderChangedAt: handedOverAt);
+
+        auditRow.AssigneeAssignedAt.Should().Be(outgoingStart);
+        auditRow.AssignedAt.Should().Be(task.AssignedAt);
+        auditRow.AssigneeAssignedAt.Should().BeBefore(task.AssigneeAssignedAt);
+    }
+
+    [Fact]
+    public void Reassign_WithHolderChangedAt_ClearsOpenedAt_AndAuditRowKeepsTheOutgoingHoldersOpenTime()
+    {
+        // OpenedAt uses ??= (stamped once, never overwritten). Without the reset, the incoming holder
+        // inherits an open time they were never present for, and StartWorking can never re-stamp it.
+        // Explicit, well-separated instants: two DateTime.Now reads microseconds apart can land on
+        // the same tick on a coarse clock, which would make the final assertion flaky.
+        var aliceOpenedAt = DateTime.Now.AddHours(-5);
+        var handedOverAt = DateTime.Now.AddHours(-2);
+        var bobOpenedAt = DateTime.Now.AddHours(-1);
+
+        var task = CreateAssignedTask("alice");
+        task.StartWorking("alice", aliceOpenedAt);
+        task.OpenedAt.Should().Be(aliceOpenedAt);
+
+        var auditRow = CompletedTask.CreateAuditFromPendingTask(task, "Reassigned", handedOverAt);
+        task.Reassign("bob", "1", raiseEventFor: "supervisor", holderChangedAt: handedOverAt);
+
+        auditRow.OpenedAt.Should().Be(aliceOpenedAt,
+            because: "the audit row is snapshotted before the mutation, so it keeps alice's open time");
+        task.OpenedAt.Should().BeNull(
+            because: "bob has not opened the task yet — StartWorking must be free to stamp it");
+
+        task.StartWorking("bob", bobOpenedAt);
+        task.OpenedAt.Should().Be(bobOpenedAt).And.NotBe(aliceOpenedAt);
+    }
+
+    [Fact]
+    public void StartWorking_ReplacesAnOpenedAtThatPredatesTheHandOff()
+    {
+        // Reproduces a row handed off before Reassign started clearing OpenedAt: the previous
+        // holder's stamp is still there, and ??= alone would keep it forever. Reflection is the only
+        // way to build this state — the aggregate no longer allows it, which is the fix; the rows
+        // already sitting in the database from before it are what this guard exists for.
+        var task = CreateAssignedTask("alice");
+        var staleOpenedAt = DateTime.Now.AddDays(-30);   // alice opened it last month
+        var handedOverAt = DateTime.Now.AddDays(-3);     // bob received it three days ago
+        var bobOpenedAt = DateTime.Now.AddDays(-1);      // bob opens it today
+        SetPrivate(task, nameof(PendingTask.OpenedAt), staleOpenedAt);
+        SetPrivate(task, nameof(PendingTask.AssigneeAssignedAt), handedOverAt);
+
+        task.StartWorking("bob", bobOpenedAt);
+
+        task.OpenedAt.Should().Be(bobOpenedAt, because: "the stale stamp belongs to alice");
+        task.OpenedAt.Should().BeAfter(handedOverAt,
+            because: "an open time earlier than the hand-off cannot belong to the current holder");
+    }
+
+    private static void SetPrivate(PendingTask task, string propertyName, object value) =>
+        typeof(PendingTask).GetProperty(propertyName)!
+            .GetSetMethod(nonPublic: true)!
+            .Invoke(task, [value]);
+
+    [Fact]
+    public void Reassign_WithoutHolderChangedAt_StillClearsOpenedAt()
+    {
+        // The fan-out stage advance takes this overload and writes no audit row, so nothing else
+        // would ever correct an inherited stamp: StartWorking's self-heal cannot fire either,
+        // because OpenedAt would still be >= the untouched AssigneeAssignedAt.
+        var task = CreateAssignedTask("alice");
+        task.StartWorking("alice", DateTime.Now.AddHours(-1));
+        task.OpenedAt.Should().NotBeNull();
+
+        task.Reassign("bob", "1");
+
+        task.OpenedAt.Should().BeNull(
+            because: "an open time is a fact about a person, and bob has not opened this task");
+    }
+
+    [Fact]
+    public void Reassign_BySupervisor_DiscardsTheOutgoingHoldersDecisionDraft()
+    {
+        var task = CreateAssignedTask("alice");
+        task.SaveDecisionDraft("APPROVE", "looks fine to me", "R01", "carol");
+
+        task.Reassign("bob", "1", raiseEventFor: "supervisor", holderChangedAt: DateTime.Now);
+
+        task.DecisionTaken.Should().BeNull();
+        task.Comment.Should().BeNull();
+        task.ReasonCode.Should().BeNull();
+        task.DraftAssignee.Should().BeNull(
+            because: "bob must not find alice's drafted decision pre-filled and submit it as his own");
+    }
+
+    [Fact]
+    public void Reassign_OnAPoolClaim_KeepsTheDecisionDraft()
+    {
+        // A claim is the same person taking their own drafted task off the pool. Wiping the draft
+        // here would destroy their work — which is why only the supervisor path discards it.
+        var task = CreateAssignedTask("IntAdmin");
+        task.SaveDecisionDraft("APPROVE", "half-written", null, null);
+
+        task.Reassign("alice", "1");
+
+        task.DecisionTaken.Should().Be("APPROVE");
+        task.Comment.Should().Be("half-written");
     }
 
     // ── PK collision guard: audit row vs completion row ───────────────────────

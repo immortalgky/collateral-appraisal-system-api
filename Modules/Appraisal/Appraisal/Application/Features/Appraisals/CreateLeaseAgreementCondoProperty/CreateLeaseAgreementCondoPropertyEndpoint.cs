@@ -36,6 +36,7 @@ public class CreateLeaseAgreementCondoPropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Create a lease agreement condo property")
             .WithDescription("Creates a new lease agreement condo property with condo detail, lease agreement, and rental info.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

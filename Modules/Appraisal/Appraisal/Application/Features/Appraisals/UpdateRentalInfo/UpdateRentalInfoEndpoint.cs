@@ -28,6 +28,7 @@ public class UpdateRentalInfoEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update rental info")
             .WithDescription("Update the rental info for a lease agreement property.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

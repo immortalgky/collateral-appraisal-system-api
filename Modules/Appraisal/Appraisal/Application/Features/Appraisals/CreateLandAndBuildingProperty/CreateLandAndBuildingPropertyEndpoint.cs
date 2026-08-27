@@ -36,6 +36,7 @@ public class CreateLandAndBuildingPropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Create a land and building property")
             .WithDescription("Creates a new land and building property with its appraisal detail for an appraisal.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

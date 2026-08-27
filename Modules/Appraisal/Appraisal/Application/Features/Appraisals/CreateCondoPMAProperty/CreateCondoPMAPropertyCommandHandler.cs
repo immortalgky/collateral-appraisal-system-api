@@ -40,7 +40,7 @@ public class CreateCondoPMAPropertyCommandHandler(
             condoName: command.CondoName,
             ownerName: "",
             buildingNumber: command.BuildingNumber,
-            builtOnTitleNumber: command.BuiltOnTitleNumber,
+            titleNumber: command.TitleNumber,
             condoRegistrationNumber: command.CondoRegistrationNumber,
             roomNumber: command.RoomNumber,
             floorNumber: command.FloorNumber,

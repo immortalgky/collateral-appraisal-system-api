@@ -34,7 +34,6 @@ public class CreateLeaseAgreementBuildingPropertyCommandHandler(
             command.BuildingConditionType,
             command.BuildingConditionTypeOther,
             command.IsUnderConstruction,
-            command.ConstructionCompletionPercent,
             command.ConstructionLicenseExpirationDate,
             command.IsAppraisable,
             command.BuildingType,
@@ -176,7 +175,7 @@ public class CreateLeaseAgreementBuildingPropertyCommandHandler(
         ConstructionInspection inspection;
         if (ci.IsFullDetail)
         {
-            inspection = ConstructionInspection.CreateFullDetail(property.Id, ci.TotalValue);
+            inspection = ConstructionInspection.CreateFullDetail(property.Id, ci.TotalValue, ci.Remark);
             if (ci.WorkDetails is { Count: > 0 })
             {
                 foreach (var wd in ci.WorkDetails)

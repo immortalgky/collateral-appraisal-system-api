@@ -11,13 +11,23 @@ public class PendingTask : Aggregate<Guid>
     public string AssignedTo { get; private set; } = default!;
     public string AssignedType { get; private set; } = default!;
     public DateTime AssignedAt { get; private set; }
+
+    /// <summary>
+    /// The moment the CURRENT holder received this task. Stamped to AssignedAt at creation and
+    /// re-stamped by <see cref="Reassign"/> when the caller supplies a timestamp (the supervisor
+    /// reassign path). Display/ordering only — the SLA clock anchors on <see cref="AssignedAt"/> and
+    /// <see cref="SlaStartAt"/>, which reassignment must never move.
+    /// </summary>
+    public DateTime AssigneeAssignedAt { get; private set; }
+
     public string? WorkingBy { get; private set; }
     public DateTime? LockedAt { get; private set; }
 
     /// <summary>
-    /// The moment the assignee first opened the task (first transition to InProgress). Stamped once
-    /// in <see cref="StartWorking"/> and never overwritten, so it records the initial open time even
-    /// if the task is later re-opened. Null while the task is still Assigned/unopened.
+    /// The moment the CURRENT holder first opened the task (first transition to InProgress). Stamped
+    /// once in <see cref="StartWorking"/> and never overwritten, so it records the initial open time
+    /// even if the task is later re-opened. Null while the task is still Assigned/unopened — and
+    /// reset to null on a supervisor hand-off, since the incoming holder has not opened it yet.
     /// </summary>
     public DateTime? OpenedAt { get; private set; }
     public Guid WorkflowInstanceId { get; private set; }
@@ -87,6 +97,7 @@ public class PendingTask : Aggregate<Guid>
         AssignedTo = assignedTo;
         AssignedType = assignedType;
         AssignedAt = assignedAt;
+        AssigneeAssignedAt = assignedAt;
         WorkflowInstanceId = workflowInstanceId;
         ActivityId = activityId;
         Movement = movement;
@@ -112,7 +123,15 @@ public class PendingTask : Aggregate<Guid>
         return task;
     }
 
-    public void Reassign(string newAssignedTo, string newAssignedType, string? raiseEventFor = null)
+    /// <param name="holderChangedAt">
+    /// When supplied, re-stamps <see cref="AssigneeAssignedAt"/> so the history timeline can order
+    /// the outgoing audit row before the incoming holder's row. Only the supervisor reassign path
+    /// passes it — that is the one path that snapshots an audit row into CompletedTasks and would
+    /// otherwise leave two rows sharing an identical sort key. Claim/implicit-assign/fan-out advance
+    /// keep the original stamp so their single history row keeps showing the original start time.
+    /// </param>
+    public void Reassign(string newAssignedTo, string newAssignedType, string? raiseEventFor = null,
+        DateTime? holderChangedAt = null)
     {
         var previousAssignedTo = AssignedTo;
 
@@ -123,6 +142,25 @@ public class PendingTask : Aggregate<Guid>
         LockedAt = null;
         // AssignedAt, DueAt, SlaStatus, SlaBreachedAt intentionally preserved —
         // reassignment must not reset the SLA clock.
+        // Cleared on EVERY path, not just the supervisor one. Reassign always means a different
+        // holder — a pool claim, the implicit assign on completion, a fan-out stage advance — and an
+        // open time is a fact about a person, never about the task. The fan-out advance is the case
+        // that proves it: it writes no audit row, so nothing else would ever correct an inherited
+        // stamp there. Clearing is harmless where the value was already null.
+        OpenedAt = null;
+
+        if (holderChangedAt.HasValue)
+        {
+            AssigneeAssignedAt = holderChangedAt.Value;
+
+            // The in-progress decision draft belongs to the outgoing holder. Only the supervisor
+            // transfer discards it: a pool claim is the SAME person taking their own drafted task
+            // off the pool, and wiping their work there would be the bug, not the fix.
+            DecisionTaken = null;
+            Comment = null;
+            ReasonCode = null;
+            DraftAssignee = null;
+        }
 
         if (raiseEventFor == "supervisor")
         {
@@ -137,12 +175,29 @@ public class PendingTask : Aggregate<Guid>
         }
     }
 
-    public void StartWorking(string username, string? previousAssignedTo = null)
+    /// <param name="openedAt">
+    /// Required, and must come from <c>IDateTimeProvider.ApplicationNow</c> — the same clock that
+    /// stamps AssignedAt/AssigneeAssignedAt. <c>DateTime.Now</c> is the SERVER's local time, which on
+    /// a UTC host is hours away from the configured application timezone; comparing the two below
+    /// would then misjudge every stamp.
+    /// </param>
+    public void StartWorking(string username, DateTime openedAt, string? previousAssignedTo = null)
     {
         WorkingBy = username;
         TaskStatus = TaskStatus.InProgress;
         // Record the first-open timestamp; keep the original once set even if re-opened later.
-        OpenedAt ??= DateTime.Now;
+        // A stamp older than AssigneeAssignedAt cannot belong to the current holder — nobody opens a
+        // task before receiving it — so it is a leftover from a previous holder and gets replaced.
+        // This self-heals rows handed off before Reassign started clearing OpenedAt; without it the
+        // stamp-once rule would preserve the stale value forever.
+        //
+        // On pre-fix rows this test can also fire from the old host-clock/application-clock gap
+        // rather than a real hand-off. That is acceptable HERE and not in a bulk script: this only
+        // runs on the row a user is actively opening, and it replaces a wrong value with the right
+        // one. The one-time backfill script keys off the reassign audit row instead, because a bulk
+        // UPDATE is irreversible and touches rows nobody is looking at.
+        if (OpenedAt is null || OpenedAt < AssigneeAssignedAt)
+            OpenedAt = openedAt;
         AddDomainEvent(new TaskStartedDomainEvent(CorrelationId, AssignedTo, AssignedAt, previousAssignedTo));
     }
 

@@ -31,6 +31,7 @@ public class UpdateLandPropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update land property detail")
             .WithDescription("Update the detail of a land property.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

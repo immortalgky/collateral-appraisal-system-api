@@ -28,7 +28,7 @@ public class GetCondoPMAPropertyQueryHandler(
             PropertyId: property.Id,
             AppraisalId: property.AppraisalId,
             BuildingNumber: detail.BuildingNumber,
-            BuiltOnTitleNumber: detail.BuiltOnTitleNumber,
+            TitleNumber: detail.TitleNumber,
             CondoRegistrationNumber: detail.CondoRegistrationNumber,
             CondoName: detail.CondoName,
             RoomNumber: detail.RoomNumber,

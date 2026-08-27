@@ -29,8 +29,9 @@ public class HostCollateralLinkIngestorProjectTests(IntegrationTestFixture fixtu
     private static ParsedHostLinkRecord Record(
         string appraisalNumber, string hostId, string indicator = HostLinkRecordIndicators.Drawdown,
         DateOnly? date = null)
-        => new(appraisalNumber, hostId, date ?? new DateOnly(2026, 1, 25), indicator,
-            RowHash: $"{appraisalNumber}:{hostId}");
+        => new(appraisalNumber, hostId, CollateralName: null, date ?? new DateOnly(2026, 1, 25),
+            indicator, LocationCode: null, CollateralCode: null, PropertyType: null,
+            PropertyTypeDesc: null, MasterTitle: "Y", RowHash: $"{appraisalNumber}:{hostId}");
 
     /// <summary>
     /// Seeds an IsMaster collateral master carrying a single engagement for a completed appraisal.

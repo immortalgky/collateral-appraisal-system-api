@@ -1,5 +1,6 @@
 using Appraisal.Application.Features.PricingAnalysis.GetPricingAnalysisDocuments;
 using Appraisal.Application.Services;
+using Appraisal.Domain.Appraisals;
 
 namespace Appraisal.Application.Features.PricingAnalysis.GetPricingAnalysis;
 
@@ -20,15 +21,6 @@ public class GetPricingAnalysisQueryHandler(
                                   cancellationToken)
                               ?? throw new InvalidOperationException($"Pricing analysis {query.Id} not found");
 
-        // Building value depends only on the analysis's anchor properties, not on any individual
-        // method — computed once and applied to every method DTO (cheap; the frontend already
-        // knows which method types to render it against).
-        decimal buildingValue = 0m;
-        if (pricingAnalysis.SubjectType == PricingAnalysisSubjectType.PropertyGroup
-            && pricingAnalysis.AnchorId.HasValue)
-            buildingValue = await propertyDataService.GetTotalBuildingValueAsync(
-                pricingAnalysis.AnchorId.Value, cancellationToken);
-
         var approaches = pricingAnalysis.Approaches.Select(a => new ApproachDto(
             a.Id,
             a.ApproachType,
@@ -40,8 +32,12 @@ public class GetPricingAnalysisQueryHandler(
                 m.IsSelected,
                 m.UseSystemCalc,
                 m.ComparativeAnalysisTemplateId,
+                m.ValuePerUnit,
+                m.UnitType,
+                m.FinalValue?.LandArea,
                 m.FinalValue?.LandValue,
-                buildingValue
+                m.FinalValue?.BuildingValue,
+                m.FinalValue?.AppraisalPrice
             )).ToList()
         )).ToList();
 
@@ -54,6 +50,25 @@ public class GetPricingAnalysisQueryHandler(
             d.UploadedByName,
             d.UploadedAt)).ToList();
 
+        // Land area and the building schedule are group-scoped, so a reference sub-analysis has
+        // neither. Both are what a manual Cost breakdown multiplies and adds, so the client reads
+        // them from here instead of re-deriving them from title deeds itself.
+        decimal? landAreaInSqWa = null;
+        decimal? buildingValue = null;
+
+        if (pricingAnalysis.SubjectType == PricingAnalysisSubjectType.PropertyGroup
+            && pricingAnalysis.AnchorId.HasValue)
+        {
+            // The SQL lookup, not GetTotalLandAreaFromTitlesAsync — this endpoint is on the
+            // pricing screen's load path for every property group, and the aggregate version
+            // loads the whole Appraisal with all its properties to sum the same three terms.
+            landAreaInSqWa = await propertyDataService.GetTotalLandAreaInSqWaAsync(
+                pricingAnalysis.AnchorId.Value, cancellationToken);
+
+            buildingValue = await propertyDataService.GetTotalBuildingCostAsync(
+                pricingAnalysis.AnchorId.Value, cancellationToken);
+        }
+
         return new GetPricingAnalysisResult(
             pricingAnalysis.Id,
             pricingAnalysis.SubjectType,
@@ -65,7 +80,9 @@ public class GetPricingAnalysisQueryHandler(
             pricingAnalysis.UseSystemCalc,
             approaches,
             documents,
-            pricingAnalysis.Remark
+            pricingAnalysis.Remark,
+            landAreaInSqWa,
+            buildingValue
         );
     }
 }
@@ -84,6 +101,11 @@ public record MethodDto(
     bool IsSelected,
     bool UseSystemCalc,
     Guid? ComparativeAnalysisTemplateId,
-    decimal? LandValue,
-    decimal BuildingValue
+    // Recorded breakdown, so a saved manual Cost entry reloads into the form it was typed in.
+    decimal? ValuePerUnit = null,
+    string? UnitType = null,
+    decimal? LandArea = null,
+    decimal? LandValue = null,
+    decimal? BuildingValue = null,
+    decimal? AppraisalPrice = null
 );

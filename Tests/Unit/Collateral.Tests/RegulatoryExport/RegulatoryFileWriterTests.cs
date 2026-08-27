@@ -8,8 +8,8 @@ namespace Collateral.Tests.RegulatoryExport;
 /// Pins <see cref="RegulatoryFileWriter"/> to the 300-char CAS-AS400-Regulatory layout, focusing on the
 /// corrected sourcing rules:
 ///   • Field 2 (ApplicationId) = the LATEST appraisal number, same as field 3 (bank always sends latest).
-///   • Field 8 (AppraisalValueOrigination) = earliest value when the latest engagement is a Progressive
-///     (construction) inspection; otherwise the latest value.
+///   • Field 8 (AppraisalValueOrigination) = the EARLIEST appraisal's value, always. Appraisal type
+///     does not enter into it — see the field-8 tests for the history of this rule.
 ///   • Field 10 (BuildingAge) = zero-filled building age (now sourced for all building types + condo).
 ///   • Field 18 (DopaLocation) = the resolved DOPA sub-district code.
 /// Money is implied-decimal (value ×100, no point, left zero-filled to 15).
@@ -130,30 +130,61 @@ public class RegulatoryFileWriterTests
         Assert.Equal(expected, line[41..46]);              // pos 42-46
     }
 
-    // ── Field 8: always the latest appraised value ────────────────────────────
-    // The bank dropped the old "Progressive → use the earliest value" rule, so appraisal type no
-    // longer affects this field. It now always carries the same figure as ValuationPrice (#13).
+    // ── Field 8: the value at origination — the FIRST appraisal ───────────────
+    // Restated by the business on 2026-08-20, reversing an earlier instruction to always send the
+    // latest value. The field exists to say what the collateral was worth when the bank first took it
+    // on; the current value the bank reads out of AS400 itself by collateral id.
 
     [Theory]
     [InlineData("ReAppraisal")]
     [InlineData("Progressive")]
     [InlineData("New")]
-    public void Field8_Origination_IsAlwaysLatestValue_RegardlessOfAppraisalType(string appraisalType)
+    public void Field8_Origination_IsEarliestValue_RegardlessOfAppraisalType(string appraisalType)
     {
         var row = SampleRow() with { LatestAppraisalType = appraisalType };
         var line = new RegulatoryFileWriter().BuildDetail(row);
 
-        // Origination (61..76) = latest 2,000,000 ×100, never the earliest 1,000,000.
-        Assert.Equal("200000000".PadLeft(15, '0'), line[61..76]);
+        // Origination (61..76) = earliest 1,000,000 ×100, not the latest 2,000,000. Appraisal type
+        // must not enter into it — the old rule only switched to the earliest value for Progressive.
+        Assert.Equal("100000000".PadLeft(15, '0'), line[61..76]);
     }
 
     [Fact]
-    public void Field8_Origination_MatchesField13_ValuationPrice()
+    public void Field8_IsOrigination_While_Field13_IsTheLatestValue()
     {
+        // The two read opposite ends of the history and must not be collapsed into one figure:
+        // #8 (origination) is the FIRST appraisal, #13 (valuation price) the LATEST. They were briefly
+        // both the first — reversed 2026-08-24 — so this pins them apart on purpose.
         var line = new RegulatoryFileWriter().BuildDetail(SampleRow());
 
-        // ValuationPrice is field #13 at 106-120 → index 105..120.
-        Assert.Equal(line[61..76], line[105..120]);
+        // AppraisalValueOrigination is field #8 at 62-76 → index 61..76; earliest 1,000,000 ×100.
+        Assert.Equal("100000000".PadLeft(15, '0'), line[61..76]);
+        // ValuationPrice is field #13 at 106-120 → index 105..120; latest 2,000,000 ×100.
+        Assert.Equal("200000000".PadLeft(15, '0'), line[105..120]);
+    }
+
+    [Fact]
+    public void Fields12And13_ComeFromTheSameAppraisal()
+    {
+        // Date and Price are a matching pair whichever end they read — the bank's own file never mixes
+        // a first-appraisal date with a latest-appraisal price. Both must be the latest here.
+        var line = new RegulatoryFileWriter().BuildDetail(SampleRow());
+
+        Assert.Equal("20250121", line[97..105]);                            // #12 ValuationDate
+        Assert.Equal("200000000".PadLeft(15, '0'), line[105..120]);         // #13 ValuationPrice
+        Assert.Equal(line[97..105], line[292..300]);                        // == LatestValuationDate
+        Assert.NotEqual(line[284..292], line[97..105]);                     // != FirstValuationDate
+    }
+
+    [Fact]
+    public void BothEndsOfTheHistory_AreStillReported_InTheirOwnFields()
+    {
+        // Whichever appraisal #12/#13 point at, first and latest each keep a dedicated field at the end
+        // of the record, so neither is ever lost.
+        var line = new RegulatoryFileWriter().BuildDetail(SampleRow());
+
+        Assert.Equal("20200121", line[284..292]);   // FirstValuationDate
+        Assert.Equal("20250121", line[292..300]);   // LatestValuationDate
     }
 
     // ── Field 7: current (progress-adjusted) value ────────────────────────────
@@ -171,8 +202,9 @@ public class RegulatoryFileWriterTests
     public void Field7_Completed_UsesCurrentValue_WhenUnderConstruction()
     {
         // Land 6,000,000 + building 4,000,000 at 50% = 8,000,000, computed upstream and frozen on the
-        // engagement. Field 7 must report that, while field 8 still reports the full 2,000,000 sample
-        // appraised value — the two fields deliberately diverge once construction is in progress.
+        // engagement. Field 7 must report that, while field 8 reports the ORIGINATION value —
+        // 1,000,000 on the sample row. The two are unrelated numbers: one is what the collateral is
+        // worth part-built today, the other what it was worth when the bank first took it on.
         var row = SampleRow() with
         {
             IsUnderConstruction = true,
@@ -183,7 +215,7 @@ public class RegulatoryFileWriterTests
         var line = new RegulatoryFileWriter().BuildDetail(row);
 
         Assert.Equal("800000000".PadLeft(15, '0'), line[46..61]);
-        Assert.Equal("200000000".PadLeft(15, '0'), line[61..76]);
+        Assert.Equal("100000000".PadLeft(15, '0'), line[61..76]);
     }
 
     // ── Field 24: construction review date ────────────────────────────────────
@@ -281,7 +313,8 @@ public class RegulatoryFileWriterTests
     {
         var line = new RegulatoryFileWriter().BuildDetail(SampleRow());
 
-        // pos 98-105 (index 97..105), 8-char date, YYYYMMDD (2025-01-21 → "20250121").
+        // pos 98-105 (index 97..105), 8-char date, YYYYMMDD. The value is the LATEST appraisal
+        // (SampleRow: 2025-01-21), not the earliest (2020-01-21) — see the field 12/13 tests for why.
         Assert.Equal("20250121", line[97..105]);
     }
 

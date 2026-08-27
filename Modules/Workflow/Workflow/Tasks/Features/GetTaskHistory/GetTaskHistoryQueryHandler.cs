@@ -19,38 +19,65 @@ public class GetTaskHistoryQueryHandler(
             WHERE Id = @WorkflowInstanceId
         );
 
-        SELECT
-            Id            AS TaskId,
-            TaskName,
-            TaskDescription,
-            AssignedTo,
-            AssignedType,
-            AssignedAt,
-            CAST(NULL AS datetime2)     AS CompletedAt,
-            CAST(NULL AS nvarchar(10))  AS ActionTaken,
-            Movement,
-            CAST(NULL AS nvarchar(1000)) AS Remark
-        FROM workflow.PendingTasks
-        WHERE WorkflowInstanceId = @WorkflowInstanceId
+        -- Wrapped in a derived table because SQL Server only allows plain output-column
+        -- references in a UNION's ORDER BY, not expressions.
+        SELECT history.* FROM (
+            SELECT
+                Id            AS TaskId,
+                TaskName,
+                TaskDescription,
+                AssignedTo,
+                AssignedType,
+                AssignedAt,
+                AssigneeAssignedAt,
+                OpenedAt,
+                TaskStatus                  AS TaskState,
+                SlaStartAt,
+                DueAt,
+                SlaStatus,
+                SlaDurationHours,
+                CAST(NULL AS datetime2)     AS CompletedAt,
+                CAST(NULL AS nvarchar(10))  AS ActionTaken,
+                Movement,
+                CAST(NULL AS nvarchar(1000)) AS Remark
+            FROM workflow.PendingTasks
+            WHERE WorkflowInstanceId = @WorkflowInstanceId
 
-        UNION ALL
+            UNION ALL
 
-        SELECT
-            Id          AS TaskId,
-            TaskName,
-            TaskDescription,
-            AssignedTo,
-            AssignedType,
-            AssignedAt,
-            CompletedAt,
-            ActionTaken,
-            Movement,
-            Remark
-        FROM workflow.CompletedTasks
-        WHERE @CorrelationGuid IS NOT NULL
-          AND CorrelationId = @CorrelationGuid
-
-        ORDER BY AssignedAt;
+            SELECT
+                Id          AS TaskId,
+                TaskName,
+                TaskDescription,
+                AssignedTo,
+                AssignedType,
+                AssignedAt,
+                AssigneeAssignedAt,
+                OpenedAt,
+                TaskStatus                  AS TaskState,
+                SlaStartAt,
+                DueAt,
+                SlaStatus,
+                SlaDurationHours,
+                CompletedAt,
+                ActionTaken,
+                Movement,
+                Remark
+            FROM workflow.CompletedTasks
+            WHERE @CorrelationGuid IS NOT NULL AND CorrelationId = @CorrelationGuid
+        ) history
+        -- Order on the per-holder stamp, not AssignedAt: a supervisor reassign deliberately freezes
+        -- AssignedAt across the outgoing audit row and the incoming holder's row, so AssignedAt alone
+        -- ties and SQL Server is free to return them in either order. CompletedAt breaks any residual
+        -- tie (genuinely simultaneous fan-out tasks), pending rows sorting last.
+        -- TaskId last so the order is a TOTAL order: two rows can genuinely share both stamps
+        -- (simultaneous fan-out items, or several unopened pending rows), and without this the
+        -- engine stays free to swap them between runs, drifting the displayed sequence numbers.
+        -- Chronology is already settled by the two keys above; this one only has to be stable.
+        ORDER BY history.AssigneeAssignedAt,
+                 CASE WHEN history.CompletedAt IS NULL THEN 1 ELSE 0 END,
+                 history.CompletedAt,
+                 history.TaskId;
         """;
 
     public async Task<GetTaskHistoryResponse> Handle(
@@ -106,6 +133,13 @@ public class GetTaskHistoryQueryHandler(
                 AssignedToDisplayName = displayName,
                 AssignedType = r.AssignedType,
                 AssignedAt = r.AssignedAt,
+                AssigneeAssignedAt = r.AssigneeAssignedAt,
+                OpenedAt = r.OpenedAt,
+                TaskState = r.TaskState,
+                SlaStartAt = r.SlaStartAt,
+                DueAt = r.DueAt,
+                SlaStatus = r.SlaStatus,
+                SlaDurationHours = r.SlaDurationHours,
                 CompletedAt = r.CompletedAt,
                 ActionTaken = r.ActionTaken,
                 Movement = r.Movement,
@@ -124,6 +158,13 @@ public class GetTaskHistoryQueryHandler(
         public string AssignedTo { get; set; } = default!;
         public string AssignedType { get; set; } = default!;
         public DateTime AssignedAt { get; set; }
+        public DateTime AssigneeAssignedAt { get; set; }
+        public DateTime? OpenedAt { get; set; }
+        public string? TaskState { get; set; }
+        public DateTime? SlaStartAt { get; set; }
+        public DateTime? DueAt { get; set; }
+        public string? SlaStatus { get; set; }
+        public int? SlaDurationHours { get; set; }
         public DateTime? CompletedAt { get; set; }
         public string? ActionTaken { get; set; }
         public string Movement { get; set; } = "F";

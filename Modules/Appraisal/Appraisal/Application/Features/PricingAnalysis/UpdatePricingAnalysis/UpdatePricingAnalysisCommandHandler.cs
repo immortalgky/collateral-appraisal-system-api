@@ -12,9 +12,13 @@ public class UpdatePricingAnalysisCommandHandler(
         CancellationToken cancellationToken)
     {
         var pricingAnalysis = await pricingAnalysisRepository.GetByIdAsync(command.Id, cancellationToken)
-                              ?? throw new InvalidOperationException($"Pricing analysis {command.Id} not found");
+                              ?? throw new NotFoundException("PricingAnalysis", command.Id);
 
-        pricingAnalysis.SetFinalValues(command.AppraisedValue);
+        // Only write what the caller actually sent. The calculation-mode toggle on the summary
+        // screen posts UseSystemCalc alone; writing an absent AppraisedValue would push the
+        // deserialised 0 over the value the selection rollup just computed.
+        if (command.AppraisedValue.HasValue)
+            pricingAnalysis.SetFinalValues(command.AppraisedValue.Value);
 
         if (command.UseSystemCalc.HasValue)
             pricingAnalysis.SetUseSystemCalc(command.UseSystemCalc.Value);

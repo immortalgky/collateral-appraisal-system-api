@@ -10,7 +10,7 @@ public record GetCondoPMAPropertyResult(
     DateTime? ExternalSyncedAt,
     string? CondoName,
     string? BuildingNumber,
-    string? BuiltOnTitleNumber,
+    string? TitleNumber,
     string? CondoRegistrationNumber,
     string? RoomNumber,
     string? FloorNumber,

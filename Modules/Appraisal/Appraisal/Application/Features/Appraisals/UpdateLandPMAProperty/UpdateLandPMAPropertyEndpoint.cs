@@ -31,6 +31,7 @@ public class UpdateLandPMAPropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update Land pma property detail")
             .WithDescription("Update the detail of a Land pma property.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

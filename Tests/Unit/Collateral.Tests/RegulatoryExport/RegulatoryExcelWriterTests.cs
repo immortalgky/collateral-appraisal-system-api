@@ -62,6 +62,34 @@ public class RegulatoryExcelWriterTests
         Assert.Equal("Latest Valuation Date", ws.Cell(2, 26).GetString());
     }
 
+    /// <summary>
+    /// Column 8 carries the FIRST appraisal (origination) while columns 12 and 13 carry the LATEST —
+    /// opposite ends of the history, exactly as RegulatoryFileWriter writes fields 8 / 12 / 13.
+    ///
+    /// This pins the .xlsx to the .txt. The two writers keep independent field maps, and when
+    /// RegulatoryFileWriter last moved these fields the Excel companion was missed — the fixed-width
+    /// file was right while the workbook everyone actually opens still showed the old values, which
+    /// reads as "the fix never deployed". Sample row: latest 2,000,000 / 2025-01-21, earliest
+    /// 1,000,000 / 2020-01-21.
+    /// </summary>
+    [Fact]
+    public void ValuationFields_MatchTheFixedWidthWriter()
+    {
+        var ws = BuildAndOpen(SampleRow());
+
+        Assert.Equal(1_000_000.00m, ws.Cell(3, 8).GetValue<decimal>());        // Value at Origination
+        Assert.Equal(new DateTime(2025, 1, 21), ws.Cell(3, 12).GetDateTime()); // Valuation Date
+        Assert.Equal(2_000_000.00m, ws.Cell(3, 13).GetValue<decimal>());       // Valuation Price
+
+        // Date and Price are a matching pair — here, the same appraisal as Latest Valuation Date.
+        Assert.Equal(ws.Cell(3, 26).GetDateTime(), ws.Cell(3, 12).GetDateTime());
+        Assert.NotEqual(ws.Cell(3, 25).GetDateTime(), ws.Cell(3, 12).GetDateTime());
+
+        // Both ends keep their own column, so neither is ever lost.
+        Assert.Equal(new DateTime(2020, 1, 21), ws.Cell(3, 25).GetDateTime());
+        Assert.Equal(new DateTime(2025, 1, 21), ws.Cell(3, 26).GetDateTime());
+    }
+
     [Fact]
     public void OneDataRowPerMaster()
     {
@@ -79,7 +107,8 @@ public class RegulatoryExcelWriterTests
         // Money is a real decimal, NOT the implied-decimal ×100 the fixed-width file writes.
         Assert.Equal(2_000_000.00m, ws.Cell(3, 7).GetValue<decimal>());   // Appraisal Value as Completed
         Assert.Equal(3_000_000.00m, ws.Cell(3, 11).GetValue<decimal>());  // Market Selling Price
-        // Date is a real date cell.
+        // Date is a real date cell. Valuation Date is the LATEST appraisal (2025-01-21 on the sample
+        // row), not the earliest — see ValuationFields_MatchTheFixedWidthWriter above.
         Assert.Equal(new DateTime(2025, 1, 21), ws.Cell(3, 12).GetDateTime()); // Valuation Date
         // Coded fields are readable text.
         Assert.Equal("External (1)", ws.Cell(3, 15).GetString());          // Appraiser Type

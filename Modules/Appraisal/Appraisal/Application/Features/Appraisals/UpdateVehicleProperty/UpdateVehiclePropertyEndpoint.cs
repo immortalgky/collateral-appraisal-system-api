@@ -32,6 +32,7 @@ public class UpdateVehiclePropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update vehicle property detail")
             .WithDescription("Update the detail of a vehicle property.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

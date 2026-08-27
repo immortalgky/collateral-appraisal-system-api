@@ -165,7 +165,6 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             buildingConditionType: command.BuildingConditionType,
             buildingConditionTypeOther: command.BuildingConditionTypeOther,
             isUnderConstruction: command.IsUnderConstruction,
-            constructionCompletionPercent: command.ConstructionCompletionPercent,
             constructionLicenseExpirationDate: command.ConstructionLicenseExpirationDate,
             isAppraisable: command.IsAppraisable,
             // Building - Area
@@ -451,7 +450,7 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             var inspection = property.ConstructionInspection;
             if (ci.IsFullDetail)
             {
-                inspection.UpdateFullDetail(ci.TotalValue);
+                inspection.UpdateFullDetail(ci.TotalValue, ci.Remark);
                 inspection.ClearWorkDetails();
                 if (ci.WorkDetails is { Count: > 0 })
                 {
@@ -478,7 +477,7 @@ public class UpdateLandAndBuildingPropertyCommandHandler(
             ConstructionInspection inspection;
             if (ci.IsFullDetail)
             {
-                inspection = ConstructionInspection.CreateFullDetail(property.Id, ci.TotalValue);
+                inspection = ConstructionInspection.CreateFullDetail(property.Id, ci.TotalValue, ci.Remark);
                 if (ci.WorkDetails is { Count: > 0 })
                 {
                     foreach (var wd in ci.WorkDetails)

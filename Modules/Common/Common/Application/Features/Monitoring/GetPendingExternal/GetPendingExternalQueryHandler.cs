@@ -22,7 +22,7 @@ public class GetPendingExternalQueryHandler(
         "AppraisalNumber", "CustomerName", "TaskType", "Purpose", "PropertyType",
         "SlaStatus", "Priority", "AssignedDate", "RequestedDate",
         "OlaActualHours", "OlaVarianceHours", "Movement", "PIC", "AppraisalCompanyName",
-        "OpenDate", "AppointmentDate", "AppraisalStatus"
+        "OpenDate", "AppointmentDate", "AppraisalStatus", "DueDate"
     };
 
     public async Task<PaginatedResult<PendingTaskDto>> Handle(
@@ -60,7 +60,8 @@ SELECT
     OpenDate,
     AppointmentDate,
     SlaDurationHours,
-    AppraisalStatus
+    AppraisalStatus,
+    DueDate
 FROM common.vw_MonitoringPendingTasks";
         var conditions = new List<string> { "MonitoringType = 'External'" };
         var parameters = new DynamicParameters();

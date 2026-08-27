@@ -34,6 +34,9 @@ global using Shared.Exceptions;
 global using Shared.Identity;
 global using Shared.Pagination;
 
+// Appraisal - Endpoint filters (applied across ~40 property-write endpoints)
+global using Appraisal.Application.Filters;
+
 // Appraisal - Domain Aggregates
 global using Appraisal.Domain.Appraisals;
 global using Appraisal.Domain.Evaluations;

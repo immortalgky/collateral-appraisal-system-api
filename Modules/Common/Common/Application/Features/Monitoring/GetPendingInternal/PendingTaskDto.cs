@@ -29,5 +29,8 @@ public record PendingTaskDto(
     DateTime? OpenDate,
     DateTime? AppointmentDate,
     int? SlaDurationHours,
-    string? AppraisalStatus
+    string? AppraisalStatus,
+    /// <summary>The task's actual deadline. Use this directly — do not re-derive it from
+    /// AssignedDate, which is the current holder's clock and not the SLA anchor.</summary>
+    DateTime? DueDate
 );

@@ -20,7 +20,7 @@ internal static class BuildingInsuranceCalculator
         // UNION ALL, never UNION: UNION would dedupe two properties that happen to carry an
         // identical amount, silently under-reporting the total.
         const string sql = """
-            SELECT ISNULL(SUM(x.InsuranceValue), 0)
+            SELECT ROUND((ISNULL(SUM(x.InsuranceValue), 0)), -3)
             FROM (
                 SELECT bdd.PriceAfterDepreciation AS InsuranceValue
                 FROM appraisal.BuildingDepreciationDetails bdd

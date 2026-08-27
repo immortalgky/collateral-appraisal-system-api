@@ -38,6 +38,7 @@ public class LinkPhotoToPropertyEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Link photo to property")
             .WithDescription("Creates a mapping between a gallery photo and a specific property detail section.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("AppraisalGallery");
     }
 }

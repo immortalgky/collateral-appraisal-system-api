@@ -21,7 +21,7 @@ public class GetPendingFollowupsQueryHandler(ISqlConnectionFactory connectionFac
         "AppraisalNumber", "CustomerName", "TaskType", "Purpose", "PropertyType",
         "SlaStatus", "Priority", "AssignedDate", "RequestedDate",
         "OlaActualHours", "OlaVarianceHours", "Movement", "PIC",
-        "OpenDate", "AppointmentDate", "AppraisalStatus"
+        "OpenDate", "AppointmentDate", "AppraisalStatus", "DueDate"
     };
 
     public async Task<PaginatedResult<PendingTaskDto>> Handle(
@@ -57,7 +57,8 @@ SELECT
     OpenDate,
     AppointmentDate,
     SlaDurationHours,
-    AppraisalStatus
+    AppraisalStatus,
+    DueDate
 FROM common.vw_MonitoringPendingTasks";
 
         var conditions = new List<string> { "ActivityId IN @ActivityIds" };

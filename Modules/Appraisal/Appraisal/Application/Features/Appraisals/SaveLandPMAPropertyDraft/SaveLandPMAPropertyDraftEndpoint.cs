@@ -32,6 +32,7 @@ public class SaveLandPMAPropertyDraftEndpoint : ICarterModule
             .WithSummary("Save land pma property draft")
             .WithDescription(
                 "Persist a draft of the land pma property detail (stamps ExternalSyncStatus=Pending) without triggering the LOS webhook.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Properties");
     }
 }

@@ -226,4 +226,48 @@ public class MachineryAppraisalDetail : Entity<Guid>
         if (other is not null) Other = other;
         if (appraiserOpinion is not null) AppraiserOpinion = appraiserOpinion;
     }
+
+    /// <summary>
+    /// Applies admin corrections to this machine, recording each change in <paramref name="diff"/>.
+    /// </summary>
+    internal void ApplyCorrection(MachineryCorrection edit, Dictionary<string, object?> diff)
+    {
+        CorrectionDiff.Apply("Machinery.PropertyName", PropertyName, edit.PropertyName, v => PropertyName = v, diff);
+        CorrectionDiff.Apply("Machinery.MachineName", MachineName, edit.MachineName, v => MachineName = v, diff);
+        CorrectionDiff.Apply("Machinery.EngineNo", EngineNo, edit.EngineNo, v => EngineNo = v, diff);
+        CorrectionDiff.Apply("Machinery.ChassisNo", ChassisNo, edit.ChassisNo, v => ChassisNo = v, diff);
+        CorrectionDiff.Apply("Machinery.RegistrationNumber", RegistrationNumber, edit.RegistrationNumber, v => RegistrationNumber = v, diff);
+        CorrectionDiff.Apply("Machinery.SerialNo", SerialNo, edit.SerialNo, v => SerialNo = v, diff);
+        CorrectionDiff.Apply("Machinery.Brand", Brand, edit.Brand, v => Brand = v, diff);
+        CorrectionDiff.Apply("Machinery.Model", Model, edit.Model, v => Model = v, diff);
+        CorrectionDiff.Apply("Machinery.Series", Series, edit.Series, v => Series = v, diff);
+        CorrectionDiff.Apply("Machinery.YearOfManufacture", YearOfManufacture, edit.YearOfManufacture, v => YearOfManufacture = v, diff);
+        CorrectionDiff.Apply("Machinery.Manufacturer", Manufacturer, edit.Manufacturer, v => Manufacturer = v, diff);
+        CorrectionDiff.Apply("Machinery.PurchaseDate", PurchaseDate, edit.PurchaseDate, v => PurchaseDate = v, diff);
+        CorrectionDiff.Apply("Machinery.PurchasePrice", PurchasePrice, edit.PurchasePrice, v => PurchasePrice = v, diff);
+        CorrectionDiff.Apply("Machinery.Capacity", Capacity, edit.Capacity, v => Capacity = v, diff);
+        CorrectionDiff.Apply("Machinery.Quantity", Quantity, edit.Quantity, v => Quantity = v, diff);
+        CorrectionDiff.Apply("Machinery.MachineDimensions", MachineDimensions, edit.MachineDimensions, v => MachineDimensions = v, diff);
+        CorrectionDiff.Apply("Machinery.Width", Width, edit.Width, v => Width = v, diff);
+        CorrectionDiff.Apply("Machinery.Length", Length, edit.Length, v => Length = v, diff);
+        CorrectionDiff.Apply("Machinery.Height", Height, edit.Height, v => Height = v, diff);
+        CorrectionDiff.Apply("Machinery.EnergyUse", EnergyUse, edit.EnergyUse, v => EnergyUse = v, diff);
+        CorrectionDiff.Apply("Machinery.EnergyUseRemark", EnergyUseRemark, edit.EnergyUseRemark, v => EnergyUseRemark = v, diff);
+        CorrectionDiff.Apply("Machinery.OwnerName", OwnerName, edit.OwnerName, v => OwnerName = v, diff);
+        CorrectionDiff.ApplyRequired("Machinery.IsOwnerVerified", IsOwnerVerified, edit.IsOwnerVerified, v => IsOwnerVerified = v, diff);
+        CorrectionDiff.ApplyRequired("Machinery.IsOperational", IsOperational, edit.IsOperational, v => IsOperational = v, diff);
+        CorrectionDiff.Apply("Machinery.Location", Location, edit.Location, v => Location = v, diff);
+        CorrectionDiff.Apply("Machinery.ConditionUse", ConditionUse, edit.ConditionUse, v => ConditionUse = v, diff);
+        CorrectionDiff.Apply("Machinery.MachineCondition", MachineCondition, edit.MachineCondition, v => MachineCondition = v, diff);
+        CorrectionDiff.Apply("Machinery.MachineAge", MachineAge, edit.MachineAge, v => MachineAge = v, diff);
+        CorrectionDiff.Apply("Machinery.MachineEfficiency", MachineEfficiency, edit.MachineEfficiency, v => MachineEfficiency = v, diff);
+        CorrectionDiff.Apply("Machinery.MachineTechnology", MachineTechnology, edit.MachineTechnology, v => MachineTechnology = v, diff);
+        CorrectionDiff.Apply("Machinery.UsagePurpose", UsagePurpose, edit.UsagePurpose, v => UsagePurpose = v, diff);
+        CorrectionDiff.Apply("Machinery.MachineParts", MachineParts, edit.MachineParts, v => MachineParts = v, diff);
+        CorrectionDiff.Apply("Machinery.ReplacementValue", ReplacementValue, edit.ReplacementValue, v => ReplacementValue = v, diff);
+        CorrectionDiff.Apply("Machinery.ConditionValue", ConditionValue, edit.ConditionValue, v => ConditionValue = v, diff);
+        CorrectionDiff.Apply("Machinery.Remark", Remark, edit.Remark, v => Remark = v, diff);
+        CorrectionDiff.Apply("Machinery.Other", Other, edit.Other, v => Other = v, diff);
+        CorrectionDiff.Apply("Machinery.AppraiserOpinion", AppraiserOpinion, edit.AppraiserOpinion, v => AppraiserOpinion = v, diff);
+    }
 }

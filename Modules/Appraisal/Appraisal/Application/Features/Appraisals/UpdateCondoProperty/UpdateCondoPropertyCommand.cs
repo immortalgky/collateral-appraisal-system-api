@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
+
 namespace Appraisal.Application.Features.Appraisals.UpdateCondoProperty;
 
 /// <summary>
@@ -11,12 +13,11 @@ public record UpdateCondoPropertyCommand(
     string? CondoName = null,
     string? BuildingNumber = null,
     string? ModelName = null,
-    string? BuiltOnTitleNumber = null,
     string? CondoRegistrationNumber = null,
     string? RoomNumber = null,
     string? FloorNumber = null,
     decimal? UsableArea = null,
-    decimal? ConstructionCompletionPercent = null,
+    bool? IsUnderConstruction = null,
     // Unit deed identifiers (collateral dedup key)
     string? TitleNumber = null,
     string? TitleType = null,
@@ -63,7 +64,7 @@ public record UpdateCondoPropertyCommand(
     string? DecorationTypeOther = null,
     int? BuildingAge = null,
     int? ConstructionYear = null,
-    int? NumberOfFloors = null,
+    decimal? NumberOfFloors = null,
     string? BuildingFormType = null,
     string? ConstructionMaterialType = null,
     // Layout & Materials
@@ -105,5 +106,7 @@ public record UpdateCondoPropertyCommand(
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,
     // Other
-    string? Remark = null
+    string? Remark = null,
+    // Construction Inspection (null = no-op)
+    ConstructionInspectionData? ConstructionInspection = null
 ) : ICommand, ITransactionalCommand<IAppraisalUnitOfWork>;

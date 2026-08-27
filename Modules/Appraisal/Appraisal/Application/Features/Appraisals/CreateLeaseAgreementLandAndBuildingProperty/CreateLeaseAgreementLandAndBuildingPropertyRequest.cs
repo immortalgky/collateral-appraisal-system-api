@@ -124,7 +124,6 @@ public record CreateLeaseAgreementLandAndBuildingPropertyRequest(
     string? BuildingConditionType = null,
     string? BuildingConditionTypeOther = null,
     bool? IsUnderConstruction = null,
-    decimal? ConstructionCompletionPercent = null,
     DateTime? ConstructionLicenseExpirationDate = null,
     bool? IsAppraisable = null,
     string? MaintenanceStatus = null,

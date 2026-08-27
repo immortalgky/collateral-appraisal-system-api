@@ -986,7 +986,11 @@ public class AuthDataSeed(
             // Thai address masters — Title (Department of Lands) and DOPA geocode hierarchies
             ("ADDRESS_MASTER_MANAGE", "Manage Address Masters",
                 "Create, rename, and remove Title/DOPA provinces, districts, and sub-districts",
-                "Common")
+                "Common"),
+            // Admin data correction on closed appraisals (standalone screen, reason + audit trail)
+            ("APPRAISAL_DATA_CORRECTION", "Correct Appraisal Property Data",
+                "Correct descriptive property data on Completed/Cancelled appraisals",
+                "Appraisal")
         };
 
         foreach (var (code, displayName, description, module) in seedPermissions)

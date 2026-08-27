@@ -37,6 +37,7 @@ public class ReorderPropertiesInGroupEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Reorder properties in group")
             .WithDescription("Reorder properties within a group by providing the full ordered list of property IDs.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal");
     }
 }

@@ -16,5 +16,10 @@ public record GetPricingAnalysisResult(
     bool UseSystemCalc,
     List<ApproachDto> Approaches,
     List<PricingAnalysisDocumentDto> Documents,
-    string? Remark
+    string? Remark,
+    // Group-scoped figures the manual Cost breakdown is derived from: land area comes from the
+    // title deeds and the building total from the depreciation schedule, so the client shows the
+    // same numbers the server will compute with rather than deriving its own.
+    decimal? LandAreaInSqWa,
+    decimal? BuildingValue
 );

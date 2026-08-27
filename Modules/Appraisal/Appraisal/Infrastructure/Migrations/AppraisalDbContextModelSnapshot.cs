@@ -1395,6 +1395,50 @@ namespace Appraisal.Infrastructure.Migrations
                     b.ToTable("AppraisalProperties", "appraisal");
                 });
 
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.AppraisalPropertyCorrectionLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppraisalId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppraisalPropertyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ChangedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ChangedFields")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PropertyType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppraisalPropertyId")
+                        .HasDatabaseName("IX_AppraisalPropertyCorrectionLogs_Property");
+
+                    b.HasIndex("AppraisalId", "ChangedAt")
+                        .HasDatabaseName("IX_AppraisalPropertyCorrectionLogs_Appraisal_ChangedAt");
+
+                    b.ToTable("AppraisalPropertyCorrectionLogs", "appraisal");
+                });
+
             modelBuilder.Entity("Appraisal.Domain.Appraisals.AppraisalReview", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8075,10 +8119,6 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
 
-                            b1.Property<decimal?>("ConstructionCompletionPercent")
-                                .HasPrecision(5, 2)
-                                .HasColumnType("decimal(5,2)");
-
                             b1.Property<DateTime?>("ConstructionLicenseExpirationDate")
                                 .HasColumnType("datetime2");
 
@@ -8539,10 +8579,6 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)");
 
-                            b1.Property<decimal?>("ConstructionCompletionPercent")
-                                .HasPrecision(7, 4)
-                                .HasColumnType("decimal(7,4)");
-
                             b1.Property<string>("ConstructionMaterialType")
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)");
@@ -8646,6 +8682,9 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("bit");
 
                             b1.Property<bool?>("IsOwnerVerified")
+                                .HasColumnType("bit");
+
+                            b1.Property<bool?>("IsUnderConstruction")
                                 .HasColumnType("bit");
 
                             b1.Property<string>("LandEntranceExitType")
@@ -8768,8 +8807,8 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(200)");
 
                             b1.Property<string>("TitleNumber")
-                                .HasMaxLength(50)
-                                .HasColumnType("nvarchar(50)");
+                                .HasMaxLength(500)
+                                .HasColumnType("nvarchar(500)");
 
                             b1.Property<string>("TitleType")
                                 .HasMaxLength(20)
