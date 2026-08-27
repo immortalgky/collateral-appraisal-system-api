@@ -105,7 +105,7 @@ public class HostCollateralLinkIngestor(
             .Select(g => PickWinningRecord([.. g]))
             .ToList();
 
-        var (linkUpdated, linkUnchanged, deactivated) =
+        var (linkUpdated, linkUnchanged) =
             await UpsertHostLinksAsync(perCollateral, fileDate, cancellationToken);
 
         var engagements = await LoadEngagementsAsync(
@@ -186,6 +186,16 @@ public class HostCollateralLinkIngestor(
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        // Anything the file did not restate is still carrying an older date, which is what takes it
+        // out of the active set. Counted here, after the flush, for the same reason the method says.
+        var deactivated = await CountDeactivatedAsync(fileDate, cancellationToken);
+
+        if (deactivated > 0)
+            logger.LogInformation(
+                "[HostCollateralLinkIngestor] {Count} collateral are no longer listed by the {FileDate} "
+                + "file; their rows are kept but fall outside the active set",
+                deactivated, fileDate);
 
         if (notFound.Count > 0)
             logger.LogWarning(
@@ -310,7 +320,7 @@ public class HostCollateralLinkIngestor(
     /// bank still holds with no way back; leaving the rows in place makes that recoverable and keeps
     /// visible which round each collateral dropped out.
     /// </summary>
-    private async Task<(int Updated, int Unchanged, int Deactivated)> UpsertHostLinksAsync(
+    private async Task<(int Updated, int Unchanged)> UpsertHostLinksAsync(
         List<ParsedHostLinkRecord> records,
         DateOnly fileDate,
         CancellationToken cancellationToken)
@@ -318,10 +328,6 @@ public class HostCollateralLinkIngestor(
         var now = dateTimeProvider.ApplicationNow;
         var updated = 0;
         var unchanged = 0;
-
-        // Counted before the upserts, while LastSeenFileDate still reflects the previous round.
-        var previouslyActive = await dbContext.HostCollateralLinks
-            .CountAsync(h => h.LastSeenFileDate < fileDate, cancellationToken);
 
         foreach (var chunk in records.Chunk(BatchSize))
         {
@@ -369,18 +375,18 @@ public class HostCollateralLinkIngestor(
             }
         }
 
-        // Everything the file did not restate is still sitting on an older date.
-        var deactivated = await dbContext.HostCollateralLinks
-            .CountAsync(h => h.LastSeenFileDate < fileDate, cancellationToken);
-
-        if (deactivated > 0)
-            logger.LogInformation(
-                "[HostCollateralLinkIngestor] {Count} collateral no longer listed by the {FileDate} file "
-                + "(was {Previous} before this round); rows kept but outside the active set",
-                deactivated, fileDate, previouslyActive);
-
-        return (updated, unchanged, deactivated);
+        return (updated, unchanged);
     }
+
+    /// <summary>
+    /// How many collateral the newly-applied file stopped listing.
+    ///
+    /// Must run AFTER the save. EF translates <c>CountAsync</c> into SQL rather than reading the
+    /// change tracker, so asking before the flush returns the previous round's state and reports the
+    /// same number on every run.
+    /// </summary>
+    private Task<int> CountDeactivatedAsync(DateOnly fileDate, CancellationToken cancellationToken) =>
+        dbContext.HostCollateralLinks.CountAsync(h => h.LastSeenFileDate < fileDate, cancellationToken);
 
     private async Task<Dictionary<string, EngagementRef>> LoadEngagementsAsync(
         IEnumerable<string> appraisalNumbers,

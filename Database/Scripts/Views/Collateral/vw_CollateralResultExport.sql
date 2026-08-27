@@ -80,6 +80,19 @@ Pending AS (
     FROM appraisal.Appraisals a
     WHERE a.Status = 'Completed'
       AND a.IsDeleted = 0
+      -- Narrowed before the walk, not after. The chain walk is recursive and the sent-ledger filter
+      -- sits at the very end, so without this every completed appraisal the system has ever produced
+      -- would be walked on every run to discard almost all of it. Three cases can still owe a row:
+      AND (
+          -- never sent at all
+          NOT EXISTS (SELECT 1 FROM collateral.CollateralResultLogs l WHERE l.AppraisalId = a.Id)
+          -- sent before AS400 had minted an id, so it is owed another turn once one exists
+          OR EXISTS (SELECT 1 FROM collateral.CollateralResultLogs l
+                      WHERE l.AppraisalId = a.Id AND l.CollateralId = '')
+          -- a block project sends one row per unit and can gain units between runs, so "already sent"
+          -- never settles it
+          OR EXISTS (SELECT 1 FROM appraisal.Projects pr WHERE pr.AppraisalId = a.Id)
+      )
 ),
 
 Walk AS (
@@ -161,9 +174,12 @@ LandTotal AS (
 LandParts AS (
     SELECT
         AppraisalId,
-        TotalSqWa / 400                      AS Rai,
-        (TotalSqWa % 400) / 100              AS Ngan,
-        TotalSqWa % 100                      AS SquareWa
+        -- FLOOR, not plain division: TotalSqWa is decimal (AreaSquareWa carries fractions), and in
+        -- T-SQL decimal / int is decimal division. 1145.50 / 400 is 2.86, not 2 rai, and the same
+        -- mistake in the ngan term would put 3.45 into a dec(3,0) field.
+        CAST(FLOOR(TotalSqWa / 400) AS int)            AS Rai,
+        CAST(FLOOR((TotalSqWa % 400) / 100) AS int)    AS Ngan,
+        TotalSqWa % 100                                AS SquareWa
     FROM LandTotal
 ),
 
@@ -296,10 +312,23 @@ ProjectUnitMatch AS (
     WHERE nh.UnitToken IS NOT NULL
 ),
 
--- An appraisal is a block project when it has a Projects row. Its units are priced individually, so
--- it is the one shape that legitimately produces several rows.
+-- An appraisal is a block project when it HAS a Projects row — not when its units happened to match.
+-- Deriving this from ProjectUnitMatch meant a project whose unit keys did not line up fell through to
+-- the ordinary path, and if AS400 happened to report a single collateral for it that id was sent as
+-- though it described the whole development. It describes one unit.
 IsBlock AS (
-    SELECT DISTINCT AppraisalId FROM ProjectUnitMatch
+    SELECT DISTINCT pr.AppraisalId
+    FROM appraisal.Projects pr
+),
+
+-- A block project is a PreAppraisal of the whole development: it carries no AppraisalProperties, so
+-- LandTotal finds nothing for it and the whole-appraisal area would go out as zero. Its area is the
+-- sum of its units.
+ProjectLandTotal AS (
+    SELECT pr.AppraisalId, SUM(u.LandArea) AS TotalSqWa
+    FROM appraisal.Projects pr
+    JOIN appraisal.ProjectUnits u ON u.ProjectId = pr.Id
+    GROUP BY pr.AppraisalId
 ),
 
 -- Assembled first so the sent-ledger filter below can see the collateral id each row resolved to;
@@ -323,8 +352,11 @@ SELECT
         ELSE 'N'
     END                                                      AS AutoUpdate,
 
-    -- A unit carries its own appraised value; anything else reports the appraisal total.
-    COALESCE(pum.UnitValue, v.AppraisedValue)                AS AppraisalValue,
+    -- A unit reports its own appraised value. When it has none the row goes out as zero rather than
+    -- falling back to the appraisal total: that total is the whole development, and quoting it
+    -- against one unit would overstate that collateral by orders of magnitude.
+    CASE WHEN pum.ProjectUnitId IS NOT NULL THEN ISNULL(pum.UnitValue, 0)
+         ELSE v.AppraisedValue END                           AS AppraisalValue,
     -- Land component: the cost approach's adjusted unit price applied over the land area. There is
     -- no stored column for it — the same multiplication the engagement used to freeze at completion.
     CASE WHEN sp.UnitPrice IS NOT NULL AND lt.TotalSqWa IS NOT NULL
@@ -338,6 +370,11 @@ SELECT
     -- An appraisal ran on the external path or the internal path, never both, so exactly one pair is
     -- populated and the other is blank. The test is "a company is attached", the same rule the rest
     -- of the system uses.
+    -- The path decision itself, not left to be inferred. An external appraisal whose company row is
+    -- missing or whose AssigneeCompanyId is not a Guid resolves to no name AND no code, and a caller
+    -- guessing from those two nulls would classify it as internal and emit the bank staffer's details
+    -- for work a company did.
+    CASE WHEN vl.AssigneeCompanyId IS NOT NULL THEN 1 ELSE 0 END             AS IsExternal,
     CASE WHEN vl.AssigneeCompanyId IS NULL THEN vl.EmployeeId END            AS InternalValuerEmployeeId,
     CASE WHEN vl.AssigneeCompanyId IS NULL THEN vl.InternalAppraiserName END AS InternalValuerName,
     CASE WHEN vl.AssigneeCompanyId IS NOT NULL THEN vl.CompanyCode END       AS ExternalValuerCode,
@@ -354,10 +391,10 @@ SELECT
 
     -- Per-row land area: the unit's own for a block, the appraisal's otherwise.
     CASE WHEN pum.ProjectUnitId IS NOT NULL
-         THEN CAST(pum.UnitLandAreaSqWa / 400 AS int)
+         THEN CAST(FLOOR(pum.UnitLandAreaSqWa / 400) AS int)
          ELSE lp.Rai END                                     AS LandAreaRai,
     CASE WHEN pum.ProjectUnitId IS NOT NULL
-         THEN CAST((pum.UnitLandAreaSqWa % 400) / 100 AS int)
+         THEN CAST(FLOOR((pum.UnitLandAreaSqWa % 400) / 100) AS int)
          ELSE lp.Ngan END                                    AS LandAreaNgan,
     CASE WHEN pum.ProjectUnitId IS NOT NULL
          THEN pum.UnitLandAreaSqWa % 100
@@ -365,7 +402,7 @@ SELECT
 
     -- Whole-appraisal total, identical on every row of the same appraisal by design: it is the sum,
     -- not this row's share.
-    lt.TotalSqWa                                             AS LandAreaTotalSqWa
+    COALESCE(plt.TotalSqWa, lt.TotalSqWa)                    AS LandAreaTotalSqWa
 
 FROM Pending p
 LEFT JOIN HitCount hc          ON hc.AppraisalId = p.AppraisalId
@@ -378,6 +415,7 @@ LEFT JOIN ProjectUnitMatch pum ON pum.AppraisalId = p.AppraisalId
 LEFT JOIN Val v                ON v.AppraisalId = p.AppraisalId
 LEFT JOIN PropMix pm           ON pm.AppraisalId = p.AppraisalId
 LEFT JOIN LandTotal lt         ON lt.AppraisalId = p.AppraisalId
+LEFT JOIN ProjectLandTotal plt ON plt.AppraisalId = p.AppraisalId
 LEFT JOIN LandParts lp         ON lp.AppraisalId = p.AppraisalId
 LEFT JOIN BuildingAgg ba       ON ba.AppraisalId = p.AppraisalId
 LEFT JOIN CondoAgg ca          ON ca.AppraisalId = p.AppraisalId

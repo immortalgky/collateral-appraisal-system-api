@@ -34,7 +34,7 @@ public class CollateralResultExportQuery(
     /// </summary>
     private const string ApprovedSql = """
         SELECT
-            AppraisalId, CollateralId, AppraisalReportNumber, AutoUpdate,
+            AppraisalId, CollateralId, AppraisalReportNumber, AutoUpdate, IsExternal,
             AppraisalValue, LandValue, BuildingValue, ForceSaleValue,
             CurrentAppraisalDate, NextAppraisalDate,
             InternalValuerEmployeeId, InternalValuerName, ExternalValuerCode, ExternalValuerName,
@@ -71,7 +71,7 @@ public class CollateralResultExportQuery(
         // An employee id that will not fit the 4-character field goes out blank, and blank is
         // indistinguishable from "no id on file". One warning per run rather than per row.
         var tooLong = raw
-            .Where(r => r.ExternalValuerCode is null
+            .Where(r => !r.IsExternal
                         && !string.IsNullOrWhiteSpace(r.InternalValuerEmployeeId)
                         && ToInternalValuerCode(r.InternalValuerEmployeeId) is null)
             .Select(r => r.InternalValuerEmployeeId!)
@@ -129,9 +129,10 @@ public class CollateralResultExportQuery(
     private static CollateralResultRow Map(ApprovedRow r)
     {
         // The two valuer pairs are mutually exclusive — an appraisal ran on the external path or the
-        // internal one, never both. The view already blanks the pair that does not apply; this only
-        // has to convert the employee id into the host's 4-character code.
-        var isExternal = r.ExternalValuerCode is not null || r.ExternalValuerName is not null;
+        // internal one, never both. The view decides which; inferring it from whether the company
+        // columns came back populated would misread an external appraisal whose company row is
+        // missing as internal, and send the bank staffer's name for work a company did.
+        var isExternal = r.IsExternal;
 
         return new CollateralResultRow(
             AppraisalId: r.AppraisalId,
@@ -190,6 +191,7 @@ public class CollateralResultExportQuery(
         public string? CollateralId { get; init; }
         public string AppraisalReportNumber { get; init; } = null!;
         public string? AutoUpdate { get; init; }
+        public bool IsExternal { get; init; }
         public decimal? AppraisalValue { get; init; }
         public decimal? LandValue { get; init; }
         public decimal? BuildingValue { get; init; }
