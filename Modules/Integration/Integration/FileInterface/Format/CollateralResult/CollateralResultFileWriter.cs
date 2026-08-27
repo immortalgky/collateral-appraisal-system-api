@@ -5,7 +5,7 @@ using Integration.Contracts.FixedWidth;
 namespace Integration.FileInterface.Format.CollateralResult;
 
 /// <summary>
-/// Writes the outbound "Collateral Result" interface — a fixed-width 208-char UTF-8 H/D/T file
+/// Writes the outbound "Collateral Result" interface — a fixed-width 231-char UTF-8 H/D/T file
 /// sent to the host (AS400) to update collateral prices after an appraisal completes.
 ///
 /// Decimal format: implied-decimal, NO decimal point — the value is multiplied by 100 and the field
@@ -13,18 +13,28 @@ namespace Integration.FileInterface.Format.CollateralResult;
 /// which reserved a dot position). A null OR zero amount is emitted as an ALL-ZEROS numeric field
 /// (AS400 zoned-decimal fields cannot hold spaces). The trailer detail-count is zero-padded.
 ///
-/// Detail = 208 chars; Header/Trailer = 208 chars. Positions 199-208 (BuildingAge, AreaUtilization)
-/// were appended in the 2026-08 spec revision; positions 1-198 are unchanged.
+/// Detail = 231 chars; Header/Trailer = 231 chars. Positions 199-208 (BuildingAge, AreaUtilization)
+/// were appended in the 2026-08 revision and 209-231 (AutoUpdate, land area) in the 2026-08-27 one;
+/// positions 1-198 have never moved.
+///
+/// <b>The length is a breaking change for the host reader</b> — the cut-over has to be agreed with
+/// AS400 before this ships.
 /// </summary>
 public sealed class CollateralResultFileWriter
 {
-    public const int RecordLength = 208;
+    public const int RecordLength = 231;
 
     /// <summary>Largest value the 7-char implied-decimal AreaUtilization field can carry (dec(7,2)).</summary>
     public const decimal MaxAreaUtilization = 99999.99m;
 
-    // Ordered Detail-record field map. Widths must sum to RecordLength (208).
-    // Verified: 1+19+10+15+15+15+15+8+8+4+40+4+40+3+1+3+7 = 208.
+    /// <summary>Largest land area the 10-char implied-decimal total field can carry (dec(10,2)).</summary>
+    public const decimal MaxLandAreaTotalSqWa = 99999999.99m;
+
+    /// <summary>Largest value the 4-char implied-decimal square-wa field can carry (dec(4,2)).</summary>
+    public const decimal MaxLandAreaSquareWa = 99.99m;
+
+    // Ordered Detail-record field map. Widths must sum to RecordLength (231).
+    // Verified: 1+19+10+15+15+15+15+8+8+4+40+4+40+3+1+3+7+1+5+3+4+10 = 231.
     private static readonly FixedWidthField[] DetailFields =
     [
         new("RecordType",             1,  FixedWidthAlign.Left),          // 'D'
@@ -44,6 +54,11 @@ public sealed class CollateralResultFileWriter
         new("AppraisalStatus",        1,  FixedWidthAlign.Left),          // pos 198
         new("BuildingAge",            3,  FixedWidthAlign.RightZeroFill), // pos 199-201 dec(3,0)  CCEBIL
         new("AreaUtilization",        7,  FixedWidthAlign.RightZeroFill), // pos 202-208 implied dec(7,2) CCEARE
+        new("AutoUpdate",             1,  FixedWidthAlign.Left),          // pos 209     'Y' / 'N'
+        new("LandAreaRai",            5,  FixedWidthAlign.RightZeroFill), // pos 210-214 dec(5,0)
+        new("LandAreaNgan",           3,  FixedWidthAlign.RightZeroFill), // pos 215-217 dec(3,0)
+        new("LandAreaSquareWa",       4,  FixedWidthAlign.RightZeroFill), // pos 218-221 implied dec(4,2)
+        new("LandAreaTotalSqWa",     10,  FixedWidthAlign.RightZeroFill), // pos 222-231 implied dec(10,2)
     ];
 
     private static readonly FixedWidthRecordBuilder DetailBuilder =
@@ -57,7 +72,7 @@ public sealed class CollateralResultFileWriter
     public string BuildTrailer(int detailCount) =>
         ("T" + detailCount.ToString(CultureInfo.InvariantCulture).PadLeft(9, '0')).PadRight(RecordLength);
 
-    /// <summary>Builds one 198-char Detail (D) record from a typed row.</summary>
+    /// <summary>Builds one Detail (D) record from a typed row.</summary>
     public string BuildDetail(CollateralResultRow row)
     {
         var values = new Dictionary<string, string?>
@@ -89,6 +104,20 @@ public sealed class CollateralResultFileWriter
             // reaching this branch means a value slipped past it.
             ["AreaUtilization"] = Money(
                 row.AreaUtilization is { } area && area >= 0m && area <= MaxAreaUtilization ? area : 0m),
+            // 'Y' only where the appraisal tied to exactly one AS400 collateral. Anything unexpected
+            // becomes 'N': the safe reading is "a person should look at this".
+            ["AutoUpdate"] = row.AutoUpdate == "Y" ? "Y" : "N",
+            // Land area, this row's collateral. Same clamp-to-zero rule as the fields above: one
+            // implausible area must not abort the run, and a zero reads as "not stated" to the host.
+            ["LandAreaRai"] = (row.LandAreaRai is { } rai && rai >= 0 && rai <= 99999 ? rai : 0)
+                .ToString(CultureInfo.InvariantCulture),
+            ["LandAreaNgan"] = (row.LandAreaNgan is { } ngan && ngan >= 0 && ngan <= 999 ? ngan : 0)
+                .ToString(CultureInfo.InvariantCulture),
+            ["LandAreaSquareWa"] = Money(
+                row.LandAreaSquareWa is { } wa && wa >= 0m && wa <= MaxLandAreaSquareWa ? wa : 0m),
+            ["LandAreaTotalSqWa"] = Money(
+                row.LandAreaTotalSqWa is { } total && total >= 0m && total <= MaxLandAreaTotalSqWa
+                    ? total : 0m),
         };
 
         return DetailBuilder.Build(values);

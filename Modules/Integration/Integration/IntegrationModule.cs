@@ -14,6 +14,7 @@ using Integration.FileInterface.Jobs.HostLink;
 using Integration.FileInterface.Jobs.Reappraisal;
 using Integration.FileInterface.Jobs.RegulatoryExport;
 using Integration.Infrastructure;
+using Collateral.Contracts.FileInterface;
 using Integration.Infrastructure.FileInterface;
 using Integration.Infrastructure.FileSink;
 using Integration.Infrastructure.FileSource;
@@ -81,6 +82,11 @@ public static class IntegrationModule
         // Decides which inbound files still need work and records the outcome. Shared by both AS400
         // ingest jobs so the de-duplication rule cannot drift between them.
         services.AddScoped<InboundFileLedger>();
+
+        // Outbound Collateral Result. Implements a Collateral.Contracts interface from here because
+        // the query is an interface concern: it reads the appraisal schema and the AS400 link table,
+        // and needs nothing from the Collateral module.
+        services.AddScoped<ICollateralResultQuery, CollateralResultExportQuery>();
 
         // Format utilities (moved from Collateral).
         services.AddSingleton<CollatrevFileParser>();

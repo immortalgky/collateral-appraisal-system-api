@@ -1,0 +1,399 @@
+-- Outbound AS400 "Collateral Result" — one row per result still owed to the host.
+--
+-- ── Why this replaces the old query ────────────────────────────────────────────────────────────
+-- The previous version started from collateral.CollateralEngagements joined to CollateralMasters and
+-- used `CollateralMaster.HostCollateralId IS NOT NULL` as the eligibility gate. That made the file a
+-- function of whether a CollateralMaster had been created — and 6,699 completed appraisals on the
+-- production-like dataset never get one (a condo with no sub-district, land with no title number, a
+-- leasehold that will not resolve). Those appraisals were never sent, and nothing said so: no error,
+-- no warning, no row.
+--
+-- Here the row set is the appraisals themselves. A missing master cannot hide one.
+--
+-- ── Finding the AS400 collateral id ────────────────────────────────────────────────────────────
+-- AS400 stamps our appraisal number into CCSURV when it mints a collateral id, and only moves it
+-- when a NEW drawdown happens. A reappraisal involves no drawdown, so the id keeps pointing at the
+-- older appraisal: 91.3% of held master-title rows name the head of their chain rather than the
+-- latest round. Joining on the appraisal's own number would therefore find nothing for exactly the
+-- reappraisals this file exists to report — and where the head had never been sent, would ship a
+-- price from years ago.
+--
+-- So each completed appraisal walks UP PrevAppraisalId and stops at the first ancestor AS400 knows.
+-- Nearer ancestor wins: it reflects the more recent drawdown.
+--
+-- The walk finds the ID only. Every value in the record — price, dates, valuer, areas — comes from
+-- the appraisal that was actually completed.
+--
+-- ── One row, or none ───────────────────────────────────────────────────────────────────────────
+-- An appraisal is sent with Auto Update 'Y' only when the walk lands on exactly one collateral. Land
+-- more than one and we cannot say which collateral the price belongs to, so the id is left blank and
+-- the flag goes out as 'N' for a human at the bank to resolve. A blank id still identifies the work:
+-- the appraisal number is in the record.
+--
+-- Block projects are the exception, because there the ambiguity is resolvable. AS400 mints an id per
+-- financed unit and writes the unit key into CollateralName as "CONDO.<room> <deeds>"; our own units
+-- carry the same room number. Matching on it gives one row per unit, each with its own price and its
+-- own land area — not one price repeated.
+--
+-- ── OPTION (MAXRECURSION 0) ────────────────────────────────────────────────────────────────────
+-- Cannot live inside a view; the caller supplies it. The walk is guarded by the visited path rather
+-- than a depth cap: construction-inspection chains run to dozens of rounds (34 measured), and a
+-- `Depth < 20` style guard does not error when it bites — it silently returns the 20th ancestor as
+-- the root, which here would mean quietly attaching the wrong collateral id.
+CREATE OR ALTER VIEW collateral.vw_CollateralResultExport
+AS
+WITH
+
+-- ── What AS400 currently holds ─────────────────────────────────────────────────────────────────
+-- COLLATLINK is a full monthly replace: rows the newest file omits are collateral the bank no longer
+-- holds. They stay in the table (a truncated file has to be recoverable) so the active filter lives
+-- in every reader, here included.
+Active AS (
+    SELECT
+        h.HostCollateralId,
+        h.CollateralName,
+        -- AS400 prefixes some block appraisal numbers with 'B' and some not; CAS never stores it.
+        -- Normalised on this side so the join stays a plain equality the index can serve.
+        CASE WHEN LEFT(h.AppraisalNumber, 1) = 'B'
+             THEN SUBSTRING(h.AppraisalNumber, 2, LEN(h.AppraisalNumber))
+             ELSE h.AppraisalNumber
+        END AS CasAppraisalNumber,
+        -- The unit key of a block project: everything between "CONDO." and the first space.
+        CASE WHEN h.CollateralName LIKE 'CONDO.%' THEN
+            CASE WHEN CHARINDEX(' ', SUBSTRING(h.CollateralName, 7, 200)) > 0
+                 THEN LEFT(SUBSTRING(h.CollateralName, 7, 200),
+                           CHARINDEX(' ', SUBSTRING(h.CollateralName, 7, 200)) - 1)
+                 ELSE SUBSTRING(h.CollateralName, 7, 200)
+            END
+        END AS UnitToken
+    FROM collateral.HostCollateralLinks h
+    WHERE h.IsRedeemed = 0
+      AND h.LastSeenFileDate = (SELECT MAX(LastSeenFileDate) FROM collateral.HostCollateralLinks)
+),
+
+-- ── The appraisals still owed ──────────────────────────────────────────────────────────────────
+-- Completed and not yet acknowledged for the id they would carry. The ledger is keyed on
+-- (AppraisalId, CollateralId), so an appraisal sent earlier with a blank id is still owed once AS400
+-- mints one — it pairs with a different key and goes out again.
+Pending AS (
+    SELECT a.Id AS AppraisalId, a.AppraisalNumber, a.PrevAppraisalId
+    FROM appraisal.Appraisals a
+    WHERE a.Status = 'Completed'
+      AND a.IsDeleted = 0
+),
+
+Walk AS (
+    SELECT
+        p.AppraisalId,
+        p.AppraisalId AS AncestorId,
+        p.PrevAppraisalId,
+        0 AS Depth,
+        CAST('|' + CAST(p.AppraisalId AS varchar(36)) + '|' AS varchar(max)) AS Path
+    FROM Pending p
+
+    UNION ALL
+
+    SELECT w.AppraisalId, anc.Id, anc.PrevAppraisalId, w.Depth + 1,
+           CAST(w.Path + CAST(anc.Id AS varchar(36)) + '|' AS varchar(max))
+    FROM Walk w
+    JOIN appraisal.Appraisals anc ON anc.Id = w.PrevAppraisalId AND anc.IsDeleted = 0
+    WHERE CHARINDEX('|' + CAST(anc.Id AS varchar(36)) + '|', w.Path) = 0
+),
+
+-- Every collateral reachable from an appraisal, with how far up it was found.
+Hit AS (
+    SELECT
+        w.AppraisalId,
+        w.Depth,
+        act.HostCollateralId,
+        act.UnitToken
+    FROM Walk w
+    JOIN appraisal.Appraisals anc ON anc.Id = w.AncestorId
+    JOIN Active act ON act.CasAppraisalNumber = anc.AppraisalNumber
+),
+
+-- Only the nearest ancestor that matched. A newer drawdown supersedes an older one, and mixing the
+-- two levels would count the same collateral twice and make every such appraisal look ambiguous.
+NearestHit AS (
+    SELECT h.AppraisalId, h.HostCollateralId, h.UnitToken
+    FROM Hit h
+    WHERE h.Depth = (SELECT MIN(h2.Depth) FROM Hit h2 WHERE h2.AppraisalId = h.AppraisalId)
+),
+
+HitCount AS (
+    SELECT AppraisalId, COUNT(*) AS Matches
+    FROM NearestHit
+    GROUP BY AppraisalId
+),
+
+-- ── Values, all from the completed appraisal ───────────────────────────────────────────────────
+Val AS (
+    SELECT v.AppraisalId, v.ValuationDate, v.AppraisedValue, v.ForcedSaleValue
+    FROM appraisal.ValuationAnalyses v
+),
+
+-- Which property types the appraisal holds, which decides where age and area are read from.
+PropMix AS (
+    SELECT
+        p.AppraisalId,
+        MAX(CASE WHEN p.PropertyType IN ('B','LB','LSB','LS') THEN 1 ELSE 0 END) AS HasBuilding,
+        MAX(CASE WHEN p.PropertyType IN ('U','LSU')           THEN 1 ELSE 0 END) AS HasCondo,
+        MAX(CASE WHEN p.PropertyType = 'MAC'                  THEN 1 ELSE 0 END) AS HasMachine
+    FROM appraisal.AppraisalProperties p
+    GROUP BY p.AppraisalId
+),
+
+-- Land area for the whole appraisal, in square wa. Rai/Ngan/SquareWa are stored separately on the
+-- title, so this is a conversion INTO the total rather than out of it.
+LandTotal AS (
+    SELECT
+        p.AppraisalId,
+        SUM(ISNULL(t.AreaRai, 0) * 400 + ISNULL(t.AreaNgan, 0) * 100 + ISNULL(t.AreaSquareWa, 0)) AS TotalSqWa
+    FROM appraisal.AppraisalProperties p
+    JOIN appraisal.LandAppraisalDetails d ON d.AppraisalPropertyId = p.Id
+    JOIN appraisal.LandTitles t           ON t.LandAppraisalDetailId = d.Id
+    WHERE p.PropertyType IN ('L','LB','LSL','LS')
+    GROUP BY p.AppraisalId
+),
+
+-- The appraisal's own Rai/Ngan/Wa, summed and then normalised. Summing the three columns straight
+-- would emit values like "2 rai 7 ngan 430 wa"; carrying up keeps each part inside its own field.
+LandParts AS (
+    SELECT
+        AppraisalId,
+        TotalSqWa / 400                      AS Rai,
+        (TotalSqWa % 400) / 100              AS Ngan,
+        TotalSqWa % 100                      AS SquareWa
+    FROM LandTotal
+),
+
+-- Oldest building and total footprint. A single building cannot speak for a plot holding several,
+-- and the host uses the oldest structure to drive depreciation. Identical to the rule in
+-- vw_RegulatoryExportV3 — the two must be changed together.
+BuildingAgg AS (
+    SELECT
+        p.AppraisalId,
+        MAX(b.BuildingAge)       AS MaxBuildingAge,
+        SUM(b.TotalBuildingArea) AS TotalBuildingArea
+    FROM appraisal.AppraisalProperties p
+    JOIN appraisal.BuildingAppraisalDetails b ON b.AppraisalPropertyId = p.Id
+    WHERE p.PropertyType IN ('B','LB','LSB','LS')
+    GROUP BY p.AppraisalId
+),
+
+CondoAgg AS (
+    SELECT AppraisalId, UsableArea, BuildingAge
+    FROM (
+        SELECT p.AppraisalId, c.UsableArea, c.BuildingAge,
+               ROW_NUMBER() OVER (PARTITION BY p.AppraisalId ORDER BY p.SequenceNumber) AS rn
+        FROM appraisal.AppraisalProperties p
+        JOIN appraisal.CondoAppraisalDetails c ON c.AppraisalPropertyId = p.Id
+        WHERE p.PropertyType IN ('U','LSU')
+    ) z
+    WHERE rn = 1
+),
+
+MachineLife AS (
+    SELECT AppraisalId, LifeSpanYears
+    FROM (
+        SELECT p.AppraisalId, mci.LifeSpanYears,
+               ROW_NUMBER() OVER (PARTITION BY p.AppraisalId ORDER BY p.SequenceNumber) AS rn
+        FROM appraisal.AppraisalProperties p
+        JOIN appraisal.MachineCostItems mci ON mci.AppraisalPropertyId = p.Id
+        WHERE p.PropertyType = 'MAC' AND mci.LifeSpanYears IS NOT NULL
+    ) z
+    WHERE rn = 1
+),
+
+-- ── Land and building components ───────────────────────────────────────────────────────────────
+-- Pricing is held per property GROUP, not per appraisal: the selected approach's selected method
+-- carries the final values. Land and building components only exist on a cost approach that priced
+-- a building; every other approach reports the total alone, which is why both come back NULL there.
+SelectedPricing AS (
+    SELECT AppraisalId, UnitPrice, BuildingValue
+    FROM (
+        SELECT
+            gi.AppraisalId,
+            CASE WHEN ap.ApproachType = 'Cost' AND fv.HasBuildingValue = 1
+                 THEN fv.FinalValueAdjusted END AS UnitPrice,
+            CASE WHEN ap.ApproachType = 'Cost' AND fv.HasBuildingValue = 1
+                 THEN fv.BuildingValue END      AS BuildingValue,
+            ROW_NUMBER() OVER (
+                PARTITION BY gi.AppraisalId
+                -- Prefer the selected cost approach, then any selected approach, mirroring
+                -- GetAppraisalForCollateralQueryHandler so the two cannot disagree.
+                ORDER BY CASE WHEN ap.IsSelected = 1 AND ap.ApproachType = 'Cost' THEN 0
+                              WHEN ap.IsSelected = 1 THEN 1
+                              ELSE 2 END,
+                         CASE WHEN m.IsSelected = 1 THEN 0 ELSE 1 END,
+                         gi.SequenceNumber) AS rn
+        FROM (
+            SELECT DISTINCT p.AppraisalId, pgi.PropertyGroupId, p.SequenceNumber
+            FROM appraisal.AppraisalProperties p
+            JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = p.Id
+        ) gi
+        JOIN appraisal.PricingAnalysis pa        ON pa.AnchorId = gi.PropertyGroupId
+        JOIN appraisal.PricingAnalysisApproaches ap ON ap.PricingAnalysisId = pa.Id
+        JOIN appraisal.PricingAnalysisMethods m  ON m.ApproachId = ap.Id
+        JOIN appraisal.PricingFinalValues fv     ON fv.PricingMethodId = m.Id
+    ) z
+    WHERE rn = 1
+),
+
+-- ── Who did the work ───────────────────────────────────────────────────────────────────────────
+-- The latest assignment that was not rejected or cancelled. A case routed back from a company to an
+-- internal appraiser leaves a company-less latest assignment, and that is the answer: nobody
+-- external holds it now.
+LatestAssignment AS (
+    SELECT AppraisalId, AssigneeCompanyId, InternalAppraiserName, AppraiserUserId
+    FROM (
+        SELECT
+            asg.AppraisalId,
+            asg.AssigneeCompanyId,
+            asg.InternalAppraiserName,
+            COALESCE(asg.AssigneeUserId, asg.InternalAppraiserId, asg.ExternalAppraiserId) AS AppraiserUserId,
+            ROW_NUMBER() OVER (PARTITION BY asg.AppraisalId
+                               ORDER BY asg.AssignedAt DESC, asg.CreatedAt DESC, asg.Id DESC) AS rn
+        FROM appraisal.AppraisalAssignments asg
+        WHERE asg.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
+    ) z
+    WHERE rn = 1
+),
+
+Valuer AS (
+    SELECT
+        la.AppraisalId,
+        la.AssigneeCompanyId,
+        -- AssigneeCompanyId is nvarchar while auth.Companies.Id is uniqueidentifier; a non-Guid value
+        -- becomes NULL and the lookup simply misses.
+        (SELECT TOP 1 c.Name FROM auth.Companies c
+          WHERE c.Id = TRY_CAST(la.AssigneeCompanyId AS uniqueidentifier) AND c.IsDeleted = 0) AS CompanyName,
+        (SELECT TOP 1 c.HostCompanyCode FROM auth.Companies c
+          WHERE c.Id = TRY_CAST(la.AssigneeCompanyId AS uniqueidentifier) AND c.IsDeleted = 0) AS CompanyCode,
+        COALESCE(
+            (SELECT TOP 1 NULLIF(LTRIM(RTRIM(CONCAT(u.FirstName, ' ', u.LastName))), '')
+               FROM auth.AspNetUsers u WHERE u.UserName = la.AppraiserUserId),
+            la.InternalAppraiserName) AS InternalAppraiserName,
+        -- Users are keyed by UserName (the bank code), not by Id.
+        (SELECT TOP 1 u.EmployeeId FROM auth.AspNetUsers u
+          WHERE u.UserName = la.AppraiserUserId) AS EmployeeId
+    FROM LatestAssignment la
+),
+
+-- ── Block projects: one row per financed unit ──────────────────────────────────────────────────
+ProjectUnitMatch AS (
+    SELECT
+        pr.AppraisalId,
+        nh.HostCollateralId,
+        u.Id AS ProjectUnitId,
+        u.LandArea AS UnitLandAreaSqWa,
+        up.TotalAppraisalValueRounded AS UnitValue
+    FROM NearestHit nh
+    JOIN appraisal.Projects pr    ON pr.AppraisalId = nh.AppraisalId
+    JOIN appraisal.ProjectUnits u ON u.ProjectId = pr.Id
+                                 AND LTRIM(RTRIM(u.RoomNumber)) = LTRIM(RTRIM(nh.UnitToken))
+    LEFT JOIN appraisal.ProjectUnitPrices up ON up.ProjectUnitId = u.Id
+    WHERE nh.UnitToken IS NOT NULL
+),
+
+-- An appraisal is a block project when it has a Projects row. Its units are priced individually, so
+-- it is the one shape that legitimately produces several rows.
+IsBlock AS (
+    SELECT DISTINCT AppraisalId FROM ProjectUnitMatch
+),
+
+-- Assembled first so the sent-ledger filter below can see the collateral id each row resolved to;
+-- that id is part of the key and cannot be known before this point.
+Assembled AS (
+SELECT
+    p.AppraisalId,
+    p.AppraisalNumber                                        AS AppraisalReportNumber,
+
+    -- Blank whenever the collateral could not be pinned down to one. The appraisal number still
+    -- identifies the work, and Auto Update tells the host to look at it by hand.
+    CASE
+        WHEN pum.HostCollateralId IS NOT NULL THEN pum.HostCollateralId
+        WHEN blk.AppraisalId IS NULL AND hc.Matches = 1 THEN nh.HostCollateralId
+        ELSE ''
+    END                                                      AS CollateralId,
+
+    CASE
+        WHEN pum.HostCollateralId IS NOT NULL THEN 'Y'
+        WHEN blk.AppraisalId IS NULL AND hc.Matches = 1 THEN 'Y'
+        ELSE 'N'
+    END                                                      AS AutoUpdate,
+
+    -- A unit carries its own appraised value; anything else reports the appraisal total.
+    COALESCE(pum.UnitValue, v.AppraisedValue)                AS AppraisalValue,
+    -- Land component: the cost approach's adjusted unit price applied over the land area. There is
+    -- no stored column for it — the same multiplication the engagement used to freeze at completion.
+    CASE WHEN sp.UnitPrice IS NOT NULL AND lt.TotalSqWa IS NOT NULL
+         THEN sp.UnitPrice * lt.TotalSqWa END                AS LandValue,
+    sp.BuildingValue                                         AS BuildingValue,
+    v.ForcedSaleValue                                        AS ForceSaleValue,
+
+    CAST(v.ValuationDate AS date)                            AS CurrentAppraisalDate,
+    DATEADD(YEAR, 3, CAST(v.ValuationDate AS date))          AS NextAppraisalDate,
+
+    -- An appraisal ran on the external path or the internal path, never both, so exactly one pair is
+    -- populated and the other is blank. The test is "a company is attached", the same rule the rest
+    -- of the system uses.
+    CASE WHEN vl.AssigneeCompanyId IS NULL THEN vl.EmployeeId END            AS InternalValuerEmployeeId,
+    CASE WHEN vl.AssigneeCompanyId IS NULL THEN vl.InternalAppraiserName END AS InternalValuerName,
+    CASE WHEN vl.AssigneeCompanyId IS NOT NULL THEN vl.CompanyCode END       AS ExternalValuerCode,
+    CASE WHEN vl.AssigneeCompanyId IS NOT NULL THEN vl.CompanyName END       AS ExternalValuerName,
+
+    ml.LifeSpanYears                                         AS LifeYear,
+
+    -- Age and area by what the appraisal actually holds. Bare land and machinery report neither: the
+    -- field means usable floor area, and land area is carried in its own fields below in sq.wa.
+    CASE WHEN pm.HasBuilding = 1 THEN ba.MaxBuildingAge
+         WHEN pm.HasCondo = 1    THEN ca.BuildingAge END     AS BuildingAge,
+    CASE WHEN pm.HasBuilding = 1 THEN ba.TotalBuildingArea
+         WHEN pm.HasCondo = 1    THEN ca.UsableArea END      AS AreaUtilization,
+
+    -- Per-row land area: the unit's own for a block, the appraisal's otherwise.
+    CASE WHEN pum.ProjectUnitId IS NOT NULL
+         THEN CAST(pum.UnitLandAreaSqWa / 400 AS int)
+         ELSE lp.Rai END                                     AS LandAreaRai,
+    CASE WHEN pum.ProjectUnitId IS NOT NULL
+         THEN CAST((pum.UnitLandAreaSqWa % 400) / 100 AS int)
+         ELSE lp.Ngan END                                    AS LandAreaNgan,
+    CASE WHEN pum.ProjectUnitId IS NOT NULL
+         THEN pum.UnitLandAreaSqWa % 100
+         ELSE lp.SquareWa END                                AS LandAreaSquareWa,
+
+    -- Whole-appraisal total, identical on every row of the same appraisal by design: it is the sum,
+    -- not this row's share.
+    lt.TotalSqWa                                             AS LandAreaTotalSqWa
+
+FROM Pending p
+LEFT JOIN HitCount hc          ON hc.AppraisalId = p.AppraisalId
+LEFT JOIN IsBlock blk          ON blk.AppraisalId = p.AppraisalId
+-- Only joined for the unambiguous non-block case; a block takes its id from the unit match instead.
+LEFT JOIN NearestHit nh        ON nh.AppraisalId = p.AppraisalId
+                              AND blk.AppraisalId IS NULL
+                              AND hc.Matches = 1
+LEFT JOIN ProjectUnitMatch pum ON pum.AppraisalId = p.AppraisalId
+LEFT JOIN Val v                ON v.AppraisalId = p.AppraisalId
+LEFT JOIN PropMix pm           ON pm.AppraisalId = p.AppraisalId
+LEFT JOIN LandTotal lt         ON lt.AppraisalId = p.AppraisalId
+LEFT JOIN LandParts lp         ON lp.AppraisalId = p.AppraisalId
+LEFT JOIN BuildingAgg ba       ON ba.AppraisalId = p.AppraisalId
+LEFT JOIN CondoAgg ca          ON ca.AppraisalId = p.AppraisalId
+LEFT JOIN MachineLife ml       ON ml.AppraisalId = p.AppraisalId
+LEFT JOIN SelectedPricing sp   ON sp.AppraisalId = p.AppraisalId
+LEFT JOIN Valuer vl            ON vl.AppraisalId = p.AppraisalId
+)
+
+SELECT r.*
+FROM Assembled r
+-- Not yet acknowledged for this exact (appraisal, collateral) pair. Keying on the pair rather than
+-- the appraisal alone is what lets a block send one row per unit, and what gives an appraisal sent
+-- with a blank id another turn once AS400 mints one.
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM collateral.CollateralResultLogs l
+    WHERE l.AppraisalId = r.AppraisalId
+      AND l.CollateralId = r.CollateralId
+);

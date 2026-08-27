@@ -4,9 +4,13 @@ using Integration.FileInterface.Format.CollateralResult;
 namespace Collateral.Tests.CollateralResult;
 
 /// <summary>
-/// Pins <see cref="CollateralResultFileWriter"/> to the 208-char vendor layout with implied-decimal
+/// Pins <see cref="CollateralResultFileWriter"/> to the 231-char vendor layout with implied-decimal
 /// numerics (value ×100, NO decimal point, left zero-filled; null/zero → all zeros) and a zero-padded
-/// trailer count. Every record is exactly 208 chars; H/D/T present; fields land in their column ranges.
+/// trailer count. Every record is exactly 231 chars; H/D/T present; fields land in their column ranges.
+///
+/// Positions 209-231 (Auto Update and the land-area fields) were added in the 2026-08-27 revision.
+/// Positions 1-208 are asserted unchanged, because the whole point of appending is that the host's
+/// existing offsets keep working.
 /// </summary>
 public class CollateralResultFileWriterTests
 {
@@ -27,36 +31,41 @@ public class CollateralResultFileWriterTests
         LifeYear: null,
         AppraisalStatus: "A",
         BuildingAge: 12,
-        AreaUtilization: 250.50m);
+        AreaUtilization: 250.50m,
+        AutoUpdate: "Y",
+        LandAreaRai: 2,
+        LandAreaNgan: 3,
+        LandAreaSquareWa: 45.50m,
+        LandAreaTotalSqWa: 1145.50m);
 
     [Fact]
-    public void Header_Is198Chars_AndStartsWithHAndDate()
+    public void Header_IsRecordLength_AndStartsWithHAndDate()
     {
         var writer = new CollateralResultFileWriter();
         var header = writer.BuildHeader(new DateOnly(2025, 1, 21));
 
-        Assert.Equal(208, header.Length);
+        Assert.Equal(231, header.Length);
         Assert.StartsWith("H21012025", header);
-        Assert.Equal(new string(' ', 208 - 9), header[9..]); // rest is filler
+        Assert.Equal(new string(' ', 231 - 9), header[9..]); // rest is filler
     }
 
     [Fact]
-    public void Trailer_Is198Chars_WithZeroPaddedCount()
+    public void Trailer_IsRecordLength_WithZeroPaddedCount()
     {
         var writer = new CollateralResultFileWriter();
         var trailer = writer.BuildTrailer(3);
 
-        Assert.Equal(208, trailer.Length);
+        Assert.Equal(231, trailer.Length);
         Assert.StartsWith("T" + "000000003", trailer); // 9-char zero-padded count
     }
 
     [Fact]
-    public void Detail_Is198Chars_AndFieldsLandInSpecPositions()
+    public void Detail_IsRecordLength_AndFieldsLandInSpecPositions()
     {
         var writer = new CollateralResultFileWriter();
         var line = writer.BuildDetail(SampleRow());
 
-        Assert.Equal(208, line.Length);
+        Assert.Equal(231, line.Length);
         Assert.Equal('D', line[0]);
 
         // CollateralId pos 2-20 (index 1..20), implied-decimal id, left zero-filled.
@@ -96,11 +105,18 @@ public class CollateralResultFileWriterTests
             InternalValuerName = null,
             BuildingAge = null,
             AreaUtilization = null,
+            // The unmatched case: no single AS400 collateral was found, so the flag drops to 'N' and
+            // the land-area fields have nothing to describe.
+            AutoUpdate = "N",
+            LandAreaRai = null,
+            LandAreaNgan = null,
+            LandAreaSquareWa = null,
+            LandAreaTotalSqWa = null,
         };
 
         var line = writer.BuildDetail(row);
 
-        Assert.Equal(208, line.Length);
+        Assert.Equal(231, line.Length);
         Assert.Equal(new string('0', 15), line[45..60]);   // Land Value null → all zeros
         Assert.Equal(new string('0', 15), line[60..75]);   // Building Value null → all zeros
         Assert.Equal(new string(' ', 4), line[106..110]);  // Internal Valuer Code always blank (alpha)
@@ -108,6 +124,13 @@ public class CollateralResultFileWriterTests
         Assert.Equal("000", line[194..197]);               // Life Year null → all zeros
         Assert.Equal("000", line[198..201]);               // Building Age null → all zeros
         Assert.Equal("0000000", line[201..208]);           // Area Utilization null → all zeros
+        // A row that could not be tied to one collateral still fills every other field; only the flag
+        // and the collateral id say so.
+        Assert.Equal("N", line[208..209]);                 // AutoUpdate defaults to 'N'
+        Assert.Equal("00000", line[209..214]);             // Land area null → all zeros
+        Assert.Equal("000", line[214..217]);
+        Assert.Equal("0000", line[217..221]);
+        Assert.Equal("0000000000", line[221..231]);
     }
 
     [Theory]
@@ -132,7 +155,7 @@ public class CollateralResultFileWriterTests
         // single oversized collateral would otherwise kill the whole nightly export.
         var line = writer.BuildDetail(SampleRow() with { AreaUtilization = 100000.00m });
 
-        Assert.Equal(208, line.Length);
+        Assert.Equal(231, line.Length);
         Assert.Equal("0000000", line[201..208]);
         Assert.Equal("9999999", writer.BuildDetail(SampleRow() with { AreaUtilization = 99999.99m })[201..208]);
     }
@@ -147,7 +170,7 @@ public class CollateralResultFileWriterTests
     }
 
     [Fact]
-    public void BuildContent_HasHeaderDetailsTrailer_AllRecords198()
+    public void BuildContent_HasHeaderDetailsTrailer_AllRecordsSameLength()
     {
         var writer = new CollateralResultFileWriter();
         var rows = new[] { SampleRow(), SampleRow() };
@@ -156,7 +179,7 @@ public class CollateralResultFileWriterTests
         var lines = content.TrimEnd('\r', '\n').Split("\r\n");
 
         Assert.Equal(4, lines.Length);            // H + 2 D + T
-        Assert.All(lines, l => Assert.Equal(208, l.Length));
+        Assert.All(lines, l => Assert.Equal(231, l.Length));
         Assert.StartsWith("H", lines[0]);
         Assert.StartsWith("D", lines[1]);
         Assert.StartsWith("D", lines[2]);
