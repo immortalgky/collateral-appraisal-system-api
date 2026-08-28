@@ -645,6 +645,7 @@ internal static class AppraisalResultBuilder
                         r.RoomNo,
                         r.FloorNo,
                         r.BuildingNo,
+                        r.CondoRegistrationNumber,
                         // v1 reports the condo's usable area, or the building's gross area for a
                         // non-condo. cad is null on a building row and vice versa, so this picks
                         // whichever one the collateral actually carries.
@@ -676,6 +677,7 @@ internal static class AppraisalResultBuilder
                         first.GroupLandValue,
                         first.GroupBuildingValue,
                         first.GroupUnitPrice,
+                        first.GroupValuePerUnit,
                         collaterals);
                 })
                 .ToList();
@@ -697,6 +699,9 @@ internal static class AppraisalResultBuilder
                 totalAppraisalValue = unit.TotalAppraisalValueRounded;
                 forceSalePrice = unit.ForceSellingPrice;
                 marketValue = unit.SellingPrice ?? marketValue;
+                // A block's fire insurance is the unit's own coverage, not the appraisal-level
+                // total across every unit in the project. v1 does the same.
+                fireInsurance = unit.CoverageAmount ?? fireInsurance;
             }
         }
 
@@ -908,6 +913,7 @@ internal static class AppraisalResultBuilder
             RoomNo: isCondo ? unit.UnitRoomNo ?? unit.RoomNumber : null,
             FloorNo: isCondo ? unit.Floor?.ToString(CultureInfo.InvariantCulture) : null,
             BuildingNo: isCondo ? unit.TowerName : null,
+            CondoRegistrationNumber: isCondo ? unit.CondoRegistrationNumber : null,
             AreaUtilize: unit.UsableArea,
             ContractNo: null,
             LesseeName: null,
@@ -935,7 +941,9 @@ internal static class AppraisalResultBuilder
             AppraisalMethod: NormalizeApproach(unit.ModelApproachType),
             LandValue: null,
             BuildingValue: null,
+            // A block unit is priced outright by its model, not by an area rate.
             UnitPrice: null,
+            ValuePerUnit: null,
             Collaterals: [collateral]);
     }
 }

@@ -52,6 +52,11 @@ public record AppraisalResultGroup(
     decimal? LandValue,
     decimal? BuildingValue,
     decimal? UnitPrice,
+    // The selected method's rate per sq.wa or sq.m (PricingAnalysisMethods.ValuePerUnit). Null for a
+    // whole-unit lumpsum method, which prices the property outright rather than by area.
+    // Legacy field: AppraisalValueWaOrM. Note this is the per-unit RATE; UnitPrice above is the
+    // group's adjusted final value despite its name.
+    decimal? ValuePerUnit,
     List<AppraisalResultCollateral> Collaterals);
 
 public record AppraisalResultCollateral(
@@ -78,6 +83,8 @@ public record AppraisalResultCollateral(
     string? RoomNo,
     string? FloorNo,
     string? BuildingNo,
+    // Condominium registration number - the tower's, for a block. Legacy field: BuildingRegisterNo.
+    string? CondoRegistrationNumber,
     decimal? AreaUtilize,
     // Leasehold
     string? ContractNo,
