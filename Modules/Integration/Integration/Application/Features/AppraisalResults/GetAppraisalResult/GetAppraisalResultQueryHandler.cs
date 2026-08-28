@@ -662,7 +662,7 @@ internal static class AppraisalResultBuilder
 
                     return new AppraisalResultGroup(
                         first.GroupAppraisedValue,
-                        first.AppraisalMethod,
+                        NormalizeApproach(first.AppraisalMethod),
                         first.GroupLandValue,
                         first.GroupBuildingValue,
                         first.GroupUnitPrice,
@@ -777,6 +777,18 @@ internal static class AppraisalResultBuilder
     internal static int? ParseDecorate(string? code) =>
         int.TryParse(code, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : null;
 
+    // The group's selected pricing approach. An absent or unrecognised approach falls back to
+    // Market, mirroring v1's MapMethod (`_ => 3`), so both feeds report the same thing - at the cost
+    // of not distinguishing "no approach chosen yet" from a real Market choice. Shared with the v1
+    // endpoint so the fallback cannot drift.
+    internal static string NormalizeApproach(string? approachType) =>
+        approachType?.Trim().ToLowerInvariant() switch
+        {
+            "cost" => "Cost",
+            "income" => "Income",
+            _ => "Market",
+        };
+
     // Legacy AS400 encoding of the appraisal type; 0 = unknown. Shared with the v1 endpoint
     // (GetLegacyAppraisalResultQueryHandler) so the two feeds can never disagree on the code.
     internal static int MapAppraisalType(string? type) => type switch
@@ -889,7 +901,7 @@ internal static class AppraisalResultBuilder
 
         return new AppraisalResultGroup(
             AppraisalValue: unit.TotalAppraisalValueRounded,
-            AppraisalMethod: null,
+            AppraisalMethod: NormalizeApproach(unit.ModelApproachType),
             LandValue: null,
             BuildingValue: null,
             UnitPrice: null,
