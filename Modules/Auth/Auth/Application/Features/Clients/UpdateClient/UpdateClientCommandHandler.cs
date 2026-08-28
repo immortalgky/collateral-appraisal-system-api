@@ -11,7 +11,8 @@ public record UpdateClientCommand(
     List<Uri> RedirectUris,
     List<Uri> PostLogoutRedirectUris,
     List<string> GrantTypes,
-    List<string> Scopes
+    List<string> Scopes,
+    int? RefreshTokenLifetimeMinutes
 ) : ICommand;
 
 public class UpdateClientCommandValidator : AbstractValidator<UpdateClientCommand>
@@ -34,6 +35,13 @@ public class UpdateClientCommandValidator : AbstractValidator<UpdateClientComman
         RuleForEach(x => x.PostLogoutRedirectUris)
             .Must(ClientValidationRules.IsAbsoluteHttpUri)
             .WithMessage("Post-logout redirect URIs must be absolute http(s) URLs.");
+        // Reject an out-of-range lifetime here rather than letting it reach the application row.
+        // OpenIddict silently ignores a setting it cannot use and falls back to the server default,
+        // so an unvalidated value would look saved while changing nothing.
+        RuleFor(x => x.RefreshTokenLifetimeMinutes)
+            .Must(ClientValidationRules.IsValidRefreshTokenLifetime)
+            .When(x => x.RefreshTokenLifetimeMinutes.HasValue)
+            .WithMessage(ClientValidationRules.RefreshTokenLifetimeMessage);
     }
 }
 
@@ -55,7 +63,8 @@ public class UpdateClientCommandHandler(IOpenIddictApplicationManager applicatio
             descriptor,
             descriptor.ClientType ?? OpenIddictConstants.ClientTypes.Public,
             command.GrantTypes, command.Scopes,
-            command.RedirectUris, command.PostLogoutRedirectUris);
+            command.RedirectUris, command.PostLogoutRedirectUris,
+            command.RefreshTokenLifetimeMinutes);
 
         await applicationManager.UpdateAsync(app, descriptor, cancellationToken);
         return Unit.Value;

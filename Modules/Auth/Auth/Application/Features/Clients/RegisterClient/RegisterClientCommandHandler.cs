@@ -13,7 +13,8 @@ public record RegisterClientCommand(
     List<Uri> RedirectUris,
     List<Uri> PostLogoutRedirectUris,
     List<string> GrantTypes,
-    List<string> Scopes
+    List<string> Scopes,
+    int? RefreshTokenLifetimeMinutes
 ) : ICommand<RegisterClientResult>;
 
 /// <summary>ClientSecret is only ever returned here, once, at registration time.</summary>
@@ -45,6 +46,10 @@ public class RegisterClientCommandValidator : AbstractValidator<RegisterClientCo
         RuleForEach(x => x.PostLogoutRedirectUris)
             .Must(ClientValidationRules.IsAbsoluteHttpUri)
             .WithMessage("Post-logout redirect URIs must be absolute http(s) URLs.");
+        RuleFor(x => x.RefreshTokenLifetimeMinutes)
+            .Must(ClientValidationRules.IsValidRefreshTokenLifetime)
+            .When(x => x.RefreshTokenLifetimeMinutes.HasValue)
+            .WithMessage(ClientValidationRules.RefreshTokenLifetimeMessage);
     }
 }
 
@@ -77,7 +82,8 @@ public class RegisterClientCommandHandler(IOpenIddictApplicationManager applicat
 
         ClientPermissionMapper.ApplyToDescriptor(
             descriptor, clientType, command.GrantTypes, command.Scopes,
-            command.RedirectUris, command.PostLogoutRedirectUris);
+            command.RedirectUris, command.PostLogoutRedirectUris,
+            command.RefreshTokenLifetimeMinutes);
 
         var created = await applicationManager.CreateAsync(descriptor, cancellationToken);
         var id = await applicationManager.GetIdAsync(created, cancellationToken) ?? "";

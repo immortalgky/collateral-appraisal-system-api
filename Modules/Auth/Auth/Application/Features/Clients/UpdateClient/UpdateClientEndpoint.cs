@@ -11,7 +11,8 @@ public record UpdateClientRequest(
     List<Uri> RedirectUris,
     List<Uri> PostLogoutRedirectUris,
     List<string> GrantTypes,
-    List<string> Scopes
+    List<string> Scopes,
+    int? RefreshTokenLifetimeMinutes
 );
 
 public class UpdateClientEndpoint : ICarterModule
@@ -30,7 +31,8 @@ public class UpdateClientEndpoint : ICarterModule
                     request.RedirectUris ?? [],
                     request.PostLogoutRedirectUris ?? [],
                     request.GrantTypes ?? [],
-                    request.Scopes ?? []);
+                    request.Scopes ?? [],
+                    request.RefreshTokenLifetimeMinutes);
 
                 await sender.Send(command, cancellationToken);
                 return Results.NoContent();

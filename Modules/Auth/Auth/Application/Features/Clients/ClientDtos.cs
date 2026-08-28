@@ -22,4 +22,16 @@ public class ClientDetailDto : ClientListItemDto
 {
     public List<string> RedirectUris { get; set; } = [];
     public List<string> PostLogoutRedirectUris { get; set; } = [];
+
+    /// <summary>
+    /// How long a refresh token issued to this client stays valid, in minutes. Because refresh
+    /// tokens are rolling and sliding, this is an idle timeout — the window a session may go
+    /// without refreshing before the user must sign in again.
+    /// <para>
+    /// null means the client has no setting of its own and falls back to the server-wide default.
+    /// Exposed in minutes rather than as a .NET TimeSpan string so the admin UI never has to ask
+    /// anyone to type "7.00:00:00" correctly.
+    /// </para>
+    /// </summary>
+    public int? RefreshTokenLifetimeMinutes { get; set; }
 }

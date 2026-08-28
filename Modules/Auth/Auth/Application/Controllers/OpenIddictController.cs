@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.WebUtilities;
 using OpenIddict.Server.AspNetCore;
 using Auth.Application.Helpers;
 using Auth.Application.Services;
@@ -17,6 +18,36 @@ public class OpenIddictController(ITokenService tokenService, IAuthAuditWriter a
     public async Task<IActionResult> Authorize()
     {
         var request = HttpContext.GetOpenIddictServerRequest();
+        if (request is null)
+            return BadRequest(new { error = "Invalid request" });
+
+        // prompt=login means the client wants a genuinely interactive sign-in. The SPA sends it on
+        // every trip through this endpoint, because it only lands here once its silent refresh has
+        // already failed — i.e. the session is over and the user must prove who they are again.
+        //
+        // Without this branch the Identity SSO cookie alone is enough to mint a fresh authorization
+        // code, so a user who closed the browser (or idled out) would be signed straight back in
+        // without typing a password, defeating the session-scoped refresh cookie. Relying on that
+        // cookie expiring on its own is not sound: it is already a session cookie, yet Chromium
+        // browsers configured to "continue where you left off" restore session cookies on relaunch.
+        //
+        // The prompt parameter is stripped from the return URL so the post-login redirect back here
+        // does not sign the user out again in an endless loop.
+        // Note this makes an anonymous GET destroy session state, so any site can top-level-navigate a
+        // victim here and sign them out mid-work. Accepted rather than overlooked: prompt=login is a
+        // GET by OIDC's own definition, and /connect/logout below is already an anonymous GET with
+        // the same effect, so this widens no boundary that was not already open. The blast radius is
+        // a forced re-login, never data access.
+        if (request.HasPromptValue(OpenIddictConstants.PromptValues.Login))
+        {
+            await HttpContext.SignOutAsync("Identity.Application");
+            // Drop the refresh cookie alongside the SSO cookie. Without this, a user who lands on the
+            // password form and walks away still holds a working refresh token: the SPA's silent
+            // /auth/refresh keeps succeeding for the rest of its lifetime, so "prove who you are
+            // again" would not actually be enforced.
+            RefreshTokenCookieHelper.ClearRefreshTokenCookie(HttpContext);
+            return Redirect($"/Account/Login?ReturnUrl={Uri.EscapeDataString(BuildAuthorizeUrlWithoutPrompt())}");
+        }
 
         if (HttpContext.User.Identity?.IsAuthenticated != true)
             // Not logged in → redirect to log in UI with returnUrl
@@ -38,6 +69,22 @@ public class OpenIddictController(ITokenService tokenService, IAuthAuditWriter a
 
         // Use SignIn method from Controller base class
         return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+    }
+
+    /// <summary>
+    /// Rebuilds the current /connect/authorize URL with the prompt parameter removed, so it can be
+    /// used as the post-login return URL without re-triggering the forced sign-out above. Every
+    /// other parameter (client_id, state, PKCE challenge, …) is preserved verbatim.
+    /// </summary>
+    private string BuildAuthorizeUrlWithoutPrompt()
+    {
+        var query = QueryHelpers.ParseQuery(HttpContext.Request.QueryString.Value);
+        query.Remove(OpenIddictConstants.Parameters.Prompt);
+
+        var parameters = query.SelectMany(entry =>
+            entry.Value.Select(value => KeyValuePair.Create(entry.Key, value)));
+
+        return QueryHelpers.AddQueryString(HttpContext.Request.Path, parameters);
     }
 
     [AllowAnonymous]

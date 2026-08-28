@@ -31,7 +31,18 @@ public class Login(
 
     [BindProperty] public string Password { get; set; } = string.Empty;
 
-    [BindProperty] public bool RememberMe { get; set; }
+    /// <summary>
+    /// Sign-ins are always non-persistent, so the Identity cookie is a session cookie that dies with
+    /// the browser. That is load-bearing: a persistent one would let /connect/authorize mint a fresh
+    /// authorization code after a browser restart and sign the user straight back in without a
+    /// password, defeating the session-scoped refresh cookie.
+    /// <para>
+    /// Deliberately a constant rather than a bound "remember me" property. Login.cshtml renders no
+    /// such checkbox, but model binding takes its value from the posted form, not from the rendered
+    /// view — a hand-crafted POST carrying RememberMe=true would have been honoured.
+    /// </para>
+    /// </summary>
+    private const bool IsPersistentSignIn = false;
 
     public void OnGet(string returnUrl = null)
     {
@@ -106,7 +117,7 @@ public class Login(
         await userManager.ResetAccessFailedCountAsync(user);
         await SyncLdapAttributesAsync(user, ldapResult.UserInfo);
         await StampLastLoginAsync(user);
-        await signInManager.SignInAsync(user, RememberMe);
+        await signInManager.SignInAsync(user, IsPersistentSignIn);
         logger.LogInformation("User {Username} logged in via LDAP", Username);
         await auditWriter.RecordAuthEventAsync(AuditAction.LoggedIn, user.Id, Username, new { source = "Ldap" });
         return Redirect(GetSafeRedirectUrl(user));
@@ -114,7 +125,7 @@ public class Login(
 
     private async Task<IActionResult> LoginWithLocalPasswordAsync(ApplicationUser user)
     {
-        var result = await signInManager.PasswordSignInAsync(Username, Password, RememberMe, lockoutOnFailure: true);
+        var result = await signInManager.PasswordSignInAsync(Username, Password, IsPersistentSignIn, lockoutOnFailure: true);
         if (result.Succeeded)
         {
             await EnforcePasswordExpiryAsync(user);

@@ -1,3 +1,4 @@
+using System.Globalization;
 using OpenIddict.Abstractions;
 using Consts = OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -19,6 +20,19 @@ public static class ClientPermissionMapper
 
     public static readonly HashSet<string> SystemClientIds =
         new(StringComparer.OrdinalIgnoreCase) { "spa", "los", "cls" };
+
+    /// <summary>
+    /// OpenIddict's per-application refresh-token lifetime setting ("tkn_lft:reft"). The server
+    /// reads it straight off the application row and parses it with TimeSpan.Parse, so the value
+    /// must round-trip through <see cref="TimeSpan"/> exactly.
+    /// </summary>
+    private const string RefreshTokenLifetimeSetting = Consts.Settings.TokenLifetimes.RefreshToken;
+
+    /// <summary>Smallest lifetime we let an admin set — below this, sessions are unusable.</summary>
+    public static readonly TimeSpan MinRefreshTokenLifetime = TimeSpan.FromMinutes(1);
+
+    /// <summary>Largest lifetime we let an admin set, as a blunt guard against a typo adding a digit.</summary>
+    public static readonly TimeSpan MaxRefreshTokenLifetime = TimeSpan.FromDays(30);
 
     /// <summary>Normalises "public"/"confidential" (any case) to the OpenIddict constant.</summary>
     public static string NormalizeClientType(string clientType) =>
@@ -97,8 +111,18 @@ public static class ClientPermissionMapper
         IReadOnlyCollection<string> grantTypes,
         IEnumerable<string> scopes,
         IReadOnlyCollection<Uri> redirectUris,
-        IReadOnlyCollection<Uri> postLogoutRedirectUris)
+        IReadOnlyCollection<Uri> postLogoutRedirectUris,
+        int? refreshTokenLifetimeMinutes)
     {
+        // Removing the key is what "use the server default" means. Writing an empty string instead
+        // would leave a value that TimeSpan.Parse rejects — OpenIddict would fall back to the global
+        // default anyway, but the row would then claim a setting that does nothing.
+        if (refreshTokenLifetimeMinutes is null)
+            descriptor.Settings.Remove(RefreshTokenLifetimeSetting);
+        else
+            descriptor.Settings[RefreshTokenLifetimeSetting] =
+                TimeSpan.FromMinutes(refreshTokenLifetimeMinutes.Value).ToString();
+
         descriptor.RedirectUris.Clear();
         descriptor.RedirectUris.UnionWith(redirectUris);
 
@@ -125,9 +149,11 @@ public static class ClientPermissionMapper
         var clientId = await manager.GetClientIdAsync(application, cancellationToken) ?? "";
         var clientType = await manager.GetClientTypeAsync(application, cancellationToken) ?? Consts.ClientTypes.Public;
         var permissions = await manager.GetPermissionsAsync(application, cancellationToken);
+        var settings = await manager.GetSettingsAsync(application, cancellationToken);
 
         return new ClientDetailDto
         {
+            RefreshTokenLifetimeMinutes = ReadRefreshTokenLifetimeMinutes(settings),
             Id = await manager.GetIdAsync(application, cancellationToken) ?? "",
             ClientId = clientId,
             DisplayName = await manager.GetDisplayNameAsync(application, cancellationToken) ?? "",
@@ -140,4 +166,21 @@ public static class ClientPermissionMapper
             IsSystem = SystemClientIds.Contains(clientId)
         };
     }
+
+    /// <summary>
+    /// Projects the stored setting back to whole minutes for the admin UI. An unparsable or absent
+    /// value reads as null — the same thing OpenIddict itself does with it, so the screen shows the
+    /// lifetime that is actually in force rather than a value that silently does nothing.
+    /// <para>
+    /// The screen works in whole minutes, so a value written directly into the row with finer
+    /// precision is rounded rather than truncated: truncating would render 00:00:45 as "0", which
+    /// then fails the minimum-of-one-minute rule and reads as corruption instead of rounding.
+    /// Re-saving such a client does normalise the stored value to whole minutes.
+    /// </para>
+    /// </summary>
+    private static int? ReadRefreshTokenLifetimeMinutes(IReadOnlyDictionary<string, string> settings) =>
+        settings.TryGetValue(RefreshTokenLifetimeSetting, out var setting)
+        && TimeSpan.TryParse(setting, CultureInfo.InvariantCulture, out var lifetime)
+            ? Math.Max(1, (int)Math.Round(lifetime.TotalMinutes, MidpointRounding.AwayFromZero))
+            : null;
 }

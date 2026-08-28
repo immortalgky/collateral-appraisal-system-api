@@ -118,6 +118,10 @@ public class TokenService(
         var claimsPrincipal = new ClaimsPrincipal(identity);
         claimsPrincipal.SetScopes(effectiveScopes);
 
+        // Deliberately does NOT call SetRefreshTokenLifetime. A lifetime attached to the principal
+        // outranks everything else in OpenIddict, which would silently shadow the per-client value
+        // stored on the application row — an admin could edit it in /admin/clients and see no effect.
+        // Session length is owned by that setting; see AuthModule for the server-wide fallback.
         return claimsPrincipal;
     }
 
