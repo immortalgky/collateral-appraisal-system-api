@@ -249,29 +249,28 @@ LandAgg AS (
     GROUP BY p.AppraisalId
 ),
 
--- Buildings combined: the OLDEST age and the TOTAL area across every building, matching the rule the
--- AS400 result interface uses. A single building cannot speak for a plot that holds several.
+-- Buildings combined: the OLDEST age, the TALLEST floor count and the TOTAL area across every
+-- building, matching the rule the AS400 result interface uses. A single building cannot speak for a
+-- plot that holds several.
+--
+-- Floors joined this rule on 2026-08-28. It used to come from a separate RepBuilding CTE that took
+-- the building with the lowest SequenceNumber, on the reasoning that floors describe one structure
+-- and do not add up. True, but the representative was picked by data-entry order, not by size: of
+-- the 430 rows whose appraisal holds more than one building, seven reported the wrong number and
+-- three of those reported ZERO — 69A02422 holds nine buildings and shipped 0 because whichever one
+-- the appraiser happened to enter first had no floor count. MAX never invents a storey: it always
+-- names a building that is really on the plot, and it agrees with BuildingAge, which has been MAX
+-- since 2026-08-13.
 BuildingAgg AS (
     SELECT
         p.AppraisalId,
         MAX(b.BuildingAge)        AS MaxBuildingAge,
+        MAX(b.NumberOfFloors)     AS MaxNumberOfFloors,
         SUM(b.TotalBuildingArea)  AS TotalBuildingArea
     FROM appraisal.AppraisalProperties p
     JOIN appraisal.BuildingAppraisalDetails b ON b.AppraisalPropertyId = p.Id
     WHERE p.PropertyType IN ('B', 'LB', 'LSB', 'LS')
     GROUP BY p.AppraisalId
-),
-
-RepBuilding AS (
-    SELECT AppraisalId, NumberOfFloors
-    FROM (
-        SELECT p.AppraisalId, b.NumberOfFloors,
-               ROW_NUMBER() OVER (PARTITION BY p.AppraisalId ORDER BY p.SequenceNumber) AS rn
-        FROM appraisal.AppraisalProperties p
-        JOIN appraisal.BuildingAppraisalDetails b ON b.AppraisalPropertyId = p.Id
-        WHERE p.PropertyType IN ('B', 'LB', 'LSB', 'LS')
-    ) z
-    WHERE rn = 1
 ),
 
 CondoAgg AS (
@@ -515,7 +514,7 @@ SELECT
     rd.TotalSellingPrice                                         AS SellingPrice,
 
     CASE WHEN pm.HasBuilding = 1 OR pm.HasLeaseBuilding = 1 OR pm.HasLeaseBoth = 1
-         THEN CAST(rb.NumberOfFloors AS int) ELSE NULL END       AS NumberOfFloors,
+         THEN CAST(ba.MaxNumberOfFloors AS int) ELSE NULL END    AS NumberOfFloors,
 
     CASE
         WHEN pm.HasBuilding = 1 OR pm.HasLeaseBuilding = 1 OR pm.HasLeaseBoth = 1 THEN ba.MaxBuildingAge
@@ -573,7 +572,6 @@ LEFT JOIN PropSource ps    ON ps.AppraisalId = an.AppraisalId
 LEFT JOIN PropMix pm       ON pm.AppraisalId = ps.PropSourceAppraisalId
 LEFT JOIN LandAgg la       ON la.AppraisalId = ps.PropSourceAppraisalId
 LEFT JOIN BuildingAgg ba   ON ba.AppraisalId = ps.PropSourceAppraisalId
-LEFT JOIN RepBuilding rb   ON rb.AppraisalId = ps.PropSourceAppraisalId
 LEFT JOIN CondoAgg ca      ON ca.AppraisalId = ps.PropSourceAppraisalId
 LEFT JOIN request.RequestDetails rd ON rd.RequestId = an.RequestId
 -- The legacy listing for THIS collateral, if AS400 valued it before CAS existed. Joined on the
