@@ -635,7 +635,10 @@ internal static class AppraisalResultBuilder
                         r.RoomNo,
                         r.FloorNo,
                         r.BuildingNo,
-                        r.AreaUtilize,
+                        // v1 reports the condo's usable area, or the building's gross area for a
+                        // non-condo. cad is null on a building row and vice versa, so this picks
+                        // whichever one the collateral actually carries.
+                        r.AreaUtilize ?? r.TotalBuildingArea,
                         r.ContractNo,
                         r.LesseeName,
                         r.LessorName,
@@ -712,7 +715,8 @@ internal static class AppraisalResultBuilder
                 if (!string.IsNullOrWhiteSpace(assignment.CompanyName))
                 {
                     valuerName = assignment.CompanyName;
-                    // External valuer code = company host code; internal (I) code is ignored for now.
+                    // External valuer code = the company's host code; the internal branch below
+                    // uses the appraiser's employee id.
                     valuerCode = assignment.CompanyCode;
                     appraisalSource = "E";
                 }
@@ -721,6 +725,7 @@ internal static class AppraisalResultBuilder
             {
                 var fullName = $"{assignment.UserFirstName} {assignment.UserLastName}".Trim();
                 valuerName = string.IsNullOrWhiteSpace(fullName) ? null : fullName;
+                valuerCode = assignment.EmployeeId;
                 appraisalSource = "I";
             }
         }
