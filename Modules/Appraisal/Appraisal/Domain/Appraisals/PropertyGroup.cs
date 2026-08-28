@@ -58,7 +58,8 @@ public class PropertyGroup : Entity<Guid>
         if (_items.Any(i => i.AppraisalPropertyId == propertyId))
             throw new InvalidOperationException($"Property {propertyId} is already in this group");
 
-        var sequenceInGroup = _items.Count + 1;
+        // Max+1, not Count+1: a gap in the existing sequences must not produce a duplicate.
+        var sequenceInGroup = _items.Count == 0 ? 1 : _items.Max(x => x.SequenceInGroup) + 1;
         var item = PropertyGroupItem.Create(Id, propertyId, sequenceInGroup);
         _items.Add(item);
 
@@ -76,8 +77,11 @@ public class PropertyGroup : Entity<Guid>
 
         _items.Remove(item);
 
-        // Resequence remaining items
-        for (var i = 0; i < _items.Count; i++) _items[i].UpdateSequence(i + 1);
+        // Resequence by CURRENT sequence, not by list order: the collection is loaded without an
+        // OrderBy, so renumbering by list index would silently reshuffle the order the user set
+        // through ReorderProperties/InsertProperty (and swap values, see Appraisal.RemoveProperty).
+        var ordered = _items.OrderBy(x => x.SequenceInGroup).ThenBy(x => x.Id).ToList();
+        for (var i = 0; i < ordered.Count; i++) ordered[i].UpdateSequence(i + 1);
     }
 
     /// <summary>
