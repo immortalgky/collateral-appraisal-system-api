@@ -205,7 +205,7 @@ internal static class LegacyResultMapper
             AreaUtilize = row.AreaUtilize ?? 0m,
             BuildingDetails = Str(row.CondoName),
             BuildingRegisterNo = Str(row.CondoRegistrationNumber),
-            Decorate = ParseDecorate(row.CondoDecorationType),
+            Decorate = AppraisalResultBuilder.ParseDecorate(row.CondoDecorationType),
         };
     }
 
@@ -255,7 +255,7 @@ internal static class LegacyResultMapper
             BuildingAge = building?.BuildingAge ?? 0,
             FloorNumber = FloorNumberStr(building?.TotalFloor, ""),   // non-condo has no unit floor → default 1
             AreaUtilize = building?.TotalBuildingArea ?? 0m,
-            Decorate = ParseDecorate(building?.BuildingDecorationType),
+            Decorate = AppraisalResultBuilder.ParseDecorate(building?.BuildingDecorationType),
             BuildingDetails = Str(FirstNonEmpty(land?.Village, building?.CondoName)),
         };
     }
@@ -299,7 +299,7 @@ internal static class LegacyResultMapper
             BuildingAge = unit.TowerBuildingAge ?? 0,
             BuildingNo = isCondo ? Str(unit.TowerName) : "",
             BuildingRegisterNo = isCondo ? Str(unit.CondoRegistrationNumber) : "",
-            Decorate = ParseDecorate(unit.DecorationType),
+            Decorate = AppraisalResultBuilder.ParseDecorate(unit.DecorationType),
             AreaUtilize = unit.UsableArea ?? 0m,
             Rai = rai,
             Ngan = ngan,
@@ -400,11 +400,6 @@ internal static class LegacyResultMapper
         "income" => 2,
         _ => 3,
     };
-
-    // Legacy Decorate is our DecorationType code with the leading zero stripped ("01" → 1, "99" → 99).
-    // Returns null when there is no usable value (the legacy contract wants null, not 0, for "unknown").
-    private static int? ParseDecorate(string? code) =>
-        int.TryParse(code, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : null;
 
     private static bool IsCondo(string? propertyType) =>
         propertyType is not null && CondoCodes.Contains(propertyType, StringComparer.OrdinalIgnoreCase);
