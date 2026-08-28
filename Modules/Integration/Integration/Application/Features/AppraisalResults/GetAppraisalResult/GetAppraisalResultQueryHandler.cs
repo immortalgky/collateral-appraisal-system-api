@@ -64,14 +64,34 @@ internal static class GetAppraisalResultSql
     // Lookup by appraisal number returns any status (PMA / in-progress appraisals are retrieved before
     // completion). The by-external-case-key path below still restricts to completed appraisals.
     public const string ByAppraisalNumber = """
-                                            SELECT a.Id, a.AppraisalNumber, a.Status, a.Purpose, a.CompletedAt, a.RequestId
+                                            SELECT a.Id, a.AppraisalNumber, a.Status, a.Purpose, a.CompletedAt, a.RequestId,
+                                                   -- SequenceOfApprove = the committee meeting number the appraisal was reviewed in
+                                                   -- (latest). Same subquery as LegacyByAppraisalNumber so both endpoints agree.
+                                                   (SELECT TOP 1 m.MeetingNo
+                                                    FROM appraisal.AppraisalReviews ar
+                                                    JOIN workflow.Meetings m ON m.Id = ar.MeetingId
+                                                    WHERE ar.AppraisalId = a.Id
+                                                    ORDER BY ar.ReviewedAt DESC) AS SequenceOfApprove,
+                                                   a.AppraisalType,
+                                                   rd.TotalSellingPrice AS MarketValue
                                             FROM appraisal.Appraisals a
+                                            LEFT JOIN request.RequestDetails rd ON rd.RequestId = a.RequestId
                                             WHERE a.AppraisalNumber = @AppraisalNumber AND a.IsDeleted = 0
                                             """;
 
     public const string ByExternalCaseKey = """
-                                            SELECT a.Id, a.AppraisalNumber, a.Status, a.Purpose, a.CompletedAt, a.RequestId
+                                            SELECT a.Id, a.AppraisalNumber, a.Status, a.Purpose, a.CompletedAt, a.RequestId,
+                                                   -- SequenceOfApprove = the committee meeting number the appraisal was reviewed in
+                                                   -- (latest). Same subquery as LegacyByAppraisalNumber so both endpoints agree.
+                                                   (SELECT TOP 1 m.MeetingNo
+                                                    FROM appraisal.AppraisalReviews ar
+                                                    JOIN workflow.Meetings m ON m.Id = ar.MeetingId
+                                                    WHERE ar.AppraisalId = a.Id
+                                                    ORDER BY ar.ReviewedAt DESC) AS SequenceOfApprove,
+                                                   a.AppraisalType,
+                                                   rd.TotalSellingPrice AS MarketValue
                                             FROM appraisal.Appraisals a
+                                            LEFT JOIN request.RequestDetails rd ON rd.RequestId = a.RequestId
                                             JOIN request.Requests r ON r.Id = a.RequestId
                                             WHERE r.ExternalCaseKey = @ExternalCaseKey AND a.IsDeleted = 0
                                               AND a.Status = 'Completed'
@@ -161,6 +181,21 @@ internal static class GetAppraisalResultSql
                                                    -- Building fields
                                                    bad.HouseNumber AS HouseNo, bad.BuildingType,
                                                    bad.BuildingAge, bad.NumberOfFloors AS TotalFloor,
+                                                   -- Construction progress. bad.ConstructionCompletionPercent was dropped by migration
+                                                   -- 20260821044547; the live value lives on the inspection, and the two modes are stored
+                                                   -- and computed differently:
+                                                   --   Summary     (IsFullDetail = 0) -> one keyed-in figure, ci.SummaryCurrentProgressPct.
+                                                   --   Full Detail (IsFullDetail = 1) -> weighted rollup of the work items. The weight x
+                                                   --       progress product is persisted per item as CurrentProportionPct (see
+                                                   --       ConstructionWorkDetail.cs:63), so summing it gives the overall percent.
+                                                   -- A COALESCE of the two would be wrong: Full Detail always leaves SummaryCurrentProgressPct
+                                                   -- null, and a record switched from Summary to Full Detail keeps the stale summary figure.
+                                                   -- Same CASE as GetDecisionSummaryQueryHandler.cs so one formula serves the whole codebase.
+                                                   -- Not ISNULL'd to 0 on purpose: "never inspected" (bare land) differs from "inspected at 0%".
+                                                   CASE WHEN ci.IsFullDetail = 0
+                                                        THEN ci.SummaryCurrentProgressPct
+                                                        ELSE wdagg.CurrentProportionPctSum
+                                                   END AS ConstructionPct,
                                                    -- Condo fields
                                                    cad.RoomNumber AS RoomNo, cad.FloorNumber AS FloorNo,
                                                    cad.BuildingNumber AS BuildingNo, cad.BuildingAge AS CondoBuildingAge,
@@ -237,6 +272,15 @@ internal static class GetAppraisalResultSql
                                                LEFT JOIN appraisal.VesselAppraisalDetails vsad ON vsad.AppraisalPropertyId = ap.Id
                                                LEFT JOIN appraisal.MachineryAppraisalDetails mad ON mad.AppraisalPropertyId = ap.Id
                                                LEFT JOIN appraisal.LeaseAgreementDetails leasd ON leasd.AppraisalPropertyId = ap.Id
+                                               -- ConstructionInspections is 1:1 with AppraisalProperty (unique index on AppraisalPropertyId)
+                                               -- and wdagg is pre-grouped, so neither join fans out the one-row-per-property shape.
+                                               LEFT JOIN appraisal.ConstructionInspections ci ON ci.AppraisalPropertyId = ap.Id
+                                               LEFT JOIN (
+                                                   SELECT ConstructionInspectionId,
+                                                          SUM(CurrentProportionPct) AS CurrentProportionPctSum
+                                                   FROM appraisal.ConstructionWorkDetails
+                                                   GROUP BY ConstructionInspectionId
+                                               ) wdagg ON wdagg.ConstructionInspectionId = ci.Id
                                                LEFT JOIN parameter.Parameters pLandOffice
                                                    ON pLandOffice.[group] = 'LandOffice' AND pLandOffice.[language] = 'TH'
                                                   AND pLandOffice.[isactive] = 1 AND pLandOffice.[code] = lad.LandOffice
@@ -346,7 +390,10 @@ internal sealed record AppraisalRow(
     string? Status,
     string? Purpose,
     DateTime? CompletedAt,
-    Guid RequestId);
+    Guid RequestId,
+    string? SequenceOfApprove,
+    string? AppraisalType,
+    decimal? MarketValue);
 
 internal sealed record AssignmentRow(
     Guid AssignmentId,
@@ -394,6 +441,7 @@ internal sealed record CollateralRow(
     string? BuildingType,
     int? BuildingAge,
     decimal? TotalFloor,
+    decimal? ConstructionPct,
     string? RoomNo,
     string? FloorNo,
     string? BuildingNo,
@@ -529,6 +577,9 @@ internal static class AppraisalResultBuilder
         // overrides them with its own per-unit value below.
         decimal? totalAppraisalValue = valuation?.AppraisedValue;
         decimal? forceSalePrice = valuation?.ForcedSaleValue;
+        decimal? fireInsurance = valuation?.InsuranceValue;
+        // v1 reports the request-level total; a matched block unit overrides it below.
+        decimal? marketValue = appraisal.MarketValue;
         List<AppraisalResultGroup> groups;
 
         if (project is null)
@@ -536,9 +587,25 @@ internal static class AppraisalResultBuilder
             // Normal appraisal: groups come from PropertyGroups → AppraisalProperties.
             var groupParams = new DynamicParameters();
             groupParams.Add("AppraisalId", appraisal.Id);
-            var collateralRows = await conn.QueryAsync<CollateralRow>(
+            var collateralRows = (await conn.QueryAsync<CollateralRow>(
                 new CommandDefinition(GetAppraisalResultSql.GroupsAndCollaterals, groupParams,
-                    cancellationToken: cancellationToken));
+                    cancellationToken: cancellationToken))).ToList();
+
+            // PMA / pre-completion: no ValuationAnalyses row exists yet, so the appraisal-level
+            // figures come from the prices keyed on each property - the same rule as the v1 AS400
+            // result (GetLegacyAppraisalResultQueryHandler: `completed ? valuation : property price`).
+            // v1 serves ONE selected collateral so it coalesces within a group; v2 returns the whole
+            // appraisal, so the analogue is a sum across properties. That does not double-count: a
+            // group's price sits on a single row (a combined LB/U row, or the one priced row of an
+            // L+B pair), never on both.
+            // SumOrNull keeps "nothing priced yet" as null instead of a real-looking 0.
+            if (!IsCompleted(appraisal.Status))
+            {
+                totalAppraisalValue = SumOrNull(collateralRows, r => r.PropSellingPrice) ?? totalAppraisalValue;
+                forceSalePrice = SumOrNull(collateralRows, r => r.PropForcedSalePrice) ?? forceSalePrice;
+                fireInsurance = SumOrNull(collateralRows, r => r.PropBuildingInsurancePrice) ?? fireInsurance;
+                marketValue = SumOrNull(collateralRows, r => r.PropSellingPrice) ?? marketValue;
+            }
 
             groups = collateralRows
                 .GroupBy(r => r.GroupId)
@@ -547,7 +614,11 @@ internal static class AppraisalResultBuilder
                     var first = g.First();
                     var collaterals = g.Select(r => new AppraisalResultCollateral(
                         r.PropertyType,
-                        r.TitleNo,
+                        // A condo carries its deed number on the condo detail. r.TitleNo is the LAND
+                        // title (LandTitles.TitleNumber) and is always null on a condo property, so
+                        // the deed came back blank for every condo. CondoBuiltOnTitleNo already
+                        // resolves cad.TitleNumber with the pre-rename BuiltOnTitleNumber fallback.
+                        r.TitleNo ?? r.CondoBuiltOnTitleNo,
                         r.LandNo,
                         r.Rawang,
                         r.SurveyNo,
@@ -560,6 +631,7 @@ internal static class AppraisalResultBuilder
                         r.BuildingType,
                         r.BuildingAge ?? r.CondoBuildingAge,
                         r.TotalFloor ?? r.CondoTotalFloor,
+                        r.ConstructionPct,
                         r.RoomNo,
                         r.FloorNo,
                         r.BuildingNo,
@@ -571,6 +643,7 @@ internal static class AppraisalResultBuilder
                         r.District ?? r.CadDistrict,
                         r.SubDistrict ?? r.CadSubDistrict,
                         r.LandOffice ?? r.CadLandOffice,
+                        FirstNonEmpty(r.CondoName, r.Village),
                         r.VehicleRegistrationNo,
                         r.VehicleBrand,
                         r.VehicleModel,
@@ -606,9 +679,10 @@ internal static class AppraisalResultBuilder
             }
             else
             {
-                groups = [BuildBlockGroup(project.ProjectType, unit)];
+                groups = [BuildBlockGroup(project, unit)];
                 totalAppraisalValue = unit.TotalAppraisalValueRounded;
                 forceSalePrice = unit.ForceSellingPrice;
+                marketValue = unit.SellingPrice ?? marketValue;
             }
         }
 
@@ -626,7 +700,11 @@ internal static class AppraisalResultBuilder
         string? valuerName = null;
         string? valuerCode = null;
         string? appraisalSource = null;
-        if (assignment is not null)
+        // Who valued it is only meaningful once the appraisal is completed - before that (PMA /
+        // in progress) the assignment says who is expected to value it, not who did. v1 blanks the
+        // same fields pre-completion (`completed ? SplitValuer(...) : new ValuerSplit()`), so v2
+        // matches; the API's omit-null policy drops the keys instead of emitting "" as v1 does.
+        if (assignment is not null && IsCompleted(appraisal.Status))
         {
             if (string.Equals(assignment.AssignmentType, AssignmentType.External.Code, StringComparison.OrdinalIgnoreCase))
             {
@@ -670,10 +748,36 @@ internal static class AppraisalResultBuilder
             AppraisalDate: appraisalDate,
             TotalAppraisalValue: totalAppraisalValue,
             ForceSalePrice: forceSalePrice,
-            FireInsurance: valuation?.InsuranceValue,
+            FireInsurance: fireInsurance,
+            Developer: project?.Developer,
+            SequenceOfApprove: appraisal.SequenceOfApprove,
+            AppraisalType: MapAppraisalType(appraisal.AppraisalType),
+            MarketValue: marketValue,
             Groups: groups,
             Documents: documents);
     }
+
+    private static bool IsCompleted(string? status) =>
+        string.Equals(status, "Completed", StringComparison.OrdinalIgnoreCase);
+
+    // Sums a nullable money column, returning null when no row carries a value at all - so
+    // "nothing priced" stays distinguishable from a genuine total of 0.
+    private static decimal? SumOrNull(List<CollateralRow> rows, Func<CollateralRow, decimal?> pick) =>
+        rows.Any(r => pick(r) is not null) ? rows.Sum(r => pick(r) ?? 0m) : null;
+
+    // Legacy AS400 encoding of the appraisal type; 0 = unknown. Shared with the v1 endpoint
+    // (GetLegacyAppraisalResultQueryHandler) so the two feeds can never disagree on the code.
+    internal static int MapAppraisalType(string? type) => type switch
+    {
+        AppraisalTypes.New => 1,
+        AppraisalTypes.ReAppraisal => 2,
+        AppraisalTypes.Progressive => 3,
+        AppraisalTypes.PreAppraisal => 4,
+        _ => 0,
+    };
+
+    private static string? FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
 
     // Resolves a single block/project unit by the selector. Throws ValidationException (→ 400) when
     // the selector is missing/wrong for the project type and strict is on; returns null (no match /
@@ -726,12 +830,12 @@ internal static class AppraisalResultBuilder
     // Maps a resolved block unit into the shared group/collateral shape. Only fields that exist on
     // ProjectUnit/ProjectUnitPrice are populated; title/address/building descriptors have no per-unit
     // source and stay null.
-    private static AppraisalResultGroup BuildBlockGroup(string projectType, BlockUnitRow unit)
+    private static AppraisalResultGroup BuildBlockGroup(ProjectRow project, BlockUnitRow unit)
     {
-        var isCondo = ProjectType.IsCondoCode(projectType);
+        var isCondo = ProjectType.IsCondoCode(project.ProjectType);
 
         var collateral = new AppraisalResultCollateral(
-            CollateralType: projectType,
+            CollateralType: project.ProjectType,
             TitleNo: null,
             LandNo: isCondo ? null : unit.PlotNumber,
             Rawang: null,
@@ -745,6 +849,7 @@ internal static class AppraisalResultBuilder
             BuildingType: null,
             BuildingAge: null,
             TotalFloor: isCondo ? null : unit.NumberOfFloors,
+            ConstructionPct: null,
             RoomNo: isCondo ? unit.RoomNumber : null,
             FloorNo: isCondo ? unit.Floor?.ToString(CultureInfo.InvariantCulture) : null,
             BuildingNo: isCondo ? unit.TowerName : null,
@@ -756,6 +861,8 @@ internal static class AppraisalResultBuilder
             District: null,
             SubDistrict: null,
             LandOffice: null,
+            // A block has no per-unit building name; the project name is the legacy BuildingDetails.
+            BuildingName: project.ProjectName,
             VehicleRegistrationNo: null,
             VehicleBrand: null,
             VehicleModel: null,

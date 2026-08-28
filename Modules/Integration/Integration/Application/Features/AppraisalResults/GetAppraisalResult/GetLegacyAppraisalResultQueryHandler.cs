@@ -339,7 +339,7 @@ internal static class LegacyResultMapper
             AppraisalReportNo = Str(header.AppraisalNumber),
             AppraisalFee = fee ?? 0m,
             SequenceOfApprove = Str(header.SequenceOfApprove),
-            AppraisalType = MapAppraisalType(header.AppraisalType),
+            AppraisalType = AppraisalResultBuilder.MapAppraisalType(header.AppraisalType),
             // MethodOfAppraisal + AppraisalValueWaOrM are set per selected collateral by the callers.
             MarketValue = header.MarketValue ?? 0m,
             BuildingValue = valuation?.InsuranceValue ?? 0m, // legacy BuildingValue = fire-insurance value
@@ -391,15 +391,6 @@ internal static class LegacyResultMapper
 
         return new ValuerSplit();
     }
-
-    private static int MapAppraisalType(string? type) => type switch
-    {
-        AppraisalTypes.New => 1,
-        AppraisalTypes.ReAppraisal => 2,
-        AppraisalTypes.Progressive => 3,
-        AppraisalTypes.PreAppraisal => 4,
-        _ => 0,
-    };
 
     // Legacy MethodOfAppraisal ← our pricing ApproachType: 1 = Cost, 2 = Income, 3 = Market.
     // Defaults to 3 (Market) when there is no selected approach (e.g. PMA / block / unknown).

@@ -31,6 +31,16 @@ public record GetAppraisalResultResponse(
     decimal? TotalAppraisalValue,
     decimal? ForceSalePrice,
     decimal? FireInsurance,
+    // Project developer; block/project appraisals only, null otherwise. Legacy field: Developer.
+    string? Developer,
+    // Committee meeting number the appraisal was reviewed in (the latest review, from
+    // appraisal.AppraisalReviews -> workflow.Meetings). Legacy field: SequenceOfApprove.
+    string? SequenceOfApprove,
+    // Legacy AS400 encoding: 1 = New, 2 = ReAppraisal, 3 = Progressive, 4 = PreAppraisal, 0 = unknown.
+    int AppraisalType,
+    // Request-level total selling price (request.RequestDetails.TotalSellingPrice); for a block, the
+    // matched unit's own selling price. Legacy field: MarketValue.
+    decimal? MarketValue,
     List<AppraisalResultGroup> Groups,
     List<AppraisalResultDocument> Documents);
 
@@ -59,6 +69,9 @@ public record AppraisalResultCollateral(
     string? BuildingType,
     int? BuildingAge,
     decimal? TotalFloor,
+    // Cumulative construction progress from the property's inspection: the keyed-in figure in
+    // Summary mode, the weighted work-item rollup in Full Detail mode. Null when never inspected.
+    decimal? ConstructionPct,
     // Condo
     string? RoomNo,
     string? FloorNo,
@@ -73,6 +86,9 @@ public record AppraisalResultCollateral(
     string? District,
     string? SubDistrict,
     string? LandOffice,
+    // The building's name: condo name, else the land detail's village name, else - for a block -
+    // the project name. Legacy field: BuildingDetails.
+    string? BuildingName,
     // Vehicle/Vessel/Machinery identity
     string? VehicleRegistrationNo,
     string? VehicleBrand,
