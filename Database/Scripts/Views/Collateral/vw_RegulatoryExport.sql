@@ -673,7 +673,13 @@ SELECT
     -- DOPA 6-digit sub-district. Administrative address, so it must come from a DOPA-mastered source:
     -- request.RequestDetails, whose picker uses the DOPA master. NOT the deed address, which is
     -- mastered by parameter.TitleSubDistricts and has diverged from DOPA.
-    CASE WHEN pm.HasRealEstate = 1
+    --
+    -- A block project carries no AppraisalProperties at all, so PropMix has no row for it and the
+    -- HasRealEstate test alone blanked all 1,608 of them. Its request is the developer's, whose
+    -- Location IS the project's site, and every unit sits inside that project: on 1,591 of the 1,592
+    -- rows this recovers, the code matches the project's own SubDistrict exactly and none disagree.
+    -- ProjectType is the same signal CollateralType uses above, so the two fields cover the same rows.
+    CASE WHEN pm.HasRealEstate = 1 OR an.ProjectType IN ('U', 'LB')
          THEN (SELECT dsd.Code FROM parameter.DopaSubDistricts dsd
                WHERE dsd.Code = LTRIM(RTRIM(rd.SubDistrict)))
          ELSE NULL END                                           AS DopaCode,
