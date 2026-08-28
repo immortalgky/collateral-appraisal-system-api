@@ -213,13 +213,21 @@ public class Appraisal : Aggregate<Guid>
     #region Property Management
 
     /// <summary>
+    /// Next free sequence number for a new property. Uses Max+1 rather than Count+1 so a gap in
+    /// the existing sequence numbers cannot produce a duplicate that violates the unique
+    /// (AppraisalId, SequenceNumber) index.
+    /// </summary>
+    private int NextPropertySequence() =>
+        _properties.Count == 0 ? 1 : _properties.Max(p => p.SequenceNumber) + 1;
+
+    /// <summary>
     /// Add a property to this appraisal
     /// </summary>
     public AppraisalProperty AddProperty(string propertyType, string? description = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyType);
 
-        var sequenceNumber = _properties.Count + 1;
+        var sequenceNumber = NextPropertySequence();
         var property = AppraisalProperty.Create(Id, sequenceNumber, propertyType, description);
         _properties.Add(property);
 
@@ -231,7 +239,7 @@ public class Appraisal : Aggregate<Guid>
     /// </summary>
     public AppraisalProperty AddLandProperty()
     {
-        var sequenceNumber = _properties.Count + 1;
+        var sequenceNumber = NextPropertySequence();
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Land);
 
         var landDetail = LandAppraisalDetail.Create(property.Id);
@@ -247,7 +255,7 @@ public class Appraisal : Aggregate<Guid>
     /// </summary>
     public AppraisalProperty AddBuildingProperty()
     {
-        var sequenceNumber = _properties.Count + 1;
+        var sequenceNumber = NextPropertySequence();
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Building);
 
         var buildingDetail = BuildingAppraisalDetail.Create(property.Id);
@@ -263,7 +271,7 @@ public class Appraisal : Aggregate<Guid>
     /// </summary>
     public AppraisalProperty AddCondoProperty(decimal? sellingPrice = null)
     {
-        var sequenceNumber = _properties.Count + 1;
+        var sequenceNumber = NextPropertySequence();
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Condo);
 
         var condoDetail = CondoAppraisalDetail.Create(property.Id);
@@ -283,7 +291,7 @@ public class Appraisal : Aggregate<Guid>
     /// </summary>
     public AppraisalProperty AddLandAndBuildingProperty(decimal? sellingPrice = null)
     {
-        var sequenceNumber = _properties.Count + 1;
+        var sequenceNumber = NextPropertySequence();
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.LandAndBuilding);
 
         // Create both detail records linked to the same property
@@ -304,7 +312,7 @@ public class Appraisal : Aggregate<Guid>
     /// </summary>
     public AppraisalProperty AddVehicleProperty()
     {
-        var sequenceNumber = _properties.Count + 1;
+        var sequenceNumber = NextPropertySequence();
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Vehicle);
 
         var vehicleDetail = VehicleAppraisalDetail.Create(property.Id);
@@ -320,7 +328,7 @@ public class Appraisal : Aggregate<Guid>
     /// </summary>
     public AppraisalProperty AddVesselProperty()
     {
-        var sequenceNumber = _properties.Count + 1;
+        var sequenceNumber = NextPropertySequence();
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Vessel);
 
         var vesselDetail = VesselAppraisalDetail.Create(property.Id);
@@ -336,7 +344,7 @@ public class Appraisal : Aggregate<Guid>
     /// </summary>
     public AppraisalProperty AddMachineryProperty()
     {
-        var sequenceNumber = _properties.Count + 1;
+        var sequenceNumber = NextPropertySequence();
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.Machinery);
 
         var machineryDetail = MachineryAppraisalDetail.Create(property.Id);
@@ -352,7 +360,7 @@ public class Appraisal : Aggregate<Guid>
     /// </summary>
     public AppraisalProperty AddLeaseAgreementLandProperty()
     {
-        var sequenceNumber = _properties.Count + 1;
+        var sequenceNumber = NextPropertySequence();
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.LeaseAgreementLand);
 
         property.SetLandDetail(LandAppraisalDetail.Create(property.Id));
@@ -368,7 +376,7 @@ public class Appraisal : Aggregate<Guid>
     /// </summary>
     public AppraisalProperty AddLeaseAgreementBuildingProperty()
     {
-        var sequenceNumber = _properties.Count + 1;
+        var sequenceNumber = NextPropertySequence();
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.LeaseAgreementBuilding);
 
         property.SetBuildingDetail(BuildingAppraisalDetail.Create(property.Id));
@@ -384,7 +392,7 @@ public class Appraisal : Aggregate<Guid>
     /// </summary>
     public AppraisalProperty AddLeaseAgreementCondoProperty()
     {
-        var sequenceNumber = _properties.Count + 1;
+        var sequenceNumber = NextPropertySequence();
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.LeaseAgreementCondo);
 
         property.SetCondoDetail(CondoAppraisalDetail.Create(property.Id));
@@ -400,7 +408,7 @@ public class Appraisal : Aggregate<Guid>
     /// </summary>
     public AppraisalProperty AddLeaseAgreementLandAndBuildingProperty()
     {
-        var sequenceNumber = _properties.Count + 1;
+        var sequenceNumber = NextPropertySequence();
         var property = AppraisalProperty.Create(Id, sequenceNumber, PropertyType.LeaseAgreementLandAndBuilding);
 
         property.SetLandAndBuildingDetails(
@@ -422,7 +430,7 @@ public class Appraisal : Aggregate<Guid>
         var source = _properties.FirstOrDefault(p => p.Id == sourcePropertyId)
                      ?? throw new PropertyNotFoundException(sourcePropertyId);
 
-        var sequenceNumber = _properties.Count + 1;
+        var sequenceNumber = NextPropertySequence();
         var newProperty = AppraisalProperty.Create(Id, sequenceNumber, source.PropertyType);
 
         if (source.PropertyType == PropertyType.Land)
@@ -534,8 +542,13 @@ public class Appraisal : Aggregate<Guid>
 
         _properties.Remove(property);
 
-        // Resequence remaining properties
-        for (var i = 0; i < _properties.Count; i++) _properties[i].UpdateSequence(i + 1);
+        // Resequence by CURRENT sequence, not by list order: the aggregate is loaded without an
+        // OrderBy, so list order does not track SequenceNumber. Renumbering by list order can swap
+        // two rows' values, which EF cannot order across the unique
+        // IX_AppraisalProperties_AppraisalId_SequenceNumber and reports as a circular dependency.
+        // Sorted ascending, every new value is <= its old value, so the UPDATEs stay orderable.
+        var ordered = _properties.OrderBy(p => p.SequenceNumber).ThenBy(p => p.Id).ToList();
+        for (var i = 0; i < ordered.Count; i++) ordered[i].UpdateSequence(i + 1);
     }
 
     #endregion
