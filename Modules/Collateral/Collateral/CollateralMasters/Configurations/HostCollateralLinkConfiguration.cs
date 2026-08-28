@@ -15,6 +15,7 @@ public class HostCollateralLinkConfiguration : IEntityTypeConfiguration<HostColl
         builder.Property(h => h.HostCollateralId).IsRequired().HasMaxLength(19);
         builder.Property(h => h.AppraisalNumber).IsRequired().HasMaxLength(50);
         builder.Property(h => h.CollateralName).HasMaxLength(40);
+        builder.Property(h => h.Address1).HasMaxLength(40);
         builder.Property(h => h.LocationCode).HasMaxLength(6);
         builder.Property(h => h.CollateralCode).HasMaxLength(3);
         builder.Property(h => h.PropertyType).HasMaxLength(3);

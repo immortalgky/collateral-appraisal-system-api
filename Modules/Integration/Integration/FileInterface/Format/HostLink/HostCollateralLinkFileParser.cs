@@ -6,42 +6,59 @@ using Integration.Contracts.HostLink;
 namespace Integration.FileInterface.Format.HostLink;
 
 /// <summary>
-/// Parses the AS400 COLLATLINK inbound interface — a <b>fixed-width</b> (132-char) UTF-8 text file
+/// Parses the AS400 COLLATLINK inbound interface — a <b>fixed-width</b> (172-char) UTF-8 text file
 /// with Header (H) / Detail (D) / Trailer (T) records. Delivered nightly. AS400 also names this file
 /// AS400_COLLAT; the two are byte-identical, not two feeds.
 ///
 ///   Header:  pos 1 = 'H', pos 2–9 = EffectiveDate (DDMMYYYY), rest filler.
-///   Detail:  pos 1 = 'D', 132 chars:
+///   Detail:  pos 1 = 'D', 172 chars:
 ///              pos   2–11  AppraisalReportNumber  string(10)   (AS400 CCSURV)
 ///              pos  12–30  HostCollateralId       dec(19)      (AS400 CCDCID)
 ///              pos  31–70  CollateralName         string(40)
-///              pos  71–78  RecordDate             DDMMYYYY
-///              pos  79     RecordIndicator        'D' | 'R'
-///              pos  80–85  LocationCode           dec(6)
-///              pos  86–88  CollateralCode         string(3)
-///              pos  89–91  PropertyType           string(3)
-///              pos  92–131 PropertyTypeDesc       string(40)
-///              pos 132     MasterTitle            'Y' | 'N'
+///              pos  71–110 Address1               string(40)
+///              pos 111–118 RecordDate             DDMMYYYY
+///              pos 119     RecordIndicator        'D' | 'R'
+///              pos 120–125 LocationCode           dec(6)
+///              pos 126–128 CollateralCode         string(3)
+///              pos 129–131 PropertyType           string(3)
+///              pos 132–171 PropertyTypeDesc       string(40)
+///              pos 172     MasterTitle            'Y' | 'N'
 ///   Trailer: pos 1 = 'T', pos 2–10 = TotalDetailRecord (dec9), rest filler.
 ///
-/// IMPORTANT — char vs byte positions. CollateralName and PropertyTypeDesc carry Thai, which is
-/// three BYTES per character in UTF-8: a 132-character record is 146–158 bytes on disk. Every
-/// position above is a Unicode code-point index, so the file is decoded first and sliced afterwards.
-/// Reading it as bytes shifts every field after the name and corrupts the whole file.
+/// ADDRESS1 AND THE 132-CHARACTER LAYOUT. Until 2026-08-26 the record was 132 characters and ended
+/// at MasterTitle; Address1 was then inserted after CollateralName and pushed every later field on by
+/// 40. This parser reads the 172-character layout ONLY. Supporting both was considered and rejected:
+/// AS400 strips trailing spaces, so a 172-char row whose tail is empty arrives at 128 characters and
+/// is indistinguishable by length from a full 132-char row of the old layout. Guessing wrong shifts
+/// every field after the name and writes plausible garbage without erroring. Reading the old layout
+/// with the new offsets instead fails loudly at RecordIndicator, which is the failure we want.
+///
+/// Address1 is the collateral's street address as AS400 holds it, and it normally opens with the
+/// house or room number — "129/517 โครงการเพอร์เฟคเพลส", "47/18 ซ.เอกมัย 12". That leading token is
+/// what the regulatory export matches against appraisal.ProjectUnits to price a block-project unit,
+/// so it is stored rather than discarded. It is not always a number: 2,030 rows of the 2026-08-03
+/// feed leave it blank and a handful open with a word ("ติด…", "ภายในอาคาร…"), which is why the
+/// export keeps CollateralName as a second key rather than replacing it.
+///
+/// IMPORTANT — char vs byte positions. CollateralName, Address1 and PropertyTypeDesc carry Thai,
+/// which is three BYTES per character in UTF-8: a 172-character record is far longer than 172 bytes
+/// on disk. Every position above is a Unicode code-point index, so the file is decoded first and
+/// sliced afterwards. Reading it as bytes shifts every field after the name and corrupts the whole
+/// file.
 ///
 /// TRUNCATED ROWS. AS400 strips trailing spaces, so a record whose tail fields are empty arrives
-/// short — the 2026-08-03 feed has rows of 88, 102, 106 and 125 characters. Everything through
-/// RecordIndicator (pos 79) is always present; the fields after it are optional and
+/// short — the 2026-08-03 feed has rows of 128, 142, 146 and 165 characters. Everything through
+/// RecordIndicator (pos 119) is always present; the fields after it are optional and
 /// <see cref="FixedWidthRecordReader.Slice"/> pads them. Only <see cref="MinimumDetailLength"/> is
 /// enforced.
 /// </summary>
 public class HostCollateralLinkFileParser
 {
     /// <summary>
-    /// Everything a record must carry to be usable: through RecordIndicator at pos 79. The fields
+    /// Everything a record must carry to be usable: through RecordIndicator at pos 119. The fields
     /// beyond it are informational and legitimately absent on a truncated row.
     /// </summary>
-    private const int MinimumDetailLength = 79;
+    private const int MinimumDetailLength = 119;
 
     public ParsedHostLinkFile ParseStream(Stream stream)
     {
@@ -135,7 +152,7 @@ public class HostCollateralLinkFileParser
         if (hostCollateralId.Length == 0)
             return null;
 
-        var indicator = Slice(line, 78, 1).Trim().ToUpperInvariant();
+        var indicator = Slice(line, 118, 1).Trim().ToUpperInvariant();
         if (indicator != HostLinkRecordIndicators.Drawdown &&
             indicator != HostLinkRecordIndicators.Redeemed)
             throw new FormatException(
@@ -147,15 +164,16 @@ public class HostCollateralLinkFileParser
             AppraisalReportNumber: appraisalNumber,
             HostCollateralId: hostCollateralId,
             CollateralName: NullIfBlank(Slice(line, 30, 40)),
-            RecordDate: ParseDdmmyyyyOrNull(Slice(line, 70, 8)),
+            Address1: NullIfBlank(Slice(line, 70, 40)),
+            RecordDate: ParseDdmmyyyyOrNull(Slice(line, 110, 8)),
             RecordIndicator: indicator,
-            LocationCode: NullIfBlank(Slice(line, 79, 6)),
-            CollateralCode: NullIfBlank(Slice(line, 85, 3)),
-            PropertyType: NullIfBlank(Slice(line, 88, 3)),
-            PropertyTypeDesc: NullIfBlank(Slice(line, 91, 40)),
-            // Kept raw. A truncated row stops before pos 132 and Slice pads it with a space, which
+            LocationCode: NullIfBlank(Slice(line, 119, 6)),
+            CollateralCode: NullIfBlank(Slice(line, 125, 3)),
+            PropertyType: NullIfBlank(Slice(line, 128, 3)),
+            PropertyTypeDesc: NullIfBlank(Slice(line, 131, 40)),
+            // Kept raw. A truncated row stops before pos 172 and Slice pads it with a space, which
             // becomes NULL here — the feed never stated a flag, which is not the same as stating 'N'.
-            MasterTitle: NullIfBlank(Slice(line, 131, 1))?.ToUpperInvariant(),
+            MasterTitle: NullIfBlank(Slice(line, 171, 1))?.ToUpperInvariant(),
             RowHash: hash);
     }
 

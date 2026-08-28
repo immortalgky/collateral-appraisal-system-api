@@ -278,6 +278,7 @@ public class HostCollateralLinkIngestor(
                 var values = new HostCollateralLinkValues(
                     AppraisalNumber: record.AppraisalReportNumber,
                     CollateralName: record.CollateralName,
+                    Address1: record.Address1,
                     IsRedeemed: record.RecordIndicator == HostLinkRecordIndicators.Redeemed,
                     MasterTitle: record.MasterTitle,
                     LocationCode: record.LocationCode,

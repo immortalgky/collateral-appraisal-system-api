@@ -37,6 +37,15 @@ public class HostCollateralLink
     /// <summary>AS400's own label for the collateral, usually a deed reference such as "ฉ.212567".</summary>
     public string? CollateralName { get; private set; }
 
+    /// <summary>
+    /// The collateral's street address as AS400 holds it, added to the feed on 2026-08-26. It
+    /// normally opens with the house or room number — "129/517 โครงการเพอร์เฟคเพลส" — and the
+    /// regulatory export matches that leading token against appraisal.ProjectUnits to price a
+    /// block-project unit. It is the only key that works for a house in a development, whose
+    /// CollateralName is a deed number that appears nowhere in the unit table.
+    /// </summary>
+    public string? Address1 { get; private set; }
+
     /// <summary>True once AS400 reports 'R' (released). A later 'D' clears it again.</summary>
     public bool IsRedeemed { get; private set; }
 
@@ -93,6 +102,7 @@ public class HostCollateralLink
     {
         AppraisalNumber  = values.AppraisalNumber;
         CollateralName   = Clean(values.CollateralName);
+        Address1         = Clean(values.Address1);
         IsRedeemed       = values.IsRedeemed;
         MasterTitle      = Clean(values.MasterTitle);
         LocationCode     = Clean(values.LocationCode);
@@ -113,6 +123,7 @@ public class HostCollateralLink
     public bool Matches(HostCollateralLinkValues values)
         => AppraisalNumber  == values.AppraisalNumber
            && CollateralName   == Clean(values.CollateralName)
+           && Address1         == Clean(values.Address1)
            && IsRedeemed       == values.IsRedeemed
            && MasterTitle      == Clean(values.MasterTitle)
            && LocationCode     == Clean(values.LocationCode)
@@ -133,6 +144,7 @@ public class HostCollateralLink
 public record HostCollateralLinkValues(
     string AppraisalNumber,
     string? CollateralName,
+    string? Address1,
     bool IsRedeemed,
     string? MasterTitle,
     string? LocationCode,

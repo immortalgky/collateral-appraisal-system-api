@@ -4,6 +4,7 @@ using Collateral.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Collateral.Migrations
 {
     [DbContext(typeof(CollateralDbContext))]
-    partial class CollateralDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260828035222_AddHostCollateralLinkAddress1")]
+    partial class AddHostCollateralLinkAddress1
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
