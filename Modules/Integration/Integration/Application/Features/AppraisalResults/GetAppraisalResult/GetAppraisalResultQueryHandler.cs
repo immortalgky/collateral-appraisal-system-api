@@ -699,6 +699,9 @@ internal static class AppraisalResultBuilder
                 totalAppraisalValue = unit.TotalAppraisalValueRounded;
                 forceSalePrice = unit.ForceSellingPrice;
                 marketValue = unit.SellingPrice ?? marketValue;
+                // A block's fire insurance is the unit's own coverage, not the appraisal-level
+                // total across every unit in the project. v1 does the same.
+                fireInsurance = unit.CoverageAmount ?? fireInsurance;
             }
         }
 
