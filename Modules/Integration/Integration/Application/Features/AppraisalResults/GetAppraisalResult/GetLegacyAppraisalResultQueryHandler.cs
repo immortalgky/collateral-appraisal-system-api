@@ -393,13 +393,14 @@ internal static class LegacyResultMapper
     }
 
     // Legacy MethodOfAppraisal ← our pricing ApproachType: 1 = Cost, 2 = Income, 3 = Market.
-    // Defaults to 3 (Market) when there is no selected approach (e.g. PMA / block / unknown).
-    private static int MapMethod(string? approachType) => approachType?.Trim().ToLowerInvariant() switch
-    {
-        "cost" => 1,
-        "income" => 2,
-        _ => 3,
-    };
+    // The Market fallback for an absent approach lives in NormalizeApproach, shared with v2.
+    private static int MapMethod(string? approachType) =>
+        AppraisalResultBuilder.NormalizeApproach(approachType) switch
+        {
+            "Cost" => 1,
+            "Income" => 2,
+            _ => 3,
+        };
 
     private static bool IsCondo(string? propertyType) =>
         propertyType is not null && CondoCodes.Contains(propertyType, StringComparer.OrdinalIgnoreCase);

@@ -46,7 +46,9 @@ public record GetAppraisalResultResponse(
 
 public record AppraisalResultGroup(
     decimal? AppraisalValue,
-    string? AppraisalMethod,
+    // Selected pricing approach: Cost / Income / Market. Never null - an absent approach reports
+    // Market, the same fallback v1's MethodOfAppraisal uses. Legacy field: MethodOfAppraisal.
+    string AppraisalMethod,
     decimal? LandValue,
     decimal? BuildingValue,
     decimal? UnitPrice,
