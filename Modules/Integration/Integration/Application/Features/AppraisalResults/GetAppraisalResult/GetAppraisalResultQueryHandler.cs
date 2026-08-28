@@ -329,7 +329,12 @@ internal static class GetAppraisalResultSql
                                                       -- Block title address (project geocodes → Title masters, NOT DOPA)
                                                       COALESCE(ltProv.NameTh, p.Province)    AS ProvinceName,
                                                       COALESCE(ltDist.NameTh, p.District)    AS DistrictName,
-                                                      COALESCE(ltSub.NameTh,  p.SubDistrict) AS SubDistrictName
+                                                      COALESCE(ltSub.NameTh,  p.SubDistrict) AS SubDistrictName,
+                                                      -- Raw codes as well: v2 reports the geocode, v1 the resolved Thai name.
+                                                      p.Province    AS ProvinceCode,
+                                                      p.District    AS DistrictCode,
+                                                      p.SubDistrict AS SubDistrictCode,
+                                                      p.LandOffice  AS LandOfficeCode
                                                FROM appraisal.Projects p
                                                LEFT JOIN parameter.Parameters pLandOffice
                                                    ON pLandOffice.[group] = 'LandOffice' AND pLandOffice.[language] = 'TH'
@@ -514,7 +519,12 @@ internal sealed record ProjectRow(
     // Block title address resolved to Thai names
     string? ProvinceName = null,
     string? DistrictName = null,
-    string? SubDistrictName = null);
+    string? SubDistrictName = null,
+    // The same address as raw geocodes - what v2 reports, where v1 reports the names above.
+    string? ProvinceCode = null,
+    string? DistrictCode = null,
+    string? SubDistrictCode = null,
+    string? LandOfficeCode = null);
 
 internal sealed record BlockUnitRow(
     string? RoomNumber,
@@ -777,6 +787,20 @@ internal static class AppraisalResultBuilder
     internal static int? ParseDecorate(string? code) =>
         int.TryParse(code, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : null;
 
+    // Thai land area: 1 rai = 4 ngan = 400 sq.wa; 1 ngan = 100 sq.wa. Splits a total given in
+    // sq.wa. Returns nulls when there is no area (a condo unit has no land of its own) so v2 can
+    // tell "no land" from "zero rai"; v1 flattens the nulls to 0 for its no-null contract.
+    // Shared with the v1 endpoint so one implementation does the arithmetic.
+    internal static (decimal? Rai, decimal? Ngan, decimal? Wa) SplitSqWa(decimal? totalSqWa)
+    {
+        if (totalSqWa is not { } total || total <= 0m) return (null, null, null);
+
+        var rai = Math.Floor(total / 400m);
+        var afterRai = total - rai * 400m;
+        var ngan = Math.Floor(afterRai / 100m);
+        return (rai, ngan, afterRai - ngan * 100m);
+    }
+
     // The group's selected pricing approach. An absent or unrecognised approach falls back to
     // Market, mirroring v1's MapMethod (`_ => 3`), so both feeds report the same thing - at the cost
     // of not distinguishing "no approach chosen yet" from a real Market choice. Shared with the v1
@@ -857,34 +881,41 @@ internal static class AppraisalResultBuilder
     private static AppraisalResultGroup BuildBlockGroup(ProjectRow project, BlockUnitRow unit)
     {
         var isCondo = ProjectType.IsCondoCode(project.ProjectType);
+        var (rai, ngan, wa) = SplitSqWa(unit.LandArea);
 
         var collateral = new AppraisalResultCollateral(
             CollateralType: project.ProjectType,
-            TitleNo: null,
+            // A block is built on the project's deed, not a per-unit one.
+            TitleNo: project.BuiltOnTitleDeedNumber,
             LandNo: isCondo ? null : unit.PlotNumber,
             Rawang: null,
             SurveyNo: null,
             BookNo: null,
             PageNo: null,
-            Rai: null,
-            Ngan: null,
-            Wa: null,
+            Rai: rai,
+            Ngan: ngan,
+            Wa: wa,
             HouseNo: isCondo ? null : unit.HouseNumber,
             BuildingType: null,
-            BuildingAge: null,
-            TotalFloor: isCondo ? null : unit.NumberOfFloors,
+            BuildingAge: unit.TowerBuildingAge,
+            // v1 reads the tower's floor count for both project types, falling back to the
+            // unit's own; NumberOfFloors is null on a condo unit anyway.
+            TotalFloor: unit.TowerFloors ?? unit.NumberOfFloors,
             ConstructionPct: null,
-            RoomNo: isCondo ? unit.RoomNumber : null,
+            // Deliberately UnitRoomNo first, as v1 does - even though pu.CondoRegistrationNumber
+            // and pu.RoomNumber hold different values (CR-002 vs A-502), so this does not echo
+            // back the roomNumber the caller selected with. Matching v1 was the explicit ask.
+            RoomNo: isCondo ? unit.UnitRoomNo ?? unit.RoomNumber : null,
             FloorNo: isCondo ? unit.Floor?.ToString(CultureInfo.InvariantCulture) : null,
             BuildingNo: isCondo ? unit.TowerName : null,
             AreaUtilize: unit.UsableArea,
             ContractNo: null,
             LesseeName: null,
             LessorName: null,
-            Province: null,
-            District: null,
-            SubDistrict: null,
-            LandOffice: null,
+            Province: project.ProvinceCode,
+            District: project.DistrictCode,
+            SubDistrict: project.SubDistrictCode,
+            LandOffice: project.LandOfficeCode,
             // A block has no per-unit building name; the project name is the legacy BuildingDetails.
             BuildingName: project.ProjectName,
             Decorate: ParseDecorate(unit.DecorationType),
