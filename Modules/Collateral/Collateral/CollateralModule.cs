@@ -47,8 +47,6 @@ public static class CollateralModule
         // Collateral data impls exposed via Collateral.Contracts interfaces.
         // Query implementations: IInboundFileSource is registered by IntegrationModule (config-switched).
         services.AddScoped<IRegulatoryExportQuery, RegulatoryExportQuery>();
-        services.AddScoped<IRegulatoryExportV2Query, RegulatoryExportV2Query>();
-        services.AddScoped<IRegulatoryExportV3Query, RegulatoryExportV3Query>();
         services.AddScoped<ICollateralResultQuery, CollateralResultQuery>();
         services.AddScoped<ICollateralResultLedger, CollateralResultLedger>();
         services.AddScoped<IReappraisalIngestor, ReappraisalIngestor>();

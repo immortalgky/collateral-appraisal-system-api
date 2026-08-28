@@ -9,8 +9,16 @@ using Shared.Time;
 namespace Integration.FileInterface.Jobs.RegulatoryExport;
 
 /// <summary>
-/// Hangfire monthly recurring job. Builds the outbound "CAS-AS400-Regulatory" file from a full
-/// Basel/RDT regulatory snapshot. File name and path come from <c>integration.FileInterfaceConfigs</c>.
+/// Hangfire monthly recurring job. Builds the outbound "CAS-AS400-Regulatory" file — one Detail record
+/// per collateral the bank holds, carrying that collateral's first appraisal. File name and path come
+/// from <c>integration.FileInterfaceConfigs</c> (<c>REGULATORY</c>); the schedule comes from
+/// <c>integration.JobSchedules</c> (<c>regulatory-export</c>).
+///
+/// Two files are written on every run: the fixed-width 300-char <c>.txt</c> that AS400 consumes, and
+/// an <c>.xlsx</c> companion with the same rows in a form people can read. Both are built from the
+/// same <see cref="RegulatoryExportRow"/> list — but each writer keeps its OWN field map, so a field
+/// that moves in one must move in the other in the same commit.
+///
 /// No sent-ledger: every run is a full re-extract.
 /// </summary>
 public class RegulatoryExportJob(
@@ -32,14 +40,15 @@ public class RegulatoryExportJob(
         var cfg = await configProvider.GetAsync(FileInterfaceCodes.Regulatory, ct);
         if (cfg is null || !cfg.IsActive)
         {
-            logger.LogWarning("{Tag} No active config row for '{Code}'; skipping", JobTag, FileInterfaceCodes.Regulatory);
+            logger.LogWarning(
+                "{Tag} No active config row for '{Code}'; skipping", JobTag, FileInterfaceCodes.Regulatory);
             return;
         }
 
         var rows = await query.GetRowsAsync(ct);
         if (rows.Count == 0)
         {
-            logger.LogInformation("{Tag} No active collateral masters found; nothing to send", JobTag);
+            logger.LogInformation("{Tag} No reportable collateral found; nothing to send", JobTag);
             return;
         }
 
@@ -52,11 +61,8 @@ public class RegulatoryExportJob(
         var fileName = $"{prefix}{now.ToString(dateFormat)}.{ext}";
 
         var content = writer.BuildContent(effectiveDate, rows);
-
         await fileSink.WriteAsync(directory, fileName, content, ct);
 
-        // Human-readable Excel companion (same fields, friendly headers) written next to the .txt so
-        // non-IT users can inspect what was sent that month.
         var excelFileName = $"{prefix}{now.ToString(dateFormat)}.xlsx";
         var excelBytes = excelWriter.Build(effectiveDate, rows);
         await fileSink.WriteAsync(directory, excelFileName, excelBytes, ct);
