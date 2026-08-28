@@ -36,6 +36,7 @@ public static class ParameterModule
         services.AddScoped<IDataSeeder<ParameterDbContext>, ParameterDataSeed>();
 
         services.AddScoped<IParameterLookupService, ParameterLookupService>();
+        services.AddScoped<IAddressLookupService, AddressLookupService>();
 
         return services;
     }

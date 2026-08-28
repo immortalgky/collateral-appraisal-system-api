@@ -35,6 +35,9 @@ public static class RequestModule
         services.AddScoped<IAppraisalNumberGenerator, AppraisalNumberGenerator>();
         services.AddScoped<IReappraisalGroupNumberGenerator, ReappraisalGroupNumberGenerator>();
         services.AddScoped<IRequestSyncService, RequestSyncService>();
+
+        // Bulk title import (Excel upload / paste from Excel) — stateless, parses and validates only.
+        services.AddScoped<Request.Application.Features.RequestTitles.ImportTitles.TitleImportValidator>();
         services.AddScoped<
             Request.Contracts.RequestDocuments.IRequestDocumentAttacher,
             Request.Application.Services.RequestDocumentAttacher>();
