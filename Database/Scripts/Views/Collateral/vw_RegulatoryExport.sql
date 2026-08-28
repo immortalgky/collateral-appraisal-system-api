@@ -300,16 +300,30 @@ BuildingAgg AS (
     GROUP BY p.AppraisalId
 ),
 
+-- Rooms combined, on the same rule as buildings: the TOTAL usable area and the OLDEST age across
+-- every room the appraisal covers.
+--
+-- This used to take the room with the lowest SequenceNumber for both. Area is a quantity and does
+-- add up — 54 export rows sit on an appraisal that covers more than one room, and each was reporting
+-- one room's area as the whole collateral's. 68A08282 is CONDO.54/418,54/419, two rooms of 81.00
+-- sq.m, and it shipped 81.00.
+--
+-- ⚠ The row count is NOT the room count. AS400's comma-separated key is the only reliable statement
+-- of how many rooms a collateral is, and the property rows do not always agree with it: 67A01158
+-- names two rooms and carries four rows, 68A03169 names two and carries one. The rows are also
+-- byte-identical copies of each other in every multi-room appraisal on the 2026-08-03 data, so the
+-- sum is N x one room rather than a true total. Summing was chosen anyway: it matches land and
+-- buildings, needs no key parsing here, and is right whenever the row count is right — which is the
+-- common case. Where the appraisal itself is miscounted the fix belongs in the appraisal.
 CondoAgg AS (
-    SELECT AppraisalId, UsableArea, BuildingAge
-    FROM (
-        SELECT p.AppraisalId, c.UsableArea, c.BuildingAge,
-               ROW_NUMBER() OVER (PARTITION BY p.AppraisalId ORDER BY p.SequenceNumber) AS rn
-        FROM appraisal.AppraisalProperties p
-        JOIN appraisal.CondoAppraisalDetails c ON c.AppraisalPropertyId = p.Id
-        WHERE p.PropertyType IN ('U', 'LSU')
-    ) z
-    WHERE rn = 1
+    SELECT
+        p.AppraisalId,
+        SUM(c.UsableArea) AS UsableArea,
+        MAX(c.BuildingAge) AS BuildingAge
+    FROM appraisal.AppraisalProperties p
+    JOIN appraisal.CondoAppraisalDetails c ON c.AppraisalPropertyId = p.Id
+    WHERE p.PropertyType IN ('U', 'LSU')
+    GROUP BY p.AppraisalId
 ),
 
 -- ── Which appraisal the physical characteristics are read from ─────────────────────────────────
@@ -378,48 +392,105 @@ ProjectWalk AS (
     WHERE CHARINDEX('|' + CAST(p.Id AS varchar(36)) + '|', w.Path) = 0
 ),
 
--- Every appraisal in that history that actually priced this unit.
+-- ── One collateral can be several rooms ────────────────────────────────────────────────────────
+-- AS400 writes a multi-room collateral as one comma-separated key: "CONDO.1999/13,1999/14" is ONE
+-- pledge over TWO rooms. Matched whole it hits nothing, and because the row is a project unit the
+-- rule below then forces it to 0 — the units are in the table with the right prices, only the key
+-- does not line up. Splitting on the comma finds them; the value is the sum of the rooms.
 --
--- Either token may match, and against any of three unit columns. HouseNumber is what a development's
--- houses are recorded under and is reachable only from Address1. The empty-string guard is
--- load-bearing: a blank token would match every unit whose column is blank and price a collateral
--- from an unrelated room.
-ProjectUnitHit AS (
+-- CAS sometimes stores the comma on its own side instead: unit 1198/831,1198/832 exists as a single
+-- row while AS400 names only 1198/831. Splitting the AS400 key alone would still miss it, so the
+-- unit's own key is split the same way and any part may match.
+--
+-- Not handled, deliberately: ranges ("111/94-95,97") and the shorthand that drops the repeated block
+-- ("888/468,469" for 888/468 and 888/469). Both need expansion rules that would guess at AS400's
+-- intent; the rows they affect keep reporting what they report today.
+TokenPart AS (
     SELECT
         w.HostCollateralId,
+        w.AncestorId,
         w.Depth,
-        v.ValuationDate,
-        pup.TotalAppraisalValueRounded AS UnitValue,
-        -- WHICH TOKEN WINS WHEN THE TWO DISAGREE. The name, always. AS400 has one field whose whole
-        -- purpose is to state the unit — "CONDO.<key>" — while Address1 is an address that merely
-        -- tends to open with the unit number, so where both name a real unit the purpose-built field
-        -- is the better evidence. It also keeps this change additive: a collateral that already
-        -- resolved keeps the value it reports today and Address1 only fills gaps.
-        --
-        -- This is not hypothetical. Collateral 114596 is named CONDO.3399/384 while its Address1 reads
-        -- "3399/385 ชั้น15" — two different real units of the same building, 11,000 baht apart. Without
-        -- this rank the winner would be decided by which unit column happened to match.
-        CASE WHEN w.NameToken IS NOT NULL
-                  AND (pu.CondoRegistrationNumber = w.NameToken
-                       OR pu.RoomNumber           = w.NameToken
-                       OR pu.HouseNumber          = w.NameToken) THEN 0 ELSE 1
-        END AS TokenRank,
+        -- 0 = the name, 1 = the address. See TokenRank below for why the name outranks the address.
+        s.Source,
+        LTRIM(RTRIM(p.value)) AS Part
+    FROM ProjectWalk w
+    CROSS APPLY (VALUES (0, w.NameToken), (1, w.AddrToken)) AS s(Source, Token)
+    CROSS APPLY STRING_SPLIT(ISNULL(s.Token, ''), ',') p
+    -- The empty-string guard is load-bearing: a blank part would match every unit whose column is
+    -- blank and price a collateral from an unrelated room.
+    WHERE LTRIM(RTRIM(p.value)) <> ''
+),
+
+-- Every unit in that history the key names, one row per (room named, unit row matched).
+ProjectUnitHit AS (
+    SELECT
+        t.HostCollateralId,
+        t.AncestorId,
+        t.Depth,
+        t.Source,
+        t.Part,
+        pu.Id                               AS UnitId,
+        MIN(pup.TotalAppraisalValueRounded) AS UnitValue,
         -- Registration first, then the room, then the house number: migrated projects recorded the
         -- unit under RoomNumber, newly appraised ones record CondoRegistrationNumber, and houses
         -- carry neither. Ordering rather than branching keeps one rule working as the data shifts.
-        CASE WHEN pu.CondoRegistrationNumber IN (w.AddrToken, w.NameToken) THEN 0
-             WHEN pu.RoomNumber              IN (w.AddrToken, w.NameToken) THEN 1
-             ELSE 2
-        END AS KeyRank
-    FROM ProjectWalk w
-    JOIN appraisal.Projects pr      ON pr.AppraisalId = w.AncestorId
+        MIN(CASE WHEN pu.CondoRegistrationNumber = t.Part THEN 0
+                 WHEN pu.RoomNumber              = t.Part THEN 1
+                 ELSE 2
+            END) AS KeyRank
+    FROM TokenPart t
+    JOIN appraisal.Projects pr      ON pr.AppraisalId = t.AncestorId
     JOIN appraisal.ProjectUnits pu  ON pu.ProjectId   = pr.Id
     JOIN appraisal.ProjectUnitPrices pup ON pup.ProjectUnitId = pu.Id
-    LEFT JOIN Val v ON v.AppraisalId = w.AncestorId
+    CROSS APPLY (SELECT LTRIM(RTRIM(value)) AS Part
+                 FROM STRING_SPLIT(ISNULL(pu.CondoRegistrationNumber, ''), ',')
+                 UNION SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(ISNULL(pu.RoomNumber, ''), ',')
+                 UNION SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(ISNULL(pu.HouseNumber, ''), ',')
+                ) uk
     WHERE ISNULL(pup.TotalAppraisalValueRounded, 0) > 0
-      AND (pu.CondoRegistrationNumber IN (w.AddrToken, w.NameToken)
-           OR pu.RoomNumber            IN (w.AddrToken, w.NameToken)
-           OR pu.HouseNumber           IN (w.AddrToken, w.NameToken))
+      AND uk.Part = t.Part
+    GROUP BY t.HostCollateralId, t.AncestorId, t.Depth, t.Source, t.Part, pu.Id
+),
+
+-- ONE VALUE PER ROOM, not per unit row. The unit table holds the same room more than once: room
+-- 630/32 of project "ออริจิ้น เพลส เพชรเกษม" exists as two rows in one project, both priced
+-- 3,760,000. Summing the rows reported 7,520,000 for a single-room collateral — 45 of them, all
+-- exactly doubled. Summing one value per room the key actually names is what "the sum of the rooms"
+-- means, and it is immune to however many times CAS stored each room.
+ProjectUnitPerRoom AS (
+    SELECT HostCollateralId, AncestorId, Depth, Source, Part, UnitValue, KeyRank
+    FROM (
+        SELECT h.*,
+               ROW_NUMBER() OVER (PARTITION BY h.HostCollateralId, h.AncestorId, h.Depth,
+                                               h.Source, h.Part
+                                  ORDER BY h.KeyRank, h.UnitId) AS rn
+        FROM ProjectUnitHit h
+    ) z
+    WHERE rn = 1
+),
+
+-- The collateral's value at one appraisal: the sum over every room the key names.
+--
+-- WHICH TOKEN WINS WHEN THE TWO DISAGREE. The name, always. AS400 has one field whose whole purpose
+-- is to state the unit — "CONDO.<key>" — while Address1 is an address that merely tends to open with
+-- the unit number, so where both name a real unit the purpose-built field is the better evidence. It
+-- also keeps the Address1 change additive: a collateral that already resolved keeps the value it
+-- reports today and the address only fills gaps.
+--
+-- This is not hypothetical. Collateral 114596 is named CONDO.3399/384 while its Address1 reads
+-- "3399/385 ชั้น15" — two different real units of the same building, 11,000 baht apart. The two sets
+-- are summed SEPARATELY and the name's set wins; adding them together would invent a third value.
+ProjectUnitSum AS (
+    SELECT
+        h.HostCollateralId,
+        h.Depth,
+        h.Source          AS TokenRank,
+        MIN(h.KeyRank)    AS KeyRank,
+        SUM(h.UnitValue)  AS UnitValue,
+        v.ValuationDate
+    FROM ProjectUnitPerRoom h
+    LEFT JOIN Val v ON v.AppraisalId = h.AncestorId
+    GROUP BY h.HostCollateralId, h.AncestorId, h.Depth, h.Source, v.ValuationDate
 ),
 
 -- Collateral that IS a project unit: AS400 stated a unit key and the appraisal history runs through a
@@ -455,7 +526,7 @@ ProjectUnitValue AS (
                ROW_NUMBER() OVER (PARTITION BY h.HostCollateralId
                                   ORDER BY h.Depth ASC, h.ValuationDate DESC,
                                            h.TokenRank, h.KeyRank) AS rnLatest
-        FROM ProjectUnitHit h
+        FROM ProjectUnitSum h
     ) z
     GROUP BY HostCollateralId
 ),
