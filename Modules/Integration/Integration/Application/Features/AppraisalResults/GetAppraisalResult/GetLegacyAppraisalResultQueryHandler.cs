@@ -307,16 +307,12 @@ internal static class LegacyResultMapper
         };
     }
 
-    // Thai land area: 1 rai = 4 ngan = 400 sq.wa; 1 ngan = 100 sq.wa. Splits a total in sq.wa.
+    // Thai land area split, shared with v2 (AppraisalResultBuilder.SplitSqWa). The legacy contract
+    // has no nulls, so an absent area reports 0/0/0 here rather than the nulls v2 returns.
     private static (decimal Rai, decimal Ngan, decimal Wa) SqWaToRaiNganWa(decimal? totalSqWa)
     {
-        if (totalSqWa is not { } total || total <= 0m) return (0m, 0m, 0m);
-
-        var rai = Math.Floor(total / 400m);
-        var afterRai = total - rai * 400m;
-        var ngan = Math.Floor(afterRai / 100m);
-        var wa = afterRai - ngan * 100m;
-        return (rai, ngan, wa);
+        var (rai, ngan, wa) = AppraisalResultBuilder.SplitSqWa(totalSqWa);
+        return (rai ?? 0m, ngan ?? 0m, wa ?? 0m);
     }
 
     // Appraisal-level fields shared by both paths (identity, fee, dates, address, valuer, type).
