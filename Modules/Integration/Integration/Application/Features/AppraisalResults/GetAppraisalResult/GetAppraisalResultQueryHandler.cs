@@ -644,6 +644,7 @@ internal static class AppraisalResultBuilder
                         r.SubDistrict ?? r.CadSubDistrict,
                         r.LandOffice ?? r.CadLandOffice,
                         FirstNonEmpty(r.CondoName, r.Village),
+                        ParseDecorate(r.BuildingDecorationType ?? r.CondoDecorationType),
                         r.VehicleRegistrationNo,
                         r.VehicleBrand,
                         r.VehicleModel,
@@ -765,6 +766,12 @@ internal static class AppraisalResultBuilder
     private static decimal? SumOrNull(List<CollateralRow> rows, Func<CollateralRow, decimal?> pick) =>
         rows.Any(r => pick(r) is not null) ? rows.Sum(r => pick(r) ?? 0m) : null;
 
+    // Legacy Decorate is the DecorationType code with the leading zero stripped ("01" -> 1,
+    // "99" -> 99); null when the code is absent or not numeric. Shared with the v1 endpoint so the
+    // two feeds cannot disagree.
+    internal static int? ParseDecorate(string? code) =>
+        int.TryParse(code, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : null;
+
     // Legacy AS400 encoding of the appraisal type; 0 = unknown. Shared with the v1 endpoint
     // (GetLegacyAppraisalResultQueryHandler) so the two feeds can never disagree on the code.
     internal static int MapAppraisalType(string? type) => type switch
@@ -863,6 +870,7 @@ internal static class AppraisalResultBuilder
             LandOffice: null,
             // A block has no per-unit building name; the project name is the legacy BuildingDetails.
             BuildingName: project.ProjectName,
+            Decorate: ParseDecorate(unit.DecorationType),
             VehicleRegistrationNo: null,
             VehicleBrand: null,
             VehicleModel: null,
