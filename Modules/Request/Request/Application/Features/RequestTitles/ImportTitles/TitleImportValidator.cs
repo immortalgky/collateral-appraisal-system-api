@@ -26,6 +26,23 @@ public class TitleImportValidator(
     /// <summary>Deed types accepted by TitleDeedInfo.Validate — kept in sync with that array.</summary>
     private static readonly string[] ValidDeedTypes = ["DEED", "NS3", "NS3K", "NS3KO", "POSR", "OTHER"];
 
+    /// <summary>
+    /// Field keys every row needs whatever its collateral type, so a sheet missing any of them
+    /// cannot produce a single usable row.
+    ///
+    /// Deleting columns you do not use is supported — matching is by header name, not position — so
+    /// this list is deliberately short: the type discriminator, and the two address blocks that
+    /// Address.Validate() demands on both TitleAddress and DopaAddress for every collateral type.
+    /// </summary>
+    private static readonly string[] StructurallyRequiredColumns =
+    [
+        "collateralType",
+        "titleAddress.houseNumber", "titleAddress.subDistrict",
+        "titleAddress.district", "titleAddress.province",
+        "dopaAddress.houseNumber", "dopaAddress.subDistrict",
+        "dopaAddress.district", "dopaAddress.province"
+    ];
+
     // Cell VALUES, not messages: users type these into the spreadsheet, and the Thai forms are the
     // ones the on-screen toggle shows, so a file transcribed from the UI still reads correctly.
     private static readonly string[] TruthyValues = ["true", "1", "y", "yes", "จดทะเบียนแล้ว", "ใช่", "มี"];
@@ -40,6 +57,7 @@ public class TitleImportValidator(
         var rows = new List<TitleImportRow>();
         var errors = new List<TitleImportRowError>();
         var ignoredSheets = new List<string>();
+        var missingColumns = new SortedSet<string>(StringComparer.Ordinal);
         var totalRows = 0;
         var recognisedSheets = 0;
 
@@ -74,6 +92,7 @@ public class TitleImportValidator(
             recognisedSheets++;
 
             var headerMap = BuildHeaderMap(sheet, definition);
+            GuardStructuralColumns(sheet, definition, headerMap);
 
             for (var i = 0; i < sheet.Rows.Count; i++)
             {
@@ -82,7 +101,8 @@ public class TitleImportValidator(
 
                 totalRows++;
                 var rowNumber = sheet.RowNumberOf(i);
-                var context = new RowContext(definition, headerMap, cells, sheet.Name, rowNumber, errors);
+                var context = new RowContext(
+                    definition, headerMap, cells, sheet.Name, rowNumber, errors, missingColumns);
 
                 var row = await BuildRowAsync(context, validCodes, cancellationToken);
                 if (row is not null) rows.Add(row);
@@ -104,7 +124,37 @@ public class TitleImportValidator(
                 "No data rows were found. Enter the titles from row 2 onwards in the sheet that matches " +
                 $"the collateral type ({string.Join(", ", TitleImportCatalog.Sheets.Select(s => s.Key))}), then upload again.");
 
-        return new TitleImportResult(totalRows, rows, errors, ignoredSheets);
+        return new TitleImportResult(totalRows, rows, errors, ignoredSheets, [..missingColumns]);
+    }
+
+    /// <summary>
+    /// Rejects a sheet whose header row is missing something every row needs.
+    ///
+    /// Reported as one 400 rather than as row errors: if the collateral-type column is absent, every
+    /// row on the sheet fails identically, and a 300-row file would answer a mistyped header with
+    /// 300 copies of "Collateral type is required." — which points at the data instead of the header.
+    /// The headers that WERE found are listed, because the usual cause is a typo, not a deletion.
+    /// </summary>
+    private static void GuardStructuralColumns(
+        RawSheet sheet, TitleImportSheet definition, IReadOnlyDictionary<string, int> headerMap)
+    {
+        var missing = StructurallyRequiredColumns
+            .Where(key => !headerMap.ContainsKey(key))
+            .Select(key => definition.Columns.FirstOrDefault(c => c.Key == key)?.Label ?? key)
+            .ToList();
+
+        if (missing.Count == 0) return;
+
+        var found = sheet.Headers.Where(h => !string.IsNullOrWhiteSpace(h)).ToList();
+
+        throw new BadRequestException(
+            $"Sheet '{sheet.Name}' is missing {(missing.Count == 1 ? "a column" : "columns")} every row " +
+            $"needs: {string.Join(", ", missing)}. " +
+            "Check the header row for a typo — columns are matched by their header text, not their " +
+            "position, so they may be in any order. " +
+            (found.Count == 0
+                ? "No headers were found in row 1."
+                : $"Headers found: {string.Join(", ", found)}."));
     }
 
     // ── Row assembly ─────────────────────────────────────────────────────────
@@ -277,7 +327,14 @@ public class TitleImportValidator(
                 (ctx.HasText("areaSquareWa") && Dec(values, "areaSquareWa") is null);
 
             if (totalWa <= 0 && !areaUnparseable)
-                ctx.Error("areaSquareWa", "Land area is required — fill in at least one of Rai, Ngan or Sq. Wa.");
+            {
+                // All three area columns absent is a header problem, not a data one.
+                if (!ctx.HasColumn("areaRai") && !ctx.HasColumn("areaNgan") && !ctx.HasColumn("areaSquareWa"))
+                    ctx.MissingValue("areaSquareWa");
+                else
+                    ctx.Error("areaSquareWa",
+                        "Land area is required — fill in at least one of Rai, Ngan or Sq. Wa.");
+            }
         }
 
         if (isBuilding)
@@ -298,7 +355,7 @@ public class TitleImportValidator(
             ctx.Require(values, "floorNumber");
 
             if (Dec(values, "usableArea") is null && !ctx.HasText("usableArea"))
-                ctx.Error("usableArea", "Usable area is required.");
+                ctx.MissingValue("usableArea");
         }
 
         switch (family)
@@ -322,14 +379,14 @@ public class TitleImportValidator(
                     ctx.Require(values, "invoiceNumber");
 
                 if (Int(values, "numberOfMachine") is null && !ctx.HasText("numberOfMachine"))
-                    ctx.Error("numberOfMachine", "Number of machines is required.");
+                    ctx.MissingValue("numberOfMachine");
                 break;
         }
     }
 
     // ── Addresses ────────────────────────────────────────────────────────────
 
-    private record ResolvedAddress(AddressDto Dto, string? SubDistrictName, string? DistrictName, string? ProvinceName);
+    private sealed record ResolvedAddress(AddressDto Dto, string? SubDistrictName, string? DistrictName, string? ProvinceName);
 
     private async Task<ResolvedAddress> ResolveAddressAsync(
         RowContext ctx, string prefix, bool isDopa, CancellationToken cancellationToken)
@@ -459,7 +516,8 @@ public class TitleImportValidator(
         IReadOnlyList<string> cells,
         string sheetName,
         int rowNumber,
-        List<TitleImportRowError> errors)
+        List<TitleImportRowError> errors,
+        SortedSet<string> missingColumns)
     {
         public TitleImportSheet Sheet => sheet;
         public string SheetName => sheetName;
@@ -475,6 +533,27 @@ public class TitleImportValidator(
         /// <summary>Did the user put anything in this cell, regardless of whether it parsed?</summary>
         public bool HasText(string key) => !string.IsNullOrWhiteSpace(Text(key));
 
+        /// <summary>Does the sheet even have a column for this field?</summary>
+        public bool HasColumn(string key) => headerMap.ContainsKey(key);
+
+        /// <summary>
+        /// Reports a value this row needed but does not have, saying which of the two situations it
+        /// is. "Owner is required" is unhelpful when the sheet has no Owner column at all — the fix
+        /// is in the header row, not the data — so that case gets its own wording and is also
+        /// collected for the one-line summary above the preview.
+        /// </summary>
+        public void MissingValue(string key)
+        {
+            if (HasColumn(key))
+            {
+                Error(key, $"{LabelOf(key)} is required.");
+                return;
+            }
+
+            missingColumns.Add(LabelOf(key));
+            Error(key, $"Column '{LabelOf(key)}' is not in this sheet.");
+        }
+
         public void Error(string columnKey, string message)
             => errors.Add(new TitleImportRowError(sheetName, rowNumber, LabelOf(columnKey), message));
 
@@ -489,7 +568,7 @@ public class TitleImportValidator(
             if (values.GetValueOrDefault(key) is string s && !string.IsNullOrWhiteSpace(s)) return;
             if (values.GetValueOrDefault(key) is not null and not string) return;
             if (HasText(key)) return;
-            Error(key, $"{LabelOf(key)} is required.");
+            MissingValue(key);
         }
 
         public string LabelOf(string columnKey)

@@ -230,6 +230,10 @@ internal class TitleImportTemplateQueryHandler(ISqlConnectionFactory connectionF
         Line("      \u2022 Leave columns that do not apply empty; extra columns of your own are ignored.");
         Line($"      \u2022 Up to {TitleImportLimits.MaxRows} rows and 5 MB per import.");
         Line("      \u2022 Column headers may be written in English or Thai; case and spacing do not matter.");
+        Line("      \u2022 Columns are matched by their header text, not their position — you may reorder");
+        Line("        them, and delete any column your collateral type does not use.");
+        Line("      \u2022 The Collateral Type Code column and both address blocks cannot be removed:");
+        Line("        every row needs them whatever its type.");
         row += 1;
 
         Line("3. Both addresses are required", bold: true);
@@ -258,7 +262,7 @@ internal class TitleImportTemplateQueryHandler(ISqlConnectionFactory connectionF
 
     // Dapper matches a positional record by constructor arity/order, so the SELECT must project
     // exactly these three columns in this order — SeqNo is for ORDER BY only, never selected.
-    private record ParameterCode(string Group, string Code, string Description);
+    private sealed record ParameterCode(string Group, string Code, string Description);
 
     private async Task<IReadOnlyList<ParameterCode>> LoadParameterCodesAsync(CancellationToken cancellationToken)
     {

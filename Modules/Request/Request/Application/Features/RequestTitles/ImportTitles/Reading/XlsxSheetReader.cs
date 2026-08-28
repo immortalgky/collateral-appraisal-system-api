@@ -77,8 +77,13 @@ internal static class XlsxSheetReader
         };
     }
 
+    /// <summary>
+    /// Renders a numeric cell the way the user typed it: 12 stays "12", 12.5 stays "12.5".
+    ///
+    /// The custom format does both jobs — it drops trailing zeros, and unlike the general formats it
+    /// never falls back to scientific notation — so there is no need to special-case whole numbers
+    /// through a long, which is what previously forced a floating-point equality test.
+    /// </summary>
     private static string FormatNumber(double value)
-        => value == Math.Floor(value) && Math.Abs(value) < 1e15
-            ? ((long)value).ToString(System.Globalization.CultureInfo.InvariantCulture)
-            : value.ToString("0.##########", System.Globalization.CultureInfo.InvariantCulture);
+        => value.ToString("0.##########", System.Globalization.CultureInfo.InvariantCulture);
 }

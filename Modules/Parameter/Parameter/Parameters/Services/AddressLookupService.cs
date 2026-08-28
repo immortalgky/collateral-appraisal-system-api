@@ -44,7 +44,7 @@ public class AddressLookupService(IAddressRepository addressRepository, IMemoryC
         Func<CancellationToken, Task<List<AddressDto>>> load,
         CancellationToken cancellationToken)
     {
-        if (cache.TryGetValue(cacheKey, out AddressIndex? cached)) return cached!;
+        if (cache.TryGetValue(cacheKey, out AddressIndex? cached) && cached is not null) return cached;
 
         var index = AddressIndex.Build(await load(cancellationToken));
         cache.Set(cacheKey, index, CacheDuration);
@@ -69,9 +69,19 @@ public class AddressLookupService(IAddressRepository addressRepository, IMemoryC
             "จังหวัด", "จ.", "อำเภอ", "อ.", "กิ่งอำเภอ", "ตำบล", "ต.", "เขต", "แขวง"
         ];
 
-        private static readonly Regex ParenSuffix = new(@"\s*\(.*?\)\s*", RegexOptions.Compiled);
-        private static readonly Regex Whitespace = new(@"\s+", RegexOptions.Compiled);
-        private static readonly Regex SixDigits = new(@"^\d{6}$", RegexOptions.Compiled);
+        // These run over spreadsheet cells, so the input is user-supplied. The patterns are simple
+        // enough that catastrophic backtracking is not realistic, but an unbounded regex on
+        // untrusted text is worth closing off regardless.
+        private static readonly TimeSpan MatchTimeout = TimeSpan.FromSeconds(1);
+
+        private static readonly Regex ParenSuffix =
+            new(@"\s*\(.*?\)\s*", RegexOptions.Compiled, MatchTimeout);
+
+        private static readonly Regex Whitespace =
+            new(@"\s+", RegexOptions.Compiled, MatchTimeout);
+
+        private static readonly Regex SixDigits =
+            new(@"^\d{6}$", RegexOptions.Compiled, MatchTimeout);
 
         private readonly Dictionary<string, AddressDto> _bySubDistrictCode = [];
         private readonly Dictionary<string, List<Entry>> _bySubDistrictExact = [];

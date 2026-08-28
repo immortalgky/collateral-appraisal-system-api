@@ -98,15 +98,17 @@ public class TitleImportEndpoints : ICarterModule
 public record PasteTitleImportRequest(string Sheet, string Tsv);
 
 /// <param name="IgnoredSheets">Worksheets the file carried that the importer does not recognise — surfaced so a user who renamed a sheet finds out why nothing came through.</param>
+/// <param name="MissingColumns">Columns a row needed that the sheet does not have — see TitleImportResult.</param>
 public record TitleImportPreviewResponse(
     int TotalRows,
     int ValidRows,
     int InvalidRows,
     IReadOnlyList<TitleImportRow> Rows,
     IReadOnlyList<TitleImportRowError> Errors,
-    IReadOnlyList<string> IgnoredSheets)
+    IReadOnlyList<string> IgnoredSheets,
+    IReadOnlyList<string> MissingColumns)
 {
     public static TitleImportPreviewResponse From(TitleImportResult result)
         => new(result.TotalRows, result.ValidRows, result.InvalidRows,
-            result.Rows, result.Errors, result.IgnoredSheets);
+            result.Rows, result.Errors, result.IgnoredSheets, result.MissingColumns);
 }
