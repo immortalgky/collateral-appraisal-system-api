@@ -26,7 +26,7 @@ public class MasterHostCollateralStateTests(IntegrationTestFixture fixture)
 
     private static ParsedHostLinkRecord Record(
         string appraisalNumber, string hostId, string indicator, DateOnly date)
-        => new(appraisalNumber, hostId, CollateralName: null, date, indicator,
+        => new(appraisalNumber, hostId, CollateralName: null, Address1: null, date, indicator,
             LocationCode: null, CollateralCode: null, PropertyType: null, PropertyTypeDesc: null,
             MasterTitle: "Y", RowHash: $"{appraisalNumber}:{hostId}:{indicator}");
 

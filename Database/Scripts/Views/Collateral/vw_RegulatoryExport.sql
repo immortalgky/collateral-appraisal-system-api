@@ -72,23 +72,50 @@ Src AS (
              THEN SUBSTRING(h.AppraisalNumber, 2, LEN(h.AppraisalNumber))
              ELSE h.AppraisalNumber
         END AS CasAppraisalNumber,
-        -- For a block-project unit AS400 writes the name as "CONDO.<key> <deeds>", where <key>
-        -- identifies the unit. Everything up to the first space is that key; NULL for anything that
-        -- is not a CONDO row. See ProjectUnitValue for what it is matched against.
-        CASE WHEN h.CollateralName LIKE 'CONDO.%' THEN
-            CASE WHEN CHARINDEX(' ', SUBSTRING(h.CollateralName, 7, 200)) > 0
-                 THEN LEFT(SUBSTRING(h.CollateralName, 7, 200),
-                           CHARINDEX(' ', SUBSTRING(h.CollateralName, 7, 200)) - 1)
-                 ELSE SUBSTRING(h.CollateralName, 7, 200)
+        -- ── Two keys for one unit ──────────────────────────────────────────────────────────────
+        -- A block-project collateral is one unit of a development, and the export has to find that
+        -- unit in appraisal.ProjectUnits to price it. AS400 states the unit twice, in two fields
+        -- that fail on different rows, so both are carried and either may make the match.
+        --
+        -- AddrToken — the leading word of Address1, the field AS400 added on 2026-08-26. Addresses
+        -- open with the house or room number ("129/517 โครงการเพอร์เฟคเพลส"), and for a HOUSE in a
+        -- development this is the ONLY workable key: CollateralName there is a deed number
+        -- ("ฉ.26892 ร.5036 II 5018-5") and no deed number appears anywhere in the unit table. It
+        -- found the unit for all 55 such collateral that were reporting zero.
+        --
+        -- NameToken — the key out of "CONDO.<key> <deeds>". Still needed: 19 collateral have an
+        -- Address1 that opens with a word rather than a number ("ติด…", "ภายในอาคาร…", "โครงการ…")
+        -- and would lose the unit they match today.
+        --
+        -- The name is read leniently. AS400 writes the prefix four ways — "CONDO.47/18",
+        -- "CONDO. 59/38", "CONDO 159/262", "CONDO138/133" — and the strict 'CONDO.%' + pos-7 read
+        -- produced an EMPTY key for the 52 rows that are not the first spelling, which then matched
+        -- nothing. Dropping a leading '.', '/' and any spaces covers all four, and leaves digits
+        -- alone so "CONDO138/133" yields "138/133".
+        LTRIM(RTRIM(
+            CASE WHEN CHARINDEX(' ', LTRIM(h.Address1)) > 0
+                 THEN LEFT(LTRIM(h.Address1), CHARINDEX(' ', LTRIM(h.Address1)) - 1)
+                 ELSE LTRIM(h.Address1)
+            END)) AS AddrToken,
+        CASE WHEN h.CollateralName LIKE 'CONDO%' THEN
+            CASE WHEN CHARINDEX(' ', v.Rest) > 0
+                 THEN LEFT(v.Rest, CHARINDEX(' ', v.Rest) - 1)
+                 ELSE v.Rest
             END
-        END AS UnitToken,
+        END AS NameToken,
         h.PropertyType,
         h.PropertyTypeDesc
     FROM collateral.HostCollateralLinks h
+    -- Everything after the literal 'CONDO', with a leading '.' or '/' and any spaces removed.
+    CROSS APPLY (SELECT LTRIM(
+        CASE WHEN SUBSTRING(h.CollateralName, 6, 1) IN ('.', '/')
+             THEN SUBSTRING(h.CollateralName, 7, 200)
+             ELSE SUBSTRING(h.CollateralName, 6, 200)
+        END) AS Rest) v
     -- Both 'Y' and 'N' are reported; only a row where the feed never stated the flag is left out.
     -- The bank's own file carries collateral flagged 'N' (collateral 59305 appears three times in the
     -- 2026-08-02 file), so treating 'N' as unreportable dropped 114 collateral the bank does report.
-    -- A blank is different: the row stopped short of pos 132 and AS400 said nothing at all.
+    -- A blank is different: the row stopped short of pos 172 and AS400 said nothing at all.
     WHERE h.MasterTitle IS NOT NULL
       AND h.IsRedeemed = 0
 ),
@@ -320,25 +347,31 @@ PropSource AS (
 -- WHICH APPRAISAL'S UNIT. The same rule as everything else here: walk PrevAppraisalId back from the
 -- appraisal AS400 named, and take the unit from the OLDEST appraisal in that history that surveyed
 -- it — that is the origination. The anchor's own units win for the current value.
+--
+-- The walk starts for any collateral that states a unit key EITHER way. It used to start only for
+-- 'CONDO.%' names, which is why a house in a development never reached the unit table at all.
 ProjectWalk AS (
     SELECT
         an.AppraisalId,
         an.HostCollateralId,
-        s.UnitToken,
+        NULLIF(s.AddrToken, '') AS AddrToken,
+        NULLIF(s.NameToken, '') AS NameToken,
         an.AppraisalId AS AncestorId,
         an.PrevAppraisalId,
         0              AS Depth,
         CAST('|' + CAST(an.AppraisalId AS varchar(36)) + '|' AS varchar(max)) AS Path
     FROM Anchor an
     JOIN Src s ON s.HostCollateralId = an.HostCollateralId
-    WHERE s.UnitToken IS NOT NULL
+    WHERE NULLIF(s.AddrToken, '') IS NOT NULL
+       OR NULLIF(s.NameToken, '') IS NOT NULL
 
     UNION ALL
 
     -- Unlike the main Walk this DOES step through project appraisals. There it is a dead end because
     -- unrelated units point at a shared project and merging them would confuse two collateral; here
     -- the unit token pins one specific unit, so following the project's own history is exactly right.
-    SELECT w.AppraisalId, w.HostCollateralId, w.UnitToken, p.Id, p.PrevAppraisalId, w.Depth + 1,
+    SELECT w.AppraisalId, w.HostCollateralId, w.AddrToken, w.NameToken, p.Id, p.PrevAppraisalId,
+           w.Depth + 1,
            CAST(w.Path + CAST(p.Id AS varchar(36)) + '|' AS varchar(max))
     FROM ProjectWalk w
     JOIN appraisal.Appraisals p ON p.Id = w.PrevAppraisalId AND p.IsDeleted = 0
@@ -346,33 +379,61 @@ ProjectWalk AS (
 ),
 
 -- Every appraisal in that history that actually priced this unit.
+--
+-- Either token may match, and against any of three unit columns. HouseNumber is what a development's
+-- houses are recorded under and is reachable only from Address1. The empty-string guard is
+-- load-bearing: a blank token would match every unit whose column is blank and price a collateral
+-- from an unrelated room.
 ProjectUnitHit AS (
     SELECT
         w.HostCollateralId,
         w.Depth,
         v.ValuationDate,
         pup.TotalAppraisalValueRounded AS UnitValue,
-        -- Registration first, room number second: migrated projects recorded the unit under
-        -- RoomNumber, newly appraised ones record CondoRegistrationNumber. Ordering rather than
-        -- branching keeps one rule working as the data shifts.
-        CASE WHEN pu.CondoRegistrationNumber = w.UnitToken THEN 0 ELSE 1 END AS KeyRank
+        -- WHICH TOKEN WINS WHEN THE TWO DISAGREE. The name, always. AS400 has one field whose whole
+        -- purpose is to state the unit — "CONDO.<key>" — while Address1 is an address that merely
+        -- tends to open with the unit number, so where both name a real unit the purpose-built field
+        -- is the better evidence. It also keeps this change additive: a collateral that already
+        -- resolved keeps the value it reports today and Address1 only fills gaps.
+        --
+        -- This is not hypothetical. Collateral 114596 is named CONDO.3399/384 while its Address1 reads
+        -- "3399/385 ชั้น15" — two different real units of the same building, 11,000 baht apart. Without
+        -- this rank the winner would be decided by which unit column happened to match.
+        CASE WHEN w.NameToken IS NOT NULL
+                  AND (pu.CondoRegistrationNumber = w.NameToken
+                       OR pu.RoomNumber           = w.NameToken
+                       OR pu.HouseNumber          = w.NameToken) THEN 0 ELSE 1
+        END AS TokenRank,
+        -- Registration first, then the room, then the house number: migrated projects recorded the
+        -- unit under RoomNumber, newly appraised ones record CondoRegistrationNumber, and houses
+        -- carry neither. Ordering rather than branching keeps one rule working as the data shifts.
+        CASE WHEN pu.CondoRegistrationNumber IN (w.AddrToken, w.NameToken) THEN 0
+             WHEN pu.RoomNumber              IN (w.AddrToken, w.NameToken) THEN 1
+             ELSE 2
+        END AS KeyRank
     FROM ProjectWalk w
     JOIN appraisal.Projects pr      ON pr.AppraisalId = w.AncestorId
     JOIN appraisal.ProjectUnits pu  ON pu.ProjectId   = pr.Id
     JOIN appraisal.ProjectUnitPrices pup ON pup.ProjectUnitId = pu.Id
     LEFT JOIN Val v ON v.AppraisalId = w.AncestorId
     WHERE ISNULL(pup.TotalAppraisalValueRounded, 0) > 0
-      AND (pu.CondoRegistrationNumber = w.UnitToken OR pu.RoomNumber = w.UnitToken)
+      AND (pu.CondoRegistrationNumber IN (w.AddrToken, w.NameToken)
+           OR pu.RoomNumber            IN (w.AddrToken, w.NameToken)
+           OR pu.HouseNumber           IN (w.AddrToken, w.NameToken))
 ),
 
--- Collateral that IS a project unit: AS400 named a unit (CONDO.<key>) and the appraisal history runs
--- through a block project. For these the unit table is the ONLY acceptable source of value — the
--- appraisal-level figure belongs to whatever that appraisal covered, not to this one unit. When the
--- unit cannot be found the row reports 0 rather than borrowing that figure.
+-- Collateral that IS a project unit: AS400 stated a unit key and the appraisal history runs through a
+-- block project. For these the unit table is the ONLY acceptable source of value — the appraisal-level
+-- figure belongs to whatever that appraisal covered, not to this one unit. When the unit cannot be
+-- found the row reports 0 rather than borrowing that figure.
 --
 -- 69A03063 is the case that forced this: a standalone condo appraisal worth 4,180,000 whose
 -- PrevAppraisalId runs back to project 65A03510, which holds no units at all. Reporting 4,180,000 as
 -- unit 99/1832's value was a guess dressed up as data.
+--
+-- Widening the walk to Address1 widened this rule with it, so it was measured before shipping: on the
+-- 2026-08-03 feed NOT ONE collateral that reports a value today would fall to 0. Every collateral
+-- newly pulled onto the unit path finds its unit.
 ProjectUnitRow AS (
     SELECT DISTINCT w.HostCollateralId
     FROM ProjectWalk w
@@ -388,10 +449,12 @@ ProjectUnitValue AS (
         SELECT h.*,
                -- Oldest survey of this unit = its origination.
                ROW_NUMBER() OVER (PARTITION BY h.HostCollateralId
-                                  ORDER BY h.ValuationDate ASC, h.Depth DESC, h.KeyRank) AS rnEarliest,
+                                  ORDER BY h.ValuationDate ASC, h.Depth DESC,
+                                           h.TokenRank, h.KeyRank) AS rnEarliest,
                -- Nearest to the appraisal AS400 named = its current value.
                ROW_NUMBER() OVER (PARTITION BY h.HostCollateralId
-                                  ORDER BY h.Depth ASC, h.ValuationDate DESC, h.KeyRank) AS rnLatest
+                                  ORDER BY h.Depth ASC, h.ValuationDate DESC,
+                                           h.TokenRank, h.KeyRank) AS rnLatest
         FROM ProjectUnitHit h
     ) z
     GROUP BY HostCollateralId

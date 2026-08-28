@@ -29,7 +29,8 @@ public class HostCollateralLinkIngestorProjectTests(IntegrationTestFixture fixtu
     private static ParsedHostLinkRecord Record(
         string appraisalNumber, string hostId, string indicator = HostLinkRecordIndicators.Drawdown,
         DateOnly? date = null)
-        => new(appraisalNumber, hostId, CollateralName: null, date ?? new DateOnly(2026, 1, 25),
+        => new(appraisalNumber, hostId, CollateralName: null, Address1: null,
+            date ?? new DateOnly(2026, 1, 25),
             indicator, LocationCode: null, CollateralCode: null, PropertyType: null,
             PropertyTypeDesc: null, MasterTitle: "Y", RowHash: $"{appraisalNumber}:{hostId}");
 

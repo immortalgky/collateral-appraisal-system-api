@@ -21,7 +21,7 @@ public class HostCollateralLinkIngestorTests
         DateOnly? recordDate,
         string hostId = "111",
         string appraisalNumber = "69000001")
-        => new(appraisalNumber, hostId, CollateralName: null, recordDate, indicator,
+        => new(appraisalNumber, hostId, CollateralName: null, Address1: null, recordDate, indicator,
             LocationCode: null, CollateralCode: null, PropertyType: null, PropertyTypeDesc: null,
             MasterTitle: "Y", RowHash: $"{indicator}{recordDate}{hostId}");
 
