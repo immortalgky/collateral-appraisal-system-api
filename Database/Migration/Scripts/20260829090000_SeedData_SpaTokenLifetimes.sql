@@ -57,16 +57,20 @@ BEGIN
         -- first UPDATE would silently drop every key written after it.
         SET @Current = (SELECT Settings FROM auth.OpenIddictApplications WHERE ClientId = N'spa');
 
-        -- Treat a NULL, blank, or non-JSON Settings column as "no settings yet" rather than failing:
-        -- JSON_MODIFY errors on a malformed document and would take the whole migration down with it.
+        -- Treat a NULL, blank, non-JSON, or non-object Settings column as "no settings yet" rather
+        -- than failing: JSON_MODIFY errors on a malformed document and would take the whole migration
+        -- down with it. The array check matters because ISJSON accepts '[]', and JSON_MODIFY would
+        -- then return it unchanged in lax mode — the script would report success having written
+        -- nothing. OpenIddict never stores an array here, but silence would be the worst outcome.
         IF @Current IS NULL OR LTRIM(RTRIM(@Current)) = N'' OR ISJSON(@Current) = 0
+           OR LEFT(LTRIM(@Current), 1) <> N'{'
             SET @Current = N'{}';
 
         SET @Path = N'$."' + @SettingKey + N'"';
 
         IF JSON_VALUE(@Current, @Path) IS NOT NULL
         BEGIN
-            PRINT 'The `spa` client already carries a ' + @Label + ' token lifetime — leaving it untouched.';
+            PRINT 'The `spa` client already carries its ' + @Label + ' token lifetime — leaving it untouched.';
         END
         ELSE
         BEGIN

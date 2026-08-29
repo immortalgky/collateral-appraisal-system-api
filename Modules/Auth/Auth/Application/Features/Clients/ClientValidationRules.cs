@@ -16,12 +16,13 @@ public static class ClientValidationRules
 
     /// <summary>
     /// Bounds one per-client token lifetime. Null is valid and means "fall back to the server
-    /// default"; callers gate on HasValue before invoking this. Rejecting out-of-range values here
+    /// default" — callers also gate on HasValue, but the predicate stands on its own so a future
+    /// caller that forgets cannot accidentally reject it. Rejecting out-of-range values here
     /// matters because OpenIddict ignores a setting it cannot use and silently falls back, so an
     /// unchecked value would look saved while changing nothing.
     /// </summary>
     public static bool IsValidLifetime(int? minutes, ClientPermissionMapper.TokenLifetimeKind kind) =>
-        minutes is { } value && value >= kind.MinMinutes && value <= kind.MaxMinutes;
+        minutes is not { } value || (value >= kind.MinMinutes && value <= kind.MaxMinutes);
 
     public static string LifetimeMessage(string label, ClientPermissionMapper.TokenLifetimeKind kind) =>
         $"{label} must be between {kind.MinMinutes} and {kind.MaxMinutes} minutes, or empty to use the server default.";

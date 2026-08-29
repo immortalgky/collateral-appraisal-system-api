@@ -201,15 +201,23 @@ public static class ClientPermissionMapper
     /// lifetime that is actually in force rather than a value that silently does nothing.
     /// <para>
     /// The screen works in whole minutes, so a value written directly into the row with finer
-    /// precision is rounded rather than truncated: truncating would render 00:00:45 as "0", which
-    /// then fails the minimum-of-one-minute rule and reads as corruption instead of rounding.
-    /// Re-saving such a client does normalise the stored value to whole minutes.
+    /// precision is rounded rather than truncated — truncating would render 00:00:45 as "0", which
+    /// reads as corruption rather than rounding. Re-saving normalises the stored value.
+    /// </para>
+    /// <para>
+    /// A zero or negative lifetime reads as null rather than being clamped up to 1: OpenIddict would
+    /// honour it and mint already-expired tokens, so reporting "1 minute" would be a lie about what
+    /// is in force. null at least says "not a value this screen can represent".
     /// </para>
     /// </summary>
     private static int? ReadLifetimeMinutes(
-        IReadOnlyDictionary<string, string> settings, TokenLifetimeKind kind) =>
-        settings.TryGetValue(kind.SettingKey, out var setting)
-        && TimeSpan.TryParse(setting, CultureInfo.InvariantCulture, out var lifetime)
-            ? Math.Max(1, (int)Math.Round(lifetime.TotalMinutes, MidpointRounding.AwayFromZero))
-            : null;
+        IReadOnlyDictionary<string, string> settings, TokenLifetimeKind kind)
+    {
+        if (!settings.TryGetValue(kind.SettingKey, out var setting)
+            || !TimeSpan.TryParse(setting, CultureInfo.InvariantCulture, out var lifetime)
+            || lifetime <= TimeSpan.Zero)
+            return null;
+
+        return (int)Math.Round(lifetime.TotalMinutes, MidpointRounding.AwayFromZero);
+    }
 }
