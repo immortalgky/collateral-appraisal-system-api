@@ -642,6 +642,7 @@ internal static class AppraisalResultBuilder
                         r.Rai,
                         r.Ngan,
                         r.Wa,
+                        NullIfBlank(r.Village),
                         r.HouseNo,
                         r.BuildingType,
                         r.BuildingAge ?? r.CondoBuildingAge,
@@ -651,6 +652,7 @@ internal static class AppraisalResultBuilder
                         r.FloorNo,
                         r.BuildingNo,
                         r.CondoRegistrationNumber,
+                        NullIfBlank(r.CondoName),
                         // v1 reports the condo's usable area, or the building's gross area for a
                         // non-condo. cad is null on a building row and vice versa, so this picks
                         // whichever one the collateral actually carries.
@@ -662,7 +664,7 @@ internal static class AppraisalResultBuilder
                         r.District ?? r.CadDistrict,
                         r.SubDistrict ?? r.CadSubDistrict,
                         r.LandOffice ?? r.CadLandOffice,
-                        FirstNonEmpty(r.CondoName, r.Village),
+                        null, // projectName - block only
                         ParseDecorate(r.BuildingDecorationType ?? r.CondoDecorationType),
                         r.VehicleRegistrationNo,
                         r.VehicleBrand,
@@ -834,8 +836,9 @@ internal static class AppraisalResultBuilder
         _ => 0,
     };
 
-    private static string? FirstNonEmpty(params string?[] values) =>
-        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+    // These name columns hold "" as often as NULL; both mean "no name", and v2 omits nulls.
+    private static string? NullIfBlank(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value;
 
     // Resolves a single block/project unit by the selector. Throws ValidationException (→ 400) when
     // the selector is missing/wrong for the project type and strict is on; returns null (no match /
@@ -927,8 +930,10 @@ internal static class AppraisalResultBuilder
             District: project.DistrictCode,
             SubDistrict: project.SubDistrictCode,
             LandOffice: project.LandOfficeCode,
-            // A block has no per-unit building name; the project name is the legacy BuildingDetails.
-            BuildingName: project.ProjectName,
+            Village: null,
+            CondoName: null,
+            // The block's own name. v1 packs this into BuildingDetails alongside the two above.
+            ProjectName: NullIfBlank(project.ProjectName),
             Decorate: ParseDecorate(unit.DecorationType),
             VehicleRegistrationNo: null,
             VehicleBrand: null,

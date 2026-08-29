@@ -71,6 +71,9 @@ public record AppraisalResultCollateral(
     decimal? Rai,
     decimal? Ngan,
     decimal? Wa,
+    // Name of the housing estate the parcel sits in. A parcel has no building of its own,
+    // so this is an estate name, not a building name.
+    string? Village,
     // Building
     string? HouseNo,
     string? BuildingType,
@@ -85,6 +88,8 @@ public record AppraisalResultCollateral(
     string? BuildingNo,
     // Condominium registration number - the tower's, for a block. Legacy field: BuildingRegisterNo.
     string? CondoRegistrationNumber,
+    // Name of the condominium building.
+    string? CondoName,
     decimal? AreaUtilize,
     // Leasehold
     string? ContractNo,
@@ -95,9 +100,8 @@ public record AppraisalResultCollateral(
     string? District,
     string? SubDistrict,
     string? LandOffice,
-    // The building's name: condo name, else the land detail's village name, else - for a block -
-    // the project name. Legacy field: BuildingDetails.
-    string? BuildingName,
+    // Name of the block/project development; block appraisals only.
+    string? ProjectName,
     // DecorationType code parsed to the legacy integer ("01" -> 1); null when the code is not
     // numeric or absent. Legacy field: Decorate.
     int? Decorate,
