@@ -1,3 +1,5 @@
+using FluentValidation;
+
 namespace Auth.Application.Features.Clients;
 
 /// <summary>
@@ -24,6 +26,17 @@ public static class ClientValidationRules
     public static bool IsValidLifetime(int? minutes, ClientPermissionMapper.TokenLifetimeKind kind) =>
         minutes is not { } value || (value >= kind.MinMinutes && value <= kind.MaxMinutes);
 
-    public static string LifetimeMessage(string label, ClientPermissionMapper.TokenLifetimeKind kind) =>
+    private static string LifetimeMessage(string label, ClientPermissionMapper.TokenLifetimeKind kind) =>
         $"{label} must be between {kind.MinMinutes} and {kind.MaxMinutes} minutes, or empty to use the server default.";
+
+    /// <summary>
+    /// Bounds one lifetime field. An extension rather than three copied rule blocks per validator:
+    /// register and update need the identical set, and copying them left six near-identical blocks
+    /// that read as noise and drift independently.
+    /// </summary>
+    public static IRuleBuilderOptions<T, int?> ValidTokenLifetime<T>(
+        this IRuleBuilder<T, int?> rule,
+        ClientPermissionMapper.TokenLifetimeKind kind,
+        string label) =>
+        rule.Must(minutes => IsValidLifetime(minutes, kind)).WithMessage(LifetimeMessage(label, kind));
 }

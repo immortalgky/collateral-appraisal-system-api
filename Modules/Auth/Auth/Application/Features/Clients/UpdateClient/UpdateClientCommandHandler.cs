@@ -41,17 +41,11 @@ public class UpdateClientCommandValidator : AbstractValidator<UpdateClientComman
         // OpenIddict silently ignores a setting it cannot use and falls back to the server default,
         // so an unvalidated value would look saved while changing nothing.
         RuleFor(x => x.AccessTokenLifetimeMinutes)
-            .Must(v => ClientValidationRules.IsValidLifetime(v, ClientPermissionMapper.AccessTokenLifetime))
-            .When(x => x.AccessTokenLifetimeMinutes.HasValue)
-            .WithMessage(ClientValidationRules.LifetimeMessage("Access token lifetime", ClientPermissionMapper.AccessTokenLifetime));
+            .ValidTokenLifetime(ClientPermissionMapper.AccessTokenLifetime, "Access token lifetime");
         RuleFor(x => x.IdentityTokenLifetimeMinutes)
-            .Must(v => ClientValidationRules.IsValidLifetime(v, ClientPermissionMapper.IdentityTokenLifetime))
-            .When(x => x.IdentityTokenLifetimeMinutes.HasValue)
-            .WithMessage(ClientValidationRules.LifetimeMessage("Identity token lifetime", ClientPermissionMapper.IdentityTokenLifetime));
+            .ValidTokenLifetime(ClientPermissionMapper.IdentityTokenLifetime, "Identity token lifetime");
         RuleFor(x => x.RefreshTokenLifetimeMinutes)
-            .Must(v => ClientValidationRules.IsValidLifetime(v, ClientPermissionMapper.RefreshTokenLifetime))
-            .When(x => x.RefreshTokenLifetimeMinutes.HasValue)
-            .WithMessage(ClientValidationRules.LifetimeMessage("Refresh token lifetime", ClientPermissionMapper.RefreshTokenLifetime));
+            .ValidTokenLifetime(ClientPermissionMapper.RefreshTokenLifetime, "Refresh token lifetime");
     }
 }
 
