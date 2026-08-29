@@ -618,7 +618,12 @@ internal static class AppraisalResultBuilder
             }
 
             groups = collateralRows
-                .GroupBy(r => r.GroupId)
+                // Key on the property when there is no group. GroupId is null for every
+                // ungrouped property (PMA intake, before grouping happens), so grouping on it
+                // alone collapsed all of them into one bucket that then reported a single
+                // group's pricing for the lot - 21 unrelated collaterals in one group on
+                // APP-20260221-64654182. Each ungrouped property is its own group instead.
+                .GroupBy(r => r.GroupId ?? r.PropertyId)
                 .Select(g =>
                 {
                     var first = g.First();
