@@ -14,16 +14,15 @@ public static class ClientValidationRules
         uri is { IsAbsoluteUri: true }
         && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
 
-    public static readonly string RefreshTokenLifetimeMessage =
-        $"Refresh token lifetime must be between {(int)ClientPermissionMapper.MinRefreshTokenLifetime.TotalMinutes} " +
-        $"and {(int)ClientPermissionMapper.MaxRefreshTokenLifetime.TotalMinutes} minutes, or empty to use the server default.";
-
     /// <summary>
-    /// Bounds the per-client refresh-token lifetime. Null is valid and means "fall back to the
-    /// server default"; the caller gates on HasValue before invoking this.
+    /// Bounds one per-client token lifetime. Null is valid and means "fall back to the server
+    /// default"; callers gate on HasValue before invoking this. Rejecting out-of-range values here
+    /// matters because OpenIddict ignores a setting it cannot use and silently falls back, so an
+    /// unchecked value would look saved while changing nothing.
     /// </summary>
-    public static bool IsValidRefreshTokenLifetime(int? minutes) =>
-        minutes is { } value
-        && value >= (int)ClientPermissionMapper.MinRefreshTokenLifetime.TotalMinutes
-        && value <= (int)ClientPermissionMapper.MaxRefreshTokenLifetime.TotalMinutes;
+    public static bool IsValidLifetime(int? minutes, ClientPermissionMapper.TokenLifetimeKind kind) =>
+        minutes is { } value && value >= kind.MinMinutes && value <= kind.MaxMinutes;
+
+    public static string LifetimeMessage(string label, ClientPermissionMapper.TokenLifetimeKind kind) =>
+        $"{label} must be between {kind.MinMinutes} and {kind.MaxMinutes} minutes, or empty to use the server default.";
 }

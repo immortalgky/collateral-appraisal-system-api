@@ -14,6 +14,8 @@ public record RegisterClientCommand(
     List<Uri> PostLogoutRedirectUris,
     List<string> GrantTypes,
     List<string> Scopes,
+    int? AccessTokenLifetimeMinutes,
+    int? IdentityTokenLifetimeMinutes,
     int? RefreshTokenLifetimeMinutes
 ) : ICommand<RegisterClientResult>;
 
@@ -46,10 +48,18 @@ public class RegisterClientCommandValidator : AbstractValidator<RegisterClientCo
         RuleForEach(x => x.PostLogoutRedirectUris)
             .Must(ClientValidationRules.IsAbsoluteHttpUri)
             .WithMessage("Post-logout redirect URIs must be absolute http(s) URLs.");
+        RuleFor(x => x.AccessTokenLifetimeMinutes)
+            .Must(v => ClientValidationRules.IsValidLifetime(v, ClientPermissionMapper.AccessTokenLifetime))
+            .When(x => x.AccessTokenLifetimeMinutes.HasValue)
+            .WithMessage(ClientValidationRules.LifetimeMessage("Access token lifetime", ClientPermissionMapper.AccessTokenLifetime));
+        RuleFor(x => x.IdentityTokenLifetimeMinutes)
+            .Must(v => ClientValidationRules.IsValidLifetime(v, ClientPermissionMapper.IdentityTokenLifetime))
+            .When(x => x.IdentityTokenLifetimeMinutes.HasValue)
+            .WithMessage(ClientValidationRules.LifetimeMessage("Identity token lifetime", ClientPermissionMapper.IdentityTokenLifetime));
         RuleFor(x => x.RefreshTokenLifetimeMinutes)
-            .Must(ClientValidationRules.IsValidRefreshTokenLifetime)
+            .Must(v => ClientValidationRules.IsValidLifetime(v, ClientPermissionMapper.RefreshTokenLifetime))
             .When(x => x.RefreshTokenLifetimeMinutes.HasValue)
-            .WithMessage(ClientValidationRules.RefreshTokenLifetimeMessage);
+            .WithMessage(ClientValidationRules.LifetimeMessage("Refresh token lifetime", ClientPermissionMapper.RefreshTokenLifetime));
     }
 }
 
@@ -83,7 +93,10 @@ public class RegisterClientCommandHandler(IOpenIddictApplicationManager applicat
         ClientPermissionMapper.ApplyToDescriptor(
             descriptor, clientType, command.GrantTypes, command.Scopes,
             command.RedirectUris, command.PostLogoutRedirectUris,
-            command.RefreshTokenLifetimeMinutes);
+            new ClientTokenLifetimes(
+                command.AccessTokenLifetimeMinutes,
+                command.IdentityTokenLifetimeMinutes,
+                command.RefreshTokenLifetimeMinutes));
 
         var created = await applicationManager.CreateAsync(descriptor, cancellationToken);
         var id = await applicationManager.GetIdAsync(created, cancellationToken) ?? "";

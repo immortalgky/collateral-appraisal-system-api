@@ -12,6 +12,8 @@ public record UpdateClientCommand(
     List<Uri> PostLogoutRedirectUris,
     List<string> GrantTypes,
     List<string> Scopes,
+    int? AccessTokenLifetimeMinutes,
+    int? IdentityTokenLifetimeMinutes,
     int? RefreshTokenLifetimeMinutes
 ) : ICommand;
 
@@ -38,10 +40,18 @@ public class UpdateClientCommandValidator : AbstractValidator<UpdateClientComman
         // Reject an out-of-range lifetime here rather than letting it reach the application row.
         // OpenIddict silently ignores a setting it cannot use and falls back to the server default,
         // so an unvalidated value would look saved while changing nothing.
+        RuleFor(x => x.AccessTokenLifetimeMinutes)
+            .Must(v => ClientValidationRules.IsValidLifetime(v, ClientPermissionMapper.AccessTokenLifetime))
+            .When(x => x.AccessTokenLifetimeMinutes.HasValue)
+            .WithMessage(ClientValidationRules.LifetimeMessage("Access token lifetime", ClientPermissionMapper.AccessTokenLifetime));
+        RuleFor(x => x.IdentityTokenLifetimeMinutes)
+            .Must(v => ClientValidationRules.IsValidLifetime(v, ClientPermissionMapper.IdentityTokenLifetime))
+            .When(x => x.IdentityTokenLifetimeMinutes.HasValue)
+            .WithMessage(ClientValidationRules.LifetimeMessage("Identity token lifetime", ClientPermissionMapper.IdentityTokenLifetime));
         RuleFor(x => x.RefreshTokenLifetimeMinutes)
-            .Must(ClientValidationRules.IsValidRefreshTokenLifetime)
+            .Must(v => ClientValidationRules.IsValidLifetime(v, ClientPermissionMapper.RefreshTokenLifetime))
             .When(x => x.RefreshTokenLifetimeMinutes.HasValue)
-            .WithMessage(ClientValidationRules.RefreshTokenLifetimeMessage);
+            .WithMessage(ClientValidationRules.LifetimeMessage("Refresh token lifetime", ClientPermissionMapper.RefreshTokenLifetime));
     }
 }
 
@@ -64,7 +74,10 @@ public class UpdateClientCommandHandler(IOpenIddictApplicationManager applicatio
             descriptor.ClientType ?? OpenIddictConstants.ClientTypes.Public,
             command.GrantTypes, command.Scopes,
             command.RedirectUris, command.PostLogoutRedirectUris,
-            command.RefreshTokenLifetimeMinutes);
+            new ClientTokenLifetimes(
+                command.AccessTokenLifetimeMinutes,
+                command.IdentityTokenLifetimeMinutes,
+                command.RefreshTokenLifetimeMinutes));
 
         await applicationManager.UpdateAsync(app, descriptor, cancellationToken);
         return Unit.Value;

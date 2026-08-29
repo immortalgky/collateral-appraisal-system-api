@@ -12,6 +12,8 @@ public record UpdateClientRequest(
     List<Uri> PostLogoutRedirectUris,
     List<string> GrantTypes,
     List<string> Scopes,
+    int? AccessTokenLifetimeMinutes,
+    int? IdentityTokenLifetimeMinutes,
     int? RefreshTokenLifetimeMinutes
 );
 
@@ -32,6 +34,8 @@ public class UpdateClientEndpoint : ICarterModule
                     request.PostLogoutRedirectUris ?? [],
                     request.GrantTypes ?? [],
                     request.Scopes ?? [],
+                    request.AccessTokenLifetimeMinutes,
+                    request.IdentityTokenLifetimeMinutes,
                     request.RefreshTokenLifetimeMinutes);
 
                 await sender.Send(command, cancellationToken);
