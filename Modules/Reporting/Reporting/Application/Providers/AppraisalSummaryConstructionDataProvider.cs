@@ -547,8 +547,9 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         public decimal CITotalValue { get; init; }
 
         /// <summary>
-        /// SUM(SummaryCurrentValue | ConstructionWorkDetails.CurrentPropertyValue) —
-        /// building value at current progress (ciCurrent in BuildConstructionSummaryAsync).
+        /// SUM of each inspection's current-round value: TotalValue x the entered percentage in
+        /// summary mode, the work-detail sum in full detail — never SummaryCurrentValue, which the
+        /// CI screen leaves at 0 (see RS01). This is ciCurrent in BuildConstructionSummaryAsync.
         /// </summary>
         public decimal CICurrentValue { get; init; }
 

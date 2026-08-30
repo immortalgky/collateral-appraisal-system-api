@@ -85,6 +85,12 @@ internal static class ConstructionSectionLoader
                 wd.ProportionPct,
                 wd.PreviousProgressPct               AS PreviousPct,
                 wd.CurrentProgressPct                AS CurrentPct,
+                -- The item's share of the whole building at this round's progress, persisted as
+                -- decimal(7,4). The rollups below sum THIS rather than recomputing
+                -- ProportionPct x CurrentPct, so they land on the same figure as every other site,
+                -- which all sum the stored column. Recomputing keeps full precision and drifts from
+                -- them by a fraction of a percentage point across a thirty-item split.
+                wd.CurrentProportionPct,
                 wd.PreviousPropertyValue,
                 wd.CurrentPropertyValue
             FROM appraisal.ConstructionWorkDetails wd
@@ -149,7 +155,7 @@ internal static class ConstructionSectionLoader
                         // and collapsed to 0.00% outright for a condo unit, whose inspection
                         // carries no value base at all. See ConstructionMoney.
                         PreviousPct  = groupItems.Sum(d => d.ProportionPct * d.PreviousPct / 100m),
-                        CurrentPct   = groupItems.Sum(d => d.ProportionPct * d.CurrentPct / 100m),
+                        CurrentPct   = groupItems.Sum(d => d.CurrentProportionPct),
                         PreviousValue = groupItems.Sum(d => d.PreviousPropertyValue),
                         CurrentValue  = groupItems.Sum(d => d.CurrentPropertyValue),
                     };
@@ -198,6 +204,7 @@ internal static class ConstructionSectionLoader
         public decimal PreviousPct { get; init; }
         public decimal CurrentPct { get; init; }
         public decimal PreviousPropertyValue { get; init; }
-        public decimal CurrentPropertyValue { get; init; }
+        public decimal CurrentProportionPct { get; init; }
+    public decimal CurrentPropertyValue { get; init; }
     }
 }

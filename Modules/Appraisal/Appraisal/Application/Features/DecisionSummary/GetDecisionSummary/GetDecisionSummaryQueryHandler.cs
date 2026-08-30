@@ -700,6 +700,9 @@ public class GetDecisionSummaryQueryHandler(
         return new ConstructionSummaryData(village, rows, buildings, completedBuildings);
     }
 
+    private static decimal AsReportedPercent(decimal value) =>
+        Math.Round(Math.Clamp(value, 0m, 100m), 2, MidpointRounding.AwayFromZero);
+
     // Mapped by NAME (settable properties), not by constructor position — the three adjacent
     // string? columns would corrupt silently if a positional record were used and the SELECT
     // column order ever changed.
@@ -708,9 +711,6 @@ public class GetDecisionSummaryQueryHandler(
     /// away from zero. The card's percentages come through that property; these rows come straight
     /// out of SQL, so they need the same treatment or the two disagree on one screen.
     /// </summary>
-    private static decimal AsReportedPercent(decimal value) =>
-        Math.Round(Math.Clamp(value, 0m, 100m), 2, MidpointRounding.AwayFromZero);
-
     private sealed class CiDetailRow
     {
         public Guid AppraisalPropertyId { get; init; }

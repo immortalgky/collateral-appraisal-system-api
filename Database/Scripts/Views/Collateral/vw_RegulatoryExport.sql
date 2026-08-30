@@ -220,10 +220,8 @@ Ci AS (
     JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
     LEFT JOIN (
         SELECT ConstructionInspectionId,
-               SUM(PreviousPropertyValue) AS PreviousSum,
-               SUM(CurrentPropertyValue)  AS CurrentSum,
-               SUM(ProportionPct * PreviousProgressPct / 100.0) AS PreviousPctSum,
-               SUM(CurrentProportionPct)  AS CurrentPctSum
+               SUM(CurrentPropertyValue) AS CurrentSum,
+               SUM(CurrentProportionPct) AS CurrentPctSum
         FROM appraisal.ConstructionWorkDetails
         GROUP BY ConstructionInspectionId
     ) wd ON wd.ConstructionInspectionId = ci.Id
@@ -232,13 +230,8 @@ Ci AS (
     CROSS APPLY (
         SELECT
             ci.TotalValue,
-            CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryPreviousProgressPct, 0)
-                 ELSE ISNULL(wd.PreviousPctSum, 0) END AS PreviousPct,
             CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
                  ELSE ISNULL(wd.CurrentPctSum, 0) END  AS CurrentPct,
-            CASE WHEN ci.IsFullDetail = 0
-                 THEN ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0) / 100.0
-                 ELSE ISNULL(wd.PreviousSum, 0) END    AS PreviousValue,
             CASE WHEN ci.IsFullDetail = 0
                  THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
                  ELSE ISNULL(wd.CurrentSum, 0) END     AS CurrentValue
@@ -249,8 +242,9 @@ Ci AS (
 -- A condo unit has no building depreciation table, so the CI screen has nothing to total and every
 -- inspection on the appraisal stores TotalValue = 0. That is a different thing from having no
 -- inspection at all, and the two used to collapse into the same "TotalValue = 0 → 100%" arm below.
--- HasOwnValueBase keeps them apart: with a value base the columns are read from the money, without
--- one they are read from the percentage the inspector entered.
+-- HasOwnValueBase keeps them apart. Progress is read from the entered percentages either way —
+-- weighted by what each building is worth when there is a value base, a plain average when there is
+-- not. Only the money column differs, and only because there is no money to report.
 --
 -- No appraised-value substitution here. The percentage is all this view needs, and CurrentValue is
 -- deliberately left NULL in that case so RegulatoryFileWriter's CurrentValue ?? LatestAppraisalValue
