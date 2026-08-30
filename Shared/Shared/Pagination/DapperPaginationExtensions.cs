@@ -81,7 +81,22 @@ public static class DapperPaginationExtensions
     /// <summary>
     /// Paginated query on a caller-supplied connection with an OPTIONAL custom count
     /// statement (see the factory overload for semantics).
+    ///
+    /// <para><b>Caller contract.</b> <paramref name="sql"/> and <paramref name="countSql"/> are
+    /// appended to verbatim, so they must be built from literals with every value bound as a
+    /// <c>@parameter</c>; this method cannot validate them. What it does own is checked here:
+    /// <paramref name="orderBy"/> goes through <see cref="ValidateOrderBy"/>, the offset and page
+    /// size are integers, and the query hint is a literal selected by a bool rather than a string
+    /// the caller supplies.</para>
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube",
+        "S2077:Formatting SQL queries is security-sensitive",
+        Justification =
+            "The interpolated fragments this method owns are all constrained: orderBy is rejected " +
+            "by ValidateOrderBy unless it is a bare column plus ASC/DESC, offset and PageSize are " +
+            "ints, and the hint is a literal chosen by a bool. sql/countSql are the caller's " +
+            "contract, documented above and satisfied by every call site — each builds its text " +
+            "from literals and binds values as @parameters.")]
     public static async Task<PaginatedResult<T>> QueryPaginatedAsync<T>(
         this IDbConnection connection,
         string sql,
