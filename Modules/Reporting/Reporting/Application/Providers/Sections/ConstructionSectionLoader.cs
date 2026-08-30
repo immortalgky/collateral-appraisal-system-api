@@ -85,6 +85,14 @@ internal static class ConstructionSectionLoader
                 wd.ProportionPct,
                 wd.PreviousProgressPct               AS PreviousPct,
                 wd.CurrentProgressPct                AS CurrentPct,
+                -- The item's share of the whole building at this round's progress, persisted as
+                -- decimal(7,4). The CURRENT rollup below sums this rather than recomputing
+                -- ProportionPct x CurrentPct, so it lands on the same figure as every other site,
+                -- which all sum the stored column; recomputing keeps full precision and drifts from
+                -- them by a fraction of a percentage point across a thirty-item split. The previous
+                -- rollup has to recompute — no stored previous-proportion column exists — and every
+                -- other site does the same, so the asymmetry is shared.
+                wd.CurrentProportionPct,
                 wd.PreviousPropertyValue,
                 wd.CurrentPropertyValue
             FROM appraisal.ConstructionWorkDetails wd
@@ -142,14 +150,14 @@ internal static class ConstructionSectionLoader
                         Items        = itemRows,
                         Value        = groupItems.Sum(d => d.ConstructionValue),
                         ProportionPct = groupItems.Sum(d => d.ProportionPct),
-                        PreviousPct  = groupItems.Sum(d => d.PreviousPropertyValue > 0 || d.ConstructionValue > 0
-                                            ? (d.ConstructionValue > 0
-                                                ? d.PreviousPropertyValue / d.ConstructionValue * d.ProportionPct
-                                                : 0m)
-                                            : 0m),
-                        CurrentPct   = groupItems.Sum(d => d.ConstructionValue > 0
-                                            ? d.CurrentPropertyValue / d.ConstructionValue * d.ProportionPct
-                                            : 0m),
+                        // Weighted off the entered percentages, not off the money. Dividing
+                        // PreviousPropertyValue by ConstructionValue stopped being exact once both
+                        // were rounded to whole baht (CA-614), so these rollups drifted from the
+                        // Σ(ProportionPct × pct / 100) the summary block prints above this table —
+                        // and collapsed to 0.00% outright for a condo unit, whose inspection
+                        // carries no value base at all. See ConstructionMoney.
+                        PreviousPct  = groupItems.Sum(d => d.ProportionPct * d.PreviousPct / 100m),
+                        CurrentPct   = groupItems.Sum(d => d.CurrentProportionPct),
                         PreviousValue = groupItems.Sum(d => d.PreviousPropertyValue),
                         CurrentValue  = groupItems.Sum(d => d.CurrentPropertyValue),
                     };
@@ -198,6 +206,7 @@ internal static class ConstructionSectionLoader
         public decimal PreviousPct { get; init; }
         public decimal CurrentPct { get; init; }
         public decimal PreviousPropertyValue { get; init; }
+        public decimal CurrentProportionPct { get; init; }
         public decimal CurrentPropertyValue { get; init; }
     }
 }

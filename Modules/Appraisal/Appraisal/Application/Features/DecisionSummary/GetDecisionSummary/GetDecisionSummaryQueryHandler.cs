@@ -517,8 +517,9 @@ public class GetDecisionSummaryQueryHandler(
         var p = new DynamicParameters();
         p.Add("AppraisalId", appraisalId);
 
-        // รายละเอียดรายอาคาร — must use the SAME summary-mode derivation as
-        // IConstructionCurrentValueService, or these rows will not add up to the card above them.
+        // รายละเอียดรายอาคาร — must use the SAME derivations as IConstructionCurrentValueService,
+        // or these rows will not add up to the card above them: whole-baht money, and progress read
+        // off the entered percentages rather than divided out of the money.
         // Summary mode multiplies TotalValue by the stored percent instead of reading
         // SummaryPreviousValue / SummaryCurrentValue: the CI screen computes those two figures for
         // display but never writes them back into the form, so the persisted columns hold the default
@@ -531,14 +532,14 @@ public class GetDecisionSummaryQueryHandler(
                 COALESCE(NULLIF(LTRIM(RTRIM(bad.ModelName)), ''),
                          NULLIF(LTRIM(RTRIM(bad.PropertyName)), '')) AS ModelName,
                 ci.TotalValue                     AS TotalValue,
-                CASE WHEN ci.IsFullDetail = 0
+                ROUND(CASE WHEN ci.IsFullDetail = 0
                      THEN ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0) / 100.0
                      ELSE ISNULL(wd_agg.PreviousPropertyValueSum, 0)
-                END AS PreviousValue,
-                CASE WHEN ci.IsFullDetail = 0
+                END, 0) AS PreviousValue,
+                ROUND(CASE WHEN ci.IsFullDetail = 0
                      THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
                      ELSE ISNULL(wd_agg.CurrentPropertyValueSum, 0)
-                END AS CurrentValue,
+                END, 0) AS CurrentValue,
                 CASE WHEN ci.IsFullDetail = 0
                      THEN ISNULL(ci.SummaryPreviousProgressPct, 0)
                      ELSE ISNULL(wd_agg.PreviousProportionPctSum, 0)
@@ -655,17 +656,15 @@ public class GetDecisionSummaryQueryHandler(
                 nonCiBuilding + ciTotal,
                 ciTotal),
         };
-
-        // % derived from value ratios, consistent with the milestone rows above — deliberately
-        // NOT from SummaryCurrentProgressPct / SUM(CurrentProportionPct), so the detail rows
-        // reconcile against the card they sit under.
-        // When the only inspected property carries no value of its own, the appraisal-level figure the
-        // breakdown substituted in belongs to it — there is nothing else to attribute it to. With
-        // several inspected properties there is no basis for splitting one number between them, so
-        // their value columns stay empty and only the entered percentages are reported.
-        // Count DISTINCT properties, not joined rows: ciDetailSql LEFT JOINs BuildingAppraisalDetails,
-        // so one inspected property carrying two of those rows would otherwise look like two.
         var detailRowList = detailRows.ToList();
+
+        // When the only inspected property carries no value of its own, the appraisal-level figure
+        // the breakdown substituted in belongs to it — there is nothing else to attribute it to.
+        // With several inspected properties there is no basis for splitting one number between
+        // them, so their value columns stay empty and only the entered percentages are reported.
+        // Count DISTINCT properties, not joined rows: ciDetailSql LEFT JOINs
+        // BuildingAppraisalDetails, so one inspected property carrying two of those rows would
+        // otherwise look like two.
         var soleDetailRow = detailRowList.Select(d => d.AppraisalPropertyId).Distinct().Count() == 1
             ? detailRowList[0]
             : null;
@@ -680,8 +679,13 @@ public class GetDecisionSummaryQueryHandler(
                 substituteRowValues ? ciTotal : d.TotalValue,
                 substituteRowValues ? ciPrev : d.PreviousValue,
                 substituteRowValues ? ciCurrent : d.CurrentValue,
-                d.TotalValue > 0 ? d.PreviousValue / d.TotalValue * 100m : d.EnteredPreviousPercent,
-                d.TotalValue > 0 ? d.CurrentValue / d.TotalValue * 100m : d.EnteredCurrentPercent))
+                // The entered percentages, not the money divided by the base. Money is rounded to
+                // whole baht (CA-614), so that division stopped being exact and printed 99.99993
+                // under a header that said 100.00 — see ConstructionValueBreakdown. Clamped and
+                // rounded the way the card above these rows is, so a split that sums past 100 does
+                // not read 105 here and 100.00 there.
+                AsReportedPercent(d.EnteredPreviousPercent),
+                AsReportedPercent(d.EnteredCurrentPercent)))
             .ToList();
 
         var completedBuildings = completedRows
@@ -696,6 +700,14 @@ public class GetDecisionSummaryQueryHandler(
         return new ConstructionSummaryData(village, rows, buildings, completedBuildings);
     }
 
+    /// <summary>
+    /// Mirror of ConstructionValueBreakdown.AsReportedPercent: 0–100, two decimal places, halves
+    /// away from zero. The card's percentages come through that property; these rows come straight
+    /// out of SQL, so they need the same treatment or the two disagree on one screen.
+    /// </summary>
+    private static decimal AsReportedPercent(decimal value) =>
+        Math.Round(Math.Clamp(value, 0m, 100m), 2, MidpointRounding.AwayFromZero);
+
     // Mapped by NAME (settable properties), not by constructor position — the three adjacent
     // string? columns would corrupt silently if a positional record were used and the SELECT
     // column order ever changed.
@@ -709,7 +721,10 @@ public class GetDecisionSummaryQueryHandler(
         public decimal PreviousValue { get; init; }
         public decimal CurrentValue { get; init; }
 
-        /// <summary>Progress as entered, per the inspection's mode flag. Used when the row has no value base.</summary>
+        /// <summary>
+        /// Progress as entered, per the inspection's mode flag. The ONLY source for a building
+        /// row's percentage, value base or not — the money columns are never divided to get one.
+        /// </summary>
         public decimal EnteredPreviousPercent { get; init; }
 
         public decimal EnteredCurrentPercent { get; init; }

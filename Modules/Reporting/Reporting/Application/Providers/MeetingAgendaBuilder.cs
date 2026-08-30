@@ -209,17 +209,17 @@ internal static class MeetingAgendaBuilder
         // template can fall back to a money figure; the invitation already suppresses วาระ 5 values.
         if (IsProgressive(i))
         {
-            var ciTotal = i.CiTotalValue ?? 0m;
-            var ciCurrent = i.CiCurrentValue ?? 0m;
-
             return new MeetingAgendaItemRow
             {
                 CustomerName = JoinThaiNames(i.CustomerName),
                 ValueText = string.Empty,
-                // No inspection data (or a zero 100%-value) leaves this empty → blank cell, rather
-                // than a misleading 0.00%.
-                ProgressText = ciTotal > 0m
-                    ? Math.Round(ciCurrent / ciTotal * 100m, 2).ToString("N2", CultureInfo.InvariantCulture)
+                // Gated on whether an inspection exists at all, not on whether it carries money: a
+                // condo unit's inspection has no value base, and the percentage is still the thing
+                // being reported. No inspection leaves this empty → blank cell.
+                ProgressText = (i.CiInspectionCount ?? 0) > 0
+                    ? Math.Round(Math.Clamp(i.CiProgressPct ?? 0m, 0m, 100m), 2,
+                            MidpointRounding.AwayFromZero)
+                        .ToString("N2", CultureInfo.InvariantCulture)
                     : string.Empty
             };
         }
@@ -324,15 +324,18 @@ internal sealed class MeetingItemFlat
     public bool? IsPriceVerified { get; init; }
 
     /// <summary>
-    /// Building value at 100% complete, summed over the appraisal's construction inspections.
-    /// Null when the appraisal has none. Minute only — the invitation prints no value for วาระ 5.
+    /// Number of construction inspections on the appraisal; 0 means none at all. Minute only —
+    /// MeetingInvitationDataProvider does not select it, so there it is null rather than 0, and
+    /// วาระ 5 prints a blank cell on the invitation exactly as it did before.
     /// </summary>
-    public decimal? CiTotalValue { get; init; }
+    public int? CiInspectionCount { get; init; }
 
     /// <summary>
-    /// Building value as built so far, same summation. Divided by <see cref="CiTotalValue"/> this
-    /// gives รวมผลการดำเนินงานปัจจุบัน — the same value-ratio the construction summary report
-    /// prints as รวมผลการดำเนินงาน, deliberately NOT ConstructionInspection.OverallCurrentProgressPercent.
+    /// รวมผลการดำเนินงานปัจจุบัน — construction progress read off the entered percentages and
+    /// weighted across buildings by what each is worth, the same figure RS01 of
+    /// AppraisalSummaryConstructionDataProvider prints. Deliberately NOT a ratio of the money
+    /// columns: those are rounded to whole baht (CA-614), so the ratio is no longer exact, and the
+    /// summary-mode side of it read a column the CI screen never writes back.
     /// </summary>
-    public decimal? CiCurrentValue { get; init; }
+    public decimal? CiProgressPct { get; init; }
 }

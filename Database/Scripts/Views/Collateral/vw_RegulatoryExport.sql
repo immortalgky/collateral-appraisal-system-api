@@ -202,37 +202,49 @@ Earliest AS (
 Ci AS (
     SELECT
         ap.AppraisalId,
-        ISNULL(SUM(ci.TotalValue), 0) AS TotalValue,
-        ISNULL(SUM(ROUND(
-            CASE WHEN ci.IsFullDetail = 0
-                 THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
-                 ELSE ISNULL(wd.CurrentSum, 0)
-            END, 0)), 0) AS CurrentValue,
-        -- The percentage the inspector entered, read off the mode flag. A condo unit has no building
-        -- depreciation table for the CI screen to total, so its TotalValue is always 0 and the
-        -- value ratio below degenerates — the entered figure is all there is to report.
-        ISNULL(AVG(
-            CASE WHEN ci.IsFullDetail = 0
-                 THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
-                 ELSE ISNULL(wd.CurrentPctSum, 0)
-            END), 0) AS EnteredCurrentPercent
+        ISNULL(SUM(v.TotalValue), 0)              AS TotalValue,
+        ISNULL(SUM(ROUND(v.CurrentValue, 0)), 0)  AS CurrentValue,
+        -- Plain average, all there is to report when there is no value to weight by: a condo unit
+        -- has no building depreciation table for the CI screen to total, so its TotalValue is 0.
+        ISNULL(AVG(v.CurrentPct), 0)              AS EnteredCurrentPercent,
+        -- Per-building progress weighted across buildings by what each is worth. This is what
+        -- decides "finished" and what this file reports — deliberately NOT CurrentValue /
+        -- TotalValue: money is rounded to whole baht (CA-614), so the rounded parts no longer sum
+        -- to the rounded whole and a finished building came out a baht short of its own 100%
+        -- figure. Percentages are decimal(7,4) and nothing rounds them; TotalValue is only a
+        -- weight here. Mirrors ConstructionValueBreakdown.WeightedCurrentPercent.
+        CASE WHEN SUM(v.TotalValue) > 0
+             THEN SUM(v.TotalValue * v.CurrentPct) / SUM(v.TotalValue)
+             ELSE 0 END                           AS WeightedCurrentPercent
     FROM appraisal.ConstructionInspections ci
     JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
     LEFT JOIN (
         SELECT ConstructionInspectionId,
-               SUM(CurrentPropertyValue)  AS CurrentSum,
-               SUM(CurrentProportionPct)  AS CurrentPctSum
+               SUM(CurrentPropertyValue) AS CurrentSum,
+               SUM(CurrentProportionPct) AS CurrentPctSum
         FROM appraisal.ConstructionWorkDetails
         GROUP BY ConstructionInspectionId
     ) wd ON wd.ConstructionInspectionId = ci.Id
+    -- One row per inspection, read per the mode flag: a summary inspection carries its own
+    -- percentage, a full-detail one is the sum of its work rows.
+    CROSS APPLY (
+        SELECT
+            ci.TotalValue,
+            CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
+                 ELSE ISNULL(wd.CurrentPctSum, 0) END  AS CurrentPct,
+            CASE WHEN ci.IsFullDetail = 0
+                 THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
+                 ELSE ISNULL(wd.CurrentSum, 0) END     AS CurrentValue
+    ) v
     GROUP BY ap.AppraisalId
 ),
 
 -- A condo unit has no building depreciation table, so the CI screen has nothing to total and every
 -- inspection on the appraisal stores TotalValue = 0. That is a different thing from having no
 -- inspection at all, and the two used to collapse into the same "TotalValue = 0 → 100%" arm below.
--- HasOwnValueBase keeps them apart: with a value base the columns are read from the money, without
--- one they are read from the percentage the inspector entered.
+-- HasOwnValueBase keeps them apart. Progress is read from the entered percentages either way —
+-- weighted by what each building is worth when there is a value base, a plain average when there is
+-- not. Only the money column differs, and only because there is no money to report.
 --
 -- No appraised-value substitution here. The percentage is all this view needs, and CurrentValue is
 -- deliberately left NULL in that case so RegulatoryFileWriter's CurrentValue ?? LatestAppraisalValue
@@ -242,9 +254,9 @@ CiEffective AS (
     SELECT
         c.AppraisalId,
         CASE WHEN c.TotalValue > 0 THEN 1 ELSE 0 END AS HasOwnValueBase,
-        c.TotalValue,
         c.CurrentValue,
-        c.EnteredCurrentPercent
+        c.EnteredCurrentPercent,
+        c.WeightedCurrentPercent
     FROM Ci c
 ),
 
@@ -590,10 +602,11 @@ SELECT
     an.HostCollateralId,
     an.AppraisalType                                             AS LatestAppraisalType,
 
-    CASE WHEN ci.HasOwnValueBase = 1 AND ci.CurrentValue < ci.TotalValue THEN CAST(1 AS bit)
-         -- Valueless inspection (condo): the value cannot say anything because it does not move
-         -- with the milestone, so read the entered percentage rather than reporting a unit that is
-         -- demonstrably mid-construction as finished.
+    -- Decided on the entered progress, never on the money. See WeightedCurrentPercent above.
+    CASE WHEN ci.HasOwnValueBase = 1 AND ci.WeightedCurrentPercent < 100 THEN CAST(1 AS bit)
+         -- Valueless inspection (condo): nothing to weight by, so read the plain average of what
+         -- was entered rather than reporting a unit that is demonstrably mid-construction as
+         -- finished.
          WHEN ci.AppraisalId IS NOT NULL AND ci.HasOwnValueBase = 0
               AND ISNULL(ci.EnteredCurrentPercent, 0) < 100 THEN CAST(1 AS bit)
          ELSE CAST(0 AS bit) END                                 AS IsUnderConstruction,
@@ -616,8 +629,10 @@ SELECT
                  CASE WHEN ci.EnteredCurrentPercent < 0   THEN 0
                       WHEN ci.EnteredCurrentPercent > 100 THEN 100
                       ELSE ci.EnteredCurrentPercent END AS decimal(5, 2))
-        WHEN ci.CurrentValue >= ci.TotalValue                                        THEN 100
-        ELSE CAST(ci.CurrentValue / ci.TotalValue * 100 AS decimal(5, 2))
+        ELSE CAST(
+                 CASE WHEN ci.WeightedCurrentPercent < 0   THEN 0
+                      WHEN ci.WeightedCurrentPercent > 100 THEN 100
+                      ELSE ci.WeightedCurrentPercent END AS decimal(5, 2))
     END                                                          AS ConstructionProgressPercent,
 
     -- A project unit's own appraised value beats the project appraisal's 0. Everything else keeps
@@ -644,7 +659,9 @@ SELECT
               THEN lgc.ValuationPriceInBaht
          ELSE e.AppraisedValue END                               AS EarliestAppraisalValue,
 
-    CASE WHEN ci.HasOwnValueBase = 1 AND ci.CurrentValue < ci.TotalValue THEN ci.CurrentValue
+    -- Still the money figure, but emitted only while the work is unfinished — gated on the same
+    -- progress test as IsUnderConstruction so the two can never contradict each other on one row.
+    CASE WHEN ci.HasOwnValueBase = 1 AND ci.WeightedCurrentPercent < 100 THEN ci.CurrentValue
          ELSE NULL END                                           AS CurrentValue,
 
     rd.TotalSellingPrice                                         AS SellingPrice,
