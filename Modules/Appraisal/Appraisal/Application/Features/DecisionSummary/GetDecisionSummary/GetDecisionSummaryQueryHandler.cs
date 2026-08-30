@@ -721,7 +721,10 @@ public class GetDecisionSummaryQueryHandler(
         public decimal PreviousValue { get; init; }
         public decimal CurrentValue { get; init; }
 
-        /// <summary>Progress as entered, per the inspection's mode flag. Used when the row has no value base.</summary>
+        /// <summary>
+        /// Progress as entered, per the inspection's mode flag. The ONLY source for a building
+        /// row's percentage, value base or not — the money columns are never divided to get one.
+        /// </summary>
         public decimal EnteredPreviousPercent { get; init; }
 
         public decimal EnteredCurrentPercent { get; init; }

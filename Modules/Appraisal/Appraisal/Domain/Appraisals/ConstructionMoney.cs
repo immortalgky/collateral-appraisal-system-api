@@ -38,12 +38,24 @@ namespace Appraisal.Domain.Appraisals;
 /// The one-off scripts under Database/Scripts/Maintenance still divide the money. They are left as
 /// they were on purpose — they are not part of the running system.
 ///
-/// Inspections already in the database are deliberately left as they were, with no migration. They
-/// are the record of a round that was already inspected, some of it already exported to the
-/// regulator and frozen into CollateralEngagement, and the difference is under a baht. So a
-/// full-detail inspection saved before this rule keeps its satang on the report until someone edits
-/// and saves it again; summary mode has no such lag, since its figure is derived at read time.
-/// Correcting a named appraisal is a data-correction exercise on that appraisal.
+/// Inspections already in the database are deliberately left as they are: no migration ships with
+/// this rule. They are the record of a round that was already inspected, some of it already
+/// exported to the regulator and frozen into CollateralEngagement, and the difference is under a
+/// baht. Correcting a named appraisal is a data-correction exercise on that appraisal.
+///
+/// Two consequences of that, both accepted.
+///
+/// A full-detail inspection saved before this rule keeps its satang on the report until someone
+/// edits and saves it again; summary mode has no such lag, since its figure is derived at read
+/// time. Note #439 did ship a rounding backfill which this branch withdrew — deleting the script
+/// does not un-run it, so on an environment where #439 was already applied those rows are already
+/// rounded and the lag does not apply there.
+///
+/// Work rows that ConstructionInspection.CopyForNextInspection persisted before it started calling
+/// ComputeAllValues hold zero in all three money columns while their percentages are correct.
+/// Progress is now read from the percentages, so those rows report real progress beside a zero
+/// money column — 10.00% against 0 baht — where before they reported 0% against 0 and were at
+/// least self-consistent. Saving the inspection once repairs it.
 /// </summary>
 internal static class ConstructionMoney
 {

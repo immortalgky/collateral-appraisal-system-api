@@ -106,10 +106,11 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         // ── Batch: 9 construction-specific result sets, single round-trip ─────────
         const string batchSql = """
             -- RS01: QCI1 — Construction inspection aggregate (building under construction only).
-            -- Current/previous building value: TotalValue x the entered percentage when
-            -- IsFullDetail=0, else the aggregated work-detail values — the same derivation as
-            -- IConstructionCurrentValueService and vw_RegulatoryExport. SummaryCurrentValue /
-            -- SummaryPreviousValue are NOT read: the CI screen computes those two figures in a
+            -- Current building value: TotalValue x the entered percentage when IsFullDetail=0,
+            -- else the aggregated work-detail values — the same derivation as
+            -- IConstructionCurrentValueService and vw_RegulatoryExport. There is no previous-value
+            -- column: nothing on this report reads one. SummaryCurrentValue /
+            -- SummaryPreviousValue are NOT read either: the CI screen computes those two figures in a
             -- useMemo for display and never writes them back into the form, so the persisted
             -- columns hold 0 and this report printed a blank building value for every
             -- summary-mode inspection. The percentage is bound to a real input and does persist.
@@ -147,7 +148,6 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
             LEFT JOIN (
                 SELECT wd.ConstructionInspectionId,
-                       SUM(wd.PreviousPropertyValue) AS PreviousPropertyValueSum,
                        SUM(wd.CurrentPropertyValue)  AS CurrentPropertyValueSum,
                        SUM(wd.ProportionPct * wd.PreviousProgressPct / 100.0) AS PreviousProportionPctSum,
                        SUM(wd.CurrentProportionPct)                           AS CurrentProportionPctSum
@@ -549,16 +549,16 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         public decimal CICurrentValue { get; init; }
 
 
-    /// <summary>
-    /// Number of inspections on the appraisal. RS01 is an ungrouped aggregate, so it returns one
-    /// all-zero row even when there are none — this is the only way to tell the two apart.
-    /// </summary>
-    public int InspectionCount { get; init; }
+        /// <summary>
+        /// Number of inspections on the appraisal. RS01 is an ungrouped aggregate, so it returns one
+        /// all-zero row even when there are none — this is the only way to tell the two apart.
+        /// </summary>
+        public int InspectionCount { get; init; }
 
-    /// <summary>Progress as entered, per the inspection's mode flag — used when there is no value base.</summary>
-    public decimal EnteredPreviousPercent { get; init; }
+        /// <summary>Progress as entered, per the inspection's mode flag — used when there is no value base.</summary>
+        public decimal EnteredPreviousPercent { get; init; }
 
-    public decimal EnteredCurrentPercent { get; init; }
+        public decimal EnteredCurrentPercent { get; init; }
 
         /// <summary>
         /// The same progress, weighted across buildings by what each is worth — the figure the report

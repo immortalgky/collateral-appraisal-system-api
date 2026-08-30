@@ -323,7 +323,11 @@ internal sealed class MeetingItemFlat
     /// </summary>
     public bool? IsPriceVerified { get; init; }
 
-    /// <summary>Number of construction inspections on the appraisal; 0 means none at all.</summary>
+    /// <summary>
+    /// Number of construction inspections on the appraisal; 0 means none at all. Minute only —
+    /// MeetingInvitationDataProvider does not select it, so there it is null rather than 0, and
+    /// วาระ 5 prints a blank cell on the invitation exactly as it did before.
+    /// </summary>
     public int? CiInspectionCount { get; init; }
 
     /// <summary>
