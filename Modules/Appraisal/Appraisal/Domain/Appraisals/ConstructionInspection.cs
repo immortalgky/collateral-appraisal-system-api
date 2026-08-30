@@ -71,7 +71,7 @@ public class ConstructionInspection : Entity<Guid>
         {
             AppraisalPropertyId = appraisalPropertyId,
             IsFullDetail = true,
-            TotalValue = totalValue,
+            TotalValue = ConstructionMoney.ToBaht(totalValue),
             Remark = EnsureFits(remark, RemarkMaxLength, nameof(Remark))
         };
     }
@@ -93,12 +93,12 @@ public class ConstructionInspection : Entity<Guid>
         {
             AppraisalPropertyId = appraisalPropertyId,
             IsFullDetail = false,
-            TotalValue = totalValue,
+            TotalValue = ConstructionMoney.ToBaht(totalValue),
             SummaryDetail = EnsureFits(summaryDetail, SummaryDetailMaxLength, nameof(SummaryDetail)),
             SummaryPreviousProgressPct = summaryPreviousProgressPct,
-            SummaryPreviousValue = summaryPreviousValue,
+            SummaryPreviousValue = ConstructionMoney.ToBaht(summaryPreviousValue),
             SummaryCurrentProgressPct = summaryCurrentProgressPct,
-            SummaryCurrentValue = summaryCurrentValue,
+            SummaryCurrentValue = ConstructionMoney.ToBaht(summaryCurrentValue),
             Remark = EnsureFits(remark, RemarkMaxLength, nameof(Remark))
         };
     }
@@ -120,12 +120,12 @@ public class ConstructionInspection : Entity<Guid>
             _workDetails.Clear();
 
         IsFullDetail = false;
-        TotalValue = totalValue;
+        TotalValue = ConstructionMoney.ToBaht(totalValue);
         SummaryDetail = EnsureFits(summaryDetail, SummaryDetailMaxLength, nameof(SummaryDetail));
         SummaryPreviousProgressPct = summaryPreviousProgressPct;
-        SummaryPreviousValue = summaryPreviousValue;
+        SummaryPreviousValue = ConstructionMoney.ToBaht(summaryPreviousValue);
         SummaryCurrentProgressPct = summaryCurrentProgressPct;
-        SummaryCurrentValue = summaryCurrentValue;
+        SummaryCurrentValue = ConstructionMoney.ToBaht(summaryCurrentValue);
         Remark = EnsureFits(remark, RemarkMaxLength, nameof(Remark));
     }
 
@@ -153,7 +153,7 @@ public class ConstructionInspection : Entity<Guid>
         }
 
         IsFullDetail = true;
-        TotalValue = totalValue;
+        TotalValue = ConstructionMoney.ToBaht(totalValue);
         Remark = EnsureFits(remark, RemarkMaxLength, nameof(Remark));
     }
 

@@ -113,21 +113,26 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             -- useMemo for display and never writes them back into the form, so the persisted
             -- columns hold 0 and this report printed a blank building value for every
             -- summary-mode inspection. The percentage is bound to a real input and does persist.
+            -- Each inspection's contribution is rounded to whole baht (CA-614): ROUND matches
+            -- MidpointRounding.AwayFromZero, the rule Appraisal.Domain.Appraisals.ConstructionMoney
+            -- applies when full-detail values are persisted. IConstructionCurrentValueService and
+            -- collateral.vw_RegulatoryExport repeat this aggregate and round the same way — change
+            -- one and all three have to follow, or one appraisal prints three different totals.
             SELECT
                 COUNT(*)                                                                     AS InspectionCount,
                 ISNULL(SUM(ci.TotalValue), 0)                                                AS CITotalValue,
-                ISNULL(SUM(
+                ISNULL(SUM(ROUND(
                     CASE WHEN ci.IsFullDetail = 0
                          THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
                          ELSE ISNULL(wd_agg.CurrentPropertyValueSum, 0)
                     END
-                ), 0)                                                                        AS CICurrentValue,
-                ISNULL(SUM(
+                , 0)), 0)                                                                    AS CICurrentValue,
+                ISNULL(SUM(ROUND(
                     CASE WHEN ci.IsFullDetail = 0
                          THEN ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0) / 100.0
                          ELSE ISNULL(wd_agg.PreviousPropertyValueSum, 0)
                     END
-                ), 0)                                                                        AS CIPreviousValue,
+                , 0)), 0)                                                                    AS CIPreviousValue,
                 -- Progress as entered, per the mode flag. A condo unit has no building depreciation
                 -- table for the CI screen to total, so TotalValue is 0 and the value ratio the
                 -- percentages below are normally derived from degenerates to nothing.
