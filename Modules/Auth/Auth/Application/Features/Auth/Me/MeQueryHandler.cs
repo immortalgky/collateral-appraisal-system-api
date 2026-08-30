@@ -31,6 +31,28 @@ public class MeQueryHandler(
             select new MeGroupDto(g.Id, g.Name, g.Scope)
         ).ToListAsync(cancellationToken);
 
+        // Teams the user belongs to (auth.TeamMembers → auth.Teams), mirroring GetUserByIdQueryHandler.
+        var teams = await (
+            from tm in dbContext.TeamMembers
+            join t in dbContext.Teams on tm.TeamId equals t.Id
+            where tm.UserId == query.UserId
+            select new MeTeamDto(t.Id, t.Name, t.Scope)
+        ).ToListAsync(cancellationToken);
+
+        // Company name is only meaningful for external users; both languages ride along
+        // so the client can pick by its own locale.
+        string? companyName = null;
+        string? companyNameLocal = null;
+        if (user.CompanyId.HasValue)
+        {
+            var company = await dbContext.Companies
+                .Where(c => c.Id == user.CompanyId.Value)
+                .Select(c => new { c.Name, c.NameLocal })
+                .FirstOrDefaultAsync(cancellationToken);
+            companyName = company?.Name;
+            companyNameLocal = string.IsNullOrWhiteSpace(company?.NameLocal) ? null : company!.NameLocal;
+        }
+
         return new MeResult(
             user.Id,
             user.UserName ?? string.Empty,
@@ -40,10 +62,19 @@ public class MeQueryHandler(
             user.AvatarUrl,
             user.Position,
             user.Department,
+            user.AoCode,
+            user.EmployeeId,
             user.CompanyId,
+            companyName,
+            companyNameLocal,
+            user.AuthSource,
+            user.IsActive,
+            user.LastLoginAt,
+            user.PasswordChangedAt,
             roles.ToList(),
             permissions,
             groups,
+            teams,
             user.MustChangePassword
         );
     }
