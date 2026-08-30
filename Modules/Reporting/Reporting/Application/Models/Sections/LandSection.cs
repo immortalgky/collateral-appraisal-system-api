@@ -179,7 +179,14 @@ public sealed class LandTitleRow
     /// <summary>ลำดับ — 1-based row number within the section.</summary>
     public int Sequence { get; init; }
 
-    /// <summary>โฉนดเลขที่ — source: LandTitles.TitleNumber.</summary>
+    /// <summary>
+    /// เอกสารสิทธิ์ — the document's Thai name, resolved from LandTitles.TitleType through
+    /// <see cref="Reporting.Application.Formatting.TitleDeedLabel"/>. Its own column, because one
+    /// section can list parcels of different kinds side by side.
+    /// </summary>
+    public string? TitleTypeDisplay { get; init; }
+
+    /// <summary>เลขที่ — source: LandTitles.TitleNumber.</summary>
     public string? TitleNumber { get; init; }
 
     /// <summary>เลขที่ดิน — source: LandTitles.LandParcelNumber.</summary>

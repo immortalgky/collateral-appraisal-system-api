@@ -22,11 +22,18 @@ public static class GovernmentPriceTextBuilder
     /// Where this item sits in the printed รายการทรัพย์สิน list, so the segments below read in the
     /// same sequence as the list above them. Items outside every group pass <see cref="int.MaxValue"/>.
     /// </param>
+    /// <param name="NumberPrefix">
+    /// Overrides the caller's shared prefix for this one item. Land parcels need it because a single
+    /// appraisal can mix title-deed types — a โฉนด and a น.ส.3 cannot both be announced as "โฉนดที่ดิน
+    /// เลขที่". Leave null to inherit the shared prefix, which is what collateral with one uniform
+    /// noun (a condo's "ห้องชุดเลขที่") does.
+    /// </param>
     public readonly record struct Item(
         string? Number,
         decimal? Price,
         bool IsMissingFromSurvey,
-        int DisplayOrder);
+        int DisplayOrder,
+        string? NumberPrefix = null);
 
     /// <summary>
     /// Groups <paramref name="items"/> by identical price and renders one line. With more than one
@@ -72,12 +79,38 @@ public static class GovernmentPriceTextBuilder
             : string.Join(" , ", segments.Select(s => Describe(s.Rows, s.Value, numberPrefix)));
     }
 
-    /// <summary>Prefixes a segment with its numbers. Only used when there is more than one segment.</summary>
+    /// <summary>
+    /// Prefixes a segment with its numbers. Only used when there is more than one segment.
+    ///
+    /// Items sharing a prefix are announced once and then listed ("โฉนดที่ดินเลขที่ 1234 และ 1235"),
+    /// so collateral of a single kind reads exactly as it did before per-item prefixes existed.
+    /// Grouping is by prefix, NOT by adjacency: the rows arrive in DisplayOrder, which orders by the
+    /// printed collateral list and says nothing about document kind, so kinds can interleave. Runs
+    /// would then announce the same noun twice in one segment — the fragmentation this is meant to
+    /// avoid. Each group keeps the position of its first item, so the segment still reads in
+    /// collateral order.
+    /// </summary>
     private static string Describe(IEnumerable<Item> rows, string value, string numberPrefix)
     {
-        var numbers = string.Join(" และ ", rows
-            .Where(r => !string.IsNullOrWhiteSpace(r.Number))
-            .Select(r => r.Number));
-        return string.IsNullOrWhiteSpace(numbers) ? value : $"{numberPrefix} {numbers} {value}";
+        var numbersByPrefix = new Dictionary<string, List<string>>();
+        var prefixOrder = new List<string>();
+        foreach (var row in rows.Where(r => !string.IsNullOrWhiteSpace(r.Number)))
+        {
+            var prefix = string.IsNullOrWhiteSpace(row.NumberPrefix) ? numberPrefix : row.NumberPrefix!;
+            if (!numbersByPrefix.TryGetValue(prefix, out var numbers))
+            {
+                numbers = [];
+                numbersByPrefix[prefix] = numbers;
+                prefixOrder.Add(prefix);
+            }
+
+            numbers.Add(row.Number!);
+        }
+
+        if (prefixOrder.Count == 0) return value;
+
+        var described = string.Join(" และ ", prefixOrder
+            .Select(prefix => $"{prefix} {string.Join(" และ ", numbersByPrefix[prefix])}"));
+        return $"{described} {value}";
     }
 }

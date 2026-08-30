@@ -103,6 +103,7 @@ internal static class LandSectionLoader
             SELECT
                 lad.Id        AS LandDetailId,
                 lt.TitleNumber,
+                lt.TitleType,
                 lt.LandParcelNumber,
                 lt.SurveyNumber,
                 lt.MapSheetNumber,
@@ -178,6 +179,9 @@ internal static class LandSectionLoader
                 .Select((r, i) => new LandTitleRow
                 {
                     Sequence         = i + 1,
+                    // Each parcel names its own document; the column header used to assert โฉนด
+                    // for every row regardless of what was selected (CA-609).
+                    TitleTypeDisplay = TitleDeedLabel.Noun(r.TitleType),
                     TitleNumber      = r.TitleNumber,
                     LandParcelNumber = r.LandParcelNumber,
                     SurveyNumber     = r.SurveyNumber,
@@ -341,6 +345,7 @@ internal static class LandSectionLoader
     {
         public Guid LandDetailId { get; init; }
         public string? TitleNumber { get; init; }
+        public string? TitleType { get; init; }
         public string? LandParcelNumber { get; init; }
         public string? SurveyNumber { get; init; }
         public string? MapSheetNumber { get; init; }
