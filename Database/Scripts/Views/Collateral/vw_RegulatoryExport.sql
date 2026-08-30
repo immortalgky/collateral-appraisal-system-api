@@ -196,16 +196,18 @@ Earliest AS (
 -- ── Construction status ────────────────────────────────────────────────────────────────────────
 -- Mirrors IConstructionCurrentValueService.CiAggregateSql exactly, so the screen and this file
 -- cannot disagree. A summary inspection carries its own percentage; a full-detail one is the sum of
--- its work rows.
+-- its work rows. Each inspection's contribution is rounded to whole baht (CA-614), the same rule
+-- Appraisal.Domain.Appraisals.ConstructionMoney applies when full-detail values are persisted;
+-- ROUND rounds halves away from zero, as MidpointRounding.AwayFromZero does there.
 Ci AS (
     SELECT
         ap.AppraisalId,
         ISNULL(SUM(ci.TotalValue), 0) AS TotalValue,
-        ISNULL(SUM(
+        ISNULL(SUM(ROUND(
             CASE WHEN ci.IsFullDetail = 0
                  THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
                  ELSE ISNULL(wd.CurrentSum, 0)
-            END), 0) AS CurrentValue,
+            END, 0)), 0) AS CurrentValue,
         -- The percentage the inspector entered, read off the mode flag. A condo unit has no building
         -- depreciation table for the CI screen to total, so its TotalValue is always 0 and the
         -- value ratio below degenerates — the entered figure is all there is to report.

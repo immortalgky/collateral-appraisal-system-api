@@ -84,21 +84,26 @@ public record ConstructionValueBreakdown(
     /// per-building percentages would not. When the inspected buildings carry no value at all — a
     /// condo unit has no depreciation table to total — there is nothing to weight by, so this falls
     /// back to the plain average of the percentages the inspector actually entered.
+    ///
+    /// Reported to two decimal places, which is the precision every caller displays. The ratio is
+    /// taken over whole-baht values (CA-614), so leaving it raw surfaces the rounding as noise —
+    /// a building at a clean 15% came back as 14.999985000015. Rounding here keeps the artefact
+    /// out of the API. IsUnderConstruction above is deliberately not derived from this property,
+    /// so nothing decides "finished" off a rounded figure.
     /// </summary>
-    public decimal ConstructionProgressPercent =>
-        Math.Clamp(
-            HasOwnValueBase && InspectedTotalValue > 0m
-                ? InspectedCurrentValue / InspectedTotalValue * 100m
-                : UnweightedCurrentPercent,
-            0m, 100m);
+    public decimal ConstructionProgressPercent => AsReportedPercent(
+        HasOwnValueBase && InspectedTotalValue > 0m
+            ? InspectedCurrentValue / InspectedTotalValue * 100m
+            : UnweightedCurrentPercent);
 
     /// <summary>Previous round's progress, on the same basis as <see cref="ConstructionProgressPercent"/>.</summary>
-    public decimal PreviousProgressPercent =>
-        Math.Clamp(
-            HasOwnValueBase && InspectedTotalValue > 0m
-                ? InspectedPreviousValue / InspectedTotalValue * 100m
-                : UnweightedPreviousPercent,
-            0m, 100m);
+    public decimal PreviousProgressPercent => AsReportedPercent(
+        HasOwnValueBase && InspectedTotalValue > 0m
+            ? InspectedPreviousValue / InspectedTotalValue * 100m
+            : UnweightedPreviousPercent);
+
+    private static decimal AsReportedPercent(decimal value) =>
+        Math.Round(Math.Clamp(value, 0m, 100m), 2, MidpointRounding.AwayFromZero);
 }
 
 public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFactory)
@@ -224,22 +229,28 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
     /// Summary mode multiplies TotalValue by the stored percent rather than reading
     /// SummaryPreviousValue / SummaryCurrentValue — see the interface remarks for why those columns
     /// cannot be trusted. Full-detail mode sums the work details, which the server computes on save.
+    ///
+    /// Each inspection's contribution is rounded to whole baht (CA-614). ROUND rounds halves away
+    /// from zero, matching Appraisal.Domain.Appraisals.ConstructionMoney, which applies the same
+    /// rule when full-detail values are persisted. Two other places repeat this aggregate and have
+    /// to keep the same rounding: AppraisalSummaryConstructionDataProvider in the Reporting module
+    /// and collateral.vw_RegulatoryExport.
     /// </summary>
     private const string CiAggregateSql = """
         SELECT
             ISNULL(SUM(ci.TotalValue), 0) AS TotalValue,
-            ISNULL(SUM(
+            ISNULL(SUM(ROUND(
                 CASE WHEN ci.IsFullDetail = 0
                      THEN ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0) / 100.0
                      ELSE ISNULL(wd.PreviousPropertyValueSum, 0)
                 END
-            ), 0) AS PreviousValue,
-            ISNULL(SUM(
+            , 0)), 0) AS PreviousValue,
+            ISNULL(SUM(ROUND(
                 CASE WHEN ci.IsFullDetail = 0
                      THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
                      ELSE ISNULL(wd.CurrentPropertyValueSum, 0)
                 END
-            ), 0) AS CurrentValue,
+            , 0)), 0) AS CurrentValue,
             COUNT(*) AS InspectionCount,
             -- The progress the inspector actually entered, read per the mode flag exactly as
             -- ConstructionInspection.OverallCurrentProgressPercent does: summary mode keeps its own

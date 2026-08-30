@@ -56,13 +56,20 @@ public class ConstructionWorkDetail : Entity<Guid>
 
     /// <summary>
     /// Compute derived values based on total construction value.
+    ///
+    /// Each money figure is rounded to whole baht as it is produced, and the next one is derived
+    /// from the already-rounded ConstructionValue rather than from the raw product — see
+    /// <see cref="ConstructionMoney"/>. The construction-inspection screen recomputes these same
+    /// figures client-side while the inspector types, and mirrors this chain step for step, so
+    /// what is on screen matches what is stored. CurrentProportionPct is a percentage, not money,
+    /// and keeps its fractional part.
     /// </summary>
     public void ComputeValues(decimal totalValue)
     {
-        ConstructionValue = totalValue * (ProportionPct / 100);
+        ConstructionValue = ConstructionMoney.ToBaht(totalValue * (ProportionPct / 100));
         CurrentProportionPct = ProportionPct * (CurrentProgressPct / 100);
-        PreviousPropertyValue = ConstructionValue * (PreviousProgressPct / 100);
-        CurrentPropertyValue = ConstructionValue * (CurrentProgressPct / 100);
+        PreviousPropertyValue = ConstructionMoney.ToBaht(ConstructionValue * (PreviousProgressPct / 100));
+        CurrentPropertyValue = ConstructionMoney.ToBaht(ConstructionValue * (CurrentProgressPct / 100));
     }
 
     public void Update(
