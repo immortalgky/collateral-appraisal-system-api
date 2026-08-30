@@ -105,18 +105,35 @@ FROM appraisal.Appraisals a
                       ORDER BY aa.AssignedAt DESC, aa.CreatedAt DESC, aa.Id DESC) la
          LEFT JOIN auth.Companies comp
                    ON comp.Id = TRY_CAST(la.AssigneeCompanyId AS uniqueidentifier)
-         -- First property's land location. Same rewrite, same reason.
+         -- First property's location. Same rewrite, same reason.
          -- IX_AppraisalProperties_AppraisalId_SequenceNumber is unique, so SequenceNumber alone
          -- already picks one row; Id is appended only so the ordering stays total if that index
          -- is ever relaxed. It costs nothing and cannot change today's result.
-         OUTER APPLY (SELECT TOP 1 lad.Province,
-                             lad.District,
-                             lad.SubDistrict
+         --
+         -- Condo details are read as a SECOND-CHOICE source, never a competing one: SrcRank sorts
+         -- ahead of SequenceNumber, so any appraisal that has a land row with a province keeps
+         -- exactly the value it had before. Only appraisals with no such land row — condo-only
+         -- ones, 23 on the dev database — change, from NULL to their unit's address. That matters
+         -- because global search now matches condo addresses (see AppraisalSearchPredicate) and
+         -- without this those hits render with an empty Province cell, which reads as a wrong
+         -- result rather than a match.
+         --
+         -- Column list, order and types are unchanged: reporting.vw_RCAS_* bind this view with
+         -- positional records.
+         OUTER APPLY (SELECT TOP 1 d.Province,
+                             d.District,
+                             d.SubDistrict
                       FROM appraisal.AppraisalProperties ap2
-                               JOIN appraisal.LandAppraisalDetails lad ON lad.AppraisalPropertyId = ap2.Id
+                               CROSS APPLY (SELECT lad.Province, lad.District, lad.SubDistrict, 0 AS SrcRank
+                                            FROM appraisal.LandAppraisalDetails lad
+                                            WHERE lad.AppraisalPropertyId = ap2.Id
+                                            UNION ALL
+                                            SELECT cad.Province, cad.District, cad.SubDistrict, 1 AS SrcRank
+                                            FROM appraisal.CondoAppraisalDetails cad
+                                            WHERE cad.AppraisalPropertyId = ap2.Id) d
                       WHERE ap2.AppraisalId = a.Id
-                        AND lad.Province IS NOT NULL
-                      ORDER BY ap2.SequenceNumber, ap2.Id) ld
+                        AND d.Province IS NOT NULL
+                      ORDER BY d.SrcRank, ap2.SequenceNumber, ap2.Id) ld
          OUTER APPLY (SELECT TOP 1 AppointmentDateTime
                       FROM appraisal.Appointments
                       WHERE AssignmentId = la.Id

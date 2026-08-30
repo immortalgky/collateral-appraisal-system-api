@@ -58,7 +58,11 @@ public class QuickSearchQueryHandler(
     {
         // Capped: this runs on every keystroke and shows a handful of rows. Callers that present a
         // complete result set leave the cap off — see AppraisalSearchPredicate.DropdownArmCap.
-        var addressMatch = await addressNameSearch.MatchAsync(query.Q, cancellationToken);
+        // Skipped outright for scopes the address arms cannot reach — Build would drop them on
+        // scope alone, so the probe's answer would be discarded.
+        var addressMatch = AppraisalSearchPredicate.ScopeCanMatchAddress(query.Scope)
+            ? await addressNameSearch.MatchAsync(query.Q, cancellationToken)
+            : AddressNameMatch.None;
         var built = AppraisalSearchPredicate.Build(
             query.Q, query.Scope, AppraisalSearchPredicate.DropdownArmCap, addressMatch);
         if (built is null) return Empty;

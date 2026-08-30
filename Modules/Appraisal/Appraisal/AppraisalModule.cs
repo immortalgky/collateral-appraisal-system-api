@@ -34,6 +34,8 @@ public static class AppraisalModule
         services.AddScoped<IAppraisalUnitOfWork, AppraisalUnitOfWork>();
 
         // Decides whether the global-search statement carries its six address arms at all.
+        // AddMemoryCache is idempotent — safe to call even if another module already called it.
+        services.AddMemoryCache();
         services.AddScoped<IAddressNameSearch, AddressNameSearch>();
 
         // Register Aggregate Repositories (only aggregates have repositories)
