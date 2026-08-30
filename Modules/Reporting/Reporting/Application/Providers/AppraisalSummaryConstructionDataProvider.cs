@@ -123,7 +123,6 @@ public sealed class AppraisalSummaryConstructionDataProvider(
                 COUNT(*)                                     AS InspectionCount,
                 ISNULL(SUM(v.TotalValue), 0)                 AS CITotalValue,
                 ISNULL(SUM(ROUND(v.CurrentValue, 0)), 0)     AS CICurrentValue,
-                ISNULL(SUM(ROUND(v.PreviousValue, 0)), 0)    AS CIPreviousValue,
                 -- Plain averages, consulted only when there is no value to weight by: a condo unit
                 -- has no building depreciation table for the CI screen to total, so TotalValue is 0.
                 ISNULL(AVG(v.PreviousPct), 0)                AS EnteredPreviousPercent,
@@ -167,9 +166,6 @@ public sealed class AppraisalSummaryConstructionDataProvider(
                          ELSE ISNULL(wd_agg.PreviousProportionPctSum, 0) END AS PreviousPct,
                     CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
                          ELSE ISNULL(wd_agg.CurrentProportionPctSum, 0) END  AS CurrentPct,
-                    CASE WHEN ci.IsFullDetail = 0
-                         THEN ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0) / 100.0
-                         ELSE ISNULL(wd_agg.PreviousPropertyValueSum, 0) END AS PreviousValue,
                     CASE WHEN ci.IsFullDetail = 0
                          THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
                          ELSE ISNULL(wd_agg.CurrentPropertyValueSum, 0) END  AS CurrentValue
@@ -360,7 +356,6 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         // ── Derive construction value fields ──────────────────────────────────────
         decimal ciTotal   = ciRow?.CITotalValue    ?? 0m;   // building value at 100%
         decimal ciCurrent = ciRow?.CICurrentValue  ?? 0m;   // building value now
-        decimal ciPrev    = ciRow?.CIPreviousValue ?? 0m;   // building value previously
 
         // A condo unit has no building depreciation table, so the CI screen has nothing to total and
         // the inspection stores TotalValue = 0, leaving every money row on this report blank. The
@@ -376,7 +371,6 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             // milestone the way a house being built against a drawdown does. The percentages below
             // still report the progress; they just do not move the money.
             ciTotal   = appraisedValue;
-            ciPrev    = appraisedValue;
             ciCurrent = appraisedValue;
         }
 
@@ -554,8 +548,6 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         /// </summary>
         public decimal CICurrentValue { get; init; }
 
-        /// <summary>Previous building value (summary or aggregated work-detail).</summary>
-        public decimal CIPreviousValue { get; init; }
 
     /// <summary>
     /// Number of inspections on the appraisal. RS01 is an ungrouped aggregate, so it returns one
@@ -568,13 +560,13 @@ public sealed class AppraisalSummaryConstructionDataProvider(
 
     public decimal EnteredCurrentPercent { get; init; }
 
-    /// <summary>
-    /// The same progress, weighted across buildings by what each is worth — the figure the report
-    /// prints when there IS a value base. Never derived from the money columns; see RS01.
-    /// </summary>
-    public decimal WeightedPreviousPercent { get; init; }
+        /// <summary>
+        /// The same progress, weighted across buildings by what each is worth — the figure the report
+        /// prints when there IS a value base. Never derived from the money columns; see RS01.
+        /// </summary>
+        public decimal WeightedPreviousPercent { get; init; }
 
-    public decimal WeightedCurrentPercent { get; init; }
+        public decimal WeightedCurrentPercent { get; init; }
 
         /// <summary>1 if any CI row has a non-null FileName; 0 otherwise.</summary>
         public int HasDocument { get; init; }

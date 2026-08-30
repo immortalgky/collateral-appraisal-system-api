@@ -25,7 +25,7 @@ namespace Appraisal.Domain.Appraisals;
 /// decimal places, which is what the business asked for. That separation is what makes the rounding
 /// safe. Construction progress, and with it whether a building counts as finished, is read from the
 /// entered percentages (ConstructionValueBreakdown.ConstructionProgressPercent), never from a ratio
-/// of rounded money. Ten places report progress, across the Appraisal, Reporting, Collateral and
+/// of rounded money. Nine places report progress, across the Appraisal, Reporting, Collateral and
 /// Integration modules, and every one of them reads the percentages: IConstructionCurrentValueService
 /// (the reference), the construction summary report, the land-and-building summary report, the
 /// appraisal book's progress table and its rollups, the Decision Summary card and its per-building

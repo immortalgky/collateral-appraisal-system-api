@@ -113,7 +113,6 @@ public sealed class MeetingMinuteDataProvider(
             OUTER APPLY (
                 SELECT
                     COUNT(*)           AS CiInspectionCount,
-                    SUM(ci.TotalValue) AS CiTotalValue,
                     -- Weighted by what each building is worth, falling back to the plain average
                     -- when none of them carries a value base — a condo unit has no depreciation
                     -- table to total, so its TotalValue is 0 and there is nothing to weight by.
