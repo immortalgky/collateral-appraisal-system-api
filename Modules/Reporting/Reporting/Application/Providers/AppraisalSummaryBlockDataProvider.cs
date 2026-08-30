@@ -175,13 +175,17 @@ public sealed class AppraisalSummaryBlockDataProvider(
               AND u.IsSold = 0
             ORDER BY u.SequenceNumber;
 
-            -- RS04: distinct request property types (ประเภททรัพย์สิน — same as land-building)
-            SELECT DISTINCT rp.PropertyType
+            -- RS04: request property types (ประเภททรัพย์สิน — same as land-building), in the order
+            -- they were entered on the Request. See the RS21 comment in
+            -- AppraisalSummaryLandBuildingDataProvider for why this is not a DISTINCT (CA-612).
+            SELECT rp.PropertyType
             FROM request.RequestProperties rp
             WHERE rp.RequestId = (
                 SELECT a.RequestId FROM appraisal.Appraisals a
                 WHERE a.Id = @AppraisalId AND a.IsDeleted = 0)
-              AND rp.PropertyType IS NOT NULL;
+              AND rp.PropertyType IS NOT NULL
+            GROUP BY rp.PropertyType
+            ORDER BY MIN(rp.Id);
 
             -- RS05: combined selected pricing approaches across ALL project models (วิธีการประเมิน)
             SELECT DISTINCT paa.ApproachType

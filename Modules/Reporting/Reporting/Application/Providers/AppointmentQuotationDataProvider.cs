@@ -147,8 +147,12 @@ public sealed class AppointmentQuotationDataProvider(
         // request.RequestProperties carries PropertyType/BuildingType only. The FSD front page
         // shows one free-text "รายละเอียดทรัพย์สิน" + "ประเภทหลักประกัน", so collapse the rows
         // into distinct, comma-joined values.
+        // The rows come back in the order they were entered on the Request: GROUP BY + ORDER BY
+        // MIN(Id) rather than DISTINCT, which guarantees no order and in practice sorts by the code,
+        // reversing a Request that reads "1.สิทธิการเช่าที่ดิน 2.สิ่งปลูกสร้าง" (CA-612). Id is a
+        // bigint IDENTITY shadow key, so ascending Id is save order. JoinDistinct below keeps it.
         const string propertiesSql = """
-            SELECT DISTINCT
+            SELECT
                 COALESCE(pPT.Description, rp.PropertyType) AS PropertyType,
                 COALESCE(pBT.Description, rp.BuildingType) AS BuildingType
             FROM request.RequestProperties rp
@@ -163,6 +167,9 @@ public sealed class AppointmentQuotationDataProvider(
                AND pBT.IsActive   = 1
                AND pBT.[Code]     = rp.BuildingType
             WHERE rp.RequestId = @RequestId
+            GROUP BY COALESCE(pPT.Description, rp.PropertyType),
+                     COALESCE(pBT.Description, rp.BuildingType)
+            ORDER BY MIN(rp.Id)
             """;
 
         var propertyRows = (await connection.QueryAsync<PropertyTypeRow>(propertiesSql, detailParams))
