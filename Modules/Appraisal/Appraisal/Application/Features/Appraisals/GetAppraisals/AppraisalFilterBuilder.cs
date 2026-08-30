@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Appraisals.Shared;
 using Dapper;
 
 namespace Appraisal.Application.Features.Appraisals.GetAppraisals;
@@ -35,6 +36,9 @@ internal static class AppraisalFilterBuilder
         // While this stays false the caller may count and page straight off the base table.
         var requiresView = false;
 
+        // See AppraisalFilterSql.HasFreeTextSearch for why this is tracked.
+        var hasFreeTextSearch = false;
+
         // External (company) callers are always scoped to their own company; the caller-supplied
         // AssigneeCompanyId on the filter is ignored to prevent cross-company peeking.
         // AppraisalAssignments.AssigneeCompanyId is nvarchar(100), so bind a string — passing a
@@ -49,15 +53,33 @@ internal static class AppraisalFilterBuilder
 
         if (filter is not null)
         {
-            // Text search across AppraisalNumber, CustomerName, and RequestNumber
+            // Free-text search. Shared with the navbar quick-search via AppraisalSearchPredicate so
+            // the two boxes can never find different things for the same term.
+            //
+            // This used to be three leading-wildcard LIKEs OR'ed over the view's own columns. Two of
+            // them (CustomerName, RequestNumber) are produced by the view's APPLYs, so the APPLYs had
+            // to run for every row before the predicate could reject anything, and the leading
+            // wildcard meant no index could seek. It also only ever looked at three columns — a
+            // title deed, an LOS number or a phone number found nothing.
+            //
+            // The replacement is a semi-join over base tables only, so the predicate is resolved
+            // before the view does any work and requiresView stays false: the count runs off
+            // appraisal.Appraisals. Measured on 105k appraisals: 738 ms -> 39 ms for the count.
             if (!string.IsNullOrWhiteSpace(filter.Search))
             {
-                conditions.Add(
-                    "(AppraisalNumber LIKE '%' + @Search + '%' OR CustomerName LIKE '%' + @Search + '%' OR RequestNumber LIKE '%' + @Search + '%')");
-                parameters.Add("Search", filter.Search.Trim());
-                // AppraisalNumber is on the base table, but CustomerName and RequestNumber are not,
-                // and the three are OR'ed — so the whole predicate needs the view.
-                requiresView = true;
+                var search = AppraisalSearchPredicate.BuildIdFilter(filter.Search);
+                if (search is null)
+                {
+                    // Shorter than the minimum useful term. Match nothing rather than everything —
+                    // silently ignoring the box would show an unfiltered list that looks filtered.
+                    conditions.Add("1 = 0");
+                }
+                else
+                {
+                    conditions.Add(search.Value.Sql);
+                    parameters.AddDynamicParams(search.Value.Parameters);
+                    hasFreeTextSearch = true;
+                }
             }
 
             // Multi-value filters (comma-separated -> IN clause)
@@ -161,7 +183,10 @@ internal static class AppraisalFilterBuilder
         }
 
         var whereClause = conditions.Count > 0 ? " WHERE " + string.Join(" AND ", conditions) : "";
-        return new AppraisalFilterSql(whereClause, parameters, requiresView);
+        return new AppraisalFilterSql(whereClause, parameters, requiresView)
+        {
+            HasFreeTextSearch = hasFreeTextSearch
+        };
     }
 
     public static string BuildOrderBy(GetAppraisalsFilterRequest? filter)
@@ -284,6 +309,18 @@ internal sealed record AppraisalFilterSql(
     DynamicParameters Parameters,
     bool RequiresView)
 {
+    /// <summary>
+    /// True when the free-text predicate is in the clause. It expands to a 17-way UNION of
+    /// <c>LIKE @SearchPattern</c> arms, and from an unknown parameter the optimizer cannot tell the
+    /// pattern is a prefix — so it plans for a possible leading wildcard and scans. Compiled per
+    /// execution it sees the real value and seeks. Measured on 105k appraisals: count 219 -> 103 ms,
+    /// paged 226 -> 149 ms, facet 228 -> 109 ms.
+    ///
+    /// Deliberately not a positional record parameter: the generated Deconstruct is 3-arity and
+    /// ExportAppraisalsQueryHandler destructures it.
+    /// </summary>
+    public bool HasFreeTextSearch { get; init; }
+
     /// <summary>
     /// The same clause aimed at <c>appraisal.Appraisals</c>. The view supplies
     /// <c>WHERE a.IsDeleted = 0</c> of its own; the base table does not, so it is added here.
