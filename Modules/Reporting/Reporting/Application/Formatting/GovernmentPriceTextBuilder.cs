@@ -94,9 +94,13 @@ public static class GovernmentPriceTextBuilder
     {
         var numbersByPrefix = new Dictionary<string, List<string>>();
         var prefixOrder = new List<string>();
-        foreach (var row in rows.Where(r => !string.IsNullOrWhiteSpace(r.Number)))
+        foreach (var row in rows)
         {
-            var prefix = string.IsNullOrWhiteSpace(row.NumberPrefix) ? numberPrefix : row.NumberPrefix!;
+            // Guarded here rather than with a Where(): nullable flow analysis cannot see through the
+            // lambda, so filtering outside the loop would leave row.Number nullable inside it.
+            if (string.IsNullOrWhiteSpace(row.Number)) continue;
+
+            var prefix = string.IsNullOrWhiteSpace(row.NumberPrefix) ? numberPrefix : row.NumberPrefix;
             if (!numbersByPrefix.TryGetValue(prefix, out var numbers))
             {
                 numbers = [];
@@ -104,7 +108,7 @@ public static class GovernmentPriceTextBuilder
                 prefixOrder.Add(prefix);
             }
 
-            numbers.Add(row.Number!);
+            numbers.Add(row.Number);
         }
 
         if (prefixOrder.Count == 0) return value;

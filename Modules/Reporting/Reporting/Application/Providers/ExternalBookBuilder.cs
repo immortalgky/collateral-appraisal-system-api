@@ -350,8 +350,12 @@ internal static class ExternalBookBuilder
         // sequence, so the kinds read in the same order as the property list above.
         var numbersByPrefix = new Dictionary<string, List<string>>();
         var prefixOrder = new List<string>();
-        foreach (var row in titleRows.Where(t => !string.IsNullOrWhiteSpace(t.TitleNumber)))
+        foreach (var row in titleRows)
         {
+            // Guarded here rather than with a Where(): nullable flow analysis cannot see through the
+            // lambda, so filtering outside the loop would leave row.TitleNumber nullable inside it.
+            if (string.IsNullOrWhiteSpace(row.TitleNumber)) continue;
+
             var prefix = TitleDeedLabel.NumberPrefix(row.TitleType);
             if (!numbersByPrefix.TryGetValue(prefix, out var numbers))
             {
@@ -360,8 +364,8 @@ internal static class ExternalBookBuilder
                 prefixOrder.Add(prefix);
             }
 
-            if (!numbers.Contains(row.TitleNumber!))
-                numbers.Add(row.TitleNumber!);
+            if (!numbers.Contains(row.TitleNumber))
+                numbers.Add(row.TitleNumber);
         }
 
         string? titleDeedNumbers = prefixOrder.Count > 0

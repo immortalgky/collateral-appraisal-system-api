@@ -15,33 +15,21 @@
 -- scripts by file name with no checksum, so that edit is a no-op wherever it already ran. This
 -- patch is what reaches those databases.
 --
--- Each UPDATE is guarded on the exact stale value, so it is idempotent AND will not overwrite a
--- description an administrator has since edited through the Parameter maintenance screen.
+-- Joining on the stale description as well as the code makes this idempotent AND stops it
+-- overwriting a description an administrator has since edited through the Parameter screen.
 
-UPDATE [parameter].[Parameters]
-SET [Description] = N'โฉนดที่ดิน / อ.ช.2',
+UPDATE p
+SET [Description] = c.NewDescription,
     [UpdatedAt]   = GETDATE(),
     [UpdatedBy]   = N'SYSTEM'
-WHERE [Group] = N'DeedType' AND [Language] = N'TH' AND [Code] = N'DEED'
-  AND [Description] = N'Title deed';
-
-UPDATE [parameter].[Parameters]
-SET [Description] = N'น.ส.3',
-    [UpdatedAt]   = GETDATE(),
-    [UpdatedBy]   = N'SYSTEM'
-WHERE [Group] = N'DeedType' AND [Language] = N'TH' AND [Code] = N'NS3'
-  AND [Description] = N'นส 3';
-
-UPDATE [parameter].[Parameters]
-SET [Description] = N'น.ส.3 ก.',
-    [UpdatedAt]   = GETDATE(),
-    [UpdatedBy]   = N'SYSTEM'
-WHERE [Group] = N'DeedType' AND [Language] = N'TH' AND [Code] = N'NS3K'
-  AND [Description] = N'นส 3 ก';
-
-UPDATE [parameter].[Parameters]
-SET [Description] = N'น.ส.3 ข.',
-    [UpdatedAt]   = GETDATE(),
-    [UpdatedBy]   = N'SYSTEM'
-WHERE [Group] = N'DeedType' AND [Language] = N'TH' AND [Code] = N'NS3KO'
-  AND [Description] = N'นส 3 ข';
+FROM [parameter].[Parameters] p
+JOIN (VALUES
+        (N'DEED',  N'Title deed', N'โฉนดที่ดิน / อ.ช.2'),
+        (N'NS3',   N'นส 3',       N'น.ส.3'),
+        (N'NS3K',  N'นส 3 ก',     N'น.ส.3 ก.'),
+        (N'NS3KO', N'นส 3 ข',     N'น.ส.3 ข.')
+     ) AS c (Code, StaleDescription, NewDescription)
+  ON  c.Code             = p.[Code]
+  AND c.StaleDescription = p.[Description]
+WHERE p.[Group]    = N'DeedType'
+  AND p.[Language] = N'TH';
