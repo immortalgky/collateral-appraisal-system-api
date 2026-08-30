@@ -33,10 +33,22 @@ A blank id still identifies the work — the appraisal number is in the record �
 tells the host a person needs to look at it. Guessing which of several collateral a price belongs to
 would update the wrong one.
 
-**Block projects are the exception that resolves.** AS400 mints an id per financed unit and writes
-the unit key into `CollateralName` as `CONDO.<room> <deeds>`; our own units carry the same room
-number. Matching on it produces one row per unit, each with its own price and its own land area —
-not one price repeated.
+**Block projects are the exception that resolves.** AS400 mints an id per financed unit and names
+that unit twice, in two fields that fail on different rows:
+
+| Key | Read from | Matched against | Needed because |
+|---|---|---|---|
+| Name token | `CollateralName`, the key inside `CONDO.<key> <deeds>` | `CondoRegistrationNumber`, then `RoomNumber` | the usual condo case |
+| Address token | `Address1`, its leading word (`253/36 มบ.มัณฑนา…`) | `HouseNumber` | a **house** in a development has no room number, and its `CollateralName` is a deed number that appears nowhere in the unit table |
+
+The name outranks the address when both find something. The `CONDO` prefix is read leniently —
+AS400 writes it as `CONDO.47/18`, `CONDO. 59/38`, `CONDO 159/262` and `CONDO138/133`, and a strict
+`CONDO.%` read yields an empty key for every spelling but the first. Same extraction as
+`vw_RegulatoryExport`; the two views must not disagree about which unit a collateral is.
+
+The result is one row per financed **collateral**, each with its own price and land area rather than
+the development's total repeated. One collateral can name several rooms as a comma list — those are
+summed into that collateral's single row, never sent as several rows sharing one id.
 
 The sent-ledger is keyed on **`(AppraisalId, CollateralId)`**. Keying on the appraisal alone
 structurally forbade the per-unit case, and it also meant an appraisal sent before AS400 minted its
