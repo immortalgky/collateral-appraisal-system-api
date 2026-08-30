@@ -36,6 +36,9 @@ public class ExportAppraisalsEndpoint : ICarterModule
                 "Exports all matching appraisals (up to 10,000 rows) as a file download. " +
                 "Accepts the same filter parameters as GET /appraisals. " +
                 "Use format=xlsx (default) for Excel or format=csv for CSV with UTF-8 BOM.")
-            .WithTags("Appraisal");
+            .WithTags("Appraisal"
+                + " Single-column search: customerName, appraisalNumber, requestNumber. "
+                + "subDistrict is an exact 6-digit geocode match on the first land property. "
+                + "LIKE metacharacters are literal.");
     }
 }

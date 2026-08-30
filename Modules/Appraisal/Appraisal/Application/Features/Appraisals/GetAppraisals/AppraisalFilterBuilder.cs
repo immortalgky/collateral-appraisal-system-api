@@ -159,8 +159,11 @@ internal static class AppraisalFilterBuilder
 
             if (!string.IsNullOrWhiteSpace(filter.SubDistrict))
             {
-                conditions.Add("SubDistrict LIKE '%' + @SubDistrict + '%' ESCAPE '\\'");
-                parameters.Add("SubDistrict", EscapeLikePattern(filter.SubDistrict.Trim()));
+                // Exact match, like Province and District above: this column holds the 6-digit
+                // TIS-1099 geocode the address picker emits, not a Thai name. A substring match
+                // crosses provinces — '%1001%' hits both 100101 (Bangkok) and 931001 (Phatthalung).
+                conditions.Add("SubDistrict = @SubDistrict");
+                parameters.Add("SubDistrict", filter.SubDistrict.Trim());
                 requiresView = true;
             }
 

@@ -38,7 +38,13 @@ public class GetAppraisalsEndpoint : ICarterModule
                 "Supports text search (search), multi-value filters (comma-separated status, priority, appraisalType, slaStatus, assignmentType, purpose, propertyType), " +
                 "date ranges (createdFrom/To, slaDueDateFrom/To, assignedDateFrom/To, appointmentDateFrom/To), " +
                 "geographic filters (province, district), and sorting (sortBy, sortDir). " +
-                "propertyType matches appraisals having at least one property of the given type(s).")
+                "propertyType matches appraisals having at least one property of the given type(s). "
+                + "Single-column search: customerName, appraisalNumber and requestNumber each match one "
+                + "column instead of the three `search` ORs together — appraisalNumber is the cheapest, "
+                + "since it is the only one of the three on the base table. "
+                + "subDistrict is an exact match on the 6-digit TIS-1099 geocode (not a name), and like "
+                + "province/district it tests only the appraisal's FIRST land property. "
+                + "LIKE metacharacters (% _ [ \\) are treated as literal text in every text filter.")
             .WithTags("Appraisal");
     }
 }

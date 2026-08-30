@@ -76,6 +76,14 @@ public record AppraisalDto
     /// </summary>
     public string? InternalAppraiserId { get; init; }
 
+    /// <summary>
+    /// <b>Always null today.</b> The column exists on the view and on AppraisalAssignment, but
+    /// nothing ever writes it — every assignment path sets only InternalAppraiserId, and
+    /// AppraisalAssignment.InternalAppraiserName has no setter (unlike ExternalAppraiserName,
+    /// which SetExternalAppraiser populates). Confirmed against the database: 0 of 105,491
+    /// assignments carry a value. Resolve the display name from InternalAppraiserId instead until
+    /// an assignment path starts writing this.
+    /// </summary>
     public string? InternalAppraiserName { get; init; }
     public string? ExternalAppraiserId { get; init; }
     public string? ExternalAppraiserName { get; init; }

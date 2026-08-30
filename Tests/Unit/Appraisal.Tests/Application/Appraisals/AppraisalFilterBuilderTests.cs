@@ -72,7 +72,7 @@ public class AppraisalFilterBuilderTests
         new GetAppraisalsFilterRequest(AssignedDateFrom: new DateTime(2026, 1, 1)),
         new GetAppraisalsFilterRequest(AppointmentDateTo: new DateTime(2026, 1, 1)),
         new GetAppraisalsFilterRequest { CustomerName = "somchai" },
-        new GetAppraisalsFilterRequest { SubDistrict = "100301" },
+        new GetAppraisalsFilterRequest { SubDistrict = "100301" },   // exact geocode, not a LIKE
     ];
 
     [Theory]
@@ -252,12 +252,23 @@ public class AppraisalFilterBuilderTests
         Assert.Equal(expected, result.Parameters.Get<string>("Search"));
     }
 
+    [Fact]
+    public void SubDistrict_is_matched_exactly_because_it_holds_a_geocode()
+    {
+        // The column stores the 6-digit TIS-1099 code the address picker emits, not a name.
+        // A substring match crosses provinces: '%1001%' hits 100101 (Bangkok) and 931001 too.
+        var result = AppraisalFilterBuilder.BuildFilter(
+            new GetAppraisalsFilterRequest { SubDistrict = "100101" });
+
+        Assert.Contains("SubDistrict = @SubDistrict", result.WhereClause);
+        Assert.DoesNotContain("SubDistrict LIKE", result.WhereClause);
+    }
+
     [Theory]
     [InlineData("Search")]
     [InlineData("CustomerName")]
     [InlineData("AppraisalNumber")]
     [InlineData("RequestNumber")]
-    [InlineData("SubDistrict")]
     public void Every_like_predicate_carries_an_escape_clause(string field)
     {
         // Escaping the value is only half of it — SQL Server ignores the backslash unless the
@@ -267,8 +278,7 @@ public class AppraisalFilterBuilderTests
             "Search" => new GetAppraisalsFilterRequest(Search: "x"),
             "CustomerName" => new GetAppraisalsFilterRequest { CustomerName = "x" },
             "AppraisalNumber" => new GetAppraisalsFilterRequest { AppraisalNumber = "x" },
-            "RequestNumber" => new GetAppraisalsFilterRequest { RequestNumber = "x" },
-            _ => new GetAppraisalsFilterRequest { SubDistrict = "x" },
+            _ => new GetAppraisalsFilterRequest { RequestNumber = "x" },
         };
 
         var result = AppraisalFilterBuilder.BuildFilter(filter);
