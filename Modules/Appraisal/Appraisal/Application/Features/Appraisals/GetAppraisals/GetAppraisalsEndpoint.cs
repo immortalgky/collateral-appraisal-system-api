@@ -15,71 +15,12 @@ public class GetAppraisalsEndpoint : ICarterModule
                 "/appraisals",
                 async (
                     [AsParameters] PaginationRequest pagination,
-                    // Text search
-                    [FromQuery] string? search,
-                    // Multi-value filters
-                    [FromQuery] string? status,
-                    [FromQuery] string? priority,
-                    [FromQuery] string? appraisalType,
-                    [FromQuery] string? slaStatus,
-                    [FromQuery] string? assignmentType,
-                    // Assignment (username like "P5229", not GUID)
-                    [FromQuery] string? assigneeUserId,
-                    [FromQuery] string? assigneeCompanyId,
-                    // Request metadata
-                    [FromQuery] string? channel,
-                    [FromQuery] string? bankingSegment,
-                    [FromQuery] string? purpose,
-                    [FromQuery] string? propertyType,
-                    [FromQuery] bool? isPma,
-                    // Geographic
-                    [FromQuery] string? province,
-                    [FromQuery] string? district,
-                    // Date ranges
-                    [FromQuery] DateTime? createdFrom,
-                    [FromQuery] DateTime? createdTo,
-                    [FromQuery] DateTime? slaDueDateFrom,
-                    [FromQuery] DateTime? slaDueDateTo,
-                    [FromQuery] DateTime? assignedDateFrom,
-                    [FromQuery] DateTime? assignedDateTo,
-                    [FromQuery] DateTime? appointmentDateFrom,
-                    [FromQuery] DateTime? appointmentDateTo,
-                    // Sorting
-                    [FromQuery] string? sortBy,
-                    [FromQuery] string? sortDir,
+                    [AsParameters] AppraisalListQueryParams queryParams,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
                 {
-                    var filter = new GetAppraisalsFilterRequest(
-                        Search: search,
-                        Status: status,
-                        Priority: priority,
-                        AppraisalType: appraisalType,
-                        SlaStatus: slaStatus,
-                        AssignmentType: assignmentType,
-                        AssigneeUserId: assigneeUserId,
-                        AssigneeCompanyId: assigneeCompanyId,
-                        Channel: channel,
-                        BankingSegment: bankingSegment,
-                        IsPma: isPma,
-                        Province: province,
-                        District: district,
-                        CreatedFrom: createdFrom,
-                        CreatedTo: createdTo,
-                        SlaDueDateFrom: slaDueDateFrom,
-                        SlaDueDateTo: slaDueDateTo,
-                        AssignedDateFrom: assignedDateFrom,
-                        AssignedDateTo: assignedDateTo,
-                        AppointmentDateFrom: appointmentDateFrom,
-                        AppointmentDateTo: appointmentDateTo,
-                        SortBy: sortBy,
-                        SortDir: sortDir
-                    )
-                    {
-                        Purpose = purpose,
-                        PropertyType = propertyType,
-                    };
+                    var filter = queryParams.ToFilterRequest();
 
                     var query = new GetAppraisalsQuery(pagination, filter);
 
@@ -97,7 +38,13 @@ public class GetAppraisalsEndpoint : ICarterModule
                 "Supports text search (search), multi-value filters (comma-separated status, priority, appraisalType, slaStatus, assignmentType, purpose, propertyType), " +
                 "date ranges (createdFrom/To, slaDueDateFrom/To, assignedDateFrom/To, appointmentDateFrom/To), " +
                 "geographic filters (province, district), and sorting (sortBy, sortDir). " +
-                "propertyType matches appraisals having at least one property of the given type(s).")
+                "propertyType matches appraisals having at least one property of the given type(s). "
+                + "Single-column search: customerName, appraisalNumber and requestNumber each match one "
+                + "column instead of the three `search` ORs together — appraisalNumber is the cheapest, "
+                + "since it is the only one of the three on the base table. "
+                + "subDistrict is an exact match on the 6-digit TIS-1099 geocode (not a name), and like "
+                + "province/district it tests only the appraisal's FIRST land property. "
+                + "LIKE metacharacters (% _ [ \\) are treated as literal text in every text filter.")
             .WithTags("Appraisal");
     }
 }

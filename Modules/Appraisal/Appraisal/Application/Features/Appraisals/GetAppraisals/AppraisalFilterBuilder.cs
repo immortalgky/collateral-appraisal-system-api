@@ -1,5 +1,6 @@
 using Appraisal.Application.Features.Appraisals.Shared;
 using Dapper;
+using Shared.Data;
 
 namespace Appraisal.Application.Features.Appraisals.GetAppraisals;
 
@@ -160,20 +161,31 @@ internal static class AppraisalFilterBuilder
             // Picker-specific additive fields
             if (!string.IsNullOrWhiteSpace(filter.CustomerName))
             {
-                conditions.Add("CustomerName LIKE '%' + @CustomerName + '%'");
-                parameters.Add("CustomerName", filter.CustomerName.Trim());
+                conditions.Add("CustomerName LIKE '%' + @CustomerName + '%' ESCAPE '\\'");
+                parameters.Add("CustomerName", LikePattern.Escape(filter.CustomerName.Trim()));
+                requiresView = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.RequestNumber))
+            {
+                conditions.Add("RequestNumber LIKE '%' + @RequestNumber + '%' ESCAPE '\\'");
+                parameters.Add("RequestNumber", LikePattern.Escape(filter.RequestNumber.Trim()));
+                // RequestNumber comes from the LEFT JOIN on request.Requests, not the base table.
                 requiresView = true;
             }
 
             if (!string.IsNullOrWhiteSpace(filter.AppraisalNumber))
             {
-                conditions.Add("AppraisalNumber LIKE '%' + @AppraisalNumber + '%'");
-                parameters.Add("AppraisalNumber", filter.AppraisalNumber.Trim());
+                conditions.Add("AppraisalNumber LIKE '%' + @AppraisalNumber + '%' ESCAPE '\\'");
+                parameters.Add("AppraisalNumber", LikePattern.Escape(filter.AppraisalNumber.Trim()));
             }
 
             if (!string.IsNullOrWhiteSpace(filter.SubDistrict))
             {
-                conditions.Add("SubDistrict LIKE '%' + @SubDistrict + '%'");
+                // Exact match, like Province and District above: this column holds the 6-digit
+                // TIS-1099 geocode the address picker emits, not a Thai name. A substring match
+                // crosses provinces — '%1001%' hits both 100101 (Bangkok) and 931001 (Phatthalung).
+                conditions.Add("SubDistrict = @SubDistrict");
                 parameters.Add("SubDistrict", filter.SubDistrict.Trim());
                 requiresView = true;
             }

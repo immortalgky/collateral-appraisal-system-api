@@ -14,73 +14,14 @@ public class ExportAppraisalsEndpoint : ICarterModule
         app.MapGet(
                 "/appraisals/export",
                 async (
-                    // Text search
-                    [FromQuery] string? search,
-                    // Multi-value filters
-                    [FromQuery] string? status,
-                    [FromQuery] string? priority,
-                    [FromQuery] string? appraisalType,
-                    [FromQuery] string? slaStatus,
-                    [FromQuery] string? assignmentType,
-                    // Assignment (username like "P5229")
-                    [FromQuery] string? assigneeUserId,
-                    [FromQuery] string? assigneeCompanyId,
-                    // Request metadata
-                    [FromQuery] string? channel,
-                    [FromQuery] string? bankingSegment,
-                    [FromQuery] string? purpose,
-                    [FromQuery] string? propertyType,
-                    [FromQuery] bool? isPma,
-                    // Geographic
-                    [FromQuery] string? province,
-                    [FromQuery] string? district,
-                    // Date ranges
-                    [FromQuery] DateTime? createdFrom,
-                    [FromQuery] DateTime? createdTo,
-                    [FromQuery] DateTime? slaDueDateFrom,
-                    [FromQuery] DateTime? slaDueDateTo,
-                    [FromQuery] DateTime? assignedDateFrom,
-                    [FromQuery] DateTime? assignedDateTo,
-                    [FromQuery] DateTime? appointmentDateFrom,
-                    [FromQuery] DateTime? appointmentDateTo,
-                    // Sorting
-                    [FromQuery] string? sortBy,
-                    [FromQuery] string? sortDir,
+                    [AsParameters] AppraisalListQueryParams queryParams,
                     // Export format: "xlsx" (default) or "csv"
                     [FromQuery] string? format,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
                 {
-                    var filter = new GetAppraisalsFilterRequest(
-                        Search: search,
-                        Status: status,
-                        Priority: priority,
-                        AppraisalType: appraisalType,
-                        SlaStatus: slaStatus,
-                        AssignmentType: assignmentType,
-                        AssigneeUserId: assigneeUserId,
-                        AssigneeCompanyId: assigneeCompanyId,
-                        Channel: channel,
-                        BankingSegment: bankingSegment,
-                        IsPma: isPma,
-                        Province: province,
-                        District: district,
-                        CreatedFrom: createdFrom,
-                        CreatedTo: createdTo,
-                        SlaDueDateFrom: slaDueDateFrom,
-                        SlaDueDateTo: slaDueDateTo,
-                        AssignedDateFrom: assignedDateFrom,
-                        AssignedDateTo: assignedDateTo,
-                        AppointmentDateFrom: appointmentDateFrom,
-                        AppointmentDateTo: appointmentDateTo,
-                        SortBy: sortBy,
-                        SortDir: sortDir
-                    )
-                    {
-                        Purpose = purpose,
-                        PropertyType = propertyType,
-                    };
+                    var filter = queryParams.ToFilterRequest();
 
                     var query = new ExportAppraisalsQuery(filter, format ?? "xlsx");
                     var result = await sender.Send(query, cancellationToken);
@@ -95,6 +36,9 @@ public class ExportAppraisalsEndpoint : ICarterModule
                 "Exports all matching appraisals (up to 10,000 rows) as a file download. " +
                 "Accepts the same filter parameters as GET /appraisals. " +
                 "Use format=xlsx (default) for Excel or format=csv for CSV with UTF-8 BOM.")
-            .WithTags("Appraisal");
+            .WithTags("Appraisal"
+                + " Single-column search: customerName, appraisalNumber, requestNumber. "
+                + "subDistrict is an exact 6-digit geocode match on the first land property. "
+                + "LIKE metacharacters are literal.");
     }
 }
