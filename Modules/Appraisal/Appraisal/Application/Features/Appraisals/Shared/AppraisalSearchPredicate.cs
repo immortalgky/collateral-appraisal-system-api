@@ -30,12 +30,17 @@ internal static class AppraisalSearchPredicate
     public const int MinTermLength = 3;
 
     /// <summary>
-    /// Rows each arm may contribute. A term like <c>"69"</c> is a prefix of nearly every appraisal
-    /// number, and without a cap the union materialises the whole table before the caller's TOP can
-    /// discard it. Ranking stays correct for any term selective enough to be worth typing; for one
-    /// that is not, the user is going to refine it anyway.
+    /// Rows each arm may contribute in the dropdown. A term like <c>"690"</c> is a prefix of nearly
+    /// every appraisal number, and without a cap the union materialises the whole table before the
+    /// caller's TOP can discard it.
+    ///
+    /// It is <b>only</b> for the dropdown, which shows a handful of rows and is re-issued on every
+    /// keystroke. Anything that presents a complete result set — the appraisal list, its export, the
+    /// quotation-eligible query — must run uncapped: a cap there silently drops rows, and because
+    /// the count, the page and the facets are three separate executions of the same union with no
+    /// ORDER BY inside the TOP, each could keep a different subset.
     /// </summary>
-    private const int ArmCap = 200;
+    public const int DropdownArmCap = 200;
 
     // Rank orders the groups a user sees. Document numbers are what people paste, so they come
     // first; property identifiers last because a title deed is usually a deliberate lookup rather
@@ -55,36 +60,41 @@ internal static class AppraisalSearchPredicate
     /// a different pattern; <c>@Cap</c> bounds each arm.
     ///
     /// All of these join back through <c>RequestId</c>, which every table here is indexed on, and
-    /// filter <c>a.IsDeleted = 0</c> so a deleted appraisal cannot surface through any of them.
+    /// filter <b>both</b> <c>a.IsDeleted = 0</c> and <c>r.IsDeleted = 0</c>. Both are needed: an
+    /// appraisal can be soft-deleted on its own, and a soft-deleted request whose appraisal row is
+    /// still live would otherwise leak its customer names, phone numbers and title deeds back into
+    /// search results.
     /// </summary>
     private static readonly Arm[] AllArms =
     [
         // ── Document numbers ────────────────────────────────────────────────────────────────
         new("documents", RankDocument, "appraisalNumber", """
-            SELECT TOP(@Cap) a.Id AS AppraisalId, {R} AS Rnk, 'appraisalNumber' AS Fld, a.AppraisalNumber AS Val
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'appraisalNumber' AS Fld, a.AppraisalNumber AS Val
             FROM appraisal.Appraisals a
             WHERE a.IsDeleted = 0 AND a.AppraisalNumber LIKE {P} ESCAPE '\'
             """),
         new("documents", RankDocument, "requestNumber", """
-            SELECT TOP(@Cap) a.Id AS AppraisalId, {R} AS Rnk, 'requestNumber' AS Fld, r.RequestNumber AS Val
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'requestNumber' AS Fld, r.RequestNumber AS Val
             FROM request.Requests r
             JOIN appraisal.Appraisals a ON a.RequestId = r.Id AND a.IsDeleted = 0
             WHERE r.IsDeleted = 0 AND r.RequestNumber LIKE {P} ESCAPE '\'
             """),
         new("documents", RankDocument, "loanApplicationNumber", """
-            SELECT TOP(@Cap) a.Id AS AppraisalId, {R} AS Rnk, 'loanApplicationNumber' AS Fld, d.LoanApplicationNumber AS Val
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'loanApplicationNumber' AS Fld, d.LoanApplicationNumber AS Val
             FROM request.RequestDetails d
+            JOIN request.Requests r ON r.Id = d.RequestId AND r.IsDeleted = 0
             JOIN appraisal.Appraisals a ON a.RequestId = d.RequestId AND a.IsDeleted = 0
             WHERE d.LoanApplicationNumber LIKE {P} ESCAPE '\'
             """),
         new("documents", RankDocument, "prevAppraisalNumber", """
-            SELECT TOP(@Cap) a.Id AS AppraisalId, {R} AS Rnk, 'prevAppraisalNumber' AS Fld, d.PrevAppraisalNumber AS Val
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'prevAppraisalNumber' AS Fld, d.PrevAppraisalNumber AS Val
             FROM request.RequestDetails d
+            JOIN request.Requests r ON r.Id = d.RequestId AND r.IsDeleted = 0
             JOIN appraisal.Appraisals a ON a.RequestId = d.RequestId AND a.IsDeleted = 0
             WHERE d.PrevAppraisalNumber LIKE {P} ESCAPE '\'
             """),
         new("documents", RankDocument, "externalCaseKey", """
-            SELECT TOP(@Cap) a.Id AS AppraisalId, {R} AS Rnk, 'externalCaseKey' AS Fld, r.ExternalCaseKey AS Val
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'externalCaseKey' AS Fld, r.ExternalCaseKey AS Val
             FROM request.Requests r
             JOIN appraisal.Appraisals a ON a.RequestId = r.Id AND a.IsDeleted = 0
             WHERE r.IsDeleted = 0 AND r.ExternalCaseKey LIKE {P} ESCAPE '\'
@@ -94,31 +104,35 @@ internal static class AppraisalSearchPredicate
         // Deliberately not vw_AppraisalList.CustomerName: the view exposes only the FIRST customer
         // per request (TOP 1), so a second customer on the same request would be unfindable.
         new("customers", RankCustomer, "customerName", """
-            SELECT TOP(@Cap) a.Id AS AppraisalId, {R} AS Rnk, 'customerName' AS Fld, c.Name AS Val
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'customerName' AS Fld, c.Name AS Val
             FROM request.RequestCustomers c
+            JOIN request.Requests r ON r.Id = c.RequestId AND r.IsDeleted = 0
             JOIN appraisal.Appraisals a ON a.RequestId = c.RequestId AND a.IsDeleted = 0
             WHERE c.Name LIKE {P} ESCAPE '\'
             """),
         new("customers", RankCustomer, "contactNumber", """
-            SELECT TOP(@Cap) a.Id AS AppraisalId, {R} AS Rnk, 'contactNumber' AS Fld, c.ContactNumber AS Val
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'contactNumber' AS Fld, c.ContactNumber AS Val
             FROM request.RequestCustomers c
+            JOIN request.Requests r ON r.Id = c.RequestId AND r.IsDeleted = 0
             JOIN appraisal.Appraisals a ON a.RequestId = c.RequestId AND a.IsDeleted = 0
             WHERE c.ContactNumber LIKE {P} ESCAPE '\'
             """),
         new("customers", RankCustomer, "contactPersonName", """
-            SELECT TOP(@Cap) a.Id AS AppraisalId, {R} AS Rnk, 'contactPersonName' AS Fld, d.ContactPersonName AS Val
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'contactPersonName' AS Fld, d.ContactPersonName AS Val
             FROM request.RequestDetails d
+            JOIN request.Requests r ON r.Id = d.RequestId AND r.IsDeleted = 0
             JOIN appraisal.Appraisals a ON a.RequestId = d.RequestId AND a.IsDeleted = 0
             WHERE d.ContactPersonName LIKE {P} ESCAPE '\'
             """),
         new("customers", RankCustomer, "contactPersonPhone", """
-            SELECT TOP(@Cap) a.Id AS AppraisalId, {R} AS Rnk, 'contactPersonPhone' AS Fld, d.ContactPersonPhone AS Val
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'contactPersonPhone' AS Fld, d.ContactPersonPhone AS Val
             FROM request.RequestDetails d
+            JOIN request.Requests r ON r.Id = d.RequestId AND r.IsDeleted = 0
             JOIN appraisal.Appraisals a ON a.RequestId = d.RequestId AND a.IsDeleted = 0
             WHERE d.ContactPersonPhone LIKE {P} ESCAPE '\'
             """),
         new("customers", RankCustomer, "requestorName", """
-            SELECT TOP(@Cap) a.Id AS AppraisalId, {R} AS Rnk, 'requestorName' AS Fld, r.RequestorName AS Val
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'requestorName' AS Fld, r.RequestorName AS Val
             FROM request.Requests r
             JOIN appraisal.Appraisals a ON a.RequestId = r.Id AND a.IsDeleted = 0
             WHERE r.IsDeleted = 0 AND r.RequestorName LIKE {P} ESCAPE '\'
@@ -128,44 +142,51 @@ internal static class AppraisalSearchPredicate
         // request.RequestTitles is table-per-hierarchy: one row populates only its own branch's
         // columns, which is why each of these has its own filtered index rather than one wide one.
         new("properties", RankProperty, "titleNumber", """
-            SELECT TOP(@Cap) a.Id AS AppraisalId, {R} AS Rnk, 'titleNumber' AS Fld, t.TitleNumber AS Val
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'titleNumber' AS Fld, t.TitleNumber AS Val
             FROM request.RequestTitles t
+            JOIN request.Requests r ON r.Id = t.RequestId AND r.IsDeleted = 0
             JOIN appraisal.Appraisals a ON a.RequestId = t.RequestId AND a.IsDeleted = 0
             WHERE t.TitleNumber LIKE {P} ESCAPE '\'
             """),
         new("properties", RankProperty, "landParcelNumber", """
-            SELECT TOP(@Cap) a.Id AS AppraisalId, {R} AS Rnk, 'landParcelNumber' AS Fld, t.LandParcelNumber AS Val
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'landParcelNumber' AS Fld, t.LandParcelNumber AS Val
             FROM request.RequestTitles t
+            JOIN request.Requests r ON r.Id = t.RequestId AND r.IsDeleted = 0
             JOIN appraisal.Appraisals a ON a.RequestId = t.RequestId AND a.IsDeleted = 0
             WHERE t.LandParcelNumber LIKE {P} ESCAPE '\'
             """),
         new("properties", RankProperty, "roomNumber", """
-            SELECT TOP(@Cap) a.Id AS AppraisalId, {R} AS Rnk, 'roomNumber' AS Fld, t.RoomNumber AS Val
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'roomNumber' AS Fld, t.RoomNumber AS Val
             FROM request.RequestTitles t
+            JOIN request.Requests r ON r.Id = t.RequestId AND r.IsDeleted = 0
             JOIN appraisal.Appraisals a ON a.RequestId = t.RequestId AND a.IsDeleted = 0
             WHERE t.RoomNumber LIKE {P} ESCAPE '\'
             """),
         new("properties", RankProperty, "licensePlateNumber", """
-            SELECT TOP(@Cap) a.Id AS AppraisalId, {R} AS Rnk, 'licensePlateNumber' AS Fld, t.LicensePlateNumber AS Val
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'licensePlateNumber' AS Fld, t.LicensePlateNumber AS Val
             FROM request.RequestTitles t
+            JOIN request.Requests r ON r.Id = t.RequestId AND r.IsDeleted = 0
             JOIN appraisal.Appraisals a ON a.RequestId = t.RequestId AND a.IsDeleted = 0
             WHERE t.LicensePlateNumber LIKE {P} ESCAPE '\'
             """),
         new("properties", RankProperty, "ownerName", """
-            SELECT TOP(@Cap) a.Id AS AppraisalId, {R} AS Rnk, 'ownerName' AS Fld, t.OwnerName AS Val
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'ownerName' AS Fld, t.OwnerName AS Val
             FROM request.RequestTitles t
+            JOIN request.Requests r ON r.Id = t.RequestId AND r.IsDeleted = 0
             JOIN appraisal.Appraisals a ON a.RequestId = t.RequestId AND a.IsDeleted = 0
             WHERE t.OwnerName LIKE {P} ESCAPE '\'
             """),
         new("properties", RankProperty, "projectName", """
-            SELECT TOP(@Cap) a.Id AS AppraisalId, {R} AS Rnk, 'projectName' AS Fld, t.ProjectName AS Val
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'projectName' AS Fld, t.ProjectName AS Val
             FROM request.RequestTitles t
+            JOIN request.Requests r ON r.Id = t.RequestId AND r.IsDeleted = 0
             JOIN appraisal.Appraisals a ON a.RequestId = t.RequestId AND a.IsDeleted = 0
             WHERE t.ProjectName LIKE {P} ESCAPE '\'
             """),
         new("properties", RankProperty, "condoName", """
-            SELECT TOP(@Cap) a.Id AS AppraisalId, {R} AS Rnk, 'condoName' AS Fld, t.CondoName AS Val
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'condoName' AS Fld, t.CondoName AS Val
             FROM request.RequestTitles t
+            JOIN request.Requests r ON r.Id = t.RequestId AND r.IsDeleted = 0
             JOIN appraisal.Appraisals a ON a.RequestId = t.RequestId AND a.IsDeleted = 0
             WHERE t.CondoName LIKE {P} ESCAPE '\'
             """),
@@ -175,7 +196,13 @@ internal static class AppraisalSearchPredicate
     /// The UNION ALL of every arm in <paramref name="scope"/>, and the parameters it binds.
     /// Returns <c>null</c> when the term is too short to search on.
     /// </summary>
-    public static (string Sql, DynamicParameters Parameters)? Build(string? term, string scope = "all")
+    /// <param name="armCap">
+    /// Rows each arm may contribute, or <c>null</c> for no cap. Pass <see cref="DropdownArmCap"/>
+    /// from the quick-search only; every caller that presents a complete result set must leave it
+    /// null. See the remarks on <see cref="DropdownArmCap"/>.
+    /// </param>
+    public static (string Sql, DynamicParameters Parameters)? Build(
+        string? term, string scope = "all", int? armCap = null)
     {
         var trimmed = term?.Trim();
         if (string.IsNullOrEmpty(trimmed) || trimmed.Length < MinTermLength) return null;
@@ -186,14 +213,18 @@ internal static class AppraisalSearchPredicate
             .ToList();
         if (arms.Count == 0) return null;
 
+        var top = armCap.HasValue ? "TOP(@Cap) " : "";
         var sql = string.Join("\n            UNION ALL\n",
-            arms.Select(a => a.Sql.Replace("{P}", "@SearchPattern").Replace("{R}", a.Rank.ToString())));
+            arms.Select(a => a.Sql
+                .Replace("{TOP}", top)
+                .Replace("{P}", "@SearchPattern")
+                .Replace("{R}", a.Rank.ToString())));
 
         var parameters = new DynamicParameters();
+        if (armCap.HasValue) parameters.Add("Cap", armCap.Value);
         // Prefix by default (term%), substring only when the user types '*'. This is what lets the
         // filtered indexes on RequestTitles and RequestCustomers seek instead of scan.
         parameters.Add("SearchPattern", LikePattern.Build(trimmed));
-        parameters.Add("Cap", ArmCap);
         return (sql, parameters);
     }
 
@@ -205,6 +236,7 @@ internal static class AppraisalSearchPredicate
     /// </summary>
     public static (string Sql, DynamicParameters Parameters)? BuildIdFilter(string? term, string scope = "all")
     {
+        // Uncapped on purpose — see DropdownArmCap.
         var built = Build(term, scope);
         if (built is null) return null;
         var (sql, parameters) = built.Value;

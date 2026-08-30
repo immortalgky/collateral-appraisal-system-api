@@ -33,4 +33,9 @@ public record SearchGroup(
 public record QuickSearchResult(
     IReadOnlyList<SearchGroup> Groups,
     bool HasMore,
-    int TotalMatchedAppraisals);
+    int TotalMatchedAppraisals,
+    /// <summary>
+    /// True when the arms hit their cap, so <see cref="TotalMatchedAppraisals"/> is a floor rather
+    /// than a count. Show it as "N+"; the full list page counts uncapped and can be trusted.
+    /// </summary>
+    bool IsTotalApproximate = false);

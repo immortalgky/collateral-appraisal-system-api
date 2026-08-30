@@ -169,12 +169,38 @@ public class AppraisalFilterBuilderTests
     }
 
     [Fact]
-    public void Search_caps_each_arm_so_an_unselective_term_cannot_drag_the_whole_table()
+    public void Search_on_the_list_is_uncapped_so_the_page_export_and_facets_agree()
     {
+        // The dropdown caps each arm because it shows a handful of rows and re-runs on every
+        // keystroke. The list must not: the same clause feeds /appraisals, /appraisals/export and
+        // the quotation-eligible query, so a cap silently drops rows from a result set the user is
+        // told is complete. Worse, the count, the page and the facets are three separate executions
+        // of this union with no ORDER BY inside a TOP, so each could keep a different subset —
+        // totals that disagree with the page, and rows that repeat or vanish between pages.
         var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: "690"));
 
-        Assert.Contains("TOP(@Cap)", result.WhereClause);
-        Assert.Equal(200, result.Parameters.Get<int>("Cap"));
+        Assert.DoesNotContain("TOP(", result.WhereClause);
+        Assert.DoesNotContain("Cap", result.Parameters.ParameterNames);
+    }
+
+    [Fact]
+    public void Search_excludes_soft_deleted_requests_as_well_as_soft_deleted_appraisals()
+    {
+        // An appraisal can be soft-deleted on its own, but a soft-deleted REQUEST whose appraisal
+        // row is still live would otherwise leak its customer names, phone numbers and title deeds.
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: "somchai"));
+
+        var where = result.WhereClause;
+        var armCount = where.Split("UNION ALL").Length;
+
+        // Every arm checks the appraisal.
+        Assert.Equal(armCount, where.Split("a.IsDeleted = 0").Length - 1);
+
+        // Every arm that reads a request table also checks the request. The appraisal-number arm is
+        // the one exception — it reads appraisal.Appraisals alone and has no request to check.
+        var armsOverRequestTables = where.Split("FROM request.").Length - 1;
+        Assert.Equal(armCount - 1, armsOverRequestTables);
+        Assert.Equal(armsOverRequestTables, where.Split("r.IsDeleted = 0").Length - 1);
     }
 
     [Fact]

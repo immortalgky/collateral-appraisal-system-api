@@ -55,7 +55,10 @@ public class QuickSearchQueryHandler(
             "in the command text.")]
     public async Task<QuickSearchResult> Handle(QuickSearchQuery query, CancellationToken cancellationToken)
     {
-        var built = AppraisalSearchPredicate.Build(query.Q, query.Scope);
+        // Capped: this runs on every keystroke and shows a handful of rows. Callers that present a
+        // complete result set leave the cap off — see AppraisalSearchPredicate.DropdownArmCap.
+        var built = AppraisalSearchPredicate.Build(
+            query.Q, query.Scope, AppraisalSearchPredicate.DropdownArmCap);
         if (built is null) return Empty;
 
         var (armsSql, parameters) = built.Value;
@@ -112,13 +115,24 @@ public class QuickSearchQueryHandler(
         await using var grid = await connection.QueryMultipleAsync(new CommandDefinition(
             sql, parameters, commandTimeout: CommandTimeoutSeconds, cancellationToken: cancellationToken));
 
-        var total = await grid.ReadSingleAsync<int>();
+        var matched = await grid.ReadSingleAsync<int>();
         var heads = (await grid.ReadAsync<HeadRow>()).ToList();
         var matches = (await grid.ReadAsync<MatchRow>()).ToList();
 
         if (heads.Count == 0) return Empty;
 
-        return new QuickSearchResult(BuildGroups(heads, matches), total > heads.Count, total);
+        // `matched` counts distinct appraisals in the capped #m, so it is a floor, not a total: an
+        // arm that hit its cap contributed at most DropdownArmCap rows, and #m holds one row per
+        // MATCH, so an appraisal matching on five titles consumes five of them. Reporting it as a
+        // total would under-count exactly the broad terms where the number matters. The client is
+        // told it is approximate and shows "N+" instead.
+        var capped = matches.Count >= AppraisalSearchPredicate.DropdownArmCap;
+
+        return new QuickSearchResult(
+            BuildGroups(heads, matches),
+            HasMore: matched > heads.Count,
+            TotalMatchedAppraisals: matched,
+            IsTotalApproximate: capped);
     }
 
     private static readonly QuickSearchResult Empty = new([], false, 0);
