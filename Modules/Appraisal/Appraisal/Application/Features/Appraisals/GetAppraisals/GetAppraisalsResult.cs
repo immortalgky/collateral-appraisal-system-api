@@ -64,14 +64,31 @@ public record AppraisalDto
 }
 
 /// <summary>
-/// Aggregated facet counts for filter UI
+/// Aggregated facet counts for filter UI.
+///
+/// <b>Only <see cref="Status"/> is populated.</b> The other four are kept so the response shape does
+/// not change, but they are always empty — an empty list here means "not computed", not "no matching
+/// rows". Counting them is not free: AssignmentType alone has to resolve the latest assignment for
+/// every matching appraisal, which costs more than the rest of the request combined, and no client
+/// reads any of the four. If one is ever needed, add it as an opt-in dimension
+/// (<c>?groupBy=</c>, the way <c>/tasks/me/group-counts</c> does it) rather than computing all five
+/// on every list request.
 /// </summary>
 public record AppraisalFacets
 {
+    /// <summary>Counts per status, computed with the status filter itself excluded so the chips stay switchable.</summary>
     public List<FacetItem> Status { get; init; } = [];
+
+    /// <summary>Always empty — see the remarks on <see cref="AppraisalFacets"/>.</summary>
     public List<FacetItem> SlaStatus { get; init; } = [];
+
+    /// <summary>Always empty — see the remarks on <see cref="AppraisalFacets"/>.</summary>
     public List<FacetItem> Priority { get; init; } = [];
+
+    /// <summary>Always empty — see the remarks on <see cref="AppraisalFacets"/>.</summary>
     public List<FacetItem> AppraisalType { get; init; } = [];
+
+    /// <summary>Always empty — see the remarks on <see cref="AppraisalFacets"/>.</summary>
     public List<FacetItem> AssignmentType { get; init; } = [];
 }
 
