@@ -39,6 +39,13 @@ public class GetAppraisalsQueryHandler(
     /// </summary>
     private const int MaxPageSize = 200;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S2077:Formatting SQL queries is security-sensitive",
+        Justification =
+            "Nothing user-supplied is interpolated. View is a const; WhereClause is assembled by " +
+            "AppraisalFilterBuilder from string literals with every value bound as a @parameter; " +
+            "orderBy comes from BuildOrderBy, which only emits a column from AllowedSortFields plus " +
+            "ASC/DESC and is additionally checked by DapperPaginationExtensions.ValidateOrderBy on " +
+            "the call above. See AppraisalFilterBuilderTests for the pinned output.")]
     public async Task<GetAppraisalsResult> Handle(
         GetAppraisalsQuery query,
         CancellationToken cancellationToken)
@@ -124,6 +131,11 @@ public class GetAppraisalsQueryHandler(
     /// client reads them, and AssignmentType in particular costs more than the rest of the request
     /// put together because it has to resolve the latest assignment for every matching appraisal.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S2077:Formatting SQL queries is security-sensitive",
+        Justification =
+            "source is one of two private consts and where is assembled by AppraisalFilterBuilder " +
+            "from string literals with every value bound as a @parameter — no user input reaches " +
+            "the command text.")]
     private async Task<AppraisalFacets> BuildStatusFacetsAsync(
         GetAppraisalsFilterRequest? filter,
         Guid? enforcedCompanyId,
@@ -161,6 +173,6 @@ public class GetAppraisalsQueryHandler(
     private sealed class FacetRow
     {
         public string Value { get; set; } = "";
-        public int Count { get; set; }
+        public int Count { get; set; } = 0;
     }
 }

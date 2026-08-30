@@ -39,8 +39,15 @@
 import http from "k6/http";
 import { check } from "k6";
 import { Counter } from "k6/metrics";
+import { buildScenarios, authHeaders, listThresholds } from "./lib/k6-common.js";
 
-const BASE_URL = (__ENV.BASE_URL || "https://localhost:7111").replace(/\/+$/, "");
+function trimTrailingSlashes(url) {
+  let end = url.length;
+  while (end > 0 && url[end - 1] === "/") end--;
+  return url.slice(0, end);
+}
+
+const BASE_URL = trimTrailingSlashes(__ENV.BASE_URL || "https://localhost:7111");
 const ENDPOINT = __ENV.ENDPOINT || "/appraisals";
 
 // MODE selects the load shape (only one scenario runs at a time):
@@ -48,20 +55,20 @@ const ENDPOINT = __ENV.ENDPOINT || "/appraisals";
 //   "rate"            — ramp toward PEAK_RPS req/s to find the capacity knee
 const MODE = (__ENV.MODE || "count").toLowerCase();
 
-const VUS = parseInt(__ENV.VUS || "8", 10);
-const ITERATIONS = parseInt(__ENV.ITERATIONS || "80", 10);
+const VUS = Number.parseInt(__ENV.VUS || "8", 10);
+const ITERATIONS = Number.parseInt(__ENV.ITERATIONS || "80", 10);
 
-const PEAK_RPS = parseInt(__ENV.PEAK_RPS || "8", 10);
-const PRE_VUS = parseInt(__ENV.PRE_VUS || "10", 10);
-const MAX_VUS = parseInt(__ENV.MAX_VUS || "100", 10);
+const PEAK_RPS = Number.parseInt(__ENV.PEAK_RPS || "8", 10);
+const PRE_VUS = Number.parseInt(__ENV.PRE_VUS || "10", 10);
+const MAX_VUS = Number.parseInt(__ENV.MAX_VUS || "100", 10);
 const WARMUP = __ENV.WARMUP || "30s";
 const STAGE_DUR = __ENV.STAGE_DUR || "1m";
 
 // PageSize 25 is the FE default (Pagination.tsx offers 10/25/50/100).
-const PAGE_SIZE = parseInt(__ENV.PAGE_SIZE || "25", 10);
+const PAGE_SIZE = Number.parseInt(__ENV.PAGE_SIZE || "25", 10);
 
 // p(95) budget in ms for a single list request.
-const P95_MS = parseInt(__ENV.P95_MS || "2000", 10);
+const P95_MS = Number.parseInt(__ENV.P95_MS || "2000", 10);
 
 // The query shapes the FE actually produces, each with a share of the traffic.
 //
@@ -135,74 +142,62 @@ if (ACTIVE.length === 0) {
 // Cumulative weights, so one random number picks a shape in a single pass.
 const TOTAL_WEIGHT = ACTIVE.reduce((sum, c) => sum + c.weight, 0);
 const CUMULATIVE = [];
-ACTIVE.reduce((running, c) => {
-  const next = running + c.weight;
-  CUMULATIVE.push(next);
-  return next;
-}, 0);
+let running = 0;
+for (const c of ACTIVE) {
+  running += c.weight;
+  CUMULATIVE.push(running);
+}
+
+// mulberry32 — deterministic so a run can be replayed shape-for-shape with the same SEED.
+// This chooses which query to send; it protects nothing, so cryptographic strength is beside
+// the point and reproducibility is worth more.
+let rngState = (Number.parseInt(__ENV.SEED || "", 10) || 0x9e3779b9) >>> 0;
+
+function nextRandom() {
+  rngState = (rngState + 0x6d2b79f5) >>> 0;
+  let t = rngState;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
 
 function pickShape() {
-  const roll = Math.random() * TOTAL_WEIGHT;
+  const roll = nextRandom() * TOTAL_WEIGHT;
   for (let i = 0; i < CUMULATIVE.length; i++) {
     if (roll < CUMULATIVE[i]) return ACTIVE[i];
   }
-  return ACTIVE[ACTIVE.length - 1]; // floating-point guard
+  return ACTIVE.at(-1); // floating-point guard
 }
 
-const TOKEN = __ENV.TOKEN || "";
-if (!TOKEN) {
-  throw new Error(
-    "TOKEN is required: pass -e TOKEN=\"<jwt>\". It must belong to a bank/internal user " +
-      "(auth.AspNetUsers.CompanyId IS NULL); dev-bypass is company-scoped and returns 0 rows."
-  );
-}
-const HEADERS = {
-  Accept: "application/json",
-  Authorization: TOKEN.toLowerCase().startsWith("bearer ") ? TOKEN : `Bearer ${TOKEN}`,
-};
+const HEADERS = authHeaders(
+  __ENV.TOKEN,
+  "It must belong to a bank/internal user (auth.AspNetUsers.CompanyId IS NULL); " +
+    "dev-bypass is company-scoped and returns 0 rows."
+);
 
 const searched = new Counter("appraisal_searches");
 const emptyResults = new Counter("empty_results");
 
-const scenarios =
-  MODE === "rate"
-    ? {
-        search_rate: {
-          executor: "ramping-arrival-rate",
-          startRate: Math.max(1, Math.round(PEAK_RPS * 0.25)),
-          timeUnit: "1s",
-          preAllocatedVUs: PRE_VUS,
-          maxVUs: MAX_VUS,
-          stages: [
-            { target: Math.max(1, Math.round(PEAK_RPS * 0.5)), duration: WARMUP },
-            { target: PEAK_RPS, duration: STAGE_DUR },
-            { target: PEAK_RPS * 2, duration: STAGE_DUR },
-            { target: PEAK_RPS * 4, duration: STAGE_DUR },
-            { target: 0, duration: "30s" },
-          ],
-        },
-      }
-    : {
-        search_count: {
-          executor: "shared-iterations",
-          vus: VUS,
-          iterations: ITERATIONS,
-          maxDuration: "1h",
-        },
-      };
+const scenarios = buildScenarios({
+  mode: MODE,
+  vus: VUS,
+  iterations: ITERATIONS,
+  peakRps: PEAK_RPS,
+  preAllocatedVUs: PRE_VUS,
+  maxVUs: MAX_VUS,
+  warmup: WARMUP,
+  stageDuration: STAGE_DUR,
+  name: "search",
+});
 
 export const options = {
   insecureSkipTLSVerify: true,
   scenarios: scenarios,
-  thresholds: {
-    http_req_failed: ["rate<0.01"],
-    "http_req_duration{name:search_appraisal}": [`p(95)<${P95_MS}`],
-    checks: ["rate>0.99"],
-  },
+  thresholds: listThresholds("search_appraisal", P95_MS),
 };
 
 function urlFor(testCase) {
-  const q = Object.assign({ pageNumber: 0, pageSize: PAGE_SIZE }, testCase.q);
+  const q = { pageNumber: 0, pageSize: PAGE_SIZE, ...testCase.q };
   const params = Object.keys(q).map((k) => `${k}=${encodeURIComponent(q[k])}`);
   return `${BASE_URL}${ENDPOINT}?${params.join("&")}`;
 }
@@ -230,14 +225,16 @@ export default function () {
       if (r.status !== 200) return false;
       try {
         const body = r.json();
-        const count = body && body.result ? body.result.count : 0;
+        const count = body?.result?.count ?? 0;
         if (count === 0) {
           emptyResults.add(1);
           // deep_page/status_narrow can legitimately be empty; everything else cannot.
           return testCase.name === "deep_page" || testCase.name === "status_narrow";
         }
         return true;
-      } catch (e) {
+      } catch {
+        // A body that will not parse is a failed check either way — the status assertion
+        // above already reports what went wrong, so there is nothing to add here.
         return false;
       }
     },

@@ -30,14 +30,14 @@ AUTHZ="$BASE/connect/authorize?client_id=spa&response_type=code&redirect_uri=$RE
 
 LOGIN_LOC=$(curl -sk -c "$JAR" -b "$JAR" -o /dev/null -D - "$AUTHZ" \
             | awk 'tolower($1)=="location:"{print $2}' | tr -d '\r')
-[ -n "$LOGIN_LOC" ] || { echo "authorize did not redirect to the login page" >&2; exit 1; }
+[[ -n "$LOGIN_LOC" ]] || { echo "authorize did not redirect to the login page" >&2; exit 1; }
 case "$LOGIN_LOC" in /*) LOGIN_URL="$BASE$LOGIN_LOC";; *) LOGIN_URL="$LOGIN_LOC";; esac
 RETURN_URL_ENC=$(printf '%s' "$LOGIN_URL" | sed -n 's/.*ReturnUrl=\([^&]*\).*/\1/p')
 RETURN_URL=$(printf '%s' "$RETURN_URL_ENC" | python3 -c 'import sys,urllib.parse;print(urllib.parse.unquote(sys.stdin.read()))')
 
 AF=$(curl -sk -c "$JAR" -b "$JAR" "$LOGIN_URL" \
      | sed -n 's/.*name="__RequestVerificationToken"[^>]*value="\([^"]*\)".*/\1/p' | head -1)
-[ -n "$AF" ] || { echo "could not read the antiforgery token from the login page" >&2; exit 1; }
+[[ -n "$AF" ]] || { echo "could not read the antiforgery token from the login page" >&2; exit 1; }
 
 CB=$(curl -sk -c "$JAR" -b "$JAR" -o /dev/null -D - -X POST "$LOGIN_URL" \
       --data-urlencode "Username=$USER" \
@@ -45,13 +45,16 @@ CB=$(curl -sk -c "$JAR" -b "$JAR" -o /dev/null -D - -X POST "$LOGIN_URL" \
       --data-urlencode "ReturnUrl=$RETURN_URL" \
       --data-urlencode "__RequestVerificationToken=$AF" \
      | awk 'tolower($1)=="location:"{print $2}' | tr -d '\r' | tail -1)
-[ -n "$CB" ] || { echo "login failed — check the username/password" >&2; exit 1; }
-case "$CB" in /*) CB="$BASE$CB";; esac
+[[ -n "$CB" ]] || { echo "login failed — check the username/password" >&2; exit 1; }
+case "$CB" in
+  /*) CB="$BASE$CB" ;;
+  *)  ;;   # already absolute — leave it alone
+esac
 
 CODE_LOC=$(curl -sk -c "$JAR" -b "$JAR" -o /dev/null -D - "$CB" \
            | awk 'tolower($1)=="location:"{print $2}' | tr -d '\r' | tail -1)
 CODE=$(printf '%s' "$CODE_LOC" | sed -n 's/.*[?&]code=\([^&]*\).*/\1/p')
-[ -n "$CODE" ] || { echo "no authorization code returned; got: $CODE_LOC" >&2; exit 1; }
+[[ -n "$CODE" ]] || { echo "no authorization code returned; got: $CODE_LOC" >&2; exit 1; }
 
 curl -sk -X POST "$BASE/auth/token" -H "Content-Type: application/json" \
   -d "{\"grantType\":\"authorization_code\",\"clientId\":\"spa\",\"code\":\"$CODE\",\"codeVerifier\":\"$VERIFIER\",\"redirectUri\":\"$REDIRECT\"}" \

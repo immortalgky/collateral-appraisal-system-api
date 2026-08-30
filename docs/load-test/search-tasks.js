@@ -34,6 +34,7 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
 import { Counter } from "k6/metrics";
+import { buildScenarios, authHeaders, listThresholds } from "./lib/k6-common.js";
 
 // ---- config (env-driven) ----
 const BASE_URL = (__ENV.BASE_URL || "https://localhost:7111").replace(/\/+$/, "");
@@ -47,19 +48,19 @@ const ENDPOINT = __ENV.ENDPOINT || "/tasks/pool";
 const MODE = (__ENV.MODE || "count").toLowerCase();
 
 // count-mode knobs
-const VUS = parseInt(__ENV.VUS || "10", 10);
-const ITERATIONS = parseInt(__ENV.ITERATIONS || "300", 10);
+const VUS = Number.parseInt(__ENV.VUS || "10", 10);
+const ITERATIONS = Number.parseInt(__ENV.ITERATIONS || "300", 10);
 
 // rate-mode knobs
-const PEAK_RPS = parseInt(__ENV.PEAK_RPS || "20", 10);
-const PRE_VUS = parseInt(__ENV.PRE_VUS || "20", 10);
-const MAX_VUS = parseInt(__ENV.MAX_VUS || "200", 10);
+const PEAK_RPS = Number.parseInt(__ENV.PEAK_RPS || "20", 10);
+const PRE_VUS = Number.parseInt(__ENV.PRE_VUS || "20", 10);
+const MAX_VUS = Number.parseInt(__ENV.MAX_VUS || "200", 10);
 const WARMUP = __ENV.WARMUP || "1m";
 const STAGE_DUR = __ENV.STAGE_DUR || "3m";
 
 // Query knobs (must mirror what the FE sends — see GetPoolTasksEndpoint params).
 // PaginationRequest.PageNumber is 0-based.
-const PAGE_SIZE = parseInt(__ENV.PAGE_SIZE || "25", 10);
+const PAGE_SIZE = Number.parseInt(__ENV.PAGE_SIZE || "25", 10);
 const SORT_BY = __ENV.SORT_BY || ""; // empty => server default (AssignedDate DESC)
 const SORT_DIR = __ENV.SORT_DIR || "desc";
 
@@ -72,60 +73,34 @@ const SORT_DIR = __ENV.SORT_DIR || "desc";
 const SEARCH = __ENV.SEARCH || "a";
 const SEARCH_FIELD = (__ENV.SEARCH_FIELD || "search").trim();
 const TYPE = (__ENV.TYPE || "false").toLowerCase() === "true";
-const THINK_MS = parseInt(__ENV.THINK_MS || "150", 10);
+const THINK_MS = Number.parseInt(__ENV.THINK_MS || "150", 10);
 const VARY = (__ENV.VARY || "false").toLowerCase() === "true";
 
 // AUTH — bearer token is required (the pool query is scoped to the caller's groups/team).
-const TOKEN = __ENV.TOKEN || "";
-if (!TOKEN) {
-  throw new Error(
-    "TOKEN is required: pass -e TOKEN=\"<jwt>\" (the access token from an authenticated user). " +
-      "The /tasks/pool query scopes rows by the caller's groups/team, so a real token is needed."
-  );
-}
-const HEADERS = {
-  Accept: "application/json",
-  Authorization: TOKEN.toLowerCase().startsWith("bearer ") ? TOKEN : `Bearer ${TOKEN}`,
-};
+const HEADERS = authHeaders(
+  __ENV.TOKEN,
+  "The /tasks/pool query scopes rows by the caller's groups/team, so a real token is needed."
+);
 
 const searched = new Counter("task_searches");
 
-const scenarios =
-  MODE === "rate"
-    ? {
-        search_rate: {
-          executor: "ramping-arrival-rate",
-          startRate: Math.max(1, Math.round(PEAK_RPS * 0.2)),
-          timeUnit: "1s",
-          preAllocatedVUs: PRE_VUS,
-          maxVUs: MAX_VUS,
-          stages: [
-            { target: Math.max(1, Math.round(PEAK_RPS * 0.5)), duration: WARMUP },
-            { target: PEAK_RPS, duration: STAGE_DUR },
-            { target: PEAK_RPS * 2, duration: STAGE_DUR },
-            { target: PEAK_RPS * 4, duration: STAGE_DUR },
-            { target: 0, duration: "30s" },
-          ],
-        },
-      }
-    : {
-        search_count: {
-          executor: "shared-iterations",
-          vus: VUS,
-          iterations: ITERATIONS,
-          maxDuration: "1h",
-        },
-      };
+const scenarios = buildScenarios({
+  mode: MODE,
+  vus: VUS,
+  iterations: ITERATIONS,
+  peakRps: PEAK_RPS,
+  preAllocatedVUs: PRE_VUS,
+  maxVUs: MAX_VUS,
+  warmup: WARMUP,
+  stageDuration: STAGE_DUR,
+  name: "search",
+});
 
 export const options = {
   insecureSkipTLSVerify: true,
   scenarios: scenarios,
-  thresholds: {
-    http_req_failed: ["rate<0.01"],
-    // The whole point of the test: how slow is the search request? Reported >9s; we want <2s.
-    "http_req_duration{name:search_task}": ["p(95)<2000"],
-    checks: ["rate>0.99"],
-  },
+  // The whole point of the test: how slow is the search request? Reported >9s; we want <2s.
+  thresholds: listThresholds("search_task", 2000),
 };
 
 function rand4() {
