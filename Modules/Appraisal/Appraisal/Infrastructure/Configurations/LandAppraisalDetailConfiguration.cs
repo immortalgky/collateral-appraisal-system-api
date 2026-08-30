@@ -31,6 +31,16 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
             addr.Property(a => a.SubDistrict).HasColumnName("SubDistrict").HasMaxLength(100);
             addr.Property(a => a.District).HasColumnName("District").HasMaxLength(100);
             addr.Property(a => a.Province).HasColumnName("Province").HasMaxLength(100);
+
+            // Global search resolves a typed Thai place name to geocodes and then looks the codes
+            // up here. Without these the search arm scans the whole detail table on every address
+            // search: measured 562 ms for a term matching 11 sub-district codes, 167 ms with the
+            // index. No INCLUDE — the covering column (AppraisalPropertyId) belongs to the owner
+            // entity and cannot be included from an owned-type builder, and measuring it made no
+            // material difference. See AppraisalSearchPredicate.
+            addr.HasIndex(a => a.Province);
+            addr.HasIndex(a => a.District);
+            addr.HasIndex(a => a.SubDistrict);
         });
 
         // LandOffice is a scalar on the entity (not inside the Address VO)
@@ -42,6 +52,12 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
             addr.Property(a => a.SubDistrict).HasColumnName("DopaSubDistrict").HasMaxLength(100);
             addr.Property(a => a.District).HasColumnName("DopaDistrict").HasMaxLength(100);
             addr.Property(a => a.Province).HasColumnName("DopaProvince").HasMaxLength(100);
+
+            // Filtered: the DOPA address is populated on a small minority of rows, so an unfiltered
+            // index would be almost entirely NULL keys.
+            addr.HasIndex(a => a.Province).HasFilter("[DopaProvince] IS NOT NULL");
+            addr.HasIndex(a => a.District).HasFilter("[DopaDistrict] IS NOT NULL");
+            addr.HasIndex(a => a.SubDistrict).HasFilter("[DopaSubDistrict] IS NOT NULL");
         });
 
         // Owner
