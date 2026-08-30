@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Appraisals.Shared;
 using Appraisal.Application.Features.Appraisals.GetAppraisals;
 using Shared.CQRS;
 using Shared.Data;
@@ -12,7 +13,8 @@ namespace Appraisal.Application.Features.Appraisals.GetEligibleAppraisalsForQuot
 ///   2. NOT EXISTS against QuotationRequestAppraisals where the quotation is non-terminal.
 /// </summary>
 public class GetEligibleAppraisalsForQuotationQueryHandler(
-    ISqlConnectionFactory connectionFactory
+    ISqlConnectionFactory connectionFactory,
+    IAddressNameSearch addressNameSearch
 ) : IQueryHandler<GetEligibleAppraisalsForQuotationQuery, PaginatedResult<AppraisalDto>>
 {
     // "Not yet assigned" = no latest active assignment row, OR latest assignment is still Pending
@@ -37,7 +39,9 @@ public class GetEligibleAppraisalsForQuotationQueryHandler(
         CancellationToken cancellationToken)
     {
         // RequiresView is discarded on purpose: this query always reads the view (see below).
-        var (whereClause, parameters, _) = AppraisalFilterBuilder.BuildFilter(query.Filter);
+        var addressMatch = await addressNameSearch.MatchAsync(query.Filter?.Search, cancellationToken);
+        var (whereClause, parameters, _) =
+            AppraisalFilterBuilder.BuildFilter(query.Filter, addressMatch: addressMatch);
         var orderBy = AppraisalFilterBuilder.BuildOrderBy(query.Filter);
 
         var eligibilityClause = BuildEligibilityClause(query.ExcludeQuotationRequestId.HasValue);

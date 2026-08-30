@@ -24,10 +24,16 @@ internal static class AppraisalFilterBuilder
     /// WHERE that already pins one status returns a single chip, so the user cannot switch away
     /// from it. Every other filter still narrows the counts.
     /// </param>
+    /// <param name="addressMatch">
+    /// Which address levels <c>filter.Search</c> names, from <see cref="IAddressNameSearch"/>.
+    /// Left at its default the six address arms are dropped, which is what every caller that does
+    /// not offer address-name search wants.
+    /// </param>
     public static AppraisalFilterSql BuildFilter(
         GetAppraisalsFilterRequest? filter,
         Guid? enforcedCompanyId = null,
-        bool excludeStatus = false)
+        bool excludeStatus = false,
+        AddressNameMatch addressMatch = default)
     {
         var conditions = new List<string>();
         var parameters = new DynamicParameters();
@@ -68,7 +74,7 @@ internal static class AppraisalFilterBuilder
             // appraisal.Appraisals. Measured on 105k appraisals: 738 ms -> 39 ms for the count.
             if (!string.IsNullOrWhiteSpace(filter.Search))
             {
-                var search = AppraisalSearchPredicate.BuildIdFilter(filter.Search);
+                var search = AppraisalSearchPredicate.BuildIdFilter(filter.Search, address: addressMatch);
                 if (search is null)
                 {
                     // Shorter than the minimum useful term. Match nothing rather than everything —

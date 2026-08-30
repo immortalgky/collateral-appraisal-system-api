@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Appraisals.Shared;
 using Appraisal.Application.Features.Shared;
 using Dapper;
 using Shared.CQRS;
@@ -24,7 +25,8 @@ public class GetAppraisalsQueryHandler(
     ISqlConnectionFactory connectionFactory,
     ICurrentUserService currentUser,
     IBusinessTimeCalculator businessTime,
-    IDateTimeProvider clock
+    IDateTimeProvider clock,
+    IAddressNameSearch addressNameSearch
 ) : IQueryHandler<GetAppraisalsQuery, GetAppraisalsResult>
 {
     private const string View = "appraisal.vw_AppraisalList";
@@ -52,7 +54,10 @@ public class GetAppraisalsQueryHandler(
     {
         var filter = query.Filter;
         var enforcedCompanyId = AppraisalAccessScope.GetEnforcedCompanyId(currentUser);
-        var sqlFilter = AppraisalFilterBuilder.BuildFilter(filter, enforcedCompanyId);
+        // Resolved once and reused by the page, the count and the facets, so a search that does
+        // name an address does not probe the masters three times over.
+        var addressMatch = await addressNameSearch.MatchAsync(filter?.Search, cancellationToken);
+        var sqlFilter = AppraisalFilterBuilder.BuildFilter(filter, enforcedCompanyId, addressMatch: addressMatch);
         var orderBy = AppraisalFilterBuilder.BuildOrderBy(filter);
 
         // Page the KEYS, not the rows. Selecting only Id lets the optimizer drop every OUTER APPLY
@@ -105,7 +110,7 @@ public class GetAppraisalsQueryHandler(
 
         var pagedResult = new PaginatedResult<AppraisalDto>(items, idPage.Count, idPage.PageNumber, idPage.PageSize);
 
-        var facets = await BuildStatusFacetsAsync(filter, enforcedCompanyId, cancellationToken);
+        var facets = await BuildStatusFacetsAsync(filter, enforcedCompanyId, addressMatch, cancellationToken);
 
         return new GetAppraisalsResult(pagedResult, facets);
     }
@@ -143,9 +148,11 @@ public class GetAppraisalsQueryHandler(
     private async Task<AppraisalFacets> BuildStatusFacetsAsync(
         GetAppraisalsFilterRequest? filter,
         Guid? enforcedCompanyId,
+        AddressNameMatch addressMatch,
         CancellationToken cancellationToken)
     {
-        var facetFilter = AppraisalFilterBuilder.BuildFilter(filter, enforcedCompanyId, excludeStatus: true);
+        var facetFilter = AppraisalFilterBuilder.BuildFilter(
+            filter, enforcedCompanyId, excludeStatus: true, addressMatch);
         var source = facetFilter.RequiresView ? View : BaseTable;
         var where = facetFilter.RequiresView ? facetFilter.WhereClause : facetFilter.BaseTableWhereClause;
 

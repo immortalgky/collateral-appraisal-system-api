@@ -39,23 +39,13 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
         });
 
         // Administrative Address (Value Object)
-        builder.OwnsOne(e => e.Address, addr =>
-        {
-            addr.Property(a => a.SubDistrict).HasColumnName("SubDistrict").HasMaxLength(100);
-            addr.Property(a => a.District).HasColumnName("District").HasMaxLength(100);
-            addr.Property(a => a.Province).HasColumnName("Province").HasMaxLength(100);
-        });
+        builder.OwnsOne(e => e.Address, AddressOwnedTypeConfiguration.ConfigureDeedAddress);
 
         // LandOffice is a scalar on the entity (not inside the Address VO)
         builder.Property(e => e.LandOffice).HasColumnName("LandOffice").HasMaxLength(200);
 
         // Dopa Address
-        builder.OwnsOne(e => e.DopaAddress, addr =>
-        {
-            addr.Property(a => a.SubDistrict).HasColumnName("DopaSubDistrict").HasMaxLength(100);
-            addr.Property(a => a.District).HasColumnName("DopaDistrict").HasMaxLength(100);
-            addr.Property(a => a.Province).HasColumnName("DopaProvince").HasMaxLength(100);
-        });
+        builder.OwnsOne(e => e.DopaAddress, AddressOwnedTypeConfiguration.ConfigureDopaAddress);
 
         // Owner
         builder.Property(e => e.OwnerName).IsRequired().HasMaxLength(200);

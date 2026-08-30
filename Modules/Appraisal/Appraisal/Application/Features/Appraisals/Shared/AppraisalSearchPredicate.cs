@@ -49,11 +49,28 @@ internal static class AppraisalSearchPredicate
     private const int RankCustomer = 20;
     private const int RankProperty = 30;
 
+    /// <summary>
+    /// Whether a scope can reach the address arms at all. Callers use this to skip the
+    /// <see cref="IAddressNameSearch"/> round trip whose answer the scope filter would discard —
+    /// this change exists to cut per-keystroke cost, so paying for a probe that cannot matter
+    /// would work against its own point.
+    /// </summary>
+    public static bool ScopeCanMatchAddress(string? scope) =>
+        string.IsNullOrEmpty(scope)
+        || scope.Equals("all", StringComparison.OrdinalIgnoreCase)
+        || scope.Equals("properties", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Field groups the caller can restrict the search to.</summary>
     public static readonly IReadOnlySet<string> Scopes =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "all", "documents", "customers", "properties" };
 
-    private sealed record Arm(string Scope, int Rank, string Field, string Sql);
+    /// <summary>
+    /// Which address master an arm resolves names against, or <see cref="AddressLevel.None"/> for
+    /// an arm that is always in play. Only the levels the term actually names are emitted — see
+    /// the remarks on <see cref="Build"/>.
+    /// </summary>
+    private sealed record Arm(string Scope, int Rank, string Field, string Sql,
+        AddressLevel Level = AddressLevel.None);
 
     /// <summary>
     /// Every arm. <c>{P}</c> is replaced by the parameter name so the same text can be reused with
@@ -183,6 +200,61 @@ internal static class AppraisalSearchPredicate
             JOIN appraisal.Appraisals a ON a.RequestId = t.RequestId AND a.IsDeleted = 0
             WHERE t.ProjectName LIKE {P} ESCAPE '\'
             """),
+        // ── Property location ───────────────────────────────────────────────────────────────
+        // Typed as a NAME ("กาญจนบุรี", "Kanchanaburi"), matched against a CODE column. The
+        // address columns hold TIS-1099 geocodes, so the name is resolved to codes inside a
+        // subquery over the master and the outer predicate stays an equality the optimizer can
+        // seek — a LIKE joined straight onto the master costs 3.3x more (552 ms vs 168 ms
+        // uncapped on 105k appraisals). It also means a term that is not an address name at all,
+        // which is nearly every term, resolves to an empty code list and the arm returns in 0 ms
+        // without touching the appraisal tables.
+        //
+        // Both master families are searched. They have genuinely diverged: 3,715 sub-district
+        // codes exist only in Title, 7 only in Dopa, and 6 Thai sub-district names are Dopa-only —
+        // searching one family alone would make those unfindable.
+        //
+        // Read from the appraisal's own detail rows, not request.RequestTitles, so that what is
+        // searched is what the result row displays. Thai names only — nobody searches these by
+        // their English name.
+        //
+        // Three sources, unioned inside one arm rather than split into three arms, because the
+        // arm count is what the statement size — and therefore the per-execution compile cost —
+        // tracks:
+        // UNION, not UNION ALL: the pair (appraisal, geocode) is deduped, so an appraisal with
+        // several parcels in the SAME area contributes one row instead of one per parcel —
+        // duplicate badges on the client, and that many slots eaten out of TOP(@Cap). Parcels in
+        // DIFFERENT areas that both match a prefix term still contribute a row each, which is
+        // wanted: they are genuinely distinct matches and deserve distinct badges. So this is
+        // one row per (appraisal, matched area), NOT one row per appraisal.
+        //
+        //   • LandAppraisalDetails  — land parcels; the overwhelming majority.
+        //   • CondoAppraisalDetails — condo units carry their OWN address and are NOT reachable
+        //     through the land table. A condo-only appraisal has no land row at all, so before
+        //     this it could not be found by address name.
+        //
+        // NOT covered yet: block/project appraisals, which hold their address on
+        // appraisal.Projects and appraisal.ProjectLands and have ZERO AppraisalProperties. Those
+        // are Title-mastered too (the block form captures them with addressSource 'title', and
+        // ProjectLands holds code 100907, which exists in parameter.TitleSubDistricts and in no
+        // DOPA table) and neither table has Dopa* columns, so they would join the deed arms only.
+        // Deliberately deferred — the header address is frequently NULL while the parcel carries
+        // one, so covering them properly means reading both tables, and that is its own change.
+        //
+        // Building/Machinery/Vehicle/Vessel details carry no address columns: a building's
+        // location is the parcel it stands on, which the land arm already covers.
+        // Deed address (Title-mastered) and DOPA address (Dopa-mastered), three levels each.
+        // Built from one template: the six differ only in field name, column, master pair and
+        // which family resolves the display label — writing them out six times is how the
+        // deed/DOPA COALESCE order drifted apart in the first place.
+        AddressArm("province",        "Province",        "Provinces",    AddressLevel.Province,    dopaSourced: false),
+        AddressArm("district",        "District",        "Districts",    AddressLevel.District,    dopaSourced: false),
+        AddressArm("subDistrict",     "SubDistrict",     "SubDistricts", AddressLevel.SubDistrict, dopaSourced: false),
+        AddressArm("dopaProvince",    "DopaProvince",    "Provinces",    AddressLevel.Province,    dopaSourced: true),
+        AddressArm("dopaDistrict",    "DopaDistrict",    "Districts",    AddressLevel.District,    dopaSourced: true),
+        AddressArm("dopaSubDistrict", "DopaSubDistrict", "SubDistricts", AddressLevel.SubDistrict, dopaSourced: true),
+
+
+
         new("properties", RankProperty, "condoName", """
             SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'condoName' AS Fld, t.CondoName AS Val
             FROM request.RequestTitles t
@@ -193,6 +265,56 @@ internal static class AppraisalSearchPredicate
     ];
 
     /// <summary>
+    /// One address arm. The six are structurally identical — same sources, same join, same
+    /// predicate shape — and differ only in which column they read, which master pair resolves the
+    /// name, and which family wins the display label. Emitting them from a template keeps that last
+    /// difference explicit: a geocode is resolved against the master the capturing form used, so
+    /// the deed columns read Title-first and the DOPA columns read Dopa-first. 102 district and 31
+    /// sub-district codes present in the data carry a different NameTh in each family, so getting
+    /// this backwards badges an address with a name no other consumer of it uses.
+    ///
+    /// The WHERE resolves the typed name to codes through a subquery rather than joining the
+    /// master directly: the code list is tiny and the IN turns into a seek, where a LIKE joined
+    /// onto the master costs 3.3x more (552 ms vs 168 ms uncapped on 105k appraisals). It also
+    /// means a term that is not an address name at all resolves to an empty list and the arm
+    /// returns without touching the appraisal tables — though Build now drops such arms outright.
+    ///
+    /// Both master families are searched in the WHERE regardless of which one owns the column.
+    /// They have diverged: 3,715 sub-district codes exist only in Title, 7 only in Dopa, and a
+    /// handful of Thai names are Dopa-only, so a prefix search for a name like 'นบพิตำ' reaches
+    /// its deed rows only through the DOPA spelling.
+    /// </summary>
+    private static Arm AddressArm(
+        string field, string column, string master, AddressLevel level, bool dopaSourced)
+    {
+        var (first, second) = dopaSourced ? ("Dopa", "Title") : ("Title", "Dopa");
+
+        // $$ so that {TOP}/{R}/{P} stay literal placeholders for Build to substitute, and {{...}}
+        // is the interpolation. A raw literal also leaves ESCAPE '\' alone — in a regular literal
+        // that backslash would need doubling, and getting it wrong silently produces ESCAPE ''.
+        return new Arm("properties", RankProperty, field, $$"""
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, '{{field}}' AS Fld,
+                   COALESCE((SELECT TOP 1 NameTh FROM parameter.{{first}}{{master}} WHERE Code = lad.{{column}}),
+                            (SELECT TOP 1 NameTh FROM parameter.{{second}}{{master}} WHERE Code = lad.{{column}}),
+                            lad.{{column}}) AS Val
+            FROM (SELECT ap.AppraisalId, l.{{column}}
+                  FROM appraisal.LandAppraisalDetails l
+                  JOIN appraisal.AppraisalProperties ap ON ap.Id = l.AppraisalPropertyId
+                  UNION
+                  SELECT ap.AppraisalId, c.{{column}}
+                  FROM appraisal.CondoAppraisalDetails c
+                  JOIN appraisal.AppraisalProperties ap ON ap.Id = c.AppraisalPropertyId
+                  ) lad
+            JOIN appraisal.Appraisals a ON a.Id = lad.AppraisalId AND a.IsDeleted = 0
+            JOIN request.Requests r ON r.Id = a.RequestId AND r.IsDeleted = 0
+            WHERE lad.{{column}} IN (
+                SELECT Code FROM parameter.Title{{master}} WHERE NameTh LIKE {P} ESCAPE '\'
+                UNION
+                SELECT Code FROM parameter.Dopa{{master}} WHERE NameTh LIKE {P} ESCAPE '\')
+            """, level);
+    }
+
+    /// <summary>
     /// The UNION ALL of every arm in <paramref name="scope"/>, and the parameters it binds.
     /// Returns <c>null</c> when the term is too short to search on.
     /// </summary>
@@ -201,8 +323,13 @@ internal static class AppraisalSearchPredicate
     /// from the quick-search only; every caller that presents a complete result set must leave it
     /// null. See the remarks on <see cref="DropdownArmCap"/>.
     /// </param>
+    /// <param name="address">
+    /// Which address levels the term names, from <see cref="IAddressNameSearch"/>. Defaults to
+    /// "none", which drops all six address arms — so a caller that does not resolve gets exactly
+    /// the pre-address behaviour rather than a silent half-search.
+    /// </param>
     public static (string Sql, DynamicParameters Parameters)? Build(
-        string? term, string scope = "all", int? armCap = null)
+        string? term, string scope = "all", int? armCap = null, AddressNameMatch address = default)
     {
         var trimmed = term?.Trim();
         if (string.IsNullOrEmpty(trimmed) || trimmed.Length < MinTermLength) return null;
@@ -210,6 +337,13 @@ internal static class AppraisalSearchPredicate
         var arms = AllArms
             .Where(a => scope.Equals("all", StringComparison.OrdinalIgnoreCase)
                         || a.Scope.Equals(scope, StringComparison.OrdinalIgnoreCase))
+            // Address arms are emitted only when the term actually names a province/district/
+            // sub-district. Every statement here carries OPTION (RECOMPILE), so it is re-compiled
+            // on each keystroke and compilation cost tracks the size of the text: leaving all six
+            // arms in unconditionally cost +86..119 ms on EVERY search, including "REQ-105" and
+            // "691054", which can never match an address name. Measured three ways side by side
+            // (7 arms / 10 / 13) on the same host, interleaved.
+            .Where(a => address.Includes(a.Level))
             .ToList();
         if (arms.Count == 0) return null;
 
@@ -234,10 +368,11 @@ internal static class AppraisalSearchPredicate
     /// rather than a correlated EXISTS because the union already produces distinct appraisal ids
     /// and an EXISTS body would need every arm correlated separately.
     /// </summary>
-    public static (string Sql, DynamicParameters Parameters)? BuildIdFilter(string? term, string scope = "all")
+    public static (string Sql, DynamicParameters Parameters)? BuildIdFilter(
+        string? term, string scope = "all", AddressNameMatch address = default)
     {
         // Uncapped on purpose — see DropdownArmCap.
-        var built = Build(term, scope);
+        var built = Build(term, scope, armCap: null, address);
         if (built is null) return null;
         var (sql, parameters) = built.Value;
         return ($"Id IN (SELECT DISTINCT m.AppraisalId FROM (\n{sql}\n) m)", parameters);
