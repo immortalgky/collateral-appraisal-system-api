@@ -217,10 +217,11 @@ MachineLife AS (
 -- carries the final values. Land and building components only exist on a cost approach that priced
 -- a building; every other approach reports the total alone, which is why both come back NULL there.
 SelectedPricing AS (
-    SELECT AppraisalId, UnitPrice, BuildingValue
+    SELECT AppraisalId, PropertyGroupId, UnitPrice, BuildingValue
     FROM (
         SELECT
             gi.AppraisalId,
+            gi.PropertyGroupId,
             CASE WHEN ap.ApproachType = 'Cost' AND fv.HasBuildingValue = 1
                  THEN fv.FinalValueAdjusted END AS UnitPrice,
             CASE WHEN ap.ApproachType = 'Cost' AND fv.HasBuildingValue = 1
@@ -245,6 +246,30 @@ SelectedPricing AS (
         JOIN appraisal.PricingFinalValues fv     ON fv.PricingMethodId = m.Id
     ) z
     WHERE rn = 1
+),
+
+-- The land the selected pricing actually priced.
+--
+-- LandValue is a rate multiplied by an area, and the two have to describe the same land. UnitPrice
+-- comes from ONE property group's cost approach, so the area must be that group's as well. Using the
+-- appraisal-wide total instead reported 84,090,837 of land on appraisal 69000180 — whose whole
+-- appraised value is 61,726,000 — because the appraisal holds a second group, priced by a market
+-- approach, whose land was swept into the multiplication at the first group's rate.
+--
+-- LandAreaRai/Ngan/Wa and LandAreaTotalSqWa are a different question and still come from LandTotal:
+-- the spec asks those to describe the whole appraisal, not the priced group.
+SelectedGroupLand AS (
+    SELECT
+        sp.AppraisalId,
+        SUM(ISNULL(t.AreaRai, 0) * 400 + ISNULL(t.AreaNgan, 0) * 100 + ISNULL(t.AreaSquareWa, 0)) AS GroupSqWa
+    FROM SelectedPricing sp
+    JOIN appraisal.PropertyGroupItems pgi ON pgi.PropertyGroupId = sp.PropertyGroupId
+    JOIN appraisal.AppraisalProperties p  ON p.Id = pgi.AppraisalPropertyId
+                                         AND p.AppraisalId = sp.AppraisalId
+    JOIN appraisal.LandAppraisalDetails d ON d.AppraisalPropertyId = p.Id
+    JOIN appraisal.LandTitles t           ON t.LandAppraisalDetailId = d.Id
+    WHERE p.PropertyType IN ('L','LB','LSL','LS')
+    GROUP BY sp.AppraisalId
 ),
 
 -- ── Who did the work ───────────────────────────────────────────────────────────────────────────
@@ -412,10 +437,11 @@ SELECT
     -- against one unit would overstate that collateral by orders of magnitude.
     CASE WHEN pum.HostCollateralId IS NOT NULL THEN ISNULL(pum.UnitValue, 0)
          ELSE v.AppraisedValue END                           AS AppraisalValue,
-    -- Land component: the cost approach's adjusted unit price applied over the land area. There is
-    -- no stored column for it — the same multiplication the engagement used to freeze at completion.
-    CASE WHEN sp.UnitPrice IS NOT NULL AND lt.TotalSqWa IS NOT NULL
-         THEN sp.UnitPrice * lt.TotalSqWa END                AS LandValue,
+    -- Land component: the cost approach's adjusted unit price over the land THAT approach priced.
+    -- There is no stored column for it — the same multiplication the engagement froze at completion,
+    -- which also scoped both halves to one property group. See SelectedGroupLand.
+    CASE WHEN sp.UnitPrice IS NOT NULL AND sgl.GroupSqWa IS NOT NULL
+         THEN sp.UnitPrice * sgl.GroupSqWa END               AS LandValue,
     sp.BuildingValue                                         AS BuildingValue,
     v.ForcedSaleValue                                        AS ForceSaleValue,
 
@@ -476,6 +502,7 @@ LEFT JOIN BuildingAgg ba       ON ba.AppraisalId = p.AppraisalId
 LEFT JOIN CondoAgg ca          ON ca.AppraisalId = p.AppraisalId
 LEFT JOIN MachineLife ml       ON ml.AppraisalId = p.AppraisalId
 LEFT JOIN SelectedPricing sp   ON sp.AppraisalId = p.AppraisalId
+LEFT JOIN SelectedGroupLand sgl ON sgl.AppraisalId = p.AppraisalId
 LEFT JOIN Valuer vl            ON vl.AppraisalId = p.AppraisalId
 )
 
