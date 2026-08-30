@@ -518,9 +518,8 @@ public class GetDecisionSummaryQueryHandler(
         p.Add("AppraisalId", appraisalId);
 
         // รายละเอียดรายอาคาร — must use the SAME derivations as IConstructionCurrentValueService,
-        // or these rows will not add up to the card above them: whole-baht money, progress read off
-        // the entered percentages rather than divided out of the money, and a work item nobody
-        // touched this round standing where it was.
+        // or these rows will not add up to the card above them: whole-baht money, and progress read
+        // off the entered percentages rather than divided out of the money.
         // Summary mode multiplies TotalValue by the stored percent instead of reading
         // SummaryPreviousValue / SummaryCurrentValue: the CI screen computes those two figures for
         // display but never writes them back into the form, so the persisted columns hold the default
@@ -546,10 +545,6 @@ public class GetDecisionSummaryQueryHandler(
                      ELSE ISNULL(wd_agg.PreviousProportionPctSum, 0)
                 END AS EnteredPreviousPercent,
                 CASE WHEN ci.IsFullDetail = 0
-                          AND ISNULL(ci.SummaryCurrentProgressPct, 0) = 0
-                          AND ISNULL(ci.SummaryPreviousProgressPct, 0) > 0
-                     THEN ISNULL(ci.SummaryPreviousProgressPct, 0)
-                     WHEN ci.IsFullDetail = 0
                      THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
                      ELSE ISNULL(wd_agg.CurrentProportionPctSum, 0)
                 END AS EnteredCurrentPercent
@@ -559,15 +554,9 @@ public class GetDecisionSummaryQueryHandler(
             LEFT JOIN (
                 SELECT ConstructionInspectionId,
                        SUM(PreviousPropertyValue) AS PreviousPropertyValueSum,
+                       SUM(CurrentPropertyValue)  AS CurrentPropertyValueSum,
                        SUM(ProportionPct * PreviousProgressPct / 100.0) AS PreviousProportionPctSum,
-                       -- A work item nobody touched this round stands where it was — see the same
-                       -- expression in IConstructionCurrentValueService.CiAggregateSql.
-                       SUM(CASE WHEN CurrentProgressPct = 0 AND PreviousProgressPct > 0
-                                THEN PreviousPropertyValue ELSE CurrentPropertyValue END)
-                                                                        AS CurrentPropertyValueSum,
-                       SUM(CASE WHEN CurrentProgressPct = 0 AND PreviousProgressPct > 0
-                                THEN ProportionPct * PreviousProgressPct / 100.0
-                                ELSE CurrentProportionPct END)          AS CurrentProportionPctSum
+                       SUM(CurrentProportionPct)                        AS CurrentProportionPctSum
                 FROM appraisal.ConstructionWorkDetails
                 GROUP BY ConstructionInspectionId
             ) wd_agg ON wd_agg.ConstructionInspectionId = ci.Id
@@ -667,17 +656,15 @@ public class GetDecisionSummaryQueryHandler(
                 nonCiBuilding + ciTotal,
                 ciTotal),
         };
-
-        // % derived from value ratios, consistent with the milestone rows above — deliberately
-        // NOT from SummaryCurrentProgressPct / SUM(CurrentProportionPct), so the detail rows
-        // reconcile against the card they sit under.
-        // When the only inspected property carries no value of its own, the appraisal-level figure the
-        // breakdown substituted in belongs to it — there is nothing else to attribute it to. With
-        // several inspected properties there is no basis for splitting one number between them, so
-        // their value columns stay empty and only the entered percentages are reported.
-        // Count DISTINCT properties, not joined rows: ciDetailSql LEFT JOINs BuildingAppraisalDetails,
-        // so one inspected property carrying two of those rows would otherwise look like two.
         var detailRowList = detailRows.ToList();
+
+        // When the only inspected property carries no value of its own, the appraisal-level figure
+        // the breakdown substituted in belongs to it — there is nothing else to attribute it to.
+        // With several inspected properties there is no basis for splitting one number between
+        // them, so their value columns stay empty and only the entered percentages are reported.
+        // Count DISTINCT properties, not joined rows: ciDetailSql LEFT JOINs
+        // BuildingAppraisalDetails, so one inspected property carrying two of those rows would
+        // otherwise look like two.
         var soleDetailRow = detailRowList.Select(d => d.AppraisalPropertyId).Distinct().Count() == 1
             ? detailRowList[0]
             : null;
@@ -694,9 +681,11 @@ public class GetDecisionSummaryQueryHandler(
                 substituteRowValues ? ciCurrent : d.CurrentValue,
                 // The entered percentages, not the money divided by the base. Money is rounded to
                 // whole baht (CA-614), so that division stopped being exact and printed 99.99993
-                // under a header that said 100.00 — see ConstructionValueBreakdown.
-                d.EnteredPreviousPercent,
-                d.EnteredCurrentPercent))
+                // under a header that said 100.00 — see ConstructionValueBreakdown. Clamped and
+                // rounded the way the card above these rows is, so a split that sums past 100 does
+                // not read 105 here and 100.00 there.
+                AsReportedPercent(d.EnteredPreviousPercent),
+                AsReportedPercent(d.EnteredCurrentPercent)))
             .ToList();
 
         var completedBuildings = completedRows
@@ -714,6 +703,14 @@ public class GetDecisionSummaryQueryHandler(
     // Mapped by NAME (settable properties), not by constructor position — the three adjacent
     // string? columns would corrupt silently if a positional record were used and the SELECT
     // column order ever changed.
+    /// <summary>
+    /// Mirror of ConstructionValueBreakdown.AsReportedPercent: 0–100, two decimal places, halves
+    /// away from zero. The card's percentages come through that property; these rows come straight
+    /// out of SQL, so they need the same treatment or the two disagree on one screen.
+    /// </summary>
+    private static decimal AsReportedPercent(decimal value) =>
+        Math.Round(Math.Clamp(value, 0m, 100m), 2, MidpointRounding.AwayFromZero);
+
     private sealed class CiDetailRow
     {
         public Guid AppraisalPropertyId { get; init; }

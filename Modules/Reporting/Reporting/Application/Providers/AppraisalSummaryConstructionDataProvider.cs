@@ -121,12 +121,12 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             SELECT
                 COUNT(*)                                     AS InspectionCount,
                 ISNULL(SUM(v.TotalValue), 0)                 AS CITotalValue,
-                ISNULL(SUM(ROUND(e.CurrentValue, 0)), 0)     AS CICurrentValue,
+                ISNULL(SUM(ROUND(v.CurrentValue, 0)), 0)     AS CICurrentValue,
                 ISNULL(SUM(ROUND(v.PreviousValue, 0)), 0)    AS CIPreviousValue,
                 -- Plain averages, consulted only when there is no value to weight by: a condo unit
                 -- has no building depreciation table for the CI screen to total, so TotalValue is 0.
                 ISNULL(AVG(v.PreviousPct), 0)                AS EnteredPreviousPercent,
-                ISNULL(AVG(e.CurrentPct), 0)                 AS EnteredCurrentPercent,
+                ISNULL(AVG(v.CurrentPct), 0)                 AS EnteredCurrentPercent,
                 -- Per-building progress weighted across buildings by what each is worth. This is
                 -- what the report prints — deliberately NOT CICurrentValue / CITotalValue: money is
                 -- rounded to whole baht (CA-614) so that ratio is no longer exact, while these
@@ -137,7 +137,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
                      THEN SUM(v.TotalValue * v.PreviousPct) / SUM(v.TotalValue)
                      ELSE 0 END                              AS WeightedPreviousPercent,
                 CASE WHEN SUM(v.TotalValue) > 0
-                     THEN SUM(v.TotalValue * e.CurrentPct) / SUM(v.TotalValue)
+                     THEN SUM(v.TotalValue * v.CurrentPct) / SUM(v.TotalValue)
                      ELSE 0 END                              AS WeightedCurrentPercent,
                 MAX(CASE WHEN ci.FileName IS NOT NULL THEN 1 ELSE 0 END)                    AS HasDocument,
                 STRING_AGG(CASE WHEN ci.Remark IS NOT NULL AND LEN(ci.Remark) > 0
@@ -148,15 +148,9 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             LEFT JOIN (
                 SELECT wd.ConstructionInspectionId,
                        SUM(wd.PreviousPropertyValue) AS PreviousPropertyValueSum,
+                       SUM(wd.CurrentPropertyValue)  AS CurrentPropertyValueSum,
                        SUM(wd.ProportionPct * wd.PreviousProgressPct / 100.0) AS PreviousProportionPctSum,
-                       -- A work item nobody touched this round stands where it was — see the same
-                       -- expression in IConstructionCurrentValueService.CiAggregateSql.
-                       SUM(CASE WHEN wd.CurrentProgressPct = 0 AND wd.PreviousProgressPct > 0
-                                THEN wd.PreviousPropertyValue ELSE wd.CurrentPropertyValue END)
-                                                                              AS CurrentPropertyValueSum,
-                       SUM(CASE WHEN wd.CurrentProgressPct = 0 AND wd.PreviousProgressPct > 0
-                                THEN wd.ProportionPct * wd.PreviousProgressPct / 100.0
-                                ELSE wd.CurrentProportionPct END)             AS CurrentProportionPctSum
+                       SUM(wd.CurrentProportionPct)                           AS CurrentProportionPctSum
                 FROM appraisal.ConstructionWorkDetails wd
                 GROUP BY wd.ConstructionInspectionId
             ) wd_agg ON wd_agg.ConstructionInspectionId = ci.Id
@@ -171,25 +165,14 @@ public sealed class AppraisalSummaryConstructionDataProvider(
                     CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryPreviousProgressPct, 0)
                          ELSE ISNULL(wd_agg.PreviousProportionPctSum, 0) END AS PreviousPct,
                     CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
-                         ELSE ISNULL(wd_agg.CurrentProportionPctSum, 0) END  AS CurrentPctRaw,
+                         ELSE ISNULL(wd_agg.CurrentProportionPctSum, 0) END  AS CurrentPct,
                     CASE WHEN ci.IsFullDetail = 0
                          THEN ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0) / 100.0
                          ELSE ISNULL(wd_agg.PreviousPropertyValueSum, 0) END AS PreviousValue,
                     CASE WHEN ci.IsFullDetail = 0
                          THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
-                         ELSE ISNULL(wd_agg.CurrentPropertyValueSum, 0) END  AS CurrentValueRaw
+                         ELSE ISNULL(wd_agg.CurrentPropertyValueSum, 0) END  AS CurrentValue
             ) v
-            -- A round the inspector has not filled in yet carries 0% current against a non-zero
-            -- previous, because CopyForNextInspection resets the current figures for them to enter.
-            -- Printing 0% would say the building went backwards. Until something is entered, the
-            -- round stands where the last one left it.
-            CROSS APPLY (
-                SELECT
-                    CASE WHEN ci.IsFullDetail = 0 AND v.CurrentPctRaw = 0 AND v.PreviousPct > 0
-                         THEN v.PreviousPct ELSE v.CurrentPctRaw END     AS CurrentPct,
-                    CASE WHEN ci.IsFullDetail = 0 AND v.CurrentPctRaw = 0 AND v.PreviousPct > 0
-                         THEN v.PreviousValue ELSE v.CurrentValueRaw END AS CurrentValue
-            ) e
             WHERE ap.AppraisalId = @AppraisalId;
 
             -- RS02: QCI2 — Land appraisal value from PricingFinalValues
@@ -396,12 +379,13 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             ciCurrent = appraisedValue;
         }
 
-        // Progress % is derived from the building-under-construction values: value ÷ 100%-value.
-        // With no value base — a condo unit has no depreciation table to total — the ratio says
-        // nothing, so report the percentage the inspector entered instead of leaving the row blank.
-        // Same row-count test as the substitution: ciRow is never null, so "no inspection" has to be
-        // read off InspectionCount or every ordinary appraisal would report 0% instead of a blank.
+        // ciRow is never null — RS01 is an ungrouped aggregate, so an appraisal with no inspection
+        // still returns one all-zero row. "No inspection at all" has to be read off InspectionCount
+        // or every ordinary appraisal would report 0% where it should report a blank.
         bool hasAnyInspection = (ciRow?.InspectionCount ?? 0) > 0;
+        // With no value base — a condo unit has no depreciation table for the CI screen to total —
+        // there is nothing to weight the per-building percentages by, so the plain average of what
+        // the inspector entered is all there is to report.
         bool hasOwnValueBase = (ciRow?.CITotalValue ?? 0m) > 0m;
         // Read off the entered progress, never off the money — see WeightedCurrentPercent in RS01.
         // Clamped and rounded exactly as ConstructionValueBreakdown.ConstructionProgressPercent is,

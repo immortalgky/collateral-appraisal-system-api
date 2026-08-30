@@ -254,11 +254,11 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
         SELECT
             ISNULL(SUM(v.TotalValue), 0)                 AS TotalValue,
             ISNULL(SUM(ROUND(v.PreviousValue, 0)), 0)    AS PreviousValue,
-            ISNULL(SUM(ROUND(e.CurrentValue, 0)), 0)     AS CurrentValue,
+            ISNULL(SUM(ROUND(v.CurrentValue, 0)), 0)     AS CurrentValue,
             COUNT(*)                                     AS InspectionCount,
             -- Plain averages, consulted only when there is no value to weight by.
             ISNULL(AVG(v.PreviousPct), 0)                AS UnweightedPreviousPercent,
-            ISNULL(AVG(e.CurrentPct), 0)                 AS UnweightedCurrentPercent,
+            ISNULL(AVG(v.CurrentPct), 0)                 AS UnweightedCurrentPercent,
             -- Per-building progress weighted across buildings by what each is worth. This is what
             -- decides "finished" and what the reports print — deliberately NOT CurrentValue /
             -- TotalValue. Money is rounded to whole baht (CA-614), so the rounded parts no longer
@@ -269,28 +269,18 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
                  THEN SUM(v.TotalValue * v.PreviousPct) / SUM(v.TotalValue)
                  ELSE 0 END                              AS WeightedPreviousPercent,
             CASE WHEN SUM(v.TotalValue) > 0
-                 THEN SUM(v.TotalValue * e.CurrentPct) / SUM(v.TotalValue)
+                 THEN SUM(v.TotalValue * v.CurrentPct) / SUM(v.TotalValue)
                  ELSE 0 END                              AS WeightedCurrentPercent
         FROM appraisal.ConstructionInspections ci
         JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
         LEFT JOIN (
             SELECT ConstructionInspectionId,
                    SUM(PreviousPropertyValue) AS PreviousPropertyValueSum,
+                   SUM(CurrentPropertyValue)  AS CurrentPropertyValueSum,
                    -- No PreviousProportionPct column exists; it is the same product the server
                    -- computes into CurrentProportionPct, taken against the previous round.
                    SUM(ProportionPct * PreviousProgressPct / 100.0) AS PreviousProportionPctSum,
-                   -- A work item nobody touched this round carries 0% current against a non-zero previous,
-                   -- because CopyForNextInspection resets the current figures for the inspector to enter.
-                   -- Counting that as 0 says the item was demolished; what was built in earlier rounds is
-                   -- still standing. Until something is entered, the item stands where it was. Doing this
-                   -- per item rather than per inspection also covers a partly-entered round, where the
-                   -- inspection total is non-zero but individual items are still untouched.
-                   SUM(CASE WHEN CurrentProgressPct = 0 AND PreviousProgressPct > 0
-                            THEN PreviousPropertyValue ELSE CurrentPropertyValue END)
-                                                                    AS CurrentPropertyValueSum,
-                   SUM(CASE WHEN CurrentProgressPct = 0 AND PreviousProgressPct > 0
-                            THEN ProportionPct * PreviousProgressPct / 100.0
-                            ELSE CurrentProportionPct END)          AS CurrentProportionPctSum
+                   SUM(CurrentProportionPct)                        AS CurrentProportionPctSum
             FROM appraisal.ConstructionWorkDetails
             GROUP BY ConstructionInspectionId
         ) wd ON wd.ConstructionInspectionId = ci.Id
@@ -304,26 +294,14 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
                 CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryPreviousProgressPct, 0)
                      ELSE ISNULL(wd.PreviousProportionPctSum, 0) END AS PreviousPct,
                 CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
-                     ELSE ISNULL(wd.CurrentProportionPctSum, 0) END  AS CurrentPctRaw,
+                     ELSE ISNULL(wd.CurrentProportionPctSum, 0) END  AS CurrentPct,
                 CASE WHEN ci.IsFullDetail = 0
                      THEN ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0) / 100.0
                      ELSE ISNULL(wd.PreviousPropertyValueSum, 0) END AS PreviousValue,
                 CASE WHEN ci.IsFullDetail = 0
                      THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
-                     ELSE ISNULL(wd.CurrentPropertyValueSum, 0) END  AS CurrentValueRaw
+                     ELSE ISNULL(wd.CurrentPropertyValueSum, 0) END  AS CurrentValue
         ) v
-        -- A round the inspector has not filled in yet carries 0% current against a non-zero
-        -- previous, because CopyForNextInspection resets the current figures for them to enter.
-        -- Reporting that as 0% would say the building went backwards — the work done in earlier
-        -- rounds is still standing. Until something is entered, the round stands where the last
-        -- one left it.
-        CROSS APPLY (
-            SELECT
-                CASE WHEN ci.IsFullDetail = 0 AND v.CurrentPctRaw = 0 AND v.PreviousPct > 0
-                     THEN v.PreviousPct ELSE v.CurrentPctRaw END   AS CurrentPct,
-                CASE WHEN ci.IsFullDetail = 0 AND v.CurrentPctRaw = 0 AND v.PreviousPct > 0
-                     THEN v.PreviousValue ELSE v.CurrentValueRaw END AS CurrentValue
-        ) e
         WHERE ap.AppraisalId = @AppraisalId
         """;
 

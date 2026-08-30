@@ -84,19 +84,9 @@ internal static class ConstructionSectionLoader
                 wd.ConstructionValue,
                 wd.ProportionPct,
                 wd.PreviousProgressPct               AS PreviousPct,
+                wd.CurrentProgressPct                AS CurrentPct,
                 wd.PreviousPropertyValue,
-                -- A work item nobody touched this round carries 0% current against a non-zero
-                -- previous, because CopyForNextInspection resets the current figures for the
-                -- inspector to enter. Printing 0 here says the item was demolished, and puts this
-                -- table at odds with the summary block above it, which reports the round as
-                -- standing where the last one left it. Same rule as
-                -- IConstructionCurrentValueService.CiAggregateSql.
-                CASE WHEN wd.CurrentProgressPct = 0 AND wd.PreviousProgressPct > 0
-                     THEN wd.PreviousProgressPct
-                     ELSE wd.CurrentProgressPct END  AS CurrentPct,
-                CASE WHEN wd.CurrentProgressPct = 0 AND wd.PreviousProgressPct > 0
-                     THEN wd.PreviousPropertyValue
-                     ELSE wd.CurrentPropertyValue END AS CurrentPropertyValue
+                wd.CurrentPropertyValue
             FROM appraisal.ConstructionWorkDetails wd
             LEFT JOIN parameter.ConstructionWorkGroups cwg
                 ON cwg.Id = wd.ConstructionWorkGroupId
@@ -152,14 +142,14 @@ internal static class ConstructionSectionLoader
                         Items        = itemRows,
                         Value        = groupItems.Sum(d => d.ConstructionValue),
                         ProportionPct = groupItems.Sum(d => d.ProportionPct),
-                        PreviousPct  = groupItems.Sum(d => d.PreviousPropertyValue > 0 || d.ConstructionValue > 0
-                                            ? (d.ConstructionValue > 0
-                                                ? d.PreviousPropertyValue / d.ConstructionValue * d.ProportionPct
-                                                : 0m)
-                                            : 0m),
-                        CurrentPct   = groupItems.Sum(d => d.ConstructionValue > 0
-                                            ? d.CurrentPropertyValue / d.ConstructionValue * d.ProportionPct
-                                            : 0m),
+                        // Weighted off the entered percentages, not off the money. Dividing
+                        // PreviousPropertyValue by ConstructionValue stopped being exact once both
+                        // were rounded to whole baht (CA-614), so these rollups drifted from the
+                        // Σ(ProportionPct × pct / 100) the summary block prints above this table —
+                        // and collapsed to 0.00% outright for a condo unit, whose inspection
+                        // carries no value base at all. See ConstructionMoney.
+                        PreviousPct  = groupItems.Sum(d => d.ProportionPct * d.PreviousPct / 100m),
+                        CurrentPct   = groupItems.Sum(d => d.ProportionPct * d.CurrentPct / 100m),
                         PreviousValue = groupItems.Sum(d => d.PreviousPropertyValue),
                         CurrentValue  = groupItems.Sum(d => d.CurrentPropertyValue),
                     };

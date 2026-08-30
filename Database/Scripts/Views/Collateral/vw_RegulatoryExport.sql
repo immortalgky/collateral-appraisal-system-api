@@ -203,10 +203,10 @@ Ci AS (
     SELECT
         ap.AppraisalId,
         ISNULL(SUM(v.TotalValue), 0)              AS TotalValue,
-        ISNULL(SUM(ROUND(e.CurrentValue, 0)), 0)  AS CurrentValue,
+        ISNULL(SUM(ROUND(v.CurrentValue, 0)), 0)  AS CurrentValue,
         -- Plain average, all there is to report when there is no value to weight by: a condo unit
         -- has no building depreciation table for the CI screen to total, so its TotalValue is 0.
-        ISNULL(AVG(e.CurrentPct), 0)              AS EnteredCurrentPercent,
+        ISNULL(AVG(v.CurrentPct), 0)              AS EnteredCurrentPercent,
         -- Per-building progress weighted across buildings by what each is worth. This is what
         -- decides "finished" and what this file reports — deliberately NOT CurrentValue /
         -- TotalValue: money is rounded to whole baht (CA-614), so the rounded parts no longer sum
@@ -214,21 +214,16 @@ Ci AS (
         -- figure. Percentages are decimal(7,4) and nothing rounds them; TotalValue is only a
         -- weight here. Mirrors ConstructionValueBreakdown.WeightedCurrentPercent.
         CASE WHEN SUM(v.TotalValue) > 0
-             THEN SUM(v.TotalValue * e.CurrentPct) / SUM(v.TotalValue)
+             THEN SUM(v.TotalValue * v.CurrentPct) / SUM(v.TotalValue)
              ELSE 0 END                           AS WeightedCurrentPercent
     FROM appraisal.ConstructionInspections ci
     JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
     LEFT JOIN (
         SELECT ConstructionInspectionId,
                SUM(PreviousPropertyValue) AS PreviousSum,
+               SUM(CurrentPropertyValue)  AS CurrentSum,
                SUM(ProportionPct * PreviousProgressPct / 100.0) AS PreviousPctSum,
-               -- A work item nobody touched this round stands where it was — see the same
-               -- expression in IConstructionCurrentValueService.CiAggregateSql.
-               SUM(CASE WHEN CurrentProgressPct = 0 AND PreviousProgressPct > 0
-                        THEN PreviousPropertyValue ELSE CurrentPropertyValue END) AS CurrentSum,
-               SUM(CASE WHEN CurrentProgressPct = 0 AND PreviousProgressPct > 0
-                        THEN ProportionPct * PreviousProgressPct / 100.0
-                        ELSE CurrentProportionPct END)                           AS CurrentPctSum
+               SUM(CurrentProportionPct)  AS CurrentPctSum
         FROM appraisal.ConstructionWorkDetails
         GROUP BY ConstructionInspectionId
     ) wd ON wd.ConstructionInspectionId = ci.Id
@@ -240,25 +235,14 @@ Ci AS (
             CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryPreviousProgressPct, 0)
                  ELSE ISNULL(wd.PreviousPctSum, 0) END AS PreviousPct,
             CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
-                 ELSE ISNULL(wd.CurrentPctSum, 0) END  AS CurrentPctRaw,
+                 ELSE ISNULL(wd.CurrentPctSum, 0) END  AS CurrentPct,
             CASE WHEN ci.IsFullDetail = 0
                  THEN ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0) / 100.0
                  ELSE ISNULL(wd.PreviousSum, 0) END    AS PreviousValue,
             CASE WHEN ci.IsFullDetail = 0
                  THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
-                 ELSE ISNULL(wd.CurrentSum, 0) END     AS CurrentValueRaw
+                 ELSE ISNULL(wd.CurrentSum, 0) END     AS CurrentValue
     ) v
-    -- A round the inspector has not filled in yet carries 0% current against a non-zero previous,
-    -- because CopyForNextInspection resets the current figures for them to enter. Exporting 0%
-    -- would say the building went backwards. Until something is entered, the round stands where
-    -- the last one left it.
-    CROSS APPLY (
-        SELECT
-            CASE WHEN ci.IsFullDetail = 0 AND v.CurrentPctRaw = 0 AND v.PreviousPct > 0
-                 THEN v.PreviousPct ELSE v.CurrentPctRaw END     AS CurrentPct,
-            CASE WHEN ci.IsFullDetail = 0 AND v.CurrentPctRaw = 0 AND v.PreviousPct > 0
-                 THEN v.PreviousValue ELSE v.CurrentValueRaw END AS CurrentValue
-    ) e
     GROUP BY ap.AppraisalId
 ),
 
