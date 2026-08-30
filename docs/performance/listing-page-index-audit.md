@@ -38,12 +38,12 @@ Handler: `GetAppraisalsQueryHandler` + `AppraisalFilterBuilder`
 |---|---|---|---|---|
 | filter Status / Priority / AppraisalType / SLAStatus | `a.Status` etc. | Appraisals | `IX_Appraisals_Status` (filtered) | ✅ |
 | filter / sort RequestId join | `a.RequestId` | Appraisals | `IX_Appraisals_RequestId` | ✅ |
-| latest active assignment APPLY | `AppraisalId, AssignedAt DESC` (filtered) | AppraisalAssignments | `IX_AppraisalAssignments_AppraisalId_AssignedAt_Active` | ✅ |
+| latest active assignment APPLY | `AppraisalId, AssignedAt DESC` (filtered) | AppraisalAssignments | `IX_AppraisalAssignments_AppraisalId_AssignedAt_Active` | ✅ **now**. Until 2026-08-30 this was a `ROW_NUMBER()` derived table filtered by `rn = 1` from the outside, not an APPLY — the index could not be used at all, and this row read ✅ only because the audit took the shape on trust. See §Structural concerns #7 |
 | company name join | `comp.Id = TRY_CAST(...)` | auth.Companies | PK (seek on right side) | ✅ |
 | latest appointment APPLY | `AssignmentId, Status` | Appointments | `IX_Appointments_AssignmentId`, `_Status` | ✅ |
 | value join | `va.AppraisalId` | ValuationAnalyses | `IX_ValuationAnalyses_AppraisalId` (unique) | ✅ |
 | customer name | `c.Name`, `RequestId` | RequestCustomers | `IX_RequestCustomer_Name`, `_RequestId` | ✅ |
-| filter Province / District / SubDistrict | `ld.Province` … | LandAppraisalDetails | none | ⚠️ see §Low-priority — view computes location via `ROW_NUMBER()` then filters *after* the window, so an index here is **not usable** |
+| filter Province / District / SubDistrict | `ld.Province` … | LandAppraisalDetails | none | ⚠️ location is picked by a correlated `OUTER APPLY … TOP 1` and the filter is applied after that pick, so an index on Province cannot drive the filter. A covering `(AppraisalPropertyId) INCLUDE (Province, District, SubDistrict)` was measured (2026-08-30) and halves the CPU of *sorting* by province (1,280 ms → 675 ms); not built, since the elapsed difference is ~50 ms |
 | search AppraisalNumber/CustomerName/RequestNumber | LIKE `'%…%'` | multiple | n/a | 🔵 non-sargable |
 | sort PropertyCount / Elapsed / RemainingHours | computed | — | n/a | 🔵 computed, cannot index |
 
@@ -137,9 +137,12 @@ shows real cost:
 - **`AppraisalProperties.PropertyType`** — History Search collateral-type `EXISTS`. The geo/spatial
   prefilter already narrows rows first. Candidate: `(AppraisalId, PropertyType)`.
 - **Land/Condo `AppraisalDetails` address columns (Province/District/SubDistrict)** — real columns
-  (`HasColumnName`, not JSON). In `vw_AppraisalList` location is derived via a `ROW_NUMBER()` window
-  and filtered *after* the window, so an index is **not usable** there; only the History Search
-  `EXISTS` could use one, and these are low-selectivity text columns.
+  (`HasColumnName`, not JSON). `vw_AppraisalList` picks the location with a correlated
+  `OUTER APPLY … TOP 1` and filters after the pick, so an index on Province still cannot drive the
+  *filter*. What it can help is the *sort*: a covering
+  `(AppraisalPropertyId) INCLUDE (Province, District, SubDistrict)` was measured on ~105k appraisals
+  (2026-08-30) at 1,280 ms → 675 ms CPU for `sortBy=province`, but only 111 ms → 58 ms elapsed.
+  Not built — revisit if province sorting becomes a hot path.
 - **`PendingTasks.TaskStatus`** — monitoring view hard filter. The active queue is bounded (completed
   rows move to `CompletedTasks`), so a scan stays cheap. Revisit only if the active queue grows large.
 
@@ -159,6 +162,27 @@ shows real cost:
    grow large.
 4. **`TRY_CAST(AssigneeCompanyId AS uniqueidentifier)` → auth.Companies** join: the cast is on the
    outer column, so the `Companies.Id` PK seek is unaffected — OK, no action.
+
+### 7. `vw_AppraisalList` query shape (found 2026-08-30, fixed)
+
+This audit rated the Appraisal List "mostly ✅" because it only looked at index coverage. It was not
+an index problem. The view picked the latest assignment and the first land location with
+`LEFT JOIN (SELECT …, ROW_NUMBER() OVER (PARTITION BY …) rn …) x ON … AND x.rn = 1`. With `rn = 1`
+outside the derived table the optimizer must number **every** row of the underlying table before the
+outer `WHERE` can apply, so no index and no filter selectivity could help: returning a single-row
+result still cost ~580 ms of CPU, and one 20-row page under `status=Pending` cost ~11 s of CPU
+(3.7M Worktable logical reads, a 14M-row Table Spool, and 105,348 executions of the customer APPLY).
+
+Compounding it, the handler ran the view **three times** per request — a `COUNT(*)` wrapper, the page,
+and an unpaginated facet pass that pulled every matching row into memory to `GroupBy` in C#.
+
+Measured on ~105k appraisals, k6 against `GET /appraisals`: p95 23.4 s at 8 concurrent users,
+throughput 1.27 req/s. After rewriting the two windows as `OUTER APPLY … TOP 1`, paging Ids before
+enriching, counting off the base table where the filter allows, and grouping the facet in SQL:
+p95 1.28 s, throughput 16.5 req/s.
+
+**Lesson for future audits: check the shape before checking the indexes.** An index is unusable if
+the query cannot let the optimizer reach it, and a coverage matrix cannot see that.
 
 ---
 
