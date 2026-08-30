@@ -222,6 +222,30 @@ via `/XF` and `/XD`, the files configured in `deploy.config.ps1`:
 - `logs/`, `DataProtection-Keys/` — guarded. (Data Protection keys are actually
   stored in the DB here, so this is just belt-and-braces.)
 
+## Regulatory Excel destination (one-off per environment)
+
+The monthly regulatory job writes two files. The fixed-width `.txt` goes to AS400's SFTP drop and
+needs nothing here. The `.xlsx` companion is read by the Risk team off a Windows file share, so it
+has its own destination row that the migration seeds to the dev default. Point it at the share once,
+after the first migrate that includes `20260830120000_SeedData_RegulatoryExcelInterface.sql`:
+
+```sql
+UPDATE integration.FileInterfaceConfigs
+SET Directory = '\\172.20.0.14\Data_AS400\Risk\CAS'
+WHERE InterfaceCode = 'REGULATORY_XLSX';
+```
+
+The **`CAS-Api` app pool identity must have Modify rights on that share** — the file is written by
+the application account directly, not over SFTP. This is why the pool runs as a domain service
+account; the built-in `ApplicationPoolIdentity` cannot authenticate to a remote share at all.
+
+If the `UPDATE` is skipped, the workbook lands beside the `.txt` exactly as it did before, so
+nothing fails and nothing is lost — the migration seeds the row pointing there. The job logs the
+directory it used, so Seq shows which one without opening the database.
+
+Setting `IsActive = 0` on the row stops the workbook being produced at all. The `.txt` is governed
+by the separate `REGULATORY` row and keeps going out to AS400 regardless.
+
 ## First-time setup on a new server (one-off, not scripted)
 
 See §6 of the production deployment guide. In short: Hosting Bundle + URL Rewrite
