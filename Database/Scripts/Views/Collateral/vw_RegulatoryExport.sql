@@ -254,7 +254,6 @@ CiEffective AS (
     SELECT
         c.AppraisalId,
         CASE WHEN c.TotalValue > 0 THEN 1 ELSE 0 END AS HasOwnValueBase,
-        c.TotalValue,
         c.CurrentValue,
         c.EnteredCurrentPercent,
         c.WeightedCurrentPercent

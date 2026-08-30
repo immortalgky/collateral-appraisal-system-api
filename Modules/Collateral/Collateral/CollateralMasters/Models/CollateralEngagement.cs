@@ -109,7 +109,7 @@ public class CollateralEngagement
 
     /// <summary>
     /// Construction progress 0–100, weighted by value across every inspected building
-    /// (<c>InspectedCurrentValue / InspectedTotalValue</c>), frozen at engagement time.
+    /// frozen at engagement time. Read off the percentages the inspector entered, not off a ratio of the money — see Appraisal.Domain.Appraisals.ConstructionMoney.
     /// Read by the regulatory export (field 6). NULL under the same conditions as
     /// <see cref="IsUnderConstruction"/>.
     /// </summary>

@@ -210,7 +210,6 @@ internal static class MeetingAgendaBuilder
         if (IsProgressive(i))
         {
             var ciTotal = i.CiTotalValue ?? 0m;
-            var ciCurrent = i.CiCurrentValue ?? 0m;
 
             return new MeetingAgendaItemRow
             {
@@ -219,7 +218,9 @@ internal static class MeetingAgendaBuilder
                 // No inspection data (or a zero 100%-value) leaves this empty → blank cell, rather
                 // than a misleading 0.00%.
                 ProgressText = ciTotal > 0m
-                    ? Math.Round(ciCurrent / ciTotal * 100m, 2).ToString("N2", CultureInfo.InvariantCulture)
+                    ? Math.Round(Math.Clamp(i.CiProgressPct ?? 0m, 0m, 100m), 2,
+                            MidpointRounding.AwayFromZero)
+                        .ToString("N2", CultureInfo.InvariantCulture)
                     : string.Empty
             };
         }
@@ -330,9 +331,11 @@ internal sealed class MeetingItemFlat
     public decimal? CiTotalValue { get; init; }
 
     /// <summary>
-    /// Building value as built so far, same summation. Divided by <see cref="CiTotalValue"/> this
-    /// gives รวมผลการดำเนินงานปัจจุบัน — the same value-ratio the construction summary report
-    /// prints as รวมผลการดำเนินงาน, deliberately NOT ConstructionInspection.OverallCurrentProgressPercent.
+    /// รวมผลการดำเนินงานปัจจุบัน — construction progress read off the entered percentages and
+    /// weighted across buildings by what each is worth, the same figure RS01 of
+    /// AppraisalSummaryConstructionDataProvider prints. Deliberately NOT a ratio of the money
+    /// columns: those are rounded to whole baht (CA-614), so the ratio is no longer exact, and the
+    /// summary-mode side of it read a column the CI screen never writes back.
     /// </summary>
-    public decimal? CiCurrentValue { get; init; }
+    public decimal? CiProgressPct { get; init; }
 }

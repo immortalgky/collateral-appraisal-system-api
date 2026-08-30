@@ -79,7 +79,7 @@ public sealed class MeetingMinuteDataProvider(
                 v.AppraisedValue,
                 ad.IsPriceVerified,
                 ciAgg.CiTotalValue,
-                ciAgg.CiCurrentValue
+                ciAgg.CiProgressPct
             FROM workflow.MeetingItems mi
             INNER JOIN appraisal.Appraisals a ON a.Id = mi.AppraisalId
             OUTER APPLY (
@@ -97,23 +97,33 @@ public sealed class MeetingMinuteDataProvider(
             LEFT JOIN appraisal.Projects pr ON pr.AppraisalId = a.Id
             LEFT JOIN appraisal.ValuationAnalyses v ON v.AppraisalId = a.Id
             LEFT JOIN appraisal.AppraisalDecisions ad ON ad.AppraisalId = a.Id
-            -- Construction-inspection values, summed over every property of the appraisal. วาระ 5
-            -- (การตรวจงวดงานก่อสร้าง) prints a progress percent instead of a value; the builder
-            -- derives it as CiCurrentValue / CiTotalValue. KEEP IN SYNC with RS01 of
-            -- AppraisalSummaryConstructionDataProvider, whose รวมผลการดำเนินงาน figure the minute
-            -- has to reconcile against ("ตามเอกสารแนบ"). OUTER APPLY over an aggregate always
-            -- yields exactly one row, so it cannot multiply agenda rows the way a join to the
-            -- one-row-per-property ConstructionInspections would.
+            -- Construction progress over every inspected property of the appraisal. วาระ 5
+            -- (การตรวจงวดงานก่อสร้าง) prints a percent instead of a value. KEEP IN SYNC with RS01
+            -- of AppraisalSummaryConstructionDataProvider, whose รวมผลการดำเนินงาน figure the
+            -- minute has to reconcile against ("ตามเอกสารแนบ").
+            --
+            -- Read off the entered percentages and weighted across buildings by what each is worth,
+            -- never CiCurrentValue / CiTotalValue: money is rounded to whole baht (CA-614) so that
+            -- ratio is no longer exact, and summary mode used to read SummaryCurrentValue, a column
+            -- the CI screen never writes back — so every summary-mode inspection printed 0.00%.
+            -- See Appraisal.Domain.Appraisals.ConstructionMoney.
+            --
+            -- OUTER APPLY over an aggregate always yields exactly one row, so it cannot multiply
+            -- agenda rows the way a join to the one-row-per-property ConstructionInspections would.
             OUTER APPLY (
                 SELECT
                     SUM(ci.TotalValue) AS CiTotalValue,
-                    SUM(CASE WHEN ci.IsFullDetail = 0
-                             THEN ISNULL(ci.SummaryCurrentValue, 0)
-                             ELSE ISNULL(wd.CurrentPropertyValueSum, 0) END) AS CiCurrentValue
+                    CASE WHEN SUM(ci.TotalValue) > 0 THEN
+                        SUM(ci.TotalValue *
+                            CASE WHEN ci.IsFullDetail = 0
+                                 THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
+                                 ELSE ISNULL(wd.CurrentProportionPctSum, 0)
+                            END) / SUM(ci.TotalValue)
+                        ELSE 0 END AS CiProgressPct
                 FROM appraisal.ConstructionInspections ci
                 INNER JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
                 OUTER APPLY (
-                    SELECT SUM(d.CurrentPropertyValue) AS CurrentPropertyValueSum
+                    SELECT SUM(d.CurrentProportionPct) AS CurrentProportionPctSum
                     FROM appraisal.ConstructionWorkDetails d
                     WHERE d.ConstructionInspectionId = ci.Id
                 ) wd

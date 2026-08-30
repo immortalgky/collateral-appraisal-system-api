@@ -204,7 +204,7 @@ internal static class ConstructionSectionLoader
         public decimal PreviousPct { get; init; }
         public decimal CurrentPct { get; init; }
         public decimal PreviousPropertyValue { get; init; }
-        public decimal CurrentProportionPct { get; init; }
+    public decimal CurrentProportionPct { get; init; }
     public decimal CurrentPropertyValue { get; init; }
     }
 }

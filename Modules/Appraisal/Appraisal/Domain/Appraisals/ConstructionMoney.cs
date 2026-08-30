@@ -21,17 +21,18 @@ namespace Appraisal.Domain.Appraisals;
 /// Change one and the other three have to follow, or the same appraisal prints different totals
 /// on the summary report, the appraisal book, the Decision Summary card and the regulatory export.
 ///
-/// Percentages are NOT rounded by this rule — they are stored as decimal(7,4) and reported to two
+/// Percentages are NOT rounded to baht by this rule — they are stored as decimal(7,4) and reported to two
 /// decimal places, which is what the business asked for. That separation is what makes the rounding
 /// safe. Construction progress, and with it whether a building counts as finished, is read from the
 /// entered percentages (ConstructionValueBreakdown.ConstructionProgressPercent), never from a ratio
-/// of rounded money. Eight places report progress, across the Appraisal, Reporting, Collateral and
+/// of rounded money. Ten places report progress, across the Appraisal, Reporting, Collateral and
 /// Integration modules, and every one of them reads the percentages: IConstructionCurrentValueService
 /// (the reference), the construction summary report, the land-and-building summary report, the
 /// appraisal book's progress table and its rollups, the Decision Summary card and its per-building
 /// rows, collateral.vw_RegulatoryExport, the AS400 appraisal-result file and
-/// reporting.vw_RCAS004_ConstructionInspection, plus the inspection screen and the Decision Summary
-/// tables on the front end. Adding another means reading the percentages there too: dividing these
+/// reporting.vw_RCAS004_ConstructionInspection, the committee agenda and minute
+/// (MeetingMinuteDataProvider), plus the inspection screen and the Decision Summary tables on the
+/// front end. Adding another means reading the percentages there too: dividing these
 /// amounts back out is exactly what CA-614's rounding made inexact.
 ///
 /// The one-off scripts under Database/Scripts/Maintenance still divide the money. They are left as

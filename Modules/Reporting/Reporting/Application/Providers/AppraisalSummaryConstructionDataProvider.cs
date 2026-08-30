@@ -116,8 +116,9 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             -- Each inspection's contribution is rounded to whole baht (CA-614): ROUND matches
             -- MidpointRounding.AwayFromZero, the rule Appraisal.Domain.Appraisals.ConstructionMoney
             -- applies when full-detail values are persisted. IConstructionCurrentValueService and
-            -- collateral.vw_RegulatoryExport repeat this aggregate and round the same way — change
-            -- one and all three have to follow, or one appraisal prints three different totals.
+            -- collateral.vw_RegulatoryExport and GetDecisionSummaryQueryHandler.ciDetailSql repeat
+            -- this aggregate and round the same way — change one and the other three have to
+            -- follow, or one appraisal prints four different totals.
             SELECT
                 COUNT(*)                                     AS InspectionCount,
                 ISNULL(SUM(v.TotalValue), 0)                 AS CITotalValue,

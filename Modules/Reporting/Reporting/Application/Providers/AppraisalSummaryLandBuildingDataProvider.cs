@@ -531,9 +531,15 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 CASE WHEN ci.IsFullDetail = 1
                      THEN ISNULL(wd_agg.CurrentProportionPctSum, 0)
                      ELSE ISNULL(ci.SummaryCurrentProgressPct, 0) END AS ProgressPct,
-                CASE WHEN ci.IsFullDetail = 1
+                -- Summary mode multiplies TotalValue by the entered percentage rather than
+                -- reading SummaryCurrentValue: the CI screen computes that figure for display and
+                -- never writes it back, so the stored column is always 0 and this column printed
+                -- nothing for every summary-mode inspection. Rounded to whole baht like every
+                -- other site — see Appraisal.Domain.Appraisals.ConstructionMoney.
+                ROUND(CASE WHEN ci.IsFullDetail = 1
                      THEN ISNULL(wd_agg.CurrentPropertyValueSum, 0)
-                     ELSE ISNULL(ci.SummaryCurrentValue, 0) END      AS CurrentValue
+                     ELSE ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
+                END, 0)                                              AS CurrentValue
             FROM appraisal.ConstructionInspections ci
             JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
             LEFT JOIN (
