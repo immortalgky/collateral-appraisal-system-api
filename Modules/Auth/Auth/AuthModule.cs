@@ -129,7 +129,14 @@ public static class AuthModule
 
                 options.UseReferenceRefreshTokens();
 
+                // Server-wide fallbacks. A client that pins its own value on the application row
+                // stops following these — `spa` does exactly that for all three, so tightening a
+                // number here will not reach the SPA. Check /admin/clients as well.
                 options.SetAccessTokenLifetime(TimeSpan.FromMinutes(15));
+                // Refresh tokens are rolling and sliding, so this is an IDLE timeout: the window a
+                // session may go without refreshing before it dies. Keep it generous — a
+                // machine-to-machine integration like `los` inherits this number, and the browser
+                // SPA pins its own far shorter one on the application row.
                 options.SetRefreshTokenLifetime(TimeSpan.FromDays(7));
                 options.SetIdentityTokenLifetime(TimeSpan.FromMinutes(15));
 

@@ -13,7 +13,10 @@ public record RegisterClientRequest(
     List<Uri> RedirectUris,
     List<Uri> PostLogoutRedirectUris,
     List<string> GrantTypes,
-    List<string> Scopes
+    List<string> Scopes,
+    int? AccessTokenLifetimeMinutes,
+    int? IdentityTokenLifetimeMinutes,
+    int? RefreshTokenLifetimeMinutes
 );
 
 public class RegisterClientEndpoint : ICarterModule
@@ -32,7 +35,10 @@ public class RegisterClientEndpoint : ICarterModule
                     request.RedirectUris ?? [],
                     request.PostLogoutRedirectUris ?? [],
                     request.GrantTypes ?? [],
-                    request.Scopes ?? []);
+                    request.Scopes ?? [],
+                    request.AccessTokenLifetimeMinutes,
+                    request.IdentityTokenLifetimeMinutes,
+                    request.RefreshTokenLifetimeMinutes);
 
                 var result = await sender.Send(command, cancellationToken);
                 return Results.Created($"/auth/clients/{result.Id}", result);

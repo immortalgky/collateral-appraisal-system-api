@@ -1,3 +1,4 @@
+using System.Globalization;
 using OpenIddict.Abstractions;
 using Consts = OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -19,6 +20,35 @@ public static class ClientPermissionMapper
 
     public static readonly HashSet<string> SystemClientIds =
         new(StringComparer.OrdinalIgnoreCase) { "spa", "los", "cls" };
+
+    /// <summary>
+    /// A token lifetime an admin may override for a single client. OpenIddict reads these settings
+    /// straight off the application row and parses them with TimeSpan.Parse; the value it cannot
+    /// parse is ignored silently in favour of the server-wide default, which is why
+    /// <see cref="Min"/>/<see cref="Max"/> are enforced before anything is stored.
+    /// </summary>
+    public sealed record TokenLifetimeKind(string SettingKey, TimeSpan Min, TimeSpan Max)
+    {
+        public int MinMinutes => (int)Min.TotalMinutes;
+        public int MaxMinutes => (int)Max.TotalMinutes;
+    }
+
+    /// <summary>Below a minute nothing is usable; the upper bounds are guards against a typo adding a digit.</summary>
+    private static readonly TimeSpan MinLifetime = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// Access and identity tokens are bearer credentials that cannot be revoked before they expire,
+    /// so they get a much tighter ceiling than the refresh token — which is a reference token, is
+    /// rotated on every use, and is checked against the database each time.
+    /// </summary>
+    public static readonly TokenLifetimeKind AccessTokenLifetime =
+        new(Consts.Settings.TokenLifetimes.AccessToken, MinLifetime, TimeSpan.FromHours(24));
+
+    public static readonly TokenLifetimeKind IdentityTokenLifetime =
+        new(Consts.Settings.TokenLifetimes.IdentityToken, MinLifetime, TimeSpan.FromHours(24));
+
+    public static readonly TokenLifetimeKind RefreshTokenLifetime =
+        new(Consts.Settings.TokenLifetimes.RefreshToken, MinLifetime, TimeSpan.FromDays(30));
 
     /// <summary>Normalises "public"/"confidential" (any case) to the OpenIddict constant.</summary>
     public static string NormalizeClientType(string clientType) =>
@@ -97,8 +127,13 @@ public static class ClientPermissionMapper
         IReadOnlyCollection<string> grantTypes,
         IEnumerable<string> scopes,
         IReadOnlyCollection<Uri> redirectUris,
-        IReadOnlyCollection<Uri> postLogoutRedirectUris)
+        IReadOnlyCollection<Uri> postLogoutRedirectUris,
+        ClientTokenLifetimes tokenLifetimes)
     {
+        ApplyLifetime(descriptor, AccessTokenLifetime, tokenLifetimes.AccessTokenLifetimeMinutes);
+        ApplyLifetime(descriptor, IdentityTokenLifetime, tokenLifetimes.IdentityTokenLifetimeMinutes);
+        ApplyLifetime(descriptor, RefreshTokenLifetime, tokenLifetimes.RefreshTokenLifetimeMinutes);
+
         descriptor.RedirectUris.Clear();
         descriptor.RedirectUris.UnionWith(redirectUris);
 
@@ -116,6 +151,21 @@ public static class ClientPermissionMapper
             descriptor.Requirements.Add(Consts.Requirements.Features.ProofKeyForCodeExchange);
     }
 
+    /// <summary>
+    /// Writes one lifetime onto the descriptor. Removing the key is what "use the server default"
+    /// means — writing an empty string instead would leave a value TimeSpan.Parse rejects, so
+    /// OpenIddict would fall back to the global default anyway while the row claimed a setting that
+    /// does nothing.
+    /// </summary>
+    private static void ApplyLifetime(
+        OpenIddictApplicationDescriptor descriptor, TokenLifetimeKind kind, int? minutes)
+    {
+        if (minutes is null)
+            descriptor.Settings.Remove(kind.SettingKey);
+        else
+            descriptor.Settings[kind.SettingKey] = TimeSpan.FromMinutes(minutes.Value).ToString();
+    }
+
     /// <summary>Projects an OpenIddict application instance into the friendly detail DTO.</summary>
     public static async Task<ClientDetailDto> ToDetailDtoAsync(
         IOpenIddictApplicationManager manager,
@@ -125,9 +175,13 @@ public static class ClientPermissionMapper
         var clientId = await manager.GetClientIdAsync(application, cancellationToken) ?? "";
         var clientType = await manager.GetClientTypeAsync(application, cancellationToken) ?? Consts.ClientTypes.Public;
         var permissions = await manager.GetPermissionsAsync(application, cancellationToken);
+        var settings = await manager.GetSettingsAsync(application, cancellationToken);
 
         return new ClientDetailDto
         {
+            AccessTokenLifetimeMinutes = ReadLifetimeMinutes(settings, AccessTokenLifetime),
+            IdentityTokenLifetimeMinutes = ReadLifetimeMinutes(settings, IdentityTokenLifetime),
+            RefreshTokenLifetimeMinutes = ReadLifetimeMinutes(settings, RefreshTokenLifetime),
             Id = await manager.GetIdAsync(application, cancellationToken) ?? "",
             ClientId = clientId,
             DisplayName = await manager.GetDisplayNameAsync(application, cancellationToken) ?? "",
@@ -139,5 +193,31 @@ public static class ClientPermissionMapper
             HasSecret = IsConfidential(clientType),
             IsSystem = SystemClientIds.Contains(clientId)
         };
+    }
+
+    /// <summary>
+    /// Projects the stored setting back to whole minutes for the admin UI. An unparsable or absent
+    /// value reads as null — the same thing OpenIddict itself does with it, so the screen shows the
+    /// lifetime that is actually in force rather than a value that silently does nothing.
+    /// <para>
+    /// The screen works in whole minutes, so a value written directly into the row with finer
+    /// precision is rounded rather than truncated — truncating would render 00:00:45 as "0", which
+    /// reads as corruption rather than rounding. Re-saving normalises the stored value.
+    /// </para>
+    /// <para>
+    /// A zero or negative lifetime reads as null rather than being clamped up to 1: OpenIddict would
+    /// honour it and mint already-expired tokens, so reporting "1 minute" would be a lie about what
+    /// is in force. null at least says "not a value this screen can represent".
+    /// </para>
+    /// </summary>
+    private static int? ReadLifetimeMinutes(
+        IReadOnlyDictionary<string, string> settings, TokenLifetimeKind kind)
+    {
+        if (!settings.TryGetValue(kind.SettingKey, out var setting)
+            || !TimeSpan.TryParse(setting, CultureInfo.InvariantCulture, out var lifetime)
+            || lifetime <= TimeSpan.Zero)
+            return null;
+
+        return (int)Math.Round(lifetime.TotalMinutes, MidpointRounding.AwayFromZero);
     }
 }

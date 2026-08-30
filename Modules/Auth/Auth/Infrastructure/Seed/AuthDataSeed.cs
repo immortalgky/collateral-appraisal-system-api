@@ -504,6 +504,19 @@ public class AuthDataSeed(
                 Requirements =
                 {
                     OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange // ✅ PKCE required
+                },
+                Settings =
+                {
+                    // Access and identity match the server-wide default; they are written explicitly
+                    // so the admin screen shows the numbers in force rather than a blank field.
+                    [OpenIddictConstants.Settings.TokenLifetimes.AccessToken] = "00:15:00",
+                    [OpenIddictConstants.Settings.TokenLifetimes.IdentityToken] = "00:15:00",
+                    // The idle timeout for the browser session, well below the server-wide default so
+                    // an overnight gap forces a fresh sign-in even when a browser restores its session
+                    // cookies on relaunch. Admins retune all three in /admin/clients; existing
+                    // databases get them from the companion migration script, since seeders do not run
+                    // outside Development.
+                    [OpenIddictConstants.Settings.TokenLifetimes.RefreshToken] = "08:00:00"
                 }
             };
             AddOriginUris(spa, origins);

@@ -11,7 +11,10 @@ public record UpdateClientCommand(
     List<Uri> RedirectUris,
     List<Uri> PostLogoutRedirectUris,
     List<string> GrantTypes,
-    List<string> Scopes
+    List<string> Scopes,
+    int? AccessTokenLifetimeMinutes,
+    int? IdentityTokenLifetimeMinutes,
+    int? RefreshTokenLifetimeMinutes
 ) : ICommand;
 
 public class UpdateClientCommandValidator : AbstractValidator<UpdateClientCommand>
@@ -34,6 +37,15 @@ public class UpdateClientCommandValidator : AbstractValidator<UpdateClientComman
         RuleForEach(x => x.PostLogoutRedirectUris)
             .Must(ClientValidationRules.IsAbsoluteHttpUri)
             .WithMessage("Post-logout redirect URIs must be absolute http(s) URLs.");
+        // Reject an out-of-range lifetime here rather than letting it reach the application row.
+        // OpenIddict silently ignores a setting it cannot use and falls back to the server default,
+        // so an unvalidated value would look saved while changing nothing.
+        RuleFor(x => x.AccessTokenLifetimeMinutes)
+            .ValidTokenLifetime(ClientPermissionMapper.AccessTokenLifetime, "Access token lifetime");
+        RuleFor(x => x.IdentityTokenLifetimeMinutes)
+            .ValidTokenLifetime(ClientPermissionMapper.IdentityTokenLifetime, "Identity token lifetime");
+        RuleFor(x => x.RefreshTokenLifetimeMinutes)
+            .ValidTokenLifetime(ClientPermissionMapper.RefreshTokenLifetime, "Refresh token lifetime");
     }
 }
 
@@ -55,7 +67,11 @@ public class UpdateClientCommandHandler(IOpenIddictApplicationManager applicatio
             descriptor,
             descriptor.ClientType ?? OpenIddictConstants.ClientTypes.Public,
             command.GrantTypes, command.Scopes,
-            command.RedirectUris, command.PostLogoutRedirectUris);
+            command.RedirectUris, command.PostLogoutRedirectUris,
+            new ClientTokenLifetimes(
+                command.AccessTokenLifetimeMinutes,
+                command.IdentityTokenLifetimeMinutes,
+                command.RefreshTokenLifetimeMinutes));
 
         await applicationManager.UpdateAsync(app, descriptor, cancellationToken);
         return Unit.Value;
