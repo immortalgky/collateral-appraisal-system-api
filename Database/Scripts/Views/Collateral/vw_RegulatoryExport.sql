@@ -220,10 +220,15 @@ Ci AS (
     JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
     LEFT JOIN (
         SELECT ConstructionInspectionId,
-               SUM(CurrentPropertyValue)  AS CurrentSum,
                SUM(PreviousPropertyValue) AS PreviousSum,
-               SUM(CurrentProportionPct)  AS CurrentPctSum,
-               SUM(ProportionPct * PreviousProgressPct / 100.0) AS PreviousPctSum
+               SUM(ProportionPct * PreviousProgressPct / 100.0) AS PreviousPctSum,
+               -- A work item nobody touched this round stands where it was — see the same
+               -- expression in IConstructionCurrentValueService.CiAggregateSql.
+               SUM(CASE WHEN CurrentProgressPct = 0 AND PreviousProgressPct > 0
+                        THEN PreviousPropertyValue ELSE CurrentPropertyValue END) AS CurrentSum,
+               SUM(CASE WHEN CurrentProgressPct = 0 AND PreviousProgressPct > 0
+                        THEN ProportionPct * PreviousProgressPct / 100.0
+                        ELSE CurrentProportionPct END)                           AS CurrentPctSum
         FROM appraisal.ConstructionWorkDetails
         GROUP BY ConstructionInspectionId
     ) wd ON wd.ConstructionInspectionId = ci.Id
@@ -249,9 +254,9 @@ Ci AS (
     -- the last one left it.
     CROSS APPLY (
         SELECT
-            CASE WHEN v.CurrentPctRaw = 0 AND v.PreviousPct > 0
+            CASE WHEN ci.IsFullDetail = 0 AND v.CurrentPctRaw = 0 AND v.PreviousPct > 0
                  THEN v.PreviousPct ELSE v.CurrentPctRaw END     AS CurrentPct,
-            CASE WHEN v.CurrentPctRaw = 0 AND v.PreviousPct > 0
+            CASE WHEN ci.IsFullDetail = 0 AND v.CurrentPctRaw = 0 AND v.PreviousPct > 0
                  THEN v.PreviousValue ELSE v.CurrentValueRaw END AS CurrentValue
     ) e
     GROUP BY ap.AppraisalId

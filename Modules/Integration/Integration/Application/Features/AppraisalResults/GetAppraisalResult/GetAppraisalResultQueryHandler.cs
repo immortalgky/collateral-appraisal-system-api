@@ -190,9 +190,16 @@ internal static class GetAppraisalResultSql
                                                    --       ConstructionWorkDetail.cs:63), so summing it gives the overall percent.
                                                    -- A COALESCE of the two would be wrong: Full Detail always leaves SummaryCurrentProgressPct
                                                    -- null, and a record switched from Summary to Full Detail keeps the stale summary figure.
-                                                   -- Same CASE as GetDecisionSummaryQueryHandler.cs so one formula serves the whole codebase.
+                                                   -- Same CASE as GetDecisionSummaryQueryHandler.cs and
+                                                   -- IConstructionCurrentValueService.CiAggregateSql, including the rule that a round
+                                                   -- nobody has filled in yet stands where the last one left it — otherwise this file
+                                                   -- and collateral.vw_RegulatoryExport report different progress for one collateral.
                                                    -- Not ISNULL'd to 0 on purpose: "never inspected" (bare land) differs from "inspected at 0%".
                                                    CASE WHEN ci.IsFullDetail = 0
+                                                             AND ISNULL(ci.SummaryCurrentProgressPct, 0) = 0
+                                                             AND ISNULL(ci.SummaryPreviousProgressPct, 0) > 0
+                                                        THEN ci.SummaryPreviousProgressPct
+                                                        WHEN ci.IsFullDetail = 0
                                                         THEN ci.SummaryCurrentProgressPct
                                                         ELSE wdagg.CurrentProportionPctSum
                                                    END AS ConstructionPct,
@@ -277,7 +284,11 @@ internal static class GetAppraisalResultSql
                                                LEFT JOIN appraisal.ConstructionInspections ci ON ci.AppraisalPropertyId = ap.Id
                                                LEFT JOIN (
                                                    SELECT ConstructionInspectionId,
-                                                          SUM(CurrentProportionPct) AS CurrentProportionPctSum
+                                                          -- A work item nobody touched this round stands where it was; see
+                                                          -- IConstructionCurrentValueService.CiAggregateSql for why.
+                                                          SUM(CASE WHEN CurrentProgressPct = 0 AND PreviousProgressPct > 0
+                                                                   THEN ProportionPct * PreviousProgressPct / 100.0
+                                                                   ELSE CurrentProportionPct END) AS CurrentProportionPctSum
                                                    FROM appraisal.ConstructionWorkDetails
                                                    GROUP BY ConstructionInspectionId
                                                ) wdagg ON wdagg.ConstructionInspectionId = ci.Id

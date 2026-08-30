@@ -147,10 +147,16 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
             LEFT JOIN (
                 SELECT wd.ConstructionInspectionId,
-                       SUM(wd.CurrentPropertyValue)  AS CurrentPropertyValueSum,
                        SUM(wd.PreviousPropertyValue) AS PreviousPropertyValueSum,
                        SUM(wd.ProportionPct * wd.PreviousProgressPct / 100.0) AS PreviousProportionPctSum,
-                       SUM(wd.CurrentProportionPct)                           AS CurrentProportionPctSum
+                       -- A work item nobody touched this round stands where it was — see the same
+                       -- expression in IConstructionCurrentValueService.CiAggregateSql.
+                       SUM(CASE WHEN wd.CurrentProgressPct = 0 AND wd.PreviousProgressPct > 0
+                                THEN wd.PreviousPropertyValue ELSE wd.CurrentPropertyValue END)
+                                                                              AS CurrentPropertyValueSum,
+                       SUM(CASE WHEN wd.CurrentProgressPct = 0 AND wd.PreviousProgressPct > 0
+                                THEN wd.ProportionPct * wd.PreviousProgressPct / 100.0
+                                ELSE wd.CurrentProportionPct END)             AS CurrentProportionPctSum
                 FROM appraisal.ConstructionWorkDetails wd
                 GROUP BY wd.ConstructionInspectionId
             ) wd_agg ON wd_agg.ConstructionInspectionId = ci.Id
@@ -179,9 +185,9 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             -- round stands where the last one left it.
             CROSS APPLY (
                 SELECT
-                    CASE WHEN v.CurrentPctRaw = 0 AND v.PreviousPct > 0
+                    CASE WHEN ci.IsFullDetail = 0 AND v.CurrentPctRaw = 0 AND v.PreviousPct > 0
                          THEN v.PreviousPct ELSE v.CurrentPctRaw END     AS CurrentPct,
-                    CASE WHEN v.CurrentPctRaw = 0 AND v.PreviousPct > 0
+                    CASE WHEN ci.IsFullDetail = 0 AND v.CurrentPctRaw = 0 AND v.PreviousPct > 0
                          THEN v.PreviousValue ELSE v.CurrentValueRaw END AS CurrentValue
             ) e
             WHERE ap.AppraisalId = @AppraisalId;

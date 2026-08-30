@@ -5,10 +5,9 @@ namespace Appraisal.Domain.Appraisals;
 /// with 0.50 rounding up (CA-614 — the inspection reports must not print satang).
 ///
 /// Rounding happens where the values are computed and persisted rather than at each place that
-/// displays them, because every consumer downstream only SUMs the stored columns: a sum of whole
-/// baht is whole baht, so the detail rows still add up to the total printed beside them. Rounding
-/// per display site instead lets a row-by-row printout disagree with its own total — two work
-/// items ending in .50 round up individually (+1 each) but cancel exactly when summed first.
+/// displays them, so a row-by-row printout and the total beside it are rounded once, consistently.
+/// Rounding per display site instead lets the two disagree — two work items ending in .50 round up
+/// individually (+1 each) but cancel exactly when summed first.
 ///
 /// A summary-mode inspection stores no computed value — its figure is derived at read time as
 /// TotalValue * progressPct / 100 — so the same rule is mirrored as ROUND(..., 0) in the three
@@ -23,9 +22,11 @@ namespace Appraisal.Domain.Appraisals;
 ///
 /// Percentages are NOT rounded by this rule — they are stored as decimal(7,4) and reported to two
 /// decimal places, which is what the business asked for. That separation is what makes the rounding
-/// safe: nothing decides anything off these amounts. Construction progress, and with it whether a
-/// building counts as finished, is read from the entered percentages
-/// (ConstructionValueBreakdown.ConstructionProgressPercent), never from a ratio of rounded money.
+/// safe. Construction progress, and with it whether a building counts as finished, is read from the
+/// entered percentages (ConstructionValueBreakdown.ConstructionProgressPercent), never from a ratio
+/// of rounded money — the six places that report progress all take that route, in the Appraisal,
+/// Reporting, Collateral and Integration modules. Adding a seventh means reading percentages there
+/// too: dividing these amounts back out is what CA-614's rounding made inexact.
 ///
 /// Inspections already in the database are deliberately left as they were, with no migration. They
 /// are the record of a round that was already inspected, some of it already exported to the

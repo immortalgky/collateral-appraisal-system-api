@@ -84,9 +84,19 @@ internal static class ConstructionSectionLoader
                 wd.ConstructionValue,
                 wd.ProportionPct,
                 wd.PreviousProgressPct               AS PreviousPct,
-                wd.CurrentProgressPct                AS CurrentPct,
                 wd.PreviousPropertyValue,
-                wd.CurrentPropertyValue
+                -- A work item nobody touched this round carries 0% current against a non-zero
+                -- previous, because CopyForNextInspection resets the current figures for the
+                -- inspector to enter. Printing 0 here says the item was demolished, and puts this
+                -- table at odds with the summary block above it, which reports the round as
+                -- standing where the last one left it. Same rule as
+                -- IConstructionCurrentValueService.CiAggregateSql.
+                CASE WHEN wd.CurrentProgressPct = 0 AND wd.PreviousProgressPct > 0
+                     THEN wd.PreviousProgressPct
+                     ELSE wd.CurrentProgressPct END  AS CurrentPct,
+                CASE WHEN wd.CurrentProgressPct = 0 AND wd.PreviousProgressPct > 0
+                     THEN wd.PreviousPropertyValue
+                     ELSE wd.CurrentPropertyValue END AS CurrentPropertyValue
             FROM appraisal.ConstructionWorkDetails wd
             LEFT JOIN parameter.ConstructionWorkGroups cwg
                 ON cwg.Id = wd.ConstructionWorkGroupId

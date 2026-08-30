@@ -276,11 +276,21 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
         LEFT JOIN (
             SELECT ConstructionInspectionId,
                    SUM(PreviousPropertyValue) AS PreviousPropertyValueSum,
-                   SUM(CurrentPropertyValue)  AS CurrentPropertyValueSum,
                    -- No PreviousProportionPct column exists; it is the same product the server
                    -- computes into CurrentProportionPct, taken against the previous round.
                    SUM(ProportionPct * PreviousProgressPct / 100.0) AS PreviousProportionPctSum,
-                   SUM(CurrentProportionPct)                        AS CurrentProportionPctSum
+                   -- A work item nobody touched this round carries 0% current against a non-zero previous,
+                   -- because CopyForNextInspection resets the current figures for the inspector to enter.
+                   -- Counting that as 0 says the item was demolished; what was built in earlier rounds is
+                   -- still standing. Until something is entered, the item stands where it was. Doing this
+                   -- per item rather than per inspection also covers a partly-entered round, where the
+                   -- inspection total is non-zero but individual items are still untouched.
+                   SUM(CASE WHEN CurrentProgressPct = 0 AND PreviousProgressPct > 0
+                            THEN PreviousPropertyValue ELSE CurrentPropertyValue END)
+                                                                    AS CurrentPropertyValueSum,
+                   SUM(CASE WHEN CurrentProgressPct = 0 AND PreviousProgressPct > 0
+                            THEN ProportionPct * PreviousProgressPct / 100.0
+                            ELSE CurrentProportionPct END)          AS CurrentProportionPctSum
             FROM appraisal.ConstructionWorkDetails
             GROUP BY ConstructionInspectionId
         ) wd ON wd.ConstructionInspectionId = ci.Id
@@ -309,9 +319,9 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
         -- one left it.
         CROSS APPLY (
             SELECT
-                CASE WHEN v.CurrentPctRaw = 0 AND v.PreviousPct > 0
+                CASE WHEN ci.IsFullDetail = 0 AND v.CurrentPctRaw = 0 AND v.PreviousPct > 0
                      THEN v.PreviousPct ELSE v.CurrentPctRaw END   AS CurrentPct,
-                CASE WHEN v.CurrentPctRaw = 0 AND v.PreviousPct > 0
+                CASE WHEN ci.IsFullDetail = 0 AND v.CurrentPctRaw = 0 AND v.PreviousPct > 0
                      THEN v.PreviousValue ELSE v.CurrentValueRaw END AS CurrentValue
         ) e
         WHERE ap.AppraisalId = @AppraisalId

@@ -517,8 +517,10 @@ public class GetDecisionSummaryQueryHandler(
         var p = new DynamicParameters();
         p.Add("AppraisalId", appraisalId);
 
-        // รายละเอียดรายอาคาร — must use the SAME summary-mode derivation as
-        // IConstructionCurrentValueService, or these rows will not add up to the card above them.
+        // รายละเอียดรายอาคาร — must use the SAME derivations as IConstructionCurrentValueService,
+        // or these rows will not add up to the card above them: whole-baht money, progress read off
+        // the entered percentages rather than divided out of the money, and a work item nobody
+        // touched this round standing where it was.
         // Summary mode multiplies TotalValue by the stored percent instead of reading
         // SummaryPreviousValue / SummaryCurrentValue: the CI screen computes those two figures for
         // display but never writes them back into the form, so the persisted columns hold the default
@@ -531,19 +533,23 @@ public class GetDecisionSummaryQueryHandler(
                 COALESCE(NULLIF(LTRIM(RTRIM(bad.ModelName)), ''),
                          NULLIF(LTRIM(RTRIM(bad.PropertyName)), '')) AS ModelName,
                 ci.TotalValue                     AS TotalValue,
-                CASE WHEN ci.IsFullDetail = 0
+                ROUND(CASE WHEN ci.IsFullDetail = 0
                      THEN ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0) / 100.0
                      ELSE ISNULL(wd_agg.PreviousPropertyValueSum, 0)
-                END AS PreviousValue,
-                CASE WHEN ci.IsFullDetail = 0
+                END, 0) AS PreviousValue,
+                ROUND(CASE WHEN ci.IsFullDetail = 0
                      THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
                      ELSE ISNULL(wd_agg.CurrentPropertyValueSum, 0)
-                END AS CurrentValue,
+                END, 0) AS CurrentValue,
                 CASE WHEN ci.IsFullDetail = 0
                      THEN ISNULL(ci.SummaryPreviousProgressPct, 0)
                      ELSE ISNULL(wd_agg.PreviousProportionPctSum, 0)
                 END AS EnteredPreviousPercent,
                 CASE WHEN ci.IsFullDetail = 0
+                          AND ISNULL(ci.SummaryCurrentProgressPct, 0) = 0
+                          AND ISNULL(ci.SummaryPreviousProgressPct, 0) > 0
+                     THEN ISNULL(ci.SummaryPreviousProgressPct, 0)
+                     WHEN ci.IsFullDetail = 0
                      THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
                      ELSE ISNULL(wd_agg.CurrentProportionPctSum, 0)
                 END AS EnteredCurrentPercent
@@ -553,9 +559,15 @@ public class GetDecisionSummaryQueryHandler(
             LEFT JOIN (
                 SELECT ConstructionInspectionId,
                        SUM(PreviousPropertyValue) AS PreviousPropertyValueSum,
-                       SUM(CurrentPropertyValue)  AS CurrentPropertyValueSum,
                        SUM(ProportionPct * PreviousProgressPct / 100.0) AS PreviousProportionPctSum,
-                       SUM(CurrentProportionPct)                        AS CurrentProportionPctSum
+                       -- A work item nobody touched this round stands where it was — see the same
+                       -- expression in IConstructionCurrentValueService.CiAggregateSql.
+                       SUM(CASE WHEN CurrentProgressPct = 0 AND PreviousProgressPct > 0
+                                THEN PreviousPropertyValue ELSE CurrentPropertyValue END)
+                                                                        AS CurrentPropertyValueSum,
+                       SUM(CASE WHEN CurrentProgressPct = 0 AND PreviousProgressPct > 0
+                                THEN ProportionPct * PreviousProgressPct / 100.0
+                                ELSE CurrentProportionPct END)          AS CurrentProportionPctSum
                 FROM appraisal.ConstructionWorkDetails
                 GROUP BY ConstructionInspectionId
             ) wd_agg ON wd_agg.ConstructionInspectionId = ci.Id
@@ -680,8 +692,11 @@ public class GetDecisionSummaryQueryHandler(
                 substituteRowValues ? ciTotal : d.TotalValue,
                 substituteRowValues ? ciPrev : d.PreviousValue,
                 substituteRowValues ? ciCurrent : d.CurrentValue,
-                d.TotalValue > 0 ? d.PreviousValue / d.TotalValue * 100m : d.EnteredPreviousPercent,
-                d.TotalValue > 0 ? d.CurrentValue / d.TotalValue * 100m : d.EnteredCurrentPercent))
+                // The entered percentages, not the money divided by the base. Money is rounded to
+                // whole baht (CA-614), so that division stopped being exact and printed 99.99993
+                // under a header that said 100.00 — see ConstructionValueBreakdown.
+                d.EnteredPreviousPercent,
+                d.EnteredCurrentPercent))
             .ToList();
 
         var completedBuildings = completedRows

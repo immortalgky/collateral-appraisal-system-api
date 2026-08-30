@@ -39,11 +39,21 @@ FROM appraisal.vw_AppraisalList v
     FROM appraisal.ConstructionInspections c
              INNER JOIN appraisal.AppraisalProperties ap ON ap.Id = c.AppraisalPropertyId
              CROSS APPLY (
+        -- A work item nobody touched this round stands where it was, and so does a summary
+        -- inspection nobody has filled in: CopyForNextInspection resets the current figures for
+        -- the inspector to enter, and reading that as 0 lists a carried-forward round as having
+        -- gone backwards. Same rule as IConstructionCurrentValueService.CiAggregateSql.
         SELECT CASE
                    WHEN c.IsFullDetail = 1
-                       THEN ISNULL((SELECT SUM(wd.CurrentProportionPct)
+                       THEN ISNULL((SELECT SUM(CASE WHEN wd.CurrentProgressPct = 0
+                                                      AND wd.PreviousProgressPct > 0
+                                                    THEN wd.ProportionPct * wd.PreviousProgressPct / 100.0
+                                                    ELSE wd.CurrentProportionPct END)
                                     FROM appraisal.ConstructionWorkDetails wd
                                     WHERE wd.ConstructionInspectionId = c.Id), 0)
+                   WHEN ISNULL(c.SummaryCurrentProgressPct, 0) = 0
+                        AND ISNULL(c.SummaryPreviousProgressPct, 0) > 0
+                       THEN c.SummaryPreviousProgressPct
                    ELSE ISNULL(c.SummaryCurrentProgressPct, 0)
                END AS ProgressPct
     ) insp
