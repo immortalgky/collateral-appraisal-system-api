@@ -27,7 +27,10 @@ public class ExportAppraisalsQueryHandler(
         CancellationToken cancellationToken)
     {
         var enforcedCompanyId = AppraisalAccessScope.GetEnforcedCompanyId(currentUser);
-        var (whereClause, parameters) = AppraisalFilterBuilder.BuildFilter(query.Filter, enforcedCompanyId);
+        // RequiresView is discarded on purpose: the export always reads the view, so it never
+        // takes the cheap base-table path. Read the flag before pointing any query at
+        // appraisal.Appraisals — the filter may reference columns only the view has.
+        var (whereClause, parameters, _) = AppraisalFilterBuilder.BuildFilter(query.Filter, enforcedCompanyId);
         var orderBy = AppraisalFilterBuilder.BuildOrderBy(query.Filter);
 
         var sql = $"SELECT TOP({MaxExportRows}) * FROM appraisal.vw_AppraisalList{whereClause} ORDER BY {orderBy}";

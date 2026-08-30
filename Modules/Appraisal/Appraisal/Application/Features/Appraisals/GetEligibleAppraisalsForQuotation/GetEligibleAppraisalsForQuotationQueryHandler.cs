@@ -36,7 +36,8 @@ public class GetEligibleAppraisalsForQuotationQueryHandler(
         GetEligibleAppraisalsForQuotationQuery query,
         CancellationToken cancellationToken)
     {
-        var (whereClause, parameters) = AppraisalFilterBuilder.BuildFilter(query.Filter);
+        // RequiresView is discarded on purpose: this query always reads the view (see below).
+        var (whereClause, parameters, _) = AppraisalFilterBuilder.BuildFilter(query.Filter);
         var orderBy = AppraisalFilterBuilder.BuildOrderBy(query.Filter);
 
         var eligibilityClause = BuildEligibilityClause(query.ExcludeQuotationRequestId.HasValue);

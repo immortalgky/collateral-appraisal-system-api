@@ -17,12 +17,23 @@ internal static class AppraisalFilterBuilder
         "AssignmentType", "CompanyName", "RequestedAt", "Purpose"
     };
 
-    public static (string WhereClause, DynamicParameters Parameters) BuildFilter(
+    /// <param name="excludeStatus">
+    /// Leaves the Status predicate out. Used by the status facet: counting the statuses through a
+    /// WHERE that already pins one status returns a single chip, so the user cannot switch away
+    /// from it. Every other filter still narrows the counts.
+    /// </param>
+    public static AppraisalFilterSql BuildFilter(
         GetAppraisalsFilterRequest? filter,
-        Guid? enforcedCompanyId = null)
+        Guid? enforcedCompanyId = null,
+        bool excludeStatus = false)
     {
         var conditions = new List<string>();
         var parameters = new DynamicParameters();
+
+        // Set whenever a predicate reads a column that appraisal.Appraisals does not have — i.e.
+        // one the view synthesises (latest assignment, first land location, customer, appointment).
+        // While this stays false the caller may count and page straight off the base table.
+        var requiresView = false;
 
         // External (company) callers are always scoped to their own company; the caller-supplied
         // AssigneeCompanyId on the filter is ignored to prevent cross-company peeking.
@@ -33,6 +44,7 @@ internal static class AppraisalFilterBuilder
         {
             conditions.Add("AssigneeCompanyId = @ScopedCompanyId");
             parameters.Add("ScopedCompanyId", enforcedCompanyId.Value.ToString());
+            requiresView = true;
         }
 
         if (filter is not null)
@@ -43,14 +55,20 @@ internal static class AppraisalFilterBuilder
                 conditions.Add(
                     "(AppraisalNumber LIKE '%' + @Search + '%' OR CustomerName LIKE '%' + @Search + '%' OR RequestNumber LIKE '%' + @Search + '%')");
                 parameters.Add("Search", filter.Search.Trim());
+                // AppraisalNumber is on the base table, but CustomerName and RequestNumber are not,
+                // and the three are OR'ed — so the whole predicate needs the view.
+                requiresView = true;
             }
 
             // Multi-value filters (comma-separated -> IN clause)
-            AddMultiValueFilter(conditions, parameters, filter.Status, "Status", "@Statuses");
+            if (!excludeStatus)
+                AddMultiValueFilter(conditions, parameters, filter.Status, "Status", "@Statuses");
             AddMultiValueFilter(conditions, parameters, filter.Priority, "Priority", "@Priorities");
             AddMultiValueFilter(conditions, parameters, filter.AppraisalType, "AppraisalType", "@AppraisalTypes");
             AddMultiValueFilter(conditions, parameters, filter.SlaStatus, "SLAStatus", "@SlaStatuses");
-            AddMultiValueFilter(conditions, parameters, filter.AssignmentType, "AssignmentType", "@AssignmentTypes");
+            if (AddMultiValueFilter(conditions, parameters, filter.AssignmentType, "AssignmentType",
+                    "@AssignmentTypes"))
+                requiresView = true;
             AddMultiValueFilter(conditions, parameters, filter.Purpose, "Purpose", "@Purposes");
             AddPropertyTypeFilter(conditions, parameters, filter.PropertyType);
 
@@ -59,12 +77,14 @@ internal static class AppraisalFilterBuilder
             {
                 conditions.Add("AssigneeUserId = @AssigneeUserId");
                 parameters.Add("AssigneeUserId", filter.AssigneeUserId);
+                requiresView = true;
             }
 
             if (!enforcedCompanyId.HasValue && !string.IsNullOrWhiteSpace(filter.AssigneeCompanyId))
             {
                 conditions.Add("AssigneeCompanyId = @AssigneeCompanyId");
                 parameters.Add("AssigneeCompanyId", filter.AssigneeCompanyId);
+                requiresView = true;
             }
 
             if (!string.IsNullOrWhiteSpace(filter.Channel))
@@ -90,12 +110,14 @@ internal static class AppraisalFilterBuilder
             {
                 conditions.Add("Province = @Province");
                 parameters.Add("Province", filter.Province);
+                requiresView = true;
             }
 
             if (!string.IsNullOrWhiteSpace(filter.District))
             {
                 conditions.Add("District = @District");
                 parameters.Add("District", filter.District);
+                requiresView = true;
             }
 
             // Date range filters
@@ -105,17 +127,20 @@ internal static class AppraisalFilterBuilder
             AddDateRangeFilter(conditions, parameters, filter.SlaDueDateFrom, filter.SlaDueDateTo,
                 "SLADueDate", "SlaDueDateFrom", "SlaDueDateTo");
 
-            AddDateRangeFilter(conditions, parameters, filter.AssignedDateFrom, filter.AssignedDateTo,
-                "AssignedDate", "AssignedDateFrom", "AssignedDateTo");
+            if (AddDateRangeFilter(conditions, parameters, filter.AssignedDateFrom, filter.AssignedDateTo,
+                    "AssignedDate", "AssignedDateFrom", "AssignedDateTo"))
+                requiresView = true;
 
-            AddDateRangeFilter(conditions, parameters, filter.AppointmentDateFrom, filter.AppointmentDateTo,
-                "AppointmentDateTime", "AppointmentDateFrom", "AppointmentDateTo");
+            if (AddDateRangeFilter(conditions, parameters, filter.AppointmentDateFrom, filter.AppointmentDateTo,
+                    "AppointmentDateTime", "AppointmentDateFrom", "AppointmentDateTo"))
+                requiresView = true;
 
             // Picker-specific additive fields
             if (!string.IsNullOrWhiteSpace(filter.CustomerName))
             {
                 conditions.Add("CustomerName LIKE '%' + @CustomerName + '%'");
                 parameters.Add("CustomerName", filter.CustomerName.Trim());
+                requiresView = true;
             }
 
             if (!string.IsNullOrWhiteSpace(filter.AppraisalNumber))
@@ -128,6 +153,7 @@ internal static class AppraisalFilterBuilder
             {
                 conditions.Add("SubDistrict LIKE '%' + @SubDistrict + '%'");
                 parameters.Add("SubDistrict", filter.SubDistrict.Trim());
+                requiresView = true;
             }
 
             AddDateRangeFilter(conditions, parameters, filter.RequestedAtFrom, filter.RequestedAtTo,
@@ -135,7 +161,7 @@ internal static class AppraisalFilterBuilder
         }
 
         var whereClause = conditions.Count > 0 ? " WHERE " + string.Join(" AND ", conditions) : "";
-        return (whereClause, parameters);
+        return new AppraisalFilterSql(whereClause, parameters, requiresView);
     }
 
     public static string BuildOrderBy(GetAppraisalsFilterRequest? filter)
@@ -159,14 +185,15 @@ internal static class AppraisalFilterBuilder
     private static string Invert(string dir) =>
         string.Equals(dir, "ASC", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
 
-    private static void AddMultiValueFilter(
+    /// <returns><c>true</c> when a predicate was actually emitted.</returns>
+    private static bool AddMultiValueFilter(
         List<string> conditions, DynamicParameters parameters,
         string? value, string columnName, string paramName)
     {
-        if (string.IsNullOrWhiteSpace(value)) return;
+        if (string.IsNullOrWhiteSpace(value)) return false;
 
         var values = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (values.Length == 0) return;
+        if (values.Length == 0) return false;
 
         if (values.Length == 1)
         {
@@ -178,6 +205,8 @@ internal static class AppraisalFilterBuilder
             conditions.Add($"{columnName} IN {paramName}");
             parameters.Add(paramName.TrimStart('@'), values);
         }
+
+        return true;
     }
 
     /// <summary>
@@ -216,7 +245,8 @@ internal static class AppraisalFilterBuilder
         parameters.Add("PropertyTypes", values);
     }
 
-    private static void AddDateRangeFilter(
+    /// <returns><c>true</c> when at least one bound was actually emitted.</returns>
+    private static bool AddDateRangeFilter(
         List<string> conditions, DynamicParameters parameters,
         DateTime? from, DateTime? to,
         string columnName, string fromParam, string toParam)
@@ -232,5 +262,33 @@ internal static class AppraisalFilterBuilder
             conditions.Add($"{columnName} < DATEADD(day, 1, @{toParam})");
             parameters.Add(toParam, to.Value);
         }
+
+        return from.HasValue || to.HasValue;
     }
+}
+
+/// <summary>
+/// A built WHERE clause plus the parameters it references.
+/// </summary>
+/// <param name="WhereClause">
+/// Either empty or already prefixed with <c>" WHERE "</c>, so it can be concatenated onto a
+/// <c>SELECT … FROM appraisal.vw_AppraisalList</c> directly.
+/// </param>
+/// <param name="RequiresView">
+/// <c>true</c> when at least one predicate reads a column that only the view has. While this is
+/// <c>false</c> the same clause can be pointed at <c>appraisal.Appraisals</c> instead — see
+/// <see cref="BaseTableWhereClause"/> — which is dramatically cheaper for counting and faceting.
+/// </param>
+internal sealed record AppraisalFilterSql(
+    string WhereClause,
+    DynamicParameters Parameters,
+    bool RequiresView)
+{
+    /// <summary>
+    /// The same clause aimed at <c>appraisal.Appraisals</c>. The view supplies
+    /// <c>WHERE a.IsDeleted = 0</c> of its own; the base table does not, so it is added here.
+    /// Only meaningful when <see cref="RequiresView"/> is <c>false</c>.
+    /// </summary>
+    public string BaseTableWhereClause =>
+        WhereClause.Length == 0 ? " WHERE IsDeleted = 0" : WhereClause + " AND IsDeleted = 0";
 }
