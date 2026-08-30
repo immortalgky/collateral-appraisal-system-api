@@ -1,4 +1,5 @@
 using Dapper;
+using Shared.Data;
 
 namespace Workflow.Tasks.Features.Shared;
 
@@ -42,16 +43,8 @@ public static class TaskListFilterBuilder
 {
     private const string DefaultSortField = "AssignedDate";
 
-    /// <summary>
-    /// Escapes SQL Server LIKE wildcards (<c>%</c>, <c>_</c>, <c>[</c>) so user-supplied search
-    /// text is matched literally. Pair with an <c>ESCAPE '\'</c> clause. The escape character
-    /// <c>\</c> itself is escaped first to avoid double-escaping.
-    /// </summary>
-    public static string EscapeLikePattern(string value) =>
-        value.Replace("\\", "\\\\")
-            .Replace("%", "\\%")
-            .Replace("_", "\\_")
-            .Replace("[", "\\[");
+    /// <inheritdoc cref="LikePattern.Escape"/>
+    public static string EscapeLikePattern(string value) => LikePattern.Escape(value);
 
     /// <summary>
     /// Builds a LIKE pattern with glob semantics for the task search box:
@@ -62,13 +55,7 @@ public static class TaskListFilterBuilder
     /// load. Users opt into substring/suffix matching with <c>*</c> (e.g. <c>*somchai*</c>), which
     /// produces a leading wildcard and falls back to a scan. Pair with <c>ESCAPE '\'</c>.
     /// </summary>
-    public static string BuildSearchPattern(string value)
-    {
-        var escaped = EscapeLikePattern(value);   // % _ [ \ -> literal; leaves * untouched
-        var hasGlob = escaped.Contains('*');
-        var pattern = escaped.Replace('*', '%');
-        return hasGlob ? pattern : pattern + "%"; // no * => prefix search
-    }
+    public static string BuildSearchPattern(string value) => LikePattern.Build(value);
 
     private static readonly HashSet<string> AllowedSortFields = new(StringComparer.OrdinalIgnoreCase)
     {
