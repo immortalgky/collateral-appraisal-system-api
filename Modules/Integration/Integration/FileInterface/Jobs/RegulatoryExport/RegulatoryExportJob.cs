@@ -21,11 +21,12 @@ namespace Integration.FileInterface.Jobs.RegulatoryExport;
 /// same <see cref="RegulatoryExportRow"/> list — but each writer keeps its OWN field map, so a field
 /// that moves in one must move in the other in the same commit.
 ///
-/// <b>They do not share a destination.</b> The <c>.txt</c> goes wherever the default outbound sink
-/// points, which is AS400's SFTP drop in UAT and production. The workbook has no reader there — the
-/// Risk team opens it off a Windows file share — so it takes its directory from
-/// <c>REGULATORY_XLSX</c> and always writes through the filesystem adapter. See
-/// <see cref="WriteExcelAsync"/>.
+/// <b>They do not share a destination, and either can be turned off alone.</b> The <c>.txt</c> goes
+/// wherever the default outbound sink points, which is AS400's SFTP drop in UAT and production. The
+/// workbook has no reader there — the Risk team opens it off a Windows file share — so it takes its
+/// directory from <c>REGULATORY_XLSX</c> and always writes through the filesystem adapter.
+/// Deactivating that row stops the workbook and leaves the regulator's file untouched; deactivating
+/// <c>REGULATORY</c> stops the run entirely. See <see cref="WriteExcelAsync"/>.
 ///
 /// No sent-ledger: every run is a full re-extract.
 /// </summary>
@@ -72,55 +73,72 @@ public class RegulatoryExportJob(
         var content = writer.BuildContent(effectiveDate, rows);
         await fileSink.WriteAsync(directory, fileName, content, ct);
 
-        var excelBytes = excelWriter.Build(effectiveDate, rows);
-        var (excelFileName, excelDirectory) = await WriteExcelAsync(excelBytes, now, prefix, dateFormat, directory, ct);
-
-        // Both directories are named so an operator can see from the log alone whether this
-        // environment's REGULATORY_XLSX row has been pointed at the share yet.
         logger.LogInformation(
-            "{Tag} Exported {Count} record(s): {File} to {Dir}, {ExcelFile} to {ExcelDir}",
-            JobTag, rows.Count, fileName, directory, excelFileName, excelDirectory);
+            "{Tag} Exported {Count} record(s) to {File} in {Dir}",
+            JobTag, rows.Count, fileName, directory);
+
+        // The workbook has its own destination and logs its own outcome — it may not be written at
+        // all. Deliberately after the summary above, so the regulator's file is reported as sent
+        // whatever happens to the companion.
+        var excelBytes = excelWriter.Build(effectiveDate, rows);
+        await WriteExcelAsync(excelBytes, now, prefix, dateFormat, ct);
     }
 
     /// <summary>
-    /// Writes the workbook to its own destination and returns the name and directory used.
-    ///
-    /// With an active <c>REGULATORY_XLSX</c> row the file goes to that row's directory through
-    /// <c>shareSink</c> — the filesystem adapter — because the destination is a UNC share the
+    /// Writes the workbook to the destination on the <c>REGULATORY_XLSX</c> row, through
+    /// <c>shareSink</c> — the filesystem adapter — because that destination is a UNC share the
     /// app-pool account writes to directly. Routing it through the default sink instead would hand a
     /// <c>\\host\share</c> path to SFTP, which would try to create that path on the remote host.
     ///
-    /// With no row, or the row deactivated, it falls back to exactly the previous behaviour: the
-    /// default sink, beside the <c>.txt</c>.
+    /// <b>No row, a deactivated row, or a row with no directory means the workbook is not written
+    /// at all.</b> This mirrors how <see cref="ExecuteAsync"/> treats the <c>REGULATORY</c> row a few
+    /// lines above: absent or inactive is an instruction not to produce the file, not a cue to guess
+    /// a destination. Writing it somewhere else would make <c>IsActive = 0</c> unable to express
+    /// "stop producing this", which is the only thing an operator would set it for.
     ///
-    /// A failure here is logged and swallowed on purpose. The regulatory obligation is the
+    /// Nothing is lost by having no fallback here. The migration seeds the row active and pointed at
+    /// the same directory as the <c>.txt</c>, so a database that has run it always has a destination
+    /// even if the per-environment UPDATE was never applied. The seeded value is the safety net; a
+    /// second one in code would only ever fire on a half-applied deploy, and would cost the kill
+    /// switch to buy it.
+    ///
+    /// A write failure is logged and swallowed on purpose. The regulatory obligation is the
     /// <c>.txt</c>, and it has already been written by the time this runs; an unreachable share or a
     /// revoked permission should not mark the run Failed and suggest the regulator's file never went
     /// out. The Error entry is what to alert on.
     /// </summary>
-    private async Task<(string FileName, string Directory)> WriteExcelAsync(
+    private async Task WriteExcelAsync(
         byte[] excelBytes,
         DateTime now,
         string txtPrefix,
         string txtDateFormat,
-        string txtDirectory,
         CancellationToken ct)
     {
         var xlsxCfg = await configProvider.GetAsync(FileInterfaceCodes.RegulatoryExcel, ct);
 
         if (xlsxCfg?.Directory is null)
         {
-            var fallbackName = $"{txtPrefix}{now.ToString(txtDateFormat)}.xlsx";
-            await fileSink.WriteAsync(txtDirectory, fallbackName, excelBytes, ct);
-            return (fallbackName, txtDirectory);
+            logger.LogWarning(
+                "{Tag} No active '{Code}' config row with a directory; the Excel companion was not "
+                + "written. The fixed-width file for AS400 is unaffected.",
+                JobTag, FileInterfaceCodes.RegulatoryExcel);
+            return;
         }
 
+        // The .txt row supplies the defaults so the workbook keeps its usual name unless the
+        // REGULATORY_XLSX row deliberately overrides one of these.
         var fileName =
             $"{xlsxCfg.FileNamePrefix ?? txtPrefix}{now.ToString(xlsxCfg.FileNameDateFormat ?? txtDateFormat)}.{xlsxCfg.FileExtension ?? "xlsx"}";
 
         try
         {
             await shareSink.WriteAsync(xlsxCfg.Directory, fileName, excelBytes, ct);
+
+            // Named so an operator can see from the log alone whether this environment's
+            // REGULATORY_XLSX row has been pointed at the share yet.
+            logger.LogInformation(
+                "{Tag} Wrote the Excel companion {ExcelFile} to {ExcelDir}",
+                JobTag, fileName, xlsxCfg.Directory);
         }
         // The filter keeps a shutdown from being reported as a share problem: a cancelled token is
         // the host stopping, not a destination that cannot be written to, and it should propagate.
@@ -132,7 +150,5 @@ public class RegulatoryExportJob(
                 + "AS400 was written successfully and is unaffected; only the readable copy is missing.",
                 JobTag, fileName, xlsxCfg.Directory);
         }
-
-        return (fileName, xlsxCfg.Directory);
     }
 }

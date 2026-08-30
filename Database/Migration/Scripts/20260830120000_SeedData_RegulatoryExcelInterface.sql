@@ -28,8 +28,12 @@
 --     WHERE InterfaceCode = 'REGULATORY_XLSX';
 --
 -- Until that runs the workbook simply lands next to the .txt, which is the behaviour before this
--- change. Nothing breaks if the step is forgotten; the file is just in the old place, and the job's
--- closing log line names the directory it used so that is visible in Seq without opening the DB.
+-- change. Nothing breaks if the step is forgotten; the file is just in the old place, and the job
+-- logs the directory it used so that is visible in Seq without opening the DB. The seeded Directory
+-- below IS that safety net — the job itself has no fallback.
+--
+-- Which is what makes IsActive a real switch: set it to 0 and the workbook is not produced at all.
+-- The .txt is governed by the separate REGULATORY row and keeps going out either way.
 --
 -- Idempotent. DbUp journals the script once per database anyway.
 -- ============================================================

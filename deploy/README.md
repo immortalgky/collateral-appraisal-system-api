@@ -240,9 +240,11 @@ the application account directly, not over SFTP. This is why the pool runs as a 
 account; the built-in `ApplicationPoolIdentity` cannot authenticate to a remote share at all.
 
 If the `UPDATE` is skipped, the workbook lands beside the `.txt` exactly as it did before, so
-nothing fails and nothing is lost. The job's closing log line names both directories, so Seq shows
-which one was used without opening the database. Setting `IsActive = 0` on the row returns to that
-old behaviour deliberately.
+nothing fails and nothing is lost — the migration seeds the row pointing there. The job logs the
+directory it used, so Seq shows which one without opening the database.
+
+Setting `IsActive = 0` on the row stops the workbook being produced at all. The `.txt` is governed
+by the separate `REGULATORY` row and keeps going out to AS400 regardless.
 
 ## First-time setup on a new server (one-off, not scripted)
 
