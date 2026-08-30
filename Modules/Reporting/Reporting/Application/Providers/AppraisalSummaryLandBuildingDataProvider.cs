@@ -474,13 +474,20 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 SELECT a5.RequestId FROM appraisal.Appraisals a5
                 WHERE a5.Id = @AppraisalId AND a5.IsDeleted = 0);
 
-            -- RS21: Distinct request property types
-            SELECT DISTINCT rp.PropertyType
+            -- RS21: Request property types, in the order they were entered on the Request.
+            -- GROUP BY + ORDER BY MIN(Id) rather than DISTINCT: DISTINCT guarantees no order, and
+            -- the plan it actually picks sorts by the code, so a Request reading
+            -- "1.สิทธิการเช่าที่ดิน 2.สิ่งปลูกสร้าง" printed as "สิ่งปลูกสร้าง, สิทธิการเช่าที่ดิน"
+            -- ('B' sorts before 'LSL'). Id is a bigint IDENTITY shadow key, so its ascending order
+            -- is the order the rows were saved in — which is the order the form lists them (CA-612).
+            SELECT rp.PropertyType
             FROM request.RequestProperties rp
             WHERE rp.RequestId = (
                 SELECT a6.RequestId FROM appraisal.Appraisals a6
                 WHERE a6.Id = @AppraisalId AND a6.IsDeleted = 0)
-              AND rp.PropertyType IS NOT NULL;
+              AND rp.PropertyType IS NOT NULL
+            GROUP BY rp.PropertyType
+            ORDER BY MIN(rp.Id);
 
             -- RS22: Land titles for the government price (per sq.wa). Missing-from-survey titles
             -- are NOT filtered out here — they render as "ตกสำรวจ" instead of a price, so the flag

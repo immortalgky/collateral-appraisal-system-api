@@ -12,7 +12,7 @@ namespace Reporting.Application.Providers;
 /// Common queries (Q1–Q14 + ColTypeMap) are delegated to
 /// <see cref="AppraisalSummaryCommonLoader"/> (itself batched in Phase C).
 ///
-/// Phase C — BuildAsync batches all 6 construction-specific queries into one
+/// Phase C — BuildAsync batches all 9 construction-specific queries into one
 /// QueryMultiple call (single round-trip):
 ///   RS01  QCI1  ConstructionInspections aggregate — CI totals, progress pcts, remark
 ///   RS02  QCI2  PricingFinalValues — land appraisal value
@@ -20,6 +20,9 @@ namespace Reporting.Application.Providers;
 ///   RS04  QCI4  BuildingAppraisalDetails — first building name
 ///   RS05  QCI5  LandAppraisalDetails — first land address
 ///   RS06  QCI6  Appraisals (self + prev join) — PrevAppraisalId + prior number/type
+///   RS07  QCI7  Appraisals prev-chain — round of the previous inspection
+///   RS08  QCI8  AppraisalDecisions + documents — เอกสารประกอบ checkboxes
+///   RS09  QCI9  RequestProperties — ประเภททรัพย์สิน in Request entry order
 ///
 /// Column provenance (verified against EF configs):
 ///   ConstructionInspections (appraisal.ConstructionInspections):
@@ -100,7 +103,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         if (common is null)
             throw new NotFoundException("Appraisal", appraisalId.ToString());
 
-        // ── Batch: 6 construction-specific result sets, single round-trip ─────────
+        // ── Batch: 9 construction-specific result sets, single round-trip ─────────
         const string batchSql = """
             -- RS01: QCI1 — Construction inspection aggregate (building under construction only).
             -- Current/previous building value: TotalValue x the entered percentage when
@@ -255,6 +258,18 @@ public sealed class AppraisalSummaryConstructionDataProvider(
                 ) THEN 1 ELSE 0 END AS bit) AS AutoPhoto
             FROM (SELECT 1 AS x) seed
             LEFT JOIN appraisal.AppraisalDecisions ad ON ad.AppraisalId = @AppraisalId;
+
+            -- RS09: QCI9 — ประเภททรัพย์สิน, the types selected on the Request, in entry order.
+            -- Identical to RS21 of AppraisalSummaryLandBuildingDataProvider; see its comment for why
+            -- this is a GROUP BY and not a DISTINCT (CA-612).
+            SELECT rp.PropertyType
+            FROM request.RequestProperties rp
+            WHERE rp.RequestId = (
+                SELECT a3.RequestId FROM appraisal.Appraisals a3
+                WHERE a3.Id = @AppraisalId AND a3.IsDeleted = 0)
+              AND rp.PropertyType IS NOT NULL
+            GROUP BY rp.PropertyType
+            ORDER BY MIN(rp.Id);
             """;
 
         var appraisalParams = new DynamicParameters();
@@ -268,6 +283,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         PrevAppraisalRow? prevRow;
         int prevInspectionRound;
         ConstructionDocRow? docRow;
+        List<string> requestPropertyTypes;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, appraisalParams))
         {
@@ -294,6 +310,9 @@ public sealed class AppraisalSummaryConstructionDataProvider(
 
             // RS08 — เอกสารประกอบ overrides + auto-derived document presence
             docRow = await multi.ReadFirstOrDefaultAsync<ConstructionDocRow>();
+
+            // RS09 — request property types, already in Request entry order
+            requestPropertyTypes = (await multi.ReadAsync<string>()).ToList();
         }
 
         // ที่ตั้งทรัพย์สิน from the Request detail (same as the other summary reports).
@@ -391,8 +410,21 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         string? currentInspectionRound = (prevInspectionRound + 1).ToString();
         string? installmentNumber = null; // DEFERRED: no stored source
 
+        // ประเภททรัพย์สิน — the types selected on the Request, translated to Thai, same as the
+        // land-building and block forms. The group rows cannot answer this: GroupRows.PropertyType is
+        // only the group's FIRST member by SequenceInGroup, and taking the first group on top of that
+        // discards a second one, so an inspection covering ที่ดิน and สิ่งปลูกสร้าง announced itself as
+        // ที่ดิน alone (CA-613). The group value stays as the fallback for an appraisal whose Request
+        // carries no property rows.
+        var propertyTypeLabel = string.Join(", ",
+            requestPropertyTypes
+                .Select(common.TranslateCollateralType)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct());
         string? firstGroupType = common.GroupRows.FirstOrDefault()?.PropertyType;
-        string? propertyType   = common.TranslateCollateralType(firstGroupType);
+        string? propertyType   = string.IsNullOrWhiteSpace(propertyTypeLabel)
+            ? common.TranslateCollateralType(firstGroupType)
+            : propertyTypeLabel;
 
         decimal? reportTotalAppraisalValue = totalLandCurrentBuilding ?? common.TotalAppraisalValue;
 
