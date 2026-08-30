@@ -40,6 +40,12 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
                 .HasMaxLength(100)
                 .HasColumnName("ProjectName");
 
+            // Global search "properties" scope matches a village/project name by prefix.
+            // Filtered: only set where the requester typed one. Measured: 8,801 -> 3 logical reads.
+            titleAddress.HasIndex(p => p.ProjectName)
+                .HasFilter("[ProjectName] IS NOT NULL")
+                .HasDatabaseName("IX_RequestTitle_ProjectName");
+
             titleAddress.Property(p => p.Moo)
                 .HasMaxLength(50)
                 .HasColumnName("Moo");
@@ -111,6 +117,18 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
         builder.HasIndex(p => p.RequestId)
             .HasDatabaseName("IX_TitleDeedInfo_RequestId");
 
+        // Global search matches the property owner by prefix (OwnerName LIKE 'term%').
+        // This is the one dense index in this batch — OwnerName is set on ~100% of rows, unlike the
+        // per-branch columns below, which TPH leaves NULL for every other collateral type.
+        // Measured on 105,579 rows: 8,801 -> 5 logical reads. The before number is a clustered scan
+        // of a 67-column table with a random-GUID key, which is why every unindexed arm costs the
+        // same 8,801 regardless of how selective the term is.
+        // INCLUDE(RequestId) keeps the seek covering, since the arm only projects RequestId.
+        builder.HasIndex(p => p.OwnerName)
+            .IncludeProperties(p => p.RequestId)
+            .HasFilter("[OwnerName] IS NOT NULL")
+            .HasDatabaseName("IX_RequestTitle_OwnerName");
+
         // TitleDocuments
         builder.OwnsMany(t => t.Documents, doc =>
             new TitleDocumentConfiguration().Configure(doc));
@@ -153,6 +171,15 @@ public class TitleLandConfiguration : IEntityTypeConfiguration<TitleLand>
             landLocation.Property(p => p.LandParcelNumber)
                 .HasMaxLength(100)
                 .HasColumnName("LandParcelNumber");
+
+            // เลขที่ดิน is a search key users type directly. Declared once here: TPH puts every
+            // branch in one table, so this is a single physical index — the same reason
+            // IX_TitleDeedInfo_TitleDeedNumber is declared only on TitleLand.
+            // Measured: 8,801 -> 335 logical reads. Higher than its siblings because parcel numbers
+            // are short and a 3-digit prefix matches a wide range; the arm's TOP cap bounds it.
+            landLocation.HasIndex(p => p.LandParcelNumber)
+                .HasFilter("[LandParcelNumber] IS NOT NULL")
+                .HasDatabaseName("IX_RequestTitle_LandParcelNumber");
 
             landLocation.Property(p => p.SurveyNumber)
                 .HasMaxLength(100)
@@ -321,6 +348,13 @@ public class TitleCondoConfiguration : IEntityTypeConfiguration<TitleCondo>
                 .HasMaxLength(100)
                 .HasColumnName("CondoName");
 
+            // Condo/building name is one of the highest-value search keys the old endpoint never
+            // looked at. Declared once (TPH ⇒ one physical index), filtered to condo rows.
+            // Measured: 8,801 -> 2 logical reads.
+            condoInfo.HasIndex(p => p.CondoName)
+                .HasFilter("[CondoName] IS NOT NULL")
+                .HasDatabaseName("IX_RequestTitle_CondoName");
+
             condoInfo.Property(p => p.BuildingNumber)
                 .HasMaxLength(100)
                 .HasColumnName("BuildingNumber");
@@ -332,6 +366,11 @@ public class TitleCondoConfiguration : IEntityTypeConfiguration<TitleCondo>
             condoInfo.Property(p => p.RoomNumber)
                 .HasMaxLength(30)
                 .HasColumnName("RoomNumber");
+
+            // เลขห้องชุด, matched by prefix. Measured: 8,801 -> 2 logical reads.
+            condoInfo.HasIndex(p => p.RoomNumber)
+                .HasFilter("[RoomNumber] IS NOT NULL")
+                .HasDatabaseName("IX_RequestTitle_RoomNumber");
 
             condoInfo.Property(p => p.FloorNumber)
                 .HasMaxLength(10)
@@ -590,6 +629,12 @@ public class TitleVehicleConfiguration : IEntityTypeConfiguration<TitleVehicle>
             vehicle.Property(p => p.LicensePlateNumber)
                 .HasMaxLength(20)
                 .HasColumnName("LicensePlateNumber");
+
+            // ทะเบียนรถ. Sparsest index in the batch — only TitleFamily = 'VEH' rows carry one.
+            // Measured: 8,801 -> 2 logical reads.
+            vehicle.HasIndex(p => p.LicensePlateNumber)
+                .HasFilter("[LicensePlateNumber] IS NOT NULL")
+                .HasDatabaseName("IX_RequestTitle_LicensePlateNumber");
         });
     }
 }

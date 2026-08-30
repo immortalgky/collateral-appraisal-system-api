@@ -129,6 +129,93 @@ update`); this change does not touch any database.
 
 ---
 
+## Fixes delivered 2026-08-30 — global-search index gaps (11 indexes)
+
+**Context:** `GET /search` (the navbar quick-search) is being rebuilt so that every result resolves
+to an appraisal, and so that it searches the columns users actually type: request number, LOS
+application number, title deed, land parcel, condo/room, licence plate, project/village name, owner,
+customer, contact person and requestor. The rebuilt predicate is **prefix-only** (`term%`, matching
+`TaskListFilterBuilder.BuildSearchPattern`), which is what makes these indexes seekable at all —
+the old handler used `%term%` on every column and could not have used any of them.
+
+This PR ships **only the indexes**, so the DBA can schedule them independently of the query change.
+Shipping the query first would make search *slower* than today, so this must land first.
+
+**Measured on the local dev database — 105,579 `RequestTitles`, 105,536 `Requests`,
+105,542 `RequestCustomers`, 105,519 `RequestDetails`.**
+
+| Index | Table | Column | Filtered | Logical reads before → after |
+|---|---|---|---|---|
+| `IX_RequestTitle_OwnerName` | RequestTitles | `OwnerName` INCLUDE `RequestId` | `IS NOT NULL` | **8,801 → 5** |
+| `IX_RequestTitle_ProjectName` | RequestTitles | `ProjectName` | `IS NOT NULL` | **8,801 → 3** |
+| `IX_RequestTitle_CondoName` | RequestTitles | `CondoName` | `IS NOT NULL` | **8,801 → 2** |
+| `IX_RequestTitle_RoomNumber` | RequestTitles | `RoomNumber` | `IS NOT NULL` | **8,801 → 2** |
+| `IX_RequestTitle_LicensePlateNumber` | RequestTitles | `LicensePlateNumber` | `IS NOT NULL` | **8,801 → 2** |
+| `IX_RequestTitle_LandParcelNumber` | RequestTitles | `LandParcelNumber` | `IS NOT NULL` | **8,801 → 335** |
+| `IX_Request_RequestorName` | Requests | `RequestorName` | `IsDeleted = 0` | **5,280 → 3** |
+| `IX_Request_ContactPersonName` | RequestDetails | `ContactPersonName` | `IS NOT NULL` | **1,386 → 5** |
+| `IX_Request_ContactPersonPhone` | RequestDetails | `ContactPersonPhone` | `IS NOT NULL` | (same shape as above) |
+| `IX_Request_PrevAppraisalNumber` | RequestDetails | `PrevAppraisalNumber` | `IS NOT NULL` | (same shape as above) |
+| `IX_RequestCustomer_ContactNumber` | RequestCustomers | `ContactNumber` INCLUDE `RequestId` | `IS NOT NULL` | **921 → 5** |
+
+Combined effect on the search query's filter stage (six arms unioned, `TOP 200` each,
+`OPTION (RECOMPILE, MAXDOP 1)`): **110 ms → 20 ms CPU**.
+
+### Why every un-indexed arm cost exactly 8,801 reads
+
+`request.RequestTitles` is a **67-column TPH table** (`Land`, `LandBuilding`, `Building`, `Condo`,
+four `Lease*` variants, `Vehicle`, `Machine`, `Vessel` all in one table) with a **random-GUID
+clustered key**. With no index on the searched column, every arm degrades to the same clustered
+scan, so cost is independent of how selective the term is — the same shape as finding 4 in this
+audit, and the same shape the `vw_AppraisalList` window functions had.
+
+### On adding six indexes to a table that will reach millions of rows
+
+Only **one** of them is dense. TPH means a row populates just its own branch's columns, so the
+filtered indexes are proportional to that branch:
+
+- `OwnerName` — set on ~100% of rows. This is the only large index in the batch.
+- `ProjectName` — only where the requester typed a project/village name.
+- `CondoName`, `RoomNumber` — condo rows only (`TitleFamily` = `U`/`LSU`).
+- `LicensePlateNumber` — vehicle rows only (`TitleFamily` = `VEH`). Sparsest of the batch.
+- `LandParcelNumber` — land-bearing rows only.
+
+`request.RequestTitles` is written once at intake and rarely updated, so the write cost lands on
+insert, not on a hot update path.
+
+### Declaring indexes on a TPH hierarchy
+
+`LandParcelNumber`, `CondoName`, `RoomNumber` and `TitleNumber` are each mapped by **several**
+derived-type configurations onto the **same physical column**. Each index is therefore declared
+**exactly once**, on one representative configuration — the convention the pre-existing
+`IX_TitleDeedInfo_TitleDeedNumber` already follows (declared only on `TitleLandConfiguration`).
+Declaring it in every branch would emit duplicate `CREATE INDEX` statements for one column.
+
+### ⚠️ Verifying these: `QUOTED_IDENTIFIER` must be ON
+
+SQL Server **refuses to use a filtered index** when `QUOTED_IDENTIFIER` is `OFF`, and `sqlcmd`
+defaults to `OFF`. A benchmark run without `-I` reports the *unchanged* 8,801 reads for every index
+above and looks like the work did nothing. Always pass `-I`:
+
+```bash
+docker exec -i sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'P@ssw0rd' -C -I -d CollateralAppraisal -i /var/opt/mssql/q.sql
+```
+
+The application is unaffected — `Microsoft.Data.SqlClient` sets `QUOTED_IDENTIFIER ON` on connect.
+
+### Not built
+
+- **`appraisal.Appraisals (CreatedAt)`** — considered as the default `ORDER BY` of the appraisal
+  list, then dropped: the concurrent `vw_AppraisalList` work measured `Appraisals (Status, CreatedAt)`
+  at 84 → 86 ms, i.e. no effect. The cost there was the view's window functions, not the sort.
+- **`INCLUDE(RequestId)` on the owned-type indexes** (`ProjectName`, `CondoName`, `RoomNumber`,
+  `LandParcelNumber`, `LicensePlateNumber`) — `RequestId` belongs to the base entity, not to the
+  owned value object the index is declared on, so EF cannot express it. Not needed in practice: the
+  measured seeks are 2–5 reads because the arms are prefix-bounded and `TOP`-capped.
+
+---
+
 ## Low-priority / optional (documented, not built)
 
 Marginal because the query shape or column selectivity caps the benefit. Add only if profiling

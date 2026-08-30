@@ -33,6 +33,9 @@ public class AppraisalFilterBuilderTests
         { new GetAppraisalsFilterRequest { AppraisalNumber = "691" }, "AppraisalNumber LIKE '%' + @AppraisalNumber + '%'" },
         { new GetAppraisalsFilterRequest { RequestedAtFrom = new DateTime(2026, 1, 1) }, "RequestedAt >= @RequestedAtFrom" },
         { new GetAppraisalsFilterRequest { RequestedAtTo = new DateTime(2026, 1, 1) }, "RequestedAt < DATEADD(day, 1, @RequestedAtTo)" },
+        // Free text used to be OR'ed against the view's CustomerName/RequestNumber and so forced the
+        // view. It is now a semi-join whose left-hand side is Id, which the base table has.
+        { new GetAppraisalsFilterRequest(Search: "REQ-1"), "Id IN (SELECT DISTINCT m.AppraisalId" },
     };
 
     [Theory]
@@ -63,7 +66,6 @@ public class AppraisalFilterBuilderTests
 
     public static TheoryData<GetAppraisalsFilterRequest> ViewOnlyFilters =>
     [
-        new GetAppraisalsFilterRequest(Search: "REQ-1"),               // OR'ed with CustomerName/RequestNumber
         new GetAppraisalsFilterRequest(AssignmentType: "Internal"),    // latest assignment
         new GetAppraisalsFilterRequest(AssigneeUserId: "P5229"),       // latest assignment
         new GetAppraisalsFilterRequest(AssigneeCompanyId: "acme"),     // latest assignment
@@ -105,6 +107,129 @@ public class AppraisalFilterBuilderTests
 
         Assert.Contains("@ScopedCompanyId", result.WhereClause);
         Assert.DoesNotContain("@AssigneeCompanyId", result.WhereClause);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Free-text search
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public void Search_matches_every_field_group_the_dropdown_offers()
+    {
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: "somchai"));
+
+        // The old implementation looked at three columns. Losing any of these silently makes a
+        // whole class of term unfindable, which is exactly the bug this replaced.
+        foreach (var field in new[]
+                 {
+                     "appraisalNumber", "requestNumber", "loanApplicationNumber", "prevAppraisalNumber",
+                     "externalCaseKey", "customerName", "contactNumber", "contactPersonName",
+                     "contactPersonPhone", "requestorName", "titleNumber", "landParcelNumber",
+                     "roomNumber", "licensePlateNumber", "ownerName", "projectName", "condoName",
+                 })
+        {
+            Assert.Contains($"'{field}'", result.WhereClause);
+        }
+    }
+
+    [Fact]
+    public void Search_binds_a_prefix_pattern_so_the_filtered_indexes_can_seek()
+    {
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: "somchai"));
+
+        Assert.Equal("somchai%", result.Parameters.Get<string>("SearchPattern"));
+    }
+
+    [Fact]
+    public void Search_treats_a_star_as_the_users_opt_in_to_substring_matching()
+    {
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: "*somwong"));
+
+        Assert.Equal("%somwong", result.Parameters.Get<string>("SearchPattern"));
+    }
+
+    [Fact]
+    public void Search_escapes_LIKE_metacharacters_so_a_typed_percent_cannot_match_everything()
+    {
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: "100%"));
+
+        // Without the escape this is a leading-and-trailing wildcard over every searched column.
+        Assert.Equal("100\\%%", result.Parameters.Get<string>("SearchPattern"));
+        Assert.Contains("ESCAPE '\\'", result.WhereClause);
+    }
+
+    [Fact]
+    public void Search_shorter_than_the_minimum_matches_nothing_rather_than_everything()
+    {
+        // '69' is a prefix of every appraisal number in the system. Dropping the predicate would
+        // return an unfiltered list that looks filtered.
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: "69"));
+
+        Assert.Contains("1 = 0", result.WhereClause);
+        Assert.False(result.RequiresView);
+    }
+
+    [Fact]
+    public void Search_on_the_list_is_uncapped_so_the_page_export_and_facets_agree()
+    {
+        // The dropdown caps each arm because it shows a handful of rows and re-runs on every
+        // keystroke. The list must not: the same clause feeds /appraisals, /appraisals/export and
+        // the quotation-eligible query, so a cap silently drops rows from a result set the user is
+        // told is complete. Worse, the count, the page and the facets are three separate executions
+        // of this union with no ORDER BY inside a TOP, so each could keep a different subset —
+        // totals that disagree with the page, and rows that repeat or vanish between pages.
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: "690"));
+
+        Assert.DoesNotContain("TOP(", result.WhereClause);
+        Assert.DoesNotContain("Cap", result.Parameters.ParameterNames);
+    }
+
+    [Fact]
+    public void Search_excludes_soft_deleted_requests_as_well_as_soft_deleted_appraisals()
+    {
+        // An appraisal can be soft-deleted on its own, but a soft-deleted REQUEST whose appraisal
+        // row is still live would otherwise leak its customer names, phone numbers and title deeds.
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: "somchai"));
+
+        var where = result.WhereClause;
+        var armCount = where.Split("UNION ALL").Length;
+
+        // Every arm checks the appraisal.
+        Assert.Equal(armCount, where.Split("a.IsDeleted = 0").Length - 1);
+
+        // Every arm that reads a request table also checks the request. The appraisal-number arm is
+        // the one exception — it reads appraisal.Appraisals alone and has no request to check.
+        var armsOverRequestTables = where.Split("FROM request.").Length - 1;
+        Assert.Equal(armCount - 1, armsOverRequestTables);
+        Assert.Equal(armsOverRequestTables, where.Split("r.IsDeleted = 0").Length - 1);
+    }
+
+    [Fact]
+    public void Search_asks_for_a_per_execution_compile_and_nothing_else_does()
+    {
+        // The 17-way UNION of LIKE arms plans for a possible leading wildcard when compiled against
+        // an unknown parameter, and scans. Every other filter is an equality or a range that caches
+        // fine, so the hint is scoped to the one predicate that needs it.
+        Assert.True(AppraisalFilterBuilder
+            .BuildFilter(new GetAppraisalsFilterRequest(Search: "somchai")).HasFreeTextSearch);
+
+        Assert.False(AppraisalFilterBuilder
+            .BuildFilter(new GetAppraisalsFilterRequest(Status: "Pending")).HasFreeTextSearch);
+
+        // A term below the minimum degrades to `1 = 0`, which needs no hint either.
+        Assert.False(AppraisalFilterBuilder
+            .BuildFilter(new GetAppraisalsFilterRequest(Search: "69")).HasFreeTextSearch);
+    }
+
+    [Fact]
+    public void Search_never_reads_the_view_so_soft_deleted_appraisals_stay_hidden()
+    {
+        // The view filters IsDeleted itself; the base tables do not, so every arm has to.
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: "somchai"));
+
+        Assert.DoesNotContain("vw_AppraisalList", result.WhereClause);
+        Assert.DoesNotContain("a.IsDeleted = 1", result.WhereClause);
+        Assert.Contains("a.IsDeleted = 0", result.WhereClause);
     }
 
     // ---------------------------------------------------------------------------
@@ -244,12 +369,15 @@ public class AppraisalFilterBuilderTests
 
     [Theory]
     [MemberData(nameof(LikeMetacharacters))]
-    public void Search_terms_have_their_like_metacharacters_escaped(string typed, string expected)
+    public void Single_column_search_escapes_like_metacharacters(string typed, string expected)
     {
-        // Without this a user searching for "50%" matches every row, and "A_1" matches "A11".
-        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: typed));
+        // Without this, looking for "50%" matches every row and "A_1" matches "A11".
+        // The free-text `search` box is covered separately — it goes through
+        // AppraisalSearchPredicate/LikePattern rather than building a LIKE here.
+        var result = AppraisalFilterBuilder.BuildFilter(
+            new GetAppraisalsFilterRequest { CustomerName = typed });
 
-        Assert.Equal(expected, result.Parameters.Get<string>("Search"));
+        Assert.Equal(expected, result.Parameters.Get<string>("CustomerName"));
     }
 
     [Fact]
@@ -265,7 +393,6 @@ public class AppraisalFilterBuilderTests
     }
 
     [Theory]
-    [InlineData("Search")]
     [InlineData("CustomerName")]
     [InlineData("AppraisalNumber")]
     [InlineData("RequestNumber")]
@@ -275,7 +402,6 @@ public class AppraisalFilterBuilderTests
         // predicate says ESCAPE.
         var filter = field switch
         {
-            "Search" => new GetAppraisalsFilterRequest(Search: "x"),
             "CustomerName" => new GetAppraisalsFilterRequest { CustomerName = "x" },
             "AppraisalNumber" => new GetAppraisalsFilterRequest { AppraisalNumber = "x" },
             _ => new GetAppraisalsFilterRequest { RequestNumber = "x" },
