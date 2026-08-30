@@ -61,10 +61,10 @@ SELECT a.Id,
        NULLIF(comp.NameLocal, N'')                                                         AS CompanyNameLocal,
        -- Customer name from request
        c.Name                                                                              AS CustomerName,
-       -- First property location
-       ld.Province,
-       ld.District,
-       ld.SubDistrict,
+       -- First property location: land if there is one, otherwise the condo unit's.
+       COALESCE(ll.Province, cc.Province)                                                   AS Province,
+       COALESCE(ll.District, cc.District)                                                   AS District,
+       COALESCE(ll.SubDistrict, cc.SubDistrict)                                             AS SubDistrict,
        -- Latest appointment
        apt.AppointmentDateTime
        -- ElapsedHours / RemainingHours are computed in C# (GetAppraisalsQueryHandler) using
@@ -110,30 +110,41 @@ FROM appraisal.Appraisals a
          -- already picks one row; Id is appended only so the ordering stays total if that index
          -- is ever relaxed. It costs nothing and cannot change today's result.
          --
-         -- Condo details are read as a SECOND-CHOICE source, never a competing one: SrcRank sorts
-         -- ahead of SequenceNumber, so any appraisal that has a land row with a province keeps
-         -- exactly the value it had before. Only appraisals with no such land row — condo-only
-         -- ones, 23 on the dev database — change, from NULL to their unit's address. That matters
-         -- because global search now matches condo addresses (see AppraisalSearchPredicate) and
-         -- without this those hits render with an empty Province cell, which reads as a wrong
-         -- result rather than a match.
+         -- Condo details are read as a SECOND-CHOICE source, never a competing one: the land
+         -- APPLY below is unchanged, and the condo APPLY only fires where it found nothing. Any
+         -- appraisal that has a land row with a province keeps exactly the value it had. Only
+         -- appraisals with no such land row — condo-only ones, 23 on the dev database — change,
+         -- from NULL to their unit's address. That matters because global search now matches
+         -- condo addresses (see AppraisalSearchPredicate) and without this those hits render with
+         -- an empty Province cell, which reads as a wrong result rather than a match.
+         --
+         -- Two APPLYs rather than one over a UNION of both tables: unioning them forces a
+         -- source-rank column ahead of SequenceNumber in the ORDER BY, which stops the TOP 1 from
+         -- terminating early on IX_AppraisalProperties_AppraisalId_SequenceNumber. Measured on
+         -- 105k appraisals, filtering the view by Province: 470 ms as it was, 694 ms with the
+         -- union, 515 ms this way.
          --
          -- Column list, order and types are unchanged: reporting.vw_RCAS_* bind this view with
          -- positional records.
-         OUTER APPLY (SELECT TOP 1 d.Province,
-                             d.District,
-                             d.SubDistrict
+         OUTER APPLY (SELECT TOP 1 lad.Province,
+                             lad.District,
+                             lad.SubDistrict
                       FROM appraisal.AppraisalProperties ap2
-                               CROSS APPLY (SELECT lad.Province, lad.District, lad.SubDistrict, 0 AS SrcRank
-                                            FROM appraisal.LandAppraisalDetails lad
-                                            WHERE lad.AppraisalPropertyId = ap2.Id
-                                            UNION ALL
-                                            SELECT cad.Province, cad.District, cad.SubDistrict, 1 AS SrcRank
-                                            FROM appraisal.CondoAppraisalDetails cad
-                                            WHERE cad.AppraisalPropertyId = ap2.Id) d
+                               JOIN appraisal.LandAppraisalDetails lad ON lad.AppraisalPropertyId = ap2.Id
                       WHERE ap2.AppraisalId = a.Id
-                        AND d.Province IS NOT NULL
-                      ORDER BY d.SrcRank, ap2.SequenceNumber, ap2.Id) ld
+                        AND lad.Province IS NOT NULL
+                      ORDER BY ap2.SequenceNumber, ap2.Id) ll
+         -- Condo fallback, correlated on `ll.Province IS NULL` so it short-circuits for every
+         -- appraisal that already has a land address — which is all but 23 of them here.
+         OUTER APPLY (SELECT TOP 1 cad.Province,
+                             cad.District,
+                             cad.SubDistrict
+                      FROM appraisal.AppraisalProperties ap3
+                               JOIN appraisal.CondoAppraisalDetails cad ON cad.AppraisalPropertyId = ap3.Id
+                      WHERE ap3.AppraisalId = a.Id
+                        AND cad.Province IS NOT NULL
+                        AND ll.Province IS NULL
+                      ORDER BY ap3.SequenceNumber, ap3.Id) cc
          OUTER APPLY (SELECT TOP 1 AppointmentDateTime
                       FROM appraisal.Appointments
                       WHERE AssignmentId = la.Id

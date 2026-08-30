@@ -29,6 +29,14 @@ public class AddressNameSearch(ISqlConnectionFactory connectionFactory, IMemoryC
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(2);
 
     /// <summary>
+    /// Matches <c>QuickSearchQueryHandler.CommandTimeoutSeconds</c>. This probe runs FIRST, on the
+    /// same per-request connection the capped statement will use, so without its own cap a keystroke
+    /// could block for the 30 s ADO default before the 5 s-capped query even started — locked
+    /// parameter.* masters during an admin bulk edit is enough to do it. Healthy cost is ~5 ms.
+    /// </summary>
+    private const int CommandTimeoutSeconds = 5;
+
+    /// <summary>
     /// One statement, six EXISTS. Deliberately NOT marked OPTION (RECOMPILE): unlike the arms,
     /// this is a fixed-shape query over tiny tables and benefits from a cached plan.
     /// </summary>
@@ -56,7 +64,8 @@ public class AddressNameSearch(ISqlConnectionFactory connectionFactory, IMemoryC
 
         var connection = connectionFactory.GetOpenConnection();
         var row = await connection.QuerySingleAsync<ProbeRow>(new CommandDefinition(
-            Sql, new { SearchPattern = pattern }, cancellationToken: cancellationToken));
+            Sql, new { SearchPattern = pattern }, commandTimeout: CommandTimeoutSeconds,
+            cancellationToken: cancellationToken));
 
         var match = new AddressNameMatch(row.Province, row.District, row.SubDistrict);
         cache.Set(CacheKey(pattern), match, CacheDuration);

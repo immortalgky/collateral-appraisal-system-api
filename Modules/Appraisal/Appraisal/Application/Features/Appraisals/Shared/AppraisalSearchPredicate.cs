@@ -220,6 +220,13 @@ internal static class AppraisalSearchPredicate
         // Three sources, unioned inside one arm rather than split into three arms, because the
         // arm count is what the statement size — and therefore the per-execution compile cost —
         // tracks:
+        // UNION, not UNION ALL: the pair (appraisal, geocode) is deduped, so an appraisal with
+        // several parcels in the SAME area contributes one row instead of one per parcel —
+        // duplicate badges on the client, and that many slots eaten out of TOP(@Cap). Parcels in
+        // DIFFERENT areas that both match a prefix term still contribute a row each, which is
+        // wanted: they are genuinely distinct matches and deserve distinct badges. So this is
+        // one row per (appraisal, matched area), NOT one row per appraisal.
+        //
         //   • LandAppraisalDetails  — land parcels; the overwhelming majority.
         //   • CondoAppraisalDetails — condo units carry their OWN address and are NOT reachable
         //     through the land table. A condo-only appraisal has no land row at all, so before

@@ -87,13 +87,15 @@ public class AppraisalSearchPredicateAddressArmTests
     }
 
     [Fact]
-    public void Address_arms_emit_one_row_per_appraisal_not_per_property()
+    public void Address_arms_emit_one_row_per_matched_area_not_per_property()
     {
-        // UNION, not UNION ALL: an appraisal with several parcels in the same province would
-        // otherwise contribute one identical row per parcel — duplicate badges on the client, and
-        // that many slots eaten out of the arm's TOP(@Cap). Measured on the dev database, one
-        // province term dropped from 2,947 rows to 2,882, which is exactly its distinct appraisal
-        // count.
+        // UNION, not UNION ALL: the (appraisal, geocode) pair is deduped, so an appraisal with
+        // several parcels in the same area contributes one row instead of one per parcel —
+        // duplicate badges on the client, and that many slots eaten out of the arm's TOP(@Cap).
+        // Measured on the dev database, one province term dropped from 2,947 rows to 2,882.
+        //
+        // Parcels in DIFFERENT matching areas still contribute a row each, on purpose: they are
+        // distinct matches. This is NOT a guarantee of one row per appraisal.
         var sql = SqlFor(new AddressNameMatch(true, true, true));
 
         // Scoped to the land/condo source union: Build joins the arms to each other with a
