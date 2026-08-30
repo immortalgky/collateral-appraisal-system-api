@@ -57,6 +57,12 @@ public static class IntegrationModule
         else
             services.AddScoped<IOutboundFileSink, LocalFileSink>();
 
+        // ...and the filesystem adapter again, under a key, so a job can reach it even where the
+        // default above is SFTP. Additive: the unkeyed registration is untouched and every existing
+        // caller still gets the config-switched sink. Only RegulatoryExportJob asks for this one,
+        // for the Excel companion that belongs on a Windows share rather than AS400's SFTP drop.
+        services.AddKeyedScoped<IOutboundFileSink, LocalFileSink>(OutboundFileSinkKeys.FileSystem);
+
         // Inbound file source (port in Integration.Contracts; impl is config-switched).
         // Slimmed options under FileTransfer:Inbound (non-secret; paths come from DB config).
         services.Configure<InboundFileSourceOptions>(
