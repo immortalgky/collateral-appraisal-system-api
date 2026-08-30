@@ -76,32 +76,47 @@ FROM appraisal.Appraisals a
          OUTER APPLY (SELECT TOP 1 Name
                       FROM request.RequestCustomers
                       WHERE RequestId = a.RequestId) c
-         LEFT JOIN (SELECT aa.Id,
-                           aa.AppraisalId,
-                           aa.AssigneeUserId,
-                           aa.AssigneeCompanyId,
-                           aa.InternalAppraiserId,
-                           aa.InternalAppraiserName,
-                           aa.ExternalAppraiserId,
-                           aa.ExternalAppraiserName,
-                           aa.AssignmentType,
-                           aa.AssignmentStatus,
-                           aa.AssignedAt,
-                           aa.SubmittedAt,
-                           ROW_NUMBER() OVER (PARTITION BY aa.AppraisalId ORDER BY aa.AssignedAt DESC, aa.CreatedAt DESC, aa.Id DESC) AS rn
-                    FROM appraisal.AppraisalAssignments aa
-                    WHERE aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')) la
-                   ON la.AppraisalId = a.Id AND la.rn = 1
+         -- "Latest active assignment", as a correlated TOP 1 rather than a
+         -- ROW_NUMBER() derived table filtered by `rn = 1` on the outside.
+         --
+         -- The window form forced SQL Server to number EVERY non-terminal assignment row in the
+         -- table before the outer WHERE could apply, because `rn = 1` sits outside the derived
+         -- table and cannot be pushed in. On ~105k appraisals that produced a 14M-row Table Spool
+         -- and ~11 s of CPU to return one 20-row page — regardless of how narrow the filter was.
+         -- APPLY seeks IX_AppraisalAssignments_AppraisalId_AssignedAt_Active once per outer row
+         -- instead. Same rows out (verified with EXCEPT both ways over the full table).
+         --
+         -- `la` MUST stay ahead of `comp` and `apt` below: both reference it (apt correlates on
+         -- la.Id, which is projected only for that purpose and is not a view output column).
+         OUTER APPLY (SELECT TOP 1 aa.Id,
+                             aa.AssigneeUserId,
+                             aa.AssigneeCompanyId,
+                             aa.InternalAppraiserId,
+                             aa.InternalAppraiserName,
+                             aa.ExternalAppraiserId,
+                             aa.ExternalAppraiserName,
+                             aa.AssignmentType,
+                             aa.AssignmentStatus,
+                             aa.AssignedAt,
+                             aa.SubmittedAt
+                      FROM appraisal.AppraisalAssignments aa
+                      WHERE aa.AppraisalId = a.Id
+                        AND aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
+                      ORDER BY aa.AssignedAt DESC, aa.CreatedAt DESC, aa.Id DESC) la
          LEFT JOIN auth.Companies comp
                    ON comp.Id = TRY_CAST(la.AssigneeCompanyId AS uniqueidentifier)
-         LEFT JOIN (SELECT ap2.AppraisalId,
-                           lad.Province,
-                           lad.District,
-                           lad.SubDistrict,
-                           ROW_NUMBER() OVER (PARTITION BY ap2.AppraisalId ORDER BY ap2.SequenceNumber) AS rn
-                    FROM appraisal.AppraisalProperties ap2
-                             JOIN appraisal.LandAppraisalDetails lad ON lad.AppraisalPropertyId = ap2.Id
-                    WHERE lad.Province IS NOT NULL) ld ON ld.AppraisalId = a.Id AND ld.rn = 1
+         -- First property's land location. Same rewrite, same reason.
+         -- IX_AppraisalProperties_AppraisalId_SequenceNumber is unique, so SequenceNumber alone
+         -- already picks one row; Id is appended only so the ordering stays total if that index
+         -- is ever relaxed. It costs nothing and cannot change today's result.
+         OUTER APPLY (SELECT TOP 1 lad.Province,
+                             lad.District,
+                             lad.SubDistrict
+                      FROM appraisal.AppraisalProperties ap2
+                               JOIN appraisal.LandAppraisalDetails lad ON lad.AppraisalPropertyId = ap2.Id
+                      WHERE ap2.AppraisalId = a.Id
+                        AND lad.Province IS NOT NULL
+                      ORDER BY ap2.SequenceNumber, ap2.Id) ld
          OUTER APPLY (SELECT TOP 1 AppointmentDateTime
                       FROM appraisal.Appointments
                       WHERE AssignmentId = la.Id
