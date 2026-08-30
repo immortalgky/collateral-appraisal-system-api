@@ -71,7 +71,11 @@ public class GetAppraisalsQueryHandler(
             BuildCountSql(sqlFilter),
             orderBy,
             pagination,
-            sqlFilter.Parameters);
+            sqlFilter.Parameters,
+            // Free text expands to a 17-way UNION of LIKE arms. Without a per-execution compile the
+            // optimizer plans them for an unknown pattern — i.e. a possible leading wildcard — and
+            // scans. See AppraisalFilterBuilder for the measurements.
+            recompile: sqlFilter.HasFreeTextSearch);
 
         var connection = connectionFactory.GetOpenConnection();
 
@@ -152,7 +156,7 @@ public class GetAppraisalsQueryHandler(
             FROM {source}{where}
             GROUP BY Status
             ORDER BY COUNT(*) DESC, Status ASC
-            """;
+            """ + (facetFilter.HasFreeTextSearch ? "\nOPTION (RECOMPILE)" : "");
 
         // On the external-company path this always reads the view, so it is worth abandoning when
         // the caller navigates away.

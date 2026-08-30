@@ -178,6 +178,23 @@ public class AppraisalFilterBuilderTests
     }
 
     [Fact]
+    public void Search_asks_for_a_per_execution_compile_and_nothing_else_does()
+    {
+        // The 17-way UNION of LIKE arms plans for a possible leading wildcard when compiled against
+        // an unknown parameter, and scans. Every other filter is an equality or a range that caches
+        // fine, so the hint is scoped to the one predicate that needs it.
+        Assert.True(AppraisalFilterBuilder
+            .BuildFilter(new GetAppraisalsFilterRequest(Search: "somchai")).HasFreeTextSearch);
+
+        Assert.False(AppraisalFilterBuilder
+            .BuildFilter(new GetAppraisalsFilterRequest(Status: "Pending")).HasFreeTextSearch);
+
+        // A term below the minimum degrades to `1 = 0`, which needs no hint either.
+        Assert.False(AppraisalFilterBuilder
+            .BuildFilter(new GetAppraisalsFilterRequest(Search: "69")).HasFreeTextSearch);
+    }
+
+    [Fact]
     public void Search_never_reads_the_view_so_soft_deleted_appraisals_stay_hidden()
     {
         // The view filters IsDeleted itself; the base tables do not, so every arm has to.

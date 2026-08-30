@@ -36,6 +36,9 @@ internal static class AppraisalFilterBuilder
         // While this stays false the caller may count and page straight off the base table.
         var requiresView = false;
 
+        // See AppraisalFilterSql.HasFreeTextSearch for why this is tracked.
+        var hasFreeTextSearch = false;
+
         // External (company) callers are always scoped to their own company; the caller-supplied
         // AssigneeCompanyId on the filter is ignored to prevent cross-company peeking.
         // AppraisalAssignments.AssigneeCompanyId is nvarchar(100), so bind a string — passing a
@@ -75,6 +78,7 @@ internal static class AppraisalFilterBuilder
                 {
                     conditions.Add(search.Value.Sql);
                     parameters.AddDynamicParams(search.Value.Parameters);
+                    hasFreeTextSearch = true;
                 }
             }
 
@@ -179,7 +183,10 @@ internal static class AppraisalFilterBuilder
         }
 
         var whereClause = conditions.Count > 0 ? " WHERE " + string.Join(" AND ", conditions) : "";
-        return new AppraisalFilterSql(whereClause, parameters, requiresView);
+        return new AppraisalFilterSql(whereClause, parameters, requiresView)
+        {
+            HasFreeTextSearch = hasFreeTextSearch
+        };
     }
 
     public static string BuildOrderBy(GetAppraisalsFilterRequest? filter)
@@ -302,6 +309,18 @@ internal sealed record AppraisalFilterSql(
     DynamicParameters Parameters,
     bool RequiresView)
 {
+    /// <summary>
+    /// True when the free-text predicate is in the clause. It expands to a 17-way UNION of
+    /// <c>LIKE @SearchPattern</c> arms, and from an unknown parameter the optimizer cannot tell the
+    /// pattern is a prefix — so it plans for a possible leading wildcard and scans. Compiled per
+    /// execution it sees the real value and seeks. Measured on 105k appraisals: count 219 -> 103 ms,
+    /// paged 226 -> 149 ms, facet 228 -> 109 ms.
+    ///
+    /// Deliberately not a positional record parameter: the generated Deconstruct is 3-arity and
+    /// ExportAppraisalsQueryHandler destructures it.
+    /// </summary>
+    public bool HasFreeTextSearch { get; init; }
+
     /// <summary>
     /// The same clause aimed at <c>appraisal.Appraisals</c>. The view supplies
     /// <c>WHERE a.IsDeleted = 0</c> of its own; the base table does not, so it is added here.

@@ -58,8 +58,10 @@ public static class DapperPaginationExtensions
         string? countSql,
         string orderBy,
         PaginationRequest request,
-        object? param = null)
-        => connectionFactory.GetOpenConnection().QueryPaginatedAsync<T>(sql, countSql, orderBy, request, param);
+        object? param = null,
+        bool recompile = false)
+        => connectionFactory.GetOpenConnection()
+            .QueryPaginatedAsync<T>(sql, countSql, orderBy, request, param, recompile);
 
     /// <summary>
     /// Executes a paginated query on a caller-supplied connection. Use this overload
@@ -86,19 +88,24 @@ public static class DapperPaginationExtensions
         string? countSql,
         string orderBy,
         PaginationRequest request,
-        object? param = null)
+        object? param = null,
+        bool recompile = false)
     {
         ValidateOrderBy(orderBy);
 
+        // A literal, not a caller-supplied hint string: there is exactly one hint anyone needs here
+        // and a free-text parameter would be a new place for SQL to be interpolated.
+        var hint = recompile ? " OPTION (RECOMPILE)" : "";
+
         // Count query — use the caller-supplied cheap count when provided.
-        var effectiveCountSql = countSql ?? $"SELECT COUNT(*) FROM ({sql}) AS CountQuery";
+        var effectiveCountSql = (countSql ?? $"SELECT COUNT(*) FROM ({sql}) AS CountQuery") + hint;
         var count = await connection.ExecuteScalarAsync<int>(effectiveCountSql, param);
 
         // Data query with pagination
         var offset = request.PageNumber * request.PageSize;
         var pagedSql = $@"{sql}
             ORDER BY {orderBy}
-            OFFSET {offset} ROWS FETCH NEXT {request.PageSize} ROWS ONLY";
+            OFFSET {offset} ROWS FETCH NEXT {request.PageSize} ROWS ONLY{hint}";
 
         var items = await connection.QueryAsync<T>(pagedSql, param);
 
