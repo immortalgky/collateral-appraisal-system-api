@@ -82,6 +82,7 @@ public static class IntegrationModule
         // Decides which inbound files still need work and records the outcome. Shared by both AS400
         // ingest jobs so the de-duplication rule cannot drift between them.
         services.AddScoped<InboundFileLedger>();
+        services.AddScoped<InboundFileRunner>();
 
         // Outbound Collateral Result. Implements a Collateral.Contracts interface from here because
         // the query is an interface concern: it reads the appraisal schema and the AS400 link table,
