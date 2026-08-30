@@ -19,6 +19,13 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
             requestor.Property(p => p.UserId).HasMaxLength(10).HasColumnName("Requestor");
             requestor.Property(p => p.Username).HasMaxLength(100).HasColumnName("RequestorName");
             requestor.HasIndex(p => p.UserId).HasFilter("[IsDeleted] = 0").HasDatabaseName("IX_Request_Requestor");
+
+            // Global search matches the requestor by display name with a prefix pattern
+            // (RequestorName LIKE 'term%'). Without this the arm scans request.Requests.
+            // Measured on 105,536 rows: 5,280 -> 3 logical reads.
+            requestor.HasIndex(p => p.Username)
+                .HasFilter("[IsDeleted] = 0")
+                .HasDatabaseName("IX_Request_RequestorName");
         });
         builder.OwnsOne(p => p.Creator, requestor =>
         {
@@ -64,6 +71,12 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
             detail.Property(p => p.HasAppraisalBook).HasColumnName("HasAppraisalBook");
             detail.Property(p => p.PrevAppraisalId).HasColumnName("PrevAppraisalId");
             detail.Property(p => p.PrevAppraisalNumber).HasMaxLength(20).HasColumnName("PrevAppraisalNumber");
+            // Global search treats the previous appraisal number as a document number, matched by
+            // prefix. Filtered because it is only set on re-appraisals. RequestDetails is clustered
+            // on RequestId, so the key rides along and the seek is covering without an INCLUDE.
+            detail.HasIndex(p => p.PrevAppraisalNumber)
+                .HasFilter("[PrevAppraisalNumber] IS NOT NULL")
+                .HasDatabaseName("IX_Request_PrevAppraisalNumber");
             detail.Property(p => p.PrevAppraisalValue).HasPrecision(19, 4).HasColumnName("PrevAppraisalValue");
             detail.Property(p => p.PrevAppraisalDate).HasColumnName("PrevAppraisalDate");
             detail.OwnsOne(p => p.LoanDetail,
@@ -112,6 +125,17 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
                 contact.Property(p => p.ContactPersonName).HasMaxLength(100).HasColumnName("ContactPersonName");
                 contact.Property(p => p.ContactPersonPhone).HasMaxLength(100).HasColumnName("ContactPersonPhone");
                 contact.Property(p => p.DealerCode).HasMaxLength(20).HasColumnName("DealerCode");
+
+                // Global search "customers" scope also matches the contact person, by prefix.
+                // RequestDetails is clustered on RequestId so both seeks are covering.
+                // Measured on 105,519 rows: 1,386 -> 5 logical reads.
+                contact.HasIndex(p => p.ContactPersonName)
+                    .HasFilter("[ContactPersonName] IS NOT NULL")
+                    .HasDatabaseName("IX_Request_ContactPersonName");
+
+                contact.HasIndex(p => p.ContactPersonPhone)
+                    .HasFilter("[ContactPersonPhone] IS NOT NULL")
+                    .HasDatabaseName("IX_Request_ContactPersonPhone");
             });
 
             detail.OwnsOne(p => p.Fee, feeInfo =>
@@ -148,6 +172,14 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
             customer.HasIndex("RequestId")
                 .IncludeProperties(p => p.Name)
                 .HasDatabaseName("IX_RequestCustomer_RequestId");
+
+            // Global search lets a user paste a phone number. Same INCLUDE(RequestId) rationale as
+            // IX_RequestCustomer_Name above: the arm only needs RequestId back, so a covering seek
+            // avoids a key lookup per match. Measured on 105,542 rows: 921 -> 5 logical reads.
+            customer.HasIndex(p => p.ContactNumber)
+                .IncludeProperties("RequestId")
+                .HasFilter("[ContactNumber] IS NOT NULL")
+                .HasDatabaseName("IX_RequestCustomer_ContactNumber");
         });
 
         // RequestProperties
