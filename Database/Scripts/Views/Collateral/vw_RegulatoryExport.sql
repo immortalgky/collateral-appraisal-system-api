@@ -60,69 +60,25 @@ AS
 WITH
 
 -- ── The row set: what AS400 says the bank holds ────────────────────────────────────────────────
+-- The prefix normalisation and the two unit-name tokens are derived once, in
+-- collateral.vw_HostCollateralLinkKeys, because the AS400 result file has to read them the same way.
 Src AS (
     SELECT
-        h.HostCollateralId,
-        h.AppraisalNumber,
-        -- AS400 prefixes a block project's appraisal number with 'B'; CAS stores it without. All 107
-        -- prefixed numbers on the 2026-08-03 feed match a CAS appraisal once the letter is removed —
-        -- no exceptions — and the bank's own file carries them unprefixed too (not one of its 63,095
-        -- rows starts with 'B'). Not every block is prefixed, so this normalises rather than detects.
-        CASE WHEN LEFT(h.AppraisalNumber, 1) = 'B'
-             THEN SUBSTRING(h.AppraisalNumber, 2, LEN(h.AppraisalNumber))
-             ELSE h.AppraisalNumber
-        END AS CasAppraisalNumber,
-        -- ── Two keys for one unit ──────────────────────────────────────────────────────────────
-        -- A block-project collateral is one unit of a development, and the export has to find that
-        -- unit in appraisal.ProjectUnits to price it. AS400 states the unit twice, in two fields
-        -- that fail on different rows, so both are carried and either may make the match.
-        --
-        -- AddrToken — the leading word of Address1, the field AS400 added on 2026-08-26. Addresses
-        -- open with the house or room number ("129/517 โครงการเพอร์เฟคเพลส"), and for a HOUSE in a
-        -- development this is the ONLY workable key: CollateralName there is a deed number
-        -- ("ฉ.26892 ร.5036 II 5018-5") and no deed number appears anywhere in the unit table. It
-        -- found the unit for all 55 such collateral that were reporting zero.
-        --
-        -- NameToken — the key out of "CONDO.<key> <deeds>". Still needed: 19 collateral have an
-        -- Address1 that opens with a word rather than a number ("ติด…", "ภายในอาคาร…", "โครงการ…")
-        -- and would lose the unit they match today.
-        --
-        -- The name is read leniently. AS400 writes the prefix four ways — "CONDO.47/18",
-        -- "CONDO. 59/38", "CONDO 159/262", "CONDO138/133" — and the strict 'CONDO.%' + pos-7 read
-        -- produced an EMPTY key for the 52 rows that are not the first spelling, which then matched
-        -- nothing. Dropping a leading '.', '/' and any spaces covers all four, and leaves digits
-        -- alone so "CONDO138/133" yields "138/133".
-        LTRIM(RTRIM(
-            CASE WHEN CHARINDEX(' ', LTRIM(h.Address1)) > 0
-                 THEN LEFT(LTRIM(h.Address1), CHARINDEX(' ', LTRIM(h.Address1)) - 1)
-                 ELSE LTRIM(h.Address1)
-            END)) AS AddrToken,
-        CASE WHEN h.CollateralName LIKE 'CONDO%' THEN
-            CASE WHEN CHARINDEX(' ', v.Rest) > 0
-                 THEN LEFT(v.Rest, CHARINDEX(' ', v.Rest) - 1)
-                 ELSE v.Rest
-            END
-        END AS NameToken,
-        h.PropertyType,
-        h.PropertyTypeDesc
-    FROM collateral.HostCollateralLinks h
-    -- Everything after the literal 'CONDO', with a leading '.' or '/' and any spaces removed.
-    CROSS APPLY (SELECT LTRIM(
-        CASE WHEN SUBSTRING(h.CollateralName, 6, 1) IN ('.', '/')
-             THEN SUBSTRING(h.CollateralName, 7, 200)
-             ELSE SUBSTRING(h.CollateralName, 6, 200)
-        END) AS Rest) v
+        k.HostCollateralId,
+        k.AppraisalNumber,
+        k.CasAppraisalNumber,
+        k.AddrToken,
+        k.NameToken,
+        k.PropertyType,
+        k.PropertyTypeDesc
+    FROM collateral.vw_HostCollateralLinkKeys k
     -- Both 'Y' and 'N' are reported; only a row where the feed never stated the flag is left out.
     -- The bank's own file carries collateral flagged 'N' (collateral 59305 appears three times in the
     -- 2026-08-02 file), so treating 'N' as unreportable dropped 114 collateral the bank does report.
     -- A blank is different: the row stopped short of pos 172 and AS400 said nothing at all.
-    WHERE h.MasterTitle IS NOT NULL
-      AND h.IsRedeemed = 0
-      -- Only collateral the newest COLLATLINK file still lists. The feed is a full monthly
-      -- replace, so a row left on an older LastSeenFileDate is collateral AS400 has stopped
-      -- reporting. Those rows are kept rather than deleted — a truncated file would otherwise
-      -- be unrecoverable — which means every reader has to apply this filter itself.
-      AND h.LastSeenFileDate = (SELECT MAX(LastSeenFileDate) FROM collateral.HostCollateralLinks)
+    WHERE k.MasterTitle IS NOT NULL
+      AND k.IsRedeemed = 0
+      AND k.IsActive = 1
 ),
 
 -- The appraisal AS400 named. A collateral whose appraisal number is not in appraisal.Appraisals
@@ -436,27 +392,17 @@ ProjectUnitHit AS (
         t.Depth,
         t.Source,
         t.Part,
-        pu.Id                               AS UnitId,
+        k.ProjectUnitId                     AS UnitId,
         MIN(pup.TotalAppraisalValueRounded) AS UnitValue,
-        -- Registration first, then the room, then the house number: migrated projects recorded the
-        -- unit under RoomNumber, newly appraised ones record CondoRegistrationNumber, and houses
-        -- carry neither. Ordering rather than branching keeps one rule working as the data shifts.
-        MIN(CASE WHEN pu.CondoRegistrationNumber = t.Part THEN 0
-                 WHEN pu.RoomNumber              = t.Part THEN 1
-                 ELSE 2
-            END) AS KeyRank
+        -- Registration first, then the room, then the house number. appraisal.vw_ProjectUnitKeys
+        -- carries that order; taking the MIN picks the strongest column that answered to this key.
+        MIN(k.KeyRank)                      AS KeyRank
     FROM TokenPart t
-    JOIN appraisal.Projects pr      ON pr.AppraisalId = t.AncestorId
-    JOIN appraisal.ProjectUnits pu  ON pu.ProjectId   = pr.Id
-    JOIN appraisal.ProjectUnitPrices pup ON pup.ProjectUnitId = pu.Id
-    CROSS APPLY (SELECT LTRIM(RTRIM(value)) AS Part
-                 FROM STRING_SPLIT(ISNULL(pu.CondoRegistrationNumber, ''), ',')
-                 UNION SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(ISNULL(pu.RoomNumber, ''), ',')
-                 UNION SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(ISNULL(pu.HouseNumber, ''), ',')
-                ) uk
+    JOIN appraisal.Projects pr          ON pr.AppraisalId = t.AncestorId
+    JOIN appraisal.vw_ProjectUnitKeys k ON k.ProjectId = pr.Id AND k.UnitKey = t.Part
+    JOIN appraisal.ProjectUnitPrices pup ON pup.ProjectUnitId = k.ProjectUnitId
     WHERE ISNULL(pup.TotalAppraisalValueRounded, 0) > 0
-      AND uk.Part = t.Part
-    GROUP BY t.HostCollateralId, t.AncestorId, t.Depth, t.Source, t.Part, pu.Id
+    GROUP BY t.HostCollateralId, t.AncestorId, t.Depth, t.Source, t.Part, k.ProjectUnitId
 ),
 
 -- ONE VALUE PER ROOM, not per unit row. The unit table holds the same room more than once: room

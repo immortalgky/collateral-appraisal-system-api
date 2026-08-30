@@ -51,50 +51,14 @@ WITH
 -- in every reader, here included.
 Active AS (
     SELECT
-        h.HostCollateralId,
-        h.CollateralName,
-        -- AS400 prefixes some block appraisal numbers with 'B' and some not; CAS never stores it.
-        -- Normalised on this side so the join stays a plain equality the index can serve.
-        CASE WHEN LEFT(h.AppraisalNumber, 1) = 'B'
-             THEN SUBSTRING(h.AppraisalNumber, 2, LEN(h.AppraisalNumber))
-             ELSE h.AppraisalNumber
-        END AS CasAppraisalNumber,
-        -- ── Two keys for one unit ──────────────────────────────────────────────────────────────
-        -- A block collateral is one unit of a development, and the export has to find that unit in
-        -- appraisal.ProjectUnits to price it. AS400 states the unit twice, in two fields that fail on
-        -- different rows, so both are carried and either may make the match. Same extraction as
-        -- vw_RegulatoryExport — the two views must not disagree about which unit a collateral is.
-        --
-        -- NameToken — the key out of "CONDO.<key> <deeds>", read leniently. AS400 writes the prefix
-        -- four ways: "CONDO.47/18", "CONDO. 59/38", "CONDO 159/262", "CONDO138/133". A strict
-        -- 'CONDO.%' + position-7 read yields an EMPTY key for every spelling but the first, which
-        -- then matches nothing. Dropping a leading '.', '/' and any spaces covers all four and
-        -- leaves digits alone, so "CONDO138/133" still yields "138/133".
-        --
-        -- AddrToken — the leading word of Address1, which opens with the house or room number
-        -- ("129/517 โครงการเพอร์เฟคเพลส"). For a HOUSE in a development this is the only workable
-        -- key: CollateralName there is a deed number ("ฉ.26892 ร.5036 II 5018-5"), and no deed
-        -- number appears anywhere in the unit table.
-        CASE WHEN h.CollateralName LIKE 'CONDO%' THEN
-            CASE WHEN CHARINDEX(' ', v.Rest) > 0
-                 THEN LEFT(v.Rest, CHARINDEX(' ', v.Rest) - 1)
-                 ELSE v.Rest
-            END
-        END AS NameToken,
-        LTRIM(RTRIM(
-            CASE WHEN CHARINDEX(' ', LTRIM(h.Address1)) > 0
-                 THEN LEFT(LTRIM(h.Address1), CHARINDEX(' ', LTRIM(h.Address1)) - 1)
-                 ELSE LTRIM(h.Address1)
-            END)) AS AddrToken
-    FROM collateral.HostCollateralLinks h
-    -- Everything after the literal 'CONDO', with a leading '.' or '/' and any spaces removed.
-    CROSS APPLY (SELECT LTRIM(
-        CASE WHEN SUBSTRING(h.CollateralName, 6, 1) IN ('.', '/')
-             THEN SUBSTRING(h.CollateralName, 7, 200)
-             ELSE SUBSTRING(h.CollateralName, 6, 200)
-        END) AS Rest) v
-    WHERE h.IsRedeemed = 0
-      AND h.LastSeenFileDate = (SELECT MAX(LastSeenFileDate) FROM collateral.HostCollateralLinks)
+        k.HostCollateralId,
+        k.CollateralName,
+        k.CasAppraisalNumber,
+        k.NameToken,
+        k.AddrToken
+    FROM collateral.vw_HostCollateralLinkKeys k
+    WHERE k.IsRedeemed = 0
+      AND k.IsActive = 1
 ),
 
 -- ── The appraisals still owed ──────────────────────────────────────────────────────────────────
@@ -342,36 +306,25 @@ UnitToken AS (
     WHERE LTRIM(RTRIM(pv.value)) <> ''
 ),
 
--- The unit rows those keys name. Three columns can carry the key because the data arrived three
--- ways: migrated projects recorded the unit under RoomNumber, newly appraised ones under
--- CondoRegistrationNumber, and houses carry neither and are found by HouseNumber. Ranking rather
--- than branching keeps one rule working as the mix shifts.
+-- The unit rows those keys name. appraisal.vw_ProjectUnitKeys is what knows which column of the unit
+-- table can carry the key and how the three rank.
 UnitHit AS (
     SELECT
         t.AppraisalId,
         t.HostCollateralId,
         t.Source,
         t.Part,
-        u.Id                                AS UnitId,
+        k.ProjectUnitId                     AS UnitId,
         MIN(up.TotalAppraisalValueRounded)  AS UnitValue,
-        MIN(u.LandArea)                     AS UnitLandAreaSqWa,
-        MIN(CASE WHEN u.CondoRegistrationNumber = t.Part THEN 0
-                 WHEN u.RoomNumber              = t.Part THEN 1
-                 ELSE 2
-            END)                            AS KeyRank
+        MIN(k.LandArea)                     AS UnitLandAreaSqWa,
+        MIN(k.KeyRank)                      AS KeyRank
     FROM UnitToken t
-    JOIN appraisal.Projects pr    ON pr.AppraisalId = t.AppraisalId
-    JOIN appraisal.ProjectUnits u ON u.ProjectId = pr.Id
+    JOIN appraisal.Projects pr        ON pr.AppraisalId = t.AppraisalId
+    JOIN appraisal.vw_ProjectUnitKeys k ON k.ProjectId = pr.Id AND k.UnitKey = t.Part
     -- Unpriced units still match. Dropping them would blank an id we can prove, and the row would go
     -- out as 'N' for a human to resolve when we already know exactly which collateral it is.
-    LEFT JOIN appraisal.ProjectUnitPrices up ON up.ProjectUnitId = u.Id
-    CROSS APPLY (SELECT LTRIM(RTRIM(value)) AS Part
-                 FROM STRING_SPLIT(ISNULL(u.CondoRegistrationNumber, ''), ',')
-                 UNION SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(ISNULL(u.RoomNumber, ''), ',')
-                 UNION SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(ISNULL(u.HouseNumber, ''), ',')
-                ) uk
-    WHERE uk.Part = t.Part
-    GROUP BY t.AppraisalId, t.HostCollateralId, t.Source, t.Part, u.Id
+    LEFT JOIN appraisal.ProjectUnitPrices up ON up.ProjectUnitId = k.ProjectUnitId
+    GROUP BY t.AppraisalId, t.HostCollateralId, t.Source, t.Part, k.ProjectUnitId
 ),
 
 -- ONE VALUE PER ROOM, not per unit row. The unit table holds the same room more than once — room
