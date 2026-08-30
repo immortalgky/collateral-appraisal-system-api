@@ -31,9 +31,10 @@
 -- the appraisal number is in the record.
 --
 -- Block projects are the exception, because there the ambiguity is resolvable. AS400 mints an id per
--- financed unit and writes the unit key into CollateralName as "CONDO.<room> <deeds>"; our own units
--- carry the same room number. Matching on it gives one row per unit, each with its own price and its
--- own land area — not one price repeated.
+-- financed unit and names that unit twice — in CollateralName as "CONDO.<key> <deeds>", and as the
+-- leading word of Address1. Either key can find the unit in appraisal.ProjectUnits, and the match
+-- gives one row per financed collateral, each with its own price and its own land area rather than
+-- the development's total repeated.
 --
 -- ── OPTION (MAXRECURSION 0) ────────────────────────────────────────────────────────────────────
 -- Cannot live inside a view; the caller supplies it. The walk is guarded by the visited path rather
@@ -58,15 +59,40 @@ Active AS (
              THEN SUBSTRING(h.AppraisalNumber, 2, LEN(h.AppraisalNumber))
              ELSE h.AppraisalNumber
         END AS CasAppraisalNumber,
-        -- The unit key of a block project: everything between "CONDO." and the first space.
-        CASE WHEN h.CollateralName LIKE 'CONDO.%' THEN
-            CASE WHEN CHARINDEX(' ', SUBSTRING(h.CollateralName, 7, 200)) > 0
-                 THEN LEFT(SUBSTRING(h.CollateralName, 7, 200),
-                           CHARINDEX(' ', SUBSTRING(h.CollateralName, 7, 200)) - 1)
-                 ELSE SUBSTRING(h.CollateralName, 7, 200)
+        -- ── Two keys for one unit ──────────────────────────────────────────────────────────────
+        -- A block collateral is one unit of a development, and the export has to find that unit in
+        -- appraisal.ProjectUnits to price it. AS400 states the unit twice, in two fields that fail on
+        -- different rows, so both are carried and either may make the match. Same extraction as
+        -- vw_RegulatoryExport — the two views must not disagree about which unit a collateral is.
+        --
+        -- NameToken — the key out of "CONDO.<key> <deeds>", read leniently. AS400 writes the prefix
+        -- four ways: "CONDO.47/18", "CONDO. 59/38", "CONDO 159/262", "CONDO138/133". A strict
+        -- 'CONDO.%' + position-7 read yields an EMPTY key for every spelling but the first, which
+        -- then matches nothing. Dropping a leading '.', '/' and any spaces covers all four and
+        -- leaves digits alone, so "CONDO138/133" still yields "138/133".
+        --
+        -- AddrToken — the leading word of Address1, which opens with the house or room number
+        -- ("129/517 โครงการเพอร์เฟคเพลส"). For a HOUSE in a development this is the only workable
+        -- key: CollateralName there is a deed number ("ฉ.26892 ร.5036 II 5018-5"), and no deed
+        -- number appears anywhere in the unit table.
+        CASE WHEN h.CollateralName LIKE 'CONDO%' THEN
+            CASE WHEN CHARINDEX(' ', v.Rest) > 0
+                 THEN LEFT(v.Rest, CHARINDEX(' ', v.Rest) - 1)
+                 ELSE v.Rest
             END
-        END AS UnitToken
+        END AS NameToken,
+        LTRIM(RTRIM(
+            CASE WHEN CHARINDEX(' ', LTRIM(h.Address1)) > 0
+                 THEN LEFT(LTRIM(h.Address1), CHARINDEX(' ', LTRIM(h.Address1)) - 1)
+                 ELSE LTRIM(h.Address1)
+            END)) AS AddrToken
     FROM collateral.HostCollateralLinks h
+    -- Everything after the literal 'CONDO', with a leading '.' or '/' and any spaces removed.
+    CROSS APPLY (SELECT LTRIM(
+        CASE WHEN SUBSTRING(h.CollateralName, 6, 1) IN ('.', '/')
+             THEN SUBSTRING(h.CollateralName, 7, 200)
+             ELSE SUBSTRING(h.CollateralName, 6, 200)
+        END) AS Rest) v
     WHERE h.IsRedeemed = 0
       AND h.LastSeenFileDate = (SELECT MAX(LastSeenFileDate) FROM collateral.HostCollateralLinks)
 ),
@@ -119,7 +145,8 @@ Hit AS (
         w.AppraisalId,
         w.Depth,
         act.HostCollateralId,
-        act.UnitToken
+        act.NameToken,
+        act.AddrToken
     FROM Walk w
     JOIN appraisal.Appraisals anc ON anc.Id = w.AncestorId
     JOIN Active act ON act.CasAppraisalNumber = anc.AppraisalNumber
@@ -128,7 +155,7 @@ Hit AS (
 -- Only the nearest ancestor that matched. A newer drawdown supersedes an older one, and mixing the
 -- two levels would count the same collateral twice and make every such appraisal look ambiguous.
 NearestHit AS (
-    SELECT h.AppraisalId, h.HostCollateralId, h.UnitToken
+    SELECT h.AppraisalId, h.HostCollateralId, h.NameToken, h.AddrToken
     FROM Hit h
     WHERE h.Depth = (SELECT MIN(h2.Depth) FROM Hit h2 WHERE h2.AppraisalId = h.AppraisalId)
 ),
@@ -296,20 +323,95 @@ Valuer AS (
     FROM LatestAssignment la
 ),
 
--- ── Block projects: one row per financed unit ──────────────────────────────────────────────────
+-- ── Block projects: one row per financed collateral ────────────────────────────────────────────
+-- Every unit key a collateral names, from either field, one row per key. AS400 can name several
+-- rooms in one field as a comma list, and one collateral covering three rooms is one collateral —
+-- the parts are summed back together below, not sent as three rows under the same id.
+UnitToken AS (
+    SELECT
+        nh.AppraisalId,
+        nh.HostCollateralId,
+        -- 0 = the name, 1 = the address. The name outranks the address; see UnitSource.
+        s.Source,
+        LTRIM(RTRIM(pv.value)) AS Part
+    FROM NearestHit nh
+    CROSS APPLY (VALUES (0, nh.NameToken), (1, nh.AddrToken)) AS s(Source, Token)
+    CROSS APPLY STRING_SPLIT(ISNULL(s.Token, ''), ',') pv
+    -- The empty-string guard is load-bearing: a blank part matches every unit whose column is blank
+    -- and would price a collateral from an unrelated room.
+    WHERE LTRIM(RTRIM(pv.value)) <> ''
+),
+
+-- The unit rows those keys name. Three columns can carry the key because the data arrived three
+-- ways: migrated projects recorded the unit under RoomNumber, newly appraised ones under
+-- CondoRegistrationNumber, and houses carry neither and are found by HouseNumber. Ranking rather
+-- than branching keeps one rule working as the mix shifts.
+UnitHit AS (
+    SELECT
+        t.AppraisalId,
+        t.HostCollateralId,
+        t.Source,
+        t.Part,
+        u.Id                                AS UnitId,
+        MIN(up.TotalAppraisalValueRounded)  AS UnitValue,
+        MIN(u.LandArea)                     AS UnitLandAreaSqWa,
+        MIN(CASE WHEN u.CondoRegistrationNumber = t.Part THEN 0
+                 WHEN u.RoomNumber              = t.Part THEN 1
+                 ELSE 2
+            END)                            AS KeyRank
+    FROM UnitToken t
+    JOIN appraisal.Projects pr    ON pr.AppraisalId = t.AppraisalId
+    JOIN appraisal.ProjectUnits u ON u.ProjectId = pr.Id
+    -- Unpriced units still match. Dropping them would blank an id we can prove, and the row would go
+    -- out as 'N' for a human to resolve when we already know exactly which collateral it is.
+    LEFT JOIN appraisal.ProjectUnitPrices up ON up.ProjectUnitId = u.Id
+    CROSS APPLY (SELECT LTRIM(RTRIM(value)) AS Part
+                 FROM STRING_SPLIT(ISNULL(u.CondoRegistrationNumber, ''), ',')
+                 UNION SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(ISNULL(u.RoomNumber, ''), ',')
+                 UNION SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(ISNULL(u.HouseNumber, ''), ',')
+                ) uk
+    WHERE uk.Part = t.Part
+    GROUP BY t.AppraisalId, t.HostCollateralId, t.Source, t.Part, u.Id
+),
+
+-- ONE VALUE PER ROOM, not per unit row. The unit table holds the same room more than once — room
+-- 630/32 of one project exists as two rows, both priced 3,760,000 — and summing rows reported
+-- 7,520,000 for a single-room collateral. Summing one value per room the key actually names is what
+-- "the sum of the rooms" means, and it survives however many times CAS stored each room.
+UnitPerRoom AS (
+    SELECT AppraisalId, HostCollateralId, Source, Part, UnitId, UnitValue, UnitLandAreaSqWa
+    FROM (
+        SELECT h.*,
+               ROW_NUMBER() OVER (
+                   PARTITION BY h.AppraisalId, h.HostCollateralId, h.Source, h.Part
+                   ORDER BY h.KeyRank,
+                            CASE WHEN ISNULL(h.UnitValue, 0) > 0 THEN 0 ELSE 1 END,
+                            h.UnitId) AS rn
+        FROM UnitHit h
+    ) z
+    WHERE rn = 1
+),
+
+-- One source per collateral, the name preferred. Mixing them would add the address match and the
+-- name match of the same collateral together and report it twice over.
+UnitSource AS (
+    SELECT AppraisalId, HostCollateralId, MIN(Source) AS Source
+    FROM UnitPerRoom
+    GROUP BY AppraisalId, HostCollateralId
+),
+
 ProjectUnitMatch AS (
     SELECT
-        pr.AppraisalId,
-        nh.HostCollateralId,
-        u.Id AS ProjectUnitId,
-        u.LandArea AS UnitLandAreaSqWa,
-        up.TotalAppraisalValueRounded AS UnitValue
-    FROM NearestHit nh
-    JOIN appraisal.Projects pr    ON pr.AppraisalId = nh.AppraisalId
-    JOIN appraisal.ProjectUnits u ON u.ProjectId = pr.Id
-                                 AND LTRIM(RTRIM(u.RoomNumber)) = LTRIM(RTRIM(nh.UnitToken))
-    LEFT JOIN appraisal.ProjectUnitPrices up ON up.ProjectUnitId = u.Id
-    WHERE nh.UnitToken IS NOT NULL
+        r.AppraisalId,
+        r.HostCollateralId,
+        MIN(r.UnitId)                        AS ProjectUnitId,
+        SUM(ISNULL(r.UnitValue, 0))          AS UnitValue,
+        SUM(ISNULL(r.UnitLandAreaSqWa, 0))   AS UnitLandAreaSqWa
+    FROM UnitPerRoom r
+    JOIN UnitSource s ON s.AppraisalId     = r.AppraisalId
+                     AND s.HostCollateralId = r.HostCollateralId
+                     AND s.Source           = r.Source
+    GROUP BY r.AppraisalId, r.HostCollateralId
 ),
 
 -- An appraisal is a block project when it HAS a Projects row — not when its units happened to match.
@@ -355,7 +457,7 @@ SELECT
     -- A unit reports its own appraised value. When it has none the row goes out as zero rather than
     -- falling back to the appraisal total: that total is the whole development, and quoting it
     -- against one unit would overstate that collateral by orders of magnitude.
-    CASE WHEN pum.ProjectUnitId IS NOT NULL THEN ISNULL(pum.UnitValue, 0)
+    CASE WHEN pum.HostCollateralId IS NOT NULL THEN ISNULL(pum.UnitValue, 0)
          ELSE v.AppraisedValue END                           AS AppraisalValue,
     -- Land component: the cost approach's adjusted unit price applied over the land area. There is
     -- no stored column for it — the same multiplication the engagement used to freeze at completion.
@@ -390,13 +492,13 @@ SELECT
          WHEN pm.HasCondo = 1    THEN ca.UsableArea END      AS AreaUtilization,
 
     -- Per-row land area: the unit's own for a block, the appraisal's otherwise.
-    CASE WHEN pum.ProjectUnitId IS NOT NULL
+    CASE WHEN pum.HostCollateralId IS NOT NULL
          THEN CAST(FLOOR(pum.UnitLandAreaSqWa / 400) AS int)
          ELSE lp.Rai END                                     AS LandAreaRai,
-    CASE WHEN pum.ProjectUnitId IS NOT NULL
+    CASE WHEN pum.HostCollateralId IS NOT NULL
          THEN CAST(FLOOR((pum.UnitLandAreaSqWa % 400) / 100) AS int)
          ELSE lp.Ngan END                                    AS LandAreaNgan,
-    CASE WHEN pum.ProjectUnitId IS NOT NULL
+    CASE WHEN pum.HostCollateralId IS NOT NULL
          THEN pum.UnitLandAreaSqWa % 100
          ELSE lp.SquareWa END                                AS LandAreaSquareWa,
 
