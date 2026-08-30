@@ -43,10 +43,14 @@ public record GetAppraisalsFilterRequest(
     string? SortDir = null
 )
 {
-    // Additive fields set via init setters. Purpose and PropertyType are bound by the list and
-    // export endpoints; the rest remain picker-only.
+    // Additive fields set via init setters. All of these are bound by the list and export
+    // endpoints; CustomerName / AppraisalNumber / RequestNumber back the search-field selector,
+    // which lets a caller search one column instead of OR-ing three.
     public string? CustomerName { get; init; }
     public string? AppraisalNumber { get; init; }
+
+    /// <summary>Matches request.Requests.RequestNumber; needs the view (it is a joined column).</summary>
+    public string? RequestNumber { get; init; }
     public string? Purpose { get; init; }
 
     // Matches appraisals having at least one property of the given type(s); comma-separated for IN.

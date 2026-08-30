@@ -53,8 +53,8 @@ internal static class AppraisalFilterBuilder
             if (!string.IsNullOrWhiteSpace(filter.Search))
             {
                 conditions.Add(
-                    "(AppraisalNumber LIKE '%' + @Search + '%' OR CustomerName LIKE '%' + @Search + '%' OR RequestNumber LIKE '%' + @Search + '%')");
-                parameters.Add("Search", filter.Search.Trim());
+                    "(AppraisalNumber LIKE '%' + @Search + '%' ESCAPE '\\' OR CustomerName LIKE '%' + @Search + '%' ESCAPE '\\' OR RequestNumber LIKE '%' + @Search + '%' ESCAPE '\\')");
+                parameters.Add("Search", EscapeLikePattern(filter.Search.Trim()));
                 // AppraisalNumber is on the base table, but CustomerName and RequestNumber are not,
                 // and the three are OR'ed — so the whole predicate needs the view.
                 requiresView = true;
@@ -138,21 +138,29 @@ internal static class AppraisalFilterBuilder
             // Picker-specific additive fields
             if (!string.IsNullOrWhiteSpace(filter.CustomerName))
             {
-                conditions.Add("CustomerName LIKE '%' + @CustomerName + '%'");
-                parameters.Add("CustomerName", filter.CustomerName.Trim());
+                conditions.Add("CustomerName LIKE '%' + @CustomerName + '%' ESCAPE '\\'");
+                parameters.Add("CustomerName", EscapeLikePattern(filter.CustomerName.Trim()));
+                requiresView = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.RequestNumber))
+            {
+                conditions.Add("RequestNumber LIKE '%' + @RequestNumber + '%' ESCAPE '\\'");
+                parameters.Add("RequestNumber", EscapeLikePattern(filter.RequestNumber.Trim()));
+                // RequestNumber comes from the LEFT JOIN on request.Requests, not the base table.
                 requiresView = true;
             }
 
             if (!string.IsNullOrWhiteSpace(filter.AppraisalNumber))
             {
-                conditions.Add("AppraisalNumber LIKE '%' + @AppraisalNumber + '%'");
-                parameters.Add("AppraisalNumber", filter.AppraisalNumber.Trim());
+                conditions.Add("AppraisalNumber LIKE '%' + @AppraisalNumber + '%' ESCAPE '\\'");
+                parameters.Add("AppraisalNumber", EscapeLikePattern(filter.AppraisalNumber.Trim()));
             }
 
             if (!string.IsNullOrWhiteSpace(filter.SubDistrict))
             {
-                conditions.Add("SubDistrict LIKE '%' + @SubDistrict + '%'");
-                parameters.Add("SubDistrict", filter.SubDistrict.Trim());
+                conditions.Add("SubDistrict LIKE '%' + @SubDistrict + '%' ESCAPE '\\'");
+                parameters.Add("SubDistrict", EscapeLikePattern(filter.SubDistrict.Trim()));
                 requiresView = true;
             }
 
@@ -184,6 +192,21 @@ internal static class AppraisalFilterBuilder
 
     private static string Invert(string dir) =>
         string.Equals(dir, "ASC", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
+
+    /// <summary>
+    /// Makes the LIKE metacharacters <c>% _ [ \</c> literal, so someone searching for "50%" or
+    /// "A_1" gets what they typed instead of a wildcard match. Every LIKE built here pairs this
+    /// with an ESCAPE clause — the escaping does nothing without it.
+    ///
+    /// Same rule as TaskListFilterBuilder.EscapeLikePattern. We deliberately do NOT adopt that
+    /// builder's prefix-by-default BuildSearchPattern: it is faster, but it silently changes what
+    /// an existing search matches.
+    /// </summary>
+    private static string EscapeLikePattern(string value) =>
+        value.Replace("\\", "\\\\")
+            .Replace("%", "\\%")
+            .Replace("_", "\\_")
+            .Replace("[", "\\[");
 
     /// <returns><c>true</c> when a predicate was actually emitted.</returns>
     private static bool AddMultiValueFilter(

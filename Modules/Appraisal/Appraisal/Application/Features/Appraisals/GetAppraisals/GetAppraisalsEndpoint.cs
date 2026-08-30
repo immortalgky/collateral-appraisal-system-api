@@ -31,6 +31,15 @@ public class GetAppraisalsEndpoint : ICarterModule
                     [FromQuery] string? bankingSegment,
                     [FromQuery] string? purpose,
                     [FromQuery] string? propertyType,
+                    // Single-column search. `search` OR-s three columns and therefore always needs
+                    // the view; these let the caller name the column instead — appraisalNumber and
+                    // requestedAt* stay on the base table, which keeps the cheap COUNT available.
+                    [FromQuery] string? customerName,
+                    [FromQuery] string? appraisalNumber,
+                    [FromQuery] string? requestNumber,
+                    [FromQuery] string? subDistrict,
+                    [FromQuery] DateTime? requestedAtFrom,
+                    [FromQuery] DateTime? requestedAtTo,
                     [FromQuery] bool? isPma,
                     // Geographic
                     [FromQuery] string? province,
@@ -79,6 +88,12 @@ public class GetAppraisalsEndpoint : ICarterModule
                     {
                         Purpose = purpose,
                         PropertyType = propertyType,
+                        CustomerName = customerName,
+                        AppraisalNumber = appraisalNumber,
+                        RequestNumber = requestNumber,
+                        SubDistrict = subDistrict,
+                        RequestedAtFrom = requestedAtFrom,
+                        RequestedAtTo = requestedAtTo,
                     };
 
                     var query = new GetAppraisalsQuery(pagination, filter);

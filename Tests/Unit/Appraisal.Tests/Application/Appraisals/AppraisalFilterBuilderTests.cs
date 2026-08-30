@@ -32,6 +32,7 @@ public class AppraisalFilterBuilderTests
         { new GetAppraisalsFilterRequest { Purpose = "01" }, "Purpose = @Purposes" },
         { new GetAppraisalsFilterRequest { AppraisalNumber = "691" }, "AppraisalNumber LIKE '%' + @AppraisalNumber + '%'" },
         { new GetAppraisalsFilterRequest { RequestedAtFrom = new DateTime(2026, 1, 1) }, "RequestedAt >= @RequestedAtFrom" },
+        { new GetAppraisalsFilterRequest { RequestedAtTo = new DateTime(2026, 1, 1) }, "RequestedAt < DATEADD(day, 1, @RequestedAtTo)" },
     };
 
     [Theory]
@@ -196,6 +197,84 @@ public class AppraisalFilterBuilderTests
             new GetAppraisalsFilterRequest(SortBy: sortBy, SortDir: sortDir));
 
         Assert.Equal(expected, orderBy);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Single-column search — the fields behind the search-field selector
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public void Searching_only_the_appraisal_number_stays_on_the_base_table()
+    {
+        // This is the whole point of letting the caller name the column: `search` OR-s three
+        // columns, two of which only the view has, so it always pays for the view. Pinning the
+        // search to AppraisalNumber keeps the cheap COUNT and the base-table facet source.
+        var result = AppraisalFilterBuilder.BuildFilter(
+            new GetAppraisalsFilterRequest { AppraisalNumber = "69105" });
+
+        Assert.Contains("AppraisalNumber LIKE", result.WhereClause);
+        Assert.False(result.RequiresView);
+    }
+
+    [Theory]
+    [InlineData("customer")]
+    [InlineData("request")]
+    public void Searching_customer_or_request_number_needs_the_view(string field)
+    {
+        var filter = field == "customer"
+            ? new GetAppraisalsFilterRequest { CustomerName = "somchai" }
+            : new GetAppraisalsFilterRequest { RequestNumber = "REQ-1" };
+
+        var result = AppraisalFilterBuilder.BuildFilter(filter);
+
+        Assert.True(result.RequiresView);
+    }
+
+    // ---------------------------------------------------------------------------
+    // LIKE metacharacters
+    // ---------------------------------------------------------------------------
+
+    public static TheoryData<string, string> LikeMetacharacters => new()
+    {
+        { "50%", @"50\%" },
+        { "A_1", @"A\_1" },
+        { "[x]", @"\[x]" },
+        { @"back\slash", @"back\\slash" },
+    };
+
+    [Theory]
+    [MemberData(nameof(LikeMetacharacters))]
+    public void Search_terms_have_their_like_metacharacters_escaped(string typed, string expected)
+    {
+        // Without this a user searching for "50%" matches every row, and "A_1" matches "A11".
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: typed));
+
+        Assert.Equal(expected, result.Parameters.Get<string>("Search"));
+    }
+
+    [Theory]
+    [InlineData("Search")]
+    [InlineData("CustomerName")]
+    [InlineData("AppraisalNumber")]
+    [InlineData("RequestNumber")]
+    [InlineData("SubDistrict")]
+    public void Every_like_predicate_carries_an_escape_clause(string field)
+    {
+        // Escaping the value is only half of it — SQL Server ignores the backslash unless the
+        // predicate says ESCAPE.
+        var filter = field switch
+        {
+            "Search" => new GetAppraisalsFilterRequest(Search: "x"),
+            "CustomerName" => new GetAppraisalsFilterRequest { CustomerName = "x" },
+            "AppraisalNumber" => new GetAppraisalsFilterRequest { AppraisalNumber = "x" },
+            "RequestNumber" => new GetAppraisalsFilterRequest { RequestNumber = "x" },
+            _ => new GetAppraisalsFilterRequest { SubDistrict = "x" },
+        };
+
+        var result = AppraisalFilterBuilder.BuildFilter(filter);
+
+        Assert.Contains("LIKE", result.WhereClause);
+        Assert.Contains(@"ESCAPE '\'", result.WhereClause);
     }
 
     [Theory]
