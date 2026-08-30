@@ -53,7 +53,13 @@ internal static class AppraisalSearchPredicate
     public static readonly IReadOnlySet<string> Scopes =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "all", "documents", "customers", "properties" };
 
-    private sealed record Arm(string Scope, int Rank, string Field, string Sql);
+    /// <summary>
+    /// Which address master an arm resolves names against, or <see cref="AddressLevel.None"/> for
+    /// an arm that is always in play. Only the levels the term actually names are emitted — see
+    /// the remarks on <see cref="Build"/>.
+    /// </summary>
+    private sealed record Arm(string Scope, int Rank, string Field, string Sql,
+        AddressLevel Level = AddressLevel.None);
 
     /// <summary>
     /// Every arm. <c>{P}</c> is replaced by the parameter name so the same text can be reused with
@@ -197,9 +203,8 @@ internal static class AppraisalSearchPredicate
         // searching one family alone would make those unfindable.
         //
         // Read from appraisal.LandAppraisalDetails, not request.RequestTitles, so that what is
-        // searched is what the result row displays. The Dopa* columns on the same table are
-        // deliberately not matched: they hold a different address (see the DOPA/deed distinction),
-        // so a hit there would show a province in the subtitle that the user did not search for.
+        // searched is what the result row displays. Thai names only — nobody searches these by
+        // their English name.
         new("properties", RankProperty, "province", """
             SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'province' AS Fld,
                    COALESCE((SELECT TOP 1 NameTh FROM parameter.TitleProvinces WHERE Code = lad.Province),
@@ -209,10 +214,10 @@ internal static class AppraisalSearchPredicate
             JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
             JOIN appraisal.Appraisals a ON a.Id = ap.AppraisalId AND a.IsDeleted = 0
             WHERE lad.Province IN (
-                SELECT Code FROM parameter.TitleProvinces WHERE NameTh LIKE {P} ESCAPE '\' OR NameEn LIKE {P} ESCAPE '\'
+                SELECT Code FROM parameter.TitleProvinces WHERE NameTh LIKE {P} ESCAPE '\'
                 UNION
-                SELECT Code FROM parameter.DopaProvinces  WHERE NameTh LIKE {P} ESCAPE '\' OR NameEn LIKE {P} ESCAPE '\')
-            """),
+                SELECT Code FROM parameter.DopaProvinces  WHERE NameTh LIKE {P} ESCAPE '\')
+            """, AddressLevel.Province),
         new("properties", RankProperty, "district", """
             SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'district' AS Fld,
                    COALESCE((SELECT TOP 1 NameTh FROM parameter.TitleDistricts WHERE Code = lad.District),
@@ -222,10 +227,10 @@ internal static class AppraisalSearchPredicate
             JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
             JOIN appraisal.Appraisals a ON a.Id = ap.AppraisalId AND a.IsDeleted = 0
             WHERE lad.District IN (
-                SELECT Code FROM parameter.TitleDistricts WHERE NameTh LIKE {P} ESCAPE '\' OR NameEn LIKE {P} ESCAPE '\'
+                SELECT Code FROM parameter.TitleDistricts WHERE NameTh LIKE {P} ESCAPE '\'
                 UNION
-                SELECT Code FROM parameter.DopaDistricts  WHERE NameTh LIKE {P} ESCAPE '\' OR NameEn LIKE {P} ESCAPE '\')
-            """),
+                SELECT Code FROM parameter.DopaDistricts  WHERE NameTh LIKE {P} ESCAPE '\')
+            """, AddressLevel.District),
         new("properties", RankProperty, "subDistrict", """
             SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'subDistrict' AS Fld,
                    COALESCE((SELECT TOP 1 NameTh FROM parameter.TitleSubDistricts WHERE Code = lad.SubDistrict),
@@ -235,10 +240,53 @@ internal static class AppraisalSearchPredicate
             JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
             JOIN appraisal.Appraisals a ON a.Id = ap.AppraisalId AND a.IsDeleted = 0
             WHERE lad.SubDistrict IN (
-                SELECT Code FROM parameter.TitleSubDistricts WHERE NameTh LIKE {P} ESCAPE '\' OR NameEn LIKE {P} ESCAPE '\'
+                SELECT Code FROM parameter.TitleSubDistricts WHERE NameTh LIKE {P} ESCAPE '\'
                 UNION
-                SELECT Code FROM parameter.DopaSubDistricts  WHERE NameTh LIKE {P} ESCAPE '\' OR NameEn LIKE {P} ESCAPE '\')
-            """),
+                SELECT Code FROM parameter.DopaSubDistricts  WHERE NameTh LIKE {P} ESCAPE '\')
+            """, AddressLevel.SubDistrict),
+
+        // The same three against the DOPA address, which is a different address held on the same
+        // row. Separate arms rather than an OR: each predicate stays a clean equality, and the
+        // match badge can say which of the two addresses actually matched.
+        new("properties", RankProperty, "dopaProvince", """
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'dopaProvince' AS Fld,
+                   COALESCE((SELECT TOP 1 NameTh FROM parameter.TitleProvinces WHERE Code = lad.DopaProvince),
+                            (SELECT TOP 1 NameTh FROM parameter.DopaProvinces WHERE Code = lad.DopaProvince),
+                            lad.DopaProvince) AS Val
+            FROM appraisal.LandAppraisalDetails lad
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
+            JOIN appraisal.Appraisals a ON a.Id = ap.AppraisalId AND a.IsDeleted = 0
+            WHERE lad.DopaProvince IN (
+                SELECT Code FROM parameter.TitleProvinces WHERE NameTh LIKE {P} ESCAPE '\'
+                UNION
+                SELECT Code FROM parameter.DopaProvinces WHERE NameTh LIKE {P} ESCAPE '\')
+            """, AddressLevel.Province),
+        new("properties", RankProperty, "dopaDistrict", """
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'dopaDistrict' AS Fld,
+                   COALESCE((SELECT TOP 1 NameTh FROM parameter.TitleDistricts WHERE Code = lad.DopaDistrict),
+                            (SELECT TOP 1 NameTh FROM parameter.DopaDistricts WHERE Code = lad.DopaDistrict),
+                            lad.DopaDistrict) AS Val
+            FROM appraisal.LandAppraisalDetails lad
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
+            JOIN appraisal.Appraisals a ON a.Id = ap.AppraisalId AND a.IsDeleted = 0
+            WHERE lad.DopaDistrict IN (
+                SELECT Code FROM parameter.TitleDistricts WHERE NameTh LIKE {P} ESCAPE '\'
+                UNION
+                SELECT Code FROM parameter.DopaDistricts WHERE NameTh LIKE {P} ESCAPE '\')
+            """, AddressLevel.District),
+        new("properties", RankProperty, "dopaSubDistrict", """
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'dopaSubDistrict' AS Fld,
+                   COALESCE((SELECT TOP 1 NameTh FROM parameter.TitleSubDistricts WHERE Code = lad.DopaSubDistrict),
+                            (SELECT TOP 1 NameTh FROM parameter.DopaSubDistricts WHERE Code = lad.DopaSubDistrict),
+                            lad.DopaSubDistrict) AS Val
+            FROM appraisal.LandAppraisalDetails lad
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
+            JOIN appraisal.Appraisals a ON a.Id = ap.AppraisalId AND a.IsDeleted = 0
+            WHERE lad.DopaSubDistrict IN (
+                SELECT Code FROM parameter.TitleSubDistricts WHERE NameTh LIKE {P} ESCAPE '\'
+                UNION
+                SELECT Code FROM parameter.DopaSubDistricts WHERE NameTh LIKE {P} ESCAPE '\')
+            """, AddressLevel.SubDistrict),
 
         new("properties", RankProperty, "condoName", """
             SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'condoName' AS Fld, t.CondoName AS Val
@@ -258,8 +306,13 @@ internal static class AppraisalSearchPredicate
     /// from the quick-search only; every caller that presents a complete result set must leave it
     /// null. See the remarks on <see cref="DropdownArmCap"/>.
     /// </param>
+    /// <param name="address">
+    /// Which address levels the term names, from <see cref="IAddressNameSearch"/>. Defaults to
+    /// "none", which drops all six address arms — so a caller that does not resolve gets exactly
+    /// the pre-address behaviour rather than a silent half-search.
+    /// </param>
     public static (string Sql, DynamicParameters Parameters)? Build(
-        string? term, string scope = "all", int? armCap = null)
+        string? term, string scope = "all", int? armCap = null, AddressNameMatch address = default)
     {
         var trimmed = term?.Trim();
         if (string.IsNullOrEmpty(trimmed) || trimmed.Length < MinTermLength) return null;
@@ -267,6 +320,13 @@ internal static class AppraisalSearchPredicate
         var arms = AllArms
             .Where(a => scope.Equals("all", StringComparison.OrdinalIgnoreCase)
                         || a.Scope.Equals(scope, StringComparison.OrdinalIgnoreCase))
+            // Address arms are emitted only when the term actually names a province/district/
+            // sub-district. Every statement here carries OPTION (RECOMPILE), so it is re-compiled
+            // on each keystroke and compilation cost tracks the size of the text: leaving all six
+            // arms in unconditionally cost +86..119 ms on EVERY search, including "REQ-105" and
+            // "691054", which can never match an address name. Measured three ways side by side
+            // (7 arms / 10 / 13) on the same host, interleaved.
+            .Where(a => address.Includes(a.Level))
             .ToList();
         if (arms.Count == 0) return null;
 
@@ -291,10 +351,11 @@ internal static class AppraisalSearchPredicate
     /// rather than a correlated EXISTS because the union already produces distinct appraisal ids
     /// and an EXISTS body would need every arm correlated separately.
     /// </summary>
-    public static (string Sql, DynamicParameters Parameters)? BuildIdFilter(string? term, string scope = "all")
+    public static (string Sql, DynamicParameters Parameters)? BuildIdFilter(
+        string? term, string scope = "all", AddressNameMatch address = default)
     {
         // Uncapped on purpose — see DropdownArmCap.
-        var built = Build(term, scope);
+        var built = Build(term, scope, armCap: null, address);
         if (built is null) return null;
         var (sql, parameters) = built.Value;
         return ($"Id IN (SELECT DISTINCT m.AppraisalId FROM (\n{sql}\n) m)", parameters);

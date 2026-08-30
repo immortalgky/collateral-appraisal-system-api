@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.Shared;
+using Appraisal.Infrastructure.Search;
 using Appraisal.Application.Features.Quotations.Shared;
 using Appraisal.Application.Services;
 using Appraisal.Domain.ComparativeAnalysis;
@@ -30,6 +32,9 @@ public static class AppraisalModule
 
         // Register Unit of Work
         services.AddScoped<IAppraisalUnitOfWork, AppraisalUnitOfWork>();
+
+        // Decides whether the global-search statement carries its six address arms at all.
+        services.AddScoped<IAddressNameSearch, AddressNameSearch>();
 
         // Register Aggregate Repositories (only aggregates have repositories)
         services.AddScoped<IProjectRepository, ProjectRepository>();

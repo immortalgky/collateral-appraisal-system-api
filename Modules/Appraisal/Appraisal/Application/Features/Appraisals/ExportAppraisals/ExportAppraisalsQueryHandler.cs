@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Appraisals.Shared;
 using System.Text;
 using Appraisal.Application.Features.Appraisals.GetAppraisals;
 using Appraisal.Application.Features.Shared;
@@ -17,7 +18,8 @@ namespace Appraisal.Application.Features.Appraisals.ExportAppraisals;
 public class ExportAppraisalsQueryHandler(
     ISqlConnectionFactory connectionFactory,
     IDateTimeProvider dateTimeProvider,
-    ICurrentUserService currentUser
+    ICurrentUserService currentUser,
+    IAddressNameSearch addressNameSearch
 ) : IQueryHandler<ExportAppraisalsQuery, ExportAppraisalsResult>
 {
     private const int MaxExportRows = 10_000;
@@ -30,7 +32,10 @@ public class ExportAppraisalsQueryHandler(
         // RequiresView is discarded on purpose: the export always reads the view, so it never
         // takes the cheap base-table path. Read the flag before pointing any query at
         // appraisal.Appraisals — the filter may reference columns only the view has.
-        var (whereClause, parameters, _) = AppraisalFilterBuilder.BuildFilter(query.Filter, enforcedCompanyId);
+        // Same resolution as the list, so an export of a search reproduces exactly what was on screen.
+        var addressMatch = await addressNameSearch.MatchAsync(query.Filter?.Search, cancellationToken);
+        var (whereClause, parameters, _) =
+            AppraisalFilterBuilder.BuildFilter(query.Filter, enforcedCompanyId, addressMatch: addressMatch);
         var orderBy = AppraisalFilterBuilder.BuildOrderBy(query.Filter);
 
         var sql = $"SELECT TOP({MaxExportRows}) * FROM appraisal.vw_AppraisalList{whereClause} ORDER BY {orderBy}";
