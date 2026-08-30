@@ -14,88 +14,14 @@ public class ExportAppraisalsEndpoint : ICarterModule
         app.MapGet(
                 "/appraisals/export",
                 async (
-                    // Text search
-                    [FromQuery] string? search,
-                    // Multi-value filters
-                    [FromQuery] string? status,
-                    [FromQuery] string? priority,
-                    [FromQuery] string? appraisalType,
-                    [FromQuery] string? slaStatus,
-                    [FromQuery] string? assignmentType,
-                    // Assignment (username like "P5229")
-                    [FromQuery] string? assigneeUserId,
-                    [FromQuery] string? assigneeCompanyId,
-                    // Request metadata
-                    [FromQuery] string? channel,
-                    [FromQuery] string? bankingSegment,
-                    [FromQuery] string? purpose,
-                    [FromQuery] string? propertyType,
-                    // Single-column search. `search` OR-s three columns and therefore always needs
-                    // the view; these let the caller name the column instead — appraisalNumber and
-                    // requestedAt* stay on the base table, which keeps the cheap COUNT available.
-                    [FromQuery] string? customerName,
-                    [FromQuery] string? appraisalNumber,
-                    [FromQuery] string? requestNumber,
-                    [FromQuery] string? subDistrict,
-                    [FromQuery] DateTime? requestedAtFrom,
-                    [FromQuery] DateTime? requestedAtTo,
-                    [FromQuery] bool? isPma,
-                    // Geographic
-                    [FromQuery] string? province,
-                    [FromQuery] string? district,
-                    // Date ranges
-                    [FromQuery] DateTime? createdFrom,
-                    [FromQuery] DateTime? createdTo,
-                    [FromQuery] DateTime? slaDueDateFrom,
-                    [FromQuery] DateTime? slaDueDateTo,
-                    [FromQuery] DateTime? assignedDateFrom,
-                    [FromQuery] DateTime? assignedDateTo,
-                    [FromQuery] DateTime? appointmentDateFrom,
-                    [FromQuery] DateTime? appointmentDateTo,
-                    // Sorting
-                    [FromQuery] string? sortBy,
-                    [FromQuery] string? sortDir,
+                    [AsParameters] AppraisalListQueryParams queryParams,
                     // Export format: "xlsx" (default) or "csv"
                     [FromQuery] string? format,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
                 {
-                    var filter = new GetAppraisalsFilterRequest(
-                        Search: search,
-                        Status: status,
-                        Priority: priority,
-                        AppraisalType: appraisalType,
-                        SlaStatus: slaStatus,
-                        AssignmentType: assignmentType,
-                        AssigneeUserId: assigneeUserId,
-                        AssigneeCompanyId: assigneeCompanyId,
-                        Channel: channel,
-                        BankingSegment: bankingSegment,
-                        IsPma: isPma,
-                        Province: province,
-                        District: district,
-                        CreatedFrom: createdFrom,
-                        CreatedTo: createdTo,
-                        SlaDueDateFrom: slaDueDateFrom,
-                        SlaDueDateTo: slaDueDateTo,
-                        AssignedDateFrom: assignedDateFrom,
-                        AssignedDateTo: assignedDateTo,
-                        AppointmentDateFrom: appointmentDateFrom,
-                        AppointmentDateTo: appointmentDateTo,
-                        SortBy: sortBy,
-                        SortDir: sortDir
-                    )
-                    {
-                        Purpose = purpose,
-                        PropertyType = propertyType,
-                        CustomerName = customerName,
-                        AppraisalNumber = appraisalNumber,
-                        RequestNumber = requestNumber,
-                        SubDistrict = subDistrict,
-                        RequestedAtFrom = requestedAtFrom,
-                        RequestedAtTo = requestedAtTo,
-                    };
+                    var filter = queryParams.ToFilterRequest();
 
                     var query = new ExportAppraisalsQuery(filter, format ?? "xlsx");
                     var result = await sender.Send(query, cancellationToken);
