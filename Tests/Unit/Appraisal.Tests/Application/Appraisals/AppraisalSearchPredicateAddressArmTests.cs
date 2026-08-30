@@ -142,7 +142,7 @@ public class AppraisalSearchPredicateAddressArmTests
         var sql = SqlFor(new AddressNameMatch(true, false, false));
 
         var title = sql.IndexOf("FROM parameter.TitleProvinces WHERE Code = lad.Province", StringComparison.Ordinal);
-        var dopa = sql.IndexOf("FROM parameter.DopaProvinces  WHERE Code = lad.Province", StringComparison.Ordinal);
+        var dopa = sql.IndexOf("FROM parameter.DopaProvinces WHERE Code = lad.Province", StringComparison.Ordinal);
 
         Assert.True(title >= 0 && dopa >= 0);
         Assert.True(title < dopa);

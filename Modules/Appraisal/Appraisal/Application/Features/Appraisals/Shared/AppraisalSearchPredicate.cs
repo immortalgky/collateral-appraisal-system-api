@@ -242,136 +242,18 @@ internal static class AppraisalSearchPredicate
         //
         // Building/Machinery/Vehicle/Vessel details carry no address columns: a building's
         // location is the parcel it stands on, which the land arm already covers.
-        new("properties", RankProperty, "province", """
-            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'province' AS Fld,
-                   COALESCE((SELECT TOP 1 NameTh FROM parameter.TitleProvinces WHERE Code = lad.Province),
-                            (SELECT TOP 1 NameTh FROM parameter.DopaProvinces  WHERE Code = lad.Province),
-                            lad.Province) AS Val
-            FROM (SELECT ap.AppraisalId, l.Province
-                  FROM appraisal.LandAppraisalDetails l
-                  JOIN appraisal.AppraisalProperties ap ON ap.Id = l.AppraisalPropertyId
-                  UNION
-                  SELECT ap.AppraisalId, c.Province
-                  FROM appraisal.CondoAppraisalDetails c
-                  JOIN appraisal.AppraisalProperties ap ON ap.Id = c.AppraisalPropertyId
-                  ) lad
-            JOIN appraisal.Appraisals a ON a.Id = lad.AppraisalId AND a.IsDeleted = 0
-            JOIN request.Requests r ON r.Id = a.RequestId AND r.IsDeleted = 0
-            WHERE lad.Province IN (
-                SELECT Code FROM parameter.TitleProvinces WHERE NameTh LIKE {P} ESCAPE '\'
-                UNION
-                SELECT Code FROM parameter.DopaProvinces  WHERE NameTh LIKE {P} ESCAPE '\')
-            """, AddressLevel.Province),
-        new("properties", RankProperty, "district", """
-            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'district' AS Fld,
-                   COALESCE((SELECT TOP 1 NameTh FROM parameter.TitleDistricts WHERE Code = lad.District),
-                            (SELECT TOP 1 NameTh FROM parameter.DopaDistricts  WHERE Code = lad.District),
-                            lad.District) AS Val
-            FROM (SELECT ap.AppraisalId, l.District
-                  FROM appraisal.LandAppraisalDetails l
-                  JOIN appraisal.AppraisalProperties ap ON ap.Id = l.AppraisalPropertyId
-                  UNION
-                  SELECT ap.AppraisalId, c.District
-                  FROM appraisal.CondoAppraisalDetails c
-                  JOIN appraisal.AppraisalProperties ap ON ap.Id = c.AppraisalPropertyId
-                  ) lad
-            JOIN appraisal.Appraisals a ON a.Id = lad.AppraisalId AND a.IsDeleted = 0
-            JOIN request.Requests r ON r.Id = a.RequestId AND r.IsDeleted = 0
-            WHERE lad.District IN (
-                SELECT Code FROM parameter.TitleDistricts WHERE NameTh LIKE {P} ESCAPE '\'
-                UNION
-                SELECT Code FROM parameter.DopaDistricts  WHERE NameTh LIKE {P} ESCAPE '\')
-            """, AddressLevel.District),
-        new("properties", RankProperty, "subDistrict", """
-            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'subDistrict' AS Fld,
-                   COALESCE((SELECT TOP 1 NameTh FROM parameter.TitleSubDistricts WHERE Code = lad.SubDistrict),
-                            (SELECT TOP 1 NameTh FROM parameter.DopaSubDistricts  WHERE Code = lad.SubDistrict),
-                            lad.SubDistrict) AS Val
-            FROM (SELECT ap.AppraisalId, l.SubDistrict
-                  FROM appraisal.LandAppraisalDetails l
-                  JOIN appraisal.AppraisalProperties ap ON ap.Id = l.AppraisalPropertyId
-                  UNION
-                  SELECT ap.AppraisalId, c.SubDistrict
-                  FROM appraisal.CondoAppraisalDetails c
-                  JOIN appraisal.AppraisalProperties ap ON ap.Id = c.AppraisalPropertyId
-                  ) lad
-            JOIN appraisal.Appraisals a ON a.Id = lad.AppraisalId AND a.IsDeleted = 0
-            JOIN request.Requests r ON r.Id = a.RequestId AND r.IsDeleted = 0
-            WHERE lad.SubDistrict IN (
-                SELECT Code FROM parameter.TitleSubDistricts WHERE NameTh LIKE {P} ESCAPE '\'
-                UNION
-                SELECT Code FROM parameter.DopaSubDistricts  WHERE NameTh LIKE {P} ESCAPE '\')
-            """, AddressLevel.SubDistrict),
+        // Deed address (Title-mastered) and DOPA address (Dopa-mastered), three levels each.
+        // Built from one template: the six differ only in field name, column, master pair and
+        // which family resolves the display label — writing them out six times is how the
+        // deed/DOPA COALESCE order drifted apart in the first place.
+        AddressArm("province",        "Province",        "Provinces",    AddressLevel.Province,    dopaSourced: false),
+        AddressArm("district",        "District",        "Districts",    AddressLevel.District,    dopaSourced: false),
+        AddressArm("subDistrict",     "SubDistrict",     "SubDistricts", AddressLevel.SubDistrict, dopaSourced: false),
+        AddressArm("dopaProvince",    "DopaProvince",    "Provinces",    AddressLevel.Province,    dopaSourced: true),
+        AddressArm("dopaDistrict",    "DopaDistrict",    "Districts",    AddressLevel.District,    dopaSourced: true),
+        AddressArm("dopaSubDistrict", "DopaSubDistrict", "SubDistricts", AddressLevel.SubDistrict, dopaSourced: true),
 
-        // The same three against the DOPA address, which is a different address held on the same
-        // row. Separate arms rather than an OR: each predicate stays a clean equality, and the
-        // match badge can say which of the two addresses actually matched.
-        //
-        // Note the COALESCE order is INVERTED here: a geocode is resolved against the master the
-        // capturing form used, and these columns are DOPA-captured. 102 district and 31
-        // sub-district codes present in the data carry a different NameTh in each family (legacy
-        // prefixes like 'กิ่งอำเภอนบพิตำ' vs 'นบพิตำ'), so Title-first would badge a DOPA address
-        // with the name the regulatory export and the appraisal-result handler do not use.
-        new("properties", RankProperty, "dopaProvince", """
-            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'dopaProvince' AS Fld,
-                   COALESCE((SELECT TOP 1 NameTh FROM parameter.DopaProvinces WHERE Code = lad.DopaProvince),
-                            (SELECT TOP 1 NameTh FROM parameter.TitleProvinces WHERE Code = lad.DopaProvince),
-                            lad.DopaProvince) AS Val
-            FROM (SELECT ap.AppraisalId, l.DopaProvince
-                  FROM appraisal.LandAppraisalDetails l
-                  JOIN appraisal.AppraisalProperties ap ON ap.Id = l.AppraisalPropertyId
-                  UNION
-                  SELECT ap.AppraisalId, c.DopaProvince
-                  FROM appraisal.CondoAppraisalDetails c
-                  JOIN appraisal.AppraisalProperties ap ON ap.Id = c.AppraisalPropertyId
-                  ) lad
-            JOIN appraisal.Appraisals a ON a.Id = lad.AppraisalId AND a.IsDeleted = 0
-            JOIN request.Requests r ON r.Id = a.RequestId AND r.IsDeleted = 0
-            WHERE lad.DopaProvince IN (
-                SELECT Code FROM parameter.TitleProvinces WHERE NameTh LIKE {P} ESCAPE '\'
-                UNION
-                SELECT Code FROM parameter.DopaProvinces WHERE NameTh LIKE {P} ESCAPE '\')
-            """, AddressLevel.Province),
-        new("properties", RankProperty, "dopaDistrict", """
-            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'dopaDistrict' AS Fld,
-                   COALESCE((SELECT TOP 1 NameTh FROM parameter.DopaDistricts WHERE Code = lad.DopaDistrict),
-                            (SELECT TOP 1 NameTh FROM parameter.TitleDistricts WHERE Code = lad.DopaDistrict),
-                            lad.DopaDistrict) AS Val
-            FROM (SELECT ap.AppraisalId, l.DopaDistrict
-                  FROM appraisal.LandAppraisalDetails l
-                  JOIN appraisal.AppraisalProperties ap ON ap.Id = l.AppraisalPropertyId
-                  UNION
-                  SELECT ap.AppraisalId, c.DopaDistrict
-                  FROM appraisal.CondoAppraisalDetails c
-                  JOIN appraisal.AppraisalProperties ap ON ap.Id = c.AppraisalPropertyId
-                  ) lad
-            JOIN appraisal.Appraisals a ON a.Id = lad.AppraisalId AND a.IsDeleted = 0
-            JOIN request.Requests r ON r.Id = a.RequestId AND r.IsDeleted = 0
-            WHERE lad.DopaDistrict IN (
-                SELECT Code FROM parameter.TitleDistricts WHERE NameTh LIKE {P} ESCAPE '\'
-                UNION
-                SELECT Code FROM parameter.DopaDistricts WHERE NameTh LIKE {P} ESCAPE '\')
-            """, AddressLevel.District),
-        new("properties", RankProperty, "dopaSubDistrict", """
-            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'dopaSubDistrict' AS Fld,
-                   COALESCE((SELECT TOP 1 NameTh FROM parameter.DopaSubDistricts WHERE Code = lad.DopaSubDistrict),
-                            (SELECT TOP 1 NameTh FROM parameter.TitleSubDistricts WHERE Code = lad.DopaSubDistrict),
-                            lad.DopaSubDistrict) AS Val
-            FROM (SELECT ap.AppraisalId, l.DopaSubDistrict
-                  FROM appraisal.LandAppraisalDetails l
-                  JOIN appraisal.AppraisalProperties ap ON ap.Id = l.AppraisalPropertyId
-                  UNION
-                  SELECT ap.AppraisalId, c.DopaSubDistrict
-                  FROM appraisal.CondoAppraisalDetails c
-                  JOIN appraisal.AppraisalProperties ap ON ap.Id = c.AppraisalPropertyId
-                  ) lad
-            JOIN appraisal.Appraisals a ON a.Id = lad.AppraisalId AND a.IsDeleted = 0
-            JOIN request.Requests r ON r.Id = a.RequestId AND r.IsDeleted = 0
-            WHERE lad.DopaSubDistrict IN (
-                SELECT Code FROM parameter.TitleSubDistricts WHERE NameTh LIKE {P} ESCAPE '\'
-                UNION
-                SELECT Code FROM parameter.DopaSubDistricts WHERE NameTh LIKE {P} ESCAPE '\')
-            """, AddressLevel.SubDistrict),
+
 
         new("properties", RankProperty, "condoName", """
             SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'condoName' AS Fld, t.CondoName AS Val
@@ -381,6 +263,56 @@ internal static class AppraisalSearchPredicate
             WHERE t.CondoName LIKE {P} ESCAPE '\'
             """),
     ];
+
+    /// <summary>
+    /// One address arm. The six are structurally identical — same sources, same join, same
+    /// predicate shape — and differ only in which column they read, which master pair resolves the
+    /// name, and which family wins the display label. Emitting them from a template keeps that last
+    /// difference explicit: a geocode is resolved against the master the capturing form used, so
+    /// the deed columns read Title-first and the DOPA columns read Dopa-first. 102 district and 31
+    /// sub-district codes present in the data carry a different NameTh in each family, so getting
+    /// this backwards badges an address with a name no other consumer of it uses.
+    ///
+    /// The WHERE resolves the typed name to codes through a subquery rather than joining the
+    /// master directly: the code list is tiny and the IN turns into a seek, where a LIKE joined
+    /// onto the master costs 3.3x more (552 ms vs 168 ms uncapped on 105k appraisals). It also
+    /// means a term that is not an address name at all resolves to an empty list and the arm
+    /// returns without touching the appraisal tables — though Build now drops such arms outright.
+    ///
+    /// Both master families are searched in the WHERE regardless of which one owns the column.
+    /// They have diverged: 3,715 sub-district codes exist only in Title, 7 only in Dopa, and a
+    /// handful of Thai names are Dopa-only, so a prefix search for a name like 'นบพิตำ' reaches
+    /// its deed rows only through the DOPA spelling.
+    /// </summary>
+    private static Arm AddressArm(
+        string field, string column, string master, AddressLevel level, bool dopaSourced)
+    {
+        var (first, second) = dopaSourced ? ("Dopa", "Title") : ("Title", "Dopa");
+
+        // $$ so that {TOP}/{R}/{P} stay literal placeholders for Build to substitute, and {{...}}
+        // is the interpolation. A raw literal also leaves ESCAPE '\' alone — in a regular literal
+        // that backslash would need doubling, and getting it wrong silently produces ESCAPE ''.
+        return new Arm("properties", RankProperty, field, $$"""
+            SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, '{{field}}' AS Fld,
+                   COALESCE((SELECT TOP 1 NameTh FROM parameter.{{first}}{{master}} WHERE Code = lad.{{column}}),
+                            (SELECT TOP 1 NameTh FROM parameter.{{second}}{{master}} WHERE Code = lad.{{column}}),
+                            lad.{{column}}) AS Val
+            FROM (SELECT ap.AppraisalId, l.{{column}}
+                  FROM appraisal.LandAppraisalDetails l
+                  JOIN appraisal.AppraisalProperties ap ON ap.Id = l.AppraisalPropertyId
+                  UNION
+                  SELECT ap.AppraisalId, c.{{column}}
+                  FROM appraisal.CondoAppraisalDetails c
+                  JOIN appraisal.AppraisalProperties ap ON ap.Id = c.AppraisalPropertyId
+                  ) lad
+            JOIN appraisal.Appraisals a ON a.Id = lad.AppraisalId AND a.IsDeleted = 0
+            JOIN request.Requests r ON r.Id = a.RequestId AND r.IsDeleted = 0
+            WHERE lad.{{column}} IN (
+                SELECT Code FROM parameter.Title{{master}} WHERE NameTh LIKE {P} ESCAPE '\'
+                UNION
+                SELECT Code FROM parameter.Dopa{{master}} WHERE NameTh LIKE {P} ESCAPE '\')
+            """, level);
+    }
 
     /// <summary>
     /// The UNION ALL of every arm in <paramref name="scope"/>, and the parameters it binds.
