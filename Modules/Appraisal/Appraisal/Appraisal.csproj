@@ -20,6 +20,9 @@
         <!-- Lets the Integration test project reach internal helpers (e.g. BuildingInsuranceCalculator)
              for the read-vs-summary insurance consistency test. -->
         <InternalsVisibleTo Include="Integration"/>
+        <!-- AppraisalFilterBuilder is internal; the unit tests pin the WHERE it emits per filter
+             field, which is what decides whether the list query may count off the base table. -->
+        <InternalsVisibleTo Include="Appraisal.Tests"/>
     </ItemGroup>
 
     <ItemGroup>
