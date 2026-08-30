@@ -58,11 +58,17 @@ GO
 -- code; a row present in storage but absent from code is merely logged as a warning. With the v2/v3
 -- definitions deleted, any environment where they were once enabled would keep firing them and fail
 -- on a type that no longer exists. Clear them directly.
-DELETE FROM hangfire.[Hash]
-WHERE [Key] IN ('recurring-job:regulatory-export-v2', 'recurring-job:regulatory-export-v3');
+-- Guarded: Hangfire builds its own schema on application start, not through migrations, so on a
+-- database that has never run the app (a fresh integration-test container, a brand-new
+-- environment) these tables do not exist yet and an unguarded DELETE aborts the whole DbUp run.
+-- There is nothing to clean up in that case anyway.
+IF OBJECT_ID('hangfire.Hash', 'U') IS NOT NULL
+    DELETE FROM hangfire.[Hash]
+    WHERE [Key] IN ('recurring-job:regulatory-export-v2', 'recurring-job:regulatory-export-v3');
 
-DELETE FROM hangfire.[Set]
-WHERE [Key] = 'recurring-jobs'
-  AND [Value] IN ('regulatory-export-v2', 'regulatory-export-v3');
+IF OBJECT_ID('hangfire.[Set]', 'U') IS NOT NULL
+    DELETE FROM hangfire.[Set]
+    WHERE [Key] = 'recurring-jobs'
+      AND [Value] IN ('regulatory-export-v2', 'regulatory-export-v3');
 PRINT 'Cleared Hangfire recurring-job entries for regulatory-export-v2 / -v3 (if any).';
 GO
