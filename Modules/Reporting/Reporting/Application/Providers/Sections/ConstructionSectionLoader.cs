@@ -86,10 +86,12 @@ internal static class ConstructionSectionLoader
                 wd.PreviousProgressPct               AS PreviousPct,
                 wd.CurrentProgressPct                AS CurrentPct,
                 -- The item's share of the whole building at this round's progress, persisted as
-                -- decimal(7,4). The rollups below sum THIS rather than recomputing
-                -- ProportionPct x CurrentPct, so they land on the same figure as every other site,
-                -- which all sum the stored column. Recomputing keeps full precision and drifts from
-                -- them by a fraction of a percentage point across a thirty-item split.
+                -- decimal(7,4). The CURRENT rollup below sums this rather than recomputing
+                -- ProportionPct x CurrentPct, so it lands on the same figure as every other site,
+                -- which all sum the stored column; recomputing keeps full precision and drifts from
+                -- them by a fraction of a percentage point across a thirty-item split. The previous
+                -- rollup has to recompute — no stored previous-proportion column exists — and every
+                -- other site does the same, so the asymmetry is shared.
                 wd.CurrentProportionPct,
                 wd.PreviousPropertyValue,
                 wd.CurrentPropertyValue

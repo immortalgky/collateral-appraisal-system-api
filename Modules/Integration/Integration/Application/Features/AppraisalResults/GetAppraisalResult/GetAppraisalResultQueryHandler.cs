@@ -191,8 +191,11 @@ internal static class GetAppraisalResultSql
                                                    -- A COALESCE of the two would be wrong: Full Detail always leaves SummaryCurrentProgressPct
                                                    -- null, and a record switched from Summary to Full Detail keeps the stale summary figure.
                                                    -- Same CASE as GetDecisionSummaryQueryHandler.cs and
-                                                   -- IConstructionCurrentValueService.CiAggregateSql — otherwise this file and
-                                                   -- collateral.vw_RegulatoryExport report different progress for one collateral.
+                                                   -- IConstructionCurrentValueService.CiAggregateSql, so one inspection is read the
+                                                   -- same way everywhere. Note this column is PER PROPERTY, while
+                                                   -- collateral.vw_RegulatoryExport reports the appraisal-level value-weighted
+                                                   -- figure on every collateral row — for a multi-building appraisal the two files
+                                                   -- differ by design, however identical the per-inspection CASE.
                                                    -- Not ISNULL'd to 0 on purpose: "never inspected" (bare land) differs from "inspected at 0%".
                                                    CASE WHEN ci.IsFullDetail = 0
                                                         THEN ci.SummaryCurrentProgressPct

@@ -209,15 +209,14 @@ internal static class MeetingAgendaBuilder
         // template can fall back to a money figure; the invitation already suppresses วาระ 5 values.
         if (IsProgressive(i))
         {
-            var ciTotal = i.CiTotalValue ?? 0m;
-
             return new MeetingAgendaItemRow
             {
                 CustomerName = JoinThaiNames(i.CustomerName),
                 ValueText = string.Empty,
-                // No inspection data (or a zero 100%-value) leaves this empty → blank cell, rather
-                // than a misleading 0.00%.
-                ProgressText = ciTotal > 0m
+                // Gated on whether an inspection exists at all, not on whether it carries money: a
+                // condo unit's inspection has no value base, and the percentage is still the thing
+                // being reported. No inspection leaves this empty → blank cell.
+                ProgressText = (i.CiInspectionCount ?? 0) > 0
                     ? Math.Round(Math.Clamp(i.CiProgressPct ?? 0m, 0m, 100m), 2,
                             MidpointRounding.AwayFromZero)
                         .ToString("N2", CultureInfo.InvariantCulture)
@@ -324,11 +323,8 @@ internal sealed class MeetingItemFlat
     /// </summary>
     public bool? IsPriceVerified { get; init; }
 
-    /// <summary>
-    /// Building value at 100% complete, summed over the appraisal's construction inspections.
-    /// Null when the appraisal has none. Minute only — the invitation prints no value for วาระ 5.
-    /// </summary>
-    public decimal? CiTotalValue { get; init; }
+    /// <summary>Number of construction inspections on the appraisal; 0 means none at all.</summary>
+    public int? CiInspectionCount { get; init; }
 
     /// <summary>
     /// รวมผลการดำเนินงานปัจจุบัน — construction progress read off the entered percentages and

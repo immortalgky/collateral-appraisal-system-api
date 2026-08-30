@@ -262,8 +262,8 @@ public class ConstructionInspection : Entity<Guid>
         // The copy has to derive its own values like any other write. Without this the carried-over
         // rows persist with ConstructionValue, PreviousPropertyValue and CurrentPropertyValue all
         // zero, so the appraisal book's progress table prints a column of zeros for a round whose
-        // prior round was well under way. Ten inspections in the development database are in that
-        // state. Progress percentages were never affected — they are stored on the rows themselves.
+        // prior round was well under way. Progress percentages were never affected — they are
+        // stored on the rows themselves.
         newCi.ComputeAllValues();
         return newCi;
     }

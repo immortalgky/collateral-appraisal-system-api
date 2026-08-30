@@ -108,9 +108,16 @@ public class CollateralEngagement
     public bool? IsUnderConstruction { get; private set; }
 
     /// <summary>
-    /// Construction progress 0–100, weighted by value across every inspected building
-    /// frozen at engagement time. Read off the percentages the inspector entered, not off a ratio of the money — see Appraisal.Domain.Appraisals.ConstructionMoney.
-    /// Read by the regulatory export (field 6). NULL under the same conditions as
+    /// Construction progress 0–100, frozen at engagement time. Read off the percentages the
+    /// inspector entered, never off a ratio of the money — see
+    /// Appraisal.Domain.Appraisals.ConstructionMoney. Weighted across the inspected buildings by
+    /// what each is worth when they carry a value base, and a plain average of what was entered
+    /// when they do not: a condo unit has no depreciation table to total, so there is nothing to
+    /// weight by.
+    ///
+    /// Consumed by collateral.vw_CollateralMasters. The regulatory export does NOT read this
+    /// column — vw_RegulatoryExport recomputes the figure live from ConstructionInspections, so
+    /// the two can legitimately differ once this one is frozen. NULL under the same conditions as
     /// <see cref="IsUnderConstruction"/>.
     /// </summary>
     public decimal? ConstructionProgressPercent { get; private set; }

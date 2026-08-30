@@ -78,7 +78,7 @@ public sealed class MeetingMinuteDataProvider(
                 u.Position AS StaffPosition,
                 v.AppraisedValue,
                 ad.IsPriceVerified,
-                ciAgg.CiTotalValue,
+                ciAgg.CiInspectionCount,
                 ciAgg.CiProgressPct
             FROM workflow.MeetingItems mi
             INNER JOIN appraisal.Appraisals a ON a.Id = mi.AppraisalId
@@ -112,14 +112,25 @@ public sealed class MeetingMinuteDataProvider(
             -- agenda rows the way a join to the one-row-per-property ConstructionInspections would.
             OUTER APPLY (
                 SELECT
+                    COUNT(*)           AS CiInspectionCount,
                     SUM(ci.TotalValue) AS CiTotalValue,
+                    -- Weighted by what each building is worth, falling back to the plain average
+                    -- when none of them carries a value base — a condo unit has no depreciation
+                    -- table to total, so its TotalValue is 0 and there is nothing to weight by.
+                    -- RS01 does exactly this; blanking the cell instead would put the minute out
+                    -- of step with the "ตามเอกสารแนบ" it has to reconcile against.
                     CASE WHEN SUM(ci.TotalValue) > 0 THEN
                         SUM(ci.TotalValue *
                             CASE WHEN ci.IsFullDetail = 0
                                  THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
                                  ELSE ISNULL(wd.CurrentProportionPctSum, 0)
                             END) / SUM(ci.TotalValue)
-                        ELSE 0 END AS CiProgressPct
+                        ELSE AVG(
+                            CASE WHEN ci.IsFullDetail = 0
+                                 THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
+                                 ELSE ISNULL(wd.CurrentProportionPctSum, 0)
+                            END)
+                    END AS CiProgressPct
                 FROM appraisal.ConstructionInspections ci
                 INNER JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
                 OUTER APPLY (
