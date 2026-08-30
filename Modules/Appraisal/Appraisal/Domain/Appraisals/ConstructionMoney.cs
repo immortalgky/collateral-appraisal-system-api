@@ -22,7 +22,17 @@ namespace Appraisal.Domain.Appraisals;
 /// on the summary report, the appraisal book and the regulatory export.
 ///
 /// Percentages are NOT rounded by this rule — they are stored as decimal(7,4) and reported to two
-/// decimal places, which is what the business asked for.
+/// decimal places, which is what the business asked for. That separation is what makes the rounding
+/// safe: nothing decides anything off these amounts. Construction progress, and with it whether a
+/// building counts as finished, is read from the entered percentages
+/// (ConstructionValueBreakdown.ConstructionProgressPercent), never from a ratio of rounded money.
+///
+/// Inspections already in the database are deliberately left as they were, with no migration. They
+/// are the record of a round that was already inspected, some of it already exported to the
+/// regulator and frozen into CollateralEngagement, and the difference is under a baht. So a
+/// full-detail inspection saved before this rule keeps its satang on the report until someone edits
+/// and saves it again; summary mode has no such lag, since its figure is derived at read time.
+/// Correcting a named appraisal is a data-correction exercise on that appraisal.
 /// </summary>
 internal static class ConstructionMoney
 {

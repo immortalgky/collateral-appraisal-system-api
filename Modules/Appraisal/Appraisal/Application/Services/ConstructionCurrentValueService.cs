@@ -55,6 +55,8 @@ public record ConstructionValueBreakdown(
     decimal InspectedCurrentValue,
     decimal UnweightedPreviousPercent,
     decimal UnweightedCurrentPercent,
+    decimal WeightedPreviousPercent,
+    decimal WeightedCurrentPercent,
     bool HasOwnValueBase)
 {
     /// <summary>Value as it stands today, with part-built buildings counted at their progress.</summary>
@@ -67,40 +69,48 @@ public record ConstructionValueBreakdown(
     public decimal PreviousValue => LandValue + CompletedBuildingValue + InspectedPreviousValue;
 
     /// <summary>
-    /// True while any inspected building is short of its finished value.
+    /// Construction progress across the inspected buildings, 0–100.
     ///
-    /// Weighted by value across EVERY inspected building, unlike the older
-    /// <c>primaryProperty.ConstructionInspection.OverallCurrentProgressPercent &lt; 100</c> rule, which
-    /// read one property and silently ignored the rest of a multi-building appraisal.
-    /// </summary>
-    public bool IsUnderConstruction =>
-        HasOwnValueBase
-            ? InspectedTotalValue > 0m && InspectedCurrentValue < InspectedTotalValue
-            : UnweightedCurrentPercent < 100m;
-
-    /// <summary>
-    /// Construction progress as a value-weighted percentage of the inspected buildings, 0–100.
-    /// A building worth ten times another moves this figure ten times as much — a plain average of
-    /// per-building percentages would not. When the inspected buildings carry no value at all — a
-    /// condo unit has no depreciation table to total — there is nothing to weight by, so this falls
-    /// back to the plain average of the percentages the inspector actually entered.
+    /// Read off the percentages the inspector entered — per building, the weighted work rows
+    /// (Σ ProportionPct × CurrentProgressPct / 100) in full-detail mode or SummaryCurrentProgressPct
+    /// in summary mode — and combined across buildings in proportion to what each is worth, so a
+    /// building worth ten times another moves the figure ten times as much.
     ///
-    /// Reported to two decimal places, which is the precision every caller displays. The ratio is
-    /// taken over whole-baht values (CA-614), so leaving it raw surfaces the rounding as noise —
-    /// a building at a clean 15% came back as 14.999985000015. Rounding here keeps the artefact
-    /// out of the API. IsUnderConstruction above is deliberately not derived from this property,
-    /// so nothing decides "finished" off a rounded figure.
+    /// <b>Deliberately not InspectedCurrentValue / InspectedTotalValue.</b> That division is
+    /// algebraically the same figure, but its inputs are money, and money is rounded to whole baht
+    /// (CA-614): the rounded parts no longer sum to the rounded whole, so a finished building came
+    /// out a baht short of its own 100% figure and reported as still under construction. The
+    /// percentages carry no such problem — they are stored as decimal(7,4) and nothing rounds them.
+    /// TotalValue appears here only as a weight, and a weight is a ratio: 9:1 stays 9:1 whether or
+    /// not the amounts carry satang.
+    ///
+    /// With no value base to weight by — a condo unit has no depreciation table to total, so every
+    /// inspection on the appraisal carries TotalValue = 0 — this falls back to the plain average.
+    ///
+    /// Reported to two decimal places, the precision every caller displays.
     /// </summary>
-    public decimal ConstructionProgressPercent => AsReportedPercent(
-        HasOwnValueBase && InspectedTotalValue > 0m
-            ? InspectedCurrentValue / InspectedTotalValue * 100m
-            : UnweightedCurrentPercent);
+    public decimal ConstructionProgressPercent => AsReportedPercent(RawCurrentPercent);
 
     /// <summary>Previous round's progress, on the same basis as <see cref="ConstructionProgressPercent"/>.</summary>
-    public decimal PreviousProgressPercent => AsReportedPercent(
-        HasOwnValueBase && InspectedTotalValue > 0m
-            ? InspectedPreviousValue / InspectedTotalValue * 100m
-            : UnweightedPreviousPercent);
+    public decimal PreviousProgressPercent => AsReportedPercent(RawPreviousPercent);
+
+    /// <summary>
+    /// True while the inspected buildings are short of complete.
+    ///
+    /// Compares the unrounded percentage, not the rounded one: a split that leaves the work at
+    /// 99.996% is not finished, and rounding it to 100.00 for display must not decide otherwise.
+    ///
+    /// Nothing validates that ProportionPct sums to 100, so an inspection whose split is short
+    /// reports as unfinished even at full progress on every item. That is long-standing behaviour,
+    /// unchanged here.
+    /// </summary>
+    public bool IsUnderConstruction => RawCurrentPercent < 100m;
+
+    private decimal RawCurrentPercent =>
+        HasOwnValueBase ? WeightedCurrentPercent : UnweightedCurrentPercent;
+
+    private decimal RawPreviousPercent =>
+        HasOwnValueBase ? WeightedPreviousPercent : UnweightedPreviousPercent;
 
     private static decimal AsReportedPercent(decimal value) =>
         Math.Round(Math.Clamp(value, 0m, 100m), 2, MidpointRounding.AwayFromZero);
@@ -153,6 +163,8 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
                 InspectedCurrentValue: ci.CurrentValue,
                 UnweightedPreviousPercent: ci.UnweightedPreviousPercent,
                 UnweightedCurrentPercent: ci.UnweightedCurrentPercent,
+                WeightedPreviousPercent: ci.WeightedPreviousPercent,
+                WeightedCurrentPercent: ci.WeightedCurrentPercent,
                 HasOwnValueBase: true);
         }
 
@@ -181,6 +193,8 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
             InspectedCurrentValue: appraisedValue,
             UnweightedPreviousPercent: ci.UnweightedPreviousPercent,
             UnweightedCurrentPercent: ci.UnweightedCurrentPercent,
+            WeightedPreviousPercent: ci.WeightedPreviousPercent,
+            WeightedCurrentPercent: ci.WeightedCurrentPercent,
             HasOwnValueBase: false);
     }
 
@@ -226,48 +240,37 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
     /// <summary>
     /// Part-built buildings, at 100% / previous progress / current progress.
     ///
-    /// Summary mode multiplies TotalValue by the stored percent rather than reading
-    /// SummaryPreviousValue / SummaryCurrentValue — see the interface remarks for why those columns
-    /// cannot be trusted. Full-detail mode sums the work details, which the server computes on save.
+    /// Each inspection's money contribution is rounded to whole baht (CA-614). ROUND rounds halves
+    /// away from zero, matching Appraisal.Domain.Appraisals.ConstructionMoney, which applies the
+    /// same rule when full-detail values are persisted.
     ///
-    /// Each inspection's contribution is rounded to whole baht (CA-614). ROUND rounds halves away
-    /// from zero, matching Appraisal.Domain.Appraisals.ConstructionMoney, which applies the same
-    /// rule when full-detail values are persisted. Two other places repeat this aggregate and have
-    /// to keep the same rounding: AppraisalSummaryConstructionDataProvider in the Reporting module
-    /// and collateral.vw_RegulatoryExport.
+    /// The money columns answer "how much". Progress is answered separately by the Weighted*Percent
+    /// columns, which never touch money. Two other places repeat this aggregate and have to keep
+    /// both rules — the rounding and the percentage source — in step:
+    /// AppraisalSummaryConstructionDataProvider in the Reporting module, and
+    /// collateral.vw_RegulatoryExport.
     /// </summary>
     private const string CiAggregateSql = """
         SELECT
-            ISNULL(SUM(ci.TotalValue), 0) AS TotalValue,
-            ISNULL(SUM(ROUND(
-                CASE WHEN ci.IsFullDetail = 0
-                     THEN ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0) / 100.0
-                     ELSE ISNULL(wd.PreviousPropertyValueSum, 0)
-                END
-            , 0)), 0) AS PreviousValue,
-            ISNULL(SUM(ROUND(
-                CASE WHEN ci.IsFullDetail = 0
-                     THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
-                     ELSE ISNULL(wd.CurrentPropertyValueSum, 0)
-                END
-            , 0)), 0) AS CurrentValue,
-            COUNT(*) AS InspectionCount,
-            -- The progress the inspector actually entered, read per the mode flag exactly as
-            -- ConstructionInspection.OverallCurrentProgressPercent does: summary mode keeps its own
-            -- percentage, full detail sums the weighted work rows. Averaged rather than weighted
-            -- because these are only consulted when there is no value to weight by.
-            ISNULL(AVG(
-                CASE WHEN ci.IsFullDetail = 0
-                     THEN ISNULL(ci.SummaryPreviousProgressPct, 0)
-                     ELSE ISNULL(wd.PreviousProportionPctSum, 0)
-                END
-            ), 0) AS UnweightedPreviousPercent,
-            ISNULL(AVG(
-                CASE WHEN ci.IsFullDetail = 0
-                     THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
-                     ELSE ISNULL(wd.CurrentProportionPctSum, 0)
-                END
-            ), 0) AS UnweightedCurrentPercent
+            ISNULL(SUM(v.TotalValue), 0)                 AS TotalValue,
+            ISNULL(SUM(ROUND(v.PreviousValue, 0)), 0)    AS PreviousValue,
+            ISNULL(SUM(ROUND(e.CurrentValue, 0)), 0)     AS CurrentValue,
+            COUNT(*)                                     AS InspectionCount,
+            -- Plain averages, consulted only when there is no value to weight by.
+            ISNULL(AVG(v.PreviousPct), 0)                AS UnweightedPreviousPercent,
+            ISNULL(AVG(e.CurrentPct), 0)                 AS UnweightedCurrentPercent,
+            -- Per-building progress weighted across buildings by what each is worth. This is what
+            -- decides "finished" and what the reports print — deliberately NOT CurrentValue /
+            -- TotalValue. Money is rounded to whole baht (CA-614), so the rounded parts no longer
+            -- sum to the rounded whole and a finished building came out a baht short of its own
+            -- 100% figure. These percentages are decimal(7,4) and nothing rounds them; TotalValue
+            -- is only a weight here, and a weight is a ratio.
+            CASE WHEN SUM(v.TotalValue) > 0
+                 THEN SUM(v.TotalValue * v.PreviousPct) / SUM(v.TotalValue)
+                 ELSE 0 END                              AS WeightedPreviousPercent,
+            CASE WHEN SUM(v.TotalValue) > 0
+                 THEN SUM(v.TotalValue * e.CurrentPct) / SUM(v.TotalValue)
+                 ELSE 0 END                              AS WeightedCurrentPercent
         FROM appraisal.ConstructionInspections ci
         JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
         LEFT JOIN (
@@ -281,6 +284,36 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
             FROM appraisal.ConstructionWorkDetails
             GROUP BY ConstructionInspectionId
         ) wd ON wd.ConstructionInspectionId = ci.Id
+        -- One row per inspection, read per the mode flag: summary mode keeps its own percentage,
+        -- full detail sums the weighted work rows. Money for summary mode is derived from the
+        -- percentage rather than read from SummaryPreviousValue / SummaryCurrentValue — see the
+        -- interface remarks for why those columns cannot be trusted.
+        CROSS APPLY (
+            SELECT
+                ci.TotalValue,
+                CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryPreviousProgressPct, 0)
+                     ELSE ISNULL(wd.PreviousProportionPctSum, 0) END AS PreviousPct,
+                CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
+                     ELSE ISNULL(wd.CurrentProportionPctSum, 0) END  AS CurrentPctRaw,
+                CASE WHEN ci.IsFullDetail = 0
+                     THEN ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0) / 100.0
+                     ELSE ISNULL(wd.PreviousPropertyValueSum, 0) END AS PreviousValue,
+                CASE WHEN ci.IsFullDetail = 0
+                     THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
+                     ELSE ISNULL(wd.CurrentPropertyValueSum, 0) END  AS CurrentValueRaw
+        ) v
+        -- A round the inspector has not filled in yet carries 0% current against a non-zero
+        -- previous, because CopyForNextInspection resets the current figures for them to enter.
+        -- Reporting that as 0% would say the building went backwards — the work done in earlier
+        -- rounds is still standing. Until something is entered, the round stands where the last
+        -- one left it.
+        CROSS APPLY (
+            SELECT
+                CASE WHEN v.CurrentPctRaw = 0 AND v.PreviousPct > 0
+                     THEN v.PreviousPct ELSE v.CurrentPctRaw END   AS CurrentPct,
+                CASE WHEN v.CurrentPctRaw = 0 AND v.PreviousPct > 0
+                     THEN v.PreviousValue ELSE v.CurrentValueRaw END AS CurrentValue
+        ) e
         WHERE ap.AppraisalId = @AppraisalId
         """;
 
@@ -290,5 +323,7 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
         decimal CurrentValue,
         int InspectionCount,
         decimal UnweightedPreviousPercent,
-        decimal UnweightedCurrentPercent);
+        decimal UnweightedCurrentPercent,
+        decimal WeightedPreviousPercent,
+        decimal WeightedCurrentPercent);
 }
