@@ -130,9 +130,13 @@ internal static class ExternalBookBuilder
             WHERE ap.AppraisalId = @AppraisalId
             ORDER BY ap.SequenceNumber;
 
-            -- RS08: Land titles (all titles across all land properties)
+            -- RS08: Land titles (all titles across all land properties), in the same property order
+            -- as RS07. Ordering by lad.Id would sort by SQL Server's uniqueidentifier byte order,
+            -- which does not follow Guid.CreateVersion7 creation order — harmless while this was a
+            -- flat list of numbers, but it now decides which document kind is announced first.
             SELECT
                 lt.TitleNumber,
+                lt.TitleType,
                 lt.AreaRai,
                 lt.AreaNgan,
                 lt.AreaSquareWa
@@ -140,7 +144,7 @@ internal static class ExternalBookBuilder
             JOIN appraisal.LandAppraisalDetails lad ON lad.Id = lt.LandAppraisalDetailId
             JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
             WHERE ap.AppraisalId = @AppraisalId
-            ORDER BY lad.Id, lt.Id;
+            ORDER BY ap.SequenceNumber, lad.Id, lt.Id;
 
             -- RS09: Q8 — Condo rows
             SELECT
@@ -339,14 +343,34 @@ internal static class ExternalBookBuilder
             collateralLocation = string.IsNullOrEmpty(fmt) ? null : fmt;
         }
 
-        // Title deed numbers and land area
-        var titleNumbers = titleRows
-            .Where(t => !string.IsNullOrWhiteSpace(t.TitleNumber))
-            .Select(t => t.TitleNumber!)
-            .Distinct()
-            .ToList();
+        // Title deed numbers and land area. The numbers are grouped under the name of the document
+        // that carries them ("โฉนดที่ดินเลขที่ 1234, 1235 / น.ส.3 เลขที่ 5678") — the row used to
+        // print bare numbers under a heading that assumed they were all title deeds (CA-609).
+        // Groups keep the order their first parcel appeared in, which RS08 orders by property
+        // sequence, so the kinds read in the same order as the property list above.
+        var numbersByPrefix = new Dictionary<string, List<string>>();
+        var prefixOrder = new List<string>();
+        foreach (var row in titleRows)
+        {
+            // Guarded here rather than with a Where(): nullable flow analysis cannot see through the
+            // lambda, so filtering outside the loop would leave row.TitleNumber nullable inside it.
+            if (string.IsNullOrWhiteSpace(row.TitleNumber)) continue;
 
-        string? titleDeedNumbers = titleNumbers.Count > 0 ? string.Join(", ", titleNumbers) : null;
+            var prefix = TitleDeedLabel.NumberPrefix(row.TitleType);
+            if (!numbersByPrefix.TryGetValue(prefix, out var numbers))
+            {
+                numbers = [];
+                numbersByPrefix[prefix] = numbers;
+                prefixOrder.Add(prefix);
+            }
+
+            if (!numbers.Contains(row.TitleNumber))
+                numbers.Add(row.TitleNumber);
+        }
+
+        string? titleDeedNumbers = prefixOrder.Count > 0
+            ? string.Join(" / ", prefixOrder.Select(p => $"{p} {string.Join(", ", numbersByPrefix[p])}"))
+            : null;
         int? totalTitleDeeds = titleRows.Count > 0 ? titleRows.Count : null;
 
         // Show the area line whenever any title exists (preserves the original output, including
@@ -526,6 +550,7 @@ internal static class ExternalBookBuilder
     private sealed class TitleRow
     {
         public string? TitleNumber { get; init; }
+        public string? TitleType { get; init; }
         public decimal? AreaRai { get; init; }
         public decimal? AreaNgan { get; init; }
         public decimal? AreaSquareWa { get; init; }

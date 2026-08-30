@@ -334,6 +334,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 pgi.SequenceInGroup,
                 lt.Id         AS TitleId,
                 lt.TitleNumber,
+                lt.TitleType,
                 lt.BookNumber,
                 lt.PageNumber,
                 lt.LandParcelNumber,
@@ -488,6 +489,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             SELECT
                 lt.Id AS TitleId,
                 lt.TitleNumber,
+                lt.TitleType,
                 lt.GovernmentPricePerSqWa,
                 lt.IsMissingFromSurvey
             FROM appraisal.LandTitles lt
@@ -962,8 +964,10 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             {
                 var titleParts = new List<string>();
 
+                // The document's own name, never a fixed "โฉนดที่ดิน" — a parcel held under a
+                // น.ส.3 is not a title deed and must not be announced as one (CA-609).
                 if (!string.IsNullOrWhiteSpace(title.TitleNumber))
-                    titleParts.Add($"โฉนดที่ดินเลขที่ {title.TitleNumber}");
+                    titleParts.Add($"{TitleDeedLabel.NumberPrefix(title.TitleType)} {title.TitleNumber}");
                 if (!string.IsNullOrWhiteSpace(title.BookNumber))
                     titleParts.Add($"เล่ม {title.BookNumber}");
                 if (!string.IsNullOrWhiteSpace(title.PageNumber))
@@ -1291,13 +1295,21 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         //
         // titleDisplayOrder places each title in the printed list; titles outside every group sort
         // last, keeping their existing relative order.
+        //
+        // Each parcel carries its own noun: one appraisal can hold a โฉนด next to a น.ส.3, and the
+        // builder announces each kind once per segment (CA-609). A parcel whose TitleType is blank or
+        // unrecognised is already covered — TitleDeedLabel resolves it to the generic เอกสารสิทธิ์
+        // rather than asserting โฉนดที่ดิน — so the shared prefix argument below is never reached
+        // here; it is passed only because the builder requires one for callers (the condo summary)
+        // whose collateral all shares a single noun.
         string? governmentPriceText = GovernmentPriceTextBuilder.Build(
             govPriceRows.Select(r => new GovernmentPriceTextBuilder.Item(
                 r.TitleNumber,
                 r.GovernmentPricePerSqWa,
                 r.IsMissingFromSurvey == true,
-                titleDisplayOrder.TryGetValue(r.TitleId, out var order) ? order : int.MaxValue)),
-            "โฉนดที่ดินเลขที่",
+                titleDisplayOrder.TryGetValue(r.TitleId, out var order) ? order : int.MaxValue,
+                TitleDeedLabel.NumberPrefix(r.TitleType))),
+            TitleDeedLabel.NumberPrefix(null),
             p => $"ตารางวาละ {p:N2} บาท");
 
         // Show the committee block only when this appraisal actually falls into a meeting.
@@ -1721,6 +1733,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     {
         public Guid TitleId { get; init; }
         public string? TitleNumber { get; init; }
+        public string? TitleType { get; init; }
         public decimal? GovernmentPricePerSqWa { get; init; }
         public bool? IsMissingFromSurvey { get; init; }
     }
@@ -1789,6 +1802,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public int SequenceInGroup { get; init; }
         public Guid TitleId { get; init; }
         public string? TitleNumber { get; init; }
+        public string? TitleType { get; init; }
         public string? BookNumber { get; init; }
         public string? PageNumber { get; init; }
         public string? LandParcelNumber { get; init; }

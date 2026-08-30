@@ -5,30 +5,33 @@
 <table class="grid">
   <thead>
     <tr>
-      <th style="width:36px;">ลำดับ</th>
-      <th>โฉนดเลขที่</th>
-      <th>เลขที่ดิน</th>
-      <th>หน้าสำรวจ</th>
-      <th>ระวาง</th>
-      <th colspan="3" style="text-align:center;">เนื้อที่ดิน</th>
-      <th>ผู้ถือกรรมสิทธิ์</th>
+      <th scope="col" style="width:36px;">ลำดับ</th>
+      <th scope="col">เอกสารสิทธิ์</th>
+      <th scope="col">เลขที่</th>
+      <th scope="col">เลขที่ดิน</th>
+      <th scope="col">หน้าสำรวจ</th>
+      <th scope="col">ระวาง</th>
+      <th scope="colgroup" colspan="3" style="text-align:center;">เนื้อที่ดิน</th>
+      <th scope="col">ผู้ถือกรรมสิทธิ์</th>
     </tr>
     <tr>
-      <th></th>
-      <th></th>
-      <th></th>
-      <th></th>
-      <th></th>
-      <th style="width:52px;">ไร่</th>
-      <th style="width:52px;">งาน</th>
-      <th style="width:52px;">วา</th>
-      <th></th>
+      <th scope="col"></th>
+      <th scope="col"></th>
+      <th scope="col"></th>
+      <th scope="col"></th>
+      <th scope="col"></th>
+      <th scope="col"></th>
+      <th scope="col" style="width:52px;">ไร่</th>
+      <th scope="col" style="width:52px;">งาน</th>
+      <th scope="col" style="width:52px;">วา</th>
+      <th scope="col"></th>
     </tr>
   </thead>
   <tbody>
     {{ for t in land_section.titles }}
     <tr>
       <td class="ctr">{{ t.sequence }}</td>
+      <td>{{ t.title_type_display }}</td>
       <td>{{ t.title_number }}</td>
       <td>{{ t.land_parcel_number }}</td>
       <td>{{ t.survey_number }}</td>
@@ -40,7 +43,7 @@
     </tr>
     {{ end }}
     <tr style="font-weight:700; background:#f5f5f5;">
-      <td colspan="5" style="text-align:right;">รวมเนื้อที่ดิน</td>
+      <td colspan="6" style="text-align:right;">รวมเนื้อที่ดิน</td>
       <td class="num">{{ land_section.total_rai | math.format "#,##0" }}</td>
       <td class="num">{{ land_section.total_ngan | math.format "#,##0" }}</td>
       <td class="num">{{ land_section.total_square_wa | math.format "#,##0" }}</td>

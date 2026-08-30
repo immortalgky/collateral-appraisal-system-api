@@ -1192,13 +1192,13 @@ GO
 INSERT INTO parameter.Parameters ([group], [country], [language], [code], [description], [isactive], [seqno])
 VALUES
     (N'DeedType', N'TH', N'EN', N'DEED', N'Title deed', 1, 1),
-    (N'DeedType', N'TH', N'TH', N'DEED', N'Title deed', 1, 1),
+    (N'DeedType', N'TH', N'TH', N'DEED', N'โฉนดที่ดิน / อ.ช.2', 1, 1),
     (N'DeedType', N'TH', N'EN', N'NS3', N'Nor Sor 3', 1, 2),
-    (N'DeedType', N'TH', N'TH', N'NS3', N'นส 3', 1, 2),
+    (N'DeedType', N'TH', N'TH', N'NS3', N'น.ส.3', 1, 2),
     (N'DeedType', N'TH', N'EN', N'NS3K', N'Nor Sor 3 K', 1, 3),
-    (N'DeedType', N'TH', N'TH', N'NS3K', N'นส 3 ก', 1, 3),
+    (N'DeedType', N'TH', N'TH', N'NS3K', N'น.ส.3 ก.', 1, 3),
     (N'DeedType', N'TH', N'EN', N'NS3KO', N'Nor Sor 3 Ko', 1, 4),
-    (N'DeedType', N'TH', N'TH', N'NS3KO', N'นส 3 ข', 1, 4),
+    (N'DeedType', N'TH', N'TH', N'NS3KO', N'น.ส.3 ข.', 1, 4),
     (N'DeedType', N'TH', N'EN', N'POSR', N'Document of possessory rights to land', 1, 5),
     (N'DeedType', N'TH', N'TH', N'POSR', N'ตราจอง', 1, 5),
     (N'DeedType', N'TH', N'EN', N'OTHER', N'Other', 1, 6),
