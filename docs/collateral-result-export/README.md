@@ -33,6 +33,21 @@ A blank id still identifies the work — the appraisal number is in the record �
 tells the host a person needs to look at it. Guessing which of several collateral a price belongs to
 would update the wrong one.
 
+**Most of the file is blank ids, and that is correct.** On the production-like dataset 33,380 of
+38,337 rows go out that way — 87%. It is not a matching failure: for those appraisals the COLLATLINK
+feed holds no row at all, at any level of the chain (only 266 appraisals are genuinely ambiguous).
+The usual reason is that the customer has not drawn down, and AS400 mints a collateral id only at
+drawdown; the rest are appraisals that never became loans, or work old enough that the bank no longer
+holds the collateral.
+
+They are sent anyway. That was decided with the bank on 2026-08-31: a result the host never hears
+about disappears silently, whereas an `N` row reaches someone who can resolve it. Dropping them was
+considered and rejected for that reason — do not "optimise" these rows out of the file.
+
+Nothing is lost either way, because the sent-ledger is keyed on `(AppraisalId, CollateralId)`: an
+appraisal sent today with a blank id pairs with a different key the moment AS400 mints one, so it
+goes out again carrying the real id without anyone having to notice.
+
 **Block projects are the exception that resolves.** AS400 mints an id per financed unit and names
 that unit twice, in two fields that fail on different rows:
 
