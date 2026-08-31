@@ -1152,11 +1152,6 @@ public class AppraisalCreationService(
         }
 
         project.ImportUnits("Seeded from collateral master", documentId: null, seededUnits);
-
-        // Only now — units really did come from the master, so a plain re-upload must not discard
-        // them along with the sale state they carry.
-        project.MarkUnitsSeededFromPrior();
-
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         var soldCount = seededUnits.Count(u => u.IsSold);

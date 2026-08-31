@@ -1044,10 +1044,6 @@ namespace Collateral.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("UnitNumber")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -1069,10 +1065,6 @@ namespace Collateral.Migrations
                     b.HasIndex("HostCollateralId")
                         .HasDatabaseName("IX_ProjectUnits_HostCollateralId")
                         .HasFilter("[HostCollateralId] IS NOT NULL");
-
-                    b.HasIndex("UnitNumber")
-                        .HasDatabaseName("IX_ProjectUnits_UnitNumber")
-                        .HasFilter("[UnitNumber] IS NOT NULL");
 
                     b.HasIndex("CollateralMasterId", "SequenceNumber")
                         .HasDatabaseName("IX_ProjectUnits_Master_Sequence");

@@ -2047,8 +2047,7 @@ public class CollateralMasterUpsertService(
                     roomNumber: dto.RoomNumber,
                     modelType: dto.ModelType,
                     usableArea: dto.UsableArea,
-                    sellingPrice: dto.SellingPrice,
-                    unitNumber: dto.UnitNumber)
+                    sellingPrice: dto.SellingPrice)
                 : ProjectUnit.CreateLandAndBuilding(
                     collateralMasterId: collateralMasterId,
                     sequenceNumber: dto.SequenceNumber,
@@ -2058,8 +2057,7 @@ public class CollateralMasterUpsertService(
                     numberOfFloors: dto.NumberOfFloors,
                     landArea: dto.LandArea,
                     usableArea: dto.UsableArea,
-                    sellingPrice: dto.SellingPrice,
-                    unitNumber: dto.UnitNumber);
+                    sellingPrice: dto.SellingPrice);
 
             // Apply sale-status. When PurchaseBy parses successfully we use SetSaleInfo (enforces
             // the Loan→LoanBankName invariant). When the unit is sold but PurchaseBy is unknown

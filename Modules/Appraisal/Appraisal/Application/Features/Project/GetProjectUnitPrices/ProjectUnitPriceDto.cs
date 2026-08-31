@@ -9,7 +9,6 @@ public record ProjectUnitPriceDto(
     Guid? Id,
     Guid ProjectUnitId,
     int SequenceNumber,
-    string? UnitNumber,
     // Common unit fields
     string? ModelType,
     decimal? UsableArea,

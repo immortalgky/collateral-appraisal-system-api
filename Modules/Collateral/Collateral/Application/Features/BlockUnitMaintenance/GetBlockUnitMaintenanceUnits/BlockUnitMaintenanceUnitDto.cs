@@ -7,7 +7,6 @@ namespace Collateral.Application.Features.BlockUnitMaintenance.GetBlockUnitMaint
 public record BlockUnitMaintenanceUnitDto(
     Guid Id,
     int SequenceNumber,
-    string? UnitNumber,
     string? ModelType,
     decimal? UsableArea,
     decimal? SellingPrice,

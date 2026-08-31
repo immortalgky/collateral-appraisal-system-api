@@ -40,7 +40,6 @@ public record BlockReappraisalStructureDto(
 
 public record BlockReappraisalUnitDto(
     int SequenceNumber,
-    string? UnitNumber,
     bool IsSold,
     string? ModelType,
     decimal? UsableArea,

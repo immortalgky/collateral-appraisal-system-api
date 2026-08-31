@@ -19,19 +19,6 @@ public class ProjectUnit : Entity<Guid>
     /// <summary>1-based display order within the project.</summary>
     public int SequenceNumber { get; private set; }
 
-    /// <summary>
-    /// The unit number the appraisal stamped on this unit, format <c>{YY}U{running:D5}</c>
-    /// (8 chars) — e.g. <c>69U00042</c>. Copied from appraisal.ProjectUnits at upsert.
-    ///
-    /// A display and reporting reference only. It is NOT an identity across appraisals: a block
-    /// reappraisal mints a fresh set of numbers, so two rounds of the same room carry different
-    /// values. Matching a unit across rounds is business-key work (BlockReappraisalMatcher).
-    ///
-    /// Null for units whose appraisal predates the numbering, and for units loaded straight from
-    /// bank data that never passed through an appraisal here.
-    /// </summary>
-    public string? UnitNumber { get; private set; }
-
     // ----- Condo-side identity fields (nullable; populated only for Condo projects) -----
 
     public int? Floor { get; private set; }
@@ -108,15 +95,13 @@ public class ProjectUnit : Entity<Guid>
         string? roomNumber = null,
         string? modelType = null,
         decimal? usableArea = null,
-        decimal? sellingPrice = null,
-        string? unitNumber = null)
+        decimal? sellingPrice = null)
     {
         return new ProjectUnit
         {
             Id = Guid.CreateVersion7(),
             CollateralMasterId = collateralMasterId,
             SequenceNumber = sequenceNumber,
-            UnitNumber = unitNumber,
             Floor = floor,
             TowerName = towerName,
             CondoRegistrationNumber = condoRegistrationNumber,
@@ -138,15 +123,13 @@ public class ProjectUnit : Entity<Guid>
         int? numberOfFloors = null,
         decimal? landArea = null,
         decimal? usableArea = null,
-        decimal? sellingPrice = null,
-        string? unitNumber = null)
+        decimal? sellingPrice = null)
     {
         return new ProjectUnit
         {
             Id = Guid.CreateVersion7(),
             CollateralMasterId = collateralMasterId,
             SequenceNumber = sequenceNumber,
-            UnitNumber = unitNumber,
             PlotNumber = plotNumber,
             HouseNumber = houseNumber,
             ModelType = modelType,
