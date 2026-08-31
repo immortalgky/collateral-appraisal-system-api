@@ -13,12 +13,6 @@ public interface IProjectRepository
     Task<Project?> GetByAppraisalIdAsync(Guid appraisalId, CancellationToken ct = default);
 
     /// <summary>
-    /// Gets a project by AppraisalId with only its Units loaded (tracked for mutations).
-    /// Cheaper than <see cref="GetWithFullGraphAsync"/> for callers that touch units alone.
-    /// </summary>
-    Task<Project?> GetWithUnitsByAppraisalIdAsync(Guid appraisalId, CancellationToken ct = default);
-
-    /// <summary>
     /// Gets a project with all child collections eagerly loaded
     /// (towers, models + their sub-collections, units, unit uploads, unit prices,
     /// pricing assumption + model assumptions, land + land titles).

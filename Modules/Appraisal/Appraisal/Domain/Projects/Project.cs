@@ -15,23 +15,6 @@ public class Project : Aggregate<Guid>
     public Guid AppraisalId { get; private set; }
     public ProjectType ProjectType { get; private set; }
 
-    /// <summary>
-    /// True once units have actually been seeded from the collateral master — the block-reappraisal
-    /// path. Held here so the aggregate can enforce its own rules without reaching into the
-    /// Appraisal aggregate.
-    ///
-    /// It is the second half of the destructive-write guard: seeded units carry no unit number yet
-    /// (numbers are minted on approval), so "does any unit have a number?" alone would let a
-    /// reappraisal's seeded inventory — and the sale state carried with it — be wiped by a plain
-    /// re-upload.
-    ///
-    /// Deliberately NOT "this appraisal continues a prior one". A reappraisal whose prior collateral
-    /// master is missing, or holds no units, seeds nothing; flagging it would leave the appraiser
-    /// with no way to enter units at all, and would lock the project the moment their first upload
-    /// succeeded.
-    /// </summary>
-    public bool UnitsSeededFromPrior { get; private set; }
-
     // ----- Shared Project Info -----
     public string? ProjectName { get; private set; }
     public string? ProjectDescription { get; private set; }
@@ -339,77 +322,8 @@ public class Project : Aggregate<Guid>
         _models.Remove(model);
     }
 
-    /// <summary>
-    /// Records that this project's units came from the prior appraisal's collateral master, which
-    /// makes them non-replaceable. Called by the seed only after units were actually imported.
-    /// </summary>
-    public void MarkUnitsSeededFromPrior()
-    {
-        UnitsSeededFromPrior = true;
-    }
-
-    /// <summary>
-    /// How many units are still waiting for a unit number. Zero once the project has been
-    /// approved and nothing has been added since.
-    /// </summary>
-    public int CountUnitsAwaitingNumber() => _units.Count(u => u.UnitNumber is null);
-
-    /// <summary>
-    /// Stamps the supplied unit numbers onto the units that do not have one, in SequenceNumber
-    /// order so the numbers read in the same order as the unit list on screen.
-    ///
-    /// Called once, when the appraisal is approved. Units that already carry a number are left
-    /// alone, which is what makes re-approval of the same appraisal a no-op.
-    /// </summary>
-    public void AssignUnitNumbers(IReadOnlyList<string> unitNumbers)
-    {
-        ArgumentNullException.ThrowIfNull(unitNumbers);
-
-        var pending = _units
-            .Where(u => u.UnitNumber is null)
-            .OrderBy(u => u.SequenceNumber)
-            .ToList();
-
-        if (pending.Count != unitNumbers.Count)
-            throw new InvalidProjectStateException(
-                $"Expected {pending.Count} unit number(s) for project {Id} but received {unitNumbers.Count}.");
-
-        for (var i = 0; i < pending.Count; i++)
-            pending[i].AssignUnitNumber(unitNumbers[i]);
-    }
-
-    /// <summary>
-    /// Refuses any wholesale rewrite of the unit set once the units mean something.
-    ///
-    /// Two conditions, because they cover different rounds:
-    ///   * a unit already carries a UnitNumber — the appraisal has been approved, and the numbers
-    ///     are quoted outside this system;
-    ///   * the project continues a prior appraisal — its units were seeded from the collateral
-    ///     master and carry sale state the spreadsheet does not know about. They have no numbers
-    ///     yet, so the first condition would not catch them.
-    ///
-    /// Everything before the first approval stays freely replaceable, which is the point: a user
-    /// who uploads the wrong workbook, or whose work is routed back for correction, can simply
-    /// upload the right one.
-    /// </summary>
-    private void EnsureUnitsMayBeDiscarded(string operation)
-    {
-        if (UnitsSeededFromPrior)
-            throw new InvalidProjectStateException(
-                $"Cannot {operation} on a reappraisal: its units were seeded from the collateral " +
-                "master. Use the block-reappraisal re-match upload to update or add units.");
-
-        var numbered = _units.FirstOrDefault(u => u.UnitNumber is not null);
-        if (numbered is not null)
-            throw new InvalidProjectStateException(
-                $"Cannot {operation} after approval — unit '{numbered.UnitNumber}' has been " +
-                "issued. Changing an approved unit list needs a new appraisal.");
-    }
-
     public void RemoveUnitUpload(Guid uploadId)
     {
-        EnsureUnitsMayBeDiscarded("delete a unit upload");
-
         var upload = _unitUploads.FirstOrDefault(u => u.Id == uploadId)
                      ?? throw new InvalidProjectStateException($"Unit upload {uploadId} not found");
 
@@ -468,8 +382,6 @@ public class Project : Aggregate<Guid>
     /// </summary>
     public ProjectUnitUpload ReplaceUnits(string fileName, Guid? documentId, List<ProjectUnit> units)
     {
-        EnsureUnitsMayBeDiscarded("replace the unit list");
-
         var upload = ProjectUnitUpload.Create(Id, fileName, documentId);
         _unitUploads.Add(upload);
 
@@ -507,10 +419,7 @@ public class Project : Aggregate<Guid>
     /// revised Excel still appears in the Unit Listing "Upload History". Marks this upload as the
     /// current "Used" one and the previous uploads as unused, mirroring <see cref="ReplaceUnits"/>.
     /// </summary>
-    public ProjectUnitUpload RecordReappraisalUpload(
-        string fileName,
-        Guid? documentId,
-        List<ProjectUnit>? addedUnits = null)
+    public ProjectUnitUpload RecordReappraisalUpload(string fileName, Guid? documentId)
     {
         var upload = ProjectUnitUpload.Create(Id, fileName, documentId);
         _unitUploads.Add(upload);
@@ -518,33 +427,6 @@ public class Project : Aggregate<Guid>
         foreach (var existing in _unitUploads.Where(u => u.IsUsed && u.Id != upload.Id))
             existing.MarkAsUnused();
         upload.MarkAsUsed();
-
-        if (addedUnits is { Count: > 0 })
-        {
-            // Numbers are issued once, on approval, and nothing issues them afterwards. A unit
-            // appended now would carry a null number for the rest of its life and travel that way
-            // into the collateral master and the regulatory export. Adding inventory to an
-            // already-approved valuation is a new appraisal's job, not an edit.
-            var numbered = _units.FirstOrDefault(u => u.UnitNumber is not null);
-            if (numbered is not null)
-                throw new InvalidProjectStateException(
-                    $"Cannot add units after approval — unit '{numbered.UnitNumber}' has been " +
-                    "issued. New inventory needs a new appraisal.");
-
-            // New inventory is APPENDED. Sequence numbers continue from the highest in use rather
-            // than being re-derived across the whole list, so the units already on screen — and
-            // already numbered — keep the positions the appraiser has been working with.
-            var nextSequence = _units.Count == 0 ? 1 : _units.Max(u => u.SequenceNumber) + 1;
-
-            foreach (var unit in addedUnits)
-            {
-                unit.SetUploadBatchId(upload.Id);
-                unit.SetSequenceNumber(nextSequence++);
-                _units.Add(unit);
-            }
-
-            LinkAppendedUnits(addedUnits);
-        }
 
         return upload;
     }
@@ -953,61 +835,6 @@ public class Project : Aggregate<Guid>
                     throw new InvalidProjectStateException(
                         $"A model named '{modelName}' already exists in this project.");
             }
-        }
-    }
-
-    /// <summary>
-    /// Wires newly appended units to a tower and model, creating either only when the unit names
-    /// one that does not exist yet.
-    ///
-    /// Deliberately NOT AutoCreate*/Link*, which the import paths use. Those walk every unit and
-    /// every model and finish by calling <c>ProjectModel.StampStats</c>, which overwrites the price
-    /// and area figures on every model in the project — figures an appraiser may have entered by
-    /// hand through UpdateProjectModel, and which the Condo call would additionally null out for
-    /// land area because it passes only four of the seven arguments. Appending one unit during a
-    /// re-match must not rewrite the rest of the project.
-    ///
-    /// The model statistics are left as they stand. They describe the models, not the unit list,
-    /// and the re-match flow is explicitly non-destructive.
-    /// </summary>
-    private void LinkAppendedUnits(List<ProjectUnit> appendedUnits)
-    {
-        foreach (var unit in appendedUnits)
-        {
-            Guid? towerIdForUnit = null;
-
-            if (ProjectType == ProjectType.Condo && !string.IsNullOrWhiteSpace(unit.TowerName))
-            {
-                var tower = _towers.FirstOrDefault(t =>
-                    string.Equals(t.TowerName, unit.TowerName, StringComparison.OrdinalIgnoreCase));
-
-                if (tower is null)
-                {
-                    tower = ProjectTower.Create(Id, unit.TowerName!);
-                    _towers.Add(tower);
-                }
-
-                unit.SetProjectTowerId(tower.Id);
-                towerIdForUnit = tower.Id;
-            }
-
-            if (string.IsNullOrWhiteSpace(unit.ModelType))
-                continue;
-
-            // Condo models are per-tower; LandAndBuilding models are per-project (tower id null).
-            var model = _models.FirstOrDefault(m =>
-                m.ProjectTowerId == towerIdForUnit &&
-                string.Equals(m.ModelName, unit.ModelType, StringComparison.OrdinalIgnoreCase));
-
-            if (model is null)
-            {
-                model = ProjectModel.Create(Id, unit.ModelType!);
-                if (towerIdForUnit is not null)
-                    model.SetProjectTowerId(towerIdForUnit.Value);
-                _models.Add(model);
-            }
-
-            unit.SetProjectModelId(model.Id);
         }
     }
 

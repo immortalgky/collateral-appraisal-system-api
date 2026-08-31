@@ -3,26 +3,18 @@ using Appraisal.Application.Features.Project.UploadProjectUnits;
 namespace Appraisal.Application.Features.Project.UploadBlockReappraisalUnits;
 
 /// <summary>
-/// Re-matches an updated units Excel against the units of a block reappraisal project.
+/// Re-matches an updated units Excel against the seeded units of a block reappraisal project.
 ///
 /// Match rules (normalized = trim + lowercase):
 ///   Condo:           CondoRegistrationNumber when non-empty, else (TowerName + "|" + RoomNumber)
 ///   LandAndBuilding: PlotNumber when non-empty, else HouseNumber
 ///
 /// Actions:
-///   key IS in incoming set                         → confirmed still unsold (already-sold units stay sold)
-///   key IS in incoming set, attributes differ      → attributes refreshed, but only with ConfirmUpdates
-///   key NOT in incoming set AND unit is NOT sold   → MarkSoldByReappraisal()
-///   key NOT in incoming set AND unit IS sold       → leave as-is
-///   incoming row with NO existing match            → appended, but only with ConfirmUpdates
-///   blank key                                      → skipped, never auto-sold
-///
-/// Why ConfirmUpdates gates the last two. Once a project has been through its first approval the
-/// unit list can no longer be replaced wholesale, so this endpoint is the only way to change it —
-/// which means a stale or wrong workbook could silently rewrite prices or add rooms that do not
-/// exist. Attribute differences have always been refused here; the flag turns that refusal into a
-/// decision the caller makes after reading the preview, and extends the same protection to
-/// additions. Sold/unsold reconciliation is the endpoint's stated purpose and stays unconditional.
+///   key IS in incoming set AND attributes match   → leave IsSold unchanged (already-sold units stay sold)
+///   key IS in incoming set BUT attributes differ  → REJECT with BadRequestException (MatchDifference)
+///   key NOT in incoming set AND unit is NOT sold  → MarkSoldByReappraisal()
+///   key NOT in incoming set AND unit IS sold      → leave as-is (already sold stays sold)
+///   incoming row with NO existing match            → counted in Added, NOT persisted in v1
 /// </summary>
 public class UploadBlockReappraisalUnitsCommandHandler(
     IProjectRepository projectRepository,
@@ -30,8 +22,6 @@ public class UploadBlockReappraisalUnitsCommandHandler(
     ILogger<UploadBlockReappraisalUnitsCommandHandler> logger)
     : ICommandHandler<UploadBlockReappraisalUnitsCommand, UploadBlockReappraisalUnitsResult>
 {
-    // Well below the 99,999 unit numbers a Buddhist year holds (ProjectUnitNumberGenerator), so a
-    // file at this limit cannot exhaust the year's numbering on its own.
     private const int MaxUnits = 10_000;
 
     public async Task<UploadBlockReappraisalUnitsResult> Handle(
@@ -58,15 +48,16 @@ public class UploadBlockReappraisalUnitsCommandHandler(
             .GroupBy(x => x.Key, x => x.Unit, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
-        // Build a key map from the existing project units (blank keys excluded).
+        // Build a key map from the existing project units (blank keys excluded) for Added counting.
         var existingByKey = project.Units
             .Select(u => (Unit: u, Key: BlockReappraisalMatcher.BuildKey(u, project.ProjectType)))
             .Where(x => !BlockReappraisalMatcher.IsBlankKey(x.Key))
             .GroupBy(x => x.Key, x => x.Unit, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
 
-        // Existing not-sold units whose attributes disagree with the Excel.
-        var differing = new List<(ProjectUnit Existing, ProjectUnit Incoming)>();
+        // Guard: reject if any NOT-sold unit is present in the Excel but has attribute differences.
+        // Apply must only flip sold/unsold status — never silently adopt attributes from the Excel.
+        int matchDifferenceCount = 0;
         foreach (var existingUnit in project.Units)
         {
             if (existingUnit.IsSold)
@@ -76,26 +67,18 @@ public class UploadBlockReappraisalUnitsCommandHandler(
             if (BlockReappraisalMatcher.IsBlankKey(key))
                 continue;
 
-            if (incomingByKey.TryGetValue(key, out var incomingMatch)
-                && BlockReappraisalMatcher.AttributesDiffer(
-                    existingUnit, incomingMatch, project.ProjectType, out _))
+            if (incomingByKey.TryGetValue(key, out var incomingMatch))
             {
-                differing.Add((existingUnit, incomingMatch));
+                if (BlockReappraisalMatcher.AttributesDiffer(
+                        existingUnit, incomingMatch, project.ProjectType, out _))
+                    matchDifferenceCount++;
             }
         }
 
-        // Incoming rows that match nothing in the project — new inventory.
-        var newUnits = incomingUnits
-            .Select(u => (Unit: u, Key: BlockReappraisalMatcher.BuildKey(u, project.ProjectType)))
-            .Where(x => !BlockReappraisalMatcher.IsBlankKey(x.Key) && !existingByKey.ContainsKey(x.Key))
-            .GroupBy(x => x.Key, x => x.Unit, StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.First())
-            .ToList();
-
-        if (!command.ConfirmUpdates && (differing.Count > 0 || newUnits.Count > 0))
+        if (matchDifferenceCount > 0)
             throw new BadRequestException(
-                $"This file would change {differing.Count} existing unit(s) and add {newUnits.Count} " +
-                "new one(s). Review them with the preview endpoint, then re-send with confirmUpdates=true.");
+                $"Resolve {matchDifferenceCount} mismatched unit(s) before applying — " +
+                "fix the Excel and re-upload, or use the preview endpoint to see which units differ.");
 
         int matchedCount = 0;
         int autoSold = 0;
@@ -136,34 +119,35 @@ public class UploadBlockReappraisalUnitsCommandHandler(
             }
         }
 
-        // Attribute refresh. Only the fields BlockReappraisalMatcher compares are written — identity
-        // fields are the matching key and must never move.
-        //
-        // SellingPrice / UsableArea / LandArea feed Project.CalculateUnitPrices, so any already
-        // calculated ProjectUnitPrice for these units is now out of date. The prices are left alone
-        // rather than recalculated: an appraiser may have adjusted them by hand, and overwriting
-        // that silently is worse than showing a stale figure. The Updated count is returned so the
-        // caller can prompt for a recalculation.
-        foreach (var (existing, incoming) in differing)
+        // Count incoming rows that have no existing match (new units in the Excel not yet seeded).
+        // v1: these are NOT persisted — callers must use UploadProjectUnits to add new inventory first.
+        int added = 0;
+        foreach (var incomingUnit in incomingUnits)
         {
-            existing.UpdateAttributesFrom(incoming, project.ProjectType);
-            logger.LogInformation(
-                "Block reappraisal re-match: refreshed attributes of unit {UnitId} from the Excel.",
-                existing.Id);
+            var key = BlockReappraisalMatcher.BuildKey(incomingUnit, project.ProjectType);
+            if (BlockReappraisalMatcher.IsBlankKey(key))
+                continue;
+            if (!existingByKey.ContainsKey(key))
+            {
+                added++;
+                logger.LogInformation(
+                    "Block reappraisal re-match: incoming unit with key={Key} has no existing match. " +
+                    "Not persisted in v1 — use UploadProjectUnits to add new inventory.",
+                    key);
+            }
         }
 
-        // Record the revised Excel in Upload History, appending any new inventory to the same batch.
-        project.RecordReappraisalUpload(command.FileName, command.DocumentId, newUnits);
+        // Record the revised Excel in Upload History.
+        project.RecordReappraisalUpload(command.FileName, command.DocumentId);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
             "Block reappraisal re-match complete for appraisal {AppraisalId}: " +
-            "Matched={Matched}, AutoSold={AutoSold}, Added={Added}, Updated={Updated}, " +
+            "Matched={Matched}, AutoSold={AutoSold}, Added(not persisted)={Added}, " +
             "Skipped(no key)={Skipped}.",
-            command.AppraisalId, matchedCount, autoSold, newUnits.Count, differing.Count, skipped);
+            command.AppraisalId, matchedCount, autoSold, added, skipped);
 
-        return new UploadBlockReappraisalUnitsResult(
-            matchedCount, autoSold, newUnits.Count, differing.Count);
+        return new UploadBlockReappraisalUnitsResult(matchedCount, autoSold, added);
     }
 }

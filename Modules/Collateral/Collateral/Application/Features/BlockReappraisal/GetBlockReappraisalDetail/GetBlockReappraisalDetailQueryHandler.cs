@@ -51,7 +51,6 @@ public class GetBlockReappraisalDetailQueryHandler(
         const string unitsSql = """
             SELECT
                 pu.SequenceNumber,
-                pu.UnitNumber,
                 pu.IsSold,
                 pu.ModelType,
                 pu.UsableArea,

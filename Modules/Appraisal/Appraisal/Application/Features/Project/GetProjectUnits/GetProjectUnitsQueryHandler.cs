@@ -27,7 +27,7 @@ public class GetProjectUnitsQueryHandler(
             .Where(u => u.ProjectId == projectId.Value && !u.IsSold)
             .OrderBy(u => u.SequenceNumber)
             .Select(u => new ProjectUnitDto(
-                u.Id, u.ProjectId, u.UploadBatchId, u.SequenceNumber, u.UnitNumber,
+                u.Id, u.ProjectId, u.UploadBatchId, u.SequenceNumber,
                 u.ModelType, u.UsableArea, u.SellingPrice,
                 u.Floor, u.TowerName, u.CondoRegistrationNumber, u.RoomNumber,
                 u.PlotNumber, u.HouseNumber, u.NumberOfFloors, u.LandArea))
