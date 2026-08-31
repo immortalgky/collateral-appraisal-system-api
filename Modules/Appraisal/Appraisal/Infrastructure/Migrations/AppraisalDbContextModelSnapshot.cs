@@ -5385,6 +5385,9 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<int?>("UnitForSaleCount")
                         .HasColumnType("int");
 
+                    b.Property<bool>("UnitsSeededFromPrior")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -6376,6 +6379,10 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("UnitNumber")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -6400,6 +6407,11 @@ namespace Appraisal.Infrastructure.Migrations
                     b.HasIndex("ProjectModelId");
 
                     b.HasIndex("ProjectTowerId");
+
+                    b.HasIndex("UnitNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProjectUnits_UnitNumber")
+                        .HasFilter("[UnitNumber] IS NOT NULL");
 
                     b.HasIndex("UploadBatchId");
 

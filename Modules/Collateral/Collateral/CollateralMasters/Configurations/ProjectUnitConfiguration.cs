@@ -24,6 +24,14 @@ public class ProjectUnitConfiguration : IEntityTypeConfiguration<ProjectUnit>
         builder.HasIndex(e => new { e.CollateralMasterId, e.SequenceNumber })
             .HasDatabaseName("IX_ProjectUnits_Master_Sequence");
 
+        // Unit number stamped by the appraisal that surveyed this unit. NOT unique here: a block
+        // reappraisal mints a fresh set, and the master keeps only the latest round, but nothing
+        // stops two masters from having held the same string historically. Indexed for lookup.
+        builder.Property(e => e.UnitNumber).HasMaxLength(10);
+        builder.HasIndex(e => e.UnitNumber)
+            .HasDatabaseName("IX_ProjectUnits_UnitNumber")
+            .HasFilter("[UnitNumber] IS NOT NULL");
+
         // Common fields
         builder.Property(e => e.ModelType).HasMaxLength(200);
         builder.Property(e => e.UsableArea).HasPrecision(10, 2);

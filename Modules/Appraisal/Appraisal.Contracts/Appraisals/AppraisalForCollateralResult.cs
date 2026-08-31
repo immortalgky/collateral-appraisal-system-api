@@ -96,6 +96,9 @@ public record ProjectForCollateral(
 /// <summary>Per-unit snapshot transferred to the Collateral module for master row population.</summary>
 public record ProjectUnitForCollateral(
     int SequenceNumber,
+    // The unit number the appraisal issued at approval ({YY}U{00000}), or null for a unit whose
+    // appraisal predates the numbering.
+    string? UnitNumber,
     bool IsSold,
     string? ModelType,
     decimal? UsableArea,

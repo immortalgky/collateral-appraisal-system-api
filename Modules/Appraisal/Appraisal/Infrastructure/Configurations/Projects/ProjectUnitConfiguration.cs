@@ -23,6 +23,15 @@ public class ProjectUnitConfiguration : IEntityTypeConfiguration<ProjectUnit>
 
         // Core Properties
         builder.Property(e => e.SequenceNumber).IsRequired();
+
+        // Unit number — minted on approval, never before. Format {YY}U{running:D5} (8 chars),
+        // e.g. "69U00042". Null while the appraisal is still being worked on, which is what makes
+        // the "may this unit set still be replaced?" guard in Project work.
+        builder.Property(e => e.UnitNumber).HasMaxLength(10);
+        builder.HasIndex(e => e.UnitNumber)
+            .IsUnique()
+            .HasFilter("[UnitNumber] IS NOT NULL")
+            .HasDatabaseName("UX_ProjectUnits_UnitNumber");
         builder.Property(e => e.ModelType).HasMaxLength(200);
         builder.Property(e => e.UsableArea).HasPrecision(10, 2);
         builder.Property(e => e.SellingPrice).HasPrecision(18, 2);

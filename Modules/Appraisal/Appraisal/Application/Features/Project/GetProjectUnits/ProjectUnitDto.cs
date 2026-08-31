@@ -10,6 +10,7 @@ public record ProjectUnitDto(
     Guid ProjectId,
     Guid UploadBatchId,
     int SequenceNumber,
+    string? UnitNumber,
     // Common
     string? ModelType,
     decimal? UsableArea,

@@ -50,6 +50,7 @@ public class PreviewBlockReappraisalUnitsCommandHandler(
         {
             string status;
             List<string> diffFields = [];
+            Dictionary<string, object?> incomingValues = [];
 
             if (unit.IsSold)
             {
@@ -77,6 +78,7 @@ public class PreviewBlockReappraisalUnitsCommandHandler(
                     {
                         status = "MatchDifference";
                         matchDifference++;
+                        incomingValues = ReadIncomingValues(incomingMatch, diffFields);
                     }
                     else
                     {
@@ -95,6 +97,7 @@ public class PreviewBlockReappraisalUnitsCommandHandler(
             unitDtos.Add(new PreviewUnitDto(
                 Id: unit.Id,
                 SequenceNumber: unit.SequenceNumber,
+                UnitNumber: unit.UnitNumber,
                 ModelType: unit.ModelType,
                 UsableArea: unit.UsableArea,
                 SellingPrice: unit.SellingPrice,
@@ -108,22 +111,80 @@ public class PreviewBlockReappraisalUnitsCommandHandler(
                 LandArea: unit.LandArea,
                 IsSold: unit.IsSold,
                 Status: status,
-                DiffFields: diffFields.AsReadOnly()));
+                DiffFields: diffFields.AsReadOnly(),
+                IncomingValues: incomingValues));
         }
+
+        // Excel rows that match nothing in the project — what applying the file would ADD.
+        // The loop above walks project.Units only, so without this pass a new room is invisible in
+        // the preview and then appears out of nowhere on apply.
+        var existingKeys = project.Units
+            .Select(u => BlockReappraisalMatcher.BuildKey(u, project.ProjectType))
+            .Where(k => !BlockReappraisalMatcher.IsBlankKey(k))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var addedDtos = incomingUnits
+            .Select(u => (Unit: u, Key: BlockReappraisalMatcher.BuildKey(u, project.ProjectType)))
+            .Where(x => !BlockReappraisalMatcher.IsBlankKey(x.Key) && !existingKeys.Contains(x.Key))
+            .GroupBy(x => x.Key, x => x.Unit, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .Select(u => new PreviewAddedUnitDto(
+                ModelType: u.ModelType,
+                UsableArea: u.UsableArea,
+                SellingPrice: u.SellingPrice,
+                Floor: u.Floor,
+                TowerName: u.TowerName,
+                CondoRegistrationNumber: u.CondoRegistrationNumber,
+                RoomNumber: u.RoomNumber,
+                PlotNumber: u.PlotNumber,
+                HouseNumber: u.HouseNumber,
+                NumberOfFloors: u.NumberOfFloors,
+                LandArea: u.LandArea))
+            .ToList();
 
         var summary = new PreviewSummaryDto(
             Total: unitDtos.Count,
             Sold: sold,
             NewlySold: newlySold,
             Available: available,
-            MatchDifference: matchDifference);
+            MatchDifference: matchDifference,
+            Added: addedDtos.Count);
 
         logger.LogInformation(
             "Block reappraisal preview for appraisal {AppraisalId}: " +
-            "Total={Total}, Sold={Sold}, NewlySold={NewlySold}, Available={Available}, MatchDifference={MatchDifference}.",
+            "Total={Total}, Sold={Sold}, NewlySold={NewlySold}, Available={Available}, " +
+            "MatchDifference={MatchDifference}, Added={Added}.",
             command.AppraisalId, summary.Total, summary.Sold, summary.NewlySold,
-            summary.Available, summary.MatchDifference);
+            summary.Available, summary.MatchDifference, summary.Added);
 
-        return new PreviewBlockReappraisalUnitsResult(summary, unitDtos.AsReadOnly());
+        return new PreviewBlockReappraisalUnitsResult(
+            summary, unitDtos.AsReadOnly(), addedDtos.AsReadOnly());
+    }
+
+    /// <summary>
+    /// Picks out the Excel's value for each field the matcher flagged as different, so the caller
+    /// can render old against new. Keyed by the same camelCase names the matcher returns.
+    /// </summary>
+    private static Dictionary<string, object?> ReadIncomingValues(
+        ProjectUnit incoming,
+        IReadOnlyList<string> diffFields)
+    {
+        var values = new Dictionary<string, object?>(diffFields.Count);
+
+        foreach (var field in diffFields)
+        {
+            values[field] = field switch
+            {
+                "modelType" => incoming.ModelType,
+                "sellingPrice" => incoming.SellingPrice,
+                "usableArea" => incoming.UsableArea,
+                "floor" => incoming.Floor,
+                "numberOfFloors" => incoming.NumberOfFloors,
+                "landArea" => incoming.LandArea,
+                _ => null
+            };
+        }
+
+        return values;
     }
 }

@@ -307,6 +307,7 @@ public class GetAppraisalForCollateralQueryHandler(
                 unitPriceLookup.TryGetValue(u.Id, out var appraisedValue);
                 return new ProjectUnitForCollateral(
                     SequenceNumber: u.SequenceNumber,
+                    UnitNumber: u.UnitNumber,
                     IsSold: u.IsSold,
                     ModelType: u.ModelType,
                     UsableArea: u.UsableArea,
