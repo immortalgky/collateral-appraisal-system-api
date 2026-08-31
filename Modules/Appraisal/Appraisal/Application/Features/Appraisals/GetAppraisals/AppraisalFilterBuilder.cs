@@ -19,11 +19,6 @@ internal static class AppraisalFilterBuilder
         "AssignmentType", "CompanyName", "RequestedAt", "Purpose"
     };
 
-    /// <param name="excludeStatus">
-    /// Leaves the Status predicate out. Used by the status facet: counting the statuses through a
-    /// WHERE that already pins one status returns a single chip, so the user cannot switch away
-    /// from it. Every other filter still narrows the counts.
-    /// </param>
     /// <param name="addressMatch">
     /// Which address levels <c>filter.Search</c> names, from <see cref="IAddressNameSearch"/>.
     /// Left at its default the six address arms are dropped, which is what every caller that does
@@ -32,7 +27,6 @@ internal static class AppraisalFilterBuilder
     public static AppraisalFilterSql BuildFilter(
         GetAppraisalsFilterRequest? filter,
         Guid? enforcedCompanyId = null,
-        bool excludeStatus = false,
         AddressNameMatch addressMatch = default)
     {
         var conditions = new List<string>();
@@ -90,8 +84,7 @@ internal static class AppraisalFilterBuilder
             }
 
             // Multi-value filters (comma-separated -> IN clause)
-            if (!excludeStatus)
-                AddMultiValueFilter(conditions, parameters, filter.Status, "Status", "@Statuses");
+            AddMultiValueFilter(conditions, parameters, filter.Status, "Status", "@Statuses");
             AddMultiValueFilter(conditions, parameters, filter.Priority, "Priority", "@Priorities");
             AddMultiValueFilter(conditions, parameters, filter.AppraisalType, "AppraisalType", "@AppraisalTypes");
             AddMultiValueFilter(conditions, parameters, filter.SlaStatus, "SLAStatus", "@SlaStatuses");
@@ -320,7 +313,7 @@ internal static class AppraisalFilterBuilder
 /// <param name="RequiresView">
 /// <c>true</c> when at least one predicate reads a column that only the view has. While this is
 /// <c>false</c> the same clause can be pointed at <c>appraisal.Appraisals</c> instead — see
-/// <see cref="BaseTableWhereClause"/> — which is dramatically cheaper for counting and faceting.
+/// <see cref="BaseTableWhereClause"/> — which is dramatically cheaper for counting.
 /// </param>
 internal sealed record AppraisalFilterSql(
     string WhereClause,
@@ -332,7 +325,7 @@ internal sealed record AppraisalFilterSql(
     /// <c>LIKE @SearchPattern</c> arms, and from an unknown parameter the optimizer cannot tell the
     /// pattern is a prefix — so it plans for a possible leading wildcard and scans. Compiled per
     /// execution it sees the real value and seeks. Measured on 105k appraisals: count 219 -> 103 ms,
-    /// paged 226 -> 149 ms, facet 228 -> 109 ms.
+    /// paged 226 -> 149 ms.
     ///
     /// Deliberately not a positional record parameter: the generated Deconstruct is 3-arity and
     /// ExportAppraisalsQueryHandler destructures it.

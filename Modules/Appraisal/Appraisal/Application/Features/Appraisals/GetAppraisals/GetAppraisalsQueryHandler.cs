@@ -11,7 +11,7 @@ using Shared.Time;
 namespace Appraisal.Application.Features.Appraisals.GetAppraisals;
 
 /// <summary>
-/// Handler for getting all Appraisals with pagination, filtering, sorting, and facets.
+/// Handler for getting all Appraisals with pagination, filtering and sorting.
 /// Uses SQL view + Dapper for efficient read queries.
 ///
 /// The view is expensive per row (it resolves the latest assignment, the first land location, the
@@ -19,7 +19,6 @@ namespace Appraisal.Application.Features.Appraisals.GetAppraisals;
 /// touch as few rows of it as possible:
 ///   • the page is resolved as a list of Ids first, then only those Ids are enriched;
 ///   • the total count runs off appraisal.Appraisals whenever the filter allows it;
-///   • the status facet is a GROUP BY in SQL, not every matching row pulled into memory.
 /// </summary>
 public class GetAppraisalsQueryHandler(
     ISqlConnectionFactory connectionFactory,
@@ -54,8 +53,8 @@ public class GetAppraisalsQueryHandler(
     {
         var filter = query.Filter;
         var enforcedCompanyId = AppraisalAccessScope.GetEnforcedCompanyId(currentUser);
-        // Resolved once and reused by the page, the count and the facets, so a search that does
-        // name an address does not probe the masters three times over.
+        // Resolved once and reused by both the page and the count, so a search that does name an
+        // address does not probe the masters twice.
         var addressMatch = await addressNameSearch.MatchAsync(filter?.Search, cancellationToken);
         var sqlFilter = AppraisalFilterBuilder.BuildFilter(filter, enforcedCompanyId, addressMatch: addressMatch);
         var orderBy = AppraisalFilterBuilder.BuildOrderBy(filter);
@@ -110,9 +109,27 @@ public class GetAppraisalsQueryHandler(
 
         var pagedResult = new PaginatedResult<AppraisalDto>(items, idPage.Count, idPage.PageNumber, idPage.PageSize);
 
-        var facets = await BuildStatusFacetsAsync(filter, enforcedCompanyId, addressMatch, cancellationToken);
-
-        return new GetAppraisalsResult(pagedResult, facets);
+// Facets are no longer computed. Nothing renders them once app#357 lands, and the count
+        // was never free: it GROUP BYs the whole matching set, so unlike the page — which resolves
+        // 25 ids and enriches only those — it cannot stop early.
+        //
+        // Measured end to end against origin/main on the same database, ten interleaved runs each,
+        // median wall clock for GET /appraisals:
+        //
+        //   open the list         71ms -> 59ms     filter by province   223ms -> 136ms
+        //   filter by status     195ms -> 177ms    search by customer   780ms -> 519ms
+        //                                          company + province  1022ms -> 548ms
+        //
+        // Note this is the whole request, not one statement. On the view path the facet's own CPU
+        // is roughly the same as the count's and the page's, so it is about a third of the DB work
+        // rather than an outlier — the earlier version of this comment quoted a view-path facet
+        // against base-path page queries, which flattered it.
+        //
+        // ⚠ The property stays on the contract, always null. Frontend main still reads it and
+        //   renders the chip row behind a `facets && facets.status.length > 0` guard, so deploying
+        //   this first degrades quietly (the chips disappear; the status dropdown still filters)
+        //   rather than breaking. Land app#357 first to avoid even that.
+        return new GetAppraisalsResult(pagedResult);
     }
 
     /// <summary>
@@ -126,64 +143,4 @@ public class GetAppraisalsQueryHandler(
             ? null
             : $"SELECT COUNT(*) FROM {BaseTable}{sqlFilter.BaseTableWhereClause}";
 
-    /// <summary>
-    /// Counts appraisals per status for the filter chips above the results table.
-    ///
-    /// Two deliberate differences from the original implementation:
-    ///   • the grouping happens in SQL. It used to select every matching row (all ~100k of them on
-    ///     an unfiltered list) and group them in memory, once per page load.
-    ///   • the Status predicate is excluded from the WHERE. Counting statuses through a clause that
-    ///     already pins one status can only ever return that one chip, which left the user unable to
-    ///     switch status from the chip row. Every other active filter still narrows the counts.
-    ///
-    /// Only Status is populated. The other four groups are part of the response contract but no
-    /// client reads them, and AssignmentType in particular costs more than the rest of the request
-    /// put together because it has to resolve the latest assignment for every matching appraisal.
-    /// </summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S2077:Formatting SQL queries is security-sensitive",
-        Justification =
-            "source is one of two private consts and where is assembled by AppraisalFilterBuilder " +
-            "from string literals with every value bound as a @parameter — no user input reaches " +
-            "the command text.")]
-    private async Task<AppraisalFacets> BuildStatusFacetsAsync(
-        GetAppraisalsFilterRequest? filter,
-        Guid? enforcedCompanyId,
-        AddressNameMatch addressMatch,
-        CancellationToken cancellationToken)
-    {
-        var facetFilter = AppraisalFilterBuilder.BuildFilter(
-            filter, enforcedCompanyId, excludeStatus: true, addressMatch);
-        var source = facetFilter.RequiresView ? View : BaseTable;
-        var where = facetFilter.RequiresView ? facetFilter.WhereClause : facetFilter.BaseTableWhereClause;
-
-        // ORDER BY count first to match the previous ordering, then by value so that chips do not
-        // reshuffle between requests when counts tie.
-        var sql = $"""
-            SELECT Status AS Value, COUNT(*) AS [Count]
-            FROM {source}{where}
-            GROUP BY Status
-            ORDER BY COUNT(*) DESC, Status ASC
-            """ + (facetFilter.HasFreeTextSearch ? "\nOPTION (RECOMPILE)" : "");
-
-        // On the external-company path this always reads the view, so it is worth abandoning when
-        // the caller navigates away.
-        var connection = connectionFactory.GetOpenConnection();
-        var rows = await connection.QueryAsync<FacetRow>(new CommandDefinition(
-            sql, facetFilter.Parameters, cancellationToken: cancellationToken));
-
-        return new AppraisalFacets
-        {
-            Status = rows.Select(r => new FacetItem(r.Value, r.Count)).ToList()
-        };
-    }
-
-    /// <summary>
-    /// A mutable class rather than a positional record, so Dapper binds these by NAME.
-    /// <see cref="FacetItem"/> is positional and would bind by position instead.
-    /// </summary>
-    private sealed class FacetRow
-    {
-        public string Value { get; set; } = "";
-        public int Count { get; set; } = 0;
-    }
 }

@@ -97,19 +97,20 @@ public record AppraisalDto
 }
 
 /// <summary>
-/// Aggregated facet counts for filter UI.
+/// <b>No longer produced.</b> <c>GetAppraisalsResult.Facets</c> is always <c>null</c>; this record
+/// is kept only so the response shape does not change for a client still reading the property.
 ///
-/// <b>Only <see cref="Status"/> is populated.</b> The other four are kept so the response shape does
-/// not change, but they are always empty — an empty list here means "not computed", not "no matching
-/// rows". Counting them is not free: AssignmentType alone has to resolve the latest assignment for
-/// every matching appraisal, which costs more than the rest of the request combined, and no client
-/// reads any of the four. If one is ever needed, add it as an opt-in dimension
-/// (<c>?groupBy=</c>, the way <c>/tasks/me/group-counts</c> does it) rather than computing all five
-/// on every list request.
+/// Status counts used to be computed here. They were dropped because the chip row that displayed
+/// them was removed from the client, and the count is expensive in a way the page is not: it
+/// GROUP BYs the whole matching set, so it cannot stop at one page. See the remarks in
+/// GetAppraisalsQueryHandler for the measurements.
+///
+/// If a facet is ever needed again, add it as an opt-in dimension (<c>?groupBy=</c>, the way
+/// <c>/tasks/me/group-counts</c> does it) rather than computing one on every list request.
 /// </summary>
 public record AppraisalFacets
 {
-    /// <summary>Counts per status, computed with the status filter itself excluded so the chips stay switchable.</summary>
+    /// <summary>Always empty — see the remarks on <see cref="AppraisalFacets"/>.</summary>
     public List<FacetItem> Status { get; init; } = [];
 
     /// <summary>Always empty — see the remarks on <see cref="AppraisalFacets"/>.</summary>
