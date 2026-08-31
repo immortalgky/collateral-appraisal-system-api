@@ -8,5 +8,6 @@ public enum RunningNumberType
     QUOTATION = 4,
     MEETING = 5,
     INVOICE = 6,
-    SUPPORTING_MAINTENANCE = 7
+    SUPPORTING_MAINTENANCE = 7,
+    PROJECT_UNIT = 8
 }

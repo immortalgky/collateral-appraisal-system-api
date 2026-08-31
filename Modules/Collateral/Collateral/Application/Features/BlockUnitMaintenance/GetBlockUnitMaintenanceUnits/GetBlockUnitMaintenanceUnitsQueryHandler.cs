@@ -36,6 +36,7 @@ public class GetBlockUnitMaintenanceUnitsQueryHandler(
 
             SELECT pu.Id,
                    pu.SequenceNumber,
+                   pu.UnitNumber,
                    pu.ModelType,
                    pu.UsableArea,
                    pu.SellingPrice,

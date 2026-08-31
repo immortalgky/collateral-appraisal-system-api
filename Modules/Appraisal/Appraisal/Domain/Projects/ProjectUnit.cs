@@ -20,6 +20,20 @@ public class ProjectUnit : Entity<Guid>
 
     public int SequenceNumber { get; private set; }
 
+    /// <summary>
+    /// The unit's own number, format <c>{YY}U{running:D5}</c> (8 chars) — e.g. <c>69U00042</c>.
+    ///
+    /// Null until the appraisal is APPROVED. Before that the unit set is still churning (the user
+    /// can re-upload a corrected Excel as often as they like), so numbering earlier would burn
+    /// numbers on drafts that never happen. Minted by the AppraisalCompleted handler and immutable
+    /// afterwards.
+    ///
+    /// A block reappraisal produces a brand-new set of numbers rather than carrying the old ones,
+    /// mirroring how an appraisal number itself works: continuity between rounds lives in
+    /// Appraisal.PrevAppraisalId, not in the number.
+    /// </summary>
+    public string? UnitNumber { get; private set; }
+
     // ----- Common Fields -----
     public string? ModelType { get; private set; }
     public decimal? UsableArea { get; private set; }
@@ -173,6 +187,56 @@ public class ProjectUnit : Entity<Guid>
         IsSold = true;
         PurchaseBy = null;
         LoanBankName = null;
+    }
+
+    /// <summary>
+    /// Copies the non-identity attributes of an incoming Excel row onto this unit, for the block
+    /// reappraisal re-match flow.
+    ///
+    /// Deliberately narrow: only the fields <c>BlockReappraisalMatcher.AttributesDiffer</c>
+    /// compares are written. Identity fields (CondoRegistrationNumber, TowerName, RoomNumber,
+    /// PlotNumber, HouseNumber) are the matching key and are never touched — overwriting them
+    /// would re-point the row at a different physical unit. Sale state is owned by the re-match
+    /// rules, not by the spreadsheet.
+    /// </summary>
+    internal void UpdateAttributesFrom(ProjectUnit incoming, ProjectType projectType)
+    {
+        ModelType = incoming.ModelType;
+        UsableArea = incoming.UsableArea;
+        SellingPrice = incoming.SellingPrice;
+
+        if (projectType == ProjectType.Condo)
+        {
+            Floor = incoming.Floor;
+        }
+        else
+        {
+            NumberOfFloors = incoming.NumberOfFloors;
+            LandArea = incoming.LandArea;
+        }
+    }
+
+    /// <summary>
+    /// Stamps the unit number. Called once, on approval, and only for units that do not have one.
+    /// </summary>
+    internal void AssignUnitNumber(string unitNumber)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(unitNumber);
+
+        if (UnitNumber is not null)
+            throw new InvalidProjectStateException(
+                $"Unit {Id} already carries unit number '{UnitNumber}'.");
+
+        UnitNumber = unitNumber;
+    }
+
+    /// <summary>
+    /// Sets the display position. Used when appending new inventory to an existing project, where
+    /// the number continues from the highest already in use rather than being re-derived.
+    /// </summary>
+    internal void SetSequenceNumber(int sequenceNumber)
+    {
+        SequenceNumber = sequenceNumber;
     }
 
     internal void SetUploadBatchId(Guid uploadBatchId)

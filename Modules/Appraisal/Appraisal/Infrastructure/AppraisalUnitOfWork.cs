@@ -94,8 +94,7 @@ public class AppraisalUnitOfWork : IAppraisalUnitOfWork
         foreach (var appraisal in newAppraisals)
         {
             var next = await GetNextRunningNumberAsync(RunningNumberType.APPRAISAL, thaiYear, cancellationToken);
-            var thaiYearShort = thaiYear % 100; // e.g. 69
-            appraisal.SetAppraisalNumber($"{thaiYearShort}{next:D6}");
+            appraisal.SetAppraisalNumber(FormatYearPrefixedNumber(thaiYear, next));
         }
 
         // MarketComparables: format MKC-{000001}-{YYYY} e.g. "MKC-000001-2569"
@@ -138,6 +137,28 @@ public class AppraisalUnitOfWork : IAppraisalUnitOfWork
             var next = await GetNextRunningNumberAsync(RunningNumberType.SUPPORTING_MAINTENANCE, thaiYear, cancellationToken);
             supporting.SetSupportingNumber(SupportingNumber.Create($"SUP-{next:D6}-{thaiYear}"));
         }
+    }
+
+    /// <summary>
+    /// Formats <c>{yy}{running:D6}</c> — the 8-character appraisal number, e.g. "69000001".
+    ///
+    /// Both widths are enforced rather than assumed. The year was previously interpolated with no
+    /// format specifier, so a Buddhist year ending in a single digit (BE 2600 -> "0") would have
+    /// produced a 7-character number; and the running number silently became 9 characters past
+    /// 999,999. Every downstream consumer — the 10-character AS400 CCSURV field, the unit-number
+    /// marker at position 3 — assumes exactly 8. Failing loudly beats emitting a number that no
+    /// longer parses.
+    /// </summary>
+    private static string FormatYearPrefixedNumber(int thaiYear, int running)
+    {
+        var thaiYearShort = thaiYear % 100;
+
+        if (running is < 1 or > 999_999)
+            throw new InvalidOperationException(
+                $"Running number {running} is outside the 1..999999 range the 8-character " +
+                "appraisal number format allows. The yearly counter must be reset or the format widened.");
+
+        return $"{thaiYearShort:D2}{running:D6}";
     }
 
     private async Task<int> GetNextRunningNumberAsync(

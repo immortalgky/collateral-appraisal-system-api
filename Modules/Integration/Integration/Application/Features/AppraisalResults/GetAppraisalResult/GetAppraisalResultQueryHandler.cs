@@ -190,14 +190,30 @@ internal static class GetAppraisalResultSql
                                                    --       ConstructionWorkDetail.cs:63), so summing it gives the overall percent.
                                                    -- A COALESCE of the two would be wrong: Full Detail always leaves SummaryCurrentProgressPct
                                                    -- null, and a record switched from Summary to Full Detail keeps the stale summary figure.
-                                                   -- Same CASE as GetDecisionSummaryQueryHandler.cs and
-                                                   -- IConstructionCurrentValueService.CiAggregateSql, so one inspection is read the
-                                                   -- same way everywhere. Note this column is PER PROPERTY, while
+                                                   --
+                                                   -- The leading arm is this endpoint's own, and must NOT be copied into
+                                                   -- GetDecisionSummaryQueryHandler.cs or IConstructionCurrentValueService.CiAggregateSql:
+                                                   -- both inner-JOIN ConstructionInspections, so they only ever see inspected properties, and
+                                                   -- for those internal screens "no inspection" correctly means "nothing to show". Here the
+                                                   -- consumer is an external system that cannot tell "finished" from "not inspected yet", so a
+                                                   -- building/condo flagged as not under construction reports 100%. Clearing the checkbox
+                                                   -- DELETES the inspection row (UpdateBuildingPropertyCommandHandler.cs:96), which is why the
+                                                   -- flag has to be read directly instead of inferred from ci. NULL is treated as false: the
+                                                   -- column is nullable and several write paths never set it, and an unticked box and an
+                                                   -- untouched one look the same on screen (GetAppraisalFeesQueryHandler.cs:37 reads it the
+                                                   -- same way). The bad.Id/cad.Id guard keeps bare land, vehicles, vessels and machinery null
+                                                   -- rather than 100 -- do not drop it. An inspection row wins over a stale flag.
+                                                   --
+                                                   -- Still not ISNULL'd to 0: a property under construction but not yet inspected stays null,
+                                                   -- which is a different fact from "inspected at 0%". Note this column is PER PROPERTY, while
                                                    -- collateral.vw_RegulatoryExport reports the appraisal-level value-weighted
                                                    -- figure on every collateral row — for a multi-building appraisal the two files
                                                    -- differ by design, however identical the per-inspection CASE.
-                                                   -- Not ISNULL'd to 0 on purpose: "never inspected" (bare land) differs from "inspected at 0%".
-                                                   CASE WHEN ci.IsFullDetail = 0
+                                                   CASE WHEN ci.Id IS NULL
+                                                         AND (bad.Id IS NOT NULL OR cad.Id IS NOT NULL)
+                                                         AND COALESCE(bad.IsUnderConstruction, cad.IsUnderConstruction, 0) = 0
+                                                        THEN 100
+                                                        WHEN ci.IsFullDetail = 0
                                                         THEN ci.SummaryCurrentProgressPct
                                                         ELSE wdagg.CurrentProportionPctSum
                                                    END AS ConstructionPct,

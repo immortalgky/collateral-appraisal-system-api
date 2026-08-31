@@ -32,6 +32,7 @@ public static class AppraisalModule
 
         // Register Unit of Work
         services.AddScoped<IAppraisalUnitOfWork, AppraisalUnitOfWork>();
+        services.AddScoped<IProjectUnitNumberGenerator, ProjectUnitNumberGenerator>();
 
         // Decides whether the global-search statement carries its six address arms at all.
         // AddMemoryCache is idempotent — safe to call even if another module already called it.

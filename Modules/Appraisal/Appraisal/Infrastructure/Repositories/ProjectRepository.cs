@@ -23,6 +23,14 @@ public class ProjectRepository(AppraisalDbContext dbContext) : IProjectRepositor
     }
 
     /// <inheritdoc />
+    public async Task<Project?> GetWithUnitsByAppraisalIdAsync(Guid appraisalId, CancellationToken ct = default)
+    {
+        return await _dbContext.Projects
+            .Include(p => p.Units)
+            .FirstOrDefaultAsync(p => p.AppraisalId == appraisalId, ct);
+    }
+
+    /// <inheritdoc />
     public async Task<Project?> GetWithFullGraphAsync(Guid appraisalId, CancellationToken ct = default)
     {
         return await _dbContext.Projects
