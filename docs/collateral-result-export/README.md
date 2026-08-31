@@ -1,27 +1,67 @@
 # Outbound "Collateral Result" interface (CAS → AS400)
 
-Ships a fixed-width **208-char** H/D/T file of completed appraisals back to the host (AS400) so it can
-update collateral prices. Runs on a Hangfire recurring job **once daily at midnight** and is driven by a
-**sent-ledger** (`collateral.CollateralResultLogs`) so a collateral that completes *after* a run is
-picked up by the next run (next midnight).
+Ships a fixed-width **231-char** H/D/T file of completed appraisals back to the host (AS400) so it can
+update collateral prices. Runs on a Hangfire recurring job **once daily** and is driven by a
+**sent-ledger** (`collateral.CollateralResultLogs`) so an appraisal that completes *after* a run is
+picked up by the next one.
 
-Each row is keyed by `CollateralMaster.HostCollateralId`, written by the inbound
-`HOST_COLLATERAL_LINK` feed (job `host-collateral-link-as400`, 22:00 — deliberately ahead of this one).
-A collateral with no id yet is simply not eligible and waits for a later run.
+**The row set is the appraisals, not the collateral masters.** It used to start from
+`CollateralEngagements` joined to `CollateralMasters` with `HostCollateralId IS NOT NULL` as the
+eligibility gate, which made the file a function of whether a master had been created — and 6,699
+completed appraisals on the production-like dataset never get one (a condo with no sub-district, land
+with no title number, a leasehold that will not resolve). Those appraisals were silently absent from
+every file. Starting from the appraisals means a missing master cannot hide one.
 
-**One row per collateral master, not per appraisal.** AS400 keys collateral rather than appraisals —
-it mints one id per collateral at drawdown — so what it should hold is our current view of that
-collateral. Each master therefore contributes a single row carrying its *latest* engagement's
-figures. The sent-ledger stays keyed by `AppraisalId`, so a new appraisal produces exactly one send
-and a re-run produces none; an older appraisal that was never sent is not resurrected, because the
-master's one id does not belong to it.
+## Finding the AS400 collateral id
+
+AS400 stamps our appraisal number into CCSURV when it mints a collateral id, and only moves it on a
+**new drawdown**. A reappraisal involves no drawdown, so the id keeps pointing at the older
+appraisal — **91.3% of held master-title rows name the head of their chain**, not the latest round.
+
+So each completed appraisal walks **up** `PrevAppraisalId` and stops at the first ancestor AS400
+knows. The nearer ancestor wins: it reflects the more recent drawdown. The walk finds the **id only**
+— every value in the record comes from the appraisal that was actually completed.
+
+| What the walk lands on | What goes out |
+|---|---|
+| exactly one collateral | that id, `Auto Update = Y` |
+| several, appraisal is a block project | one row per matched unit, each `Auto Update = Y` |
+| several, not a block project | blank id, `Auto Update = N` |
+| nothing | blank id, `Auto Update = N` |
+
+A blank id still identifies the work — the appraisal number is in the record — and `Auto Update = N`
+tells the host a person needs to look at it. Guessing which of several collateral a price belongs to
+would update the wrong one.
+
+**Block projects are the exception that resolves.** AS400 mints an id per financed unit and names
+that unit twice, in two fields that fail on different rows:
+
+| Key | Read from | Matched against | Needed because |
+|---|---|---|---|
+| Name token | `CollateralName`, the key inside `CONDO.<key> <deeds>` | `CondoRegistrationNumber`, then `RoomNumber` | the usual condo case |
+| Address token | `Address1`, its leading word (`253/36 มบ.มัณฑนา…`) | `HouseNumber` | a **house** in a development has no room number, and its `CollateralName` is a deed number that appears nowhere in the unit table |
+
+The name outranks the address when both find something. The `CONDO` prefix is read leniently —
+AS400 writes it as `CONDO.47/18`, `CONDO. 59/38`, `CONDO 159/262` and `CONDO138/133`, and a strict
+`CONDO.%` read yields an empty key for every spelling but the first. Same extraction as
+`vw_RegulatoryExport`; the two views must not disagree about which unit a collateral is.
+
+The result is one row per financed **collateral**, each with its own price and land area rather than
+the development's total repeated. One collateral can name several rooms as a comma list — those are
+summed into that collateral's single row, never sent as several rows sharing one id.
+
+The sent-ledger is keyed on **`(AppraisalId, CollateralId)`**. Keying on the appraisal alone
+structurally forbade the per-unit case, and it also meant an appraisal sent before AS400 minted its
+id was marked done forever; it now gets another turn once the id exists.
 
 ## Where things live
 
 | Piece | Path |
 |---|---|
-| 208-char writer | `Modules/Integration/Integration/FileInterface/Format/CollateralResult/CollateralResultFileWriter.cs` |
-| Export query (collateral schema only) | `Modules/Collateral/Collateral/CollateralMasters/CollateralResult/CollateralResultQuery.cs` |
+| 231-char writer | `Modules/Integration/Integration/FileInterface/Format/CollateralResult/CollateralResultFileWriter.cs` |
+| Export query | `Modules/Integration/Integration/FileInterface/Format/CollateralResult/CollateralResultExportQuery.cs` |
+| Row set + id resolution | `Database/Scripts/Views/Collateral/vw_CollateralResultExport.sql` |
+| Dry run (build without sending) | `GET /file-interfaces/admin/collateral-result/preview` |
 | Row contract | `Modules/Collateral/Collateral.Contracts/FileInterface/ICollateralResultQuery.cs` |
 | Hangfire job | `Modules/Integration/Integration/FileInterface/Jobs/CollateralResult/CollateralResultExportJob.cs` |
 | Sent-ledger entity | `Modules/Collateral/Collateral/CollateralMasters/Models/CollateralResultLog.cs` |
@@ -33,9 +73,9 @@ Enrichment captured onto `CollateralEngagement` at appraisal completion: `Forced
 `InternalAppraiserName` (+ `MachineDetail.LifeYear`), sourced via `Appraisal.Contracts`
 `GetAppraisalForCollateralQuery`.
 
-## 208-char Detail layout
+## 231-char Detail layout
 
-Authoritative source: `CollateralResultFileWriter.DetailFields`. Widths sum to exactly 208.
+Authoritative source: `CollateralResultFileWriter.DetailFields`. Widths sum to exactly 231.
 
 The vendor spec reserves a decimal point in every scale-2 field; we send **implied decimals** instead
 (value ×100, no dot), so each `decimal(15,2)` occupies 15 chars rather than 16. That is why positions
@@ -45,22 +85,27 @@ the implied-decimal layout in the 2026-08 revision, which numbers the fields exa
 | Pos | Field | Width | Source |
 |---|---|---|---|
 | 1 | Record Type (`D`) | 1 | const |
-| 2-20 | Collateral ID (host) | 19 | `CollateralMaster.HostCollateralId` |
-| 21-30 | Appraisal Report No | 10 | `CollateralEngagement.AppraisalNumber` |
-| 31-45 | Appraisal Value | 15 | `CollateralEngagement.AppraisalValue` |
-| 46-60 | Land Value | 15 | `CollateralEngagement.LandValue` — frozen at completion (cost split `UnitPrice × LandArea`, Land/L&B only) |
-| 61-75 | Building Value | 15 | `CollateralEngagement.BuildingValue` — frozen at completion (cost `BuildingCost`, L&B only) |
-| 76-90 | Force Sale Value | 15 | `CollateralEngagement.ForcedSaleValue` |
-| 91-98 | Current Appraisal Date | 8 | `CollateralEngagement.AppraisalDate` (appointment date) `DDMMYYYY` |
+| 2-20 | Collateral ID (host) | 19 | `collateral.HostCollateralLinks.HostCollateralId`, found by the chain walk above |
+| 21-30 | Appraisal Report No | 10 | `appraisal.Appraisals.AppraisalNumber` |
+| 31-45 | Appraisal Value | 15 | `appraisal.ValuationAnalyses.AppraisedValue`; a block unit uses its own `ProjectUnitPrices.TotalAppraisalValueRounded` |
+| 46-60 | Land Value | 15 | cost approach only: `PricingFinalValues.FinalValueAdjusted × land area` |
+| 61-75 | Building Value | 15 | cost approach only: `PricingFinalValues.BuildingValue` |
+| 76-90 | Force Sale Value | 15 | `appraisal.ValuationAnalyses.ForcedSaleValue` |
+| 91-98 | Current Appraisal Date | 8 | `appraisal.ValuationAnalyses.ValuationDate` `DDMMYYYY` |
 | 99-106 | Next Appraisal Date | 8 | current + 3y |
-| 107-110 | Internal Valuer Code | 4 | `auth.AspNetUsers.EmployeeId` of `CollateralEngagement.AppraiserUserId` — Internal path only, **see below** |
-| 111-150 | Internal Valuer Name | 40 | `CollateralEngagement.InternalAppraiserName` — Internal path only |
-| 151-154 | External Valuer Code | 4 | `CollateralEngagement.AppraisalCompanyCode` (`auth.Companies.HostCompanyCode`) — External path only |
-| 155-194 | External Valuer Name | 40 | `CollateralEngagement.AppraisalCompanyName` — External path only |
-| 195-197 | Life Year | 3 | `MachineDetail.LifeYear` (machinery only) |
+| 107-110 | Internal Valuer Code | 4 | `auth.AspNetUsers.EmployeeId` of the latest assignment's appraiser — Internal path only, **see below** |
+| 111-150 | Internal Valuer Name | 40 | `auth.AspNetUsers` name, falling back to `AppraisalAssignments.InternalAppraiserName` — Internal path only |
+| 151-154 | External Valuer Code | 4 | `auth.Companies.HostCompanyCode` — External path only |
+| 155-194 | External Valuer Name | 40 | `auth.Companies.Name` — External path only |
+| 195-197 | Life Year | 3 | `appraisal.MachineCostItems.LifeSpanYears` (machinery only) |
 | 198 | Appraisal Status | 1 | `A` approved / `R` rejected |
-| 199-201 | Building Age (`CCEBIL`) | 3 | oldest building on the engagement / condo — **see below** |
+| 199-201 | Building Age (`CCEBIL`) | 3 | oldest building on the appraisal / condo — **see below** |
 | 202-208 | Area Utilization (`CCEARE`) | 7 | total building area / condo usable area, sq.m — **see below** |
+| 209 | Auto Update | 1 | `Y` only when the appraisal tied to exactly one collateral |
+| 210-214 | Land Area — Rai | 5 | this row's collateral: the unit's own for a block, the appraisal's otherwise |
+| 215-217 | Land Area — Ngan | 3 | |
+| 218-221 | Land Area — Square Wa | 4 | implied dec(4,2) |
+| 222-231 | Land Area total | 10 | the **whole appraisal** in square wa; identical on every row of a block project by design |
 
 Alpha = left-justified and space-padded; numeric = right-justified and **zero**-filled, because AS400
 zoned-decimal fields cannot hold spaces — a null or zero amount goes out as all zeros, not blanks.
@@ -68,14 +113,16 @@ Over-long alpha values are truncated; over-long numerics throw rather than corru
 
 ### Building Age and Area Utilization
 
-Added in the 2026-08 spec revision. Both are sourced by collateral type:
+Added in the 2026-08 spec revision. Both are sourced by what the appraisal holds:
 
-| Type | Building Age | Area Utilization |
+| Appraisal holds | Building Age | Area Utilization |
 |---|---|---|
-| `LB`, `LSB`, `LS` | `MAX(BuildingAge)` over `collateral.CollateralEngagementBuildings` | `SUM(BuildingArea)` over the same rows |
-| `U` (condo) | `CondoDetails.BuildingAge` | `CondoDetails.UsableArea` |
-| `L`, `LSL`, `MAC` | zeros | zeros |
-| `PRJ` | n/a — block projects never receive a `HostCollateralId`, so they are not exported |
+| a building (`B`, `LB`, `LSB`, `LS`) | `MAX(BuildingAge)` over `appraisal.BuildingAppraisalDetails` | `SUM(TotalBuildingArea)` over the same rows |
+| a condo (`U`, `LSU`) | `CondoAppraisalDetails.BuildingAge` | `CondoAppraisalDetails.UsableArea` |
+| bare land or machinery | zeros | zeros |
+
+Land area is carried in its own fields (210-231) in Thai units, read straight from
+`appraisal.LandTitles`, which stores rai / ngan / square wa separately.
 
 Aggregating rather than taking the `Sequence = 1` building matters when a title carries a house plus an
 outbuilding: the host needs the whole footprint, and the oldest structure drives its depreciation view.
@@ -173,10 +220,11 @@ UTF-8 (no BOM), CRLF line endings. Detail-row grain = one row per appraisal (pri
 2. Open `/hangfire` → **Recurring jobs** → `collateral-result-export` → **Trigger now**.
 3. Check the output file in `./outbound/` (relative to the API working dir):
    ```bash
-   awk '{ print length($0) }' outbound/COLLATERAL_RESULT_*.txt | sort -u   # must print 208, once
+   awk '{ print length($0) }' outbound/COLLATERAL_RESULT_*.txt | sort -u   # must print 231, once
    cut -c107-150 outbound/COLLATERAL_RESULT_*.txt                          # internal valuer pair
    cut -c151-194 outbound/COLLATERAL_RESULT_*.txt                          # external valuer pair
-   cut -c199-208 outbound/COLLATERAL_RESULT_*.txt                          # the two new fields
+   cut -c199-208 outbound/COLLATERAL_RESULT_*.txt                          # age + area
+   cut -c209-231 outbound/COLLATERAL_RESULT_*.txt                          # auto-update + land area
    ```
    Exactly one valuer pair may be filled per `D` row: an engagement with `AppraisalCompanyId` set must
    show blanks at 107-150, one without it must show blanks at 151-194. Cover both by exporting an

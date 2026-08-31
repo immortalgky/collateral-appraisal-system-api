@@ -30,13 +30,19 @@ public interface IInboundFileSource
 /// <summary>
 /// Metadata about an inbound file available for ingestion.
 /// </summary>
+/// <param name="FileName">Display name / filename without path (e.g. AS400_COLLATREV_20260501.txt).</param>
+/// <param name="FullPath">
+/// Full path or remote path used internally by the provider.
+/// Do not expose this to the caller beyond the file-source layer.
+/// </param>
+/// <param name="SizeBytes">
+/// Size from the directory listing, known WITHOUT reading the file. The ingest jobs use it as a
+/// cheap first-pass de-duplication key: on production the inbox is never cleared, so every run sees
+/// every file ever delivered, and hashing them all would mean re-downloading the whole backlog.
+/// </param>
+/// <param name="LastModified">Last write time reported by the provider; null when unavailable.</param>
 public record InboundFileInfo(
-    /// <summary>Display name / filename without path (e.g. AS400_COLLATREV_20260501.txt).</summary>
     string FileName,
-
-    /// <summary>
-    /// Full path or remote path used internally by the provider.
-    /// Do not expose this to the caller beyond the file-source layer.
-    /// </summary>
-    string FullPath
-);
+    string FullPath,
+    long SizeBytes = 0,
+    DateTime? LastModified = null);

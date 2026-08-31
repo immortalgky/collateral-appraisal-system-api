@@ -6,6 +6,7 @@ using Collateral.Data.Repository;
 using Integration.Contracts.HostLink;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Shared.Time;
 
 namespace Collateral.CollateralMasters.HostLink;
 
@@ -44,6 +45,7 @@ namespace Collateral.CollateralMasters.HostLink;
 public class HostCollateralLinkIngestor(
     CollateralDbContext dbContext,
     ICollateralMasterRepository repository,
+    IDateTimeProvider dateTimeProvider,
     ILogger<HostCollateralLinkIngestor> logger) : IHostCollateralLinkIngestor
 {
     /// <summary>IN-clause chunk size, matching ReappraisalIngestor.</summary>
@@ -55,6 +57,21 @@ public class HostCollateralLinkIngestor(
         ParsedHostLinkFile parsed,
         CancellationToken cancellationToken = default)
     {
+        // The feed replaces the whole set, so applying an older file would resurrect collateral the
+        // bank has since released and undo the newest state. Refuse before anything is written.
+        var lastApplied = await dbContext.HostCollateralLinks
+            .MaxAsync(h => (DateOnly?)h.LastSeenFileDate, cancellationToken);
+
+        if (lastApplied is not null && fileDate < lastApplied)
+        {
+            logger.LogWarning(
+                "[HostCollateralLinkIngestor] {File} is dated {FileDate} but {Applied} has already been "
+                + "applied; refusing to roll the link table back",
+                fileName, fileDate, lastApplied);
+
+            return HostLinkIngestResult.Stale();
+        }
+
         var groups = parsed.Records
             .GroupBy(r => r.AppraisalReportNumber, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
@@ -88,7 +105,8 @@ public class HostCollateralLinkIngestor(
             .Select(g => PickWinningRecord([.. g]))
             .ToList();
 
-        await UpsertHostLinksAsync(perCollateral, cancellationToken);
+        var (linkUpdated, linkUnchanged) =
+            await UpsertHostLinksAsync(perCollateral, fileDate, cancellationToken);
 
         var engagements = await LoadEngagementsAsync(
             records.Select(r => r.AppraisalReportNumber), cancellationToken);
@@ -169,6 +187,16 @@ public class HostCollateralLinkIngestor(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        // Anything the file did not restate is still carrying an older date, which is what takes it
+        // out of the active set. Counted here, after the flush, for the same reason the method says.
+        var deactivated = await CountDeactivatedAsync(fileDate, cancellationToken);
+
+        if (deactivated > 0)
+            logger.LogInformation(
+                "[HostCollateralLinkIngestor] {Count} collateral are no longer listed by the {FileDate} "
+                + "file; their rows are kept but fall outside the active set",
+                deactivated, fileDate);
+
         if (notFound.Count > 0)
             logger.LogWarning(
                 "[HostCollateralLinkIngestor] No CollateralMaster found for {Count} appraisal(s) in "
@@ -178,11 +206,14 @@ public class HostCollateralLinkIngestor(
                 notFound.Count, fileName, string.Join(", ", notFound.Take(50)));
 
         return new HostLinkIngestResult(
-            Received: records.Count,
-            Updated: updated,
-            Unchanged: unchanged,
+            // Counted per collateral, which is the grain of the file and of the link table. The
+            // master counters below are per appraisal and will disappear with the master writes.
+            Received: perCollateral.Count,
+            Updated: linkUpdated,
+            Unchanged: linkUnchanged,
             NotFound: notFound.Count,
-            ProjectSkipped: projectSkipped);
+            ProjectSkipped: projectSkipped,
+            Deactivated: deactivated);
     }
 
     /// <summary>
@@ -230,24 +261,42 @@ public class HostCollateralLinkIngestor(
     ///
     /// Public so it can be unit-tested without a DbContext.
     /// </summary>
-    public static ParsedHostLinkRecord PickWinningRecord(IEnumerable<ParsedHostLinkRecord> sameCollateral)
-        => sameCollateral
-            .OrderBy(r => r.RecordDate ?? MissingDateRank(r.RecordIndicator))
-            .ThenBy(r => r.RecordIndicator == HostLinkRecordIndicators.Redeemed ? 1 : 0)
-            .Last();
-
     /// <summary>
-    /// Stand-in date used when AS400 sends a blank or malformed RecordDate
-    /// (<c>ParseDdmmyyyyOrNull</c> returns null for "00000000", blanks and out-of-range dates).
+    /// Settles which of several rows for the same key is the one to believe.
     ///
-    /// Each side is biased towards its safe direction:
-    ///   undated 'R' → treated as most recent, so a redemption is never lost; otherwise released
-    ///                 collateral would keep being reported to the regulator as still held.
-    ///   undated 'D' → treated as oldest, so a corrupt old drawdown cannot mask a clearly dated
-    ///                 redemption.
+    /// <b>Redemption wins.</b> Losing a redemption is the expensive mistake: released collateral that
+    /// keeps looking held is reported to the regulator as exposure the bank does not have, and the
+    /// outbound result keeps quoting prices against a collateral that has left the book. A drawdown
+    /// wrongly dropped is corrected by the next file.
+    ///
+    /// <b>RecordDate is deliberately not used to order these.</b> It is the date AS400 transmitted the
+    /// file, not the date of the drawdown or redemption — every row in a file carries the same value
+    /// (verified across all 32,662 rows of the 2026-08-04 file). Ordering by it looked like
+    /// event-time ordering while doing nothing at all, which is worse than not ordering: the next
+    /// reader would trust a guarantee that was never there. Ordering ACROSS files is handled by
+    /// <c>LastSeenFileDate</c>, which comes from the file name.
+    ///
+    /// Public so it can be unit-tested directly.
     /// </summary>
-    private static DateOnly MissingDateRank(string indicator)
-        => indicator == HostLinkRecordIndicators.Redeemed ? DateOnly.MaxValue : DateOnly.MinValue;
+    public static ParsedHostLinkRecord PickWinningRecord(IEnumerable<ParsedHostLinkRecord> sameCollateral)
+    {
+        ParsedHostLinkRecord? winner = null;
+
+        foreach (var record in sameCollateral)
+        {
+            if (winner is null)
+            {
+                winner = record;
+                continue;
+            }
+
+            if (record.RecordIndicator == HostLinkRecordIndicators.Redeemed)
+                winner = record;
+        }
+
+        return winner ?? throw new ArgumentException(
+            "PickWinningRecord requires at least one record.", nameof(sameCollateral));
+    }
 
     /// <summary>
     /// Resolves appraisal numbers to their engagements. Read-only — the engagement is only the route
@@ -259,11 +308,26 @@ public class HostCollateralLinkIngestor(
     /// contains, not on what it omits, and deleting on absence would drop collateral the bank still
     /// holds the moment AS400 sends a partial file.
     /// </summary>
-    private async Task UpsertHostLinksAsync(
+    /// <summary>
+    /// Applies one COLLATLINK file to <c>collateral.HostCollateralLinks</c> as a full replace.
+    ///
+    /// Every collateral the file lists is upserted and stamped with the file's date. Rows the file
+    /// omits are left untouched, which leaves their <c>LastSeenFileDate</c> behind the current round
+    /// and therefore outside the active set — the deactivation is a consequence of not being
+    /// restated, not a separate write.
+    ///
+    /// Rows are NOT deleted. A file that arrives truncated would otherwise destroy collateral the
+    /// bank still holds with no way back; leaving the rows in place makes that recoverable and keeps
+    /// visible which round each collateral dropped out.
+    /// </summary>
+    private async Task<(int Updated, int Unchanged)> UpsertHostLinksAsync(
         List<ParsedHostLinkRecord> records,
+        DateOnly fileDate,
         CancellationToken cancellationToken)
     {
-        var now = DateTime.Now;
+        var now = dateTimeProvider.ApplicationNow;
+        var updated = 0;
+        var unchanged = 0;
 
         foreach (var chunk in records.Chunk(BatchSize))
         {
@@ -289,17 +353,40 @@ public class HostCollateralLinkIngestor(
 
                 if (existing.TryGetValue(record.HostCollateralId, out var link))
                 {
-                    if (link.Matches(values)) continue;
-                    link.Apply(values, now);
+                    // Unchanged values still have to be restated: without the touch the row would
+                    // keep an older date and silently leave the active set even though the feed
+                    // still lists it.
+                    if (link.Matches(values))
+                    {
+                        link.Touch(fileDate);
+                        unchanged++;
+                        continue;
+                    }
+
+                    link.Apply(values, fileDate, now);
+                    updated++;
                 }
                 else
                 {
                     dbContext.HostCollateralLinks.Add(
-                        new HostCollateralLink(record.HostCollateralId, values, now));
+                        new HostCollateralLink(record.HostCollateralId, values, fileDate, now));
+                    updated++;
                 }
             }
         }
+
+        return (updated, unchanged);
     }
+
+    /// <summary>
+    /// How many collateral the newly-applied file stopped listing.
+    ///
+    /// Must run AFTER the save. EF translates <c>CountAsync</c> into SQL rather than reading the
+    /// change tracker, so asking before the flush returns the previous round's state and reports the
+    /// same number on every run.
+    /// </summary>
+    private Task<int> CountDeactivatedAsync(DateOnly fileDate, CancellationToken cancellationToken) =>
+        dbContext.HostCollateralLinks.CountAsync(h => h.LastSeenFileDate < fileDate, cancellationToken);
 
     private async Task<Dictionary<string, EngagementRef>> LoadEngagementsAsync(
         IEnumerable<string> appraisalNumbers,

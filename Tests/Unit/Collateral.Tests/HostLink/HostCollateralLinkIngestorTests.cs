@@ -25,19 +25,20 @@ public class HostCollateralLinkIngestorTests
             LocationCode: null, CollateralCode: null, PropertyType: null, PropertyTypeDesc: null,
             MasterTitle: "Y", RowHash: $"{indicator}{recordDate}{hostId}");
 
-    /// <summary>The newest RecordDate wins, not the file order.</summary>
+    /// <summary>
+    /// Redemption wins regardless of the dates on the rows. RecordDate is the file's transmission
+    /// date, identical on every row of a real file, so it carries no information about which event
+    /// happened later — see PickWinningRecord's own remarks.
+    /// </summary>
     [Fact]
-    public void PickWinningRecord_PrefersNewestRecordDate_NotFileOrder()
+    public void PickWinningRecord_RedemptionWins_RegardlessOfRecordDate()
     {
-        // The redemption (newer) sits before the drawdown (older) — taking .Last() by file order
-        // would pick the wrong one.
         var winner = HostCollateralLinkIngestor.PickWinningRecord([
-            Record(R, new DateOnly(2026, 8, 1)),
-            Record(D, new DateOnly(2025, 1, 10))
+            Record(R, new DateOnly(2025, 1, 10)),
+            Record(D, new DateOnly(2026, 8, 1))
         ]);
 
         Assert.Equal(R, winner.RecordIndicator);
-        Assert.Equal(new DateOnly(2026, 8, 1), winner.RecordDate);
     }
 
     /// <summary>On an equal date, redemption beats drawdown as the later lifecycle state.</summary>
@@ -109,16 +110,22 @@ public class HostCollateralLinkIngestorTests
         Assert.Equal(forward.RecordIndicator, reversed.RecordIndicator);
     }
 
-    /// <summary>Re-pledged after an earlier redemption — the current state must be 'D'.</summary>
+    /// <summary>
+    /// A drawdown does NOT override a redemption in the same file, whatever the dates say.
+    ///
+    /// Re-pledging after a release is real, but a file cannot express it: both rows carry the same
+    /// transmission date, so there is nothing to order them by. Reporting released collateral as
+    /// still held would overstate the bank's exposure to the regulator, so the safe reading wins and
+    /// the next file corrects it.
+    /// </summary>
     [Fact]
-    public void PickWinningRecord_NewerDrawdownBeatsOlderRedemption()
+    public void PickWinningRecord_DrawdownDoesNotOverrideRedemptionInTheSameFile()
     {
         var winner = HostCollateralLinkIngestor.PickWinningRecord([
             Record(R, new DateOnly(2025, 3, 1)),
             Record(D, new DateOnly(2026, 7, 1), hostId: "999")
         ]);
 
-        Assert.Equal(D, winner.RecordIndicator);
-        Assert.Equal("999", winner.HostCollateralId);
+        Assert.Equal(R, winner.RecordIndicator);
     }
 }

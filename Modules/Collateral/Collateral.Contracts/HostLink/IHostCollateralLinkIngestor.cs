@@ -10,7 +10,11 @@ namespace Collateral.Contracts.HostLink;
 public interface IHostCollateralLinkIngestor
 {
     /// <summary>
-    /// Records the feed in <c>collateral.HostCollateralLinks</c> keyed by appraisal number, then
+    /// <b>The feed is a full monthly replace, not a delta.</b> Every row it carries is upserted and
+    /// stamped with the file's date; rows it omits keep an older date and thereby leave the active
+    /// set. Nothing is deleted, and a file older than the last one applied is refused outright.
+    ///
+    /// Records the feed in <c>collateral.HostCollateralLinks</c> keyed by collateral id, then
     /// resolves each number through its <c>CollateralEngagement</c> to a <c>CollateralMaster</c> and
     /// writes the AS400 id and pledge state onto the master.
     ///
@@ -33,6 +37,17 @@ public interface IHostCollateralLinkIngestor
         CancellationToken cancellationToken = default);
 }
 
+/// <param name="SkippedAsStale">
+/// True when the file was rejected before anything was written because a newer COLLATLINK file has
+/// already been applied. The feed is a full replace, so applying an older file would resurrect
+/// collateral the bank has since released and undo the current month's state. Every other counter is
+/// 0 when this is set.
+/// </param>
+/// <param name="Deactivated">
+/// Rows the incoming file no longer mentions. They keep their previous <c>LastSeenFileDate</c>, which
+/// puts them outside the active set without deleting anything — recoverable if a partial file ever
+/// arrives, and it stays visible which round a collateral dropped out.
+/// </param>
 /// <param name="Received">Rows read from the file, after collapsing in-file duplicates.</param>
 /// <param name="Updated">Masters whose id or pledge state changed.</param>
 /// <param name="Unchanged">Masters skipped because they already held these values.</param>
@@ -58,4 +73,10 @@ public record HostLinkIngestResult(
     int Updated,
     int Unchanged,
     int NotFound,
-    int ProjectSkipped);
+    int ProjectSkipped,
+    int Deactivated = 0,
+    bool SkippedAsStale = false)
+{
+    /// <summary>The file was older than the one already applied; nothing was written.</summary>
+    public static HostLinkIngestResult Stale() => new(0, 0, 0, 0, 0, 0, true);
+}

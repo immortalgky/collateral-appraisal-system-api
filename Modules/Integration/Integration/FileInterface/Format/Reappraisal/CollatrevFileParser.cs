@@ -21,7 +21,18 @@ namespace Integration.FileInterface.Format.Reappraisal;
 /// </summary>
 public class CollatrevFileParser
 {
-    private const int DetailRecordLength = 649;
+    /// <summary>Original layout, still in use until AS400 cuts over.</summary>
+    private const int DetailRecordLengthV1 = 649;
+
+    /// <summary>
+    /// Revised layout: one extra character at position 650 carrying AS400's own Auto Update flag.
+    ///
+    /// <b>The flag is deliberately not read.</b> Whether our outbound result may be applied
+    /// automatically is decided by whether we can tie the appraisal to exactly one AS400 collateral,
+    /// which is our determination to make; echoing back a flag AS400 already holds adds nothing.
+    /// The length is accepted so the new file is not rejected, and no further.
+    /// </summary>
+    private const int DetailRecordLengthV2 = 650;
 
     public ParsedReappraisalFile ParseStream(Stream stream)
     {
@@ -36,6 +47,7 @@ public class CollatrevFileParser
     private ParsedReappraisalFile ParseLines(List<string> lines)
     {
         DateOnly effectiveDate = DateOnly.MinValue;
+        int? detailLength = null;
         var details = new List<ParsedDetailRecord>();
         int expectedCount = -1;
         var sawTrailer = false;
@@ -52,10 +64,23 @@ public class CollatrevFileParser
                     break;
 
                 case 'D':
-                    if (line.Length < DetailRecordLength)
+                    // Exact match against the accepted layouts, not a minimum. A ">=" test would let
+                    // a file with shifted fields through: every field would parse, the values would
+                    // be silently wrong, and nothing would flag it.
+                    if (line.Length != DetailRecordLengthV1 && line.Length != DetailRecordLengthV2)
                         throw new FormatException(
-                            $"Detail record is {line.Length} chars (expected {DetailRecordLength}). " +
+                            $"Detail record is {line.Length} chars (expected {DetailRecordLengthV1} " +
+                            $"or {DetailRecordLengthV2}). " +
                             $"First 40 chars: '{line[..Math.Min(40, line.Length)]}'");
+                    // One file is one layout. Mixed lengths mean the file is damaged rather than
+                    // that AS400 changed spec mid-stream, and the shorter rows would be read with
+                    // every field in the right place but the record silently incomplete.
+                    detailLength ??= line.Length;
+                    if (line.Length != detailLength)
+                        throw new FormatException(
+                            $"Detail records in this file have mixed lengths ({detailLength} and " +
+                            $"{line.Length}); the file is not a single layout.");
+
                     details.Add(ParseDetailLine(line));
                     break;
 

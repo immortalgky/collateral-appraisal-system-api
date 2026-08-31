@@ -24,10 +24,17 @@ public class LocalInboundFileSource(IHostEnvironment environment) : IInboundFile
             return Task.FromResult<IReadOnlyList<InboundFileInfo>>(Array.Empty<InboundFileInfo>());
         }
 
+        // Ordering here is incidental — the caller re-orders by the date parsed out of the file
+        // name. Size and last-write time come along so the caller can skip already-ingested files
+        // without opening them.
         var files = Directory
             .GetFiles(dir, filePattern, SearchOption.TopDirectoryOnly)
-            .OrderBy(f => f)
-            .Select(fullPath => new InboundFileInfo(Path.GetFileName(fullPath), fullPath))
+            .OrderBy(f => f, StringComparer.Ordinal)
+            .Select(fullPath =>
+            {
+                var info = new FileInfo(fullPath);
+                return new InboundFileInfo(info.Name, fullPath, info.Length, info.LastWriteTime);
+            })
             .ToList();
 
         return Task.FromResult<IReadOnlyList<InboundFileInfo>>(files);

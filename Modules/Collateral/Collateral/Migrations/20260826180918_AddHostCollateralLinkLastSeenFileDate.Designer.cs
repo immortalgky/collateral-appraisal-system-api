@@ -4,6 +4,7 @@ using Collateral.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Collateral.Migrations
 {
     [DbContext(typeof(CollateralDbContext))]
-    partial class CollateralDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260826180918_AddHostCollateralLinkLastSeenFileDate")]
+    partial class AddHostCollateralLinkLastSeenFileDate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -507,9 +510,9 @@ namespace Collateral.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AppraisalId", "CollateralId")
+                    b.HasIndex("AppraisalId")
                         .IsUnique()
-                        .HasDatabaseName("UX_CollateralResultLogs_Appraisal_Collateral");
+                        .HasDatabaseName("UX_CollateralResultLogs_Appraisal");
 
                     b.ToTable("CollateralResultLogs", "collateral");
                 });
@@ -608,10 +611,6 @@ namespace Collateral.Migrations
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Address1")
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
 
                     b.Property<string>("AppraisalNumber")
                         .IsRequired()
