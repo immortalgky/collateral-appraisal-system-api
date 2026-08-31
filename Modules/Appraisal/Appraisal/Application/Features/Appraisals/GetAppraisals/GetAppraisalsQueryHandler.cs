@@ -109,7 +109,7 @@ public class GetAppraisalsQueryHandler(
 
         var pagedResult = new PaginatedResult<AppraisalDto>(items, idPage.Count, idPage.PageNumber, idPage.PageSize);
 
-// Facets are no longer computed. Nothing renders them once app#357 lands, and the count
+        // Facets are no longer computed. Nothing renders them once app#357 lands, and the count
         // was never free: it GROUP BYs the whole matching set, so unlike the page — which resolves
         // 25 ids and enriches only those — it cannot stop early.
         //

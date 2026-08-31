@@ -37,8 +37,8 @@ internal static class AppraisalSearchPredicate
     /// It is <b>only</b> for the dropdown, which shows a handful of rows and is re-issued on every
     /// keystroke. Anything that presents a complete result set — the appraisal list, its export, the
     /// quotation-eligible query — must run uncapped: a cap there silently drops rows, and because
-    /// the count, the page and the facets are three separate executions of the same union with no
-    /// ORDER BY inside the TOP, each could keep a different subset.
+    /// the count and the page are separate executions of the same union with no ORDER BY inside the
+    /// TOP, each could keep a different subset.
     /// </summary>
     public const int DropdownArmCap = 200;
 
