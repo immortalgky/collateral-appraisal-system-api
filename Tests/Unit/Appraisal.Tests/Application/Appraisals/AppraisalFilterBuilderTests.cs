@@ -6,7 +6,7 @@ namespace Appraisal.Tests.Application.Appraisals;
 /// Pins the WHERE clause the appraisal list builds, and — more importantly — the RequiresView flag.
 ///
 /// RequiresView is a correctness gate, not a hint: when it is false the list handler counts and
-/// facets straight off appraisal.Appraisals instead of the view. A filter field that reads a
+/// counts straight off appraisal.Appraisals instead of the view. A filter field that reads a
 /// column only the view synthesises (latest assignment, first land location, customer name,
 /// latest appointment) but forgets to raise the flag would produce a WHERE referencing a column
 /// the base table does not have — a runtime SQL error — or, worse, silently wrong totals if the
@@ -170,12 +170,12 @@ public class AppraisalFilterBuilderTests
     }
 
     [Fact]
-    public void Search_on_the_list_is_uncapped_so_the_page_export_and_facets_agree()
+    public void Search_on_the_list_is_uncapped_so_the_page_and_export_agree()
     {
         // The dropdown caps each arm because it shows a handful of rows and re-runs on every
         // keystroke. The list must not: the same clause feeds /appraisals, /appraisals/export and
         // the quotation-eligible query, so a cap silently drops rows from a result set the user is
-        // told is complete. Worse, the count, the page and the facets are three separate executions
+        // told is complete. Worse, the count and the page are separate executions
         // of this union with no ORDER BY inside a TOP, so each could keep a different subset —
         // totals that disagree with the page, and rows that repeat or vanish between pages.
         var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: "690"));
@@ -277,36 +277,6 @@ public class AppraisalFilterBuilderTests
     }
 
     // ---------------------------------------------------------------------------
-    // excludeStatus — what makes the status chips switchable
-    // ---------------------------------------------------------------------------
-
-    [Fact]
-    public void Excluding_status_drops_only_the_status_predicate()
-    {
-        var filter = new GetAppraisalsFilterRequest(Status: "Completed", Priority: "Normal");
-
-        var full = AppraisalFilterBuilder.BuildFilter(filter);
-        var forFacets = AppraisalFilterBuilder.BuildFilter(filter, excludeStatus: true);
-
-        Assert.Contains("Status = @Statuses", full.WhereClause);
-        Assert.DoesNotContain("Status = @Statuses", forFacets.WhereClause);
-        // Every other active filter still narrows the counts.
-        Assert.Contains("Priority = @Priorities", forFacets.WhereClause);
-    }
-
-    [Fact]
-    public void Excluding_status_when_it_was_the_only_filter_leaves_no_clause_at_all()
-    {
-        // This is the case the chip row depends on: pick "Completed" and the counts for every
-        // other status must still come back, otherwise there is nothing left to click.
-        var forFacets = AppraisalFilterBuilder.BuildFilter(
-            new GetAppraisalsFilterRequest(Status: "Completed"), excludeStatus: true);
-
-        Assert.Equal(string.Empty, forFacets.WhereClause);
-        Assert.False(forFacets.RequiresView);
-    }
-
-    // ---------------------------------------------------------------------------
     // Sorting
     // ---------------------------------------------------------------------------
 
@@ -333,7 +303,7 @@ public class AppraisalFilterBuilderTests
     {
         // This is the whole point of letting the caller name the column: `search` OR-s three
         // columns, two of which only the view has, so it always pays for the view. Pinning the
-        // search to AppraisalNumber keeps the cheap COUNT and the base-table facet source.
+        // search to AppraisalNumber keeps the cheap COUNT off the base table.
         var result = AppraisalFilterBuilder.BuildFilter(
             new GetAppraisalsFilterRequest { AppraisalNumber = "69105" });
 

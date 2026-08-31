@@ -34,7 +34,7 @@ public class GetAppraisalsEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Get all appraisals")
             .WithDescription(
-                "Retrieves all appraisals with pagination, filtering, sorting, and facet counts. " +
+                "Retrieves all appraisals with pagination, filtering and sorting. " +
                 "Supports text search (search), multi-value filters (comma-separated status, priority, appraisalType, slaStatus, assignmentType, purpose, propertyType), " +
                 "date ranges (createdFrom/To, slaDueDateFrom/To, assignedDateFrom/To, appointmentDateFrom/To), " +
                 "geographic filters (province, district), and sorting (sortBy, sortDir). " +
