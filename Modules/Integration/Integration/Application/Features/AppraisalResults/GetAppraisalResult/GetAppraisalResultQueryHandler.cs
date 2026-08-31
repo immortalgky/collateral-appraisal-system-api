@@ -1,8 +1,10 @@
 using System.Data;
 using System.Globalization;
 using Appraisal.Domain.Appraisals;
+using Appraisal.Application.Features.Project.IssueUnitTicket;
 using Appraisal.Domain.Projects;
 using Dapper;
+using MediatR;
 using FluentValidation;
 using Shared.CQRS;
 using Shared.Data;
@@ -10,7 +12,8 @@ using Shared.Data;
 namespace Integration.Application.Features.AppraisalResults.GetAppraisalResult;
 
 public class GetAppraisalResultByNumberQueryHandler(
-    ISqlConnectionFactory connectionFactory
+    ISqlConnectionFactory connectionFactory,
+    ISender sender
 ) : IQueryHandler<GetAppraisalResultByNumberQuery, GetAppraisalResultResponse?>
 {
     public async Task<GetAppraisalResultResponse?> Handle(
@@ -27,12 +30,15 @@ public class GetAppraisalResultByNumberQueryHandler(
         if (appraisal is null) return null;
 
         var selector = new UnitSelector(query.PlotNumber, query.RoomNumber, query.FloorNumber);
-        return await AppraisalResultBuilder.BuildAsync(conn, appraisal, selector, strict: true, cancellationToken);
+        // No case key on this route, so nothing identifies the caller beyond its token.
+        return await AppraisalResultBuilder.BuildAsync(
+            conn, sender, appraisal, selector, strict: true, issuedTo: null, cancellationToken);
     }
 }
 
 public class GetAppraisalResultsByCaseKeyQueryHandler(
-    ISqlConnectionFactory connectionFactory
+    ISqlConnectionFactory connectionFactory,
+    ISender sender
 ) : IQueryHandler<GetAppraisalResultsByCaseKeyQuery, IReadOnlyList<GetAppraisalResultResponse>>
 {
     public async Task<IReadOnlyList<GetAppraisalResultResponse>> Handle(
@@ -50,7 +56,8 @@ public class GetAppraisalResultsByCaseKeyQueryHandler(
         var results = new List<GetAppraisalResultResponse>();
         foreach (var appraisal in appraisals)
         {
-            var result = await AppraisalResultBuilder.BuildAsync(conn, appraisal, selector, strict: false, cancellationToken);
+            var result = await AppraisalResultBuilder.BuildAsync(
+                conn, sender, appraisal, selector, strict: false, issuedTo: query.ExternalCaseKey, cancellationToken);
             if (result is not null)
                 results.Add(result);
         }
@@ -369,7 +376,8 @@ internal static class GetAppraisalResultSql
     // Block unit lookup. Identity lives on appraisal.ProjectUnits; the per-unit appraised value
     // lives on appraisal.ProjectUnitPrices (LEFT JOIN — a unit may have no price row yet).
     private const string BlockUnitSelect = """
-                                           SELECT TOP 1
+                                           SELECT
+                                               pu.Id AS ProjectUnitId,
                                                pu.RoomNumber, pu.Floor, pu.TowerName,
                                                pu.PlotNumber, pu.HouseNumber, pu.NumberOfFloors, pu.LandArea,
                                                pu.UsableArea, pu.SellingPrice,
@@ -396,15 +404,18 @@ internal static class GetAppraisalResultSql
                                            WHERE pu.ProjectId = @ProjectId
                                            """;
 
+    // IN, not '=': LOS names every unit the collateral covers in one call, and two adjacent plots
+    // pledged together are one collateral. Dapper expands the list into the IN clause.
     public const string BlockUnitByPlot = BlockUnitSelect + """
 
-                                              AND pu.PlotNumber = @PlotNumber
+                                              AND pu.PlotNumber IN @PlotNumbers
                                           ORDER BY pu.SequenceNumber
                                           """;
 
     public const string BlockUnitByRoomFloor = BlockUnitSelect + """
 
-                                                  AND (pu.CondoRegistrationNumber = @RoomNumber OR pu.RoomNumber = @RoomNumber)
+                                                  AND (pu.CondoRegistrationNumber IN @RoomNumbers
+                                                       OR pu.RoomNumber IN @RoomNumbers)
                                                   AND pu.Floor = @Floor
                                               ORDER BY pu.SequenceNumber
                                               """;
@@ -548,6 +559,7 @@ internal sealed record ProjectRow(
     string? LandOfficeCode = null);
 
 internal sealed record BlockUnitRow(
+    Guid ProjectUnitId,
     string? RoomNumber,
     int? Floor,
     string? TowerName,
@@ -571,11 +583,16 @@ internal static class AppraisalResultBuilder
 {
     public static async Task<GetAppraisalResultResponse?> BuildAsync(
         IDbConnection conn,
+        ISender sender,
         AppraisalRow appraisal,
         UnitSelector selector,
         bool strict,
+        string? issuedTo,
         CancellationToken cancellationToken)
     {
+        // Set only on the block path — an ordinary appraisal is already keyed by its own number.
+        string? ticketNumber = null;
+
         var assignmentParams = new DynamicParameters();
         assignmentParams.Add("AppraisalId", appraisal.Id);
         var assignment = await conn.QueryFirstOrDefaultAsync<AssignmentRow>(
@@ -712,9 +729,9 @@ internal static class AppraisalResultBuilder
         }
         else
         {
-            // Block/project appraisal: no AppraisalProperty rows exist; resolve one unit by selector.
-            var unit = await ResolveBlockUnitAsync(conn, project, selector, strict, cancellationToken);
-            if (unit is null)
+            // Block/project appraisal: no AppraisalProperty rows exist; resolve the units by selector.
+            var units = await ResolveBlockUnitsAsync(conn, project, selector, strict, cancellationToken);
+            if (units.Count == 0)
             {
                 // strict (by-number) with a valid-but-unmatched selector → 404 (null response).
                 // non-strict (by-caseKey) or an invalid selector → header-only (empty groups).
@@ -723,13 +740,20 @@ internal static class AppraisalResultBuilder
             }
             else
             {
-                groups = [BuildBlockGroup(project, unit)];
-                totalAppraisalValue = unit.TotalAppraisalValueRounded;
-                forceSalePrice = unit.ForceSellingPrice;
-                marketValue = unit.SellingPrice ?? marketValue;
-                // A block's fire insurance is the unit's own coverage, not the appraisal-level
-                // total across every unit in the project. v1 does the same.
-                fireInsurance = unit.CoverageAmount ?? fireInsurance;
+                groups = [BuildBlockGroup(project, units)];
+
+                // Every figure below is the collateral's, summed across the rooms it covers — the
+                // grain AS400 will hold it at. A block's fire insurance is the units' own coverage,
+                // not the appraisal-level total across the whole development.
+                totalAppraisalValue = SumOrNull(units, u => u.TotalAppraisalValueRounded);
+                forceSalePrice = SumOrNull(units, u => u.ForceSellingPrice);
+                marketValue = SumOrNull(units, u => u.SellingPrice) ?? marketValue;
+                fireInsurance = SumOrNull(units, u => u.CoverageAmount) ?? fireInsurance;
+
+                // The ticket is issued here, at the only moment the bank actually needs a key: when
+                // it is asking for the figures it will lend against. Issuing at appraisal time would
+                // number thousands of units nobody ever finances.
+                ticketNumber = await IssueTicketAsync(sender, appraisal.Id, units, project, selector, issuedTo, cancellationToken);
             }
         }
 
@@ -778,7 +802,12 @@ internal static class AppraisalResultBuilder
             ?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
         return new GetAppraisalResultResponse(
-            AppraisalNumber: appraisal.AppraisalNumber,
+            // The ticket takes this field's place when one was issued, rather than riding alongside
+            // it. LOS carries whatever lands here into AS400's CCSURV, so putting the ticket
+            // anywhere else would need LOS to change which field it forwards - and CCSURV is the
+            // one place the return path reads a key back out of. An ordinary appraisal has no
+            // ticket and reports its own number, exactly as before.
+            AppraisalNumber: ticketNumber ?? appraisal.AppraisalNumber,
             Status: appraisal.Status,
             AppraisalPurpose: appraisal.Purpose,
             AppraisalFee: fee,
@@ -802,6 +831,7 @@ internal static class AppraisalResultBuilder
             SequenceOfApprove: appraisal.SequenceOfApprove,
             AppraisalType: MapAppraisalType(appraisal.AppraisalType),
             MarketValue: marketValue,
+            TicketNumber: ticketNumber,
             Groups: groups,
             Documents: documents);
     }
@@ -864,7 +894,26 @@ internal static class AppraisalResultBuilder
     // Resolves a single block/project unit by the selector. Throws ValidationException (→ 400) when
     // the selector is missing/wrong for the project type and strict is on; returns null (no match /
     // ignored selector) otherwise.
-    internal static async Task<BlockUnitRow?> ResolveBlockUnitAsync(
+    /// <summary>
+    /// Splits a selector value into the keys it names. LOS sends every unit of one collateral in a
+    /// single value — "1999/13,1999/14" — because AS400 holds them as one collateral, so a comma
+    /// list is a request for one thing, not several.
+    /// </summary>
+    internal static List<string> SplitKeys(string? raw) =>
+        string.IsNullOrWhiteSpace(raw)
+            ? []
+            : [.. raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                     .Distinct(StringComparer.OrdinalIgnoreCase)];
+
+    /// <summary>
+    /// Resolves every unit the selector names.
+    ///
+    /// A key that matches nothing is an ERROR, never a smaller answer. Returning the units that did
+    /// match would issue a ticket covering fewer rooms than the caller asked for, and AS400 would
+    /// then hold a collateral worth less than the property behind it — a shortfall nobody would see
+    /// until it mattered.
+    /// </summary>
+    internal static async Task<IReadOnlyList<BlockUnitRow>> ResolveBlockUnitsAsync(
         IDbConnection conn,
         ProjectRow project,
         UnitSelector selector,
@@ -875,44 +924,146 @@ internal static class AppraisalResultBuilder
         p.Add("ProjectId", project.ProjectId);
 
         string sql;
+        List<string> requested;
+
         if (ProjectType.IsCondoCode(project.ProjectType))
         {
-            // Condo requires RoomNumber + a numeric FloorNumber (ProjectUnits.Floor is int).
-            if (string.IsNullOrWhiteSpace(selector.RoomNumber) ||
+            // Condo requires room number(s) + a numeric FloorNumber (ProjectUnits.Floor is int).
+            requested = SplitKeys(selector.RoomNumber);
+            if (requested.Count == 0 ||
                 !int.TryParse(selector.FloorNumber, NumberStyles.Integer, CultureInfo.InvariantCulture, out var floor))
             {
                 if (strict)
                     throw new ValidationException(
                         "roomNumber and a numeric floorNumber are required for a condo block appraisal.");
-                return null;
+                return [];
             }
 
-            p.Add("RoomNumber", selector.RoomNumber);
+            p.Add("RoomNumbers", requested);
             p.Add("Floor", floor);
             sql = GetAppraisalResultSql.BlockUnitByRoomFloor;
         }
-        else // "L" / "LB"
+        else // "L" / "LB" — the plot number is the PlanNo LOS names a house by.
         {
-            if (string.IsNullOrWhiteSpace(selector.PlotNumber))
+            requested = SplitKeys(selector.PlotNumber);
+            if (requested.Count == 0)
             {
                 if (strict)
                     throw new ValidationException(
                         "plotNumber is required for a land/building block appraisal.");
-                return null;
+                return [];
             }
 
-            p.Add("PlotNumber", selector.PlotNumber);
+            p.Add("PlotNumbers", requested);
             sql = GetAppraisalResultSql.BlockUnitByPlot;
         }
 
-        return await conn.QueryFirstOrDefaultAsync<BlockUnitRow>(
-            new CommandDefinition(sql, p, cancellationToken: cancellationToken));
+        var rows = (await conn.QueryAsync<BlockUnitRow>(
+            new CommandDefinition(sql, p, cancellationToken: cancellationToken))).ToList();
+
+        if (rows.Count == 0)
+            return [];
+
+        var unmatched = requested
+            .Where(k => !rows.Any(r => MatchesKey(r, k, project)))
+            .ToList();
+
+        if (unmatched.Count > 0)
+        {
+            if (strict)
+                throw new ValidationException(
+                    $"No unit of this project matches: {string.Join(", ", unmatched)}. " +
+                    "Every unit named must resolve before a ticket can be issued.");
+            return [];
+        }
+
+        return rows;
+    }
+
+    /// <summary>Whether a resolved row is the one the caller named by <paramref name="key"/>.</summary>
+    internal static bool MatchesKey(BlockUnitRow row, string key, ProjectRow project)
+    {
+        bool Same(string? a) => string.Equals(a?.Trim(), key.Trim(), StringComparison.OrdinalIgnoreCase);
+
+        return ProjectType.IsCondoCode(project.ProjectType)
+            ? Same(row.UnitRoomNo) || Same(row.RoomNumber)
+            : Same(row.PlotNumber);
     }
 
     // Maps a resolved block unit into the shared group/collateral shape. Only fields that exist on
     // ProjectUnit/ProjectUnitPrice are populated; title/address/building descriptors have no per-unit
     // source and stay null.
-    private static AppraisalResultGroup BuildBlockGroup(ProjectRow project, BlockUnitRow unit)
+    /// <summary>
+    /// One group holding one collateral per unit the caller named, valued at their sum.
+    ///
+    /// The group is the collateral AS400 will create — two rooms bought together are one pledge with
+    /// one value — while each room stays visible as its own entry so the caller can still see what
+    /// it is made of. Summing into a single collateral instead would hide the rooms; emitting a
+    /// group each would tell AS400 to create several.
+    /// </summary>
+    /// <summary>
+    /// Sums a per-unit figure, or null when not one unit carries it. Distinguishing "nothing priced"
+    /// from "priced at zero" matters: zero is a value the caller can act on, null is an answer we do
+    /// not have.
+    /// </summary>
+    private static decimal? SumOrNull(IReadOnlyList<BlockUnitRow> units, Func<BlockUnitRow, decimal?> pick) =>
+        units.Any(u => pick(u).HasValue) ? units.Sum(u => pick(u) ?? 0m) : null;
+
+    /// <summary>
+    /// Issues (or re-returns) the ticket for the resolved units.
+    ///
+    /// The failure is deliberately loud. This runs on a GET, so it is tempting to let a ticket
+    /// problem pass and still answer with the figures — but the caller's next step is to create the
+    /// collateral in AS400 with the ticket, and a result handed over without one leads to a
+    /// collateral keyed to nothing.
+    /// </summary>
+    private static async Task<string> IssueTicketAsync(
+        ISender sender,
+        Guid appraisalId,
+        IReadOnlyList<BlockUnitRow> units,
+        ProjectRow project,
+        UnitSelector selector,
+        string? issuedTo,
+        CancellationToken cancellationToken)
+    {
+        var requested = ProjectType.IsCondoCode(project.ProjectType)
+            ? SplitKeys(selector.RoomNumber)
+            : SplitKeys(selector.PlotNumber);
+
+        // Record the key the caller actually named this unit by, not whichever column matched, so a
+        // repeat pull with the same spelling resolves to the same ticket.
+        var refs = units
+            .Select(u => new TicketUnitRef(
+                u.ProjectUnitId,
+                requested.FirstOrDefault(k => MatchesKey(u, k, project)) ?? string.Empty))
+            .Where(r => !string.IsNullOrEmpty(r.UnitKey))
+            .ToList();
+
+        var result = await sender.Send(new IssueUnitTicketCommand(appraisalId, refs, issuedTo), cancellationToken);
+        return result.TicketNumber;
+    }
+
+    private static AppraisalResultGroup BuildBlockGroup(ProjectRow project, IReadOnlyList<BlockUnitRow> units)
+    {
+        var collaterals = units.Select(u => BuildBlockCollateral(project, u)).ToList();
+
+        // Null only when not one unit has been priced; a partially priced set still reports what it has.
+        decimal? total = units.Any(u => u.TotalAppraisalValueRounded.HasValue)
+            ? units.Sum(u => u.TotalAppraisalValueRounded ?? 0m)
+            : null;
+
+        return new AppraisalResultGroup(
+            AppraisalValue: total,
+            AppraisalMethod: NormalizeApproach(units[0].ModelApproachType),
+            LandValue: null,
+            BuildingValue: null,
+            // A block unit is priced outright by its model, not by an area rate.
+            UnitPrice: null,
+            ValuePerUnit: null,
+            Collaterals: collaterals);
+    }
+
+    private static AppraisalResultCollateral BuildBlockCollateral(ProjectRow project, BlockUnitRow unit)
     {
         var isCondo = ProjectType.IsCondoCode(project.ProjectType);
         var (rai, ngan, wa) = SplitSqWa(unit.LandArea);
@@ -967,14 +1118,6 @@ internal static class AppraisalResultBuilder
             MachineModel: null,
             MachineSerialNo: null);
 
-        return new AppraisalResultGroup(
-            AppraisalValue: unit.TotalAppraisalValueRounded,
-            AppraisalMethod: NormalizeApproach(unit.ModelApproachType),
-            LandValue: null,
-            BuildingValue: null,
-            // A block unit is priced outright by its model, not by an area rate.
-            UnitPrice: null,
-            ValuePerUnit: null,
-            Collaterals: [collateral]);
+        return collateral;
     }
 }

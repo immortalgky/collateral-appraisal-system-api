@@ -175,6 +175,42 @@ public class ProjectUnit : Entity<Guid>
         LoanBankName = null;
     }
 
+    /// <summary>
+    /// Copies the non-identity attributes of an incoming Excel row onto this unit, for the block
+    /// reappraisal re-match flow.
+    ///
+    /// Deliberately narrow: only the fields <c>BlockReappraisalMatcher.AttributesDiffer</c>
+    /// compares are written. Identity fields (CondoRegistrationNumber, TowerName, RoomNumber,
+    /// PlotNumber, HouseNumber) are the matching key and are never touched — overwriting them
+    /// would re-point the row at a different physical unit. Sale state is owned by the re-match
+    /// rules, not by the spreadsheet.
+    /// </summary>
+    internal void UpdateAttributesFrom(ProjectUnit incoming, ProjectType projectType)
+    {
+        ModelType = incoming.ModelType;
+        UsableArea = incoming.UsableArea;
+        SellingPrice = incoming.SellingPrice;
+
+        if (projectType == ProjectType.Condo)
+        {
+            Floor = incoming.Floor;
+        }
+        else
+        {
+            NumberOfFloors = incoming.NumberOfFloors;
+            LandArea = incoming.LandArea;
+        }
+    }
+
+    /// <summary>
+    /// Sets the display position. Used when appending new inventory to an existing project, where
+    /// the number continues from the highest already in use rather than being re-derived.
+    /// </summary>
+    internal void SetSequenceNumber(int sequenceNumber)
+    {
+        SequenceNumber = sequenceNumber;
+    }
+
     internal void SetUploadBatchId(Guid uploadBatchId)
     {
         UploadBatchId = uploadBatchId;

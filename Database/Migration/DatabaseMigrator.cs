@@ -132,6 +132,13 @@ public class DatabaseMigrator
         // dependent fails CREATE VIEW with SQL error 208 ("Invalid object name"). Defer those and
         // retry in later passes until a pass makes no progress; a still-failing script after a
         // no-progress pass is a genuine error and is surfaced.
+        //
+        // 207 ("Invalid column name") is the same problem on a database that is NOT fresh: the
+        // dependency already exists, so the dependent binds against the version still deployed and
+        // cannot see a column added in this same run. vw_CollateralResultExport sorts before
+        // vw_HostCollateralLinkKeys and reads a column added to it, which failed the whole migration
+        // until this case was deferred too. A genuinely misspelled column still surfaces — it simply
+        // takes one more pass to get there.
         while (pending.Count > 0)
         {
             var deferred = new List<string>();
@@ -155,7 +162,9 @@ public class DatabaseMigrator
                     await ExecuteScript(connectionString, scriptName, scriptContent, currentChecksum);
                     progressed = true;
                 }
-                catch (SqlException ex) when (ex.Number == 208) // Invalid object name — dependency not yet created
+                // 208 = dependency view not created yet; 207 = it exists but is the older version,
+                // without a column this script needs.
+                catch (SqlException ex) when (ex.Number is 208 or 207)
                 {
                     _logger.LogWarning(
                         "Deferring repeatable script (missing dependency): {ScriptName} — {Message}",

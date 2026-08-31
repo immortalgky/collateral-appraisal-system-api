@@ -1151,7 +1151,8 @@ public class AppraisalCreationService(
             seededUnits.Add(unit);
         }
 
-        project.ImportUnits("Seeded from collateral master", documentId: null, seededUnits);
+        project.ImportUnits(
+            "Seeded from collateral master", documentId: null, seededUnits, isSystemGenerated: true);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         var soldCount = seededUnits.Count(u => u.IsSold);

@@ -322,15 +322,6 @@ public class Project : Aggregate<Guid>
         _models.Remove(model);
     }
 
-    public void RemoveUnitUpload(Guid uploadId)
-    {
-        var upload = _unitUploads.FirstOrDefault(u => u.Id == uploadId)
-                     ?? throw new InvalidProjectStateException($"Unit upload {uploadId} not found");
-
-        _units.RemoveAll(u => u.UploadBatchId == uploadId);
-        _unitUploads.Remove(upload);
-    }
-
     // =========================================================================
     // Unit import (branches internally on ProjectType)
     // =========================================================================
@@ -341,9 +332,11 @@ public class Project : Aggregate<Guid>
     /// with the same batchId throws <see cref="InvalidProjectStateException"/>).
     /// To explicitly replace all units (and lose existing prices), call <see cref="ReplaceUnits"/> instead.
     /// </summary>
-    public ProjectUnitUpload ImportUnits(string fileName, Guid? documentId, List<ProjectUnit> units)
+    public ProjectUnitUpload ImportUnits(
+        string fileName, Guid? documentId, List<ProjectUnit> units, bool isSystemGenerated = false)
     {
-        var upload = ProjectUnitUpload.Create(Id, fileName, documentId);
+        var upload = ProjectUnitUpload.Create(Id, fileName, documentId, isSystemGenerated);
+        upload.RecordAdded(units.Count);
         _unitUploads.Add(upload);
 
         // Guard against re-importing the same batch
@@ -383,6 +376,7 @@ public class Project : Aggregate<Guid>
     public ProjectUnitUpload ReplaceUnits(string fileName, Guid? documentId, List<ProjectUnit> units)
     {
         var upload = ProjectUnitUpload.Create(Id, fileName, documentId);
+        upload.RecordAdded(units.Count);
         _unitUploads.Add(upload);
 
         // Mark previous uploads as unused; mark this one as used
@@ -419,14 +413,38 @@ public class Project : Aggregate<Guid>
     /// revised Excel still appears in the Unit Listing "Upload History". Marks this upload as the
     /// current "Used" one and the previous uploads as unused, mirroring <see cref="ReplaceUnits"/>.
     /// </summary>
-    public ProjectUnitUpload RecordReappraisalUpload(string fileName, Guid? documentId)
+    public ProjectUnitUpload RecordReappraisalUpload(
+        string fileName,
+        Guid? documentId,
+        List<ProjectUnit>? addedUnits = null,
+        int matchedUnsold = 0,
+        int autoSold = 0,
+        int updated = 0)
     {
         var upload = ProjectUnitUpload.Create(Id, fileName, documentId);
+        upload.RecordRematchOutcome(matchedUnsold, autoSold, addedUnits?.Count ?? 0, updated);
         _unitUploads.Add(upload);
 
         foreach (var existing in _unitUploads.Where(u => u.IsUsed && u.Id != upload.Id))
             existing.MarkAsUnused();
         upload.MarkAsUsed();
+
+        if (addedUnits is { Count: > 0 })
+        {
+            // New inventory is APPENDED. Sequence numbers continue from the highest in use rather
+            // than being re-derived across the whole list, so the units already on screen — and
+            // already numbered — keep the positions the appraiser has been working with.
+            var nextSequence = _units.Count == 0 ? 1 : _units.Max(u => u.SequenceNumber) + 1;
+
+            foreach (var unit in addedUnits)
+            {
+                unit.SetUploadBatchId(upload.Id);
+                unit.SetSequenceNumber(nextSequence++);
+                _units.Add(unit);
+            }
+
+            LinkAppendedUnits(addedUnits);
+        }
 
         return upload;
     }
@@ -835,6 +853,61 @@ public class Project : Aggregate<Guid>
                     throw new InvalidProjectStateException(
                         $"A model named '{modelName}' already exists in this project.");
             }
+        }
+    }
+
+    /// <summary>
+    /// Wires newly appended units to a tower and model, creating either only when the unit names
+    /// one that does not exist yet.
+    ///
+    /// Deliberately NOT AutoCreate*/Link*, which the import paths use. Those walk every unit and
+    /// every model and finish by calling <c>ProjectModel.StampStats</c>, which overwrites the price
+    /// and area figures on every model in the project — figures an appraiser may have entered by
+    /// hand through UpdateProjectModel, and which the Condo call would additionally null out for
+    /// land area because it passes only four of the seven arguments. Appending one unit during a
+    /// re-match must not rewrite the rest of the project.
+    ///
+    /// The model statistics are left as they stand. They describe the models, not the unit list,
+    /// and the re-match flow is explicitly non-destructive.
+    /// </summary>
+    private void LinkAppendedUnits(List<ProjectUnit> appendedUnits)
+    {
+        foreach (var unit in appendedUnits)
+        {
+            Guid? towerIdForUnit = null;
+
+            if (ProjectType == ProjectType.Condo && !string.IsNullOrWhiteSpace(unit.TowerName))
+            {
+                var tower = _towers.FirstOrDefault(t =>
+                    string.Equals(t.TowerName, unit.TowerName, StringComparison.OrdinalIgnoreCase));
+
+                if (tower is null)
+                {
+                    tower = ProjectTower.Create(Id, unit.TowerName!);
+                    _towers.Add(tower);
+                }
+
+                unit.SetProjectTowerId(tower.Id);
+                towerIdForUnit = tower.Id;
+            }
+
+            if (string.IsNullOrWhiteSpace(unit.ModelType))
+                continue;
+
+            // Condo models are per-tower; LandAndBuilding models are per-project (tower id null).
+            var model = _models.FirstOrDefault(m =>
+                m.ProjectTowerId == towerIdForUnit &&
+                string.Equals(m.ModelName, unit.ModelType, StringComparison.OrdinalIgnoreCase));
+
+            if (model is null)
+            {
+                model = ProjectModel.Create(Id, unit.ModelType!);
+                if (towerIdForUnit is not null)
+                    model.SetProjectTowerId(towerIdForUnit.Value);
+                _models.Add(model);
+            }
+
+            unit.SetProjectModelId(model.Id);
         }
     }
 

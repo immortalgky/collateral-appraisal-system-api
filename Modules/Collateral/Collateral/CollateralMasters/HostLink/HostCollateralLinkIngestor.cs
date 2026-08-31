@@ -120,11 +120,27 @@ public class HostCollateralLinkIngestor(
         var perMaster = new Dictionary<Guid, List<ParsedHostLinkRecord>>();
         var notFound = new List<string>();
         var projectSkipped = 0;
+        var ticketRows = 0;
 
         foreach (var record in records)
         {
             if (!engagements.TryGetValue(record.AppraisalReportNumber, out var engagement))
             {
+                // A unit ticket, not an appraisal number — CAS issued it when LOS pulled a block
+                // unit's result, and AS400 has written it back in the same field. It resolves to
+                // units rather than to a master, which the exports do through
+                // collateral.vw_HostCollateralLinkKeys; the row is already stored by the
+                // HostCollateralLinks upsert above, so there is nothing to do here.
+                //
+                // Counted separately because calling it NotFound is what it looked like before
+                // tickets existed, and that reading sent people hunting for a dead-lettered
+                // AppraisalCompleted event that was never the cause.
+                if (IsUnitTicket(record.AppraisalReportNumber))
+                {
+                    ticketRows++;
+                    continue;
+                }
+
                 notFound.Add(record.AppraisalReportNumber);
                 continue;
             }
@@ -196,6 +212,13 @@ public class HostCollateralLinkIngestor(
                 "[HostCollateralLinkIngestor] {Count} collateral are no longer listed by the {FileDate} "
                 + "file; their rows are kept but fall outside the active set",
                 deactivated, fileDate);
+
+        if (ticketRows > 0)
+            logger.LogInformation(
+                "[HostCollateralLinkIngestor] {Count} row(s) in {File} carry a unit ticket rather than "
+                + "an appraisal number. Stored in HostCollateralLinks and resolved to units by the "
+                + "export views; no master write applies.",
+                ticketRows, fileName);
 
         if (notFound.Count > 0)
             logger.LogWarning(
@@ -387,6 +410,26 @@ public class HostCollateralLinkIngestor(
     /// </summary>
     private Task<int> CountDeactivatedAsync(DateOnly fileDate, CancellationToken cancellationToken) =>
         dbContext.HostCollateralLinks.CountAsync(h => h.LastSeenFileDate < fileDate, cancellationToken);
+
+    /// <summary>
+    /// Whether the value AS400 wrote is one of our unit tickets rather than an appraisal number.
+    /// Format {YY}U{00000}: eight characters, digits either side of a literal 'U' at position 3.
+    /// Appraisal numbers are all digits, so the marker separates them; length cannot, because legacy
+    /// appraisal numbers such as "2560100004" are ten characters too.
+    /// </summary>
+    internal static bool IsUnitTicket(string? value)
+    {
+        var v = value?.Trim();
+        if (v is not { Length: 8 } || v[2] != 'U') return false;
+
+        for (var i = 0; i < v.Length; i++)
+        {
+            if (i == 2) continue;
+            if (!char.IsAsciiDigit(v[i])) return false;
+        }
+
+        return true;
+    }
 
     private async Task<Dictionary<string, EngagementRef>> LoadEngagementsAsync(
         IEnumerable<string> appraisalNumbers,

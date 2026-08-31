@@ -19,6 +19,8 @@ public record GetAppraisalResultsByCaseKeyQuery(
     : IQuery<IReadOnlyList<GetAppraisalResultResponse>>;
 
 public record GetAppraisalResultResponse(
+    // The key the bank quotes this collateral by. For a block project whose units were named in the
+    // request this is the ticket, NOT the block's own appraisal number - see TicketNumber below.
     string AppraisalNumber,
     string? Status,
     string? AppraisalPurpose,
@@ -41,6 +43,11 @@ public record GetAppraisalResultResponse(
     // Request-level total selling price (request.RequestDetails.TotalSellingPrice); for a block, the
     // matched unit's own selling price. Legacy field: MarketValue.
     decimal? MarketValue,
+    // Repeats whatever AppraisalNumber carries when that value is a ticket, and is null otherwise.
+    // Redundant on purpose: it lets a caller tell a ticket from a book number by reading one field
+    // instead of pattern-matching the string, and makes the substitution above visible in the
+    // payload rather than implied by it.
+    string? TicketNumber,
     List<AppraisalResultGroup> Groups,
     List<AppraisalResultDocument> Documents);
 

@@ -69,6 +69,7 @@ Src AS (
         k.CasAppraisalNumber,
         k.AddrToken,
         k.NameToken,
+        k.TicketToken,
         k.PropertyType,
         k.PropertyTypeDesc
     FROM collateral.vw_HostCollateralLinkKeys k
@@ -345,6 +346,7 @@ ProjectWalk AS (
         an.HostCollateralId,
         NULLIF(s.AddrToken, '') AS AddrToken,
         NULLIF(s.NameToken, '') AS NameToken,
+        NULLIF(s.TicketToken, '') AS TicketToken,
         an.AppraisalId AS AncestorId,
         an.PrevAppraisalId,
         0              AS Depth,
@@ -353,13 +355,14 @@ ProjectWalk AS (
     JOIN Src s ON s.HostCollateralId = an.HostCollateralId
     WHERE NULLIF(s.AddrToken, '') IS NOT NULL
        OR NULLIF(s.NameToken, '') IS NOT NULL
+       OR NULLIF(s.TicketToken, '') IS NOT NULL
 
     UNION ALL
 
     -- Unlike the main Walk this DOES step through project appraisals. There it is a dead end because
     -- unrelated units point at a shared project and merging them would confuse two collateral; here
     -- the unit token pins one specific unit, so following the project's own history is exactly right.
-    SELECT w.AppraisalId, w.HostCollateralId, w.AddrToken, w.NameToken, p.Id, p.PrevAppraisalId,
+    SELECT w.AppraisalId, w.HostCollateralId, w.AddrToken, w.NameToken, w.TicketToken, p.Id, p.PrevAppraisalId,
            w.Depth + 1,
            CAST(w.Path + CAST(p.Id AS varchar(36)) + '|' AS varchar(max))
     FROM ProjectWalk w
@@ -385,11 +388,11 @@ TokenPart AS (
         w.HostCollateralId,
         w.AncestorId,
         w.Depth,
-        -- 0 = the name, 1 = the address. See TokenRank below for why the name outranks the address.
+        -- -1 = the ticket CAS issued, 0 = the name, 1 = the address. See TokenRank below; lower wins.
         s.Source,
         LTRIM(RTRIM(p.value)) AS Part
     FROM ProjectWalk w
-    CROSS APPLY (VALUES (0, w.NameToken), (1, w.AddrToken)) AS s(Source, Token)
+    CROSS APPLY (VALUES (-1, w.TicketToken), (0, w.NameToken), (1, w.AddrToken)) AS s(Source, Token)
     CROSS APPLY STRING_SPLIT(ISNULL(s.Token, ''), ',') p
     -- The empty-string guard is load-bearing: a blank part would match every unit whose column is
     -- blank and price a collateral from an unrelated room.

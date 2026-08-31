@@ -6,7 +6,8 @@ namespace Appraisal.Application.Features.Project.PreviewBlockReappraisalUnits;
 /// </summary>
 public record PreviewBlockReappraisalUnitsResult(
     PreviewSummaryDto Summary,
-    IReadOnlyList<PreviewUnitDto> Units
+    IReadOnlyList<PreviewUnitDto> Units,
+    IReadOnlyList<PreviewAddedUnitDto> AddedUnits
 );
 
 /// <summary>
@@ -18,12 +19,17 @@ public record PreviewBlockReappraisalUnitsResult(
 /// <param name="NewlySold">Not-sold units whose business key is absent from the Excel.</param>
 /// <param name="Available">Not-sold units present in the Excel with matching attributes.</param>
 /// <param name="MatchDifference">Not-sold units present in the Excel but with one or more attribute differences.</param>
+/// <param name="Added">
+///   Excel rows whose business key matches no unit in the project. Not part of <see cref="Total"/>:
+///   these rows do not exist in the working copy yet. Applying with confirmUpdates=true appends them.
+/// </param>
 public record PreviewSummaryDto(
     int Total,
     int Sold,
     int NewlySold,
     int Available,
-    int MatchDifference
+    int MatchDifference,
+    int Added
 );
 
 /// <summary>
@@ -53,5 +59,29 @@ public record PreviewUnitDto(
     // Status bucket: "Sold" | "NewlySold" | "Available" | "MatchDifference"
     string Status,
     // camelCase field names that differ from the incoming Excel row (empty for non-MatchDifference)
-    IReadOnlyList<string> DiffFields
+    IReadOnlyList<string> DiffFields,
+    // The Excel's value for each field named in DiffFields, so the caller can show old vs new
+    // rather than only that something changed. Empty for non-MatchDifference rows.
+    IReadOnlyDictionary<string, object?> IncomingValues
+);
+
+/// <summary>
+/// An Excel row that matches no unit in the project. Rendered alongside the existing units so the
+/// user can see what applying the file would add before confirming it.
+/// </summary>
+public record PreviewAddedUnitDto(
+    // Common
+    string? ModelType,
+    decimal? UsableArea,
+    decimal? SellingPrice,
+    // Condo-side (null for L&B)
+    int? Floor,
+    string? TowerName,
+    string? CondoRegistrationNumber,
+    string? RoomNumber,
+    // L&B-side (null for Condo)
+    string? PlotNumber,
+    string? HouseNumber,
+    int? NumberOfFloors,
+    decimal? LandArea
 );

@@ -22,7 +22,9 @@ public class GetProjectUnitUploadsQueryHandler(
             .Where(u => u.ProjectId == projectId.Value)
             .OrderByDescending(u => u.UploadedAt)
             .Select(u => new ProjectUnitUploadDto(
-                u.Id, u.ProjectId, u.FileName, u.UploadedAt, u.IsUsed, u.DocumentId))
+                u.Id, u.ProjectId, u.FileName, u.UploadedAt, u.IsUsed, u.DocumentId,
+                u.IsSystemGenerated, u.AddedUnits, u.MatchedUnsoldUnits,
+                u.AutoSoldUnits, u.UpdatedUnits))
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 

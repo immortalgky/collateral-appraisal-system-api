@@ -18,19 +18,21 @@ public class GetProjectUnitsQueryHandler(
             .FirstOrDefaultAsync(cancellationToken);
 
         if (projectId is null)
-            return new GetProjectUnitsResult([], [], [], 0);
+            return new GetProjectUnitsResult([], [], [], 0, 0);
 
-        // Unit Listing shows remaining inventory only — sold units (marked via reappraisal
-        // re-match or Block Unit Maintenance) are excluded. Sold units remain visible/editable
-        // on the Block Unit Maintenance screen, which uses a separate endpoint.
+        // Every unit of the project, sold ones included. This used to return remaining inventory
+        // only and send people to Block Unit Maintenance for the rest — but that screen lives in
+        // another module behind different permissions, and meanwhile the listing reported a
+        // three-plot project as "1 unit" and dropped sold units' models from the filter lists.
+        // Sold units carry IsSold so the caller can mark them and filter on demand.
         var units = await dbContext.ProjectUnits
-            .Where(u => u.ProjectId == projectId.Value && !u.IsSold)
+            .Where(u => u.ProjectId == projectId.Value)
             .OrderBy(u => u.SequenceNumber)
             .Select(u => new ProjectUnitDto(
                 u.Id, u.ProjectId, u.UploadBatchId, u.SequenceNumber,
                 u.ModelType, u.UsableArea, u.SellingPrice,
                 u.Floor, u.TowerName, u.CondoRegistrationNumber, u.RoomNumber,
-                u.PlotNumber, u.HouseNumber, u.NumberOfFloors, u.LandArea))
+                u.PlotNumber, u.HouseNumber, u.NumberOfFloors, u.LandArea, u.IsSold))
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
@@ -48,6 +50,7 @@ public class GetProjectUnitsQueryHandler(
             .OrderBy(m => m)
             .ToList();
 
-        return new GetProjectUnitsResult(units, towers, models, units.Count);
+        return new GetProjectUnitsResult(
+            units, towers, models, units.Count, units.Count(u => !u.IsSold));
     }
 }
