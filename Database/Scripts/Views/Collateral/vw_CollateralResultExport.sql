@@ -60,6 +60,7 @@ Active AS (
         k.HostCollateralId,
         k.CollateralName,
         k.CasAppraisalNumber,
+        k.TicketAppraisalId,
         k.NameToken,
         k.AddrToken,
         k.TicketToken
@@ -122,6 +123,10 @@ Walk AS (
 ),
 
 -- Every collateral reachable from an appraisal, with how far up it was found.
+-- Two branches for the same reason vw_RegulatoryExport splits its Anchor: a collateral is named
+-- either by appraisal number or by a ticket we issued, never both, and matching on one key per
+-- branch keeps each side resolvable. Merging them into a single predicate over a two-table
+-- expression makes the optimiser replay a full appraisal scan per link row.
 Hit AS (
     SELECT
         w.AppraisalId,
@@ -133,6 +138,19 @@ Hit AS (
     FROM Walk w
     JOIN appraisal.Appraisals anc ON anc.Id = w.AncestorId
     JOIN Active act ON act.CasAppraisalNumber = anc.AppraisalNumber
+    WHERE act.TicketAppraisalId IS NULL
+
+    UNION ALL
+
+    SELECT
+        w.AppraisalId,
+        w.Depth,
+        act.HostCollateralId,
+        act.NameToken,
+        act.AddrToken,
+        act.TicketToken
+    FROM Walk w
+    JOIN Active act ON act.TicketAppraisalId = w.AncestorId
 ),
 
 -- Only the nearest ancestor that matched. A newer drawdown supersedes an older one, and mixing the

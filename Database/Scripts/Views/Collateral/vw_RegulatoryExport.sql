@@ -67,6 +67,7 @@ Src AS (
         k.HostCollateralId,
         k.AppraisalNumber,
         k.CasAppraisalNumber,
+        k.TicketAppraisalId,
         k.AddrToken,
         k.NameToken,
         k.TicketToken,
@@ -86,19 +87,41 @@ Src AS (
 -- drops out here — 1,930 rows on the 2026-08-03 feed. SOURCE 2 below recovers the 1,177 of them that
 -- are the legacy "99" series; the rest (604 block-project 'B' numbers, 146 in a numbering CAS does
 -- not use) are questions for AS400, not something this view can resolve.
+-- Two branches, not one join with a COALESCE or an OR. A collateral either carries a unit ticket
+-- or it does not, so the split is exact, and each branch keeps a key the optimiser can resolve on
+-- its own: the appraisal number against IX_Appraisals_AppraisalNumber, or the id against the
+-- primary key. Written as one join over a two-table expression instead, the optimiser cannot
+-- evaluate the key before the ticket join and falls back to replaying a full scan of every
+-- appraisal per link row — 486 million rows on U3, and the job never finishes.
+--
+-- ProjectType: a block-project appraisal holds no AppraisalProperties at all, so PropMix has
+-- nothing to read and the collateral type would fall through to "bare land". The project's own type
+-- is the only thing in CAS that says whether its units are condos or houses. It carries the same
+-- codes the export already uses — 'U' or 'LB', nothing else.
 Anchor AS (
+    -- Collateral AS400 named by appraisal number, which is all of them from before ticketing.
     SELECT s.HostCollateralId, s.PropertyType, s.PropertyTypeDesc,
            a.Id AS AppraisalId, a.AppraisalNumber, a.AppraisalType, a.RequestId, a.PrevAppraisalId,
-           -- A block-project appraisal holds no AppraisalProperties at all, so PropMix has nothing to
-           -- read and the collateral type would fall through to "bare land". The project's own type is
-           -- the only thing in CAS that says whether its units are condos or houses. It carries the
-           -- same codes the export already uses — 'U' or 'LB', nothing else.
            pr.ProjectType
     FROM Src s
     JOIN appraisal.Appraisals a
         ON  a.AppraisalNumber = s.CasAppraisalNumber
         AND a.IsDeleted       = 0
     LEFT JOIN appraisal.Projects pr ON pr.AppraisalId = a.Id
+    WHERE s.TicketAppraisalId IS NULL
+
+    UNION ALL
+
+    -- Collateral AS400 named by a ticket we issued. The id is already in hand, so this is a seek.
+    SELECT s.HostCollateralId, s.PropertyType, s.PropertyTypeDesc,
+           a.Id AS AppraisalId, a.AppraisalNumber, a.AppraisalType, a.RequestId, a.PrevAppraisalId,
+           pr.ProjectType
+    FROM Src s
+    JOIN appraisal.Appraisals a
+        ON  a.Id        = s.TicketAppraisalId
+        AND a.IsDeleted = 0
+    LEFT JOIN appraisal.Projects pr ON pr.AppraisalId = a.Id
+    WHERE s.TicketAppraisalId IS NOT NULL
 ),
 
 -- ── Walk each anchor back through its predecessors ─────────────────────────────────────────────
@@ -736,7 +759,11 @@ FROM Src s
 JOIN LegacyByCollateral lg ON lg.HostCollateralId = s.HostCollateralId
 -- Only where SOURCE 1 could not report it. A collateral that CAS has appraised is reported from the
 -- appraisal; emitting the listing row as well would double-count one physical collateral.
-WHERE NOT EXISTS (
+-- A ticketed collateral always resolves in SOURCE 1 through TicketAppraisalId. Its
+-- CasAppraisalNumber is the raw ticket string, which matches no appraisal, so without this guard
+-- NOT EXISTS would be true and the same collateral would be reported from both sources.
+WHERE s.TicketAppraisalId IS NULL
+  AND NOT EXISTS (
         SELECT 1 FROM appraisal.Appraisals a
         WHERE a.AppraisalNumber = s.CasAppraisalNumber AND a.IsDeleted = 0)
   AND lg.ValuationDate IS NOT NULL;

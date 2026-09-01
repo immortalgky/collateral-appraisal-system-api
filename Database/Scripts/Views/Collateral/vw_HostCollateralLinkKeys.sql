@@ -41,12 +41,22 @@ SELECT
     -- that is ~1.9 billion rows, and it took the regulatory export from under a second to over ten
     -- minutes. Whatever feeds this column has to stay resolvable to a seek — the same reason the 'B'
     -- prefix is stripped here rather than in each reader's join predicate.
-    COALESCE(
-        ta.AppraisalNumber,
-        CASE WHEN LEFT(h.AppraisalNumber, 1) = 'B'
-             THEN SUBSTRING(h.AppraisalNumber, 2, LEN(h.AppraisalNumber))
-             ELSE h.AppraisalNumber
-        END) AS CasAppraisalNumber,
+    -- ⚠ NO ticket resolution in this column, deliberately. Both outbound views join
+    -- appraisal.Appraisals on it, and a COALESCE spanning two tables cannot be resolved before the
+    -- ticket join completes: the optimiser abandons the hash join it used before ticketing existed
+    -- and replays a full scan of all ~59k appraisals per link row. Measured on U3 with every column
+    -- read, that is the difference between 23 seconds and never finishing inside the job's 600s
+    -- command timeout. Readers resolve a ticket through TicketAppraisalId below instead, as a
+    -- separate seekable branch.
+    CASE WHEN LEFT(h.AppraisalNumber, 1) = 'B'
+         THEN SUBSTRING(h.AppraisalNumber, 2, LEN(h.AppraisalNumber))
+         ELSE h.AppraisalNumber
+    END AS CasAppraisalNumber,
+
+    -- The appraisal a ticket was issued from, when the feed named one. NULL for every collateral
+    -- from before ticketing, which is what makes the two branches a clean split rather than an OR.
+    tj.AppraisalId AS TicketAppraisalId,
+    ta.AppraisalNumber AS TicketAppraisalNumber,
 
     -- ── The unit ticket, when the feed named one ───────────────────────────────────────────────
     -- CAS issues a ticket when LOS pulls a block unit's result, LOS carries it into AS400, and AS400
