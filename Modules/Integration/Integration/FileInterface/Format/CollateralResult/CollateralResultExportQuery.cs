@@ -47,8 +47,14 @@ public class CollateralResultExportQuery(
     /// <summary>
     /// Rejected appraisals still owed an 'R' record.
     ///
-    /// The AppraisalType join carries the same scope as the approved side: this interface answers
-    /// COLLATREV, so a rejected appraisal the host never asked about is not its business.
+    /// The join to appraisal.Appraisals carries the same two conditions as the approved side, and
+    /// both have to stay in step with vw_CollateralResultExport's Pending CTE. AppraisalType is the
+    /// scope — this interface answers COLLATREV, so a rejected appraisal the host never asked about
+    /// is not its business. IsDeleted is correctness: a soft-deleted appraisal is one the system no
+    /// longer reports, and shipping an 'R' for it would tell AS400 about work that was withdrawn.
+    ///
+    /// The join being INNER also drops a spooled row whose appraisal has disappeared entirely.
+    /// There is nothing sensible to send for one, and it would previously have gone out.
     /// AppraisalRejectedConsumer spools EVERY rejection — it has no reason to know the file's scope —
     /// so the narrowing happens on read. A row left out today is still in the table and would be
     /// picked up unchanged if the scope ever widens, which spooling selectively would have prevented.
@@ -60,6 +66,7 @@ public class CollateralResultExportQuery(
         FROM collateral.PendingCollateralResults p
         JOIN appraisal.Appraisals a ON a.Id = p.AppraisalId
         WHERE p.SentAt IS NULL
+          AND a.IsDeleted = 0
           AND a.AppraisalType = 'ReAppraisal'
         """;
 
