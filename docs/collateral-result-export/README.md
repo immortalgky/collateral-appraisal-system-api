@@ -1,9 +1,17 @@
 # Outbound "Collateral Result" interface (CAS → AS400)
 
-Ships a fixed-width **231-char** H/D/T file of completed appraisals back to the host (AS400) so it can
-update collateral prices. Runs on a Hangfire recurring job **once daily** and is driven by a
-**sent-ledger** (`collateral.CollateralResultLogs`) so an appraisal that completes *after* a run is
-picked up by the next one.
+Ships a fixed-width **231-char** H/D/T file back to the host (AS400) so it can update collateral
+prices. Runs on a Hangfire recurring job **once daily** and is driven by a **sent-ledger**
+(`collateral.CollateralResultLogs`) so an appraisal that completes *after* a run is picked up by the
+next one.
+
+**Reappraisals only.** This interface is the return leg of COLLATREV: the host sends a due-list, we
+review, we report what the review concluded. A brand-new appraisal reaches AS400 through the loan it
+belongs to, not through here. The row set is `AppraisalType = 'ReAppraisal'`, which comes from the
+request's Purpose (`03` ordinary, `09` block) — deliberately **not** a test of who initiated the
+review. Of 1,606 completed reappraisals on the production-like set only *one* came through the SIBS
+channel that COLLATREV itself initiates; the rest are MANUAL, CLS and LOS. Scoping by provenance
+would leave a file of one row, and a review is a review whoever started it.
 
 **The row set is the appraisals, not the collateral masters.** It used to start from
 `CollateralEngagements` joined to `CollateralMasters` with `HostCollateralId IS NOT NULL` as the
@@ -33,16 +41,21 @@ A blank id still identifies the work — the appraisal number is in the record �
 tells the host a person needs to look at it. Guessing which of several collateral a price belongs to
 would update the wrong one.
 
-**Most of the file is blank ids, and that is correct.** On the production-like dataset 33,380 of
-38,337 rows go out that way — 87%. It is not a matching failure: for those appraisals the COLLATLINK
-feed holds no row at all, at any level of the chain (only 266 appraisals are genuinely ambiguous).
-The usual reason is that the customer has not drawn down, and AS400 mints a collateral id only at
-drawdown; the rest are appraisals that never became loans, or work old enough that the bank no longer
-holds the collateral.
+**Most of the file is blank ids, and that is correct.** On the production-like dataset 1,359 of
+1,595 rows go out that way — 85%. It is not a matching failure: for those appraisals the COLLATLINK
+feed holds no row at all, at any level of the chain. The dominant cause is that **`PrevAppraisalId`
+is NULL on 863 of the 1,606 completed reappraisals (54%)** — with no chain there is nothing to walk,
+and the walk recovers the id for only 26 appraisals beyond the 203 whose own number the feed already
+carries. That NULL is worth fixing at the source one day; it is not something this view can work
+around.
 
 They are sent anyway. That was decided with the bank on 2026-08-31: a result the host never hears
 about disappears silently, whereas an `N` row reaches someone who can resolve it. Dropping them was
 considered and rejected for that reason — do not "optimise" these rows out of the file.
+
+⚠️ Narrowing the file to reappraisals did **not** improve this ratio — it was 87% before and 85%
+after, on 24× fewer rows. The scope change made the file mean the right thing; it did not make the
+matching work better.
 
 Nothing is lost either way, because the sent-ledger is keyed on `(AppraisalId, CollateralId)`: an
 appraisal sent today with a blank id pairs with a different key the moment AS400 mints one, so it
