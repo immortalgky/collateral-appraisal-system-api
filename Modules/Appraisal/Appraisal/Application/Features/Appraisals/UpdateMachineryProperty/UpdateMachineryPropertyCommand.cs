@@ -16,6 +16,12 @@ public record UpdateMachineryPropertyCommand(
     string? ChassisNo = null,
     string? RegistrationNumber = null,
     string? SerialNo = null,
+    // Registration & Installation
+    bool? RegistrationStatus = null,
+    string? InstallationStatus = null,
+    string? MachineType = null,
+    string? InvoiceNumber = null,
+    bool? IsPriceCertified = null,
     // Machine Specifications
     string? Brand = null,
     string? Model = null,

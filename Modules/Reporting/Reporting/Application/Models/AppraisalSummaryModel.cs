@@ -540,6 +540,13 @@ public sealed class SummaryGroupRow
     /// <summary>Collateral details (title number / unit / address snippet).</summary>
     public string? CollateralDetails { get; init; }
 
+    /// <summary>
+    /// Multi-line variant of <see cref="CollateralDetails"/>, each entry rendered on its own line
+    /// above the numbered item list. Machinery uses it to state each registration status present
+    /// in the group; other property types leave it null and keep the single-line form.
+    /// </summary>
+    public List<string>? CollateralDetailLines { get; init; }
+
     /// <summary>Land area in rai-ngan-wa format, or unit count for buildings.</summary>
     public string? AreaOrUnit { get; init; }
 

@@ -45,7 +45,7 @@
           <span class="chk on"></span>
           <strong>{{ g.property_type }}</strong>
         </td>
-        <td>{{ if g.collateral_details }}<div>{{ g.collateral_details }}</div>{{ end }}{{ for d in g.detail_items }}<div>{{ for.index + 1 }}. {{ d }}</div>{{ end }}</td>
+        <td>{{ for l in g.collateral_detail_lines }}<div>- {{ l }}</div>{{ end }}{{ if g.collateral_details }}<div>{{ g.collateral_details }}</div>{{ end }}{{ for d in g.detail_items }}<div>{{ for.index + 1 }}. {{ d }}</div>{{ end }}</td>
         <td>&nbsp;</td>
         <td>&nbsp;</td>
         <td class="num">{{ if g.appraisal_value; g.appraisal_value | math.format "N2"; end }}</td>

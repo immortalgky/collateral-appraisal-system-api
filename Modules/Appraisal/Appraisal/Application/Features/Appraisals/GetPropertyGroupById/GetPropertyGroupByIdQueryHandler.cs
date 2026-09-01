@@ -166,6 +166,10 @@ public record PropertyGroupItemDto
     public string? Brand { get; set; }
     public string? Model { get; set; }
     public string? RegistrationNumber { get; set; }
+    /// <summary>Machinery only: registered with the authorities. Null for other property types.</summary>
+    public bool? RegistrationStatus { get; set; }
+    /// <summary>Machinery only: appraiser certifies this machine's price. Null for other types.</summary>
+    public bool? IsPriceCertified { get; set; }
     public string? Dimension { get; set; }
     public string? Location { get; set; }
     /// <summary>Title deed no(s): comma-joined LandTitles for land, unit deed for condo.</summary>

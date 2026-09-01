@@ -85,7 +85,10 @@ public sealed class AppraisalSummaryMachineDataProvider(
                 mad.MachineCondition,
                 mad.OwnerName,
                 mad.Location,
-                mad.Quantity
+                mad.Quantity,
+                mad.RegistrationStatus,
+                mad.InstallationStatus,
+                mad.IsPriceCertified
             FROM appraisal.PropertyGroupItems pgi
             JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
             JOIN appraisal.MachineryAppraisalDetails mad ON mad.AppraisalPropertyId = ap.Id
@@ -144,8 +147,15 @@ public sealed class AppraisalSummaryMachineDataProvider(
             int machineCount = singleMachineGroup && machSummary?.SurveyedNumber is int surveyed && surveyed > 0
                 ? surveyed
                 : perGroupCount;
-            // Header line above the numbered item list.
-            var collateralDetails = machineCount > 0
+            // Header line(s) above the numbered item list. A group can mix registration states
+            // (the sample reports show a registered batch and an unregistered one in the same
+            // appraisal), so emit one line per state that is actually present rather than the
+            // blanket "จดทะเบียนกรรมสิทธิ์" claim this used to print for every machine.
+            var detailLines = BuildRegistrationHeaderLines(machRows);
+
+            // Fallback for the pre-migration case where no detail rows were loaded: keep the old
+            // single-line header driven by the count so the row never renders empty.
+            var collateralDetails = detailLines.Count == 0 && machineCount > 0
                 ? $"จดทะเบียนกรรมสิทธิ์เครื่องจักร จำนวน {machineCount} รายการ"
                 : null;
 
@@ -170,6 +180,9 @@ public sealed class AppraisalSummaryMachineDataProvider(
                 if (!string.IsNullOrWhiteSpace(m.MachineCondition))
                     parts.Add($"สภาพ{m.MachineCondition}");
 
+                if (!m.IsPriceCertified)
+                    parts.Add("(ไม่รับรองราคาประเมิน)");
+
                 if (parts.Count > 0)
                     detailItems.Add(string.Join(" ", parts));
             }
@@ -180,6 +193,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
                 GroupName = g.GroupName,
                 PropertyType = "เครื่องจักร",
                 CollateralDetails = collateralDetails,
+                CollateralDetailLines = detailLines.Count > 0 ? detailLines : null,
                 DetailItems = detailItems,
                 AreaOrUnit = null,
                 PricePerAreaOrUnit = null,
@@ -275,6 +289,36 @@ public sealed class AppraisalSummaryMachineDataProvider(
     private static string? FirstNonBlank(params string?[] values)
         => values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
 
+    /// <summary>MachineStatus parameter code for "อยู่ระหว่างการจัดซื้อ" (valued from a quotation).</summary>
+    private const string UnderProcurementStatus = "2";
+
+    /// <summary>
+    /// One header line per registration state present in the group, in report order. A group with
+    /// a single state therefore still gets exactly one line, matching the previous output shape.
+    /// </summary>
+    private static List<string> BuildRegistrationHeaderLines(List<GroupMachineDetailRow> rows)
+    {
+        // Counts are ROWS, matching the numbered list printed underneath, so a reader can check the
+        // header against the items. (Quantity is deliberately not summed here: the cost-approach
+        // section reports that separately as สำรวจพบ, and mixing the two units in one cell would
+        // make the header disagree with the list.)
+        var registered = rows.Count(r => r.RegistrationStatus);
+        var unregisteredInstalled = rows
+            .Count(r => !r.RegistrationStatus && r.InstallationStatus != UnderProcurementStatus);
+        var underProcurement = rows
+            .Count(r => !r.RegistrationStatus && r.InstallationStatus == UnderProcurementStatus);
+
+        var lines = new List<string>();
+        if (registered > 0)
+            lines.Add($"เครื่องจักรและอุปกรณ์ที่ได้จดทะเบียนกรรมสิทธิ์ จำนวน {registered} เครื่อง");
+        if (unregisteredInstalled > 0)
+            lines.Add($"เครื่องจักรและอุปกรณ์ที่ยังไม่ได้รับการจดทะเบียน จำนวน {unregisteredInstalled} เครื่อง");
+        if (underProcurement > 0)
+            lines.Add($"เครื่องจักรและอุปกรณ์ที่ไม่จดทะเบียนอยู่ระหว่างการติดตั้ง จำนวน {underProcurement} เครื่อง");
+
+        return lines;
+    }
+
     // ── Private flat DTOs for Dapper mapping ─────────────────────────────────────
 
     private sealed class MachSummaryRow
@@ -311,5 +355,8 @@ public sealed class AppraisalSummaryMachineDataProvider(
         public string? OwnerName { get; init; }
         public string? Location { get; init; }
         public int? Quantity { get; init; }
+        public bool RegistrationStatus { get; init; }
+        public string? InstallationStatus { get; init; }
+        public bool IsPriceCertified { get; init; }
     }
 }
