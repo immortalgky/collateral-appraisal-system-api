@@ -8,6 +8,8 @@ using Appraisal.Domain.Invoices;
 using Shared.Data.Outbox;
 using Shared.Scheduling;
 
+using Appraisal.Domain.UnitTickets;
+
 namespace Appraisal.Infrastructure;
 
 public class AppraisalDbContext : DbContext
@@ -171,6 +173,8 @@ public class AppraisalDbContext : DbContext
     public DbSet<ProjectUnit> ProjectUnits => Set<ProjectUnit>();
     public DbSet<ProjectUnitPrice> ProjectUnitPrices => Set<ProjectUnitPrice>();
     public DbSet<ProjectUnitUpload> ProjectUnitUploads => Set<ProjectUnitUpload>();
+    public DbSet<UnitTicket> UnitTickets => Set<UnitTicket>();
+    public DbSet<UnitTicketUnit> UnitTicketUnits => Set<UnitTicketUnit>();
     public DbSet<ProjectPricingAssumption> ProjectPricingAssumptions => Set<ProjectPricingAssumption>();
     public DbSet<ProjectLand> ProjectLands => Set<ProjectLand>();
 

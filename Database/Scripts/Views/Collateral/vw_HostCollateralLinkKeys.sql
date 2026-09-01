@@ -31,10 +31,27 @@ SELECT
     --
     -- Normalised here rather than in each join predicate: `OR h.AppraisalNumber = 'B' + a.Number`
     -- cannot use an index.
-    CASE WHEN LEFT(h.AppraisalNumber, 1) = 'B'
-         THEN SUBSTRING(h.AppraisalNumber, 2, LEN(h.AppraisalNumber))
-         ELSE h.AppraisalNumber
-    END AS CasAppraisalNumber,
+    -- A ticket resolves to the appraisal it was issued from, so every reader downstream keeps
+    -- working off an appraisal number exactly as it does for a collateral AS400 named the old way.
+    COALESCE(
+        tk.TicketAppraisalNumber,
+        CASE WHEN LEFT(h.AppraisalNumber, 1) = 'B'
+             THEN SUBSTRING(h.AppraisalNumber, 2, LEN(h.AppraisalNumber))
+             ELSE h.AppraisalNumber
+        END) AS CasAppraisalNumber,
+
+    -- ── The unit ticket, when the feed named one ───────────────────────────────────────────────
+    -- CAS issues a ticket when LOS pulls a block unit's result, LOS carries it into AS400, and AS400
+    -- writes it back here in the field that otherwise holds an appraisal number. Eight characters,
+    -- digits either side of a literal 'U' at position 3 — appraisal numbers are all digits, so the
+    -- marker tells them apart. Length cannot: legacy appraisal numbers such as "2560100004" are ten
+    -- characters too.
+    --
+    -- This is the key the two systems agreed on, so it outranks both parsed tokens below. Those are
+    -- read out of AS400 free text; this one we issued ourselves and it names the units outright.
+    -- A collateral from before ticketing resolves to nothing here and falls through to exactly the
+    -- behaviour it has today.
+    tk.TicketToken,
 
     -- ── Two keys for one unit ──────────────────────────────────────────────────────────────────
     -- A block-project collateral is one unit of a development, and an export has to find that unit
@@ -77,6 +94,30 @@ SELECT
               THEN 1 ELSE 0 END AS bit) AS IsActive
 
 FROM collateral.HostCollateralLinks h
+-- The ticket, its appraisal, and the rooms it covers as one comma list — the same shape the parsed
+-- tokens arrive in, so every reader can split it the same way.
+--
+-- Each unit contributes only the FIRST part of its own key. CAS stores a multi-room unit as a single
+-- row whose key reads "1198/831,1198/832"; passing that through whole would split into two parts
+-- that both match the same unit row, and a reader summing per part would count its value twice.
+OUTER APPLY (
+    SELECT TOP 1
+           a.AppraisalNumber AS TicketAppraisalNumber,
+           STUFF((
+               SELECT ',' + CASE WHEN CHARINDEX(',', tu2.UnitKey) > 0
+                                 THEN LEFT(tu2.UnitKey, CHARINDEX(',', tu2.UnitKey) - 1)
+                                 ELSE tu2.UnitKey
+                            END
+               FROM appraisal.UnitTicketUnits tu2
+               WHERE tu2.UnitTicketId = t.Id
+               ORDER BY tu2.UnitKey
+               FOR XML PATH(''), TYPE).value('.', 'nvarchar(400)'), 1, 1, '') AS TicketToken
+    FROM appraisal.UnitTickets t
+    JOIN appraisal.Appraisals a ON a.Id = t.AppraisalId AND a.IsDeleted = 0
+    WHERE LEN(LTRIM(RTRIM(h.AppraisalNumber))) = 8
+      AND SUBSTRING(LTRIM(RTRIM(h.AppraisalNumber)), 3, 1) = 'U'
+      AND t.TicketNumber = LTRIM(RTRIM(h.AppraisalNumber))
+) tk
 -- Everything after the literal 'CONDO', with a leading '.' or '/' and any spaces removed.
 CROSS APPLY (SELECT LTRIM(
     CASE WHEN SUBSTRING(h.CollateralName, 6, 1) IN ('.', '/')

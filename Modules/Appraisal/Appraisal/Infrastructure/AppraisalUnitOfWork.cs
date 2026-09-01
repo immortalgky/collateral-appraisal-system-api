@@ -94,8 +94,7 @@ public class AppraisalUnitOfWork : IAppraisalUnitOfWork
         foreach (var appraisal in newAppraisals)
         {
             var next = await GetNextRunningNumberAsync(RunningNumberType.APPRAISAL, thaiYear, cancellationToken);
-            var thaiYearShort = thaiYear % 100; // e.g. 69
-            appraisal.SetAppraisalNumber($"{thaiYearShort}{next:D6}");
+            appraisal.SetAppraisalNumber(FormatAppraisalNumber(thaiYear, next));
         }
 
         // MarketComparables: format MKC-{000001}-{YYYY} e.g. "MKC-000001-2569"
@@ -138,6 +137,27 @@ public class AppraisalUnitOfWork : IAppraisalUnitOfWork
             var next = await GetNextRunningNumberAsync(RunningNumberType.SUPPORTING_MAINTENANCE, thaiYear, cancellationToken);
             supporting.SetSupportingNumber(SupportingNumber.Create($"SUP-{next:D6}-{thaiYear}"));
         }
+    }
+
+    /// <summary>
+    /// Formats the 8-character appraisal number, {yy}{running:D6} — e.g. "69000001".
+    ///
+    /// Both widths are enforced rather than assumed. The year used to be interpolated with no format
+    /// specifier, so a Buddhist year ending in a single digit (BE 2600 -> "0") produced a
+    /// SEVEN-character number; and the running number silently became nine characters past 999,999.
+    /// Everything downstream assumes exactly eight — the 10-character AS400 CCSURV field most of all
+    /// — and none of it would have failed loudly. Refusing to issue a malformed number is the only
+    /// safe answer: the alternative is a number that no longer parses, already in the bank's hands.
+    /// </summary>
+    private static string FormatAppraisalNumber(int thaiYear, int running)
+    {
+        if (running is < 1 or > 999_999)
+            throw new InvalidOperationException(
+                $"Appraisal running number {running} is outside 1..999999, the range the " +
+                "8-character {yy}{running:D6} format holds. The yearly counter must be reset or " +
+                "the format widened before more numbers are issued.");
+
+        return $"{thaiYear % 100:D2}{running:D6}";
     }
 
     private async Task<int> GetNextRunningNumberAsync(

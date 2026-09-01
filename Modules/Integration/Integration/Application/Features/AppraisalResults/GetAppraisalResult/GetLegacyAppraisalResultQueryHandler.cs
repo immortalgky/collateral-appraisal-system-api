@@ -72,10 +72,13 @@ public class GetLegacyAppraisalResultQueryHandler(
                     PlotNumber: query.Filter2,
                     RoomNumber: query.Filter1,
                     FloorNumber: query.Filter2);
-                var unit = await AppraisalResultBuilder.ResolveBlockUnitAsync(
+                // v1 is being retired and never issues a ticket. It stays single-unit: its response
+                // shape holds one collateral and its callers are not being changed. Taking the first
+                // resolved row preserves exactly what it returned before the resolver went plural.
+                var units = await AppraisalResultBuilder.ResolveBlockUnitsAsync(
                     conn, project, selector, strict: false, cancellationToken);
-                if (unit is null) return Empty();
-                result = LegacyResultMapper.MapBlock(header, assignment, fee, valuation, project, unit);
+                if (units.Count == 0) return Empty();
+                result = LegacyResultMapper.MapBlock(header, assignment, fee, valuation, project, units[0]);
             }
             else
             {

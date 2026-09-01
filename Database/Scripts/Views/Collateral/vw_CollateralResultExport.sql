@@ -55,7 +55,8 @@ Active AS (
         k.CollateralName,
         k.CasAppraisalNumber,
         k.NameToken,
-        k.AddrToken
+        k.AddrToken,
+        k.TicketToken
     FROM collateral.vw_HostCollateralLinkKeys k
     WHERE k.IsRedeemed = 0
       AND k.IsActive = 1
@@ -110,7 +111,8 @@ Hit AS (
         w.Depth,
         act.HostCollateralId,
         act.NameToken,
-        act.AddrToken
+        act.AddrToken,
+        act.TicketToken
     FROM Walk w
     JOIN appraisal.Appraisals anc ON anc.Id = w.AncestorId
     JOIN Active act ON act.CasAppraisalNumber = anc.AppraisalNumber
@@ -119,7 +121,7 @@ Hit AS (
 -- Only the nearest ancestor that matched. A newer drawdown supersedes an older one, and mixing the
 -- two levels would count the same collateral twice and make every such appraisal look ambiguous.
 NearestHit AS (
-    SELECT h.AppraisalId, h.HostCollateralId, h.NameToken, h.AddrToken
+    SELECT h.AppraisalId, h.HostCollateralId, h.NameToken, h.AddrToken, h.TicketToken
     FROM Hit h
     WHERE h.Depth = (SELECT MIN(h2.Depth) FROM Hit h2 WHERE h2.AppraisalId = h.AppraisalId)
 ),
@@ -320,11 +322,13 @@ UnitToken AS (
     SELECT
         nh.AppraisalId,
         nh.HostCollateralId,
-        -- 0 = the name, 1 = the address. The name outranks the address; see UnitSource.
+        -- -1 = the ticket CAS issued, 0 = the name, 1 = the address. Lower wins; see UnitSource.
+        -- The ticket outranks both because it is the key the two systems agreed on rather than a
+        -- string parsed out of AS400 free text.
         s.Source,
         LTRIM(RTRIM(pv.value)) AS Part
     FROM NearestHit nh
-    CROSS APPLY (VALUES (0, nh.NameToken), (1, nh.AddrToken)) AS s(Source, Token)
+    CROSS APPLY (VALUES (-1, nh.TicketToken), (0, nh.NameToken), (1, nh.AddrToken)) AS s(Source, Token)
     CROSS APPLY STRING_SPLIT(ISNULL(s.Token, ''), ',') pv
     -- The empty-string guard is load-bearing: a blank part matches every unit whose column is blank
     -- and would price a collateral from an unrelated room.
@@ -346,6 +350,9 @@ UnitHit AS (
     FROM UnitToken t
     JOIN appraisal.Projects pr        ON pr.AppraisalId = t.AppraisalId
     JOIN appraisal.vw_ProjectUnitKeys k ON k.ProjectId = pr.Id AND k.UnitKey = t.Part
+    -- Rank 3 is the plot number, and only a ticket may match on it — see vw_ProjectUnitKeys for why
+    -- a short plot number cannot be trusted against a token parsed out of free text.
+    AND (k.KeyRank < 3 OR t.Source = -1)
     -- Unpriced units still match. Dropping them would blank an id we can prove, and the row would go
     -- out as 'N' for a human to resolve when we already know exactly which collateral it is.
     LEFT JOIN appraisal.ProjectUnitPrices up ON up.ProjectUnitId = k.ProjectUnitId

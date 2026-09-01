@@ -23,5 +23,7 @@ public record ProjectUnitDto(
     string? PlotNumber,
     string? HouseNumber,
     int? NumberOfFloors,
-    decimal? LandArea
+    decimal? LandArea,
+    // Sold units are listed alongside the rest, so the caller needs this to tell them apart.
+    bool IsSold
 );
