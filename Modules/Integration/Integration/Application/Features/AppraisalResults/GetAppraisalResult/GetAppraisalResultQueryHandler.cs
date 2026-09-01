@@ -964,9 +964,36 @@ internal static class AppraisalResultBuilder
         if (rows.Count == 0)
             return [];
 
-        var unmatched = requested
-            .Where(k => !rows.Any(r => MatchesKey(r, k, project)))
-            .ToList();
+        // ONE ROW PER KEY THE CALLER NAMED, not every row that answered to it.
+        //
+        // The unit table holds the same room more than once — vw_RegulatoryExport records room
+        // 630/32 of "ออริจิ้น เพลส เพชรเกษม" as two rows priced 3,760,000 each, and summing rows
+        // reported 7,520,000 for a single-room collateral across 45 collateral, all exactly
+        // doubled. The export views defend against it with ProjectUnitPerRoom; this path is the
+        // same sum and needs the same defence, or the value handed to LOS is a multiple of the
+        // truth and the ticket covers rooms nobody asked for.
+        //
+        // The rows arrive ordered by SequenceNumber, so First is the earliest — the same row the
+        // TOP 1 this replaced would have chosen, which keeps single-room pulls answering exactly
+        // as before. Two keys naming one unit (a registration number and a room number for the
+        // same room) collapse to one entry rather than counting it twice.
+        var picked = new List<BlockUnitRow>();
+        var seenUnitIds = new HashSet<Guid>();
+        var unmatched = new List<string>();
+
+        foreach (var key in requested)
+        {
+            var match = rows.FirstOrDefault(r => MatchesKey(r, key, project));
+
+            if (match is null)
+            {
+                unmatched.Add(key);
+                continue;
+            }
+
+            if (seenUnitIds.Add(match.ProjectUnitId))
+                picked.Add(match);
+        }
 
         if (unmatched.Count > 0)
         {
@@ -977,7 +1004,7 @@ internal static class AppraisalResultBuilder
             return [];
         }
 
-        return rows;
+        return picked;
     }
 
     /// <summary>Whether a resolved row is the one the caller named by <paramref name="key"/>.</summary>

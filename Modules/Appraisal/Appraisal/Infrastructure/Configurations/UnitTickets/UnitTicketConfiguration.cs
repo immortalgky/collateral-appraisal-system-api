@@ -22,7 +22,8 @@ public class UnitTicketConfiguration : IEntityTypeConfiguration<UnitTicket>
 
         // 400 holds far more rooms than a single collateral ever covers; the longest real key seen
         // in the AS400 feed is a five-room list well under 60 characters.
-        builder.Property(e => e.UnitSetKey).IsRequired().HasMaxLength(400);
+        // 64 hex characters of SHA-256 — see UnitTicket.UnitSetKey for why it is a hash.
+        builder.Property(e => e.UnitSetKey).IsRequired().HasMaxLength(64).IsFixedLength();
 
         // The idempotency guard, enforced by the database rather than by a read-then-write race:
         // two concurrent pulls for the same rooms cannot both insert.

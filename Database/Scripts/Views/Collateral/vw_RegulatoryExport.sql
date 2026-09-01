@@ -415,6 +415,9 @@ ProjectUnitHit AS (
     FROM TokenPart t
     JOIN appraisal.Projects pr          ON pr.AppraisalId = t.AncestorId
     JOIN appraisal.vw_ProjectUnitKeys k ON k.ProjectId = pr.Id AND k.UnitKey = t.Part
+    -- Rank 3 is the plot number, and only a ticket may match on it — see vw_ProjectUnitKeys for why
+    -- a short plot number cannot be trusted against a token parsed out of free text.
+    AND (k.KeyRank < 3 OR t.Source = -1)
     JOIN appraisal.ProjectUnitPrices pup ON pup.ProjectUnitId = k.ProjectUnitId
     WHERE ISNULL(pup.TotalAppraisalValueRounded, 0) > 0
     GROUP BY t.HostCollateralId, t.AncestorId, t.Depth, t.Source, t.Part, k.ProjectUnitId

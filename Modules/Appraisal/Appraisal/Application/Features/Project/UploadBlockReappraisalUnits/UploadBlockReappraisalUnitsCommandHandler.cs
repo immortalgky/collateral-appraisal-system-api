@@ -151,6 +151,15 @@ public class UploadBlockReappraisalUnitsCommandHandler(
                 existing.Id);
         }
 
+        // ModelType is one of the refreshed fields, and it is a NAME — ProjectModelId is what
+        // everything downstream actually follows. Left unlinked, a unit renamed A -> B keeps
+        // pointing at model A, so the block result reports A's decoration and appraisal method for a
+        // unit now labelled B, and the next price calculation looks the model up by name, misses,
+        // and silently prices the unit at zero. Re-linking creates model B if the project has never
+        // seen it, exactly as appending a unit with a new model name does.
+        if (differing.Count > 0)
+            project.LinkUnitsToTowersAndModels([.. differing.Select(d => d.Existing)]);
+
         // Record the revised Excel in Upload History, appending any new inventory to the same batch.
         project.RecordReappraisalUpload(
             command.FileName, command.DocumentId, newUnits,

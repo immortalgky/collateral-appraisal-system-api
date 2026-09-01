@@ -420,7 +420,11 @@ public class HostCollateralLinkIngestor(
     internal static bool IsUnitTicket(string? value)
     {
         var v = value?.Trim();
-        if (v is not { Length: 8 } || v[2] != 'U') return false;
+        // The marker is compared case-insensitively to match collateral.vw_HostCollateralLinkKeys,
+        // which tests it under the database's case-insensitive collation. An ordinal test here would
+        // log a lower-cased marker as NotFound — the misleading signal this branch exists to remove —
+        // while the view went on resolving it.
+        if (v is not { Length: 8 } || v[2] is not ('U' or 'u')) return false;
 
         for (var i = 0; i < v.Length; i++)
         {

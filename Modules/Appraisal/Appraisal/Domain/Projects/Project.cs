@@ -443,7 +443,7 @@ public class Project : Aggregate<Guid>
                 _units.Add(unit);
             }
 
-            LinkAppendedUnits(addedUnits);
+            LinkUnitsToTowersAndModels(addedUnits);
         }
 
         return upload;
@@ -870,9 +870,19 @@ public class Project : Aggregate<Guid>
     /// The model statistics are left as they stand. They describe the models, not the unit list,
     /// and the re-match flow is explicitly non-destructive.
     /// </summary>
-    private void LinkAppendedUnits(List<ProjectUnit> appendedUnits)
+    /// <summary>
+    /// Points each unit at the tower and model its own ModelType / TowerName name, creating either
+    /// if the name is new to the project. Idempotent — a unit already linked to a model of that name
+    /// keeps it — so it serves both units being appended and units whose model was just renamed by a
+    /// re-match.
+    ///
+    /// It deliberately does NOT touch model statistics. The whole-project routines end by stamping
+    /// price and area ranges over every model, which erased figures an appraiser had entered by hand
+    /// (and, on the condo side, nulled the land-area range as well).
+    /// </summary>
+    internal void LinkUnitsToTowersAndModels(List<ProjectUnit> units)
     {
-        foreach (var unit in appendedUnits)
+        foreach (var unit in units)
         {
             Guid? towerIdForUnit = null;
 

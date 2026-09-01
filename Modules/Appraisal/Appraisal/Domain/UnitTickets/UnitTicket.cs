@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Appraisal.Domain.Projects.Exceptions;
 
 namespace Appraisal.Domain.UnitTickets;
@@ -41,8 +43,21 @@ public class UnitTicket : Aggregate<Guid>
     public Guid AppraisalId { get; private set; }
 
     /// <summary>
-    /// The rooms this ticket covers, normalised and sorted, joined by '|'. Together with
-    /// AppraisalId this is the idempotency key: the same rooms asked for twice return one ticket.
+    /// A fingerprint of the units this ticket covers — SHA-256 over their sorted ids, as 64 hex
+    /// characters. Together with AppraisalId this is the idempotency key: the same rooms asked for
+    /// twice return one ticket.
+    ///
+    /// IT KEYS ON THE UNITS, NOT ON WHAT THE CALLER TYPED. A condo room answers to two columns —
+    /// the endpoint matches CondoRegistrationNumber OR RoomNumber on purpose, because projects
+    /// migrated from the legacy system recorded one and newly appraised ones the other. Keying on
+    /// the caller's spelling therefore let one room take two tickets: pull it as "1198/831" and
+    /// again as "A-501" and the unique index sees two different keys, which is exactly the second
+    /// collateral in AS400 this class exists to prevent. The resolved unit ids are the same either
+    /// way.
+    ///
+    /// A HASH RATHER THAN THE LIST because the list has no natural bound — one collateral can cover
+    /// any number of adjacent rooms — and an index key does. The units themselves stay readable in
+    /// <see cref="Units"/>; this column is only ever compared for equality.
     /// </summary>
     public string UnitSetKey { get; private set; } = default!;
 
@@ -82,7 +97,7 @@ public class UnitTicket : Aggregate<Guid>
             Id = Guid.CreateVersion7(),
             TicketNumber = ticketNumber,
             AppraisalId = appraisalId,
-            UnitSetKey = BuildUnitSetKey(units.Select(u => u.UnitKey)),
+            UnitSetKey = BuildUnitSetKey(units.Select(u => u.ProjectUnitId)),
             IssuedTo = issuedTo,
             IssuedAt = issuedAt
         };
@@ -94,26 +109,27 @@ public class UnitTicket : Aggregate<Guid>
     }
 
     /// <summary>
-    /// Normalises a set of room keys into one comparable string: trimmed, lower-cased, de-duplicated
-    /// and sorted, joined by '|'.
+    /// Fingerprints a set of project units into the value stored in <see cref="UnitSetKey"/>.
     ///
-    /// Sorting is what makes "13,14" and "14,13" the same request — LOS has no reason to order them,
-    /// and two tickets for one collateral would put two collateral into AS400 for the same rooms.
+    /// Sorted before hashing, so rooms named in either order are one request — LOS has no reason to
+    /// order them, and two tickets for one collateral would put two collateral into AS400 for the
+    /// same rooms. De-duplicated for the same reason: two spellings of one room are one room.
     /// </summary>
-    public static string BuildUnitSetKey(IEnumerable<string> unitKeys)
+    public static string BuildUnitSetKey(IEnumerable<Guid> projectUnitIds)
     {
-        ArgumentNullException.ThrowIfNull(unitKeys);
+        ArgumentNullException.ThrowIfNull(projectUnitIds);
 
-        var parts = unitKeys
-            .Select(k => k?.Trim().ToLowerInvariant())
-            .Where(k => !string.IsNullOrEmpty(k))
-            .Distinct(StringComparer.Ordinal)
-            .OrderBy(k => k, StringComparer.Ordinal)
+        var ids = projectUnitIds
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .OrderBy(id => id)
+            .Select(id => id.ToString("N"))
             .ToList();
 
-        if (parts.Count == 0)
-            throw new InvalidProjectStateException("A unit ticket needs at least one non-blank unit key.");
+        if (ids.Count == 0)
+            throw new InvalidProjectStateException("A unit ticket needs at least one project unit.");
 
-        return string.Join('|', parts);
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('|', ids)));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 }

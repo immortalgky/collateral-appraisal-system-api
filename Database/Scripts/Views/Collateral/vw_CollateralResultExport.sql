@@ -350,6 +350,9 @@ UnitHit AS (
     FROM UnitToken t
     JOIN appraisal.Projects pr        ON pr.AppraisalId = t.AppraisalId
     JOIN appraisal.vw_ProjectUnitKeys k ON k.ProjectId = pr.Id AND k.UnitKey = t.Part
+    -- Rank 3 is the plot number, and only a ticket may match on it — see vw_ProjectUnitKeys for why
+    -- a short plot number cannot be trusted against a token parsed out of free text.
+    AND (k.KeyRank < 3 OR t.Source = -1)
     -- Unpriced units still match. Dropping them would blank an id we can prove, and the row would go
     -- out as 'N' for a human to resolve when we already know exactly which collateral it is.
     LEFT JOIN appraisal.ProjectUnitPrices up ON up.ProjectUnitId = k.ProjectUnitId
