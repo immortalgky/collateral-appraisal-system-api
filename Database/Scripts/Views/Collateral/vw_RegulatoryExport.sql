@@ -759,11 +759,11 @@ FROM Src s
 JOIN LegacyByCollateral lg ON lg.HostCollateralId = s.HostCollateralId
 -- Only where SOURCE 1 could not report it. A collateral that CAS has appraised is reported from the
 -- appraisal; emitting the listing row as well would double-count one physical collateral.
--- A ticketed collateral always resolves in SOURCE 1 through TicketAppraisalId. Its
--- CasAppraisalNumber is the raw ticket string, which matches no appraisal, so without this guard
--- NOT EXISTS would be true and the same collateral would be reported from both sources.
-WHERE s.TicketAppraisalId IS NULL
-  AND NOT EXISTS (
+WHERE NOT EXISTS (
         SELECT 1 FROM appraisal.Appraisals a
         WHERE a.AppraisalNumber = s.CasAppraisalNumber AND a.IsDeleted = 0)
+  -- A ticketed collateral always resolves in SOURCE 1 through TicketAppraisalId. Its
+  -- CasAppraisalNumber is the raw ticket string, which matches no appraisal, so without this guard
+  -- the test above would pass and the same collateral would be reported from both sources.
+  AND s.TicketAppraisalId IS NULL
   AND lg.ValuationDate IS NOT NULL;
