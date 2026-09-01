@@ -1,4 +1,10 @@
--- Outbound AS400 "Collateral Result" — one row per result still owed to the host.
+-- Outbound AS400 "Collateral Result" — one row per REVIEW result still owed to the host.
+--
+-- ── Scope ──────────────────────────────────────────────────────────────────────────────────────
+-- Reappraisals only. This interface is the return leg of COLLATREV: AS400 sends a due-list, we
+-- review, we report what the review concluded. A brand-new appraisal reaches the host through the
+-- loan it belongs to, not through here. The filter is on AppraisalType in the Pending CTE below,
+-- which explains why type and not provenance.
 --
 -- ── Why this replaces the old query ────────────────────────────────────────────────────────────
 -- The previous version started from collateral.CollateralEngagements joined to CollateralMasters and
@@ -71,6 +77,17 @@ Pending AS (
     FROM appraisal.Appraisals a
     WHERE a.Status = 'Completed'
       AND a.IsDeleted = 0
+      -- This file answers COLLATREV. It reports what a REVIEW concluded, and the host has no use
+      -- here for the price of an appraisal it never asked about — a new purchase reaches AS400
+      -- through the loan it belongs to, not through this interface.
+      --
+      -- 'ReAppraisal' is set from the request's Purpose ('03' ordinary, '09' block) in
+      -- RequestSubmittedEventHandler; the constant lives in AppraisalTypes.cs. It deliberately does
+      -- NOT mean "AS400 asked for it": of 1,606 completed reappraisals on the production-like set
+      -- only ONE came through the SIBS channel that COLLATREV initiates, the rest being MANUAL, CLS
+      -- and LOS. Scoping by provenance would leave a file of one row. A review is a review whoever
+      -- started it.
+      AND a.AppraisalType = 'ReAppraisal'
       -- Narrowed before the walk, not after. The chain walk is recursive and the sent-ledger filter
       -- sits at the very end, so without this every completed appraisal the system has ever produced
       -- would be walked on every run to discard almost all of it. Three cases can still owe a row:

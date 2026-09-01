@@ -44,10 +44,23 @@ public class CollateralResultExportQuery(
         OPTION (MAXRECURSION 0)
         """;
 
+    /// <summary>
+    /// Rejected appraisals still owed an 'R' record.
+    ///
+    /// The AppraisalType join carries the same scope as the approved side: this interface answers
+    /// COLLATREV, so a rejected appraisal the host never asked about is not its business.
+    /// AppraisalRejectedConsumer spools EVERY rejection — it has no reason to know the file's scope —
+    /// so the narrowing happens on read. A row left out today is still in the table and would be
+    /// picked up unchanged if the scope ever widens, which spooling selectively would have prevented.
+    /// The cost is that rejections outside the scope keep SentAt NULL for good; that is a row nobody
+    /// is waiting on, not a backlog.
+    /// </summary>
     private const string RejectedSql = """
-        SELECT AppraisalId, AppraisalNumber, HostCollateralId
-        FROM collateral.PendingCollateralResults
-        WHERE SentAt IS NULL
+        SELECT p.AppraisalId, p.AppraisalNumber, p.HostCollateralId
+        FROM collateral.PendingCollateralResults p
+        JOIN appraisal.Appraisals a ON a.Id = p.AppraisalId
+        WHERE p.SentAt IS NULL
+          AND a.AppraisalType = 'ReAppraisal'
         """;
 
     public async Task<IReadOnlyList<CollateralResultRow>> GetUnsentRowsAsync(
