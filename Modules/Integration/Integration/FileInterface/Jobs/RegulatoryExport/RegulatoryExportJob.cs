@@ -3,6 +3,7 @@ using Hangfire;
 using Integration.Contracts.FileInterface;
 using Integration.Contracts.FileSink;
 using Integration.FileInterface.Format.RegulatoryExport;
+using Integration.Infrastructure.FileInterface;
 using Integration.Infrastructure.FileSink;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -68,7 +69,7 @@ public class RegulatoryExportJob(
         var dateFormat = cfg.FileNameDateFormat ?? "yyyyMMdd";
         var ext = cfg.FileExtension ?? "txt";
         var directory = cfg.Directory ?? "./outbound";
-        var fileName = $"{prefix}{now.ToString(dateFormat)}.{ext}";
+        var fileName = OutboundFileName.Build(prefix, dateFormat, ext, now);
 
         var content = writer.BuildContent(effectiveDate, rows);
         await fileSink.WriteAsync(directory, fileName, content, ct);
@@ -127,8 +128,16 @@ public class RegulatoryExportJob(
 
         // The .txt row supplies the defaults so the workbook keeps its usual name unless the
         // REGULATORY_XLSX row deliberately overrides one of these.
-        var fileName =
-            $"{xlsxCfg.FileNamePrefix ?? txtPrefix}{now.ToString(xlsxCfg.FileNameDateFormat ?? txtDateFormat)}.{xlsxCfg.FileExtension ?? "xlsx"}";
+        //
+        // That inheritance now carries an empty FileNameDateFormat too, which is what the bank's
+        // undated RDTCLSINT4.txt uses. An environment that wants a dated workbook must therefore
+        // spell yyyyMMdd out on the REGULATORY_XLSX row rather than leave it NULL — otherwise the
+        // workbook silently loses its date along with the .txt.
+        var fileName = OutboundFileName.Build(
+            xlsxCfg.FileNamePrefix ?? txtPrefix,
+            xlsxCfg.FileNameDateFormat ?? txtDateFormat,
+            xlsxCfg.FileExtension ?? "xlsx",
+            now);
 
         try
         {

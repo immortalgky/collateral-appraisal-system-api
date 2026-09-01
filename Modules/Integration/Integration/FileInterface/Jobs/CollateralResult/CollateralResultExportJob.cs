@@ -3,6 +3,7 @@ using Hangfire;
 using Integration.Contracts.FileInterface;
 using Integration.Contracts.FileSink;
 using Integration.FileInterface.Format.CollateralResult;
+using Integration.Infrastructure.FileInterface;
 using Microsoft.Extensions.Logging;
 using Shared.Time;
 
@@ -50,7 +51,7 @@ public class CollateralResultExportJob(
         var dateFormat = cfg.FileNameDateFormat ?? "yyyyMMddHHmmss";
         var ext = cfg.FileExtension ?? "txt";
         var directory = cfg.Directory ?? "./outbound";
-        var fileName = $"{prefix}{now.ToString(dateFormat)}.{ext}";
+        var fileName = OutboundFileName.Build(prefix, dateFormat, ext, now);
 
         var content = writer.BuildContent(effectiveDate, rows);
 

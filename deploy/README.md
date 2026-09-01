@@ -222,29 +222,62 @@ via `/XF` and `/XD`, the files configured in `deploy.config.ps1`:
 - `logs/`, `DataProtection-Keys/` — guarded. (Data Protection keys are actually
   stored in the DB here, so this is just belt-and-braces.)
 
-## Regulatory Excel destination (one-off per environment)
+## AS400 file interfaces — paths and file names (one-off per environment)
 
-The monthly regulatory job writes two files. The fixed-width `.txt` goes to AS400's SFTP drop and
-needs nothing here. The `.xlsx` companion is read by the Risk team off a Windows file share, so it
-has its own destination row that the migration seeds to the dev default. Point it at the share once,
-after the first migrate that includes `20260830120000_SeedData_RegulatoryExcelInterface.sql`:
+Every row in `integration.FileInterfaceConfigs` is seeded to a **dev default** (`./outbound`,
+`./hostlink/inbox`, `AS400_COLLATLINK_*.txt`, …). None of those match what the bank actually sends
+and collects, so each environment has to be pointed at the real folders once, after a migrate:
 
-```sql
-UPDATE integration.FileInterfaceConfigs
-SET Directory = '\\172.20.0.14\Data_AS400\Risk\CAS'
-WHERE InterfaceCode = 'REGULATORY_XLSX';
+```bash
+# edit the three DECLAREs at the top of the script first
+sqlcmd -S <server> -d CollateralAppraisal -I -i deploy/sql/Configure-FileInterfaces.sql
 ```
 
+(`-I` matters: `sqlcmd` disables `QUOTED_IDENTIFIER` by default.)
+
+The script is intentionally not a DbUp migration: the values below exist only on the bank's network,
+and journalling them would push `D:\SFTP\...` onto laptops and CI too. What ships in migrations is
+the `InterfaceCode` — the part C# looks up by name — and all five rows are already seeded.
+
+| InterfaceCode | Dir | File name | Notes |
+|---|---|---|---|
+| `REAPPRAISAL` | `@CasDir` | `AS400_COLLATREV_20260831.txt` | inbound, matched by `AS400_COLLATREV_*.txt` |
+| `HOST_COLLATERAL_LINK` | `@CasDir` | `AS400_COLLAT_20260826.txt` | inbound, matched by `AS400_COLLAT_*.txt` |
+| `COLLATERAL_RESULT` | `@CasDir` | `CAS_APPRE_20260630.txt` | outbound, daily |
+| `REGULATORY` | `@RdtDir` | `RDTCLSINT4.txt` | outbound, **no date — overwritten monthly** |
+| `REGULATORY_XLSX` | `\\172.20.0.14\Data_AS400\Risk\CAS` | `CAS RE Listing_20260818.xlsx` | outbound, SMB share |
+
+**`@CasDir` and `@RdtDir` are SFTP paths, not Windows paths.** UAT and production set
+`FileTransfer:Inbound:FileSource` / `:Outbound:FileSource` to `Sftp`, so `Directory` is what the
+SFTP account sees after login — `D:\SFTP\FTP_DATA\CAS` is the file server's own disk layout, which
+the app never touches. Confirm the account's home with `sftp <user>@<host>` then `pwd`; if it is
+`D:\SFTP\FTP_DATA` the two values are `/CAS` and `/RDT`. Getting this wrong fails silently in both
+directions — outbound, `SftpFileSink` creates the remote directory it was given, so the export
+"succeeds" into a folder nobody collects; inbound, a folder with no matching file is just a no-op.
+
+`REGULATORY_XLSX` is the exception and stays a UNC path: the workbook is written through the keyed
+`FileSystem` sink (always `LocalFileSink`) so a `\\server\share` destination is never handed to SFTP.
 The **`CAS-Api` app pool identity must have Modify rights on that share** — the file is written by
-the application account directly, not over SFTP. This is why the pool runs as a domain service
-account; the built-in `ApplicationPoolIdentity` cannot authenticate to a remote share at all.
+the application account directly. This is why the pool runs as a domain service account; the
+built-in `ApplicationPoolIdentity` cannot authenticate to a remote share at all. Setting
+`IsActive = 0` on that row stops the workbook being produced; the `.txt` is governed by the separate
+`REGULATORY` row and goes out to RDT regardless.
 
-If the `UPDATE` is skipped, the workbook lands beside the `.txt` exactly as it did before, so
-nothing fails and nothing is lost — the migration seeds the row pointing there. The job logs the
-directory it used, so Seq shows which one without opening the database.
+Two settings on the `REGULATORY` row need a word, because they look like mistakes:
 
-Setting `IsActive = 0` on the row stops the workbook being produced at all. The `.txt` is governed
-by the separate `REGULATORY` row and keeps going out to AS400 regardless.
+- `FileNameDateFormat = ''` (empty string, **not** NULL) means "no date in the name" — NULL means
+  "use the job's default", which is `yyyyMMdd`. It only works from the build that added
+  `OutboundFileName.Build`; on an older binary an empty format reaches `DateTime.ToString("")`,
+  which .NET reads as `"G"` and returns `6/30/2026 2:00:00 AM`, and the job throws. Deploy, then run
+  the script.
+- `REGULATORY_XLSX` therefore has to spell `yyyyMMdd` out. The workbook inherits any field the
+  `REGULATORY` row sets when its own is NULL, so leaving it NULL would strip the date from the
+  workbook too — and the Risk team keeps every month's file.
+
+Both inbound rows get `ProcessedDirectory = NULL`, which turns archiving off: the drop folder
+belongs to AS400 and we cannot move anything out of it. `integration.InboundFileLogs` is what
+prevents a file being ingested twice. The trade-off is that quarantined files also stay put, so a
+file that could not be parsed shows up only in that table and in Seq.
 
 ## First-time setup on a new server (one-off, not scripted)
 
