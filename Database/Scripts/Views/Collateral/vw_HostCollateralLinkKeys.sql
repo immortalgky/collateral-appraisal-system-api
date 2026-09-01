@@ -33,8 +33,16 @@ SELECT
     -- cannot use an index.
     -- A ticket resolves to the appraisal it was issued from, so every reader downstream keeps
     -- working off an appraisal number exactly as it does for a collateral AS400 named the old way.
+    --
+    -- ⚠ ta is a plain LEFT JOIN, deliberately, not the OUTER APPLY below. This column is the key
+    -- vw_RegulatoryExport and vw_CollateralResultExport join to appraisal.Appraisals on, and a
+    -- COALESCE over a correlated APPLY is opaque to the optimiser: it stops seeking
+    -- IX_Appraisals_AppraisalNumber and scans all ~59k appraisals once PER LINK ROW. On the U3 set
+    -- that is ~1.9 billion rows, and it took the regulatory export from under a second to over ten
+    -- minutes. Whatever feeds this column has to stay resolvable to a seek — the same reason the 'B'
+    -- prefix is stripped here rather than in each reader's join predicate.
     COALESCE(
-        tk.TicketAppraisalNumber,
+        ta.AppraisalNumber,
         CASE WHEN LEFT(h.AppraisalNumber, 1) = 'B'
              THEN SUBSTRING(h.AppraisalNumber, 2, LEN(h.AppraisalNumber))
              ELSE h.AppraisalNumber
@@ -94,29 +102,39 @@ SELECT
               THEN 1 ELSE 0 END AS bit) AS IsActive
 
 FROM collateral.HostCollateralLinks h
--- The ticket, its appraisal, and the rooms it covers as one comma list — the same shape the parsed
--- tokens arrive in, so every reader can split it the same way.
+-- ── The ticket, and the appraisal it was issued from ───────────────────────────────────────────
+-- Ordinary joins, and they must stay ordinary: CasAppraisalNumber above is a join key, and folding
+-- this lookup into the APPLY below is what made it unseekable. UX_UnitTickets_TicketNumber serves
+-- the first seek, PK_Appraisals the second. Both are LEFT: a collateral from before ticketing
+-- resolves to nothing here and falls through to the parsed behaviour it has today.
+--
+-- Shape test, not length. A ticket is eight characters with a literal 'U' at position 3, and
+-- appraisal numbers are all digits, so the marker tells them apart. Length cannot — legacy appraisal
+-- numbers such as "2560100004" are ten characters too.
+LEFT JOIN appraisal.UnitTickets tj
+       ON  LEN(LTRIM(RTRIM(h.AppraisalNumber))) = 8
+       AND SUBSTRING(LTRIM(RTRIM(h.AppraisalNumber)), 3, 1) = 'U'
+       AND tj.TicketNumber = LTRIM(RTRIM(h.AppraisalNumber))
+LEFT JOIN appraisal.Appraisals ta
+       ON  ta.Id = tj.AppraisalId
+       AND ta.IsDeleted = 0
+-- The rooms that ticket covers, as one comma list — the same shape the parsed tokens arrive in, so
+-- every reader can split it the same way. This one stays an APPLY because it aggregates, and it is
+-- not a join key.
 --
 -- Each unit contributes only the FIRST part of its own key. CAS stores a multi-room unit as a single
 -- row whose key reads "1198/831,1198/832"; passing that through whole would split into two parts
 -- that both match the same unit row, and a reader summing per part would count its value twice.
 OUTER APPLY (
-    SELECT TOP 1
-           a.AppraisalNumber AS TicketAppraisalNumber,
-           STUFF((
+    SELECT STUFF((
                SELECT ',' + CASE WHEN CHARINDEX(',', tu2.UnitKey) > 0
                                  THEN LEFT(tu2.UnitKey, CHARINDEX(',', tu2.UnitKey) - 1)
                                  ELSE tu2.UnitKey
                             END
                FROM appraisal.UnitTicketUnits tu2
-               WHERE tu2.UnitTicketId = t.Id
+               WHERE tu2.UnitTicketId = tj.Id
                ORDER BY tu2.UnitKey
                FOR XML PATH(''), TYPE).value('.', 'nvarchar(400)'), 1, 1, '') AS TicketToken
-    FROM appraisal.UnitTickets t
-    JOIN appraisal.Appraisals a ON a.Id = t.AppraisalId AND a.IsDeleted = 0
-    WHERE LEN(LTRIM(RTRIM(h.AppraisalNumber))) = 8
-      AND SUBSTRING(LTRIM(RTRIM(h.AppraisalNumber)), 3, 1) = 'U'
-      AND t.TicketNumber = LTRIM(RTRIM(h.AppraisalNumber))
 ) tk
 -- Everything after the literal 'CONDO', with a leading '.' or '/' and any spaces removed.
 CROSS APPLY (SELECT LTRIM(
