@@ -41,16 +41,22 @@
 
 SET NOCOUNT ON;
 
+-- COLLATE DATABASE_DEFAULT is load-bearing, not decoration. A temp table's character columns take
+-- tempdb's collation - i.e. the instance collation, Thai_CI_AS on the bank's servers - while every
+-- permanent column they are compared against carries the database's SQL_Latin1_General_CP1_CI_AS.
+-- Without it the joins below do not even compile: "Cannot resolve the collation conflict between
+-- Thai_CI_AS and SQL_Latin1_General_CP1_CI_AS in the equal to operation". #Target and #New are
+-- built with SELECT ... INTO from this table, so they inherit whatever is set here.
 IF OBJECT_ID('tempdb..#As400Units') IS NOT NULL DROP TABLE #As400Units;
 CREATE TABLE #As400Units
 (
-    AppraisalNumber nvarchar(20)  NOT NULL,
-    RoomNumber      nvarchar(100) NOT NULL,
-    TowerName       nvarchar(400) NULL,
-    ModelType       nvarchar(400) NULL,
-    Floor           int           NULL,
-    SellingPrice    decimal(18,2) NULL,
-    AppraisalValue  decimal(18,2) NOT NULL
+    AppraisalNumber nvarchar(20)  COLLATE DATABASE_DEFAULT NOT NULL,
+    RoomNumber      nvarchar(100) COLLATE DATABASE_DEFAULT NOT NULL,
+    TowerName       nvarchar(400) COLLATE DATABASE_DEFAULT NULL,
+    ModelType       nvarchar(400) COLLATE DATABASE_DEFAULT NULL,
+    Floor           int                                    NULL,
+    SellingPrice    decimal(18,2)                          NULL,
+    AppraisalValue  decimal(18,2)                          NOT NULL
 );
 
 INSERT #As400Units (AppraisalNumber, RoomNumber, TowerName, ModelType, Floor, SellingPrice, AppraisalValue)
