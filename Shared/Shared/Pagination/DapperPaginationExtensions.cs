@@ -108,8 +108,9 @@ public static class DapperPaginationExtensions
     {
         ValidateOrderBy(orderBy);
 
-        // A literal, not a caller-supplied hint string: there is exactly one hint anyone needs here
-        // and a free-text parameter would be a new place for SQL to be interpolated.
+        // Two literals selected by a bool, never a caller-supplied hint string: a hint parameter
+        // would be a new place for SQL to be interpolated, and callers have no business choosing
+        // query hints. The choice is "free-text search or not", nothing finer.
         //
         // RECOMPILE so the optimizer sees the real LIKE pattern instead of planning every search
         // as a possible leading wildcard. FORCE ORDER so the search's derived table stays the
