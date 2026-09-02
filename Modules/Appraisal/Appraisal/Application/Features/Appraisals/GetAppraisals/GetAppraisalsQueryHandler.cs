@@ -28,8 +28,9 @@ public class GetAppraisalsQueryHandler(
     IAddressNameSearch addressNameSearch
 ) : IQueryHandler<GetAppraisalsQuery, GetAppraisalsResult>
 {
+    // Only the enrichment statement names the view directly; the page and the count get their FROM
+    // from AppraisalFilterSql, which puts the free-text search in front of it when there is one.
     private const string View = "appraisal.vw_AppraisalList";
-    private const string BaseTable = "appraisal.Appraisals";
 
     /// <summary>
     /// Upper bound on rows per page. The enrichment step binds one parameter per id and SQL Server
@@ -42,10 +43,12 @@ public class GetAppraisalsQueryHandler(
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S2077:Formatting SQL queries is security-sensitive",
         Justification =
-            "Nothing user-supplied is interpolated. View is a const; WhereClause is assembled by " +
+            "Nothing user-supplied is interpolated. View is a const; ViewFrom, BaseTableFrom and " +
+            "WhereClause are assembled by " +
             "AppraisalFilterBuilder from string literals with every value bound as a @parameter; " +
             "orderBy comes from BuildOrderBy, which only emits a column from AllowedSortFields plus " +
-            "ASC/DESC and is additionally checked by DapperPaginationExtensions.ValidateOrderBy on " +
+            "ASC/DESC plus the literal Id tiebreaker, and is additionally checked by " +
+            "DapperPaginationExtensions.ValidateOrderBy on " +
             "the call above. See AppraisalFilterBuilderTests for the pinned output.")]
     public async Task<GetAppraisalsResult> Handle(
         GetAppraisalsQuery query,
@@ -71,15 +74,16 @@ public class GetAppraisalsQueryHandler(
         };
 
         var idPage = await connectionFactory.QueryPaginatedAsync<Guid>(
-            $"SELECT Id FROM {View}{sqlFilter.WhereClause}",
+            $"SELECT v.Id FROM {sqlFilter.ViewFrom}{sqlFilter.WhereClause}",
             BuildCountSql(sqlFilter),
             orderBy,
             pagination,
             sqlFilter.Parameters,
             // Free text expands to a 17-way UNION of LIKE arms. Without a per-execution compile the
             // optimizer plans them for an unknown pattern — i.e. a possible leading wildcard — and
-            // scans. See AppraisalFilterBuilder for the measurements.
-            recompile: sqlFilter.HasFreeTextSearch);
+            // scans; without FORCE ORDER it re-runs the union once per view row. See
+            // AppraisalFilterSql.ViewFrom for the measurements.
+            freeTextSearch: sqlFilter.HasFreeTextSearch);
 
         var connection = connectionFactory.GetOpenConnection();
 
@@ -141,6 +145,6 @@ public class GetAppraisalsQueryHandler(
     private static string? BuildCountSql(AppraisalFilterSql sqlFilter) =>
         sqlFilter.RequiresView
             ? null
-            : $"SELECT COUNT(*) FROM {BaseTable}{sqlFilter.BaseTableWhereClause}";
+            : $"SELECT COUNT(*) FROM {sqlFilter.BaseTableFrom}{sqlFilter.BaseTableWhereClause}";
 
 }

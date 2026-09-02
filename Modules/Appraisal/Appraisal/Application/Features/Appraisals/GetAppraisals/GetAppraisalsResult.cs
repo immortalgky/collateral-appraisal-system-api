@@ -50,6 +50,13 @@ public record AppraisalDto
     // Customer Info
     public string? CustomerName { get; init; }
 
+    /// <summary>
+    /// How many customers the request carries. <see cref="CustomerName"/> is only one of them —
+    /// the view takes a TOP 1 — while the customer search matches ANY of them, so a row can
+    /// legitimately answer a search for a name it does not display. The list shows "+N" off this.
+    /// </summary>
+    public int CustomerCount { get; init; }
+
     // Location Info (from first property's land detail)
     public string? Province { get; init; }
     public string? District { get; init; }

@@ -24,24 +24,41 @@ public class ExportAppraisalsQueryHandler(
 {
     private const int MaxExportRows = 10_000;
 
+    // Same suppression the list handler carries, for the same reason — this handler started
+    // interpolating ViewFrom when the free-text search moved to a front-joined derived table, which
+    // is what put it in front of the rule.
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube",
+        "S2077:Formatting SQL queries is security-sensitive",
+        Justification =
+            "Nothing user-supplied is interpolated. MaxExportRows is a const; ViewFrom and " +
+            "WhereClause are assembled by AppraisalFilterBuilder from string literals with every " +
+            "value bound as a @parameter and passed as filter.Parameters; orderBy comes from " +
+            "BuildOrderBy, which can only emit a column drawn from the AllowedSortFields set plus " +
+            "ASC/DESC plus the literal Id tiebreaker — a caller's sortBy that is not in that set " +
+            "is replaced by CreatedAt, never echoed; SearchQueryHint is one of two literals. See " +
+            "AppraisalFilterBuilderTests for the pinned output.")]
     public async Task<ExportAppraisalsResult> Handle(
         ExportAppraisalsQuery query,
         CancellationToken cancellationToken)
     {
         var enforcedCompanyId = AppraisalAccessScope.GetEnforcedCompanyId(currentUser);
-        // RequiresView is discarded on purpose: the export always reads the view, so it never
-        // takes the cheap base-table path. Read the flag before pointing any query at
+        // RequiresView is ignored on purpose: the export always reads the view, so it never
+        // takes the cheap base-table path. Check the flag before pointing any query at
         // appraisal.Appraisals — the filter may reference columns only the view has.
         // Same resolution as the list, so an export of a search reproduces exactly what was on screen.
         var addressMatch = await addressNameSearch.MatchAsync(query.Filter?.Search, cancellationToken);
-        var (whereClause, parameters, _) =
+        var filter =
             AppraisalFilterBuilder.BuildFilter(query.Filter, enforcedCompanyId, addressMatch: addressMatch);
         var orderBy = AppraisalFilterBuilder.BuildOrderBy(query.Filter);
 
-        var sql = $"SELECT TOP({MaxExportRows}) * FROM appraisal.vw_AppraisalList{whereClause} ORDER BY {orderBy}";
+        // ViewFrom, not the view name: a free-text search joins in front of the view and needs
+        // FORCE ORDER to stay there. This handler builds its own statement, so it appends the hint
+        // itself rather than going through DapperPaginationExtensions.
+        var sql = $"SELECT TOP({MaxExportRows}) v.* FROM {filter.ViewFrom}{filter.WhereClause}"
+                  + $" ORDER BY {orderBy}{filter.SearchQueryHint}";
 
         using var connection = connectionFactory.GetOpenConnection();
-        var rows = await connection.QueryAsync<AppraisalDto>(sql, parameters);
+        var rows = await connection.QueryAsync<AppraisalDto>(sql, filter.Parameters);
         var rowList = rows.ToList();
 
         byte[] fileBytes;

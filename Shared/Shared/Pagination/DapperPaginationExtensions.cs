@@ -59,9 +59,9 @@ public static class DapperPaginationExtensions
         string orderBy,
         PaginationRequest request,
         object? param = null,
-        bool recompile = false)
+        bool freeTextSearch = false)
         => connectionFactory.GetOpenConnection()
-            .QueryPaginatedAsync<T>(sql, countSql, orderBy, request, param, recompile);
+            .QueryPaginatedAsync<T>(sql, countSql, orderBy, request, param, freeTextSearch);
 
     /// <summary>
     /// Executes a paginated query on a caller-supplied connection. Use this overload
@@ -104,13 +104,20 @@ public static class DapperPaginationExtensions
         string orderBy,
         PaginationRequest request,
         object? param = null,
-        bool recompile = false)
+        bool freeTextSearch = false)
     {
         ValidateOrderBy(orderBy);
 
-        // A literal, not a caller-supplied hint string: there is exactly one hint anyone needs here
-        // and a free-text parameter would be a new place for SQL to be interpolated.
-        var hint = recompile ? " OPTION (RECOMPILE)" : "";
+        // Two literals selected by a bool, never a caller-supplied hint string: a hint parameter
+        // would be a new place for SQL to be interpolated, and callers have no business choosing
+        // query hints. The choice is "free-text search or not", nothing finer.
+        //
+        // RECOMPILE so the optimizer sees the real LIKE pattern instead of planning every search
+        // as a possible leading wildcard. FORCE ORDER so the search's derived table stays the
+        // driver of the join: left free, the optimizer re-runs that union once per view row
+        // whenever it thinks the ORDER BY lets it stop early, which turned a leading-wildcard
+        // search into a 10-second query. See AppraisalFilterSql.ViewFrom.
+        var hint = freeTextSearch ? " OPTION (RECOMPILE, FORCE ORDER)" : "";
 
         // Count query — use the caller-supplied cheap count when provided.
         var effectiveCountSql = (countSql ?? $"SELECT COUNT(*) FROM ({sql}) AS CountQuery") + hint;

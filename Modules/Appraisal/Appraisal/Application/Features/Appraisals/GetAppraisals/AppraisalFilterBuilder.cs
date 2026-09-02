@@ -12,6 +12,8 @@ internal static class AppraisalFilterBuilder
 {
     private static readonly HashSet<string> AllowedSortFields = new(StringComparer.OrdinalIgnoreCase)
     {
+        // Id is NOT here on purpose: BuildOrderBy appends it as the tiebreaker, and a sort field
+        // that repeats it makes SQL Server reject the whole ORDER BY.
         "AppraisalNumber", "RequestNumber", "CustomerName", "Status", "AppraisalType",
         "Priority", "SLADueDate", "SLAStatus", "CreatedAt", "AssignedDate",
         "AppointmentDateTime", "Province", "District", "SubDistrict", "Channel", "BankingSegment",
@@ -40,6 +42,10 @@ internal static class AppraisalFilterBuilder
         // See AppraisalFilterSql.HasFreeTextSearch for why this is tracked.
         var hasFreeTextSearch = false;
 
+        // The free-text predicate is NOT a condition: it is a derived table the caller joins from
+        // the front. See AppraisalFilterSql.ViewFrom.
+        var searchSource = "";
+
         // External (company) callers are always scoped to their own company; the caller-supplied
         // AssigneeCompanyId on the filter is ignored to prevent cross-company peeking.
         // AppraisalAssignments.AssigneeCompanyId is nvarchar(100), so bind a string — passing a
@@ -63,12 +69,12 @@ internal static class AppraisalFilterBuilder
             // wildcard meant no index could seek. It also only ever looked at three columns — a
             // title deed, an LOS number or a phone number found nothing.
             //
-            // The replacement is a semi-join over base tables only, so the predicate is resolved
+            // The replacement is a join to base tables only, so the matching ids are resolved
             // before the view does any work and requiresView stays false: the count runs off
-            // appraisal.Appraisals. Measured on 105k appraisals: 738 ms -> 39 ms for the count.
+            // appraisal.Appraisals.
             if (!string.IsNullOrWhiteSpace(filter.Search))
             {
-                var search = AppraisalSearchPredicate.BuildIdFilter(filter.Search, address: addressMatch);
+                var search = AppraisalSearchPredicate.BuildIdSource(filter.Search, address: addressMatch);
                 if (search is null)
                 {
                     // Shorter than the minimum useful term. Match nothing rather than everything —
@@ -77,13 +83,15 @@ internal static class AppraisalFilterBuilder
                 }
                 else
                 {
-                    conditions.Add(search.Value.Sql);
+                    searchSource = search.Value.Sql;
                     parameters.AddDynamicParams(search.Value.Parameters);
                     hasFreeTextSearch = true;
                 }
             }
 
-            // Multi-value filters (comma-separated -> IN clause)
+            // Multi-value filters (comma-separated -> IN clause). A single value still emits
+            // `Column = @Param`, so links and saved searches written before the filter bar could
+            // select more than one value keep producing exactly the same SQL.
             AddMultiValueFilter(conditions, parameters, filter.Status, "Status", "@Statuses");
             AddMultiValueFilter(conditions, parameters, filter.Priority, "Priority", "@Priorities");
             AddMultiValueFilter(conditions, parameters, filter.AppraisalType, "AppraisalType", "@AppraisalTypes");
@@ -102,12 +110,10 @@ internal static class AppraisalFilterBuilder
                 requiresView = true;
             }
 
-            if (!enforcedCompanyId.HasValue && !string.IsNullOrWhiteSpace(filter.AssigneeCompanyId))
-            {
-                conditions.Add("AssigneeCompanyId = @AssigneeCompanyId");
-                parameters.Add("AssigneeCompanyId", filter.AssigneeCompanyId);
+            if (!enforcedCompanyId.HasValue &&
+                AddMultiValueFilter(conditions, parameters, filter.AssigneeCompanyId, "AssigneeCompanyId",
+                    "@AssigneeCompanyIds"))
                 requiresView = true;
-            }
 
             if (!string.IsNullOrWhiteSpace(filter.Channel))
             {
@@ -115,11 +121,8 @@ internal static class AppraisalFilterBuilder
                 parameters.Add("Channel", filter.Channel);
             }
 
-            if (!string.IsNullOrWhiteSpace(filter.BankingSegment))
-            {
-                conditions.Add("BankingSegment = @BankingSegment");
-                parameters.Add("BankingSegment", filter.BankingSegment);
-            }
+            AddMultiValueFilter(conditions, parameters, filter.BankingSegment, "BankingSegment",
+                "@BankingSegments");
 
             if (filter.IsPma.HasValue)
             {
@@ -128,12 +131,8 @@ internal static class AppraisalFilterBuilder
             }
 
             // Geographic filters
-            if (!string.IsNullOrWhiteSpace(filter.Province))
-            {
-                conditions.Add("Province = @Province");
-                parameters.Add("Province", filter.Province);
+            if (AddMultiValueFilter(conditions, parameters, filter.Province, "Province", "@Provinces"))
                 requiresView = true;
-            }
 
             if (!string.IsNullOrWhiteSpace(filter.District))
             {
@@ -158,25 +157,52 @@ internal static class AppraisalFilterBuilder
                 requiresView = true;
 
             // Picker-specific additive fields
-            if (!string.IsNullOrWhiteSpace(filter.CustomerName))
+            // Every customer on the request, not the one the view happens to surface.
+            //
+            // The view's CustomerName is `OUTER APPLY (SELECT TOP 1 Name ...)` with no ORDER BY, so
+            // filtering on it searched an arbitrary single customer per request: on the dev data,
+            // pinning the box to "customer name" and typing "Jane" returned 0 of the 22 appraisals
+            // that actually carry a Jane, because each of those requests surfaces a John. The
+            // all-fields search never had this hole — it reads request.RequestCustomers directly.
+            //
+            // Written as `RequestId IN (…)`, not `EXISTS`: the WHERE clause is shared between the
+            // view (aliased v) and the base table (aliased t), so there is no alias to qualify an
+            // outer column with — and RequestCustomers has a RequestId column of its own, which an
+            // unqualified correlation would silently bind to, making the predicate always true.
+            //
+            // It also drops requiresView, so the count runs off appraisal.Appraisals. Measured on
+            // the dev database (105,475 appraisals, term "Jane"), page + count:
+            //   view column : 579 ms CPU / 337,488 logical reads (RequestCustomers scanned 105,475x)
+            //   this        : 130 ms CPU /     921 logical reads (scanned once)
+            // The union-shaped search predicate must stay a front-joined derived table for the
+            // reasons in AppraisalSearchPredicate.BuildIdSource; a single seekable subquery like
+            // this one is not the shape that misbehaves.
+            var customerName = StripWidenMarker(filter.CustomerName);
+            if (!string.IsNullOrWhiteSpace(customerName))
             {
-                conditions.Add("CustomerName LIKE '%' + @CustomerName + '%' ESCAPE '\\'");
-                parameters.Add("CustomerName", LikePattern.Escape(filter.CustomerName.Trim()));
-                requiresView = true;
+                conditions.Add(
+                    """
+                    RequestId IN (SELECT c.RequestId
+                                  FROM request.RequestCustomers c
+                                  WHERE c.Name LIKE '%' + @CustomerName + '%' ESCAPE '\')
+                    """);
+                parameters.Add("CustomerName", LikePattern.Escape(customerName));
             }
 
-            if (!string.IsNullOrWhiteSpace(filter.RequestNumber))
+            var requestNumber = StripWidenMarker(filter.RequestNumber);
+            if (!string.IsNullOrWhiteSpace(requestNumber))
             {
                 conditions.Add("RequestNumber LIKE '%' + @RequestNumber + '%' ESCAPE '\\'");
-                parameters.Add("RequestNumber", LikePattern.Escape(filter.RequestNumber.Trim()));
+                parameters.Add("RequestNumber", LikePattern.Escape(requestNumber));
                 // RequestNumber comes from the LEFT JOIN on request.Requests, not the base table.
                 requiresView = true;
             }
 
-            if (!string.IsNullOrWhiteSpace(filter.AppraisalNumber))
+            var appraisalNumber = StripWidenMarker(filter.AppraisalNumber);
+            if (!string.IsNullOrWhiteSpace(appraisalNumber))
             {
                 conditions.Add("AppraisalNumber LIKE '%' + @AppraisalNumber + '%' ESCAPE '\\'");
-                parameters.Add("AppraisalNumber", LikePattern.Escape(filter.AppraisalNumber.Trim()));
+                parameters.Add("AppraisalNumber", LikePattern.Escape(appraisalNumber));
             }
 
             if (!string.IsNullOrWhiteSpace(filter.SubDistrict))
@@ -196,10 +222,23 @@ internal static class AppraisalFilterBuilder
         var whereClause = conditions.Count > 0 ? " WHERE " + string.Join(" AND ", conditions) : "";
         return new AppraisalFilterSql(whereClause, parameters, requiresView)
         {
-            HasFreeTextSearch = hasFreeTextSearch
+            HasFreeTextSearch = hasFreeTextSearch,
+            SearchSource = searchSource
         };
     }
 
+    /// <summary>
+    /// The ORDER BY for the list, its export and the quotation picker. Always ends with
+    /// <c>Id ASC</c>.
+    ///
+    /// Without a tiebreaker the order of rows that share a sort key is whatever the plan happens
+    /// to produce, and these columns are full of ties: rows 90-135 of <c>SLADueDate DESC</c> share
+    /// a single value. Measured — the same deep page requested twice came back with different
+    /// rows, so a user paging the list could see one row twice and never see another. Id is unique
+    /// and deliberately absent from <see cref="AllowedSortFields"/>, so appending it can never
+    /// repeat the chosen column, which SQL Server rejects with "a column has been specified more
+    /// than once in the order by list".
+    /// </summary>
     public static string BuildOrderBy(GetAppraisalsFilterRequest? filter)
     {
         var sortField = AllowedSortFields.Contains(filter?.SortBy ?? "") ? filter!.SortBy! : "CreatedAt";
@@ -210,16 +249,35 @@ internal static class AppraisalFilterBuilder
         // timestamps, so translate the sort for exact ordering:
         //   ElapsedHours  ASC  ≡ CreatedAt  DESC (least elapsed = most recently created)
         //   RemainingHours ASC ≡ SLADueDate ASC  (least remaining = earliest due)
-        return sortField switch
+        var primary = sortField switch
         {
             "ElapsedHours" => $"CreatedAt {Invert(sortDir)}",
             "RemainingHours" => $"SLADueDate {sortDir}",
             _ => $"{sortField} {sortDir}"
         };
+
+        // Unqualified on purpose: `s` in the search FROM exposes only AppraisalId, so Id resolves
+        // to the view (or the base table) in every statement that uses this clause.
+        return $"{primary}, Id ASC";
     }
 
     private static string Invert(string dir) =>
         string.Equals(dir, "ASC", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
+
+    /// <summary>
+    /// Drops the leading <c>*</c> the free-text box uses to widen a prefix search.
+    ///
+    /// Only the 'all fields' search is prefix-matched, so only it has anything to widen. These three
+    /// pinned filters are already <c>LIKE '%x%'</c> — and because the value is escaped before it
+    /// reaches SQL, a <c>*</c> left in place is searched for LITERALLY, so "*somchai" finds nothing
+    /// while "somchai" finds the customer. Rather than teach the difference, accept the marker and
+    /// ignore it: a user who types it gets what they meant either way.
+    ///
+    /// A term that is nothing but markers is treated as empty, so "*" alone does not become
+    /// <c>LIKE '%%'</c> and return the entire table.
+    /// </summary>
+    private static string StripWidenMarker(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "" : value.Trim().TrimStart('*').Trim();
 
     /// <returns><c>true</c> when a predicate was actually emitted.</returns>
     private static bool AddMultiValueFilter(
@@ -321,16 +379,71 @@ internal sealed record AppraisalFilterSql(
     bool RequiresView)
 {
     /// <summary>
-    /// True when the free-text predicate is in the clause. It expands to a 17-way UNION of
+    /// True when a free-text search is in play, i.e. <see cref="SearchSource"/> is non-empty.
+    /// Callers use it to pick the query hint: the union expands to a 17-way UNION of
     /// <c>LIKE @SearchPattern</c> arms, and from an unknown parameter the optimizer cannot tell the
     /// pattern is a prefix — so it plans for a possible leading wildcard and scans. Compiled per
     /// execution it sees the real value and seeks. Measured on 105k appraisals: count 219 -> 103 ms,
-    /// paged 226 -> 149 ms.
+    /// paged 226 -> 149 ms. FORCE ORDER travels with it — see <see cref="ViewFrom"/>.
     ///
-    /// Deliberately not a positional record parameter: the generated Deconstruct is 3-arity and
-    /// ExportAppraisalsQueryHandler destructures it.
+    /// Deliberately not a positional record parameter, like everything else below it: the three
+    /// positional members are the ones a caller can reasonably read in isolation, and adding to
+    /// them changes the generated Deconstruct out from under every call site.
     /// </summary>
     public bool HasFreeTextSearch { get; init; }
+
+    /// <summary>
+    /// The free-text search as a derived table — <c>(SELECT DISTINCT m.AppraisalId FROM (…) m)</c>
+    /// — or empty when there is no search. Not part of <see cref="WhereClause"/>: it belongs at the
+    /// FRONT of the FROM, which is what <see cref="ViewFrom"/> and <see cref="BaseTableFrom"/> are
+    /// for.
+    /// </summary>
+    public string SearchSource { get; init; } = "";
+
+    /// <summary>
+    /// FROM fragment for the view, always aliased <c>v</c>, with the search joined in front of it
+    /// when there is one.
+    ///
+    /// The order matters and is enforced with <c>OPTION (RECOMPILE, FORCE ORDER)</c> at the call
+    /// site. Written as <c>Id IN (union)</c> instead, the optimizer would re-run the union once per
+    /// view row whenever it thinks it can walk the view in sort order and stop early — which it
+    /// does for the default <c>ORDER BY CreatedAt DESC</c>. On a leading-wildcard term that cost
+    /// 10 s (711k scans of request.RequestTitles) against ~300 ms for this shape. HASH JOIN was
+    /// tried instead and is not usable: it fails outright with Msg 8622 when the sort is
+    /// CustomerName, because the view's OUTER APPLYs cannot all be hashed.
+    ///
+    /// The derived table exposes only <c>AppraisalId</c>, so every unqualified column in
+    /// <see cref="WhereClause"/> and in BuildOrderBy's output still resolves to the view.
+    /// </summary>
+    public string ViewFrom =>
+        SearchSource.Length == 0
+            ? "appraisal.vw_AppraisalList v"
+            : $"{SearchSource} s JOIN appraisal.vw_AppraisalList v ON v.Id = s.AppraisalId";
+
+    /// <summary>
+    /// The same shape aimed at <c>appraisal.Appraisals</c>, aliased <c>t</c>. Pair with
+    /// <see cref="BaseTableWhereClause"/>, and only when <see cref="RequiresView"/> is false.
+    /// </summary>
+    public string BaseTableFrom =>
+        SearchSource.Length == 0
+            ? "appraisal.Appraisals t"
+            : $"{SearchSource} s JOIN appraisal.Appraisals t ON t.Id = s.AppraisalId";
+
+    /// <summary>
+    /// The query hint every statement carrying <see cref="SearchSource"/> needs.
+    ///
+    /// ⚠ FORCE ORDER fixes the join order, so `search=` sent TOGETHER with a pinned field
+    /// (customerName / appraisalNumber / requestNumber) is a shape to watch: the search ids are
+    /// materialised and the view's OUTER APPLYs run for all of them before the far more selective
+    /// pinned predicate can cut the set down, and the optimizer is not allowed to reorder that.
+    /// The UI cannot produce it — AppraisalListPage sends the term to `search` OR to one pinned
+    /// field, never both, and the export reuses that same object — but AppraisalListQueryParams
+    /// accepts both, so an API caller or a future screen can. Left unguarded on purpose: there is
+    /// no such caller today, and a guard written for an imagined one would be the wrong guard.
+    ///
+    /// A literal, never assembled from anything the caller supplies.
+    /// </summary>
+    public string SearchQueryHint => HasFreeTextSearch ? " OPTION (RECOMPILE, FORCE ORDER)" : "";
 
     /// <summary>
     /// The same clause aimed at <c>appraisal.Appraisals</c>. The view supplies
