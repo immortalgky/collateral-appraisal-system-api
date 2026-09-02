@@ -40,24 +40,27 @@ public class GetEligibleAppraisalsForQuotationQueryHandler(
     {
         // RequiresView is discarded on purpose: this query always reads the view (see below).
         var addressMatch = await addressNameSearch.MatchAsync(query.Filter?.Search, cancellationToken);
-        var (whereClause, parameters, _) =
-            AppraisalFilterBuilder.BuildFilter(query.Filter, addressMatch: addressMatch);
+        var filter = AppraisalFilterBuilder.BuildFilter(query.Filter, addressMatch: addressMatch);
         var orderBy = AppraisalFilterBuilder.BuildOrderBy(query.Filter);
 
         var eligibilityClause = BuildEligibilityClause(query.ExcludeQuotationRequestId.HasValue);
         if (query.ExcludeQuotationRequestId.HasValue)
-            parameters.Add("ExcludeQuotationRequestId", query.ExcludeQuotationRequestId.Value);
+            filter.Parameters.Add("ExcludeQuotationRequestId", query.ExcludeQuotationRequestId.Value);
 
-        var combinedWhere = string.IsNullOrEmpty(whereClause)
+        var combinedWhere = string.IsNullOrEmpty(filter.WhereClause)
             ? $" WHERE {eligibilityClause}"
-            : $"{whereClause} AND ({eligibilityClause})";
+            : $"{filter.WhereClause} AND ({eligibilityClause})";
 
-        var baseSql = "SELECT v.* FROM appraisal.vw_AppraisalList v" + combinedWhere;
+        // ViewFrom keeps the `v` alias BuildEligibilityClause already writes, and puts a free-text
+        // search in front of the view where FORCE ORDER can hold it.
+        var baseSql = $"SELECT v.* FROM {filter.ViewFrom}{combinedWhere}";
 
         return await connectionFactory.QueryPaginatedAsync<AppraisalDto>(
             baseSql,
+            null,
             orderBy,
             query.PaginationRequest,
-            parameters);
+            filter.Parameters,
+            freeTextSearch: filter.HasFreeTextSearch);
     }
 }

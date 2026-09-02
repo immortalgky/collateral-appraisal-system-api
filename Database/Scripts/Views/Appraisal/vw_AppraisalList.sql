@@ -59,8 +59,11 @@ SELECT a.Id,
        -- English one so the client can pick by its own locale; NULLIF collapses '' to NULL.
        comp.Name                                                                           AS CompanyName,
        NULLIF(comp.NameLocal, N'')                                                         AS CompanyNameLocal,
-       -- Customer name from request
+       -- Customer name from request. CustomerCount rides alongside it because the name is only
+       -- ONE of them (see the OUTER APPLY below) — the list shows "+N" so a row that matched a
+       -- customer it is not displaying does not read as a wrong result.
        c.Name                                                                              AS CustomerName,
+       (SELECT COUNT(*) FROM request.RequestCustomers rc WHERE rc.RequestId = a.RequestId) AS CustomerCount,
        -- First property location: land if there is one, otherwise the condo unit's.
        COALESCE(ll.Province, cc.Province)                                                   AS Province,
        COALESCE(ll.District, cc.District)                                                   AS District,
@@ -73,9 +76,16 @@ SELECT a.Id,
        -- CreatedAt (elapsed start) and SLADueDate (remaining end) are already exposed above.
 FROM appraisal.Appraisals a
          LEFT JOIN request.Requests r ON r.Id = a.RequestId
+         -- ORDER BY Id, not a bare TOP 1: without it SQL Server may return a different customer
+         -- between executions, and the list lets users SORT by this column — a sort key that can
+         -- change under you is how the same page comes back with different rows. Id is a bigint
+         -- identity, so this resolves to the customer entered first. IX_RequestCustomer_RequestId
+         -- carries the clustered key, so the seek already arrives in Id order and the ORDER BY
+         -- adds no sort. CustomerCount below says how many were hidden behind this TOP 1.
          OUTER APPLY (SELECT TOP 1 Name
                       FROM request.RequestCustomers
-                      WHERE RequestId = a.RequestId) c
+                      WHERE RequestId = a.RequestId
+                      ORDER BY Id) c
          -- "Latest active assignment", as a correlated TOP 1 rather than a
          -- ROW_NUMBER() derived table filtered by `rn = 1` on the outside.
          --

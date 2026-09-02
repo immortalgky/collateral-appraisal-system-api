@@ -363,18 +363,30 @@ internal static class AppraisalSearchPredicate
     }
 
     /// <summary>
-    /// A predicate usable in a WHERE clause against either <c>appraisal.Appraisals</c> or
-    /// <c>appraisal.vw_AppraisalList</c> — both expose <c>Id</c>. Written as <c>Id IN (…)</c>
-    /// rather than a correlated EXISTS because the union already produces distinct appraisal ids
-    /// and an EXISTS body would need every arm correlated separately.
+    /// The matching appraisal ids as a derived table, for the caller to place <b>first</b> in its
+    /// FROM and join <c>appraisal.Appraisals</c> or <c>appraisal.vw_AppraisalList</c> onto — both
+    /// expose <c>Id</c>. It exposes one column, <c>AppraisalId</c>, so unqualified column names in
+    /// the caller's WHERE and ORDER BY still resolve to the joined relation.
+    ///
+    /// Deliberately <b>not</b> <c>Id IN (…)</c> any more. As a sub-predicate against the view the
+    /// optimizer is free to treat the union as a probe and re-run it per outer row, and against
+    /// the default <c>ORDER BY CreatedAt DESC</c> — a column it can walk in order on the base
+    /// table — that is exactly what it chose: a leading-wildcard term cost 10 s, with 711k scans
+    /// of <c>request.RequestTitles</c> and 5.19M logical reads of <c>appraisal.Appraisals</c> for
+    /// a 25-row page. Joined from the front, with FORCE ORDER on the statement, the same page is
+    /// ~300 ms. See <c>AppraisalFilterSql.ViewFrom</c>.
+    ///
+    /// A UNION ALL of independent arms is still right over a correlated EXISTS: the union already
+    /// produces distinct appraisal ids, and an EXISTS body would need every arm correlated
+    /// separately.
     /// </summary>
-    public static (string Sql, DynamicParameters Parameters)? BuildIdFilter(
+    public static (string Sql, DynamicParameters Parameters)? BuildIdSource(
         string? term, string scope = "all", AddressNameMatch address = default)
     {
         // Uncapped on purpose — see DropdownArmCap.
         var built = Build(term, scope, armCap: null, address);
         if (built is null) return null;
         var (sql, parameters) = built.Value;
-        return ($"Id IN (SELECT DISTINCT m.AppraisalId FROM (\n{sql}\n) m)", parameters);
+        return ($"(SELECT DISTINCT m.AppraisalId FROM (\n{sql}\n) m)", parameters);
     }
 }

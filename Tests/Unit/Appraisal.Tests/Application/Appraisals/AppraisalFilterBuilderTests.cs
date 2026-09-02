@@ -25,7 +25,7 @@ public class AppraisalFilterBuilderTests
         { new GetAppraisalsFilterRequest(AppraisalType: "New"), "AppraisalType = @AppraisalTypes" },
         { new GetAppraisalsFilterRequest(SlaStatus: "OnTrack"), "SLAStatus = @SlaStatuses" },
         { new GetAppraisalsFilterRequest(Channel: "LOS"), "Channel = @Channel" },
-        { new GetAppraisalsFilterRequest(BankingSegment: "RETAIL"), "BankingSegment = @BankingSegment" },
+        { new GetAppraisalsFilterRequest(BankingSegment: "RETAIL"), "BankingSegment = @BankingSegments" },
         { new GetAppraisalsFilterRequest(IsPma: true), "IsPma = @IsPma" },
         { new GetAppraisalsFilterRequest(CreatedFrom: new DateTime(2026, 1, 1)), "CreatedAt >= @CreatedFrom" },
         { new GetAppraisalsFilterRequest(SlaDueDateTo: new DateTime(2026, 1, 1)), "SLADueDate < DATEADD(day, 1, @SlaDueDateTo)" },
@@ -33,9 +33,8 @@ public class AppraisalFilterBuilderTests
         { new GetAppraisalsFilterRequest { AppraisalNumber = "691" }, "AppraisalNumber LIKE '%' + @AppraisalNumber + '%'" },
         { new GetAppraisalsFilterRequest { RequestedAtFrom = new DateTime(2026, 1, 1) }, "RequestedAt >= @RequestedAtFrom" },
         { new GetAppraisalsFilterRequest { RequestedAtTo = new DateTime(2026, 1, 1) }, "RequestedAt < DATEADD(day, 1, @RequestedAtTo)" },
-        // Free text used to be OR'ed against the view's CustomerName/RequestNumber and so forced the
-        // view. It is now a semi-join whose left-hand side is Id, which the base table has.
-        { new GetAppraisalsFilterRequest(Search: "REQ-1"), "Id IN (SELECT DISTINCT m.AppraisalId" },
+        // Free text is not in this table: it contributes no WHERE condition at all any more, only a
+        // FROM. See Search_does_not_force_the_view below.
     };
 
     [Theory]
@@ -47,6 +46,20 @@ public class AppraisalFilterBuilderTests
 
         Assert.Contains(expectedFragment, result.WhereClause);
         Assert.False(result.RequiresView);
+    }
+
+    /// <summary>
+    /// Free text used to be OR'ed against the view's CustomerName/RequestNumber and so forced the
+    /// view. It joins on Id, which the base table has, so the count still runs off
+    /// appraisal.Appraisals — the whole point of resolving the search over base tables.
+    /// </summary>
+    [Fact]
+    public void Search_does_not_force_the_view()
+    {
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: "REQ-1"));
+
+        Assert.False(result.RequiresView);
+        Assert.Contains("JOIN appraisal.Appraisals t ON t.Id = s.AppraisalId", result.BaseTableFrom);
     }
 
     [Fact]
@@ -73,7 +86,6 @@ public class AppraisalFilterBuilderTests
         new GetAppraisalsFilterRequest(District: "1003"),              // first land location
         new GetAppraisalsFilterRequest(AssignedDateFrom: new DateTime(2026, 1, 1)),
         new GetAppraisalsFilterRequest(AppointmentDateTo: new DateTime(2026, 1, 1)),
-        new GetAppraisalsFilterRequest { CustomerName = "somchai" },
         new GetAppraisalsFilterRequest { SubDistrict = "100301" },   // exact geocode, not a LIKE
     ];
 
@@ -128,7 +140,7 @@ public class AppraisalFilterBuilderTests
                      "roomNumber", "licensePlateNumber", "ownerName", "projectName", "condoName",
                  })
         {
-            Assert.Contains($"'{field}'", result.WhereClause);
+            Assert.Contains($"'{field}'", result.SearchSource);
         }
     }
 
@@ -155,7 +167,7 @@ public class AppraisalFilterBuilderTests
 
         // Without the escape this is a leading-and-trailing wildcard over every searched column.
         Assert.Equal("100\\%%", result.Parameters.Get<string>("SearchPattern"));
-        Assert.Contains("ESCAPE '\\'", result.WhereClause);
+        Assert.Contains("ESCAPE '\\'", result.SearchSource);
     }
 
     [Fact]
@@ -180,7 +192,7 @@ public class AppraisalFilterBuilderTests
         // totals that disagree with the page, and rows that repeat or vanish between pages.
         var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: "690"));
 
-        Assert.DoesNotContain("TOP(", result.WhereClause);
+        Assert.DoesNotContain("TOP(", result.SearchSource);
         Assert.DoesNotContain("Cap", result.Parameters.ParameterNames);
     }
 
@@ -191,7 +203,7 @@ public class AppraisalFilterBuilderTests
         // row is still live would otherwise leak its customer names, phone numbers and title deeds.
         var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: "somchai"));
 
-        var where = result.WhereClause;
+        var where = result.SearchSource;
         var armCount = where.Split("UNION ALL").Length;
 
         // Every arm checks the appraisal.
@@ -227,9 +239,49 @@ public class AppraisalFilterBuilderTests
         // The view filters IsDeleted itself; the base tables do not, so every arm has to.
         var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: "somchai"));
 
-        Assert.DoesNotContain("vw_AppraisalList", result.WhereClause);
-        Assert.DoesNotContain("a.IsDeleted = 1", result.WhereClause);
-        Assert.Contains("a.IsDeleted = 0", result.WhereClause);
+        Assert.DoesNotContain("vw_AppraisalList", result.SearchSource);
+        Assert.DoesNotContain("a.IsDeleted = 1", result.SearchSource);
+        Assert.Contains("a.IsDeleted = 0", result.SearchSource);
+    }
+
+    /// <summary>
+    /// The search is a derived table joined in FRONT of the view, not an `Id IN (…)` predicate
+    /// behind it, and the statement carries FORCE ORDER to keep it there.
+    ///
+    /// This is the one regression in this file that stays invisible: both shapes return exactly
+    /// the same rows. Only the plan differs — as a sub-predicate the optimizer re-ran the 17-arm
+    /// union once per view row whenever it thought the ORDER BY let it stop early, which turned a
+    /// leading-wildcard search into a 10-second query (711k scans of request.RequestTitles for a
+    /// 25-row page).
+    /// </summary>
+    [Fact]
+    public void Search_joins_in_front_of_the_view_rather_than_filtering_behind_it()
+    {
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Search: "somchai"));
+
+        // The arms are out of the WHERE entirely.
+        Assert.DoesNotContain("UNION ALL", result.WhereClause);
+        Assert.DoesNotContain("Id IN (SELECT", result.WhereClause);
+
+        Assert.StartsWith("(SELECT DISTINCT m.AppraisalId FROM (", result.SearchSource);
+        Assert.StartsWith(result.SearchSource, result.ViewFrom);
+        Assert.Contains("JOIN appraisal.vw_AppraisalList v ON v.Id = s.AppraisalId", result.ViewFrom);
+        Assert.Contains("JOIN appraisal.Appraisals t ON t.Id = s.AppraisalId", result.BaseTableFrom);
+        Assert.Equal(" OPTION (RECOMPILE, FORCE ORDER)", result.SearchQueryHint);
+    }
+
+    [Fact]
+    public void Without_a_search_the_from_clause_is_the_bare_relation_and_carries_no_hint()
+    {
+        // FORCE ORDER is only correct because the search leads the join. With no search there is
+        // nothing to force, and pinning a join order the optimizer never asked for would be a
+        // pessimisation on every other filter.
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Status: "Pending"));
+
+        Assert.Equal("", result.SearchSource);
+        Assert.Equal("appraisal.vw_AppraisalList v", result.ViewFrom);
+        Assert.Equal("appraisal.Appraisals t", result.BaseTableFrom);
+        Assert.Equal("", result.SearchQueryHint);
     }
 
     // ---------------------------------------------------------------------------
@@ -267,6 +319,88 @@ public class AppraisalFilterBuilderTests
         Assert.Contains("Status IN @Statuses", many.WhereClause);
     }
 
+    /// <summary>
+    /// The filter bar lets these three be multi-selected like the enum filters. They used to be
+    /// plain equalities, so this pins both halves: many values reach SQL as an IN list, and a
+    /// single value still emits the equality that every existing link and saved search produces.
+    /// </summary>
+    [Theory]
+    [InlineData("BankingSegment", "@BankingSegments", "RETAIL", "RETAIL,SME")]
+    [InlineData("Province", "@Provinces", "10", "10,20")]
+    [InlineData("AssigneeCompanyId", "@AssigneeCompanyIds", "acme", "acme,globex")]
+    public void Segment_province_and_company_accept_several_values(
+        string column, string parameter, string one, string two)
+    {
+        GetAppraisalsFilterRequest Filter(string value) => column switch
+        {
+            "BankingSegment" => new GetAppraisalsFilterRequest(BankingSegment: value),
+            "Province" => new GetAppraisalsFilterRequest(Province: value),
+            _ => new GetAppraisalsFilterRequest(AssigneeCompanyId: value)
+        };
+
+        var single = AppraisalFilterBuilder.BuildFilter(Filter(one));
+        var many = AppraisalFilterBuilder.BuildFilter(Filter(two));
+
+        Assert.Contains($"{column} = {parameter}", single.WhereClause);
+        Assert.Contains($"{column} IN {parameter}", many.WhereClause);
+    }
+
+    [Fact]
+    public void Several_provinces_still_force_the_view()
+    {
+        // RequiresView is raised by AddMultiValueFilter's return value now, not by a hand-written
+        // if — an IN list must not silently drop back to counting off the base table.
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest(Province: "10,20"));
+
+        Assert.True(result.RequiresView);
+    }
+
+    /// <summary>
+    /// The `*` prefix widens the ALL-FIELDS search, which is prefix-matched. The three pinned
+    /// filters are already substring matches, and the value is escaped before it reaches SQL — so a
+    /// `*` left in place would be searched for literally and find nothing. It is accepted and
+    /// ignored instead of being explained.
+    /// </summary>
+    [Theory]
+    [InlineData("*somchai", "somchai")]
+    [InlineData("**somchai", "somchai")]
+    [InlineData("  *somchai  ", "somchai")]
+    [InlineData("somchai", "somchai")]
+    public void Leading_widen_markers_are_stripped_from_pinned_searches(string typed, string expected)
+    {
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest { CustomerName = typed });
+
+        Assert.Contains("c.Name LIKE '%' + @CustomerName + '%'", result.WhereClause);
+        Assert.Equal(expected, result.Parameters.Get<string>("CustomerName"));
+    }
+
+    [Theory]
+    [InlineData("*")]
+    [InlineData("***")]
+    [InlineData("  *  ")]
+    public void A_term_that_is_only_markers_filters_nothing(string typed)
+    {
+        // Not `LIKE '%%'`, which would return every row while looking like a search.
+        var appraisal = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest { AppraisalNumber = typed });
+        var request = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest { RequestNumber = typed });
+
+        Assert.DoesNotContain("AppraisalNumber LIKE", appraisal.WhereClause);
+        Assert.DoesNotContain("RequestNumber LIKE", request.WhereClause);
+    }
+
+    [Fact]
+    public void Customer_search_covers_every_customer_on_the_request()
+    {
+        // The view surfaces one arbitrary customer per request (TOP 1, no ORDER BY). Filtering on
+        // that column missed appraisals whose match is the second customer — 22 of them on the dev
+        // data for "Jane" alone. The predicate must read the customer table, not the view column.
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest { CustomerName = "jane" });
+
+        Assert.Contains("request.RequestCustomers", result.WhereClause);
+        Assert.DoesNotContain("CustomerName LIKE", result.WhereClause);
+        Assert.False(result.RequiresView);
+    }
+
     [Fact]
     public void Conditions_are_combined_with_AND()
     {
@@ -281,11 +415,11 @@ public class AppraisalFilterBuilderTests
     // ---------------------------------------------------------------------------
 
     [Theory]
-    [InlineData("createdAt", "desc", "createdAt DESC")]   // the FE sends camelCase…
-    [InlineData("CreatedAt", "desc", "CreatedAt DESC")]   // …while saved searches hold PascalCase
-    [InlineData("customerName", "asc", "customerName ASC")]
-    [InlineData(null, null, "CreatedAt DESC")]            // default
-    [InlineData("; DROP TABLE x", null, "CreatedAt DESC")] // not whitelisted → default
+    [InlineData("createdAt", "desc", "createdAt DESC, Id ASC")]   // the FE sends camelCase…
+    [InlineData("CreatedAt", "desc", "CreatedAt DESC, Id ASC")]   // …while saved searches hold PascalCase
+    [InlineData("customerName", "asc", "customerName ASC, Id ASC")]
+    [InlineData(null, null, "CreatedAt DESC, Id ASC")]            // default
+    [InlineData("; DROP TABLE x", null, "CreatedAt DESC, Id ASC")] // not whitelisted → default
     public void Sort_field_is_whitelisted_case_insensitively(string? sortBy, string? sortDir, string expected)
     {
         var orderBy = AppraisalFilterBuilder.BuildOrderBy(
@@ -311,16 +445,15 @@ public class AppraisalFilterBuilderTests
         Assert.False(result.RequiresView);
     }
 
-    [Theory]
-    [InlineData("customer")]
-    [InlineData("request")]
-    public void Searching_customer_or_request_number_needs_the_view(string field)
+    /// <summary>
+    /// RequestNumber still needs the view — it lives on the LEFT JOIN to request.Requests, which
+    /// only the view performs. CustomerName used to be here too and no longer is: it now reads
+    /// request.RequestCustomers keyed by RequestId, a column the base table has.
+    /// </summary>
+    [Fact]
+    public void Searching_request_number_needs_the_view()
     {
-        var filter = field == "customer"
-            ? new GetAppraisalsFilterRequest { CustomerName = "somchai" }
-            : new GetAppraisalsFilterRequest { RequestNumber = "REQ-1" };
-
-        var result = AppraisalFilterBuilder.BuildFilter(filter);
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest { RequestNumber = "REQ-1" });
 
         Assert.True(result.RequiresView);
     }
@@ -385,10 +518,10 @@ public class AppraisalFilterBuilderTests
 
     [Theory]
     // Business-time hours are not view columns; they are monotonic in the underlying timestamps.
-    [InlineData("ElapsedHours", "asc", "CreatedAt DESC")]
-    [InlineData("ElapsedHours", "desc", "CreatedAt ASC")]
-    [InlineData("RemainingHours", "asc", "SLADueDate ASC")]
-    [InlineData("RemainingHours", "desc", "SLADueDate DESC")]
+    [InlineData("ElapsedHours", "asc", "CreatedAt DESC, Id ASC")]
+    [InlineData("ElapsedHours", "desc", "CreatedAt ASC, Id ASC")]
+    [InlineData("RemainingHours", "asc", "SLADueDate ASC, Id ASC")]
+    [InlineData("RemainingHours", "desc", "SLADueDate DESC, Id ASC")]
     public void Computed_hour_sorts_are_translated_to_their_underlying_timestamp(
         string sortBy, string sortDir, string expected)
     {
@@ -396,5 +529,38 @@ public class AppraisalFilterBuilderTests
             new GetAppraisalsFilterRequest(SortBy: sortBy, SortDir: sortDir));
 
         Assert.Equal(expected, orderBy);
+    }
+
+    /// <summary>
+    /// Every sort ends with the same unique tiebreaker. Without it the order of rows sharing a
+    /// sort key is whatever the plan produces, and these columns tie heavily — rows 90-135 of
+    /// SLADueDate DESC share ONE value. The same deep page requested twice came back with
+    /// different rows, so paging could show a row twice and skip another.
+    /// </summary>
+    [Theory]
+    [InlineData("SLAStatus")]
+    [InlineData("Status")]
+    [InlineData("Priority")]
+    [InlineData("RemainingHours")]
+    [InlineData(null)]
+    public void Every_sort_ends_with_the_unique_tiebreaker(string? sortBy)
+    {
+        var orderBy = AppraisalFilterBuilder.BuildOrderBy(
+            new GetAppraisalsFilterRequest(SortBy: sortBy, SortDir: "desc"));
+
+        Assert.EndsWith(", Id ASC", orderBy);
+    }
+
+    [Fact]
+    public void Id_is_not_sortable_so_the_tiebreaker_can_never_be_repeated()
+    {
+        // "A column has been specified more than once in the order by list" is a runtime SQL
+        // error, not a build one: if Id were ever whitelisted, `Id ASC, Id ASC` would 500 the
+        // list and nothing here would catch it.
+        var orderBy = AppraisalFilterBuilder.BuildOrderBy(
+            new GetAppraisalsFilterRequest(SortBy: "Id", SortDir: "asc"));
+
+        // Falls back to the default field; the direction is still the caller's.
+        Assert.Equal("CreatedAt ASC, Id ASC", orderBy);
     }
 }
