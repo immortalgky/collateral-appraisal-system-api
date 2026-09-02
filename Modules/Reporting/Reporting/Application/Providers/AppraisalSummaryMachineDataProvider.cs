@@ -88,7 +88,8 @@ public sealed class AppraisalSummaryMachineDataProvider(
                 mad.Quantity,
                 mad.RegistrationStatus,
                 mad.InstallationStatus,
-                mad.IsPriceCertified
+                mad.IsPriceCertified,
+                mad.ConditionUse
             FROM appraisal.PropertyGroupItems pgi
             JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
             JOIN appraisal.MachineryAppraisalDetails mad ON mad.AppraisalPropertyId = ap.Id
@@ -180,8 +181,15 @@ public sealed class AppraisalSummaryMachineDataProvider(
                 if (!string.IsNullOrWhiteSpace(m.MachineCondition))
                     parts.Add($"สภาพ{m.MachineCondition}");
 
+                // The appraiser records "surveyed but missing" on ConditionUse; the reports call it out
+                // per item rather than dropping the machine from the list.
+                if (m.ConditionUse == NotFoundCondition)
+                    parts.Add("(สำรวจไม่พบ)");
+
+                // IsPriceCertified is the ไม่ประเมินมูลค่า flag: certifying a price and appraising a
+                // value are one decision here, not two, so there is only ever one phrase to print.
                 if (!m.IsPriceCertified)
-                    parts.Add("(ไม่รับรองราคาประเมิน)");
+                    parts.Add("(ไม่ประเมินมูลค่า)");
 
                 if (parts.Count > 0)
                     detailItems.Add(string.Join(" ", parts));
@@ -296,6 +304,9 @@ public sealed class AppraisalSummaryMachineDataProvider(
     /// One header line per registration state present in the group, in report order. A group with
     /// a single state therefore still gets exactly one line, matching the previous output shape.
     /// </summary>
+    /// <summary>ConditionUse parameter code for "not found" on the survey.</summary>
+    private const string NotFoundCondition = "03";
+
     private static List<string> BuildRegistrationHeaderLines(List<GroupMachineDetailRow> rows)
     {
         // Counts are ROWS, matching the numbered list printed underneath, so a reader can check the
@@ -310,7 +321,21 @@ public sealed class AppraisalSummaryMachineDataProvider(
 
         var lines = new List<string>();
         if (registered > 0)
+        {
             lines.Add($"เครื่องจักรและอุปกรณ์ที่ได้จดทะเบียนกรรมสิทธิ์ จำนวน {registered} เครื่อง");
+
+            // One ร.2/1 booklet usually covers several machines, and the appraiser records that by
+            // typing the same RegistrationNumber on each of them — so the numbers are grouped rather
+            // than listed per machine. A registered machine with no number recorded contributes to
+            // the header count above but gets no line of its own.
+            var byBooklet = rows
+                .Where(r => r.RegistrationStatus && !string.IsNullOrWhiteSpace(r.RegistrationNumber))
+                .GroupBy(r => r.RegistrationNumber!.Trim(), StringComparer.Ordinal)
+                .OrderBy(g => g.Key, StringComparer.Ordinal);
+
+            foreach (var booklet in byBooklet)
+                lines.Add($"ตามสำเนาทะเบียนเครื่องจักร (ร.2/1) เลขที่ {booklet.Key} จำนวน {booklet.Count()} เครื่อง");
+        }
         if (unregisteredInstalled > 0)
             lines.Add($"เครื่องจักรและอุปกรณ์ที่ยังไม่ได้รับการจดทะเบียน จำนวน {unregisteredInstalled} เครื่อง");
         if (underProcurement > 0)
@@ -358,5 +383,6 @@ public sealed class AppraisalSummaryMachineDataProvider(
         public bool RegistrationStatus { get; init; }
         public string? InstallationStatus { get; init; }
         public bool IsPriceCertified { get; init; }
+        public string? ConditionUse { get; init; }
     }
 }
