@@ -24,6 +24,19 @@ public class ExportAppraisalsQueryHandler(
 {
     private const int MaxExportRows = 10_000;
 
+    // Same suppression the list handler carries, for the same reason — this handler started
+    // interpolating ViewFrom when the free-text search moved to a front-joined derived table, which
+    // is what put it in front of the rule.
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube",
+        "S2077:Formatting SQL queries is security-sensitive",
+        Justification =
+            "Nothing user-supplied is interpolated. MaxExportRows is a const; ViewFrom and " +
+            "WhereClause are assembled by AppraisalFilterBuilder from string literals with every " +
+            "value bound as a @parameter and passed as filter.Parameters; orderBy comes from " +
+            "BuildOrderBy, which can only emit a column drawn from the AllowedSortFields set plus " +
+            "ASC/DESC plus the literal Id tiebreaker — a caller's sortBy that is not in that set " +
+            "is replaced by CreatedAt, never echoed; SearchQueryHint is one of two literals. See " +
+            "AppraisalFilterBuilderTests for the pinned output.")]
     public async Task<ExportAppraisalsResult> Handle(
         ExportAppraisalsQuery query,
         CancellationToken cancellationToken)
