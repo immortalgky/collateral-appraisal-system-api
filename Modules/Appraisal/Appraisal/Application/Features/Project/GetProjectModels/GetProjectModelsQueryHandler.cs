@@ -91,7 +91,7 @@ public class GetProjectModelsQueryHandler(
             PricingAnalysisStatus: pa?.Status,
             FinalAppraisedValue: pa?.FinalAppraisedValue,
             AreaDetails: m.AreaDetails
-                .Select(a => new ProjectModelAreaDetailDto(a.Id, a.AreaDescription, a.AreaSize))
+                .Select(a => new ProjectModelAreaDetailDto(a.Id, a.Sequence, a.AreaDescription, a.AreaSize))
                 .ToList(),
             Surfaces: m.Surfaces
                 .Select(s => new ProjectModelSurfaceDto(
