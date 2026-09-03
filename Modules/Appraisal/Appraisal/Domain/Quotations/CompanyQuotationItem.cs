@@ -26,6 +26,13 @@ public class CompanyQuotationItem : Entity<Guid>
     // Item Notes
     public string? ItemNotes { get; private set; }
 
+    /// <summary>
+    /// The company's explanation for this item when its <see cref="NegotiatedDiscount"/> resolves to
+    /// $0 (or null) on a Counter response. Mandatory whenever that trigger holds; auto-cleared once
+    /// the item later receives a real discount — see <see cref="SetNegotiatedDiscount"/>.
+    /// </summary>
+    public string? ItemNegotiationReason { get; private set; }
+
     // Negotiation Tracking
     public decimal OriginalQuotedPrice { get; private set; }
     public decimal CurrentNegotiatedPrice { get; private set; }
@@ -125,12 +132,13 @@ public class CompanyQuotationItem : Entity<Guid>
     /// <summary>
     /// Sets the negotiated discount for this item (applied during a negotiation round).
     /// </summary>
-    public void SetNegotiatedDiscount(decimal? amount)
+    public void SetNegotiatedDiscount(decimal? amount, string? itemNegotiationReason = null)
     {
         if (amount is < 0) throw new InvalidOperationException("NegotiatedDiscount cannot be negative");
         if (amount is not null && amount > FeeAmount - Discount)
             throw new InvalidOperationException("NegotiatedDiscount cannot exceed FeeAmount − Discount");
 
         NegotiatedDiscount = amount;
+        ItemNegotiationReason = (amount is null || amount is 0) ? itemNegotiationReason : null;
     }
 }
