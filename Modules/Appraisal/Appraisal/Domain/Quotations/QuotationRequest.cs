@@ -549,7 +549,6 @@ public class QuotationRequest : Aggregate<Guid>
             throw new InvalidOperationException("Can only reject the current tentative winner");
 
         quotation.ClearTentative();
-        quotation.Withdraw(reason);
 
         TentativeWinnerQuotationId = null;
         TentativelySelectedAt = null;
