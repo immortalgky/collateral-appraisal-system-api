@@ -17,6 +17,23 @@ public class MachineryAppraisalDetail : Entity<Guid>
     public string? RegistrationNumber { get; private set; }
     public string? SerialNo { get; private set; }
 
+    // Registration & Installation — carried over from the request title (MachineInfo) and
+    // editable by the appraiser. Codes come from the GeneralParameters master:
+    // InstallationStatus = group "MachineStatus" (1 = installed, 2 = under procurement),
+    // MachineType = group "MachineType" (1..3).
+    public bool RegistrationStatus { get; private set; }
+    public string? InstallationStatus { get; private set; }
+    public string? MachineType { get; private set; }
+    public string? InvoiceNumber { get; private set; }
+
+    /// <summary>
+    /// Price certification for THIS machine. Distinct from AppraisalDecision.IsPriceVerified,
+    /// which is appraisal-wide and zeroes the valuation totals; this one is descriptive and does
+    /// not touch pricing. Forced to false whenever the machine is not eligible — see
+    /// <see cref="NormalizePriceCertification"/>.
+    /// </summary>
+    public bool IsPriceCertified { get; private set; } = true;
+
     // Machine Specifications
     public string? Brand { get; private set; }
     public string? Model { get; private set; }
@@ -89,6 +106,11 @@ public class MachineryAppraisalDetail : Entity<Guid>
             ChassisNo = source.ChassisNo,
             RegistrationNumber = source.RegistrationNumber,
             SerialNo = source.SerialNo,
+            RegistrationStatus = source.RegistrationStatus,
+            InstallationStatus = source.InstallationStatus,
+            MachineType = source.MachineType,
+            InvoiceNumber = source.InvoiceNumber,
+            IsPriceCertified = source.IsPriceCertified,
             Brand = source.Brand,
             Model = source.Model,
             Series = source.Series,
@@ -131,6 +153,12 @@ public class MachineryAppraisalDetail : Entity<Guid>
         string? chassisNo = null,
         string? registrationNumber = null,
         string? serialNo = null,
+        // Registration & Installation
+        bool? registrationStatus = null,
+        string? installationStatus = null,
+        string? machineType = null,
+        string? invoiceNumber = null,
+        bool? isPriceCertified = null,
         // Machine Specifications
         string? brand = null,
         string? model = null,
@@ -179,6 +207,13 @@ public class MachineryAppraisalDetail : Entity<Guid>
         if (registrationNumber is not null) RegistrationNumber = registrationNumber;
         if (serialNo is not null) SerialNo = serialNo;
 
+        // Registration & Installation
+        if (registrationStatus.HasValue) RegistrationStatus = registrationStatus.Value;
+        if (installationStatus is not null) InstallationStatus = installationStatus;
+        if (machineType is not null) MachineType = machineType;
+        if (invoiceNumber is not null) InvoiceNumber = invoiceNumber;
+        if (isPriceCertified.HasValue) IsPriceCertified = isPriceCertified.Value;
+
         // Machine Specifications
         if (brand is not null) Brand = brand;
         if (model is not null) Model = model;
@@ -225,6 +260,22 @@ public class MachineryAppraisalDetail : Entity<Guid>
         if (remark is not null) Remark = remark;
         if (other is not null) Other = other;
         if (appraiserOpinion is not null) AppraiserOpinion = appraiserOpinion;
+
+        NormalizePriceCertification();
+    }
+
+    /// <summary>MachineStatus parameter code for "under procurement".</summary>
+    private const string UnderProcurementStatus = "2";
+
+    /// <summary>
+    /// A price can only be certified for a machine that is already registered and not still being
+    /// procured (valued from a quotation/invoice). Enforced here rather than in the UI so every
+    /// entry point — create, update, admin correction — keeps the invariant.
+    /// </summary>
+    private void NormalizePriceCertification()
+    {
+        if (!RegistrationStatus || InstallationStatus == UnderProcurementStatus)
+            IsPriceCertified = false;
     }
 
     /// <summary>
@@ -232,12 +283,22 @@ public class MachineryAppraisalDetail : Entity<Guid>
     /// </summary>
     internal void ApplyCorrection(MachineryCorrection edit, Dictionary<string, object?> diff)
     {
+        // Captured up front so the diff can be reconciled after NormalizePriceCertification below:
+        // certification can be revoked as a side effect of an edit that never mentioned it (e.g.
+        // de-registering the machine), and an audit trail that omitted that would be wrong.
+        var certifiedBefore = IsPriceCertified;
+
         CorrectionDiff.Apply("Machinery.PropertyName", PropertyName, edit.PropertyName, v => PropertyName = v, diff);
         CorrectionDiff.Apply("Machinery.MachineName", MachineName, edit.MachineName, v => MachineName = v, diff);
         CorrectionDiff.Apply("Machinery.EngineNo", EngineNo, edit.EngineNo, v => EngineNo = v, diff);
         CorrectionDiff.Apply("Machinery.ChassisNo", ChassisNo, edit.ChassisNo, v => ChassisNo = v, diff);
         CorrectionDiff.Apply("Machinery.RegistrationNumber", RegistrationNumber, edit.RegistrationNumber, v => RegistrationNumber = v, diff);
         CorrectionDiff.Apply("Machinery.SerialNo", SerialNo, edit.SerialNo, v => SerialNo = v, diff);
+        CorrectionDiff.ApplyRequired("Machinery.RegistrationStatus", RegistrationStatus, edit.RegistrationStatus, v => RegistrationStatus = v, diff);
+        CorrectionDiff.Apply("Machinery.InstallationStatus", InstallationStatus, edit.InstallationStatus, v => InstallationStatus = v, diff);
+        CorrectionDiff.Apply("Machinery.MachineType", MachineType, edit.MachineType, v => MachineType = v, diff);
+        CorrectionDiff.Apply("Machinery.InvoiceNumber", InvoiceNumber, edit.InvoiceNumber, v => InvoiceNumber = v, diff);
+        CorrectionDiff.ApplyRequired("Machinery.IsPriceCertified", IsPriceCertified, edit.IsPriceCertified, v => IsPriceCertified = v, diff);
         CorrectionDiff.Apply("Machinery.Brand", Brand, edit.Brand, v => Brand = v, diff);
         CorrectionDiff.Apply("Machinery.Model", Model, edit.Model, v => Model = v, diff);
         CorrectionDiff.Apply("Machinery.Series", Series, edit.Series, v => Series = v, diff);
@@ -269,5 +330,15 @@ public class MachineryAppraisalDetail : Entity<Guid>
         CorrectionDiff.Apply("Machinery.Remark", Remark, edit.Remark, v => Remark = v, diff);
         CorrectionDiff.Apply("Machinery.Other", Other, edit.Other, v => Other = v, diff);
         CorrectionDiff.Apply("Machinery.AppraiserOpinion", AppraiserOpinion, edit.AppraiserOpinion, v => AppraiserOpinion = v, diff);
+
+        NormalizePriceCertification();
+
+        // Report the NET change only: a requested certification the invariant then revoked is not
+        // a change at all, so its diff entry must be dropped rather than left claiming it stuck.
+        const string certifiedKey = "Machinery.IsPriceCertified";
+        if (IsPriceCertified == certifiedBefore)
+            diff.Remove(certifiedKey);
+        else
+            diff[certifiedKey] = new { from = certifiedBefore, to = IsPriceCertified };
     }
 }

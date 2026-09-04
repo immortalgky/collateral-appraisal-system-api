@@ -32,6 +32,12 @@ SELECT PG.AppraisalId,
            WHEN AP.PropertyType = 'MAC' THEN M.RegistrationNumber
            END                                                       AS RegistrationNumber,
        CASE
+           WHEN AP.PropertyType = 'MAC' THEN M.RegistrationStatus
+           END                                                       AS RegistrationStatus,
+       CASE
+           WHEN AP.PropertyType = 'MAC' THEN M.IsPriceCertified
+           END                                                       AS IsPriceCertified,
+       CASE
            WHEN AP.PropertyType = 'MAC'
                THEN CONCAT_WS(' x ', CAST(M.Width AS VARCHAR), CAST(M.Length AS VARCHAR), CAST(M.Height AS VARCHAR))
            END                                                       AS Dimension,
