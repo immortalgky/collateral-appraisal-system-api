@@ -40,6 +40,9 @@ public class GetProjectPricingAssumptionsQueryHandler(
         // TODO(Land): IsLandAndBuildingLike covers both LB and Land; isCondo is the other branch
         var projectTypeName = project.ProjectType.ToCode();
 
+        // Condo-only — Models have no Tower when ProjectType is LandAndBuilding/Land.
+        var towerNameById = project.Towers.ToDictionary(t => t.Id, t => t.TowerName);
+
         // No assumption row yet — return a shell DTO derived from the project's models
         // so the FE Pricing Assumption tab can populate the model rows on first load.
         // If there are no models either, return null (nothing to show).
@@ -63,7 +66,7 @@ public class GetProjectPricingAssumptionsQueryHandler(
                 FloorIncrementAmount: null,
                 NearGardenAdjustment: null,
                 LandIncreaseDecreaseRate: null,
-                ModelAssumptions: DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCondition));
+                ModelAssumptions: DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCondition, towerNameById));
 
             return new GetProjectPricingAssumptionsResult(shellDto);
         }
@@ -71,17 +74,20 @@ public class GetProjectPricingAssumptionsQueryHandler(
         // Build model assumption list.
         // If persisted model-assumptions exist: use them.
         // Otherwise: derive from project models (read-side parity with old Condo handler).
-        // For the persisted path, look up the ProjectModel by ModelType == ModelName to resolve
-        // the PricingAnalysis navigation (ModelAssumption is keyed by ModelType, not ModelId).
-        var modelByName = project.Models.ToDictionary(m => m.ModelName ?? string.Empty, StringComparer.Ordinal);
+        // For the persisted path, look up the ProjectModel by Id to resolve the PricingAnalysis
+        // navigation and the Tower (ModelAssumption itself carries no Tower reference).
+        var modelById = project.Models.ToDictionary(m => m.Id);
 
         var modelAssumptions = assumption.ModelAssumptions.Count > 0
             ? assumption.ModelAssumptions
                 .Select(ma =>
                 {
-                    modelByName.TryGetValue(ma.ModelType ?? string.Empty, out var model);
+                    modelById.TryGetValue(ma.ProjectModelId, out var model);
                     ProjectModelPricingSummary? paSum = model is not null
                         && paSummaries.TryGetValue(model.Id, out var found) ? found : null;
+                    var towerName = model?.ProjectTowerId is Guid towerId
+                        ? towerNameById.GetValueOrDefault(towerId)
+                        : null;
                     return new ProjectModelAssumptionDto(
                         ma.ProjectModelId,
                         ma.ModelType,
@@ -93,10 +99,11 @@ public class GetProjectPricingAssumptionsQueryHandler(
                         ma.FireInsuranceCondition,
                         PricingAnalysisId: paSum?.PricingAnalysisId,
                         PricingAnalysisStatus: paSum?.Status,
-                        FinalAppraisedValue: paSum?.FinalAppraisedValue);
+                        FinalAppraisedValue: paSum?.FinalAppraisedValue,
+                        TowerName: towerName);
                 })
                 .ToList()
-            : DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCondition);
+            : DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCondition, towerNameById);
 
         var dto = new ProjectPricingAssumptionDto(
             assumption.Id,
@@ -124,10 +131,14 @@ public class GetProjectPricingAssumptionsQueryHandler(
         IReadOnlyList<ProjectModel> models,
         bool isCondo,
         IReadOnlyDictionary<Guid, ProjectModelPricingSummary> paSummaries,
-        IReadOnlyDictionary<string, decimal> ratesByCondition) =>
+        IReadOnlyDictionary<string, decimal> ratesByCondition,
+        IReadOnlyDictionary<Guid, string?> towerNameById) =>
         models.Select(m =>
         {
             paSummaries.TryGetValue(m.Id, out var pa);
+            var towerName = m.ProjectTowerId is Guid towerId
+                ? towerNameById.GetValueOrDefault(towerId)
+                : null;
             return new ProjectModelAssumptionDto(
                 m.Id,
                 m.ModelName,
@@ -142,7 +153,8 @@ public class GetProjectPricingAssumptionsQueryHandler(
                 m.FireInsuranceCondition,
                 PricingAnalysisId: pa?.PricingAnalysisId,
                 PricingAnalysisStatus: pa?.Status,
-                FinalAppraisedValue: pa?.FinalAppraisedValue);
+                FinalAppraisedValue: pa?.FinalAppraisedValue,
+                TowerName: towerName);
         })
         .ToList();
 
