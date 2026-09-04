@@ -11,5 +11,6 @@ public record UpdateMethodCommand(
     Guid MethodId,
     decimal? MethodValue = null,
     decimal? ValuePerUnit = null,
-    string? UnitType = null
+    string? UnitType = null,
+    bool? UseSystemCalc = null
 ) : ICommand<UpdateMethodResult>, ITransactionalCommand<IAppraisalUnitOfWork>;
