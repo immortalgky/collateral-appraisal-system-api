@@ -155,7 +155,8 @@ public record CompanyQuotationItemResult(
     decimal Discount,
     decimal? NegotiatedDiscount,
     decimal VatPercent,
-    string? ItemNotes
+    string? ItemNotes,
+    string? ItemNegotiationReason
 );
 
 public record CompanyQuotationNegotiationResult(

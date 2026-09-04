@@ -33,6 +33,10 @@ public class RespondNegotiationCommandHandler(
             i => i.AppraisalId,
             i => i.NegotiatedDiscount);
 
+        var itemReasons = command.Items?.ToDictionary(
+            i => i.AppraisalId,
+            i => i.ItemNegotiationReason);
+
         if (command.Verb == "Counter" && command.Items is { Count: > 0 })
         {
             var companyQuotationPre = quotation.Quotations
@@ -52,6 +56,14 @@ public class RespondNegotiationCommandHandler(
             if (zeroFeeItems.Any())
                 throw new BadRequestException(
                     "All items must have a fee after discount greater than 0 when submitting a counter-proposal.");
+
+            var missingReasonItems = command.Items
+                .Where(i => (i.NegotiatedDiscount ?? 0m) <= 0m && string.IsNullOrWhiteSpace(i.ItemNegotiationReason))
+                .ToList();
+
+            if (missingReasonItems.Any())
+                throw new BadRequestException(
+                    "A reason is required for each item negotiated with $0 discount.");
         }
 
         quotation.RespondNegotiation(
@@ -61,7 +73,8 @@ public class RespondNegotiationCommandHandler(
             command.CounterPrice,
             command.Message,
             currentUser.UserId!.Value,
-            itemDiscounts);
+            itemDiscounts,
+            itemReasons);
 
         var companyQuotation = quotation.Quotations.First(q => q.Id == command.CompanyQuotationId);
         activityLogger.Log(

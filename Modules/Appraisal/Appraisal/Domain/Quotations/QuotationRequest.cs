@@ -508,7 +508,8 @@ public class QuotationRequest : Aggregate<Guid>
         decimal? counterPrice,
         string? message,
         Guid companyUserId,
-        IReadOnlyDictionary<Guid, decimal?>? itemDiscounts = null)
+        IReadOnlyDictionary<Guid, decimal?>? itemDiscounts = null,
+        IReadOnlyDictionary<Guid, string?>? itemReasons = null)
     {
         EnsureStatus("Negotiating", "respond to negotiation");
 
@@ -517,7 +518,7 @@ public class QuotationRequest : Aggregate<Guid>
         if (quotation.Id != TentativeWinnerQuotationId)
             throw new InvalidOperationException("Can only respond for the tentative winner quotation");
 
-        quotation.RespondNegotiation(negotiationId, verb, counterPrice, message, companyUserId, itemDiscounts);
+        quotation.RespondNegotiation(negotiationId, verb, counterPrice, message, companyUserId, itemDiscounts, itemReasons);
 
         if (verb == "Accept" || verb == "Counter")
         {
