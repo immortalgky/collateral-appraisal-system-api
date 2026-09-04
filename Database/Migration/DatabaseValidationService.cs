@@ -106,7 +106,8 @@ public class DatabaseValidationService
         var expectedStoredProcedures = new[]
         {
             "sp_GetTaskList",
-            "sp_GetTaskGroupCounts"
+            "sp_GetTaskGroupCounts",
+            "sp_RegulatoryExport"
         };
 
         var spNameParams = string.Join(",", expectedStoredProcedures.Select((_, i) => $"@sp{i}"));

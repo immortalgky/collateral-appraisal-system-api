@@ -1,3 +1,4 @@
+using System.Data;
 using Collateral.Contracts.FileInterface;
 using Dapper;
 using Shared.Data;
@@ -8,24 +9,23 @@ public class RegulatoryExportQuery(ISqlConnectionFactory connectionFactory) : IR
 {
     public async Task<IReadOnlyList<RegulatoryExportRow>> GetRowsAsync(CancellationToken cancellationToken = default)
     {
-        // OPTION (MAXRECURSION 0) MUST live here — SQL Server does not allow it inside a view, and the
-        // view walks PrevAppraisalId back to each collateral's first appraisal. Without it the default
-        // cap of 100 levels aborts the whole query with Msg 530 and no file is produced at all. The
-        // view carries a Path-based cycle guard, so lifting the cap is safe.
+        // A procedure, not the view it replaced. Read with every column — which is exactly how this
+        // method reads it — the view ran past the timeout below and produced no file at all, because
+        // a CTE referenced more than once is re-expanded rather than reused. The procedure
+        // materialises each shared step into a #temp, so it runs once and every step after it is
+        // planned against a real row count. See the header of sp_RegulatoryExport.sql.
         //
-        // HostCollateralId is the sort key, not the appraisal number: the grain here is the collateral,
-        // and one appraisal legitimately covers several of them, so ordering by appraisal number alone
-        // would not be deterministic.
-        const string sql = """
-            SELECT * FROM collateral.vw_RegulatoryExport
-            ORDER BY HostCollateralId
-            OPTION (MAXRECURSION 0)
-            """;
-
+        // ORDER BY and OPTION (MAXRECURSION 0) moved inside it. Neither could live in a view, so both
+        // used to be appended here; the recursion cap now sits on the two steps that recurse instead
+        // of on the whole statement.
         var connection = connectionFactory.GetOpenConnection();
         var rows = await connection.QueryAsync<RawRow>(
-            new CommandDefinition(sql, cancellationToken: cancellationToken,
-                // The recursive walk over every completed appraisal takes longer than the 30s default.
+            new CommandDefinition("collateral.sp_RegulatoryExport",
+                commandType: CommandType.StoredProcedure,
+                cancellationToken: cancellationToken,
+                // Kept from the view era. It should now be far out of reach — 2.4 seconds on the U3
+                // set against 24.5 for the view — but a monthly job that produces nothing when it is
+                // late is worse than one that takes a while.
                 commandTimeout: 600));
         return rows.Select(Map).ToList();
     }
