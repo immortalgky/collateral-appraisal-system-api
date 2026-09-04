@@ -76,15 +76,16 @@ public class RegulatoryExportJob(
         {
             rows = await query.GetRowsAsync(ct);
         }
-        // Logged and rethrown, not handled: Hangfire still has to see the run fail. What the entry
-        // adds is the elapsed time, which tells a command timeout (600s) apart from a connection that
-        // was refused in a second, without opening the dashboard.
+        // Wrapped rather than logged and rethrown. The run still fails and Hangfire still records it
+        // with the original as the inner exception — what this adds is the elapsed time, which tells a
+        // command timeout (600s) apart from a connection refused in a second, without opening the
+        // dashboard. Logging here as well would put the same failure in the log twice.
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            logger.LogError(
-                ex, "{Tag} Reading the row set failed after {Seconds:n1}s; no file was written",
-                JobTag, step.Elapsed.TotalSeconds);
-            throw;
+            throw new InvalidOperationException(
+                $"{JobTag} Reading the row set failed after {step.Elapsed.TotalSeconds:n1}s; "
+                + "no file was written.",
+                ex);
         }
 
         logger.LogInformation(
