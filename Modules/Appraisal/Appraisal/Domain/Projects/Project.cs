@@ -589,8 +589,8 @@ public class Project : Aggregate<Guid>
 
         var modelLookup = hasPersistedAssumptions
             ? assumption.ModelAssumptions
-                .Where(ma => ma.ModelType != null)
-                .GroupBy(ma => ma.ModelType!)
+                .Where(ma => ma.ProjectModelId.ToString() != null)
+                .GroupBy(ma => ma.ProjectModelId.ToString()!)
                 .ToDictionary(g => g.Key, g =>
                 {
                     var ma = g.First();
@@ -602,8 +602,8 @@ public class Project : Aggregate<Guid>
                         CoverageAmount: LookupRate(ratesByCondition, model?.FireInsuranceCondition) ?? ma.CoverageAmount);
                 })
             : _models
-                .Where(m => m.ModelName != null)
-                .GroupBy(m => m.ModelName!)
+                .Where(m => m.Id.ToString() != null)
+                .GroupBy(m => m.Id.ToString()!)
                 .ToDictionary(g => g.Key, g =>
                 {
                     var first = g.First();
@@ -623,7 +623,7 @@ public class Project : Aggregate<Guid>
 
             decimal standardPrice = 0m;
             decimal? coverageAmount = null;
-            if (unit.ModelType != null && modelLookup.TryGetValue(unit.ModelType, out var matched))
+            if (unit.ProjectModelId != null && modelLookup.TryGetValue(unit.ProjectModelId.ToString(), out var matched))
             {
                 standardPrice = matched.StandardPrice;
                 coverageAmount = Math.Round(
