@@ -1,5 +1,15 @@
 -- CAS-AS400-Regulatory export view.
 --
+-- ⚠ NO CODE READS THIS VIEW ANY MORE. The export runs collateral.sp_RegulatoryExport, which holds
+-- the same logic materialised into #temp tables because the view stopped finishing when read with
+-- every column. The view is kept for two reasons only: it is the fallback if the procedure misbehaves
+-- on a database it has not run on yet, and it is what an ad-hoc `SELECT … WHERE` goes through when
+-- someone needs to pull the row set by hand. Neither reason survives the procedure's first clean
+-- monthly run, at which point this file should be deleted.
+--
+-- Until then: A CHANGE HERE IS A CHANGE THERE. Edit sp_RegulatoryExport.sql in the same commit, or
+-- the file the regulator receives and the rows anyone reads by hand quietly stop agreeing.
+--
 -- ONE ROW PER COLLATERAL THE BANK HOLDS, carrying the date and value of the FIRST time CAS ever
 -- appraised it.
 --
@@ -667,7 +677,34 @@ SELECT
     CASE WHEN lgc.ValuationDate IS NOT NULL AND lgc.ValuationDate < e.ValuationDate
          THEN lgc.ValuationDate ELSE e.ValuationDate END      AS EarliestAppraisalDate,
 
-    NULL                                                         AS LatestAppraisalCompanyId,
+    -- The company the appraisal was assigned to, or NULL when it was done in-house.
+    -- RegulatoryFileWriter turns this into field 15: a value means External (1), NULL means
+    -- Internal (2).
+    --
+    -- ⚠ This was a literal NULL from 2026-08-21, when v3 was written from scratch against a new
+    -- grain, until it was noticed in the file: every one of the 24,885 rows shipped as Internal.
+    -- v1 read it from CollateralEngagement and v2 from the assignment; v3 reached Appraisals
+    -- directly and touched neither, so the column lost its source and nobody re-attached it.
+    --
+    -- The rule restored here is v1's, NOT v2's, and it is copied from
+    -- GetAppraisalForCollateralQueryHandler.cs — the C# that fills
+    -- CollateralEngagements.AppraisalCompanyId, which is what v1 read. That same column still decides
+    -- Internal vs External for the AS400 appraisal-RESULT file (CollateralResultQuery's
+    -- IsExternalEngagement), so any other rule here would let the two files the bank receives disagree
+    -- about whether one collateral was appraised by an outside firm.
+    --
+    -- Three things v2's plain ORDER BY CreatedAt DESC did not do:
+    --   * skip Rejected and Cancelled — a company that turned the job down never appraised anything
+    --   * order by AssignedAt first — it stays NULL until the workflow actually hands the task out, and
+    --     DESC sorts NULLs last, so an assignment that was really worked beats one still sitting in
+    --     administration
+    --   * break ties on Id — without it SQL Server may return either of two rows stamped in the same
+    --     transaction, and the field could flip between monthly runs
+    --
+    -- IF THAT HANDLER'S RULE CHANGES, CHANGE IT HERE AND IN THE OTHER FILE.
+    --
+    -- TRY_CAST because AssigneeCompanyId is nvarchar(100), not uniqueidentifier.
+    asg.AppraisalCompanyId                                       AS LatestAppraisalCompanyId,
 
     -- DOPA 6-digit sub-district. Administrative address, so it must come from a DOPA-mastered source:
     -- request.RequestDetails, whose picker uses the DOPA master. NOT the deed address, which is
@@ -713,6 +750,14 @@ LEFT JOIN LandAgg la       ON la.AppraisalId = ps.PropSourceAppraisalId
 LEFT JOIN BuildingAgg ba   ON ba.AppraisalId = ps.PropSourceAppraisalId
 LEFT JOIN CondoAgg ca      ON ca.AppraisalId = ps.PropSourceAppraisalId
 LEFT JOIN request.RequestDetails rd ON rd.RequestId = an.RequestId
+-- Same rule as GetAppraisalForCollateralQueryHandler.cs — see the note on the column above.
+OUTER APPLY (
+    SELECT TOP 1 TRY_CAST(aa.AssigneeCompanyId AS uniqueidentifier) AS AppraisalCompanyId
+    FROM appraisal.AppraisalAssignments aa
+    WHERE aa.AppraisalId = an.AppraisalId
+      AND aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
+    ORDER BY aa.AssignedAt DESC, aa.CreatedAt DESC, aa.Id DESC
+) asg
 -- The legacy listing for THIS collateral, if AS400 valued it before CAS existed. Joined on the
 -- collateral id, not the appraisal number: the '99…' number that owns the listing row is a
 -- different number from the one the feed reports today.
