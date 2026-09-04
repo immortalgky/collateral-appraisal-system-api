@@ -685,7 +685,23 @@ SELECT
     -- grain, until it was noticed in the file: every one of the 24,885 rows shipped as Internal.
     -- v1 read it from CollateralEngagement and v2 from the assignment; v3 reached Appraisals
     -- directly and touched neither, so the column lost its source and nobody re-attached it.
-    -- Restored to v2's rule exactly: the newest assignment's company.
+    --
+    -- The rule restored here is v1's, NOT v2's, and it is copied from
+    -- GetAppraisalForCollateralQueryHandler.cs — the C# that fills
+    -- CollateralEngagements.AppraisalCompanyId, which is what v1 read. That same column still decides
+    -- Internal vs External for the AS400 appraisal-RESULT file (CollateralResultQuery's
+    -- IsExternalEngagement), so any other rule here would let the two files the bank receives disagree
+    -- about whether one collateral was appraised by an outside firm.
+    --
+    -- Three things v2's plain ORDER BY CreatedAt DESC did not do:
+    --   * skip Rejected and Cancelled — a company that turned the job down never appraised anything
+    --   * order by AssignedAt first — it stays NULL until the workflow actually hands the task out, and
+    --     DESC sorts NULLs last, so an assignment that was really worked beats one still sitting in
+    --     administration
+    --   * break ties on Id — without it SQL Server may return either of two rows stamped in the same
+    --     transaction, and the field could flip between monthly runs
+    --
+    -- IF THAT HANDLER'S RULE CHANGES, CHANGE IT HERE AND IN THE OTHER FILE.
     --
     -- TRY_CAST because AssigneeCompanyId is nvarchar(100), not uniqueidentifier.
     asg.AppraisalCompanyId                                       AS LatestAppraisalCompanyId,
@@ -734,11 +750,13 @@ LEFT JOIN LandAgg la       ON la.AppraisalId = ps.PropSourceAppraisalId
 LEFT JOIN BuildingAgg ba   ON ba.AppraisalId = ps.PropSourceAppraisalId
 LEFT JOIN CondoAgg ca      ON ca.AppraisalId = ps.PropSourceAppraisalId
 LEFT JOIN request.RequestDetails rd ON rd.RequestId = an.RequestId
+-- Same rule as GetAppraisalForCollateralQueryHandler.cs — see the note on the column above.
 OUTER APPLY (
     SELECT TOP 1 TRY_CAST(aa.AssigneeCompanyId AS uniqueidentifier) AS AppraisalCompanyId
     FROM appraisal.AppraisalAssignments aa
     WHERE aa.AppraisalId = an.AppraisalId
-    ORDER BY aa.CreatedAt DESC
+      AND aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
+    ORDER BY aa.AssignedAt DESC, aa.CreatedAt DESC, aa.Id DESC
 ) asg
 -- The legacy listing for THIS collateral, if AS400 valued it before CAS existed. Joined on the
 -- collateral id, not the appraisal number: the '99…' number that owns the listing row is a
