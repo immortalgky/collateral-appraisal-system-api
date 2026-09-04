@@ -19,7 +19,27 @@
 --
 -- Materialising each shared step fixes both halves at once. Each runs exactly once, and a #temp
 -- carries real statistics, so every step after it is planned against the row count it will actually
--- see rather than a guess. Measured on the U3 set with every column read: 24.5 seconds to 2.4.
+-- see rather than a guess.
+--
+-- ── What this actually bought, measured ───────────────────────────────────────────────────────
+-- NOT wall-clock. On a small set with the right indexes in place the view is the faster of the two,
+-- because its plan goes parallel while the #temp steps run one after another. What changes is that
+-- the cost stops depending on a guess. Between U3 and UAT3 — the same report, 1.9% more rows:
+--
+--                     U3          UAT3
+--     view   reads    2,860,562   3,153,276    +10%
+--            CPU ms       6,853      19,643   +187%   <- 1.9% more data
+--     proc   reads      896,493   1,184,672    +32%
+--            CPU ms       9,732      10,321     +6%
+--
+-- The view's estimate reaches 20 billion rows, so the plan it gets is whatever the optimiser
+-- happens to guess; when the guess is wrong the cost does not degrade gracefully, and production
+-- ran past ten minutes on a set 467 rows larger than UAT3's. Every #temp step here is planned
+-- against a row count that is already known, which is why the procedure's cost barely moves.
+--
+-- ⚠ This has NOT been shown to fix production. The reason production overran is still unexplained,
+-- and the argument above is a shape, not a measurement of that box. Run the procedure there and
+-- compare before believing it.
 --
 -- The same lesson, from the same codebase: QuickSearchQueryHandler already notes that "a CTE
 -- referenced twice is re-evaluated, which would run all 17 arms again".

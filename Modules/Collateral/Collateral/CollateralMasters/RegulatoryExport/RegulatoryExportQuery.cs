@@ -23,9 +23,10 @@ public class RegulatoryExportQuery(ISqlConnectionFactory connectionFactory) : IR
             new CommandDefinition("collateral.sp_RegulatoryExport",
                 commandType: CommandType.StoredProcedure,
                 cancellationToken: cancellationToken,
-                // Kept from the view era. It should now be far out of reach — 2.4 seconds on the U3
-                // set against 24.5 for the view — but a monthly job that produces nothing when it is
-                // late is worse than one that takes a while.
+                // Kept from the view era, and still needed. The procedure is not faster than the
+                // view on a small set — it is steadier, which is a different property; see the
+                // measurements in its header. A monthly job that produces nothing when it is late is
+                // worse than one that takes a while.
                 commandTimeout: 600));
         return rows.Select(Map).ToList();
     }
