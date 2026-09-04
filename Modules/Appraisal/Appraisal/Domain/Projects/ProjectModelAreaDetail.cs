@@ -2,6 +2,7 @@ namespace Appraisal.Domain.Projects;
 
 public class ProjectModelAreaDetail : Entity<Guid>
 {
+    public int? Sequence { get; set; }
     public string? AreaDescription { get; private set; }
     public decimal? AreaSize { get; private set; }
 
@@ -10,6 +11,7 @@ public class ProjectModelAreaDetail : Entity<Guid>
     }
 
     public static ProjectModelAreaDetail Create(
+        int? sequence,
         string? areaDescription,
         decimal? areaSize)
     {
@@ -21,18 +23,19 @@ public class ProjectModelAreaDetail : Entity<Guid>
         return new ProjectModelAreaDetail
         {
             Id = Guid.CreateVersion7(),
+            Sequence = sequence,
             AreaDescription = areaDescription,
             AreaSize = areaSize
         };
     }
 
-    public void UpdateArea(string? description, decimal? size)
+    public void UpdateArea(int? sequence, string? description, decimal? size)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(description);
 
         if (size < 0)
             throw new ArgumentException("AreaSize cannot be negative");
-
+        Sequence = sequence;
         AreaDescription = description;
         AreaSize = size;
     }
