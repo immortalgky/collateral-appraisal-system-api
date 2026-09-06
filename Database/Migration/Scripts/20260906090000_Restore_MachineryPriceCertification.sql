@@ -4,8 +4,9 @@
   Purpose : Undo the forced IsPriceCertified = 0 that 20260901090000_Backfill_MachineryRegistration
             FromOtherBlob.sql applied on its first run.
 
-  Why     : That pass mirrored MachineryAppraisalDetail.NormalizePriceCertification() — a price
-            could only be certified for a machine that was registered and not still being procured.
+  Why     : That pass mirrored a domain invariant called NormalizePriceCertification(), which this
+            release DELETES — do not go looking for it in the code. It held that a price could only
+            be certified for a machine that was registered and not still being procured.
             The invariant is gone: certifying a price is the appraiser's decision alone. The
             forcing pass has been deleted from the backfill script, but DbUp journals one-time
             scripts by file name with no checksum, so that edit is a no-op on every database that
