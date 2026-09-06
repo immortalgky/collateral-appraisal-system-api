@@ -525,6 +525,22 @@ public sealed class AppraisalSummaryModel
         = new Dictionary<string, IReadOnlyList<Guid>>();
 }
 
+/// <summary>
+/// One line of a group's collateral-detail cell: either a heading that introduces a set of items,
+/// or an item belonging to the heading above it.
+/// </summary>
+public sealed record SummaryDetailLine
+{
+    /// <summary>The line's text, without any bullet or number prefix.</summary>
+    public required string Text { get; init; }
+
+    /// <summary>
+    /// Position under the heading above, counting from 1 again for each heading. Null marks the
+    /// line as a heading.
+    /// </summary>
+    public int? Number { get; init; }
+}
+
 /// <summary>One collateral group row in the per-group valuation table (fields 13–19).</summary>
 public sealed class SummaryGroupRow
 {
@@ -541,11 +557,13 @@ public sealed class SummaryGroupRow
     public string? CollateralDetails { get; init; }
 
     /// <summary>
-    /// Multi-line variant of <see cref="CollateralDetails"/>, each entry rendered on its own line
-    /// above the numbered item list. Machinery uses it to state each registration status present
-    /// in the group; other property types leave it null and keep the single-line form.
+    /// Multi-line variant of <see cref="CollateralDetails"/>, replacing both it and
+    /// <see cref="DetailItems"/> for the group. Machinery uses it to interleave a heading per
+    /// registration status with the machines that fall under it, so each heading is followed by
+    /// its own members rather than every heading stacking above one flat list. Other property
+    /// types leave it null and keep the single-line form.
     /// </summary>
-    public List<string>? CollateralDetailLines { get; init; }
+    public List<SummaryDetailLine>? CollateralDetailLines { get; init; }
 
     /// <summary>Land area in rai-ngan-wa format, or unit count for buildings.</summary>
     public string? AreaOrUnit { get; init; }

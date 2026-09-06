@@ -170,6 +170,9 @@ public record PropertyGroupItemDto
     public bool? RegistrationStatus { get; set; }
     /// <summary>Machinery only: appraiser certifies this machine's price. Null for other types.</summary>
     public bool? IsPriceCertified { get; set; }
+
+    /// <summary>Machinery only: ConditionUse parameter code. Null for other property types.</summary>
+    public string? ConditionUse { get; set; }
     public string? Dimension { get; set; }
     public string? Location { get; set; }
     /// <summary>Title deed no(s): comma-joined LandTitles for land, unit deed for condo.</summary>

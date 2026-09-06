@@ -234,7 +234,10 @@ internal static class GetAppraisalResultSql
                                                    vsad.VesselName         AS VesselName,
                                                    vsad.VesselType         AS VesselType,
                                                    -- Machinery identity fields
-                                                   mad.MachineName         AS MachineName,
+                                                   -- PropertyName is what the form writes now;
+                                                   -- older rows keep the name in MachineName.
+                                                   COALESCE(NULLIF(mad.PropertyName, ''), NULLIF(mad.MachineName, ''))
+                                                       AS MachineName,
                                                    mad.Brand               AS MachineBrand,
                                                    mad.Model               AS MachineModel,
                                                    mad.SerialNo            AS MachineSerialNo,

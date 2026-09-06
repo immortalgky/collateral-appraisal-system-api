@@ -41,7 +41,11 @@ public class GetMachineryPropertyQueryHandler(
             property.PropertyType.ToString(),
             property.Description,
             detail.Id,
-            detail.PropertyName,
+            // Resolved here rather than in each caller: the 360 slide-over renders this response
+            // as it comes, so a machine whose name is still in the old MachineName column would
+            // otherwise show as nameless there. MachineName is returned untouched below for
+            // anything that wants the raw column.
+            string.IsNullOrWhiteSpace(detail.PropertyName) ? detail.MachineName : detail.PropertyName,
             detail.MachineName,
             detail.EngineNo,
             detail.ChassisNo,

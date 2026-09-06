@@ -69,7 +69,10 @@ public sealed class AppraisalSummaryMachineDataProvider(
             SELECT
                 pgi.PropertyGroupId,
                 pgi.SequenceInGroup,
-                mad.MachineName,
+                -- One name, two columns. The appraisal form now writes only PropertyName; rows
+                -- created before that carry the same text in MachineName, so fall back to it
+                -- rather than printing a nameless item. Same order the pricing analysis uses.
+                COALESCE(NULLIF(mad.PropertyName, ''), NULLIF(mad.MachineName, '')) AS MachineName,
                 mad.RegistrationNumber,
                 mad.Brand,
                 mad.Model,
@@ -152,7 +155,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
             // (the sample reports show a registered batch and an unregistered one in the same
             // appraisal), so emit one line per state that is actually present rather than the
             // blanket "จดทะเบียนกรรมสิทธิ์" claim this used to print for every machine.
-            var detailLines = BuildRegistrationHeaderLines(machRows);
+            var detailLines = BuildGroupedDetailLines(machRows);
 
             // Fallback for the pre-migration case where no detail rows were loaded: keep the old
             // single-line header driven by the count so the row never renders empty.
@@ -160,40 +163,6 @@ public sealed class AppraisalSummaryMachineDataProvider(
                 ? $"จดทะเบียนกรรมสิทธิ์เครื่องจักร จำนวน {machineCount} รายการ"
                 : null;
 
-            // One entry per machine — rendered as a numbered list (1., 2., …).
-            var detailItems = new List<string>();
-            foreach (var m in machRows)
-            {
-                var parts = new List<string>();
-
-                if (!string.IsNullOrWhiteSpace(m.MachineName))
-                    parts.Add(m.MachineName);
-                if (!string.IsNullOrWhiteSpace(m.Brand))
-                    parts.Add($"ยี่ห้อ {m.Brand}");
-                if (!string.IsNullOrWhiteSpace(m.Model))
-                    parts.Add($"รุ่น {m.Model}");
-                if (!string.IsNullOrWhiteSpace(m.RegistrationNumber))
-                    parts.Add($"ทะเบียนเลขที่ {m.RegistrationNumber}");
-                if (!string.IsNullOrWhiteSpace(m.SerialNo))
-                    parts.Add($"หมายเลขเครื่อง {m.SerialNo}");
-                if (m.YearOfManufacture.HasValue)
-                    parts.Add($"ปีที่ผลิต {m.YearOfManufacture}");
-                if (!string.IsNullOrWhiteSpace(m.MachineCondition))
-                    parts.Add($"สภาพ{m.MachineCondition}");
-
-                // The appraiser records "surveyed but missing" on ConditionUse; the reports call it out
-                // per item rather than dropping the machine from the list.
-                if (m.ConditionUse == NotFoundCondition)
-                    parts.Add("(สำรวจไม่พบ)");
-
-                // IsPriceCertified is the ไม่ประเมินมูลค่า flag: certifying a price and appraising a
-                // value are one decision here, not two, so there is only ever one phrase to print.
-                if (!m.IsPriceCertified)
-                    parts.Add("(ไม่ประเมินมูลค่า)");
-
-                if (parts.Count > 0)
-                    detailItems.Add(string.Join(" ", parts));
-            }
 
             return new SummaryGroupRow
             {
@@ -202,7 +171,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
                 PropertyType = "เครื่องจักร",
                 CollateralDetails = collateralDetails,
                 CollateralDetailLines = detailLines.Count > 0 ? detailLines : null,
-                DetailItems = detailItems,
+                DetailItems = [],
                 AreaOrUnit = null,
                 PricePerAreaOrUnit = null,
                 AppraisalValue = g.GroupAppraisalValue,
@@ -234,6 +203,11 @@ public sealed class AppraisalSummaryMachineDataProvider(
             OldAppraisalValue = common.PrevAppraisedValue,
             HasPrevAppraisal = common.HasPrevAppraisal,
             IsReAppraisal = string.Equals(common.AppraisalType, "ReAppraisal", StringComparison.OrdinalIgnoreCase),
+            // The info row prints "ขอเพิ่มวงเงิน" instead of "วงเงินสินเชื่อ" on an increase-limit
+            // appraisal, the same as the land/building and condo summaries — which needs this set,
+            // and the figure it is being compared against carried alongside it.
+            IsIncreaseLimit = common.IsIncreaseLimit,
+            ExistingLoanValue = common.ExistingLoanValue,
             Appraiser = common.Appraiser,
             LoanValue = common.LoanValue,
             Groups = summaryGroups,
@@ -307,41 +281,85 @@ public sealed class AppraisalSummaryMachineDataProvider(
     /// <summary>ConditionUse parameter code for "not found" on the survey.</summary>
     private const string NotFoundCondition = "03";
 
-    private static List<string> BuildRegistrationHeaderLines(List<GroupMachineDetailRow> rows)
+    /// <summary>
+    /// Builds the group's collateral cell: a heading for each registration state present, each one
+    /// followed by the machines that fall under it, numbered from 1 again under every heading so
+    /// each set counts itself and agrees with the จำนวน in its own heading.
+    /// A state with no machines prints nothing, so a group of one kind still reads as one heading.
+    /// </summary>
+    private static List<SummaryDetailLine> BuildGroupedDetailLines(List<GroupMachineDetailRow> rows)
     {
-        // Counts are ROWS, matching the numbered list printed underneath, so a reader can check the
-        // header against the items. (Quantity is deliberately not summed here: the cost-approach
+        // Counts are ROWS, matching the numbered list underneath, so a reader can check a heading
+        // against the items below it. (Quantity is deliberately not summed here: the cost-approach
         // section reports that separately as สำรวจพบ, and mixing the two units in one cell would
-        // make the header disagree with the list.)
-        var registered = rows.Count(r => r.RegistrationStatus);
-        var unregisteredInstalled = rows
-            .Count(r => !r.RegistrationStatus && r.InstallationStatus != UnderProcurementStatus);
-        var underProcurement = rows
-            .Count(r => !r.RegistrationStatus && r.InstallationStatus == UnderProcurementStatus);
-
-        var lines = new List<string>();
-        if (registered > 0)
+        // make the heading disagree with the list.)
+        var buckets = new (string Heading, Func<GroupMachineDetailRow, bool> Match)[]
         {
-            lines.Add($"เครื่องจักรและอุปกรณ์ที่ได้จดทะเบียนกรรมสิทธิ์ จำนวน {registered} เครื่อง");
+            ("เครื่องจักรและอุปกรณ์ที่ได้จดทะเบียนกรรมสิทธิ์",
+                r => r.RegistrationStatus),
+            ("เครื่องจักรและอุปกรณ์ที่ยังไม่ได้รับการจดทะเบียน",
+                r => !r.RegistrationStatus && r.InstallationStatus != UnderProcurementStatus),
+            ("เครื่องจักรและอุปกรณ์ที่ไม่จดทะเบียนอยู่ระหว่างการติดตั้ง",
+                r => !r.RegistrationStatus && r.InstallationStatus == UnderProcurementStatus),
+        };
 
-            // One ร.2/1 booklet usually covers several machines, and the appraiser records that by
-            // typing the same RegistrationNumber on each of them — so the numbers are grouped rather
-            // than listed per machine. A registered machine with no number recorded contributes to
-            // the header count above but gets no line of its own.
-            var byBooklet = rows
-                .Where(r => r.RegistrationStatus && !string.IsNullOrWhiteSpace(r.RegistrationNumber))
-                .GroupBy(r => r.RegistrationNumber!.Trim(), StringComparer.Ordinal)
-                .OrderBy(g => g.Key, StringComparer.Ordinal);
+        var lines = new List<SummaryDetailLine>();
 
-            foreach (var booklet in byBooklet)
-                lines.Add($"ตามสำเนาทะเบียนเครื่องจักร (ร.2/1) เลขที่ {booklet.Key} จำนวน {booklet.Count()} เครื่อง");
+        foreach (var (heading, match) in buckets)
+        {
+            var number = 0;
+            // rows arrive ordered by SequenceInGroup and Where keeps that order, so the machines
+            // stay in the sequence the appraiser gave them.
+            var members = rows.Where(match).ToList();
+            if (members.Count == 0)
+                continue;
+
+            // Described first: a machine with nothing recorded on it prints no line, and a heading
+            // that counted it would claim more than the list beneath it shows.
+            var described = members.Select(DescribeMachine).Where(t => t.Length > 0).ToList();
+            if (described.Count == 0)
+                continue;
+
+            lines.Add(new SummaryDetailLine { Text = $"{heading} จำนวน {described.Count} เครื่อง" });
+
+            foreach (var text in described)
+                lines.Add(new SummaryDetailLine { Text = text, Number = ++number });
         }
-        if (unregisteredInstalled > 0)
-            lines.Add($"เครื่องจักรและอุปกรณ์ที่ยังไม่ได้รับการจดทะเบียน จำนวน {unregisteredInstalled} เครื่อง");
-        if (underProcurement > 0)
-            lines.Add($"เครื่องจักรและอุปกรณ์ที่ไม่จดทะเบียนอยู่ระหว่างการติดตั้ง จำนวน {underProcurement} เครื่อง");
 
         return lines;
+    }
+
+    /// <summary>One machine as a single sentence, in the order the sample reports read.</summary>
+    private static string DescribeMachine(GroupMachineDetailRow m)
+    {
+        var parts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(m.MachineName))
+            parts.Add(m.MachineName);
+        if (!string.IsNullOrWhiteSpace(m.Brand))
+            parts.Add($"ยี่ห้อ {m.Brand}");
+        if (!string.IsNullOrWhiteSpace(m.Model))
+            parts.Add($"รุ่น {m.Model}");
+        if (!string.IsNullOrWhiteSpace(m.RegistrationNumber))
+            parts.Add($"ทะเบียนเลขที่ {m.RegistrationNumber}");
+        if (!string.IsNullOrWhiteSpace(m.SerialNo))
+            parts.Add($"หมายเลขเครื่อง {m.SerialNo}");
+        if (m.YearOfManufacture.HasValue)
+            parts.Add($"ปีที่ผลิต {m.YearOfManufacture}");
+        if (!string.IsNullOrWhiteSpace(m.MachineCondition))
+            parts.Add($"สภาพ{m.MachineCondition}");
+
+        // The appraiser records "surveyed but missing" on ConditionUse; the reports call it out
+        // per item rather than dropping the machine from the list.
+        if (m.ConditionUse == NotFoundCondition)
+            parts.Add("(สำรวจไม่พบ)");
+
+        // IsPriceCertified is the ไม่ประเมินมูลค่า flag: certifying a price and appraising a
+        // value are one decision here, not two, so there is only ever one phrase to print.
+        if (!m.IsPriceCertified)
+            parts.Add("(ไม่ประเมินมูลค่า)");
+
+        return string.Join(" ", parts);
     }
 
     // ── Private flat DTOs for Dapper mapping ─────────────────────────────────────
