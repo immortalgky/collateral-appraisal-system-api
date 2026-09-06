@@ -832,11 +832,11 @@ GO
 INSERT INTO parameter.Parameters ([group], [country], [language], [code], [description], [isactive], [seqno])
 VALUES
     (N'ConditionUse', N'TH', N'EN', N'01', N'In Used', 1, 1),
-    (N'ConditionUse', N'TH', N'TH', N'01', N'In Used', 1, 1),
+    (N'ConditionUse', N'TH', N'TH', N'01', N'ใช้งานอยู่', 1, 1),
     (N'ConditionUse', N'TH', N'EN', N'02', N'Not In Used', 1, 2),
-    (N'ConditionUse', N'TH', N'TH', N'02', N'Not In Used', 1, 2),
+    (N'ConditionUse', N'TH', N'TH', N'02', N'ไม่ได้ใช้งาน', 1, 2),
     (N'ConditionUse', N'TH', N'EN', N'03', N'Not Found', 1, 3),
-    (N'ConditionUse', N'TH', N'TH', N'03', N'Not Found', 1, 3);
+    (N'ConditionUse', N'TH', N'TH', N'03', N'สำรวจไม่พบ', 1, 3);
 GO
 
 -- ----------------------------------------
@@ -3666,9 +3666,9 @@ VALUES
     (N'MachineType', N'TH', N'EN', N'1', N'Construction & Heavy Machinery', 1, 1),
     (N'MachineType', N'TH', N'TH', N'1', N'ก่อสร้างและเครื่องจักรกลหนัก', 1, 1),
     (N'MachineType', N'TH', N'EN', N'2', N'Industrial / Manufacturing Machinery', 1, 2),
-    (N'MachineType', N'TH', N'TH', N'2', N'อุตสหกรรม / เครื่องจักรการผลิด', 1, 2),
+    (N'MachineType', N'TH', N'TH', N'2', N'อุตสาหกรรม / เครื่องจักรการผลิต', 1, 2),
     (N'MachineType', N'TH', N'EN', N'3', N'Energy / Utilities Machinery', 1, 3),
-    (N'MachineType', N'TH', N'TH', N'3', N'พลังงาน/ เครื่องจักรสาธารณูปโภค', 1, 3);
+    (N'MachineType', N'TH', N'TH', N'3', N'พลังงาน / เครื่องจักรสาธารณูปโภค', 1, 3);
 GO
 
 -- ----------------------------------------
