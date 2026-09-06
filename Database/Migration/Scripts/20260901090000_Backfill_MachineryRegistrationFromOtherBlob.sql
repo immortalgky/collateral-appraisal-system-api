@@ -18,8 +18,14 @@
             does not live in two places.
 
   Safety  : Idempotent — after the first run no row matches the pattern any more. Rows that never
-            had the blob keep the column defaults (RegistrationStatus=0, IsPriceCertified=1) and
-            are then corrected by the final certification pass, which is safe to re-run.
+            had the blob keep the column defaults (RegistrationStatus=0, IsPriceCertified=1).
+
+  History : This script originally ended with a pass that forced IsPriceCertified = 0 on machines
+            that were unregistered or under procurement, mirroring a domain invariant that has
+            since been removed. That pass is gone (see the note where it used to be), but DbUp
+            journals one-time scripts by name with no checksum, so removing it here does nothing
+            on a database that already ran it —
+            20260906090000_Restore_MachineryPriceCertification.sql undoes it there.
 */
 
 SET NOCOUNT ON;
@@ -62,12 +68,7 @@ JOIN Parsed p ON p.Id = mad.Id;
 
 PRINT CONCAT('Backfilled machinery registration columns from Other blob: ', @@ROWCOUNT, ' row(s).');
 
--- ── 2. Apply the certification invariant ─────────────────────────────────────────────────────
--- Mirrors MachineryAppraisalDetail.NormalizePriceCertification(): a price can only be certified
--- for a machine that is registered and not still under procurement (MachineStatus code '2').
-UPDATE appraisal.MachineryAppraisalDetails
-SET IsPriceCertified = 0
-WHERE IsPriceCertified = 1
-  AND (RegistrationStatus = 0 OR InstallationStatus = N'2');
-
-PRINT CONCAT('Forced IsPriceCertified=0 on ineligible machines: ', @@ROWCOUNT, ' row(s).');
+-- IsPriceCertified is deliberately left alone. An earlier draft forced it to 0 for machines that
+-- were unregistered or still under procurement, mirroring a domain invariant that has since been
+-- removed: whether a machine's price is certified is the appraiser's decision and nothing else
+-- infers it. The column keeps its default of 1 until someone says otherwise on the form.

@@ -27,10 +27,11 @@ public class MachineryAppraisalDetail : Entity<Guid>
     public string? InvoiceNumber { get; private set; }
 
     /// <summary>
-    /// Price certification for THIS machine. Distinct from AppraisalDecision.IsPriceVerified,
-    /// which is appraisal-wide and zeroes the valuation totals; this one is descriptive and does
-    /// not touch pricing. Forced to false whenever the machine is not eligible — see
-    /// <see cref="NormalizePriceCertification"/>.
+    /// Price certification for THIS machine — the same decision the machinery summary report
+    /// prints as "(ไม่ประเมินมูลค่า)". Distinct from AppraisalDecision.IsPriceVerified, which is
+    /// appraisal-wide and zeroes the valuation totals; this one is descriptive and does not touch
+    /// pricing. Entirely the appraiser's call: registration and installation status no longer
+    /// constrain it.
     /// </summary>
     public bool IsPriceCertified { get; private set; } = true;
 
@@ -261,21 +262,29 @@ public class MachineryAppraisalDetail : Entity<Guid>
         if (other is not null) Other = other;
         if (appraiserOpinion is not null) AppraiserOpinion = appraiserOpinion;
 
-        NormalizePriceCertification();
+        ClearInapplicableFields();
     }
 
     /// <summary>MachineStatus parameter code for "under procurement".</summary>
     private const string UnderProcurementStatus = "2";
 
     /// <summary>
-    /// A price can only be certified for a machine that is already registered and not still being
-    /// procured (valued from a quotation/invoice). Enforced here rather than in the UI so every
-    /// entry point — create, update, admin correction — keeps the invariant.
+    /// A machine that is not registered has no registration number, and one that is not being
+    /// procured has no quotation it was priced from — so those columns are emptied rather than
+    /// left holding a value the record contradicts.
+    ///
+    /// Enforced here, not in the form, so it holds for every entry point: create, update, admin
+    /// correction, and anything that reaches the aggregate later. The form disables the same two
+    /// boxes for the same reasons; this is what makes the database agree with what it shows.
+    ///
+    /// Note what this is NOT: <see cref="IsPriceCertified"/> is left alone. Certifying a price is
+    /// the appraiser's judgement, and an invariant that inferred it from these same two fields was
+    /// removed deliberately.
     /// </summary>
-    private void NormalizePriceCertification()
+    private void ClearInapplicableFields()
     {
-        if (!RegistrationStatus || InstallationStatus == UnderProcurementStatus)
-            IsPriceCertified = false;
+        if (!RegistrationStatus) RegistrationNumber = null;
+        if (InstallationStatus != UnderProcurementStatus) InvoiceNumber = null;
     }
 
     /// <summary>
@@ -283,10 +292,12 @@ public class MachineryAppraisalDetail : Entity<Guid>
     /// </summary>
     internal void ApplyCorrection(MachineryCorrection edit, Dictionary<string, object?> diff)
     {
-        // Captured up front so the diff can be reconciled after NormalizePriceCertification below:
-        // certification can be revoked as a side effect of an edit that never mentioned it (e.g.
-        // de-registering the machine), and an audit trail that omitted that would be wrong.
-        var certifiedBefore = IsPriceCertified;
+        // Captured up front so the audit trail can be reconciled after ClearInapplicableFields
+        // below: a correction that de-registers a machine also empties its registration number,
+        // and a trail that claimed the number was untouched — or that a number the invariant then
+        // removed had been set — would be wrong either way.
+        var registrationNumberBefore = RegistrationNumber;
+        var invoiceNumberBefore = InvoiceNumber;
 
         CorrectionDiff.Apply("Machinery.PropertyName", PropertyName, edit.PropertyName, v => PropertyName = v, diff);
         CorrectionDiff.Apply("Machinery.MachineName", MachineName, edit.MachineName, v => MachineName = v, diff);
@@ -331,14 +342,25 @@ public class MachineryAppraisalDetail : Entity<Guid>
         CorrectionDiff.Apply("Machinery.Other", Other, edit.Other, v => Other = v, diff);
         CorrectionDiff.Apply("Machinery.AppraiserOpinion", AppraiserOpinion, edit.AppraiserOpinion, v => AppraiserOpinion = v, diff);
 
-        NormalizePriceCertification();
+        ClearInapplicableFields();
+        ReportNetChange("Machinery.RegistrationNumber", registrationNumberBefore, RegistrationNumber, diff);
+        ReportNetChange("Machinery.InvoiceNumber", invoiceNumberBefore, InvoiceNumber, diff);
+    }
 
-        // Report the NET change only: a requested certification the invariant then revoked is not
-        // a change at all, so its diff entry must be dropped rather than left claiming it stuck.
-        const string certifiedKey = "Machinery.IsPriceCertified";
-        if (IsPriceCertified == certifiedBefore)
-            diff.Remove(certifiedKey);
+    /// <summary>
+    /// Records what actually happened to a field the invariant may have overwritten: nothing at
+    /// all if it ended where it started, and the real before/after otherwise — including a
+    /// requested value the invariant then cleared, which is a change, just not the one asked for.
+    /// </summary>
+    private static void ReportNetChange(
+        string key,
+        string? before,
+        string? after,
+        Dictionary<string, object?> diff)
+    {
+        if (before == after)
+            diff.Remove(key);
         else
-            diff[certifiedKey] = new { from = certifiedBefore, to = IsPriceCertified };
+            diff[key] = new { from = before, to = after };
     }
 }
