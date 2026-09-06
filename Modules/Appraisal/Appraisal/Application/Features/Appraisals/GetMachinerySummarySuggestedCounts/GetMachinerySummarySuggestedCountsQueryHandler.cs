@@ -55,44 +55,43 @@ public class GetMachinerySummarySuggestedCountsQueryHandler(
         // ประเมินตามเอกสาร is under-procurement AND priced from a quotation, which is what the rule
         // shown next to the field says; without the invoice test it would be the same number as
         // ยังไม่ติดตั้ง, and one of the two columns would say nothing.
-        const string sql = """
-                           SELECT
-                               pg.Id           AS GroupId,
-                               pg.GroupNumber  AS GroupNumber,
-                               pg.GroupName    AS GroupName,
-                               COUNT(CASE WHEN mad.ConditionUse IS NULL OR mad.ConditionUse <> @NotFound THEN 1 END) AS SurveyedNumber,
-                               COUNT(CASE WHEN mad.IsPriceCertified = 1 THEN 1 END) AS AppraisalNumber,
-                               COUNT(CASE WHEN mad.InstallationStatus = @Installed
-                                           AND mad.ConditionUse = @InUsed THEN 1 END) AS InstalledAndUseCount,
-                               COUNT(CASE WHEN mad.ConditionUse = @NotInUsed
-                                           AND mad.IsPriceCertified = 1 THEN 1 END) AS AppraisalScrapCount,
-                               COUNT(CASE WHEN mad.InstallationStatus = @UnderProcurement
-                                           AND mad.InvoiceNumber IS NOT NULL
-                                           AND mad.InvoiceNumber <> '' THEN 1 END) AS AppraisedByDocumentCount,
-                               COUNT(CASE WHEN mad.InstallationStatus = @UnderProcurement THEN 1 END) AS NotInstalledCount
-                           FROM appraisal.AppraisalProperties ap
-                           JOIN appraisal.MachineryAppraisalDetails mad ON mad.AppraisalPropertyId = ap.Id
-                           LEFT JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = ap.Id
-                           LEFT JOIN appraisal.PropertyGroups pg ON pg.Id = pgi.PropertyGroupId
-                           WHERE ap.AppraisalId = @AppraisalId AND ap.PropertyType = 'MAC'
-                           GROUP BY pg.Id, pg.GroupNumber, pg.GroupName
-                           ORDER BY pg.GroupNumber, pg.GroupName;
+        // The six counts are written once and used by both statements. They were typed out twice
+        // to begin with, and the two copies drifted: ประเมินตามเอกสาร carried the invoice test in
+        // one and not the other, so the per-group column was a copy of ยังไม่ติดตั้ง while the total
+        // was not. Sharing the text is what makes "the same six counts" true rather than intended.
+        const string countExpressions = """
+                                        COUNT(CASE WHEN mad.ConditionUse IS NULL OR mad.ConditionUse <> @NotFound THEN 1 END) AS SurveyedNumber,
+                                        COUNT(CASE WHEN mad.IsPriceCertified = 1 THEN 1 END) AS AppraisalNumber,
+                                        COUNT(CASE WHEN mad.InstallationStatus = @Installed
+                                                    AND mad.ConditionUse = @InUsed THEN 1 END) AS InstalledAndUseCount,
+                                        COUNT(CASE WHEN mad.ConditionUse = @NotInUsed
+                                                    AND mad.IsPriceCertified = 1 THEN 1 END) AS AppraisalScrapCount,
+                                        COUNT(CASE WHEN mad.InstallationStatus = @UnderProcurement
+                                                    AND mad.InvoiceNumber IS NOT NULL
+                                                    AND mad.InvoiceNumber <> '' THEN 1 END) AS AppraisedByDocumentCount,
+                                        COUNT(CASE WHEN mad.InstallationStatus = @UnderProcurement THEN 1 END) AS NotInstalledCount
+                                        """;
 
-                           SELECT
-                               COUNT(CASE WHEN mad.ConditionUse IS NULL OR mad.ConditionUse <> @NotFound THEN 1 END) AS SurveyedNumber,
-                               COUNT(CASE WHEN mad.IsPriceCertified = 1 THEN 1 END) AS AppraisalNumber,
-                               COUNT(CASE WHEN mad.InstallationStatus = @Installed
-                                            AND mad.ConditionUse = @InUsed THEN 1 END) AS InstalledAndUseCount,
-                               COUNT(CASE WHEN mad.ConditionUse = @NotInUsed
-                                            AND mad.IsPriceCertified = 1 THEN 1 END) AS AppraisalScrapCount,
-                               COUNT(CASE WHEN mad.InstallationStatus = @UnderProcurement
-                                            AND mad.InvoiceNumber IS NOT NULL
-                                            AND mad.InvoiceNumber <> '' THEN 1 END) AS AppraisedByDocumentCount,
-                               COUNT(CASE WHEN mad.InstallationStatus = @UnderProcurement THEN 1 END) AS NotInstalledCount
-                           FROM appraisal.AppraisalProperties ap
-                           JOIN appraisal.MachineryAppraisalDetails mad ON mad.AppraisalPropertyId = ap.Id
-                           WHERE ap.AppraisalId = @AppraisalId AND ap.PropertyType = 'MAC';
-                           """;
+        const string sql = $"""
+                            SELECT
+                                pg.Id           AS GroupId,
+                                pg.GroupNumber  AS GroupNumber,
+                                pg.GroupName    AS GroupName,
+                                {countExpressions}
+                            FROM appraisal.AppraisalProperties ap
+                            JOIN appraisal.MachineryAppraisalDetails mad ON mad.AppraisalPropertyId = ap.Id
+                            LEFT JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = ap.Id
+                            LEFT JOIN appraisal.PropertyGroups pg ON pg.Id = pgi.PropertyGroupId
+                            WHERE ap.AppraisalId = @AppraisalId AND ap.PropertyType = 'MAC'
+                            GROUP BY pg.Id, pg.GroupNumber, pg.GroupName
+                            ORDER BY pg.GroupNumber, pg.GroupName;
+
+                            SELECT
+                                {countExpressions}
+                            FROM appraisal.AppraisalProperties ap
+                            JOIN appraisal.MachineryAppraisalDetails mad ON mad.AppraisalPropertyId = ap.Id
+                            WHERE ap.AppraisalId = @AppraisalId AND ap.PropertyType = 'MAC';
+                            """;
 
         var connection = sqlConnectionFactory.GetOpenConnection();
 
