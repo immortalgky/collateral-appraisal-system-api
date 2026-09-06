@@ -58,7 +58,10 @@ internal static class CostMachineSectionLoader
                 COALESCE(pg.GroupNumber, 0) AS GroupNumber,
                 pg.GroupName,
                 mci.DisplaySequence,
-                mad.MachineName,
+                -- The form writes PropertyName and no longer writes MachineName, while rows
+                -- created before that carry the name in MachineName only. Resolve here so the
+                -- printed name never comes back empty. Same rule as the summary report.
+                COALESCE(NULLIF(mad.PropertyName, ''), NULLIF(mad.MachineName, '')) AS MachineName,
                 mad.Brand,
                 mad.Model,
                 mad.Quantity,

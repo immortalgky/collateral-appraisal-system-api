@@ -10,7 +10,18 @@
 <!-- pdf-margin-y:5mm -->
   <meta charset="UTF-8"/>
   <title>สรุปรายงานการประเมินราคาทรัพย์สิน – เครื่องจักร</title>
-  <style>{{ include 'partials/summary-styles' }}</style>
+  <style>{{ include 'partials/summary-styles' }}
+    /* Each registration heading is followed by the machines under it. The heading is bold rather
+       than bulleted and the machines line up flush with it — the numbering already says which set
+       they belong to, so an indent only cost width in a cell that is short of it. A heading after
+       the first set gets a little air above it. */
+    .m-head { font-weight: 700; margin-top: 8px; }
+    .m-head:first-child { margin-top: 0; }
+    /* The attribute block sits straight under the full-width totals table here, so it lines up
+       with that table's edge. The 18px indent in summary-styles is for the appraisal book, where
+       the same class nests these attributes under each machine's own heading. */
+    .machine-attrs { padding-left: 0; }
+  </style>
 </head>
 <body>
 <div class="form">
@@ -18,11 +29,19 @@
   <!-- ════ HEADER + INFO BLOCK (shared; opens .pad) ════ -->
   {{ if model.report_title; summary_title = model.report_title; else; summary_title = "สรุปรายงานการประเมินราคาทรัพย์สิน"; end }}
   {{ include 'partials/summary-head' }}
-    <div class="cols2">
-      <div class="kv"><span class="k">ผู้ประเมินราคา</span><span class="v">{{ model.appraiser }}</span></div>
-      <div class="kv"><span class="k">วงเงินสินเชื่อ</span><span class="v">{{ if model.loan_value; model.loan_value | math.format "N2"; else; "-"; end }} บาท</span></div>
+    <!-- Same three-track row as the land/building and condo summaries: the appraiser spans two
+         tracks and the credit line sits in the third, so it lines up under ผู้แจ้ง and
+         ประเภททรัพย์สิน above instead of starting halfway across the page. -->
+    <div class="cols3">
+      <div class="kv" style="grid-column:span 2;"><span class="k">ผู้ประเมินราคา</span><span class="v">{{ model.appraiser }}</span></div>
+      <div class="kv">{{ if !model.is_re_appraisal }}<span class="k">{{ if model.is_increase_limit }}ขอเพิ่มวงเงิน{{ else }}วงเงินสินเชื่อ{{ end }}</span><span class="v">{{ if model.loan_value; model.loan_value | math.format "N2"; else; "-"; end }} บาท</span>{{ end }}</div>
     </div>
-    {{ if model.has_prev_appraisal }}
+    <!-- The figure the new one is being compared against: the old limit when this is a request to
+         raise it, otherwise the previous appraisal's value. Same choice the land/building and
+         condo summaries make, so "ขอเพิ่มวงเงิน" above never prints without its baseline. -->
+    {{ if model.is_increase_limit }}
+    <div class="kv"><span class="k">วงเงินสินเชื่อเดิม</span><span class="v">{{ if model.existing_loan_value; model.existing_loan_value | math.format "N2"; else; "-"; end }} บาท</span></div>
+    {{ else if model.has_prev_appraisal }}
     <div class="kv"><span class="k">ราคาประเมินเดิม</span><span class="v">{{ if model.old_appraisal_value; model.old_appraisal_value | math.format "N2"; else; "-"; end }}</span></div>
     {{ end }}
   </div>
@@ -45,7 +64,7 @@
           <span class="chk on"></span>
           <strong>{{ g.property_type }}</strong>
         </td>
-        <td>{{ if g.collateral_details }}<div>{{ g.collateral_details }}</div>{{ end }}{{ for d in g.detail_items }}<div>{{ for.index + 1 }}. {{ d }}</div>{{ end }}</td>
+        <td>{{ for l in g.collateral_detail_lines }}{{ if l.number }}<div class="m-item">{{ l.number }}. {{ l.text }}</div>{{ else }}<div class="m-head">{{ l.text }}</div>{{ end }}{{ end }}{{ if g.collateral_details }}<div>{{ g.collateral_details }}</div>{{ end }}{{ for d in g.detail_items }}<div>{{ for.index + 1 }}. {{ d }}</div>{{ end }}</td>
         <td>&nbsp;</td>
         <td>&nbsp;</td>
         <td class="num">{{ if g.appraisal_value; g.appraisal_value | math.format "N2"; end }}</td>

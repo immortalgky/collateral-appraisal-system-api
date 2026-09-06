@@ -21,6 +21,13 @@ public class
         builder.Property(e => e.RegistrationNumber).HasMaxLength(50);
         builder.Property(e => e.SerialNo).HasMaxLength(100);
 
+        // Registration & Installation (codes from GeneralParameters: MachineStatus / MachineType)
+        builder.Property(e => e.RegistrationStatus).HasDefaultValue(false);
+        builder.Property(e => e.InstallationStatus).HasMaxLength(10);
+        builder.Property(e => e.MachineType).HasMaxLength(10);
+        builder.Property(e => e.InvoiceNumber).HasMaxLength(20);
+        builder.Property(e => e.IsPriceCertified).HasDefaultValue(true);
+
         // Machine Specifications
         builder.Property(e => e.Brand).HasMaxLength(100);
         builder.Property(e => e.Model).HasMaxLength(100);

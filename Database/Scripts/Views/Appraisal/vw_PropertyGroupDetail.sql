@@ -13,7 +13,11 @@ SELECT PG.AppraisalId,
        AP.Id                                                         AS PropertyId,
        AP.PropertyType,
        COALESCE(L.Id, B.Id, C.Id, M.Id)                              AS AppraisalDetailId,
-       COALESCE(L.PropertyName, B.PropertyName, C.PropertyName, M.PropertyName) AS PropertyName,
+       -- Machinery falls back to MachineName: the form used to have both a property name and a
+       -- machine name and now writes only the first, so a row filled in through the old form can
+       -- carry its name in the other column. Same rule the machinery report applies.
+       COALESCE(L.PropertyName, B.PropertyName, C.PropertyName,
+                NULLIF(M.PropertyName, ''), NULLIF(M.MachineName, '')) AS PropertyName,
        CASE
            WHEN AP.PropertyType IN ('L', 'LB') THEN LT.TotalSquareWa
            WHEN AP.PropertyType = 'U' THEN C.UsableArea
@@ -31,6 +35,15 @@ SELECT PG.AppraisalId,
        CASE
            WHEN AP.PropertyType = 'MAC' THEN M.RegistrationNumber
            END                                                       AS RegistrationNumber,
+       CASE
+           WHEN AP.PropertyType = 'MAC' THEN M.RegistrationStatus
+           END                                                       AS RegistrationStatus,
+       CASE
+           WHEN AP.PropertyType = 'MAC' THEN M.IsPriceCertified
+           END                                                       AS IsPriceCertified,
+       CASE
+           WHEN AP.PropertyType = 'MAC' THEN M.ConditionUse
+           END                                                       AS ConditionUse,
        CASE
            WHEN AP.PropertyType = 'MAC'
                THEN CONCAT_WS(' x ', CAST(M.Width AS VARCHAR), CAST(M.Length AS VARCHAR), CAST(M.Height AS VARCHAR))

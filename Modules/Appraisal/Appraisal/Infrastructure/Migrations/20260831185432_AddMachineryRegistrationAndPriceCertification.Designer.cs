@@ -4,16 +4,19 @@ using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace Appraisal.Infrastructure.Migrations
+namespace Appraisal.infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    partial class AppraisalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260831185432_AddMachineryRegistrationAndPriceCertification")]
+    partial class AddMachineryRegistrationAndPriceCertification
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -6511,14 +6514,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<int>("AddedUnits")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(0);
-
-                    b.Property<int?>("AutoSoldUnits")
-                        .HasColumnType("int");
-
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -6537,18 +6532,10 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<bool>("IsSystemGenerated")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
-
                     b.Property<bool>("IsUsed")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
-
-                    b.Property<int?>("MatchedUnsoldUnits")
-                        .HasColumnType("int");
 
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uniqueidentifier");
@@ -6559,9 +6546,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<string>("UpdatedBy")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
-
-                    b.Property<int?>("UpdatedUnits")
-                        .HasColumnType("int");
 
                     b.Property<string>("UpdatedWorkstation")
                         .HasColumnType("nvarchar(max)");
@@ -7672,110 +7656,6 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasDatabaseName("IX_SupportingDataDetailImages_DetailId_Sequence");
 
                     b.ToTable("SupportingDataDetailImages", "appraisal");
-                });
-
-            modelBuilder.Entity("Appraisal.Domain.UnitTickets.UnitTicket", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("AppraisalId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("CreatedWorkstation")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("IssuedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("IssuedTo")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("TicketNumber")
-                        .IsRequired()
-                        .HasMaxLength(8)
-                        .HasColumnType("nvarchar(8)");
-
-                    b.Property<string>("UnitSetKey")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nchar(64)")
-                        .IsFixedLength();
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("UpdatedWorkstation")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TicketNumber")
-                        .IsUnique()
-                        .HasDatabaseName("UX_UnitTickets_TicketNumber");
-
-                    b.HasIndex("AppraisalId", "UnitSetKey")
-                        .IsUnique()
-                        .HasDatabaseName("UX_UnitTickets_Appraisal_UnitSet");
-
-                    b.ToTable("UnitTickets", "appraisal");
-                });
-
-            modelBuilder.Entity("Appraisal.Domain.UnitTickets.UnitTicketUnit", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("CreatedWorkstation")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("ProjectUnitId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("UnitKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<Guid>("UnitTicketId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("UpdatedWorkstation")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectUnitId");
-
-                    b.HasIndex("UnitTicketId");
-
-                    b.ToTable("UnitTicketUnits", "appraisal");
                 });
 
             modelBuilder.Entity("Shared.Data.Lease.BackgroundServiceLease", b =>
@@ -12867,15 +12747,6 @@ namespace Appraisal.Infrastructure.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Appraisal.Domain.UnitTickets.UnitTicketUnit", b =>
-                {
-                    b.HasOne("Appraisal.Domain.UnitTickets.UnitTicket", null)
-                        .WithMany("Units")
-                        .HasForeignKey("UnitTicketId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("Appraisal.Domain.Appraisals.Appointment", b =>
                 {
                     b.Navigation("History");
@@ -13077,11 +12948,6 @@ namespace Appraisal.Infrastructure.Migrations
             modelBuilder.Entity("Appraisal.Domain.SupportingDataMaintenance.SupportingDataDetail", b =>
                 {
                     b.Navigation("Images");
-                });
-
-            modelBuilder.Entity("Appraisal.Domain.UnitTickets.UnitTicket", b =>
-                {
-                    b.Navigation("Units");
                 });
 #pragma warning restore 612, 618
         }
