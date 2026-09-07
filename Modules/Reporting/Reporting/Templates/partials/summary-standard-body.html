@@ -25,9 +25,11 @@
 
   <!-- ════ COLLATERAL TABLE (fields 13–17) ════ -->
   <!-- uc: some property carries a construction inspection below 100%, so the ราคาประเมิน column
-       splits into เมื่อแล้วเสร็จ 100% / ตามสภาพปัจจุบัน. The sub-labels are a body row above the
-       building block (not a second header row) because only the building block is split — land is
-       never under construction and colspans the pair. Off → the historic 5-column form, unchanged. -->
+       splits into เมื่อแล้วเสร็จ 100% / ตามสภาพปัจจุบัน. Only the rows that are actually being built
+       occupy the pair: land colspans it (land is never under construction) and so do finished
+       buildings, which print in their own block above the split one. The sub-labels are a body row
+       directly above that split block, not a second header row, for the same reason.
+       Off → the historic 5-column form, unchanged. -->
   {{ uc = model.has_under_construction }}
   <table class="grid">
     <colgroup>
@@ -69,34 +71,121 @@
           <td class="num"{{ if uc }} colspan="2"{{ end }}><strong>{{ if g.land_subtotal; g.land_subtotal | math.format "N2"; end }}</strong></td>
         </tr>
         {{ end }}
-        {{ if uc && (g.buildings.size > 0 || g.development_items.size > 0) }}
+        {{ if uc }}
+        <!-- Under construction: สิ่งปลูกสร้าง prints as TWO blocks. Finished buildings first, in a
+             single value cell that colspans the pair — they are not a 100%/today pair, they are
+             simply worth what they are worth, and printing the same figure in both cells asserted
+             they were still being built. Then the under-construction block, under the sub-header
+             that only it needs. A ส่วนพัฒนา line follows its own property, so both blocks can
+             carry one. Each closes with its own subtotal, on the same per_type_subtotals rule as
+             before — a multi-group report still shows only รวมมูลค่าทรัพย์สินกลุ่ม N below. -->
+        {{ done_b = g.buildings_completed; done_d = g.development_items_completed }}
+        {{ uc_b = g.buildings_under_construction; uc_d = g.development_items_under_construction }}
+        <!-- Both the block and its subtotal are gated on the block having rows: the .grp-total
+             box exists to CLOSE a bordered block, so emitting it over nothing would draw a
+             stray grey strip. The single-block branch below keeps its historic unconditional
+             subtotal — it is the untouched form, and this diff does not change what a report
+             without the split prints. -->
+        {{ if done_b.size > 0 || done_d.size > 0 }}
+        {{ for b in done_b }}
+        <tr class="{{ if for.first && per_type_subtotals }}grp-first{{ else }}cont{{ end }}">
+          <td>{{ if for.first }}<span class="chk on"></span> <strong>{{ g.building_row_label }}</strong>{{ end }}</td>
+          <td>{{ if b.description }}{{ if done_b.size > 1 }}{{ for.index + 1 }}. {{ end }}{{ b.description }}{{ end }}</td>
+          <td></td><td></td>
+          <td class="num" colspan="2">{{ if b.value; b.value | math.format "N2"; end }}</td>
+        </tr>
+        {{ end }}
+        {{ if done_d.size > 0 }}
+        <tr class="{{ if done_b.size == 0 && per_type_subtotals }}grp-first{{ else }}cont{{ end }}"><td>{{ if done_b.size == 0 }}<span class="chk on"></span> <strong>{{ g.building_row_label }}</strong>{{ end }}</td><td><strong>ส่วนพัฒนา</strong></td><td></td><td></td><td colspan="2"></td></tr>
+        {{ for d in done_d }}
+        <tr class="cont">
+          <td></td>
+          <td>- {{ d.description }}</td>
+          <td></td><td></td>
+          <td class="num" colspan="2">{{ if d.value; d.value | math.format "N2"; end }}</td>
+        </tr>
+        {{ end }}
+        {{ end }}
+        {{ if per_type_subtotals }}
+        <tr class="grp-total">
+          <td></td>
+          <td colspan="3" style="text-align:right;"><strong>รวมมูลค่าสิ่งปลูกสร้างก่อสร้างแล้วเสร็จ</strong></td>
+          <td class="num" colspan="2"><strong>{{ if g.building_subtotal_completed; g.building_subtotal_completed | math.format "N2"; end }}</strong></td>
+        </tr>
+        {{ end }}
+        {{ end }}
+        {{ if uc_b.size > 0 || uc_d.size > 0 }}
         <tr class="uc-head">
-          <td></td><td></td><td></td><td></td>
+          <!-- The sub-labels describe only the ราคาประเมิน pair. The other four columns stay four
+               separate cells so the column rules run through unbroken, but .blank drops their
+               bottom border and .uc-open drops the top border of the row below, so the strip
+               merges downward into that row instead of sitting in a box of its own. -->
+          <td class="blank"></td><td class="blank"></td><td class="blank"></td><td class="blank"></td>
           <td>เมื่อแล้วเสร็จ 100%</td>
           <td>ตามสภาพปัจจุบัน</td>
         </tr>
+        {{ for b in uc_b }}
+        <tr class="{{ if for.first && per_type_subtotals }}grp-first{{ else }}cont{{ end }}{{ if for.first }} uc-open{{ end }}">
+          <td>{{ if for.first }}<span class="chk on"></span> <strong>{{ g.building_row_label_under_construction }}</strong>{{ end }}</td>
+          <td>{{ if b.description }}{{ if uc_b.size > 1 }}{{ for.index + 1 }}. {{ end }}{{ b.description }}{{ end }}</td>
+          <td></td><td></td>
+          <td class="num">{{ if b.value; b.value | math.format "N2"; end }}</td>
+          <td class="num">{{ if b.current_value; b.current_value | math.format "N2"; else; "-"; end }}</td>
+        </tr>
         {{ end }}
+        {{ if uc_d.size > 0 }}
+        <tr class="{{ if uc_b.size == 0 && per_type_subtotals }}grp-first{{ else }}cont{{ end }}{{ if uc_b.size == 0 }} uc-open{{ end }}"><td>{{ if uc_b.size == 0 }}<span class="chk on"></span> <strong>{{ g.building_row_label_under_construction }}</strong>{{ end }}</td><td><strong>ส่วนพัฒนา</strong></td><td></td><td></td><td></td><td></td></tr>
+        {{ for d in uc_d }}
+        <tr class="cont">
+          <td></td>
+          <td>- {{ d.description }}</td>
+          <td></td><td></td>
+          <td class="num">{{ if d.value; d.value | math.format "N2"; end }}</td>
+          <td class="num">{{ if d.current_value; d.current_value | math.format "N2"; else; "-"; end }}</td>
+        </tr>
+        {{ end }}
+        {{ end }}
+        {{ if per_type_subtotals }}
+        <tr class="grp-total">
+          <td></td>
+          <!-- Literal, like every other subtotal caption in this table — including รวมมูลค่าที่ดิน,
+               which stays put even when the row above it reads สิทธิการเช่าที่ดิน. Only the ☑ ROW
+               labels are parameter-driven. The caption is not the row label with a qualifier
+               either: the row says (แบบแปลน) while the caption reads ตามแบบแปลน, per the form. -->
+          <td colspan="3" style="text-align:right;"><strong>รวมมูลค่าสิ่งปลูกสร้างตามแบบแปลน</strong></td>
+          <td class="num"><strong>{{ if g.building_subtotal_under_construction; g.building_subtotal_under_construction | math.format "N2"; end }}</strong></td>
+          <td class="num"><strong>{{ if g.building_subtotal_under_construction_current; g.building_subtotal_under_construction_current | math.format "N2"; else; "-"; end }}</strong></td>
+        </tr>
+        {{ end }}
+        {{ end }}
+        {{ else }}
         {{ for b in g.buildings }}
         <tr class="{{ if for.first && per_type_subtotals }}grp-first{{ else }}cont{{ end }}">
           <td>{{ if for.first }}<span class="chk on"></span> <strong>{{ g.building_row_label }}</strong>{{ end }}</td>
-          <td>{{ if g.buildings.size > 1 }}{{ for.index + 1 }}. {{ end }}{{ b.description }}</td>
+          <td>{{ if b.description }}{{ if g.buildings.size > 1 }}{{ for.index + 1 }}. {{ end }}{{ b.description }}{{ end }}</td>
           <td></td><td></td>
           <td class="num">{{ if b.value; b.value | math.format "N2"; end }}</td>
-          {{ if uc }}<td class="num">{{ if b.current_value; b.current_value | math.format "N2"; else; "-"; end }}</td>{{ end }}
         </tr>
         {{ end }}
         {{ if g.development_items.size > 0 }}
         <!-- A group whose building properties are ALL enhancement-only has no สิ่งปลูกสร้าง rows to
              carry the ☑ marker, yet still totals its ส่วนพัฒนา into รวมมูลค่าสิ่งปลูกสร้าง — so the
              marker moves onto this header row instead of leaving the block unlabelled. -->
-        <tr class="{{ if g.buildings.size == 0 && per_type_subtotals }}grp-first{{ else }}cont{{ end }}"><td>{{ if g.buildings.size == 0 }}<span class="chk on"></span> <strong>{{ g.building_row_label }}</strong>{{ end }}</td><td><strong>ส่วนพัฒนา</strong></td><td></td><td></td><td></td>{{ if uc }}<td></td>{{ end }}</tr>
+        <tr class="{{ if g.buildings.size == 0 && per_type_subtotals }}grp-first{{ else }}cont{{ end }}"><td>{{ if g.buildings.size == 0 }}<span class="chk on"></span> <strong>{{ g.building_row_label }}</strong>{{ end }}</td><td><strong>ส่วนพัฒนา</strong></td><td></td><td></td><td></td></tr>
         {{ for d in g.development_items }}
         <tr class="cont">
           <td></td>
           <td>- {{ d.description }}</td>
           <td></td><td></td>
           <td class="num">{{ if d.value; d.value | math.format "N2"; end }}</td>
-          {{ if uc }}<td class="num">{{ if d.current_value; d.current_value | math.format "N2"; else; "-"; end }}</td>{{ end }}
+        </tr>
+        {{ end }}
+        {{ end }}
+        {{ if per_type_subtotals }}
+        <tr class="grp-total">
+          <td></td>
+          <td colspan="3" style="text-align:right;"><strong>รวมมูลค่าสิ่งปลูกสร้าง</strong></td>
+          <td class="num"><strong>{{ if g.building_subtotal; g.building_subtotal | math.format "N2"; end }}</strong></td>
         </tr>
         {{ end }}
         {{ end }}
@@ -104,15 +193,14 @@
         <tr class="grp-total">
           <td></td>
           <td colspan="3" style="text-align:right;"><strong>รวมมูลค่าทรัพย์สินกลุ่ม {{ g.group_number }}</strong></td>
+          <!-- Both cells stay, even for a group with nothing under construction. Unlike every
+               other merged cell in this table they are not the same number by construction:
+               group_total is the STORED valuation (GroupAppraisalValue ?? AppraisalPrice ??
+               FinalValueRounded) while group_total_current is summed from the components the grid
+               actually printed, and it is the one รวมมูลค่าทรัพย์สินตามสภาพปัจจุบัน adds up.
+               Colspanning here would hide it and stop that column reconciling. -->
           <td class="num"><strong>{{ if g.group_total; g.group_total | math.format "N2"; end }}</strong></td>
           {{ if uc }}<td class="num"><strong>{{ if g.group_total_current; g.group_total_current | math.format "N2"; end }}</strong></td>{{ end }}
-        </tr>
-        {{ else if per_type_subtotals }}
-        <tr class="grp-total">
-          <td></td>
-          <td colspan="3" style="text-align:right;"><strong>รวมมูลค่าสิ่งปลูกสร้าง</strong></td>
-          <td class="num"><strong>{{ if g.building_subtotal; g.building_subtotal | math.format "N2"; end }}</strong></td>
-          {{ if uc }}<td class="num"><strong>{{ if g.building_subtotal_current; g.building_subtotal_current | math.format "N2"; else; "-"; end }}</strong></td>{{ end }}
         </tr>
         {{ end }}
         {{ else }}
