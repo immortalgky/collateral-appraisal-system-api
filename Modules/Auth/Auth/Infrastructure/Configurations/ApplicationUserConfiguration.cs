@@ -53,6 +53,10 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
 
         builder.Property(u => u.PasswordChangedAt);
 
+        builder.Property(u => u.IsSystem)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         // Back RequireUniqueEmail with a real DB constraint. The validator's pre-insert FindByEmail
         // is a TOCTOU check — two concurrent creates with the same email can both pass it. A unique
         // index makes the second insert fail at the DB. Filtered on NOT NULL so multiple null/blank

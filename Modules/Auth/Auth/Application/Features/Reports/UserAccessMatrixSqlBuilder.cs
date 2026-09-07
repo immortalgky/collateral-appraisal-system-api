@@ -31,6 +31,11 @@ internal static class UserAccessMatrixSqlBuilder
         var conditions = new List<string>();
         var p = new DynamicParameters();
 
+        // Technical accounts (break-glass admin, service accounts) are never part of the access
+        // matrix — the report answers "which people hold which access", and they are not people.
+        // Unconditional: there is deliberately no query flag to bring them back.
+        conditions.Add("u.IsSystem = 0");
+
         // Scope: Bank users have no CompanyId; Company users do
         if (!string.IsNullOrWhiteSpace(scope))
         {
@@ -105,9 +110,7 @@ internal static class UserAccessMatrixSqlBuilder
             p.Add("TeamId", teamId.Value);
         }
 
-        var where = conditions.Count > 0
-            ? "WHERE " + string.Join(" AND ", conditions)
-            : string.Empty;
+        var where = "WHERE " + string.Join(" AND ", conditions);
 
         return (where, p);
     }

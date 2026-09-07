@@ -371,7 +371,11 @@ public class AuthDataSeed(
                     // than stamping PasswordChangedAt: it works even with the default policy
                     // (ExpiryDays = 0 = never), and after the change RecordAsync stamps PasswordChangedAt
                     // (with ApplicationNow) so expiry tracking begins normally.
-                    MustChangePassword = forcePasswordChange
+                    MustChangePassword = forcePasswordChange,
+                    // Break-glass account, not a member of staff: keep it out of the Access Report, the
+                    // user list and the audit log. Only fresh Development databases get the flag from
+                    // here — existing environments are marked by the MarkSystemAccounts script instead.
+                    IsSystem = true
                 };
                 var result = await userManager.CreateAsync(admin, adminPassword);
 

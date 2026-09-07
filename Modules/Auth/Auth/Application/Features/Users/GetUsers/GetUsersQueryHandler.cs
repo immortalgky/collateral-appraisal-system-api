@@ -13,7 +13,12 @@ public class GetUsersQueryHandler(
 {
     public async Task<GetUsersResult> Handle(GetUsersQuery query, CancellationToken cancellationToken)
     {
-        var q = userManager.Users.AsQueryable();
+        // Technical accounts (break-glass admin, service accounts) stay out of the user list for the
+        // same reason they stay out of the Access Report. This hides them from discovery only — it is
+        // not an authorization boundary: GetUserById, UpdateUser, ResetPassword, UnlockUser and
+        // SetUserActivation all address a user by id and none of them filters on IsSystem, so an
+        // admin who has the id can still maintain the account.
+        var q = userManager.Users.Where(u => !u.IsSystem);
 
         if (!string.IsNullOrWhiteSpace(query.Search))
             q = q.Where(u =>
