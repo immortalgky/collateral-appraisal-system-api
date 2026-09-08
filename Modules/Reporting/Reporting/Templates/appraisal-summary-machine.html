@@ -11,12 +11,23 @@
   <meta charset="UTF-8"/>
   <title>สรุปรายงานการประเมินราคาทรัพย์สิน – เครื่องจักร</title>
   <style>{{ include 'partials/summary-styles' }}
-    /* Each registration heading is followed by the machines under it. The heading is bold rather
-       than bulleted and the machines line up flush with it — the numbering already says which set
-       they belong to, so an indent only cost width in a cell that is short of it. A heading after
-       the first set gets a little air above it. */
-    .m-head { font-weight: 700; margin-top: 8px; }
-    .m-head:first-child { margin-top: 0; }
+    /* One registration set per row, so each cell holds a single heading and its machines. The
+       heading is bold rather than bulleted and the machines line up flush with it — the numbering
+       already says which set they belong to, so an indent only cost width in a cell that is short
+       of it. Sets are told apart by the table rule between rows, not by spacing. */
+    .m-head { font-weight: 700; }
+    /* The group's name, printed on the first row of a group when the form shows more than one, so
+       a row says which group it belongs to. The group's subtotal row closes the group, so the name
+       is not repeated on the rows in between. */
+    .g-name { font-weight: 700; margin-bottom: 2px; }
+    /* The set's total is labelled on the last line of the item cell while the figure itself sits
+       in the ราคาประเมิน column, so it reads on one line across the row. Plain weight: the bold
+       row is รวมมูลค่าเครื่องจักร at the foot of the table, and this must not compete with it. */
+    .m-total { margin-top: 3px; }
+    /* Only the cell holding that figure aligns to the bottom — every other cell in the table stays
+       top-aligned (summary-styles sets vertical-align:top on all of them), so this is the one
+       exception that puts the number on the same line as its label. */
+    table.grid td.num.foot { vertical-align: bottom; }
     /* The attribute block sits straight under the full-width totals table here, so it lines up
        with that table's edge. The 18px indent in summary-styles is for the appraisal book, where
        the same class nests these attributes under each machine's own heading. */
@@ -58,24 +69,95 @@
       </tr>
     </thead>
     <tbody>
+      <!-- Each registration/installation set is its own row, so the sets read as separate blocks
+           the way the appraisers asked: the table rule between rows is what separates them.
+           A group split across rows closes with its own subtotal row, which carries the group's
+           authoritative figure; a form with one group of one set keeps the original shape —
+           value in the row, no subtotal row, no group name (there is no other group to tell it
+           apart from). -->
+      {{ multi = model.groups.size > 1 }}
       {{ for g in model.groups }}
+        {{ sections = g.machine_sections }}
+        {{ split = sections && sections.size > 1 }}
+        <!-- One rule decides both of the next two, and it is about SHAPE, not about how many groups
+             the form has: a group that occupies more than one row cannot put its own figure on any
+             single one of them, so its rows carry their own set's value and the group closes with a
+             subtotal. A group that still fits on one row prints the group's figure on that row and
+             needs no subtotal — the row already is the group, with its name on it.
+             That keeps every figure on the page exactly once. -->
+        {{ use_section_value = split }}
+        <!-- ...and the subtotal only earns a row when there is another group to tell it apart from.
+             With a single group it would restate รวมมูลค่าเครื่องจักร immediately below it — two
+             shaded rows, near-identical labels, the same figure.
+             DECIDED, not an oversight (7 Sep 2026, with the rendered output in front of the
+             appraiser): reviewers have repeatedly read the missing row as the group's value going
+             unprinted. It is not. With one group the grand total IS that group's total, by
+             construction — TotalAppraisalValue sums the machine groups and there is only one — and
+             it sits in the same column one row below. A duplicate would reconcile nothing, because
+             the mismatch worth explaining is between Σ(section values) and the stored group
+             figure. Leave it out. -->
+        {{ show_group_total = multi && split }}
+        {{ if sections }}
+          {{ for s in sections }}
+      {{ if use_section_value; row_value = s.total_value; row_has = s.total_value != null; else; row_value = g.appraisal_value; row_has = g.appraisal_value != null; end }}
+      <tr>
+        <!-- The ticked box repeats on every section row on purpose, and is NOT gated on for.first
+             the way partials/summary-standard-body.html gates its own. That form's extra rows are
+             components of one property — a land row, a building row, a ส่วนพัฒนา row — so ticking
+             the type again would be claiming a second property. Here every row IS a set of
+             machines of this type, and repeating the tick is what makes the sets read as separate
+             blocks, which is the whole point of the split (chosen from the rendered options,
+             7 Sep 2026). One heading, one count, one tick, per row. -->
+        <td>
+          <span class="chk on"></span>
+          <strong>{{ g.property_type }}</strong>
+        </td>
+        <!-- Group name on the first row of the group only, chosen over repeating it (7 Sep 2026):
+             the name opens the group and its subtotal row closes it, so the rows in between do not
+             need to say it again. Known limitation, raised at the time and accepted: if a group is
+             cut across a PDF page break its continuation rows carry no name, and the reader learns
+             which group they belong to only at the subtotal. A group is at most three sets plus a
+             subtotal, so it takes an unlucky break to hit. Revisit with a repeating thead if real
+             reports start splitting groups across pages. -->
+        <td>{{ if multi && for.first }}<div class="g-name">{{ g.group_label }}</div>{{ end }}<div class="m-head">{{ s.heading }}</div>{{ for it in s.items }}<div class="m-item">{{ for.index + 1 }}. {{ it }}</div>{{ end }}{{ if row_has }}<div class="m-total">สรุปมูลค่าเครื่องจักร</div>{{ end }}</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td class="num{{ if row_has }} foot{{ end }}">{{ if row_has; row_value | math.format "N2"; end }}</td>
+      </tr>
+          {{ end }}
+        {{ else }}
+      <!-- No machine detail rows loaded: fall back to the single-line header. -->
       <tr>
         <td>
           <span class="chk on"></span>
           <strong>{{ g.property_type }}</strong>
         </td>
-        <td>{{ for l in g.collateral_detail_lines }}{{ if l.number }}<div class="m-item">{{ l.number }}. {{ l.text }}</div>{{ else }}<div class="m-head">{{ l.text }}</div>{{ end }}{{ end }}{{ if g.collateral_details }}<div>{{ g.collateral_details }}</div>{{ end }}{{ for d in g.detail_items }}<div>{{ for.index + 1 }}. {{ d }}</div>{{ end }}</td>
+        <td>{{ if multi }}<div class="g-name">{{ g.group_label }}</div>{{ end }}{{ if g.collateral_details }}<div>{{ g.collateral_details }}</div>{{ end }}{{ for d in g.detail_items }}<div>{{ for.index + 1 }}. {{ d }}</div>{{ end }}</td>
         <td>&nbsp;</td>
         <td>&nbsp;</td>
+        <!-- use_section_value is false here by construction — no sections means no split — so this
+             row carries the group's figure and no subtotal row will repeat it. -->
         <td class="num">{{ if g.appraisal_value; g.appraisal_value | math.format "N2"; end }}</td>
       </tr>
+        {{ end }}
+        {{ if show_group_total }}
+      <tr class="grp-total">
+        <td></td>
+        <!-- Names the property type, unlike the generic "ทรัพย์สิน" the land/building form uses:
+             this form only ever lists machines, so saying so costs nothing and reads plainer. The
+             string is local to this template — partials/summary-standard-body.html keeps its own,
+             so no other summary form is touched by this wording. -->
+        <td colspan="3" style="text-align:right;"><strong>รวมมูลค่าเครื่องจักรกลุ่ม {{ g.group_label }}</strong></td>
+        <td class="num"><strong>{{ if g.appraisal_value; g.appraisal_value | math.format "N2"; end }}</strong></td>
+      </tr>
+        {{ end }}
       {{ end }}
       {{ if model.groups.size == 0 }}
       <tr><td colspan="5" style="height:34px;">&nbsp;</td></tr>
       {{ end }}
       <tr class="grp-total">
         <td></td>
-        <td colspan="3"><strong>รวมมูลค่าเครื่องจักร</strong></td>
+        <td colspan="3" style="text-align:right;"><strong>รวมมูลค่าเครื่องจักร</strong></td>
         <td class="num"><strong>{{ if model.total_appraisal_value; model.total_appraisal_value | math.format "N2"; end }}</strong></td>
       </tr>
       {{ if model.condition }}<tr class="cond"><td><strong>เงื่อนไข</strong></td><td colspan="4" class="brk">{{ model.condition }}</td></tr>{{ end }}
