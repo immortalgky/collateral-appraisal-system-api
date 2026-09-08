@@ -244,6 +244,28 @@ public sealed class AppraisalSummaryMachineDataProvider(
             ? summaryGroups.Sum(g => g.AppraisalValue ?? 0m)
             : null;
 
+        // ราคาบังคับขาย is the machines' own too, for the same reason the two rows above it are:
+        // common.ForcedSaleValue is appraisal-wide, so on a mixed appraisal this form printed a
+        // forced-sale figure LARGER than the total it sits under.
+        //
+        // Scaled by the machine share of the appraisal rather than re-applying the force-sale rate,
+        // so this form and the land/building form of the same appraisal quote ONE rate even when the
+        // appraiser has overridden ValuationAnalyses.ForcedSaleValue by hand. Same treatment
+        // AppraisalSummaryLandBuildingDataProvider gives its ตามสภาพปัจจุบัน split.
+        //
+        // Both operands are present whenever machineAppraisalValue is: common.TotalAppraisalValue
+        // falls back to Σ over ALL groups, and common.ForcedSaleValue to that total × the rate, so a
+        // priced machine group guarantees both. The guards are there for the case where no machine
+        // group carries a figure — then this row prints "-" rather than the appraisal-wide number,
+        // matching what the two rows above it do.
+        decimal? machineForcedSaleValue =
+            machineAppraisalValue is { } machineTotal
+            && common.ForcedSaleValue is { } appraisalForcedSale
+            && common.TotalAppraisalValue is { } appraisalTotal
+            && appraisalTotal != 0m
+                ? Math.Round(appraisalForcedSale * machineTotal / appraisalTotal, 2, MidpointRounding.AwayFromZero)
+                : null;
+
         // ── Build model ──────────────────────────────────────────────────────────
         var model = new AppraisalSummaryModel
         {
@@ -272,7 +294,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
             Groups = summaryGroups,
             TotalAppraisalValue = summaryGroups.Count > 0 ? machineAppraisalValue ?? 0m : common.TotalAppraisalValue,
             BuildingCoverageAmount = machineAppraisalValue,
-            ForcedSaleValue = common.ForcedSaleValue,
+            ForcedSaleValue = machineForcedSaleValue,
             Condition = common.Condition,
             Remark = common.Remark,
             // กรรมสิทธิ์เครื่องจักร = registered title holder. Prefer the appraisal-level
