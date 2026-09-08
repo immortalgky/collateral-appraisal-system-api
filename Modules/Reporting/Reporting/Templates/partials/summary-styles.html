@@ -120,6 +120,15 @@ table.running > tbody > tr > td { border:0; padding:0; vertical-align:top; }
 /* Right column (even cells): label stays on one line; value pushed to the right edge. */
 .construction-values .cols2 > .kv:nth-child(even) .k { width:auto; white-space:nowrap; }
 .construction-values .cols2 > .kv:nth-child(even) .v { text-align:right; }
+/* CA-617: every money row carries a trailing " บาท", so right-aligning the whole value
+   cell lines that unit (and the decimal point) up down the column. Driven by what the
+   value is, not by where it sits — the nth-child(even) rule above only ever reached the
+   right column, leaving ราคาประเมินที่ดิน and รวมราคา ที่ดิน+อาคาร ragged on the left. */
+.construction-values .cols2 > .kv .v.money { text-align:right; }
+/* .cols2's 16px gap alone is not enough separation once the left column's figures reach the
+   track edge — a ten-digit value would sit almost flush against the right column's label.
+   Only the left (odd) cells need it; the right column ends at the page margin. */
+.construction-values .cols2 > .kv:nth-child(odd) .v.money { padding-right:16px; }
 .cols2 { display:grid; grid-template-columns:1fr 1fr; gap:0 16px; }
 .cols3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 16px; }
 .sep { border-top:1px solid #000; }

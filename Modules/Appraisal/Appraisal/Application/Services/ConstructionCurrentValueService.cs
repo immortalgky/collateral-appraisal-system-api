@@ -209,16 +209,23 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
         """;
 
     /// <summary>
-    /// Land component. NOTE: PricingFinalValues.LandValue is only written for per-unit-rate methods
+    /// Land component, one value per group: only the SELECTED approach and method count. An
+    /// appraiser who priced a group two ways leaves a PricingFinalValue row behind on every method
+    /// tried, and summing them all counted the same land two or three times over — the summary
+    /// report's RS02 filters identically, and AppraisalSummaryLandBuildingDataProvider's RS07
+    /// always has. NOTE: PricingFinalValues.LandValue is only written for per-unit-rate methods
     /// (PerSqWa / PerSqm); a whole-unit lumpsum method carries no land rate and leaves it NULL by
     /// design, so this can legitimately be 0. Historical rows saved before the server-side derivation
-    /// shipped also need Database/Scripts/Maintenance/BackfillPricingFinalValueLandArea.sql.
+    /// shipped also need Database/Scripts/Maintenance/BackfillPricingFinalValueLandArea.sql — which
+    /// writes without an IsSelected guard, so older data is the likeliest source of duplicate rows.
     /// </summary>
     private const string LandValueSql = """
         SELECT ISNULL(SUM(pfv.LandValue), 0)
         FROM appraisal.PricingFinalValues pfv
         JOIN appraisal.PricingAnalysisMethods pam ON pam.Id = pfv.PricingMethodId
+            AND pam.IsSelected = 1
         JOIN appraisal.PricingAnalysisApproaches paa ON paa.Id = pam.ApproachId
+            AND paa.IsSelected = 1
         JOIN appraisal.PricingAnalysis pa ON pa.Id = paa.PricingAnalysisId AND pa.SubjectType = 0
         JOIN appraisal.PropertyGroups pg ON pg.Id = pa.AnchorId
         WHERE pg.AppraisalId = @AppraisalId
