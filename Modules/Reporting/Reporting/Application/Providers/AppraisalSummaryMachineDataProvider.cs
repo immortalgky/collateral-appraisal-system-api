@@ -253,18 +253,24 @@ public sealed class AppraisalSummaryMachineDataProvider(
         // appraiser has overridden ValuationAnalyses.ForcedSaleValue by hand. Same treatment
         // AppraisalSummaryLandBuildingDataProvider gives its ตามสภาพปัจจุบัน split.
         //
-        // Both operands are present whenever machineAppraisalValue is: common.TotalAppraisalValue
-        // falls back to Σ over ALL groups, and common.ForcedSaleValue to that total × the rate, so a
-        // priced machine group guarantees both. The guards are there for the case where no machine
-        // group carries a figure — then this row prints "-" rather than the appraisal-wide number,
-        // matching what the two rows above it do.
-        decimal? machineForcedSaleValue =
-            machineAppraisalValue is { } machineTotal
-            && common.ForcedSaleValue is { } appraisalForcedSale
-            && common.TotalAppraisalValue is { } appraisalTotal
-            && appraisalTotal != 0m
-                ? Math.Round(appraisalForcedSale * machineTotal / appraisalTotal, 2, MidpointRounding.AwayFromZero)
-                : null;
+        // Machines priced at zero are forced-sale zero — stated, not withheld. The ratio cannot say
+        // so: an appraisal-wide total of 0 (everything on it priced at zero) would divide by zero,
+        // and the guard against that would print "-" under two rows that just printed 0.00.
+        //
+        // Null only where the rows above are null too: no machine group carries a figure at all.
+        // The remaining arm is unreachable in practice — common.ForcedSaleValue falls back to
+        // TotalAppraisalValue × the rate, and that total to Σ over ALL groups, so a priced machine
+        // group guarantees both operands — but "-" is the honest answer if that ever stops holding.
+        decimal? machineForcedSaleValue = machineAppraisalValue switch
+        {
+            null => null,
+            0m => 0m,
+            { } machineTotal when common.ForcedSaleValue is { } appraisalForcedSale
+                                  && common.TotalAppraisalValue is { } appraisalTotal
+                                  && appraisalTotal != 0m
+                => Math.Round(appraisalForcedSale * machineTotal / appraisalTotal, 2, MidpointRounding.AwayFromZero),
+            _ => null
+        };
 
         // ── Build model ──────────────────────────────────────────────────────────
         var model = new AppraisalSummaryModel
