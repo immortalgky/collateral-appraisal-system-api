@@ -79,38 +79,24 @@
       {{ for g in model.groups }}
         {{ sections = g.machine_sections }}
         {{ split = sections && sections.size > 1 }}
-        <!-- The per-group subtotal row exists to tell one group's money from another's, so it earns
-             a row only when there IS another group. With a single group it would restate
-             รวมมูลค่าเครื่องจักร immediately below it — two shaded rows, near-identical labels, the
-             same figure — so that form closes on the grand total alone.
+        <!-- One rule decides both of the next two, and it is about SHAPE, not about how many groups
+             the form has: a group that occupies more than one row cannot put its own figure on any
+             single one of them, so its rows carry their own set's value and the group closes with a
+             subtotal. A group that still fits on one row prints the group's figure on that row and
+             needs no subtotal — the row already is the group, with its name on it.
+             That keeps every figure on the page exactly once. -->
+        {{ use_section_value = split }}
+        <!-- ...and the subtotal only earns a row when there is another group to tell it apart from.
+             With a single group it would restate รวมมูลค่าเครื่องจักร immediately below it — two
+             shaded rows, near-identical labels, the same figure.
              DECIDED, not an oversight (7 Sep 2026, with the rendered output in front of the
-             appraiser): reviewers have twice read the missing row as the group's value going
+             appraiser): reviewers have repeatedly read the missing row as the group's value going
              unprinted. It is not. With one group the grand total IS that group's total, by
              construction — TotalAppraisalValue sums the machine groups and there is only one — and
-             it sits in the same column one row below. Restoring the row would print the identical
-             figure twice in a row and reconcile nothing, because the mismatch worth explaining is
-             between Σ(section values) and the stored group figure, which a duplicate does not
-             address. Leave it out. -->
-        {{ show_group_total = multi }}
-        <!-- Once a group occupies more than one row, the group's own figure cannot sit on any single
-             one of them, so each row carries ITS OWN set's value instead. A group that still fits on
-             one row keeps printing the group's figure exactly as this form always has — machine
-             groups priced by an approach that writes no cost items (4 on dev today, one of them
-             322M) have no per-set figure at all, and reading the set value there would blank a cell
-             that prints money today. -->
-        <!-- A group of one set inside a MULTI-group form prints its set value on the row and the
-             same figure again on its subtotal, since for one set the two coincide. Accepted: in a
-             multi-group form every group closes the same way, and that regularity is worth more
-             than saving a repeated figure in one shape of group. -->
-        {{ use_section_value = multi || split }}
-        <!-- What ราคาประเมิน says on a machine row.
-             Split across rows: each row carries ITS OWN set's value, summed from the selected
-             cost method, and the group's authoritative figure sits on the subtotal row below — so
-             a set nobody has priced simply leaves the cell empty without losing the group's total.
-             One row: the row IS the group, so it keeps printing the group's own figure exactly as
-             this form always has. That matters — machine groups priced by an approach that writes
-             no cost items (4 groups on dev today, one of them 322M) have no per-set figure at all,
-             and reading the set value here would blank a cell that prints money today. -->
+             it sits in the same column one row below. A duplicate would reconcile nothing, because
+             the mismatch worth explaining is between Σ(section values) and the stored group
+             figure. Leave it out. -->
+        {{ show_group_total = multi && split }}
         {{ if sections }}
           {{ for s in sections }}
       {{ if use_section_value; row_value = s.total_value; row_has = s.total_value != null; else; row_value = g.appraisal_value; row_has = g.appraisal_value != null; end }}
@@ -149,7 +135,9 @@
         <td>{{ if multi }}<div class="g-name">{{ g.group_label }}</div>{{ end }}{{ if g.collateral_details }}<div>{{ g.collateral_details }}</div>{{ end }}{{ for d in g.detail_items }}<div>{{ for.index + 1 }}. {{ d }}</div>{{ end }}</td>
         <td>&nbsp;</td>
         <td>&nbsp;</td>
-        <td class="num">{{ if !use_section_value && g.appraisal_value; g.appraisal_value | math.format "N2"; end }}</td>
+        <!-- use_section_value is false here by construction — no sections means no split — so this
+             row carries the group's figure and no subtotal row will repeat it. -->
+        <td class="num">{{ if g.appraisal_value; g.appraisal_value | math.format "N2"; end }}</td>
       </tr>
         {{ end }}
         {{ if show_group_total }}
