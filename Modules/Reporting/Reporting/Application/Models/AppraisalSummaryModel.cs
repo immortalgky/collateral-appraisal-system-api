@@ -123,7 +123,10 @@ public sealed class AppraisalSummaryModel
     /// <summary>
     /// Field 21 — Building coverage / insurance amount.
     /// Source: ValuationAnalyses.InsuranceValue (the single InsuranceValue stored at
-    /// the overall appraisal level, not per-group).
+    /// the overall appraisal level, not per-group). Exception: the machine summary
+    /// sets it to that form's own machinery appraisal total instead — that stored value
+    /// covers buildings and condos only, so it is 0 or a building figure on a machine
+    /// form. See AppraisalSummaryMachineDataProvider.
     /// </summary>
     public decimal? BuildingCoverageAmount { get; init; }
 

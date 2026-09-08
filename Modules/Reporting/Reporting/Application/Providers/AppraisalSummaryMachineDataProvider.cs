@@ -228,6 +228,50 @@ public sealed class AppraisalSummaryMachineDataProvider(
             common.GroupMethodTypes,
             machineGroupList.Select(g => g.GroupId));
 
+        // ทุนประกันภัยเครื่องจักร is the machinery appraisal value, so the totals block prints the
+        // same figure twice. It deliberately does NOT use common.BuildingCoverageAmount
+        // (ValuationAnalyses.InsuranceValue): BuildingInsuranceCalculator sums buildings and condos
+        // only, so a machinery-only appraisal gets 0, and on a mixed appraisal that column carries
+        // the BUILDING coverage — which has no business appearing on the machine form.
+        //
+        // Null (the totals row prints "-") when not one machine group carries a figure, and NOT the
+        // Count > 0 fallback TotalAppraisalValue keeps below. Two reasons: common.TotalAppraisalValue
+        // is appraisal-wide, so on a mixed appraisal it would state land and buildings as machinery
+        // insurance capital — the very thing this field must not do; and a bare Sum() over unpriced
+        // groups returns 0m, which Scriban prints as "0.00", asserting "insured for nothing" where
+        // the truth is "not priced yet".
+        decimal? machineAppraisalValue = summaryGroups.Any(g => g.AppraisalValue.HasValue)
+            ? summaryGroups.Sum(g => g.AppraisalValue ?? 0m)
+            : null;
+
+        // ราคาบังคับขาย is the machines' own too, for the same reason the two rows above it are:
+        // common.ForcedSaleValue is appraisal-wide, so on a mixed appraisal this form printed a
+        // forced-sale figure LARGER than the total it sits under.
+        //
+        // Scaled by the machine share of the appraisal rather than re-applying the force-sale rate,
+        // so this form and the land/building form of the same appraisal quote ONE rate even when the
+        // appraiser has overridden ValuationAnalyses.ForcedSaleValue by hand. Same treatment
+        // AppraisalSummaryLandBuildingDataProvider gives its ตามสภาพปัจจุบัน split.
+        //
+        // Machines priced at zero are forced-sale zero — stated, not withheld. The ratio cannot say
+        // so: an appraisal-wide total of 0 (everything on it priced at zero) would divide by zero,
+        // and the guard against that would print "-" under two rows that just printed 0.00.
+        //
+        // Null only where the rows above are null too: no machine group carries a figure at all.
+        // The remaining arm is unreachable in practice — common.ForcedSaleValue falls back to
+        // TotalAppraisalValue × the rate, and that total to Σ over ALL groups, so a priced machine
+        // group guarantees both operands — but "-" is the honest answer if that ever stops holding.
+        decimal? machineForcedSaleValue = machineAppraisalValue switch
+        {
+            null => null,
+            0m => 0m,
+            { } machineTotal when common.ForcedSaleValue is { } appraisalForcedSale
+                                  && common.TotalAppraisalValue is { } appraisalTotal
+                                  && appraisalTotal != 0m
+                => Math.Round(appraisalForcedSale * machineTotal / appraisalTotal, 2, MidpointRounding.AwayFromZero),
+            _ => null
+        };
+
         // ── Build model ──────────────────────────────────────────────────────────
         var model = new AppraisalSummaryModel
         {
@@ -254,9 +298,9 @@ public sealed class AppraisalSummaryMachineDataProvider(
             Appraiser = common.Appraiser,
             LoanValue = common.LoanValue,
             Groups = summaryGroups,
-            TotalAppraisalValue = summaryGroups.Count > 0 ? summaryGroups.Sum(g => g.AppraisalValue ?? 0m) : common.TotalAppraisalValue,
-            BuildingCoverageAmount = common.BuildingCoverageAmount,
-            ForcedSaleValue = common.ForcedSaleValue,
+            TotalAppraisalValue = summaryGroups.Count > 0 ? machineAppraisalValue ?? 0m : common.TotalAppraisalValue,
+            BuildingCoverageAmount = machineAppraisalValue,
+            ForcedSaleValue = machineForcedSaleValue,
             Condition = common.Condition,
             Remark = common.Remark,
             // กรรมสิทธิ์เครื่องจักร = registered title holder. Prefer the appraisal-level
