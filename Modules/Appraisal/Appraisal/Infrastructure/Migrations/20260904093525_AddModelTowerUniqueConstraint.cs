@@ -16,7 +16,7 @@ namespace Appraisal.infrastructure.Migrations
                 table: "ProjectModels",
                 columns: new[] { "ProjectTowerId", "ModelName" },
                 unique: true,
-                filter: "[ProjectTowerId] IS NOT NULL AND [ModelName] IS NOT NULL");
+                filter: "[ProjectTowerId] IS NOT NULL AND [ModelName] IS NOT NULL AND [ModelName] <> ''");
         }
 
         /// <inheritdoc />
