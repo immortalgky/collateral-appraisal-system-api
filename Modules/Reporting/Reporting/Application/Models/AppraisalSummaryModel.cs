@@ -526,19 +526,27 @@ public sealed class AppraisalSummaryModel
 }
 
 /// <summary>
-/// One line of a group's collateral-detail cell: either a heading that introduces a set of items,
-/// or an item belonging to the heading above it.
+/// One registration/installation set within a machine group: the heading that names the set, and
+/// the machines under it. The machine summary prints one table ROW per section, so the sets read as
+/// separate blocks rather than stacking inside a single cell.
 /// </summary>
-public sealed record SummaryDetailLine
+public sealed record SummaryMachineSection
 {
-    /// <summary>The line's text, without any bullet or number prefix.</summary>
-    public required string Text { get; init; }
+    /// <summary>Heading line, including its own "จำนวน N เครื่อง" count.</summary>
+    public required string Heading { get; init; }
 
     /// <summary>
-    /// Position under the heading above, counting from 1 again for each heading. Null marks the
-    /// line as a heading.
+    /// The machines under this heading, in the appraiser's sequence. The template numbers them,
+    /// starting from 1 again in every section, so each set counts itself.
     /// </summary>
-    public int? Number { get; init; }
+    public required List<string> Items { get; init; }
+
+    /// <summary>
+    /// What the machines in this section were appraised at, summed from the selected cost
+    /// method's per-machine fair market values. Null when not one machine in the section carries
+    /// a value — a section nobody has priced prints no total rather than a misleading 0.00.
+    /// </summary>
+    public decimal? TotalValue { get; init; }
 }
 
 /// <summary>One collateral group row in the per-group valuation table (fields 13–19).</summary>
@@ -557,13 +565,18 @@ public sealed class SummaryGroupRow
     public string? CollateralDetails { get; init; }
 
     /// <summary>
-    /// Multi-line variant of <see cref="CollateralDetails"/>, replacing both it and
-    /// <see cref="DetailItems"/> for the group. Machinery uses it to interleave a heading per
-    /// registration status with the machines that fall under it, so each heading is followed by
-    /// its own members rather than every heading stacking above one flat list. Other property
-    /// types leave it null and keep the single-line form.
+    /// Machinery only: the group's registration/installation sets, one per printed table row,
+    /// replacing both <see cref="CollateralDetails"/> and <see cref="DetailItems"/> for the group.
+    /// Other property types leave it null and keep the single-line form.
     /// </summary>
-    public List<SummaryDetailLine>? CollateralDetailLines { get; init; }
+    public List<SummaryMachineSection>? MachineSections { get; init; }
+
+    /// <summary>
+    /// Machinery only: what to call this group in print. The provider resolves it so the template
+    /// never has to handle a missing name — <see cref="GroupName"/> when it has one, otherwise
+    /// "กลุ่มที่ N". The domain requires a group name, so the fallback is defensive only.
+    /// </summary>
+    public string? GroupLabel { get; init; }
 
     /// <summary>Land area in rai-ngan-wa format, or unit count for buildings.</summary>
     public string? AreaOrUnit { get; init; }
