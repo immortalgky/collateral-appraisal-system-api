@@ -37,6 +37,9 @@ public record SaveProjectRequest(
     string? FacilitiesOther = null,
     // Other
     string? Remark = null,
+    // Construction Progress
+    bool? IsUnderConstruction = null,
+    decimal? ConstructionProgressPercent = null,
     // Type-specific
     string? BuiltOnTitleDeedNumber = null,        // Condo only
     DateTime? LicenseExpirationDate = null         // LandAndBuilding only

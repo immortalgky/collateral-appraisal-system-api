@@ -38,6 +38,9 @@ public record GetProjectResult(
     string? FacilitiesOther,
     // Other
     string? Remark,
+    // Construction Progress
+    bool? IsUnderConstruction,
+    decimal? ConstructionProgressPercent,
     // Type-specific (nullable)
     string? BuiltOnTitleDeedNumber,       // Condo only
     DateTime? LicenseExpirationDate        // LandAndBuilding only

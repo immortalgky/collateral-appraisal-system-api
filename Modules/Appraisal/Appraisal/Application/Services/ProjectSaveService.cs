@@ -56,6 +56,8 @@ public class ProjectSaveService(
                 facilities: data.Facilities,
                 facilitiesOther: data.FacilitiesOther,
                 remark: data.Remark,
+                isUnderConstruction: data.IsUnderConstruction,
+                constructionProgressPercent: data.ConstructionProgressPercent,
                 builtOnTitleDeedNumber: data.BuiltOnTitleDeedNumber,
                 licenseExpirationDate: data.LicenseExpirationDate);
 
@@ -63,7 +65,14 @@ public class ProjectSaveService(
         }
         else
         {
-            // ProjectType is immutable after creation
+            // ProjectType is immutable after creation, and a payload that disagrees is IGNORED,
+            // not rejected. Rejecting it looks right and was tried: it bricks Land. The frontend
+            // offers "L" in the change-type dialog but has no route for it -- targetRoute() sends
+            // every non-condo type to block-village, which router.tsx renders as
+            // <BlockProjectPage projectType="LB" /> -- and ProjectInfoTab stamps that route prop
+            // onto every payload. So a Land project posts "LB" against a stored "L" on every save,
+            // and a strict comparison would 400 it forever with no way out of the UI. Restore the
+            // comparison only together with an "L" route on the frontend.
             project.Update(
                 projectName: data.ProjectName,
                 projectDescription: data.ProjectDescription,
@@ -86,6 +95,8 @@ public class ProjectSaveService(
                 facilities: data.Facilities,
                 facilitiesOther: data.FacilitiesOther,
                 remark: data.Remark,
+                isUnderConstruction: data.IsUnderConstruction,
+                constructionProgressPercent: data.ConstructionProgressPercent,
                 builtOnTitleDeedNumber: data.BuiltOnTitleDeedNumber,
                 licenseExpirationDate: data.LicenseExpirationDate);
         }
