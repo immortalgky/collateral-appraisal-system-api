@@ -29,6 +29,19 @@ public class ProjectType : ValueObject
     /// </summary>
     public bool IsLandAndBuildingLike() => Code is "LB" or "L";
 
+    /// <summary>
+    /// True for the types that can carry a structure. Bare Land is a subdivision of empty plots,
+    /// so anything describing a building on it -- construction progress above all -- does not
+    /// apply. This is the Land-specific rule the TODO above anticipated; it is deliberately NOT
+    /// folded into <see cref="IsLandAndBuildingLike"/>, which groups LB and L for the rules they
+    /// do share.
+    /// <para>
+    /// Confirmed with the product owner (2026-09-09) that "L" holds no buildings today. Nothing in
+    /// the aggregate enforces it, so revisit this predicate first if that ever changes.
+    /// </para>
+    /// </summary>
+    public bool HasStructures() => HasStructuresCode(Code);
+
     /// <summary>The short text code — kept as a method for EF config / call-site stability.</summary>
     public string ToCode() => Code;
 
@@ -46,6 +59,9 @@ public class ProjectType : ValueObject
     public static bool IsValidCode(string? code) => code is "U" or "LB" or "L";
     public static bool IsLandAndBuildingLikeCode(string? code) => code is "LB" or "L";
     public static bool IsCondoCode(string? code) => code == "U";
+
+    /// <summary>Code form of <see cref="HasStructures"/>, for callers holding the raw code.</summary>
+    public static bool HasStructuresCode(string? code) => code is "U" or "LB";
 
     public static IReadOnlyList<ProjectType> All => [Condo, LandAndBuilding, Land];
 

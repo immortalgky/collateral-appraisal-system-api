@@ -30,6 +30,8 @@ public record GetProjectResponse(
     List<string>? Facilities,
     string? FacilitiesOther,
     string? Remark,
+    bool? IsUnderConstruction,
+    decimal? ConstructionProgressPercent,
     string? BuiltOnTitleDeedNumber,
     DateTime? LicenseExpirationDate
 );

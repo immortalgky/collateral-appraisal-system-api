@@ -365,7 +365,12 @@ internal static class GetAppraisalResultSql
                                                       p.Province    AS ProvinceCode,
                                                       p.District    AS DistrictCode,
                                                       p.SubDistrict AS SubDistrictCode,
-                                                      p.LandOffice  AS LandOfficeCode
+                                                      p.LandOffice  AS LandOfficeCode,
+                                                      -- Construction progress is held on the project header, not per unit:
+                                                      -- a block appraisal has no AppraisalProperties and therefore no
+                                                      -- ConstructionInspections to roll up.
+                                                      p.IsUnderConstruction,
+                                                      p.ConstructionProgressPercent
                                                FROM appraisal.Projects p
                                                LEFT JOIN parameter.Parameters pLandOffice
                                                    ON pLandOffice.[group] = 'LandOffice' AND pLandOffice.[language] = 'TH'
@@ -559,7 +564,10 @@ internal sealed record ProjectRow(
     string? ProvinceCode = null,
     string? DistrictCode = null,
     string? SubDistrictCode = null,
-    string? LandOfficeCode = null);
+    string? LandOfficeCode = null,
+    // Construction progress of the whole project (see BuildBlockCollateral).
+    bool? IsUnderConstruction = null,
+    decimal? ConstructionProgressPercent = null);
 
 internal sealed record BlockUnitRow(
     Guid ProjectUnitId,
@@ -743,7 +751,7 @@ internal static class AppraisalResultBuilder
             }
             else
             {
-                groups = [BuildBlockGroup(project, units)];
+                groups = [BuildBlockGroup(project, units, IsCompleted(appraisal.Status))];
 
                 // Every figure below is the collateral's, summed across the rooms it covers — the
                 // grain AS400 will hold it at. A block's fire insurance is the units' own coverage,
@@ -1073,9 +1081,12 @@ internal static class AppraisalResultBuilder
         return result.TicketNumber;
     }
 
-    private static AppraisalResultGroup BuildBlockGroup(ProjectRow project, IReadOnlyList<BlockUnitRow> units)
+    private static AppraisalResultGroup BuildBlockGroup(
+        ProjectRow project,
+        IReadOnlyList<BlockUnitRow> units,
+        bool isCompleted)
     {
-        var collaterals = units.Select(u => BuildBlockCollateral(project, u)).ToList();
+        var collaterals = units.Select(u => BuildBlockCollateral(project, u, isCompleted)).ToList();
 
         // Null only when not one unit has been priced; a partially priced set still reports what it has.
         decimal? total = units.Any(u => u.TotalAppraisalValueRounded.HasValue)
@@ -1093,7 +1104,10 @@ internal static class AppraisalResultBuilder
             Collaterals: collaterals);
     }
 
-    private static AppraisalResultCollateral BuildBlockCollateral(ProjectRow project, BlockUnitRow unit)
+    private static AppraisalResultCollateral BuildBlockCollateral(
+        ProjectRow project,
+        BlockUnitRow unit,
+        bool isCompleted)
     {
         var isCondo = ProjectType.IsCondoCode(project.ProjectType);
         var (rai, ngan, wa) = SplitSqWa(unit.LandArea);
@@ -1116,7 +1130,70 @@ internal static class AppraisalResultBuilder
             // v1 reads the tower's floor count for both project types, falling back to the
             // unit's own; NumberOfFloors is null on a condo unit anyway.
             TotalFloor: unit.TowerFloors ?? unit.NumberOfFloors,
-            ConstructionPct: null,
+            // Project-level, so every unit of the block reports the same figure -- unlike the
+            // normal path above, which is per property. A block appraisal owns no
+            // AppraisalProperties and therefore no ConstructionInspections, so the appraiser
+            // enters one percent for the development on the Project Info tab.
+            //
+            // Three states, not two. An explicit false is an ANSWER -- someone looked at the
+            // development and said it is not under construction -- so it reports 100 whatever the
+            // appraisal's status, matching what the normal path returns for
+            // COALESCE(bad.IsUnderConstruction, cad.IsUnderConstruction, 0) = 0. Gating that on
+            // completion would have the block and property feeds disagree about the same fact.
+            //
+            // NULL is the absence of an answer, and it is read as "not under construction" only
+            // once the appraisal is COMPLETED: the column is new, every project that predates it
+            // holds NULL, and those closed appraisals are better served by a usable figure than a
+            // blank. Before completion NULL stays blank, because ByAppraisalNumber deliberately
+            // serves appraisals of ANY status (see its SQL comment) and a block created minutes
+            // ago -- AppraisalCreationService builds the header with both columns NULL -- must not
+            // assert "100% complete" about a development nobody has inspected yet.
+            //
+            // SETTLED, 2026-09-09: this reading was put to the product owner with the alternatives
+            // (leave legacy NULL as NULL, or ship a one-time backfill stamping the flag on
+            // already-completed blocks) and NULL -> 100 with no backfill was chosen. So on release
+            // every completed U/LB block starts reporting 100, including any that were genuinely
+            // mid-construction when they closed. That is accepted, not overlooked -- five separate
+            // review passes have raised it. Do not "fix" it here; reopen it with the PO.
+            //
+            // Ticked but blank also yields null: that is a project someone said is unfinished
+            // without saying how far along, and 100 would be a lie. Only the draft save can leave
+            // it in that state; the final save requires the percent.
+            //
+            // Known divergence, left deliberately, and it starts one step upstream: the appraisal
+            // -> collateral DTO sources construction status from IConstructionCurrentValueService,
+            // which reads ConstructionInspections only. A block owns no AppraisalProperties, so
+            // CollateralMasterUpsertService writes NULL into CollateralEngagements for it, and
+            // everything downstream of that column -- vw_CollateralMasters, the collateral lookup,
+            // and collateral.vw_RegulatoryExport, whose project-unit arm then hard-codes "not under
+            // construction, 100" -- reports a block as finished. A block recorded at 45% therefore reports 45 here and 100 there. That file was
+            // already wrong for every under-construction block before this change (see the
+            // long-standing gap where progressive inspections never reach a CollateralEngagement);
+            // this only makes one of the two feeds right. Teaching the view to read
+            // appraisal.Projects belongs in its own change -- it ships to the regulator and wants
+            // verification against their file, not a ride-along on a LOS feature.
+            //
+            // The ProjectType guard is the block-side twin of the normal path's
+            // "AND (bad.Id IS NOT NULL OR cad.Id IS NOT NULL)": a bare-Land project ("L") is a
+            // subdivision of empty plots, so it has nothing to finish building and reports null
+            // rather than 100. Do not drop it -- "100% complete" on a vacant plot is a wrong
+            // answer, where a blank is merely an absent one.
+            //
+            // CONFIRMED with the product owner, 2026-09-09: "L" carries no buildings today. The
+            // aggregate does not enforce that (RequireLandAndBuildingLike accepts "L", so an "L"
+            // project can technically own building-bearing models) -- if that ever becomes real
+            // usage, "L" belongs in HasStructures and the form must stop hiding the fields.
+            ConstructionPct: !ProjectType.HasStructuresCode(project.ProjectType)
+                ? null
+                // 100.0000m, not 100m: the true arm returns the decimal(7,4) column and the normal
+                // path's SQL CASE resolves to the same precision, so a bare 100m would make one
+                // field in one contract serialize three different ways depending on which arm fired.
+                : project.IsUnderConstruction switch
+                {
+                    true => project.ConstructionProgressPercent,
+                    false => 100.0000m,
+                    null => isCompleted ? 100.0000m : null
+                },
             // Deliberately UnitRoomNo first, as v1 does - even though pu.CondoRegistrationNumber
             // and pu.RoomNumber hold different values (CR-002 vs A-502), so this does not echo
             // back the roomNumber the caller selected with. Matching v1 was the explicit ask.

@@ -86,8 +86,14 @@ public record AppraisalResultCollateral(
     string? BuildingType,
     int? BuildingAge,
     decimal? TotalFloor,
-    // Cumulative construction progress from the property's inspection: the keyed-in figure in
-    // Summary mode, the weighted work-item rollup in Full Detail mode. Null when never inspected.
+    // Cumulative construction progress, 0-100. Two different sources behind one field:
+    //   * a normal appraisal reports its PROPERTY's inspection -- the keyed-in figure in Summary
+    //     mode, the weighted work-item rollup in Full Detail -- and 100 for a building or condo
+    //     flagged as not under construction. Null when never inspected.
+    //   * a block/project appraisal has no properties and so no inspections at all. It reports the
+    //     ONE figure recorded for the whole development, so every unit of the block carries the
+    //     same value; null on bare land, and null while the appraisal is open and unanswered.
+    // Either way a completed appraisal that was never asked the question reports 100.
     decimal? ConstructionPct,
     // Condo
     string? RoomNo,
