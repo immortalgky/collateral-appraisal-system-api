@@ -72,14 +72,14 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         logger.LogDebug(
             "AppraisalSummaryConstruction model assembled for appraisal {AppraisalId}: " +
             "ciTotal={CITotal:N2}, ciCurrent={CICurrent:N2}, " +
-            "landValue={LandValue:N2}, nonCiBuilding={NonCiBuilding:N2}, " +
+            // landValue is the printed ราคาประเมินที่ดิน = land + already-finished buildings.
+            "landValue={LandValue:N2}, " +
             "hasProgressTable={HasProgressTable}, isReferAppraisalBook={IsReferAppraisalBook}, " +
             "isReferConstructionBook={IsReferConstructionBook}",
             appraisalId,
             model.TotalLandBuilding100 ?? 0m,
             model.TotalLandCurrentBuilding ?? 0m,
             model.LandAppraisalValue ?? 0m,
-            0m,
             model.HasProgressTable,
             model.IsReferAppraisalBook,
             model.IsReferConstructionBook);
@@ -172,11 +172,20 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             ) v
             WHERE ap.AppraisalId = @AppraisalId;
 
-            -- RS02: QCI2 — Land appraisal value from PricingFinalValues
+            -- RS02: QCI2 — Land appraisal value from PricingFinalValues.
+            -- IsSelected on BOTH the approach and the method is what makes this one value per
+            -- group: an appraiser who priced a group two ways leaves a PricingFinalValue row
+            -- behind on every method tried, and summing them all counted the land two or three
+            -- times over. AppraisalSummaryLandBuildingDataProvider's RS07 has always filtered
+            -- this way; ConstructionCurrentValueService.LandValueSql now matches too.
+            -- A selected method that carries no land rate (whole-unit lumpsum) leaves LandValue
+            -- NULL by design, so 0 is a legitimate answer here.
             SELECT ISNULL(SUM(pfv.LandValue), 0)
             FROM appraisal.PricingFinalValues pfv
             JOIN appraisal.PricingAnalysisMethods pam ON pam.Id = pfv.PricingMethodId
+                AND pam.IsSelected = 1
             JOIN appraisal.PricingAnalysisApproaches paa ON paa.Id = pam.ApproachId
+                AND paa.IsSelected = 1
             JOIN appraisal.PricingAnalysis pa ON pa.Id = paa.PricingAnalysisId
                 AND pa.SubjectType = 0
             JOIN appraisal.PropertyGroups pg ON pg.Id = pa.AnchorId
@@ -402,15 +411,29 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         // covers land and structure together and belongs only in the two combined rows below.
         decimal? buildingValue100       = hasOwnValueBase && ciTotal > 0m ? ciTotal : null;
         decimal? currentBuildingValue   = hasOwnValueBase && ciCurrent > 0m ? ciCurrent : (decimal?)null;   // building under construction, now
-        // Totals = land + building UNDER CONSTRUCTION only (pre-inspection buildings excluded).
+        // ราคาประเมินที่ดิน on this form means "everything that is not the building being inspected":
+        // the land plus any building already finished when the inspection started. RS02 reads
+        // PricingFinalValues.LandValue, which is the land alone, so RS03's pre-inspection building
+        // value is added back here — otherwise it never reaches the form at all. That is what makes
+        // the three printed rows add up:
+        //     ราคาประเมินที่ดิน + ราคาประเมิน เมื่ออาคารแล้วเสร็จ 100% = รวมราคา ที่ดิน+อาคาร (100%)
+        // and it puts the two รวม rows on the same basis as the Decision Summary card, whose
+        // absolute milestones count the finished buildings in every row
+        // (ConstructionValueBreakdown.CompleteValue = Land + CompletedBuilding + InspectedTotal).
+        decimal landAndCompletedBuildings = landAppraisalValue + nonCiBuilding;
         // The substituted figure is the WHOLE-appraisal appraised value and already contains the
-        // land, so adding landAppraisalValue on top of it would count the land twice.
-        decimal totalLand100Base    = substituteAppraisedValue ? 0m : landAppraisalValue;
+        // land, so adding landAndCompletedBuildings on top of it would count the land twice.
+        decimal totalLand100Base    = substituteAppraisedValue ? 0m : landAndCompletedBuildings;
         decimal? totalLandBuilding100   = (totalLand100Base + ciTotal) > 0m
             ? totalLand100Base + ciTotal : (decimal?)null;
         decimal? totalLandCurrentBuilding = (totalLand100Base + ciCurrent) > 0m
             ? totalLand100Base + ciCurrent : (decimal?)null;
-        decimal? landAppraisalValueOut  = landAppraisalValue > 0m ? landAppraisalValue : (decimal?)null;
+        // The substitute branch keeps the land row as it always was — land alone. Its รวม rows are
+        // built on the whole-appraisal figure with the land zeroed out, so folding the finished
+        // buildings into the row above would only widen the gap between the row and the totals it
+        // is supposed to add up to.
+        decimal landRow = substituteAppraisedValue ? landAppraisalValue : landAndCompletedBuildings;
+        decimal? landAppraisalValueOut  = landRow > 0m ? landRow : (decimal?)null;
 
         // เอกสารประกอบ checkboxes — effective value = manual override (AppraisalDecisions) ?? auto-derived
         // document presence. The override is how an external-company book (docs bundled into D001, so nothing
