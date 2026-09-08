@@ -228,6 +228,22 @@ public sealed class AppraisalSummaryMachineDataProvider(
             common.GroupMethodTypes,
             machineGroupList.Select(g => g.GroupId));
 
+        // ทุนประกันภัยเครื่องจักร is the machinery appraisal value, so the totals block prints the
+        // same figure twice. It deliberately does NOT use common.BuildingCoverageAmount
+        // (ValuationAnalyses.InsuranceValue): BuildingInsuranceCalculator sums buildings and condos
+        // only, so a machinery-only appraisal gets 0, and on a mixed appraisal that column carries
+        // the BUILDING coverage — which has no business appearing on the machine form.
+        //
+        // Null (the totals row prints "-") when not one machine group carries a figure, and NOT the
+        // Count > 0 fallback TotalAppraisalValue keeps below. Two reasons: common.TotalAppraisalValue
+        // is appraisal-wide, so on a mixed appraisal it would state land and buildings as machinery
+        // insurance capital — the very thing this field must not do; and a bare Sum() over unpriced
+        // groups returns 0m, which Scriban prints as "0.00", asserting "insured for nothing" where
+        // the truth is "not priced yet".
+        decimal? machineAppraisalValue = summaryGroups.Any(g => g.AppraisalValue.HasValue)
+            ? summaryGroups.Sum(g => g.AppraisalValue ?? 0m)
+            : null;
+
         // ── Build model ──────────────────────────────────────────────────────────
         var model = new AppraisalSummaryModel
         {
@@ -254,8 +270,8 @@ public sealed class AppraisalSummaryMachineDataProvider(
             Appraiser = common.Appraiser,
             LoanValue = common.LoanValue,
             Groups = summaryGroups,
-            TotalAppraisalValue = summaryGroups.Count > 0 ? summaryGroups.Sum(g => g.AppraisalValue ?? 0m) : common.TotalAppraisalValue,
-            BuildingCoverageAmount = common.BuildingCoverageAmount,
+            TotalAppraisalValue = summaryGroups.Count > 0 ? machineAppraisalValue ?? 0m : common.TotalAppraisalValue,
+            BuildingCoverageAmount = machineAppraisalValue,
             ForcedSaleValue = common.ForcedSaleValue,
             Condition = common.Condition,
             Remark = common.Remark,
