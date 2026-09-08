@@ -139,6 +139,10 @@ public class CompanyQuotationItem : Entity<Guid>
             throw new InvalidOperationException("NegotiatedDiscount cannot exceed FeeAmount − Discount");
 
         NegotiatedDiscount = amount;
-        ItemNegotiationReason = (amount is null || amount is 0) ? itemNegotiationReason : null;
+
+        var isZeroDiscount = amount is null || Math.Round(amount.Value, 2) == 0m;
+        ItemNegotiationReason = isZeroDiscount
+            ? string.IsNullOrWhiteSpace(itemNegotiationReason) ? null : itemNegotiationReason.Trim()
+            : null;
     }
 }
