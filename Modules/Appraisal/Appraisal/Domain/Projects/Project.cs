@@ -59,10 +59,12 @@ public class Project : Aggregate<Guid>
     /// Whether the project is still being built. Only meaningful on a type that can carry a
     /// structure -- Create/Update drop it on bare Land, which is a subdivision of empty plots.
     /// <para>
-    /// Unlike every other field here, <see cref="Update"/> does NOT full-replace this pair: a save
-    /// that omits both leaves them alone. A cleared flag is not read back as a blank --
-    /// GetAppraisalResult reports an unset flag on a completed appraisal as 100% complete -- so
-    /// treating an omission as "clear it" turns a recorded 45% into a reported 100%.
+    /// <see cref="Update"/> full-replaces this pair whenever the payload MENTIONS it, exactly as it
+    /// does every other field — Save and Save-draft persist the same way, they only validate
+    /// differently. The one exception is a payload that omits the flag entirely: a cleared flag is
+    /// not read back as a blank (GetAppraisalResult reports an unset flag on a completed appraisal
+    /// as 100% complete), so treating an omission as "clear it" would turn a recorded 45% into a
+    /// reported 100% the moment an older client saved anything at all.
     /// </para>
     /// </summary>
     public bool? IsUnderConstruction { get; private set; }
@@ -289,29 +291,20 @@ public class Project : Aggregate<Guid>
             // the same payload in opposite ways. The UI path is closed on the form instead:
             // ProjectInfoForm hides these fields when the LOADED project type is "L", rather than
             // the route's, which always says "LB".
-            IsUnderConstruction = applicable ? isUnderConstruction : null;
-
-            if (!applicable || isUnderConstruction == false)
-            {
-                ConstructionProgressPercent = null;
-            }
-            else if (constructionProgressPercent is not null)
-            {
-                ConstructionProgressPercent = constructionProgressPercent;
-            }
-            // else: ticked, with the number momentarily blank. The ordinary way to reach it is an
-            // appraiser clearing the input to retype while a draft autosave fires; full-replacing
-            // here would erase a recorded 45 on a keystroke. A genuine clear still happens the
-            // honest way: untick, and the false arm above nulls it.
+            // Save and Save-draft persist identically; the ONLY difference between them is how
+            // strict the validator was. So a payload that ticks the flag and sends no percent
+            // stores exactly that -- it does not keep the number that was there before. Clearing
+            // the input and pressing Save draft is a real edit, not an accident to be undone.
             //
-            // The state can OUTLIVE the draft. The final validator demands a percent only when the
-            // REQUEST ticks the flag, and this whole block is skipped when the request's flag is
-            // null -- so a project left at (true, null) by an autosave can pass a final Save that
-            // omits the pair and complete that way. GetAppraisalResult then reports null rather
-            // than a number, which is the safe direction (absent, not invented) but is not what
-            // the contract comment on ConstructionPct promises. Closing it needs the validator to
-            // read the STORED flag, i.e. the DB-read-in-validator change deferred in
-            // SaveProjectCommandValidator's KNOWN GAP note.
+            // A (true, null) row is therefore reachable and can survive to completion, since the
+            // final validator demands a percent only when the REQUEST ticks the flag and this
+            // block is skipped entirely when the request's flag is null. GetAppraisalResult then
+            // reports null rather than a number -- absent, not invented, which is the safe way to
+            // be wrong. Closing that needs the validator to read the STORED flag: the
+            // DB-read-in-validator change deferred in SaveProjectCommandValidator's KNOWN GAP.
+            IsUnderConstruction = applicable ? isUnderConstruction : null;
+            ConstructionProgressPercent =
+                applicable && isUnderConstruction == true ? constructionProgressPercent : null;
         }
         BuiltOnTitleDeedNumber = ProjectType == ProjectType.Condo ? builtOnTitleDeedNumber : null;
         LicenseExpirationDate = ProjectType.IsLandAndBuildingLike() ? licenseExpirationDate : null;
