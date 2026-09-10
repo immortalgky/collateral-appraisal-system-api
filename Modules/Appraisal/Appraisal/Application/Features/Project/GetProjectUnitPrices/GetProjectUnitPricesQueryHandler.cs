@@ -36,6 +36,7 @@ public class GetProjectUnitPricesQueryHandler(
                 unit.Id,
                 unit.SequenceNumber,
                 // Common unit fields
+                unit.ProjectModelId,
                 unit.ModelType,
                 unit.UsableArea,
                 unit.SellingPrice,

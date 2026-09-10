@@ -26,6 +26,15 @@ public class ProjectModelConfiguration : IEntityTypeConfiguration<ProjectModel>
             .IsRequired(false);
         builder.HasIndex(e => e.ProjectTowerId);
 
+        // Enforce (ProjectTowerId, ModelName) uniqueness at the DB level.
+        // Filter matches Project.ValidateModelTowerInvariant, which skips the uniqueness check
+        // for a blank ModelName — without the "<> ''" clause, two concurrent requests with an
+        // empty name would pass domain validation but fail here with a raw DbUpdateException.
+        builder.HasIndex(e => new { e.ProjectTowerId, e.ModelName })
+            .IsUnique()
+            .HasFilter("[ProjectTowerId] IS NOT NULL AND [ModelName] IS NOT NULL AND [ModelName] <> ''")
+            .HasDatabaseName("IX_ProjectModels_ProjectTowerId_ModelName");
+
         // Model Info
         builder.Property(e => e.ModelName).HasMaxLength(200);
         builder.Property(e => e.ModelDescription).HasMaxLength(500);
