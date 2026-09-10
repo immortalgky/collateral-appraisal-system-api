@@ -4,16 +4,19 @@ using Appraisal.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace Appraisal.Infrastructure.Migrations
+namespace Appraisal.infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    partial class AppraisalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260902190846_AddItemNegotiationReason")]
+    partial class AddItemNegotiationReason
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -5299,12 +5302,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("BuiltOnTitleDeedNumber")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<decimal?>("ConstructionProgressPercent")
-                        .HasPrecision(7, 4)
-                        .HasColumnType("decimal(7,4)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -5330,9 +5329,6 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<string>("HouseNumber")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
-
-                    b.Property<bool?>("IsUnderConstruction")
-                        .HasColumnType("bit");
 
                     b.Property<decimal?>("LandAreaNgan")
                         .HasPrecision(10, 4)
@@ -10058,24 +10054,11 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasPrecision(10, 2)
                                 .HasColumnType("decimal(10,2)");
 
-                            b1.Property<string>("InstallationStatus")
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)");
-
-                            b1.Property<string>("InvoiceNumber")
-                                .HasMaxLength(20)
-                                .HasColumnType("nvarchar(20)");
-
                             b1.Property<bool>("IsOperational")
                                 .HasColumnType("bit");
 
                             b1.Property<bool>("IsOwnerVerified")
                                 .HasColumnType("bit");
-
-                            b1.Property<bool>("IsPriceCertified")
-                                .ValueGeneratedOnAdd()
-                                .HasColumnType("bit")
-                                .HasDefaultValue(true);
 
                             b1.Property<decimal?>("Length")
                                 .HasPrecision(10, 2)
@@ -10112,10 +10095,6 @@ namespace Appraisal.Infrastructure.Migrations
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)");
 
-                            b1.Property<string>("MachineType")
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)");
-
                             b1.Property<string>("Manufacturer")
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)");
@@ -10149,11 +10128,6 @@ namespace Appraisal.Infrastructure.Migrations
                             b1.Property<string>("RegistrationNumber")
                                 .HasMaxLength(50)
                                 .HasColumnType("nvarchar(50)");
-
-                            b1.Property<bool>("RegistrationStatus")
-                                .ValueGeneratedOnAdd()
-                                .HasColumnType("bit")
-                                .HasDefaultValue(false);
 
                             b1.Property<string>("Remark")
                                 .HasMaxLength(4000)
