@@ -190,6 +190,7 @@ public class GetMeetingDetailQueryHandler(
                                LEFT JOIN auth.AspNetUsers u ON u.UserName = aa.InternalAppraiserId
                                LEFT JOIN appraisal.ValuationAnalyses v ON v.AppraisalId = a.Id
                                WHERE MeetingId = @Id
+                               ORDER BY a.AppraisalNumber
 
                            """ + "\n\n" + PreviousMeetingNoQuery.Sql("Id") + "\n\n" + """
 

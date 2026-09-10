@@ -140,6 +140,7 @@ public sealed class MeetingMinuteDataProvider(
                 WHERE ap.AppraisalId = a.Id
             ) ciAgg
             WHERE mi.MeetingId = @MeetingId
+            ORDER BY a.AppraisalNumber
             """;
 
         var items = (await connection.QueryAsync<MeetingItemFlat>(itemsSql, p)).ToList();
