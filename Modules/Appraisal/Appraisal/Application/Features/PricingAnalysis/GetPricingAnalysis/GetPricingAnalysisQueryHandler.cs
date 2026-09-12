@@ -30,6 +30,7 @@ public class GetPricingAnalysisQueryHandler(
                 m.MethodType,
                 m.MethodValue,
                 m.IsSelected,
+                m.UseSystemCalc,
                 m.ComparativeAnalysisTemplateId,
                 m.ValuePerUnit,
                 m.UnitType,
@@ -98,6 +99,7 @@ public record MethodDto(
     string MethodType,
     decimal? MethodValue,
     bool IsSelected,
+    bool UseSystemCalc,
     Guid? ComparativeAnalysisTemplateId,
     // Recorded breakdown, so a saved manual Cost entry reloads into the form it was typed in.
     decimal? ValuePerUnit = null,

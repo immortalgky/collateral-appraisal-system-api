@@ -517,6 +517,14 @@ public class PricingAnalysis : Aggregate<Guid>
             AddDomainEvent(new DocumentUnlinkedEvent(Id, document.DocumentId.Value));
     }
 
+    public void ClearDocuments()
+    {
+        foreach (var documentId in _documents.Select(d => d.Id).ToList())
+        {
+            RemoveDocument(documentId);
+        }
+    }
+
     public PricingAnalysisDocument? GetDocument(Guid documentId)
     {
         return _documents.FirstOrDefault(d => d.Id == documentId);
