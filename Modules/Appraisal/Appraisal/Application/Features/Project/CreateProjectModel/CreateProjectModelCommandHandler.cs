@@ -95,7 +95,7 @@ public class CreateProjectModelCommandHandler(
         model.ClearAreaDetails();
         if (dtos is not { Count: > 0 }) return;
         foreach (var dto in dtos)
-            model.AddAreaDetail(ProjectModelAreaDetail.Create(dto.AreaDescription, dto.AreaSize));
+            model.AddAreaDetail(ProjectModelAreaDetail.Create(dto.Sequence, dto.AreaDescription, dto.AreaSize));
     }
 
     internal static void ApplySurfaces(Domain.Projects.ProjectModel model, List<ProjectModelSurfaceDto>? dtos)
