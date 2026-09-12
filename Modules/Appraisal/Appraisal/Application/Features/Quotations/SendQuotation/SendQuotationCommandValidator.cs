@@ -18,6 +18,6 @@ public class SendQuotationCommandValidator : AbstractValidator<SendQuotationComm
                        || !string.IsNullOrWhiteSpace(c.Bcc))
             .WithMessage("At least one recipient (To, Cc, or Bcc) is required.");
         RuleFor(x => x.Subject).NotEmpty().MaximumLength(500);
-        RuleFor(x => x.Content).MaximumLength(4000).When(x => x.Content is not null);
+        RuleFor(x => x.Content).MaximumLength(8000).When(x => x.Content is not null);
     }
 }

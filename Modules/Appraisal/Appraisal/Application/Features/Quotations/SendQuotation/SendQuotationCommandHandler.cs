@@ -62,6 +62,11 @@ public class SendQuotationCommandHandler(
             }
         }
 
+        var attachmentRefs = (command.Attachments ?? [])
+            .Where(d => !string.IsNullOrWhiteSpace(d))
+            .Select(d => new EmailAttachmentRefData("document", d.Trim()))
+            .ToList();
+
         // Domain method enforces: at least one appraisal + at least one invitation
         quotation.Send();
 
@@ -97,7 +102,8 @@ public class SendQuotationCommandHandler(
             Cc = command.Cc,
             Bcc = command.Bcc,
             Subject = command.Subject,
-            Content = command.Content
+            Content = command.Content,
+            AttachmentRefs = attachmentRefs
         }, correlationId: quotation.Id.ToString());
 
         // C8: Emit QuotationStartedIntegrationEvent here (moved from StartQuotationFromTask)
