@@ -18,10 +18,14 @@ SELECT PG.AppraisalId,
        -- carry its name in the other column. Same rule the machinery report applies.
        COALESCE(L.PropertyName, B.PropertyName, C.PropertyName,
                 NULLIF(M.PropertyName, ''), NULLIF(M.MachineName, '')) AS PropertyName,
+       -- The lease types are the same four things held under a lease agreement, and they write to
+       -- the same detail tables as their freehold twins: LSL/LS to land, LSB to building, LSU to
+       -- condominium. Listing only the freehold codes here left every leased property with no
+       -- area at all on screen and out of the group totals.
        CASE
-           WHEN AP.PropertyType IN ('L', 'LB') THEN LT.TotalSquareWa
-           WHEN AP.PropertyType = 'U' THEN C.UsableArea
-           WHEN AP.PropertyType = 'B' THEN B.TotalBuildingArea
+           WHEN AP.PropertyType IN ('L', 'LB', 'LSL', 'LS') THEN LT.TotalSquareWa
+           WHEN AP.PropertyType IN ('U', 'LSU') THEN C.UsableArea
+           WHEN AP.PropertyType IN ('B', 'LSB') THEN B.TotalBuildingArea
            END                                                       AS Area,
        CASE
            WHEN AP.PropertyType = 'MAC' THEN M.MachineName
@@ -52,11 +56,26 @@ SELECT PG.AppraisalId,
            WHEN AP.PropertyType = 'MAC' THEN M.Location
            ELSE CONCAT_WS(',', SD.NameTh, DI.NameTh, PV.NameTh)
            END                                                       AS Location,
+       -- A building has no address of its own: the tambon/amphoe/province live on the land it
+       -- stands on, and a building row's Location above is therefore always blank. Its type is
+       -- what the list can say about it instead. BuildingType parameter code; older rows hold
+       -- free text ('SingleHouse'), which the client falls back to printing as-is.
+       CASE
+           WHEN AP.PropertyType IN ('B', 'LSB') THEN NULLIF(B.BuildingType, '')
+           END                                                       AS BuildingType,
+       -- The appraiser's own words when the type is '99' (other) — "ถังน้ำ" says far more
+       -- than the master's "อื่นๆ" does.
+       CASE
+           WHEN AP.PropertyType IN ('B', 'LSB') THEN NULLIF(B.BuildingTypeOther, '')
+           END                                                       AS BuildingTypeOther,
+       CASE
+           WHEN AP.PropertyType IN ('B', 'LSB') THEN B.NumberOfFloors
+           END                                                       AS NumberOfFloors,
        COALESCE(L.Latitude,  C.Latitude)                             AS Latitude,
        COALESCE(L.Longitude, C.Longitude)                            AS Longitude,
        CASE
-           WHEN AP.PropertyType IN ('L', 'LB') THEN LTN.TitleNumbers
-           WHEN AP.PropertyType = 'U' THEN C.TitleNumber
+           WHEN AP.PropertyType IN ('L', 'LB', 'LSL', 'LS') THEN LTN.TitleNumbers
+           WHEN AP.PropertyType IN ('U', 'LSU') THEN C.TitleNumber
            END                                                       AS TitleNo,
        L.IsRentedOut                                                 AS IsRentedOut
 FROM appraisal.PropertyGroups PG
