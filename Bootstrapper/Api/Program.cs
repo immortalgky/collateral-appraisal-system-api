@@ -353,6 +353,10 @@ var corsConfig = builder.Configuration
     .GetSection(CorsConfiguration.SectionName)
     .Get<CorsConfiguration>() ?? new CorsConfiguration();
 
+// Note this list does double duty: UseHangfireDashboardFraming turns it into the frame-ancestors
+// directive on /hangfire, so an origin added here to let some other front-end call the API also
+// gains the right to embed the background-job dashboard. Split the two if that ever stops being
+// what you want.
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("SPAPolicy",
@@ -503,6 +507,11 @@ app.MapHealthChecks("/health/external", new HealthCheckOptions
 
 // Prometheus metrics scrape endpoint
 app.MapPrometheusScrapingEndpoint("/metrics").AllowAnonymous();
+
+// Must stay above UseRouting: registered at UseHangfire's position (below) this middleware never runs
+// — verified with probe headers on a clean build, twice. It only adjusts framing headers on /hangfire
+// responses; the dashboard endpoint itself is still mapped by UseHangfire().
+app.UseHangfireDashboardFraming();
 
 app.UseRouting();
 app.UseAuthentication();

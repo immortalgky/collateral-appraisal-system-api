@@ -247,6 +247,10 @@ public static class AuthModule
         services.AddScoped<ICompanyLookupService, CompanyLookupService>();
         services.AddScoped<PermissionResolver>();
 
+        // Resolves permissions from the database for cookie principals (see the handler's remarks);
+        // used by the HangfireDashboard policy.
+        services.AddScoped<IAuthorizationHandler, DatabasePermissionAuthorizationHandler>();
+
         // Menu tree cache (single-instance in-memory)
         services.AddMemoryCache();
         services.AddScoped<IMenuTreeCache, MenuTreeCache>();
@@ -361,12 +365,23 @@ public static class AuthModule
             .AddMonitoringTopBreachesPolicy()
             // Hangfire dashboard: a server-rendered page opened by browser navigation, so it cannot carry a
             // JWT Bearer header. Gate on the interactive-login cookie (Identity.Application, set by
-            // /Account/Login) and require the Admin role. Pinning the scheme is essential — without it the
-            // policy would authenticate the default (Bearer) scheme and always fail for a browser navigation.
+            // /Account/Login). Pinning the scheme is essential — without it the policy would authenticate
+            // the default (Bearer) scheme and always fail for a browser navigation.
+            //
+            // Access follows the permission, not a hardcoded role: whoever is granted
+            // JOB_SCHEDULE_MANAGE gets in, so the admin screens stay the single place where this is
+            // decided. RequireClaim is not usable here because the cookie carries no "permissions"
+            // claim; the handler reads them from the database instead. Admin still qualifies, holding
+            // every permission.
+            //
+            // Note this authorises the dashboard on its own — the matching sidebar entry needs
+            // LOGS_VIEW as well, because the "System" group it sits under is gated on that and
+            // GetMyMenuQueryHandler hides a whole subtree when its parent is hidden. So a user with
+            // only JOB_SCHEDULE_MANAGE can reach /hangfire by URL but has no menu route to it.
             .AddPolicy("HangfireDashboard", policy =>
                 policy.AddAuthenticationSchemes(IdentityConstants.ApplicationScheme)
                     .RequireAuthenticatedUser()
-                    .RequireRole("Admin"));
+                    .AddRequirements(new DatabasePermissionRequirement("JOB_SCHEDULE_MANAGE")));
 
         // When the dev-auth bypass is enabled (any non-production environment),
         // don't pin policies to the OpenIddict scheme so the PolicyScheme can
