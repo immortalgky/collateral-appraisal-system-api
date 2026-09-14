@@ -82,7 +82,8 @@ public class GetQuotationByIdQueryHandler(
                     Discount: i.Discount,
                     NegotiatedDiscount: i.NegotiatedDiscount,
                     VatPercent: i.VatPercent,
-                    ItemNotes: i.ItemNotes
+                    ItemNotes: i.ItemNotes,
+                    ItemNegotiationReason: i.ItemNegotiationReason
                 )).ToList(),
                 Negotiations: cq.Negotiations.Select(n => new CompanyQuotationNegotiationResult(
                     Id: n.Id,

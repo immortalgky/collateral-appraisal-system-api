@@ -269,6 +269,7 @@ public class CompanyQuotationItemConfiguration : IEntityTypeConfiguration<Compan
         builder.Property(i => i.FeeAmount).HasPrecision(18, 2).HasDefaultValue(0m).IsRequired();
         builder.Property(i => i.Discount).HasPrecision(18, 2).HasDefaultValue(0m).IsRequired();
         builder.Property(i => i.NegotiatedDiscount).HasPrecision(18, 2).IsRequired(false);
+        builder.Property(i => i.ItemNegotiationReason).HasMaxLength(500);
         builder.Property(i => i.VatPercent).HasPrecision(18, 2).HasDefaultValue(0m).IsRequired();
 
         // Derived computed helpers — not persisted
