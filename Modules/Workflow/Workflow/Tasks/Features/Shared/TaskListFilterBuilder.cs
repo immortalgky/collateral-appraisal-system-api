@@ -16,6 +16,7 @@ public interface ITaskListFilter
     string? TaskName { get; }
     string? Search { get; }
     string? AppraisalNumber { get; }
+    string? Channel { get; }
     string? CustomerName { get; }
     string? TaskStatus { get; }
     string? TaskType { get; }
