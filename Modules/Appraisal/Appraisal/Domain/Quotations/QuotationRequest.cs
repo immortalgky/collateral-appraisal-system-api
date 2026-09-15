@@ -535,12 +535,14 @@ public class QuotationRequest : Aggregate<Guid>
     }
 
     /// <summary>
-    /// Admin rejects the tentative winner (e.g., after failed negotiation or change of mind).
+    /// Admin rejects the tentative winner (change of mind, before opening a negotiation round).
     /// Withdrawn quotation; returns to UnderAdminReview for re-shortlist / re-send.
+    /// Not allowed while Negotiating — a round is open and it's the company's turn to respond
+    /// (Accept / Counter / Reject via RespondNegotiation); admin must wait for that response.
     /// </summary>
     public void RejectTentativeWinner(Guid companyQuotationId, string reason)
     {
-        if (Status != "WinnerTentative" && Status != "Negotiating")
+        if (Status != "WinnerTentative")
             throw new InvalidOperationException($"Cannot reject tentative winner in status '{Status}'");
 
         var quotation = GetCompanyQuotationOrThrow(companyQuotationId);
