@@ -59,6 +59,19 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
                 exception.GetType().Name,
                 httpContext.Response.StatusCode = StatusCodes.Status409Conflict
             ),
+            // Our own authorisation rules, whose message is written for the caller to read.
+            // Above the UnauthorizedAccessException arm, which is deliberately mute.
+            ForbiddenException =>
+            (
+                exception.Message,
+                exception.GetType().Name,
+                httpContext.Response.StatusCode = StatusCodes.Status403Forbidden
+            ),
+            // Fixed line, never the exception's own message. System.IO throws this same type with
+            // the absolute path in the message ("Access to the path 'X' is denied."), and document
+            // upload (DocumentService) and download (DownloadDocumentEndpoint) are on request
+            // paths — so passing it through would answer a tripped NAS ACL with the server's
+            // storage layout. Throw ForbiddenException where the caller needs to be told why.
             UnauthorizedAccessException =>
             (
                 "Access is denied",
