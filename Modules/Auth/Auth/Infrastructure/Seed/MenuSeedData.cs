@@ -148,7 +148,7 @@ public static class MenuSeedData
         new("main.standalone", "Standalone", "puzzle-piece", IconStyle.Solid, "text-teal-500", "/standalone", "STANDALONE_USE", null,
             new List<MenuSeedNode>
             {
-                new("main.standalone.service-quality-evaluation", "Service Quality Evaluation", "star", IconStyle.Solid, "text-teal-500", "/standalone/service-quality-evaluation", "REPORT_EVALUATION_VIEW", null),
+                new("main.standalone.service-quality-evaluation", "Service Quality Evaluation", "star", IconStyle.Solid, "text-teal-500", "/standalone/service-quality-evaluation", "REPORT_EVALUATION_VIEW", "REPORT_EVALUATION_EDIT"),
                 new("main.standalone.history-search", "History Search", "map-location-dot", IconStyle.Solid, "text-teal-500", "/standalone/history-search", "HISTORY_SEARCH_VIEW", null),
                 new("main.standalone.block-unit-maintenance", "Block Unit Maintenance", "building-circle-check", IconStyle.Solid, "text-teal-500", "/standalone/block-unit-maintenance", "BLOCK_UNIT_MAINT_VIEW", "BLOCK_UNIT_MAINT_EDIT"),
                 new("main.standalone.supporting-data-maintenance", "Supporting Data Maintenance", "circle-info", IconStyle.Solid, "text-teal-500", "/standalone/supporting-data-maintenance", "SUPPORTING_DATA_MAINT_VIEW", "SUPPORTING_DATA_MAINT_EDIT"),
