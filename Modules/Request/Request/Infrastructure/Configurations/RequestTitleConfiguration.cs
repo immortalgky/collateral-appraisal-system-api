@@ -618,6 +618,10 @@ public class TitleVehicleConfiguration : IEntityTypeConfiguration<TitleVehicle>
                 .HasMaxLength(10)
                 .HasColumnName("VehicleType");
 
+            vehicle.Property(p => p.VehicleRegistrationNumber)
+                .HasMaxLength(50)
+                .HasColumnName("VehicleRegistrationNumber");
+
             vehicle.Property(p => p.VehicleLocation)
                 .HasMaxLength(300)
                 .HasColumnName("VehicleLocation");
