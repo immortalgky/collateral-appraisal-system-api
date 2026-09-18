@@ -54,7 +54,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
         var customerRows = await connection.QueryAsync<CustomerRow>(customerSql, requestParams);
 
         // ── 3. Properties ─────────────────────────────────────────────────
-        const string propertySql = "SELECT PropertyType, BuildingType, SellingPrice FROM request.RequestProperties WHERE RequestId = @RequestId";
+        const string propertySql = "SELECT PropertyType, BuildingType, BuildingTypeOther, SellingPrice FROM request.RequestProperties WHERE RequestId = @RequestId";
         var propertyRows = await connection.QueryAsync<PropertyRow>(propertySql, requestParams);
 
         // ── 4. Documents (reference-copy only — filename + storage key) ───
@@ -166,7 +166,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
             .ToList();
 
         var properties = propertyRows
-            .Select(r => new RequestPropertyDto(r.PropertyType, r.BuildingType, r.SellingPrice))
+            .Select(r => new RequestPropertyDto(r.PropertyType, r.BuildingType, r.BuildingTypeOther, r.SellingPrice))
             .ToList();
 
         var documents = documentRows
@@ -284,6 +284,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
     {
         public string? PropertyType { get; set; }
         public string? BuildingType { get; set; }
+        public string? BuildingTypeOther { get; set; }
         public decimal? SellingPrice { get; set; }
     }
 

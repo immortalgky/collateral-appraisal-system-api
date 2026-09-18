@@ -88,7 +88,7 @@ public class CreateBlockReappraisalCommandHandler(
 
         var properties = snapshot?.Properties is { Count: > 0 }
             ? snapshot.Properties
-                .Select(p => new RequestPropertyDto(p.PropertyType, p.BuildingType, p.SellingPrice))
+                .Select(p => new RequestPropertyDto(p.PropertyType, p.BuildingType, p.BuildingTypeOther, p.SellingPrice))
                 .ToList()
             : null;
 
@@ -188,7 +188,7 @@ public class CreateBlockReappraisalCommandHandler(
             """;
 
         const string propertiesSql = """
-            SELECT RequestId, PropertyType, BuildingType, SellingPrice
+            SELECT RequestId, PropertyType, BuildingType, BuildingTypeOther, SellingPrice
             FROM request.RequestProperties
             WHERE RequestId IN @RequestIds
             ORDER BY RequestId, Id
@@ -292,7 +292,7 @@ public class CreateBlockReappraisalCommandHandler(
         string? ContactPersonName, string? ContactPersonPhone, string? DealerCode);
 
     private sealed record PriorRequestCustomerRow(Guid RequestId, string? Name, string? ContactNumber);
-    private sealed record PriorRequestPropertyRow(Guid RequestId, string? PropertyType, string? BuildingType, decimal? SellingPrice);
+    private sealed record PriorRequestPropertyRow(Guid RequestId, string? PropertyType, string? BuildingType, string? BuildingTypeOther, decimal? SellingPrice);
 
     private sealed record PriorRequestSnapshot(
         Guid AppraisalId, Guid RequestId, bool HasAppraisalBook,

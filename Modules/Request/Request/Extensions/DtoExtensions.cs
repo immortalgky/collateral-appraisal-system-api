@@ -91,7 +91,7 @@ public static class DtoExtensions
 
     public static RequestPropertyDto ToDto(this RequestProperty property)
     {
-        return new RequestPropertyDto(property.PropertyType, property.BuildingType, property.SellingPrice);
+        return new RequestPropertyDto(property.PropertyType, property.BuildingType,property.BuildingTypeOther, property.SellingPrice);
     }
 
     public static RequestDocumentDto ToDto(this RequestDocument document)
@@ -404,6 +404,7 @@ public static class DtoExtensions
         return RequestProperty.Create(
             dto?.PropertyType,
             dto?.BuildingType,
+            dto?.BuildingTypeOther,
             dto?.SellingPrice
         );
     }
