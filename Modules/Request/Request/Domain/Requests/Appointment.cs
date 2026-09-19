@@ -19,6 +19,5 @@ public class Appointment : ValueObject
     public void Validate()
     {
         ArgumentNullException.ThrowIfNull(AppointmentDateTime);
-        ArgumentException.ThrowIfNullOrWhiteSpace(AppointmentLocation);
     }
 }

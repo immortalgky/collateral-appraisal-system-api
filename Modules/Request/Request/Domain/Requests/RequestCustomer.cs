@@ -19,6 +19,5 @@ public class RequestCustomer : ValueObject
     public void Validate()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(Name);
-        ArgumentException.ThrowIfNullOrWhiteSpace(ContactNumber);
     }
 }
