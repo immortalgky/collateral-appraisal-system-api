@@ -96,4 +96,15 @@ public interface IChunkedUploadStore
 
     /// <summary>Removes staging folders untouched for longer than <paramref name="olderThan"/>.</summary>
     int DeleteExpired(TimeSpan olderThan);
+
+    /// <summary>
+    /// Where a single-request upload's bytes wait while the rest of its body is still arriving.
+    /// Always ends in <c>.part</c>: this tree is served statically with no authorization, and a
+    /// file named with its real extension would be fetchable by anyone holding the id — which the
+    /// caller is given.
+    /// </summary>
+    string StreamedStagingPath(Guid documentId);
+
+    /// <summary>Removes streamed staging files older than <paramref name="olderThan"/>.</summary>
+    int DeleteExpiredStreamedFiles(TimeSpan olderThan);
 }
