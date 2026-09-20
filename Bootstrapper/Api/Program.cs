@@ -6,6 +6,7 @@ using Document.Data;
 using Hangfire;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Request.Infrastructure;
 using Collateral.Data;
@@ -348,6 +349,25 @@ builder.Services.AddHealthChecks()
     .AddAuthHealthChecks()
     .AddNotificationHealthChecks()
     .AddIntegrationHealthChecks();
+
+// Multipart parsing has its own ceiling, and it is not the one the upload endpoints raise: they
+// lift the *body* cap per endpoint, while ReadFormAsync measures the form against FormOptions.
+// The 128 MB default sits above today's limit, so nothing is gated by it — but the moment
+// FileStorage:MaxFileSizeBytes is raised past it, ReadFormAsync throws InvalidDataException, which
+// no exception-handler arm matches, and a plain "file too large" turns into a 500 with a raw
+// framework message. Tying it to the same number keeps the two from drifting apart.
+builder.Services.Configure<FormOptions>(options =>
+{
+    var uploadBodyLimit = builder.Configuration
+        .GetSection(FileStorageConfiguration.SectionName)
+        .Get<FileStorageConfiguration>()?.MaxRequestBodyBytes
+        ?? new FileStorageConfiguration().MaxRequestBodyBytes;
+
+    // Raise only. This is a global setting and every other multipart endpoint sits under it, so
+    // pinning it to the document-upload number would quietly lower the ceiling for all of them the
+    // day that number is smaller than the framework default.
+    options.MultipartBodyLengthLimit = Math.Max(options.MultipartBodyLengthLimit, uploadBodyLimit);
+});
 
 var corsConfig = builder.Configuration
     .GetSection(CorsConfiguration.SectionName)

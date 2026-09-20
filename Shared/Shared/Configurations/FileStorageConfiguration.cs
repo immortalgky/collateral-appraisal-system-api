@@ -50,6 +50,15 @@ public class FileStorageConfiguration
     public int MaxFileSizeBytes { get; set; } = 50 * 1024 * 1024;
 
     /// <summary>
+    /// The largest request body an upload may have. A multipart request carries MIME boundaries
+    /// and the other form fields alongside the file, so it is always a little larger than the file
+    /// itself — without the allowance a file of exactly <see cref="MaxFileSizeBytes"/> would be
+    /// rejected by its own envelope. Both the server limits and the endpoints' cheap
+    /// Content-Length pre-check read this; the exact per-file limit is enforced by the validator.
+    /// </summary>
+    public long MaxRequestBodyBytes => (long)MaxFileSizeBytes + 1024 * 1024;
+
+    /// <summary>
     /// Maximum number of files allowed per upload session
     /// </summary>
     public int MaxFilesPerSession { get; set; } = 20;
