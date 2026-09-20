@@ -10,8 +10,6 @@ public interface IDocumentService
 
     Task<bool> DeleteFileAsync(Guid id, CancellationToken cancellationToken = default);
 
-    Task<string> CalculateChecksumAsync(Stream stream, CancellationToken cancellationToken = default);
-
     Task CopyToAsync(string sourcePath, string destinationPath, bool deleteSource = false,
         CancellationToken cancellationToken = default);
 }
