@@ -8,6 +8,16 @@ public interface IDocumentService
         string documentCategory,
         string? description, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Registers a file already assembled on the share as a document — the final step of a
+    /// chunked upload, where the bytes are in place and only the row is missing.
+    /// </summary>
+    Task<UploadDocumentResult> CreateFromStagedFileAsync(
+        Guid documentId,
+        string stagedFilePath,
+        ChunkedUploadMeta meta,
+        CancellationToken cancellationToken = default);
+
     Task<bool> DeleteFileAsync(Guid id, CancellationToken cancellationToken = default);
 
     Task CopyToAsync(string sourcePath, string destinationPath, bool deleteSource = false,

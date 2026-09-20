@@ -366,11 +366,95 @@ public class DocumentService(
         return true;
     }
 
-    private string GetStorageBasePath()
+    /// <summary>
+    /// Turns a file already assembled on the share — the last step of a chunked upload — into a
+    /// document, without the bytes passing through here again.
+    /// </summary>
+    public async Task<UploadDocumentResult> CreateFromStagedFileAsync(
+        Guid documentId,
+        string stagedFilePath,
+        ChunkedUploadMeta meta,
+        CancellationToken cancellationToken = default)
     {
-        return _fileStorageConfiguration.Mode == StorageMode.Nas
-               && !string.IsNullOrEmpty(_fileStorageConfiguration.NasBasePath)
-            ? _fileStorageConfiguration.NasBasePath
-            : webHostEnvironment.WebRootPath;
+        var uploadSession = await _uploadSessionRepository.GetByIdAsync(meta.UploadSessionId, cancellationToken);
+        if (uploadSession is null)
+            throw new NotFoundException($"Upload session {meta.UploadSessionId} not found");
+
+        var extension = Path.GetExtension(meta.FileName);
+        var uniqueFileName = $"{documentId}{extension}";
+        var directoryPath = DocumentsDirectory();
+        Directory.CreateDirectory(directoryPath);
+
+        var storagePath = Path.Combine(directoryPath, uniqueFileName);
+
+        // Staging and documents are folders on the same share, so this is a rename: a gigabyte
+        // costs what a byte costs. Moving only on the first attempt — a completion retried after
+        // its answer was lost finds the file already in place.
+        try
+        {
+            File.Move(stagedFilePath, storagePath);
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            if (!File.Exists(storagePath)) throw;
+            logger.LogInformation(
+                "Chunked upload {UploadId} was already moved into place — continuing", meta.UploadId);
+        }
+
+        try
+        {
+            var checksum = await HashFileAsync(storagePath, cancellationToken);
+
+            // The declared size, not FileInfo.Length: the caller has already checked the assembled
+            // file against it, and over SMB a cached directory entry can answer with a stale
+            // length — including zero, which the session counter refuses outright.
+            var fileSizeBytes = meta.FileSizeBytes;
+
+            if (meta.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+                && !imageResizeService.IsWithinDecodeBudget(storagePath, out var refusal))
+                throw new BadRequestException(refusal);
+
+            return await CreateDocumentRecordAsync(
+                documentId, uploadSession, meta.DocumentType, meta.DocumentCategory, meta.Description,
+                meta.FileName, extension, fileSizeBytes, meta.ContentType,
+                storagePath, uniqueFileName, checksum, cancellationToken);
+        }
+        catch
+        {
+            TryDeleteFile(storagePath);
+            throw;
+        }
     }
+
+    private string DocumentsDirectory() => Path.Combine(
+        GetStorageBasePath(),
+        _fileStorageConfiguration.RootPath.TrimStart('/'),
+        _fileStorageConfiguration.DocumentsPath);
+
+    /// <summary>Hashes a file already on disk — one read, a megabyte at a time.</summary>
+    private static async Task<string> HashFileAsync(string path, CancellationToken cancellationToken)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = ArrayPool<byte>.Shared.Rent(1024 * 1024);
+
+        try
+        {
+            await using var file = new FileStream(
+                path, FileMode.Open, FileAccess.Read, FileShare.Read,
+                1024 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+            int read;
+            while ((read = await file.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
+                hash.AppendData(buffer, 0, read);
+
+            return Convert.ToBase64String(hash.GetHashAndReset());
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    private string GetStorageBasePath() =>
+        DocumentStorage.BasePath(_fileStorageConfiguration, webHostEnvironment);
 }
