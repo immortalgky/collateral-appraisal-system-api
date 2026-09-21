@@ -18,6 +18,7 @@ public class DocumentService(
     IWebHostEnvironment webHostEnvironment,
     IOptions<FileStorageConfiguration> fileStorageOptions,
     IImageResizeService imageResizeService,
+    IChunkedUploadStore chunkedUploadStore,
     ILogger<DocumentService> logger,
     IDateTimeProvider dateTimeProvider)
     : IDocumentService, IDocumentCreatorService
@@ -61,8 +62,8 @@ public class DocumentService(
 
         logger.LogDebug("Saving file to directory: {DirectoryPath}", directoryPath);
 
-        var (storagePath, checksum) =
-            await CopyAndHashAsync(fileStream, directoryPath, uniqueFileName, cancellationToken);
+        var (storagePath, checksum, _) = await CopyAndHashAsync(
+            fileStream, directoryPath, uniqueFileName, cancellationToken: cancellationToken);
 
         logger.LogDebug("File saved to: {StoragePath} (checksum {Checksum})", storagePath, checksum);
 
@@ -198,8 +199,8 @@ public class DocumentService(
             _fileStorageConfiguration.DocumentsPath);
 
         await using var stream = new MemoryStream(bytes);
-        var (storagePath, checksum) =
-            await CopyAndHashAsync(stream, directoryPath, uniqueFileName, cancellationToken);
+        var (storagePath, checksum, _) = await CopyAndHashAsync(
+            stream, directoryPath, uniqueFileName, cancellationToken: cancellationToken);
 
         var storageUrl =
             $"/{_fileStorageConfiguration.RootPath.TrimStart('/')}/{_fileStorageConfiguration.DocumentsPath}/{uniqueFileName}";
@@ -256,10 +257,11 @@ public class DocumentService(
     /// thousand of them. Memory stays flat regardless of file size — one buffer, reused.
     /// </para>
     /// </remarks>
-    private async Task<(string StoragePath, string ChecksumBase64)> CopyAndHashAsync(
+    private async Task<(string StoragePath, string ChecksumBase64, long Length)> CopyAndHashAsync(
         Stream source,
         string directoryPath,
         string uniqueFileName,
+        long maxBytes = long.MaxValue,
         CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(directoryPath);
@@ -286,17 +288,27 @@ public class DocumentService(
         {
             using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 
+            long written = 0;
+
             await using (destination)
             {
                 int read;
                 while ((read = await source.ReadAsync(buffer.AsMemory(0, bufferSize), cancellationToken)) > 0)
                 {
+                    written += read;
+
+                    // Counted as it goes, because a streamed body does not have to say how long it
+                    // is up front — and when it does say, it is free to be lying.
+                    if (written > maxBytes)
+                        throw new BadRequestException(
+                            $"File too large. Maximum size is {maxBytes / (1024 * 1024)}MB");
+
                     hash.AppendData(buffer, 0, read);
                     await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
                 }
             }
 
-            return (fullPath, Convert.ToBase64String(hash.GetHashAndReset()));
+            return (fullPath, Convert.ToBase64String(hash.GetHashAndReset()), written);
         }
         catch
         {
@@ -367,20 +379,47 @@ public class DocumentService(
     }
 
     /// <summary>
-    /// Turns a file already assembled on the share — the last step of a chunked upload — into a
-    /// document, without the bytes passing through here again.
+    /// Writes a stream to the staging area without it passing through memory, and hands back what
+    /// the caller needs to finish the job. For a body being read off the wire, where the metadata
+    /// that belongs with the file may only arrive after it.
+    /// </summary>
+    public async Task<StagedUpload> StageStreamAsync(
+        Stream content,
+        string fileName,
+        long maxBytes,
+        CancellationToken cancellationToken = default)
+    {
+        var documentId = Guid.CreateVersion7();
+        var stagingPath = chunkedUploadStore.StreamedStagingPath(documentId);
+
+        var (path, checksum, length) = await CopyAndHashAsync(
+            content,
+            Path.GetDirectoryName(stagingPath)!,
+            Path.GetFileName(stagingPath),
+            maxBytes,
+            cancellationToken);
+
+        return new StagedUpload(documentId, path, length, checksum);
+    }
+
+
+    /// <summary>
+    /// Turns a file already on the share into a document — the last step of a chunked upload, and
+    /// of a streamed one — without the bytes passing through here again.
     /// </summary>
     public async Task<UploadDocumentResult> CreateFromStagedFileAsync(
         Guid documentId,
         string stagedFilePath,
-        ChunkedUploadMeta meta,
+        StagedFileMetadata metadata,
+        string? knownChecksumBase64 = null,
         CancellationToken cancellationToken = default)
     {
-        var uploadSession = await _uploadSessionRepository.GetByIdAsync(meta.UploadSessionId, cancellationToken);
+        var uploadSession =
+            await _uploadSessionRepository.GetByIdAsync(metadata.UploadSessionId, cancellationToken);
         if (uploadSession is null)
-            throw new NotFoundException($"Upload session {meta.UploadSessionId} not found");
+            throw new NotFoundException($"Upload session {metadata.UploadSessionId} not found");
 
-        var extension = Path.GetExtension(meta.FileName);
+        var extension = Path.GetExtension(metadata.FileName);
         var uniqueFileName = $"{documentId}{extension}";
         var directoryPath = DocumentsDirectory();
         Directory.CreateDirectory(directoryPath);
@@ -398,25 +437,30 @@ public class DocumentService(
         {
             if (!File.Exists(storagePath)) throw;
             logger.LogInformation(
-                "Chunked upload {UploadId} was already moved into place — continuing", meta.UploadId);
+                "Staged upload {DocumentId} was already moved into place — continuing", documentId);
         }
 
         try
         {
-            var checksum = await HashFileAsync(storagePath, cancellationToken);
+            // Hashed here only when nobody has done it already. A streamed upload hashes as it
+            // writes and the move is a rename, so those bytes are the same bytes — reading a
+            // gigabyte back across the share to confirm what we just computed buys nothing. A
+            // chunked upload arrives in pieces with no running hash, so it is hashed here.
+            var checksum = knownChecksumBase64
+                           ?? await HashFileAsync(storagePath, cancellationToken);
 
             // The declared size, not FileInfo.Length: the caller has already checked the assembled
             // file against it, and over SMB a cached directory entry can answer with a stale
             // length — including zero, which the session counter refuses outright.
-            var fileSizeBytes = meta.FileSizeBytes;
+            var fileSizeBytes = metadata.FileSizeBytes;
 
-            if (meta.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+            if (metadata.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
                 && !imageResizeService.IsWithinDecodeBudget(storagePath, out var refusal))
                 throw new BadRequestException(refusal);
 
             return await CreateDocumentRecordAsync(
-                documentId, uploadSession, meta.DocumentType, meta.DocumentCategory, meta.Description,
-                meta.FileName, extension, fileSizeBytes, meta.ContentType,
+                documentId, uploadSession, metadata.DocumentType, metadata.DocumentCategory,
+                metadata.Description, metadata.FileName, extension, fileSizeBytes, metadata.ContentType,
                 storagePath, uniqueFileName, checksum, cancellationToken);
         }
         catch

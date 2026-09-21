@@ -18,6 +18,7 @@ internal sealed class ChunkedUploadStore(
     private const string MetaFileName = "meta.part";
     private const string DataFileName = "data.part";
     private const string ChunkedFolderName = "chunked";
+    private const string StreamedFolderName = "streamed";
     private const int CopyBufferSize = 1024 * 1024;
 
     private readonly FileStorageConfiguration _configuration = fileStorageOptions.Value;
@@ -220,6 +221,48 @@ internal sealed class ChunkedUploadStore(
 
     public string DataPath(Guid uploadId) => Path.Combine(DirectoryFor(uploadId), DataFileName);
 
+    public string StreamedStagingPath(Guid documentId) =>
+        Path.Combine(StreamedRoot(), $"{documentId:N}.part");
+
+    public int DeleteExpiredStreamedFiles(TimeSpan olderThan)
+    {
+        var cutoff = DateTime.UtcNow - olderThan;
+        var removed = 0;
+
+        IEnumerable<string> files;
+        try
+        {
+            files = Directory.EnumerateFiles(StreamedRoot());
+        }
+        catch (Exception ex) when (ex is DirectoryNotFoundException or IOException)
+        {
+            // Nothing streamed here yet, or the share is unreachable. Either way, next hour.
+            return 0;
+        }
+
+        foreach (var file in files)
+        {
+            try
+            {
+                if (File.GetLastWriteTimeUtc(file) > cutoff) continue;
+                File.Delete(file);
+                removed++;
+            }
+            catch (Exception ex)
+            {
+                // Per file, and every exception: a read-only file or an ACL denial throws
+                // UnauthorizedAccessException, and letting that out would abort the sweep here and
+                // on every run after it, so nothing past this file would ever be collected.
+                logger.LogDebug(ex, "Could not remove staged upload {Path}", file);
+            }
+        }
+
+        if (removed > 0)
+            logger.LogInformation("Removed {Count} abandoned streamed upload file(s)", removed);
+
+        return removed;
+    }
+
     public void Delete(Guid uploadId) => TryDeleteDirectory(DirectoryFor(uploadId));
 
     public int DeleteExpired(TimeSpan olderThan)
@@ -291,4 +334,10 @@ internal sealed class ChunkedUploadStore(
         ChunkedFolderName);
 
     private string DirectoryFor(Guid uploadId) => Path.Combine(ChunkedRoot(), uploadId.ToString("N"));
+
+    private string StreamedRoot() => Path.Combine(
+        DocumentStorage.BasePath(_configuration, webHostEnvironment),
+        _configuration.RootPath.TrimStart('/'),
+        _configuration.TempPath,
+        StreamedFolderName);
 }

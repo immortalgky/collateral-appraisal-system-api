@@ -64,8 +64,17 @@ internal class CompleteChunkedUploadCommandHandler(
         var result = await documentService.CreateFromStagedFileAsync(
             command.UploadId,
             store.DataPath(command.UploadId),
-            meta,
-            cancellationToken);
+            new StagedFileMetadata(
+                meta.UploadSessionId,
+                meta.FileName,
+                meta.FileSizeBytes,
+                meta.ContentType,
+                meta.DocumentType,
+                meta.DocumentCategory,
+                meta.Description),
+            // Assembled from chunks, so nothing has hashed it yet.
+            knownChecksumBase64: null,
+            cancellationToken: cancellationToken);
 
         // Saved here rather than by the transactional behaviour: hashing and moving a gigabyte
         // takes long enough that holding a database transaction across it would pin a pooled
