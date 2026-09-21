@@ -5983,7 +5983,7 @@ namespace Appraisal.Infrastructure.Migrations
                     b.HasIndex("ProjectTowerId", "ModelName")
                         .IsUnique()
                         .HasDatabaseName("IX_ProjectModels_ProjectTowerId_ModelName")
-                        .HasFilter("[ProjectTowerId] IS NOT NULL AND [ModelName] IS NOT NULL");
+                        .HasFilter("[ProjectTowerId] IS NOT NULL AND [ModelName] IS NOT NULL AND [ModelName] <> ''");
 
                     b.ToTable("ProjectModels", "appraisal");
                 });
