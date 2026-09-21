@@ -12,7 +12,7 @@ namespace Notification.Infrastructure.Email.Templates;
 internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTemplateRenderer
 {
     public string QuotationSent(string subject, string? adminContent) =>
-        Wrap(subject, BuildBody(adminContent));
+        Wrap(subject, adminContent);
 
     public string MeetingInvitation(string subject, string? adminContent) =>
         Wrap(subject, BuildBody(adminContent));

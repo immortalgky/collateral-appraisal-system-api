@@ -118,6 +118,14 @@ public class GetQuotationByIdQueryHandler(
         // Resolve customer names keyed by appraisalId (first customer per request, ordered by Id).
         var appraisalCustomerNamesMap = await ResolveAppraisalCustomerNamesAsync(appraisalIds);
 
+        // Resolve each appraisal's title records (land/building/condo/machine) for the quotation email's property description.
+        var requestIdsForTitles = appraisalMetaMap.Values
+            .Select(m => m.RequestId)
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToArray();
+        var titlesByRequestId = await ResolveTitlesAsync(requestIdsForTitles);
+
         var appraisalResults = quotation.Appraisals
             .Select(a =>
             {
@@ -132,6 +140,7 @@ public class GetQuotationByIdQueryHandler(
                 var propertyType = !string.IsNullOrWhiteSpace(item?.PropertyType)
                     ? item.PropertyType
                     : TranslateCollateralType(meta.CollateralType);
+                titlesByRequestId.TryGetValue(meta.RequestId, out var titles);
                 return new QuotationAppraisalResult(
                     AppraisalId: a.AppraisalId,
                     AddedAt: a.AddedAt,
@@ -143,7 +152,8 @@ public class GetQuotationByIdQueryHandler(
                     RequestId: meta.RequestId == Guid.Empty ? null : meta.RequestId,
                     CustomerName: customerName,
                     MaxAppraisalDays: item?.MaxAppraisalDays,
-                    AppraisalType: meta.AppraisalType);
+                    AppraisalType: meta.AppraisalType,
+                    Titles: (IReadOnlyList<QuotationTitleDetail>?)titles ?? Array.Empty<QuotationTitleDetail>());
             })
             .ToList();
 
@@ -321,6 +331,75 @@ public class GetQuotationByIdQueryHandler(
 
         return rows.ToDictionary(r => r.AppraisalId, r => r.CustomerName);
     }
+
+    private async Task<Dictionary<Guid, List<QuotationTitleDetail>>> ResolveTitlesAsync(Guid[] requestIds)
+    {
+        if (requestIds.Length == 0)
+            return new Dictionary<Guid, List<QuotationTitleDetail>>();
+
+        var connection = connectionFactory.GetOpenConnection();
+        var rows = await connection.QueryAsync<RequestTitleRow>(
+            """
+            SELECT rt.RequestId,
+                   rt.TitleFamily,
+                   rt.TitleNumber,
+                   rt.BuildingType,
+                   rt.AreaRai,
+                   rt.AreaNgan,
+                   rt.AreaSquareWa,
+                   rt.CondoName,
+                   rt.RoomNumber,
+                   rt.UsableArea,
+                   rt.InstallationStatus,
+                   rt.NumberOfMachine,
+                   dsd.NameTh AS DopaSubDistrictName,
+                   dd.NameTh AS DopaDistrictName,
+                   dp.NameTh AS DopaProvinceName
+            FROM [request].[RequestTitles] rt
+            LEFT JOIN [parameter].[DopaSubDistricts] dsd ON dsd.Code = rt.DopaSubDistrict
+            LEFT JOIN [parameter].[DopaDistricts] dd ON dd.Code = dsd.DistrictCode
+            LEFT JOIN [parameter].[DopaProvinces] dp ON dp.Code = dd.ProvinceCode
+            WHERE rt.RequestId IN @RequestIds
+            """,
+            new { RequestIds = requestIds });
+
+        return rows
+            .GroupBy(r => r.RequestId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(r => new QuotationTitleDetail(
+                    TitleFamily: r.TitleFamily,
+                    TitleNumber: r.TitleNumber,
+                    BuildingType: r.BuildingType,
+                    AreaRai: r.AreaRai,
+                    AreaNgan: r.AreaNgan,
+                    AreaSquareWa: r.AreaSquareWa,
+                    CondoName: r.CondoName,
+                    RoomNumber: r.RoomNumber,
+                    UsableArea: r.UsableArea,
+                    InstallationStatus: r.InstallationStatus,
+                    NumberOfMachine: r.NumberOfMachine,
+                    DopaSubDistrictName: r.DopaSubDistrictName,
+                    DopaDistrictName: r.DopaDistrictName,
+                    DopaProvinceName: r.DopaProvinceName)).ToList());
+    }
+
+    private sealed record RequestTitleRow(
+        Guid RequestId,
+        string TitleFamily,
+        string? TitleNumber,
+        string? BuildingType,
+        int? AreaRai,
+        int? AreaNgan,
+        decimal? AreaSquareWa,
+        string? CondoName,
+        string? RoomNumber,
+        decimal? UsableArea,
+        string? InstallationStatus,
+        int? NumberOfMachine,
+        string? DopaSubDistrictName,
+        string? DopaDistrictName,
+        string? DopaProvinceName);
 
     private async Task<string?> ResolveUserFullNameByUsernameAsync(string userName)
     {
