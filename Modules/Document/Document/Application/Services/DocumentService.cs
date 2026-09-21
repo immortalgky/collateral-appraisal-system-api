@@ -1,3 +1,4 @@
+using System.Buffers;
 using Document.Domain.Documents;
 using Document.Domain.Documents.Features.UploadDocument;
 using Document.Domain.Documents.Models;
@@ -16,6 +17,7 @@ public class DocumentService(
     IDocumentUnitOfWork uow,
     IWebHostEnvironment webHostEnvironment,
     IOptions<FileStorageConfiguration> fileStorageOptions,
+    IImageResizeService imageResizeService,
     ILogger<DocumentService> logger,
     IDateTimeProvider dateTimeProvider)
     : IDocumentService, IDocumentCreatorService
@@ -36,6 +38,16 @@ public class DocumentService(
             file.Length,
             uploadSessionId);
 
+        // Look the session up before a byte is written. Its id comes from the client, so it is the
+        // likeliest thing here to be wrong, and finding out afterwards leaves a file on the share
+        // that no row points at — in a folder nothing sweeps.
+        var uploadSession = await _uploadSessionRepository.GetByIdAsync(uploadSessionId, cancellationToken);
+        if (uploadSession is null)
+        {
+            logger.LogError("Upload session {SessionId} not found", uploadSessionId);
+            throw new NotFoundException($"Upload session {uploadSessionId} not found");
+        }
+
         await using var fileStream = file.OpenReadStream();
 
         var docId = Guid.CreateVersion7();
@@ -49,45 +61,83 @@ public class DocumentService(
 
         logger.LogDebug("Saving file to directory: {DirectoryPath}", directoryPath);
 
-        var storagePath = await SaveFileAsync(fileStream, directoryPath, uniqueFileName, cancellationToken);
+        var (storagePath, checksum) =
+            await CopyAndHashAsync(fileStream, directoryPath, uniqueFileName, cancellationToken);
 
-        logger.LogDebug("File saved to: {StoragePath}", storagePath);
+        logger.LogDebug("File saved to: {StoragePath} (checksum {Checksum})", storagePath, checksum);
 
-        fileStream.Seek(0, SeekOrigin.Begin);
-        var checksum = await CalculateChecksumAsync(fileStream, cancellationToken);
-
-        logger.LogDebug("File checksum: {Checksum}", checksum);
-
-        var uploadSession = await _uploadSessionRepository.GetByIdAsync(uploadSessionId, cancellationToken);
-        if (uploadSession is null)
+        // From here on the bytes are on the share, so anything that goes wrong has to take them
+        // with it on the way out.
+        try
         {
-            logger.LogError("Upload session {SessionId} not found", uploadSessionId);
-            throw new NotFoundException($"Upload session {uploadSessionId} not found");
-        }
+            // An image the server cannot decode without exhausting its memory is refused here,
+            // where the only thing wasted is the copy just made. Stored, it would sit as a trap
+            // for whoever opens a gallery later — and the API is hosted in-process, so that takes
+            // the whole site on that node down with it, not just the request.
+            //
+            // A multipart part is allowed to declare no Content-Type at all, and one written by
+            // hand — an integration client rather than a browser — often does. ASP.NET Core hands
+            // that over as an empty string, which the document's own constructor rejects, so it
+            // has to be given a type here rather than passed along as it came.
+            var contentType = string.IsNullOrWhiteSpace(file.ContentType)
+                ? "application/octet-stream"
+                : file.ContentType;
 
-        uploadSession.IncrementDocumentCount(file.Length);
+            if (contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+                && !imageResizeService.IsWithinDecodeBudget(storagePath, out var refusal))
+                throw new BadRequestException(refusal);
+
+            return await CreateDocumentRecordAsync(
+                docId, uploadSession, documentType, documentCategory, description,
+                file.FileName, Path.GetExtension(file.FileName), file.Length,
+                contentType,
+                storagePath, uniqueFileName, checksum, cancellationToken);
+        }
+        catch
+        {
+            TryDeleteFile(storagePath);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// The half of an upload that is the same however the bytes arrived: count them against the
+    /// session, write the row, and answer with it.
+    /// </summary>
+    private async Task<UploadDocumentResult> CreateDocumentRecordAsync(
+        Guid docId,
+        UploadSession uploadSession,
+        string documentType,
+        string documentCategory,
+        string? description,
+        string fileName,
+        string fileExtension,
+        long fileSizeBytes,
+        string contentType,
+        string storagePath,
+        string uniqueFileName,
+        string checksum,
+        CancellationToken cancellationToken)
+    {
+        uploadSession.IncrementDocumentCount(fileSizeBytes);
 
         // Generate storage URL
         var storageUrl =
             $"/{_fileStorageConfiguration.RootPath.TrimStart('/')}/{_fileStorageConfiguration.DocumentsPath}/{uniqueFileName}";
 
         var username = currentUserService.Username ?? "anonymous";
-        var userId = currentUserService.UserId?.ToString() ?? "anonymous";
 
-        logger.LogDebug(
-            "Creating document record for user {Username} ({UserId})",
-            username,
-            userId);
+        logger.LogDebug("Creating document record for user {Username}", username);
 
         var document = Domain.Documents.Models.Document.Create(
             docId,
             uploadSession.Id,
             documentType,
             documentCategory,
-            file.FileName,
-            Path.GetExtension(file.FileName),
-            fileStream.Length,
-            file.ContentType,
+            fileName,
+            fileExtension,
+            fileSizeBytes,
+            contentType,
             storagePath,
             storageUrl,
             username,
@@ -101,12 +151,11 @@ public class DocumentService(
         );
 
         await _documentRepository.AddAsync(document, cancellationToken);
-        //await uow.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
             "Successfully uploaded document {DocumentId} for session {SessionId}",
             document.Id,
-            uploadSessionId);
+            uploadSession.Id);
 
         return new UploadDocumentResult(
             document.Id,
@@ -149,10 +198,8 @@ public class DocumentService(
             _fileStorageConfiguration.DocumentsPath);
 
         await using var stream = new MemoryStream(bytes);
-        var storagePath = await SaveFileAsync(stream, directoryPath, uniqueFileName, cancellationToken);
-
-        stream.Seek(0, SeekOrigin.Begin);
-        var checksum = await CalculateChecksumAsync(stream, cancellationToken);
+        var (storagePath, checksum) =
+            await CopyAndHashAsync(stream, directoryPath, uniqueFileName, cancellationToken);
 
         var storageUrl =
             $"/{_fileStorageConfiguration.RootPath.TrimStart('/')}/{_fileStorageConfiguration.DocumentsPath}/{uniqueFileName}";
@@ -196,16 +243,87 @@ public class DocumentService(
         return document.Id;
     }
 
-    private async Task<string> SaveFileAsync(Stream fileStream, string directoryPath, string uniqueFileName,
+    /// <summary>
+    /// Copies the upload to its final path and computes its SHA-256 in the same pass.
+    /// </summary>
+    /// <remarks>
+    /// The file used to be copied and then read back to be hashed. At a few megabytes that was
+    /// invisible; at a gigabyte over SMB it is a second trip across the wire for bytes we had in
+    /// our hands moments earlier. Hashing as the bytes go past costs nothing and removes it.
+    /// <para>
+    /// The buffer is a megabyte rather than the framework's 80 KB because the destination is a
+    /// network share: every write is a round trip, and the default turns a 1 GB copy into thirteen
+    /// thousand of them. Memory stays flat regardless of file size — one buffer, reused.
+    /// </para>
+    /// </remarks>
+    private async Task<(string StoragePath, string ChecksumBase64)> CopyAndHashAsync(
+        Stream source,
+        string directoryPath,
+        string uniqueFileName,
         CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(directoryPath);
-
         var fullPath = Path.Combine(directoryPath, uniqueFileName);
-        await using var file = File.Create(fullPath);
-        await fileStream.CopyToAsync(file, cancellationToken);
 
-        return fullPath;
+        const int bufferSize = 1024 * 1024;
+
+        // FileMode.CreateNew, not Create: the name carries a fresh GUIDv7, so a file already
+        // sitting there means something is wrong — overwriting it would destroy a stored document
+        // silently. Opened outside the try below on purpose: that block deletes the file on the
+        // way out, and the one failure this open can produce is "it is already there", where
+        // deleting it would destroy exactly the document CreateNew is refusing to overwrite.
+        var destination = new FileStream(
+            fullPath,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+        var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+
+        try
+        {
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+
+            await using (destination)
+            {
+                int read;
+                while ((read = await source.ReadAsync(buffer.AsMemory(0, bufferSize), cancellationToken)) > 0)
+                {
+                    hash.AppendData(buffer, 0, read);
+                    await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                }
+            }
+
+            return (fullPath, Convert.ToBase64String(hash.GetHashAndReset()));
+        }
+        catch
+        {
+            // A copy that died partway leaves a file that looks like a document and is not one.
+            // Nothing sweeps this directory, so a half-written file would stay there for good —
+            // and the browser closing mid-upload makes this the ordinary case, not the rare one.
+            await destination.DisposeAsync();
+            TryDeleteFile(fullPath);
+            throw;
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    private void TryDeleteFile(string fullPath)
+    {
+        try
+        {
+            if (File.Exists(fullPath)) File.Delete(fullPath);
+        }
+        catch (Exception ex)
+        {
+            // Losing the cleanup must not replace the error that caused it.
+            logger.LogWarning(ex, "Could not remove incomplete upload at {StoragePath}", fullPath);
+        }
     }
 
     public async Task CopyToAsync(string sourcePath, string destinationPath, bool deleteSource = false,
@@ -246,14 +364,6 @@ public class DocumentService(
         logger.LogInformation("Document {DocumentId} deleted by {Username}", id, username);
 
         return true;
-    }
-
-    public async Task<string> CalculateChecksumAsync(Stream stream,
-        CancellationToken cancellationToken = default)
-    {
-        using var sha256 = SHA256.Create();
-        var hash = await sha256.ComputeHashAsync(stream, cancellationToken);
-        return Convert.ToBase64String(hash);
     }
 
     private string GetStorageBasePath()
