@@ -114,6 +114,28 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
         return Wrap(subject, sb.ToString(), showTitle: false);
     }
 
+    // Signatory requested by the bank; hardcoded until a configurable sender exists.
+    private const string AppraisalCompletedSignatureName = "เสาวลักษณ์ สุคนธา";
+
+    public string AppraisalCompletedNotice(string subject, AppraisalCompletedNoticeModel model)
+    {
+        var channel = Enc(model.Channel);
+        var sb = new System.Text.StringBuilder();
+        sb.Append("<p style=\"margin:0 0 12px;\">เรียน ").Append(Enc(model.RmName)).Append("</p>");
+        sb.Append("<p style=\"margin:0 0 12px;text-indent:2em;\">ขอแจ้งให้ทราบว่า การประเมินหลักประกันของลูกค้า <strong>")
+            .Append(Enc(model.CustomerName ?? "-"))
+            .Append("</strong> เลขเล่มประเมิน <strong>")
+            .Append(Enc(model.AppraisalNumber ?? "-"))
+            .Append("</strong> ได้ดำเนินการเสร็จสิ้นและผ่านการอนุมัติ<br/>")
+            .Append("กรุณารับทราบผลการประเมินและดำเนินการบันทึกข้อมูลในระบบ ").Append(channel)
+            .Append(" รวมถึงใช้ผลประเมินดังกล่าวประกอบการพิจารณาสินเชื่อต่อไป<br/>")
+            // The full report is attached in CAS itself, whatever the request's channel.
+            .Append("โดยได้แนบรายงานเล่มประเมินฉบับสมบูรณ์เพื่อประกอบการดำเนินงานในระบบ CAS แล้ว</p>");
+        sb.Append("<p style=\"margin:24px 0 0;\">ขอแสดงความนับถือ</p>");
+        sb.Append("<p style=\"margin:4px 0 0;\">").Append(Enc(AppraisalCompletedSignatureName)).Append("</p>");
+        return Wrap(subject, sb.ToString(), showTitle: false);
+    }
+
     // ---------------------------------------------------------------------------
     // Private helpers
     // ---------------------------------------------------------------------------
