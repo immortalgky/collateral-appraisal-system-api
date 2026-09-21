@@ -20,7 +20,18 @@ public interface IEmailTemplateRenderer
 
     /// <summary>Renders the "route-back to appraisal-initiation" email (fix collateral data).</summary>
     string RouteBackNotice(string subject, RouteBackNoticeModel model);
+
+    /// <summary>Renders the "appraisal completed and approved" email sent to the RM.</summary>
+    string AppraisalCompletedNotice(string subject, AppraisalCompletedNoticeModel model);
 }
+
+/// <summary>Render model for the appraisal-completed email. <see cref="Channel"/> is the request's
+/// channel (e.g. CLS / LOS) named in the body as the system to record the result in.</summary>
+public sealed record AppraisalCompletedNoticeModel(
+    string RmName,
+    string? CustomerName,
+    string? AppraisalNumber,
+    string Channel);
 
 /// <summary>Render model for the quotation fee-comparison email.</summary>
 public sealed record QuotationFeeNoticeModel(
