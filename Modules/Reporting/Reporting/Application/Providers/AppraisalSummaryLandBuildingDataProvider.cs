@@ -889,13 +889,26 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         decimal? ProgressPctOf(Guid propertyId) =>
             progressByProperty.TryGetValue(propertyId, out var p) ? p.ProgressPct : null;
 
+        // Which of the two building blocks a line belongs to. Same rule as anyProgressBelow100
+        // above, applied per property: no inspection, or one that already reads 100%, is a
+        // finished building and prints in the plain block with a single value cell.
+        bool IsUnderConstructionProperty(Guid propertyId) =>
+            ProgressPctOf(propertyId) is { } pct && pct < 100m;
+
         // Value at current progress. Null percent (no inspection) → the line is complete, so the
         // current value IS the 100% value. Zero percent (ยังไม่ก่อสร้าง) → null, rendered as "-".
+        //
+        // The percent is capped at 100: RS24 sums ConstructionWorkDetails.CurrentProportionPct,
+        // which nothing bounds, so a data error can read above 100. Uncapped, such a row landed in
+        // the COMPLETED block (IsUnderConstructionProperty treats >= 100 as finished) printing its
+        // 100% value, while the subtotals still carried value × 1.1 — and the printed blocks then
+        // no longer added up to รวมมูลค่าทรัพย์สินตามสภาพปัจจุบัน. Capping keeps the two in step.
         static decimal? CurrentValueOf(decimal? value100, decimal? pct)
         {
             if (value100 is null) return null;
             if (pct is null) return value100;
             if (pct.Value <= 0m) return null;
+            if (pct.Value >= 100m) return value100;
             return Math.Round(value100.Value * pct.Value / 100m, 2, MidpointRounding.AwayFromZero);
         }
 
@@ -1013,16 +1026,16 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 var bldParts = new List<string>();
                 if (!string.IsNullOrWhiteSpace(bld.BuildingTypeDisplay))
                     bldParts.Add($"พร้อม{bld.BuildingTypeDisplay}");
-                if (bld.NumberOfFloors.HasValue)
-                    bldParts.Add($"{bld.NumberOfFloors:#,##0.##} ชั้น");
+                if (bld.NumberOfFloors is { } bldFloors && bldFloors != 0m)
+                    bldParts.Add($"{bldFloors:#,##0.##} ชั้น");
                 if (!string.IsNullOrWhiteSpace(bld.HouseNumber))
                     bldParts.Add($"เลขที่ {bld.HouseNumber}");
                 if (!string.IsNullOrWhiteSpace(bld.ModelName) && bld.ModelName.Trim().Trim('-', '–', '—').Length > 0)
                     bldParts.Add($"ชื่อแบบ {bld.ModelName}");
                 if (bld.TotalBuildingArea.HasValue)
                     bldParts.Add($"พื้นที่ใช้สอย {bld.TotalBuildingArea:#,##0.##} ตารางเมตร");
-                if (bld.BuildingAge.HasValue)
-                    bldParts.Add($"อายุอาคาร {bld.BuildingAge} ปี");
+                if (bld.BuildingAge is { } bldAge && bldAge != 0)
+                    bldParts.Add($"อายุอาคาร {bldAge} ปี");
                 if (!string.IsNullOrWhiteSpace(bld.BuildingConditionDisplay))
                     bldParts.Add($"สภาพอาคาร{bld.BuildingConditionDisplay}");
                 // A market/combined group carries one blended value, so it never splits into the two
@@ -1066,20 +1079,26 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 .GroupBy(d => d.BuildingAppraisalDetailId)
                 .ToDictionary(grp => grp.Key, grp => grp.Sum(d => d.PriceAfterDepreciation ?? 0m));
 
-            var buildingItems = buildings
+            // Carries IsUnderConstruction alongside each row so the list can be partitioned into
+            // the two blocks below — SummaryItemRow itself stays a pure display row.
+            var buildingRows = buildings
                 .Where(b => !IsDevelopmentOnly(b))
                 .Select(b =>
                 {
                     var value = buildingValueById.TryGetValue(b.BuildingId, out var v) ? v : (decimal?)null;
                     var pct = ProgressPctOf(b.AppraisalPropertyId);
-                    return new SummaryItemRow
-                    {
-                        Description = BuildBuildingLine(b, pct),
-                        Value = value,
-                        CurrentValue = CurrentValueOf(value, pct)
-                    };
+                    return (
+                        IsUnderConstruction: IsUnderConstructionProperty(b.AppraisalPropertyId),
+                        Row: new SummaryItemRow
+                        {
+                            Description = BuildBuildingLine(b, pct),
+                            Value = value,
+                            CurrentValue = CurrentValueOf(value, pct)
+                        });
                 })
                 .ToList();
+
+            var buildingItems = buildingRows.ConvertAll(x => x.Row);
 
             // Print the moved rows in property order rather than the ORDER BY bdd.Id the query gives
             // (a Guid v7 sorts arbitrarily under SQL Server's uniqueidentifier collation), so each
@@ -1098,6 +1117,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                     var isMoved = movedNameByBuilding.TryGetValue(d.BuildingAppraisalDetailId, out var namePrefix);
                     return (
                         IsMoved: isMoved,
+                        IsUnderConstruction: IsUnderConstructionProperty(d.AppraisalPropertyId),
                         Row: new SummaryItemRow
                         {
                             Description = BuildItemDesc(d, "พื้นที่", pct, namePrefix),
@@ -1162,6 +1182,13 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             var landRowLabel = TranslateCollateralType(isLeaseholdFamily ? "LSL" : "L");
             var buildingRowLabel = TranslateCollateralType("B");
 
+            // Qualifier only — the noun still comes from the parameter map above, so a future
+            // rename of CollateralType 05 reaches both building blocks. "แบบแปลน" because a
+            // building that is not finished is valued from its plan, not from what stands today.
+            var buildingRowLabelUnderConstruction = string.IsNullOrWhiteSpace(buildingRowLabel)
+                ? null
+                : $"{buildingRowLabel} (แบบแปลน)";
+
             // ส่วนพัฒนา counts toward the building subtotal (matches the reference form, where
             // รวมมูลค่าสิ่งปลูกสร้าง = building lines + ส่วนพัฒนา lines).
             var buildingSubtotal = buildingItems.Sum(b => b.Value ?? 0m)
@@ -1169,6 +1196,27 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
             var buildingSubtotalCurrent = buildingItems.Sum(b => b.CurrentValue ?? 0m)
                                         + developmentItems.Sum(d => d.CurrentValue ?? 0m);
+
+            // The form prints สิ่งปลูกสร้าง as two blocks — finished, then under construction —
+            // so that only the second one carries the เมื่อแล้วเสร็จ 100% / ตามสภาพปัจจุบัน column
+            // pair. Printing one merged block put finished buildings under those headings with the
+            // same figure in both cells, which reads as "this building is still being built".
+            // A ส่วนพัฒนา line follows its OWN property, so both blocks can carry one.
+            var buildingsCompleted = buildingRows.Where(x => !x.IsUnderConstruction)
+                                                 .Select(x => x.Row).ToList();
+            var buildingsUnderConstruction = buildingRows.Where(x => x.IsUnderConstruction)
+                                                         .Select(x => x.Row).ToList();
+            var developmentCompleted = developmentRows.Where(x => !x.IsUnderConstruction)
+                                                      .Select(x => x.Row).ToList();
+            var developmentUnderConstruction = developmentRows.Where(x => x.IsUnderConstruction)
+                                                              .Select(x => x.Row).ToList();
+
+            var buildingSubtotalCompleted = buildingsCompleted.Sum(b => b.Value ?? 0m)
+                                          + developmentCompleted.Sum(d => d.Value ?? 0m);
+            var buildingSubtotalUc = buildingsUnderConstruction.Sum(b => b.Value ?? 0m)
+                                   + developmentUnderConstruction.Sum(d => d.Value ?? 0m);
+            var buildingSubtotalUcCurrent = buildingsUnderConstruction.Sum(b => b.CurrentValue ?? 0m)
+                                          + developmentUnderConstruction.Sum(d => d.CurrentValue ?? 0m);
 
             // The not-yet-built portion of this group, subtracted from the group and appraisal
             // totals to get the ตามสภาพปัจจุบัน figures.
@@ -1212,6 +1260,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 LandRowLabel = landRowLabel,
                 HasBuilding = hasBuilding,
                 BuildingRowLabel = buildingRowLabel,
+                BuildingRowLabelUnderConstruction = buildingRowLabelUnderConstruction,
                 ShowLandUnitColumns = showLandUnitColumns,
                 MarketLandArea = marketLandArea,
                 MarketLandUnitPrice = marketLandUnitPrice,
@@ -1225,8 +1274,16 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 LandSubtotal = g.LandValue,
                 BuildingSubtotal = buildingSubtotal == 0m ? null : buildingSubtotal,
                 BuildingSubtotalCurrent = buildingSubtotalCurrent == 0m ? null : buildingSubtotalCurrent,
+                BuildingSubtotalCompleted = buildingSubtotalCompleted == 0m ? null : buildingSubtotalCompleted,
+                BuildingSubtotalUnderConstruction = buildingSubtotalUc == 0m ? null : buildingSubtotalUc,
+                BuildingSubtotalUnderConstructionCurrent =
+                    buildingSubtotalUcCurrent == 0m ? null : buildingSubtotalUcCurrent,
                 Buildings = buildingItems,
                 DevelopmentItems = developmentItems,
+                BuildingsCompleted = buildingsCompleted,
+                DevelopmentItemsCompleted = developmentCompleted,
+                BuildingsUnderConstruction = buildingsUnderConstruction,
+                DevelopmentItemsUnderConstruction = developmentUnderConstruction,
                 GroupTotal = groupTotal,
                 // Summed from the components this group actually prints — land subtotal plus the
                 // current-condition building subtotal — so the total always equals the rows above
@@ -1562,12 +1619,16 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         var parts = new List<string>();
         if (BuildingDisplayName(b) is { } name)
             parts.Add(name);
-        if (b.NumberOfFloors.HasValue)
-            parts.Add($"{b.NumberOfFloors:#,##0.##} ชั้น");
+        // Floors and age are left blank far more often than they are genuinely zero, and the
+        // form has no way to say "not stated" — so an unentered 0 printed as "0 ชั้น" / "อายุอาคาร
+        // 0 ปี", which reads as a fact. Same rule as the ส่วนพัฒนา line below, which already
+        // suppressed a zero year.
+        if (b.NumberOfFloors is { } floors && floors != 0m)
+            parts.Add($"{floors:#,##0.##} ชั้น");
         if (b.TotalBuildingArea.HasValue)
             parts.Add($"พื้นที่ใช้สอย {b.TotalBuildingArea:#,##0.##} ตารางเมตร");
-        if (b.BuildingAge.HasValue)
-            parts.Add($"อายุอาคาร {b.BuildingAge} ปี");
+        if (b.BuildingAge is { } age && age != 0)
+            parts.Add($"อายุอาคาร {age} ปี");
         if (!string.IsNullOrWhiteSpace(b.BuildingConditionDisplay))
             parts.Add($"สภาพอาคาร{b.BuildingConditionDisplay}");
         if (ProgressSuffix(progressPct) is { } suffix)

@@ -89,6 +89,7 @@ public sealed class MeetingInvitationDataProvider(
             LEFT JOIN appraisal.ValuationAnalyses v ON v.AppraisalId = a.Id
             LEFT JOIN appraisal.AppraisalDecisions ad ON ad.AppraisalId = a.Id
             WHERE mi.MeetingId = @MeetingId
+            ORDER BY a.AppraisalNumber
             """;
 
         var items = (await connection.QueryAsync<MeetingItemFlat>(itemsSql, p)).ToList();

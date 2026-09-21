@@ -40,6 +40,10 @@ namespace Collateral.Migrations
                     b.Property<DateTime?>("LastAppraisedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("NotRequiredRemark")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("OldAppraisalNumber")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");

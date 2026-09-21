@@ -255,6 +255,12 @@ public static class MenuSeedData
                 new("main.webhook-subscriptions", "Webhook Subscriptions", "plug-circle-bolt", IconStyle.Solid, "text-slate-500", "/admin/webhook-subscriptions", "WEBHOOK_SUBSCRIPTIONS_MANAGE", null),
                 new("main.webhook-deliveries", "Webhook Deliveries", "satellite-dish", IconStyle.Solid, "text-slate-500", "/admin/webhook-deliveries", "WEBHOOK_DELIVERIES_VIEW", null),
                 new("main.job-schedules", "Scheduled Jobs", "clock", IconStyle.Solid, "text-slate-500", "/admin/job-schedules", "JOB_SCHEDULE_MANAGE", "JOB_SCHEDULE_MANAGE"),
+                // The Hangfire dashboard itself, embedded by the SPA page at /admin/hangfire. This
+                // permission does double duty: it reveals the entry AND authorises the dashboard
+                // (the "HangfireDashboard" policy in AuthModule resolves it from the database for
+                // the login cookie). Seeing the entry additionally needs LOGS_VIEW, which gates the
+                // parent group.
+                new("main.hangfire-dashboard", "Hangfire Dashboard", "gauge-high", IconStyle.Solid, "text-slate-500", "/admin/hangfire", "JOB_SCHEDULE_MANAGE", "JOB_SCHEDULE_MANAGE"),
             }, LabelTh: "ระบบ"),
     };
 

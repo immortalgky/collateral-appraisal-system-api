@@ -166,8 +166,24 @@ public record PropertyGroupItemDto
     public string? Brand { get; set; }
     public string? Model { get; set; }
     public string? RegistrationNumber { get; set; }
+    /// <summary>Machinery only: registered with the authorities. Null for other property types.</summary>
+    public bool? RegistrationStatus { get; set; }
+    /// <summary>Machinery only: appraiser certifies this machine's price. Null for other types.</summary>
+    public bool? IsPriceCertified { get; set; }
+
+    /// <summary>Machinery only: ConditionUse parameter code. Null for other property types.</summary>
+    public string? ConditionUse { get; set; }
     public string? Dimension { get; set; }
     public string? Location { get; set; }
+
+    /// <summary>Building only: BuildingType parameter code. Null for other property types.</summary>
+    public string? BuildingType { get; set; }
+
+    /// <summary>Building only: the free-text type entered when BuildingType is '99' (other).</summary>
+    public string? BuildingTypeOther { get; set; }
+
+    /// <summary>Building only: storeys. Decimal because a mezzanine is recorded as a half floor.</summary>
+    public decimal? NumberOfFloors { get; set; }
     /// <summary>Title deed no(s): comma-joined LandTitles for land, unit deed for condo.</summary>
     public string? TitleNo { get; set; }
     /// <summary>True for plain land (L/LB) flagged "rented out to others"; null for non-land types.</summary>

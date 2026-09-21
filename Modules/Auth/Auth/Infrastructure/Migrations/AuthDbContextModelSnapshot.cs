@@ -440,6 +440,11 @@ namespace Auth.Infrastructure.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
 
+                    b.Property<bool>("IsSystem")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("datetime2");
 

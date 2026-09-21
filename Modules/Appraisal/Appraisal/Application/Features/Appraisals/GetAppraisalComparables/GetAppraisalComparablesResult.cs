@@ -30,6 +30,19 @@ public record AppraisalComparableDto
     public string? ComparableOfferPriceUnit { get; set; }
     public string? ComparableSalePriceUnit { get; set; }
 
+    // For the Markets tab rows and map
+    public decimal? ComparableLatitude { get; set; }
+    public decimal? ComparableLongitude { get; set; }
+    public decimal? ComparableLandAreaSqWa { get; set; }
+
+    /// <summary>JSON array of PlotLocation parameter codes, e.g. <c>["01","03"]</c>.</summary>
+    public string? ComparablePlotLocation { get; set; }
+
+    public Guid? ComparableThumbnailDocumentId { get; set; }
+
+    /// <summary>Comma-joined MethodType of this appraisal's pricing methods that use the comparable.</summary>
+    public string? UsedInMethods { get; set; }
+
     // Nested collection (loaded separately)
     public List<ComparableAdjustmentDto> Adjustments { get; set; } = [];
 }

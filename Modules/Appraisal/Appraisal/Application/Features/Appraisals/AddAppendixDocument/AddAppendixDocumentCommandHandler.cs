@@ -41,8 +41,18 @@ public class AddAppendixDocumentCommandHandler(
             if (!isPdf && !isImage)
                 throw new BadRequestException($"'{file.MimeType}' is not a supported appendix document type.");
 
-            if (file.FileSizeBytes > fileStorageOptions.Value.MaxFileSizeBytes)
-                throw new BadRequestException("The document exceeds the maximum allowed file size.");
+            // The appendix limit, not the upload limit. The report book holds every page it
+            // carries in memory at once, so what may be stored and what may be bound into a book
+            // are different sizes — and a file accepted here that the assembler later refuses
+            // would drop out of the finished book with nothing said to anyone, because the report
+            // job can only report a failure, not a warning on a job that succeeded.
+            var maxAppendixBytes = fileStorageOptions.Value.MaxAppendixFileSizeBytes;
+            if (file.FileSizeBytes > maxAppendixBytes)
+                // Rounded up, not truncated: a 100.4 MB file over a 100 MB cap has to read as
+                // "101 MB", or the message refuses a file for being exactly the allowed size.
+                throw new BadRequestException(
+                    $"An appendix file must not exceed {maxAppendixBytes / (1024 * 1024)} MB " +
+                    $"(this file is {Math.Ceiling(file.FileSizeBytes / 1024d / 1024d)} MB).");
 
             document = appendix.AddPdfDocument(documentId, command.DisplaySequence);
         }

@@ -68,6 +68,42 @@ public class ChangeProjectTypeCommandHandler(
         var facilities       = existing.Facilities is not null ? new List<string>(existing.Facilities) : null;
         var facilitiesOther  = existing.FacilitiesOther;
         var remark           = existing.Remark;
+        // Construction progress IS carried across, unlike the type-specific fields below.
+        //
+        // Clearing it was tried and is worse. The pair describes the development, not its
+        // inventory, and a cleared pair does not read downstream as "unknown" — NULL on a
+        // completed appraisal is reported to LOS as 100% under the accepted rule. So the choice is
+        // between carrying a figure an appraiser actually observed and minting one nobody ever
+        // did. A possibly-stale 45 beats a fabricated 100. The realistic sequence is not exotic:
+        // record 45%, change type mid-appraisal, rebuild the inventory, save without re-ticking
+        // the box, complete — and LOS is told a half-built development is finished.
+        //
+        // The cost of carrying, stated plainly: the inventory that 45% described is gone, so the
+        // figure can outlive what it measured, and Update never writes the flag back to NULL — the
+        // only ways out are unticking (which stores false and reports 100) or a round trip through
+        // Land. Both directions have a bad case; this one is bad with a number a human once
+        // observed, the other is bad with one nobody ever did.
+        //
+        // It does not survive a round trip THROUGH Land: Create drops the pair for a type that
+        // carries no structures, so LB -> L -> LB comes back empty. That is proportionate -- the
+        // same switch destroys every tower, model and unit both ways, so the appraiser is rebuilding
+        // the project from nothing and re-ticking a checkbox is the smallest part of it.
+        //
+        // Still worth doing separately: this handler has no appraisal-status guard, so a direct
+        // call against a COMPLETED appraisal also destroys its whole tower/model/unit inventory.
+        // The frontend already blocks it (ProjectTypePill disables on read-only), so a guard would
+        // break no caller.
+        //
+        // RejectClosedAppraisalWriteFilter is the module's mechanism for this and was tried here.
+        // It is not enough on its own, for two reasons found in review: fifteen block write routes
+        // lack it (SaveProjectUnitPrices among them, which writes the very figures the LOS feed
+        // reports as appraised and forced-sale value), so guarding three of them just moves the
+        // hole; and the filter's 409 sends the caller to the data-correction screen, which is keyed
+        // on an AppraisalProperty — a block has none, so a completed block would become uneditable
+        // through every API with nowhere to go. The guard belongs with a project-level correction
+        // path, as one piece of work.
+        var isUnderConstruction = existing.IsUnderConstruction;
+        var constructionPct     = existing.ConstructionProgressPercent;
         // Type-specific fields are intentionally NOT snapshotted; they are reset for the new type.
 
         // Begin explicit transaction — the handler owns both SaveChanges calls
@@ -112,6 +148,8 @@ public class ChangeProjectTypeCommandHandler(
                 facilities:           facilities,
                 facilitiesOther:      facilitiesOther,
                 remark:               remark,
+                isUnderConstruction:  isUnderConstruction,
+                constructionProgressPercent: constructionPct,
                 builtOnTitleDeedNumber: null,   // type-specific — reset
                 licenseExpirationDate:  null);  // type-specific — reset
 
@@ -158,6 +196,8 @@ public class ChangeProjectTypeCommandHandler(
             Facilities:            project.Facilities,
             FacilitiesOther:       project.FacilitiesOther,
             Remark:                project.Remark,
+            IsUnderConstruction: project.IsUnderConstruction,
+            ConstructionProgressPercent: project.ConstructionProgressPercent,
             BuiltOnTitleDeedNumber: project.BuiltOnTitleDeedNumber,
             LicenseExpirationDate:  project.LicenseExpirationDate);
 }

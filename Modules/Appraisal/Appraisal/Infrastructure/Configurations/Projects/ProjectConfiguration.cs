@@ -91,10 +91,17 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Project>
         builder.Property(p => p.FacilitiesOther).HasMaxLength(500);
 
         // Type-specific nullable fields
-        builder.Property(p => p.BuiltOnTitleDeedNumber).HasMaxLength(100);
+        // 500 to match CondoAppraisalDetails/BuildingAppraisalDetails.BuiltOnTitleNumber
+        // (widened by 20260722083540_BuiltOnTitleNumberFieldLength): a condo can sit on many
+        // parcels and the value is stored as one comma-separated list.
+        builder.Property(p => p.BuiltOnTitleDeedNumber).HasMaxLength(500);
 
         // Other
         builder.Property(p => p.Remark).HasMaxLength(4000);
+
+        // Construction progress — same shape as ConstructionInspections.SummaryCurrentProgressPct
+        // and CollateralEngagements.ConstructionProgressPercent.
+        builder.Property(p => p.ConstructionProgressPercent).HasPrecision(7, 4);
 
         // Child relationships (child entities are their own tables — NOT owned)
         builder.HasMany(p => p.Towers)

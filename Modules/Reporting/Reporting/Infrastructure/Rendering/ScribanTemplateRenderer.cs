@@ -72,7 +72,29 @@ internal sealed class ScribanTemplateRenderer(
         {
             MemberRenamer = StandardMemberRenamer.Rename,
             // Enables {{ include 'partials/...' }} — lets composite reports share sections.
-            TemplateLoader = new FilePartialTemplateLoader()
+            TemplateLoader = new FilePartialTemplateLoader(),
+            // Scriban defaults to 1000 iterations per loop, which is a template-authoring
+            // guard, not a report limit: a block/project legitimately lists every unit it
+            // owns and real projects already exceed 1,600.
+            // The budget is per loop STATEMENT but is not reset when an enclosing loop
+            // re-enters it, so for the book report's nested loops (section-appendix's
+            // for-group/for-image, section-comparison's for-table/for-row/for-value) 100,000
+            // is the total across every pass, not the count of any one pass. Still orders of
+            // magnitude above anything real, and it throws with the limit in the message —
+            // so a report that ever outgrows it fails loudly rather than arriving short.
+            LoopLimit = 100_000,
+            // Scriban also caps the RENDERED OUTPUT (LimitToString, default 1 MiB) and — unlike
+            // the loop limit — it does not throw: it stops writing mid-token, appends "...", and
+            // returns success. The truncated HTML then sails through PDF assembly and reaches the
+            // user looking complete, just short: once the loop limit above was raised, the block
+            // form silently dropped units 157–1,614 and the job still reported success.
+            // Content inside an {{ include }} is charged to the budget more than once, so the
+            // real ceiling is far below 1 MiB of finished document and cannot be derived from
+            // the document's size — measured on that report, 1 MiB was spent by ~120 KB of
+            // output. Disable it and let LoopLimit above be the guard: that one bounds the
+            // INPUT, which we can reason about, and fails loudly instead of shipping half a
+            // report.
+            LimitToString = 0
         };
         // Pin formatting culture so math.format separators are deterministic across
         // servers regardless of the host/request locale (invariant = "1,234,567.89").

@@ -34,6 +34,8 @@ public record ChangeProjectTypeResult(
     List<string>? Facilities,
     string? FacilitiesOther,
     string? Remark,
+    bool? IsUnderConstruction,
+    decimal? ConstructionProgressPercent,
     string? BuiltOnTitleDeedNumber,
     DateTime? LicenseExpirationDate
 );

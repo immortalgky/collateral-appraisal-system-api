@@ -27,4 +27,11 @@ public class ApplicationUser : IdentityUser<Guid>
 
     /// <summary>When the local password was last set. Used to enforce password expiry. Null for legacy/LDAP accounts.</summary>
     public DateTime? PasswordChangedAt { get; set; }
+
+    /// <summary>Technical account (break-glass admin, service account) rather than a real member of staff.
+    /// System accounts are excluded from the user-facing reports — the Access Report, the user list and
+    /// the auth audit log — so the bank's access matrix only shows actual people. The account keeps working
+    /// normally; it is only hidden from those reads, and there is no way to opt back in through the API,
+    /// so maintaining such an account has to happen in the database.</summary>
+    public bool IsSystem { get; set; } = false;
 }

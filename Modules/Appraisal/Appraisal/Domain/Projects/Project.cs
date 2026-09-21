@@ -53,6 +53,29 @@ public class Project : Aggregate<Guid>
     // Other
     public string? Remark { get; private set; }
 
+    // ----- Construction Progress -----
+
+    /// <summary>
+    /// Whether the project is still being built. Only meaningful on a type that can carry a
+    /// structure -- Create/Update drop it on bare Land, which is a subdivision of empty plots.
+    /// <para>
+    /// Unlike every other field here, <see cref="Update"/> does NOT full-replace this pair: a save
+    /// that omits both leaves them alone. A cleared flag is not read back as a blank --
+    /// GetAppraisalResult reports an unset flag on a completed appraisal as 100% complete -- so
+    /// treating an omission as "clear it" turns a recorded 45% into a reported 100%.
+    /// </para>
+    /// </summary>
+    public bool? IsUnderConstruction { get; private set; }
+
+    /// <summary>
+    /// Overall construction progress of the whole project, 0-100. One figure for the project, not
+    /// per tower/model/unit -- every unit of the project reports it. Fixed for the life of this
+    /// appraisal; a later round of progress is captured by a new (re)appraisal, not by editing this.
+    /// Only ever set while <see cref="IsUnderConstruction"/> is true and the type has structures:
+    /// Create/Update drop it otherwise, so the two columns can never disagree.
+    /// </summary>
+    public decimal? ConstructionProgressPercent { get; private set; }
+
     // ----- Type-Specific Nullable Fields -----
 
     /// <summary>Condo only — built-on title deed number.</summary>
@@ -119,11 +142,15 @@ public class Project : Aggregate<Guid>
         string? facilitiesOther = null,
         // Other
         string? remark = null,
+        // Construction Progress
+        bool? isUnderConstruction = null,
+        decimal? constructionProgressPercent = null,
         // Type-specific
         string? builtOnTitleDeedNumber = null,
         DateTime? licenseExpirationDate = null)
     {
-        ValidateSharedFields(landAreaRai, landAreaNgan, landAreaSquareWa, unitForSaleCount, numberOfPhase);
+        ValidateSharedFields(landAreaRai, landAreaNgan, landAreaSquareWa, unitForSaleCount, numberOfPhase,
+            constructionProgressPercent);
         ValidateProjectSaleLaunchDate(projectSaleLaunchDate);
         ValidateTypeSpecificFields(projectType, builtOnTitleDeedNumber, licenseExpirationDate);
 
@@ -153,6 +180,15 @@ public class Project : Aggregate<Guid>
             Facilities = facilities,
             FacilitiesOther = facilitiesOther,
             Remark = remark,
+            // Dropped on bare Land, and the percent dropped again unless the flag is ticked --
+            // the same shape as the type-specific fields below. Keeps the pair from ever reading
+            // "finished, 72% done", which a consumer that skipped the flag would take at face
+            // value, and keeps construction data off a project that has nothing built on it.
+            IsUnderConstruction = projectType.HasStructures() ? isUnderConstruction : null,
+            ConstructionProgressPercent =
+                projectType.HasStructures() && isUnderConstruction == true
+                    ? constructionProgressPercent
+                    : null,
             BuiltOnTitleDeedNumber = projectType == ProjectType.Condo ? builtOnTitleDeedNumber : null,
             LicenseExpirationDate = projectType.IsLandAndBuildingLike() ? licenseExpirationDate : null
         };
@@ -194,11 +230,15 @@ public class Project : Aggregate<Guid>
         string? facilitiesOther = null,
         // Other
         string? remark = null,
+        // Construction Progress
+        bool? isUnderConstruction = null,
+        decimal? constructionProgressPercent = null,
         // Type-specific
         string? builtOnTitleDeedNumber = null,
         DateTime? licenseExpirationDate = null)
     {
-        ValidateSharedFields(landAreaRai, landAreaNgan, landAreaSquareWa, unitForSaleCount, numberOfPhase);
+        ValidateSharedFields(landAreaRai, landAreaNgan, landAreaSquareWa, unitForSaleCount, numberOfPhase,
+            constructionProgressPercent);
         ValidateProjectSaleLaunchDate(projectSaleLaunchDate);
         ValidateTypeSpecificFields(ProjectType, builtOnTitleDeedNumber, licenseExpirationDate);
 
@@ -223,6 +263,56 @@ public class Project : Aggregate<Guid>
         Facilities = facilities;
         FacilitiesOther = facilitiesOther;
         Remark = remark;
+        // The one pair that is NOT full-replaced. Every other field here degrades to a blank when a
+        // payload omits it; this one degrades to a confident wrong number, because a cleared value
+        // is stored as NULL and NULL on a completed appraisal is read downstream as 100% complete.
+        // Both arriving null therefore means "this writer had nothing to say", not "clear it": the
+        // API and the form release from separate repos, so during a rolling deploy an older bundle
+        // that never learned these fields would otherwise wipe a recorded 45% into a reported 100%.
+        // Nothing can set either back to null once set, and nothing needs to -- unticking the box
+        // stores an explicit false, which nulls the percent through the arm below.
+        //
+        // The FLAG alone opens the gate, never the percent: a payload carrying a stray percent with
+        // no flag is exactly the "clamp lost a race" case the final validator anticipates, and
+        // letting it in would assign the missing flag as null and wipe a stored true -- the precise
+        // failure this guard exists to stop.
+        if (isUnderConstruction is not null)
+        {
+            var applicable = ProjectType.HasStructures();
+
+            // A type that carries no structures DISCARDS the pair, exactly as Create does. Throwing
+            // instead was tried twice and is wrong twice over: the throw lands after this method has
+            // already assigned name, land area, address and the rest, and TransactionalBehavior
+            // rolls the whole save back -- so a rejected checkbox silently takes every other edit
+            // on the page with it, naming a type ("L") the screen never showed. And Create accepts
+            // and drops the identical input, so the two halves of the same aggregate would answer
+            // the same payload in opposite ways. The UI path is closed on the form instead:
+            // ProjectInfoForm hides these fields when the LOADED project type is "L", rather than
+            // the route's, which always says "LB".
+            IsUnderConstruction = applicable ? isUnderConstruction : null;
+
+            if (!applicable || isUnderConstruction == false)
+            {
+                ConstructionProgressPercent = null;
+            }
+            else if (constructionProgressPercent is not null)
+            {
+                ConstructionProgressPercent = constructionProgressPercent;
+            }
+            // else: ticked, with the number momentarily blank. The ordinary way to reach it is an
+            // appraiser clearing the input to retype while a draft autosave fires; full-replacing
+            // here would erase a recorded 45 on a keystroke. A genuine clear still happens the
+            // honest way: untick, and the false arm above nulls it.
+            //
+            // The state can OUTLIVE the draft. The final validator demands a percent only when the
+            // REQUEST ticks the flag, and this whole block is skipped when the request's flag is
+            // null -- so a project left at (true, null) by an autosave can pass a final Save that
+            // omits the pair and complete that way. GetAppraisalResult then reports null rather
+            // than a number, which is the safe direction (absent, not invented) but is not what
+            // the contract comment on ConstructionPct promises. Closing it needs the validator to
+            // read the STORED flag, i.e. the DB-read-in-validator change deferred in
+            // SaveProjectCommandValidator's KNOWN GAP note.
+        }
         BuiltOnTitleDeedNumber = ProjectType == ProjectType.Condo ? builtOnTitleDeedNumber : null;
         LicenseExpirationDate = ProjectType.IsLandAndBuildingLike() ? licenseExpirationDate : null;
     }
@@ -1093,7 +1183,7 @@ public class Project : Aggregate<Guid>
 
     private static void ValidateSharedFields(
         decimal? landAreaRai, decimal? landAreaNgan, decimal? landAreaSquareWa,
-        int? unitForSaleCount, int? numberOfPhase)
+        int? unitForSaleCount, int? numberOfPhase, decimal? constructionProgressPercent)
     {
         if (landAreaRai is < 0)
             throw new ArgumentException("Land area (Rai) cannot be negative", nameof(landAreaRai));
@@ -1105,6 +1195,10 @@ public class Project : Aggregate<Guid>
             throw new ArgumentException("Unit for sale count cannot be negative", nameof(unitForSaleCount));
         if (numberOfPhase is < 0)
             throw new ArgumentException("Number of phases cannot be negative", nameof(numberOfPhase));
+        if (constructionProgressPercent is < 0 or > 100)
+            throw new ArgumentException(
+                "Construction progress percent must be between 0 and 100",
+                nameof(constructionProgressPercent));
     }
 
     private static void ValidateTypeSpecificFields(

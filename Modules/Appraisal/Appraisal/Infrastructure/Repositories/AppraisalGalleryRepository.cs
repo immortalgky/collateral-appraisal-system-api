@@ -95,6 +95,17 @@ public class AppraisalGalleryRepository(AppraisalDbContext dbContext)
         _dbContext.GalleryPhotoTopicMappings.RemoveRange(mappings);
     }
 
+    public async Task DeleteLawImagesByPhotoIdAsync(Guid galleryPhotoId, CancellationToken ct = default)
+    {
+        // A law & regulation item holds its images by gallery photo id, with no foreign key, so a
+        // photo deleted from the gallery used to leave its law image rows pointing at nothing.
+        var images = await _dbContext.LawAndRegulationImages
+            .Where(i => i.GalleryPhotoId == galleryPhotoId)
+            .ToListAsync(ct);
+
+        _dbContext.LawAndRegulationImages.RemoveRange(images);
+    }
+
     public async Task<bool> IsPhotoLinkedAnywhereAsync(Guid galleryPhotoId, CancellationToken ct = default)
     {
         // Single-photo form delegates to the batched check so the "what counts as a link" rule

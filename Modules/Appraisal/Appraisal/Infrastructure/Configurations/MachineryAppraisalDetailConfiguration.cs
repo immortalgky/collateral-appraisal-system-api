@@ -21,6 +21,13 @@ public class
         builder.Property(e => e.RegistrationNumber).HasMaxLength(50);
         builder.Property(e => e.SerialNo).HasMaxLength(100);
 
+        // Registration & Installation (codes from GeneralParameters: MachineStatus / MachineType)
+        builder.Property(e => e.RegistrationStatus).HasDefaultValue(false);
+        builder.Property(e => e.InstallationStatus).HasMaxLength(10);
+        builder.Property(e => e.MachineType).HasMaxLength(10);
+        builder.Property(e => e.InvoiceNumber).HasMaxLength(20);
+        builder.Property(e => e.IsPriceCertified).HasDefaultValue(true);
+
         // Machine Specifications
         builder.Property(e => e.Brand).HasMaxLength(100);
         builder.Property(e => e.Model).HasMaxLength(100);
@@ -31,8 +38,8 @@ public class
         builder.Property(e => e.PurchasePrice).HasPrecision(18, 2);
 
         // Dimensions
-        builder.Property(e => e.Capacity).HasMaxLength(100);
-        builder.Property(e => e.MachineDimensions).HasMaxLength(200);
+        builder.Property(e => e.Capacity).HasMaxLength(300);
+        builder.Property(e => e.MachineDimensions).HasMaxLength(300);
         builder.Property(e => e.Width).HasPrecision(10, 2);
         builder.Property(e => e.Length).HasPrecision(10, 2);
         builder.Property(e => e.Height).HasPrecision(10, 2);
@@ -50,7 +57,7 @@ public class
         builder.Property(e => e.MachineCondition).HasMaxLength(100);
         builder.Property(e => e.MachineEfficiency).HasMaxLength(100);
         builder.Property(e => e.MachineTechnology).HasMaxLength(100);
-        builder.Property(e => e.UsagePurpose).HasMaxLength(200);
+        builder.Property(e => e.UsagePurpose).HasMaxLength(300);
         builder.Property(e => e.MachineParts).HasMaxLength(4000);
 
         // Valuation

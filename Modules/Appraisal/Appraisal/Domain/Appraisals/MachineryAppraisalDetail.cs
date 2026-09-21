@@ -17,6 +17,24 @@ public class MachineryAppraisalDetail : Entity<Guid>
     public string? RegistrationNumber { get; private set; }
     public string? SerialNo { get; private set; }
 
+    // Registration & Installation — carried over from the request title (MachineInfo) and
+    // editable by the appraiser. Codes come from the GeneralParameters master:
+    // InstallationStatus = group "MachineStatus" (1 = installed, 2 = under procurement),
+    // MachineType = group "MachineType" (1..3).
+    public bool RegistrationStatus { get; private set; }
+    public string? InstallationStatus { get; private set; }
+    public string? MachineType { get; private set; }
+    public string? InvoiceNumber { get; private set; }
+
+    /// <summary>
+    /// Price certification for THIS machine — the same decision the machinery summary report
+    /// prints as "(ไม่ประเมินมูลค่า)". Distinct from AppraisalDecision.IsPriceVerified, which is
+    /// appraisal-wide and zeroes the valuation totals; this one is descriptive and does not touch
+    /// pricing. Entirely the appraiser's call: registration and installation status no longer
+    /// constrain it.
+    /// </summary>
+    public bool IsPriceCertified { get; private set; } = true;
+
     // Machine Specifications
     public string? Brand { get; private set; }
     public string? Model { get; private set; }
@@ -89,6 +107,11 @@ public class MachineryAppraisalDetail : Entity<Guid>
             ChassisNo = source.ChassisNo,
             RegistrationNumber = source.RegistrationNumber,
             SerialNo = source.SerialNo,
+            RegistrationStatus = source.RegistrationStatus,
+            InstallationStatus = source.InstallationStatus,
+            MachineType = source.MachineType,
+            InvoiceNumber = source.InvoiceNumber,
+            IsPriceCertified = source.IsPriceCertified,
             Brand = source.Brand,
             Model = source.Model,
             Series = source.Series,
@@ -131,6 +154,12 @@ public class MachineryAppraisalDetail : Entity<Guid>
         string? chassisNo = null,
         string? registrationNumber = null,
         string? serialNo = null,
+        // Registration & Installation
+        bool? registrationStatus = null,
+        string? installationStatus = null,
+        string? machineType = null,
+        string? invoiceNumber = null,
+        bool? isPriceCertified = null,
         // Machine Specifications
         string? brand = null,
         string? model = null,
@@ -179,6 +208,13 @@ public class MachineryAppraisalDetail : Entity<Guid>
         if (registrationNumber is not null) RegistrationNumber = registrationNumber;
         if (serialNo is not null) SerialNo = serialNo;
 
+        // Registration & Installation
+        if (registrationStatus.HasValue) RegistrationStatus = registrationStatus.Value;
+        if (installationStatus is not null) InstallationStatus = installationStatus;
+        if (machineType is not null) MachineType = machineType;
+        if (invoiceNumber is not null) InvoiceNumber = invoiceNumber;
+        if (isPriceCertified.HasValue) IsPriceCertified = isPriceCertified.Value;
+
         // Machine Specifications
         if (brand is not null) Brand = brand;
         if (model is not null) Model = model;
@@ -225,6 +261,30 @@ public class MachineryAppraisalDetail : Entity<Guid>
         if (remark is not null) Remark = remark;
         if (other is not null) Other = other;
         if (appraiserOpinion is not null) AppraiserOpinion = appraiserOpinion;
+
+        ClearInapplicableFields();
+    }
+
+    /// <summary>MachineStatus parameter code for "under procurement".</summary>
+    private const string UnderProcurementStatus = "2";
+
+    /// <summary>
+    /// A machine that is not registered has no registration number, and one that is not being
+    /// procured has no quotation it was priced from — so those columns are emptied rather than
+    /// left holding a value the record contradicts.
+    ///
+    /// Enforced here, not in the form, so it holds for every entry point: create, update, admin
+    /// correction, and anything that reaches the aggregate later. The form disables the same two
+    /// boxes for the same reasons; this is what makes the database agree with what it shows.
+    ///
+    /// Note what this is NOT: <see cref="IsPriceCertified"/> is left alone. Certifying a price is
+    /// the appraiser's judgement, and an invariant that inferred it from these same two fields was
+    /// removed deliberately.
+    /// </summary>
+    private void ClearInapplicableFields()
+    {
+        if (!RegistrationStatus) RegistrationNumber = null;
+        if (InstallationStatus != UnderProcurementStatus) InvoiceNumber = null;
     }
 
     /// <summary>
@@ -232,12 +292,24 @@ public class MachineryAppraisalDetail : Entity<Guid>
     /// </summary>
     internal void ApplyCorrection(MachineryCorrection edit, Dictionary<string, object?> diff)
     {
+        // Captured up front so the audit trail can be reconciled after ClearInapplicableFields
+        // below: a correction that de-registers a machine also empties its registration number,
+        // and a trail that claimed the number was untouched — or that a number the invariant then
+        // removed had been set — would be wrong either way.
+        var registrationNumberBefore = RegistrationNumber;
+        var invoiceNumberBefore = InvoiceNumber;
+
         CorrectionDiff.Apply("Machinery.PropertyName", PropertyName, edit.PropertyName, v => PropertyName = v, diff);
         CorrectionDiff.Apply("Machinery.MachineName", MachineName, edit.MachineName, v => MachineName = v, diff);
         CorrectionDiff.Apply("Machinery.EngineNo", EngineNo, edit.EngineNo, v => EngineNo = v, diff);
         CorrectionDiff.Apply("Machinery.ChassisNo", ChassisNo, edit.ChassisNo, v => ChassisNo = v, diff);
         CorrectionDiff.Apply("Machinery.RegistrationNumber", RegistrationNumber, edit.RegistrationNumber, v => RegistrationNumber = v, diff);
         CorrectionDiff.Apply("Machinery.SerialNo", SerialNo, edit.SerialNo, v => SerialNo = v, diff);
+        CorrectionDiff.ApplyRequired("Machinery.RegistrationStatus", RegistrationStatus, edit.RegistrationStatus, v => RegistrationStatus = v, diff);
+        CorrectionDiff.Apply("Machinery.InstallationStatus", InstallationStatus, edit.InstallationStatus, v => InstallationStatus = v, diff);
+        CorrectionDiff.Apply("Machinery.MachineType", MachineType, edit.MachineType, v => MachineType = v, diff);
+        CorrectionDiff.Apply("Machinery.InvoiceNumber", InvoiceNumber, edit.InvoiceNumber, v => InvoiceNumber = v, diff);
+        CorrectionDiff.ApplyRequired("Machinery.IsPriceCertified", IsPriceCertified, edit.IsPriceCertified, v => IsPriceCertified = v, diff);
         CorrectionDiff.Apply("Machinery.Brand", Brand, edit.Brand, v => Brand = v, diff);
         CorrectionDiff.Apply("Machinery.Model", Model, edit.Model, v => Model = v, diff);
         CorrectionDiff.Apply("Machinery.Series", Series, edit.Series, v => Series = v, diff);
@@ -269,5 +341,26 @@ public class MachineryAppraisalDetail : Entity<Guid>
         CorrectionDiff.Apply("Machinery.Remark", Remark, edit.Remark, v => Remark = v, diff);
         CorrectionDiff.Apply("Machinery.Other", Other, edit.Other, v => Other = v, diff);
         CorrectionDiff.Apply("Machinery.AppraiserOpinion", AppraiserOpinion, edit.AppraiserOpinion, v => AppraiserOpinion = v, diff);
+
+        ClearInapplicableFields();
+        ReportNetChange("Machinery.RegistrationNumber", registrationNumberBefore, RegistrationNumber, diff);
+        ReportNetChange("Machinery.InvoiceNumber", invoiceNumberBefore, InvoiceNumber, diff);
+    }
+
+    /// <summary>
+    /// Records what actually happened to a field the invariant may have overwritten: nothing at
+    /// all if it ended where it started, and the real before/after otherwise — including a
+    /// requested value the invariant then cleared, which is a change, just not the one asked for.
+    /// </summary>
+    private static void ReportNetChange(
+        string key,
+        string? before,
+        string? after,
+        Dictionary<string, object?> diff)
+    {
+        if (before == after)
+            diff.Remove(key);
+        else
+            diff[key] = new { from = before, to = after };
     }
 }

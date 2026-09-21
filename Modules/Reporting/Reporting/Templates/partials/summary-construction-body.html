@@ -35,11 +35,11 @@
     <!-- Value block (FSD fields 14–21): 2-column label–value grid -->
     <div class="cols2">
       <div class="kv"><span class="k">ชื่ออาคาร</span><span class="v">{{ model.building_name }}</span></div>
-      <div class="kv"><span class="k">ราคาประเมิน เมื่ออาคารแล้วเสร็จ 100%</span><span class="v">{{ if model.building_value100; model.building_value100 | math.format "N2"; else; "-"; end }} บาท</span></div>
-      <div class="kv"><span class="k">ราคาประเมินที่ดิน</span><span class="v">{{ if model.land_appraisal_value; model.land_appraisal_value | math.format "N2"; else; "-"; end }} บาท</span></div>
-      <div class="kv"><span class="k">มูลค่าอาคาร ณ ปัจจุบัน</span><span class="v">{{ if model.current_building_value; model.current_building_value | math.format "N2"; else; "-"; end }} บาท</span></div>
-      <div class="kv"><span class="k">รวมราคา ที่ดิน+อาคาร (100%)</span><span class="v">{{ if model.total_land_building100; model.total_land_building100 | math.format "N2"; else; "-"; end }} บาท</span></div>
-      <div class="kv"><span class="k">รวมราคา ที่ดิน+อาคาร ณ ปัจจุบัน</span><span class="v">{{ if model.total_land_current_building; model.total_land_current_building | math.format "N2"; else; "-"; end }} บาท</span></div>
+      <div class="kv"><span class="k">ราคาประเมิน เมื่ออาคารแล้วเสร็จ 100%</span><span class="v money">{{ if model.building_value100; model.building_value100 | math.format "N2"; else; "-"; end }} บาท</span></div>
+      <div class="kv"><span class="k">ราคาประเมินที่ดิน</span><span class="v money">{{ if model.land_appraisal_value; model.land_appraisal_value | math.format "N2"; else; "-"; end }} บาท</span></div>
+      <div class="kv"><span class="k">มูลค่าอาคาร ณ ปัจจุบัน</span><span class="v money">{{ if model.current_building_value; model.current_building_value | math.format "N2"; else; "-"; end }} บาท</span></div>
+      <div class="kv"><span class="k">รวมราคา ที่ดิน+อาคาร (100%)</span><span class="v money">{{ if model.total_land_building100; model.total_land_building100 | math.format "N2"; else; "-"; end }} บาท</span></div>
+      <div class="kv"><span class="k">รวมราคา ที่ดิน+อาคาร ณ ปัจจุบัน</span><span class="v money">{{ if model.total_land_current_building; model.total_land_current_building | math.format "N2"; else; "-"; end }} บาท</span></div>
       <div class="kv"><span class="k">ตรวจครั้งที่</span><span class="v">{{ model.current_inspection_round }}</span></div>
       <div class="kv"><span class="k">งวดที่</span><span class="v">{{ model.installment_number }}</span></div>
     </div>

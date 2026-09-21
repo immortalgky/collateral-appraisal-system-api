@@ -19,6 +19,12 @@ public record GetMachineryPropertyResult(
     string? ChassisNo,
     string? RegistrationNumber,
     string? SerialNo,
+    // Registration & Installation
+    bool RegistrationStatus,
+    string? InstallationStatus,
+    string? MachineType,
+    string? InvoiceNumber,
+    bool IsPriceCertified,
     // Machine Specifications
     string? Brand,
     string? Model,

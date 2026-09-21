@@ -123,7 +123,10 @@ public sealed class AppraisalSummaryModel
     /// <summary>
     /// Field 21 — Building coverage / insurance amount.
     /// Source: ValuationAnalyses.InsuranceValue (the single InsuranceValue stored at
-    /// the overall appraisal level, not per-group).
+    /// the overall appraisal level, not per-group). Exception: the machine summary
+    /// sets it to that form's own machinery appraisal total instead — that stored value
+    /// covers buildings and condos only, so it is 0 or a building figure on a machine
+    /// form. See AppraisalSummaryMachineDataProvider.
     /// </summary>
     public decimal? BuildingCoverageAmount { get; init; }
 
@@ -525,6 +528,30 @@ public sealed class AppraisalSummaryModel
         = new Dictionary<string, IReadOnlyList<Guid>>();
 }
 
+/// <summary>
+/// One registration/installation set within a machine group: the heading that names the set, and
+/// the machines under it. The machine summary prints one table ROW per section, so the sets read as
+/// separate blocks rather than stacking inside a single cell.
+/// </summary>
+public sealed record SummaryMachineSection
+{
+    /// <summary>Heading line, including its own "จำนวน N เครื่อง" count.</summary>
+    public required string Heading { get; init; }
+
+    /// <summary>
+    /// The machines under this heading, in the appraiser's sequence. The template numbers them,
+    /// starting from 1 again in every section, so each set counts itself.
+    /// </summary>
+    public required List<string> Items { get; init; }
+
+    /// <summary>
+    /// What the machines in this section were appraised at, summed from the selected cost
+    /// method's per-machine fair market values. Null when not one machine in the section carries
+    /// a value — a section nobody has priced prints no total rather than a misleading 0.00.
+    /// </summary>
+    public decimal? TotalValue { get; init; }
+}
+
 /// <summary>One collateral group row in the per-group valuation table (fields 13–19).</summary>
 public sealed class SummaryGroupRow
 {
@@ -539,6 +566,20 @@ public sealed class SummaryGroupRow
 
     /// <summary>Collateral details (title number / unit / address snippet).</summary>
     public string? CollateralDetails { get; init; }
+
+    /// <summary>
+    /// Machinery only: the group's registration/installation sets, one per printed table row,
+    /// replacing both <see cref="CollateralDetails"/> and <see cref="DetailItems"/> for the group.
+    /// Other property types leave it null and keep the single-line form.
+    /// </summary>
+    public List<SummaryMachineSection>? MachineSections { get; init; }
+
+    /// <summary>
+    /// Machinery only: what to call this group in print. The provider resolves it so the template
+    /// never has to handle a missing name — <see cref="GroupName"/> when it has one, otherwise
+    /// "กลุ่มที่ N". The domain requires a group name, so the fallback is defensive only.
+    /// </summary>
+    public string? GroupLabel { get; init; }
 
     /// <summary>Land area in rai-ngan-wa format, or unit count for buildings.</summary>
     public string? AreaOrUnit { get; init; }
@@ -589,6 +630,14 @@ public sealed class SummaryGroupRow
     /// same reason as <see cref="LandRowLabel"/> — the form must not carry Thai text in markup.
     /// </summary>
     public string? BuildingRowLabel { get; init; }
+
+    /// <summary>
+    /// First-column label of the under-construction building block, e.g.
+    /// "สิ่งปลูกสร้าง (อยู่ระหว่างก่อสร้าง)". Derived from <see cref="BuildingRowLabel"/> so the noun
+    /// still resolves through the CollateralType parameter map — only the qualifier is added.
+    /// Read only when the report shows the เมื่อแล้วเสร็จ 100% / ตามสภาพปัจจุบัน split.
+    /// </summary>
+    public string? BuildingRowLabelUnderConstruction { get; init; }
 
     /// <summary>Land title description (โฉนด…), without the building clause.</summary>
     public string? LandDescription { get; init; }
@@ -641,6 +690,30 @@ public sealed class SummaryGroupRow
     /// <summary>Development/improvement items (ส่วนพัฒนา; IsBuilding=0). Cost approach only.</summary>
     public IReadOnlyList<SummaryItemRow> DevelopmentItems { get; init; } = [];
 
+    // ── Completed / under-construction partition ──────────────────────────────────
+    // These four lists PARTITION Buildings and DevelopmentItems above — they hold the same
+    // rows, split by whether the owning AppraisalProperty carries a ConstructionInspection
+    // below 100%. The form renders them as two separate blocks (each with its own ☑ label and
+    // subtotal) so a finished building is not dragged under the เมื่อแล้วเสร็จ 100% /
+    // ตามสภาพปัจจุบัน column pair and printed twice.
+    //
+    // The template reads the flat lists above when AppraisalSummaryModel.HasUnderConstruction
+    // is false and this partition when it is true, so an appraisal with nothing under
+    // construction renders exactly as it did before the partition existed.
+
+    /// <summary>Building lines whose property is complete — no inspection, or one at 100%.</summary>
+    public IReadOnlyList<SummaryItemRow> BuildingsCompleted { get; init; } = [];
+
+    /// <summary>ส่วนพัฒนา lines whose property is complete.</summary>
+    public IReadOnlyList<SummaryItemRow> DevelopmentItemsCompleted { get; init; } = [];
+
+    /// <summary>Building lines whose property has an inspection below 100%.</summary>
+    public IReadOnlyList<SummaryItemRow> BuildingsUnderConstruction { get; init; } = [];
+
+    /// <summary>ส่วนพัฒนา lines whose property has an inspection below 100%. A ส่วนพัฒนา line
+    /// follows its own property, so the same group can print ส่วนพัฒนา in both blocks.</summary>
+    public IReadOnlyList<SummaryItemRow> DevelopmentItemsUnderConstruction { get; init; } = [];
+
     // ── Per-property-type subtotals (รวมมูลค่าที่ดิน / รวมมูลค่าสิ่งปลูกสร้าง) ──────────────
     // Rendered only on a SINGLE-group split report; multi-group keeps the group subtotal instead.
 
@@ -648,12 +721,24 @@ public sealed class SummaryGroupRow
     public decimal? LandSubtotal { get; init; }
 
     /// <summary>รวมมูลค่าสิ่งปลูกสร้าง — building lines PLUS ส่วนพัฒนา lines, matching the
-    /// reference form where the two are totalled together.</summary>
+    /// reference form where the two are totalled together. Spans BOTH blocks of the
+    /// completed / under-construction partition; it is what the appraisal-level
+    /// current-condition figures are derived from, so it must stay whole-group.</summary>
     public decimal? BuildingSubtotal { get; init; }
 
     /// <summary>รวมมูลค่าสิ่งปลูกสร้าง at the current construction progress. Same as
     /// <see cref="BuildingSubtotal"/> when nothing in the group is under construction.</summary>
     public decimal? BuildingSubtotalCurrent { get; init; }
+
+    /// <summary>รวมมูลค่าสิ่งปลูกสร้าง for the completed block alone. Carries one figure, not a
+    /// pair: a completed line's current value IS its 100% value.</summary>
+    public decimal? BuildingSubtotalCompleted { get; init; }
+
+    /// <summary>รวมมูลค่าสิ่งปลูกสร้าง (อยู่ระหว่างก่อสร้าง) at 100% completion.</summary>
+    public decimal? BuildingSubtotalUnderConstruction { get; init; }
+
+    /// <summary>รวมมูลค่าสิ่งปลูกสร้าง (อยู่ระหว่างก่อสร้าง) at the current progress.</summary>
+    public decimal? BuildingSubtotalUnderConstructionCurrent { get; init; }
 
     /// <summary>Group total value (รวมมูลค่าทรัพย์สินกลุ่ม). Also the combined value for market groups.</summary>
     public decimal? GroupTotal { get; init; }

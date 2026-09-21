@@ -42,6 +42,8 @@ public class GetProjectQueryHandler(
             Facilities: project.Facilities,
             FacilitiesOther: project.FacilitiesOther,
             Remark: project.Remark,
+            IsUnderConstruction: project.IsUnderConstruction,
+            ConstructionProgressPercent: project.ConstructionProgressPercent,
             BuiltOnTitleDeedNumber: project.BuiltOnTitleDeedNumber,
             LicenseExpirationDate: project.LicenseExpirationDate);
     }

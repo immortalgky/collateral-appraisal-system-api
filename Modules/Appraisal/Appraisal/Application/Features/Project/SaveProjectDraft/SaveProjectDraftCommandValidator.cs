@@ -53,6 +53,26 @@ public class SaveProjectDraftCommandValidator : AbstractValidator<SaveProjectDra
             .GreaterThanOrEqualTo(0).When(x => x.NumberOfPhase.HasValue)
             .WithMessage("NumberOfPhase cannot be negative.");
 
+        RuleFor(x => x.ConstructionProgressPercent)
+            .InclusiveBetween(0m, 100m).When(x => x.ConstructionProgressPercent.HasValue)
+            .WithMessage("ConstructionProgressPercent must be between 0 and 100.");
+
+        // The column is nvarchar(500) and this is a free-text list of deed numbers -- without a
+        // rule here an over-long value surfaces as a DbUpdateException (500) instead of a 400.
+        RuleFor(x => x.BuiltOnTitleDeedNumber)
+            .MaximumLength(500)
+            .WithMessage("BuiltOnTitleDeedNumber must be at most 500 characters.");
+
+        // The column is decimal(7,4), so SQL Server rounds anything finer on store. Without this a
+        // posted 99.99995 passes InclusiveBetween, lands as 100.0000, and the result feed reports a
+        // development that is not finished as complete. Reject it rather than round it.
+        RuleFor(x => x.ConstructionProgressPercent)
+            .PrecisionScale(7, 4, ignoreTrailingZeros: true)
+            .When(x => x.ConstructionProgressPercent.HasValue)
+            .WithMessage(
+                "ConstructionProgressPercent must have at most 3 digits before the decimal point "
+                + "and 4 after.");
+
         RuleFor(x => x.ProjectSaleLaunchDate)
             .Must(PartialDate.IsValid)
             .WithMessage("ProjectSaleLaunchDate must be 'YYYY', 'YYYY-MM', or 'YYYY-MM-DD'.");

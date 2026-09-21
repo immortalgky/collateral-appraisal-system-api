@@ -112,7 +112,25 @@ public record QuotationAppraisalResult(
     // Admin-set maximum allowed duration in days (nullable — null means no cap set)
     int? MaxAppraisalDays,
     // Appraisal type (New, ReAppraisal, Progressive, PreAppraisal). FE gates Send-to-RM on ReAppraisal.
-    string? AppraisalType
+    string? AppraisalType,
+    IReadOnlyList<QuotationTitleDetail> Titles
+);
+
+public record QuotationTitleDetail(
+    string TitleFamily,
+    string? TitleNumber,
+    string? BuildingType,
+    decimal? AreaRai,
+    decimal? AreaNgan,
+    decimal? AreaSquareWa,
+    string? CondoName,
+    string? RoomNumber,
+    decimal? UsableArea,
+    string? InstallationStatus,
+    int? NumberOfMachine,
+    string? DopaSubDistrictName,
+    string? DopaDistrictName,
+    string? DopaProvinceName
 );
 
 public record CompanyQuotationResult(
@@ -155,7 +173,8 @@ public record CompanyQuotationItemResult(
     decimal Discount,
     decimal? NegotiatedDiscount,
     decimal VatPercent,
-    string? ItemNotes
+    string? ItemNotes,
+    string? ItemNegotiationReason
 );
 
 public record CompanyQuotationNegotiationResult(

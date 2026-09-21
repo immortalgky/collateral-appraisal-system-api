@@ -91,7 +91,10 @@ internal static class MachineSectionLoader
             -- RS02: QS2 — Per-machine detail rows
             -- Ordered by PropertyGroup then SequenceInGroup for stable printed sequence.
             SELECT
-                mad.MachineName,
+                -- The form writes PropertyName and no longer writes MachineName, while rows
+                -- created before that carry the name in MachineName only. Resolve here so the
+                -- printed name never comes back empty. Same rule as the summary report.
+                COALESCE(NULLIF(mad.PropertyName, ''), NULLIF(mad.MachineName, '')) AS MachineName,
                 mad.RegistrationNumber,
                 mad.Brand,
                 mad.Model,

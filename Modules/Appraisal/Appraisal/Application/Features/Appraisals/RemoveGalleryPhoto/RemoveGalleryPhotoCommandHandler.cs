@@ -44,6 +44,10 @@ public class RemoveGalleryPhotoCommandHandler(
         // Delete any topic mappings linked to this photo
         await galleryRepository.DeleteTopicMappingsByPhotoIdAsync(command.PhotoId, cancellationToken);
 
+        // And any law & regulation image showing it — the law editor would otherwise keep a tile
+        // for a photo that no longer exists.
+        await galleryRepository.DeleteLawImagesByPhotoIdAsync(command.PhotoId, cancellationToken);
+
         var documentId = photo.DocumentId;
 
         await galleryRepository.DeleteAsync(photo, cancellationToken);

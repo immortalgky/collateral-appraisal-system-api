@@ -29,4 +29,7 @@ public interface IAppraisalGalleryRepository : IRepository<AppraisalGallery, Gui
     Task AddTopicMappingAsync(GalleryPhotoTopicMapping mapping, CancellationToken ct = default);
     Task DeleteTopicMappingAsync(GalleryPhotoTopicMapping mapping, CancellationToken ct = default);
     Task DeleteTopicMappingsByPhotoIdAsync(Guid galleryPhotoId, CancellationToken ct = default);
+
+    // LawAndRegulationImage operations
+    Task DeleteLawImagesByPhotoIdAsync(Guid galleryPhotoId, CancellationToken ct = default);
 }

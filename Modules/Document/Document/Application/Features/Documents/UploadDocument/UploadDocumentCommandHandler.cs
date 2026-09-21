@@ -44,13 +44,10 @@ internal class UploadDocumentCommandHandler(
             throw new DomainException("Upload session has already been completed");
         }
 
-        // Check for duplicate document
-        await using var fileStream = command.File.OpenReadStream();
-        var checksum = await documentService.CalculateChecksumAsync(fileStream, cancellationToken);
-
-        logger.LogDebug("Calculated checksum {Checksum} for file {FileName}", checksum, command.File.FileName);
-
-        // Duplicate uploads are currently allowed (dedup logic removed).
+        // Duplicate uploads are currently allowed (dedup logic removed). The checksum that used to
+        // be computed here fed that check and nothing else; it read the whole file a second time to
+        // produce a value that was thrown away. The checksum stored on the document is computed by
+        // DocumentService while the file is being copied.
 
         // Upload document
         try

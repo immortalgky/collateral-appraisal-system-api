@@ -655,18 +655,18 @@ public class AppraisalCreationService(
         var machineryDetail = property.MachineryDetail;
         if (machineryDetail == null) return;
 
-        var otherParts = new List<string>();
-        otherParts.Add($"RegistrationStatus={requestTitle.RegistrationStatus}");
-        if (requestTitle.InvoiceNumber is not null) otherParts.Add($"Invoice={requestTitle.InvoiceNumber}");
-        if (requestTitle.InstallationStatus is not null)
-            otherParts.Add($"InstallationStatus={requestTitle.InstallationStatus}");
-
+        // These used to be concatenated into `other` as a "RegistrationStatus=...; Invoice=..."
+        // blob, which nothing downstream could query or group by. They are real columns now.
+        // MachineName is deliberately NOT seeded from MachineType: the latter is a parameter code
+        // ("1".."3"), not a machine name, and writing it into MachineName corrupted the field.
         machineryDetail.Update(
             registrationNumber: requestTitle.RegistrationNumber,
-            machineName: requestTitle.MachineType,
             quantity: requestTitle.NumberOfMachine,
             ownerName: requestTitle.OwnerName,
-            other: string.Join("; ", otherParts));
+            registrationStatus: requestTitle.RegistrationStatus,
+            installationStatus: requestTitle.InstallationStatus,
+            machineType: requestTitle.MachineType,
+            invoiceNumber: requestTitle.InvoiceNumber);
     }
 
     /// <summary>
