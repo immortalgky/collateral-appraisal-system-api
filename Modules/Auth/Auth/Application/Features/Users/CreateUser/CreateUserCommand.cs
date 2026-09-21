@@ -18,5 +18,7 @@ public record CreateUserCommand(
     // Bank-internal officer code; only persisted for bank users (CompanyId == null).
     string? AoCode = null,
     // Bank staff employee id; only persisted for bank users (CompanyId == null).
-    string? EmployeeId = null
+    string? EmployeeId = null,
+    // Ad-hoc account: created closed, no password, usable only inside an admin-opened access window.
+    bool IsTemporaryAccess = false
 ) : ICommand<CreateUserResult>, ITransactionalCommand<IAuthUnitOfWork>;
