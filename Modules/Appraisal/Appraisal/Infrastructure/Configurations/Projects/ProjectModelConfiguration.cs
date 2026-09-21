@@ -146,6 +146,7 @@ public class ProjectModelConfiguration : IEntityTypeConfiguration<ProjectModel>
             areaDetail.HasKey("Id");
             areaDetail.Property(a => a.Id).ValueGeneratedNever();
 
+            areaDetail.Property(a => a.Sequence);
             areaDetail.Property(a => a.AreaDescription).HasMaxLength(200).HasColumnName("AreaDescription");
             areaDetail.Property(a => a.AreaSize).HasPrecision(10, 2).HasColumnName("AreaSize");
         });
