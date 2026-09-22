@@ -31,7 +31,12 @@ public class DevAuthenticationHandler(
             new Claim("sub", devId),
             new Claim("name", "dev-user"),
             new Claim("preferred_username", "dev-user"), // bank code (UserCode) — used for actor/audit stamping
-            new Claim("company_id", devId),
+            // NOT a company id. `Guid.TryParse` succeeds on the all-zero GUID, so
+            // CurrentUserService.CompanyId came back non-null and every company-scoped read
+            // treated the dev identity as an external firm numbered 00000000-… — which matches no
+            // assignment, so the list came back empty and every by-id read 404'd. Omitting the
+            // claim makes the dev user internal, which is what local work actually wants.
+            // new Claim("company_id", devId),
             // Permissions
             new Claim("permissions", "auth:read"),
             new Claim("permissions", "auth:write"),
@@ -48,6 +53,18 @@ public class DevAuthenticationHandler(
             new Claim("permissions", "USER_CHANGE_PASSWORD"),
             new Claim("permissions", "USER_RESET_PASSWORD"),
             new Claim("permissions", "JOB_SCHEDULE_MANAGE"),
+            // Both appraisal codes, because this identity is a superuser: it holds everything, so
+            // that calling an endpoint with X-Dev-Auth never fails for a permission reason.
+            //
+            // APPRAISAL_VIEW is the one that matters — `appraisal.browse` accepts either, but
+            // holding TRACKING alone would make the dev identity read as CREDIT
+            // (`AppraisalFieldScope.IsTrackingOnly` = has TRACKING and NOT VIEW), masking values
+            // and refusing the export.
+            new Claim("permissions", "APPRAISAL_VIEW"),
+            new Claim("permissions", "APPRAISAL_TRACKING_VIEW"),
+            // To exercise the CREDIT responses locally, comment out APPRAISAL_VIEW and keep the
+            // tracking code — that is the exact shape the revoke script leaves a credit user in.
+            // Removing both is neither audience: nothing masks, and `appraisal.browse` answers 403.
             new Claim("permissions", "ADDRESS_MASTER_MANAGE"),
             // Roles
             new Claim("roles", "Admin"),
