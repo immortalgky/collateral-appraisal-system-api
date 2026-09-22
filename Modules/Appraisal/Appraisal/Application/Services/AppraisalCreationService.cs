@@ -304,8 +304,7 @@ public class AppraisalCreationService(
             }
             else
             {
-                var initialGroup = appraisal.CreateGroup("Group 1", "Auto-generated group for all properties");
-                foreach (var property in appraisal.Properties) initialGroup.AddProperty(property.Id);
+                CreateDefaultGroupsByFamily(appraisal);
             }
 
             var assignment = appraisal.AssignAdmin();
@@ -873,6 +872,34 @@ public class AppraisalCreationService(
     }
 
     /// <summary>
+    /// Default grouping for a fresh appraisal: one PropertyGroup per collateral family present
+    /// among its properties (see PropertyType.Family), since a group may not mix families. When
+    /// only one family is present this reproduces the old behaviour exactly — a single group named
+    /// "Group 1" holding every property.
+    /// </summary>
+    private static void CreateDefaultGroupsByFamily(Domain.Appraisals.Appraisal appraisal)
+    {
+        var families = appraisal.Properties.Select(p => p.PropertyType.Family).Distinct().ToList();
+
+        if (families.Count <= 1)
+        {
+            var group = appraisal.CreateGroup("Group 1", "Auto-generated group for all properties");
+            foreach (var property in appraisal.Properties)
+                appraisal.AddPropertyToGroup(group.Id, property.Id);
+            return;
+        }
+
+        var groupNumber = 1;
+        foreach (var family in families)
+        {
+            var group = appraisal.CreateGroup($"Group {groupNumber}", "Auto-generated group for all properties");
+            foreach (var property in appraisal.Properties.Where(p => p.PropertyType.Family == family))
+                appraisal.AddPropertyToGroup(group.Id, property.Id);
+            groupNumber++;
+        }
+    }
+
+    /// <summary>
     /// Mirrors the prior appraisal's PropertyGroups (including names, descriptions, group numbers,
     /// and property→group mapping) onto the new CI appraisal. Replaces the default "Group 1" path
     /// so each cloned PricingAnalysis can attach to a corresponding new group via FK.
@@ -895,8 +922,7 @@ public class AppraisalCreationService(
             logger.LogWarning(
                 "CI mirror groups: prior appraisal {PrevAppraisalId} not found; falling back to default Group 1.",
                 prevAppraisalId);
-            var initialGroup = appraisal.CreateGroup("Group 1", "Auto-generated group for all properties");
-            foreach (var property in appraisal.Properties) initialGroup.AddProperty(property.Id);
+            CreateDefaultGroupsByFamily(appraisal);
             return map;
         }
 
@@ -911,7 +937,8 @@ public class AppraisalCreationService(
             {
                 if (!newPropertyByPriorId.TryGetValue(item.AppraisalPropertyId, out var newProp))
                     continue; // prior property not copied (unsupported type) — skip
-                appraisal.AddPropertyToGroup(newGroup.Id, newProp.Id);
+                // Prior groups may predate the one-family rule — mirror them verbatim.
+                appraisal.AddPropertyToGroup(newGroup.Id, newProp.Id, enforceFamily: false);
             }
         }
 
@@ -919,8 +946,7 @@ public class AppraisalCreationService(
         // to a default group so downstream pricing/valuation flows have somewhere to live.
         if (map.Count == 0)
         {
-            var fallback = appraisal.CreateGroup("Group 1", "Auto-generated group for all properties");
-            foreach (var property in appraisal.Properties) fallback.AddProperty(property.Id);
+            CreateDefaultGroupsByFamily(appraisal);
         }
 
         logger.LogInformation(
@@ -1011,6 +1037,10 @@ public class AppraisalCreationService(
             .ThenInclude(m => m.HypothesisAnalysis!)
             .ThenInclude(h => h.CostItems)
             .ThenInclude(ci => ci.DepreciationPeriods)
+            .Include(p => p.Approaches)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.HypothesisAnalysis!)
+            .ThenInclude(h => h.ModelBuildingMappings)
             .Where(p => p.SubjectType == PricingAnalysisSubjectType.PropertyGroup
                         && p.AnchorId != null
                         && priorGroupIds.Contains(p.AnchorId.Value))

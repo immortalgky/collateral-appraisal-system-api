@@ -38,7 +38,7 @@ public class ProjectModel : Entity<Guid>
     public decimal? StandardUsableArea { get; private set; }
 
     // Insurance
-    public string? FireInsuranceCondition { get; private set; }
+    public string? FireInsuranceCode { get; private set; }
 
     // Layout (Condo)
     public string? RoomLayoutType { get; private set; }
@@ -184,7 +184,7 @@ public class ProjectModel : Entity<Guid>
         decimal? usableAreaMin = null,
         decimal? usableAreaMax = null,
         decimal? standardUsableArea = null,
-        string? fireInsuranceCondition = null,
+        string? fireInsuranceCode = null,
         string? roomLayoutType = null,
         string? roomLayoutTypeOther = null,
         string? groundFloorMaterialType = null,
@@ -254,7 +254,7 @@ public class ProjectModel : Entity<Guid>
         UsableAreaMin = usableAreaMin;
         UsableAreaMax = usableAreaMax;
         StandardUsableArea = standardUsableArea;
-        FireInsuranceCondition = fireInsuranceCondition;
+        FireInsuranceCode = fireInsuranceCode;
         RoomLayoutType = roomLayoutType;
         RoomLayoutTypeOther = roomLayoutTypeOther;
         GroundFloorMaterialType = groundFloorMaterialType;

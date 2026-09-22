@@ -638,15 +638,15 @@ public class Project : Aggregate<Guid>
     ///   <c>IPricingAnalysisRepository.GetProjectModelPricingSummariesAsync</c>. PricingAnalysis is a
     ///   separate aggregate; the domain must not navigate to it directly.
     /// </param>
-    /// <param name="ratesByCondition">
-    ///   Fire-insurance coverage rate (Baht/sq.m.) keyed by <c>FireInsuranceCondition</c> — fetched by the
-    ///   handler from <c>Parameter.Contracts.PricingParameters.GetFireInsuranceRatesQuery</c>. Coverage
+    /// <param name="ratesByCode">
+    ///   Fire-insurance coverage rate (Baht/sq.m.) keyed by <c>FireInsuranceCode</c> — fetched by the
+    ///   handler from <c>Appraisal.Application.Features.FireInsuranceRates.GetFireInsuranceRates.GetFireInsuranceRatesQuery</c>. Coverage
     ///   rates are Parameter-module reference data; the domain must not navigate to it directly.
     /// </param>
     public IReadOnlyList<ProjectUnitPrice> CalculateUnitPrices(
         IReadOnlyDictionary<Guid, ProjectUnitPrice> existingPriceMap,
         IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId,
-        IReadOnlyDictionary<string, decimal> ratesByCondition)
+        IReadOnlyDictionary<string, decimal> ratesByCode)
     {
         if (PricingAssumption is null)
             throw new InvalidProjectStateException(
@@ -654,8 +654,8 @@ public class Project : Aggregate<Guid>
 
         // TODO(Land): LandAndBuildingLike path — both LB and Land use the same calculation in v1
         return ProjectType == ProjectType.Condo
-            ? CalculateCondoUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCondition)
-            : CalculateLandAndBuildingUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCondition);
+            ? CalculateCondoUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCode)
+            : CalculateLandAndBuildingUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCode);
     }
 
     /// <summary>
@@ -663,16 +663,16 @@ public class Project : Aggregate<Guid>
     /// null/empty or has no matching rate. Callers rely on null (not zero) to trigger their
     /// own <c>??</c> fallback to a manually-entered CoverageAmount.
     /// </summary>
-    private static decimal? LookupRate(IReadOnlyDictionary<string, decimal> ratesByCondition, string? condition)
+    private static decimal? LookupRate(IReadOnlyDictionary<string, decimal> ratesByCode, string? condition)
     {
         if (string.IsNullOrEmpty(condition)) return null;
-        return ratesByCondition.TryGetValue(condition, out var rate) ? rate : null;
+        return ratesByCode.TryGetValue(condition, out var rate) ? rate : null;
     }
 
     private IReadOnlyList<ProjectUnitPrice> CalculateCondoUnitPrices(
         IReadOnlyDictionary<Guid, ProjectUnitPrice> existingPriceMap,
         IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId,
-        IReadOnlyDictionary<string, decimal> ratesByCondition)
+        IReadOnlyDictionary<string, decimal> ratesByCode)
     {
         var assumption = PricingAssumption!;
         var hasPersistedAssumptions = assumption.ModelAssumptions.Count > 0;
@@ -689,7 +689,7 @@ public class Project : Aggregate<Guid>
                     var stdPrice = model is not null && standardPriceByModelId.TryGetValue(model.Id, out var p) ? p : null;
                     return (
                         StandardPrice: stdPrice ?? 0m,
-                        CoverageAmount: LookupRate(ratesByCondition, model?.FireInsuranceCondition) ?? ma.CoverageAmount);
+                        CoverageAmount: LookupRate(ratesByCode, model?.FireInsuranceCode) ?? ma.CoverageAmount);
                 })
             : _models
                 .Where(m => m.ModelName != null)
@@ -700,7 +700,7 @@ public class Project : Aggregate<Guid>
                     var stdPrice = standardPriceByModelId.TryGetValue(first.Id, out var p) ? p : null;
                     return (
                         StandardPrice: stdPrice ?? 0m,
-                        CoverageAmount: LookupRate(ratesByCondition, first.FireInsuranceCondition));
+                        CoverageAmount: LookupRate(ratesByCode, first.FireInsuranceCode));
                 });
 
         var results = new List<ProjectUnitPrice>();
@@ -768,7 +768,7 @@ public class Project : Aggregate<Guid>
     private IReadOnlyList<ProjectUnitPrice> CalculateLandAndBuildingUnitPrices(
         IReadOnlyDictionary<Guid, ProjectUnitPrice> existingPriceMap,
         IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId,
-        IReadOnlyDictionary<string, decimal> ratesByCondition)
+        IReadOnlyDictionary<string, decimal> ratesByCode)
     {
         var assumption = PricingAssumption!;
 
@@ -796,7 +796,7 @@ public class Project : Aggregate<Guid>
 
             var standardLandArea = 0m;
             var standardPrice = 0m;
-            string? fireInsuranceCondition = null;
+            string? fireInsuranceCode = null;
             if (unit.ModelType != null && projectModelMap.TryGetValue(unit.ModelType, out var projectModel))
             {
                 standardLandArea = projectModel.StandardLandArea ?? 0m;
@@ -804,12 +804,12 @@ public class Project : Aggregate<Guid>
                 // Do not multiply by usable area for LB.
                 // FinalAppraisedValue is supplied by the handler from IPricingAnalysisRepository.
                 standardPrice = standardPriceByModelId.TryGetValue(projectModel.Id, out var sp) ? sp ?? 0m : 0m;
-                fireInsuranceCondition = projectModel.FireInsuranceCondition;
+                fireInsuranceCode = projectModel.FireInsuranceCode;
 
             }
 
             var usableArea = unit.UsableArea ?? 0m;
-            var rawCoverageAmount = (LookupRate(ratesByCondition, fireInsuranceCondition) ?? modelAssumption?.CoverageAmount) * usableArea;
+            var rawCoverageAmount = (LookupRate(ratesByCode, fireInsuranceCode) ?? modelAssumption?.CoverageAmount) * usableArea;
             var coverageAmount = rawCoverageAmount.HasValue
                 ? Math.Round(rawCoverageAmount.Value / 1000, MidpointRounding.AwayFromZero) * 1000
                 : (decimal?)null;

@@ -15,7 +15,7 @@ public record UpdateProjectModelRequest(
     decimal? UsableAreaMin = null,
     decimal? UsableAreaMax = null,
     decimal? StandardUsableArea = null,
-    string? FireInsuranceCondition = null,
+    string? FireInsuranceCode = null,
     string? RoomLayoutType = null,
     string? RoomLayoutTypeOther = null,
     string? GroundFloorMaterialType = null,

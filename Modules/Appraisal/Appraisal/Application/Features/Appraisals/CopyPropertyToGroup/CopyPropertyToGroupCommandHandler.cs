@@ -1,6 +1,7 @@
 using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
 using Shared.Identity;
+using Appraisal.Application.Services;
 
 namespace Appraisal.Application.Features.Appraisals.CopyPropertyToGroup;
 
@@ -8,7 +9,8 @@ public class CopyPropertyToGroupCommandHandler(
     IAppraisalRepository appraisalRepository,
     IAppraisalUnitOfWork unitOfWork,
     AppraisalDbContext dbContext,
-    ICurrentUserService currentUser
+    ICurrentUserService currentUser,
+    AppraisalValuationSummaryService valuationSummaryService
 ) : ICommandHandler<CopyPropertyToGroupCommand, CopyPropertyToGroupResult>
 {
     public async Task<CopyPropertyToGroupResult> Handle(
@@ -22,6 +24,8 @@ public class CopyPropertyToGroupCommandHandler(
         // Step 1: Copy property and save so EF Core generates the ID
         var newProperty = appraisal.CopyProperty(command.SourcePropertyId);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
 
         // Step 2: Duplicate PropertyPhotoMapping rows so the copied property carries forward
         // the photos linked to the source. We reuse the same GalleryPhotoId (no blob copy);

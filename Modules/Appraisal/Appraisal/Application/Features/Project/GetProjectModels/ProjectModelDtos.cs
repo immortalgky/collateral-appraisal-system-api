@@ -73,7 +73,7 @@ public record ProjectModelDto(
     decimal? UsableAreaMin,
     decimal? UsableAreaMax,
     decimal? StandardUsableArea,
-    string? FireInsuranceCondition,
+    string? FireInsuranceCode,
     string? RoomLayoutType,           // Condo
     string? RoomLayoutTypeOther,      // Condo
     string? GroundFloorMaterialType,

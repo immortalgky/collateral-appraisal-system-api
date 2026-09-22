@@ -50,13 +50,22 @@ public class PropertyGroup : Entity<Guid>
     }
 
     /// <summary>
-    /// Add a property to this group
+    /// Add a property to this group.
     /// </summary>
-    public PropertyGroupItem AddProperty(Guid propertyId)
+    /// <param name="propertyId">The property to add.</param>
+    /// <param name="propertyTypeCode">The property's PropertyType code.</param>
+    /// <param name="existingMemberTypeCode">The PropertyType code of any property already in this
+    /// group, or null if the group is currently empty. All members share one family by
+    /// construction (this same check enforces it), so one existing member is enough to compare
+    /// against. PropertyGroup has no access to sibling properties, so the caller (the Appraisal
+    /// aggregate root) resolves this.</param>
+    public PropertyGroupItem AddProperty(Guid propertyId, string propertyTypeCode, string? existingMemberTypeCode)
     {
         // Check if already in this group
         if (_items.Any(i => i.AppraisalPropertyId == propertyId))
             throw new InvalidOperationException($"Property {propertyId} is already in this group");
+
+        ValidateFamily(propertyTypeCode, existingMemberTypeCode);
 
         // Max+1, not Count+1: a gap in the existing sequences must not produce a duplicate.
         var sequenceInGroup = _items.Count == 0 ? 1 : _items.Max(x => x.SequenceInGroup) + 1;
@@ -64,6 +73,25 @@ public class PropertyGroup : Entity<Guid>
         _items.Add(item);
 
         return item;
+    }
+
+    /// <summary>
+    /// A property group may not mix collateral families (land/building, condo, machinery,
+    /// vehicle, vessel — see PropertyType.Family). Groups created before this rule existed and
+    /// already mix families are left as-is; this only guards new additions.
+    /// </summary>
+    private static void ValidateFamily(string propertyTypeCode, string? existingMemberTypeCode)
+    {
+        if (existingMemberTypeCode is null)
+            return;
+
+        var newFamily = PropertyType.FromString(propertyTypeCode).Family;
+        var existingFamily = PropertyType.FromString(existingMemberTypeCode).Family;
+
+        if (newFamily != existingFamily)
+            throw new DomainException(
+                $"Cannot add a {propertyTypeCode} property to this group: it already contains " +
+                $"{existingMemberTypeCode} properties from a different collateral family.");
     }
 
     /// <summary>
@@ -88,10 +116,13 @@ public class PropertyGroup : Entity<Guid>
     /// Insert a property at a specific position, shifting existing items down.
     /// Position is clamped to [1, count+1].
     /// </summary>
-    public PropertyGroupItem InsertProperty(Guid propertyId, int position)
+    public PropertyGroupItem InsertProperty(Guid propertyId, int position, string propertyTypeCode,
+        string? existingMemberTypeCode)
     {
         if (_items.Any(i => i.AppraisalPropertyId == propertyId))
             throw new InvalidOperationException($"Property {propertyId} is already in this group");
+
+        ValidateFamily(propertyTypeCode, existingMemberTypeCode);
 
         // Clamp position to valid range
         position = Math.Clamp(position, 1, _items.Count + 1);

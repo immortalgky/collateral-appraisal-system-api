@@ -1,4 +1,4 @@
-using Parameter.Contracts.PricingParameters;
+using Appraisal.Application.Features.FireInsuranceRates.GetFireInsuranceRates;
 
 namespace Appraisal.Application.Features.Project.GetProjectPricingAssumptions;
 
@@ -6,7 +6,7 @@ namespace Appraisal.Application.Features.Project.GetProjectPricingAssumptions;
 /// Returns pricing assumptions for a project (Condo or LandAndBuilding).
 /// When no ModelAssumptions have been persisted, falls back to deriving them from
 /// the project's Models collection — matching the behaviour of the old Condo handler.
-/// For Condo projects the CoverageAmount fall-back is derived from FireInsuranceCondition.
+/// For Condo projects the CoverageAmount fall-back is derived from FireInsuranceCode.
 /// </summary>
 public class GetProjectPricingAssumptionsQueryHandler(
     IProjectRepository projectRepository,
@@ -30,8 +30,8 @@ public class GetProjectPricingAssumptionsQueryHandler(
         // Fetch fire-insurance coverage rates (Parameter-module reference data; no kind filter —
         // both Condo and LandAndBuilding conditions are needed).
         var ratesResult = await mediator.Send(new GetFireInsuranceRatesQuery(), cancellationToken);
-        var ratesByCondition = ratesResult.Rates.ToDictionary(
-            r => r.Condition,
+        var ratesByCode = ratesResult.Rates.ToDictionary(
+            r => r.Code,
             r => r.RatePerSqm,
             StringComparer.Ordinal);
 
@@ -63,7 +63,7 @@ public class GetProjectPricingAssumptionsQueryHandler(
                 FloorIncrementAmount: null,
                 NearGardenAdjustment: null,
                 LandIncreaseDecreaseRate: null,
-                ModelAssumptions: DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCondition));
+                ModelAssumptions: DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCode));
 
             return new GetProjectPricingAssumptionsResult(shellDto);
         }
@@ -90,13 +90,13 @@ public class GetProjectPricingAssumptionsQueryHandler(
                         ma.UsableAreaTo,
                         ma.StandardLandPrice,
                         ma.CoverageAmount,
-                        ma.FireInsuranceCondition,
+                        ma.FireInsuranceCode,
                         PricingAnalysisId: paSum?.PricingAnalysisId,
                         PricingAnalysisStatus: paSum?.Status,
                         FinalAppraisedValue: paSum?.FinalAppraisedValue);
                 })
                 .ToList()
-            : DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCondition);
+            : DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCode);
 
         var dto = new ProjectPricingAssumptionDto(
             assumption.Id,
@@ -124,7 +124,7 @@ public class GetProjectPricingAssumptionsQueryHandler(
         IReadOnlyList<ProjectModel> models,
         bool isCondo,
         IReadOnlyDictionary<Guid, ProjectModelPricingSummary> paSummaries,
-        IReadOnlyDictionary<string, decimal> ratesByCondition) =>
+        IReadOnlyDictionary<string, decimal> ratesByCode) =>
         models.Select(m =>
         {
             paSummaries.TryGetValue(m.Id, out var pa);
@@ -136,10 +136,10 @@ public class GetProjectPricingAssumptionsQueryHandler(
                 m.UsableAreaMax,
                 // StandardLandArea is LB-only; null for Condo
                 isCondo ? null : m.StandardLandArea,
-                // CoverageAmount: both Condo and LB derive from FireInsuranceCondition via the
+                // CoverageAmount: both Condo and LB derive from FireInsuranceCode via the
                 // fire-insurance rate table (Parameter module).
-                LookupCoverageAmount(ratesByCondition, m.FireInsuranceCondition),
-                m.FireInsuranceCondition,
+                LookupCoverageAmount(ratesByCode, m.FireInsuranceCode),
+                m.FireInsuranceCode,
                 PricingAnalysisId: pa?.PricingAnalysisId,
                 PricingAnalysisStatus: pa?.Status,
                 FinalAppraisedValue: pa?.FinalAppraisedValue);
@@ -147,9 +147,9 @@ public class GetProjectPricingAssumptionsQueryHandler(
         .ToList();
 
     /// <summary>Returns the coverage amount for a condition, or null if the condition is null/empty or unmatched.</summary>
-    private static decimal? LookupCoverageAmount(IReadOnlyDictionary<string, decimal> ratesByCondition, string? condition)
+    private static decimal? LookupCoverageAmount(IReadOnlyDictionary<string, decimal> ratesByCode, string? condition)
     {
         if (string.IsNullOrEmpty(condition)) return null;
-        return ratesByCondition.TryGetValue(condition, out var rate) ? rate : null;
+        return ratesByCode.TryGetValue(condition, out var rate) ? rate : null;
     }
 }
