@@ -2139,6 +2139,11 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(300)")
                                 .HasColumnName("VehicleLocation");
 
+                            b1.Property<string>("VehicleRegistrationNumber")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
+                                .HasColumnName("VehicleRegistrationNumber");
+
                             b1.Property<string>("VehicleType")
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)")

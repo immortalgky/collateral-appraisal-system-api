@@ -19,6 +19,7 @@ public record AppraisalDto
     public string? RequestNumber { get; init; }
     public string Status { get; init; } = null!;
     public string AppraisalType { get; init; } = null!;
+    public int? InspectionNumber { get; init; }
     public string Priority { get; init; } = null!;
     public bool IsPma { get; init; }
     public string? Purpose { get; init; }

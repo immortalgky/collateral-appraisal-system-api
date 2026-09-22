@@ -194,6 +194,7 @@ SELECT resolved.Id                                                              
        resolved.ActivityId,
        a.AppraisalNumber,
        r.RequestNumber,
+       r.Channel,
        c.Name                                                                                   AS CustomerName,
        resolved.TaskName                                                                        AS TaskType,
        resolved.TaskDescription,

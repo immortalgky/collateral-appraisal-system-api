@@ -45,5 +45,6 @@ public record ProjectModelAssumptionDto(
     string? FireInsuranceCode,
     Guid? PricingAnalysisId,
     string? PricingAnalysisStatus,
-    decimal? FinalAppraisedValue
+    decimal? FinalAppraisedValue,
+    string? TowerName
 );

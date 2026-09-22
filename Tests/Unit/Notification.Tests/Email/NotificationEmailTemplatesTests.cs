@@ -125,4 +125,38 @@ public class NotificationEmailTemplatesTests
         Assert.Contains("&lt;b&gt;bad&lt;/b&gt;", html);
         Assert.DoesNotContain("<b>bad</b>", html);
     }
+
+    [Fact]
+    public void AppraisalCompletedNotice_UsesChannel_AndEncodesValues()
+    {
+        var model = new AppraisalCompletedNoticeModel(
+            RmName: "สมชาย ใจดี",
+            CustomerName: "ABC <b>Co</b>",
+            AppraisalNumber: "69A00317",
+            Channel: "LOS");
+
+        var html = NewRenderer().AppraisalCompletedNotice("แจ้งผลการประเมินหลักประกันเสร็จสิ้น – ลูกค้า ABC", model);
+
+        Assert.Contains("เรียน สมชาย ใจดี", html);
+        Assert.Contains("เลขเล่มประเมิน <strong>69A00317</strong>", html);
+        Assert.Contains("บันทึกข้อมูลในระบบ LOS", html);
+        Assert.Contains("ดำเนินงานในระบบ CAS แล้ว", html);
+        Assert.DoesNotContain("CLS", html);
+        Assert.Contains("เสาวลักษณ์ สุคนธา", html);
+        Assert.Contains("ABC &lt;b&gt;Co&lt;/b&gt;", html);
+        Assert.DoesNotContain("<b>Co</b>", html);
+    }
+
+    [Theory]
+    [InlineData(new string[0], 4, null)]
+    [InlineData(new[] { "ABC Co., Ltd." }, 4, "ABC Co., Ltd.")]
+    [InlineData(new[] { "ก", " ", "ข", "ค", "ง" }, 4, "ก, ข, ค, ง")]
+    [InlineData(new[] { "ก", "ข", "ค", "ง", "จ", "ฉ" }, 4, "ก, ข, ค, ง และอีก 2 ราย")]
+    [InlineData(new[] { "ก" }, 1, "ก")]
+    [InlineData(new[] { "ก", "ข", "ค" }, 1, "ก และอีก 2 ราย")]
+    public void AppraisalCompletedEmail_FormatsCustomerNames_InOrder_Capped(string[] names, int max, string? expected)
+    {
+        Assert.Equal(expected,
+            Notification.Application.EventHandlers.AppraisalCompletedEmailHandler.FormatCustomerNames(names, max));
+    }
 }

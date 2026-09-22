@@ -145,11 +145,11 @@ public class InboxGuard<TDbContext>(
         await connection.OpenAsync(ct);
 
         await using var command = connection.CreateCommand();
-        command.CommandText =
-            "DELETE FROM [" + schema + "].[InboxMessage] " +
-            "WHERE MessageId = @MessageId AND ConsumerType = @ConsumerType " +
-            "AND Status = 'Processing' AND StartedAt <= @ClaimedBefore";
+        // The schema differs per module context, so the table name is built server-side from a parameter
+        // (QUOTENAME) rather than concatenated here — CommandText stays a constant.
+        command.CommandText = ReleaseClaimSql;
 
+        AddParameter(command, "@Schema", schema);
         AddParameter(command, "@MessageId", messageId.Value);
         AddParameter(command, "@ConsumerType", consumerType);
 
@@ -185,6 +185,15 @@ public class InboxGuard<TDbContext>(
         logger.LogWarning("[INBOX] Released claim on message {MessageId} for {Consumer} so it can be retried",
             messageId.Value, consumerType);
     }
+
+    private const string ReleaseClaimSql = """
+        DECLARE @sql nvarchar(max) = N'DELETE FROM ' + QUOTENAME(@Schema) + N'.[InboxMessage] '
+            + N'WHERE MessageId = @MessageId AND ConsumerType = @ConsumerType '
+            + N'AND Status = ''Processing'' AND StartedAt <= @ClaimedBefore';
+        EXEC sp_executesql @sql,
+            N'@MessageId uniqueidentifier, @ConsumerType nvarchar(max), @ClaimedBefore datetime2',
+            @MessageId, @ConsumerType, @ClaimedBefore;
+        """;
 
     private static void AddParameter(DbCommand command, string name, object value, DbType? dbType = null)
     {

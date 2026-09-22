@@ -18,7 +18,7 @@ public class ProjectLandConfiguration : IEntityTypeConfiguration<ProjectLand>
 
         // Property Identification
         builder.Property(e => e.PropertyName).HasMaxLength(200);
-        builder.Property(e => e.LandDescription).HasMaxLength(500);
+        builder.Property(e => e.LandDescription).HasMaxLength(4000);
 
         // GPS Coordinates (Value Object)
         builder.OwnsOne(e => e.Coordinates, coord =>

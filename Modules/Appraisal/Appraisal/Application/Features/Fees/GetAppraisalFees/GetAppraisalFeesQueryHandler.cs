@@ -28,6 +28,7 @@ public class GetAppraisalFeesQueryHandler(ISqlConnectionFactory connectionFactor
         // Drives FE visibility of the Construction Inspection Fee input.
         // Building properties have type code 'B' (Building) or 'LB' (Land+Building) — both have a
         // BuildingAppraisalDetail row keyed by AppraisalPropertyId; IsUnderConstruction lives there.
+        // Condo properties carry the same flag on CondoAppraisalDetails instead.
         const string ucSql = """
                              SELECT CASE WHEN EXISTS (
                                  SELECT 1
@@ -35,6 +36,12 @@ public class GetAppraisalFeesQueryHandler(ISqlConnectionFactory connectionFactor
                                  INNER JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
                                  WHERE ap.AppraisalId = @AppraisalId
                                    AND bad.IsUnderConstruction = 1
+                             ) OR EXISTS (
+                                 SELECT 1
+                                 FROM appraisal.CondoAppraisalDetails cad
+                                 INNER JOIN appraisal.AppraisalProperties ap ON ap.Id = cad.AppraisalPropertyId
+                                 WHERE ap.AppraisalId = @AppraisalId
+                                   AND cad.IsUnderConstruction = 1
                              ) THEN 1 ELSE 0 END
                              """;
         var hasBuildingUnderConstruction =

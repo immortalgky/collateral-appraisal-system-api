@@ -45,7 +45,7 @@ public class RequestTitleDataBuilder
 
     public LandArea _landArea = LandArea.Of(1, 2, 3);
     public string _ownerName = "Owner";
-    public VehicleInfo _vehicleInfo = VehicleInfo.Create("Car", "Location", "VIN123", "ABC-1234");
+    public VehicleInfo _vehicleInfo = VehicleInfo.Create("Car", "REGIS-123", "Location", "VIN123", "ABC-1234");
     public VesselInfo _vesselInfo = VesselInfo.Create("Boat", "Marina", "HIN123", "VES-001");
     public MachineInfo _machineInfo = MachineInfo.Create(true, "REG123", "Type", "Installed", "INV123", 1);
     public BuildingInfo _buildingInfo = BuildingInfo.Create("Type", 100, 1);
