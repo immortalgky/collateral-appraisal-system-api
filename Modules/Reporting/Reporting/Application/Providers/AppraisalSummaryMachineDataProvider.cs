@@ -99,7 +99,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
             JOIN appraisal.MachineryAppraisalDetails mad ON mad.AppraisalPropertyId = ap.Id
             -- NOTE on reconciliation: this is Σ FairMarketValue, while the group's own figure on
             -- the subtotal row is Q9's COALESCE(FinalAppraisedValue, FinalValueRounded,
-            -- AppraisalPrice). They agree on every live path — MirrorMachineCostTotalToFinalValue
+            -- IndicatedValue). They agree on every live path — MirrorMachineCostTotalToFinalValue
             -- writes Σ FMV into both FinalValue and FinalValueRounded with no rounding. They would
             -- diverge if someone overrode a MachineryCost method's final value through the
             -- type-agnostic UpdateFinalValue endpoint, but nothing calls it: useSetFinalValue and

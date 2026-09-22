@@ -673,10 +673,10 @@ public sealed class SummaryGroupRow
     public decimal? MarketLandArea { get; init; }
 
     /// <summary>Land rate per square-wa / square-metre for the market/combined row
-    /// (PricingAnalysisMethods.ValuePerUnit, else PricingFinalValues.FinalValueAdjusted).</summary>
+    /// (PricingAnalysisMethods.ValuePerUnit, else PricingFinalValues.FinalValueOverride).</summary>
     public decimal? MarketLandUnitPrice { get; init; }
 
-    /// <summary>Land price per square-wa (PricingFinalValues.FinalValueAdjusted). Cost approach only.</summary>
+    /// <summary>Land price per square-wa (PricingFinalValues.FinalValueOverride). Cost approach only.</summary>
     public decimal? LandUnitPrice { get; init; }
 
     /// <summary>Land appraised value (PricingFinalValues.LandValue). Cost approach only.</summary>

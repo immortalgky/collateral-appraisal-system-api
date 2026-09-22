@@ -175,8 +175,10 @@ internal static class GetAppraisalResultSql
                                                    CAST(NULL AS decimal(18,2)) AS GroupAppraisedValue,
                                                    paa.ApproachType AS AppraisalMethod,
                                                    pfv.LandValue AS GroupLandValue,
-                                                   pfv.BuildingValue AS GroupBuildingValue,
-                                                   pfv.FinalValueAdjusted AS GroupUnitPrice,
+                                                   -- A land-side method linked to BuildingCost snapshots its own BuildingValue;
+                                                   -- otherwise the separately-selected Building-role method carries it.
+                                                   COALESCE(pfv.BuildingValue, pbv.FinalValue) AS GroupBuildingValue,
+                                                   pfv.FinalValueOverride AS GroupUnitPrice,
                                                    pfv.ValuePerUnit AS GroupValuePerUnit,   -- selected method's per-Wa/Sqm rate → AppraisalValueWaOrM
                                                    ap.Id AS PropertyId, ap.PropertyType,
                                                    -- Land/LB fields (from LandAppraisalDetails + first LandTitle)
@@ -283,15 +285,34 @@ internal static class GetAppraisalResultSql
                                                    WHERE PricingAnalysisId = pa.Id AND IsSelected = 1
                                                    ORDER BY Id
                                                ) paa
+                                               -- A Cost approach may select one method PER ROLE (Land / LandAndBuilding /
+                                               -- Building / Machinery), so "the" selected method is no longer unique.
+                                               -- pfv = the land-side method (land value, unit price, rate); a Building- or
+                                               -- Machinery-role method is never it, or its figure would reach LOS as the land rate.
+                                               -- pbv = the Building-role method, the building value when pfv has none.
+                                               -- Same split as vw_CollateralResultExport's landM/buildM.
                                                OUTER APPLY (
-                                                   SELECT TOP 1 fv.LandValue, fv.BuildingValue, fv.FinalValueAdjusted,
+                                                   SELECT TOP 1 fv.LandValue, fv.BuildingValue, fv.FinalValueOverride,
                                                           pm.ValuePerUnit
                                                    FROM appraisal.PricingAnalysisApproaches pap
                                                    JOIN appraisal.PricingAnalysisMethods pm ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
                                                    JOIN appraisal.PricingFinalValues fv ON fv.PricingMethodId = pm.Id
                                                    WHERE pap.PricingAnalysisId = pa.Id AND pap.IsSelected = 1
-                                                   ORDER BY pm.Id
+                                                     AND (pm.Role IS NULL OR pm.Role IN ('Land', 'LandAndBuilding'))
+                                                   ORDER BY CASE WHEN pm.Role IN ('Land', 'LandAndBuilding') THEN 0 ELSE 1 END, pm.Id
                                                ) pfv
+                                               OUTER APPLY (
+                                                   -- MethodValue = IndicatedValue ?? FinalValue: the building figure the
+                                                   -- appraised value actually contains, typed-over value included.
+                                                   SELECT TOP 1 COALESCE(pm.MethodValue, fv.IndicatedValue, fv.FinalValue) AS FinalValue
+                                                   FROM appraisal.PricingAnalysisApproaches pap
+                                                   JOIN appraisal.PricingAnalysisMethods pm ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
+                                                   -- LEFT: a manually valued BuildingCost may have no FinalValue row.
+                                                   LEFT JOIN appraisal.PricingFinalValues fv ON fv.PricingMethodId = pm.Id
+                                                   WHERE pap.PricingAnalysisId = pa.Id AND pap.IsSelected = 1
+                                                     AND pap.ApproachType = 'Cost' AND pm.Role = 'Building'
+                                                   ORDER BY pm.Id
+                                               ) pbv
                                                LEFT JOIN appraisal.LandAppraisalDetails lad ON lad.AppraisalPropertyId = ap.Id
                                                LEFT JOIN (
                                                    SELECT *, ROW_NUMBER() OVER (PARTITION BY LandAppraisalDetailId ORDER BY Id) AS rn

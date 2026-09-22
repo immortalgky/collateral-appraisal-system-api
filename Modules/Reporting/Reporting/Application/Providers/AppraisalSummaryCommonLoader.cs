@@ -187,7 +187,7 @@ internal static class AppraisalSummaryCommonLoader
                 pg.Id                AS GroupId,
                 pg.GroupNumber,
                 pg.GroupName,
-                COALESCE(pa.FinalAppraisedValue, pfv.FinalValueRounded, pfv.AppraisalPrice) AS GroupAppraisalValue,
+                COALESCE(pa.FinalAppraisedValue, pfv.EffectiveValue) AS GroupAppraisalValue,
                 (SELECT TOP 1 ap.PropertyType
                  FROM appraisal.PropertyGroupItems gi2
                  JOIN appraisal.AppraisalProperties ap ON ap.Id = gi2.AppraisalPropertyId
@@ -199,12 +199,21 @@ internal static class AppraisalSummaryCommonLoader
             FROM appraisal.PropertyGroups pg
             LEFT JOIN appraisal.PricingAnalysis pa
                 ON pa.AnchorId = pg.Id AND pa.SubjectType = 0
+            -- Fallback only: pa.FinalAppraisedValue (COALESCE above) is the primary source and is
+            -- already correct — it is the domain rollup's sum across a Cost approach's selected
+            -- methods (one per role: Land/LandAndBuilding, Building, Machinery). This SUM only fires
+            -- when that is NULL. A plain TOP 1 here (as before) is no longer safe: once a Cost
+            -- approach can hold 2 selected methods, TOP 1 with no ORDER BY is non-deterministic, so
+            -- summing every selected method's own effective value is both correct and stable.
             OUTER APPLY (
-                SELECT TOP 1 fv.FinalValueRounded, fv.AppraisalPrice
+                -- MethodValue first (exactly what the rollup sums — e.g. a partial-usage Leasehold's
+                -- partial estimate); LEFT JOIN for a method valued on the board with no FinalValue row.
+                -- Same read as AppraisalSummaryLandBuildingDataProvider's totalPfv.
+                SELECT SUM(COALESCE(pm.MethodValue, fv.IndicatedValue, fv.FinalValue)) AS EffectiveValue
                 FROM appraisal.PricingAnalysisApproaches pap
                 JOIN appraisal.PricingAnalysisMethods pm
                     ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
-                JOIN appraisal.PricingFinalValues fv
+                LEFT JOIN appraisal.PricingFinalValues fv
                     ON fv.PricingMethodId = pm.Id
                 WHERE pap.PricingAnalysisId = pa.Id AND pap.IsSelected = 1
             ) pfv

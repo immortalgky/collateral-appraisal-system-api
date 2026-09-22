@@ -172,7 +172,8 @@ internal static class CondoSectionLoader
                 m.UnitType,
                 m.ValuePerUnit,
                 m.MethodValue,
-                COALESCE(pa.FinalAppraisedValue, m.FinalValueRounded, m.AppraisalPrice) AS GroupValue
+                -- IndicatedValue (the appraiser's typed-over figure) outranks FinalValue, as in Q9.
+                COALESCE(pa.FinalAppraisedValue, m.IndicatedValue, m.FinalValue) AS GroupValue
             FROM appraisal.PropertyGroups pg
             JOIN appraisal.PropertyGroupItems pgi
                 ON pgi.PropertyGroupId = pg.Id
@@ -183,7 +184,7 @@ internal static class CondoSectionLoader
             OUTER APPLY (
                 SELECT TOP 1
                     pm.UnitType, pm.ValuePerUnit, pm.MethodValue,
-                    fv.FinalValueRounded, fv.AppraisalPrice
+                    fv.FinalValue, fv.IndicatedValue
                 FROM appraisal.PricingAnalysisApproaches pap
                 JOIN appraisal.PricingAnalysisMethods pm
                     ON pm.ApproachId = pap.Id AND pm.IsSelected = 1

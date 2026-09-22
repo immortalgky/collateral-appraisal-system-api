@@ -1,3 +1,4 @@
+using Reporting.Contracts;
 using Reporting.Application.Models;
 using Reporting.Application.Models.Sections;
 using Reporting.Application.Providers.Sections;
@@ -49,8 +50,15 @@ public sealed class AppraisalBookDataProvider(
                 CAST(CASE WHEN EXISTS (SELECT 1 FROM appraisal.Projects pr
                                        WHERE pr.AppraisalId = @AppraisalId)
                           THEN 1 ELSE 0 END AS bit)                                AS ProjectExists,
-                (SELECT a.AppraisalType FROM appraisal.Appraisals a
-                 WHERE a.Id = @AppraisalId AND a.IsDeleted = 0)                    AS AppraisalType;
+                a.AppraisalType                                                    AS AppraisalType
+            -- Same load-bearing FROM as AppraisalSummaryDataProvider, and for the same two reasons.
+            -- Without it this is a bare SELECT that returns a row for ANY id, so the `route is null`
+            -- guard below could never fire and an unknown appraisal rendered a blank book with HTTP 200.
+            -- It also replaces an `AND a.IsDeleted = 0` that used to sit on the AppraisalType subquery:
+            -- that filter did not skip the appraisal, it only blanked its type, so a soft-deleted
+            -- Progressive appraisal was silently reclassified Standard and rendered the wrong body.
+            FROM appraisal.Appraisals a
+            WHERE a.Id = @AppraisalId;
             """;
 
         var routeParams = new DynamicParameters();
