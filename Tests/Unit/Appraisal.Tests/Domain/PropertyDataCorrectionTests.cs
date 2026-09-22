@@ -476,7 +476,14 @@ public class PropertyDataCorrectionTests
         var valueObjects = new[] { "Coordinates", "Address", "DopaAddress", "Area" };
         // Area is intentionally uncorrectable — see CorrectionDto_DoesNotExposeArea, which fails
         // if any of these ever reappears on a correction record.
-        var notCorrectable = new[] { "TotalBuildingArea", "UsableArea" };
+        // The overrides are figures the appraiser types on the pricing/insurance screens, and
+        // DeductedAreaInSqWa is derived from the land's deduction rows — same reason as Area: this
+        // feature corrects descriptive data, not the inputs behind a recorded value.
+        var notCorrectable = new[]
+        {
+            "TotalBuildingArea", "UsableArea",
+            "FinalCostValueOverride", "BuildingInsurancePriceOverride", "DeductedAreaInSqWa",
+        };
 
         var settable = detailType
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)

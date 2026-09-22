@@ -16,12 +16,12 @@ namespace Integration.Collateral.Integration.Tests;
 /// PR-8 integration tests covering the wiring of UnitPrice / BuildingCost / AppraisalValue
 /// from PricingFinalValue on the selected cost-approach method.
 ///
-/// Field mapping (per user spec — FinalValueAdjust → actual schema field FinalValueAdjusted):
-///   UnitPrice     ← PricingFinalValue.FinalValueAdjusted    (cost approach only)
+/// Field mapping (per user spec — FinalValueAdjust → actual schema field FinalValueOverride):
+///   UnitPrice     ← PricingFinalValue.FinalValueOverride    (cost approach only)
 ///   BuildingCost  ← PricingFinalValue.BuildingValue           (cost approach only)
-///   AppraisalValue← PricingFinalValue.AppraisalPrice         (all approaches)
-///                   ?? PricingFinalValue.FinalValueAdjusted
-///                   ?? PricingFinalValue.FinalValueRounded
+///   AppraisalValue← PricingFinalValue.IndicatedValue         (all approaches)
+///                   ?? PricingFinalValue.FinalValueOverride
+///                   ?? PricingFinalValue.FinalValue
 /// </summary>
 [Collection("Integration")]
 public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture)
@@ -54,13 +54,13 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
     }
 
     /// <summary>
-    /// Seeds a PricingAnalysis with one cost-approach method that has BuildingCost, AppraisalPrice,
-    /// and FinalValueAdjusted set distinctly. Returns the created analysis.
+    /// Seeds a PricingAnalysis with one cost-approach method that has BuildingCost, IndicatedValue,
+    /// and FinalValueOverride set distinctly. Returns the created analysis.
     ///
     /// Field mapping (post user-correction):
-    ///   UnitPrice     ← FinalValue.FinalValueAdjusted   (the "adjusted unit price" rate)
+    ///   UnitPrice     ← FinalValue.FinalValueOverride   (the "adjusted unit price" rate)
     ///   BuildingCost  ← FinalValue.BuildingValue
-    ///   AppraisalValue← FinalValue.AppraisalPrice ?? FinalValueAdjusted ?? FinalValueRounded
+    ///   AppraisalValue← FinalValue.IndicatedValue ?? FinalValueOverride ?? FinalValue
     /// </summary>
     private static PricingAnalysis SeedCostApproachPricing(
         Guid propertyGroupId,
@@ -78,10 +78,10 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
         method.SetAsSelected();
         method.SetValue(appraisalPrice);
 
-        // PricingFinalValue.Create(methodId, finalValueAdjusted, finalValueRounded)
-        var fv = PricingFinalValue.Create(method.Id, finalValueAdjusted, appraisalPrice);
+        // PricingFinalValue.Create(methodId, finalValue)
+        var fv = PricingFinalValue.Create(method.Id, finalValueAdjusted);
         fv.SetBuildingValue(buildingCost);
-        fv.SetAppraisalPrice(appraisalPrice);
+        fv.SetIndicatedValue(appraisalPrice);
         method.SetFinalValue(fv);
 
         pa.SetFinalValues(appraisalPrice);
@@ -90,7 +90,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
 
     /// <summary>
     /// Seeds a PricingAnalysis with one non-cost-approach method (Market) that has
-    /// AppraisalPrice set but no BuildingCost.
+    /// IndicatedValue set but no BuildingCost.
     /// </summary>
     private static PricingAnalysis SeedMarketApproachPricing(
         Guid propertyGroupId,
@@ -106,8 +106,8 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
         method.SetAsSelected();
         method.SetValue(appraisalPrice);
 
-        var fv = PricingFinalValue.Create(method.Id, appraisalPrice, appraisalPrice);
-        fv.SetAppraisalPrice(appraisalPrice);
+        var fv = PricingFinalValue.Create(method.Id, appraisalPrice);
+        fv.SetIndicatedValue(appraisalPrice);
         method.SetFinalValue(fv);
 
         pa.SetFinalValues(appraisalPrice);
@@ -152,7 +152,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
 
             // Create a PropertyGroup, add the property to it
             var group = a.CreateGroup("Test Group");
-            group.AddProperty(prop.Id);
+            group.AddProperty(prop.Id, prop.PropertyType.Code, null);
 
             // Seed cost-approach pricing for this group — distinct values for each field
             var pa = SeedCostApproachPricing(
@@ -184,7 +184,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
         // but no caller projected it), and the snapshot takes it straight from the appraisal contract.
         var eng = Assert.Single(master.Engagements);
         Assert.Equal(500_000m,   eng.BuildingValue);   // PricingFinalValue.BuildingValue
-        Assert.Equal(1_500_000m, eng.AppraisalValue);  // PricingFinalValue.AppraisalPrice
+        Assert.Equal(1_500_000m, eng.AppraisalValue);  // PricingFinalValue.IndicatedValue
     }
 
     // -----------------------------------------------------------------------
@@ -220,7 +220,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
             appraisalId = a.Id;
 
             var group = a.CreateGroup("Multi Group");
-            group.AddProperty(prop.Id);
+            group.AddProperty(prop.Id, prop.PropertyType.Code, null);
 
             var pa = SeedCostApproachPricing(
                 propertyGroupId: group.Id,
@@ -266,7 +266,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
     }
 
     // -----------------------------------------------------------------------
-    // PR8-3: Non-cost approach — UnitPrice null, AppraisalValue populated from AppraisalPrice
+    // PR8-3: Non-cost approach — UnitPrice null, AppraisalValue populated from IndicatedValue
     // -----------------------------------------------------------------------
     [Fact]
     public async Task PR8_3_NonCostApproach_UnitPriceNull_AppraisalValuePopulated()
@@ -286,9 +286,9 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
             appraisalId = a.Id;
 
             var group = a.CreateGroup("Market Group");
-            group.AddProperty(prop.Id);
+            group.AddProperty(prop.Id, prop.PropertyType.Code, null);
 
-            // Market approach — no building cost, AppraisalPrice set
+            // Market approach — no building cost, IndicatedValue set
             var pa = SeedMarketApproachPricing(
                 propertyGroupId: group.Id,
                 appraisalPrice: 2_000_000m);
@@ -316,7 +316,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
         var eng = Assert.Single(master.Engagements);
         // BuildingValue: null (no cost approach, HasBuildingValue = false)
         Assert.Null(eng.BuildingValue);
-        // AppraisalValue: populated from AppraisalPrice on the market-approach FinalValue
+        // AppraisalValue: populated from IndicatedValue on the market-approach FinalValue
         Assert.Equal(2_000_000m, eng.AppraisalValue);
     }
 
@@ -380,7 +380,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
             appraisalId = a.Id;
 
             var group = a.CreateGroup("Snap Group");
-            group.AddProperty(prop.Id);
+            group.AddProperty(prop.Id, prop.PropertyType.Code, null);
 
             var pa = SeedCostApproachPricing(
                 propertyGroupId: group.Id,
