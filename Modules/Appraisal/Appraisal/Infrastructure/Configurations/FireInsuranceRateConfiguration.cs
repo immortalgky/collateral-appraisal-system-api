@@ -1,12 +1,12 @@
-using Parameter.PricingParameters.Models;
+using Appraisal.Domain.Appraisals;
 
-namespace Parameter.PricingParameters.Configurations;
+namespace Appraisal.Infrastructure.Configurations;
 
-public class PricingParameterFireInsuranceRateConfiguration : IEntityTypeConfiguration<PricingParameterFireInsuranceRate>
+public class FireInsuranceRateConfiguration : IEntityTypeConfiguration<FireInsuranceRate>
 {
-    public void Configure(EntityTypeBuilder<PricingParameterFireInsuranceRate> builder)
+    public void Configure(EntityTypeBuilder<FireInsuranceRate> builder)
     {
-        builder.ToTable("PricingParameterFireInsuranceRates");
+        builder.ToTable("FireInsuranceRates");
 
         builder.HasKey(r => r.Code);
         builder.Property(r => r.Code).IsRequired().HasMaxLength(10).ValueGeneratedNever();
