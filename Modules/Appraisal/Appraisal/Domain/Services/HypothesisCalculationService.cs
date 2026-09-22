@@ -38,18 +38,33 @@ public class HypothesisCalculationService
     /// <param name="input">User-supplied inputs (TotalArea / SellingAreaPercent / PublicUtilityAreaPercent
     ///   are legacy fallbacks only — see <paramref name="totalLandAreaFromTitles"/>).</param>
     /// <param name="totalLandAreaFromTitles">
-    ///   System-derived C01: sum of LandAppraisalDetail.TotalLandAreaInSqWa across the property group's
-    ///   land titles. When non-null this takes precedence over input.TotalArea and the derived
+    ///   System-derived C01: sum of LandAppraisalDetail.NetLandAreaInSqWa across the property group's
+    ///   land titles — registered title area LESS the appraiser's listed deductions. Pricing uses
+    ///   net; the report book, Collateral Master and the AS400 exports keep the registered deed
+    ///   figure. When non-null this takes precedence over input.TotalArea and the derived
     ///   percentages (C02, C10) are computed from C01 and C03/C10A instead of from user input.
     ///   Pass null when the analysis is for a ProjectModel (no land-title chain available).
+    /// </param>
+    /// <param name="buildingFinalCostValues">
+    ///   Final Cost Value per building property in the group (AppraisalPropertyId → value). A house
+    ///   model's per-unit construction cost is the value of the building it is mapped to.
+    /// </param>
+    /// <param name="indicatedValue">
+    ///   The appraiser's typed-over method value (PricingFinalValues.IndicatedValue). When set, the
+    ///   per-area value (C82 / E59) divides it instead of the system's rounded total — the per-area
+    ///   figure printed next to the method value must describe that value, not a superseded one.
     /// </param>
     public LandBuildingSnapshot ComputeLandBuilding(
         HypothesisAnalysis analysis,
         IReadOnlyList<LandBuildingUnitRow> rows,
         LandBuildingSummary input,
-        decimal? totalLandAreaFromTitles = null)
+        decimal? totalLandAreaFromTitles = null,
+        IReadOnlyDictionary<Guid, decimal>? buildingFinalCostValues = null,
+        decimal? indicatedValue = null)
     {
-        return ComputeLandBuildingCore(analysis.CostItems, rows, input, totalLandAreaFromTitles);
+        return ComputeLandBuildingCore(
+            analysis.CostItems, analysis.ModelBuildingMappings, buildingFinalCostValues,
+            rows, input, totalLandAreaFromTitles, indicatedValue);
     }
 
     /// <summary>
@@ -58,18 +73,25 @@ public class HypothesisCalculationService
     /// </summary>
     public LandBuildingSnapshot ComputeLandBuilding(
         IReadOnlyList<HypothesisCostItem> costItems,
+        IReadOnlyList<HypothesisModelBuildingMapping> mappings,
+        IReadOnlyDictionary<Guid, decimal>? buildingFinalCostValues,
         IReadOnlyList<LandBuildingUnitRow> rows,
         LandBuildingSummary input,
-        decimal? totalLandAreaFromTitles = null)
+        decimal? totalLandAreaFromTitles = null,
+        decimal? indicatedValue = null)
     {
-        return ComputeLandBuildingCore(costItems, rows, input, totalLandAreaFromTitles);
+        return ComputeLandBuildingCore(
+            costItems, mappings, buildingFinalCostValues, rows, input, totalLandAreaFromTitles, indicatedValue);
     }
 
     private static LandBuildingSnapshot ComputeLandBuildingCore(
         IReadOnlyList<HypothesisCostItem> costItems,
+        IReadOnlyList<HypothesisModelBuildingMapping> mappings,
+        IReadOnlyDictionary<Guid, decimal>? buildingFinalCostValues,
         IReadOnlyList<LandBuildingUnitRow> rows,
         LandBuildingSummary input,
-        decimal? totalLandAreaFromTitles)
+        decimal? totalLandAreaFromTitles,
+        decimal? indicatedValue)
     {
         // ── Step 1: Aggregate per-model A/C fields from unit rows ─────────
         var models = AggregateModels(rows);
@@ -103,35 +125,33 @@ public class HypothesisCalculationService
         // FSD C18: Estimated duration months
         int c18 = c16 > 0 ? (int)Math.Ceiling((double)c17 / c16) : 0;
 
-        // ── Step 3.5: Compute B03/B06/B07/B08 for each CostOfBuilding item ─
-        ComputeBuildingDepreciation(costItems);
-
-        // ── Step 4: Per-model construction cost from cost items ───────────
+        // ── Step 4: Per-model construction cost from the mapped building ──
+        // Each house model is mapped to one building property; its Final Cost Value is the cost per
+        // house (C19). The appraiser may type over the model total (C21). CostOfBuilding cost items
+        // no longer feed this — legacy rows were converted to TotalCost by a one-time data script.
+        // An unmapped model costs 0: the FE warns, it does not block the save (user, 2026-09-21).
         // FSD C21+C25+...: sum building cost all models
         decimal sumBuildingCostAllModels = 0m;
 
         foreach (var model in models.Values)
         {
-            var modelItems = costItems
-                .Where(i => i.Category == HypothesisCostCategory.CostOfBuilding
-                             && i.ModelName == model.ModelName)
-                .ToList();
+            var mapping = mappings.FirstOrDefault(m =>
+                string.Equals(m.ModelName.Trim(), model.ModelName.Trim(), StringComparison.OrdinalIgnoreCase));
 
-            // FSD B09: Total area = Σ B01
-            model.TotalBuildingAreaSqM = modelItems.Sum(i => i.Area ?? 0m);
+            decimal perUnit = mapping?.AppraisalPropertyId is { } propertyId
+                              && buildingFinalCostValues is not null
+                              && buildingFinalCostValues.TryGetValue(propertyId, out var value)
+                ? value
+                : 0m;
 
-            // FSD B10: Total price before depreciation = Σ B03
-            model.TotalPriceBeforeDepreciation = modelItems.Sum(i => i.PriceBeforeDepreciation ?? 0m);
+            model.BuildingPropertyId = mapping?.AppraisalPropertyId;
+            model.TotalCost = mapping?.TotalCost;
 
-            // FSD B11: Total value after depreciation = Σ B08
-            // Falls back to item.Amount for rows that pre-date the B-field addition.
-            decimal b11 = modelItems.Sum(i => i.ValueAfterDepreciation ?? i.Amount);
-            model.TotalBuildingValueAfterDepreciation = b11;
-
-            // FSD C19: per-unit value after depreciation (= B11 for this model)
-            model.TotalValueAfterDepreciation = b11;
-            // FSD C21: C19 × C20 (C20 = unit count for the model)
-            model.TotalValueAfterDepreciationAllUnits = b11 * model.UnitCount;
+            // B11 / C19 keep their names for the FE: they now hold the mapped building's value.
+            model.TotalBuildingValueAfterDepreciation = perUnit;
+            model.TotalValueAfterDepreciation = perUnit;
+            // FSD C21: typed-over total, else C19 × C20 (C20 = unit count for the model)
+            model.TotalValueAfterDepreciationAllUnits = mapping?.TotalCost ?? perUnit * model.UnitCount;
             sumBuildingCostAllModels += model.TotalValueAfterDepreciationAllUnits;
         }
 
@@ -320,8 +340,9 @@ public class HypothesisCalculationService
         decimal c80 = c77 * c79;
         // FSD C81: Total asset value rounded to nearest 10,000
         decimal c81 = RoundToNearest(c80, 10000m);
-        // FSD C82: Total asset value per SqWa rounded to nearest 100
-        decimal c82 = c01 > 0m ? RoundToNearest(c81 / c01, 100m) : 0m;
+        // FSD C82: Total asset value per SqWa rounded to nearest 100 — of the appraiser's
+        // typed-over value when there is one, so it describes the value actually used.
+        decimal c82 = c01 > 0m ? RoundToNearest((indicatedValue ?? c81) / c01, 100m) : 0m;
 
         // ── Build the updated summary ─────────────────────────────────────
         var summary = new LandBuildingSummary
@@ -406,9 +427,10 @@ public class HypothesisCalculationService
         HypothesisAnalysis analysis,
         IReadOnlyList<CondominiumUnitRow> rows,
         CondominiumSummary input,
-        decimal? totalLandAreaFromTitles = null)
+        decimal? totalLandAreaFromTitles = null,
+        decimal? indicatedValue = null)
     {
-        return ComputeCondominiumCore(analysis.CostItems, rows, input, totalLandAreaFromTitles);
+        return ComputeCondominiumCore(analysis.CostItems, rows, input, totalLandAreaFromTitles, indicatedValue);
     }
 
     /// <summary>
@@ -419,16 +441,18 @@ public class HypothesisCalculationService
         IReadOnlyList<HypothesisCostItem> costItems,
         IReadOnlyList<CondominiumUnitRow> rows,
         CondominiumSummary input,
-        decimal? totalLandAreaFromTitles = null)
+        decimal? totalLandAreaFromTitles = null,
+        decimal? indicatedValue = null)
     {
-        return ComputeCondominiumCore(costItems, rows, input, totalLandAreaFromTitles);
+        return ComputeCondominiumCore(costItems, rows, input, totalLandAreaFromTitles, indicatedValue);
     }
 
     private static CondominiumSummary ComputeCondominiumCore(
         IReadOnlyList<HypothesisCostItem> costItems,
         IReadOnlyList<CondominiumUnitRow> rows,
         CondominiumSummary input,
-        decimal? totalLandAreaFromTitles)
+        decimal? totalLandAreaFromTitles,
+        decimal? indicatedValue)
     {
         // ── Step 1: Aggregate from upload (D01-D04 → E01/E09/E12/E18) ─────
         // FSD D02: total indoor sales area
@@ -600,7 +624,8 @@ public class HypothesisCalculationService
         // FSD E58: Total asset value rounded to nearest 10,000
         decimal e58 = RoundToNearest(e57, 10000m);
         // FSD E59: Total asset value per SqM rounded to nearest 100
-        decimal e59 = e05 > 0m ? RoundToNearest(e58 / e05, 100m) : 0m;
+        // …of the typed-over value when there is one (see C82).
+        decimal e59 = e05 > 0m ? RoundToNearest((indicatedValue ?? e58) / e05, 100m) : 0m;
 
         return new CondominiumSummary
         {
@@ -669,63 +694,6 @@ public class HypothesisCalculationService
 
     // ── Private helpers ───────────────────────────────────────────────────
 
-    /// <summary>
-    /// For every CostOfBuilding item, computes and stores the four derived B-fields:
-    ///   B03 = B01 × B02
-    ///   B06 (Gross)  = min(100, B04 × B05)
-    ///   B06 (Period) = min(100, Σ (ToYear − AtYear + 1) × DepreciationPerYear)
-    ///   B07 = B03 × B06 / 100
-    ///   B08 = B03 − B07
-    ///
-    /// Null inputs are treated as 0 for the computation, but only stored when at
-    /// least one non-null signal exists (B01/B02/B04/B05 or a non-empty period list).
-    /// This preserves the "not entered yet" state for truly empty rows.
-    /// </summary>
-    private static void ComputeBuildingDepreciation(IReadOnlyList<HypothesisCostItem> costItems)
-    {
-        foreach (var item in costItems)
-        {
-            if (item.Category != HypothesisCostCategory.CostOfBuilding)
-                continue;
-
-            bool hasPeriods = item.DepreciationPeriods.Count > 0;
-
-            // If all user inputs are null AND no periods, this row hasn't been configured yet — skip.
-            if (item.Area is null && item.PricePerSqM is null
-                && item.Year is null && item.AnnualDepreciationPercent is null
-                && !hasPeriods)
-            {
-                item.SetBuildingCostComputedFields(null, null, null, null);
-                continue;
-            }
-
-            decimal b01 = item.Area ?? 0m;
-            decimal b02 = item.PricePerSqM ?? 0m;
-            decimal b03 = b01 * b02;
-
-            decimal b06;
-            if (item.DepreciationMethod == DepreciationMethod.Period)
-            {
-                // B06 = min(100, Σ (ToYear − AtYear + 1) × DepreciationPerYear)
-                decimal periodSum = item.DepreciationPeriods
-                    .Sum(p => (p.ToYear - p.AtYear + 1) * p.DepreciationPerYear);
-                b06 = Math.Min(100m, periodSum);
-            }
-            else
-            {
-                // Gross (default): B06 = min(100, B04 × B05)
-                decimal b04 = item.Year ?? 0;
-                decimal b05 = item.AnnualDepreciationPercent ?? 0m;
-                b06 = Math.Min(100m, b04 * b05);
-            }
-
-            decimal b07 = b03 * b06 / 100m;
-            decimal b08 = b03 - b07;
-
-            item.SetBuildingCostComputedFields(b03, b06, b07, b08);
-        }
-    }
-
     private static Dictionary<string, LandBuildingModelAggregate> AggregateModels(
         IReadOnlyList<LandBuildingUnitRow> rows)
     {
@@ -733,7 +701,9 @@ public class HypothesisCalculationService
 
         foreach (var row in rows)
         {
-            var modelName = row.ModelName ?? "Unknown";
+            // Trimmed, like the mapping lookup and the TotalCost data fix: "A" and "A " are one house
+            // model, or both entries would match mapping "A" and count its building cost twice.
+            var modelName = row.ModelName?.Trim() is { Length: > 0 } trimmed ? trimmed : "Unknown";
             if (!models.TryGetValue(modelName, out var agg))
             {
                 agg = new LandBuildingModelAggregate { ModelName = modelName };
@@ -809,5 +779,11 @@ public class HypothesisCalculationService
         /// This is the source for FSD C19 (per-unit building value going into the dev-cost calc).
         /// </summary>
         public decimal TotalBuildingValueAfterDepreciation { get; set; }
+
+        /// <summary>The building property this model is mapped to. Null = none chosen (cost 0 + FE warning).</summary>
+        public Guid? BuildingPropertyId { get; set; }
+
+        /// <summary>The appraiser's typed-over C21 for this model, echoed back. Null = computed.</summary>
+        public decimal? TotalCost { get; set; }
     }
 }
