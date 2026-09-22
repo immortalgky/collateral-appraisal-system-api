@@ -274,6 +274,7 @@ public static class DtoExtensions
                 dto = dto with
                 {
                     VehicleType = vehicle.VehicleInfo?.VehicleType,
+                    VehicleRegistrationNumber = vehicle.VehicleInfo?.VehicleRegistrationNumber,
                     VehicleLocation = vehicle.VehicleInfo?.VehicleLocation,
                     VIN = vehicle.VehicleInfo?.VIN,
                     LicensePlateNumber = vehicle.VehicleInfo?.LicensePlateNumber
@@ -431,7 +432,7 @@ public static class DtoExtensions
 
     public static VehicleInfo ToDomain(this VehicleDto dto)
     {
-        return VehicleInfo.Create(dto.VehicleType, dto.VehicleAppointmentLocation, dto.VIN, dto.LicensePlateNumber);
+        return VehicleInfo.Create(dto.VehicleType, dto.VehicleRegistrationNumber, dto.VehicleAppointmentLocation, dto.VIN, dto.LicensePlateNumber);
     }
 
     public static VesselInfo ToDomain(this VesselDto dto)
@@ -478,7 +479,7 @@ public static class DtoExtensions
             CondoInfo = CondoInfo.Create(dto.CondoName, dto.BuildingNumber, dto.CondoRegistrationNumber,dto.RoomNumber, dto.FloorNumber,
                 dto.UsableArea),
             // Vehicle/Vessel/Machine fields
-            VehicleInfo = VehicleInfo.Create(dto.VehicleType, dto.VehicleLocation, dto.VIN,
+            VehicleInfo = VehicleInfo.Create(dto.VehicleType, dto.VehicleRegistrationNumber, dto.VehicleLocation, dto.VIN,
                 dto.LicensePlateNumber),
             VesselInfo = VesselInfo.Create(dto.VesselType, dto.VesselLocation, dto.HIN,
                 dto.VesselRegistrationNumber),

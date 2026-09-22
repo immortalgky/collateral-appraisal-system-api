@@ -32,7 +32,7 @@ public class LoanDetail : ValueObject
     public void Validate()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(BankingSegment);
-        if (FacilityLimit is null || FacilityLimit <= 0)
+        if (FacilityLimit <= 0)
             throw new ArgumentException("FacilityLimit is required or must be greater than zero.");
         if (AdditionalFacilityLimit is not null && (PreviousFacilityLimit is null || PreviousFacilityLimit <= 0))
             throw new ArgumentException("AdditionalFacilityLimit is required or must be greater than zero.");
