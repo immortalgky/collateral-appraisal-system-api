@@ -34,7 +34,7 @@ public class CreateProjectModelCommandHandler(
             usableAreaMin: command.UsableAreaMin,
             usableAreaMax: command.UsableAreaMax,
             standardUsableArea: command.StandardUsableArea,
-            fireInsuranceCondition: command.FireInsuranceCondition,
+            fireInsuranceCode: command.FireInsuranceCode,
             roomLayoutType: command.RoomLayoutType,
             roomLayoutTypeOther: command.RoomLayoutTypeOther,
             groundFloorMaterialType: command.GroundFloorMaterialType,

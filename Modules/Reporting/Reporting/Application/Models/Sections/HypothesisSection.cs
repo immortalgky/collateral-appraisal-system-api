@@ -37,6 +37,15 @@ public sealed class HypothesisSection
     /// </summary>
     public int Variant { get; init; }
 
+    // ── Effective value (override-aware) ─────────────────────────────────────────
+    // IndicatedValue ?? the variant's own TotalAssetValueRounded — the figure C81/E58 print.
+
+    /// <summary>Effective C81 — the appraiser's typed-over total, else the computed one.</summary>
+    public decimal? LbEffectiveAssetValue { get; init; }
+
+    /// <summary>Effective E58 — the appraiser's typed-over total, else the computed one.</summary>
+    public decimal? CndEffectiveAssetValue { get; init; }
+
     // ── LandBuilding Summary (Variant = 1) ─────────────────────────────────────
     // Column names: LandBuildingSummary_{PropertyName} (EF auto-named; confirmed)
 

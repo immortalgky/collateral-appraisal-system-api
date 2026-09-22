@@ -47,7 +47,7 @@ public class AppraisalValuationSummaryService(
     /// event only fires for PropertyGroup analyses) to skip the block-detection query on the hot
     /// pricing-save path. When null the block flag is resolved with a query.
     /// </param>
-    public async Task RecomputeAsync(
+    public virtual async Task RecomputeAsync(
         Guid appraisalId,
         CancellationToken ct,
         DateTime? valuationDate = null,
@@ -146,16 +146,26 @@ public class AppraisalValuationSummaryService(
             //
             // KEEP IN SYNC with Features/DecisionSummary/BuildingInsuranceCalculator.cs, which computes
             // the same total in SQL for the read/save path.
+            // Per property, the appraiser's keyed coverage wins over the derived figure; null means
+            // "not entered". The derived figure is rounded to the nearest 1,000 per property, the same
+            // way the property form shows it and the same way Final Cost Value rounds.
+            // KEEP IN SYNC with BuildingInsuranceCalculator.cs, which rounds with SQL ROUND(x, -3).
             var buildingInsurance = properties
                 .Where(ap => ap.BuildingDetail != null)
-                .SelectMany(ap => ap.BuildingDetail!.DepreciationDetails)
-                .Where(d => d.IsBuilding)
-                .Sum(d => d.PriceAfterDepreciation);
+                .Sum(ap => ap.BuildingDetail!.BuildingInsurancePriceOverride
+                           ?? Math.Round(
+                               ap.BuildingDetail.DepreciationDetails
+                                   .Where(d => d.IsBuilding)
+                                   .Sum(d => d.PriceAfterDepreciation) / 1000,
+                               MidpointRounding.AwayFromZero) * 1000);
 
             // Covers lease-agreement condo too — it populates this same CondoDetail nav.
             var condoInsurance = properties
                 .Where(ap => ap.CondoDetail != null)
-                .Sum(ap => ap.CondoDetail!.BuildingInsurancePrice ?? 0m);
+                .Sum(ap => ap.CondoDetail!.BuildingInsurancePriceOverride
+                           ?? Math.Round(
+                               (ap.CondoDetail.BuildingInsurancePrice ?? 0m) / 1000,
+                               MidpointRounding.AwayFromZero) * 1000);
 
             insuranceTotal = buildingInsurance + condoInsurance;
         }
@@ -235,12 +245,29 @@ public class AppraisalValuationSummaryService(
         var rate = await forceSaleRateResolver.ResolveAsync(appraisalId, row.ForceSaleRate, ct);
         var forced = total * rate / 100m;
 
+        // Book Verification wins. Once the reviewer verifies the price, the three money columns hold
+        // THEIR figures (written by SaveDecisionSummaryCommandHandler) — a later recompute must not
+        // replace them silently, which is what used to happen on any pricing edit or property delete.
+        // Date and approach still follow. Feeding the stored total back also keeps the integration
+        // event below quiet, since previousAppraisedValue then equals appraisedValue.
+        var priceVerified = await db.AppraisalDecisions
+            .AnyAsync(d => d.AppraisalId == appraisalId && d.IsPriceVerified == true, ct);
+
+        // The figure the book actually holds — the reviewer's once verified, else the fresh total.
+        // The integration event below must publish THIS, not the raw total: the workflow's approval
+        // tier / committee routing has to agree with the book.
+        var appraisedValue = priceVerified ? row.AppraisedValue : total;
+
         row.UpdateSummary(
             approach,
             date,
-            total,
-            Math.Round(forced / 1000, MidpointRounding.AwayFromZero) * 1000,
-            Math.Round(insuranceTotal / 1000, MidpointRounding.AwayFromZero) * 1000);
+            appraisedValue,
+            priceVerified ? row.ForcedSaleValue : Math.Round(forced / 1000, MidpointRounding.AwayFromZero) * 1000,
+            // insuranceTotal is NOT rounded here: each property already rounded its derived figure to
+            // the nearest 1,000, so an all-derived appraisal still totals to a multiple of 1,000,
+            // while a coverage the appraiser keyed by hand reaches the book exactly as typed.
+            // KEEP IN SYNC with BuildingInsuranceCalculator.cs.
+            priceVerified ? row.InsuranceValue : insuranceTotal);
 
         // Surface the new appraisal-level appraised value to the Workflow module so the
         // approval-tier switch / committee selection route on appraised value (not facility limit).
@@ -248,13 +275,13 @@ public class AppraisalValuationSummaryService(
         // appraised value actually changed — the approval tier keys off this value, so republishing an
         // unchanged total (e.g. an insurance-only refresh, or a re-run of CalculateProjectUnitPrices
         // with no price change) is redundant cross-module churn. Mirrors the domain rollup's gate.
-        if (previousAppraisedValue != total)
+        if (previousAppraisedValue != appraisedValue)
         {
             outbox.Publish(new AppraisalValueChangedIntegrationEvent
             {
                 AppraisalId = appraisalId,
                 CorrelationId = appraisal.RequestId,
-                AppraisedValue = total,
+                AppraisedValue = appraisedValue,
                 OccurredOn = dateTimeProvider.ApplicationNow
             });
         }

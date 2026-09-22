@@ -108,6 +108,8 @@ public record UpdateLandPropertyCommand(
     string? Remark = null,
 // Land Titles
     List<LandTitleItemData>? Titles = null,
+    // Area deductions (null = no-op, empty list = clear all)
+    List<LandAreaDeductionData>? LandAreaDeductions = null,
 // Rental
     bool? IsRentedOut = null,
     LeaseAgreementData? LeaseAgreement = null,

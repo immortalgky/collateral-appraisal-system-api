@@ -174,12 +174,17 @@ public record CreateLandAndBuildingPropertyRequest(
     bool? HasOccupancyPermit = null,
     // Building - Pricing
     decimal? BuildingInsurancePrice = null,
+    // Appraiser-keyed overrides; null means "use the derived figure".
+    decimal? FinalCostValueOverride = null,
+    decimal? BuildingInsurancePriceOverride = null,
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,
     // Remarks
     string? Remark = null,
     // Land Titles
     List<LandTitleItemRequest>? Titles = null,
+    // Area deductions taken off the appraised area
+    List<LandAreaDeductionRequest>? LandAreaDeductions = null,
     // Depreciation Details
     List<DepreciationItemData>? DepreciationDetails = null,
     // Surfaces

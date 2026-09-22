@@ -19,6 +19,7 @@ public class PreviewIncomeAnalysisCommandHandler(
     {
         // 1. Validate all DetailJsons upfront — same rules as Save
         ValidateDetailJsons(command.Sections);
+        IncomeDisplaySeqValidator.EnsureUnique(command.Sections);
 
         // 2. Build a transient in-memory IncomeAnalysis — never attached to any DbContext
         var analysis = IncomeAnalysis.Create(
@@ -94,7 +95,7 @@ public class PreviewIncomeAnalysisCommandHandler(
             result.FinalValue,
             result.FinalValueRounded,
             command.FinalValueAdjust,
-            command.AppraisalPriceRounded));
+            command.IndicatedValue));
     }
 
     // ── Validation — identical to SaveIncomeAnalysisCommandHandler ───────────

@@ -46,7 +46,7 @@ public record ModelContextDto(
     decimal? StandardUsableArea,
     bool? HasMezzanine,
     string? RoomLayoutType,
-    string? FireInsuranceCondition,
+    string? FireInsuranceCode,
     string? GroundFloorMaterialType,
     string? UpperFloorMaterialType,
     string? BathroomFloorMaterialType,

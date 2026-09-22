@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
+using Appraisal.Application.Services;
 
 namespace Appraisal.Application.Features.Appraisals.UpdateBuildingProperty;
 
@@ -6,7 +7,8 @@ namespace Appraisal.Application.Features.Appraisals.UpdateBuildingProperty;
 /// Handler for updating a building property detail
 /// </summary>
 public class UpdateBuildingPropertyCommandHandler(
-    IAppraisalRepository appraisalRepository
+    IAppraisalRepository appraisalRepository,
+    AppraisalValuationSummaryService valuationSummaryService
 ) : ICommandHandler<UpdateBuildingPropertyCommand>
 {
     public async Task<MediatR.Unit> Handle(
@@ -79,6 +81,8 @@ public class UpdateBuildingPropertyCommandHandler(
             utilizationTypeOther: command.UtilizationTypeOther,
             totalBuildingArea: command.TotalBuildingArea,
             buildingInsurancePrice: command.BuildingInsurancePrice,
+            finalCostValueOverride: command.FinalCostValueOverride,
+            buildingInsurancePriceOverride: command.BuildingInsurancePriceOverride,
             sellingPrice: command.SellingPrice,
             forcedSalePrice: command.ForcedSalePrice,
             remark: command.Remark);
@@ -97,6 +101,8 @@ public class UpdateBuildingPropertyCommandHandler(
             ClearConstructionInspection(property);
         else
             SyncConstructionInspection(property, command.ConstructionInspection);
+
+        await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
 
         return MediatR.Unit.Value;
     }

@@ -125,11 +125,17 @@ public record GetLandPropertyResult
     public string? Remark { get; init; }
     public decimal TotalLandAreaInSqWa { get; init; }
 
+    /// <summary>Registered area less the deductions — what the appraisal prices.</summary>
+    public decimal NetLandAreaInSqWa { get; init; }
+
     // Rental Flag
     public bool? IsRentedOut { get; init; }
 
     // Land Titles
     public List<LandTitleItemData>? Titles { get; init; }
+
+    // Area deductions taken off the appraised area
+    public List<LandAreaDeductionData>? LandAreaDeductions { get; init; }
 
     // Lease Agreement & Rental Info (populated when IsRentedOut == true)
     public LeaseAgreementDetailDto? LeaseAgreement { get; init; }

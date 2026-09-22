@@ -26,7 +26,10 @@ public class ApplySelectionCommandHandler(
             .Select(s => new ApproachMethodSelection(s.ApproachId, s.MethodId))
             .ToList();
 
-        pricingAnalysis.ApplySelection(selections, command.FinalApproachId);
+        pricingAnalysis.ApplySelection(
+            selections,
+            command.FinalApproachId,
+            command.FullyDescribedApproachIds);
 
         var finalApproach = pricingAnalysis.Approaches.First(a => a.Id == command.FinalApproachId);
 

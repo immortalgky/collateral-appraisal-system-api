@@ -132,7 +132,8 @@ internal static class BuildingSectionLoader
                 bdd.DepreciationYearPct,
                 bdd.TotalDepreciationPct,
                 bdd.PriceDepreciation          AS DepreciationAmount,
-                bdd.PriceAfterDepreciation
+                bdd.PriceAfterDepreciation,
+                bad.FinalCostValueOverride
             FROM appraisal.BuildingDepreciationDetails bdd
             JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
             JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
@@ -258,7 +259,17 @@ internal static class BuildingSectionLoader
             // Totals (computed in C# to avoid a second SQL round-trip)
             decimal? totalArea = deps.Count > 0 ? deps.Sum(r => r.Area) : null;
             decimal? totalPrice = deps.Count > 0 ? deps.Sum(r => r.PriceBeforeDepreciation) : null;
-            decimal? totalValueAfterDepr = deps.Count > 0 ? deps.Sum(r => r.PriceAfterDepreciation) : null;
+            // The table closes on the Building Cost Value the appraiser saw on the property form:
+            // their keyed figure when they entered one, otherwise the depreciated sum rounded to the
+            // nearest 1,000. The rows above keep their own exact figures — this is the line the rest of
+            // the appraisal reads off, so it has to agree with the form and with the summary report.
+            // KEEP IN SYNC with AppraisalSummaryLandBuildingDataProvider's buildingValueById.
+            decimal? totalValueAfterDepr = deps.Count == 0
+                ? null
+                : deps[0].FinalCostValueOverride
+                  ?? Math.Round(
+                      deps.Sum(r => r.PriceAfterDepreciation) / 1000m,
+                      MidpointRounding.AwayFromZero) * 1000m;
 
             // Resolve coded structure/material columns (JSON arrays of codes) to Thai.
             string? wall = BuildWallText(
@@ -418,6 +429,12 @@ internal static class BuildingSectionLoader
         public decimal TotalDepreciationPct { get; init; }
         public decimal DepreciationAmount { get; init; }
         public decimal PriceAfterDepreciation { get; init; }
+
+        /// <summary>
+        /// The appraiser's keyed Building Cost Value for the owning property, repeated on every row
+        /// of that property. Null = use the depreciated sum.
+        /// </summary>
+        public decimal? FinalCostValueOverride { get; init; }
     }
 
     private sealed class ParamRow

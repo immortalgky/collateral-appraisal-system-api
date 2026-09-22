@@ -43,17 +43,11 @@ public class GetPricingParametersQueryHandler(
                 g.Select(am => am.MethodTypeCode).ToList()))
             .ToList();
 
-        var fireInsuranceRates = await context.PricingParameterFireInsuranceRates
-            .OrderBy(r => r.DisplaySeq)
-            .Select(r => new FireInsuranceRateDto(r.Code, r.Condition, r.PropertyKind, r.RatePerSqm, r.DisplaySeq))
-            .ToListAsync(cancellationToken);
-
         return new GetPricingParametersResult(
             roomTypes,
             jobPositions,
             taxBrackets,
             assumptionTypes,
-            assumptionMethodMatrix,
-            fireInsuranceRates);
+            assumptionMethodMatrix);
     }
 }

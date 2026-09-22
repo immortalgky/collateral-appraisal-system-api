@@ -124,6 +124,9 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
         builder.Property(e => e.RoyalDecree).HasMaxLength(500);
         builder.Property(e => e.EncroachmentRemark).HasMaxLength(4000);
         builder.Property(e => e.EncroachmentArea).HasPrecision(18, 4);
+        // Sum of the Deductions rows, kept current by the domain so the read-side SQL can subtract
+        // one column instead of aggregating a child table. See LandAppraisalDetail.RecalculateDeductedArea.
+        builder.Property(e => e.DeductedAreaInSqWa).HasPrecision(18, 4);
         builder.Property(e => e.ElectricityDistance).HasPrecision(10, 2);
         builder.Property(e => e.LandlockedRemark).HasMaxLength(4000);
         builder.Property(e => e.ForestBoundaryRemark).HasMaxLength(4000);
@@ -193,6 +196,22 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
             title.Property(t => t.GovernmentPrice).HasPrecision(18, 2);
 
             title.HasIndex(t => t.LandAppraisalDetailId);
+        });
+
+        // LandAreaDeductions - Owned collection (reasons a slice of the registered area is not appraised)
+        builder.OwnsMany(e => e.Deductions, deduction =>
+        {
+            deduction.ToTable("LandAreaDeductions", "appraisal");
+            deduction.WithOwner().HasForeignKey(d => d.LandAppraisalDetailId);
+            deduction.HasKey(d => d.Id);
+            deduction.Property(d => d.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+            deduction.Property(d => d.ReasonCode).IsRequired().HasMaxLength(50);
+            deduction.Property(d => d.ReasonOther).HasMaxLength(4000);
+            deduction.Property(d => d.AreaInSqWa).HasPrecision(18, 4);
+            deduction.Property(d => d.Remark).HasMaxLength(4000);
+
+            deduction.HasIndex(d => d.LandAppraisalDetailId);
         });
     }
 }

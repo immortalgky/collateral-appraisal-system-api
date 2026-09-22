@@ -53,7 +53,7 @@ public class ProjectModelConfiguration : IEntityTypeConfiguration<ProjectModel>
         builder.Property(e => e.StandardUsableArea).HasPrecision(10, 2);
 
         // Insurance
-        builder.Property(e => e.FireInsuranceCondition).HasMaxLength(200);
+        builder.Property(e => e.FireInsuranceCode).HasMaxLength(200);
 
         // Layout (Condo)
         builder.Property(e => e.RoomLayoutType).HasMaxLength(100);

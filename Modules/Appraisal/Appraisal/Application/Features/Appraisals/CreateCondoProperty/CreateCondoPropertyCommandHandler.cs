@@ -1,5 +1,6 @@
 using Appraisal.Application.Features.Appraisals;
 using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
+using Appraisal.Application.Services;
 
 namespace Appraisal.Application.Features.Appraisals.CreateCondoProperty;
 
@@ -9,7 +10,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateCondoProperty;
 public class CreateCondoPropertyCommandHandler(
     IAppraisalUnitOfWork unitOfWork,
     IAppraisalRepository appraisalRepository,
-    ISender mediator
+    ISender mediator,
+    AppraisalValuationSummaryService valuationSummaryService
 ) : ICommandHandler<CreateCondoPropertyCommand, CreateCondoPropertyResult>
 {
     public async Task<CreateCondoPropertyResult> Handle(
@@ -27,7 +29,7 @@ public class CreateCondoPropertyCommandHandler(
         // 2b. Derive BuildingInsurancePrice from the selected fire-insurance condition
         // (Parameter-module reference rate × UsableArea) — never taken from the client directly.
         var buildingInsurancePrice = await CondoFireInsuranceCalculator.DeriveBuildingInsurancePriceAsync(
-            mediator, command.FireInsuranceCondition, command.UsableArea, cancellationToken);
+            mediator, command.FireInsuranceCode, command.UsableArea, cancellationToken);
 
         // 3. Create value objects if provided
         GpsCoordinate? coordinates = null;
@@ -123,7 +125,8 @@ public class CreateCondoPropertyCommandHandler(
             command.IsMissingFromSurvey,
             command.GovernmentPricePerSqm,
             command.GovernmentPrice,
-            command.FireInsuranceCondition);
+            command.FireInsuranceCode,
+            command.BuildingInsurancePriceOverride);
 
         // 5. Create CondoAreaDetails
         if (command.AreaDetails is { Count: > 0 })
@@ -140,6 +143,8 @@ public class CreateCondoPropertyCommandHandler(
             SetConstructionInspection(property, ci);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
 
         // 6. Assign property to a group
         if (command.GroupId.HasValue) appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);

@@ -1,3 +1,4 @@
+using Reporting.Contracts;
 using Reporting.Application.Services;
 
 namespace Reporting.Application.Providers;
@@ -45,8 +46,7 @@ public sealed class AppraisalSummaryDataProvider(
                 CAST(CASE WHEN EXISTS (SELECT 1 FROM appraisal.Projects pr
                                        WHERE pr.AppraisalId = @AppraisalId)
                           THEN 1 ELSE 0 END AS bit)                              AS ProjectExists,
-                (SELECT a.AppraisalType FROM appraisal.Appraisals a
-                 WHERE a.Id = @AppraisalId)                                      AS AppraisalType,
+                a.AppraisalType                                                  AS AppraisalType,
                 CAST(CASE WHEN EXISTS (SELECT 1 FROM appraisal.AppraisalProperties ap
                                        WHERE ap.AppraisalId = @AppraisalId
                                          AND ap.PropertyType IN ('U','LSU'))
@@ -58,7 +58,13 @@ public sealed class AppraisalSummaryDataProvider(
                 CAST(CASE WHEN EXISTS (SELECT 1 FROM appraisal.AppraisalProperties ap
                                        WHERE ap.AppraisalId = @AppraisalId
                                          AND ap.PropertyType IN ('L','B','LB','LSL','LSB','LS'))
-                          THEN 1 ELSE 0 END AS bit)                              AS HasLandBuilding;
+                          THEN 1 ELSE 0 END AS bit)                              AS HasLandBuilding
+            -- The FROM is load-bearing, not decoration: without it this is a bare SELECT that returns a row
+            -- for ANY id, every flag false, so the `row is null` guard below could never fire and a missing
+            -- appraisal came back as "no applicable form" instead of "not found". Those mean different
+            -- things to callers now that the empty-child-list case raises NoApplicableReportException.
+            FROM appraisal.Appraisals a
+            WHERE a.Id = @AppraisalId;
             """;
 
         var p = new DynamicParameters();

@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
+using Appraisal.Application.Services;
 
 namespace Appraisal.Application.Features.Appraisals.UpdateLeaseAgreementBuildingProperty;
 
@@ -6,7 +7,8 @@ namespace Appraisal.Application.Features.Appraisals.UpdateLeaseAgreementBuilding
 /// Handler for updating a lease agreement building property detail
 /// </summary>
 public class UpdateLeaseAgreementBuildingPropertyCommandHandler(
-    IAppraisalRepository appraisalRepository
+    IAppraisalRepository appraisalRepository,
+    AppraisalValuationSummaryService valuationSummaryService
 ) : ICommandHandler<UpdateLeaseAgreementBuildingPropertyCommand>
 {
     public async Task<MediatR.Unit> Handle(
@@ -79,6 +81,8 @@ public class UpdateLeaseAgreementBuildingPropertyCommandHandler(
             utilizationTypeOther: command.UtilizationTypeOther,
             totalBuildingArea: command.TotalBuildingArea,
             buildingInsurancePrice: command.BuildingInsurancePrice,
+            finalCostValueOverride: command.FinalCostValueOverride,
+            buildingInsurancePriceOverride: command.BuildingInsurancePriceOverride,
             sellingPrice: command.SellingPrice,
             forcedSalePrice: command.ForcedSalePrice,
             remark: command.Remark);
@@ -139,6 +143,8 @@ public class UpdateLeaseAgreementBuildingPropertyCommandHandler(
             // Compute schedule server-side from rental info fields, apply overrides
             Appraisal.Application.Features.Appraisals.Shared.RentalScheduleComputer.ComputeAndSave(rentalInfo, command.RentalInfo.ScheduleOverrides);
         }
+
+        await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
 
         return MediatR.Unit.Value;
     }

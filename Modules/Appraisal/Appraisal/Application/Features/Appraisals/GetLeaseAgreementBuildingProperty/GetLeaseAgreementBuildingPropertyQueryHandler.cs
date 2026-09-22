@@ -132,6 +132,8 @@ public class GetLeaseAgreementBuildingPropertyQueryHandler(
             UtilizationTypeOther: detail.UtilizationTypeOther,
             TotalBuildingArea: detail.TotalBuildingArea,
             BuildingInsurancePrice: detail.BuildingInsurancePrice,
+            FinalCostValueOverride: detail.FinalCostValueOverride,
+            BuildingInsurancePriceOverride: detail.BuildingInsurancePriceOverride,
             SellingPrice: detail.SellingPrice,
             ForcedSalePrice: detail.ForcedSalePrice,
             Remark: detail.Remark,

@@ -90,6 +90,20 @@ public class PricingAnalysisMethodConfiguration : IEntityTypeConfiguration<Prici
         builder.Property(m => m.ValuePerUnit).HasPrecision(18, 2);
         builder.Property(m => m.UnitType).HasMaxLength(20);
         builder.Property(m => m.Remark).HasMaxLength(4000);
+        builder.Property(m => m.Role).HasMaxLength(20);
+        builder.Property(m => m.LinkedMethodId);
+        builder.Property(m => m.UseSystemCalc).IsRequired().HasDefaultValue(true);
+
+        // Self-referencing FK (WQS/SAG/DC -> its linked BuildingCost method). SQL Server rejects ANY
+        // cascading action (Cascade or SetNull) on a self-referencing FK ("may cause cycles or
+        // multiple cascade paths") — NoAction is the only option the database will accept. So
+        // "dropping the link, not the linker" is enforced in the domain instead of the database: see
+        // PricingAnalysisApproach.RemoveMethod, which nulls LinkedMethodId on every sibling that
+        // points at the method being removed before removing it.
+        builder.HasOne<PricingAnalysisMethod>()
+            .WithMany()
+            .HasForeignKey(m => m.LinkedMethodId)
+            .OnDelete(DeleteBehavior.NoAction);
 
         builder.HasMany(m => m.ComparableLinks)
             .WithOne()
@@ -310,14 +324,13 @@ public class PricingFinalValueConfiguration : IEntityTypeConfiguration<PricingFi
         builder.HasIndex(f => f.PricingMethodId).IsUnique();
 
         builder.Property(f => f.FinalValue).IsRequired().HasPrecision(18, 2);
-        builder.Property(f => f.FinalValueRounded).IsRequired().HasPrecision(18, 2);
-        builder.Property(f => f.FinalValueAdjusted).HasPrecision(18, 2);
+        builder.Property(f => f.FinalValueOverride).HasPrecision(18, 2);
 
         builder.Property(f => f.LandArea).HasPrecision(18, 2);
         builder.Property(f => f.LandValue).HasPrecision(18, 2);
 
         builder.Property(f => f.BuildingValue).HasPrecision(18, 2);
-        builder.Property(f => f.AppraisalPrice).HasPrecision(18, 2);
+        builder.Property(f => f.IndicatedValue).HasPrecision(18, 2);
     }
 }
 

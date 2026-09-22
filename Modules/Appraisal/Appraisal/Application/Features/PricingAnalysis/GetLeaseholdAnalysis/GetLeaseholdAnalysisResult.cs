@@ -18,7 +18,6 @@ public record LeaseholdAnalysisDto(
     decimal TotalIncomeOverLeaseTerm,
     decimal ValueAtLeaseExpiry,
     decimal FinalValue,
-    decimal FinalValueRounded,
     bool IsPartialUsage,
     decimal? PartialRai,
     decimal? PartialNgan,
@@ -28,6 +27,7 @@ public record LeaseholdAnalysisDto(
     decimal? PartialLandPrice,
     decimal? EstimateNetPrice,
     decimal? EstimatePriceRounded,
+    decimal? IndicatedValue,
     List<LandGrowthPeriodDto> LandGrowthPeriods,
     List<LeaseholdCalculationDetailDto> CalculationDetails
 );

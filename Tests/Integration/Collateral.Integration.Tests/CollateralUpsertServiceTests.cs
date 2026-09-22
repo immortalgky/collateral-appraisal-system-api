@@ -2052,7 +2052,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
                 lesseeName: "Tenant Inc",
                 leaseStartDate: new DateTime(2022, 1, 1));
             var lhGroup = a.CreateGroup("Leasehold Group");
-            lhGroup.AddProperty(lhProp.Id);
+            lhGroup.AddProperty(lhProp.Id, lhProp.PropertyType.Code, null);
 
             // The pre-seeded condo, present in THIS appraisal too (required for
             // UpsertLeaseholdAsync's no-land underlying-resolution fallback). Left ungrouped.
@@ -2062,7 +2062,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
             var machineProp = SeedMachineryProperty(a, registrationNo: machineRegNo,
                 serialNo: "S1", brand: "BRAND-L", model: "M1", manufacturer: "MFR-L");
             var machineGroup = a.CreateGroup("Machine Group");
-            machineGroup.AddProperty(machineProp.Id);
+            machineGroup.AddProperty(machineProp.Id, machineProp.PropertyType.Code, null);
 
             appraisalDb.Appraisals.Add(a);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);

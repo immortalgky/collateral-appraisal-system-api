@@ -74,6 +74,8 @@ public record GetLeaseAgreementBuildingPropertyResult(
     // Area & Pricing
     decimal? TotalBuildingArea,
     decimal? BuildingInsurancePrice,
+    decimal? FinalCostValueOverride,
+    decimal? BuildingInsurancePriceOverride,
     decimal? SellingPrice,
     decimal? ForcedSalePrice,
     // Other

@@ -107,6 +107,8 @@ public record UpdateLeaseAgreementLandAndBuildingPropertyCommand(
     string? HasBuildingOther = null,
     // Land Titles
     List<LandTitleItemData>? Titles = null,
+    // Area deductions (null = no-op, empty list = clear all)
+    List<LandAreaDeductionData>? LandAreaDeductions = null,
     //=================================
     // Building - Identification
     string? BuildingNumber = null,
@@ -165,6 +167,8 @@ public record UpdateLeaseAgreementLandAndBuildingPropertyCommand(
     // Area & Pricing
     decimal? TotalBuildingArea = null,
     decimal? BuildingInsurancePrice = null,
+    decimal? FinalCostValueOverride = null,
+    decimal? BuildingInsurancePriceOverride = null,
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,
     // Remarks

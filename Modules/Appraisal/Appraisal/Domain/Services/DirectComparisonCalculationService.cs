@@ -28,12 +28,12 @@ public class DirectComparisonCalculationService : IPricingCalculationService
 
             if (method.FinalValue is null)
             {
-                var finalValue = PricingFinalValue.Create(method.Id, fv, fvRounded);
+                var finalValue = PricingFinalValue.Create(method.Id, fvRounded);
                 method.SetFinalValue(finalValue);
             }
             else
             {
-                method.FinalValue.UpdateFinalValue(fv, fvRounded);
+                method.FinalValue.UpdateFinalValue(fvRounded);
             }
 
             // Persist the resolved price unit (PerSqWa/PerSqm → per-unit rate; PerUnit → lumpsum).

@@ -63,7 +63,7 @@ public class SaveProjectPricingAssumptionsCommandHandler(
                     ma.UsableAreaTo,
                     ma.StandardLandPrice,
                     ma.CoverageAmount,
-                    ma.FireInsuranceCondition))
+                    ma.FireInsuranceCode))
                 .ToList();
 
             assumption.ReplaceModelAssumptions(modelAssumptions, validModelIds);

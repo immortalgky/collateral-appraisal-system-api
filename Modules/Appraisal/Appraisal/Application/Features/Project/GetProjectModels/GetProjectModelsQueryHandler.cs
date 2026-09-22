@@ -41,7 +41,7 @@ public class GetProjectModelsQueryHandler(
             UsableAreaMin: m.UsableAreaMin,
             UsableAreaMax: m.UsableAreaMax,
             StandardUsableArea: m.StandardUsableArea,
-            FireInsuranceCondition: m.FireInsuranceCondition,
+            FireInsuranceCode: m.FireInsuranceCode,
             RoomLayoutType: m.RoomLayoutType,
             RoomLayoutTypeOther: m.RoomLayoutTypeOther,
             GroundFloorMaterialType: m.GroundFloorMaterialType,

@@ -34,6 +34,12 @@ public sealed class LandSection
     /// <summary>รวมทั้งหมดเป็นตารางวา ("หรือ X ตารางวา").</summary>
     public decimal TotalAreaInWa { get; init; }
 
+    /// <summary>หัก เนื้อที่ที่ตัดออกจากการประเมิน (ตร.ว.) — 0 when nothing was deducted.</summary>
+    public decimal DeductedAreaInWa { get; init; }
+
+    /// <summary>คงเหลือ เนื้อที่ที่ใช้ประเมิน (ตร.ว.) — what the pricing actually used.</summary>
+    public decimal NetAreaInWa { get; init; }
+
     /// <summary>
     /// ตรวจสอบจาก — land check-method, resolved from LandAppraisalDetails.LandCheckMethodType
     /// (parameter group 'CheckBy'); falls back to LandCheckMethodTypeOther free-text.

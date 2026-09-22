@@ -88,7 +88,8 @@ internal static class LandSectionLoader
                 COALESCE(tsub.NameTh,  lad.SubDistrict) AS SubDistrict,
                 COALESCE(tdist.NameTh, lad.District)    AS District,
                 COALESCE(tprov.NameTh, lad.Province)    AS Province,
-                lad.LandOffice
+                lad.LandOffice,
+                lad.DeductedAreaInSqWa
             FROM appraisal.LandAppraisalDetails lad
             JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
             LEFT JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = ap.Id
@@ -217,6 +218,10 @@ internal static class LandSectionLoader
                 TotalNgan              = total.Ngan,
                 TotalSquareWa          = total.Wa,
                 TotalAreaInWa          = total.TotalSquareWa,
+                // Registered area stands; the deduction and what is left print under it, and only
+                // when there is something to deduct — an unencroached property reads as before.
+                DeductedAreaInWa       = landRow.DeductedAreaInSqWa ?? 0m,
+                NetAreaInWa            = Math.Max(0m, total.TotalSquareWa - (landRow.DeductedAreaInSqWa ?? 0m)),
                 CheckedFrom            = checkedFrom,
                 SubDistrict            = landRow.SubDistrict,
                 District               = landRow.District,
@@ -307,6 +312,7 @@ internal static class LandSectionLoader
     private sealed class LandDetailRow
     {
         public Guid LandDetailId { get; init; }
+        public decimal? DeductedAreaInSqWa { get; init; }
         public int GroupNumber { get; init; }
         public string? GroupName { get; init; }
         public string? OwnerName { get; init; }

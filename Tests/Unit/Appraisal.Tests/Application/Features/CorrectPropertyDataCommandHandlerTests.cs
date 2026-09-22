@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.CorrectPropertyData;
+using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using NSubstitute;
 using Shared.Exceptions;
@@ -24,7 +25,14 @@ public class CorrectPropertyDataCommandHandlerTests
     private readonly IAppraisalRepository _repository = Substitute.For<IAppraisalRepository>();
     private readonly ICurrentUserService _currentUser = Substitute.For<ICurrentUserService>();
 
-    private CorrectPropertyDataCommandHandler CreateHandler() => new(_repository, _currentUser);
+    // The handler recomputes the appraisal's money columns after a successful correction. That call
+    // is not what these tests are about, so it is stubbed out — the primary constructor only stores
+    // its arguments, so building the substitute with nulls never touches a database.
+    private readonly AppraisalValuationSummaryService _valuationSummary =
+        Substitute.For<AppraisalValuationSummaryService>(null, null, null, null, null);
+
+    private CorrectPropertyDataCommandHandler CreateHandler() =>
+        new(_repository, _currentUser, _valuationSummary);
 
     private static LandCorrection EmptyLand() => new();
 

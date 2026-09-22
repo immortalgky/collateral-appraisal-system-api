@@ -116,8 +116,14 @@ public class CondoAppraisalDetail : Entity<Guid>
     // Fire-insurance condition selected by the appraiser (matches Parameter module's
     // 'FireInsuranceCondition' group); BuildingInsurancePrice is derived from it server-side
     // (RatePerSqm × UsableArea) rather than authored directly by the client.
-    public string? FireInsuranceCondition { get; private set; }
+    public string? FireInsuranceCode { get; private set; }
     public decimal? BuildingInsurancePrice { get; private set; }
+
+    /// <summary>
+    /// The appraiser's own coverage amount, keyed on the condo form. Null means "not entered", so the
+    /// rate-derived <see cref="BuildingInsurancePrice"/> above keeps following the condition and area.
+    /// </summary>
+    public decimal? BuildingInsurancePriceOverride { get; private set; }
     public decimal? SellingPrice { get; private set; }
     public decimal? ForcedSalePrice { get; private set; }
 
@@ -232,7 +238,8 @@ public class CondoAppraisalDetail : Entity<Guid>
         decimal? governmentPricePerSqm = null,
         decimal? governmentPrice = null,
         // Fire Insurance (appended — see Update() ordering note)
-        string? fireInsuranceCondition = null)
+        string? fireInsuranceCode = null,
+        decimal? buildingInsurancePriceOverride = null)
     {
         // Property Identification
         PropertyName = propertyName;
@@ -340,7 +347,8 @@ public class CondoAppraisalDetail : Entity<Guid>
         GovernmentPrice = governmentPrice;
 
         // Fire Insurance
-        FireInsuranceCondition = fireInsuranceCondition;
+        FireInsuranceCode = fireInsuranceCode;
+        BuildingInsurancePriceOverride = buildingInsurancePriceOverride;
     }
 
     /// <summary>
@@ -458,8 +466,9 @@ public class CondoAppraisalDetail : Entity<Guid>
             IsMissingFromSurvey = source.IsMissingFromSurvey,
             GovernmentPricePerSqm = source.GovernmentPricePerSqm,
             GovernmentPrice = source.GovernmentPrice,
-            FireInsuranceCondition = source.FireInsuranceCondition,
+            FireInsuranceCode = source.FireInsuranceCode,
             BuildingInsurancePrice = source.BuildingInsurancePrice,
+            BuildingInsurancePriceOverride = source.BuildingInsurancePriceOverride,
             SellingPrice = source.SellingPrice,
             ForcedSalePrice = source.ForcedSalePrice,
             Remark = source.Remark
@@ -612,7 +621,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         CorrectionDiff.Apply("Condo.IsMissingFromSurvey", IsMissingFromSurvey, edit.IsMissingFromSurvey, v => IsMissingFromSurvey = v, diff);
         CorrectionDiff.Apply("Condo.GovernmentPricePerSqm", GovernmentPricePerSqm, edit.GovernmentPricePerSqm, v => GovernmentPricePerSqm = v, diff);
         CorrectionDiff.Apply("Condo.GovernmentPrice", GovernmentPrice, edit.GovernmentPrice, v => GovernmentPrice = v, diff);
-        CorrectionDiff.Apply("Condo.FireInsuranceCondition", FireInsuranceCondition, edit.FireInsuranceCondition, v => FireInsuranceCondition = v, diff);
+        CorrectionDiff.Apply("Condo.FireInsuranceCode", FireInsuranceCode, edit.FireInsuranceCode, v => FireInsuranceCode = v, diff);
         CorrectionDiff.Apply("Condo.BuildingInsurancePrice", BuildingInsurancePrice, edit.BuildingInsurancePrice, v => BuildingInsurancePrice = v, diff);
         CorrectionDiff.Apply("Condo.SellingPrice", SellingPrice, edit.SellingPrice, v => SellingPrice = v, diff);
         CorrectionDiff.Apply("Condo.ForcedSalePrice", ForcedSalePrice, edit.ForcedSalePrice, v => ForcedSalePrice = v, diff);

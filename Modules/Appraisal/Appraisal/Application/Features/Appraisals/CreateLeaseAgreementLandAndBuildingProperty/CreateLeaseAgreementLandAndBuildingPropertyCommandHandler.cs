@@ -1,5 +1,6 @@
 using Appraisal.Application.Features.Appraisals.Shared;
 using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
+using Appraisal.Application.Services;
 
 namespace Appraisal.Application.Features.Appraisals.CreateLeaseAgreementLandAndBuildingProperty;
 
@@ -8,7 +9,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateLeaseAgreementLandAndB
 /// </summary>
 public class CreateLeaseAgreementLandAndBuildingPropertyCommandHandler(
     IAppraisalRepository appraisalRepository,
-    IAppraisalUnitOfWork unitOfWork
+    IAppraisalUnitOfWork unitOfWork,
+    AppraisalValuationSummaryService valuationSummaryService
 ) : ICommandHandler<CreateLeaseAgreementLandAndBuildingPropertyCommand, CreateLeaseAgreementLandAndBuildingPropertyResult>
 {
     public async Task<CreateLeaseAgreementLandAndBuildingPropertyResult> Handle(
@@ -158,6 +160,19 @@ public class CreateLeaseAgreementLandAndBuildingPropertyCommandHandler(
                 property.LandDetail.AddTitle(title);
             }
 
+        // Area deductions — AddDeduction keeps the stored total in step on every add.
+        if (command.LandAreaDeductions is { Count: > 0 })
+            foreach (var deductionData in command.LandAreaDeductions)
+            {
+                var deduction = LandAreaDeduction.Create(property.LandDetail.Id, deductionData.ReasonCode);
+                deduction.Update(
+                    deductionData.ReasonOther,
+                    deductionData.AreaInSqWa,
+                    deductionData.Remark);
+
+                property.LandDetail.AddDeduction(deduction);
+            }
+
         // 5. Update Building detail with additional fields
         property.BuildingDetail!.Update(
             // Building - Identification
@@ -218,6 +233,8 @@ public class CreateLeaseAgreementLandAndBuildingPropertyCommandHandler(
             utilizationTypeOther: command.UtilizationTypeOther,
             // Building - Pricing
             buildingInsurancePrice: command.BuildingInsurancePrice,
+            finalCostValueOverride: command.FinalCostValueOverride,
+            buildingInsurancePriceOverride: command.BuildingInsurancePriceOverride,
             sellingPrice: command.SellingPrice,
             forcedSalePrice: command.ForcedSalePrice,
             remark: command.Remark);
@@ -278,6 +295,8 @@ public class CreateLeaseAgreementLandAndBuildingPropertyCommandHandler(
 
         // 7. Save aggregate
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
 
         if (command.GroupId.HasValue)
             appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);

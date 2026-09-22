@@ -7,7 +7,9 @@ namespace Appraisal.Application.Features.PricingAnalysis.PreviewHypothesisAnalys
 public record PreviewHypothesisAnalysisRequest(
     LandBuildingSummaryInput? LandBuildingSummary,
     CondominiumSummaryInput? CondominiumSummary,
-    IReadOnlyList<HypothesisCostItemInput> CostItems
+    IReadOnlyList<HypothesisCostItemInput> CostItems,
+    IReadOnlyList<ModelBuildingMappingInput>? ModelBuildingMappings = null,
+    decimal? IndicatedValue = null
 );
 
 public class PreviewHypothesisAnalysisEndpoint : ICarterModule
@@ -24,7 +26,9 @@ public class PreviewHypothesisAnalysisEndpoint : ICarterModule
                         methodId,
                         request.LandBuildingSummary,
                         request.CondominiumSummary,
-                        request.CostItems);
+                        request.CostItems,
+                        request.ModelBuildingMappings,
+                        request.IndicatedValue);
 
                     var result = await sender.Send(command);
                     return Results.Ok(result);

@@ -23,7 +23,8 @@ public record SaveIncomeAnalysisRequest(
     decimal? FinalValueAdjust = null,
     bool IsHighestBestUsed = true,
     HighestBestUsedInput? HighestBestUsed = null,
-    decimal? AppraisalPriceRounded = null
+    /// <summary>User-rounded appraisal price override; null means the appraiser did not override.</summary>
+    decimal? IndicatedValue = null
 );
 
 public record HighestBestUsedInput(
