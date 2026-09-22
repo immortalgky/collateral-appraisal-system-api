@@ -26,7 +26,7 @@ public class SetManualCostBreakdownEndpoint : ICarterModule
                         id,
                         methodId,
                         request.LandRatePerSqWa,
-                        request.AppraisalPrice
+                        request.IndicatedValue
                     );
 
                     var result = await sender.Send(command, cancellationToken);
@@ -40,12 +40,12 @@ public class SetManualCostBreakdownEndpoint : ICarterModule
             .Produces<SetManualCostBreakdownResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .WithSummary("Record a manual Cost-approach land/building breakdown")
+            .WithSummary("Record a manual Cost-approach land breakdown")
             .WithDescription(
-                "Stores the appraiser's land rate per square wa and rounded appraisal price on a Cost-approach method. "
-                + "Land area is taken from the group's title deeds and the building figure from its depreciation "
-                + "schedule, so the appraisal summary prints ที่ดิน and สิ่งปลูกสร้าง as separate rows. "
-                + "Sending a null or non-positive rate clears the breakdown.")
+                "Stores the appraiser's land rate per square wa and rounded land price on a Cost-approach land "
+                + "method. Land area is taken from the group's title deeds. The method prices land only; the "
+                + "building is the Building Cost method's own line. A null rate clears the breakdown, 0 is a real "
+                + "zero land value, and a negative rate or price is rejected.")
             .WithTags("PricingAnalysis");
     }
 }

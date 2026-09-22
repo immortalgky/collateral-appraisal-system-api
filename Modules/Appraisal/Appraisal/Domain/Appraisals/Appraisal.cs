@@ -576,7 +576,10 @@ public class Appraisal : Aggregate<Guid>
     /// <summary>
     /// Add a property to a group
     /// </summary>
-    public void AddPropertyToGroup(Guid groupId, Guid propertyId)
+    /// <param name="enforceFamily">False only when mirroring a prior appraisal's groups (CI /
+    /// reappraisal): groups created before the one-family rule may mix families, and the cloned
+    /// pricing attaches group-for-group, so the copy must reproduce them as they were.</param>
+    public void AddPropertyToGroup(Guid groupId, Guid propertyId, bool enforceFamily = true)
     {
         var group = _groups.FirstOrDefault(g => g.Id == groupId)
                     ?? throw new InvalidOperationException($"Group {groupId} not found");
@@ -589,7 +592,19 @@ public class Appraisal : Aggregate<Guid>
         if (existingGroup is not null)
             throw new InvalidOperationException($"Property {propertyId} is already in group {existingGroup.GroupName}");
 
-        group.AddProperty(propertyId);
+        group.AddProperty(propertyId, property.PropertyType.Code,
+            enforceFamily ? GetGroupMemberTypeCode(group) : null);
+    }
+
+    /// <summary>
+    /// PropertyType code of any property already in the group, or null if empty. Used to enforce
+    /// the one-family-per-group rule in PropertyGroup, which has no access to sibling properties.
+    /// </summary>
+    private string? GetGroupMemberTypeCode(PropertyGroup group)
+    {
+        if (group.Items.Count == 0) return null;
+        var memberId = group.Items[0].AppraisalPropertyId;
+        return _properties.First(p => p.Id == memberId).PropertyType.Code;
     }
 
     /// <summary>
@@ -642,14 +657,18 @@ public class Appraisal : Aggregate<Guid>
         if (sourceGroup.Id == targetGroupId)
             throw new InvalidOperationException("Property is already in the target group");
 
+        var property = _properties.FirstOrDefault(p => p.Id == propertyId)
+                       ?? throw new InvalidOperationException($"Property {propertyId} not found");
+
         // Remove from source (auto-resequences remaining items)
         sourceGroup.RemoveProperty(propertyId);
 
         // Add to target at position, or append
+        var existingMemberTypeCode = GetGroupMemberTypeCode(targetGroup);
         if (targetPosition.HasValue)
-            targetGroup.InsertProperty(propertyId, targetPosition.Value);
+            targetGroup.InsertProperty(propertyId, targetPosition.Value, property.PropertyType.Code, existingMemberTypeCode);
         else
-            targetGroup.AddProperty(propertyId);
+            targetGroup.AddProperty(propertyId, property.PropertyType.Code, existingMemberTypeCode);
     }
 
     /// <summary>

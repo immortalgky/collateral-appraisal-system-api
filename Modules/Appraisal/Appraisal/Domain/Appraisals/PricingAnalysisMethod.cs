@@ -33,6 +33,34 @@ public class PricingAnalysisMethod : Entity<Guid>
     public bool IsSelected { get; private set; }
     public string? Remark { get; private set; }
 
+    /// <summary>
+    /// Per-method calc mode: true = system-computed, false = manually entered. This is additive to,
+    /// not a replacement for, <see cref="PricingAnalysis.UseSystemCalc"/> — that column answers "was
+    /// the analysis's headline figure calculated or typed"; this one answers it per method, because
+    /// several methods can each contribute to that figure (a Cost approach sums role-tagged
+    /// methods; other approaches show several side by side) and the report needs to know which of
+    /// them, specifically, was typed. The two are never synced automatically in either direction —
+    /// see <see cref="PricingAnalysis.ContributingMethodsUseSystemCalc"/> for the rollup rule a
+    /// caller compares them against. Seeded from the group flag by a one-time backfill script — see
+    /// <c>Database/Migration/Scripts/</c> — so existing manual groups start with every method manual
+    /// too, rather than silently flipping to system.
+    /// </summary>
+    public bool UseSystemCalc { get; private set; } = true;
+
+    /// <summary>
+    /// This method's component of a Cost approach: Land / Building / LandAndBuilding / Machinery.
+    /// Null for any method outside a Cost approach — a Cost approach sums MethodValue across its
+    /// selected, role-tagged methods instead of adopting a single selected method's value verbatim.
+    /// </summary>
+    public string? Role { get; private set; }
+
+    /// <summary>
+    /// For a WQS/SaleGrid/DirectComparison method with Role=LandAndBuilding: the BuildingCost method
+    /// (in the same approach) whose value is folded into this method's own total. The linked method
+    /// is deselected so the Cost rollup does not count its value a second time.
+    /// </summary>
+    public Guid? LinkedMethodId { get; private set; }
+
     // Final Value (1:1)
     public PricingFinalValue? FinalValue { get; private set; }
 
@@ -80,6 +108,7 @@ public class PricingAnalysisMethod : Entity<Guid>
     /// <summary>
     /// Deep-clone for CI carry-forward — copies all scalars, every child collection, and all 1:1 method analyses.
     /// <paramref name="propertyIdMap"/> remaps prior AppraisalPropertyId → new id on MachineCostItems
+    /// and on Hypothesis model → building mappings
     /// (caller passes the prior→new property map built during property copy). Items whose property
     /// is unmapped are dropped.
     /// </summary>
@@ -98,7 +127,12 @@ public class PricingAnalysisMethod : Entity<Guid>
             ValuePerUnit = source.ValuePerUnit,
             UnitType = source.UnitType,
             IsSelected = source.IsSelected,
-            Remark = source.Remark
+            Remark = source.Remark,
+            Role = source.Role,
+            UseSystemCalc = source.UseSystemCalc
+            // LinkedMethodId intentionally NOT copied: it points at a sibling method's Id, which is
+            // only meaningful once that sibling has been cloned too. PricingAnalysisApproach.CloneForAnalysis
+            // remaps it in a second pass after every method in the approach has its new Id.
         };
 
         foreach (var l in source.ComparableLinks)
@@ -139,7 +173,8 @@ public class PricingAnalysisMethod : Entity<Guid>
             clone.IncomeAnalysis = Income.IncomeAnalysis.CloneForMethod(source.IncomeAnalysis, clone.Id);
 
         if (source.HypothesisAnalysis is not null)
-            clone.HypothesisAnalysis = Hypothesis.HypothesisAnalysis.CloneForMethod(source.HypothesisAnalysis, clone.Id);
+            clone.HypothesisAnalysis = Hypothesis.HypothesisAnalysis.CloneForMethod(
+                source.HypothesisAnalysis, clone.Id, propertyIdMap);
 
         return clone;
     }
@@ -178,6 +213,71 @@ public class PricingAnalysisMethod : Entity<Guid>
         Remark = remark;
     }
 
+    /// <summary>
+    /// Flips this method's calc mode and applies the required consequences as ONE atomic
+    /// operation — unselecting, clearing the recorded value, and dropping any manual land-area
+    /// entry — so a caller can never set the flag without also discarding the now-stale figure it
+    /// governed. This logic used to live duplicated (and inconsistently) across save handlers on
+    /// an abandoned branch; it lives here instead for the same reason <c>RemoveMethod</c> nulls a
+    /// sibling's <see cref="LinkedMethodId"/> itself rather than trusting every caller to do it —
+    /// a rule the database cannot enforce for us must be enforced in exactly one place.
+    /// <para>
+    /// No-op if the mode is not actually changing, so a repeated PUT with the same value is
+    /// harmless rather than re-clearing a value someone just set.
+    /// </para>
+    /// <para>
+    /// Does not cascade to a Role=LandAndBuilding method's <see cref="LinkedMethodId"/> sibling:
+    /// the flag is deliberately per-method (see the class remarks above), so an appraiser can leave
+    /// one side of a linked pair on system calc while overriding only the other.
+    /// </para>
+    /// <para>
+    /// This is for a caller with NOTHING new in hand — a user flipping a mode switch on an
+    /// otherwise-untouched method. A caller that already holds a freshly computed or typed value
+    /// (the automatic save handlers) must use <see cref="RecordCalcMode"/> instead: this method
+    /// would immediately discard the value that caller just wrote.
+    /// </para>
+    /// </summary>
+    public void SetCalcMode(bool useSystemCalc)
+    {
+        if (useSystemCalc == UseSystemCalc)
+            return;
+
+        UseSystemCalc = useSystemCalc;
+        SetAsUnselected();
+        ClearValue();
+        FinalValue?.ExcludeLandArea();
+    }
+
+    /// <summary>
+    /// Stamps how the value this method ALREADY holds was produced, without touching MethodValue,
+    /// ValuePerUnit, UnitType, FinalValue, or selection. The counterpart to <see cref="SetCalcMode"/>
+    /// for a caller in the opposite situation: the four automatic save handlers (SetFinalValue,
+    /// UpdateFinalValue, SetManualCostBreakdown, SaveComparativeAnalysis) arrive holding the figure
+    /// they just computed or received from the appraiser, in the same call — calling
+    /// <see cref="SetCalcMode"/> there would clear that figure and deselect the method out from
+    /// under the very save that just produced it. Two operations, not one growing a per-caller
+    /// special case: "flip with nothing in hand" and "record what I just wrote" are different jobs.
+    /// <para>
+    /// Deliberately does not touch <see cref="PricingAnalysis.UseSystemCalc"/> (the group-level
+    /// toggle) — see that property's remarks and <see cref="PricingAnalysis.ContributingMethodsUseSystemCalc"/>.
+    /// </para>
+    /// </summary>
+    public void RecordCalcMode(bool useSystemCalc)
+    {
+        UseSystemCalc = useSystemCalc;
+    }
+
+    /// <summary>
+    /// Clears the recorded value and its breakdown, without touching selection or calc mode.
+    /// Private: the only caller is <see cref="SetCalcMode"/>.
+    /// </summary>
+    private void ClearValue()
+    {
+        MethodValue = null;
+        ValuePerUnit = null;
+        UnitType = null;
+    }
+
     public void SetAsSelected()
     {
         IsSelected = true;
@@ -188,9 +288,51 @@ public class PricingAnalysisMethod : Entity<Guid>
         IsSelected = false;
     }
 
+    private static readonly string[] ValidRoles = ["Land", "Building", "LandAndBuilding", "Machinery"];
+
+    /// <summary>
+    /// Sets this method's component within a Cost approach. Null clears it (methods outside a Cost
+    /// approach, or a method reverted by <see cref="PricingAnalysisApproach.UnlinkBuildingCostMethod"/>
+    /// before being re-tagged "Land").
+    /// </summary>
+    public void SetRole(string? role)
+    {
+        if (role is not null && !ValidRoles.Contains(role))
+            throw new DomainException($"Role must be one of: {string.Join(", ", ValidRoles)}");
+
+        Role = role;
+    }
+
+    /// <summary>
+    /// Points this method at the BuildingCost method (in the same approach) whose value is folded
+    /// into this method's own total. Null clears the link. Set by
+    /// <see cref="PricingAnalysisApproach.LinkOrCreateBuildingCostMethod"/>,
+    /// <see cref="PricingAnalysisApproach.UnlinkBuildingCostMethod"/>, and
+    /// <see cref="PricingAnalysisApproach.RemoveMethod"/> (which nulls it on siblings of a method
+    /// being deleted, since the self-referencing FK is NO ACTION and cannot do this for us).
+    /// </summary>
+    public void SetLinkedMethod(Guid? linkedMethodId)
+    {
+        LinkedMethodId = linkedMethodId;
+    }
+
     public void SetFinalValue(PricingFinalValue finalValue)
     {
         FinalValue = finalValue;
+    }
+
+    /// <summary>
+    /// Applies the appraiser's typed-over <see cref="PricingFinalValue.IndicatedValue"/> on top of
+    /// MethodValue. No-op when there is no override — MethodValue is left as whichever figure the
+    /// method's own calculation (or manual entry) just produced. Single seam for the rule every
+    /// pricing save handler must apply: MethodValue = IndicatedValue ?? FinalValue. Call last, after
+    /// FinalValue and its IndicatedValue are both set for this save, so the edited figure the
+    /// appraiser typed always reaches the number used downstream (rollup, the book, AS400 exports).
+    /// </summary>
+    public void SyncMethodValueWithIndicatedValue()
+    {
+        if (FinalValue?.IndicatedValue is { } indicated)
+            MethodValue = indicated;
     }
 
     /// <summary>
@@ -204,9 +346,9 @@ public class PricingAnalysisMethod : Entity<Guid>
     }
 
     /// <summary>
-    /// Mirrors the current MachineCostItems FMV total into the shared <see cref="FinalValue"/>
-    /// (FinalValue / FinalValueRounded), creating it if absent. User-authored fields
-    /// (FinalValueAdjusted / AppraisalPrice) are deliberately left untouched. Call AFTER recalculation
+    /// Mirrors the current MachineCostItems FMV total into the shared <see cref="FinalValue"/>,
+    /// creating it if absent. User-authored fields
+    /// (FinalValueOverride / IndicatedValue) are deliberately left untouched. Call AFTER recalculation
     /// so the items hold current values. Single source of the MachineryCost mirror formula — shared by
     /// the save path (SaveMachineCostItemsCommandHandler) and the property-delete cleanup path
     /// (PricingReferenceCleanupService).
@@ -216,9 +358,9 @@ public class PricingAnalysisMethod : Entity<Guid>
         var totalFmv = _machineCostItems.Sum(i => i.FairMarketValue ?? 0);
 
         if (FinalValue is null)
-            SetFinalValue(PricingFinalValue.Create(Id, totalFmv, totalFmv));
+            SetFinalValue(PricingFinalValue.Create(Id, totalFmv));
         else
-            FinalValue.UpdateFinalValue(totalFmv, totalFmv);
+            FinalValue.UpdateFinalValue(totalFmv);
     }
 
     public void SetRsqResult(PricingRsqResult rsqResult)

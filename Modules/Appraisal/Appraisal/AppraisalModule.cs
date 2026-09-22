@@ -112,6 +112,11 @@ public static class AppraisalModule
         // Background services
         services.AddHostedService<QuotationAutoCloseService>();
 
+        // Hangfire job: renders + attaches the post-approval Appraisal Summary, then releases the
+        // outbound APPRAISAL_COMPLETED webhook. Enqueued by AppraisalSummaryAutoAttachConsumer and by
+        // the admin regenerate endpoint.
+        services.AddTransient<AppraisalSummaryAutoAttachJob>();
+
         // Register supporting data repository
         services.AddScoped<ISupportingDataRepository, SupportingDataRepository>();
         services.AddScoped<IRepository<SupportingData, Guid>, SupportingDataRepository>();

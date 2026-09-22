@@ -25,9 +25,9 @@ public record SaveLeaseholdAnalysisRequest(
     // Override for estimated price
     decimal? EstimatePriceRounded = null,
     // User-overridden adjusted final value (stored as-is; never recomputed)
-    decimal? FinalValueAdjusted = null,
+    decimal? FinalValueOverride = null,
     // User-rounded appraisal price override
-    decimal? AppraisalPrice = null
+    decimal? IndicatedValue = null
 );
 
 public record LandGrowthPeriodInput(

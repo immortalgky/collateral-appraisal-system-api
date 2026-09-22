@@ -4,9 +4,9 @@ public record SaveMachineCostItemsRequest(
     IReadOnlyList<MachineCostItemInput> Items,
     string? Remark = null,
     // User-overridden adjusted final value (stored as-is; never recomputed)
-    decimal? FinalValueAdjusted = null,
+    decimal? FinalValueOverride = null,
     // User-rounded appraisal price override
-    decimal? AppraisalPrice = null
+    decimal? IndicatedValue = null
 );
 
 /// <summary>

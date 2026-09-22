@@ -19,14 +19,35 @@ public class PricingPropertyDataService(
 
     public record PropertyGroupData(
         List<RentalScheduleRow> ContractSchedule,
+        /// <summary>
+        /// NET appraisable land area, despite the historical name: populated below from
+        /// <c>LandAppraisalDetail.NetLandAreaInSqWa</c> — registered title area LESS the areas the
+        /// appraiser listed as not appraisable. Trust this docstring, not the name.
+        /// <para>
+        /// The name was kept on purpose. The design note for the net/deed split called renaming a
+        /// field in place "the bug most likely to pass review", so the split changed the meaning and
+        /// left the name, which puts the whole burden on this comment. Every reader of this field is
+        /// a pricing path and every one of them wants net. Anything stating the parcel as a legal
+        /// fact — the report book, Collateral Master, the AS400 regulatory exports — deliberately
+        /// reads <c>LandAppraisalDetail.TotalLandAreaInSqWa</c> off the domain instead and keeps the
+        /// registered deed figure. Both are correct for their own readers.
+        /// </para>
+        /// </summary>
         decimal TotalLandAreaInSqWa,
         DateTime? AppointmentDate,
         decimal TotalBuildingCost);
 
     /// <summary>
-    /// Returns the sum of <c>LandAppraisalDetail.TotalLandAreaInSqWa</c> across all properties
-    /// in a property group (i.e. C01 from land titles).
+    /// Returns the sum of <c>LandAppraisalDetail.NetLandAreaInSqWa</c> across all properties in a
+    /// property group (i.e. C01) — registered title area LESS the areas the appraiser listed as not
+    /// appraisable (encroachment, land used by others, public waterway, …).
     /// Returns null when the group is empty or not found.
+    /// <para>
+    /// This service is the ONE place that chooses net over gross. Every pricing path reads land area
+    /// through here, so nothing downstream has to know the difference. Anything reporting the parcel
+    /// as a legal fact — Collateral Master, the AS400 exports, the per-title rows of the book —
+    /// reads <c>TotalLandAreaInSqWa</c> off the domain instead and keeps the registered figure.
+    /// </para>
     /// </summary>
     public async Task<decimal?> GetTotalLandAreaFromTitlesAsync(
         Guid propertyGroupId, CancellationToken cancellationToken)
@@ -60,7 +81,7 @@ public class PricingPropertyDataService(
         if (landProperties.Count == 0)
             return null;
 
-        return landProperties.Sum(p => p.LandDetail!.TotalLandAreaInSqWa);
+        return landProperties.Sum(p => p.LandDetail!.NetLandAreaInSqWa);
     }
 
     /// <summary>
@@ -82,15 +103,34 @@ public class PricingPropertyDataService(
     }
 
     /// <summary>
-    /// Land area for a property group, in square wa, read straight from the title deeds.
+    /// Final Cost Value of every building in a property group, keyed by AppraisalPropertyId —
+    /// the per-building figure <see cref="GetTotalBuildingCostAsync"/> sums. Empty when the group
+    /// has no building. Independent of any Building Cost method: Hypothesis reads it directly.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<Guid, decimal>> GetBuildingFinalCostValuesAsync(
+        Guid propertyGroupId, CancellationToken cancellationToken)
+    {
+        using var connection = sqlConnectionFactory.GetOpenConnection();
+
+        var rows = await connection.QueryAsync<(Guid AppraisalPropertyId, decimal FinalCostValue)>(
+            new CommandDefinition(
+                BuildingFinalCostValuesSql,
+                new { PropertyGroupId = propertyGroupId },
+                cancellationToken: cancellationToken));
+
+        return rows.ToDictionary(r => r.AppraisalPropertyId, r => r.FinalCostValue);
+    }
+
+    /// <summary>
+    /// Appraisable land area for a property group, in square wa — title area less the appraiser's
+    /// listed deductions, the same figure <see cref="GetTotalLandAreaFromTitlesAsync"/> returns.
     /// </summary>
     /// <remarks>
     /// A SQL-only counterpart to <see cref="GetTotalLandAreaFromTitlesAsync"/> for read paths:
     /// that one loads the whole Appraisal aggregate with every property and detail just to sum a
     /// computed property, which is far too much for an endpoint on a screen's load path.
-    /// The arithmetic is the same three terms as <c>LandArea.TotalSquareWa</c> over the same rows,
-    /// so the two agree — but the domain path stays authoritative for anything persisted.
-    /// KEEP IN SYNC with LandArea.TotalSquareWa.
+    /// KEEP IN SYNC with LandAppraisalDetail.NetLandAreaInSqWa — same three area terms, same
+    /// per-property subtraction, same floor at zero.
     /// </remarks>
     public async Task<decimal?> GetTotalLandAreaInSqWaAsync(
         Guid propertyGroupId, CancellationToken cancellationToken)
@@ -104,27 +144,66 @@ public class PricingPropertyDataService(
                 cancellationToken: cancellationToken));
     }
 
-    // SUM over zero rows yields NULL, which callers read as "this group has no land" — the same
-    // thing GetTotalLandAreaFromTitlesAsync returns for a group with no land properties.
+    // Driven from LandAppraisalDetails, not from LandTitles: the deduction is recorded once per
+    // PROPERTY while the area is spread over its title deeds, so subtracting inside the per-title
+    // SUM would deduct it once per deed. Gross is totalled per property first, then the property's
+    // own deduction comes off, then the properties are summed.
+    //
+    // SUM over zero rows still yields NULL, which callers read as "this group has no land" — the
+    // same thing GetTotalLandAreaFromTitlesAsync returns for a group with no land properties. A
+    // property whose deeds carry no area keeps contributing NULL exactly as it did before.
     private const string LandAreaSql =
         """
-        SELECT SUM(ISNULL(lt.AreaRai, 0) * 400
-                 + ISNULL(lt.AreaNgan, 0) * 100
-                 + ISNULL(lt.AreaSquareWa, 0))
-        FROM appraisal.LandTitles lt
-        INNER JOIN appraisal.LandAppraisalDetails lad ON lad.Id = lt.LandAppraisalDetailId
+        SELECT SUM(
+                   CASE WHEN d.GrossArea - ISNULL(lad.DeductedAreaInSqWa, 0) < 0
+                        THEN 0
+                        ELSE d.GrossArea - ISNULL(lad.DeductedAreaInSqWa, 0)
+                   END)
+        FROM appraisal.LandAppraisalDetails lad
         INNER JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = lad.AppraisalPropertyId
+        CROSS APPLY (
+            SELECT SUM(ISNULL(lt.AreaRai, 0) * 400
+                     + ISNULL(lt.AreaNgan, 0) * 100
+                     + ISNULL(lt.AreaSquareWa, 0)) AS GrossArea
+            FROM appraisal.LandTitles lt
+            WHERE lt.LandAppraisalDetailId = lad.Id
+        ) d
         WHERE pgi.PropertyGroupId = @PropertyGroupId
         """;
 
-    private const string BuildingCostSql =
+    // Per building in the group: its Final Cost Value. Shared by the group total below and by
+    // Hypothesis, which prices each house model at the value of the building it is mapped to.
+    private const string BuildingFinalCostValuesSql =
         """
-        SELECT ISNULL(SUM(bdd.PriceAfterDepreciation), 0)
-        FROM appraisal.BuildingDepreciationDetails bdd
-        INNER JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
-        INNER JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
-        INNER JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = ap.Id
-        WHERE pgi.PropertyGroupId = @PropertyGroupId
+            -- One row per building: the appraiser's own final cost wins, otherwise the sum of the
+            -- schedule (every row, Non-Building included — that is what the Cost approach prices),
+            -- rounded to the nearest 1,000.
+            --
+            -- The rounding is not cosmetic: it is the Building Cost Value the appraiser sees on the
+            -- property form, and both report providers already close their tables on the same figure.
+            -- Pricing read the raw sum, so a group with no override priced a few hundred baht away
+            -- from the number printed beside it. ROUND(x, -3) matches the C# side's
+            -- Math.Round(x / 1000m, MidpointRounding.AwayFromZero) * 1000m.
+            -- KEEP IN SYNC with BuildingSectionLoader's totalValueAfterDepr and
+            -- AppraisalSummaryLandBuildingDataProvider's buildingValueById.
+            -- ISNULL: a building with no schedule and no override is worth 0 (the group SUM already
+            -- skipped it); without it the per-building read would hand Dapper a NULL decimal.
+            SELECT bad.AppraisalPropertyId,
+                   ISNULL(COALESCE(bad.FinalCostValueOverride, ROUND(SUM(bdd.PriceAfterDepreciation), -3)), 0) AS FinalCostValue
+            FROM appraisal.BuildingAppraisalDetails bad
+            INNER JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
+            INNER JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = ap.Id
+            LEFT JOIN appraisal.BuildingDepreciationDetails bdd ON bdd.BuildingAppraisalDetailId = bad.Id
+            WHERE pgi.PropertyGroupId = @PropertyGroupId
+            GROUP BY bad.Id, bad.AppraisalPropertyId, bad.FinalCostValueOverride
+        """;
+
+    private const string BuildingCostSql =
+        $"""
+        SELECT ISNULL(SUM(x.FinalCostValue), 0)
+        FROM (
+        {BuildingFinalCostValuesSql}
+        ) x
         """;
 
     /// <summary>
@@ -170,10 +249,10 @@ public class PricingPropertyDataService(
             .Select(se => new RentalScheduleRow(se.Year, se.ContractStart, se.ContractEnd, se.TotalAmount))
             .ToList();
 
-        // Total land area
+        // Appraisable land area — registered area less the appraiser's listed deductions.
         var totalLandArea = groupProperties
             .Where(p => p.LandDetail is not null)
-            .Sum(p => p.LandDetail!.TotalLandAreaInSqWa);
+            .Sum(p => p.LandDetail!.NetLandAreaInSqWa);
 
         // Appointment date
         var appointmentDate = await connection.QueryFirstOrDefaultAsync<DateTime?>(
