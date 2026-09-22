@@ -10,6 +10,9 @@ public class LandAppraisalDetail : Entity<Guid>
     private readonly List<LandTitle> _titles = [];
     public IReadOnlyList<LandTitle> Titles => _titles.AsReadOnly();
 
+    private readonly List<LandAreaDeduction> _deductions = [];
+    public IReadOnlyList<LandAreaDeduction> Deductions => _deductions.AsReadOnly();
+
     // Foreign Key - 1:1 with AppraisalProperties
     public Guid AppraisalPropertyId { get; private set; }
 
@@ -89,9 +92,19 @@ public class LandAppraisalDetail : Entity<Guid>
     public bool? IsInExpropriationLine { get; private set; }
     public string? ExpropriationLineRemark { get; private set; }
     public string? RoyalDecree { get; private set; }
+    // The original three encroachment fields. Descriptive only — they were never deducted from
+    // anything, and they still are not: the money-bearing figure is DeductedAreaInSqWa below, backed
+    // by the Deductions rows. Kept as-is so old records, the 360 view and the data-correction
+    // whitelist keep working unchanged.
     public bool? IsEncroached { get; private set; }
     public string? EncroachmentRemark { get; private set; }
     public decimal? EncroachmentArea { get; private set; }
+
+    /// <summary>
+    /// Sum of <see cref="Deductions"/>, maintained by the domain — never set from the outside.
+    /// Stored so the read-side SQL can subtract one column; see <c>RecalculateDeductedArea</c>.
+    /// </summary>
+    public decimal? DeductedAreaInSqWa { get; private set; }
     public bool? IsLandlocked { get; private set; }
     public string? LandlockedRemark { get; private set; }
     public bool? IsForestBoundary { get; private set; }
@@ -121,10 +134,26 @@ public class LandAppraisalDetail : Entity<Guid>
     // Rental Flag
     public bool? IsRentedOut { get; private set; }
 
-    // Computed: total land area across all titles
+    /// <summary>
+    /// Registered area across all title deeds — the legal fact. Report this to Collateral Master,
+    /// the AS400 exports and the per-title rows of the book: encroachment is an appraisal judgement
+    /// and does not change how big the parcel legally is.
+    /// </summary>
     public decimal TotalLandAreaInSqWa =>
         _titles.Where(t => t.Area != null && t.Area.HasValue)
                .Sum(t => t.Area!.TotalSquareWa ?? 0);
+
+    /// <summary>
+    /// The area an appraisal may actually price: registered area less everything the appraiser
+    /// listed in <see cref="Deductions"/>. THIS is what every pricing path must use — it reaches
+    /// them through PricingPropertyDataService, which is the only place that has to choose.
+    /// <para>
+    /// Floored at zero: a deduction typed larger than the parcel is a data-entry slip, and a
+    /// negative area would otherwise flow straight into an area × rate multiplication.
+    /// </para>
+    /// </summary>
+    public decimal NetLandAreaInSqWa =>
+        Math.Max(0m, TotalLandAreaInSqWa - (DeductedAreaInSqWa ?? 0m));
 
     private LandAppraisalDetail()
     {
@@ -451,6 +480,15 @@ public class LandAppraisalDetail : Entity<Guid>
             copy._titles.Add(titleCopy);
         }
 
+        foreach (var deduction in source.Deductions)
+        {
+            var deductionCopy = LandAreaDeduction.Create(copy.Id, deduction.ReasonCode);
+            deductionCopy.Update(deduction.ReasonOther, deduction.AreaInSqWa, deduction.Remark);
+            copy._deductions.Add(deductionCopy);
+        }
+
+        copy.RecalculateDeductedArea();
+
         return copy;
     }
 
@@ -507,6 +545,47 @@ public class LandAppraisalDetail : Entity<Guid>
                 updatedTitle.GovernmentPrice,
                 updatedTitle.Remark
             );
+    }
+
+    public void AddDeduction(LandAreaDeduction deduction)
+    {
+        _deductions.Add(deduction);
+        RecalculateDeductedArea();
+    }
+
+    public void RemoveDeduction(Guid deductionId)
+    {
+        var deduction = _deductions.FirstOrDefault(d => d.Id == deductionId);
+        if (deduction != null) _deductions.Remove(deduction);
+        RecalculateDeductedArea();
+    }
+
+    public void UpdateDeduction(LandAreaDeduction updatedDeduction)
+    {
+        var deduction = _deductions.FirstOrDefault(d => d.Id == updatedDeduction.Id);
+        if (deduction != null)
+        {
+            deduction.ChangeReason(updatedDeduction.ReasonCode);
+            deduction.Update(
+                updatedDeduction.ReasonOther,
+                updatedDeduction.AreaInSqWa,
+                updatedDeduction.Remark);
+        }
+
+        RecalculateDeductedArea();
+    }
+
+    /// <summary>
+    /// Keeps <see cref="DeductedAreaInSqWa"/> equal to the rows behind it. Stored rather than
+    /// computed so the read-side SQL twin in <c>PricingPropertyDataService.LandAreaSql</c> can
+    /// subtract a single column instead of aggregating a child table on every pricing screen load.
+    /// Every mutator above calls this. It is public because the update handlers edit existing rows
+    /// in place — the same shape SyncTitles uses — and must be able to settle the total afterwards.
+    /// Idempotent: calling it twice changes nothing.
+    /// </summary>
+    public void RecalculateDeductedArea()
+    {
+        DeductedAreaInSqWa = _deductions.Sum(d => d.AreaInSqWa ?? 0m);
     }
 
     /// <summary>
