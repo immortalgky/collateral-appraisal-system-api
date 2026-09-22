@@ -111,7 +111,12 @@ public class GetAppraisalsQueryHandler(
             items.Add(a with { ElapsedHours = elapsed, RemainingHours = remaining });
         }
 
-        var pagedResult = new PaginatedResult<AppraisalDto>(items, idPage.Count, idPage.PageNumber, idPage.PageSize);
+        // Blank the columns a credit-side caller must not receive. Applied here rather than in the
+        // client because the DTO carries AppraisalValue on every row: hiding the column client-side
+        // would leave the number in the JSON. See AppraisalFieldScope.
+        var scoped = AppraisalFieldScope.MaskAll(items, currentUser).ToList();
+
+        var pagedResult = new PaginatedResult<AppraisalDto>(scoped, idPage.Count, idPage.PageNumber, idPage.PageSize);
 
         // Facets are no longer computed. Nothing renders them once app#357 lands, and the count
         // was never free: it GROUP BYs the whole matching set, so unlike the page — which resolves

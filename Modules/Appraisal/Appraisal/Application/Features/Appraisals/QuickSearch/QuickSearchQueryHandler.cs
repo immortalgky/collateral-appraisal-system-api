@@ -135,7 +135,18 @@ public class QuickSearchQueryHandler(
         var capped = matches.Count >= AppraisalSearchPredicate.DropdownArmCap;
 
         return new QuickSearchResult(
-            BuildGroups(heads, matches),
+            // The destination is chosen HERE, not in the client. Anyone who cannot open the
+            // workspace goes to the list with ?appraisal=, which opens the activity panel on that
+            // appraisal — for a credit user that panel IS their view of it, and for anyone else it
+            // beats /appraisals/{id} bouncing off the route guard back to '/'.
+            //
+            // Keyed on "can they open it", NOT on IsTrackingOnly: a caller holding neither
+            // APPRAISAL_VIEW nor APPRAISAL_TRACKING_VIEW is not tracking-only, and the earlier
+            // version sent exactly those people to the page they cannot open.
+            BuildGroups(heads, matches,
+                AppraisalFieldScope.CanOpenWorkspace(currentUser)
+                    ? "/appraisals/{0}"
+                    : "/appraisals/search?appraisal={0}"),
             HasMore: matched > heads.Count,
             TotalMatchedAppraisals: matched,
             IsTotalApproximate: capped);
@@ -150,7 +161,7 @@ public class QuickSearchQueryHandler(
     /// in the group of its own best match so it appears exactly once, while every match it has still
     /// rides along in <see cref="SearchAppraisal.MatchedOn"/> for the badges.
     /// </summary>
-    private static List<SearchGroup> BuildGroups(List<HeadRow> heads, List<MatchRow> matches)
+    private static List<SearchGroup> BuildGroups(List<HeadRow> heads, List<MatchRow> matches, string detailRoute)
     {
         var byAppraisal = matches
             .GroupBy(m => m.AppraisalId)
@@ -174,7 +185,7 @@ public class QuickSearchQueryHandler(
                 head.Status,
                 head.PropertyTypes,
                 head.Province,
-                $"/appraisals/{head.AppraisalId}",
+                string.Format(detailRoute, head.AppraisalId),
                 rows.Select(r => new SearchMatch(r.Fld, r.Val ?? "")).ToList());
 
             var key = (best.Fld, best.Val ?? "");

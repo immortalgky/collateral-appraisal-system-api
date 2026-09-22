@@ -94,13 +94,22 @@ public static class MenuSeedData
         // based on the user's section-level permissions.
         new("main.monitoring", "Monitoring", "binoculars", IconStyle.Solid, "text-teal-500", "/monitoring", null, null,
             ViewPermissionPrefix: "MONITORING:"),
-        new("main.appraisal", "Appraisal", "magnifying-glass-chart", IconStyle.Solid, "text-cyan-500", "/appraisals", "APPRAISAL_VIEW", null,
-            new List<MenuSeedNode>
-            {
-                new("main.appraisal.search", "Search", "magnifying-glass", IconStyle.Solid, "text-cyan-500", "/appraisals/search", "APPRAISAL_VIEW", null),
-                new("main.appraisal.my-appraisals", "My Appraisals", "folder-user", IconStyle.Solid, "text-cyan-500", "/appraisals/my-appraisals", "APPRAISAL_VIEW", null),
-                new("main.appraisal.pending-review", "Pending Review", "clipboard-check", IconStyle.Solid, "text-amber-500", "/appraisals/pending-review", "APPRAISAL_REVIEW", null),
-            }),
+        // The single entry point to the appraisal list, for BOTH audiences.
+        //
+        // It replaced the old "Appraisal" group (Search / My Appraisals / Pending Review). Search
+        // pointed at this same page; the other two had no route and no page component at all, so
+        // clicking them only ever reached the not-found page.
+        //
+        // Gated on APPRAISAL_TRACKING_VIEW rather than APPRAISAL_VIEW, which therefore has to be
+        // granted to every role that may reach the list — credit-side and appraisal-side alike.
+        // The two permissions now mean different things and that split is the point:
+        //     APPRAISAL_TRACKING_VIEW  may reach the list and the tracking panel
+        //     APPRAISAL_VIEW           may open the workspace and see the internal columns
+        // A prefix gate of "APPRAISAL_" would have avoided the extra grant but also matches
+        // RequestChecker, which holds APPRAISAL_REQUEST_VIEW/APPRAISAL_SUMMARY_VIEW but cannot
+        // see the appraisal list today.
+        new("main.appraisal-tracking", "Appraisal Search / Tracking", "radar", IconStyle.Solid, "text-sky-500",
+            "/appraisals/search", "APPRAISAL_TRACKING_VIEW", null, LabelTh: "ค้นหา/ติดตามงานประเมิน"),
         new("main.quotation", "Quotation", "file-invoice-dollar", IconStyle.Solid, "text-pink-500", "/quotations", "QUOTATION_VIEW", null,
             new List<MenuSeedNode>
             {
