@@ -163,6 +163,8 @@ public record CreateLeaseAgreementLandAndBuildingPropertyCommand(
     // Area & Pricing
     decimal? TotalBuildingArea = null,
     decimal? BuildingInsurancePrice = null,
+    decimal? FinalCostValueOverride = null,
+    decimal? BuildingInsurancePriceOverride = null,
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,
 
@@ -171,6 +173,8 @@ public record CreateLeaseAgreementLandAndBuildingPropertyCommand(
 
     // Land Titles
     List<LandTitleItemData>? Titles = null,
+    // Area deductions taken off the appraised area
+    List<LandAreaDeductionData>? LandAreaDeductions = null,
     // Depreciation Details
     List<DepreciationItemData>? DepreciationDetails = null,
     // Surfaces

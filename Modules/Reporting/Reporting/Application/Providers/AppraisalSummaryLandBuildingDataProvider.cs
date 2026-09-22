@@ -190,20 +190,45 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             -- RS07: Q9 — Per-group valuation rows.
             -- Per-group values come from the selected PricingAnalysis → Approach → Method →
             -- PricingFinalValue (GroupValuations is not populated by the live flow).
+            --
+            -- A Cost approach may now have up to one SELECTED method per role — Land,
+            -- LandAndBuilding, Building, Machinery (PricingAnalysisApproach.
+            -- EnsureNoComponentCountedTwice enforces it) — instead of exactly one selected method
+            -- overall, so the single "pick one row" OUTER APPLY below split into three:
+            --   - landPfv: the land-bearing method (Role Land/LandAndBuilding, or Role IS NULL — see
+            --     the comment at its OUTER APPLY for why NULL has to be let through). TOP 1 with an
+            --     explicit ORDER BY: the per-role invariant guarantees at most one such row, but that
+            --     guarantee lives in C#, not in this query, and this file reads the database directly
+            --     — including rows written before the invariant existed. Feeds every land-specific
+            --     column (LandValue, LandUnitPrice, ValuePerUnit, UnitType, IncludeLandArea) exactly
+            --     as before — none of those is a group total.
+            --   - buildPfv: a separately-selected BuildingCost method (Role=Building), only present
+            --     when unlinked. COALESCE'd under landPfv.BuildingValue below: a linked WQS/SAG/DC
+            --     (Role=LandAndBuilding) snapshots the building figure onto its OWN row at save time,
+            --     so that wins when present; buildPfv only matters when nothing is linked.
+            --   - totalPfv: EffectiveValue is a genuine group-total FALLBACK (used only when
+            --     pa.FinalAppraisedValue below is NULL) — grepped every other use of the old
+            --     IndicatedValue/FinalValue columns in this file, there are none. TOP-1-picking one
+            --     method here would be flat-out wrong once 2 methods can be selected, so this sums
+            --     every selected method's own (IndicatedValue ?? FinalValue), same fix as
+            --     AppraisalSummaryCommonLoader's GroupAppraisalValue fallback.
             SELECT
                 pg.Id                AS GroupId,
                 pg.GroupNumber,
                 pg.GroupName,
                 pa.FinalAppraisedValue AS GroupAppraisalValue,
-                pfv.ApproachType,
-                pfv.LandValue,
-                pfv.BuildingValue,
-                pfv.FinalValueAdjusted AS LandUnitPrice,
-                pfv.AppraisalPrice,
-                pfv.FinalValueRounded,
-                pfv.ValuePerUnit,
-                pfv.UnitType,
-                pfv.IncludeLandArea,
+                -- A Cost group whose only selected method is Building/Machinery-role (a building-only
+                -- group) has no landPfv row; its approach type must still read 'Cost' or the book
+                -- drops the per-building breakdown.
+                COALESCE(landPfv.ApproachType, buildPfvApproach.ApproachType) AS ApproachType,
+                landPfv.LandArea AS PricedLandArea,
+                landPfv.LandValue,
+                COALESCE(landPfv.BuildingValue, buildPfv.FinalValue) AS BuildingValue,
+                landPfv.FinalValueOverride AS LandUnitPrice,
+                totalPfv.EffectiveValue,
+                landPfv.ValuePerUnit,
+                landPfv.UnitType,
+                landPfv.IncludeLandArea,
                 (SELECT TOP 1 ap.PropertyType
                  FROM appraisal.PropertyGroupItems gi2
                  JOIN appraisal.AppraisalProperties ap ON ap.Id = gi2.AppraisalPropertyId
@@ -252,23 +277,77 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             LEFT JOIN appraisal.PricingAnalysis pa
                 ON pa.AnchorId = pg.Id AND pa.SubjectType = 0
             OUTER APPLY (
+                -- landPfv must still match a NON-Cost approach's selected method (Market/Income/
+                -- Residual never tag Role at all) — pap.ApproachType is selected out precisely so the
+                -- C# below can tell them apart, so this cannot filter to Cost-only the way item 3's
+                -- AS400 view does. "Role IS NULL" covers both that case AND a Cost-approach method
+                -- the backfill has not (yet, or ever) reached — Role only NARROWS which of several
+                -- candidates wins; it must never be the reason a method drops out entirely.
+                -- At most one row can match "Cost + Role Land/LandAndBuilding" by construction
+                -- (EnsureNoComponentCountedTwice), and a non-Cost approach has exactly one selected
+                -- method today regardless — but that guarantee lives in C#, not here, so ORDER BY
+                -- still makes this deterministic by construction rather than by invariant.
                 SELECT TOP 1
                     pap.ApproachType,
+                    fv.LandArea,
                     fv.LandValue,
                     fv.BuildingValue,
-                    fv.FinalValueAdjusted,
-                    fv.AppraisalPrice,
-                    fv.FinalValueRounded,
+                    fv.FinalValueOverride,
                     fv.IncludeLandArea,
                     pm.ValuePerUnit,
                     pm.UnitType
                 FROM appraisal.PricingAnalysisApproaches pap
                 JOIN appraisal.PricingAnalysisMethods pm
                     ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
+                    AND (pm.Role IS NULL OR pm.Role IN ('Land', 'LandAndBuilding'))
                 JOIN appraisal.PricingFinalValues fv
                     ON fv.PricingMethodId = pm.Id
                 WHERE pap.PricingAnalysisId = pa.Id AND pap.IsSelected = 1
-            ) pfv
+                ORDER BY pm.Id
+            ) landPfv
+            OUTER APPLY (
+                -- Deliberately NO "Role IS NULL" here: unlike the land side, an untagged method could
+                -- be anything, and it is never safe to guess "this one is the building component".
+                -- Role = 'Building' only ever applies to a real Cost-approach BuildingCost method, so
+                -- staying strict costs nothing — a Cost method that combines land and building in one
+                -- row (Role=LandAndBuilding, untagged or not) already reports both through landPfv's
+                -- own BuildingValue column above, COALESCE'd against this one in the caller.
+                -- MethodValue = IndicatedValue ?? FinalValue: the building figure the appraised value
+                -- actually contains (a typed-over value included), and LEFT JOIN because a manually
+                -- valued BuildingCost may have no FinalValue row. Same read as GetAppraisalResult's
+                -- pbv and vw_CollateralResultExport's buildM, so the book and LOS agree.
+                SELECT TOP 1 COALESCE(pm.MethodValue, fv.IndicatedValue, fv.FinalValue) AS FinalValue
+                FROM appraisal.PricingAnalysisApproaches pap
+                JOIN appraisal.PricingAnalysisMethods pm
+                    ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
+                    AND pm.Role = 'Building'
+                LEFT JOIN appraisal.PricingFinalValues fv
+                    ON fv.PricingMethodId = pm.Id
+                WHERE pap.PricingAnalysisId = pa.Id AND pap.IsSelected = 1
+                ORDER BY pm.Id
+            ) buildPfv
+            OUTER APPLY (
+                -- No FinalValues join: a BuildingCost valued on the selection board has no
+                -- PricingFinalValues row, yet buildPfv still reports its MethodValue.
+                SELECT TOP 1 pap.ApproachType
+                FROM appraisal.PricingAnalysisApproaches pap
+                JOIN appraisal.PricingAnalysisMethods pm
+                    ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
+                WHERE pap.PricingAnalysisId = pa.Id AND pap.IsSelected = 1
+                ORDER BY pm.Id
+            ) buildPfvApproach
+            OUTER APPLY (
+                -- Group-total FALLBACK only (see the header comment on this SELECT) — deliberately a
+                -- SUM, not a TOP 1: no Role filter, every selected method in the approach counts.
+                -- MethodValue first (what the rollup sums); LEFT JOIN for methods with no FinalValue row.
+                SELECT SUM(COALESCE(pm.MethodValue, fv.IndicatedValue, fv.FinalValue)) AS EffectiveValue
+                FROM appraisal.PricingAnalysisApproaches pap
+                JOIN appraisal.PricingAnalysisMethods pm
+                    ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
+                LEFT JOIN appraisal.PricingFinalValues fv
+                    ON fv.PricingMethodId = pm.Id
+                WHERE pap.PricingAnalysisId = pa.Id AND pap.IsSelected = 1
+            ) totalPfv
             WHERE pg.AppraisalId = @AppraisalId
             ORDER BY pg.GroupNumber;
 
@@ -345,7 +424,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 lt.AreaSquareWa,
                 COALESCE(tsub.NameTh,  lad.SubDistrict) AS SubDistrict,
                 COALESCE(tdist.NameTh, lad.District)    AS District,
-                COALESCE(tprov.NameTh, lad.Province)    AS Province
+                COALESCE(tprov.NameTh, lad.Province)    AS Province,
+                lad.DeductedAreaInSqWa
             FROM appraisal.PropertyGroupItems pgi
             JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
             JOIN appraisal.LandAppraisalDetails lad ON lad.AppraisalPropertyId = ap.Id
@@ -419,7 +499,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 bdd.AreaDescription,
                 bdd.Area,
                 bdd.[Year],
-                bdd.PriceAfterDepreciation
+                bdd.PriceAfterDepreciation,
+                bad.FinalCostValueOverride
             FROM appraisal.BuildingDepreciationDetails bdd
             JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
             JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
@@ -1067,17 +1148,50 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                     totalSqwa == 0m ? null : totalSqwa)
                 : BuildAreaString(g.AreaRai, g.AreaNgan, g.AreaSquareWa);
 
-            // Total land area in square-wa (rai×400 + ngan×100 + sqwa).
-            var totalSquareWa = (totalRai * 400m) + (totalNgan * 100m) + totalSqwa;
+            // Total land area in square-wa (rai×400 + ngan×100 + sqwa), less what the appraiser
+            // listed as not appraisable. The deduction is recorded per PROPERTY and repeated on each
+            // of its title rows, so it is taken once per property — and floored at 0 per property
+            // before summing, as LandAppraisalDetail.NetLandAreaInSqWa and LandAreaSql do: one
+            // property's over-deduction must not eat into another property's land.
+            // KEEP IN SYNC with LandAppraisalDetail.NetLandAreaInSqWa — this figure has to keep
+            // equalling PricingFinalValues.LandArea, which the pricing path now writes net.
+            var titleNetSquareWa = titles
+                .GroupBy(t => t.SequenceInGroup)
+                .Sum(p => Math.Max(0m,
+                    p.Sum(t => ((t.AreaRai ?? 0m) * 400m) + ((t.AreaNgan ?? 0m) * 100m) + (t.AreaSquareWa ?? 0m))
+                    - (p.First().DeductedAreaInSqWa ?? 0m)));
+
+            // Print the area the land was actually PRICED on when the pricing recorded one, so area ×
+            // rate always equals the printed land value. An appraisal priced before deductions
+            // existed (the encroachment backfill converts old encroachments into deductions) keeps
+            // its gross priced area here until it is re-priced; the title-derived net area is only
+            // the fallback for a group whose pricing carries no area (not priced at a per-unit rate).
+            var totalSquareWa = g.PricedLandArea is > 0m ? g.PricedLandArea.Value : titleNetSquareWa;
 
             bool isCost = string.Equals(g.ApproachType, "Cost", StringComparison.OrdinalIgnoreCase);
 
-            // Cost-approach breakdown. Buildings: ONE line per building (not per depreciation
-            // row) — value = sum of that building's IsBuilding=1 depreciation rows.
+            // Cost-approach breakdown. Buildings: ONE line per building (not per depreciation row).
+            //
+            // The property's structure total is the Building Cost Value the appraiser saw on the
+            // form: their keyed figure when they entered one, otherwise the depreciated sum rounded
+            // to the nearest 1,000. That total already covers the property's ส่วนพัฒนา rows, which
+            // print on their own lines below, so the building line carries the remainder — leaving
+            // รวมมูลค่าสิ่งปลูกสร้าง equal to what the form showed.
+            // KEEP IN SYNC with the property form's Building Cost Value (BuildingDetail.tsx).
             var buildingValueById = deps
-                .Where(d => d.IsBuilding)
                 .GroupBy(d => d.BuildingAppraisalDetailId)
-                .ToDictionary(grp => grp.Key, grp => grp.Sum(d => d.PriceAfterDepreciation ?? 0m));
+                .Where(grp => grp.Any(d => d.IsBuilding))
+                .ToDictionary(
+                    grp => grp.Key,
+                    grp =>
+                    {
+                        var total = grp.First().FinalCostValueOverride
+                                    ?? Math.Round(
+                                        grp.Sum(d => d.PriceAfterDepreciation ?? 0m) / 1000m,
+                                        MidpointRounding.AwayFromZero) * 1000m;
+                        return total - grp.Where(d => !d.IsBuilding)
+                                          .Sum(d => d.PriceAfterDepreciation ?? 0m);
+                    });
 
             // Carries IsUnderConstruction alongside each row so the list can be partitioned into
             // the two blocks below — SummaryItemRow itself stays a pure display row.
@@ -1138,7 +1252,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 .Select(x => x.Row.Description!)
                 .ToList();
 
-            var groupTotal = g.GroupAppraisalValue ?? g.AppraisalPrice ?? g.FinalValueRounded;
+            var groupTotal = g.GroupAppraisalValue ?? g.EffectiveValue;
 
             // Group composition — also drives the first-column label (see DeriveFamily).
             var hasLand = titles.Count > 0 || g.LandValue.HasValue;
@@ -1191,11 +1305,42 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
             // ส่วนพัฒนา counts toward the building subtotal (matches the reference form, where
             // รวมมูลค่าสิ่งปลูกสร้าง = building lines + ส่วนพัฒนา lines).
-            var buildingSubtotal = buildingItems.Sum(b => b.Value ?? 0m)
-                                 + developmentItems.Sum(d => d.Value ?? 0m);
+            var buildingSubtotalFromRows = buildingItems.Sum(b => b.Value ?? 0m)
+                                         + developmentItems.Sum(d => d.Value ?? 0m);
 
-            var buildingSubtotalCurrent = buildingItems.Sum(b => b.CurrentValue ?? 0m)
-                                        + developmentItems.Sum(d => d.CurrentValue ?? 0m);
+            var buildingSubtotalCurrentFromRows = buildingItems.Sum(b => b.CurrentValue ?? 0m)
+                                                + developmentItems.Sum(d => d.CurrentValue ?? 0m);
+
+            // The figure of record for a group's buildings is the one pricing saved, not the sum of
+            // the rows above — `g.BuildingValue` is COALESCE(linked method's snapshot, standalone
+            // BuildingCost method), already selected by this file's own query and, until now, never
+            // read by anything.
+            //
+            // They differ whenever the appraiser types over มูลค่าตามวิธี on the Building Cost
+            // screen: the rows keep each building's own cost, while the method carries the figure
+            // the appraisal actually uses and sends to LOS/AS400. The book was printing the rows'
+            // sum, so it stated a building total the rest of the appraisal did not agree with.
+            //
+            // The rows themselves are deliberately left alone — the user asked for the saved total
+            // and no explanatory line, so รวมมูลค่าสิ่งปลูกสร้าง can legitimately differ from the
+            // lines above it.
+            //
+            // Only when NOTHING in the group is under construction. A group with partial progress
+            // derives every current-condition figure from its own rows (CurrentValueOf, per
+            // property percent), and BuildingSubtotal − BuildingSubtotalCurrent is what decides
+            // whether the book prints its ตามสภาพปัจจุบัน block at all. Substituting the total on
+            // one side of that subtraction and not the other would invent a shortfall out of the
+            // override and print a construction block for a finished group.
+            var hasUnderConstructionBuilding = buildingRows.Any(x => x.IsUnderConstruction);
+            var useSavedBuildingValue = g.BuildingValue is > 0m && !hasUnderConstructionBuilding;
+
+            var buildingSubtotal = useSavedBuildingValue
+                ? g.BuildingValue!.Value
+                : buildingSubtotalFromRows;
+
+            var buildingSubtotalCurrent = useSavedBuildingValue
+                ? g.BuildingValue!.Value
+                : buildingSubtotalCurrentFromRows;
 
             // The form prints สิ่งปลูกสร้าง as two blocks — finished, then under construction —
             // so that only the second one carries the เมื่อแล้วเสร็จ 100% / ตามสภาพปัจจุบัน column
@@ -1229,12 +1374,11 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             // reference the Appraisal assembly. KEEP IN SYNC with PricingUnit.cs.
             var isLandRate = g.UnitType is "PerSqWa" or "PerSqm";
 
-            // Land area is title-derived on both sides (the save path resolves it via
-            // PricingPropertyDataService.GetTotalLandAreaFromTitlesAsync over the same LandTitles),
-            // so totalSquareWa equals PricingFinalValues.LandArea by construction — and it is
-            // populated for historical rows that predate that fix.
+            // totalSquareWa is PricingFinalValues.LandArea when the pricing recorded one (see above),
+            // else the title-derived net area — which is also populated for historical rows that
+            // predate LandArea being written.
             var marketLandArea = totalSquareWa == 0m ? null : (decimal?)totalSquareWa;
-            var marketLandUnitPrice = g.ValuePerUnit ?? g.LandUnitPrice;   // else FinalValueAdjusted
+            var marketLandUnitPrice = g.ValuePerUnit ?? g.LandUnitPrice;   // else FinalValueOverride
 
             var showLandUnitColumns = !isCost
                                       && hasLand
@@ -1746,9 +1890,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public string? ApproachType { get; init; }            // "Cost" | "Market" | "Income" | "Residual"
         public decimal? LandValue { get; init; }
         public decimal? BuildingValue { get; init; }
-        public decimal? LandUnitPrice { get; init; }          // FinalValueAdjusted
-        public decimal? AppraisalPrice { get; init; }
-        public decimal? FinalValueRounded { get; init; }
+        public decimal? LandUnitPrice { get; init; }          // FinalValueOverride
+        public decimal? PricedLandArea { get; init; }         // PricingFinalValues.LandArea — the area LandValue was priced on
+        public decimal? EffectiveValue { get; init; }         // GroupAppraisalValue fallback only — SUM(IndicatedValue ?? FinalValue) across selected methods
         public decimal? ValuePerUnit { get; init; }           // PricingAnalysisMethods.ValuePerUnit
         public string? UnitType { get; init; }                // "PerSqWa" | "PerSqm" | "PerUnit"
         public bool? IncludeLandArea { get; init; }
@@ -1771,6 +1915,11 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public decimal? Area { get; init; }
         public short Year { get; init; }
         public decimal? PriceAfterDepreciation { get; init; }
+        /// <summary>
+        /// The appraiser's keyed Building Cost Value for the owning property, repeated on every row
+        /// of that property. Null = use the depreciated sum.
+        /// </summary>
+        public decimal? FinalCostValueOverride { get; init; }
     }
 
     /// <summary>
@@ -1879,6 +2028,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public decimal? AreaRai { get; init; }
         public decimal? AreaNgan { get; init; }
         public decimal? AreaSquareWa { get; init; }
+        /// <summary>Owning property's deduction total — repeated on each of its title rows.</summary>
+        public decimal? DeductedAreaInSqWa { get; init; }
         public string? SubDistrict { get; init; }
         public string? District { get; init; }
         public string? Province { get; init; }

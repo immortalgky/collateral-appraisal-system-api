@@ -133,6 +133,7 @@ public class GetLandPropertyQueryHandler(
             HasBuildingOther = landDetail?.HasBuildingOther,
             Remark = landDetail?.Remark,
             TotalLandAreaInSqWa = landDetail?.TotalLandAreaInSqWa ?? 0,
+            NetLandAreaInSqWa = landDetail?.NetLandAreaInSqWa ?? 0,
 
             IsRentedOut = landDetail?.IsRentedOut,
             LeaseAgreement = LeaseAgreementMapper.MapLeaseAgreement(property.LeaseAgreementDetail),
@@ -160,6 +161,13 @@ public class GetLandPropertyQueryHandler(
                 title.GovernmentPricePerSqWa,
                 title.GovernmentPrice,
                 title.Remark
+            )).ToList(),
+            LandAreaDeductions = landDetail?.Deductions.Select(d => new LandAreaDeductionData(
+                d.Id,
+                d.ReasonCode,
+                d.ReasonOther,
+                d.AreaInSqWa,
+                d.Remark
             )).ToList()
         };
     }

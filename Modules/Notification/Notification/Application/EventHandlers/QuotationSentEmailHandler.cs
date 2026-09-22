@@ -2,6 +2,7 @@ using MassTransit;
 using Notification.Contracts.Email;
 using Notification.Data;
 using Notification.Infrastructure.Email;
+using Notification.Infrastructure.Email.Attachments;
 using Notification.Infrastructure.Email.Templates;
 using Shared.Messaging.Filters;
 
@@ -14,6 +15,7 @@ namespace Notification.Application.EventHandlers;
 public sealed class QuotationSentEmailHandler(
     IEmailSender emailSender,
     IEmailTemplateRenderer templateRenderer,
+    EmailAttachmentAssembler attachmentAssembler,
     InboxGuard<NotificationDbContext> inboxGuard,
     ILogger<QuotationSentEmailHandler> logger)
     : IConsumer<QuotationSentEmailIntegrationEvent>
@@ -40,6 +42,12 @@ public sealed class QuotationSentEmailHandler(
                 return;
             }
 
+            var refs = msg.AttachmentRefs
+                .Select(r => new EmailAttachmentRef(r.Type, r.Value))
+                .ToList();
+
+            var attachments = await attachmentAssembler.AssembleAsync(refs, context.CancellationToken);
+
             var html = templateRenderer.QuotationSent(msg.Subject, msg.Content);
 
             var email = new EmailMessage(
@@ -48,6 +56,7 @@ public sealed class QuotationSentEmailHandler(
                 To: toAddresses.Count > 0 ? toAddresses : null,
                 Cc: ccAddresses.Count > 0 ? ccAddresses : null,
                 Bcc: bccAddresses.Count > 0 ? bccAddresses : null,
+                Attachments: attachments.Count > 0 ? attachments : null,
                 Source: "QuotationSent",
                 ReferenceId: msg.QuotationRequestId.ToString());
 

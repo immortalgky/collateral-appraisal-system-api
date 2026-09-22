@@ -6,5 +6,5 @@ namespace Appraisal.Application.Features.PricingAnalysis.SetManualCostBreakdown;
 /// </summary>
 public record SetManualCostBreakdownRequest(
     decimal? LandRatePerSqWa = null,
-    decimal? AppraisalPrice = null
+    decimal? IndicatedValue = null
 );

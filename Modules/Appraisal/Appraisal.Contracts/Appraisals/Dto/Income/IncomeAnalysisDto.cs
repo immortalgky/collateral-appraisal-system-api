@@ -18,7 +18,7 @@ public record IncomeAnalysisDto(
     decimal? FinalValueAdjust,
     bool IsHighestBestUsed,
     HighestBestUsedDto HighestBestUsed,
-    decimal? AppraisalPriceRounded,
+    decimal? IndicatedValue,
     IReadOnlyList<IncomeSectionDto> Sections,
     IncomeSummaryDto Summary
 );

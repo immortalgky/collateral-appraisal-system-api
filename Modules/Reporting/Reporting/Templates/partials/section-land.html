@@ -49,6 +49,19 @@
       <td class="num">{{ land_section.total_square_wa | math.format "#,##0" }}</td>
       <td>หรือ {{ land_section.total_area_in_wa | math.format "#,##0.##" }} ตารางวา</td>
     </tr>
+    {{ if land_section.deducted_area_in_wa > 0 }}
+    {{~ # Only when something was actually deducted — an unencroached property prints as before. ~}}
+    <tr style="color:#b45309;">
+      <td colspan="6" style="text-align:right;">หัก เนื้อที่ที่ตัดออกจากการประเมิน</td>
+      <td class="num" colspan="3"></td>
+      <td>{{ land_section.deducted_area_in_wa | math.format "#,##0.##" }} ตารางวา</td>
+    </tr>
+    <tr style="font-weight:700;">
+      <td colspan="6" style="text-align:right;">คงเหลือ เนื้อที่ที่ใช้ประเมิน</td>
+      <td class="num" colspan="3"></td>
+      <td>{{ land_section.net_area_in_wa | math.format "#,##0.##" }} ตารางวา</td>
+    </tr>
+    {{ end }}
   </tbody>
 </table>
 {{ end }}

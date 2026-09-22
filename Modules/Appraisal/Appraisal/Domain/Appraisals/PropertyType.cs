@@ -32,6 +32,19 @@ public class PropertyType : ValueObject
     public bool HasBuildingDetail => Code is "B" or "LB" or "LSB" or "LS";
     public bool HasCondoDetail => Code is "U" or "LSU";
 
+    /// <summary>
+    /// The collateral family this type belongs to. A PropertyGroup may only contain properties
+    /// from one family: land/building types share one family (including their lease-agreement
+    /// variants), condo types share another (ditto), and machinery/vehicle/vessel are each their
+    /// own family.
+    /// </summary>
+    public string Family => Code switch
+    {
+        "L" or "B" or "LB" or "LS" or "LSL" or "LSB" => "LandBuilding",
+        "U" or "LSU" => "Condo",
+        _ => Code // MAC, VEH, VES: each type is its own family
+    };
+
     // Factory method from string
     public static PropertyType FromString(string code)
     {

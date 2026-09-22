@@ -126,6 +126,10 @@ public class UpdateLeaseAgreementLandPropertyCommandHandler(
         if (command.Titles is not null)
             SyncTitles(landDetail, command.Titles);
 
+        // Same contract for the area deductions that come off the appraised area.
+        if (command.LandAreaDeductions is not null)
+            SyncDeductions(landDetail, command.LandAreaDeductions);
+
         // Update lease agreement detail if provided
         if (command.LeaseAgreement is not null)
         {
@@ -223,5 +227,48 @@ public class UpdateLeaseAgreementLandPropertyCommandHandler(
                 landDetail.AddTitle(title);
             }
         }
+    }
+
+    /// <summary>
+    /// Same add / update / remove shape as <see cref="SyncTitles"/>. The closing
+    /// <c>RecalculateDeductedArea</c> is what keeps the stored total honest when an existing row's
+    /// area was edited in place — adds and removes settle it themselves.
+    /// </summary>
+    private static void SyncDeductions(
+        LandAppraisalDetail landDetail,
+        List<LandAreaDeductionData> incomingDeductions)
+    {
+        var incomingIds = incomingDeductions
+            .Where(d => d.Id.HasValue)
+            .Select(d => d.Id!.Value)
+            .ToHashSet();
+
+        var deductionsToRemove = landDetail.Deductions
+            .Where(d => !incomingIds.Contains(d.Id))
+            .Select(d => d.Id)
+            .ToList();
+        foreach (var id in deductionsToRemove)
+            landDetail.RemoveDeduction(id);
+
+        foreach (var data in incomingDeductions)
+        {
+            if (data.Id.HasValue)
+            {
+                var existing = landDetail.Deductions.FirstOrDefault(d => d.Id == data.Id.Value);
+                if (existing is not null)
+                {
+                    existing.ChangeReason(data.ReasonCode);
+                    existing.Update(data.ReasonOther, data.AreaInSqWa, data.Remark);
+                }
+            }
+            else
+            {
+                var deduction = LandAreaDeduction.Create(landDetail.Id, data.ReasonCode);
+                deduction.Update(data.ReasonOther, data.AreaInSqWa, data.Remark);
+                landDetail.AddDeduction(deduction);
+            }
+        }
+
+        landDetail.RecalculateDeductedArea();
     }
 }

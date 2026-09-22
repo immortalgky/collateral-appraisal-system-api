@@ -42,6 +42,7 @@ public class AuthDataSeed(
     private const string ExtAppraisalVerifierRoleName = "ExtAppraisalVerifier";
     private const string AppraisalCommitteeRoleName = "AppraisalCommittee";
 
+
     public async Task SeedAllAsync()
     {
         await SeedPasswordPolicyAsync();
@@ -81,7 +82,7 @@ public class AuthDataSeed(
             [
                 "DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_ASSIGNMENT",
                 "TASK_MONITOR_VIEW", "TASK_MONITOR_REASSIGN",
-                "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "REPORT_OP_VIEW",
+                "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "APPRAISAL_REVIEW", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "REPORT_OP_VIEW",
                 "MEETING_MANAGE", "MEETING_ADMIN", "WORKFLOW_MANAGE", "USER_MANAGE",
                 "QUOTATION_VIEW", "QUOTATION_DRAFT_VIEW", "QUOTATION_DRAFT_EDIT",
                 "TASK_QUOTATION_REVIEW", "TASK_QUOTATION_FINALIZE",
@@ -99,7 +100,7 @@ public class AuthDataSeed(
             "External Company Admin — manages external company users and external appraisal assignments.",
             AuthScopes.Company,
             [
-                "DASHBOARD_VIEW", "REQUEST_VIEW", "APPRAISAL_VIEW", "TASK_LIST_VIEW",
+                "DASHBOARD_VIEW", "REQUEST_VIEW", "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_ASSIGNMENT", "USER_MANAGE",
                 // Company-scoped: external admins may only see/reassign tasks within their own company.
                 "TASK_MONITOR_VIEW:TEAM", "TASK_MONITOR_REASSIGN:TEAM",
@@ -128,7 +129,7 @@ public class AuthDataSeed(
             "Internal Appraisal Staff — executes internal appraisals and verifies appraisal books.",
             AuthScopes.Bank,
             [
-                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
                 "TASK_APPR_BOOK_VERIFICATION", "TASK_INT_APPR_EXECUTION", "TASK_INT_PMA_INPUT",
                 "TASK_INT_OFFLINE_BOOK_KEYIN",
                 "STANDALONE_USE",
@@ -145,7 +146,7 @@ public class AuthDataSeed(
             "Internal Appraisal Checker — checks and validates internal appraisal reports.",
             AuthScopes.Bank,
             [
-                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_INT_APPR_CHECK",
                 "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
                 "TASK_FEE_APPOINTMENT_APPROVAL",
@@ -157,7 +158,7 @@ public class AuthDataSeed(
             "Internal Appraisal Verifier — final verification of internal appraisal reports.",
             AuthScopes.Bank,
             [
-                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_INT_APPR_VERIFICATION", "REPORT_VIEW", "REPORT_EVALUATION_VIEW",
                 "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
                 ..appraisalSectionViews
@@ -166,7 +167,7 @@ public class AuthDataSeed(
             "External Appraisal Staff — field appraisers from external companies who execute appraisals.",
             AuthScopes.Company,
             [
-                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_ASSIGNMENT", "TASK_EXT_APPR_EXECUTION", "STANDALONE_USE",
                 "HISTORY_SEARCH_VIEW",
                 ..appraisalSectionViews, ..appraisalSectionEdits
@@ -175,7 +176,7 @@ public class AuthDataSeed(
             "External Appraisal Checker — checks external appraisal reports before verification.",
             AuthScopes.Company,
             [
-                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_CHECK",
                 "QUOTATION_EXT_VIEW", "TASK_QUOTATION_SUBMIT", "TASK_QUOTATION_NEGOTIATE",
                 "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
@@ -185,7 +186,7 @@ public class AuthDataSeed(
             "External Appraisal Verifier — final verification of external appraisal reports.",
             AuthScopes.Company,
             [
-                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_VERIFICATION",
                 "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
                 ..appraisalSectionViews
@@ -194,7 +195,7 @@ public class AuthDataSeed(
             "Appraisal Committee — approves appraisals in committee meetings.",
             AuthScopes.Bank,
             [
-                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_PENDING_APPROVAL", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "REPORT_EVALUATION_VIEW",
                 "MEETING_MANAGE", "COMMITTEE_MEMBER",
                 "STANDALONE_USE",
@@ -1007,6 +1008,19 @@ public class AuthDataSeed(
             // Admin data correction on closed appraisals (standalone screen, reason + audit trail)
             ("APPRAISAL_DATA_CORRECTION", "Correct Appraisal Property Data",
                 "Correct descriptive property data on Completed/Cancelled appraisals",
+                "Appraisal"),
+            // Granted beside APPRAISAL_VIEW in every role list below, mirroring what
+            // 20260914090000_SeedData_AppraisalTrackingForCredit.sql does to an existing database.
+            // CLAUDE.md asks for both: the script is what reaches UAT/production, the seeder is
+            // what a FRESH Development database gets — and the menu node is gated on this code, so
+            // without it a rebuilt dev database has no route to the appraisal list at all.
+            //
+            // Credit-side tracking screen. Deliberately NOT a variant of APPRAISAL_VIEW:
+            // holders of this permission get the tracking screen and nothing else, and the
+            // appraisal workspace stays gated on APPRAISAL_VIEW which they do not hold.
+            ("APPRAISAL_TRACKING_VIEW", "Track Appraisal Progress",
+                "Follow an appraisal's progress and holder, and read the approved value and "
+                + "documents once the price is approved, without access to the appraisal workspace",
                 "Appraisal")
         };
 

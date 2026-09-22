@@ -55,7 +55,7 @@ namespace Request.Infrastructure.Migrations
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime>("LastModifiedAt")
+                    b.Property<DateTime?>("LastModifiedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<Guid>("RequestId")
@@ -2143,6 +2143,11 @@ namespace Request.Infrastructure.Migrations
                                 .HasMaxLength(300)
                                 .HasColumnType("nvarchar(300)")
                                 .HasColumnName("VehicleLocation");
+
+                            b1.Property<string>("VehicleRegistrationNumber")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
+                                .HasColumnName("VehicleRegistrationNumber");
 
                             b1.Property<string>("VehicleType")
                                 .HasMaxLength(10)

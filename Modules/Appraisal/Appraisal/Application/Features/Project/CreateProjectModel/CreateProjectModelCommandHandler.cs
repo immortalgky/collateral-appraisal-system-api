@@ -34,7 +34,7 @@ public class CreateProjectModelCommandHandler(
             usableAreaMin: command.UsableAreaMin,
             usableAreaMax: command.UsableAreaMax,
             standardUsableArea: command.StandardUsableArea,
-            fireInsuranceCondition: command.FireInsuranceCondition,
+            fireInsuranceCode: command.FireInsuranceCode,
             roomLayoutType: command.RoomLayoutType,
             roomLayoutTypeOther: command.RoomLayoutTypeOther,
             groundFloorMaterialType: command.GroundFloorMaterialType,
@@ -95,7 +95,7 @@ public class CreateProjectModelCommandHandler(
         model.ClearAreaDetails();
         if (dtos is not { Count: > 0 }) return;
         foreach (var dto in dtos)
-            model.AddAreaDetail(ProjectModelAreaDetail.Create(dto.AreaDescription, dto.AreaSize));
+            model.AddAreaDetail(ProjectModelAreaDetail.Create(dto.Sequence, dto.AreaDescription, dto.AreaSize));
     }
 
     internal static void ApplySurfaces(Domain.Projects.ProjectModel model, List<ProjectModelSurfaceDto>? dtos)

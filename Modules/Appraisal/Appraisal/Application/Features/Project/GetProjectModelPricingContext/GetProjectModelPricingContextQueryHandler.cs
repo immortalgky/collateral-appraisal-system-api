@@ -80,7 +80,7 @@ public class GetProjectModelPricingContextQueryHandler(
             StandardUsableArea: model.StandardUsableArea,
             HasMezzanine: model.HasMezzanine,
             RoomLayoutType: model.RoomLayoutType,
-            FireInsuranceCondition: model.FireInsuranceCondition,
+            FireInsuranceCode: model.FireInsuranceCode,
             GroundFloorMaterialType: model.GroundFloorMaterialType,
             UpperFloorMaterialType: model.UpperFloorMaterialType,
             BathroomFloorMaterialType: model.BathroomFloorMaterialType,

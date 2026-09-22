@@ -13,7 +13,7 @@ public record ProjectModelImageDto(
 /// <summary>
 /// DTO for a project model area detail (used in both create/update requests and query responses).
 /// </summary>
-public record ProjectModelAreaDetailDto(Guid? Id, string? AreaDescription, decimal? AreaSize);
+public record ProjectModelAreaDetailDto(Guid? Id, int? Sequence, string? AreaDescription, decimal? AreaSize);
 
 /// <summary>DTO for a project model surface (LandAndBuilding only).</summary>
 public record ProjectModelSurfaceDto(
@@ -73,7 +73,7 @@ public record ProjectModelDto(
     decimal? UsableAreaMin,
     decimal? UsableAreaMax,
     decimal? StandardUsableArea,
-    string? FireInsuranceCondition,
+    string? FireInsuranceCode,
     string? RoomLayoutType,           // Condo
     string? RoomLayoutTypeOther,      // Condo
     string? GroundFloorMaterialType,

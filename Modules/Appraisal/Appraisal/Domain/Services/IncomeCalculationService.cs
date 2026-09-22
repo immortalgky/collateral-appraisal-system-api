@@ -62,130 +62,14 @@ public class IncomeCalculationService : IPricingCalculationService
     /// User-adjustable values are handled separately via <see cref="IncomeAnalysis.FinalValueAdjust"/>.
     /// </para>
     /// </summary>
+    // Delegates to the overload Save and Preview use. This used to be a separate copy of the
+    // whole pipeline that had drifted — its method-13 pass ignored StartIn and did not round —
+    // and only the unit tests called it, so they were testing code the app never runs.
     public IncomeCalculationResult Calculate(
         IncomeAnalysis analysis,
-        IReadOnlyList<TaxBracketDto>? taxBrackets
-        )
-    {
-        var years = analysis.TotalNumberOfYears;
-        var daysInYear = analysis.TotalNumberOfDayInYear;
+        IReadOnlyList<TaxBracketDto>? taxBrackets)
+        => Calculate(analysis, taxBrackets, contractRentalFeeOverride: null);
 
-        var hasBrackets = taxBrackets is { Count: > 0 };
-        if (!hasBrackets)
-        {
-            _logger.LogWarning(
-                "IncomeCalculationService.Calculate called without tax brackets. " +
-                "Method-10 will use client-supplied TotalPropertyTax values. " +
-                "Pass brackets from GetPricingTaxBracketsQuery for server-authoritative results.");
-        }
-
-        // ── Pass 1: compute all non-method-13 methods ──────────────────────
-        var methodValues = new Dictionary<Guid, decimal[]>();
-
-        // We need cross-method refs for method 08 (refs method-01) and method 11 (refs method-06).
-        // Collect those after the first pass.
-        var deferred13 = new List<(IncomeAssumption assumption, Method13Detail detail)>();
-
-        // Collect totalSaleableAreaDeductByOccRate arrays by method type for cross-ref.
-        // Key: methodTypeCode -> first computed array found.
-        var crossRefSaleableAreaOccRate = new Dictionary<string, decimal[]>();
-
-        foreach (var section in analysis.Sections)
-        {
-            foreach (var category in section.Categories)
-            {
-                foreach (var assumption in category.Assumptions)
-                {
-                    var code = assumption.Method.MethodTypeCode;
-                    var detailJson = assumption.Method.DetailJson;
-
-                    if (code == "13")
-                    {
-                        // Defer until all other methods are computed.
-                        var d13 = MethodDetailSerializer.Deserialize<Method13Detail>(code, detailJson);
-                        deferred13.Add((assumption, d13));
-                        continue;
-                    }
-
-                    decimal[] values = ComputeMethod(code, detailJson, years, daysInYear, crossRefSaleableAreaOccRate, taxBrackets);
-                    methodValues[assumption.Id] = values;
-                }
-            }
-        }
-
-        // ── Pass 2: resolve method 13 (proportional) — iterative to convergence ──
-        // Each iteration: aggregate categories/sections using current values, then
-        // re-resolve every M13 against those aggregates. When an M13 references an
-        // aggregate that itself contains other M13s (e.g. Admin Fee = 5% of GOP, and
-        // GOP = Income − Expenses where Expenses contains multiple M13s), a single
-        // pass uses stale (pre-M13) aggregates and produces wrong values.
-        // A fixed-point iteration converges in ≤3 passes for any non-circular ref graph.
-
-        var assumptionValues = new Dictionary<Guid, decimal[]>(methodValues);
-        var categoryValues = AggregateCategoryValues(analysis, assumptionValues, years);
-        var sectionValues = AggregateSectionValues(analysis, categoryValues, assumptionValues, years);
-
-        const int MaxIterations = 5;
-        bool didNotConverge = false;
-        for (int iter = 0; iter < MaxIterations; iter++)
-        {
-            bool anyChanged = false;
-            foreach (var (assumption, detail) in deferred13)
-            {
-                var refValues = ResolveRefTarget(detail, sectionValues, categoryValues, assumptionValues, years);
-                decimal[] values = new decimal[years];
-                for (int y = 0; y < years; y++)
-                    values[y] = (detail.ProportionPct / 100m) * (refValues != null ? refValues[y] : 0m);
-
-                if (!assumptionValues.TryGetValue(assumption.Id, out var prev) || !ArraysEqual(prev, values))
-                    anyChanged = true;
-
-                methodValues[assumption.Id] = values;
-                assumptionValues[assumption.Id] = values;
-            }
-
-            categoryValues = AggregateCategoryValues(analysis, assumptionValues, years);
-            sectionValues = AggregateSectionValues(analysis, categoryValues, assumptionValues, years);
-
-            if (!anyChanged) break;
-            didNotConverge = iter == MaxIterations - 1;
-        }
-
-        if (didNotConverge)
-            _logger.LogWarning(
-                "Method-13 iteration did not converge after {MaxIterations} passes — possible circular reference or proportion >= 100%. Result may be inaccurate. AnalysisId={AnalysisId}.",
-                MaxIterations, analysis.Id);
-
-        // ── Summary (DCF pipeline) ─────────────────────────────────────────
-        var contractRentalFee = ParseJsonArray(analysis.Summary.ContractRentalFeeJson, years);
-        var (grossRevenue, grossRevenueProportional) = ComputeGrossRevenue(
-            analysis, sectionValues, contractRentalFee, years);
-
-        var (terminalRevenue, totalNet, discount, presentValue, finalValue) =
-            ComputeDcfSummary(analysis, grossRevenue);
-
-        // Always compute FinalValueRounded as round-to-nearest-1000 (half-up).
-        // roundToThousand(500) === 1000, roundToThousand(499) === 0.
-        var finalValueRounded = Math.Round(finalValue / 1000m, MidpointRounding.AwayFromZero) * 1000m;
-
-        return new IncomeCalculationResult
-        {
-            MethodValues = methodValues,
-            AssumptionValues = assumptionValues,
-            CategoryValues = categoryValues,
-            SectionValues = sectionValues,
-            ContractRentalFee = contractRentalFee,
-            GrossRevenue = grossRevenue,
-            GrossRevenueProportional = grossRevenueProportional,
-            TerminalRevenue = terminalRevenue,
-            TotalNet = totalNet,
-            Discount = discount,
-            PresentValue = presentValue,
-            FinalValue = finalValue,
-            FinalValueRounded = finalValueRounded
-        };
-    }
-    
     public IncomeCalculationResult Calculate(
         IncomeAnalysis analysis,
         IReadOnlyList<TaxBracketDto>? taxBrackets,
@@ -214,27 +98,21 @@ public class IncomeCalculationService : IPricingCalculationService
         // Key: methodTypeCode -> first computed array found.
         var crossRefSaleableAreaOccRate = new Dictionary<string, decimal[]>();
 
-        foreach (var section in analysis.Sections)
+        foreach (var assumption in AssumptionsInComputeOrder(analysis))
         {
-            foreach (var category in section.Categories)
+            var code = assumption.Method.MethodTypeCode;
+            var detailJson = assumption.Method.DetailJson;
+
+            if (code == "13")
             {
-                foreach (var assumption in category.Assumptions)
-                {
-                    var code = assumption.Method.MethodTypeCode;
-                    var detailJson = assumption.Method.DetailJson;
-
-                    if (code == "13")
-                    {
-                        // Defer until all other methods are computed.
-                        var d13 = MethodDetailSerializer.Deserialize<Method13Detail>(code, detailJson);
-                        deferred13.Add((assumption, d13));
-                        continue;
-                    }
-
-                    decimal[] values = ComputeMethod(code, detailJson, years, daysInYear, crossRefSaleableAreaOccRate, taxBrackets);
-                    methodValues[assumption.Id] = values;
-                }
+                // Defer until all other methods are computed.
+                var d13 = MethodDetailSerializer.Deserialize<Method13Detail>(code, detailJson);
+                deferred13.Add((assumption, d13));
+                continue;
             }
+
+            decimal[] values = ComputeMethod(code, detailJson, years, daysInYear, crossRefSaleableAreaOccRate, taxBrackets);
+            methodValues[assumption.Id] = values;
         }
 
         // ── Pass 2: resolve method 13 (proportional) — iterative to convergence ──
@@ -361,6 +239,45 @@ public class IncomeCalculationService : IPricingCalculationService
     /// totalMethodValues[y] = roomIncome[y]
     /// note: occupancyRate can adjust year by year, so we compute it by using occupancyRate from frontend if provided (>= 0), otherwise use the step-compounded one. 
     /// </summary>
+    // Methods that publish their occupancy-adjusted room/area series into the cross-ref map
+    // (01/02 as "01", 06 as "06") — 08 reads "01", 11 reads "06".
+    private static readonly HashSet<string> CrossRefProducers = ["01", "02", "06"];
+
+    /// <summary>
+    /// Rule (user, 2026-09-21): method 08 (F&amp;B per occupied room-night) takes room-nights
+    /// from room methods 01/02 ONLY; method 11 (energy index × leased area) takes leased
+    /// area from method 06 ONLY; several producer rows of one kind are SUMMED. Each producer
+    /// used to TryAdd its series under both keys, so the first row in iteration order won —
+    /// a rental-area row above the room row fed sq.m into method 08, and a second room
+    /// building was ignored. With no producer of the right kind the consumer gets nothing
+    /// (its value is 0), rather than borrowing the other kind's series.
+    /// </summary>
+    private static void AddCrossRefSeries(Dictionary<string, decimal[]> crossRef, string key, decimal[] series)
+    {
+        if (!crossRef.TryGetValue(key, out var total))
+        {
+            crossRef[key] = (decimal[])series.Clone();
+            return;
+        }
+        for (int y = 0; y < Math.Min(total.Length, series.Length); y++)
+            total[y] += series[y];
+    }
+
+    /// <summary>
+    /// Every assumption in a deterministic order: producers of cross-ref series first, then
+    /// the rest — each group by section → category → assumption DisplaySeq (the order the
+    /// client sends). Iterating the raw collections instead made the result depend on load
+    /// order: Preview builds them in request order, but Save loads them from the database,
+    /// where SQL Server sorts uniqueidentifier by its last bytes, so an expense row could be
+    /// computed before the room row it reads — method 08 then got an empty cross-ref and
+    /// came out 0 on Save while Preview showed the real figure.
+    /// </summary>
+    private static IEnumerable<IncomeAssumption> AssumptionsInComputeOrder(IncomeAnalysis analysis) =>
+        analysis.Sections.OrderBy(s => s.DisplaySeq)
+            .SelectMany(s => s.Categories.OrderBy(c => c.DisplaySeq))
+            .SelectMany(c => c.Assumptions.OrderBy(a => a.DisplaySeq))
+            .OrderBy(a => CrossRefProducers.Contains(a.Method.MethodTypeCode) ? 0 : 1); // stable
+
     private static decimal[] ComputeMethod01(
         Method01Detail d,
         int years,
@@ -390,12 +307,8 @@ public class IncomeCalculationService : IPricingCalculationService
         result[y] = Math.Round(saleableAreaDeductByOcc * avgDailyRate[y], 2);
       }
 
-      // Store for method 08 cross-reference.
-      crossRef.TryAdd("01", totalSaleableAreaDeductByOccRate);
-
-      // Store for method 11 cross-reference.
-      var saleableAreaOccRate = totalSaleableAreaDeductByOccRate;
-      crossRef.TryAdd("06", saleableAreaOccRate);
+      // Occupied room-nights → method 08 (see AddCrossRefSeries for the rule).
+      AddCrossRefSeries(crossRef, "01", totalSaleableAreaDeductByOccRate);
 
       return result;
     }
@@ -437,12 +350,8 @@ public class IncomeCalculationService : IPricingCalculationService
             result[y] = Math.Round(saleableAreaDeductByOcc * avgDailyRate[y], 2);
         }
 
-        // Also register as "01" for method-08 cross-reference if no method-01 exists.
-        crossRef.TryAdd("01", totalSaleableAreaDeductByOccRate);
-
-        // Store for method 11 cross-reference.
-        var saleableAreaOccRate = totalSaleableAreaDeductByOccRate;
-        crossRef.TryAdd("06", saleableAreaOccRate);
+        // Occupied room-nights → method 08, added to method 01's (see AddCrossRefSeries).
+        AddCrossRefSeries(crossRef, "01", totalSaleableAreaDeductByOccRate);
 
         return result;
     }
@@ -544,12 +453,8 @@ public class IncomeCalculationService : IPricingCalculationService
             result[y] = Math.Round(avgRentalRate[y] * saleableAreaDeductByOcc * 12m, 2);
         }
 
-        // Store for method 11 cross-reference.
-        var saleableAreaOccRate = totalSaleableAreaDeductByOccRate;
-        crossRef.TryAdd("06", saleableAreaOccRate);
-
-        // Also register as "01" for method-08 cross-reference if no method-01 or method-02 exists.
-        crossRef.TryAdd("01", totalSaleableAreaDeductByOccRate);
+        // Leased area → method 11 only (see AddCrossRefSeries).
+        AddCrossRefSeries(crossRef, "06", totalSaleableAreaDeductByOccRate);
 
         return result;
     }

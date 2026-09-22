@@ -17,6 +17,36 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
 
         var (detail, title, statusCode) = exception switch
         {
+            // ReadFormAsync throws this when a FormOptions limit is exceeded — the multipart body,
+            // a single value over ValueLengthLimit, more fields than ValueCountLimit — and, since
+            // the Excel importers parse inside the request, for a corrupt or truncated workbook
+            // too. Hence "could not be read" rather than naming a cause: blaming size for a damaged
+            // file would send the user to shrink something that is not too big. 400 either way,
+            // since none of them is the server's fault. Guarded on the content type because
+            // InvalidDataException is a general I/O exception that other code can raise.
+            //
+            // No arm for a client that hangs up mid-upload, deliberately: since .NET 8
+            // ExceptionHandlerMiddleware answers 499 itself when RequestAborted is cancelled and
+            // the exception is an IOException or an OperationCanceledException, without calling any
+            // IExceptionHandler — an arm here would be dead code, and a guard on cancellation alone
+            // would be wrong anyway, because a NAS write failing after the browser gave up is an
+            // IOException on an aborted request too.
+            InvalidDataException when httpContext.Request.HasFormContentType =>
+            (
+                "The upload could not be read. It may be damaged, or larger than this server accepts.",
+                "InvalidUpload",
+                httpContext.Response.StatusCode = StatusCodes.Status400BadRequest
+            ),
+            // A body over the server's limit arrives here too, and answering it with "check your
+            // input data types" sends the user to inspect a perfectly good file. Kestrel and IIS
+            // both set StatusCode on the exception, so keep whatever they decided. Above the
+            // general arm below, which would otherwise swallow it.
+            BadHttpRequestException { StatusCode: StatusCodes.Status413PayloadTooLarge } =>
+            (
+                "The upload is larger than this server accepts.",
+                "PayloadTooLarge",
+                httpContext.Response.StatusCode = StatusCodes.Status413PayloadTooLarge
+            ),
             BadHttpRequestException badHttpEx =>
             (
                 GetFriendlyDeserializationMessage(badHttpEx),
@@ -59,6 +89,19 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
                 exception.GetType().Name,
                 httpContext.Response.StatusCode = StatusCodes.Status409Conflict
             ),
+            // Our own authorisation rules, whose message is written for the caller to read.
+            // Above the UnauthorizedAccessException arm, which is deliberately mute.
+            ForbiddenException =>
+            (
+                exception.Message,
+                exception.GetType().Name,
+                httpContext.Response.StatusCode = StatusCodes.Status403Forbidden
+            ),
+            // Fixed line, never the exception's own message. System.IO throws this same type with
+            // the absolute path in the message ("Access to the path 'X' is denied."), and document
+            // upload (DocumentService) and download (DownloadDocumentEndpoint) are on request
+            // paths — so passing it through would answer a tripped NAS ACL with the server's
+            // storage layout. Throw ForbiddenException where the caller needs to be told why.
             UnauthorizedAccessException =>
             (
                 "Access is denied",
@@ -110,7 +153,11 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
         if (exception is ConflictException { Code: not null } conflictEx)
             problemDetails.Extensions.Add("errorCode", conflictEx.Code);
 
-        await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
+        // Not the middleware's token: it hands us `RequestAborted`, which is already cancelled for
+        // anything arising from a cancellation — the write would throw, this method would return
+        // false, and the middleware would log a second error and rethrow what we just handled.
+        // Writing to a socket that has gone away fails on its own terms.
+        await httpContext.Response.WriteAsJsonAsync(problemDetails, CancellationToken.None);
         return true;
     }
 

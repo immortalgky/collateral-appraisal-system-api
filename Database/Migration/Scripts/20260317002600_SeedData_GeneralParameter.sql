@@ -462,15 +462,15 @@ GO
 INSERT INTO parameter.Parameters ([group], [country], [language], [code], [description], [isactive], [seqno])
 VALUES
     (N'BoundaryMarker', N'TH', N'EN', N'01', N'Found boundary marker', 1, 1),
-    (N'BoundaryMarker', N'TH', N'TH', N'01', N'Found boundary marker', 1, 1),
-    (N'BoundaryMarker', N'TH', N'EN', N'02', N'The boundary marker is unclear.', 1, 2),
-    (N'BoundaryMarker', N'TH', N'TH', N'02', N'The boundary marker is unclear.', 1, 2),
+    (N'BoundaryMarker', N'TH', N'TH', N'01', N'พบหลักเขต', 1, 1),
+    (N'BoundaryMarker', N'TH', N'EN', N'02', N'The boundary marker is unclear', 1, 2),
+    (N'BoundaryMarker', N'TH', N'TH', N'02', N'หลักเขตไม่ชัดเจน', 1, 2),
     (N'BoundaryMarker', N'TH', N'EN', N'03', N'No boundary marker found', 1, 3),
-    (N'BoundaryMarker', N'TH', N'TH', N'03', N'No boundary marker found', 1, 3),
-    (N'BoundaryMarker', N'TH', N'EN', N'99', N'other', 1, 4),
-    (N'BoundaryMarker', N'TH', N'TH', N'99', N'other', 1, 4),
+    (N'BoundaryMarker', N'TH', N'TH', N'03', N'ไม่พบหลักเขต', 1, 3),
+    (N'BoundaryMarker', N'TH', N'EN', N'99', N'Other', 1, 99),
+    (N'BoundaryMarker', N'TH', N'TH', N'99', N'อื่นๆ', 1, 99),
     (N'BoundaryMarker', N'TH', N'EN', N'04', N'Damaged', 1, 5),
-    (N'BoundaryMarker', N'TH', N'TH', N'04', N'Damaged', 1, 5);
+    (N'BoundaryMarker', N'TH', N'TH', N'04', N'หลักเขตชำรุด', 1, 5);
 GO
 
 -- ----------------------------------------
@@ -1315,9 +1315,9 @@ GO
 INSERT INTO parameter.Parameters ([group], [country], [language], [code], [description], [isactive], [seqno])
 VALUES
     (N'DocumentValidation', N'TH', N'EN', N'01', N'Correctly Matched', 1, 1),
-    (N'DocumentValidation', N'TH', N'TH', N'01', N'Correctly Matched', 1, 1),
+    (N'DocumentValidation', N'TH', N'TH', N'01', N'ถูกต้องตรงกัน', 1, 1),
     (N'DocumentValidation', N'TH', N'EN', N'02', N'Not Consistent', 1, 2),
-    (N'DocumentValidation', N'TH', N'TH', N'02', N'Not Consistent', 1, 2);
+    (N'DocumentValidation', N'TH', N'TH', N'02', N'ไม่สอดคล้องกัน', 1, 2);
 GO
 
 -- ----------------------------------------
@@ -1385,12 +1385,12 @@ GO
 -- ----------------------------------------
 INSERT INTO parameter.Parameters ([group], [country], [language], [code], [description], [isactive], [seqno])
 VALUES
-    (N'Eviction', N'TH', N'EN', N'01', N'Permanent Electricity', 1, 1),
+    (N'Eviction', N'TH', N'EN', N'01', N'High-Voltage Power Line', 1, 1),
     (N'Eviction', N'TH', N'TH', N'01', N'อยู่ในแนวสายไฟฟ้าแรงสูง', 1, 1),
-    (N'Eviction', N'TH', N'EN', N'02', N'Tap Water/Ground Water', 1, 2),
+    (N'Eviction', N'TH', N'EN', N'02', N'Underground Railway Line', 1, 2),
     (N'Eviction', N'TH', N'TH', N'02', N'แนวรถไฟฟ้าใต้ดิน', 1, 2),
     (N'Eviction', N'TH', N'EN', N'99', N'Other', 1, 3),
-    (N'Eviction', N'TH', N'TH', N'99', N'.อื่นๆ', 1, 3);
+    (N'Eviction', N'TH', N'TH', N'99', N'อื่นๆ', 1, 3);
 GO
 
 -- ----------------------------------------
@@ -3929,12 +3929,12 @@ GO
 -- ----------------------------------------
 INSERT INTO parameter.Parameters ([group], [country], [language], [code], [description], [isactive], [seqno])
 VALUES
-    (N'ProjectLand_Eviction', N'TH', N'EN', N'01', N'Permanent Electricity', 1, 1),
-    (N'ProjectLand_Eviction', N'TH', N'TH', N'01', N'Permanent Electricity', 1, 1),
-    (N'ProjectLand_Eviction', N'TH', N'EN', N'02', N'Subway line', 1, 2),
-    (N'ProjectLand_Eviction', N'TH', N'TH', N'02', N'Subway line', 1, 2),
+    (N'ProjectLand_Eviction', N'TH', N'EN', N'01', N'High-Voltage Power Line', 1, 1),
+    (N'ProjectLand_Eviction', N'TH', N'TH', N'01', N'อยู่ในแนวสายไฟฟ้าแรงสูง', 1, 1),
+    (N'ProjectLand_Eviction', N'TH', N'EN', N'02', N'Underground Railway Line', 1, 2),
+    (N'ProjectLand_Eviction', N'TH', N'TH', N'02', N'แนวรถไฟฟ้าใต้ดิน', 1, 2),
     (N'ProjectLand_Eviction', N'TH', N'EN', N'03', N'Other', 1, 3),
-    (N'ProjectLand_Eviction', N'TH', N'TH', N'03', N'Other', 1, 3);
+    (N'ProjectLand_Eviction', N'TH', N'TH', N'03', N'อื่นๆ', 1, 3);
 GO
 
 -- ----------------------------------------

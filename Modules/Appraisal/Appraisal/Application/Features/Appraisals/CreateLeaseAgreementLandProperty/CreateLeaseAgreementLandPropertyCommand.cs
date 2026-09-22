@@ -109,6 +109,8 @@ public record CreateLeaseAgreementLandPropertyCommand(
     string? Remark = null,
     // Land Titles
     List<LandTitleItemData>? Titles = null,
+    // Area deductions taken off the appraised area
+    List<LandAreaDeductionData>? LandAreaDeductions = null,
     // Lease Agreement & Rental Info
     LeaseAgreementData? LeaseAgreement = null,
     RentalInfoData? RentalInfo = null

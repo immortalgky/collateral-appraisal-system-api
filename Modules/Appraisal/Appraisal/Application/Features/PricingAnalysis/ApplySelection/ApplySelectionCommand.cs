@@ -10,10 +10,16 @@ namespace Appraisal.Application.Features.PricingAnalysis.ApplySelection;
 /// then SelectApproach). Those endpoints remain registered for compatibility.
 /// </para>
 /// </summary>
+/// <param name="FullyDescribedApproachIds">
+/// Approaches whose selection <paramref name="Selections"/> states in full — their methods are
+/// cleared before it is applied, so an omitted method becomes deselected. Approaches absent from
+/// this list are left alone. Empty (the default) reproduces the original additive behaviour.
+/// </param>
 public record ApplySelectionCommand(
     Guid PricingAnalysisId,
     IReadOnlyCollection<ApproachMethodSelectionDto> Selections,
-    Guid FinalApproachId
+    Guid FinalApproachId,
+    IReadOnlyCollection<Guid>? FullyDescribedApproachIds = null
 ) : ICommand<ApplySelectionResult>, ITransactionalCommand<IAppraisalUnitOfWork>;
 
 /// <summary>One approach's primary-method choice.</summary>

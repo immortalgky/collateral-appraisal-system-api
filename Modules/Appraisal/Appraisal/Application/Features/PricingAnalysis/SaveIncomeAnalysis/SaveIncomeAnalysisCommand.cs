@@ -18,5 +18,5 @@ public record SaveIncomeAnalysisCommand(
     decimal? FinalValueAdjust = null,
     bool IsHighestBestUsed = true,
     HighestBestUsedInput? HighestBestUsed = null,
-    decimal? AppraisalPriceRounded = null
+    decimal? IndicatedValue = null
 ) : ICommand<SaveIncomeAnalysisResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

@@ -25,12 +25,12 @@ public class SaleGridCalculationService : IPricingCalculationService
 
         if (method.FinalValue is null)
         {
-            var fv = PricingFinalValue.Create(method.Id, finalValue, finalValueRounded);
+            var fv = PricingFinalValue.Create(method.Id, finalValueRounded);
             method.SetFinalValue(fv);
         }
         else
         {
-            method.FinalValue.UpdateFinalValue(finalValue, finalValueRounded);
+            method.FinalValue.UpdateFinalValue(finalValueRounded);
         }
 
         // Persist the resolved price unit (PerSqWa/PerSqm → per-unit rate; PerUnit → lumpsum).

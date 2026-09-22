@@ -7,7 +7,7 @@ public class RequestComment : Aggregate<Guid>
     public string CommentedBy { get; private set; } = default!;
     public string CommentedByName { get; private set; } = default!;
     public DateTime CommentedAt { get; private set; }
-    public DateTime LastModifiedAt { get; private set; }
+    public DateTime? LastModifiedAt { get; private set; }
 
     private RequestComment(Guid id, Guid requestId, DateTime commentedAt)
     {

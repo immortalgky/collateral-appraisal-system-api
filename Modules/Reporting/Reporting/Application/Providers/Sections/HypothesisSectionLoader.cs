@@ -122,8 +122,12 @@ internal static class HypothesisSectionLoader
                 ha.CondominiumSummary_DiscountRateFactor        AS CndDiscountRateFactor,
                 ha.CondominiumSummary_FinalRemainingValue       AS CndFinalRemainingValue,
                 ha.CondominiumSummary_TotalAssetValueRounded    AS CndTotalAssetValueRounded,
-                ha.CondominiumSummary_TotalAssetValuePerSqM     AS CndTotalAssetValuePerSqM
+                ha.CondominiumSummary_TotalAssetValuePerSqM     AS CndTotalAssetValuePerSqM,
+                -- The appraiser's typed-over total, if any (mirrors SaveHypothesisAnalysisCommandHandler.cs).
+                pfv.IndicatedValue                              AS IndicatedValue
             FROM appraisal.HypothesisAnalyses ha
+            LEFT JOIN appraisal.PricingFinalValues pfv
+                ON pfv.PricingMethodId = ha.PricingMethodId
             WHERE ha.PricingMethodId = @MethodId
             """;
 
@@ -131,11 +135,18 @@ internal static class HypothesisSectionLoader
         if (row is null)
             return null;
 
+        // W1: effective value the appraiser sees — override wins, else the computed total.
+        // Mirrors SaveHypothesisAnalysisCommandHandler.cs / PricingAnalysisMethod.SyncMethodValueWithIndicatedValue.
+        var lbEffectiveAssetValue = row.IndicatedValue ?? row.LbTotalAssetValueRounded;
+        var cndEffectiveAssetValue = row.IndicatedValue ?? row.CndTotalAssetValueRounded;
+
         return new HypothesisSection
         {
             GroupNumber               = method.GroupNumber,
             GroupName                 = method.GroupName,
             Variant                   = row.Variant,
+            LbEffectiveAssetValue     = lbEffectiveAssetValue,
+            CndEffectiveAssetValue    = cndEffectiveAssetValue,
             // LandBuilding
             LbTotalRevenue            = row.LbTotalRevenue,
             LbTotalProjectDevCost     = row.LbTotalProjectDevCost,
@@ -202,5 +213,6 @@ internal static class HypothesisSectionLoader
         decimal? CndDiscountRateFactor,
         decimal? CndFinalRemainingValue,
         decimal? CndTotalAssetValueRounded,
-        decimal? CndTotalAssetValuePerSqM);
+        decimal? CndTotalAssetValuePerSqM,
+        decimal? IndicatedValue);
 }

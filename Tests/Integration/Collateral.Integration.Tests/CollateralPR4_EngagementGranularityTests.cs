@@ -146,8 +146,8 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
             var g = a.CreateGroup("Group A");
             var p1 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title1, "Chanote");
             var p2 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title2, "NorSor4Jor");
-            g.AddProperty(p1.Id);
-            g.AddProperty(p2.Id);
+            g.AddProperty(p1.Id, p1.PropertyType.Code, null);
+            g.AddProperty(p2.Id, p2.PropertyType.Code, p1.PropertyType.Code);
 
             appraisalDb.Appraisals.Add(a);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -156,7 +156,7 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
             prop2Id = p2.Id;
 
             // Seed cost-approach pricing so UnitPrice propagation can be asserted.
-            // FinalValueAdjusted → UnitPrice on IsMaster + alias (BLOCKER 1 regression guard).
+            // FinalValueOverride → UnitPrice on IsMaster + alias (BLOCKER 1 regression guard).
             var pa = SeedCostApproachPricing(g.Id, expectedUnitPrice, buildingCost: 200_000m, appraisalPrice: 1_000_000m);
             appraisalDb.PricingAnalyses.Add(pa);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -214,9 +214,9 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
         method.SetAsSelected();
         method.SetValue(appraisalPrice);
 
-        var fv = PricingFinalValue.Create(method.Id, finalValueAdjusted, appraisalPrice);
+        var fv = PricingFinalValue.Create(method.Id, finalValueAdjusted);
         fv.SetBuildingValue(buildingCost);
-        fv.SetAppraisalPrice(appraisalPrice);
+        fv.SetIndicatedValue(appraisalPrice);
         method.SetFinalValue(fv);
 
         pa.SetFinalValues(appraisalPrice);
@@ -241,12 +241,12 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
             // Group 1 (lower GroupNumber = primary)
             var g1 = a.CreateGroup("Group 1");
             var p1 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title1, "Chanote");
-            g1.AddProperty(p1.Id);
+            g1.AddProperty(p1.Id, p1.PropertyType.Code, null);
 
             // Group 2 (higher GroupNumber = secondary)
             var g2 = a.CreateGroup("Group 2");
             var p2 = SeedLandProperty(a, "LO-002", "Chiang Mai", "Mueang", "Chang Phueak", title2, "Chanote");
-            g2.AddProperty(p2.Id);
+            g2.AddProperty(p2.Id, p2.PropertyType.Code, null);
 
             appraisalDb.Appraisals.Add(a);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -298,13 +298,13 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
             // Group 1: Land (primary)
             var g1 = a.CreateGroup("Land Group");
             var pLand = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", titleLand, "Chanote");
-            g1.AddProperty(pLand.Id);
+            g1.AddProperty(pLand.Id, pLand.PropertyType.Code, null);
 
             // Group 2: Condo (secondary)
             var g2 = a.CreateGroup("Condo Group");
             var pCondo = SeedCondoProperty(a, "LO-002", "CONDO-REG-001", "A", "5", "501",
                 titleCondo, "Chanote", "Bangkok");
-            g2.AddProperty(pCondo.Id);
+            g2.AddProperty(pCondo.Id, pCondo.PropertyType.Code, null);
 
             appraisalDb.Appraisals.Add(a);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -394,8 +394,8 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
             var g = a.CreateGroup("Group AB");
             var p1 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title1, "Chanote");
             var p2 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title2, "NorSor4Jor");
-            g.AddProperty(p1.Id);
-            g.AddProperty(p2.Id);
+            g.AddProperty(p1.Id, p1.PropertyType.Code, null);
+            g.AddProperty(p2.Id, p2.PropertyType.Code, p1.PropertyType.Code);
             appraisalDb.Appraisals.Add(a);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
             appraisalId1 = a.Id;
@@ -548,8 +548,8 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
             var g = a.CreateGroup("MultiTitle Group");
             var p1 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title1, "Chanote");
             var p2 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title2, "NorSor4Jor");
-            g.AddProperty(p1.Id);
-            g.AddProperty(p2.Id);
+            g.AddProperty(p1.Id, p1.PropertyType.Code, null);
+            g.AddProperty(p2.Id, p2.PropertyType.Code, p1.PropertyType.Code);
 
             appraisalDb.Appraisals.Add(a);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);

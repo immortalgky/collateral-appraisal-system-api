@@ -186,6 +186,7 @@ public class GetLeaseAgreementLandAndBuildingPropertyQueryHandler(
             landDetail.HasBuilding,
             landDetail.HasBuildingOther,
             landDetail.TotalLandAreaInSqWa,
+            landDetail.NetLandAreaInSqWa,
             // Land titles
             landDetail.Titles.Select(title => new LandTitleItemData(
                 title.Id,
@@ -209,6 +210,14 @@ public class GetLeaseAgreementLandAndBuildingPropertyQueryHandler(
                 title.GovernmentPricePerSqWa,
                 title.GovernmentPrice,
                 title.Remark
+            )).ToList(),
+
+            landDetail.Deductions.Select(d => new LandAreaDeductionData(
+                d.Id,
+                d.ReasonCode,
+                d.ReasonOther,
+                d.AreaInSqWa,
+                d.Remark
             )).ToList(),
 
             // Building - Identification (from Building)
@@ -267,6 +276,8 @@ public class GetLeaseAgreementLandAndBuildingPropertyQueryHandler(
             // Area & Pricing
             buildingDetail.TotalBuildingArea,
             buildingDetail.BuildingInsurancePrice,
+            buildingDetail.FinalCostValueOverride,
+            buildingDetail.BuildingInsurancePriceOverride,
             buildingDetail.SellingPrice,
             buildingDetail.ForcedSalePrice,
             // Remarks

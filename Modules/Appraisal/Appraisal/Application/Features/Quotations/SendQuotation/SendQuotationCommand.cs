@@ -13,5 +13,6 @@ public record SendQuotationCommand(
     string? Cc,
     string? Bcc,
     string Subject,
-    string? Content)
+    string? Content,
+    string[]? Attachments)
     : ICommand<SendQuotationResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

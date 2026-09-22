@@ -103,8 +103,9 @@ public record GetLeaseAgreementCondoPropertyResponse(
     bool? IsMissingFromSurvey,
     decimal? GovernmentPricePerSqm,
     decimal? GovernmentPrice,
-    string? FireInsuranceCondition,
+    string? FireInsuranceCode,
     decimal? BuildingInsurancePrice,
+    decimal? BuildingInsurancePriceOverride,
     decimal? SellingPrice,
     decimal? ForceSellingPrice,
     // Other

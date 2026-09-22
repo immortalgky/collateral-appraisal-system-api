@@ -30,7 +30,7 @@ public class SaveIncomeAnalysisEndpoint : ICarterModule
                         request.FinalValueAdjust,
                         request.IsHighestBestUsed,
                         request.HighestBestUsed,
-                        request.AppraisalPriceRounded
+                        request.IndicatedValue
                     );
 
                     var result = await sender.Send(command, cancellationToken);

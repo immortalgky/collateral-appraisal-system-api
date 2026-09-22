@@ -1,5 +1,6 @@
 using Appraisal.Application.Features.Appraisals.CreateLandProperty;
 using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
+using Appraisal.Application.Services;
 
 namespace Appraisal.Application.Features.Appraisals.UpdateLeaseAgreementLandAndBuildingProperty;
 
@@ -7,7 +8,8 @@ namespace Appraisal.Application.Features.Appraisals.UpdateLeaseAgreementLandAndB
 /// Handler for updating a lease agreement land and building property detail
 /// </summary>
 public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
-    IAppraisalRepository appraisalRepository
+    IAppraisalRepository appraisalRepository,
+    AppraisalValuationSummaryService valuationSummaryService
 ) : ICommandHandler<UpdateLeaseAgreementLandAndBuildingPropertyCommand>
 {
     public async Task<Unit> Handle(
@@ -142,6 +144,10 @@ public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
         if (command.Titles is not null)
             SyncTitles(landDetail, command.Titles);
 
+        // Same contract for the area deductions that come off the appraised area.
+        if (command.LandAreaDeductions is not null)
+            SyncDeductions(landDetail, command.LandAreaDeductions);
+
         // 7. Update Building detail via domain method
         buildingDetail.Update(
             // Building - Identification
@@ -205,6 +211,8 @@ public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
             utilizationTypeOther: command.UtilizationTypeOther,
             // Building - Pricing
             buildingInsurancePrice: command.BuildingInsurancePrice,
+            finalCostValueOverride: command.FinalCostValueOverride,
+            buildingInsurancePriceOverride: command.BuildingInsurancePriceOverride,
             sellingPrice: command.SellingPrice,
             forcedSalePrice: command.ForcedSalePrice,
             remark: command.Remark);
@@ -268,6 +276,8 @@ public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
 
         // 11. Save aggregate
         await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
+
+        await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
 
         return Unit.Value;
     }
@@ -381,6 +391,49 @@ public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
                 landDetail.AddTitle(title);
             }
         }
+    }
+
+    /// <summary>
+    /// Same add / update / remove shape as <see cref="SyncTitles"/>. The closing
+    /// <c>RecalculateDeductedArea</c> is what keeps the stored total honest when an existing row's
+    /// area was edited in place — adds and removes settle it themselves.
+    /// </summary>
+    private static void SyncDeductions(
+        LandAppraisalDetail landDetail,
+        List<LandAreaDeductionData> incomingDeductions)
+    {
+        var incomingIds = incomingDeductions
+            .Where(d => d.Id.HasValue)
+            .Select(d => d.Id!.Value)
+            .ToHashSet();
+
+        var deductionsToRemove = landDetail.Deductions
+            .Where(d => !incomingIds.Contains(d.Id))
+            .Select(d => d.Id)
+            .ToList();
+        foreach (var id in deductionsToRemove)
+            landDetail.RemoveDeduction(id);
+
+        foreach (var data in incomingDeductions)
+        {
+            if (data.Id.HasValue)
+            {
+                var existing = landDetail.Deductions.FirstOrDefault(d => d.Id == data.Id.Value);
+                if (existing is not null)
+                {
+                    existing.ChangeReason(data.ReasonCode);
+                    existing.Update(data.ReasonOther, data.AreaInSqWa, data.Remark);
+                }
+            }
+            else
+            {
+                var deduction = LandAreaDeduction.Create(landDetail.Id, data.ReasonCode);
+                deduction.Update(data.ReasonOther, data.AreaInSqWa, data.Remark);
+                landDetail.AddDeduction(deduction);
+            }
+        }
+
+        landDetail.RecalculateDeductedArea();
     }
 
     private static void SyncSurfaces(

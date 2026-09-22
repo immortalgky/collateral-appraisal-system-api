@@ -79,6 +79,20 @@ public class BuildingAppraisalDetail : Entity<Guid>
 
     // Pricing
     public decimal? BuildingInsurancePrice { get; private set; }
+
+    /// <summary>
+    /// The appraiser's own final cost for this building, keyed on the property form and rounded to
+    /// the nearest 1,000 there. Null means "not overridden": readers fall back to the computed
+    /// SUM(DepreciationDetails.PriceAfterDepreciation), which keeps following the table.
+    /// </summary>
+    public decimal? FinalCostValueOverride { get; private set; }
+
+    /// <summary>
+    /// The appraiser's own fire-insurance coverage for this building. Null means "not entered":
+    /// the appraisal-level total then falls back to the depreciated value of the IsBuilding rows.
+    /// Not to be confused with the legacy <see cref="BuildingInsurancePrice"/>, which no reader uses.
+    /// </summary>
+    public decimal? BuildingInsurancePriceOverride { get; private set; }
     public decimal? SellingPrice { get; private set; }
     public decimal? ForcedSalePrice { get; private set; }
 
@@ -168,6 +182,8 @@ public class BuildingAppraisalDetail : Entity<Guid>
         // Area & Pricing
         decimal? totalBuildingArea = null,
         decimal? buildingInsurancePrice = null,
+        decimal? finalCostValueOverride = null,
+        decimal? buildingInsurancePriceOverride = null,
         decimal? sellingPrice = null,
         decimal? forcedSalePrice = null,
         // Other
@@ -241,6 +257,8 @@ public class BuildingAppraisalDetail : Entity<Guid>
         // Area & Pricing
         TotalBuildingArea = totalBuildingArea;
         BuildingInsurancePrice = buildingInsurancePrice;
+        FinalCostValueOverride = finalCostValueOverride;
+        BuildingInsurancePriceOverride = buildingInsurancePriceOverride;
         SellingPrice = sellingPrice;
         ForcedSalePrice = forcedSalePrice;
 
@@ -305,6 +323,8 @@ public class BuildingAppraisalDetail : Entity<Guid>
             UtilizationTypeOther = source.UtilizationTypeOther,
             TotalBuildingArea = source.TotalBuildingArea,
             BuildingInsurancePrice = source.BuildingInsurancePrice,
+            FinalCostValueOverride = source.FinalCostValueOverride,
+            BuildingInsurancePriceOverride = source.BuildingInsurancePriceOverride,
             SellingPrice = source.SellingPrice,
             ForcedSalePrice = source.ForcedSalePrice,
             Remark = source.Remark

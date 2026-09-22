@@ -84,7 +84,7 @@
     <td class="tv">{{ lh.value_at_lease_expiry | math.format "N2" }} บาท</td>
   </tr>
   {{ end }}
-  {{- # W3 fix: render effective_final_value = EstimatePriceRounded ?? FinalValueRounded -}}
+  {{- # render effective_final_value = IndicatedValue ?? EstimatePriceRounded ?? FinalValueRounded -}}
   {{ if lh.effective_final_value != null }}
   <tr>
     <td class="tl">มูลค่าทรัพย์สิน (ปัดเศษ)</td>
@@ -114,7 +114,7 @@
     <td class="pl">มูลค่าสิทธิการเช่าสุทธิ</td>
     <td class="pv">{{ if lh.estimate_net_price != null }}{{ lh.estimate_net_price | math.format "N2" }} บาท{{ end }}</td>
     <td class="pl">มูลค่าสิทธิการเช่า (ปัดเศษ)</td>
-    <td class="pv">{{ if lh.estimate_price_rounded != null }}{{ lh.estimate_price_rounded | math.format "N2" }} บาท{{ end }}</td>
+    <td class="pv">{{ if lh.effective_final_value != null }}{{ lh.effective_final_value | math.format "N2" }} บาท{{ end }}</td>
   </tr>
 </table>
 {{ end }}

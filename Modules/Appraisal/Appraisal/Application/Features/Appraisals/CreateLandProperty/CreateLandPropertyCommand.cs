@@ -108,6 +108,8 @@ public record CreateLandPropertyCommand(
     string? Remark = null,
     // Land Titles
     List<LandTitleItemData>? Titles = null,
+    // Area deductions taken off the appraised area
+    List<LandAreaDeductionData>? LandAreaDeductions = null,
     // Rental
     bool? IsRentedOut = null,
     LeaseAgreementData? LeaseAgreement = null,
@@ -135,5 +137,18 @@ public record LandTitleItemData(
     bool? IsMissingFromSurvey = null,
     decimal? GovernmentPricePerSqWa = null,
     decimal? GovernmentPrice = null,
+    string? Remark = null
+);
+
+/// <summary>
+/// One reason a slice of the registered area is not appraisable. <c>ReasonCode</c> comes from the
+/// <c>LandAreaDeductionReason</c> parameter group; <c>AreaInSqWa</c> is in square wa, like every
+/// other land area on the appraisal.
+/// </summary>
+public record LandAreaDeductionData(
+    Guid? Id,
+    string ReasonCode,
+    string? ReasonOther = null,
+    decimal? AreaInSqWa = null,
     string? Remark = null
 );

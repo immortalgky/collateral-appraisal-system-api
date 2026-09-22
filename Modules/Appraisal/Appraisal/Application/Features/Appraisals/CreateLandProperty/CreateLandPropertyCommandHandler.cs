@@ -152,6 +152,19 @@ public class CreateLandPropertyCommandHandler(
                 landDetail.AddTitle(title);
             }
 
+        // Area deductions — AddDeduction keeps the stored total in step on every add.
+        if (command.LandAreaDeductions is { Count: > 0 })
+            foreach (var deductionData in command.LandAreaDeductions)
+            {
+                var deduction = LandAreaDeduction.Create(landDetail.Id, deductionData.ReasonCode);
+                deduction.Update(
+                    deductionData.ReasonOther,
+                    deductionData.AreaInSqWa,
+                    deductionData.Remark);
+
+                landDetail.AddDeduction(deduction);
+            }
+
         // Rental: if rented out, ensure lease/rental owned entities exist and apply initial data.
         if (command.IsRentedOut == true)
         {

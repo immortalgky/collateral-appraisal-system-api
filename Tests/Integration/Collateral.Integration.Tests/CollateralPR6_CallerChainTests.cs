@@ -361,12 +361,12 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
             var g1 = a.CreateGroup("Group 1");
             var p1 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title1, "Chanote");
             p1.Id = Guid.NewGuid();
-            g1.AddProperty(p1.Id);
+            g1.AddProperty(p1.Id, p1.PropertyType.Code, null);
 
             var g2 = a.CreateGroup("Group 2");
             var p2 = SeedLandProperty(a, "LO-002", "Chiang Mai", "Mueang", "Chang Phueak", title2, "Chanote");
             p2.Id = Guid.NewGuid();
-            g2.AddProperty(p2.Id);
+            g2.AddProperty(p2.Id, p2.PropertyType.Code, null);
 
             appraisalDb.Appraisals.Add(a);
             await appraisalDb.SaveChangesAsync(ct);
@@ -463,8 +463,8 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
             var p2 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title2, "NorSor4Jor");
             p1.Id = Guid.NewGuid();
             p2.Id = Guid.NewGuid();
-            g.AddProperty(p1.Id);
-            g.AddProperty(p2.Id);
+            g.AddProperty(p1.Id, p1.PropertyType.Code, null);
+            g.AddProperty(p2.Id, p2.PropertyType.Code, p1.PropertyType.Code);
             appraisalDb.Appraisals.Add(a);
             await appraisalDb.SaveChangesAsync(ct);
             appraisalId1 = a.Id;

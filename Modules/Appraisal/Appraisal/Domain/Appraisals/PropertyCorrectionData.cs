@@ -281,7 +281,7 @@ public sealed record CondoCorrection(
     bool? IsMissingFromSurvey = null,
     decimal? GovernmentPricePerSqm = null,
     decimal? GovernmentPrice = null,
-    string? FireInsuranceCondition = null,
+    string? FireInsuranceCode = null,
     decimal? BuildingInsurancePrice = null,
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,

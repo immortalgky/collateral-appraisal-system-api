@@ -1,4 +1,4 @@
-using Parameter.Contracts.PricingParameters;
+using Appraisal.Application.Features.FireInsuranceRates.GetFireInsuranceRates;
 
 namespace Appraisal.Application.Features.Project.GetProjectPricingAssumptions;
 
@@ -6,7 +6,7 @@ namespace Appraisal.Application.Features.Project.GetProjectPricingAssumptions;
 /// Returns pricing assumptions for a project (Condo or LandAndBuilding).
 /// When no ModelAssumptions have been persisted, falls back to deriving them from
 /// the project's Models collection — matching the behaviour of the old Condo handler.
-/// For Condo projects the CoverageAmount fall-back is derived from FireInsuranceCondition.
+/// For Condo projects the CoverageAmount fall-back is derived from FireInsuranceCode.
 /// </summary>
 public class GetProjectPricingAssumptionsQueryHandler(
     IProjectRepository projectRepository,
@@ -30,8 +30,8 @@ public class GetProjectPricingAssumptionsQueryHandler(
         // Fetch fire-insurance coverage rates (Parameter-module reference data; no kind filter —
         // both Condo and LandAndBuilding conditions are needed).
         var ratesResult = await mediator.Send(new GetFireInsuranceRatesQuery(), cancellationToken);
-        var ratesByCondition = ratesResult.Rates.ToDictionary(
-            r => r.Condition,
+        var ratesByCode = ratesResult.Rates.ToDictionary(
+            r => r.Code,
             r => r.RatePerSqm,
             StringComparer.Ordinal);
 
@@ -39,6 +39,9 @@ public class GetProjectPricingAssumptionsQueryHandler(
         var isCondo = project.ProjectType == ProjectType.Condo;
         // TODO(Land): IsLandAndBuildingLike covers both LB and Land; isCondo is the other branch
         var projectTypeName = project.ProjectType.ToCode();
+
+        // Condo-only — Models have no Tower when ProjectType is LandAndBuilding/Land.
+        var towerNameById = project.Towers.ToDictionary(t => t.Id, t => t.TowerName);
 
         // No assumption row yet — return a shell DTO derived from the project's models
         // so the FE Pricing Assumption tab can populate the model rows on first load.
@@ -63,7 +66,7 @@ public class GetProjectPricingAssumptionsQueryHandler(
                 FloorIncrementAmount: null,
                 NearGardenAdjustment: null,
                 LandIncreaseDecreaseRate: null,
-                ModelAssumptions: DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCondition));
+                ModelAssumptions: DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCode, towerNameById));
 
             return new GetProjectPricingAssumptionsResult(shellDto);
         }
@@ -71,17 +74,20 @@ public class GetProjectPricingAssumptionsQueryHandler(
         // Build model assumption list.
         // If persisted model-assumptions exist: use them.
         // Otherwise: derive from project models (read-side parity with old Condo handler).
-        // For the persisted path, look up the ProjectModel by ModelType == ModelName to resolve
-        // the PricingAnalysis navigation (ModelAssumption is keyed by ModelType, not ModelId).
-        var modelByName = project.Models.ToDictionary(m => m.ModelName ?? string.Empty, StringComparer.Ordinal);
+        // For the persisted path, look up the ProjectModel by Id to resolve the PricingAnalysis
+        // navigation and the Tower (ModelAssumption itself carries no Tower reference).
+        var modelById = project.Models.ToDictionary(m => m.Id);
 
         var modelAssumptions = assumption.ModelAssumptions.Count > 0
             ? assumption.ModelAssumptions
                 .Select(ma =>
                 {
-                    modelByName.TryGetValue(ma.ModelType ?? string.Empty, out var model);
+                    modelById.TryGetValue(ma.ProjectModelId, out var model);
                     ProjectModelPricingSummary? paSum = model is not null
                         && paSummaries.TryGetValue(model.Id, out var found) ? found : null;
+                    var towerName = model?.ProjectTowerId is Guid towerId
+                        ? towerNameById.GetValueOrDefault(towerId)
+                        : null;
                     return new ProjectModelAssumptionDto(
                         ma.ProjectModelId,
                         ma.ModelType,
@@ -90,13 +96,14 @@ public class GetProjectPricingAssumptionsQueryHandler(
                         ma.UsableAreaTo,
                         ma.StandardLandPrice,
                         ma.CoverageAmount,
-                        ma.FireInsuranceCondition,
+                        ma.FireInsuranceCode,
                         PricingAnalysisId: paSum?.PricingAnalysisId,
                         PricingAnalysisStatus: paSum?.Status,
-                        FinalAppraisedValue: paSum?.FinalAppraisedValue);
+                        FinalAppraisedValue: paSum?.FinalAppraisedValue,
+                        TowerName: towerName);
                 })
                 .ToList()
-            : DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCondition);
+            : DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCode, towerNameById);
 
         var dto = new ProjectPricingAssumptionDto(
             assumption.Id,
@@ -124,10 +131,14 @@ public class GetProjectPricingAssumptionsQueryHandler(
         IReadOnlyList<ProjectModel> models,
         bool isCondo,
         IReadOnlyDictionary<Guid, ProjectModelPricingSummary> paSummaries,
-        IReadOnlyDictionary<string, decimal> ratesByCondition) =>
+        IReadOnlyDictionary<string, decimal> ratesByCode,
+        IReadOnlyDictionary<Guid, string?> towerNameById) =>
         models.Select(m =>
         {
             paSummaries.TryGetValue(m.Id, out var pa);
+            var towerName = m.ProjectTowerId is Guid towerId
+                ? towerNameById.GetValueOrDefault(towerId)
+                : null;
             return new ProjectModelAssumptionDto(
                 m.Id,
                 m.ModelName,
@@ -136,20 +147,21 @@ public class GetProjectPricingAssumptionsQueryHandler(
                 m.UsableAreaMax,
                 // StandardLandArea is LB-only; null for Condo
                 isCondo ? null : m.StandardLandArea,
-                // CoverageAmount: both Condo and LB derive from FireInsuranceCondition via the
+                // CoverageAmount: both Condo and LB derive from FireInsuranceCode via the
                 // fire-insurance rate table (Parameter module).
-                LookupCoverageAmount(ratesByCondition, m.FireInsuranceCondition),
-                m.FireInsuranceCondition,
+                LookupCoverageAmount(ratesByCode, m.FireInsuranceCode),
+                m.FireInsuranceCode,
                 PricingAnalysisId: pa?.PricingAnalysisId,
                 PricingAnalysisStatus: pa?.Status,
-                FinalAppraisedValue: pa?.FinalAppraisedValue);
+                FinalAppraisedValue: pa?.FinalAppraisedValue,
+                TowerName: towerName);
         })
         .ToList();
 
     /// <summary>Returns the coverage amount for a condition, or null if the condition is null/empty or unmatched.</summary>
-    private static decimal? LookupCoverageAmount(IReadOnlyDictionary<string, decimal> ratesByCondition, string? condition)
+    private static decimal? LookupCoverageAmount(IReadOnlyDictionary<string, decimal> ratesByCode, string? condition)
     {
         if (string.IsNullOrEmpty(condition)) return null;
-        return ratesByCondition.TryGetValue(condition, out var rate) ? rate : null;
+        return ratesByCode.TryGetValue(condition, out var rate) ? rate : null;
     }
 }

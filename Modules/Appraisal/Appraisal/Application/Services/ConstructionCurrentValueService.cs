@@ -218,12 +218,24 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
     /// design, so this can legitimately be 0. Historical rows saved before the server-side derivation
     /// shipped also need Database/Scripts/Maintenance/BackfillPricingFinalValueLandArea.sql — which
     /// writes without an IsSelected guard, so older data is the likeliest source of duplicate rows.
+    /// <para>
+    /// Role filter: a Cost approach can now have up to one selected method per role (Land,
+    /// LandAndBuilding, Building, Machinery — PricingAnalysisApproach.EnsureNoComponentCountedTwice
+    /// enforces it), so a Building- or Machinery-role method could in principle be selected alongside
+    /// the land one. Their LandValue is always NULL by construction today (only Land/LandAndBuilding
+    /// writers ever populate it), so excluding them changes nothing for existing data — it just stops
+    /// the SUM from silently picking up a second row if that construction-time guarantee ever drifts.
+    /// Role IS NULL is explicitly let through: every non-Cost approach's method (Market/Income/
+    /// Residual) never has a Role at all, and those can carry a real LandValue too (WQS land-rate
+    /// pricing is not gated on approach type) — excluding NULL here would silently drop them.
+    /// </para>
     /// </summary>
     private const string LandValueSql = """
         SELECT ISNULL(SUM(pfv.LandValue), 0)
         FROM appraisal.PricingFinalValues pfv
         JOIN appraisal.PricingAnalysisMethods pam ON pam.Id = pfv.PricingMethodId
             AND pam.IsSelected = 1
+            AND (pam.Role IS NULL OR pam.Role IN ('Land', 'LandAndBuilding'))
         JOIN appraisal.PricingAnalysisApproaches paa ON paa.Id = pam.ApproachId
             AND paa.IsSelected = 1
         JOIN appraisal.PricingAnalysis pa ON pa.Id = paa.PricingAnalysisId AND pa.SubjectType = 0

@@ -186,6 +186,7 @@ public class GetLandAndBuildingPropertyQueryHandler(
             landDetail.HasBuilding,
             landDetail.HasBuildingOther,
             landDetail.TotalLandAreaInSqWa,
+            landDetail.NetLandAreaInSqWa,
             // Land titles
             landDetail.Titles.Select(title => new LandTitleItemData(
                 title.Id,
@@ -209,6 +210,14 @@ public class GetLandAndBuildingPropertyQueryHandler(
                 title.GovernmentPricePerSqWa,
                 title.GovernmentPrice,
                 title.Remark
+            )).ToList(),
+
+            landDetail.Deductions.Select(d => new LandAreaDeductionData(
+                d.Id,
+                d.ReasonCode,
+                d.ReasonOther,
+                d.AreaInSqWa,
+                d.Remark
             )).ToList(),
 
             // Building - Identification (from Building)
@@ -268,6 +277,8 @@ public class GetLandAndBuildingPropertyQueryHandler(
             // Area & Pricing
             buildingDetail.TotalBuildingArea,
             buildingDetail.BuildingInsurancePrice,
+            buildingDetail.FinalCostValueOverride,
+            buildingDetail.BuildingInsurancePriceOverride,
             buildingDetail.SellingPrice,
             buildingDetail.ForcedSalePrice,
             // Remarks

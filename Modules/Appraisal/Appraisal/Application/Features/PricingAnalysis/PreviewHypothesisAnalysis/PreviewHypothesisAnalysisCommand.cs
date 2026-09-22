@@ -11,5 +11,9 @@ public record PreviewHypothesisAnalysisCommand(
     Guid MethodId,
     SaveHypothesisAnalysis.LandBuildingSummaryInput? LandBuildingSummary,
     SaveHypothesisAnalysis.CondominiumSummaryInput? CondominiumSummary,
-    IReadOnlyList<SaveHypothesisAnalysis.HypothesisCostItemInput> CostItems
+    IReadOnlyList<SaveHypothesisAnalysis.HypothesisCostItemInput> CostItems,
+    // Null = preview with the saved mappings.
+    IReadOnlyList<SaveHypothesisAnalysis.ModelBuildingMappingInput>? ModelBuildingMappings = null,
+    // The typed-over method value on screen — only feeds the per-area figure (C82 / E59).
+    decimal? IndicatedValue = null
 ) : IQuery<PreviewHypothesisAnalysisResult>;

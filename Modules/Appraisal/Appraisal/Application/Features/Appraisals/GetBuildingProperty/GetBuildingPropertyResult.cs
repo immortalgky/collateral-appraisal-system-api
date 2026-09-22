@@ -72,6 +72,8 @@ public record GetBuildingPropertyResult(
     // Area & Pricing
     decimal? TotalBuildingArea,
     decimal? BuildingInsurancePrice,
+    decimal? FinalCostValueOverride,
+    decimal? BuildingInsurancePriceOverride,
     decimal? SellingPrice,
     decimal? ForcedSalePrice,
     // Other

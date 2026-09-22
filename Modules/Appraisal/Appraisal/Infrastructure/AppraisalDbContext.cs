@@ -153,6 +153,7 @@ public class AppraisalDbContext : DbContext
     public DbSet<LandBuildingUnitRow> HypothesisLandBuildingUnitRows => Set<LandBuildingUnitRow>();
     public DbSet<CondominiumUnitRow> HypothesisCondominiumUnitRows => Set<CondominiumUnitRow>();
     public DbSet<HypothesisCostItem> HypothesisCostItems => Set<HypothesisCostItem>();
+    public DbSet<HypothesisModelBuildingMapping> HypothesisModelBuildingMappings => Set<HypothesisModelBuildingMapping>();
 
     // =====================================================
     // Comparative Analysis Templates
@@ -223,6 +224,10 @@ public class AppraisalDbContext : DbContext
     // =====================================================
     // Admin Data Correction — audit trail (append-only)
     // =====================================================
+    /// <summary>Fire-insurance coverage rates (reference data), keyed by rate code.</summary>
+    public DbSet<Domain.Appraisals.FireInsuranceRate> FireInsuranceRates =>
+        Set<Domain.Appraisals.FireInsuranceRate>();
+
     public DbSet<Domain.Appraisals.AppraisalPropertyCorrectionLog> AppraisalPropertyCorrectionLogs =>
         Set<Domain.Appraisals.AppraisalPropertyCorrectionLog>();
 
