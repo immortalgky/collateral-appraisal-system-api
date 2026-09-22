@@ -107,6 +107,8 @@ public record CreateLeaseAgreementLandPropertyRequest(
     string? Remark = null,
     // Land Titles
     List<LandTitleItemRequest>? Titles = null,
+    // Area deductions taken off the appraised area
+    List<LandAreaDeductionRequest>? LandAreaDeductions = null,
     // Lease Agreement & Rental Info
     LeaseAgreementData? LeaseAgreement = null,
     RentalInfoData? RentalInfo = null

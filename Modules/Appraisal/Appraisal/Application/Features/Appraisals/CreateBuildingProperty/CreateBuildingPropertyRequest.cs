@@ -66,6 +66,9 @@ public record CreateBuildingPropertyRequest(
     // Area & Pricing
     decimal? TotalBuildingArea = null,
     decimal? BuildingInsurancePrice = null,
+    // Appraiser-keyed overrides; null means "use the derived figure".
+    decimal? FinalCostValueOverride = null,
+    decimal? BuildingInsurancePriceOverride = null,
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,
     // Other

@@ -107,6 +107,8 @@ public record UpdateLeaseAgreementLandPropertyCommand(
     string? Remark = null,
 // Land Titles
     List<LandTitleItemData>? Titles = null,
+    // Area deductions (null = no-op, empty list = clear all)
+    List<LandAreaDeductionData>? LandAreaDeductions = null,
     LeaseAgreementData? LeaseAgreement = null,
     RentalInfoData? RentalInfo = null
 ) : ICommand, ITransactionalCommand<IAppraisalUnitOfWork>;

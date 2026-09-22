@@ -107,8 +107,12 @@ public record GetLandAndBuildingPropertyResponse(
     bool? HasBuilding,
     string? HasBuildingOther,
     decimal TotalLandAreaInSqWa,
+    // Registered area less the deductions — what the appraisal prices
+    decimal NetLandAreaInSqWa,
     // Land Titles
     List<LandTitleItemData>? Titles,
+    // Area deductions taken off the appraised area
+    List<LandAreaDeductionData>? LandAreaDeductions,
     // Building - Identification
     string? BuildingNumber,
     string? ModelName,
@@ -166,6 +170,8 @@ public record GetLandAndBuildingPropertyResponse(
     // Area & Pricing
     decimal? TotalBuildingArea,
     decimal? BuildingInsurancePrice,
+    decimal? FinalCostValueOverride,
+    decimal? BuildingInsurancePriceOverride,
     decimal? SellingPrice,
     decimal? ForcedSalePrice,
     // Remarks

@@ -1,5 +1,6 @@
 using Appraisal.Application.Features.Appraisals.Shared;
 using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
+using Appraisal.Application.Services;
 
 namespace Appraisal.Application.Features.Appraisals.UpdateLeaseAgreementCondoProperty;
 
@@ -8,7 +9,8 @@ namespace Appraisal.Application.Features.Appraisals.UpdateLeaseAgreementCondoPro
 /// </summary>
 public class UpdateLeaseAgreementCondoPropertyCommandHandler(
     IAppraisalRepository appraisalRepository,
-    ISender mediator
+    ISender mediator,
+    AppraisalValuationSummaryService valuationSummaryService
 ) : ICommandHandler<UpdateLeaseAgreementCondoPropertyCommand>
 {
     public async Task<Unit> Handle(
@@ -35,7 +37,7 @@ public class UpdateLeaseAgreementCondoPropertyCommandHandler(
         // 4b. Derive BuildingInsurancePrice from the selected fire-insurance condition
         // (Parameter-module reference rate × UsableArea) — never taken from the client directly.
         var buildingInsurancePrice = await CondoFireInsuranceCalculator.DeriveBuildingInsurancePriceAsync(
-            mediator, command.FireInsuranceCondition, command.UsableArea, cancellationToken);
+            mediator, command.FireInsuranceCode, command.UsableArea, cancellationToken);
 
         // 5. Create value objects if provided
         GpsCoordinate? coordinates = null;
@@ -116,6 +118,7 @@ public class UpdateLeaseAgreementCondoPropertyCommandHandler(
             environmentType: command.EnvironmentType,
             environmentTypeOther: command.EnvironmentTypeOther,
             buildingInsurancePrice: buildingInsurancePrice,
+            buildingInsurancePriceOverride: command.BuildingInsurancePriceOverride,
             sellingPrice: command.SellingPrice,
             forcedSalePrice: command.ForcedSalePrice,
             remark: command.Remark,
@@ -131,7 +134,7 @@ public class UpdateLeaseAgreementCondoPropertyCommandHandler(
             isMissingFromSurvey: command.IsMissingFromSurvey,
             governmentPricePerSqm: command.GovernmentPricePerSqm,
             governmentPrice: command.GovernmentPrice,
-            fireInsuranceCondition: command.FireInsuranceCondition);
+            fireInsuranceCode: command.FireInsuranceCode);
 
         // 7. Sync area details (null = no-op, list = sync)
         if (command.AreaDetails is not null)
@@ -187,6 +190,8 @@ public class UpdateLeaseAgreementCondoPropertyCommandHandler(
 
         // 10. Save aggregate
         await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
+
+        await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
 
         return Unit.Value;
     }

@@ -68,6 +68,8 @@ public record CreateBuildingPropertyCommand(
     // Area & Pricing
     decimal? TotalBuildingArea = null,
     decimal? BuildingInsurancePrice = null,
+    decimal? FinalCostValueOverride = null,
+    decimal? BuildingInsurancePriceOverride = null,
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,
     // Other

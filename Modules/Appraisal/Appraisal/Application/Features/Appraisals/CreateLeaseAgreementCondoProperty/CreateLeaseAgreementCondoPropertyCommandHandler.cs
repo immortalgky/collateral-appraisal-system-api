@@ -1,6 +1,7 @@
 using Appraisal.Application.Features.Appraisals.Shared;
 using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
 using Request.Contracts.Requests.Dtos;
+using Appraisal.Application.Services;
 
 namespace Appraisal.Application.Features.Appraisals.CreateLeaseAgreementCondoProperty;
 
@@ -10,7 +11,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateLeaseAgreementCondoPro
 public class CreateLeaseAgreementCondoPropertyCommandHandler(
     IAppraisalRepository appraisalRepository,
     IAppraisalUnitOfWork unitOfWork,
-    ISender mediator
+    ISender mediator,
+    AppraisalValuationSummaryService valuationSummaryService
 ) : ICommandHandler<CreateLeaseAgreementCondoPropertyCommand, CreateLeaseAgreementCondoPropertyResult>
 {
     public async Task<CreateLeaseAgreementCondoPropertyResult> Handle(
@@ -28,7 +30,7 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
         // 2b. Derive BuildingInsurancePrice from the selected fire-insurance condition
         // (Parameter-module reference rate × UsableArea) — never taken from the client directly.
         var buildingInsurancePrice = await CondoFireInsuranceCalculator.DeriveBuildingInsurancePriceAsync(
-            mediator, command.FireInsuranceCondition, command.UsableArea, cancellationToken);
+            mediator, command.FireInsuranceCode, command.UsableArea, cancellationToken);
 
 
         // 3. Create value objects if provided
@@ -125,7 +127,8 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
             command.IsMissingFromSurvey,
             command.GovernmentPricePerSqm,
             command.GovernmentPrice,
-            command.FireInsuranceCondition);
+            command.FireInsuranceCode,
+            command.BuildingInsurancePriceOverride);
 
         // 5. Create CondoAreaDetails if provided
         if (command.AreaDetails is { Count: > 0 })
@@ -179,6 +182,8 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
 
         // 8. Save aggregate
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
 
         if (command.GroupId.HasValue)
             appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);

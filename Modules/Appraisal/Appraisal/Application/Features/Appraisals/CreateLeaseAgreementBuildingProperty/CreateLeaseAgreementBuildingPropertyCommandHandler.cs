@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
+using Appraisal.Application.Services;
 
 namespace Appraisal.Application.Features.Appraisals.CreateLeaseAgreementBuildingProperty;
 
@@ -7,7 +8,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateLeaseAgreementBuilding
 /// </summary>
 public class CreateLeaseAgreementBuildingPropertyCommandHandler(
     IAppraisalRepository appraisalRepository,
-    IAppraisalUnitOfWork unitOfWork
+    IAppraisalUnitOfWork unitOfWork,
+    AppraisalValuationSummaryService valuationSummaryService
 ) : ICommandHandler<CreateLeaseAgreementBuildingPropertyCommand, CreateLeaseAgreementBuildingPropertyResult>
 {
     public async Task<CreateLeaseAgreementBuildingPropertyResult> Handle(
@@ -73,6 +75,8 @@ public class CreateLeaseAgreementBuildingPropertyCommandHandler(
             command.UtilizationTypeOther,
             command.TotalBuildingArea,
             command.BuildingInsurancePrice,
+            command.FinalCostValueOverride,
+            command.BuildingInsurancePriceOverride,
             command.SellingPrice,
             command.ForcedSalePrice,
             command.Remark);
@@ -132,6 +136,8 @@ public class CreateLeaseAgreementBuildingPropertyCommandHandler(
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
 
         if (command.GroupId.HasValue) appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);
 

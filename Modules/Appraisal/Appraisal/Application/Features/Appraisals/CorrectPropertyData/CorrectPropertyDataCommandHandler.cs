@@ -1,3 +1,5 @@
+using Appraisal.Application.Services;
+
 namespace Appraisal.Application.Features.Appraisals.CorrectPropertyData;
 
 /// <summary>
@@ -9,7 +11,8 @@ namespace Appraisal.Application.Features.Appraisals.CorrectPropertyData;
 /// </summary>
 public class CorrectPropertyDataCommandHandler(
     IAppraisalRepository appraisalRepository,
-    ICurrentUserService currentUser
+    ICurrentUserService currentUser,
+    AppraisalValuationSummaryService valuationSummaryService
 ) : ICommandHandler<CorrectPropertyDataCommand, CorrectPropertyDataResult>
 {
     public async Task<CorrectPropertyDataResult> Handle(
@@ -43,6 +46,12 @@ public class CorrectPropertyDataCommandHandler(
         if (outcome.ChangedFieldCount == 0)
             throw new BadRequestException("No field values changed.");
 
+        await appraisalRepository.SaveChangesAsync(cancellationToken);
+
+        // Recompute reads the corrected rows back, so it runs after the save above — and it only
+        // stages its changes ("flushed by the caller's save"). This command is not transactional,
+        // so nothing saves after the handler: flush it here or the recompute is discarded.
+        await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
         await appraisalRepository.SaveChangesAsync(cancellationToken);
 
         return new CorrectPropertyDataResult(

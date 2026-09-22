@@ -104,6 +104,8 @@ public record CreateLandPropertyRequest(
     string? Remark = null,
     // Land Titles
     List<LandTitleItemRequest>? Titles = null,
+    // Area deductions taken off the appraised area
+    List<LandAreaDeductionRequest>? LandAreaDeductions = null,
     // Rented-out land: lease agreement & rental info (sent when IsRentedOut == true)
     bool? IsRentedOut = null,
     Shared.LeaseAgreementData? LeaseAgreement = null,
@@ -136,5 +138,18 @@ public record LandTitleItemRequest(
     decimal? GovernmentPricePerSqWa = null,
     decimal? GovernmentPrice = null,
     // Remarks
+    string? Remark = null
+);
+
+/// <summary>
+/// Request-side twin of <see cref="LandAreaDeductionData"/>. Mapster maps the two by member name,
+/// so the names must stay identical — a property missing here is silently dropped on the way to the
+/// command rather than failing.
+/// </summary>
+public record LandAreaDeductionRequest(
+    Guid? Id,
+    string ReasonCode,
+    string? ReasonOther = null,
+    decimal? AreaInSqWa = null,
     string? Remark = null
 );

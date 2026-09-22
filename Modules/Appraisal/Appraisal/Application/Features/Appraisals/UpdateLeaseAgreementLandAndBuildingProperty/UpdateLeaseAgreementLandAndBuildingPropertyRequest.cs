@@ -105,6 +105,8 @@ public record UpdateLeaseAgreementLandAndBuildingPropertyRequest(
     string? HasBuildingOther = null,
     // Land Titles
     List<LandTitleItemData>? Titles = null,
+    // Area deductions (null = no-op, empty list = clear all)
+    List<LandAreaDeductionData>? LandAreaDeductions = null,
     //=================================
     // Building - Identification
     string? BuildingNumber = null,
@@ -164,6 +166,9 @@ public record UpdateLeaseAgreementLandAndBuildingPropertyRequest(
     // Area & Pricing
     decimal? TotalBuildingArea = null,
     decimal? BuildingInsurancePrice = null,
+    // Appraiser-keyed overrides; null means "use the derived figure".
+    decimal? FinalCostValueOverride = null,
+    decimal? BuildingInsurancePriceOverride = null,
     decimal? SellingPrice = null,
     decimal? ForcedSalePrice = null,
     // Remarks
