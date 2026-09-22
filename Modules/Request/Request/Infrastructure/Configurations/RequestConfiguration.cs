@@ -192,6 +192,7 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
 
             property.Property(p => p.PropertyType).HasMaxLength(10).HasColumnName("PropertyType");
             property.Property(p => p.BuildingType).HasMaxLength(10).HasColumnName("BuildingType");
+            property.Property(p => p.BuildingTypeOther).HasMaxLength(100).HasColumnName("BuildingTypeOther");
             property.Property(p => p.SellingPrice).HasPrecision(19, 4).HasColumnName("SellingPrice");
 
             //Index

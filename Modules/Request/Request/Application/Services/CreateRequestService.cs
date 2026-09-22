@@ -146,7 +146,7 @@ public class CreateRequestService(
         if (command.Properties is { Count: > 0 })
         {
             var properties = command.Properties
-                .Select(p => RequestProperty.Create(p.PropertyType, p.BuildingType, p.SellingPrice))
+                .Select(p => RequestProperty.Create(p.PropertyType, p.BuildingType, p.BuildingTypeOther, p.SellingPrice))
                 .ToList();
 
             request.SetProperties(properties);

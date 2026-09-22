@@ -4,22 +4,25 @@ public class RequestProperty : ValueObject
 {
     public string? PropertyType { get; }
     public string? BuildingType { get; }
+    public string? BuildingTypeOther { get; }
     public decimal? SellingPrice { get; }
 
-    private RequestProperty(string? propertyType, string? buildingType, decimal? sellingPrice)
+    private RequestProperty(string? propertyType, string? buildingType, string? buildingTypeOther, decimal? sellingPrice)
     {
         PropertyType = propertyType;
         BuildingType = buildingType;
+        BuildingTypeOther = buildingTypeOther;
         SellingPrice = sellingPrice;
     }
 
     public static RequestProperty Create(
         string? propertyType,
         string? buildingType,
+        string? buildingTypeOther,
         decimal? sellingPrice
     )
     {
-        return new RequestProperty(propertyType, buildingType, sellingPrice);
+        return new RequestProperty(propertyType, buildingType, buildingTypeOther, sellingPrice);
     }
 
     public void Validate(string? bankingSegment)

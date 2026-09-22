@@ -96,7 +96,7 @@ internal class UpdateDraftRequestCommandHandler(
         request.SetCustomers(customers);
 
         var properties = command.Properties?
-            .Select(p => RequestProperty.Create(p.PropertyType, p.BuildingType, p.SellingPrice))
+            .Select(p => RequestProperty.Create(p.PropertyType, p.BuildingType, p.BuildingTypeOther, p.SellingPrice))
             .ToList();
         request.SetProperties(properties);
 
