@@ -9,7 +9,7 @@ namespace Reporting.Application.Models.Sections;
 ///   Table = "IncomeAnalyses" (schema appraisal)
 ///   FK column: PricingAnalysisMethodId (unique index)
 ///   Scalar columns: TotalNumberOfYears (int), CapitalizeRate (5,2), DiscountedRate (5,2),
-///     FinalValueRounded (18,2), IsHighestBestUsed (bit), AppraisalPriceRounded (18,2)
+///     IsHighestBestUsed (bit); FinalValueRounded/IndicatedValue come from PricingFinalValues
 ///   Owned HighestBestUsed columns (HasColumnName verified):
 ///     HighestBestUsed_AreaRai, HighestBestUsed_AreaNgan, HighestBestUsed_AreaWa (18,2),
 ///     HighestBestUsed_PricePerSqWa (18,2)
@@ -74,16 +74,16 @@ public sealed class IncomeSection
 
     /// <summary>
     /// Pre-adjusted income value (before HBU top-up or override).
-    /// Source: PricingFinalValues.FinalValueAdjusted (Phase C: moved from IncomeAnalyses).
+    /// Source: PricingFinalValues.FinalValueOverride (Phase C: moved from IncomeAnalyses).
     /// </summary>
     public decimal? FinalValueAdjust { get; init; }
 
     /// <summary>
-    /// Explicit user override price.
-    /// Source: PricingFinalValues.AppraisalPrice (Phase C: moved from IncomeAnalyses).
-    /// When > 0, takes priority over all derived values.
+    /// Explicit user override price; null means the appraiser did not override.
+    /// Source: PricingFinalValues.IndicatedValue (Phase C: moved from IncomeAnalyses).
+    /// When set, takes priority over all derived values.
     /// </summary>
-    public decimal? AppraisalPriceRounded { get; init; }
+    public decimal? IndicatedValue { get; init; }
 
     /// <summary>
     /// Raw DCF output value (fallback).
@@ -93,7 +93,7 @@ public sealed class IncomeSection
 
     /// <summary>
     /// Effective final value mirroring SaveIncomeAnalysisCommandHandler precedence:
-    ///   AppraisalPriceRounded > 0  →  AppraisalPriceRounded
+    ///   IndicatedValue.HasValue    →  IndicatedValue
     ///   FinalValueAdjust.HasValue  →  FinalValueAdjust + HBU land value (when !IsHighestBestUsed)
     ///   else                       →  FinalValueRounded
     /// Computed in IncomeSectionLoader.LoadOneAsync.
