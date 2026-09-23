@@ -398,9 +398,26 @@ public class PricingAnalysisMethod : Entity<Guid>
     /// Area from the property's land titles — authoritative, never taken from the request.
     /// </param>
     /// <param name="explicitLandValue">A land value supplied by the caller, or null to derive one.</param>
-    public void ApplyLandAreaValue(decimal landAreaFromTitles, decimal? explicitLandValue)
+    /// <param name="includeLandArea">
+    /// The appraiser's own answer to "does this method price land at all" — false clears the area and
+    /// value outright. Null means the request did not say, which is not the same as false: the save
+    /// DTOs default it, so an ordinary save must not read silence as a decision to exclude.
+    /// </param>
+    public void ApplyLandAreaValue(
+        decimal landAreaFromTitles,
+        decimal? explicitLandValue,
+        bool? includeLandArea)
     {
-        if (FinalValue is null || landAreaFromTitles <= 0m)
+        if (FinalValue is null)
+            return;
+
+        if (includeLandArea == false)
+        {
+            FinalValue.ExcludeLandArea();
+            return;
+        }
+
+        if (landAreaFromTitles <= 0m)
             return;
 
         var unit = UnitType ?? (FinalValue.IncludeLandArea ? FinalValue.FinalValueUnitType : null);

@@ -102,17 +102,7 @@ public class SaveComparativeAnalysisCommandHandler(
 
         var landAreaFromTitles = totalLandAreaFromTitles ?? 0m;
 
-        if (command.IncludeLandArea == false)
-        {
-            method.FinalValue.ExcludeLandArea();
-        }
-        else
-        {
-            // One rule, one place: see PricingAnalysisMethod.ApplyLandAreaValue for why the
-            // unit is read live-first, why the row's stamp is only consulted while land area
-            // is still included, and why the appraiser's rate wins over the computed one.
-            method.ApplyLandAreaValue(landAreaFromTitles, command.LandValue);
-        }
+        method.ApplyLandAreaValue(landAreaFromTitles, command.LandValue, command.IncludeLandArea);
 
         // Building value toggle (separate from IndicatedValue now).
         //
