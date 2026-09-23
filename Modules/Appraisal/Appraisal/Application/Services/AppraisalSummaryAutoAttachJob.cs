@@ -1,11 +1,12 @@
+using System.Globalization;
 using Appraisal.Application.Features.Appraisals.AddAppraisalDocument;
-using Appraisal.Application.Features.Appraisals.RemoveAppraisalDocument;
 using Dapper;
 using Document.Contracts;
 using Hangfire;
 using Reporting.Contracts;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
+using Shared.Time;
 
 namespace Appraisal.Application.Services;
 
@@ -34,6 +35,7 @@ public class AppraisalSummaryAutoAttachJob(
     IIntegrationEventOutbox outbox,
     IOutboxScope outboxScope,
     AppraisalDbContext dbContext,
+    IDateTimeProvider dateTimeProvider,
     ILogger<AppraisalSummaryAutoAttachJob> logger)
 {
     /// <summary>The composite report key; the provider picks the per-property child forms itself.</summary>
@@ -158,7 +160,7 @@ public class AppraisalSummaryAutoAttachJob(
                 return;
             }
 
-            var fileName = BuildFileName(header.AppraisalNumber);
+            var fileName = BuildFileName(header.AppraisalNumber, dateTimeProvider.ApplicationNow);
 
             var documentId = await documentCreator.CreateFromBytesAsync(
                 reportFile.Bytes,
@@ -211,9 +213,9 @@ public class AppraisalSummaryAutoAttachJob(
                 "[SUMMARY-AUTO] Attached {DocumentTypeCode} ({Bytes} bytes) to AppraisalId={AppraisalId} as DocumentId={DocumentId}",
                 documentTypeCode, reportFile.Bytes.Length, appraisalId, documentId);
 
-            // Runs after the attach committed — the webhook is already released, so a failure here cannot
-            // stall the case, it only leaves the stale row behind (today's behaviour).
-            await SupersedeOtherSummaryCodeAsync(appraisalId, documentTypeCode, approvedAt, ct);
+            // Earlier summaries are deliberately left in place — including one filed under the other code
+            // after a post-close correction flipped the body type (D042 <-> D043). Every copy reaches LOS as
+            // history; removing an outdated one is a person's call, not this job's.
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -401,9 +403,10 @@ public class AppraisalSummaryAutoAttachJob(
 
     /// <summary>
     /// "Already generated" means a document of the exact type this job would produce, attached at or
-    /// after the committee decision — anything older is the stale pre-approval copy this job exists to
-    /// replace. AppraisalDocuments carries no version column; GetAppraisalResult picks the newest row
-    /// per DocumentTypeCode by CreatedAt, which is the same rule applied here.
+    /// after the committee decision. Anything older is a pre-approval copy: it does not count as the
+    /// post-approval summary, so this job still renders one, but it is NOT removed or hidden —
+    /// GetAppraisalResult sends it to LOS alongside the new one, as history. AppraisalDocuments carries no
+    /// version column, so the committee decision time is the cut.
     ///
     /// Matching the whole VAL_REPORT category would be wrong: it also covers D001 (Complete Valuation
     /// Report), so attaching the appraisal book after closing would make this job skip the summary and
@@ -487,81 +490,22 @@ public class AppraisalSummaryAutoAttachJob(
     }
 
     /// <summary>
-    /// e.g. "appraisal-summary-AP-2569-00042.pdf"; falls back to the bare key when the number is missing.
+    /// e.g. "appraisal-summary-AP-2569-00042-20260923-140512.pdf"; when the number is missing, just the key
+    /// and timestamp, e.g. "appraisal-summary-20260923-140512.pdf". The timestamp keeps regenerated
+    /// summaries apart: every run is attached alongside the earlier ones and GetAppraisalResult sends them
+    /// all, so without it LOS would receive several files with the same name. Seconds are included because
+    /// an admin can regenerate twice in a minute.
     /// Path separators are stripped because the value reaches the filesystem via DocumentService.
     /// </summary>
-    internal static string BuildFileName(string? appraisalNumber)
+    internal static string BuildFileName(string? appraisalNumber, DateTime generatedAt)
     {
+        var stamp = generatedAt.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+
         if (string.IsNullOrWhiteSpace(appraisalNumber))
-            return $"{ReportKey}.pdf";
+            return $"{ReportKey}-{stamp}.pdf";
 
         var safe = appraisalNumber.Replace('/', '-').Replace('\\', '-').Trim();
-        return $"{ReportKey}-{safe}.pdf";
-    }
-
-    /// <summary>
-    /// Removes a previously auto-generated summary filed under the OTHER code.
-    ///
-    /// The document type is re-derived on every run, so a post-close data correction that flips the body
-    /// type — dropping Progressive, or adding an appraisal.Projects row — makes a regenerate file the new
-    /// render under D043 while the old D042 stays. GetAppraisalResult returns the newest row PER
-    /// DocumentTypeCode, not the newest summary overall, so LOS would then collect both: a construction
-    /// summary and a valuation summary for the same appraisal, disagreeing with each other.
-    ///
-    /// Scoped deliberately narrowly — only rows this pipeline created (UploadedByName = SYSTEM) at or after
-    /// the committee decision. A summary a person attached by hand, or anything predating approval, is left
-    /// alone; deciding those is not this job's call. Goes through RemoveAppraisalDocumentCommand rather than
-    /// deleting directly so DocumentUnlinkedIntegrationEvent still fires and the Document module's
-    /// ReferenceCount stays correct.
-    /// </summary>
-    private async Task SupersedeOtherSummaryCodeAsync(
-        Guid appraisalId, string attachedTypeCode, DateTime approvedAt, CancellationToken ct)
-    {
-        var otherCode = attachedTypeCode == ProgressiveDocumentTypeCode
-            ? StandardDocumentTypeCode
-            : ProgressiveDocumentTypeCode;
-
-        try
-        {
-            const string sql = """
-                SELECT ad.[Id]
-                FROM [appraisal].[AppraisalDocuments] ad
-                WHERE ad.[AppraisalId] = @AppraisalId
-                  AND ad.[DocumentTypeCode] = @OtherCode
-                  AND ad.[UploadedByName] = @SystemUser
-                  AND ad.[CreatedAt] >= @ApprovedAt
-                """;
-
-            using var connection = connectionFactory.CreateNewConnection();
-            var staleIds = (await connection.QueryAsync<Guid>(
-                new CommandDefinition(
-                    sql,
-                    new
-                    {
-                        AppraisalId = appraisalId,
-                        OtherCode = otherCode,
-                        SystemUser = SystemUserCode,
-                        ApprovedAt = approvedAt
-                    },
-                    cancellationToken: ct))).ToList();
-
-            foreach (var staleId in staleIds)
-            {
-                await sender.Send(new RemoveAppraisalDocumentCommand(appraisalId, staleId), ct);
-
-                logger.LogInformation(
-                    "[SUMMARY-AUTO] Superseded stale {OtherCode} summary {AppraisalDocumentId} on AppraisalId={AppraisalId} "
-                    + "after the body type changed to {AttachedTypeCode}",
-                    otherCode, staleId, appraisalId, attachedTypeCode);
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex,
-                "[SUMMARY-AUTO] Could not supersede stale {OtherCode} summaries on AppraisalId={AppraisalId}; "
-                + "the LOS result package may now carry two conflicting summaries",
-                otherCode, appraisalId);
-        }
+        return $"{ReportKey}-{safe}-{stamp}.pdf";
     }
 
     /// <summary>

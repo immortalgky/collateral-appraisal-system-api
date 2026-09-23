@@ -58,8 +58,10 @@ public class AppraisalSummaryAutoAttachConsumer(
             // timed out, the retry enqueues a second job. Both run with force:false, and the "already
             // attached" check is an unlocked read, so if they overlap both render and both publish — two
             // webhooks and a duplicate document row. That is the lesser evil here: a duplicate reads to LOS
-            // as "come and collect again" (DocumentReady never reaches them) and GetAppraisalResult serves
-            // the newest row per type, whereas the silent stall has no webhook and nothing to find it by.
+            // as "come and collect again" (DocumentReady never reaches them) and the extra summary reaches
+            // them as one more copy (GetAppraisalResult sends every attached document of an active
+            // VAL_REPORT type, D042/D043 included), whereas the silent stall has no webhook and nothing to
+            // find it by.
             // Note this is the opposite call from MarkAsProcessedAsync below, where the job is already safely
             // enqueued and a stuck claim really is cheaper.
             logger.LogError(ex,
