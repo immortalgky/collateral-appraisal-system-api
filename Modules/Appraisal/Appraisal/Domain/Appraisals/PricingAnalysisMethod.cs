@@ -1,5 +1,6 @@
 using Appraisal.Domain.Appraisals.Hypothesis;
 using Appraisal.Domain.Appraisals.Income;
+using Appraisal.Domain.Services;
 
 namespace Appraisal.Domain.Appraisals;
 
@@ -363,6 +364,55 @@ public class PricingAnalysisMethod : Entity<Guid>
     public void ClearFinalValue()
     {
         FinalValue = null;
+    }
+
+    /// <summary>
+    /// Records the land area this method priced, and what that land is worth, when — and only when —
+    /// this method prices land BY AREA. Single home for a rule three save handlers used to carry a
+    /// copy of each (SetFinalValue, UpdateFinalValue, SaveComparativeAnalysis); it decides money that
+    /// reaches the engagement's frozen CurrentValue, the LOS payload and the AS400 regulatory file,
+    /// so it is stated once.
+    /// <para>
+    /// A per-unit RATE (PerSqWa/PerSqm) means the final value prices land per unit area, so area and
+    /// value are derivable and must NOT be gated on the building-cost toggle. PerUnit is a
+    /// whole-unit lumpsum carrying no land rate, so the row is left alone.
+    /// </para>
+    /// <para>
+    /// The unit is read LIVE first and the row's own stamp only when this method has genuinely
+    /// forgotten its own. Stamp-first would let a unit that has since become a lump sum be
+    /// multiplied by the land area. The stamp is consulted only while the row still includes land
+    /// area, because the one thing that nulls <see cref="UnitType"/> — <see cref="SetCalcMode"/> →
+    /// <see cref="ClearValue"/> — also calls <see cref="PricingFinalValue.ExcludeLandArea"/> in the
+    /// same operation; reading it unconditionally would let the next save recompute the figures and
+    /// flip IncludeLandArea back to true, quietly undoing an exclusion the appraiser asked for.
+    /// </para>
+    /// <para>
+    /// The appraiser's typed-over rate wins over the calculated one: <see cref="ValuePerUnit"/> is
+    /// whatever the calc service produced, and <see cref="PricingFinalValue.FinalValueOverride"/>
+    /// exists precisely to replace it — reading it second meant a saved override never reached the
+    /// land value at all. An explicit <paramref name="explicitLandValue"/> still wins over both; the
+    /// cost approach enters that figure by hand.
+    /// </para>
+    /// </summary>
+    /// <param name="landAreaFromTitles">
+    /// Area from the property's land titles — authoritative, never taken from the request.
+    /// </param>
+    /// <param name="explicitLandValue">A land value supplied by the caller, or null to derive one.</param>
+    public void ApplyLandAreaValue(decimal landAreaFromTitles, decimal? explicitLandValue)
+    {
+        if (FinalValue is null || landAreaFromTitles <= 0m)
+            return;
+
+        var unit = UnitType ?? (FinalValue.IncludeLandArea ? FinalValue.FinalValueUnitType : null);
+        if (!PricingUnit.IsPerUnitRate(unit))
+            return;
+
+        var rate = FinalValue.FinalValueOverride ?? ValuePerUnit;
+        var landValue = explicitLandValue
+                        ?? (rate.HasValue ? landAreaFromTitles * rate.Value : (decimal?)null);
+
+        if (landValue.HasValue)
+            FinalValue.SetLandAreaValues(landAreaFromTitles, landValue.Value);
     }
 
     /// <summary>
