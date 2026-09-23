@@ -130,7 +130,13 @@ public record AppraisalResultCollateral(
     string? MachineModel,
     string? MachineSerialNo);
 
-public record AppraisalResultDocument(string? DocumentType, string? DocumentPath);
+public record AppraisalResultDocument(
+    string? DocumentType,
+    string? DocumentPath,
+    string? FileName,
+    // Application-local time (Asia/Bangkok), "yyyy-MM-ddTHH:mm:ss", no offset -- a string like the other
+    // dates in this payload, so no serializer adds fractional seconds or a zone a caller could misread as UTC.
+    string? UploadedAt);
 
 // ── Legacy-shaped variant (AS400 consumer): flat { ResultCode, ResultValue } envelope for ONE
 // collateral, selected via ApplicationNo (AppraisalNumber) + Filter1/Filter2. AssetTypeId is

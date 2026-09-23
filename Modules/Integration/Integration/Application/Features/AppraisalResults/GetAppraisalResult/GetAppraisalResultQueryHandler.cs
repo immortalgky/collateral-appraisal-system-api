@@ -350,26 +350,24 @@ internal static class GetAppraisalResultSql
                                                ORDER BY pg.GroupNumber, pgi.SequenceInGroup, ap.Id
                                                """;
 
-    // Latest VAL_REPORT document per code for the appraisal (one row per DocumentTypeCode,
-    // newest by CreatedAt). DocumentId is the download identifier; the relative URL is built in C#.
+    // Every VAL_REPORT document attached to the appraisal -- all of them, not just the newest per code.
+    // A regenerated summary is attached alongside the earlier ones and kept as history, so LOS may see
+    // several rows of the same DocumentType; FileName and UploadedAt tell them apart. Ordered NEWEST first
+    // within a type, so a consumer still reading "the first row of this type" (the old one-row-per-type
+    // contract) gets the current copy. Not by SortOrder, which a caller may set freely.
+    // DocumentId is the download identifier; the relative URL is built in C#.
     public const string Documents = """
-                                    SELECT x.DocumentType, x.DocumentId
-                                    FROM (
-                                        SELECT ad.DocumentTypeCode AS DocumentType,
-                                               ad.DocumentId,
-                                               ROW_NUMBER() OVER (
-                                                   PARTITION BY ad.DocumentTypeCode
-                                                   ORDER BY ad.CreatedAt DESC, CONVERT(char(36), ad.Id) DESC
-                                               ) AS rn
-                                        FROM appraisal.AppraisalDocuments ad
-                                        JOIN parameter.DocumentTypes dt ON dt.Code = ad.DocumentTypeCode
-                                        WHERE ad.AppraisalId = @AppraisalId
-                                          AND dt.Category = 'VAL_REPORT'
-                                          AND dt.IsActive = 1
-                                          AND ad.DocumentId IS NOT NULL
-                                    ) x
-                                    WHERE x.rn = 1
-                                    ORDER BY x.DocumentType
+                                    SELECT ad.DocumentTypeCode AS DocumentType,
+                                           ad.DocumentId,
+                                           ad.FileName,
+                                           ad.CreatedAt AS UploadedAt
+                                    FROM appraisal.AppraisalDocuments ad
+                                    JOIN parameter.DocumentTypes dt ON dt.Code = ad.DocumentTypeCode
+                                    WHERE ad.AppraisalId = @AppraisalId
+                                      AND dt.Category = 'VAL_REPORT'
+                                      AND dt.IsActive = 1
+                                      AND ad.DocumentId IS NOT NULL
+                                    ORDER BY ad.DocumentTypeCode, ad.CreatedAt DESC, CONVERT(char(36), ad.Id) DESC
                                     """;
 
     // A block/project appraisal has a row in appraisal.Projects (1:1 via AppraisalId).
@@ -565,7 +563,7 @@ internal sealed record LegacyAppraisalRow(
     decimal? MarketValue,
     string? SequenceOfApprove);
 
-internal sealed record DocumentRow(string? DocumentType, Guid DocumentId);
+internal sealed record DocumentRow(string? DocumentType, Guid DocumentId, string FileName, DateTime? UploadedAt);
 
 // Optional unit selector for block/project appraisals.
 internal sealed record UnitSelector(string? PlotNumber, string? RoomNumber, string? FloorNumber);
@@ -797,7 +795,9 @@ internal static class AppraisalResultBuilder
         var documents = docRows
             .Select(d => new AppraisalResultDocument(
                 d.DocumentType,
-                $"/documents/{d.DocumentId}/download?download=false"))
+                $"/documents/{d.DocumentId}/download?download=false",
+                d.FileName,
+                d.UploadedAt?.ToString("yyyy-MM-dd'T'HH:mm:ss", CultureInfo.InvariantCulture)))
             .ToList();
 
         string? valuerName = null;

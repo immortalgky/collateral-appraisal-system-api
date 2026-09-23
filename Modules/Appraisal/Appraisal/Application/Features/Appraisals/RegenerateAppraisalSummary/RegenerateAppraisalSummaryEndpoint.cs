@@ -12,8 +12,10 @@ namespace Appraisal.Application.Features.Appraisals.RegenerateAppraisalSummary;
 /// is holding an incomplete package), or appraisal data was corrected after closing and the attached
 /// summary is now wrong.
 ///
-/// Re-running always produces a new document row; the previous one is left in place for audit.
-/// GetAppraisalResult serves the newest row per DocumentTypeCode, so the fresh one wins on its own.
+/// Re-running always produces a new document row; the previous one is left in place as history.
+/// GetAppraisalResult sends every attached copy, newest first, each with its FileName and UploadedAt, so
+/// LOS can tell the fresh one from the earlier ones. Only summaries generated from this change on carry a
+/// timestamp in the file name; UploadedAt is what orders them.
 ///
 /// Side effect worth knowing about: the job re-publishes AppraisalResultReadyIntegrationEvent, which
 /// fires APPRAISAL_COMPLETED to LOS a second time. That is the only way to tell them to collect again —
