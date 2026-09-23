@@ -7,10 +7,17 @@ using OpenIddict.Server.AspNetCore;
 using Auth.Application.Helpers;
 using Auth.Application.Services;
 using Auth.Domain.Auditing;
+using Auth.Domain.Identity;
+using Microsoft.AspNetCore.Identity;
+using Shared.Time;
 
 namespace Auth.Application.Controllers;
 
-public class OpenIddictController(ITokenService tokenService, IAuthAuditWriter auditWriter) : Controller
+public class OpenIddictController(
+    ITokenService tokenService,
+    IAuthAuditWriter auditWriter,
+    UserManager<ApplicationUser> userManager,
+    IDateTimeProvider dateTimeProvider) : Controller
 {
     [Authorize(AuthenticationSchemes = "Identity.Application")]
     [AllowAnonymous]
@@ -53,6 +60,19 @@ public class OpenIddictController(ITokenService tokenService, IAuthAuditWriter a
             // Not logged in → redirect to log in UI with returnUrl
             return Redirect(
                 $"/Account/Login?ReturnUrl={Uri.EscapeDataString(HttpContext.Request.Path + HttpContext.Request.QueryString)}");
+
+        // The Identity cookie outlives changes to the account behind it: deactivation does not rotate
+        // the security stamp, and an access window can lapse while the browser sits on this tab. Minting
+        // a fresh authorization code from a stale cookie would hand out working tokens either way, so
+        // re-read the account and drop the session when it is no longer usable.
+        var signedInUser = await userManager.GetUserAsync(HttpContext.User);
+        if (signedInUser is null || !signedInUser.IsUsable(dateTimeProvider.ApplicationNow))
+        {
+            await HttpContext.SignOutAsync("Identity.Application");
+            RefreshTokenCookieHelper.ClearRefreshTokenCookie(HttpContext);
+            return Redirect(
+                $"/Account/Login?ReturnUrl={Uri.EscapeDataString(BuildAuthorizeUrlWithoutPrompt())}");
+        }
 
         var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         identity.AddClaim(OpenIddictConstants.Claims.Subject,
@@ -117,8 +137,12 @@ public class OpenIddictController(ITokenService tokenService, IAuthAuditWriter a
         ClaimsPrincipal? principal)
     {
         if (principal == null) return BadRequest(new { error = "Invalid authorization code" });
-        var claimsPrincipal = await tokenService.CreateAuthCodeFlowAccessTokenPrincipal(request, principal);
-        return SignIn(claimsPrincipal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+
+        var grant = await tokenService.CreateAuthCodeFlowAccessTokenPrincipal(request, principal);
+        if (grant.Rejection is not null)
+            return RejectGrant(grant.Rejection);
+
+        return SignIn(grant.Principal!, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
     private async Task<IActionResult> HandleClientCredentialsGrant(OpenIddictRequest request)
@@ -137,16 +161,20 @@ public class OpenIddictController(ITokenService tokenService, IAuthAuditWriter a
         // account is loaded once: the same call validates and builds the new principal.
         var refresh = await tokenService.CreateRefreshFlowPrincipalAsync(request, principal);
         if (refresh.Rejection is not null)
-            return Forbid(
-                authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
-                properties: new AuthenticationProperties(new Dictionary<string, string?>
-                {
-                    [OpenIddictServerAspNetCoreConstants.Properties.Error] = OpenIddictConstants.Errors.InvalidGrant,
-                    [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = refresh.Rejection
-                }));
+            return RejectGrant(refresh.Rejection);
 
         return SignIn(refresh.Principal!, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
+
+    /// <summary>Denies a grant with OpenIddict's standard invalid_grant response.</summary>
+    private ForbidResult RejectGrant(string description) =>
+        Forbid(
+            authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
+            properties: new AuthenticationProperties(new Dictionary<string, string?>
+            {
+                [OpenIddictServerAspNetCoreConstants.Properties.Error] = OpenIddictConstants.Errors.InvalidGrant,
+                [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = description
+            }));
 
     [AllowAnonymous]
     [HttpGet("~/connect/logout")]

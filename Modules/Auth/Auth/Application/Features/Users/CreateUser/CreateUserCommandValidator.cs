@@ -22,10 +22,16 @@ public class CreateUserCommandValidator : AbstractValidator<CreateUserCommand>
             .Must(_ => ldapEnabled)
             .When(x => AuthSources.IsLdap(x.AuthSource))
             .WithMessage("Cannot create an LDAP user while LDAP authentication is disabled.");
-        // LDAP users authenticate against AD, so a local password is not required for them.
+        // LDAP users authenticate against AD, and a temporary-access account gets its password from
+        // the access window that is opened for it — neither needs one at creation time.
         RuleFor(x => x.Password)
             .NotEmpty().WithMessage("Password is required.")
-            .When(x => !AuthSources.IsLdap(x.AuthSource));
+            .When(x => !AuthSources.IsLdap(x.AuthSource) && !x.IsTemporaryAccess);
+        // Opening a window rotates the local password, which an AD-backed account does not have.
+        RuleFor(x => x.IsTemporaryAccess)
+            .Must(_ => false)
+            .When(x => x.IsTemporaryAccess && AuthSources.IsLdap(x.AuthSource))
+            .WithMessage("A temporary-access account must use local authentication.");
         RuleFor(x => x.Email)
             .NotEmpty().EmailAddress().WithMessage("A valid email is required.")
             .MaximumLength(256);

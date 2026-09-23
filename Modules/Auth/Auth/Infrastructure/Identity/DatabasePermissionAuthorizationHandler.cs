@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using Shared.Time;
 using System.Security.Claims;
 
 namespace Auth.Infrastructure.Identity;
@@ -80,16 +81,27 @@ public sealed class DatabasePermissionAuthorizationHandler(
 
         // Deactivating a user does not rotate the security stamp, so their Identity cookie stays valid
         // and a page they already have open keeps working — and a polling page like this dashboard
-        // keeps sliding that cookie's expiry too. Login.cshtml.cs refuses !IsActive at sign-in; apply
-        // the same rule here so deactivation actually closes the door.
+        // keeps sliding that cookie's expiry too. Login.cshtml.cs refuses an unusable account at
+        // sign-in; apply the same rule here so deactivation — and a lapsed access window — actually
+        // close the door.
         //
-        // A deleted or deactivated user is cached as "no permissions" like anyone else — otherwise
-        // every polled request would re-run this query for them.
-        HashSet<string> permissions = user is null || !user.IsActive
+        // A deleted, deactivated or expired user is cached as "no permissions" like anyone else —
+        // otherwise every polled request would re-run this query for them.
+        var now = services.GetRequiredService<IDateTimeProvider>().ApplicationNow;
+        HashSet<string> permissions = user is null || !user.IsUsable(now)
             ? []
             : await permissionResolver.CalculateAsync(user, await userManager.GetRolesAsync(user));
 
-        cache.Set(cacheKey, permissions, CacheLifetime);
+        // Never cache a grant past the end of the access window that justified it, or the dashboard
+        // would stay open for up to CacheLifetime after the window shut.
+        var lifetime = CacheLifetime;
+        if (permissions.Count > 0 && user!.AccessExpiresAt is { } expiresAt)
+        {
+            var remaining = expiresAt - now;
+            if (remaining < lifetime) lifetime = remaining;
+        }
+
+        cache.Set(cacheKey, permissions, lifetime);
 
         return permissions;
     }

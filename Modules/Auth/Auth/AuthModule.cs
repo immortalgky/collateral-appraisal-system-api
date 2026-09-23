@@ -93,6 +93,16 @@ public static class AuthModule
             options.AccessDeniedPath = "/Account/AccessDenied";
         });
 
+        // Validate the security stamp on every cookie-authenticated request instead of the 30-minute
+        // default. Rotating a password (an admin reset, or opening a new access window on a shared
+        // temporary account) changes that stamp, and until it is re-checked the previous holder's
+        // cookie still mints authorization codes — for up to half an hour after the credential they
+        // knew was taken away. The cookie only guards the auth pages, /connect/authorize and the
+        // Hangfire dashboard, so the extra lookup is a keyed read on a handful of requests, not on
+        // the SPA's API traffic (which authenticates with bearer tokens).
+        services.Configure<SecurityStampValidatorOptions>(options =>
+            options.ValidationInterval = TimeSpan.Zero);
+
         // DB-maintained password policy: cached reader + history recorder. Lockout settings are
         // applied imperatively after migration/seeding in UseAuthModule (NOT via IConfigureOptions —
         // reading the DB during options-configuration at container startup deadlocks).

@@ -38,6 +38,14 @@ public class UpdateUserCommandHandler(
                 throw new BadRequestException(
                     "Cannot switch an LDAP account to Local: it has no local password and could never sign in.");
 
+            // A temporary-access account lives on its access window, and opening, extending or
+            // closing one rotates a LOCAL password. Flip it to LDAP and every one of those calls is
+            // refused — including the close, which would strand an account with an open window and
+            // a live password that nothing short of deactivation can take back.
+            if (user.IsTemporaryAccess && AuthSources.IsLdap(command.AuthSource))
+                throw new BadRequestException(
+                    "A temporary-access account must stay on local authentication. Clear the temporary-access flag first.");
+
             user.AuthSource = command.AuthSource;
             if (AuthSources.IsLdap(command.AuthSource))
                 user.MustChangePassword = false;

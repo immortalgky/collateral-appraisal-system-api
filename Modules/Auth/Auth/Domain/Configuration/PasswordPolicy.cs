@@ -37,6 +37,15 @@ public class PasswordPolicy
     /// <summary>Lockout duration in minutes. 0 = permanent until admin unlock.</summary>
     public int LockoutMinutes { get; private set; }
 
+    // ── Temporary-access accounts ───────────────────────────────────────────────
+    /// <summary>Longest access window an admin may open on a temporary-access account, in hours.
+    /// Clamped to <see cref="MaxAccessWindowHoursCeiling"/> so a typo cannot leave such an account
+    /// open for years.</summary>
+    public int MaxAccessWindowHours { get; private set; }
+
+    /// <summary>Hard ceiling on <see cref="MaxAccessWindowHours"/> — 30 days. Not admin-editable.</summary>
+    public const int MaxAccessWindowHoursCeiling = 720;
+
     // Required by EF Core
     private PasswordPolicy()
     {
@@ -57,7 +66,8 @@ public class PasswordPolicy
         Blocklist = string.Empty,
         LockoutEnabled = true,
         MaxFailedAccessAttempts = 5,
-        LockoutMinutes = 0
+        LockoutMinutes = 0,
+        MaxAccessWindowHours = 8
     };
 
     public void Update(
@@ -72,7 +82,8 @@ public class PasswordPolicy
         string? blocklist,
         bool lockoutEnabled,
         int maxFailedAccessAttempts,
-        int lockoutMinutes)
+        int lockoutMinutes,
+        int maxAccessWindowHours)
     {
         RequiredLength = Math.Clamp(requiredLength, 1, 128);
         RequireDigit = requireDigit;
@@ -86,5 +97,6 @@ public class PasswordPolicy
         LockoutEnabled = lockoutEnabled;
         MaxFailedAccessAttempts = Math.Clamp(maxFailedAccessAttempts, 1, 100);
         LockoutMinutes = Math.Max(0, lockoutMinutes);
+        MaxAccessWindowHours = Math.Clamp(maxAccessWindowHours, 1, MaxAccessWindowHoursCeiling);
     }
 }
