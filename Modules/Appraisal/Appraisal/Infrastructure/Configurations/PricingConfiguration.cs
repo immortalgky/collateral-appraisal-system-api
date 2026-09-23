@@ -325,6 +325,8 @@ public class PricingFinalValueConfiguration : IEntityTypeConfiguration<PricingFi
 
         builder.Property(f => f.FinalValue).IsRequired().HasPrecision(18, 2);
         builder.Property(f => f.FinalValueOverride).HasPrecision(18, 2);
+        // Same width as PricingAnalysisMethods.UnitType — they hold the same vocabulary.
+        builder.Property(f => f.FinalValueUnitType).HasMaxLength(20);
 
         builder.Property(f => f.LandArea).HasPrecision(18, 2);
         builder.Property(f => f.LandValue).HasPrecision(18, 2);

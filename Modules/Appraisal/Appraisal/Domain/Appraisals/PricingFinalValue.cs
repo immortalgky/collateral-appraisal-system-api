@@ -9,7 +9,7 @@ namespace Appraisal.Domain.Appraisals;
 /// <item><see cref="FinalValueOverride"/> — the figure the appraiser adjusted by hand. Its unit
 /// follows the method: a rate per Sq.Wa / Sq.M when the method prices by area, a whole-property
 /// lump sum when it does not (machinery, hypothesis, income, leasehold, profit rent). Read
-/// <c>PricingAnalysisMethod.UnitType</c> to tell which.</item>
+/// <see cref="FinalValueUnitType"/> on this row to tell which.</item>
 /// <item><see cref="FinalValue"/> — what the system worked out, with its own rounding applied.</item>
 /// <item><see cref="IndicatedValue"/> — what the appraiser typed over the total; null means they did not.</item>
 /// </list>
@@ -34,6 +34,35 @@ public class PricingFinalValue : Entity<Guid>
     /// for a unit: it is a per-area rate on some methods and a lump sum on others.
     /// </summary>
     public decimal? FinalValueOverride { get; private set; }
+
+    /// <summary>
+    /// What <see cref="FinalValue"/> and <see cref="FinalValueOverride"/> are measured in, stamped
+    /// when the figure is written: <c>PerSqWa</c> / <c>PerSqm</c> for a per-area rate, <c>PerUnit</c>
+    /// for a whole-property lump sum (the <c>PricingUnit</c> vocabulary).
+    /// <para>
+    /// It exists so this row answers the question itself. The figures here are a per-area rate on
+    /// some methods and a whole-property total on others, and until now the only way to tell was to
+    /// join to <c>PricingAnalysisMethod.UnitType</c> — which flipping the method's calc mode nulls
+    /// (<c>SetCalcMode</c> → <c>ClearValue</c>) while leaving these figures standing.
+    /// </para>
+    /// <para>
+    /// Be precise about what it does NOT buy, so nobody relies on it for the wrong thing:
+    /// <list type="bullet">
+    /// <item>It is no defence against the method's unit changing. A re-derivation from the
+    /// comparables goes through <c>ResolvePriceUnit</c>, which never returns null, so the method's
+    /// own unit is present and every consumer that reads it first will use it.</item>
+    /// <item>The three save handlers that derive LandValue read
+    /// <c>method.UnitType ?? (IncludeLandArea ? this : null)</c>, and the one operation that nulls
+    /// <c>UnitType</c> also excludes land area — so as things stand they never actually fall through
+    /// to this column. It is written for readers, not yet consulted by those writers.</item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// Null means lump sum — the same reading <c>PricingUnit.IsPerUnitRate(null) == false</c> gives,
+    /// so rows written before this column need no special case from any consumer.
+    /// </para>
+    /// </summary>
+    public string? FinalValueUnitType { get; private set; }
 
     // Land Area Inclusion
     public bool IncludeLandArea { get; private set; } = true;
@@ -72,6 +101,7 @@ public class PricingFinalValue : Entity<Guid>
             PricingMethodId = newMethodId,
             FinalValue = source.FinalValue,
             FinalValueOverride = source.FinalValueOverride,
+            FinalValueUnitType = source.FinalValueUnitType,
             IncludeLandArea = source.IncludeLandArea,
             LandArea = source.LandArea,
             LandValue = source.LandValue,
@@ -114,6 +144,16 @@ public class PricingFinalValue : Entity<Guid>
     public void SetFinalValueOverride(decimal? value)
     {
         FinalValueOverride = value;
+    }
+
+    /// <summary>
+    /// Stamps the unit the figures on this row are measured in. Called by the owning
+    /// <see cref="PricingAnalysisMethod"/> whenever it records a value or attaches this row, so no
+    /// save handler has to remember to do it.
+    /// </summary>
+    public void SetFinalValueUnitType(string? unitType)
+    {
+        FinalValueUnitType = unitType;
     }
 
     /// <summary>

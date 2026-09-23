@@ -1,6 +1,5 @@
 using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
-using Appraisal.Domain.Services;
 using Shared.CQRS;
 
 namespace Appraisal.Application.Features.PricingAnalysis.UpdateFinalValue;
@@ -60,19 +59,7 @@ public class UpdateFinalValueCommandHandler(
 
         var landAreaFromTitles = totalLandAreaFromTitles ?? 0m;
 
-        if (command.IncludeLandArea == false)
-        {
-            finalValue.ExcludeLandArea();
-        }
-        else if (PricingUnit.IsPerUnitRate(method.UnitType) && landAreaFromTitles > 0m)
-        {
-            var rate = method.ValuePerUnit ?? finalValue.FinalValueOverride;
-            var landValue = command.LandValue
-                ?? (rate.HasValue ? landAreaFromTitles * rate.Value : (decimal?)null);
-
-            if (landValue.HasValue)
-                finalValue.SetLandAreaValues(landAreaFromTitles, landValue.Value);
-        }
+        method.ApplyLandAreaValue(landAreaFromTitles, command.LandValue, command.IncludeLandArea);
 
         // Handle building value (toggle + amount)
         if (command.HasBuildingValue == true && command.BuildingValue.HasValue)

@@ -1,5 +1,6 @@
 using Appraisal.Domain.Appraisals.Hypothesis;
 using Appraisal.Domain.Appraisals.Income;
+using Appraisal.Domain.Services;
 
 namespace Appraisal.Domain.Appraisals;
 
@@ -201,6 +202,18 @@ public class PricingAnalysisMethod : Entity<Guid>
         MethodValue = value;
         ValuePerUnit = valuePerUnit;
         UnitType = unitType;
+
+        // Stamp the unit onto the final-value row so it survives what happens to UnitType here:
+        // SetCalcMode nulls this column but leaves that row's figures standing. It lives in the
+        // aggregate rather than in each save handler so the rule is stated once, for every caller.
+        //
+        // Only ever upgrades, never erases — the hazard is clobbering, not forgetting. No caller
+        // means "the unit is now unknown": each either names a unit outright or passes
+        // `method.UnitType` through to preserve it, and after a calc-mode flip that is NULL. Writing
+        // it would wipe the durable answer one line before a handler reads it, which is precisely
+        // what this column exists to prevent.
+        if (unitType is not null)
+            FinalValue?.SetFinalValueUnitType(unitType);
     }
 
     public void SetComparativeAnalysisTemplate(Guid? templateId)
@@ -319,6 +332,14 @@ public class PricingAnalysisMethod : Entity<Guid>
     public void SetFinalValue(PricingFinalValue finalValue)
     {
         FinalValue = finalValue;
+
+        // Carries the unit onto a freshly attached row. A caller that attaches before pricing (the
+        // BuildingCost seed, SetValue one line later) leaves it alone here and the right value
+        // lands there; one that attaches after (WQS and the other calc services) gets it first
+        // time. Same upgrade-only rule as SetValue, so attaching a row that already knows its unit
+        // to a method that has forgotten its own cannot blank it.
+        if (UnitType is not null)
+            finalValue.SetFinalValueUnitType(UnitType);
     }
 
     /// <summary>
@@ -346,6 +367,72 @@ public class PricingAnalysisMethod : Entity<Guid>
     }
 
     /// <summary>
+    /// Records the land area this method priced, and what that land is worth, when — and only when —
+    /// this method prices land BY AREA. Single home for a rule three save handlers used to carry a
+    /// copy of each (SetFinalValue, UpdateFinalValue, SaveComparativeAnalysis); it decides money that
+    /// reaches the engagement's frozen CurrentValue, the LOS payload and the AS400 regulatory file,
+    /// so it is stated once.
+    /// <para>
+    /// A per-unit RATE (PerSqWa/PerSqm) means the final value prices land per unit area, so area and
+    /// value are derivable and must NOT be gated on the building-cost toggle. PerUnit is a
+    /// whole-unit lumpsum carrying no land rate, so the row is left alone.
+    /// </para>
+    /// <para>
+    /// The unit is read LIVE first and the row's own stamp only when this method has genuinely
+    /// forgotten its own. Stamp-first would let a unit that has since become a lump sum be
+    /// multiplied by the land area. The stamp is consulted only while the row still includes land
+    /// area, because the one thing that nulls <see cref="UnitType"/> — <see cref="SetCalcMode"/> →
+    /// <see cref="ClearValue"/> — also calls <see cref="PricingFinalValue.ExcludeLandArea"/> in the
+    /// same operation; reading it unconditionally would let the next save recompute the figures and
+    /// flip IncludeLandArea back to true, quietly undoing an exclusion the appraiser asked for.
+    /// </para>
+    /// <para>
+    /// The appraiser's typed-over rate wins over the calculated one: <see cref="ValuePerUnit"/> is
+    /// whatever the calc service produced, and <see cref="PricingFinalValue.FinalValueOverride"/>
+    /// exists precisely to replace it — reading it second meant a saved override never reached the
+    /// land value at all. An explicit <paramref name="explicitLandValue"/> still wins over both; the
+    /// cost approach enters that figure by hand.
+    /// </para>
+    /// </summary>
+    /// <param name="landAreaFromTitles">
+    /// Area from the property's land titles — authoritative, never taken from the request.
+    /// </param>
+    /// <param name="explicitLandValue">A land value supplied by the caller, or null to derive one.</param>
+    /// <param name="includeLandArea">
+    /// The appraiser's own answer to "does this method price land at all" — false clears the area and
+    /// value outright. Null means the request did not say, which is not the same as false: the save
+    /// DTOs default it, so an ordinary save must not read silence as a decision to exclude.
+    /// </param>
+    public void ApplyLandAreaValue(
+        decimal landAreaFromTitles,
+        decimal? explicitLandValue,
+        bool? includeLandArea)
+    {
+        if (FinalValue is null)
+            return;
+
+        if (includeLandArea == false)
+        {
+            FinalValue.ExcludeLandArea();
+            return;
+        }
+
+        if (landAreaFromTitles <= 0m)
+            return;
+
+        var unit = UnitType ?? (FinalValue.IncludeLandArea ? FinalValue.FinalValueUnitType : null);
+        if (!PricingUnit.IsPerUnitRate(unit))
+            return;
+
+        var rate = FinalValue.FinalValueOverride ?? ValuePerUnit;
+        var landValue = explicitLandValue
+                        ?? (rate.HasValue ? landAreaFromTitles * rate.Value : (decimal?)null);
+
+        if (landValue.HasValue)
+            FinalValue.SetLandAreaValues(landAreaFromTitles, landValue.Value);
+    }
+
+    /// <summary>
     /// Mirrors the current MachineCostItems FMV total into the shared <see cref="FinalValue"/>,
     /// creating it if absent. User-authored fields
     /// (FinalValueOverride / IndicatedValue) are deliberately left untouched. Call AFTER recalculation
@@ -361,6 +448,15 @@ public class PricingAnalysisMethod : Entity<Guid>
             SetFinalValue(PricingFinalValue.Create(Id, totalFmv));
         else
             FinalValue.UpdateFinalValue(totalFmv);
+
+        // The only writer of a final value that never routes through SetValue, so it is the only
+        // one that has to name the unit itself. Machinery is always a whole-unit lumpsum (a sum of
+        // per-machine FMV) — said outright rather than left null and relying on null happening to
+        // read as lumpsum. Stamps the ROW only: UnitType is this method's own column and this
+        // operation's contract is to mirror the FMV total, not to decide the method's price unit.
+        // The literal matches PricingAnalysisApproach.cs's BuildingCost seed; PricingUnit.PerUnit
+        // is reachable (same assembly) but the two sibling writers should read alike.
+        FinalValue.SetFinalValueUnitType("PerUnit");
     }
 
     public void SetRsqResult(PricingRsqResult rsqResult)

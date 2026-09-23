@@ -679,7 +679,10 @@ public sealed class SummaryGroupRow
     /// <summary>Land price per square-wa (PricingFinalValues.FinalValueOverride). Cost approach only.</summary>
     public decimal? LandUnitPrice { get; init; }
 
-    /// <summary>Land appraised value (PricingFinalValues.LandValue). Cost approach only.</summary>
+    /// <summary>Land appraised value for the land ROW: <see cref="TotalSquareWa"/> ×
+    /// <see cref="LandUnitPrice"/>, so the row reconciles with the two cells printed beside it.
+    /// Falls back to PricingFinalValues.LandValue when there is no unit price to multiply by.
+    /// The appraiser's own adjusted figure is <see cref="LandSubtotal"/>. Cost approach only.</summary>
     public decimal? LandValue { get; init; }
 
     /// <summary>Building line items — one per BuildingAppraisalDetail, valued by its IsBuilding=1

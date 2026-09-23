@@ -25,6 +25,19 @@
 
   Run this MANUALLY (SSMS / sqlcmd). It is NOT part of DbUp/EF migrations.
 
+  !! STALE AS OF 2026-09-23 — DO NOT RUN WITHOUT READING THIS !!
+  The rate precedence below, COALESCE(m.ValuePerUnit, fv.FinalValueOverride),
+  is the bug that was fixed in the save handlers that day: the calculated rate
+  shadowed the appraiser's hand-entered override, so an override could never
+  reach LandValue. The handlers now read FinalValueOverride ?? ValuePerUnit
+  (SetFinalValue / UpdateFinalValue / SaveComparativeAnalysis command handlers).
+  Running this script as written would write the OLD, wrong figure over rows
+  that have since been saved correctly. The "mirrors the forward fix exactly"
+  claim immediately below is no longer true and applies only to LandArea.
+  Leaving the SQL unchanged was a deliberate call (the owner scoped that day's
+  work to code only) — flip both COALESCEs before any future run.
+  See docs/pricing-redesign/REVIEW-LOG-landvalue-unittype.md.
+
   DERIVATION — mirrors the forward fix exactly, so backfilled rows are
   indistinguishable from newly-saved ones:
     LandArea  = SUM over the group's land titles of

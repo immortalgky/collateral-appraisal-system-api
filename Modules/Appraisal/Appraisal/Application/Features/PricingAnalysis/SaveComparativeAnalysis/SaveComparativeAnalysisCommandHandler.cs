@@ -102,19 +102,7 @@ public class SaveComparativeAnalysisCommandHandler(
 
         var landAreaFromTitles = totalLandAreaFromTitles ?? 0m;
 
-        if (command.IncludeLandArea == false)
-        {
-            method.FinalValue.ExcludeLandArea();
-        }
-        else if (PricingUnit.IsPerUnitRate(method.UnitType) && landAreaFromTitles > 0m)
-        {
-            var rate = method.ValuePerUnit ?? method.FinalValue.FinalValueOverride;
-            var landValue = command.LandValue
-                ?? (rate.HasValue ? landAreaFromTitles * rate.Value : (decimal?)null);
-
-            if (landValue.HasValue)
-                method.FinalValue.SetLandAreaValues(landAreaFromTitles, landValue.Value);
-        }
+        method.ApplyLandAreaValue(landAreaFromTitles, command.LandValue, command.IncludeLandArea);
 
         // Building value toggle (separate from IndicatedValue now).
         //
