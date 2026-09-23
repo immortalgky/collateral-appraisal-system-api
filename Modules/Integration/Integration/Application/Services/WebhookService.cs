@@ -70,7 +70,12 @@ public class WebhookService(
             {
                 eventId,
                 eventType,
-                occurredAt = occurredAt.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ", System.Globalization.CultureInfo.InvariantCulture),
+                // Application-local time (IDateTimeProvider.ApplicationNow, Asia/Bangkok), no offset -- the same
+                // clock as the dates in the result payloads LOS fetches after this notification (their format
+                // differs: this one keeps milliseconds).
+                // Every caller passes an ApplicationNow-stamped value; ToUniversalTime() used to reinterpret
+                // it by the HOST's zone, which on a UTC host emitted Thai wall-clock time labelled "Z".
+                occurredAt = occurredAt.ToString("yyyy-MM-ddTHH:mm:ss.fff", CultureInfo.InvariantCulture),
                 externalCaseKey,
                 data
             };
