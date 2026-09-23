@@ -20,7 +20,7 @@ public class GetMeetingDetailEndpoint : ICarterModule
             })
             .WithName("GetMeetingDetail")
             .WithTags("Meetings")
-            .RequireAuthorization("CommitteeMember");
+            .RequireAuthorization("MeetingView");
     }
 }
 
