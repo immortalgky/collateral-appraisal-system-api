@@ -77,9 +77,27 @@ public class SetFinalValueCommandHandler(
         {
             finalValue.ExcludeLandArea();
         }
-        else if (PricingUnit.IsPerUnitRate(method.UnitType) && landAreaFromTitles > 0m)
+        else if (PricingUnit.IsPerUnitRate(
+                     method.UnitType
+                     ?? (finalValue.IncludeLandArea ? finalValue.FinalValueUnitType : null))
+                 && landAreaFromTitles > 0m)
         {
-            var rate = method.ValuePerUnit ?? finalValue.FinalValueOverride;
+            // The gate reads the LIVE unit first and the row's stamp only when the method has
+            // genuinely forgotten its own. Stamp-first would let a unit that has since become a
+            // lump sum be multiplied by the land area, and that figure reaches the AS400 regulatory
+            // file and LOS.
+            //
+            // The stamp is consulted only while the row still includes land area, because the one
+            // thing that nulls UnitType — SetCalcMode -> ClearValue — also calls ExcludeLandArea()
+            // in the same operation. Reading the stamp unconditionally would let the next save
+            // recompute LandArea/LandValue and flip IncludeLandArea back to true, quietly undoing
+            // an exclusion the appraiser asked for (the request DTOs default IncludeLandArea to
+            // null, so an ordinary save does not restate it).
+            //
+            // The appraiser's typed-over rate wins over the calculated one. ValuePerUnit is whatever
+            // the calc service produced; an override exists precisely to replace it, so reading it
+            // second meant a saved override could never reach the land value at all.
+            var rate = finalValue.FinalValueOverride ?? method.ValuePerUnit;
             var landValue = command.LandValue
                 ?? (rate.HasValue ? landAreaFromTitles * rate.Value : (decimal?)null);
 
