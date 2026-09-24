@@ -15,11 +15,11 @@ public class ShortlistSentToRmNotificationHandler(
     ILogger<ShortlistSentToRmNotificationHandler> logger,
     InboxGuard<NotificationDbContext> inboxGuard) : IConsumer<ShortlistSentToRmIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<ShortlistSentToRmIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<ShortlistSentToRmIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<ShortlistSentToRmIntegrationEvent> context)
+    {
         var message = context.Message;
 
         logger.LogInformation(
@@ -30,7 +30,6 @@ public class ShortlistSentToRmNotificationHandler(
         {
             if (string.IsNullOrEmpty(message.RmUsername))
             {
-                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
                 return;
             }
 
@@ -47,8 +46,6 @@ public class ShortlistSentToRmNotificationHandler(
             logger.LogInformation(
                 "Sent ShortlistSentToRm notification to RM {RmUsername} for QuotationRequestId={QuotationRequestId}",
                 message.RmUsername, message.QuotationRequestId);
-
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
         }
         catch (Exception ex)
         {

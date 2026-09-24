@@ -30,11 +30,11 @@ public class TaskAssignedNotificationIntegrationEventHandler : IConsumer<TaskAss
         _dateTimeProvider = dateTimeProvider;
     }
 
-    public async Task Consume(ConsumeContext<TaskAssignedIntegrationEvent> context)
-    {
-        if (await _inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<TaskAssignedIntegrationEvent> context) =>
+        _inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<TaskAssignedIntegrationEvent> context)
+    {
         var taskAssigned = context.Message;
 
         _logger.LogInformation("Processing TaskAssigned notification for user {AssignedTo} and task {TaskName}",
@@ -102,8 +102,6 @@ public class TaskAssignedNotificationIntegrationEventHandler : IConsumer<TaskAss
                 _logger.LogInformation("Successfully sent request-progressed notification to RM {StartedBy}",
                     taskAssigned.StartedBy);
             }
-
-            await _inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
         }
         catch (Exception ex)
         {

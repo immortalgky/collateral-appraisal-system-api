@@ -11,11 +11,11 @@ public class AppraisalCreatedNotificationIntegrationEventHandler(
     ILogger<AppraisalCreatedNotificationIntegrationEventHandler> logger,
     InboxGuard<NotificationDbContext> inboxGuard) : IConsumer<AppraisalCreatedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<AppraisalCreatedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<AppraisalCreatedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<AppraisalCreatedIntegrationEvent> context)
+    {
         var message = context.Message;
 
         logger.LogInformation(
@@ -31,7 +31,6 @@ public class AppraisalCreatedNotificationIntegrationEventHandler(
                 logger.LogWarning(
                     "AppraisalCreated event has no RequestedBy/CreatedBy for AppraisalId {AppraisalId}. Skipping notification.",
                     message.AppraisalId);
-                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
                 return;
             }
 
@@ -52,8 +51,6 @@ public class AppraisalCreatedNotificationIntegrationEventHandler(
             logger.LogInformation(
                 "Sent AppraisalCreated notification to {NotifyUser} for appraisal {AppraisalNumber}",
                 notifyUser, appraisalNumber);
-
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
         }
         catch (Exception ex)
         {

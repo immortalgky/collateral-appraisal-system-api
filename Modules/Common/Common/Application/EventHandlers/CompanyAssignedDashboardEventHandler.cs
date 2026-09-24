@@ -15,11 +15,11 @@ public class CompanyAssignedDashboardEventHandler(
     InboxGuard<CommonDbContext> inboxGuard,
     IDateTimeProvider dateTimeProvider) : IConsumer<CompanyAssignedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<CompanyAssignedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<CompanyAssignedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<CompanyAssignedIntegrationEvent> context)
+    {
         var message = context.Message;
 
         logger.LogInformation(
@@ -47,7 +47,5 @@ public class CompanyAssignedDashboardEventHandler(
                 Date = message.OccurredOn.Date,
                 Now = dateTimeProvider.ApplicationNow
             });
-
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }
 }
