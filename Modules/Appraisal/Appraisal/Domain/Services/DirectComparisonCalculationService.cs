@@ -49,13 +49,18 @@ public class DirectComparisonCalculationService : IPricingCalculationService
         var initialPrice = PricingCalculationHelper.ComputeInitialPrice(calc) ?? 0m;
 
         // Step 2: 2nd Revision — recalculate area adjustments
-        var landValueAdj = (calc.LandAreaDeficient ?? 0m) * (calc.LandPrice ?? 0m);
+        // Rounded to satang at every step, matching the screen — see PricingCalculationHelper.Round2
+        // and the identical sequence in SaleGridCalculationService.
+        var landValueAdj = PricingCalculationHelper.Round2(
+            (calc.LandAreaDeficient ?? 0m) * (calc.LandPrice ?? 0m));
         calc.SetLandAdjustment(calc.LandAreaDeficient, calc.LandAreaDeficientUnit, calc.LandPrice, landValueAdj);
 
-        var buildingValueAdj = (calc.UsableAreaDeficient ?? 0m) * (calc.UsableAreaPrice ?? 0m);
+        var buildingValueAdj = PricingCalculationHelper.Round2(
+            (calc.UsableAreaDeficient ?? 0m) * (calc.UsableAreaPrice ?? 0m));
         calc.SetBuildingAdjustment(calc.UsableAreaDeficient, calc.UsableAreaDeficientUnit, calc.UsableAreaPrice, buildingValueAdj);
 
-        var totalSecondRevision = initialPrice + landValueAdj + buildingValueAdj;
+        var totalSecondRevision = PricingCalculationHelper.Round2(
+            initialPrice + landValueAdj + buildingValueAdj);
 
         // Step 3: Factor adjustments
         var factorScores = method.GetFactorScoresForComparable(calc.MarketComparableId).ToList();
@@ -67,17 +72,19 @@ public class DirectComparisonCalculationService : IPricingCalculationService
         {
             if (score.AdjustmentPct.HasValue)
             {
-                var amt = totalSecondRevision * (score.AdjustmentPct.Value / 100m);
+                var amt = PricingCalculationHelper.Round2(
+                    totalSecondRevision * (score.AdjustmentPct.Value / 100m));
                 score.SetAdjustment(score.AdjustmentPct, amt, score.ComparisonResult, score.Remarks);
                 totalFactorDiffPct += score.AdjustmentPct.Value;
                 totalFactorDiffAmt += amt;
             }
         }
 
-        calc.SetFactorAdjustment(totalFactorDiffPct, totalFactorDiffAmt);
+        calc.SetFactorAdjustment(totalFactorDiffPct, PricingCalculationHelper.Round2(totalFactorDiffAmt));
 
         // Step 4: Total adjusted value
-        var totalAdjustedValue = totalSecondRevision + totalFactorDiffAmt;
+        var totalAdjustedValue = PricingCalculationHelper.Round2(
+            totalSecondRevision + PricingCalculationHelper.Round2(totalFactorDiffAmt));
         calc.SetResult(totalAdjustedValue);
 
         // No weighting step for DirectComparison

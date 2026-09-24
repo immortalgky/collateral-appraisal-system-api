@@ -45,13 +45,19 @@ public class SaleGridCalculationService : IPricingCalculationService
         var initialPrice = PricingCalculationHelper.ComputeInitialPrice(calc) ?? 0m;
 
         // Step 2: 2nd Revision — recalculate area adjustments
-        var landValueAdj = (calc.LandAreaDeficient ?? 0m) * (calc.LandPrice ?? 0m);
+        // Every intermediate is rounded to satang at the same step the screen rounds it — see
+        // PricingCalculationHelper.Round2. Rounding at each step, not once at the end, because the
+        // screen does: matching only the final figure would still restore different cells.
+        var landValueAdj = PricingCalculationHelper.Round2(
+            (calc.LandAreaDeficient ?? 0m) * (calc.LandPrice ?? 0m));
         calc.SetLandAdjustment(calc.LandAreaDeficient, calc.LandAreaDeficientUnit, calc.LandPrice, landValueAdj);
 
-        var buildingValueAdj = (calc.UsableAreaDeficient ?? 0m) * (calc.UsableAreaPrice ?? 0m);
+        var buildingValueAdj = PricingCalculationHelper.Round2(
+            (calc.UsableAreaDeficient ?? 0m) * (calc.UsableAreaPrice ?? 0m));
         calc.SetBuildingAdjustment(calc.UsableAreaDeficient, calc.UsableAreaDeficientUnit, calc.UsableAreaPrice, buildingValueAdj);
 
-        var totalSecondRevision = initialPrice + landValueAdj + buildingValueAdj;
+        var totalSecondRevision = PricingCalculationHelper.Round2(
+            initialPrice + landValueAdj + buildingValueAdj);
 
         // Step 3: Factor adjustments — recalculate AdjustmentAmt per factor
         var factorScores = method.GetFactorScoresForComparable(calc.MarketComparableId).ToList();
@@ -63,23 +69,25 @@ public class SaleGridCalculationService : IPricingCalculationService
         {
             if (score.AdjustmentPct.HasValue)
             {
-                var amt = totalSecondRevision * (score.AdjustmentPct.Value / 100m);
+                var amt = PricingCalculationHelper.Round2(
+                    totalSecondRevision * (score.AdjustmentPct.Value / 100m));
                 score.SetAdjustment(score.AdjustmentPct, amt, score.ComparisonResult, score.Remarks);
                 totalFactorDiffPct += score.AdjustmentPct.Value;
                 totalFactorDiffAmt += amt;
             }
         }
 
-        calc.SetFactorAdjustment(totalFactorDiffPct, totalFactorDiffAmt);
+        calc.SetFactorAdjustment(totalFactorDiffPct, PricingCalculationHelper.Round2(totalFactorDiffAmt));
 
         // Step 4: Total adjusted value
-        var totalAdjustedValue = totalSecondRevision + totalFactorDiffAmt;
+        var totalAdjustedValue = PricingCalculationHelper.Round2(
+            totalSecondRevision + PricingCalculationHelper.Round2(totalFactorDiffAmt));
         calc.SetResult(totalAdjustedValue);
 
         // Step 5: Weighted adjusted value (SaleGrid uses weighting)
         if (calc.Weight.HasValue)
         {
-            var weightedValue = totalAdjustedValue * calc.Weight.Value;
+            var weightedValue = PricingCalculationHelper.Round2(totalAdjustedValue * calc.Weight.Value);
             calc.SetWeight(calc.Weight, weightedValue);
         }
     }

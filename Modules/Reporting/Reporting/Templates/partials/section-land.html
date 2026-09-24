@@ -46,7 +46,7 @@
       <td colspan="6" style="text-align:right;">รวมเนื้อที่ดิน</td>
       <td class="num">{{ land_section.total_rai | math.format "#,##0" }}</td>
       <td class="num">{{ land_section.total_ngan | math.format "#,##0" }}</td>
-      <td class="num">{{ land_section.total_square_wa | math.format "#,##0" }}</td>
+      <td class="num">{{ land_section.total_square_wa | math.format "#,##0.##" }}</td>
       <td>หรือ {{ land_section.total_area_in_wa | math.format "#,##0.##" }} ตารางวา</td>
     </tr>
     {{ if land_section.deducted_area_in_wa > 0 }}

@@ -314,8 +314,20 @@ public class PricingPropertyDataService(
         // Calculate fraction using DAYS360
         var firstRow = contractRows[startIdx];
         var days360 = Days360Between(appraisal, firstRow.ContractEnd);
-        var fraction = Math.Round(((decimal)days360 + 1) / 360m, 1);
-        var firstMonths = Math.Round(((decimal)days360 + 1) / 30m, 1);
+        // AwayFromZero, not Math.Round's default. The screen computes the same figure as
+        // `Math.round(((days360 + 1) / 360) * 10) / 10` (calculateLeasehold.ts), i.e. halves up, and
+        // its own comment cites Excel's ROUND — which is also halves up. Banker's rounding disagreed
+        // at ten reachable day counts per two-year window (days360 + 1 = 18, 90, 162, 234, 306, …),
+        // every one of them landing exactly on x.x5 because 360 divides evenly: 0.25 became 0.2 here
+        // and 0.3 on screen. That is 0.1 of a year of rent on the first period AND on the `year` that
+        // drives the PV factors, so the whole discounting chain shifted. At days360 + 1 = 18 it was
+        // worse than a wrong number: 0.05 rounded to 0.0, the `fraction > 0` guard below then
+        // dropped the first schedule row outright while the screen still showed it.
+        var fraction = Math.Round(((decimal)days360 + 1) / 360m, 1, MidpointRounding.AwayFromZero);
+        // Same rule for the month count. It has no counterpart on the screen, so nothing disagreed
+        // with it — but it is the same derivation from the same days, and leaving one of the pair on
+        // banker's is how the next reader concludes the mode here is arbitrary.
+        var firstMonths = Math.Round(((decimal)days360 + 1) / 30m, 1, MidpointRounding.AwayFromZero);
 
         var result = new List<AppraisalScheduleRow>();
 
