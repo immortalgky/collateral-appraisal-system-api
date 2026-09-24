@@ -23,16 +23,11 @@ public sealed class ShortlistSentToRmEmailHandler(
     ILogger<ShortlistSentToRmEmailHandler> logger)
     : IConsumer<ShortlistSentToRmEmailIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<ShortlistSentToRmEmailIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
-
-        var msg = context.Message;
-        var ct = context.CancellationToken;
-
-        try
+    public Task Consume(ConsumeContext<ShortlistSentToRmEmailIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, async ct =>
         {
+            var msg = context.Message;
+
             var rm = string.IsNullOrWhiteSpace(msg.RmUsername)
                 ? null
                 : await userLookupService.GetRequestorAsync(msg.RmUsername, ct);
@@ -42,7 +37,6 @@ public sealed class ShortlistSentToRmEmailHandler(
                 logger.LogWarning(
                     "Skipping quotation fee-notice email: no RM email for RmUsername={RmUsername} (MessageId={MessageId})",
                     msg.RmUsername, context.MessageId);
-                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
                 return;
             }
 
@@ -75,16 +69,7 @@ public sealed class ShortlistSentToRmEmailHandler(
                 To: [rm.Email],
                 Source: "ShortlistSentToRm",
                 ReferenceId: msg.QuotationRequestId.ToString()), ct);
-
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex,
-                "Error sending quotation fee-notice email (MessageId={MessageId})", context.MessageId);
-            throw;
-        }
-    }
+        }, context.CancellationToken);
 
     private async Task<string> ResolveNameAsync(string? username, CancellationToken ct)
     {

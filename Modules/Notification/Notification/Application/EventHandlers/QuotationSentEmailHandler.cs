@@ -20,15 +20,11 @@ public sealed class QuotationSentEmailHandler(
     ILogger<QuotationSentEmailHandler> logger)
     : IConsumer<QuotationSentEmailIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<QuotationSentEmailIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
-
-        var msg = context.Message;
-
-        try
+    public Task Consume(ConsumeContext<QuotationSentEmailIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, async _ =>
         {
+            var msg = context.Message;
+
             var toAddresses = EmailRecipients.Parse(msg.To);
             var ccAddresses = EmailRecipients.Parse(msg.Cc);
             var bccAddresses = EmailRecipients.Parse(msg.Bcc);
@@ -38,7 +34,6 @@ public sealed class QuotationSentEmailHandler(
             {
                 logger.LogWarning(
                     "Skipping quotation email with no valid recipient (MessageId={MessageId})", context.MessageId);
-                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
                 return;
             }
 
@@ -61,14 +56,5 @@ public sealed class QuotationSentEmailHandler(
                 ReferenceId: msg.QuotationRequestId.ToString());
 
             await emailSender.SendAsync(email, context.CancellationToken);
-
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex,
-                "Error sending quotation email (MessageId={MessageId})", context.MessageId);
-            throw;
-        }
-    }
+        }, context.CancellationToken);
 }

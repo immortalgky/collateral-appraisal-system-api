@@ -205,6 +205,46 @@ public class InboxGuard<TDbContext>(
     }
 
     /// <summary>
+    /// Claim, run <paramref name="work"/>, then mark processed. If the work throws, the claim is released
+    /// before rethrowing so the bus retry really re-runs it instead of skipping and acking the message.
+    /// Returning early from <paramref name="work"/> (a deliberate skip) still marks it processed.
+    /// </summary>
+    public async Task RunOnceAsync(
+        Guid? messageId, string consumerType, Func<CancellationToken, Task> work, CancellationToken ct)
+    {
+        if (await TryClaimAsync(messageId, consumerType, ct))
+            return;
+
+        // Taken right after the claim so ReleaseClaimAsync only removes our own row.
+        var claimedBefore = dateTimeProvider.ApplicationNow;
+
+        try
+        {
+            await work(ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[INBOX] {Consumer} failed on message {MessageId}; releasing claim for retry",
+                consumerType, messageId);
+            try
+            {
+                await ReleaseClaimAsync(messageId, consumerType, claimedBefore, CancellationToken.None);
+            }
+            catch (Exception releaseEx)
+            {
+                logger.LogError(releaseEx, "[INBOX] Could not release claim on message {MessageId} for {Consumer}",
+                    messageId, consumerType);
+            }
+
+            throw;
+        }
+
+        // Outside the try on purpose: a failed mark after the work succeeded must not release the claim and
+        // let a retry run it twice. None, not ct, so a shutdown right after the work cannot skip the mark.
+        await MarkAsProcessedAsync(messageId, consumerType, CancellationToken.None);
+    }
+
+    /// <summary>
     /// Mark the message as processed after successful consumer execution.
     /// </summary>
     public async Task MarkAsProcessedAsync(Guid? messageId, string consumerType, CancellationToken ct)

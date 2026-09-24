@@ -21,16 +21,11 @@ public sealed class DocumentFollowupEmailHandler(
     ILogger<DocumentFollowupEmailHandler> logger)
     : IConsumer<DocumentFollowupEmailIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<DocumentFollowupEmailIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
-
-        var msg = context.Message;
-        var ct = context.CancellationToken;
-
-        try
+    public Task Consume(ConsumeContext<DocumentFollowupEmailIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, async ct =>
         {
+            var msg = context.Message;
+
             var rm = string.IsNullOrWhiteSpace(msg.RmUsername)
                 ? null
                 : await userLookupService.GetRequestorAsync(msg.RmUsername, ct);
@@ -40,7 +35,6 @@ public sealed class DocumentFollowupEmailHandler(
                 logger.LogWarning(
                     "Skipping document-followup email: no RM email for RmUsername={RmUsername} (MessageId={MessageId})",
                     msg.RmUsername, context.MessageId);
-                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
                 return;
             }
 
@@ -59,16 +53,7 @@ public sealed class DocumentFollowupEmailHandler(
                 To: [rm.Email],
                 Source: "DocumentFollowup",
                 ReferenceId: msg.FollowupId.ToString()), ct);
-
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex,
-                "Error sending document-followup email (MessageId={MessageId})", context.MessageId);
-            throw;
-        }
-    }
+        }, context.CancellationToken);
 
     private async Task<string> ResolveNameAsync(string? username, CancellationToken ct)
     {
