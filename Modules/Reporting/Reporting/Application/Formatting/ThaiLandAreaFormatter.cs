@@ -19,7 +19,7 @@ public static class ThaiLandAreaFormatter
     public static string FormatTotal(decimal sumRai, decimal sumNgan, decimal sumSqWa)
     {
         var t = NormalizeTotal(sumRai, sumNgan, sumSqWa);
-        return $"{t.Rai:#,##0} - {t.Ngan} - {t.Wa} ไร่ หรือ {t.TotalSquareWa:#,##0.##} ตารางวา";
+        return $"{t.Rai:#,##0} - {t.Ngan} - {t.Wa:#,##0.##} ไร่ หรือ {t.TotalSquareWa:#,##0.##} ตารางวา";
     }
 
     /// <summary>
@@ -29,16 +29,32 @@ public static class ThaiLandAreaFormatter
     /// </summary>
     public static LandAreaTotal NormalizeTotal(decimal sumRai, decimal sumNgan, decimal sumSqWa)
     {
-        decimal totalSqWa = Math.Round(sumRai * 400m + sumNgan * 100m + sumSqWa, 2);
+        decimal totalSqWa = Math.Round(
+            sumRai * 400m + sumNgan * 100m + sumSqWa, 2, MidpointRounding.AwayFromZero);
 
-        var wa = (int)Math.Round(sumSqWa % 100);
-        decimal nganCarried = sumNgan + Math.Floor(sumSqWa / 100);
-        var ngan = (int)(nganCarried % 4);
-        var rai = (int)(sumRai + Math.Floor(nganCarried / 4));
+        // Decomposed from the single total rather than carried component by component. Each of the
+        // three inputs is decimal — AreaRai, AreaNgan and AreaSquareWa all arrive as decimal? from
+        // the title rows — so any of them can bring a fraction, and the old carry-by-component
+        // arithmetic truncated whichever one it happened to cast. Two rounds of patching it (wa, then
+        // ngan) each fixed one component and broke another: correcting the rounding overflow after
+        // the ngan carry-down let 2.5 ngan + 60 sq.wa print as "0 - 2 - 110".
+        //
+        // Dividing the rounded total instead makes the triple correct by construction: wa is a
+        // remainder below 100 and ngan a remainder below 4, so neither can overflow, and the triple
+        // always reconciles with the "หรือ X ตารางวา" figure on the same line — which is the whole
+        // point of this formatter, since an appraiser checks both halves against the deed.
+        var rai = (int)Math.Floor(totalSqWa / 400m);
+        var afterRai = totalSqWa - rai * 400m;
+        var ngan = (int)Math.Floor(afterRai / 100m);
+        var wa = afterRai - ngan * 100m;
 
         return new LandAreaTotal(rai, ngan, wa, totalSqWa);
     }
 }
 
 /// <summary>Normalised land-area total: carried rai/ngan/wa + absolute square-wa.</summary>
-public readonly record struct LandAreaTotal(int Rai, int Ngan, int Wa, decimal TotalSquareWa);
+/// <remarks>
+/// <paramref name="Wa"/> is decimal, not int: a deed's square-wa figure carries two decimals and the
+/// book is read against the deed.
+/// </remarks>
+public readonly record struct LandAreaTotal(int Rai, int Ngan, decimal Wa, decimal TotalSquareWa);

@@ -59,7 +59,16 @@ public class UpdateFinalValueCommandHandler(
 
         var landAreaFromTitles = totalLandAreaFromTitles ?? 0m;
 
-        method.ApplyLandAreaValue(landAreaFromTitles, command.LandValue, command.IncludeLandArea);
+        // Approach type, not method.Role: Role is also null on cost rows that predate it, and
+        // treating those as market would clear a land value that is real.
+        var isCostApproach = pricingAnalysis.Approaches
+            .First(a => a.Id == method.ApproachId).ApproachType == "Cost";
+
+        method.ApplyLandAreaValue(
+            landAreaFromTitles, command.LandValue, command.IncludeLandArea, isCostApproach);
+
+        // Captured before the building block below flips it — see the parameter's remarks.
+        var buildingWasPresentBeforeThisSave = finalValue.HasBuildingValue;
 
         // Handle building value (toggle + amount)
         if (command.HasBuildingValue == true && command.BuildingValue.HasValue)
@@ -81,6 +90,9 @@ public class UpdateFinalValueCommandHandler(
         // RecalculateRollup, not a direct approach.SetValue(this method): a Cost approach sums its
         // selected methods (Land + Building), so one method's value is not the approach's.
         method.SyncMethodValueWithIndicatedValue();
+        // A Role=Land method's land IS its indicated value — settle that here, after the typed
+        // figure is in, so every reader of LandValue gets one answer.
+        method.SyncLandValueWithIndicatedValue(buildingWasPresentBeforeThisSave);
         pricingAnalysis.RecalculateRollup();
 
         return new UpdateFinalValueResult(

@@ -229,8 +229,6 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 landPfv.ValuePerUnit,
                 landPfv.UnitType,
                 landPfv.IncludeLandArea,
-                landPfv.Role,
-                landPfv.IndicatedValue,
                 (SELECT TOP 1 ap.PropertyType
                  FROM appraisal.PropertyGroupItems gi2
                  JOIN appraisal.AppraisalProperties ap ON ap.Id = gi2.AppraisalPropertyId
@@ -296,10 +294,6 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                     fv.BuildingValue,
                     fv.FinalValueOverride,
                     fv.IncludeLandArea,
-                    -- Role + IndicatedValue: on a Role=Land method the appraiser's typed-over total
-                    -- IS the land price, so it is what รวมมูลค่าที่ดิน prints. See LandSubtotal.
-                    fv.IndicatedValue,
-                    pm.Role,
                     pm.ValuePerUnit,
                     pm.UnitType
                 FROM appraisal.PricingAnalysisApproaches pap
@@ -1394,21 +1388,6 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                                       && marketLandArea.HasValue
                                       && marketLandUnitPrice.HasValue;
 
-            // What the group's LAND is appraised at, as opposed to what its land arithmetic comes
-            // to. On a Role=Land method the method prices land and nothing else (leaving
-            // LandAndBuilding goes through RevertToLand, so the role is the guarantee), which makes
-            // its IndicatedValue — the appraiser's typed-over total — the land price itself.
-            // PricingFinalValues.LandValue is the mechanical component (area × rate) and no longer
-            // carries the appraiser's own figure now that the save handlers derive it, so reading it
-            // here would drop their adjustment from the page entirely.
-            //
-            // Role LandAndBuilding is deliberately excluded: there IndicatedValue spans land AND
-            // building, so it is not a land subtotal. A legacy NULL role is excluded too — it
-            // predates the guarantee, and LandValue is the safe reading.
-            var landAppraisedValue = string.Equals(g.Role, "Land", StringComparison.OrdinalIgnoreCase)
-                ? g.IndicatedValue ?? g.LandValue
-                : g.LandValue;
-
             return new SummaryGroupRow
             {
                 GroupNumber = g.GroupNumber,
@@ -1455,24 +1434,36 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 //   g.LandValue.HasValue  — never invent a land value for a group that never
                 //                           recorded one.
                 //
-                // Where the appraiser's own adjusted figure shows instead: `landAppraisedValue`
-                // above, which drives both the รวมมูลค่าที่ดิน subtotal and the group total. So the
-                // land row is the arithmetic and the lines beneath it are the appraised price; they
-                // differ by exactly the adjustment, which is the point.
+                // Where the appraiser's own adjusted figure shows instead: PricingFinalValues.LandValue
+                // itself, which the รวมมูลค่าที่ดิน subtotal and the group total print. On a Role=Land
+                // method that column IS the appraised land price — PricingAnalysisMethod
+                // .SyncLandValueWithIndicatedValue settles that at save time, so nothing here has to
+                // choose between two figures. The land row is the arithmetic; the lines beneath it
+                // are the appraised price, differing by exactly the adjustment.
                 //
                 // The subtotal row only prints for a SINGLE group that has both land and buildings
                 // (summary-standard-body.html:65). For a multi-group report or a land-only Cost
                 // group it is absent, and the land row then sits directly under รวมมูลค่าทรัพย์สิน
                 // กลุ่ม with nothing between them to name the difference. Recorded in
                 // docs/pricing-redesign/REVIEW-LOG-landvalue-unittype.md.
+                // Whole baht: this cell IS the multiplication — เนื้อที่ × ราคา/ตร.ว. — and rounds the
+                // way ApplyLandAreaValue does so the arithmetic on the page is self-consistent.
+                //
+                // It no longer equals the stored LandValue, and is not meant to. For a Role=Land
+                // method SyncLandValueWithIndicatedValue now overwrites LandValue with the figure the
+                // appraiser committed, which the manual-cost path rounds to the nearest 1,000 — so
+                // the two can differ by up to 999 baht, not by satang. That gap is the point of the
+                // layout the user asked for: the row shows the product, the subtotal below it
+                // (LandSubtotal = g.LandValue) shows what was committed, and the difference is
+                // visible rather than reconciled away.
                 LandValue = isLandRate
                             && g.IncludeLandArea != false
                             && g.LandValue.HasValue
                             && totalSquareWa > 0m
                             && g.LandUnitPrice.HasValue
-                    ? totalSquareWa * g.LandUnitPrice.Value
+                    ? Math.Round(totalSquareWa * g.LandUnitPrice.Value, 0, MidpointRounding.AwayFromZero)
                     : g.LandValue,
-                LandSubtotal = landAppraisedValue,
+                LandSubtotal = g.LandValue,
                 BuildingSubtotal = buildingSubtotal == 0m ? null : buildingSubtotal,
                 BuildingSubtotalCurrent = buildingSubtotalCurrent == 0m ? null : buildingSubtotalCurrent,
                 BuildingSubtotalCompleted = buildingSubtotalCompleted == 0m ? null : buildingSubtotalCompleted,
@@ -1493,7 +1484,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 // A market/combined group states one blended value with no components to sum, so it
                 // keeps its own total.
                 GroupTotalCurrent = splitLandAndBuilding
-                    ? (landAppraisedValue ?? 0m) + buildingSubtotalCurrent
+                    ? (g.LandValue ?? 0m) + buildingSubtotalCurrent
                     : groupTotal
             };
         }).ToList();
@@ -1953,8 +1944,6 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public decimal? ValuePerUnit { get; init; }           // PricingAnalysisMethods.ValuePerUnit
         public string? UnitType { get; init; }                // "PerSqWa" | "PerSqm" | "PerUnit"
         public bool? IncludeLandArea { get; init; }
-        public string? Role { get; init; }                    // "Land" | "LandAndBuilding" | "Building" | NULL (legacy)
-        public decimal? IndicatedValue { get; init; }         // the land method's own typed-over total
         public string? PropertyType { get; init; }
         public bool HasCombinedProperty { get; init; }        // group holds an LB / LS property
         public string? FirstTitleNumber { get; init; }

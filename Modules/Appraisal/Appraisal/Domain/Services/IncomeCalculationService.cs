@@ -592,7 +592,7 @@ public class IncomeCalculationService : IPricingCalculationService
             // price is at or below this bracket's floor — nothing more to tax
             if (totalPropertyPrice <= bracket.MinValue)
             {
-                return Math.Round(propertyTax, 0);
+                return Math.Round(propertyTax, 0, MidpointRounding.AwayFromZero);
             }
 
             var upperBound = bracket.MaxValue ?? totalPropertyPrice;
@@ -600,7 +600,12 @@ public class IncomeCalculationService : IPricingCalculationService
             propertyTax += taxableAmount * bracket.TaxRate;
         }
 
-        return Math.Round(propertyTax, 0);
+        // AwayFromZero on both exits, not Math.Round's default. This is a whole-baht figure an
+        // appraiser reads on the Method 10 row, and the screen derives its own copy through
+        // `toDecimal(getPropertyTaxAmount(price), 0)` — halves up. `applyServerComputedFields` does
+        // not overwrite `detail.propertyTax.*`, so the two sat side by side in one grid disagreeing
+        // by a baht whenever a bracket boundary produced an exact .5.
+        return Math.Round(propertyTax, 0, MidpointRounding.AwayFromZero);
     }
 
     /// <summary>

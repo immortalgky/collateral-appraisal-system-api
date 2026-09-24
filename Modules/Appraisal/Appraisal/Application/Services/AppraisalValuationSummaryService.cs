@@ -245,29 +245,36 @@ public class AppraisalValuationSummaryService(
         var rate = await forceSaleRateResolver.ResolveAsync(appraisalId, row.ForceSaleRate, ct);
         var forced = total * rate / 100m;
 
-        // Book Verification wins. Once the reviewer verifies the price, the three money columns hold
-        // THEIR figures (written by SaveDecisionSummaryCommandHandler) — a later recompute must not
-        // replace them silently, which is what used to happen on any pricing edit or property delete.
-        // Date and approach still follow. Feeding the stored total back also keeps the integration
-        // event below quiet, since previousAppraisedValue then equals appraisedValue.
-        var priceVerified = await db.AppraisalDecisions
-            .AnyAsync(d => d.AppraisalId == appraisalId && d.IsPriceVerified == true, ct);
-
-        // The figure the book actually holds — the reviewer's once verified, else the fresh total.
-        // The integration event below must publish THIS, not the raw total: the workflow's approval
-        // tier / committee routing has to agree with the book.
-        var appraisedValue = priceVerified ? row.AppraisedValue : total;
+        // Every pricing change rewrites these three columns, Book Verification or not (user
+        // decision 2026-09-23). A verified price is the reviewer's answer to "do we accept the
+        // appraisal company's figure", not a lock on the appraisal: leaving it standing meant the
+        // book, LOS, the AS400 feed and the workflow's approval tier all kept quoting a number the
+        // pricing screen had already moved away from, with nothing on any screen saying so.
+        //
+        // The cost of this, stated plainly: a figure the reviewer typed in Decision Summary is
+        // overwritten the next time anyone touches pricing, and they are not told. The guard that
+        // used to sit here (added 2026-09-22 in b7f8bfcc) existed for exactly that reason. If that
+        // becomes a problem, the fix is to CLEAR IsPriceVerified on a pricing change so the review
+        // is re-requested — not to freeze a stale total again.
+        //
+        // The three are written as a coherent triple on purpose: recomputing one while leaving
+        // another frozen emitted things like "force-sale 1.27M of appraised 0" to the collateral
+        // master and the AS400 feed.
+        //
+        // The integration event below must publish THIS: the workflow's approval tier / committee
+        // routing has to agree with the book.
+        var appraisedValue = total;
 
         row.UpdateSummary(
             approach,
             date,
             appraisedValue,
-            priceVerified ? row.ForcedSaleValue : Math.Round(forced / 1000, MidpointRounding.AwayFromZero) * 1000,
+            Math.Round(forced / 1000, MidpointRounding.AwayFromZero) * 1000,
             // insuranceTotal is NOT rounded here: each property already rounded its derived figure to
             // the nearest 1,000, so an all-derived appraisal still totals to a multiple of 1,000,
             // while a coverage the appraiser keyed by hand reaches the book exactly as typed.
             // KEEP IN SYNC with BuildingInsuranceCalculator.cs.
-            priceVerified ? row.InsuranceValue : insuranceTotal);
+            insuranceTotal);
 
         // Surface the new appraisal-level appraised value to the Workflow module so the
         // approval-tier switch / committee selection route on appraised value (not facility limit).

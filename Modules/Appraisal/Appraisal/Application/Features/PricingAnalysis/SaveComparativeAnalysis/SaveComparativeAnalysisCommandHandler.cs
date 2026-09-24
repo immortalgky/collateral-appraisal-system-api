@@ -76,6 +76,13 @@ public class SaveComparativeAnalysisCommandHandler(
             method.SetFinalValue(PricingFinalValue.Create(method.Id, 0m));
         }
 
+        // Captured before the building block below flips it. This is the one handler where it can
+        // genuinely be true: unticking "include building" here runs RevertToLand + ClearBuildingValue,
+        // and the board echoes back the stored IndicatedValue — which was written while the building
+        // WAS included, so it is a land+building total. Without this the land sync would copy that
+        // combined figure into LandValue and every reader would add the building a second time.
+        var buildingWasPresentBeforeThisSave = method.FinalValue?.HasBuildingValue ?? false;
+
         // Persist user-overridden final value adjusted (not recalculated by backend)
         method.FinalValue!.SetFinalValueOverride(command.FinalValueOverride);
 
@@ -102,7 +109,13 @@ public class SaveComparativeAnalysisCommandHandler(
 
         var landAreaFromTitles = totalLandAreaFromTitles ?? 0m;
 
-        method.ApplyLandAreaValue(landAreaFromTitles, command.LandValue, command.IncludeLandArea);
+        var approach = pricingAnalysis.Approaches.First(a => a.Id == method.ApproachId);
+
+        // Approach type, not method.Role: Role is also null on cost rows that predate it, and
+        // treating those as market would clear a land value that is real.
+        method.ApplyLandAreaValue(
+            landAreaFromTitles, command.LandValue, command.IncludeLandArea,
+            isCostApproach: approach.ApproachType == "Cost");
 
         // Building value toggle (separate from IndicatedValue now).
         //
@@ -111,8 +124,6 @@ public class SaveComparativeAnalysisCommandHandler(
         // 15 (WQS/SAG/DC "include building" -> Building Cost). Market approach is unchanged: it has
         // no Cost-approach role/rollup concept, so the client-supplied BuildingValue is still stored
         // as-is, exactly as before.
-        var approach = pricingAnalysis.Approaches.First(a => a.Id == method.ApproachId);
-
         if (approach.ApproachType == "Cost")
         {
             if (command.HasBuildingValue == true)
@@ -168,6 +179,17 @@ public class SaveComparativeAnalysisCommandHandler(
             else if (command.HasBuildingValue == false)
                 method.FinalValue.ClearBuildingValue();
         }
+
+        // A Role=Land method's land IS its indicated value. This has to run LAST, after the block
+        // above, because that block is what settles the role: LinkOrCreateBuildingCostMethod re-tags
+        // the method LandAndBuilding and RevertToLand re-tags it Land. Placed before it — where this
+        // call originally sat — it read the role the save was about to change, and got both cases
+        // backwards: ticking "include building" saw Role=Land and copied the COMBINED land+building
+        // IndicatedValue into LandValue one line before the role became LandAndBuilding (the exact
+        // double-count ConstructionCurrentValueService and the book's land subtotal then compound),
+        // while unticking saw Role=LandAndBuilding, no-opped, and left the raw area × rate figure
+        // that RevertToLand's Role=Land was supposed to replace.
+        method.SyncLandValueWithIndicatedValue(buildingWasPresentBeforeThisSave);
 
         // Roll the recalculated method value up through approach → analysis (null-safe, idempotent).
         pricingAnalysis.RecalculateRollup();

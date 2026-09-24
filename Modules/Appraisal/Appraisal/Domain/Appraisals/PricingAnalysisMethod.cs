@@ -259,6 +259,18 @@ public class PricingAnalysisMethod : Entity<Guid>
         SetAsUnselected();
         ClearValue();
         FinalValue?.ExcludeLandArea();
+        // The typed-over total goes with the rest of the bundle, but only in the manual → system
+        // direction. That flip says "compute this from the comparables", and a figure left behind
+        // does the opposite: SyncMethodValueWithIndicatedValue pushes it back over MethodValue on the
+        // next save, so the method stayed pinned to a number the appraiser had just abandoned.
+        //
+        // The other direction is the opposite situation — the appraiser is switching to manual
+        // precisely to commit their own figure, and the board echoes the current value back with the
+        // flip. Clearing there dropped it, and UpdateMethod's "the value actually moved" gate then
+        // refused to re-stamp an unchanged number, so the method silently stopped being pinned at
+        // the moment it was supposed to start.
+        if (useSystemCalc)
+            FinalValue?.ClearIndicatedValue();
     }
 
     /// <summary>
@@ -357,6 +369,81 @@ public class PricingAnalysisMethod : Entity<Guid>
     }
 
     /// <summary>
+    /// On a <c>Role = Land</c> method, makes <see cref="PricingFinalValue.LandValue"/> the figure the
+    /// appraiser settled on rather than the raw <c>area × rate</c> this save derived.
+    /// <para>
+    /// Such a method prices land and nothing else (leaving LandAndBuilding goes through
+    /// <c>RevertToLand</c>, so the role is the guarantee), which makes its IndicatedValue the land
+    /// price itself. Without this the row carries two answers to one question — the arithmetic in
+    /// LandValue and the appraised figure in IndicatedValue — and every reader has to know which to
+    /// prefer. Settling it here means they can all just read the column: the summary book, the
+    /// engagement's frozen CurrentValue, the LOS payload and the MIS land columns.
+    /// </para>
+    /// <para>
+    /// Deliberately NOT applied to <c>LandAndBuilding</c>: there IndicatedValue spans land AND
+    /// building, so writing it to LandValue would count the building twice. A row with no typed
+    /// figure, or one whose land area the appraiser excluded, keeps what it had.
+    /// </para>
+    /// <para>
+    /// Call LAST — after <see cref="PricingFinalValue.SetIndicatedValue"/> AND after whatever wrote
+    /// LandValue for this save (<see cref="ApplyLandAreaValue"/>, or
+    /// <see cref="PricingFinalValue.SetLandAreaValues"/> on the manual-cost path). The four save
+    /// handlers do those two in different orders, so there is no single position that works by
+    /// symmetry: placed before the land write it is silently overwritten, placed before
+    /// SetIndicatedValue it reads the previous save's figure. Both mistakes are invisible at
+    /// compile time and reach the book, LOS and the AS400 files.
+    /// </para>
+    /// </summary>
+    /// <param name="buildingWasPresentBeforeThisSave">
+    /// <see cref="PricingFinalValue.HasBuildingValue"/> as it stood when the save began.
+    /// <para>
+    /// The one question that matters: does IndicatedValue describe land ALONE? It describes whatever
+    /// the row covered when it was written, so a row that carried a building carries a land+building
+    /// total — and the save that unticks the building clears the flag without necessarily replacing
+    /// that total. The board typically echoes the stored figure straight back, so a value arriving on
+    /// the same request is no evidence either: an echoed combined total looks exactly like a
+    /// recomputed land-only one.
+    /// </para>
+    /// <para>
+    /// So: a building anywhere in this row's recent past disqualifies the figure, full stop. An
+    /// earlier attempt asked instead whether THIS request wrote IndicatedValue, which reads as a
+    /// proxy for "so it must be current" — it is not, and every caller that passed a literal true for
+    /// it turned the guard off. The cost of the strict rule is small and self-correcting: after an
+    /// untick, LandValue keeps ApplyLandAreaValue's area × rate until the next save, by which time no
+    /// building is in the picture and the sync settles it.
+    /// </para>
+    /// </param>
+    public void SyncLandValueWithIndicatedValue(bool buildingWasPresentBeforeThisSave)
+    {
+        if (buildingWasPresentBeforeThisSave)
+            return;
+
+        if (!string.Equals(Role, "Land", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        // Only when this method actually prices land BY AREA — the same condition ApplyLandAreaValue
+        // turns away on. A whole-unit lumpsum carries no rate, and its stored LandArea is whatever an
+        // earlier save under a rate unit left behind; writing the indicated value against that area
+        // resurrects a figure the doc above says is left alone, and SetLandAreaValues forces
+        // IncludeLandArea back to true while doing it.
+        if (!PricingUnit.IsPerUnitRate(UnitType ?? FinalValue?.FinalValueUnitType))
+            return;
+
+        // HasBuildingValue as well as the role, because the two are set by different callers and can
+        // disagree mid-save. SetFinalValue and UpdateFinalValue write a building value without
+        // re-tagging the role (only SaveComparativeAnalysis routes through LinkOrCreateBuildingCost-
+        // Method, which does), so a Role=Land row can carry a building — and then IndicatedValue
+        // spans land AND building, and copying it into LandValue hands the building to every reader
+        // that treats this column as land: the engagement's CurrentValue, the book's land subtotal,
+        // LOS and the AS400 regulatory file, each adding the building again from its own source.
+        if (FinalValue is not { IncludeLandArea: true, HasBuildingValue: false, LandArea: { } area } fv)
+            return;
+
+        if (fv.IndicatedValue is { } indicated)
+            fv.SetLandAreaValues(area, indicated);
+    }
+
+    /// <summary>
     /// Drops the final-value row. The relationship is required and cascades, so severing it deletes
     /// the row rather than orphaning it — which is the point: consumers treat the row's existence as
     /// "per-component figures were recorded", so a blanked-but-present row is worse than none.
@@ -373,9 +460,26 @@ public class PricingAnalysisMethod : Entity<Guid>
     /// reaches the engagement's frozen CurrentValue, the LOS payload and the AS400 regulatory file,
     /// so it is stated once.
     /// <para>
-    /// A per-unit RATE (PerSqWa/PerSqm) means the final value prices land per unit area, so area and
-    /// value are derivable and must NOT be gated on the building-cost toggle. PerUnit is a
-    /// whole-unit lumpsum carrying no land rate, so the row is left alone.
+    /// Only the cost approach records land separately at all — it is the one approach that breaks a
+    /// collateral into named components. Market, income and residual price the collateral as a single
+    /// figure, so they get their land figures CLEARED, not merely skipped (see
+    /// <see cref="PricingFinalValue.ClearLandAreaValues"/>), and an <paramref name="explicitLandValue"/>
+    /// does NOT rescue them: there is no separable land figure to record.
+    /// </para>
+    /// <para>
+    /// The caller passes the approach type rather than letting this read <see cref="Role"/>, even
+    /// though today Role is null exactly when the approach is not Cost. Role is also null on cost
+    /// rows that predate it — a category this aggregate names in several places ("older rows predate
+    /// Role") — and treating those as market would wipe a land value that is real, on the next save
+    /// of any kind, including one that never touched the price.
+    /// </para>
+    /// <para>
+    /// WITHIN the cost approach, a per-unit RATE (PerSqWa/PerSqm) means the final value prices land
+    /// per unit area, so area and value are derivable and must NOT be gated on the building-cost
+    /// toggle. PerUnit is a whole-unit lumpsum carrying no land rate, so the row is left alone.
+    /// The unit only gets a say once the approach check above has passed: a non-cost method records
+    /// no land whatever its unit, and a lumpsum one is cleared rather than skipped so a figure left
+    /// by an earlier save under a rate unit cannot survive as a land value.
     /// </para>
     /// <para>
     /// The unit is read LIVE first and the row's own stamp only when this method has genuinely
@@ -403,10 +507,15 @@ public class PricingAnalysisMethod : Entity<Guid>
     /// value outright. Null means the request did not say, which is not the same as false: the save
     /// DTOs default it, so an ordinary save must not read silence as a decision to exclude.
     /// </param>
+    /// <param name="isCostApproach">
+    /// True when this method sits under the Cost approach. Only that approach records a land figure
+    /// of its own; everything else values the collateral as one lump.
+    /// </param>
     public void ApplyLandAreaValue(
         decimal landAreaFromTitles,
         decimal? explicitLandValue,
-        bool? includeLandArea)
+        bool? includeLandArea,
+        bool isCostApproach)
     {
         if (FinalValue is null)
             return;
@@ -417,16 +526,53 @@ public class PricingAnalysisMethod : Entity<Guid>
             return;
         }
 
+        // No titled land to derive from — nothing to write and nothing to correct, so the row is left
+        // exactly as it is. This comes FIRST, ahead of the approach check below, because a pricing
+        // analysis that is not anchored to a property group has no titles by definition and its land
+        // figures were put there deliberately: CreateReferenceFromMethod builds a "Market" approach
+        // and calls SetLandAreaValues to carry the DCF non-HBU land-area override. Clearing ahead of
+        // this guard destroyed that override on the reference's first save.
         if (landAreaFromTitles <= 0m)
             return;
+
+        // Market, income and residual value land and whatever stands on it as ONE figure. Their
+        // comparables being quoted per square wa says how the market prices a parcel, NOT that the
+        // resulting figure excludes the buildings on it, so multiplying that rate by the land area
+        // produces the whole property's value under a column named LandValue.
+        if (!isCostApproach)
+        {
+            FinalValue.ClearLandAreaValues();
+
+            // The flag is still the appraiser's own answer and still drives whether the book prints
+            // this group's พื้นที่ / ราคาต่อหน่วย columns, so an explicit "yes" is honoured even though
+            // no figures come with it. Without this the flag was one-way for non-cost methods:
+            // SetLandAreaValues is the only other writer that turns it back on, and this branch
+            // returns before reaching it, so unticking and re-ticking left it false forever.
+            if (includeLandArea == true)
+                FinalValue.MarkLandAreaIncluded();
+
+            return;
+        }
 
         var unit = UnitType ?? (FinalValue.IncludeLandArea ? FinalValue.FinalValueUnitType : null);
         if (!PricingUnit.IsPerUnitRate(unit))
             return;
 
+        // Rounded to whole baht: a rate over a fractional area (503.33 sq.wa × 111,111) lands on
+        // satang nobody entered and nobody can act on, and that figure is printed in the book and
+        // exported to LOS and AS400.
+        //
+        // A land value the caller supplied is stored as given here — but on a Role=Land method it
+        // does not survive the save: every handler calls SyncLandValueWithIndicatedValue afterwards,
+        // which replaces it with IndicatedValue. That is the decision, not an oversight — for a
+        // method whose whole subject is land, the figure the appraiser committed IS the land price,
+        // and having two ways to say it was what let the row disagree with itself. The parameter
+        // still matters for the other roles.
         var rate = FinalValue.FinalValueOverride ?? ValuePerUnit;
         var landValue = explicitLandValue
-                        ?? (rate.HasValue ? landAreaFromTitles * rate.Value : (decimal?)null);
+                        ?? (rate.HasValue
+                            ? Math.Round(landAreaFromTitles * rate.Value, 0, MidpointRounding.AwayFromZero)
+                            : (decimal?)null);
 
         if (landValue.HasValue)
             FinalValue.SetLandAreaValues(landAreaFromTitles, landValue.Value);

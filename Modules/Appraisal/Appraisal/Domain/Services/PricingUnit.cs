@@ -9,7 +9,7 @@ namespace Appraisal.Domain.Services;
 ///
 /// Semantics:
 ///   PerSqWa / PerSqm → per-unit RATE (ValuePerUnit is meaningful; no rounding).
-///   PerUnit          → whole-unit LUMPSUM (ValuePerUnit is null; floor to nearest 1,000).
+///   PerUnit          → whole-unit LUMPSUM (ValuePerUnit is null; rounded to nearest 1,000).
 ///
 /// Consumer rule: UnitType == PerUnit ⟺ lumpsum; UnitType ∈ {PerSqWa, PerSqm} ⟺ per-unit rate.
 /// </summary>
