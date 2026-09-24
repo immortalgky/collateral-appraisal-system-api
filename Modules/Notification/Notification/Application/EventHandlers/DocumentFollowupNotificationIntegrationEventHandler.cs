@@ -29,11 +29,11 @@ public class DocumentFollowupNotificationIntegrationEventHandler
         _logger = logger;
     }
 
-    public async Task Consume(ConsumeContext<DocumentFollowupNotificationIntegrationEvent> context)
-    {
-        if (await _inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<DocumentFollowupNotificationIntegrationEvent> context) =>
+        _inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<DocumentFollowupNotificationIntegrationEvent> context)
+    {
         var msg = context.Message;
 
         if (!Enum.TryParse<NotificationType>(msg.Type, ignoreCase: false, out var type))
@@ -66,7 +66,5 @@ public class DocumentFollowupNotificationIntegrationEventHandler
         _logger.LogInformation(
             "Forwarded {Type} notification to {Recipient} for followup {FollowupId}",
             msg.Type, msg.Recipient, msg.FollowupId);
-
-        await _inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }
 }

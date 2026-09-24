@@ -29,11 +29,11 @@ public class ReportGenerationFailedNotificationIntegrationEventHandler
         _inboxGuard = inboxGuard;
     }
 
-    public async Task Consume(ConsumeContext<ReportGenerationFailedIntegrationEvent> context)
-    {
-        if (await _inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<ReportGenerationFailedIntegrationEvent> context) =>
+        _inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<ReportGenerationFailedIntegrationEvent> context)
+    {
         var msg = context.Message;
 
         try
@@ -49,8 +49,6 @@ public class ReportGenerationFailedNotificationIntegrationEventHandler
                     ["reportTypeKey"] = msg.ReportTypeKey,
                     ["error"] = msg.Error,
                 });
-
-            await _inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
         }
         catch (Exception ex)
         {
