@@ -126,13 +126,13 @@ public class SetManualCostBreakdownCommandHandler(
         // put in the price box: the whole-baht land value rounded to the nearest thousand, halves
         // up. The card does this in ManualCostBreakdown.roundToThousand — a client that skips
         // IndicatedValue must not land on a different price than one that sends it.
-        // Rounded from the RAW product, not from the whole-baht landValue: the card applies its
-        // roundToThousand to area × rate once, so rounding twice here could cross a thousand
-        // boundary it never crosses. 1,000,499.50 → 1,000,500 → 1,001,000 this way, against the
-        // card's 1,000,000 — a 1,000 baht split between a client that sends IndicatedValue and one
-        // that does not, which is the exact divergence this seed exists to prevent.
+        // Whole baht first, then the thousand — the same two steps, in the same order, as the card:
+        // `roundToThousand(Math.round(rate * landArea))` in ManualCostBreakdown.tsx. Rounding the raw
+        // product in one step instead rounds off a figure that is shown nowhere, and the two land a
+        // thousand apart: 1,000,499.50 becomes 1,001,000 on the card and 1,000,000 here. A client
+        // that omits IndicatedValue must not get a different price from one that sends it.
         var indicatedValue = command.IndicatedValue
-                             ?? Math.Round(landArea.Value * rate / 1000m, MidpointRounding.AwayFromZero) * 1000m;
+                             ?? Math.Round(computedTotal / 1000m, MidpointRounding.AwayFromZero) * 1000m;
 
         // FinalValue carries the RATE, not the land total — it is measured in FinalValueUnitType,
         // which this path stamps PerSqWa a few lines below. That is what every other per-area method

@@ -20,7 +20,7 @@ namespace Reporting.Application.Providers;
 ///   RS04  QCI4  BuildingAppraisalDetails — first building name
 ///   RS05  QCI5  LandAppraisalDetails — first land address
 ///   RS06  QCI6  Appraisals (self + prev join) — PrevAppraisalId + prior number/type
-///   RS07  QCI7  Appraisals prev-chain — round of the previous inspection
+///   RS07  QCI7  Appraisals — stamped InspectionNumber, with the prev-chain count as fallback
 ///   RS08  QCI8  AppraisalDecisions + documents — เอกสารประกอบ checkboxes
 ///   RS09  QCI9  RequestProperties — ประเภททรัพย์สิน in Request entry order
 ///
@@ -49,8 +49,12 @@ namespace Reporting.Application.Providers;
 ///   progress table, D011 for photos. The override covers external-company books that bundle everything into
 ///   D001, where nothing can be auto-detected and the book-verification reviewer ticks manually.
 ///
+/// ตรวจครั้งที่ comes from Appraisals.InspectionNumber, stamped at creation by
+/// AppraisalCreationService. The upward chain count RS07 also returns is only its fallback for
+/// Progressive appraisals created before that column existed.
+///
 /// Deferred (no stored source — left null with inline comments):
-///   InspectionRound, InstallmentNumber — no dedicated column exists in ConstructionInspections.
+///   InstallmentNumber — no dedicated column exists in ConstructionInspections.
 /// </summary>
 public sealed class AppraisalSummaryConstructionDataProvider(
     ISqlConnectionFactory connectionFactory,
@@ -238,8 +242,18 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             WHERE a.Id = @AppraisalId
               AND a.IsDeleted = 0;
 
-            -- RS07: QCI7 — ตรวจครั้งที่ = round of the PREVIOUS inspection (count of Progressive
-            -- appraisals in the prev-chain, starting from PrevAppraisalId and walking up).
+            -- RS07: QCI7 — ตรวจครั้งที่.
+            --
+            -- StampedRound is Appraisals.InspectionNumber, written once when a Progressive appraisal
+            -- is created (AppraisalCreationService -> ResolveLatestInAppraisalChainQuery) and never
+            -- recomputed. It is the authoritative round: the creation-time walk finds the chain ROOT
+            -- and then counts the whole tree downwards, excluding cancelled appraisals, which a
+            -- fork or an abandoned request makes different from anything countable from here.
+            --
+            -- ChainCount is the old upward-only walk, kept ONLY as a fallback for Progressive
+            -- appraisals created before InspectionNumber existed (4 such rows on this database).
+            -- It counts cancelled appraisals and cannot see sibling branches, so it is the worse
+            -- answer wherever the stamped one exists. Drop it once those rows are backfilled.
             WITH chain AS (
                 SELECT a.Id, a.AppraisalType, a.PrevAppraisalId
                 FROM appraisal.Appraisals a
@@ -249,7 +263,9 @@ public sealed class AppraisalSummaryConstructionDataProvider(
                 FROM appraisal.Appraisals p
                 JOIN chain c ON p.Id = c.PrevAppraisalId
             )
-            SELECT COUNT(*) FROM chain WHERE AppraisalType = 'Progressive';
+            SELECT
+                (SELECT a.InspectionNumber FROM appraisal.Appraisals a WHERE a.Id = @AppraisalId) AS StampedRound,
+                (SELECT COUNT(*) FROM chain WHERE AppraisalType = 'Progressive')                  AS ChainCount;
 
             -- RS08: QCI8 — เอกสารประกอบ checkbox overrides (AppraisalDecisions) plus auto-derived
             -- document presence. Effective value in C# = override ?? auto. LEFT JOIN off a seed row so
@@ -302,7 +318,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         string? buildingName;
         LandAddressRow? landAddr;
         PrevAppraisalRow? prevRow;
-        int prevInspectionRound;
+        InspectionRoundRow? roundRow;
         ConstructionDocRow? docRow;
         List<string> requestPropertyTypes;
 
@@ -326,8 +342,8 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             // RS06
             prevRow = await multi.ReadFirstOrDefaultAsync<PrevAppraisalRow>();
 
-            // RS07 — scalar int: round of the previous inspection
-            prevInspectionRound = await multi.ReadFirstOrDefaultAsync<int>();
+            // RS07 — the stamped round, plus the legacy chain count as its fallback
+            roundRow = await multi.ReadFirstOrDefaultAsync<InspectionRoundRow>();
 
             // RS08 — เอกสารประกอบ overrides + auto-derived document presence
             docRow = await multi.ReadFirstOrDefaultAsync<ConstructionDocRow>();
@@ -424,10 +440,48 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         // The substituted figure is the WHOLE-appraisal appraised value and already contains the
         // land, so adding landAndCompletedBuildings on top of it would count the land twice.
         decimal totalLand100Base    = substituteAppraisedValue ? 0m : landAndCompletedBuildings;
-        decimal? totalLandBuilding100   = (totalLand100Base + ciTotal) > 0m
-            ? totalLand100Base + ciTotal : (decimal?)null;
-        decimal? totalLandCurrentBuilding = (totalLand100Base + ciCurrent) > 0m
-            ? totalLand100Base + ciCurrent : (decimal?)null;
+
+        // รวมราคา ที่ดิน+อาคาร (100%) is this appraisal's appraised value — the figure the pricing
+        // screen settled on — not land plus the inspection's own 100% figure. The two can differ:
+        // the Cost approach prices the building through its Building Cost method while the
+        // inspection carries the building's own depreciation total, and when the appraiser adjusts
+        // one the other does not follow. Printing the appraised value means the book agrees with
+        // the price of record.
+        //
+        // KNOWN CONSEQUENCE: the two rows above this one no longer have to add up to it. The
+        // comment above describes that invariant, and it holds only while the inspection's building
+        // figure equals the priced one. Recorded rather than hidden — the alternative is a book
+        // whose total disagrees with the appraisal.
+        decimal? totalLandBuilding100 = appraisedValue > 0m
+            ? appraisedValue
+            : (totalLand100Base + ciTotal) > 0m ? totalLand100Base + ciTotal : (decimal?)null;
+
+        // รวมราคา ที่ดิน+อาคาร ณ ปัจจุบัน: while the building is unfinished this is the
+        // land-plus-progress figure it always was. At 100% there is nothing left to build, so it is
+        // the same as the row above — reporting anything less would say the finished property is
+        // worth less than its own appraised value.
+        // Below 100% the two rows are computed from different bases — the row above is the priced
+        // figure, this one is land plus the inspection's progress total — so nothing made them
+        // consistent. When the appraiser prices the property below what the inspection's
+        // depreciation totals imply, a part-built row could print HIGHER than the finished one,
+        // which reads as an unfinished building being worth more than its own completion. Capped at
+        // the row above: the finished value is the ceiling by definition, and showing the priced
+        // figure in both rows is the honest answer when the two sources disagree.
+        // The UNROUNDED progress decides this, not the figure printed above. AsReportedPercent rounds
+        // to two places, so a split leaving the work at 99.9951% displays as 100.00 — and keying off
+        // that would print a still-unfinished building at its completed price. Same rule, same
+        // reason, as ConstructionValueBreakdown.IsUnderConstruction.
+        decimal? rawProgressPct = hasOwnValueBase
+            ? ciRow!.WeightedCurrentPercent
+            : hasAnyInspection ? ciRow!.EnteredCurrentPercent : null;
+        bool isFullyBuilt = rawProgressPct >= 100m;
+        decimal? currentFromProgress =
+            (totalLand100Base + ciCurrent) > 0m ? totalLand100Base + ciCurrent : (decimal?)null;
+        decimal? totalLandCurrentBuilding = isFullyBuilt
+            ? totalLandBuilding100
+            : currentFromProgress is { } current && totalLandBuilding100 is { } complete
+                ? Math.Min(current, complete)
+                : currentFromProgress;
         // The substitute branch keeps the land row as it always was — land alone. Its รวม rows are
         // built on the whole-appraisal figure with the land zeroed out, so folding the finished
         // buildings into the row above would only widen the gap between the row and the totals it
@@ -443,10 +497,17 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         bool hasConstructionLicense = docRow?.OverrideLicense ?? (docRow?.AutoLicense ?? false);
         bool hasConstructionPhoto   = docRow?.OverridePhoto ?? (docRow?.AutoPhoto ?? false);
 
-        // อ้างอิง: ตรวจครั้งที่ = round of the previous inspection being referenced (right branch only).
-        string? inspectionRound = prevInspectionRound > 0 ? prevInspectionRound.ToString() : null;
-        // Value block: ตรวจครั้งที่ = round of THIS inspection (one more than the previous).
-        string? currentInspectionRound = (prevInspectionRound + 1).ToString();
+        // This inspection's round: the number stamped on the appraisal when it was created, which
+        // is what the Construction Inspection screen shows. Only when that is missing — a
+        // Progressive appraisal predating the column — fall back to counting the chain and adding
+        // one, which is what this report used to do for every appraisal and why the book printed
+        // "ครั้งที่ 1" against a screen showing "ครั้งที่ 3".
+        int currentRound = roundRow?.StampedRound ?? (roundRow?.ChainCount ?? 0) + 1;
+        // อ้างอิง: ตรวจครั้งที่ = round of the previous inspection being referenced (right branch
+        // only). Derived from this one so the two cannot disagree; blank on a first round.
+        string? inspectionRound = currentRound > 1 ? (currentRound - 1).ToString() : null;
+        // Value block: ตรวจครั้งที่ = round of THIS inspection.
+        string? currentInspectionRound = currentRound.ToString();
         string? installmentNumber = null; // DEFERRED: no stored source
 
         // ประเภททรัพย์สิน — the types selected on the Request, translated to Thai, same as the
@@ -621,6 +682,18 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         public Guid? PrevAppraisalId { get; init; }
         public string? PrevAppraisalNumber { get; init; }
         public string? PrevAppraisalType { get; init; }
+    }
+
+    /// <summary>
+    /// ตรวจครั้งที่, from the two sources RS07 returns. <see cref="StampedRound"/> is
+    /// Appraisals.InspectionNumber — the round decided when the appraisal was created, and the
+    /// number the Construction Inspection screen shows. <see cref="ChainCount"/> is the legacy
+    /// upward-only chain count, read only when the stamp is missing.
+    /// </summary>
+    private sealed class InspectionRoundRow
+    {
+        public int? StampedRound { get; init; }
+        public int? ChainCount { get; init; }
     }
 
     /// <summary>
