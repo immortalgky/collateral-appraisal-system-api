@@ -21,11 +21,11 @@ public class QuotationStartedIntegrationEventConsumer(
     InboxGuard<WorkflowDbContext> inboxGuard,
     ILogger<QuotationStartedIntegrationEventConsumer> logger) : IConsumer<QuotationStartedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<QuotationStartedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<QuotationStartedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<QuotationStartedIntegrationEvent> context)
+    {
         var message = context.Message;
         var ct = context.CancellationToken;
 
@@ -46,7 +46,6 @@ public class QuotationStartedIntegrationEventConsumer(
             logger.LogInformation(
                 "Quotation workflow already exists {InstanceId} for QuotationRequestId={QuotationRequestId} — skipping spawn",
                 existing.Id, message.QuotationRequestId);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
             return;
         }
 
@@ -89,7 +88,5 @@ public class QuotationStartedIntegrationEventConsumer(
         logger.LogInformation(
             "Spawned quotation workflow instance {InstanceId} for QuotationRequestId={QuotationRequestId}",
             instance.Id, message.QuotationRequestId);
-
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
     }
 }

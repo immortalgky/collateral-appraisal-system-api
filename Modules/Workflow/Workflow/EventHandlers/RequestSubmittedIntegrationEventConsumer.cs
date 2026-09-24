@@ -38,11 +38,11 @@ public class RequestSubmittedIntegrationEventConsumer(
     private const string AppealPurposeCode = "12";
     private const string ProgressiveAppraisalType = "Progressive";
 
-    public async Task Consume(ConsumeContext<RequestSubmittedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<RequestSubmittedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<RequestSubmittedIntegrationEvent> context)
+    {
         var message = context.Message;
         var ct = context.CancellationToken;
 
@@ -59,7 +59,6 @@ public class RequestSubmittedIntegrationEventConsumer(
             if (existing is not null)
             {
                 await HandleExistingWorkflowAsync(existing, message, ct);
-                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
                 return;
             }
 
@@ -163,8 +162,6 @@ public class RequestSubmittedIntegrationEventConsumer(
             logger.LogInformation(
                 "Started workflow instance {WorkflowInstanceId} for RequestId: {RequestId} (shouldEmit={ShouldEmit})",
                 instance.Id, message.RequestId, shouldEmit);
-
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
         }
         catch (Exception ex)
         {
