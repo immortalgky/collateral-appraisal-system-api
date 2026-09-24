@@ -6,7 +6,6 @@ using Notification.Infrastructure.Email;
 using Notification.Infrastructure.Email.Templates;
 using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
-using Shared.Time;
 
 namespace Notification.Application.EventHandlers;
 
@@ -21,23 +20,14 @@ public sealed class ShortlistSentToRmEmailHandler(
     IEmailTemplateRenderer templateRenderer,
     IUserLookupService userLookupService,
     InboxGuard<NotificationDbContext> inboxGuard,
-    IDateTimeProvider dateTimeProvider,
     ILogger<ShortlistSentToRmEmailHandler> logger)
     : IConsumer<ShortlistSentToRmEmailIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<ShortlistSentToRmEmailIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
-
-        // Taken right after the claim so ReleaseClaimAsync only removes our own row.
-        var claimedBefore = dateTimeProvider.ApplicationNow;
-
-        var msg = context.Message;
-        var ct = context.CancellationToken;
-
-        try
+    public Task Consume(ConsumeContext<ShortlistSentToRmEmailIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, async ct =>
         {
+            var msg = context.Message;
+
             var rm = string.IsNullOrWhiteSpace(msg.RmUsername)
                 ? null
                 : await userLookupService.GetRequestorAsync(msg.RmUsername, ct);
@@ -47,7 +37,6 @@ public sealed class ShortlistSentToRmEmailHandler(
                 logger.LogWarning(
                     "Skipping quotation fee-notice email: no RM email for RmUsername={RmUsername} (MessageId={MessageId})",
                     msg.RmUsername, context.MessageId);
-                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
                 return;
             }
 
@@ -80,33 +69,7 @@ public sealed class ShortlistSentToRmEmailHandler(
                 To: [rm.Email],
                 Source: "ShortlistSentToRm",
                 ReferenceId: msg.QuotationRequestId.ToString()), ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex,
-                "Error sending quotation fee-notice email (MessageId={MessageId})", context.MessageId);
-
-            // Without this the 'Processing' claim makes every bus retry skip and ack the message,
-            // so one SMTP hiccup would silently lose the email.
-            try
-            {
-                await inboxGuard.ReleaseClaimAsync(
-                    context.MessageId, GetType().Name, claimedBefore, CancellationToken.None);
-            }
-            catch (Exception releaseEx)
-            {
-                logger.LogError(releaseEx,
-                    "Could not release inbox claim for quotation fee-notice email (MessageId={MessageId})",
-                    context.MessageId);
-            }
-
-            throw;
-        }
-
-        // Outside the try on purpose: a failed mark after a successful send must not release the claim
-        // and let a retry send the email twice.
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, CancellationToken.None);
-    }
+        }, context.CancellationToken);
 
     private async Task<string> ResolveNameAsync(string? username, CancellationToken ct)
     {

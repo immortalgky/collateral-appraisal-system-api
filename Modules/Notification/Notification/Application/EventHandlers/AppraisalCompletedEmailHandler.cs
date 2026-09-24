@@ -8,7 +8,6 @@ using Notification.Infrastructure.Email.Templates;
 using Shared.Data;
 using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
-using Shared.Time;
 
 namespace Notification.Application.EventHandlers;
 
@@ -25,7 +24,6 @@ public sealed class AppraisalCompletedEmailHandler(
     IUserLookupService userLookupService,
     ISqlConnectionFactory connectionFactory,
     InboxGuard<NotificationDbContext> inboxGuard,
-    IDateTimeProvider dateTimeProvider,
     ILogger<AppraisalCompletedEmailHandler> logger)
     : IConsumer<AppraisalCompletedIntegrationEvent>
 {
@@ -54,18 +52,11 @@ public sealed class AppraisalCompletedEmailHandler(
         ORDER BY c.Id
         """;
 
-    public async Task Consume(ConsumeContext<AppraisalCompletedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
-
-        // Taken right after the claim so ReleaseClaimAsync only removes our own row.
-        var claimedBefore = dateTimeProvider.ApplicationNow;
-        var msg = context.Message;
-        var ct = context.CancellationToken;
-
-        try
+    public Task Consume(ConsumeContext<AppraisalCompletedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, async ct =>
         {
+            var msg = context.Message;
+
             var connection = connectionFactory.GetOpenConnection();
             var row = await connection.QuerySingleOrDefaultAsync<AppraisalRow>(
                 new CommandDefinition(Sql, new { msg.AppraisalId }, cancellationToken: ct));
@@ -75,7 +66,6 @@ public sealed class AppraisalCompletedEmailHandler(
                 logger.LogInformation(
                     "Skipping appraisal-completed email: AppraisalId={AppraisalId} not found or not a New appraisal (Type={AppraisalType})",
                     msg.AppraisalId, row?.AppraisalType);
-                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
                 return;
             }
 
@@ -88,7 +78,6 @@ public sealed class AppraisalCompletedEmailHandler(
                 logger.LogWarning(
                     "Skipping appraisal-completed email: no RM email for Requestor={Requestor} (AppraisalId={AppraisalId})",
                     row.Requestor, msg.AppraisalId);
-                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
                 return;
             }
 
@@ -108,34 +97,7 @@ public sealed class AppraisalCompletedEmailHandler(
                 To: [rm.Email],
                 Source: "AppraisalCompleted",
                 ReferenceId: msg.AppraisalId.ToString()), ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex,
-                "Error sending appraisal-completed email (MessageId={MessageId})", context.MessageId);
-
-            // Without this the 'Processing' claim makes every bus retry skip and ack the message,
-            // so one SMTP/SQL hiccup would silently lose the email.
-            try
-            {
-                await inboxGuard.ReleaseClaimAsync(
-                    context.MessageId, GetType().Name, claimedBefore, CancellationToken.None);
-            }
-            catch (Exception releaseEx)
-            {
-                logger.LogError(releaseEx,
-                    "Could not release inbox claim for appraisal-completed email (MessageId={MessageId})",
-                    context.MessageId);
-            }
-
-            throw;
-        }
-
-        // Outside the try on purpose: once the email is sent, a failed mark must not release the claim
-        // and let a retry send it a second time. None, not ct, so a shutdown right after the send
-        // cannot cancel the mark and leave the claim to go stale and be re-sent.
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, CancellationToken.None);
-    }
+        }, context.CancellationToken);
 
     /// <summary>
     /// Borrowers in entry order, comma-separated, capped at <paramref name="max"/>;
