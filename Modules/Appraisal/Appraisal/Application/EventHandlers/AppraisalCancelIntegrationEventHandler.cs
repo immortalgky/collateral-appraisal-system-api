@@ -15,11 +15,11 @@ public class AppraisalCancelIntegrationEventHandler(
     InboxGuard<AppraisalDbContext> inboxGuard)
     : IConsumer<AppraisalCancelIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<AppraisalCancelIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<AppraisalCancelIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<AppraisalCancelIntegrationEvent> context)
+    {
         var message = context.Message;
         var ct = context.CancellationToken;
 
@@ -39,7 +39,6 @@ public class AppraisalCancelIntegrationEventHandler(
                     "Request {CorrelationId} not found when handling {IntegrationEvent}",
                     message.CorrelationId,
                     nameof(AppraisalCancelIntegrationEvent));
-                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
                 return;
             }
 
@@ -49,14 +48,12 @@ public class AppraisalCancelIntegrationEventHandler(
                 logger.LogInformation(
                     "AppraisalId {AppraisalId} is already in status {Status}; skipping cancellation",
                     appraisal.Id, appraisal.Status.Code);
-                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
                 return;
             }
 
             appraisal.Cancel(message.CancelledBy, message.CancelledAt, message.CancelReason);
 
             await unitOfWork.SaveChangesAsync(ct);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
 
             logger.LogInformation(
                 "Successfully cancelled AppraisalId {AppraisalId} by {CancelledBy} at {CancelledAt}",

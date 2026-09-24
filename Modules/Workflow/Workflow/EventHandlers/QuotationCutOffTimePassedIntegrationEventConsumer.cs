@@ -31,11 +31,11 @@ public class QuotationCutOffTimePassedIntegrationEventConsumer(
     private const string DefaultActivityId = "ext-collect-submissions";
     private const string QuotationWorkflowDefinitionName = "Quotation Workflow";
 
-    public async Task Consume(ConsumeContext<QuotationCutOffTimePassedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<QuotationCutOffTimePassedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<QuotationCutOffTimePassedIntegrationEvent> context)
+    {
         var message = context.Message;
         var ct = context.CancellationToken;
 
@@ -59,7 +59,6 @@ public class QuotationCutOffTimePassedIntegrationEventConsumer(
             logger.LogWarning(
                 "QuotationCutOffTimePassedConsumer: no workflow instance found by CorrelationId for QuotationRequestId={QuotationRequestId} — skipping fan-out expiry",
                 message.QuotationRequestId);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
             return;
         }
 
@@ -70,7 +69,6 @@ public class QuotationCutOffTimePassedIntegrationEventConsumer(
             logger.LogInformation(
                 "QuotationCutOffTimePassedConsumer: workflow {InstanceId} already terminal ({Status}) — skipping",
                 instance.Id, instance.Status);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
             return;
         }
 
@@ -97,7 +95,5 @@ public class QuotationCutOffTimePassedIntegrationEventConsumer(
                 "QuotationCutOffTimePassedConsumer: published auto-expire for {Count} company/ies on QuotationRequest {QuotationRequestId}",
                 result.ExpiredCompanyIds.Count, message.QuotationRequestId);
         }
-
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
     }
 }

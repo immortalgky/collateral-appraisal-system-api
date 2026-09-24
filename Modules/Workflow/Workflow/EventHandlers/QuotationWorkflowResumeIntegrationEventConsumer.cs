@@ -24,11 +24,11 @@ public class QuotationWorkflowResumeIntegrationEventConsumer(
 {
     private const string CancelSentinel = "cancel";
 
-    public async Task Consume(ConsumeContext<QuotationWorkflowResumeIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<QuotationWorkflowResumeIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<QuotationWorkflowResumeIntegrationEvent> context)
+    {
         var message = context.Message;
         var ct = context.CancellationToken;
 
@@ -44,7 +44,6 @@ public class QuotationWorkflowResumeIntegrationEventConsumer(
             logger.LogWarning(
                 "QuotationWorkflowResumeConsumer: no workflow instance found for QuotationRequestId={QuotationRequestId} — skipping",
                 message.QuotationRequestId);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
             return;
         }
 
@@ -54,7 +53,6 @@ public class QuotationWorkflowResumeIntegrationEventConsumer(
             logger.LogInformation(
                 "QuotationWorkflowResumeConsumer: workflow {InstanceId} is already {Status} — skipping resume",
                 instance.Id, instance.Status);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
             return;
         }
 
@@ -84,8 +82,6 @@ public class QuotationWorkflowResumeIntegrationEventConsumer(
                 "QuotationWorkflowResumeConsumer: resumed workflow {InstanceId} at activity {ActivityId} with decision {Decision}",
                 instance.Id, message.ActivityId, message.DecisionTaken);
         }
-
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
     }
 
     private static Dictionary<string, object> BuildResumeInput(QuotationWorkflowResumeIntegrationEvent message)
