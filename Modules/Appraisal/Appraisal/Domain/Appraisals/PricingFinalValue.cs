@@ -125,6 +125,46 @@ public class PricingFinalValue : Entity<Guid>
         LandValue = null;
     }
 
+    /// <summary>
+    /// Drops the per-component land figures without touching <see cref="IncludeLandArea"/>, which is
+    /// the appraiser's own answer to "does this method price land at all" and is not ours to flip.
+    /// For a method that values the collateral as one lump there is no land figure to record, but the
+    /// appraiser's flag still means what they set it to.
+    /// <para>
+    /// It clears rather than merely skipping because a row saved under the old rule already carries a
+    /// land value, and money left behind is worse than money never written: the book, LOS, MIS and the
+    /// AS400 regulatory file read this column with no idea which approach produced it.
+    /// </para>
+    /// </summary>
+    public void ClearLandAreaValues()
+    {
+        LandArea = null;
+        LandValue = null;
+    }
+
+    /// <summary>
+    /// Drops the appraiser's typed-over total. Part of switching a method back to system
+    /// calculation: that says "compute this from the comparables", and an IndicatedValue left behind
+    /// does the opposite — SyncMethodValueWithIndicatedValue pushes it back over MethodValue on the
+    /// next save, pinning the method to a figure the appraiser just asked it to stop using.
+    /// </summary>
+    public void ClearIndicatedValue()
+    {
+        IndicatedValue = null;
+    }
+
+    /// <summary>
+    /// Records that the appraiser answered "yes, this method prices land" without deriving any
+    /// figures from it. <see cref="SetLandAreaValues"/> is the only other writer that turns the flag
+    /// back on, and a method that records no land never reaches it — so unticking the box and
+    /// re-ticking it left the flag stuck at false, permanently dropping the พื้นที่ and ราคาต่อหน่วย
+    /// columns from that group's row in the summary book.
+    /// </summary>
+    public void MarkLandAreaIncluded()
+    {
+        IncludeLandArea = true;
+    }
+
     public void SetBuildingValue(decimal buildingValue)
     {
         HasBuildingValue = true;

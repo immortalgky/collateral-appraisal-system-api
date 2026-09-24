@@ -225,9 +225,22 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
     /// the land one. Their LandValue is always NULL by construction today (only Land/LandAndBuilding
     /// writers ever populate it), so excluding them changes nothing for existing data — it just stops
     /// the SUM from silently picking up a second row if that construction-time guarantee ever drifts.
-    /// Role IS NULL is explicitly let through: every non-Cost approach's method (Market/Income/
-    /// Residual) never has a Role at all, and those can carry a real LandValue too (WQS land-rate
-    /// pricing is not gated on approach type) — excluding NULL here would silently drop them.
+    /// Role IS NULL is still let through. As of 2026-09-23 such a row contributes nothing ONCE IT HAS
+    /// BEEN SAVED AGAIN — rows untouched since then still carry their market lump, so this SUM is a
+    /// mix until the data catches up (no backfill shipped, by decision). The mechanism:
+    /// PricingAnalysisMethod.ApplyLandAreaValue now CLEARS the land figures for a method with no Role.
+    /// Market, income and residual price the collateral as one lump, so a per-square-wa comparable
+    /// rate says how the market quotes a parcel, not that the resulting figure excludes the buildings
+    /// standing on it — multiplying it out wrote the whole property's value into LandValue, and this
+    /// SUM then added the buildings again from BuildingDepreciationDetails. The clause is kept rather
+    /// than tightened to Role IN ('Land','LandAndBuilding') because the gate that matters is the one
+    /// in the domain; narrowing it here would hide a regression if that gate were ever removed.
+    /// <para>
+    /// A market-priced appraisal that also has a construction inspection therefore now contributes
+    /// 0 land instead of a double-counted total. Neither figure is right — this formula needs a
+    /// separable land value and the market approach cannot produce one — but construction work is
+    /// priced with the cost approach in practice, so the combination is not expected to arise.
+    /// </para>
     /// </para>
     /// </summary>
     private const string LandValueSql = """

@@ -116,32 +116,43 @@ public class SetManualCostBreakdownCommandHandler(
         // LAND ONLY (user decision 2026-09-22: "เลิกผูก — ให้เป็นวิธี 'ที่ดิน' ล้วน"). The panel prices
         // the land; the building reaches the Cost total through the Building Cost method as its own
         // selected line, so this method stays Role=Land and folds nothing in.
-        var landValue = landArea.Value * rate;
+        // Whole baht: the title area carries two decimals, so rate × area lands on satang nobody
+        // entered. Same rule as PricingAnalysisMethod.ApplyLandAreaValue, which is what writes this
+        // column on every other save path.
+        var landValue = Math.Round(landArea.Value * rate, 0, MidpointRounding.AwayFromZero);
         var computedTotal = landValue;
 
-        // The appraiser's rounded figure is the land total; without one the raw land value stands.
-        // Rounding is the appraiser's call, not something to invent here.
-        var indicatedValue = command.IndicatedValue ?? computedTotal;
+        // The appraiser's own figure wins. Without one, seed the same number the card would have
+        // put in the price box: the whole-baht land value rounded to the nearest thousand, halves
+        // up. The card does this in ManualCostBreakdown.roundToThousand — a client that skips
+        // IndicatedValue must not land on a different price than one that sends it.
+        // Rounded from the RAW product, not from the whole-baht landValue: the card applies its
+        // roundToThousand to area × rate once, so rounding twice here could cross a thousand
+        // boundary it never crosses. 1,000,499.50 → 1,000,500 → 1,001,000 this way, against the
+        // card's 1,000,000 — a 1,000 baht split between a client that sends IndicatedValue and one
+        // that does not, which is the exact divergence this seed exists to prevent.
+        var indicatedValue = command.IndicatedValue
+                             ?? Math.Round(landArea.Value * rate / 1000m, MidpointRounding.AwayFromZero) * 1000m;
 
-        // FinalValueRounded means what its name says on every other method: the computed result with
-        // the system's own rounding applied. This path used to store the appraiser's typed figure in
-        // it instead, which made the column mean two different things depending on which screen wrote
-        // the row, and left the typed number duplicated across FinalValueRounded and IndicatedValue.
-        // The typed figure now lives in IndicatedValue alone — the column the report reads — while
-        // MethodValue still carries it onward, so the appraised price is unchanged.
-        // Nearest 1,000, halves away from zero: the same rule the cost card applies client-side when
-        // it seeds the total field, so the stored figure equals the one the screen offered.
-        var roundedTotal = Math.Round(computedTotal / 1000m, MidpointRounding.AwayFromZero) * 1000m;
-
+        // FinalValue carries the RATE, not the land total — it is measured in FinalValueUnitType,
+        // which this path stamps PerSqWa a few lines below. That is what every other per-area method
+        // stores there too: WqsCalculationService, SaleGridCalculationService and
+        // DirectComparisonCalculationService all write the computed per-unit figure, never its
+        // product with the area.
+        //
+        // This path used to store the rounded land total instead, so the column meant a rate on one
+        // screen and a total on another, and the unit stamp beside it was simply wrong. The land
+        // total is not lost: SetLandAreaValues records it as LandValue below, and the appraiser's
+        // own figure goes to IndicatedValue, which is what the report and MethodValue read.
         var finalValue = method.FinalValue;
         if (finalValue is null)
         {
-            finalValue = PricingFinalValue.Create(method.Id, roundedTotal);
+            finalValue = PricingFinalValue.Create(method.Id, rate);
             method.SetFinalValue(finalValue);
         }
         else
         {
-            finalValue.UpdateFinalValue(roundedTotal);
+            finalValue.UpdateFinalValue(rate);
         }
 
         // FinalValueOverride is the column the summary report prints as ราคาต่อหน่วย.
@@ -153,6 +164,12 @@ public class SetManualCostBreakdownCommandHandler(
         // re-tags it Land and brings the BuildingCost method back so the building is counted exactly
         // once, and the snapshot goes — a Land-role row carrying a BuildingValue would be read by the
         // book / LOS as this method's building component.
+        // Captured before the two calls below clear it — a legacy LandAndBuilding row entering this
+        // path still has HasBuildingValue set, and the card seeds its price box from the stored
+        // land+building IndicatedValue and echoes it back. Passing a literal false here let that
+        // combined total through into LandValue, which is what the parameter exists to stop.
+        var buildingWasPresentBeforeThisSave = finalValue.HasBuildingValue;
+
         approach.RevertToLand(method.Id);
         finalValue.ClearBuildingValue();
 
@@ -160,6 +177,16 @@ public class SetManualCostBreakdownCommandHandler(
 
         // PerSqWa marks this as a land rate, matching the calculated Cost+WQS path.
         method.SetValue(indicatedValue, rate, PricingUnit.PerSqWa);
+
+        // A Role=Land method's land IS its indicated value — RevertToLand above guarantees the role,
+        // so this replaces the area × rate figure written earlier with the one the appraiser settled
+        // on. LAST, after both SetIndicatedValue AND SetValue: the sync only acts on a method that
+        // prices land by area, and the unit it reads is the one SetValue stamps on the line above. A
+        // method reaching this panel with no unit yet — created on the board, or cleared by the
+        // no-rate branch, which leaves PerUnit behind — still read the PRE-save unit when this ran
+        // first, so the sync silently did nothing and LandValue kept the raw product until a second
+        // identical save happened to fix it.
+        method.SyncLandValueWithIndicatedValue(buildingWasPresentBeforeThisSave);
 
         pricingAnalysis.RecalculateRollup();
         // Stamp only the method actually written — see PricingAnalysis.UseSystemCalc's remarks for

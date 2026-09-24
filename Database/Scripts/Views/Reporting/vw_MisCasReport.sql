@@ -54,6 +54,21 @@ RouteBack AS (
 
 -- ── Construction progress (copy of ConstructionCurrentValueService) ───────────────────────────
 -- Land: only the SELECTED approach and method count, one value per group.
+--
+-- As of 2026-09-24 PricingFinalValues.LandValue is written by the COST approach only: market,
+-- income and residual price a collateral as one lump, so ApplyLandAreaValue clears the column for
+-- them rather than storing the whole property's value under a name that says land. There is no
+-- approach filter here because a non-cost row saved SINCE that change contributes NULL by itself.
+-- Rows last saved before it still hold their market lump, so this SUM is a mix until each is saved
+-- again; no backfill shipped, by decision. If that becomes a problem, filter on the approach type
+-- rather than waiting for the data to catch up.
+--
+-- Consequence, the same one ConstructionCurrentValueService carries and for the same reason: an
+-- appraisal priced by the market approach contributes no land to columns 82 and 86-88, so
+-- SumLandBuildingAmt reports its buildings alone. Previously it reported the market lump PLUS the
+-- buildings, counting them twice. Neither is right; this formula needs a separable land figure and
+-- the market approach cannot produce one. Left as-is because these columns describe construction
+-- jobs, which are priced with the cost approach in practice.
 Land AS (
     SELECT pg.AppraisalId, SUM(pfv.LandValue) AS LandValue
     FROM appraisal.PricingFinalValues pfv
