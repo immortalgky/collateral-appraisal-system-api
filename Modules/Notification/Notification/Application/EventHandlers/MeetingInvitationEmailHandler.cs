@@ -22,7 +22,7 @@ public sealed class MeetingInvitationEmailHandler(
     : IConsumer<MeetingInvitationEmailIntegrationEvent>
 {
     public Task Consume(ConsumeContext<MeetingInvitationEmailIntegrationEvent> context) =>
-        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, async ct =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, async _ =>
         {
             var msg = context.Message;
 
@@ -44,7 +44,7 @@ public sealed class MeetingInvitationEmailHandler(
                 .Select(r => new EmailAttachmentRef(r.Type, r.Value))
                 .ToList();
 
-            var attachments = await attachmentAssembler.AssembleAsync(refs, ct);
+            var attachments = await attachmentAssembler.AssembleAsync(refs, context.CancellationToken);
 
             var html = templateRenderer.MeetingInvitation(msg.Subject, msg.Content);
 
@@ -58,6 +58,6 @@ public sealed class MeetingInvitationEmailHandler(
                 Source: "MeetingInvitation",
                 ReferenceId: msg.MeetingId.ToString());
 
-            await emailSender.SendAsync(email, ct);
+            await emailSender.SendAsync(email, context.CancellationToken);
         }, context.CancellationToken);
 }

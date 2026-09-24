@@ -21,7 +21,7 @@ public sealed class QuotationSentEmailHandler(
     : IConsumer<QuotationSentEmailIntegrationEvent>
 {
     public Task Consume(ConsumeContext<QuotationSentEmailIntegrationEvent> context) =>
-        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, async ct =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, async _ =>
         {
             var msg = context.Message;
 
@@ -41,7 +41,7 @@ public sealed class QuotationSentEmailHandler(
                 .Select(r => new EmailAttachmentRef(r.Type, r.Value))
                 .ToList();
 
-            var attachments = await attachmentAssembler.AssembleAsync(refs, ct);
+            var attachments = await attachmentAssembler.AssembleAsync(refs, context.CancellationToken);
 
             var html = templateRenderer.QuotationSent(msg.Subject, msg.Content);
 
@@ -55,6 +55,6 @@ public sealed class QuotationSentEmailHandler(
                 Source: "QuotationSent",
                 ReferenceId: msg.QuotationRequestId.ToString());
 
-            await emailSender.SendAsync(email, ct);
+            await emailSender.SendAsync(email, context.CancellationToken);
         }, context.CancellationToken);
 }
