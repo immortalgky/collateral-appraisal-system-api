@@ -766,12 +766,11 @@ internal static class AppraisalSummaryCommonLoader
         CollateralLocation? land = null, condo = null;
         foreach (var r in rows)  // at most one row per Kind
         {
+            // FloorNumber is free text: 0 means not stated — the condo form body's rule.
+            var floor = ThaiAddressFormatter.IsStated(r.FloorNumber) ? r.FloorNumber : null;
             var address = r.Kind == "U"
                 ? ThaiAddressFormatter.FormatCondo(
-                    // FloorNumber is free text: 0 means not stated — the condo form body's rule.
-                    roomNumber: r.RoomNumber,
-                    floorNumber: ThaiAddressFormatter.IsStated(r.FloorNumber) ? r.FloorNumber : null,
-                    buildingName: r.CondoName,
+                    roomNumber: r.RoomNumber, floorNumber: floor, buildingName: r.CondoName,
                     soi: r.Soi, road: r.Street,
                     subDistrict: r.SubDistrict, district: r.District, province: r.Province)
                 : ThaiAddressFormatter.FormatLandBuilding(
