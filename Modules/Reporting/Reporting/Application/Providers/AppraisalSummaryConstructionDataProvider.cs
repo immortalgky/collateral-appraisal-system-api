@@ -12,17 +12,25 @@ namespace Reporting.Application.Providers;
 /// Common queries (Q1–Q14 + ColTypeMap) are delegated to
 /// <see cref="AppraisalSummaryCommonLoader"/> (itself batched in Phase C).
 ///
-/// Phase C — BuildAsync batches all 9 construction-specific queries into one
+/// Phase C — BuildAsync batches all 10 construction-specific queries into one
 /// QueryMultiple call (single round-trip):
 ///   RS01  QCI1  ConstructionInspections aggregate — CI totals, progress pcts, remark
 ///   RS02  QCI2  PricingFinalValues — land appraisal value
-///   RS03  QCI3  BuildingDepreciationDetails — non-CI building cost
-///   RS04  QCI4  BuildingAppraisalDetails — first building name
+///   RS03  QCI3  BuildingAppraisalDetails (+ its schedule) — value of the already-finished buildings
+///   RS04  QCI4  LandAppraisalDetails.Village / CondoAppraisalDetails.CondoName — ชื่ออาคาร
 ///   RS05  QCI5  LandAppraisalDetails — first land address
 ///   RS06  QCI6  Appraisals (self + prev join) — PrevAppraisalId + prior number/type
 ///   RS07  QCI7  Appraisals — stamped InspectionNumber, with the prev-chain count as fallback
 ///   RS08  QCI8  AppraisalDecisions + documents — เอกสารประกอบ checkboxes
 ///   RS09  QCI9  RequestProperties — ประเภททรัพย์สิน in Request entry order
+///   RS10        PropertyGroups holding an inspected property — the scope of everything above
+///
+/// SCOPE: every money row, and the two header rows describing what they are about (RS02–RS05),
+/// covers the groups that hold a property under construction inspection, not the whole appraisal.
+/// A group nobody is building in — machinery, a bare plot, another condo — is separate collateral
+/// whose value has no place in a drawdown computed from this book's progress percentage. Falls back
+/// to the whole appraisal when nothing is under inspection. RS01 needs no scoping: an inspection
+/// defines the set, so every inspection is already inside it.
 ///
 /// Column provenance (verified against EF configs):
 ///   ConstructionInspections (appraisal.ConstructionInspections):
@@ -107,8 +115,36 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         if (common is null)
             throw new NotFoundException("Appraisal", appraisalId.ToString());
 
-        // ── Batch: 9 construction-specific result sets, single round-trip ─────────
-        const string batchSql = """
+        // The groups this book is about: every group holding a property under construction
+        // inspection. Everything money-bearing below is scoped to them, because the question this
+        // book answers — "what is the collateral being built worth now against finished?" — is
+        // about those groups and nothing else. An appraisal that also carries machinery, a second
+        // condo or a bare plot in their own groups used to drag all of it into the 100% row while
+        // the progress percentage came from the inspected buildings alone: numerator and
+        // denominator measured different collateral, and the drawdown computed from them was wrong
+        // by whatever the uninspected groups were worth.
+        //
+        // Machinery needs no filtering of its own: a machinery group has no inspection, so it never
+        // enters this set. Nothing here constrains how properties may be grouped.
+        //
+        // More than one inspected group is expected, not exceptional — two houses being built on
+        // one request sit in a group each. They are summed, because RS01's weighted percentage
+        // already spans every inspection in the appraisal, so the base it applies to has to span
+        // the same buildings.
+        //
+        // Inlined into each query rather than materialised into a table variable: a batch whose
+        // first statement is an INSERT leaves the reader's result-set sequence resting on driver
+        // behaviour, and nothing else in this codebase depends on that.
+        const string ciGroupsSql = """
+            SELECT DISTINCT gi.PropertyGroupId
+                    FROM appraisal.ConstructionInspections ci2
+                    JOIN appraisal.AppraisalProperties ap2 ON ap2.Id = ci2.AppraisalPropertyId
+                    JOIN appraisal.PropertyGroupItems gi ON gi.AppraisalPropertyId = ap2.Id
+                    WHERE ap2.AppraisalId = @AppraisalId
+            """;
+
+        // ── Batch: 10 construction-specific result sets, single round-trip ────────
+        const string batchSql = $"""
             -- RS01: QCI1 — Construction inspection aggregate (building under construction only).
             -- Current building value: TotalValue x the entered percentage when IsFullDetail=0,
             -- else the aggregated work-detail values — the same derivation as
@@ -188,40 +224,110 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             FROM appraisal.PricingFinalValues pfv
             JOIN appraisal.PricingAnalysisMethods pam ON pam.Id = pfv.PricingMethodId
                 AND pam.IsSelected = 1
+                -- A Cost approach can hold one selected method per role. Only the land-bearing ones
+                -- ever write LandValue today, so this changes nothing for current data — it stops the
+                -- SUM picking up a second row if that construction-time guarantee drifts. Role IS NULL
+                -- still passes: legacy rows predate the column.
+                -- KEEP IN SYNC with ConstructionCurrentValueService.LandValueSql.
+                AND (pam.Role IS NULL OR pam.Role IN ('Land', 'LandAndBuilding'))
             JOIN appraisal.PricingAnalysisApproaches paa ON paa.Id = pam.ApproachId
                 AND paa.IsSelected = 1
             JOIN appraisal.PricingAnalysis pa ON pa.Id = paa.PricingAnalysisId
                 AND pa.SubjectType = 0
             JOIN appraisal.PropertyGroups pg ON pg.Id = pa.AnchorId
-            WHERE pg.AppraisalId = @AppraisalId;
+            WHERE pg.AppraisalId = @AppraisalId
+              -- Scoped to the inspected groups; the whole appraisal only when none is inspected,
+              -- which is the pre-scoping behaviour and keeps a book printable either way.
+              AND (pg.Id IN ({ciGroupsSql})
+                   OR NOT EXISTS ({ciGroupsSql}));
 
-            -- RS03: QCI3 — Non-CI building depreciation value
-            SELECT ISNULL(SUM(bdd.PriceAfterDepreciation), 0)
-            FROM appraisal.BuildingDepreciationDetails bdd
-            JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
-            JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
-            WHERE ap.AppraisalId = @AppraisalId
-              AND NOT EXISTS (
-                  SELECT 1 FROM appraisal.ConstructionInspections ci
-                  WHERE ci.AppraisalPropertyId = ap.Id
-              );
+            -- RS03: QCI3 — Value of the buildings that were already finished when this inspection
+            -- started. Per building: the appraiser's own Building Cost Value when they keyed one,
+            -- otherwise the depreciated sum rounded to the nearest 1,000 — the rule the property
+            -- form, the land-building book (RS18) and the pricing read all share. Summing
+            -- PriceAfterDepreciation raw, as this did, ignored an override entirely and dropped the
+            -- rounding, so ราคาประเมินที่ดิน on this page did not add up to the 100% row beside it.
+            -- The override is a whole-building figure covering the property's ส่วนพัฒนา rows too,
+            -- which is why it replaces the sum rather than joining it.
+            SELECT ISNULL(SUM(b.BuildingValue), 0)
+            FROM (
+                -- Driven from the building, LEFT JOINed to its schedule: an appraiser who keys a
+                -- Building Cost Value instead of filling in a depreciation table leaves no
+                -- BuildingDepreciationDetails rows, and driving from that table dropped exactly the
+                -- building this COALESCE exists to honour. Same direction as
+                -- PricingPropertyDataService.BuildingFinalCostValuesSql.
+                SELECT ISNULL(COALESCE(bad.FinalCostValueOverride,
+                                       ROUND(SUM(bdd.PriceAfterDepreciation), -3)), 0) AS BuildingValue
+                FROM appraisal.BuildingAppraisalDetails bad
+                JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
+                LEFT JOIN appraisal.BuildingDepreciationDetails bdd ON bdd.BuildingAppraisalDetailId = bad.Id
+                WHERE ap.AppraisalId = @AppraisalId
+                  AND NOT EXISTS (
+                      SELECT 1 FROM appraisal.ConstructionInspections ci
+                      WHERE ci.AppraisalPropertyId = ap.Id
+                  )
+                  -- A finished building only counts here when it stands in an inspected group: one
+                  -- that belongs to a group nobody is building in is a separate piece of collateral,
+                  -- and adding it inflated the land row it is printed on.
+                  AND (EXISTS (
+                          SELECT 1 FROM appraisal.PropertyGroupItems gi
+                          WHERE gi.AppraisalPropertyId = ap.Id
+                            AND gi.PropertyGroupId IN ({ciGroupsSql}))
+                       OR NOT EXISTS ({ciGroupsSql}))
+                GROUP BY bad.Id, bad.FinalCostValueOverride
+            ) b;
 
-            -- RS04: QCI4 — ชื่ออาคาร = village name of the first L/LB land property
-            SELECT TOP 1 lad.Village
-            FROM appraisal.LandAppraisalDetails lad
-            JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
-            WHERE ap.AppraisalId = @AppraisalId
-              AND ap.PropertyType IN ('L', 'LB')
-            ORDER BY ap.SequenceNumber;
+            -- RS04: QCI4 — ชื่ออาคาร = village name of the first L/LB land property, or the
+            -- condominium name when the collateral is a unit. A unit has no land row, so the land
+            -- arm alone left this blank on every condo book. The condo arm keys off the presence of
+            -- a CondoAppraisalDetails row rather than a PropertyType list, so a leasehold unit
+            -- reaches it too. Blank names are skipped rather than winning on sequence.
+            SELECT TOP 1 x.Name
+            FROM (
+                SELECT lad.Village AS Name, 0 AS ArmRank, ap.SequenceNumber, ap.Id AS PropertyId
+                FROM appraisal.LandAppraisalDetails lad
+                JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
+                -- The LandAppraisalDetails join is already the test for "this is land", exactly as
+                -- the condo arm keys off its own detail row. The PropertyType list that used to
+                -- stand here excluded leasehold land (LS, LSL) and left ชื่ออาคาร blank for it.
+                WHERE ap.AppraisalId = @AppraisalId
+                UNION ALL
+                SELECT cad.CondoName, 1, ap.SequenceNumber, ap.Id
+                FROM appraisal.CondoAppraisalDetails cad
+                JOIN appraisal.AppraisalProperties ap ON ap.Id = cad.AppraisalPropertyId
+                WHERE ap.AppraisalId = @AppraisalId
+            ) x
+            WHERE x.Name IS NOT NULL AND LEN(x.Name) > 0
+              AND (EXISTS (
+                      SELECT 1 FROM appraisal.PropertyGroupItems gi
+                      WHERE gi.AppraisalPropertyId = x.PropertyId
+                        AND gi.PropertyGroupId IN ({ciGroupsSql}))
+                   OR NOT EXISTS ({ciGroupsSql}))
+            -- ArmRank first: the rule is "the village name, or the condominium name when there is no
+            -- land" — a land and a condo property can both sit in scope, and ordering by sequence
+            -- alone let a condo that happened to be entered first take the land's place.
+            -- PropertyId last breaks a remaining tie, which TOP 1 would otherwise resolve differently
+            -- between requests.
+            ORDER BY x.ArmRank, x.SequenceNumber, CONVERT(char(36), x.PropertyId);
 
-            -- RS05: QCI5 — First land detail: เขตการปกครอง (subdistrict) + สำนักงานที่ดิน (geocodes→Thai)
+            -- RS05: QCI5 — First land detail: เขตการปกครอง (DOPA subdistrict) + สำนักงานที่ดิน,
+            -- both geocodes resolved to Thai.
+            --
+            -- เขตการปกครอง reads the DOPA columns, NOT the deed ones beside them. The two masters
+            -- diverged — thousands of Title sub-district codes exist in no DOPA table, and where a
+            -- code does resolve in both it can name a different locality — so a field labelled
+            -- administrative has to come from the administrative master. The deed sub-district
+            -- remains the fallback only when the property has no DOPA code recorded at all.
             SELECT TOP 1
-                COALESCE(tsub.NameTh,  lad.SubDistrict) AS SubDistrict,
-                COALESCE(tdist.NameTh, lad.District)    AS District,
-                COALESCE(tprov.NameTh, lad.Province)    AS Province,
+                COALESCE(dsub.NameTh,  tsub.NameTh,  lad.SubDistrict) AS SubDistrict,
+                COALESCE(ddist.NameTh, tdist.NameTh, lad.District)    AS District,
+                COALESCE(dprov.NameTh, tprov.NameTh, lad.Province)    AS Province,
                 COALESCE(pLandOffice.[description], lad.LandOffice) AS LandOffice
             FROM appraisal.LandAppraisalDetails lad
             JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
+            LEFT JOIN parameter.DopaProvinces     dprov ON dprov.Code = lad.DopaProvince
+            LEFT JOIN parameter.DopaDistricts     ddist ON ddist.Code = lad.DopaDistrict
+            LEFT JOIN parameter.DopaSubDistricts  dsub  ON dsub.Code  = lad.DopaSubDistrict
             LEFT JOIN parameter.TitleProvinces    tprov ON tprov.Code = lad.Province
             LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = lad.District
             LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = lad.SubDistrict
@@ -231,7 +337,19 @@ public sealed class AppraisalSummaryConstructionDataProvider(
                AND pLandOffice.[isactive] = 1
                AND pLandOffice.[code]     = lad.LandOffice
             WHERE ap.AppraisalId = @AppraisalId
-            ORDER BY ap.SequenceNumber;
+            -- Prefer the inspected groups — whoever prints these fields should get a header about
+            -- the collateral the figures below it describe — but rank rather than filter, so an
+            -- inspected group holding no land at all (a standalone building, a condo unit on its
+            -- own) falls back to the rest of the appraisal instead of blanking. Both fields come
+            -- from this one row either way, which is the point.
+            -- (summary-construction-body.html does not print them yet — see AdministrativeDistrict
+            -- at the bottom of this file.)
+            ORDER BY CASE WHEN EXISTS (
+                              SELECT 1 FROM appraisal.PropertyGroupItems gi
+                              WHERE gi.AppraisalPropertyId = ap.Id
+                                AND gi.PropertyGroupId IN ({ciGroupsSql}))
+                          THEN 0 ELSE 1 END,
+                     ap.SequenceNumber;
 
             -- RS06: QCI6 — Prev appraisal (self + left join to prior)
             SELECT a.PrevAppraisalId,
@@ -307,6 +425,11 @@ public sealed class AppraisalSummaryConstructionDataProvider(
               AND rp.PropertyType IS NOT NULL
             GROUP BY rp.PropertyType
             ORDER BY MIN(rp.Id);
+
+            -- RS10: the inspected groups themselves, so the 100% row can be summed from the
+            -- per-group appraised values the common loader already carries instead of the
+            -- whole-appraisal total. Empty means nothing is under inspection.
+            {ciGroupsSql};
             """;
 
         var appraisalParams = new DynamicParameters();
@@ -321,6 +444,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         InspectionRoundRow? roundRow;
         ConstructionDocRow? docRow;
         List<string> requestPropertyTypes;
+        List<Guid> ciGroupIds;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, appraisalParams))
         {
@@ -350,6 +474,9 @@ public sealed class AppraisalSummaryConstructionDataProvider(
 
             // RS09 — request property types, already in Request entry order
             requestPropertyTypes = (await multi.ReadAsync<string>()).ToList();
+
+            // RS10 — the groups under construction inspection
+            ciGroupIds = (await multi.ReadAsync<Guid>()).ToList();
         }
 
         // ที่ตั้งทรัพย์สิน: the land/building anchor — the thing under construction — else the condo
@@ -389,7 +516,19 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         // house, so it stands in as the 100% base and the entered percentages turn it into the
         // previous and current figures — the same substitution IConstructionCurrentValueService and
         // vw_RegulatoryExport make.
-        decimal appraisedValue = common.TotalAppraisalValue ?? 0m;
+        // The appraised value of the groups being built — not of the whole appraisal. GroupRows
+        // already carries each group's own figure (the rollup of its selected approach), so this is
+        // a filter over data in hand, not another query. With nothing under inspection it falls back
+        // to the whole-appraisal total, which is what this line always produced.
+        // The whole-appraisal figure is consulted ONLY when no inspected property sits in a group —
+        // the one case where "the inspected groups" names nothing. An inspected group that carries no
+        // price answers 0, because falling through would print the machinery group's money on a page
+        // about a building; 0 then lets the row below fall back to the components.
+        // KEEP IN SYNC with ConstructionCurrentValueService.AppraisedValueSql.
+        var ciGroupIdSet = ciGroupIds.ToHashSet();
+        decimal appraisedValue = ciGroupIdSet.Count > 0
+            ? common.GroupRows.Where(g => ciGroupIdSet.Contains(g.GroupId)).Sum(g => g.GroupAppraisalValue ?? 0m)
+            : common.TotalAppraisalValue ?? 0m;
         bool substituteAppraisedValue = (ciRow?.InspectionCount ?? 0) > 0 && ciTotal == 0m && appraisedValue > 0m;
         if (substituteAppraisedValue)
         {
@@ -436,14 +575,15 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         //     ราคาประเมินที่ดิน + ราคาประเมิน เมื่ออาคารแล้วเสร็จ 100% = รวมราคา ที่ดิน+อาคาร (100%)
         // and it puts the two รวม rows on the same basis as the Decision Summary card, whose
         // absolute milestones count the finished buildings in every row
-        // (ConstructionValueBreakdown.CompleteValue = Land + CompletedBuilding + InspectedTotal).
+        // (ConstructionValueBreakdown.CompleteValue, which is the inspected groups' appraised value
+        // when they carry one and Land + CompletedBuilding + InspectedTotal only when they do not).
         decimal landAndCompletedBuildings = landAppraisalValue + nonCiBuilding;
-        // The substituted figure is the WHOLE-appraisal appraised value and already contains the
+        // The substituted figure is the inspected groups' appraised value and already contains the
         // land, so adding landAndCompletedBuildings on top of it would count the land twice.
         decimal totalLand100Base    = substituteAppraisedValue ? 0m : landAndCompletedBuildings;
 
-        // รวมราคา ที่ดิน+อาคาร (100%) is this appraisal's appraised value — the figure the pricing
-        // screen settled on — not land plus the inspection's own 100% figure. The two can differ:
+        // รวมราคา ที่ดิน+อาคาร (100%) is the appraised value of the groups being built — the figure
+        // the pricing screen settled on — not land plus the inspection's own 100% figure. The two can differ:
         // the Cost approach prices the building through its Building Cost method while the
         // inspection carries the building's own depreciation total, and when the appraiser adjusts
         // one the other does not follow. Printing the appraised value means the book agrees with
@@ -453,6 +593,10 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         // comment above describes that invariant, and it holds only while the inspection's building
         // figure equals the priced one. Recorded rather than hidden — the alternative is a book
         // whose total disagrees with the appraisal.
+        //
+        // What scoping fixed is a larger gap than that one: this used to be the whole appraisal's
+        // total, so a machinery group, a bare plot or a second condo in their own groups landed in
+        // the 100% row while the progress percentage came from the inspected buildings alone.
         decimal? totalLandBuilding100 = appraisedValue > 0m
             ? appraisedValue
             : (totalLand100Base + ciTotal) > 0m ? totalLand100Base + ciTotal : (decimal?)null;
@@ -527,7 +671,13 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             ? common.TranslateCollateralType(firstGroupType)
             : propertyTypeLabel;
 
-        decimal? reportTotalAppraisalValue = totalLandCurrentBuilding ?? common.TotalAppraisalValue;
+        // Printed by approver-block.html (the ราคาประเมิน the approver signs against), so it is a
+        // money row and carries the same scope as the rest. It used to fall back to the
+        // whole-appraisal total, which on an appraisal that also holds machinery or a bare plot put
+        // their value in front of the approver on a page about one building group. When the current
+        // figure is unavailable — an inspected group with no pricing yet — the completed value is
+        // the honest stand-in, and a blank is better than another group's money if neither exists.
+        decimal? reportTotalAppraisalValue = totalLandCurrentBuilding ?? totalLandBuilding100;
 
         // ── Build model ──────────────────────────────────────────────────────────
         var model = new AppraisalSummaryModel
@@ -539,8 +689,24 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             AppraisalPurpose    = common.AppraisalPurpose,
             PropertyType        = propertyType,
             CollateralAddress   = collateralAddress,
-            AdministrativeDistrict = common.AdministrativeDistrict,
-            LandOffice          = landAddr?.LandOffice,
+            // Both from RS05's row, so the two header fields describe one property. The common
+            // loader's district comes from the first property of the WHOLE appraisal while RS05 is
+            // scoped to the inspected groups, and taking one from each printed an uninspected
+            // group's เขตการปกครอง beside the inspected group's สำนักงานที่ดิน.
+            //
+            // NOT PRINTED BY THIS BOOK TODAY — summary-construction-body.html renders neither
+            // administrative_district nor land_office; they are carried because the model is shared
+            // and the condo/standard/block bodies do print them. Kept correct rather than left to
+            // rot: whoever adds the row next inherits a working value instead of a deed-mastered one.
+            // (RS05's DOPA joins and CI-group scoping are on the same footing.)
+            //
+            // Stated() rather than a raw null check: a placeholder such as "-" is not a district and
+            // must not reach the header just because it came from the scoped row. Falling through to
+            // the unscoped value covers an appraisal whose inspected group holds no land row, and
+            // also the row that exists but has every sub-district column empty.
+            AdministrativeDistrict = ThaiAddressFormatter.Stated(landAddr?.SubDistrict)
+                                     ?? common.AdministrativeDistrict,
+            LandOffice          = ThaiAddressFormatter.Stated(landAddr?.LandOffice),
             OldAppraisalValue   = common.PrevAppraisedValue,
             HasPrevAppraisal    = common.HasPrevAppraisal,
             IsReAppraisal       = string.Equals(common.AppraisalType, "ReAppraisal", StringComparison.OrdinalIgnoreCase),

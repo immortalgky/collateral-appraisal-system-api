@@ -7,14 +7,25 @@ namespace Appraisal.Application.Services;
 /// The single implementation of "what is this appraisal worth right now, part-built".
 ///
 /// One calculation, two consumers — the Decision Summary construction card and the
-/// <c>AppraisalForCollateralResult</c> contract that feeds the Collateral module (and from there the
-/// regulatory export's Appraisal-Value-as-Completed field). Keeping it here means the screen and the
-/// outbound regulatory file can never drift apart.
+/// <c>AppraisalForCollateralResult</c> contract that feeds the Collateral module, where it is frozen
+/// onto the engagement and read back by the reappraisal queue. The regulatory export does NOT read
+/// this service: <c>collateral.vw_RegulatoryExport</c> derives its own current value from
+/// ConstructionInspections and means something narrower by it (the part-built buildings alone).
 ///
 /// <code>
-/// CurrentValue = LandValue + CompletedBuildingValue + ConstructionCurrentValue
-/// CompleteValue = LandValue + CompletedBuildingValue + ConstructionTotalValue
+/// CompleteValue = AppraisedValue of the inspected groups, else Land + CompletedBuilding + InspectedTotal
+/// CurrentValue  = 100%? CompleteValue : min(Land + CompletedBuilding + InspectedCurrent, CompleteValue)
+/// PreviousValue = the same rule, on the previous round's progress
 /// </code>
+///
+/// <b>Everything is scoped to the groups holding an inspected property</b> — see
+/// <c>CiGroupsSql</c>. An appraisal's machinery, bare plots and uninspected condos are separate
+/// collateral and have no place in a drawdown computed from this book's progress percentage.
+///
+/// <b>The completed value is the price of record, not the sum of its parts.</b> The components can
+/// total something else — the Cost approach prices a building through its Building Cost method while
+/// the inspection carries the depreciation total — and when they disagree the priced figure wins, so
+/// this card, the construction summary book and the pricing screen cannot print three answers.
 ///
 /// <b>Summary-mode values are derived from the percent, not read from the stored value.</b>
 /// <c>ConstructionInspections.SummaryCurrentValue</c> is unusable: the CI screen computes the figure
@@ -33,10 +44,11 @@ public interface IConstructionCurrentValueService
     Task<ConstructionValueBreakdown?> GetAsync(Guid appraisalId, CancellationToken cancellationToken = default);
 }
 
-/// <param name="LandValue">Σ PricingFinalValues.LandValue over the appraisal's property groups.</param>
+/// <param name="LandValue">Σ PricingFinalValues.LandValue over the inspected groups.</param>
 /// <param name="CompletedBuildingValue">
-/// Σ PriceAfterDepreciation for building properties with NO construction inspection — i.e. already
-/// finished before any inspection round, so they count at full value.
+/// Per building with NO construction inspection — already finished before any round, so it counts at
+/// full value — the appraiser's own Building Cost Value where they keyed one, else the depreciated
+/// sum rounded to the nearest 1,000. Summed over the inspected groups.
 /// </param>
 /// <param name="InspectedTotalValue">Σ ConstructionInspections.TotalValue — the part-built buildings at 100%.</param>
 /// <param name="InspectedPreviousValue">Those same buildings at the previous round's progress.</param>
@@ -47,6 +59,10 @@ public interface IConstructionCurrentValueService
 /// PreviousProgressPct). Used only when there is no value base to weight by.
 /// </param>
 /// <param name="UnweightedCurrentPercent">The same for the current round's progress.</param>
+/// <param name="AppraisedValue">
+/// Σ the appraised value of the inspected groups — the price of record, what the pricing screen
+/// settled on. 0 when those groups carry no price yet.
+/// </param>
 public record ConstructionValueBreakdown(
     decimal LandValue,
     decimal CompletedBuildingValue,
@@ -57,16 +73,59 @@ public record ConstructionValueBreakdown(
     decimal UnweightedCurrentPercent,
     decimal WeightedPreviousPercent,
     decimal WeightedCurrentPercent,
-    bool HasOwnValueBase)
+    bool HasOwnValueBase,
+    decimal AppraisedValue = 0m)
 {
-    /// <summary>Value as it stands today, with part-built buildings counted at their progress.</summary>
-    public decimal CurrentValue => LandValue + CompletedBuildingValue + InspectedCurrentValue;
+    /// <summary>
+    /// Value once construction finishes: the appraised value of the inspected groups, falling back
+    /// to the components when those groups carry no price yet.
+    ///
+    /// The two can differ — the Cost approach prices the building through its Building Cost method
+    /// while the inspection carries the building's own depreciation total, and adjusting one does
+    /// not move the other. Reporting the appraised value means this card, the construction summary
+    /// book and the price of record all agree.
+    ///
+    /// KNOWN CONSEQUENCE: the land and building columns beside this row no longer have to add up to
+    /// it. That is the deliberate trade — the alternative is a card that disagrees with the
+    /// appraisal it summarises.
+    /// </summary>
+    public decimal CompleteValue => AppraisedValue > 0m
+        ? AppraisedValue
+        : LandValue + CompletedBuildingValue + InspectedTotalValue;
 
-    /// <summary>Value once construction finishes — should reconcile with the appraised value.</summary>
-    public decimal CompleteValue => LandValue + CompletedBuildingValue + InspectedTotalValue;
+    /// <summary>
+    /// Value as it stands today, with part-built buildings counted at their progress. At 100% there
+    /// is nothing left to build, so it is the completed value itself — reporting less would say a
+    /// finished property is worth less than its own appraisal. Below 100% it is capped there for the
+    /// same reason: the two are computed from different bases, and when the appraiser prices below
+    /// what the inspection's totals imply, a part-built figure could otherwise print higher than the
+    /// finished one. <see cref="IsUnderConstruction"/> reads the unrounded progress, so a split
+    /// leaving the work at 99.995% is still unfinished however it displays.
+    /// </summary>
+    public decimal CurrentValue => IsUnderConstruction
+        ? Math.Min(LandValue + CompletedBuildingValue + InspectedCurrentValue, CompleteValue)
+        : CompleteValue;
 
-    /// <summary>Value at the previous inspection round.</summary>
-    public decimal PreviousValue => LandValue + CompletedBuildingValue + InspectedPreviousValue;
+    /// <summary>
+    /// Value at the previous inspection round, on exactly the same rule as <see cref="CurrentValue"/>:
+    /// the completed value once that round reached 100%, the capped components below it.
+    ///
+    /// The symmetry is what keeps the delta rows honest. Capping without lifting meant a re-inspection
+    /// of an already-finished building reported the previous round at the components and the current
+    /// one at the appraised value — 0.00% progress beside a multi-million-baht increase.
+    ///
+    /// KNOWN CASE, not hidden: when land plus finished buildings alone already exceed the appraised
+    /// value, the cap collapses all three milestones onto it and the card shows 0 baht of movement
+    /// beside a percentage that did move. That is what the stored data says — the price of record is
+    /// below what the components add up to — and the likeliest cause is a PricingFinalValues.LandValue
+    /// row saved before the 2026-09-24 ApplyLandAreaValue change, which still holds a market approach's
+    /// whole-property lump under a column that means land. Those rows correct themselves when the
+    /// group is saved again; no backfill shipped, by decision. Smoothing the delta rows here would
+    /// only make a contradiction in the data look like a clean report.
+    /// </summary>
+    public decimal PreviousValue => RawPreviousPercent >= 100m
+        ? CompleteValue
+        : Math.Min(LandValue + CompletedBuildingValue + InspectedPreviousValue, CompleteValue);
 
     /// <summary>
     /// Construction progress across the inspected buildings, 0–100.
@@ -147,6 +206,12 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
         var completedBuilding = await connection.QueryFirstOrDefaultAsync<decimal>(
             new CommandDefinition(CompletedBuildingValueSql, p, cancellationToken: cancellationToken));
 
+        // The price of record for the inspected groups. Read on both paths: it is the 100% base the
+        // card and the summary book both print, and below it stands in entirely for an inspection
+        // that has no value of its own.
+        var appraisedValue = await connection.QueryFirstOrDefaultAsync<decimal>(
+            new CommandDefinition(AppraisedValueSql, p, cancellationToken: cancellationToken));
+
         // A condo unit has no building depreciation table, so the CI screen has nothing to total and
         // every inspection on the appraisal carries TotalValue = 0. The appraised value is the same
         // "worth once finished" figure the depreciation table gives a house, so it stands in as the
@@ -165,26 +230,27 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
                 UnweightedCurrentPercent: ci.UnweightedCurrentPercent,
                 WeightedPreviousPercent: ci.WeightedPreviousPercent,
                 WeightedCurrentPercent: ci.WeightedCurrentPercent,
-                HasOwnValueBase: true);
+                HasOwnValueBase: true,
+                AppraisedValue: appraisedValue);
         }
 
-        var appraisedValue = await connection.QueryFirstOrDefaultAsync<decimal>(
-            new CommandDefinition(AppraisedValueSql, p, cancellationToken: cancellationToken));
-
-        // An inspection with no value base AND no appraised value has nothing to report. Keep the
-        // original null so the caller's "nothing is part-built" path — and the regulatory writer's
-        // CurrentValue ?? LatestAppraisalValue fallback — behave exactly as before.
-        if (appraisedValue == 0m)
-            return null;
-
+        // No money to report — the inspected groups carry no price and this inspection has no value
+        // base of its own — but the progress IS recorded, and it is not money. Returning null here
+        // would say "nothing is under construction": GetAppraisalForCollateralQueryHandler passes
+        // IsUnderConstruction and ConstructionProgressPercent straight from this breakdown onto the
+        // frozen engagement, so a building genuinely half-finished would be recorded as not being
+        // built at all, and the MIS report's progress columns would go blank with it. Report the
+        // percentages with zero money instead: 0 here means "not priced yet", which is the truth,
+        // and it cannot be confused with a finished building because the percentage says otherwise.
+        //
         // Unscaled on purpose. A house is financed against how much of it is built, so its value
         // steps up with the percentage; a condo unit is not — the buyer is buying the finished unit
         // and nothing is drawn down per milestone. The percentage is still reported, it just does
         // not move the money.
         //
-        // Land and completed buildings are dropped rather than added: AppraisedValue is the
-        // WHOLE-appraisal figure and already contains them, so leaving them in would count them
-        // twice in CurrentValue / CompleteValue / PreviousValue.
+        // Land and completed buildings are dropped rather than added: AppraisedValue already covers
+        // the whole of the inspected groups, so leaving them in would count them twice in
+        // CurrentValue / CompleteValue / PreviousValue.
         return new ConstructionValueBreakdown(
             LandValue: 0m,
             CompletedBuildingValue: 0m,
@@ -195,17 +261,73 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
             UnweightedCurrentPercent: ci.UnweightedCurrentPercent,
             WeightedPreviousPercent: ci.WeightedPreviousPercent,
             WeightedCurrentPercent: ci.WeightedCurrentPercent,
-            HasOwnValueBase: false);
+            HasOwnValueBase: false,
+            AppraisedValue: appraisedValue);
     }
 
     /// <summary>
-    /// The appraisal's own "worth once finished" figure, used as the 100% base for an inspection that
-    /// has no value of its own. Same column the Decision Summary and the regulatory export read.
+    /// The groups this breakdown is about: those holding a property under construction inspection.
+    /// An appraisal that also carries machinery, a bare plot or another condo in their own groups
+    /// was dragging all of it into the 100% base while the progress percentage came from the
+    /// inspected buildings alone — numerator and denominator measuring different collateral.
+    /// Machinery needs no filter of its own: a machinery group has no inspection, so it never
+    /// enters the set. Every query below falls back to the whole appraisal when the set is empty,
+    /// which happens when an inspected property belongs to no group at all.
+    /// KEEP IN SYNC with AppraisalSummaryConstructionDataProvider — the report and this card print
+    /// the same money, and they are only equal while they cover the same groups.
     /// </summary>
-    private const string AppraisedValueSql = """
-        SELECT ISNULL(MAX(va.AppraisedValue), 0)
-        FROM appraisal.ValuationAnalyses va
-        WHERE va.AppraisalId = @AppraisalId
+    internal const string CiGroupsSql = """
+        SELECT DISTINCT gi.PropertyGroupId
+                FROM appraisal.ConstructionInspections ci2
+                JOIN appraisal.AppraisalProperties ap2 ON ap2.Id = ci2.AppraisalPropertyId
+                JOIN appraisal.PropertyGroupItems gi ON gi.AppraisalPropertyId = ap2.Id
+                WHERE ap2.AppraisalId = @AppraisalId
+        """;
+
+    /// <summary>
+    /// The price of record: the 100% base every milestone is reported against, and the whole of the
+    /// figure for an inspection that has no value of its own (a condo unit has no depreciation table
+    /// to total). Read per group so it covers the same collateral as everything else here.
+    ///
+    /// The whole-appraisal valuation is consulted ONLY when no inspected property sits in a group,
+    /// which is the one case where "the inspected groups" names nothing. When such a group exists but
+    /// carries no price, the answer is 0: falling through to an appraisal-level figure would hand
+    /// this card the machinery group's money and call it the building's, which is the very mixing the
+    /// scoping exists to stop. 0 then lets CompleteValue fall back to the components, and only a
+    /// condo — which has no components either — ends with no card at all.
+    /// KEEP IN SYNC with AppraisalSummaryConstructionDataProvider's appraisedValue.
+    /// </summary>
+    private const string AppraisedValueSql = $"""
+        SELECT ISNULL(
+                   CASE WHEN EXISTS (SELECT 1 FROM (SELECT 1 AS One) seed
+                                     WHERE EXISTS ({CiGroupsSql}))
+                        THEN SUM(CASE WHEN g.InCiGroup = 1 THEN g.GroupValue END)
+                        -- valuation ?? rollup, matching TotalAppraisalValue on the report side: an
+                        -- appraisal priced group by group need not have a committed valuation row.
+                        ELSE COALESCE(
+                                 (SELECT MAX(va.AppraisedValue)
+                                  FROM appraisal.ValuationAnalyses va
+                                  WHERE va.AppraisalId = @AppraisalId),
+                                 SUM(g.GroupValue))
+                   END, 0)
+        FROM (
+            -- One row per group; the per-group value has to be projected here before it can be
+            -- summed, because SQL Server will not aggregate over an APPLY that aggregates.
+            SELECT COALESCE(pa.FinalAppraisedValue, grp.EffectiveValue) AS GroupValue,
+                   CASE WHEN pg.Id IN ({CiGroupsSql}) THEN 1 ELSE 0 END AS InCiGroup
+            FROM appraisal.PropertyGroups pg
+            LEFT JOIN appraisal.PricingAnalysis pa
+                ON pa.AnchorId = pg.Id AND pa.SubjectType = 0
+            OUTER APPLY (
+                SELECT SUM(COALESCE(pm.MethodValue, fv.IndicatedValue, fv.FinalValue)) AS EffectiveValue
+                FROM appraisal.PricingAnalysisApproaches pap
+                JOIN appraisal.PricingAnalysisMethods pm
+                    ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
+                LEFT JOIN appraisal.PricingFinalValues fv ON fv.PricingMethodId = pm.Id
+                WHERE pap.PricingAnalysisId = pa.Id AND pap.IsSelected = 1
+            ) grp
+            WHERE pg.AppraisalId = @AppraisalId
+        ) g
         """;
 
     /// <summary>
@@ -232,9 +354,12 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
     /// Market, income and residual price the collateral as one lump, so a per-square-wa comparable
     /// rate says how the market quotes a parcel, not that the resulting figure excludes the buildings
     /// standing on it — multiplying it out wrote the whole property's value into LandValue, and this
-    /// SUM then added the buildings again from BuildingDepreciationDetails. The clause is kept rather
-    /// than tightened to Role IN ('Land','LandAndBuilding') because the gate that matters is the one
-    /// in the domain; narrowing it here would hide a regression if that gate were ever removed.
+    /// SUM then added the buildings again from BuildingDepreciationDetails. The role clause narrows to
+    /// Land / LandAndBuilding (plus NULL) so a second selected method of another role cannot add a
+    /// LandValue of its own. The gate that matters is still the domain one in ApplyLandAreaValue —
+    /// this is a second line of defence, not a substitute, and it is inert on current data because
+    /// only the land-bearing roles ever write the column. The same clause is now in RS02 of the
+    /// construction book and in vw_MisCasReport's Land CTE; change one and change all three.
     /// <para>
     /// A market-priced appraisal that also has a construction inspection therefore now contributes
     /// 0 land instead of a double-counted total. Neither figure is right — this formula needs a
@@ -243,7 +368,7 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
     /// </para>
     /// </para>
     /// </summary>
-    private const string LandValueSql = """
+    private const string LandValueSql = $"""
         SELECT ISNULL(SUM(pfv.LandValue), 0)
         FROM appraisal.PricingFinalValues pfv
         JOIN appraisal.PricingAnalysisMethods pam ON pam.Id = pfv.PricingMethodId
@@ -254,19 +379,44 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
         JOIN appraisal.PricingAnalysis pa ON pa.Id = paa.PricingAnalysisId AND pa.SubjectType = 0
         JOIN appraisal.PropertyGroups pg ON pg.Id = pa.AnchorId
         WHERE pg.AppraisalId = @AppraisalId
+          AND (pg.Id IN ({CiGroupsSql}) OR NOT EXISTS ({CiGroupsSql}))
         """;
 
-    /// <summary>Buildings with no inspection — finished, so they count at full depreciated value.</summary>
-    private const string CompletedBuildingValueSql = """
-        SELECT ISNULL(SUM(bdd.PriceAfterDepreciation), 0)
-        FROM appraisal.BuildingDepreciationDetails bdd
-        JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
-        JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
-        WHERE ap.AppraisalId = @AppraisalId
-          AND NOT EXISTS (
-              SELECT 1 FROM appraisal.ConstructionInspections ci
-              WHERE ci.AppraisalPropertyId = ap.Id
-          )
+    /// <summary>
+    /// Buildings with no inspection — finished, so they count at full value. Per building that is
+    /// the appraiser's own Building Cost Value where they keyed one, else the depreciated sum
+    /// rounded to the nearest 1,000: the rule the property form, BuildingInsuranceCalculator and
+    /// PricingPropertyDataService all apply. The raw sum this used to take ignored an override
+    /// outright, so a building the appraiser had priced himself entered every milestone of the
+    /// breakdown at the system's figure instead of his.
+    /// KEEP IN SYNC with GetDecisionSummaryQueryHandler.completedBuildingSql and the construction
+    /// summary book's RS03 — the three print the same money on three screens.
+    /// </summary>
+    private const string CompletedBuildingValueSql = $"""
+        SELECT ISNULL(SUM(b.BuildingValue), 0)
+        FROM (
+            -- Driven from the building, LEFT JOINed to its schedule: an appraiser who keys a Building
+            -- Cost Value instead of filling in a depreciation table leaves no BuildingDepreciationDetails
+            -- rows at all, and driving from that table dropped exactly the building this COALESCE
+            -- exists to honour. Same join direction as PricingPropertyDataService.BuildingFinalCostValuesSql.
+            -- ISNULL: no schedule and no override is worth 0, not NULL.
+            SELECT ISNULL(COALESCE(bad.FinalCostValueOverride,
+                                   ROUND(SUM(bdd.PriceAfterDepreciation), -3)), 0) AS BuildingValue
+            FROM appraisal.BuildingAppraisalDetails bad
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
+            LEFT JOIN appraisal.BuildingDepreciationDetails bdd ON bdd.BuildingAppraisalDetailId = bad.Id
+            WHERE ap.AppraisalId = @AppraisalId
+              AND NOT EXISTS (
+                  SELECT 1 FROM appraisal.ConstructionInspections ci
+                  WHERE ci.AppraisalPropertyId = ap.Id
+              )
+              AND (EXISTS (
+                      SELECT 1 FROM appraisal.PropertyGroupItems gi
+                      WHERE gi.AppraisalPropertyId = ap.Id
+                        AND gi.PropertyGroupId IN ({CiGroupsSql}))
+                   OR NOT EXISTS ({CiGroupsSql}))
+            GROUP BY bad.Id, bad.FinalCostValueOverride
+        ) b
         """;
 
     /// <summary>

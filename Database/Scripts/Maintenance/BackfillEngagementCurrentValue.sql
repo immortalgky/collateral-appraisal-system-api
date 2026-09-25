@@ -13,11 +13,13 @@
             and frozen onto the engagement at creation time. Existing engagements
             were created before that existed, so the column is NULL for all of them.
 
-            Why it matters: the regulatory export's field 7 (Appraisal Value as
-            Completed) reads this column and falls back to the full appraised value
-            when it is NULL. That fallback is correct for finished collateral but
-            WRONG for anything still under construction — it would report the
-            as-completed value as though the building were done.
+            Why it matters: the reappraisal queue reads this column
+            (ReappraisalCandidate.CurrentValue).
+
+            NOT the regulatory export: collateral.vw_RegulatoryExport computes its
+            own current value from ConstructionInspections and never reads this
+            column. An earlier version of this comment said it did — the claim also
+            sits in RegulatoryFileWriter.cs:110 and is wrong there too.
 
             The alternative to this script is clearing CollateralMasters and
             re-running the collateral backfill, which also rebuilds engagements.
@@ -27,8 +29,30 @@
   will not run on deploy — run it once per environment after the
   AddEngagementCurrentValue migration has been applied.
 
-  DERIVATION — mirrors IConstructionCurrentValueService exactly, so backfilled rows
-  are indistinguishable from newly-created ones:
+  ⚠ DO NOT RUN WITHOUT REVISITING THE FORMULA — FROZEN AT THE PRE-2026-09-25 RULE.
+
+  This derivation no longer mirrors IConstructionCurrentValueService. On 2026-09-25
+  that service changed in three ways this script does not follow:
+
+    1. Completed buildings are valued per building as
+       COALESCE(FinalCostValueOverride, ROUND(SUM(PriceAfterDepreciation), -3)),
+       not as a raw sum of the schedule — an appraiser's own Building Cost Value wins.
+    2. Land and completed buildings are scoped to the property groups that hold an
+       inspected property, not summed across the whole appraisal.
+    3. CurrentValue is capped at, and at 100% lifted to, CompleteValue — which is the
+       inspected groups' appraised value, not the sum of the components.
+
+  Measured on dev, the two formulas disagree by millions on real rows (5.6M on
+  019CF78E-C856-74B8-BC28-ABA3AB9E69CC, 8.8M on 019F935C-EF86-78AC-9EC1-BDED7EE1DE52).
+  Its only guard is `e.CurrentValue IS NULL`, so nothing stops it running and writing
+  the old answer.
+
+  Whether the frozen engagement value should follow the new scoped rule at all is an
+  OPEN QUESTION with the user — the engagement covers the whole collateral while the
+  construction book covers the groups being built. Settle that first, then either
+  update this script or delete it.
+
+  DERIVATION (as written — the pre-2026-09-25 rule):
 
     landValue     = SUM(PricingFinalValues.LandValue) over the appraisal's property
                     groups (SubjectType = 0 anchors on PropertyGroup)

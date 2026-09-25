@@ -69,25 +69,70 @@ RouteBack AS (
 -- buildings, counting them twice. Neither is right; this formula needs a separable land figure and
 -- the market approach cannot produce one. Left as-is because these columns describe construction
 -- jobs, which are priced with the cost approach in practice.
+-- The groups these construction columns are about: those holding an inspected property. An
+-- appraisal that also carries machinery, a bare plot or a second condo in their own groups was
+-- dragging all of it in while the progress percentage came from the inspected buildings alone.
+-- Machinery needs no filter of its own — a machinery group has no inspection, so it never enters
+-- the set. Both CTEs below fall back to the whole appraisal when no inspected property sits in a
+-- group. KEEP IN SYNC with ConstructionCurrentValueService.CiGroupsSql.
+CiGroups AS (
+    SELECT DISTINCT ap.AppraisalId, gi.PropertyGroupId
+    FROM appraisal.ConstructionInspections ci
+    JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
+    JOIN appraisal.PropertyGroupItems gi ON gi.AppraisalPropertyId = ap.Id
+),
+
 Land AS (
     SELECT pg.AppraisalId, SUM(pfv.LandValue) AS LandValue
     FROM appraisal.PricingFinalValues pfv
     JOIN appraisal.PricingAnalysisMethods pam ON pam.Id = pfv.PricingMethodId AND pam.IsSelected = 1
+        -- Multi-select Cost: only the land-bearing method's LandValue (same filter as LandValueSql).
+        -- Safe on every environment since migration 20260919160843 landed on main (cc246ea4).
+        AND (pam.Role IS NULL OR pam.Role IN ('Land', 'LandAndBuilding'))
     JOIN appraisal.PricingAnalysisApproaches paa ON paa.Id = pam.ApproachId AND paa.IsSelected = 1
     JOIN appraisal.PricingAnalysis pa ON pa.Id = paa.PricingAnalysisId AND pa.SubjectType = 0
     JOIN appraisal.PropertyGroups pg ON pg.Id = pa.AnchorId
+    WHERE (EXISTS (SELECT 1 FROM CiGroups cg
+                   WHERE cg.AppraisalId = pg.AppraisalId AND cg.PropertyGroupId = pg.Id)
+           OR NOT EXISTS (SELECT 1 FROM CiGroups cg WHERE cg.AppraisalId = pg.AppraisalId))
+      AND EXISTS (SELECT 1
+                  FROM appraisal.ConstructionInspections ciG
+                  JOIN appraisal.AppraisalProperties apG ON apG.Id = ciG.AppraisalPropertyId
+                  WHERE apG.AppraisalId = pg.AppraisalId)
     GROUP BY pg.AppraisalId
 ),
 
--- Buildings with no inspection are finished, so they count at full depreciated value.
+-- Buildings with no inspection are finished, so they count at full value: the appraiser's own
+-- Building Cost Value where they keyed one, else the depreciated sum rounded to the nearest 1,000.
+-- Driven from the building and LEFT JOINed to its schedule, because keying an override INSTEAD of
+-- filling in a depreciation table leaves no BuildingDepreciationDetails rows at all.
+-- KEEP IN SYNC with ConstructionCurrentValueService.CompletedBuildingValueSql.
 CompletedBuilding AS (
-    SELECT ap.AppraisalId, SUM(bdd.PriceAfterDepreciation) AS CompletedBuildingValue
-    FROM appraisal.BuildingDepreciationDetails bdd
-    JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
-    JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
-    WHERE NOT EXISTS (SELECT 1 FROM appraisal.ConstructionInspections ci
-                      WHERE ci.AppraisalPropertyId = ap.Id)
-    GROUP BY ap.AppraisalId
+    SELECT b.AppraisalId, SUM(b.BuildingValue) AS CompletedBuildingValue
+    FROM (
+        SELECT ap.AppraisalId,
+               ISNULL(COALESCE(bad.FinalCostValueOverride,
+                               ROUND(SUM(bdd.PriceAfterDepreciation), -3)), 0) AS BuildingValue
+        FROM appraisal.BuildingAppraisalDetails bad
+        JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
+        LEFT JOIN appraisal.BuildingDepreciationDetails bdd ON bdd.BuildingAppraisalDetailId = bad.Id
+        WHERE NOT EXISTS (SELECT 1 FROM appraisal.ConstructionInspections ci
+                          WHERE ci.AppraisalPropertyId = ap.Id)
+          AND (EXISTS (SELECT 1 FROM appraisal.PropertyGroupItems gi
+                       JOIN CiGroups cg ON cg.PropertyGroupId = gi.PropertyGroupId
+                                       AND cg.AppraisalId = ap.AppraisalId
+                       WHERE gi.AppraisalPropertyId = ap.Id)
+               OR NOT EXISTS (SELECT 1 FROM CiGroups cg WHERE cg.AppraisalId = ap.AppraisalId))
+          -- Same guard as GroupValues, and for the same reason: this aggregates before the join, so
+          -- the optimiser cannot push the appraisal predicate in. Without it every building in the
+          -- database is grouped and valued on every read of the view.
+          AND EXISTS (SELECT 1
+                      FROM appraisal.ConstructionInspections ciG
+                      JOIN appraisal.AppraisalProperties apG ON apG.Id = ciG.AppraisalPropertyId
+                      WHERE apG.AppraisalId = ap.AppraisalId)
+        GROUP BY ap.AppraisalId, bad.Id, bad.FinalCostValueOverride
+    ) b
+    GROUP BY b.AppraisalId
 ),
 
 -- Part-built buildings at 100% / previous / current. Summary-mode money is derived from the
@@ -133,26 +178,103 @@ Ci AS (
     GROUP BY ap.AppraisalId
 ),
 
+-- The price of record for the inspected groups, on the same three-step rule as
+-- ConstructionCurrentValueService.AppraisedValueSql: the inspected groups' own prices, or — only
+-- when no inspected property sits in a group — the appraisal-level valuation. An inspected group
+-- with no price answers 0 rather than borrowing another group's money.
+GroupValues AS (
+    SELECT pg.AppraisalId,
+           COALESCE(pa.FinalAppraisedValue, grp.EffectiveValue) AS GroupValue,
+           CASE WHEN EXISTS (SELECT 1 FROM CiGroups cg
+                             WHERE cg.AppraisalId = pg.AppraisalId AND cg.PropertyGroupId = pg.Id)
+                THEN 1 ELSE 0 END AS InCiGroup
+    FROM appraisal.PropertyGroups pg
+    LEFT JOIN appraisal.PricingAnalysis pa ON pa.AnchorId = pg.Id AND pa.SubjectType = 0
+    OUTER APPLY (
+        SELECT SUM(COALESCE(pm.MethodValue, fv.IndicatedValue, fv.FinalValue)) AS EffectiveValue
+        FROM appraisal.PricingAnalysisApproaches pap
+        JOIN appraisal.PricingAnalysisMethods pm ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
+        LEFT JOIN appraisal.PricingFinalValues fv ON fv.PricingMethodId = pm.Id
+        WHERE pap.PricingAnalysisId = pa.Id AND pap.IsSelected = 1
+    ) grp
+    -- Only appraisals that carry an inspection at all — the same population the Ci CTE keeps, and
+    -- the only one these columns are about. Without it this walks every property group in the
+    -- database and prices each one, which is a whole-schema pricing scan on a MIS extract. The rest
+    -- of the view leans on the optimiser pushing the appraisal predicate down; this CTE aggregates
+    -- before the join, so it cannot.
+    WHERE EXISTS (
+        SELECT 1
+        FROM appraisal.ConstructionInspections ci
+        JOIN appraisal.AppraisalProperties apx ON apx.Id = ci.AppraisalPropertyId
+        WHERE apx.AppraisalId = pg.AppraisalId)
+),
+
+ScopedAppraised AS (
+    SELECT gv.AppraisalId,
+           SUM(CASE WHEN gv.InCiGroup = 1 THEN gv.GroupValue END) AS ScopedValue,
+           SUM(gv.GroupValue)                                     AS AllGroupsValue,
+           MAX(gv.InCiGroup)                                      AS HasCiGroup
+    FROM GroupValues gv
+    GROUP BY gv.AppraisalId
+),
+
 -- One set of construction figures per appraisal, as the service returns them. When no inspection
 -- has a value base of its own (a condo unit), the appraised value stands in as the 100% / previous /
 -- current figure and land + completed buildings drop out — the appraised value already contains them.
-Construction AS (
+ConstructionBase AS (
     SELECT
         ci.AppraisalId,
+        av.AppraisedValue,
         HasOwnValueBase = CAST(CASE WHEN ci.TotalValue > 0 THEN 1 ELSE 0 END AS bit),
         LandValue       = CASE WHEN ci.TotalValue > 0 THEN ISNULL(l.LandValue, 0) ELSE 0 END,
         CompletedValue  = CASE WHEN ci.TotalValue > 0 THEN ISNULL(cb.CompletedBuildingValue, 0) ELSE 0 END,
-        InspTotal       = CASE WHEN ci.TotalValue > 0 THEN ci.TotalValue    ELSE va.AppraisedValue END,
-        InspPrevious    = CASE WHEN ci.TotalValue > 0 THEN ci.PreviousValue ELSE va.AppraisedValue END,
-        InspCurrent     = CASE WHEN ci.TotalValue > 0 THEN ci.CurrentValue  ELSE va.AppraisedValue END,
+        -- With no value base of its own (a condo unit has no depreciation table to total) the
+        -- SCOPED appraised value stands in — never va.AppraisedValue, which covers the whole
+        -- appraisal and would put a machinery group's money on a page about one unit.
+        InspTotal       = CASE WHEN ci.TotalValue > 0 THEN ci.TotalValue    ELSE av.AppraisedValue END,
+        InspPrevious    = CASE WHEN ci.TotalValue > 0 THEN ci.PreviousValue ELSE av.AppraisedValue END,
+        InspCurrent     = CASE WHEN ci.TotalValue > 0 THEN ci.CurrentValue  ELSE av.AppraisedValue END,
         PreviousPct     = CASE WHEN ci.TotalValue > 0 THEN ci.WeightedPreviousPct ELSE ci.UnweightedPreviousPct END,
         CurrentPct      = CASE WHEN ci.TotalValue > 0 THEN ci.WeightedCurrentPct  ELSE ci.UnweightedCurrentPct END
     FROM Ci ci
     LEFT JOIN Land l ON l.AppraisalId = ci.AppraisalId
     LEFT JOIN CompletedBuilding cb ON cb.AppraisalId = ci.AppraisalId
+    LEFT JOIN ScopedAppraised sa ON sa.AppraisalId = ci.AppraisalId
     LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = ci.AppraisalId
-    -- The service reports nothing for an inspection with neither a value base nor an appraised value.
-    WHERE ci.TotalValue > 0 OR ISNULL(va.AppraisedValue, 0) <> 0
+    CROSS APPLY (
+        -- valuation ?? rollup on the no-group arm, as AppraisedValueSql and the book both do: an
+        -- appraisal priced group by group need not have a committed ValuationAnalyses row yet, and
+        -- answering 0 there dropped it out of the WHERE below entirely.
+        SELECT AppraisedValue = CASE WHEN ISNULL(sa.HasCiGroup, 0) = 1 THEN ISNULL(sa.ScopedValue, 0)
+                                     ELSE COALESCE(va.AppraisedValue, sa.AllGroupsValue, 0) END
+    ) av
+    -- No WHERE: an inspection with neither a value base nor a price of record still has a recorded
+    -- progress, and the percentage columns (89-91) are not money. Dropping the row here blanked them
+    -- for a collateral that is genuinely mid-construction. The money columns come out 0, which is
+    -- what "not priced yet" looks like. Mirrors GetAsync, which stopped returning null for this.
+),
+
+-- The three reported milestones, mirroring ConstructionValueBreakdown: the completed value is the
+-- price of record (the components only when the groups carry no price), and the part-built figures
+-- are lifted to it at 100% and capped by it below — so the current figure can never print above the
+-- finished one, and a re-inspection of finished work cannot report progress money at 0% progress.
+-- KEEP IN SYNC with ConstructionValueBreakdown.CompleteValue / CurrentValue / PreviousValue.
+Construction AS (
+    SELECT c.*,
+           CompleteValue = x.CompleteValue,
+           CurrentValue  = CASE WHEN c.CurrentPct >= 100 THEN x.CompleteValue
+                                WHEN c.LandValue + c.CompletedValue + c.InspCurrent < x.CompleteValue
+                                     THEN c.LandValue + c.CompletedValue + c.InspCurrent
+                                ELSE x.CompleteValue END,
+           PreviousValue = CASE WHEN c.PreviousPct >= 100 THEN x.CompleteValue
+                                WHEN c.LandValue + c.CompletedValue + c.InspPrevious < x.CompleteValue
+                                     THEN c.LandValue + c.CompletedValue + c.InspPrevious
+                                ELSE x.CompleteValue END
+    FROM ConstructionBase c
+    CROSS APPLY (
+        SELECT CompleteValue = CASE WHEN c.AppraisedValue > 0 THEN c.AppraisedValue
+                                    ELSE c.LandValue + c.CompletedValue + c.InspTotal END
+    ) x
 ),
 
 -- Government price, summed the way the Decision Summary totals it (GetDecisionSummaryQueryHandler):
@@ -244,7 +366,7 @@ SELECT
     COALESCE(va.ValuationDate, appt.AppointmentDateTime, a.CompletedAt) AS SurveyDate,   -- 51
     gp.GovernmentPrice                                          AS AgenturerRate,        -- 52
     CASE WHEN con.AppraisalId IS NOT NULL
-         THEN con.LandValue + con.CompletedValue + con.InspCurrent
+         THEN con.CurrentValue
          ELSE va.AppraisedValue END                             AS CurrAppraisalAmt,     -- 53
     CAST(NULL AS decimal(19, 2))                                AS CurrForcedSaleAmt,    -- 54
     va.AppraisedValue                                           AS TotalAppraisalAmt,    -- 55
@@ -275,9 +397,9 @@ SELECT
     con.CompletedValue + con.InspTotal                          AS SumBuildingCostAmt,   -- 83
     con.CompletedValue + con.InspCurrent                        AS CurrBuildingCostAmt,  -- 84
     con.CompletedValue + con.InspPrevious                       AS OldBuildingCostAmt,   -- 85
-    con.LandValue + con.CompletedValue + con.InspTotal          AS SumLandBuildingAmt,   -- 86
-    con.LandValue + con.CompletedValue + con.InspCurrent        AS CurrLandBuildingAmt,  -- 87
-    con.LandValue + con.CompletedValue + con.InspPrevious       AS OldLandBuildingAmt,   -- 88
+    con.CompleteValue                                           AS SumLandBuildingAmt,   -- 86
+    con.CurrentValue                                            AS CurrLandBuildingAmt,  -- 87
+    con.PreviousValue                                           AS OldLandBuildingAmt,   -- 88
     CAST(con.PreviousPct AS decimal(9, 2))                      AS JobOldPC,             -- 89
     CAST(con.CurrentPct - con.PreviousPct AS decimal(9, 2))     AS JobIncreasePC,        -- 90
     CAST(con.CurrentPct AS decimal(9, 2))                       AS JobCurrPC,            -- 91
