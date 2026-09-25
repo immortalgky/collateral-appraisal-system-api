@@ -62,24 +62,15 @@ import {
   listThresholds,
   trimTrailingSlashes,
   buildShapePicker,
+  scenarioOptionsFromEnv,
 } from "./lib/k6-common.js";
 
 const BASE_URL = trimTrailingSlashes(__ENV.BASE_URL || "https://localhost:7111");
 const ENDPOINT = __ENV.ENDPOINT || "/search";
 
-// MODE selects the load shape (only one scenario runs at a time):
-//   "count" (default) — exactly ITERATIONS requests at concurrency VUS
-//   "rate"            — ramp toward PEAK_RPS req/s to find the capacity knee
-const MODE = (__ENV.MODE || "count").toLowerCase();
-
-const VUS = Number.parseInt(__ENV.VUS || "8", 10);
-const ITERATIONS = Number.parseInt(__ENV.ITERATIONS || "80", 10);
-
-const PEAK_RPS = Number.parseInt(__ENV.PEAK_RPS || "8", 10);
-const PRE_VUS = Number.parseInt(__ENV.PRE_VUS || "10", 10);
-const MAX_VUS = Number.parseInt(__ENV.MAX_VUS || "100", 10);
-const WARMUP = __ENV.WARMUP || "30s";
-const STAGE_DUR = __ENV.STAGE_DUR || "1m";
+// MODE / VUS / ITERATIONS / PEAK_RPS / PRE_VUS / MAX_VUS / WARMUP / STAGE_DUR select the load
+// shape — "count" runs exactly ITERATIONS requests at concurrency VUS, "rate" ramps toward PEAK_RPS
+// to find the capacity knee. See scenarioOptionsFromEnv in lib/k6-common.js for the defaults.
 
 // The navbar asks for 8 (QuickSearchEndpoint's default when limit is absent).
 const LIMIT = Number.parseInt(__ENV.LIMIT || "8", 10);
@@ -143,17 +134,7 @@ const requestsByCase = new Counter("quick_search_requests");
 const emptyByCase = new Counter("quick_search_empty_results");
 
 export const options = {
-  scenarios: buildScenarios({
-    mode: MODE,
-    vus: VUS,
-    iterations: ITERATIONS,
-    peakRps: PEAK_RPS,
-    preAllocatedVUs: PRE_VUS,
-    maxVUs: MAX_VUS,
-    warmup: WARMUP,
-    stageDuration: STAGE_DUR,
-    name: "quick_search",
-  }),
+  scenarios: buildScenarios(scenarioOptionsFromEnv(__ENV, "quick_search")),
   thresholds: listThresholds("quick_search", P95_MS),
   insecureSkipTLSVerify: true,
 };

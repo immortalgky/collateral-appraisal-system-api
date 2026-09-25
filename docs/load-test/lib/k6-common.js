@@ -150,3 +150,23 @@ export function buildShapePicker(cases, { weights = '', scenario = '', seed = ''
     return active.at(-1); // floating-point guard
   };
 }
+
+/**
+ * The load-shape settings every read test takes from `-e`, in the shape buildScenarios expects.
+ * Defaults are the same small, comparable run the scripts document: 8 VUs for 80 requests in
+ * "count" mode, a ramp toward 8 req/s in "rate" mode.
+ */
+export function scenarioOptionsFromEnv(env, name) {
+  const int = (key, fallback) => Number.parseInt(env[key] || String(fallback), 10);
+  return {
+    name,
+    mode: (env.MODE || 'count').toLowerCase(),
+    vus: int('VUS', 8),
+    iterations: int('ITERATIONS', 80),
+    peakRps: int('PEAK_RPS', 8),
+    preAllocatedVUs: int('PRE_VUS', 10),
+    maxVUs: int('MAX_VUS', 100),
+    warmup: env.WARMUP || '30s',
+    stageDuration: env.STAGE_DUR || '1m',
+  };
+}
