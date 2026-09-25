@@ -4,10 +4,10 @@ using Mapster;
 namespace Appraisal.Tests.Application.Features;
 
 /// <summary>
-/// The PMA pages post the same form object to the full save and to the draft save, so the two
-/// requests have to bind the same field names. Nothing else enforces it: a name the request does
-/// not declare is dropped by System.Text.Json, a name the command does not declare is dropped by
-/// Mapster, and neither says a word.
+/// The PMA pages post one form object to create, to the full save and to the draft save, so all
+/// three requests have to bind the same fields with the same types. Nothing else enforces it: a
+/// name the request does not declare is dropped by System.Text.Json, a name the command does not
+/// declare is dropped by Mapster, and neither says a word.
 ///
 /// The condo draft declared BuiltOnTitleNumber after the full save had moved to TitleNumber. The
 /// form sends titleNumber, so the draft received null — and CondoPmaApplier writes the title
@@ -17,19 +17,46 @@ public class PmaDraftBindingTests
 {
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
-    public static TheoryData<Type, Type> DraftAndFullSaveRequests => new()
+    private static string[] Shape(Type t) =>
+        t.GetProperties().Select(p => $"{p.Name}:{p.PropertyType}").Order().ToArray();
+
+    /// <summary>Each request the page can post, paired with the full save it must match.</summary>
+    public static TheoryData<Type, Type> RequestsSharingOneForm => new()
     {
         { typeof(SaveCondoPMAPropertyDraftRequest), typeof(UpdateCondoPMAPropertyRequest) },
+        { typeof(CreateCondoPMAPropertyRequest), typeof(UpdateCondoPMAPropertyRequest) },
         { typeof(SaveLandPMAPropertyDraftRequest), typeof(UpdateLandPMAPropertyRequest) },
+        { typeof(CreateLandPMAPropertyRequest), typeof(UpdateLandPMAPropertyRequest) },
     };
 
     [Theory]
-    [MemberData(nameof(DraftAndFullSaveRequests))]
-    public void Draft_binds_exactly_the_fields_the_full_save_binds(Type draft, Type fullSave)
+    [MemberData(nameof(RequestsSharingOneForm))]
+    public void Every_request_the_page_posts_binds_the_same_fields_with_the_same_types(
+        Type request, Type fullSave)
     {
-        static string[] Names(Type t) => t.GetProperties().Select(p => p.Name).Order().ToArray();
+        Assert.Equal(Shape(fullSave), Shape(request));
+    }
 
-        Assert.Equal(Names(fullSave), Names(draft));
+    /// <summary>Each request and the command its endpoint adapts it into.</summary>
+    public static TheoryData<Type, Type> RequestToCommand => new()
+    {
+        { typeof(SaveCondoPMAPropertyDraftRequest), typeof(SaveCondoPMAPropertyDraftCommand) },
+        { typeof(UpdateCondoPMAPropertyRequest), typeof(UpdateCondoPMAPropertyCommand) },
+        { typeof(CreateCondoPMAPropertyRequest), typeof(CreateCondoPMAPropertyCommand) },
+        { typeof(SaveLandPMAPropertyDraftRequest), typeof(SaveLandPMAPropertyDraftCommand) },
+        { typeof(UpdateLandPMAPropertyRequest), typeof(UpdateLandPMAPropertyCommand) },
+        { typeof(CreateLandPMAPropertyRequest), typeof(CreateLandPMAPropertyCommand) },
+    };
+
+    [Theory]
+    [MemberData(nameof(RequestToCommand))]
+    public void Every_request_field_survives_the_adapt_into_its_command(Type request, Type command)
+    {
+        // The command also carries route ids (AppraisalId, PropertyId, GroupId), so it is a
+        // superset — but every field the request binds has to arrive with the same type.
+        var missing = Shape(request).Except(Shape(command)).ToArray();
+
+        Assert.Empty(missing);
     }
 
     [Fact]
