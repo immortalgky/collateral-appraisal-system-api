@@ -59,10 +59,10 @@ public sealed class ShortlistSentToRmEmailHandler(
                 var companyName = await ResolveCompanyNameAsync(row.CompanyId, ct) ?? row.CompanyId.ToString();
                 var cells = msg.Columns
                     .Select(col => row.AmountByAppraisalId.TryGetValue(col.AppraisalId, out var amt)
-                        ? amt.ToString("#,##0")
+                        ? amt.ToString("#,##0.##")
                         : "-")
                     .ToList();
-                rows.Add(new QuotationFeeNoticeRow(companyName, cells, row.Total.ToString("#,##0")));
+                rows.Add(new QuotationFeeNoticeRow(companyName, cells, row.Total.ToString("#,##0.##")));
             }
 
             var subject = $"แจ้งค่าธรรมเนียมประเมิน ลูกค้าราย {msg.CustomerName ?? "-"}";
