@@ -65,8 +65,8 @@ public sealed class AppraisalSummaryModel
     /// <summary>
     /// Field 8 — Administrative sub-district (เขตการปกครอง). The property's (block: the project's)
     /// DOPA sub-district — the same one that feeds the ตำบล/แขวง segment of
-    /// <see cref="CollateralAddress"/>, so the two header lines always agree. Resolved against the
-    /// DOPA master only; blank when missing, by decision.
+    /// <see cref="CollateralAddress"/>, so the two header lines always agree. The DOPA master's
+    /// name, else the stored code; blank only when there is no code.
     /// </summary>
     public string? AdministrativeDistrict { get; init; }
 

@@ -108,12 +108,12 @@ public sealed class AppraisalSummaryBlockDataProvider(
                 p.HouseNumber,
                 p.Soi,
                 p.Road,
-                -- The project-location picker is DOPA (blockProject projectLocationFields); resolve
-                -- against the DOPA master only — an unresolvable code prints blank, like the
-                -- property-sourced ที่ตั้งทรัพย์สิน.
-                dsub.NameTh  AS SubDistrict,
-                ddist.NameTh AS District,
-                dprov.NameTh AS Province,
+                -- The project-location picker is DOPA (blockProject projectLocationFields): the DOPA
+                -- master's name, else the stored code — never the Title master's name. (Projects saved
+                -- before the picker switched on 2026-09-01 may hold a Title code; it prints as-is.)
+                COALESCE(dsub.NameTh,  p.SubDistrict) AS SubDistrict,
+                COALESCE(ddist.NameTh, p.District)    AS District,
+                COALESCE(dprov.NameTh, p.Province)    AS Province,
                 p.Latitude,
                 p.Longitude,
                 p.Utilities,

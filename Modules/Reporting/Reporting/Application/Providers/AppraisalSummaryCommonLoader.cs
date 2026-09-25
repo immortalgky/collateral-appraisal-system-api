@@ -657,9 +657,9 @@ internal static class AppraisalSummaryCommonLoader
     ///     (B/LSB) in the same group — the house on that plot. Never another LB/LS, another B, or a
     ///     building elsewhere in the appraisal: those are other houses.
     ///   - No ม. segment — no property table has a Moo column.
-    ///   - ตำบล/อำเภอ/จังหวัด ← the property's DOPA address, resolved against the DOPA master ONLY.
-    ///     A missing or unresolvable code prints blank by decision: never the deed address, never
-    ///     the Request.
+    ///   - ตำบล/อำเภอ/จังหวัด ← the property's DOPA address: the DOPA master's name, else the stored
+    ///     code; blank only when the property has no DOPA code. Never the deed address or the Title
+    ///     master, never the Request.
     /// Block appraisals have no AppraisalProperties, so they get no rows (the block provider
     /// composes its own address from appraisal.Projects).
     /// </summary>
@@ -675,9 +675,10 @@ internal static class AppraisalSummaryCommonLoader
                 loc.CondoName,
                 loc.Soi,
                 loc.Street,
-                dsub.NameTh  AS SubDistrict,
-                ddist.NameTh AS District,
-                dprov.NameTh AS Province
+                -- The DOPA name, else the stored code (never the Title master's name).
+                COALESCE(dsub.NameTh,  loc.DopaSubDistrict) AS SubDistrict,
+                COALESCE(ddist.NameTh, loc.DopaDistrict)    AS District,
+                COALESCE(dprov.NameTh, loc.DopaProvince)    AS Province
             FROM (
                 SELECT ranked.Id, ranked.Kind, ranked.OwnBuildingId, ranked.Village, ranked.RoomNumber,
                        ranked.FloorNumber, ranked.CondoName, ranked.Soi, ranked.Street,
