@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <title>สรุปรายการเล่มประเมิน</title>
+    <style>
+      @font-face {
+        font-family: "Sarabun";
+        font-weight: 400;
+        src: url("Sarabun.ttf") format("truetype");
+      }
+      @font-face {
+        font-family: "Sarabun";
+        font-weight: 700;
+        src: url("Sarabun-Bold.ttf") format("truetype");
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          "Sarabun", "Noto Sans Thai", "Thonburi", "Leelawadee UI", sans-serif;
+        font-size: 11pt;
+        line-height: 1.7;
+        color: #000;
+        background: #fff;
+      }
+      .page {
+        width: 210mm;
+        min-height: 270mm;
+        padding: 10mm 12mm;
+        margin: 0 auto;
+      }
+
+      table.summary-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+      table.summary-table th,
+      table.summary-table td {
+        border: 1px solid #999999;
+        padding: 6px 10px;
+        word-break: break-word;
+        overflow-wrap: break-word;
+        text-align: left;
+      }
+      table.summary-table th {
+        background: #f2f4f6;
+        font-weight: 600;
+      }
+      table.summary-table thead {
+        display: table-header-group;
+      }
+      table.summary-table tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      table.summary-table td.seq-cell {
+        text-align: center;
+        width: 8%;
+      }
+      table.summary-table th.seq-col {
+        text-align: center;
+        width: 8%;
+      }
+      table.summary-table td.appraisal-col,
+      table.summary-table th.appraisal-col {
+        width: 20%;
+      }
+      table.summary-table td.customer-col,
+      table.summary-table th.customer-col,
+      table.summary-table td.property-col,
+      table.summary-table th.property-col {
+        width: 36%;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <table class="summary-table">
+        <thead>
+          <tr>
+            <th class="seq-col">ลำดับ</th>
+            <th class="appraisal-col">ApplicationNo</th>
+            <th class="customer-col">ชื่อลูกค้า</th>
+            <th class="property-col">ประเภททรัพย์สิน</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ for row in model.rows }}
+          <tr>
+            <td class="seq-cell">{{ row.seq_no }}.</td>
+            <td class="appraisal-col">{{ row.appraisal_number }}</td>
+            <td class="customer-col">{{ row.customer_name }}</td>
+            <td class="property-col">{{ row.property_type }}</td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+  </body>
+</html>

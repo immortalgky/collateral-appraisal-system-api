@@ -50,6 +50,15 @@ public class QuotationRepository(AppraisalDbContext dbContext) : IQuotationRepos
     }
 
     /// <inheritdoc />
+    public async Task<QuotationRequest?> GetByIdWithDocumentsAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.QuotationRequests
+            .Include(q => q.Appraisals)
+            .Include(q => q.Documents)
+            .FirstOrDefaultAsync(q => q.Id == id, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<QuotationRequest?> GetByNumberAsync(string quotationNumber,
         CancellationToken cancellationToken = default)
     {
