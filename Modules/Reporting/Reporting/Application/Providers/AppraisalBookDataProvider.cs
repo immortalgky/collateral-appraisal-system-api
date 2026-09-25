@@ -1,4 +1,5 @@
 using Reporting.Contracts;
+using Reporting.Application.Formatting;
 using Reporting.Application.Models;
 using Reporting.Application.Models.Sections;
 using Reporting.Application.Providers.Sections;
@@ -115,6 +116,11 @@ public sealed class AppraisalBookDataProvider(
         model.CondoSection        = await CondoSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
         model.ConstructionSection = await ConstructionSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
         model.MachineSection      = await MachineSectionLoader.LoadAsync(connection, appraisalId, cancellationToken);
+        // No land/condo property gave the internal cover a ที่ตั้งทรัพย์สิน (a machine-only appraisal,
+        // or anchors with nothing to print yet) → the machine location. The external book
+        // (ExternalBookBuilder) is left as it is.
+        if (!isExternal && ThaiAddressFormatter.Stated(model.CollateralAddress) is null)
+            model.CollateralAddress = ThaiAddressFormatter.Stated(model.MachineSection?.MachineLocation);
         model.ComparisonSections  = await ComparisonSectionLoader.LoadAllAsync(connection, appraisalId, cancellationToken);
         model.WqsSections         = await WqsSectionLoader.LoadAllAsync(connection, appraisalId, cancellationToken);
         model.SaleGridSections    = await SaleGridSectionLoader.LoadAllAsync(connection, appraisalId, cancellationToken);

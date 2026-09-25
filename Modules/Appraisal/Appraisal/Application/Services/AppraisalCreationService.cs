@@ -457,6 +457,9 @@ public class AppraisalCreationService(
         var primary = titles.FirstOrDefault(t => GetAppraisalFamily(t) == "LB") ?? titles.First();
         UpdateLandDetailTopFields(landDetail, primary);
 
+        // LB: the title's DOPA house number belongs to the building (the summary's เลขที่ reads it there).
+        property.BuildingDetail?.SetHouseNumber(primary.DopaAddress?.HouseNumber);
+
         foreach (var t in titles) AddLandTitleFromRequest(landDetail, t);
     }
 
@@ -478,8 +481,11 @@ public class AppraisalCreationService(
         var primary = titles.FirstOrDefault(t => GetAppraisalFamily(t) == "LS") ?? titles.First();
         UpdateLandDetailTopFields(landDetail, primary);
 
+        // LS: same as LB — the title's DOPA house number belongs to the building.
+        property.BuildingDetail?.SetHouseNumber(primary.DopaAddress?.HouseNumber);
+
         foreach (var t in titles) AddLandTitleFromRequest(landDetail, t);
-        // BuildingDetail / LeaseAgreementDetail / RentalInfo stay empty — populated later by appraiser
+        // The rest of BuildingDetail / LeaseAgreementDetail / RentalInfo stays empty — populated later by appraiser
     }
 
     private void CreateCondoProperty(
@@ -514,8 +520,10 @@ public class AppraisalCreationService(
             usableArea: requestTitle.UsableArea,
             address: adminAddress,
             ownerName: requestTitle.OwnerName,
-            street: requestTitle.TitleAddress?.Road,
-            soi: requestTitle.TitleAddress?.Soi,
+            // Street-level parts come from the DOPA address, the same one the summary's
+            // ตำบล/อำเภอ/จังหวัด come from, so ที่ตั้งทรัพย์สิน reads as one address.
+            street: requestTitle.DopaAddress?.Road,
+            soi: requestTitle.DopaAddress?.Soi,
             dopaAddress: dopaAddress);
     }
 
@@ -550,8 +558,10 @@ public class AppraisalCreationService(
             usableArea: requestTitle.UsableArea,
             address: adminAddress,
             ownerName: requestTitle.OwnerName,
-            street: requestTitle.TitleAddress?.Road,
-            soi: requestTitle.TitleAddress?.Soi,
+            // Street-level parts come from the DOPA address, the same one the summary's
+            // ตำบล/อำเภอ/จังหวัด come from, so ที่ตั้งทรัพย์สิน reads as one address.
+            street: requestTitle.DopaAddress?.Road,
+            soi: requestTitle.DopaAddress?.Soi,
             dopaAddress: dopaAddress);
     }
 
@@ -601,10 +611,13 @@ public class AppraisalCreationService(
             requestTitle.TitleAddress?.ProjectName,
             address: adminAddress,
             ownerName: requestTitle.OwnerName,
-            street: requestTitle.TitleAddress?.Road,
-            soi: requestTitle.TitleAddress?.Soi,
-            village: requestTitle.TitleAddress?.Moo,
-            addressLocation: requestTitle.TitleAddress?.HouseNumber,
+            // Street-level parts come from the DOPA address, the same one the summary's
+            // ตำบล/อำเภอ/จังหวัด come from, so ที่ตั้งทรัพย์สิน reads as one address.
+            // ProjectName is the "Village/Building" field; Moo has no property column.
+            street: requestTitle.DopaAddress?.Road,
+            soi: requestTitle.DopaAddress?.Soi,
+            village: requestTitle.DopaAddress?.ProjectName,
+            addressLocation: requestTitle.DopaAddress?.HouseNumber,
             dopaAddress: dopaAddress);
     }
 

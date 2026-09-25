@@ -352,7 +352,8 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             requestPropertyTypes = (await multi.ReadAsync<string>()).ToList();
         }
 
-        // ที่ตั้งทรัพย์สิน from the Request detail (same as the other summary reports).
+        // ที่ตั้งทรัพย์สิน: the land/building anchor — the thing under construction — else the condo
+        // (CommonLoader RS14, LandOrCondo): the same rule as the land-building form.
         var collateralAddress = common.CollateralAddress;
 
         // ── Refer-book logic via PrevAppraisalId ─────────────────────────────────
@@ -537,7 +538,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             AoName              = common.AoName,
             AppraisalPurpose    = common.AppraisalPurpose,
             PropertyType        = propertyType,
-            CollateralAddress   = string.IsNullOrEmpty(collateralAddress) ? null : collateralAddress,
+            CollateralAddress   = collateralAddress,
             AdministrativeDistrict = common.AdministrativeDistrict,
             LandOffice          = landAddr?.LandOffice,
             OldAppraisalValue   = common.PrevAppraisedValue,

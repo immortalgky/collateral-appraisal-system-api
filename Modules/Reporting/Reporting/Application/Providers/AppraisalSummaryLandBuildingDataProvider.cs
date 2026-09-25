@@ -29,6 +29,7 @@ namespace Reporting.Application.Providers;
 ///     …
 ///     RS24  appraisal.ConstructionInspections — per-property construction progress, which drives
 ///           the เมื่อแล้วเสร็จ 100% / ตามสภาพปัจจุบัน split
+///     RS25  ที่ตั้งทรัพย์สิน anchors (AppraisalSummaryCommonLoader.CollateralLocationSql)
 ///
 ///   Conditionally (Batch 2 — 0–2 extra round-trips):
 ///     Q6  auth.AspNetUsers — staff (only for Internal assignment)
@@ -528,29 +529,12 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             WHERE pg.AppraisalId = @AppraisalId
             ORDER BY pgi.PropertyGroupId, pgi.SequenceInGroup;
 
-            -- RS20: Collateral address + loan limits from the Request detail (geocodes resolved).
-            -- The Location form captures these as DOPA geocodes (กรมการปกครอง), so DOPA wins; Title
-            -- is the fallback for rows saved while that form still used the Title picker, and the
-            -- raw geocode is the last resort.
+            -- RS20: Loan limits from the Request detail. (ที่ตั้งทรัพย์สิน is RS25, from the property.)
             SELECT TOP 1
-                rd.HouseNumber,
-                rd.ProjectName,
-                rd.Moo,
-                rd.Soi,
-                rd.Road,
-                COALESCE(dsub.NameTh,  tsub.NameTh,  rd.SubDistrict) AS SubDistrict,
-                COALESCE(ddist.NameTh, tdist.NameTh, rd.District)    AS District,
-                COALESCE(dprov.NameTh, tprov.NameTh, rd.Province)    AS Province,
                 rd.FacilityLimit,
                 rd.AdditionalFacilityLimit,
                 rd.PreviousFacilityLimit
             FROM request.RequestDetails rd
-            LEFT JOIN parameter.DopaProvinces     dprov ON dprov.Code = rd.Province
-            LEFT JOIN parameter.DopaDistricts     ddist ON ddist.Code = rd.District
-            LEFT JOIN parameter.DopaSubDistricts  dsub  ON dsub.Code  = rd.SubDistrict
-            LEFT JOIN parameter.TitleProvinces    tprov ON tprov.Code = rd.Province
-            LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = rd.District
-            LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = rd.SubDistrict
             WHERE rd.RequestId = (
                 SELECT a5.RequestId FROM appraisal.Appraisals a5
                 WHERE a5.Id = @AppraisalId AND a5.IsDeleted = 0);
@@ -625,7 +609,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 GROUP BY wd.ConstructionInspectionId
             ) wd_agg ON wd_agg.ConstructionInspectionId = ci.Id
             WHERE ap.AppraisalId = @AppraisalId;
-            """;
+            """ + AppraisalSummaryCommonLoader.CollateralLocationSql; // RS25
 
         var batchParams = new DynamicParameters();
         batchParams.Add("AppraisalId", appraisalId);
@@ -649,11 +633,12 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         List<ParamRow> landUseParams;
         List<GroupDepreciationRow> depreciationRows;
         List<GroupLandFillRow> landFillRows;
-        RequestAddressRow? requestAddress;
+        RequestLoanLimitsRow? loanLimits;
         List<string> requestPropertyTypes;
         List<GovPriceRow> govPriceRows;
         AppraisalSummaryCommonLoader.PrevAppraisalRow? prevAppraisal;
         List<ConstructionProgressRow> constructionProgressRows;
+        CollateralLocations locations;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, batchParams))
         {
@@ -722,7 +707,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             landFillRows = (await multi.ReadAsync<GroupLandFillRow>()).ToList();
 
             // RS20
-            requestAddress = await multi.ReadFirstOrDefaultAsync<RequestAddressRow>();
+            loanLimits = await multi.ReadFirstOrDefaultAsync<RequestLoanLimitsRow>();
 
             // RS21
             requestPropertyTypes = (await multi.ReadAsync<string>()).ToList();
@@ -735,26 +720,21 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
             // RS24
             constructionProgressRows = (await multi.ReadAsync<ConstructionProgressRow>()).ToList();
+
+            // RS25
+            locations = AppraisalSummaryCommonLoader.ComposeCollateralLocations(
+                await multi.ReadAsync<AppraisalSummaryCommonLoader.CollateralLocationRow>());
         }
 
         var customerName = customerNames.Count > 0
             ? string.Join(" และ ", customerNames)
             : null;
 
-        // Collateral address (ที่ตั้งทรัพย์สิน) comes from the Request detail; geocodes already
-        // resolved to Thai in RS20. Format: เลขที่ {House No} {ProjectName} หมู่ {Moo} ซอย {Soi}
-        // ถนน {Road} ตำบล/แขวง {SubDistrict} อำเภอ/เขต {District} จังหวัด {Province}.
-        var collateralAddress = requestAddress is not null
-            ? ThaiAddressFormatter.FormatLandBuilding(
-                houseNumber: requestAddress.HouseNumber,
-                village: requestAddress.ProjectName,
-                moo: requestAddress.Moo,
-                soi: requestAddress.Soi,
-                road: requestAddress.Road,
-                subDistrict: requestAddress.SubDistrict,
-                district: requestAddress.District,
-                province: requestAddress.Province)
-            : null;
+        // ที่ตั้งทรัพย์สิน from the first land/building property (RS25, CollateralLocationSql). The
+        // internal book renders every Standard appraisal through this provider, so one with no
+        // printable land anchor falls back to the first condo anchor (LandOrCondo).
+        var location = locations.LandOrCondo;
+        var collateralAddress = location?.Address;
 
         var gps = ThaiAddressFormatter.FormatGps(land?.Latitude, land?.Longitude);
 
@@ -1503,12 +1483,12 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         // Purpose "02" = increase credit limit → show วงเงินสินเชื่อเดิม (existing) and relabel
         // the loan row to ขอเพิ่มวงเงิน (additional limit). Both amounts from the Request detail.
         bool isIncreaseLimit = string.Equals(header.PurposeCode, "02", StringComparison.OrdinalIgnoreCase);
-        decimal? existingLoanValue = requestAddress?.PreviousFacilityLimit;
+        decimal? existingLoanValue = loanLimits?.PreviousFacilityLimit;
 
         // Loan-row amount: ขอเพิ่มวงเงิน (additional) when increasing, else the facility limit.
         // Hidden entirely for reappraisal (handled in the template).
         decimal? loanValue = isIncreaseLimit
-            ? requestAddress?.AdditionalFacilityLimit
+            ? loanLimits?.AdditionalFacilityLimit
             : header.FacilityLimit;
 
         // สภาพที่ดิน — landfill of the first land property per group, as "กลุ่มที่ X {fill}".
@@ -1667,8 +1647,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             AppraisalPurpose = header.AppraisalPurpose,
             PropertyType = firstPropertyType,
             SummaryPropertyType = firstPropertyType,
-            CollateralAddress = string.IsNullOrEmpty(collateralAddress) ? null : collateralAddress,
-            AdministrativeDistrict = requestAddress?.SubDistrict,
+            CollateralAddress = collateralAddress,
+            AdministrativeDistrict = location?.SubDistrict,
             LandOffice = land?.LandOffice,
             OldAppraisalValue = oldAppraisalValue,
             HasPrevAppraisal = hasPrevAppraisal,
@@ -1892,16 +1872,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public decimal? GovernmentPrice { get; init; }
     }
 
-    private sealed class RequestAddressRow
+    private sealed class RequestLoanLimitsRow
     {
-        public string? HouseNumber { get; init; }
-        public string? ProjectName { get; init; }
-        public string? Moo { get; init; }
-        public string? Soi { get; init; }
-        public string? Road { get; init; }
-        public string? SubDistrict { get; init; }
-        public string? District { get; init; }
-        public string? Province { get; init; }
         public decimal? FacilityLimit { get; init; }
         public decimal? AdditionalFacilityLimit { get; init; }
         public decimal? PreviousFacilityLimit { get; init; }
