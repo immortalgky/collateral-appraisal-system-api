@@ -40,14 +40,6 @@ public class QuickSearchQueryHandler(
     IAddressNameSearch addressNameSearch
 ) : IQueryHandler<QuickSearchQuery, QuickSearchResult>
 {
-    /// <summary>
-    /// Bounds how long a single keystroke can hold a connection. Nothing in the repo sets a command
-    /// timeout, so the default is 30 s — long enough for a debounced burst of typing to pile up
-    /// behind one unselective term. A dropdown that has not answered in five seconds is useless
-    /// anyway.
-    /// </summary>
-    private const int CommandTimeoutSeconds = 5;
-
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S2077:Formatting SQL queries is security-sensitive",
         Justification =
             "The only interpolated fragment is AppraisalSearchPredicate's UNION, which is assembled " +
@@ -119,7 +111,15 @@ public class QuickSearchQueryHandler(
         // from under every later Dapper call in the same request.
         var connection = connectionFactory.GetOpenConnection();
         await using var grid = await connection.QueryMultipleAsync(new CommandDefinition(
-            sql, parameters, commandTimeout: CommandTimeoutSeconds, cancellationToken: cancellationToken));
+            // No command timeout of its own: the ADO default of 30 s applies, as it does everywhere
+            // else in the repo. An earlier version capped this at 5 s to stop a debounced burst of
+            // typing piling onto one connection, but the cap had no landing: nothing catches the
+            // SqlException, so hitting it served the user an HTTP 500 from a term the endpoint
+            // itself had accepted. Both clients pass React Query's AbortSignal through (see
+            // shared/api/search.ts and features/appraisal/api/appraisalSearch.ts), so a superseded
+            // keystroke is cancelled rather than left running, which is the protection that
+            // actually works. Measured: prefix 91 ms, substring 1.05 s on 105k appraisals.
+            sql, parameters, cancellationToken: cancellationToken));
 
         var matched = await grid.ReadSingleAsync<int>();
         var heads = (await grid.ReadAsync<HeadRow>()).ToList();

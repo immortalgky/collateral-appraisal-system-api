@@ -167,15 +167,23 @@ public class QuickSearchEndpointTests(IntegrationTestFixture fixture)
     [Fact]
     public async Task Finds_an_appraisal_by_its_number_and_returns_a_route_that_exists()
     {
+        // The route depends on what the caller may open — see AppraisalFieldScope.CanOpenWorkspace.
+        // The shared fixture's bypass handler grants request/document permissions and no appraisal
+        // ones, so this caller cannot open the workspace and is sent to the tracking panel instead.
+        // Both destinations are real routes, which is the property this test exists to hold:
+        // /requests/{id}/titles/{id} was not a route, so the old property results always 404'd.
+        //
+        // The workspace half of the rule is NOT covered here. Asserting it needs a second host with
+        // APPRAISAL_VIEW, and standing one up beside the fixture's own costs enough memory on a
+        // developer machine that every query in the collection starts timing out — the cure was
+        // worse than the gap. It belongs in a unit test over AppraisalFieldScope.CanOpenWorkspace.
         var (appraisalId, appraisalNumber, _) = await SeedAsync("QSNUM");
         using var client = fixture.IntegrationTestWebApplicationFactory.CreateClient();
 
         var result = await SearchAsync(client, appraisalNumber);
 
         var hit = result.Groups.SelectMany(g => g.Appraisals).Single(a => a.AppraisalId == appraisalId);
-        // Built from the appraisal id, which is the whole point: /requests/{id}/titles/{id} was not
-        // a route, so the old property results always 404'd.
-        Assert.Equal($"/appraisals/{appraisalId}", hit.NavigateTo);
+        Assert.Equal($"/appraisals/search?appraisal={appraisalId}", hit.NavigateTo);
         Assert.Equal(appraisalNumber, hit.AppraisalNumber);
     }
 
