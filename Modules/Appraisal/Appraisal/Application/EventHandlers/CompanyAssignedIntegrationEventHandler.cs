@@ -22,11 +22,11 @@ public class CompanyAssignedIntegrationEventHandler(
     InboxGuard<AppraisalDbContext> inboxGuard
 ) : IConsumer<CompanyAssignedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<CompanyAssignedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<CompanyAssignedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<CompanyAssignedIntegrationEvent> context)
+    {
         var message = context.Message;
         var ct = context.CancellationToken;
 
@@ -40,7 +40,6 @@ public class CompanyAssignedIntegrationEventHandler(
         {
             logger.LogWarning(
                 "Appraisal {AppraisalId} not found for company assignment", message.AppraisalId);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
             return;
         }
 
@@ -55,7 +54,6 @@ public class CompanyAssignedIntegrationEventHandler(
         {
             logger.LogWarning(
                 "No active assignment found for Appraisal {AppraisalId}", message.AppraisalId);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
             return;
         }
 
@@ -86,7 +84,6 @@ public class CompanyAssignedIntegrationEventHandler(
 
         await appraisalRepository.UpdateAsync(appraisal, ct);
         await unitOfWork.SaveChangesAsync(ct);
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
 
         logger.LogInformation(
             "Updated AppraisalAssignment for AppraisalId {AppraisalId}: CompanyId={CompanyId}, Method={Method}",

@@ -16,11 +16,11 @@ public class InternalFollowupAssignedIntegrationEventHandler(
     InboxGuard<AppraisalDbContext> inboxGuard
 ) : IConsumer<InternalFollowupAssignedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<InternalFollowupAssignedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<InternalFollowupAssignedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<InternalFollowupAssignedIntegrationEvent> context)
+    {
         var message = context.Message;
         var ct = context.CancellationToken;
 
@@ -34,7 +34,6 @@ public class InternalFollowupAssignedIntegrationEventHandler(
         {
             logger.LogWarning(
                 "Appraisal {AppraisalId} not found for internal followup assignment", message.AppraisalId);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
             return;
         }
 
@@ -50,7 +49,6 @@ public class InternalFollowupAssignedIntegrationEventHandler(
             logger.LogWarning(
                 "No active assignment found for Appraisal {AppraisalId} when attaching internal followup",
                 message.AppraisalId);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
             return;
         }
 
@@ -60,7 +58,6 @@ public class InternalFollowupAssignedIntegrationEventHandler(
 
         await appraisalRepository.UpdateAsync(appraisal, ct);
         await unitOfWork.SaveChangesAsync(ct);
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
 
         logger.LogInformation(
             "Attached internal followup to AppraisalAssignment for AppraisalId {AppraisalId}: StaffId={StaffId}, Method={Method}",
