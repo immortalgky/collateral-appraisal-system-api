@@ -26,6 +26,8 @@ namespace Reporting.Application.Providers;
 ///     RS10  Q13 request.Requests — requestor (RequestId via subquery)
 ///     RS11  Q14 workflow.CompletedTasks — checker/verifier (RequestId via subquery)
 ///     RS12  ColTypeMap parameter.Parameters CollateralType group
+///     RS13  prior appraisal link + value
+///     RS14  ที่ตั้งทรัพย์สิน anchors (CollateralLocationSql)
 ///
 ///   Batch 2 (C#-conditional; only issued when the assignment/review data warrants it):
 ///     Q6  auth.AspNetUsers — internal staff (only for Internal assignment)
@@ -82,7 +84,7 @@ internal static class AppraisalSummaryCommonLoader
         decimal forceSaleRateDefault,
         CancellationToken cancellationToken = default)
     {
-        // ── Batch 1: 12 independent result sets, single round-trip ───────────────
+        // ── Batch 1: 14 independent result sets (RS01–RS14), single round-trip ───────────────
         // Q2 / Q13 / Q14 reference RequestId — resolved via scalar subquery
         // so the entire batch uses only @AppraisalId.
         const string batchSql = """
@@ -96,19 +98,7 @@ internal static class AppraisalSummaryCommonLoader
                 COALESCE(pPurpose.[description], a.Purpose) AS AppraisalPurpose,
                 a.FacilityLimit,
                 rd.AdditionalFacilityLimit,
-                rd.PreviousFacilityLimit,
-                -- Collateral address (ที่ตั้งทรัพย์สิน) from the Request detail, same as land-building.
-                -- The Location form captures these as DOPA geocodes (กรมการปกครอง), so DOPA wins;
-                -- Title is the fallback for rows saved while that form still used the Title picker,
-                -- and the raw geocode is the last resort.
-                rd.HouseNumber,
-                rd.ProjectName,
-                rd.Moo,
-                rd.Soi,
-                rd.Road,
-                COALESCE(dsub.NameTh,  tsub.NameTh,  rd.SubDistrict) AS ReqSubDistrict,
-                COALESCE(ddist.NameTh, tdist.NameTh, rd.District)    AS ReqDistrict,
-                COALESCE(dprov.NameTh, tprov.NameTh, rd.Province)    AS ReqProvince
+                rd.PreviousFacilityLimit
             FROM appraisal.Appraisals a
             LEFT JOIN parameter.Parameters pPurpose
                 ON pPurpose.[group]    = 'AppraisalPurpose'
@@ -116,12 +106,6 @@ internal static class AppraisalSummaryCommonLoader
                AND pPurpose.[isactive] = 1
                AND pPurpose.[code]     = a.Purpose
             LEFT JOIN request.RequestDetails rd ON rd.RequestId = a.RequestId
-            LEFT JOIN parameter.DopaProvinces     dprov ON dprov.Code = rd.Province
-            LEFT JOIN parameter.DopaDistricts     ddist ON ddist.Code = rd.District
-            LEFT JOIN parameter.DopaSubDistricts  dsub  ON dsub.Code  = rd.SubDistrict
-            LEFT JOIN parameter.TitleProvinces    tprov ON tprov.Code = rd.Province
-            LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = rd.District
-            LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = rd.SubDistrict
             WHERE a.Id = @AppraisalId
               AND a.IsDeleted = 0;
 
@@ -291,7 +275,7 @@ internal static class AppraisalSummaryCommonLoader
             FROM appraisal.Appraisals ap
             LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = ap.PrevAppraisalId
             WHERE ap.Id = @AppraisalId AND ap.IsDeleted = 0;
-            """;
+            """ + CollateralLocationSql;
 
         var headerParams = new DynamicParameters();
         headerParams.Add("AppraisalId", appraisalId);
@@ -309,6 +293,7 @@ internal static class AppraisalSummaryCommonLoader
         List<CompletedTaskRow> completedTaskRows;
         List<ParamRow> collateralTypeParams;
         PrevAppraisalRow? prevAppraisal;
+        CollateralLocations locations;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, headerParams))
         {
@@ -352,6 +337,9 @@ internal static class AppraisalSummaryCommonLoader
 
             // RS13
             prevAppraisal = await multi.ReadFirstOrDefaultAsync<PrevAppraisalRow>();
+
+            // RS14
+            locations = ComposeCollateralLocations(await multi.ReadAsync<CollateralLocationRow>());
         }
 
         var customerName = customerNames.Count > 0
@@ -568,22 +556,18 @@ internal static class AppraisalSummaryCommonLoader
         decimal? forcedSaleValue = valuation?.ForcedSaleValue
             ?? (totalAppraisalValue.HasValue ? totalAppraisalValue.Value * forceSaleRate / 100m : null);
 
-        // ที่ตั้งทรัพย์สิน — built from the Request detail, identical to the land-building form.
-        var reqCollateralAddress = ThaiAddressFormatter.FormatLandBuilding(
-            houseNumber: header.HouseNumber, village: header.ProjectName, moo: header.Moo,
-            soi: header.Soi, road: header.Road,
-            subDistrict: header.ReqSubDistrict, district: header.ReqDistrict, province: header.ReqProvince);
-
         return new CommonAppraisalData(
             AppraisalId: appraisalId,
             AppraisalNumber: header.AppraisalNumber,
             RequestId: header.RequestId,
             AppraisalType: header.AppraisalType,
             AppraisalPurpose: header.AppraisalPurpose,
-            CollateralAddress: string.IsNullOrEmpty(reqCollateralAddress) ? null : reqCollateralAddress,
-            // เขตการปกครอง — the same Request-detail sub-district that feeds the ตำบล/แขวง segment
-            // of CollateralAddress above, so the two header lines can never disagree.
-            AdministrativeDistrict: header.ReqSubDistrict,
+            // ที่ตั้งทรัพย์สิน + เขตการปกครอง from the land anchor, else the condo one (RS14); the two
+            // share one sub-district so the header lines can never disagree. The condo form reads
+            // CondoLocation instead.
+            CollateralAddress: locations.LandOrCondo?.Address,
+            AdministrativeDistrict: locations.LandOrCondo?.SubDistrict,
+            CondoLocation: locations.Condo,
             FacilityLimit: header.FacilityLimit,
             CustomerName: customerName,
             AppraisalDate: appraisalDate,
@@ -630,8 +614,7 @@ internal static class AppraisalSummaryCommonLoader
     /// "-", the placeholder convention used elsewhere in this module — becomes null so the
     /// template drops the line rather than printing a stray dash under someone's name.
     /// </summary>
-    internal static string? NormalizePosition(string? position) =>
-        string.IsNullOrWhiteSpace(position) || position.Trim() == "-" ? null : position.Trim();
+    internal static string? NormalizePosition(string? position) => ThaiAddressFormatter.Stated(position);
 
     /// <summary>
     /// Display rank for the committee sign-off block, matching the meeting reports:
@@ -660,14 +643,157 @@ internal static class AppraisalSummaryCommonLoader
         public decimal? FacilityLimit { get; init; }
         public decimal? AdditionalFacilityLimit { get; init; }
         public decimal? PreviousFacilityLimit { get; init; }
+    }
+
+    /// <summary>
+    /// ที่ตั้งทรัพย์สิน source, appended as the LAST result set of every summary batch that needs it
+    /// (this loader and AppraisalSummaryLandBuildingDataProvider) so the rule lives in one place.
+    /// One row for the first land/building property ('L') and one for the first condo ('U'), by
+    /// SequenceNumber. A building-only property (B, LSB) counts as 'L' but is used only when the
+    /// appraisal has no land property — it goes to the land-building form and would otherwise
+    /// leave the line blank.
+    ///   - เลขที่ ← BuildingAppraisalDetails.HouseNumber of the property's own building. Only a
+    ///     property with NO building of its own (bare land) borrows from a building-only property
+    ///     (B/LSB) in the same group — the house on that plot. Never another LB/LS, another B, or a
+    ///     building elsewhere in the appraisal: those are other houses.
+    ///   - No ม. segment — no property table has a Moo column.
+    ///   - ตำบล/อำเภอ/จังหวัด ← the property's DOPA address: the DOPA master's name, else the stored
+    ///     code; blank only when the property has no DOPA code. Never the deed address or the Title
+    ///     master, never the Request.
+    /// Block appraisals have no AppraisalProperties, so they get no rows (the block provider
+    /// composes its own address from appraisal.Projects).
+    /// </summary>
+    internal const string CollateralLocationSql = """
+
+            -- RS: ที่ตั้งทรัพย์สิน anchors (see CollateralLocationSql)
+            SELECT
+                loc.Kind,
+                h.HouseNumber,
+                loc.Village,
+                loc.RoomNumber,
+                loc.FloorNumber,
+                loc.CondoName,
+                loc.Soi,
+                loc.Street,
+                -- The DOPA name, else the stored code (never the Title master's name).
+                COALESCE(dsub.NameTh,  loc.DopaSubDistrict) AS SubDistrict,
+                COALESCE(ddist.NameTh, loc.DopaDistrict)    AS District,
+                COALESCE(dprov.NameTh, loc.DopaProvince)    AS Province
+            FROM (
+                SELECT ranked.Id, ranked.Kind, ranked.OwnBuildingId, ranked.Village, ranked.RoomNumber,
+                       ranked.FloorNumber, ranked.CondoName, ranked.Soi, ranked.Street,
+                       ranked.DopaSubDistrict, ranked.DopaDistrict, ranked.DopaProvince
+                FROM (
+                    SELECT
+                        ap.Id,
+                        k.Kind,
+                        b.Id AS OwnBuildingId,
+                        -- A property with land beats a building-only one, whatever the sequence:
+                        -- B/LSB is the anchor only when the appraisal has no land at all.
+                        ROW_NUMBER() OVER (PARTITION BY k.Kind
+                                           ORDER BY CASE WHEN l.Id IS NULL THEN 1 ELSE 0 END,
+                                                    ap.SequenceNumber) AS rn,
+                        l.Village,
+                        c.RoomNumber,
+                        c.FloorNumber,
+                        c.CondoName,
+                        COALESCE(l.Soi, c.Soi)                         AS Soi,
+                        COALESCE(l.Street, c.Street)                   AS Street,
+                        COALESCE(l.DopaSubDistrict, c.DopaSubDistrict) AS DopaSubDistrict,
+                        COALESCE(l.DopaDistrict, c.DopaDistrict)       AS DopaDistrict,
+                        COALESCE(l.DopaProvince, c.DopaProvince)       AS DopaProvince
+                    FROM appraisal.AppraisalProperties ap
+                    LEFT JOIN appraisal.LandAppraisalDetails     l ON l.AppraisalPropertyId = ap.Id
+                    LEFT JOIN appraisal.CondoAppraisalDetails    c ON c.AppraisalPropertyId = ap.Id
+                    LEFT JOIN appraisal.BuildingAppraisalDetails b ON b.AppraisalPropertyId = ap.Id
+                    CROSS APPLY (SELECT CASE WHEN c.Id IS NOT NULL THEN 'U' ELSE 'L' END AS Kind) k
+                    WHERE ap.AppraisalId = @AppraisalId
+                      AND (l.Id IS NOT NULL OR c.Id IS NOT NULL OR b.Id IS NOT NULL)
+                ) ranked
+                WHERE ranked.rn = 1  -- anchors only, before the house-number lookup below
+            ) loc
+            OUTER APPLY (
+                -- NoHouseNumber '02' = ยังไม่ขอเลขที่บ้าน (not yet requested); the FE then disables the
+                -- house-number field, so the building has no number to print.
+                SELECT TOP 1 CASE WHEN b.NoHouseNumber = '02' THEN NULL ELSE b.HouseNumber END AS HouseNumber
+                FROM appraisal.BuildingAppraisalDetails b
+                JOIN appraisal.AppraisalProperties bp ON bp.Id = b.AppraisalPropertyId
+                LEFT JOIN appraisal.PropertyGroupItems bgi ON bgi.AppraisalPropertyId = bp.Id
+                LEFT JOIN appraisal.PropertyGroupItems lgi ON lgi.AppraisalPropertyId = loc.Id
+                WHERE loc.Kind = 'L'
+                  AND bp.AppraisalId = @AppraisalId
+                  AND (
+                        -- The property's own building is the answer, whatever it says: a blank,
+                        -- a dash or NoHouseNumber '02' simply prints no เลขที่.
+                        bp.Id = loc.Id
+                        -- Bare land only (no building of its own): the first building-only property
+                        -- (B/LSB) in the same group — the house standing on that plot — again
+                        -- whatever it says. Never another LB/LS: that is a different parcel.
+                     OR (loc.OwnBuildingId IS NULL
+                         AND bgi.PropertyGroupId = lgi.PropertyGroupId
+                         AND NOT EXISTS (SELECT 1 FROM appraisal.LandAppraisalDetails bl
+                                         WHERE bl.AppraisalPropertyId = bp.Id)))
+                ORDER BY CASE WHEN bp.Id = loc.Id THEN 0 ELSE 1 END,
+                         bp.SequenceNumber
+            ) h
+            LEFT JOIN parameter.DopaSubDistricts dsub  ON dsub.Code  = loc.DopaSubDistrict
+            LEFT JOIN parameter.DopaDistricts    ddist ON ddist.Code = loc.DopaDistrict
+            LEFT JOIN parameter.DopaProvinces    dprov ON dprov.Code = loc.DopaProvince;
+            """;
+
+    internal sealed class CollateralLocationRow
+    {
+        public string Kind { get; init; } = "";
         public string? HouseNumber { get; init; }
-        public string? ProjectName { get; init; }
-        public string? Moo { get; init; }
+        public string? Village { get; init; }
+        public string? RoomNumber { get; init; }
+        public string? FloorNumber { get; init; }
+        public string? CondoName { get; init; }
         public string? Soi { get; init; }
-        public string? Road { get; init; }
-        public string? ReqSubDistrict { get; init; }
-        public string? ReqDistrict { get; init; }
-        public string? ReqProvince { get; init; }
+        public string? Street { get; init; }
+        public string? SubDistrict { get; init; }
+        public string? District { get; init; }
+        public string? Province { get; init; }
+    }
+
+    /// <summary>
+    /// Formats the RS rows of <see cref="CollateralLocationSql"/>: condo → FormatCondo, land → FormatLandBuilding.
+    /// Each slot is null when its anchor has nothing to print. Readers use
+    /// <see cref="CollateralLocations.LandOrCondo"/> (land-building, book, construction, machine
+    /// fallback) or Condo (condo form).
+    /// </summary>
+    internal static CollateralLocations ComposeCollateralLocations(IEnumerable<CollateralLocationRow> rows)
+    {
+        CollateralLocation? land = null, condo = null;
+        foreach (var r in rows)  // at most one row per Kind
+        {
+            // FloorNumber is free text: 0 means not stated — the condo form body's rule.
+            var floor = ThaiAddressFormatter.IsStated(r.FloorNumber) ? r.FloorNumber : null;
+            var address = r.Kind == "U"
+                ? ThaiAddressFormatter.FormatCondo(
+                    roomNumber: r.RoomNumber, floorNumber: floor, buildingName: r.CondoName,
+                    soi: r.Soi, road: r.Street,
+                    subDistrict: r.SubDistrict, district: r.District, province: r.Province)
+                : ThaiAddressFormatter.FormatLandBuilding(
+                    houseNumber: r.HouseNumber, village: r.Village, moo: null,
+                    soi: r.Soi, road: r.Street,
+                    subDistrict: r.SubDistrict, district: r.District, province: r.Province);
+
+            // An anchor with nothing to print counts as absent, so a form falls back to the other
+            // family's anchor (LandOrCondo). The SQL returns only the first anchor per family, so it
+            // never falls back to a later property of the same family. (The address carries the
+            // sub-district whenever there is one.)
+            if (string.IsNullOrEmpty(address))
+                continue;
+
+            // Stated, like the address segments, so เขตการปกครอง and ที่ตั้งทรัพย์สิน agree.
+            var location = new CollateralLocation(address, ThaiAddressFormatter.Stated(r.SubDistrict));
+
+            if (r.Kind == "U") condo ??= location;
+            else land ??= location;
+        }
+
+        return new CollateralLocations(land, condo);
     }
 
     internal sealed class AssignmentRow
@@ -780,6 +906,19 @@ internal sealed record MethodFlags(
     bool IsWqs, bool IsSaleGrid, bool IsCost, bool IsIncome,
     bool IsHypothesis, bool IsLeasehold, bool IsProfitRent);
 
+/// <summary>A formatted ที่ตั้งทรัพย์สิน (never empty) and the sub-district (เขตการปกครอง) it was built from.</summary>
+internal sealed record CollateralLocation(string Address, string? SubDistrict);
+
+/// <summary>The first land-family anchor and the first condo anchor (each null when there is nothing to print).</summary>
+internal sealed record CollateralLocations(CollateralLocation? Land, CollateralLocation? Condo)
+{
+    /// <summary>
+    /// Land first, else the condo: the rule for the land-building form, internal book, construction
+    /// summary and the machine form's fallback.
+    /// </summary>
+    public CollateralLocation? LandOrCondo => Land ?? Condo;
+}
+
 /// <summary>
 /// Immutable bag of common appraisal-summary data shared across all report variants.
 /// </summary>
@@ -791,6 +930,7 @@ internal sealed record CommonAppraisalData(
     string? AppraisalPurpose,
     string? CollateralAddress,
     string? AdministrativeDistrict,
+    CollateralLocation? CondoLocation,
     decimal? FacilityLimit,
     string? CustomerName,
     DateTime? AppraisalDate,

@@ -382,6 +382,13 @@ public class BuildingAppraisalDetail : Entity<Guid>
         return detail;
     }
 
+    /// <summary>
+    /// Seeds บ้านเลขที่ at appraisal creation. Not <see cref="Update"/>: that overwrites every field,
+    /// including <see cref="IsAppraisable"/>'s default of true.
+    /// </summary>
+    internal void SetHouseNumber(string? houseNumber) =>
+        HouseNumber = string.IsNullOrWhiteSpace(houseNumber) ? null : houseNumber.Trim();
+
     public void RemoveDepreciationDetail(Guid depreciationDetailId)
     {
         var detail = _depreciationDetails.FirstOrDefault(d => d.Id == depreciationDetailId)

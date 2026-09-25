@@ -156,9 +156,8 @@ public sealed class AppraisalSummaryMachineDataProvider(
         // GPS from the machinery summary table
         var gps = ThaiAddressFormatter.FormatGps(machSummary?.Latitude, machSummary?.Longitude);
 
-        var collateralAddress = string.IsNullOrWhiteSpace(machSummary?.MachineAddress)
-            ? null
-            : machSummary.MachineAddress.Trim();
+        // A dash placeholder counts as no address, so the property fallback below still applies.
+        var collateralAddress = ThaiAddressFormatter.Stated(machSummary?.MachineAddress);
 
         var machineByGroup = groupMachineRows
             .GroupBy(r => r.PropertyGroupId)
@@ -283,8 +282,8 @@ public sealed class AppraisalSummaryMachineDataProvider(
             // Machine form: property type is fixed (header + appraiser opinion).
             PropertyType = "เครื่องจักร",
             SummaryPropertyType = "เครื่องจักร",
-            // ที่ตั้งทรัพย์สิน from the Request detail (same as land-building); fall back to the machine's own address.
-            CollateralAddress = common.CollateralAddress ?? collateralAddress,
+            // ที่ตั้งทรัพย์สิน: the machine's own address; the land (else condo) anchor's when it has none.
+            CollateralAddress = collateralAddress ?? common.CollateralAddress,
             AdministrativeDistrict = common.AdministrativeDistrict,
             LandOffice = null,
             OldAppraisalValue = common.PrevAppraisedValue,

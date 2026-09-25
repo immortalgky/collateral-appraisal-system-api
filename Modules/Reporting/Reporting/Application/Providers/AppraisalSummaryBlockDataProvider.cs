@@ -108,9 +108,12 @@ public sealed class AppraisalSummaryBlockDataProvider(
                 p.HouseNumber,
                 p.Soi,
                 p.Road,
-                COALESCE(tsub.NameTh,  p.SubDistrict) AS SubDistrict,
-                COALESCE(tdist.NameTh, p.District)    AS District,
-                COALESCE(tprov.NameTh, p.Province)    AS Province,
+                -- The project-location picker is DOPA (blockProject projectLocationFields): the DOPA
+                -- master's name, else the stored code — never the Title master's name. (Projects saved
+                -- before the picker switched on 2026-09-01 may hold a Title code; it prints as-is.)
+                COALESCE(dsub.NameTh,  p.SubDistrict) AS SubDistrict,
+                COALESCE(ddist.NameTh, p.District)    AS District,
+                COALESCE(dprov.NameTh, p.Province)    AS Province,
                 p.Latitude,
                 p.Longitude,
                 p.Utilities,
@@ -120,9 +123,9 @@ public sealed class AppraisalSummaryBlockDataProvider(
                 p.ProjectType,
                 p.Id            AS ProjectId
             FROM appraisal.Projects p
-            LEFT JOIN parameter.TitleProvinces    tprov ON tprov.Code = p.Province
-            LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = p.District
-            LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = p.SubDistrict
+            LEFT JOIN parameter.DopaProvinces    dprov ON dprov.Code = p.Province
+            LEFT JOIN parameter.DopaDistricts    ddist ON ddist.Code = p.District
+            LEFT JOIN parameter.DopaSubDistricts dsub  ON dsub.Code  = p.SubDistrict
             LEFT JOIN parameter.Parameters pLandOffice
                 ON pLandOffice.[group]    = 'LandOffice'
                AND pLandOffice.[language] = 'TH'
@@ -262,8 +265,10 @@ public sealed class AppraisalSummaryBlockDataProvider(
             projectAddress = null;
 
         // Committee table รายการทรัพย์สิน (block): ชื่อโครงการ + ที่ตั้งโครงการ.
-        var approvalPropertyText = string.Join(" ",
-            new[] { project.ProjectName, projectAddress }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        // Stated also drops a dash-only project name, like every other address segment.
+        var projectText = string.Join(" ",
+            new[] { ThaiAddressFormatter.Stated(project.ProjectName), projectAddress }.Where(s => s is not null));
+        var approvalPropertyText = projectText.Length == 0 ? null : projectText;
 
         // GPS
         var gps = ThaiAddressFormatter.FormatGps(project.Latitude, project.Longitude);
@@ -364,9 +369,10 @@ public sealed class AppraisalSummaryBlockDataProvider(
             // mix of Request collateral types shown in the header.
             SummaryPropertyType = projectTypeLabel,
 
-            // ที่ตั้งทรัพย์สิน from the Request detail (same as the land-building form)
-            CollateralAddress       = common.CollateralAddress,
-            AdministrativeDistrict  = common.AdministrativeDistrict,
+            // ที่ตั้งทรัพย์สิน = ชื่อโครงการ + the project location (a block appraisal has no
+            // AppraisalProperties) — the same text as the committee table's รายการทรัพย์สิน.
+            CollateralAddress       = approvalPropertyText,
+            AdministrativeDistrict  = ThaiAddressFormatter.Stated(project.SubDistrict),
             LandOffice              = project.LandOffice,
             OldAppraisalValue       = common.PrevAppraisedValue,
             HasPrevAppraisal        = common.HasPrevAppraisal,
@@ -433,7 +439,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
             Approvers               = common.Approvers,
             ApproverSummaryComment  = common.CommitteeOpinion,
             ApprovalValueText       = "ตามแนบ",
-            ApprovalPropertyText    = string.IsNullOrWhiteSpace(approvalPropertyText) ? null : approvalPropertyText
+            ApprovalPropertyText    = approvalPropertyText
         };
 
         return model;
