@@ -16,12 +16,14 @@ public class QuotationRequest : Aggregate<Guid>
     private readonly List<CompanyQuotation> _quotations = [];
     private readonly List<QuotationRequestAppraisal> _appraisals = [];
     private readonly List<QuotationSharedDocument> _sharedDocuments = [];
+    private readonly List<QuotationDocument> _documents = [];
 
     public IReadOnlyList<QuotationRequestItem> Items => _items.AsReadOnly();
     public IReadOnlyList<QuotationInvitation> Invitations => _invitations.AsReadOnly();
     public IReadOnlyList<CompanyQuotation> Quotations => _quotations.AsReadOnly();
     public IReadOnlyList<QuotationRequestAppraisal> Appraisals => _appraisals.AsReadOnly();
     public IReadOnlyList<QuotationSharedDocument> SharedDocuments => _sharedDocuments.AsReadOnly();
+    public IReadOnlyList<QuotationDocument> Documents => _documents.AsReadOnly();
 
     // RFQ Information
     public string? QuotationNumber { get; private set; }
@@ -667,6 +669,34 @@ public class QuotationRequest : Aggregate<Guid>
                 existing.Update(sel.AppraisalId, sel.Level, sharedBy, sharedAt);
             }
         }
+    }
+
+    /// <summary>
+    /// Links a document to this quotation. Duplicate document ids are rejected.
+    /// </summary>
+    public QuotationDocument AddDocument(QuotationDocumentData data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        if (_documents.Any(d => d.DocumentId == data.DocumentId))
+            throw new InvalidOperationException(
+                $"Document {data.DocumentId} is already linked to this quotation");
+
+        var doc = QuotationDocument.Create(Id, data);
+        _documents.Add(doc);
+        return doc;
+    }
+
+    /// <summary>
+    /// Removes the link to the given document from this quotation.
+    /// </summary>
+    public QuotationDocument RemoveDocument(Guid documentId)
+    {
+        var doc = _documents.FirstOrDefault(d => d.DocumentId == documentId)
+            ?? throw new NotFoundException($"Document {documentId} is not linked to quotation {Id}");
+
+        _documents.Remove(doc);
+        return doc;
     }
 
     /// <summary>
