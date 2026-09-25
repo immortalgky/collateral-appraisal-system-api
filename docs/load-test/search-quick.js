@@ -42,7 +42,10 @@
 //          --insecure-skip-tls-verify docs/load-test/search-quick.js
 //
 //   # 4) One shape only — e.g. prove what substring search costs:
-//   k6 run ... -e WEIGHTS="prefix_number:0,substring:100"
+//   k6 run ... -e SCENARIO=substring
+//
+//   # 5) Re-weight the mix, or replay an earlier run exactly:
+//   k6 run ... -e WEIGHTS="prefix_number:50,substring:50" -e SEED=42
 //
 // TERMS: the defaults below are PREFIXES THAT EXIST on the dev database (appraisal numbers start
 // 69…). A term that matches nothing exercises the miss path, which is not what you want to measure.
@@ -53,13 +56,13 @@
 import http from "k6/http";
 import { check } from "k6";
 import { Counter } from "k6/metrics";
-import { buildScenarios, authHeaders, listThresholds } from "./lib/k6-common.js";
-
-function trimTrailingSlashes(url) {
-  let end = url.length;
-  while (end > 0 && url[end - 1] === "/") end--;
-  return url.slice(0, end);
-}
+import {
+  buildScenarios,
+  authHeaders,
+  listThresholds,
+  trimTrailingSlashes,
+  buildShapePicker,
+} from "./lib/k6-common.js";
 
 const BASE_URL = trimTrailingSlashes(__ENV.BASE_URL || "https://localhost:7111");
 const ENDPOINT = __ENV.ENDPOINT || "/search";
@@ -126,36 +129,13 @@ const CASES = [
   { name: "literal_wildcard", weight: 5, q: { q: "%%%" } },
 ];
 
-const WEIGHT_OVERRIDES = (__ENV.WEIGHTS || "")
-  .split(",")
-  .map((pair) => pair.trim())
-  .filter(Boolean)
-  .reduce((acc, pair) => {
-    const [name, value] = pair.split(":");
-    const parsed = Number.parseInt(value, 10);
-    if (name && Number.isFinite(parsed)) acc[name.trim()] = parsed;
-    return acc;
-  }, {});
-
-const WEIGHTED = CASES.map((c) => ({
-  ...c,
-  weight: WEIGHT_OVERRIDES[c.name] ?? c.weight,
-})).filter((c) => c.weight > 0);
-
-if (WEIGHTED.length === 0) {
-  throw new Error("Every case was weighted 0 — nothing to run. Check -e WEIGHTS.");
-}
-
-const TOTAL_WEIGHT = WEIGHTED.reduce((sum, c) => sum + c.weight, 0);
-
-function pickCase() {
-  let roll = Math.random() * TOTAL_WEIGHT;
-  for (const c of WEIGHTED) {
-    roll -= c.weight;
-    if (roll <= 0) return c;
-  }
-  return WEIGHTED[WEIGHTED.length - 1];
-}
+// WEIGHTS re-weights named shapes (0 removes one), SCENARIO pins a single shape, SEED replays a run
+// shape-for-shape. See buildShapePicker in lib/k6-common.js.
+const pickCase = buildShapePicker(CASES, {
+  weights: __ENV.WEIGHTS || "",
+  scenario: __ENV.SCENARIO || "",
+  seed: __ENV.SEED || "",
+});
 
 // Counted per case so a run tells you WHICH shape was slow, not just that something was. k6's own
 // per-name http_req_duration gives the latency; these give the mix and the empty-result rate.
@@ -191,7 +171,7 @@ function buildUrl(params) {
   return `${BASE_URL}${ENDPOINT}?${search}&limit=${LIMIT}`;
 }
 
-export default function () {
+export default function quickSearch() {
   const testCase = pickCase();
   const url = buildUrl(testCase.q);
 
@@ -215,11 +195,12 @@ export default function () {
       "body parses": (r) => {
         if (r.status !== 200) return false;
         try {
-          const body = r.json();
-          const groups = (body && body.groups && body.groups.length) || 0;
+          const groups = r.json()?.groups?.length ?? 0;
           if (groups === 0) emptyByCase.add(1, { shape: testCase.name });
           return true;
-        } catch (_) {
+        } catch {
+          // A 200 whose body is not JSON is a failed check, not a crash: returning false records it
+          // against this shape and lets the run carry on measuring the rest.
           return false;
         }
       },
