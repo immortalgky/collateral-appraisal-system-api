@@ -561,41 +561,101 @@ public class GetDecisionSummaryQueryHandler(
                 GROUP BY ConstructionInspectionId
             ) wd_agg ON wd_agg.ConstructionInspectionId = ci.Id
             WHERE ap.AppraisalId = @AppraisalId
-            ORDER BY ap.SequenceNumber, CONVERT(char(36), ap.Id)
+            -- bad.Id last, as in completedBuildingSql: a property carrying two BuildingAppraisalDetails
+            -- rows produces two rows here that repeat the same inspection money under two building
+            -- names, and without this they could swap places between requests.
+            ORDER BY ap.SequenceNumber, CONVERT(char(36), ap.Id), CONVERT(char(36), bad.Id)
             """;
 
         // อาคารที่สร้างเสร็จ 100% ก่อนการตรวจงวดงาน — same NOT EXISTS predicate as
         // nonCiBuildingValueSql, grouped per property instead of summed flat, so the rows
         // reconcile with the "Building Value Pre-inspection" column of the milestone table.
-        const string completedBuildingSql = """
+        const string completedBuildingSql = $"""
             SELECT
                 ap.Id                             AS AppraisalPropertyId,
                 NULLIF(LTRIM(RTRIM(bad.HouseNumber)), '')      AS HouseNumber,
                 NULLIF(LTRIM(RTRIM(bad.BuiltOnTitleNumber)), '') AS TitleNumber,
                 COALESCE(NULLIF(LTRIM(RTRIM(bad.ModelName)), ''),
                          NULLIF(LTRIM(RTRIM(bad.PropertyName)), '')) AS ModelName,
-                ISNULL(SUM(bdd.PriceAfterDepreciation), 0) AS AppraisalValue
-            FROM appraisal.BuildingDepreciationDetails bdd
-            JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
+                -- The appraiser's own Building Cost Value where they keyed one, else the depreciated
+                -- sum rounded to the nearest 1,000. Taking the raw sum meant this listing and the
+                -- milestone table above it both showed the system's figure for a building the
+                -- appraiser had priced himself.
+                -- KEEP IN SYNC with ConstructionCurrentValueService.CompletedBuildingValueSql.
+                -- Grouped on bad.Id like the total above it and every other copy of this read: the
+                -- rounding has to happen per building, or two building rows on one property would be
+                -- ROUND(a + b) here against ROUND(a) + ROUND(b) there and the listing would miss the
+                -- column by up to 1,000 baht.
+                ISNULL(COALESCE(bad.FinalCostValueOverride,
+                                ROUND(SUM(bdd.PriceAfterDepreciation), -3)), 0) AS AppraisalValue
+            -- Driven from the building, LEFT JOINed to its schedule: an appraiser who keys a Building
+            -- Cost Value instead of filling in a depreciation table leaves no BuildingDepreciationDetails
+            -- rows, and driving from that table dropped exactly the building the COALESCE exists for.
+            FROM appraisal.BuildingAppraisalDetails bad
             JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
+            LEFT JOIN appraisal.BuildingDepreciationDetails bdd ON bdd.BuildingAppraisalDetailId = bad.Id
             WHERE ap.AppraisalId = @AppraisalId
               AND NOT EXISTS (
                   SELECT 1 FROM appraisal.ConstructionInspections ci
                   WHERE ci.AppraisalPropertyId = ap.Id
               )
-            GROUP BY ap.Id, ap.SequenceNumber, bad.HouseNumber, bad.BuiltOnTitleNumber,
-                     bad.ModelName, bad.PropertyName
-            ORDER BY ap.SequenceNumber, CONVERT(char(36), ap.Id)
+              -- A building with neither a schedule nor an override has nothing to report. The total
+              -- above adds it as 0 either way, but driving from BuildingAppraisalDetails (needed so
+              -- an override-only building is not dropped) would otherwise put a blank 0-baht row in
+              -- this listing for every such building.
+              AND (bad.FinalCostValueOverride IS NOT NULL
+                   OR EXISTS (SELECT 1 FROM appraisal.BuildingDepreciationDetails d
+                              WHERE d.BuildingAppraisalDetailId = bad.Id))
+              -- Scoped exactly as CompletedBuildingValueSql is, or these rows would list a building
+              -- the column above them excludes and the two would stop adding up.
+              AND (EXISTS (
+                      SELECT 1 FROM appraisal.PropertyGroupItems gi
+                      WHERE gi.AppraisalPropertyId = ap.Id
+                        AND gi.PropertyGroupId IN ({ConstructionCurrentValueService.CiGroupsSql}))
+                   OR NOT EXISTS ({ConstructionCurrentValueService.CiGroupsSql}))
+            GROUP BY ap.Id, ap.SequenceNumber, bad.Id, bad.HouseNumber, bad.BuiltOnTitleNumber,
+                     bad.ModelName, bad.PropertyName, bad.FinalCostValueOverride
+            -- bad.Id last: the rows are one per building now, so two buildings on one property tie
+            -- on every other key and would otherwise shuffle between requests.
+            ORDER BY ap.SequenceNumber, CONVERT(char(36), ap.Id), CONVERT(char(36), bad.Id)
             """;
 
-        // ชื่ออาคาร = village name of the first L/LB land property (same source as report RS04)
-        const string villageSql = """
-            SELECT TOP 1 lad.Village
-            FROM appraisal.LandAppraisalDetails lad
-            JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
-            WHERE ap.AppraisalId = @AppraisalId
-              AND ap.PropertyType IN ('L', 'LB')
-            ORDER BY ap.SequenceNumber
+        // ชื่ออาคาร = the village name of the first land property, or the condominium name when the
+        // collateral is a unit: a unit has no land row, so the land arm alone left this blank on
+        // every condo. The condo arm keys off the presence of a CondoAppraisalDetails row rather
+        // than a PropertyType list, so a leasehold unit reaches it too, and a blank name is skipped
+        // instead of winning on sequence.
+        // KEEP IN SYNC with the construction summary book's RS04.
+        const string villageSql = $"""
+            SELECT TOP 1 x.Name
+            FROM (
+                SELECT lad.Village AS Name, 0 AS ArmRank, ap.SequenceNumber, ap.Id AS PropertyId
+                FROM appraisal.LandAppraisalDetails lad
+                JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
+                -- The LandAppraisalDetails join is already the test for "this is land", exactly as
+                -- the condo arm keys off its own detail row. The PropertyType list that used to
+                -- stand here excluded leasehold land (LS, LSL) and left ชื่ออาคาร blank for it.
+                WHERE ap.AppraisalId = @AppraisalId
+                UNION ALL
+                SELECT cad.CondoName, 1, ap.SequenceNumber, ap.Id
+                FROM appraisal.CondoAppraisalDetails cad
+                JOIN appraisal.AppraisalProperties ap ON ap.Id = cad.AppraisalPropertyId
+                WHERE ap.AppraisalId = @AppraisalId
+            ) x
+            WHERE x.Name IS NOT NULL AND LEN(x.Name) > 0
+              -- Scoped like the money rows: the name has to describe the collateral the figures are
+              -- about, not whichever property happens to sort first across the whole appraisal.
+              AND (EXISTS (
+                      SELECT 1 FROM appraisal.PropertyGroupItems gi
+                      WHERE gi.AppraisalPropertyId = x.PropertyId
+                        AND gi.PropertyGroupId IN ({ConstructionCurrentValueService.CiGroupsSql}))
+                   OR NOT EXISTS ({ConstructionCurrentValueService.CiGroupsSql}))
+            -- ArmRank first: the rule is "the village name, or the condominium name when there is no
+            -- land" — a land and a condo property can both sit in scope, and ordering by sequence
+            -- alone let a condo that happened to be entered first take the land's place.
+            -- PropertyId last breaks a remaining tie, which TOP 1 would otherwise resolve differently
+            -- between requests.
+            ORDER BY x.ArmRank, x.SequenceNumber, CONVERT(char(36), x.PropertyId)
             """;
 
         // Land / completed-building / part-built values all come from the shared service, so this card
@@ -625,33 +685,40 @@ public class GetDecisionSummaryQueryHandler(
 
         var rows = new List<ConstructionSummaryRow>
         {
+            // Totals come from the breakdown, not from re-adding the components here: Complete is the
+            // appraised value of the inspected groups (the price of record), and Current/Previous are
+            // capped at it. The land and building columns still report their own parts, so they need
+            // not sum to the total — see ConstructionValueBreakdown.CompleteValue.
             new("Previous",
                 prevPct,
-                landValue + nonCiBuilding + ciPrev,
+                values.PreviousValue,
                 landValue,
                 nonCiBuilding + ciPrev,
                 ciPrev),
+            // Derived from the reported totals, not from the raw inspection figures: when the cap
+            // bites, Previous, Current and Complete collapse to one number and a delta computed off
+            // the uncapped values would still claim work was done between them.
             new("Construction Increased",
                 increasedPct,
-                ciCurrent - ciPrev,
+                values.CurrentValue - values.PreviousValue,
                 0m,
-                ciCurrent - ciPrev,
-                ciCurrent - ciPrev),
+                values.CurrentValue - values.PreviousValue,
+                values.CurrentValue - values.PreviousValue),
             new("Current",
                 currentPct,
-                landValue + nonCiBuilding + ciCurrent,
+                values.CurrentValue,
                 landValue,
                 nonCiBuilding + ciCurrent,
                 ciCurrent),
             new("Remaining construction",
                 remainingPct,
-                ciTotal - ciCurrent,
+                values.CompleteValue - values.CurrentValue,
                 0m,
-                ciTotal - ciCurrent,
-                ciTotal - ciCurrent),
+                values.CompleteValue - values.CurrentValue,
+                values.CompleteValue - values.CurrentValue),
             new("Complete ( 100% )",
                 100m,
-                landValue + nonCiBuilding + ciTotal,
+                values.CompleteValue,
                 landValue,
                 nonCiBuilding + ciTotal,
                 ciTotal),
