@@ -89,4 +89,18 @@ public class EncryptedConfigurationExtensionsTests
         act.Should().Throw<InvalidOperationException>()
             .Which.Message.Should().Contain("Mail:Password").And.NotContain("super-secret");
     }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void A_blank_secrets_thumbprint_falls_back_to_the_DataProtection_one(string? primary)
+    {
+        // The production template renders Secrets:CertificateThumbprint even when its variable is empty.
+        var configuration = new ConfigurationManager();
+        configuration["Secrets:CertificateThumbprint"] = primary;
+        configuration["DataProtection:CertificateThumbprint"] = "ABC123";
+
+        EncryptedConfigurationExtensions.ResolveSecretsThumbprint(configuration).Should().Be("ABC123");
+    }
 }

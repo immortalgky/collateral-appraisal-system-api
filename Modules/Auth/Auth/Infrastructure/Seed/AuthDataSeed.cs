@@ -918,6 +918,8 @@ public class AuthDataSeed(
             // Webhook Subscriptions admin
             ("WEBHOOK_SUBSCRIPTIONS_MANAGE", "Manage Webhook Subscriptions",
                 "Create, edit, activate/deactivate and delete webhook subscriptions", "Integration"),
+            ("WEBHOOK_SECRET_REVEAL", "Reveal Webhook Secrets",
+                "Decrypt and view a webhook subscription's stored secret (every reveal is audited)", "Integration"),
             // OAuth client & scope registration (OpenIddict)
             ("OAUTH_CLIENTS_MANAGE", "Manage OAuth Clients",
                 "Register and configure OAuth/OpenID Connect client applications", "Auth"),

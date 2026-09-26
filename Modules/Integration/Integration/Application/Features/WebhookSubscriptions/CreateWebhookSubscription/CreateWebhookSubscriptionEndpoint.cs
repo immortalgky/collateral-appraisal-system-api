@@ -1,4 +1,5 @@
 using Carter;
+using Integration.Domain.WebhookSubscriptions;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -7,7 +8,15 @@ using Microsoft.AspNetCore.Routing;
 namespace Integration.Application.Features.WebhookSubscriptions.CreateWebhookSubscription;
 
 public record CreateWebhookSubscriptionRequest(
-    string SystemCode, string CallbackUrl, string SecretKey, string? EventType = null);
+    string SystemCode,
+    string CallbackUrl,
+    string? SecretKey,
+    string? EventType = null,
+    string AuthType = WebhookAuthType.Hmac,
+    string HttpMethod = "POST",
+    string? TokenEndpoint = null,
+    string? ClientId = null,
+    string? ClientSecret = null);
 
 public class CreateWebhookSubscriptionEndpoint : ICarterModule
 {
@@ -19,7 +28,9 @@ public class CreateWebhookSubscriptionEndpoint : ICarterModule
                 CancellationToken cancellationToken) =>
             {
                 var command = new CreateWebhookSubscriptionCommand(
-                    request.SystemCode, request.CallbackUrl, request.SecretKey, request.EventType);
+                    request.SystemCode, request.CallbackUrl, request.SecretKey, request.EventType,
+                    request.AuthType, request.HttpMethod, request.TokenEndpoint, request.ClientId,
+                    request.ClientSecret);
                 var result = await sender.Send(command, cancellationToken);
                 return Results.Created($"/webhook-subscriptions/{result.Id}", result);
             })

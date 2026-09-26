@@ -1,3 +1,5 @@
+using Shared.Exceptions;
+
 namespace Integration.Domain.WebhookSubscriptions;
 
 public class WebhookSubscription : Aggregate<Guid>
@@ -78,32 +80,76 @@ public class WebhookSubscription : Aggregate<Guid>
         ArgumentException.ThrowIfNullOrWhiteSpace(callbackUrl);
         ArgumentException.ThrowIfNullOrWhiteSpace(authType);
         ArgumentException.ThrowIfNullOrWhiteSpace(httpMethod);
-
-        if (authType == WebhookAuthType.TokenBearer)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(tokenEndpoint);
-            ArgumentException.ThrowIfNullOrWhiteSpace(clientId);
-            ArgumentException.ThrowIfNullOrWhiteSpace(clientSecret);
-        }
-        else
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(secretKey);
-        }
+        EnsureCredentials(authType, tokenEndpoint, clientId, clientSecret, secretKey);
 
         return new WebhookSubscription(systemCode, callbackUrl, secretKey, authType, tokenEndpoint, clientId,
             clientSecret, httpMethod, eventType);
     }
 
-    public void UpdateCallbackUrl(string callbackUrl)
+    /// <summary>
+    /// Replaces the connection settings. A null <paramref name="secretKey"/> /
+    /// <paramref name="clientSecret"/> keeps the stored one. The credentials of the auth type not in
+    /// use are cleared, so a switch never leaves a dormant secret behind.
+    /// <para>
+    /// The stored ClientSecret is kept only while TokenEndpoint, ClientId and CallbackUrl stay the same.
+    /// Otherwise anyone allowed to edit subscriptions could point TokenEndpoint at their own host (and
+    /// receive the decrypted secret) or CallbackUrl at it (and receive a freshly minted bearer token) —
+    /// bypassing the audited reveal. Re-entering the secret proves they already know it.
+    /// </para>
+    /// </summary>
+    public void Update(
+        string callbackUrl,
+        string httpMethod,
+        string authType,
+        string? tokenEndpoint,
+        string? clientId,
+        string? secretKey,
+        string? clientSecret)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(callbackUrl);
+        ArgumentException.ThrowIfNullOrWhiteSpace(httpMethod);
+        ArgumentException.ThrowIfNullOrWhiteSpace(authType);
+
+        var isTokenBearer = authType == WebhookAuthType.TokenBearer;
+        tokenEndpoint = isTokenBearer ? tokenEndpoint : null;
+        clientId = isTokenBearer ? clientId : null;
+
+        if (isTokenBearer && clientSecret is null && ClientSecret is not null &&
+            (tokenEndpoint != TokenEndpoint || clientId != ClientId || callbackUrl != CallbackUrl))
+            throw new DomainException(
+                "Re-enter the ClientSecret when changing TokenEndpoint, ClientId or CallbackUrl.");
+
+        // Same for HMAC: redirecting CallbackUrl would hand the new host a stream of
+        // (payload, HMAC(secret)) pairs to brute-force the stored SecretKey offline.
+        if (!isTokenBearer && secretKey is null && SecretKey is not null && callbackUrl != CallbackUrl)
+            throw new DomainException("Re-enter the SecretKey when changing CallbackUrl.");
+
+        clientSecret = isTokenBearer ? clientSecret ?? ClientSecret : null;
+        secretKey = isTokenBearer ? null : secretKey ?? SecretKey;
+        EnsureCredentials(authType, tokenEndpoint, clientId, clientSecret, secretKey);
+
         CallbackUrl = callbackUrl;
+        HttpMethod = httpMethod;
+        AuthType = authType;
+        TokenEndpoint = tokenEndpoint;
+        ClientId = clientId;
+        ClientSecret = clientSecret;
+        SecretKey = secretKey;
     }
 
-    public void UpdateSecretKey(string secretKey)
+    private static void EnsureCredentials(
+        string authType, string? tokenEndpoint, string? clientId, string? clientSecret, string? secretKey)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(secretKey);
-        SecretKey = secretKey;
+        if (authType == WebhookAuthType.TokenBearer)
+        {
+            if (string.IsNullOrWhiteSpace(tokenEndpoint) || string.IsNullOrWhiteSpace(clientId) ||
+                string.IsNullOrWhiteSpace(clientSecret))
+                throw new DomainException("TokenBearer needs TokenEndpoint, ClientId and ClientSecret.");
+        }
+        else if (string.IsNullOrWhiteSpace(secretKey))
+        {
+            throw new DomainException("HMAC needs a SecretKey.");
+        }
     }
 
     public void Activate() => IsActive = true;

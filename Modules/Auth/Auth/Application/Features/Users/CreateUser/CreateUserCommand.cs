@@ -19,4 +19,9 @@ public record CreateUserCommand(
     string? AoCode = null,
     // Bank staff employee id; only persisted for bank users (CompanyId == null).
     string? EmployeeId = null
-) : ICommand<CreateUserResult>, ITransactionalCommand<IAuthUnitOfWork>;
+) : ICommand<CreateUserResult>, ITransactionalCommand<IAuthUnitOfWork>
+{
+    /// <summary>Leaves the initial password out entirely — see ChangePasswordCommand.ToString.</summary>
+    public override string ToString() =>
+        $"{nameof(CreateUserCommand)} {{ Username = {Username}, AuthSource = {AuthSource} }}";
+}

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Shared.Security;
 
 namespace Shared.Exceptions.Handler;
 
@@ -114,6 +115,14 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
                 exception.GetType().Name,
                 httpContext.Response.StatusCode = StatusCodes.Status499ClientClosedRequest
             ),
+            // Fixed line: the message names the certificate thumbprint, store and config keys, which
+            // are for the server log (written above), not the browser.
+            SecretCipherException =>
+            (
+                "Secret storage is unavailable. Please contact support",
+                exception.GetType().Name,
+                httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError
+            ),
             DbUpdateException =>
             (
                 "A database error occurred. Please contact support",
@@ -144,8 +153,17 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
 
         problemDetails.Extensions.Add("traceId", httpContext.TraceIdentifier);
 
+        // Only what the caller needs. A ValidationFailure also carries AttemptedValue (and the same value
+        // again in FormattedMessagePlaceholderValues), which would echo a rejected password or secret
+        // back in plaintext — into HAR files, proxy captures and bug reports.
         if (exception is ValidationException validationException)
-            problemDetails.Extensions.Add("ValidationErrors", validationException.Errors);
+            problemDetails.Extensions.Add("ValidationErrors", validationException.Errors.Select(e => new
+            {
+                e.PropertyName,
+                e.ErrorMessage,
+                e.ErrorCode,
+                e.Severity
+            }));
 
         if (exception is BulkUploadParseException bulkEx)
             problemDetails.Extensions.Add("rowErrors", bulkEx.RowErrors);

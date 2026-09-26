@@ -101,6 +101,13 @@ if ($SkipDbScripts) {
     }
 }
 
+# --- Rollback SQL (run by hand, never by the bundle) ----------------------
+# Kept at the artifact root, NOT under db\, so Invoke-SqlDeploy.ps1 can never pick it up.
+$rollbackSrc = Join-Path $PSScriptRoot 'rollback'
+if (Test-Path $rollbackSrc) {
+    Copy-Item $rollbackSrc (Join-Path $stage 'rollback') -Recurse
+}
+
 # --- Frontend ------------------------------------------------------------
 # The SPA reads VITE_API_URL at BUILD time (src/config/index.ts), so the env file
 # for the target environment must exist and carry the public API URL. A missing
@@ -143,7 +150,7 @@ Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
 
 Write-Host ""
 Write-Host "Built $zip" -ForegroundColor Green
-Write-Host "  contains: api/  web/  tools/  db/$(if (-not $SkipDbTool) { '  database/' })   (version $Version)"
+Write-Host "  contains: api/  web/  tools/  db/$(if (Test-Path (Join-Path $stage 'rollback')) { '  rollback/' })$(if (-not $SkipDbTool) { '  database/' })   (version $Version)"
 Write-Host ""
 Write-Host "Next:"
 Write-Host "  1. Copy this zip to C:\Deploy\temp on each app server and expand it."

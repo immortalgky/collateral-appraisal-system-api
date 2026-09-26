@@ -20,6 +20,11 @@ public static class EncryptedConfigurationExtensions
     /// </summary>
     private const string FallbackThumbprintKey = "DataProtection:CertificateThumbprint";
 
+    /// <summary>What to configure when no certificate is found — names both keys the lookup honours.</summary>
+    internal const string CertificateHint =
+        $"Set '{ThumbprintKey}' (or '{FallbackThumbprintKey}') to the thumbprint of the secrets certificate, " +
+        "and make sure the app identity can read its private key.";
+
     /// <summary>
     /// Scans the already-loaded configuration for <c>ENC:v1:</c> values, decrypts them with the
     /// configured certificate (loaded from the machine store by thumbprint), and layers the
@@ -39,18 +44,41 @@ public static class EncryptedConfigurationExtensions
         if (encrypted.Length == 0)
             return configuration;
 
-        var thumbprint = configuration[ThumbprintKey] ?? configuration[FallbackThumbprintKey];
-        if (string.IsNullOrWhiteSpace(thumbprint))
-        {
-            throw new InvalidOperationException(
-                $"{encrypted.Length} encrypted configuration value(s) found but no certificate " +
-                $"thumbprint is configured. Set '{ThumbprintKey}' (or '{FallbackThumbprintKey}') " +
-                "to the thumbprint of the certificate that can decrypt them.");
-        }
-
-        var certificate = CertificateProvider.LoadFromStoreByThumbprint(thumbprint, requirePrivateKey: true);
-        return DecryptAndApply(configuration, encrypted, certificate, thumbprint);
+        var certificate = LoadSecretsCertificate(configuration)
+                          ?? throw new InvalidOperationException(
+                              $"{encrypted.Length} encrypted configuration value(s) found but no certificate " +
+                              "thumbprint is configured. " + CertificateHint);
+        return DecryptAndApply(configuration, encrypted, certificate, certificate.Thumbprint);
     }
+
+    /// <summary>
+    /// The configured secrets-certificate thumbprint: <see cref="ThumbprintKey"/>, else
+    /// <see cref="FallbackThumbprintKey"/>; null when neither is set. A blank primary value counts as
+    /// unset — the production template renders the key even when its variable is left empty, and the
+    /// deployment docs promise that empty falls back to the DataProtection cert. This is the single
+    /// thumbprint lookup for configuration decryption and <see cref="ColumnSecretCipher"/>.
+    /// </summary>
+    internal static string? ResolveSecretsThumbprint(IConfiguration configuration)
+    {
+        var thumbprint = configuration[ThumbprintKey];
+        if (string.IsNullOrWhiteSpace(thumbprint))
+            thumbprint = configuration[FallbackThumbprintKey];
+        return string.IsNullOrWhiteSpace(thumbprint) ? null : thumbprint;
+    }
+
+    /// <summary>
+    /// The secrets certificate (with private key) for configuration decryption; null when no thumbprint
+    /// is set. <see cref="ColumnSecretCipher"/> uses the same two steps per call (so it can follow a rotation).
+    /// </summary>
+    internal static X509Certificate2? LoadSecretsCertificate(IConfiguration configuration)
+    {
+        var thumbprint = ResolveSecretsThumbprint(configuration);
+        return thumbprint is null ? null : LoadSecretsCertificateByThumbprint(thumbprint);
+    }
+
+    /// <summary>How the secrets certificate is loaded — shared with <see cref="ColumnSecretCipher"/>.</summary>
+    internal static X509Certificate2 LoadSecretsCertificateByThumbprint(string thumbprint) =>
+        CertificateProvider.LoadFromStoreByThumbprint(thumbprint, requirePrivateKey: true);
 
     /// <summary>
     /// Test seam: decrypt using a supplied certificate instead of loading one from the store.

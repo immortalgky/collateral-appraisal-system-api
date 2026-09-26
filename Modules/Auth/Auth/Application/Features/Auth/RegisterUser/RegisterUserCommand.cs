@@ -12,4 +12,8 @@ public record RegisterUserCommand(
     Guid? CompanyId,
     List<RegisterUserPermissionDto> Permissions,
     List<Guid> Roles
-) : ICommand<RegisterUserResult>;
+) : ICommand<RegisterUserResult>
+{
+    /// <summary>Leaves the password out entirely — see ChangePasswordCommand.ToString.</summary>
+    public override string ToString() => $"{nameof(RegisterUserCommand)} {{ Username = {Username} }}";
+}

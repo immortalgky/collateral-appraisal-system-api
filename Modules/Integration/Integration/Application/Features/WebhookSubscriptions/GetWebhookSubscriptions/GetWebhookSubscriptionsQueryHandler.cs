@@ -40,14 +40,7 @@ public class GetWebhookSubscriptionsQueryHandler(ISqlConnectionFactory sqlConnec
 
         var sql = $"""
             SELECT
-                s.Id,
-                s.SystemCode,
-                s.EventType,
-                s.CallbackUrl,
-                s.IsActive,
-                RIGHT(s.SecretKey, 4) AS SecretLast4,
-                s.LastDeliveryAt,
-                s.CreatedAt
+            {WebhookSubscriptionSql.Columns}
             FROM integration.WebhookSubscriptions s
             {where}
             """;
@@ -56,7 +49,9 @@ public class GetWebhookSubscriptionsQueryHandler(ISqlConnectionFactory sqlConnec
 
         return await sqlConnectionFactory.QueryPaginatedAsync<WebhookSubscriptionDto>(
             sql,
-            "s.SystemCode ASC",
+            // Unique order: one SystemCode can have several rows (catch-all + per-event), and OFFSET/FETCH
+            // over tied rows can repeat or skip them between pages.
+            "s.SystemCode ASC, s.EventType ASC, s.Id ASC",
             paginationRequest,
             parameters);
     }

@@ -6,7 +6,14 @@ using Microsoft.AspNetCore.Routing;
 
 namespace Integration.Application.Features.WebhookSubscriptions.UpdateWebhookSubscription;
 
-public record UpdateWebhookSubscriptionRequest(string CallbackUrl, string? SecretKey);
+public record UpdateWebhookSubscriptionRequest(
+    string CallbackUrl,
+    string? SecretKey,
+    string AuthType,
+    string HttpMethod,
+    string? TokenEndpoint = null,
+    string? ClientId = null,
+    string? ClientSecret = null);
 
 public class UpdateWebhookSubscriptionEndpoint : ICarterModule
 {
@@ -18,7 +25,9 @@ public class UpdateWebhookSubscriptionEndpoint : ICarterModule
                 ISender sender,
                 CancellationToken cancellationToken) =>
             {
-                var command = new UpdateWebhookSubscriptionCommand(id, request.CallbackUrl, request.SecretKey);
+                var command = new UpdateWebhookSubscriptionCommand(
+                    id, request.CallbackUrl, request.SecretKey, request.AuthType, request.HttpMethod,
+                    request.TokenEndpoint, request.ClientId, request.ClientSecret);
                 await sender.Send(command, cancellationToken);
                 return Results.NoContent();
             })

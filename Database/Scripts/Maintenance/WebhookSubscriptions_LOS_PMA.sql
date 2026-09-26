@@ -26,8 +26,13 @@
       host once confirmed (see plan: LOS update endpoint URL/method was
       still being confirmed from the LOS update spec sheet at implementation
       time - HttpMethod='PUT' is the current best guess).
-    - Replace the ClientSecret placeholder with the real LOS-provided secret
-      (do NOT commit a real secret into source control / this script).
+    - Replace the ClientSecret placeholder with the ENCRYPTED LOS-provided
+      secret: run tools/CasSecretTool against the secrets certificate and
+      paste the resulting ENC:v1:... value. The app reads plaintext too, but
+      secrets are meant to be stored encrypted (see ColumnSecretCipher).
+      Simpler still: insert with any placeholder, then set the real secret on
+      the Webhook Subscriptions admin screen, which encrypts it on save.
+      Do NOT commit a real secret into source control / this script.
 ==============================================================================*/
 
 SET NOCOUNT ON;
@@ -82,7 +87,7 @@ BEGIN
         'TokenBearer',
         'https://<LOS-HOST>:8420/api/auth/token',       -- POST + JSON { client_id, client_secret } -> { access_token, token_type, expires_in }
         'CAS',                                          -- ClientId
-        '<LOS-PROVIDED-CLIENT-SECRET>',                 -- TODO: replace with the real secret; do not commit real secrets
+        '<LOS-PROVIDED-CLIENT-SECRET>',                 -- TODO: replace with the ENC:v1: value from CasSecretTool; never commit real secrets
         'PUT',                                           -- LOS update call method (best guess pending spec confirmation)
         GETDATE(),
         'SYSTEM',

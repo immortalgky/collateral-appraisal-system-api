@@ -28,35 +28,27 @@ public static class MenuSeedData
     // (10, 20, 30 …). Keep the twelve operational roots first, then the five admin groups.
     //
     // The five admin groups (master-data / workflow / business-rules / access / system) are
-    // CONTAINERS: Path is null, so the sidebar renders them as expand-only toggles. A container
-    // still needs a view permission — MenuItem.Create requires a code or a prefix — and that
-    // gate hides the WHOLE subtree, because GetMyMenuQueryHandler skips a hidden node before it
-    // builds any children.
-    //
-    // Each gate below is therefore chosen so that no role loses a screen it can reach today:
-    //   Admin holds every permission; IntAdmin holds WORKFLOW_MANAGE, WORKFLOW_ADMIN,
-    //   USER_MANAGE, COLLATERAL_ADMIN, EVALUATION_CONFIG_MANAGE, SLA_CONFIG_MANAGE,
-    //   FEE_APPROVAL_CONFIG, APPOINTMENT_APPROVAL_CONFIG; ExtAdmin holds USER_MANAGE. No other
-    //   seeded role holds PARAMETER_MANAGE, TEMPLATE_MANAGE, AUTH_AUDIT_VIEW, LOGS_VIEW,
-    //   WEBHOOK_*, OAUTH_* or MENU_MANAGE.
-    //
-    // CAVEAT: only main.workflow's prefix is semantically exact. The other four gates work
-    // because the seeded roles happen to line up, not because the permission "means" the group.
-    // A custom role added later at /admin/roles holding only PARAMETER_MANAGE would see no
-    // Business Rules group. (main.user-management already has this same coupling: it is gated on
-    // USER_MANAGE while its children need ROLE_MANAGE, MENU_MANAGE, …) The durable fix, if custom
-    // admin roles appear, is in GetMyMenuQueryHandler.BuildFilteredTree: build children first and
-    // let a Path==null container be visible whenever any child is.
+    // CONTAINERS: Path is null, so the sidebar renders them as expand-only toggles. They, and
+    // main.standalone, carry NO view permission: GetMyMenuQueryHandler shows an ungated node only
+    // when at least one of its children is visible, so each group appears exactly for the users
+    // who can reach something inside it. The same goes for EVERY parent in this tree (request, task,
+    // quotation, invoice, meetings, reports, reports.operational, and the ones nested in the admin
+    // groups): the sidebar only expands/collapses an item that has children — it never navigates to
+    // the parent's own Path — and the breadcrumb lets a child overwrite a parent's duplicate path, so
+    // a parent carries neither a Path nor a gate. A gate on a parent would hide its WHOLE subtree
+    // (e.g. ExtAdmin, holding QUOTATION_EXT_VIEW but not QUOTATION_VIEW, never saw its own portal).
+    // Consequence: a parent's permission is no longer a master switch for its section — hiding a section
+    // means removing the permissions of the entries inside it.
     public static List<MenuSeedNode> GetMainMenuSeed() => new()
     {
         new("main.dashboard", "Dashboard", "gauge", IconStyle.Solid, "text-blue-500", "/", "DASHBOARD_VIEW", null),
-        new("main.request", "Request", "folder-open", IconStyle.Solid, "text-emerald-500", "/requests", "REQUEST_VIEW", null,
+        new("main.request", "Request", "folder-open", IconStyle.Solid, "text-emerald-500", null, null, null,
             new List<MenuSeedNode>
             {
                 new("main.request.list", "Request Listing", "list", IconStyle.Solid, "text-emerald-500", "/requests", "REQUEST_VIEW", null),
                 new("main.request.create", "Create Request", "file-circle-plus", IconStyle.Solid, "text-emerald-500", "/requests/new", "REQUEST_CREATE", "REQUEST_CREATE"),
             }),
-        new("main.task", "Task", "list-check", IconStyle.Solid, "text-purple-500", "/tasks", "TASK_LIST_VIEW", null,
+        new("main.task", "Task", "list-check", IconStyle.Solid, "text-purple-500", null, null, null,
             new List<MenuSeedNode>
             {
                 // Order is meaningful: UpsertTreeAsync derives SortOrder from position in this
@@ -110,19 +102,19 @@ public static class MenuSeedData
         // see the appraisal list today.
         new("main.appraisal-tracking", "Appraisal Search / Tracking", "radar", IconStyle.Solid, "text-sky-500",
             "/appraisals/search", "APPRAISAL_TRACKING_VIEW", null, LabelTh: "ค้นหา/ติดตามงานประเมิน"),
-        new("main.quotation", "Quotation", "file-invoice-dollar", IconStyle.Solid, "text-pink-500", "/quotations", "QUOTATION_VIEW", null,
+        new("main.quotation", "Quotation", "file-invoice-dollar", IconStyle.Solid, "text-pink-500", null, null, null,
             new List<MenuSeedNode>
             {
                 new("main.quotation.list", "All Quotations", "list", IconStyle.Solid, "text-pink-500", "/quotations", "QUOTATION_VIEW", null),
                 new("main.quotation.external", "External Co. Portal", "building", IconStyle.Solid, "text-pink-500", "/ext/quotations", "QUOTATION_EXT_VIEW", null),
             }),
-        new("main.invoice", "Invoice", "file-invoice", IconStyle.Solid, "text-lime-500", "/admin/invoices", "INVOICE_VIEW", null,
+        new("main.invoice", "Invoice", "file-invoice", IconStyle.Solid, "text-lime-500", null, null, null,
             new List<MenuSeedNode>
             {
                 new("main.invoice.list", "All Invoices", "list", IconStyle.Solid, "text-lime-500", "/admin/invoices", "INVOICE_VIEW", null),
                 new("main.invoice.external", "External Co. Portal", "building", IconStyle.Solid, "text-lime-500", "/ext/invoices", "INVOICE_EXT_VIEW", null),
             }),
-        new("main.meetings", "Meetings", "people-arrows", IconStyle.Solid, "text-blue-500", "/meetings", "MEETING_MANAGE", null,
+        new("main.meetings", "Meetings", "people-arrows", IconStyle.Solid, "text-blue-500", null, null, null,
             new List<MenuSeedNode>
             {
                 new("main.meetings.all", "All Meetings", "list", IconStyle.Solid, "text-blue-500", "/meetings", "MEETING_MANAGE", null),
@@ -130,13 +122,13 @@ public static class MenuSeedData
             }),
         // NOT nested under an admin group: this subtree already uses all three allowed levels
         // (Reports → Operational Reports → RCAS001…012). Wrapping it would make RCAS level 4.
-        new("main.reports", "Reports", "chart-line", IconStyle.Solid, "text-indigo-500", "/reports", "REPORT_VIEW", null,
+        new("main.reports", "Reports", "chart-line", IconStyle.Solid, "text-indigo-500", null, null, null,
             new List<MenuSeedNode>
             {
                 new("main.reports.completed", "Completed Reports", "file-check", IconStyle.Solid, "text-indigo-500", "/reports/completed", "REPORT_VIEW", null),
                 new("main.reports.statistics", "Statistics", "chart-pie", IconStyle.Solid, "text-indigo-500", "/reports/statistics", "REPORT_STATISTICS_VIEW", null),
                 new("main.reports.pdf-test", "PDF Report Test", "file-pdf", IconStyle.Solid, "text-indigo-500", "/admin/reports/test", "REPORT_VIEW", null),
-                new("main.reports.operational", "Operational Reports", "table-list", IconStyle.Solid, "text-indigo-500", "/reports/operational", "REPORT_OP_VIEW", null,
+                new("main.reports.operational", "Operational Reports", "table-list", IconStyle.Solid, "text-indigo-500", null, null, null,
                     new List<MenuSeedNode>
                     {
                         new("main.reports.operational.rcas001", "Appraisal Books (RCAS001)", "book", IconStyle.Solid, "text-indigo-500", "/reports/operational/rcas001", "REPORT_OP_VIEW", null, LabelTh: "เล่มประเมินตามช่วงเวลา/สถานะ/ฝ่ายงาน (RCAS001)"),
@@ -154,7 +146,7 @@ public static class MenuSeedData
                     }, LabelTh: "รายงานเชิงปฏิบัติการ"),
             }, LabelTh: "รายงาน"),
         new("main.notification", "Notification", "bell", IconStyle.Solid, "text-amber-500", "/notifications", "DASHBOARD_VIEW", null),
-        new("main.standalone", "Standalone", "puzzle-piece", IconStyle.Solid, "text-teal-500", "/standalone", "STANDALONE_USE", null,
+        new("main.standalone", "Standalone", "puzzle-piece", IconStyle.Solid, "text-teal-500", null, null, null,
             new List<MenuSeedNode>
             {
                 new("main.standalone.service-quality-evaluation", "Service Quality Evaluation", "star", IconStyle.Solid, "text-teal-500", "/standalone/service-quality-evaluation", "REPORT_EVALUATION_VIEW", null),
@@ -168,21 +160,18 @@ public static class MenuSeedData
             }),
 
         // ── Admin groups (containers: Path = null) ────────────────────────────────────────────
-        // Gate rationale is documented on the class-level comment above.
-
-        // Gate COLLATERAL_ADMIN: held by Admin + IntAdmin. TEMPLATE_MANAGE is Admin-only, and
-        // Admin holds COLLATERAL_ADMIN, so nothing becomes unreachable.
-        new("main.master-data", "Master Data", "database", IconStyle.Solid, "text-cyan-500", null, "COLLATERAL_ADMIN", null,
+        // Ungated — visibility comes from the children (see the class-level comment above).
+        new("main.master-data", "Master Data", "database", IconStyle.Solid, "text-cyan-500", null, null, null,
             new List<MenuSeedNode>
             {
-                new("main.collateral-master", "Collateral Master", "buildings", IconStyle.Solid, "text-cyan-500", "/admin/collateral-masters", "COLLATERAL_ADMIN", null,
+                new("main.collateral-master", "Collateral Master", "buildings", IconStyle.Solid, "text-cyan-500", null, null, null,
                     new List<MenuSeedNode>
                     {
                         new("main.collateral-master.catalog", "Catalog", "list", IconStyle.Solid, "text-cyan-500", "/admin/collateral-masters", "COLLATERAL_ADMIN", null),
                         new("main.collateral-master.backfill", "Backfill Report", "rotate", IconStyle.Solid, "text-cyan-500", "/admin/collateral-masters/backfill", "COLLATERAL_ADMIN", null),
                         new("main.collateral-master.host-id-backfill", "Host ID Backfill", "id-card", IconStyle.Solid, "text-cyan-500", "/admin/collateral-masters/host-id-backfill", "COLLATERAL_ADMIN", null),
                     }),
-                new("main.template-management", "Template Management", "layer-group", IconStyle.Solid, "text-teal-500", "/market-comparable-factors", "TEMPLATE_MANAGE", "TEMPLATE_MANAGE",
+                new("main.template-management", "Template Management", "layer-group", IconStyle.Solid, "text-teal-500", null, null, null,
                     new List<MenuSeedNode>
                     {
                         new("main.template-management.mc-factors", "MC Factors", "database", IconStyle.Solid, "text-teal-500", "/market-comparable-factors", "TEMPLATE_MANAGE", "TEMPLATE_MANAGE"),
@@ -191,12 +180,10 @@ public static class MenuSeedData
                     }),
             }, LabelTh: "ข้อมูลหลัก"),
 
-        // Prefix WORKFLOW_ exactly covers WORKFLOW_MANAGE + WORKFLOW_ADMIN — the only gate here
-        // that is semantically exact rather than incidental.
         new("main.workflow", "Workflow", "diagram-project", IconStyle.Solid, "text-orange-500", null, null, null,
             new List<MenuSeedNode>
             {
-                new("main.workflow-builder", "Workflow Builder", "diagram-project", IconStyle.Solid, "text-orange-500", "/workflow-builder", "WORKFLOW_MANAGE", "WORKFLOW_MANAGE",
+                new("main.workflow-builder", "Workflow Builder", "diagram-project", IconStyle.Solid, "text-orange-500", null, null, null,
                     new List<MenuSeedNode>
                     {
                         new("main.workflow-builder.list", "Workflow Listing", "list", IconStyle.Solid, "text-orange-500", "/workflow-builder", "WORKFLOW_MANAGE", null),
@@ -206,12 +193,9 @@ public static class MenuSeedData
                 new("main.workflow-assignment-config", "Task Assignment Overrides", "users-gear", IconStyle.Solid, "text-orange-500", "/admin/workflow-assignment-config", "WORKFLOW_ADMIN", "WORKFLOW_ADMIN"),
                 new("main.workflow-roundrobin-config", "Company Round-Robin Pools", "shuffle", IconStyle.Solid, "text-orange-500", "/admin/workflow-roundrobin-config", "WORKFLOW_ADMIN", "WORKFLOW_ADMIN"),
             },
-            ViewPermissionPrefix: "WORKFLOW_", LabelTh: "เวิร์กโฟลว์"),
+            LabelTh: "เวิร์กโฟลว์"),
 
-        // Gate SLA_CONFIG_MANAGE: held by Admin + IntAdmin, so IntAdmin keeps the four config
-        // screens it can reach. The PARAMETER_MANAGE children are Admin-only, and Admin holds
-        // SLA_CONFIG_MANAGE.
-        new("main.business-rules", "Business Rules", "sliders", IconStyle.Solid, "text-rose-500", null, "SLA_CONFIG_MANAGE", null,
+        new("main.business-rules", "Business Rules", "sliders", IconStyle.Solid, "text-rose-500", null, null, null,
             new List<MenuSeedNode>
             {
                 new("main.parameter", "Parameter", "sliders", IconStyle.Solid, "text-rose-500", "/parameter", "PARAMETER_MANAGE", null),
@@ -225,12 +209,10 @@ public static class MenuSeedData
                 new("main.address-masters", "Address Masters", "map-location-dot", IconStyle.Solid, "text-rose-500", "/admin/address-masters", "ADDRESS_MASTER_MANAGE", "ADDRESS_MASTER_MANAGE"),
             }, LabelTh: "กฎเกณฑ์ธุรกิจ"),
 
-        // Gate USER_MANAGE: held by Admin + IntAdmin + ExtAdmin. OAuth / Audit Log / Access
-        // Report are Admin-only, and Admin holds USER_MANAGE.
-        new("main.access", "Users & Access", "shield-halved", IconStyle.Solid, "text-violet-500", null, "USER_MANAGE", null,
+        new("main.access", "Users & Access", "shield-halved", IconStyle.Solid, "text-violet-500", null, null, null,
             new List<MenuSeedNode>
             {
-                new("main.user-management", "User Management", "users", IconStyle.Solid, "text-violet-500", "/users", "USER_MANAGE", null,
+                new("main.user-management", "User Management", "users", IconStyle.Solid, "text-violet-500", null, null, null,
                     new List<MenuSeedNode>
                     {
                         new("main.user-management.permissions", "Permissions", "shield-halved", IconStyle.Solid, "text-violet-500", "/admin/permissions", "PERMISSION_MANAGE", null),
@@ -243,21 +225,18 @@ public static class MenuSeedData
                         new("main.user-management.password-policy", "Password Policy", "lock", IconStyle.Solid, "text-violet-500", "/admin/password-policy", "PASSWORD_POLICY_MANAGE", "PASSWORD_POLICY_MANAGE"),
                     }),
                 // OAuth client/scope registration + token administration (OpenIddict).
-                // Parent visible to anyone holding any OAUTH_* permission; children gated individually.
-                new("main.oauth", "OAuth", "key", IconStyle.Solid, "text-slate-500", "/admin/oauth-clients", null, null,
+                new("main.oauth", "OAuth", "key", IconStyle.Solid, "text-slate-500", null, null, null,
                     new List<MenuSeedNode>
                     {
                         new("main.oauth.clients", "Clients", "key", IconStyle.Solid, "text-slate-500", "/admin/oauth-clients", "OAUTH_CLIENTS_MANAGE", null),
                         new("main.oauth.scopes", "Scopes", "shield-halved", IconStyle.Solid, "text-slate-500", "/admin/oauth-scopes", "OAUTH_SCOPES_MANAGE", null),
                         new("main.oauth.tokens", "Tokens & Authorizations", "ticket", IconStyle.Solid, "text-slate-500", "/admin/oauth-tokens", "OAUTH_TOKENS_REVOKE", null),
-                    },
-                    ViewPermissionPrefix: "OAUTH_"),
+                    }),
                 new("main.audit-log", "Audit Log", "clock-rotate-left", IconStyle.Solid, "text-slate-500", "/admin/audit-logs", "AUTH_AUDIT_VIEW", null),
                 new("main.access-report", "Access Report", "table-list", IconStyle.Solid, "text-slate-500", "/admin/access-report", "AUTH_AUDIT_VIEW", null),
             }, LabelTh: "ผู้ใช้และสิทธิ์"),
 
-        // Gate LOGS_VIEW: all three children are Admin-only, and Admin holds it.
-        new("main.system", "System", "server", IconStyle.Solid, "text-slate-500", null, "LOGS_VIEW", null,
+        new("main.system", "System", "server", IconStyle.Solid, "text-slate-500", null, null, null,
             new List<MenuSeedNode>
             {
                 new("main.logs", "Application Logs", "file-lines", IconStyle.Solid, "text-slate-500", "/admin/logs", "LOGS_VIEW", null),
@@ -267,8 +246,7 @@ public static class MenuSeedData
                 // The Hangfire dashboard itself, embedded by the SPA page at /admin/hangfire. This
                 // permission does double duty: it reveals the entry AND authorises the dashboard
                 // (the "HangfireDashboard" policy in AuthModule resolves it from the database for
-                // the login cookie). Seeing the entry additionally needs LOGS_VIEW, which gates the
-                // parent group.
+                // the login cookie). The ungated "System" group shows as soon as this entry does.
                 new("main.hangfire-dashboard", "Hangfire Dashboard", "gauge-high", IconStyle.Solid, "text-slate-500", "/admin/hangfire", "JOB_SCHEDULE_MANAGE", "JOB_SCHEDULE_MANAGE"),
             }, LabelTh: "ระบบ"),
     };
