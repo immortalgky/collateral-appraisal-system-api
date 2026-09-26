@@ -10,6 +10,9 @@ public class LoggingBehavior<TRequest, TResponse>(ILogger<LoggingBehavior<TReque
 {
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
     {
+        // Logs the whole request via its ToString. A command carrying a password or secret MUST
+        // override ToString to redact it (see ChangePasswordCommand, CreateWebhookSubscriptionCommand),
+        // or the value lands in Seq and the application log table in plaintext.
         logger.LogInformation("[START] Handle request={Request} - Response={Response} - {Request}", typeof(TRequest).Name, typeof(TResponse).Name, request);
 
         var timer = Stopwatch.StartNew();

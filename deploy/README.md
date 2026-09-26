@@ -292,6 +292,43 @@ belongs to AS400 and we cannot move anything out of it. `integration.InboundFile
 prevents a file being ingested twice. The trade-off is that quarantined files also stay put, so a
 file that could not be parsed shows up only in that table and in Seq.
 
+## Menu parents ungated — NOT backward-compatible (this release)
+
+Two scripts in the `db/` bundle — `20260925120000_UpdateSeed_UngateMenuGroups.sql` and
+`20260926120000_UpdateSeed_UngateMenuParents.sql` — remove the Path and view permission from every
+menu parent: a group now shows whenever any entry inside it is visible. The previous app build hides
+an ungated node **and its whole subtree**, so for this release:
+
+1. Run the bundle (step 3) and deploy the new API **and** SPA (step 4) back to back, and **do not
+   restart an old-build API node in between**. An old node shows the old menu only while its cached
+   copy lasts: its first menu request after a (re)start, or any save/reorder/delete at `/admin/menus`
+   on it, reloads the new rows and hides every section for everyone — `/admin/menus` included. Keep
+   the window short and freeze `/admin/menus` edits during it. Starting the new build is the restart
+   the menu cache needs; nothing else is required afterwards.
+2. **App rollback:** first run `rollback\Restore_MenuParentGates.sql` from the release zip (source:
+   `deploy/rollback/`). It is one transaction and refuses — listing them — while any other item is
+   ungated (e.g. a group an admin created), until each has a view permission. Run it with `-b` so a
+   refusal fails the command instead of exiting 0:
+   ```powershell
+   sqlcmd -S <server> -d <database> -E -b -i rollback\Restore_MenuParentGates.sql
+   # SQL authentication: replace -E with -U <user> -P <password>
+   ```
+   Only when it succeeds, roll back the app. **Before deploying again — the same zip or any later build** (all of them contain these scripts),
+   delete the two scripts' rows from the journal so the bundle applies them again — otherwise they are
+   skipped as already run and the parents keep their old gates:
+   ```sql
+   DELETE FROM dbo.DatabaseMigrationHistory
+   WHERE ScriptName LIKE N'%20260925120000_UpdateSeed_UngateMenuGroups.sql'
+      OR ScriptName LIKE N'%20260926120000_UpdateSeed_UngateMenuParents.sql';
+   ```
+3. Ask users to **reload open browser tabs** after the SPA deploy: a tab still running the old SPA
+   renders the new menu with duplicate keys (two path-less sub-groups side by side) until reloaded.
+4. Tell the admins: removing a parent's permission no longer hides that whole section — only the
+   entries gated on that code. It changes what a role sees for `REQUEST_VIEW`, `TASK_LIST_VIEW`,
+   `QUOTATION_VIEW`, `INVOICE_VIEW`, `REPORT_VIEW`, `USER_MANAGE`, `COLLATERAL_ADMIN` (Master Data),
+   `SLA_CONFIG_MANAGE` (Business Rules), `LOGS_VIEW` (System) and `STANDALONE_USE` (Standalone, which
+   no longer gates anything). To hide a section, remove the permissions of the entries inside it.
+
 ## RabbitMQ — one-off unbind when a consumer changes message type (do this release)
 
 MassTransit declares exchange→queue bindings at startup and **never removes obsolete ones**. When a
@@ -341,3 +378,19 @@ Every `Deploy-App` / `Deploy-Web` run mirrors the previous live folder to
 Database migrations are **not** auto-rolled-back — schema changes are
 backward-compatible across a single release so the previous app build still runs.
 Reversing a migration means restoring the pre-deployment backup.
+
+> **Exceptions — the release that ungates the menu parents and encrypts webhook secrets.** The previous
+> build cannot use either change:
+> - **Menu:** run `rollback\Restore_MenuParentGates.sql` first — see "Menu parents ungated" above.
+> - **Webhook secrets:** any secret saved by this release is stored as `ENC:v1:…`, which the previous
+>   build would send as-is (wrong HMAC key / wrong LOS client secret). After rolling back, write each
+>   such secret back in plaintext (the old screen can set SecretKey only; ClientSecret needs SQL):
+>   ```sql
+>   -- find them (BIN2: case-sensitive, like the app's own check)
+>   SELECT Id, SystemCode, EventType FROM integration.WebhookSubscriptions
+>   WHERE SecretKey    LIKE N'ENC:v1:%' COLLATE Latin1_General_BIN2
+>      OR ClientSecret LIKE N'ENC:v1:%' COLLATE Latin1_General_BIN2;
+>   -- then, per row, with the real value from the receiving system:
+>   UPDATE integration.WebhookSubscriptions SET ClientSecret = N'<plaintext>' WHERE Id = '<id>';
+>   UPDATE integration.WebhookSubscriptions SET SecretKey    = N'<plaintext>' WHERE Id = '<id>';
+>   ```

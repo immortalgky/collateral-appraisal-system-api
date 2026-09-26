@@ -28,6 +28,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http.Resilience;
 using Request.Application.Services;
 using Shared.Data;
+using Shared.Security;
 using Shared.Data.Extensions;
 using Shared.Scheduling;
 using Integration.Scheduling;
@@ -111,6 +112,8 @@ public static class IntegrationModule
         // Register services
         services.AddScoped<IWebhookService, WebhookService>();
         services.AddScoped<IWebhookTokenProvider, LosTokenProvider>();
+        // Encrypts/decrypts WebhookSubscriptions.SecretKey / ClientSecret with the secrets cert.
+        services.AddSingleton<ColumnSecretCipher>();
         services.AddScoped<IAppraisalLookupService, AppraisalLookupService>();
         services.AddScoped<IQuotationFinalizeLookupService, QuotationFinalizeLookupService>();
         services.AddTransient<IUpdateRequestService, UpdateRequestService>();

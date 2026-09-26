@@ -12,4 +12,9 @@ public record RegisterUserCommand(
     Guid? CompanyId,
     List<RegisterUserPermissionDto> Permissions,
     List<Guid> Roles
-) : ICommand<RegisterUserResult>;
+) : ICommand<RegisterUserResult>
+{
+    /// <summary>Redacts the password — see ChangePasswordCommand.ToString.</summary>
+    public override string ToString() =>
+        $"{nameof(RegisterUserCommand)} {{ Username = {Username}, Password = *** }}";
+}

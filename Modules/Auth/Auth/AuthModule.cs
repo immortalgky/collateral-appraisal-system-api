@@ -336,6 +336,7 @@ public static class AuthModule
             .AddUserPermissionPolicy("OAuthClientsManage", "OAUTH_CLIENTS_MANAGE")
             .AddUserPermissionPolicy("OAuthScopesManage", "OAUTH_SCOPES_MANAGE")
             .AddUserPermissionPolicy("WebhookSubscriptionsManage", "WEBHOOK_SUBSCRIPTIONS_MANAGE")
+            .AddUserPermissionPolicy("WebhookSecretReveal", "WEBHOOK_SECRET_REVEAL")
             .AddUserPermissionPolicy("OAuthTokensRevoke", "OAUTH_TOKENS_REVOKE")
             .AddUserPermissionPolicy("LogsView", "LOGS_VIEW")
             // Prefix policies so the optional :TEAM scope variant satisfies the endpoint too
@@ -381,10 +382,8 @@ public static class AuthModule
             // claim; the handler reads them from the database instead. Admin still qualifies, holding
             // every permission.
             //
-            // Note this authorises the dashboard on its own — the matching sidebar entry needs
-            // LOGS_VIEW as well, because the "System" group it sits under is gated on that and
-            // GetMyMenuQueryHandler hides a whole subtree when its parent is hidden. So a user with
-            // only JOB_SCHEDULE_MANAGE can reach /hangfire by URL but has no menu route to it.
+            // The matching sidebar entry is gated on JOB_SCHEDULE_MANAGE too; its "System" group
+            // has no gate of its own and shows whenever any child is visible.
             .AddPolicy("HangfireDashboard", policy =>
                 policy.AddAuthenticationSchemes(IdentityConstants.ApplicationScheme)
                     .RequireAuthenticatedUser()
