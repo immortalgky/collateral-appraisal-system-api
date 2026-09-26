@@ -34,7 +34,8 @@ public class NotificationEmailTemplatesTests
                 new QuotationFeeNoticeRow("บริษัท เอ", ["25,680", "23,540"], "139,100"),
                 new QuotationFeeNoticeRow("บริษัท บี", ["37,450", "26,750"], "169,060"),
             ],
-            AdminName: "แอดมิน หนึ่ง");
+            AdminName: "แอดมิน หนึ่ง",
+            Channel: "LOS");
 
         var html = NewRenderer().QuotationFeeNotice("แจ้งค่าธรรมเนียมประเมิน ลูกค้าราย บริษัท ทดสอบ จำกัด", model);
 
@@ -49,6 +50,7 @@ public class NotificationEmailTemplatesTests
         Assert.Contains("139,100", html);
         Assert.Contains("แอดมิน หนึ่ง", html);
         Assert.Contains("รบกวนเลือกภายใน 2 วัน", html);
+        Assert.Contains("- ขอให้ทำการเข้าไปเลือกบริษัทประเมินในระบบ LOS", html);
         Assert.Contains("แจ้งค่าธรรมเนียมประเมิน ลูกค้าราย <strong>บริษัท ทดสอบ จำกัด</strong>", html);
         // The visible subject-title heading is suppressed (subject stays as Subject line + preview).
         Assert.DoesNotContain("font-size:20px;font-weight:700;color:#222", html);
@@ -62,7 +64,8 @@ public class NotificationEmailTemplatesTests
             CustomerName: "Cust",
             Columns: [new QuotationFeeNoticeColumn("A", null, null)],
             Rows: [new QuotationFeeNoticeRow("<script>x</script>", ["1"], "1")],
-            AdminName: "Admin");
+            AdminName: "Admin",
+            Channel: "CLS");
 
         var html = NewRenderer().QuotationFeeNotice("Subject", model);
 
@@ -101,29 +104,47 @@ public class NotificationEmailTemplatesTests
     {
         var model = new RouteBackNoticeModel(
             RmName: "สมชาย",
+            CustomerName: "บริษัท ทดสอบ จำกัด",
+            AppraisalNumber: "69002246",
             Remark: "โฉนดไม่ตรงกับเอกสาร",
             SenderName: "แอดมิน สาม",
             SenderPhone: "02-123-4567");
 
-        var html = NewRenderer().RouteBackNotice("ตรวจสอบและแก้ไขข้อมูลหลักประกันลูกค้า", model);
+        var html = NewRenderer().RouteBackNotice("ขอรายละเอียดข้อมูลเพิ่มเติม ลูกค้าราย บริษัท ทดสอบ จำกัด", model);
 
         Assert.Contains("เรียน สมชาย", html);
+        Assert.Contains("ขอรายละเอียดข้อมูลเพิ่มเติม ลูกค้าราย <strong>บริษัท ทดสอบ จำกัด</strong> " +
+                        "หมายเลขเล่มประเมิน <strong>69002246</strong><br/>โดยมีรายละเอียดดังนี้", html);
         Assert.Contains("โฉนดไม่ตรงกับเอกสาร", html);
-        // Footer contact = sender full name + phone; no descriptive header sentence.
+        // Footer contact = sender full name + phone.
         Assert.Contains("กรุณาติดต่อ แอดมิน สาม 02-123-4567", html);
-        Assert.DoesNotContain("เนื่องจากไม่ตรงกับเอกสารที่แนบมา", html);
         Assert.Contains("Best Regards", html);
+    }
+
+    [Fact]
+    public void RouteBackNotice_WithoutRemark_OmitsDetailsFollowLine()
+    {
+        var model = new RouteBackNoticeModel("RM", "Cust", "69002246", "  ", "Admin", null);
+
+        var html = NewRenderer().RouteBackNotice("Subject", model);
+
+        Assert.Contains("หมายเลขเล่มประเมิน <strong>69002246</strong></p>", html);
+        Assert.DoesNotContain("โดยมีรายละเอียดดังนี้", html);
     }
 
     [Fact]
     public void RemarkBlock_EncodesHtml_NoInjection()
     {
-        var model = new RouteBackNoticeModel("RM", "<b>bad</b>", "Admin", null);
+        var model = new RouteBackNoticeModel("RM", "<i>cust</i>", null, "<b>bad</b>", "Admin", null);
 
         var html = NewRenderer().RouteBackNotice("Subject", model);
 
         Assert.Contains("&lt;b&gt;bad&lt;/b&gt;", html);
         Assert.DoesNotContain("<b>bad</b>", html);
+        Assert.Contains("&lt;i&gt;cust&lt;/i&gt;", html);
+        Assert.DoesNotContain("<i>cust</i>", html);
+        // Missing appraisal number falls back to "-".
+        Assert.Contains("หมายเลขเล่มประเมิน <strong>-</strong>", html);
     }
 
     [Fact]

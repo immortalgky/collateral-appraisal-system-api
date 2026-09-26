@@ -1,9 +1,11 @@
 using Auth.Contracts.Users;
+using Dapper;
 using MassTransit;
 using Notification.Contracts.Email;
 using Notification.Data;
 using Notification.Infrastructure.Email;
 using Notification.Infrastructure.Email.Templates;
+using Shared.Data;
 using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
 
@@ -19,10 +21,20 @@ public sealed class ShortlistSentToRmEmailHandler(
     IEmailSender emailSender,
     IEmailTemplateRenderer templateRenderer,
     IUserLookupService userLookupService,
+    ISqlConnectionFactory connectionFactory,
     InboxGuard<NotificationDbContext> inboxGuard,
     ILogger<ShortlistSentToRmEmailHandler> logger)
     : IConsumer<ShortlistSentToRmEmailIntegrationEvent>
 {
+    // The request channel(s) behind the quoted appraisals — named in the note as the system to pick the company in.
+    private const string ChannelSql = """
+        SELECT DISTINCT r.Channel
+        FROM appraisal.Appraisals a
+        JOIN request.Requests r ON r.Id = a.RequestId
+        WHERE a.Id IN @AppraisalIds AND r.Channel IS NOT NULL AND r.Channel <> ''
+        ORDER BY r.Channel
+        """;
+
     public Task Consume(ConsumeContext<ShortlistSentToRmEmailIntegrationEvent> context) =>
         inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, async ct =>
         {
@@ -59,8 +71,15 @@ public sealed class ShortlistSentToRmEmailHandler(
                 rows.Add(new QuotationFeeNoticeRow(companyName, cells, row.Total.ToString("#,##0")));
             }
 
+            var channels = (await connectionFactory.GetOpenConnection().QueryAsync<string>(
+                new CommandDefinition(ChannelSql,
+                    new { AppraisalIds = msg.Columns.Select(c => c.AppraisalId).ToArray() },
+                    cancellationToken: ct))).ToList();
+            // A quotation can span several requests; name every channel involved (blank when none is set).
+            var channel = string.Join(" / ", channels);
+
             var subject = $"แจ้งค่าธรรมเนียมประเมิน ลูกค้าราย {msg.CustomerName ?? "-"}";
-            var model = new QuotationFeeNoticeModel(rm.Name, msg.CustomerName, columns, rows, adminName);
+            var model = new QuotationFeeNoticeModel(rm.Name, msg.CustomerName, columns, rows, adminName, channel);
             var html = templateRenderer.QuotationFeeNotice(subject, model);
 
             await emailSender.SendAsync(new EmailMessage(

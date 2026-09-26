@@ -44,10 +44,9 @@ public sealed class RouteBackToInitiationEmailHandler(
                 : await userLookupService.GetRequestorAsync(msg.ActingUsername, ct);
             var senderName = sender?.Name ?? msg.ActingUsername ?? string.Empty;
 
-            var subject = string.IsNullOrWhiteSpace(msg.ReasonText)
-                ? "ตรวจสอบและแก้ไขข้อมูลหลักประกันลูกค้า"
-                : msg.ReasonText;
-            var model = new RouteBackNoticeModel(rm.Name, msg.Remark, senderName, sender?.ContactNo);
+            var subject = $"ขอรายละเอียดข้อมูลเพิ่มเติม ลูกค้าราย {msg.CustomerName ?? "-"}";
+            var model = new RouteBackNoticeModel(
+                rm.Name, msg.CustomerName, msg.AppraisalNumber, msg.Remark, senderName, sender?.ContactNo);
             var html = templateRenderer.RouteBackNotice(subject, model);
 
             await emailSender.SendAsync(new EmailMessage(

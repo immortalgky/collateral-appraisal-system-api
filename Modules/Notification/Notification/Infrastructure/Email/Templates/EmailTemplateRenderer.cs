@@ -58,7 +58,8 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
                     "ค่าธรรมเนียมอาจมีเรียกเก็บเพิ่ม<br/>")
             .Append("- หากเลือกบริษัทประเมินราคาภายนอกแล้ว รบกวนสินเชื่อแจ้งชื่อกลับสำนักประเมินภายใน 2 วัน " +
                     "(นับจากวันแจ้งเลือกบริษัทประเมินฯ) (ตามมติที่ประชุม ลงวันที่ 31 ม.ค. 2560)<br/>")
-            .Append("- หากเลยกำหนดตามที่แจ้ง ขอให้เป็นดุลยพินิจของทางสำนักประเมินในการตัดสินใจ เลือกบริษัทประเมิน หรือ ยกเลิก")
+            .Append("- หากเลยกำหนดตามที่แจ้ง ขอให้เป็นดุลยพินิจของทางสำนักประเมินในการตัดสินใจ เลือกบริษัทประเมิน หรือ ยกเลิก<br/>")
+            .Append("- ขอให้ทำการเข้าไปเลือกบริษัทประเมินในระบบ ").Append(Enc(model.Channel))
             .Append("</p>");
 
         sb.Append("<p style=\"margin:16px 0 0;\">จึงเรียนมาเพื่อโปรดทราบ</p>");
@@ -101,7 +102,14 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
         var sb = new System.Text.StringBuilder();
         sb.Append("<p style=\"margin:0 0 12px;\">เรียน ").Append(Enc(model.RmName)).Append("</p>");
 
-        // Body is just the sender's comment (no descriptive header).
+        sb.Append("<p style=\"margin:0 0 12px;\">ขอรายละเอียดข้อมูลเพิ่มเติม ลูกค้าราย <strong>")
+            .Append(Enc(model.CustomerName ?? "-"))
+            .Append("</strong> หมายเลขเล่มประเมิน <strong>")
+            .Append(Enc(model.AppraisalNumber ?? "-"))
+            .Append("</strong>")
+            // "details as follows" only when there are details to follow.
+            .Append(string.IsNullOrWhiteSpace(model.Remark) ? "" : "<br/>โดยมีรายละเอียดดังนี้")
+            .Append("</p>");
         sb.Append(RemarkBlock(model.Remark));
 
         // Footer contact = sender's full name + phone.
