@@ -25,6 +25,11 @@ public record PrevAppraisalSnapshotDto(
     string? AppraisalNumber,
     decimal? AppraisalValue,
     DateTime? AppointmentDate,
+    // The appraisal (valuation) date — what "วันที่ประเมินครั้งก่อน" means on the request form, and
+    // what UpdateRequestCommandHandler persists into RequestDetail.PrevAppraisalDate via
+    // GetAppraisalReference. Distinct from AppointmentDate above (the raw inspection slot): an
+    // off-system external engagement has no Appointment row, so only this one has a value there.
+    DateTime? AppraisalDate,
     // The inspection round a NEW Construction-Inspection request copying this appraisal would be
     // (completed Progressive inspections on this collateral + 1). Shown read-only on the create page.
     int? NextInspectionNumber
