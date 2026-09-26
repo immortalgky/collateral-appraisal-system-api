@@ -1,5 +1,6 @@
 using Appraisal.Infrastructure;
 using MassTransit;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Shared.Data.Outbox;
@@ -133,7 +134,9 @@ public class AssignmentSlaRecalculatedIntegrationEventConsumer(
         {
             await dbContext.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException)
+        // Only a duplicate key is the idempotent case. Any other DbUpdateException means the work did not
+        // land; swallowing it acked the message with nothing done, so let it throw for the retry.
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 })
         {
             // PK violation on InboxMessage INSERT: another consumer committed the same message
             // between our read and our save — idempotent skip.
