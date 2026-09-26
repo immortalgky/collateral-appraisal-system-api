@@ -24,21 +24,21 @@ public class SaveCondoPMAPropertyDraftCommandHandler(
                         ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
         CondoPmaApplier.Apply(
-            appraisal,
-            command.PropertyId,
-            command.SellingPrice,
-            command.ForcedSalePrice,
-            command.BuildingInsurancePrice,
-            command.CondoName,
-            command.BuiltOnTitleNumber,
-            command.CondoRegistrationNumber,
-            command.RoomNumber,
-            command.FloorNumber,
-            command.BuildingNumber,
-            command.SubDistrict,
-            command.District,
-            command.Province,
-            dateTimeProvider);
+            appraisal: appraisal,
+            propertyId: command.PropertyId,
+            sellingPrice: command.SellingPrice,
+            forcedSalePrice: command.ForcedSalePrice,
+            buildingInsurancePrice: command.BuildingInsurancePrice,
+            condoName: command.CondoName,
+            titleNumber: command.TitleNumber,
+            condoRegistrationNumber: command.CondoRegistrationNumber,
+            roomNumber: command.RoomNumber,
+            floorNumber: command.FloorNumber,
+            buildingNumber: command.BuildingNumber,
+            subDistrict: command.SubDistrict,
+            district: command.District,
+            province: command.Province,
+            dateTimeProvider: dateTimeProvider);
 
         await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
 

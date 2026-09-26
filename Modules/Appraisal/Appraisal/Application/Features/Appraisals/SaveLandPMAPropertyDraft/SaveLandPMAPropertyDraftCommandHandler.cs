@@ -23,16 +23,16 @@ public class SaveLandPMAPropertyDraftCommandHandler(
                         ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
         LandPmaApplier.Apply(
-            appraisal,
-            command.PropertyId,
-            command.SellingPrice,
-            command.ForcedSalePrice,
-            command.BuildingInsurancePrice,
-            command.Titles,
-            command.SubDistrict,
-            command.District,
-            command.Province,
-            dateTimeProvider);
+            appraisal: appraisal,
+            propertyId: command.PropertyId,
+            sellingPrice: command.SellingPrice,
+            forcedSalePrice: command.ForcedSalePrice,
+            buildingInsurancePrice: command.BuildingInsurancePrice,
+            titles: command.Titles,
+            subDistrict: command.SubDistrict,
+            district: command.District,
+            province: command.Province,
+            dateTimeProvider: dateTimeProvider);
 
         return Unit.Value;
     }
