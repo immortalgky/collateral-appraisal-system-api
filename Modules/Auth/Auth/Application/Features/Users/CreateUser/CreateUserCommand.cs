@@ -23,5 +23,5 @@ public record CreateUserCommand(
 {
     /// <summary>Redacts the initial password — see ChangePasswordCommand.ToString.</summary>
     public override string ToString() =>
-        $"{nameof(CreateUserCommand)} {{ Username = {Username}, Password = ***, AuthSource = {AuthSource} }}";
+        $"{nameof(CreateUserCommand)} {{ Username = {Username}, {nameof(Password)} = ***, AuthSource = {AuthSource} }}";
 }

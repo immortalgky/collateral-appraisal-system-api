@@ -16,5 +16,5 @@ public record RegisterUserCommand(
 {
     /// <summary>Redacts the password — see ChangePasswordCommand.ToString.</summary>
     public override string ToString() =>
-        $"{nameof(RegisterUserCommand)} {{ Username = {Username}, Password = *** }}";
+        $"{nameof(RegisterUserCommand)} {{ Username = {Username}, {nameof(Password)} = *** }}";
 }

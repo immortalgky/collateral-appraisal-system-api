@@ -4,5 +4,5 @@ public record ResetPasswordCommand(Guid UserId, string NewPassword, string Confi
 {
     /// <summary>Redacts the passwords — see ChangePasswordCommand.ToString.</summary>
     public override string ToString() =>
-        $"{nameof(ResetPasswordCommand)} {{ UserId = {UserId}, NewPassword = ***, ConfirmPassword = *** }}";
+        $"{nameof(ResetPasswordCommand)} {{ UserId = {UserId}, {nameof(NewPassword)} = ***, {nameof(ConfirmPassword)} = *** }}";
 }

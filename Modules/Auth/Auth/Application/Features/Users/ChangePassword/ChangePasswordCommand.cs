@@ -7,5 +7,5 @@ public record ChangePasswordCommand(Guid UserId, string CurrentPassword, string 
     /// ToString would write them to Seq and the application log table in plaintext.
     /// </summary>
     public override string ToString() =>
-        $"{nameof(ChangePasswordCommand)} {{ UserId = {UserId}, CurrentPassword = ***, NewPassword = ***, ConfirmPassword = *** }}";
+        $"{nameof(ChangePasswordCommand)} {{ UserId = {UserId}, {nameof(CurrentPassword)} = ***, {nameof(NewPassword)} = ***, {nameof(ConfirmPassword)} = *** }}";
 }
