@@ -33,13 +33,15 @@ public sealed record AppraisalCompletedNoticeModel(
     string? AppraisalNumber,
     string Channel);
 
-/// <summary>Render model for the quotation fee-comparison email.</summary>
+/// <summary>Render model for the quotation fee-comparison email. <see cref="Channel"/> is the request
+/// channel (e.g. CLS / LOS) named in the note as the system to pick the appraisal company in.</summary>
 public sealed record QuotationFeeNoticeModel(
     string RmName,
     string? CustomerName,
     IReadOnlyList<QuotationFeeNoticeColumn> Columns,
     IReadOnlyList<QuotationFeeNoticeRow> Rows,
-    string AdminName);
+    string AdminName,
+    string Channel);
 
 /// <summary>A table column header: report number, then property type + province name on their own lines.</summary>
 public sealed record QuotationFeeNoticeColumn(string ReportNumber, string? PropertyType, string? Province);
@@ -58,10 +60,13 @@ public sealed record DocumentFollowupNoticeModel(
 /// <summary>A requested document: name shown as a header, notes as the body below.</summary>
 public sealed record DocumentFollowupNoticeItem(string DocumentName, string? Notes);
 
-/// <summary>Render model for the route-back email. Body shows only the greeting + the sender's
-/// comment; the footer contact is the sender's full name + phone.</summary>
+/// <summary>Render model for the route-back email. Body shows the greeting, a customer /
+/// appraisal-number header line, then the sender's comment; the footer contact is the sender's
+/// full name + phone.</summary>
 public sealed record RouteBackNoticeModel(
     string RmName,
+    string? CustomerName,
+    string? AppraisalNumber,
     string? Remark,
     string SenderName,
     string? SenderPhone);
