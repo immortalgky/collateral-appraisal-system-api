@@ -14,7 +14,6 @@ public record RegisterUserCommand(
     List<Guid> Roles
 ) : ICommand<RegisterUserResult>
 {
-    /// <summary>Redacts the password — see ChangePasswordCommand.ToString.</summary>
-    public override string ToString() =>
-        $"{nameof(RegisterUserCommand)} {{ Username = {Username}, {nameof(Password)} = *** }}";
+    /// <summary>Leaves the password out entirely — see ChangePasswordCommand.ToString.</summary>
+    public override string ToString() => $"{nameof(RegisterUserCommand)} {{ Username = {Username} }}";
 }

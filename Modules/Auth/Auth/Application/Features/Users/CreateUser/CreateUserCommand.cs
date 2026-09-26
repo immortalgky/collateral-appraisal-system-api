@@ -21,7 +21,7 @@ public record CreateUserCommand(
     string? EmployeeId = null
 ) : ICommand<CreateUserResult>, ITransactionalCommand<IAuthUnitOfWork>
 {
-    /// <summary>Redacts the initial password — see ChangePasswordCommand.ToString.</summary>
+    /// <summary>Leaves the initial password out entirely — see ChangePasswordCommand.ToString.</summary>
     public override string ToString() =>
-        $"{nameof(CreateUserCommand)} {{ Username = {Username}, {nameof(Password)} = ***, AuthSource = {AuthSource} }}";
+        $"{nameof(CreateUserCommand)} {{ Username = {Username}, AuthSource = {AuthSource} }}";
 }
