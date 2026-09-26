@@ -1,4 +1,5 @@
 using MassTransit;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
@@ -129,7 +130,9 @@ public class AppraisalValueChangedIntegrationEventConsumer(
             // is no "Processing" row to block the retry.
             throw;
         }
-        catch (DbUpdateException)
+        // Only a duplicate key is the idempotent case. Any other DbUpdateException means the work did not
+        // land; swallowing it acked the message with nothing done, so let it throw for the retry.
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 })
         {
             // PK violation on the InboxMessage INSERT: another consumer committed the same message
             // between our read and our save — idempotent skip.

@@ -139,11 +139,14 @@ builder.Services.AddMassTransit(config =>
             IgnoreNonTransient(r);
         });
 
-        // For the ordering-critical endpoints below: retries INSIDE the partition (see there). The partition
-        // is held while it waits, so every appraisal hashing to it waits too and each waiting message holds
-        // one of the endpoint's 16 concurrency slots. Hence ~18s rather than the bus's longer exponential policy.
-        // Its Ignore list MUST stay a subset of the bus policy's: an exception ignored here is handed to the
-        // bus retry, which runs OUTSIDE the partition and reorders (verified).
+        // For every partitioned endpoint below: retries INSIDE the partition (see there). The partition is held
+        // while it waits, so every appraisal hashing to it waits too and each waiting message holds one of the
+        // endpoint's 16 concurrency slots. Hence ~18s of waits rather than the bus's longer exponential policy
+        // (per-attempt time can exceed the waits: EF's retrying strategy runs inside each attempt on
+        // webhook-dispatch, appraisal-status-dashboard and workflow-instance-variables, and on webhook-dispatch
+        // each HTTP call can take ~30s under the standard resilience handler). Its Ignore list MUST stay a subset
+        // of the bus policy's: an exception ignored here is handed to the bus retry, which runs OUTSIDE the
+        // partition and reorders (verified).
         static void RetryInsidePartition(IRetryConfigurator r)
         {
             r.Intervals(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5),
@@ -160,6 +163,7 @@ builder.Services.AddMassTransit(config =>
         configurator.ReceiveEndpoint("webhook-dispatch", e =>
         {
             var partitioner = e.CreatePartitioner(16);
+            e.UseMessageRetry(RetryInsidePartition);
             e.ConfigureConsumer<WebhookDispatchConsumer>(context);
             e.UsePartitioner<AppraisalCreatedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
             e.UsePartitioner<AppraisalStatusChangedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
@@ -174,15 +178,14 @@ builder.Services.AddMassTransit(config =>
         // marked [ExcludeFromConfigureEndpoints] so ConfigureEndpoints does not also auto-create a
         // default (unordered) queue for it.
         //
-        // #2-#4 also retry at endpoint level (RetryInsidePartition, declared before ConfigureConsumer and
-        // UsePartitioner, the only order that has been verified; keep it, and add it to any new ordering-critical
-        // endpoint). The bus-level retry sits OUTSIDE the partitioner, so a failed message leaves its partition
-        // while it waits and the next message for the same appraisal overtakes it. An endpoint-level retry runs
-        // inside the partition and holds it, and does not stack with the bus retry: its attempts are all a message
-        // gets. Verified against RabbitMQ with MassTransit 8.4.1; PartitionedRetryOrderingTests re-checks that
-        // framework behaviour on its own in-memory bus in the same order, but nothing checks this file's wiring.
-        // webhook-dispatch (above) and #5-#7 still rely on the bus retry alone and can reorder on a retry (each
-        // attempt re-enters its partition, so it never runs alongside a same-key message).
+        // Every partitioned endpoint (webhook-dispatch above and #2-#7) also retries at endpoint level
+        // (RetryInsidePartition, declared before ConfigureConsumer and UsePartitioner, the only order that has
+        // been verified; keep it, and add it to any new ordering-critical endpoint). The bus-level retry sits
+        // OUTSIDE the partitioner, so a failed message leaves its partition while it waits and the next message
+        // for the same appraisal overtakes it. An endpoint-level retry runs inside the partition and holds it, and
+        // does not stack with the bus retry: its attempts are all a message gets. Verified against RabbitMQ with
+        // MassTransit 8.4.1; PartitionedRetryOrderingTests re-checks that framework behaviour on its own in-memory
+        // bus in the same order, but nothing checks this file's wiring.
         // ---------------------------------------------------------------------
 
         // #2 External cycle tracking — close-before-open must not silently no-op and
@@ -238,6 +241,7 @@ builder.Services.AddMassTransit(config =>
         configurator.ReceiveEndpoint("appraisal-sla-recalc", e =>
         {
             var partitioner = e.CreatePartitioner(16);
+            e.UseMessageRetry(RetryInsidePartition);
             e.ConfigureConsumer<AssignmentSlaRecalculatedIntegrationEventConsumer>(context);
             e.UsePartitioner<AssignmentSlaRecalculatedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
         });
@@ -264,6 +268,7 @@ builder.Services.AddMassTransit(config =>
         configurator.ReceiveEndpoint("workflow-instance-variables", e =>
         {
             var partitioner = e.CreatePartitioner(16);
+            e.UseMessageRetry(RetryInsidePartition);
 
             e.ConfigureConsumer<AppraisalCreatedIntegrationEventConsumer>(context);
             e.ConfigureConsumer<AppraisalValueChangedIntegrationEventConsumer>(context);
@@ -286,6 +291,7 @@ builder.Services.AddMassTransit(config =>
         configurator.ReceiveEndpoint("pma-sync-status", e =>
         {
             var partitioner = e.CreatePartitioner(16);
+            e.UseMessageRetry(RetryInsidePartition);
             e.ConfigureConsumer<PmaExternalSyncStatusChangedIntegrationEventHandler>(context);
             e.UsePartitioner<PmaExternalSyncStatusChangedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
         });
