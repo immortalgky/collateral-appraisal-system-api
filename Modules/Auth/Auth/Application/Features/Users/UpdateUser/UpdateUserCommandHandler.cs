@@ -3,13 +3,15 @@ using Auth.Domain.Auditing;
 using Auth.Infrastructure;
 using Microsoft.AspNetCore.Identity;
 using Shared.Exceptions;
+using Shared.Time;
 
 namespace Auth.Application.Features.Users.UpdateUser;
 
 public class UpdateUserCommandHandler(
     UserManager<ApplicationUser> userManager,
     IAuthAuditWriter auditWriter,
-    AuthDbContext dbContext)
+    AuthDbContext dbContext,
+    IDateTimeProvider dateTimeProvider)
     : ICommandHandler<UpdateUserCommand>
 {
     public async Task<Unit> Handle(UpdateUserCommand command, CancellationToken cancellationToken)
@@ -42,13 +44,51 @@ public class UpdateUserCommandHandler(
             // closing one rotates a LOCAL password. Flip it to LDAP and every one of those calls is
             // refused — including the close, which would strand an account with an open window and
             // a live password that nothing short of deactivation can take back.
-            if (user.IsTemporaryAccess && AuthSources.IsLdap(command.AuthSource))
+            var staysTemporary = command.IsTemporaryAccess ?? user.IsTemporaryAccess;
+            if (staysTemporary && AuthSources.IsLdap(command.AuthSource))
                 throw new BadRequestException(
                     "A temporary-access account must stay on local authentication. Clear the temporary-access flag first.");
 
             user.AuthSource = command.AuthSource;
             if (AuthSources.IsLdap(command.AuthSource))
                 user.MustChangePassword = false;
+        }
+
+        // Converting an account to or from temporary-access. Only touched when a value is sent
+        // (null = unchanged), and each direction has one thing that must move with the flag:
+        //
+        //  - On: the account becomes usable only inside a window, so close it now. It keeps whatever
+        //    password it had, which no longer opens anything — the first window issues a new one.
+        //    An account that already has an open window keeps it rather than being shut mid-job.
+        //  - Off: clear the expiry, or the account stays permanently past its last window with no
+        //    endpoint left to fix it (the access-window endpoint refuses accounts without the flag).
+        //    Demand a password change too: the last password it holds was a throwaway an admin read
+        //    off a screen, and whoever inherits this account should set their own.
+        if (command.IsTemporaryAccess is { } temporaryAccess && temporaryAccess != user.IsTemporaryAccess)
+        {
+            if (temporaryAccess && AuthSources.IsLdap(user.AuthSource))
+                throw new BadRequestException(
+                    "Only a local account can be made temporary-access: opening a window issues a local password.");
+
+            user.IsTemporaryAccess = temporaryAccess;
+            if (temporaryAccess)
+            {
+                // "Already has an open window" is a window whose end is still ahead — NOT merely a
+                // usable account. An ordinary account has no expiry at all and is therefore usable,
+                // so testing usability here would leave it wide open under its new flag.
+                var now = dateTimeProvider.ApplicationNow;
+                var hasOpenWindow = user.AccessExpiresAt is { } windowEnd && windowEnd > now;
+                if (!hasOpenWindow) user.AccessExpiresAt = now;
+            }
+            else
+            {
+                user.AccessExpiresAt = null;
+                user.MustChangePassword = true;
+            }
+
+            auditWriter.Record(
+                AuditAction.Updated, AuditEntityType.User, command.Id, user.UserName,
+                new { action = temporaryAccess ? "temporaryAccessEnabled" : "temporaryAccessDisabled" });
         }
 
         // Set email + its normalized form; UpdateAsync runs the Identity UserValidator which rejects
