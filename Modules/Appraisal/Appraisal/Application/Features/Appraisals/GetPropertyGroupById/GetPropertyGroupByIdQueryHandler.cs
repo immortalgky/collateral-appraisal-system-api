@@ -136,6 +136,73 @@ public class GetPropertyGroupByIdQueryHandler(
                     property.Titles = propertyTitles;
                 }
             }
+
+            // Secondary query: the per-type facts the list shows under each property's name — a
+            // building's age, area and construction progress, a condo's project / floor / room, a
+            // machine's year and age, a lease's remaining term and rent. One row per property; the
+            // detail tables that do not apply to its type join as nulls.
+            // Progress mirrors ConstructionInspection.OverallCurrentProgressPercent: the sum of the
+            // work items' weighted shares in full-detail mode, the single summary figure otherwise.
+            var factsSql = """
+                           SELECT ap.Id AS AppraisalPropertyId,
+                                  COALESCE(bad.BuildingAge, cad.BuildingAge)                 AS BuildingAge,
+                                  COALESCE(bad.IsUnderConstruction, cad.IsUnderConstruction) AS IsUnderConstruction,
+                                  bad.TotalBuildingArea                                      AS BuildingArea,
+                                  CASE
+                                      WHEN ci.Id IS NULL THEN NULL
+                                      WHEN ci.IsFullDetail = 1 THEN ISNULL(
+                                          (SELECT SUM(wd.CurrentProportionPct)
+                                           FROM appraisal.ConstructionWorkDetails wd
+                                           WHERE wd.ConstructionInspectionId = ci.Id), 0)
+                                      ELSE ISNULL(ci.SummaryCurrentProgressPct, 0)
+                                  END AS ConstructionProgressPct,
+                                  cad.CondoName,
+                                  cad.FloorNumber,
+                                  cad.RoomNumber,
+                                  cad.RoomLayoutType,
+                                  cad.RoomLayoutTypeOther,
+                                  mad.YearOfManufacture,
+                                  mad.MachineAge,
+                                  lsd.RemainingLeaseAsAppraisalDate AS RemainingLeaseYears,
+                                  lsd.LeaseEndDate,
+                                  lsd.LeaseRentFee
+                           FROM appraisal.AppraisalProperties ap
+                           LEFT JOIN appraisal.BuildingAppraisalDetails bad ON bad.AppraisalPropertyId = ap.Id
+                           LEFT JOIN appraisal.CondoAppraisalDetails cad ON cad.AppraisalPropertyId = ap.Id
+                           LEFT JOIN appraisal.ConstructionInspections ci ON ci.AppraisalPropertyId = ap.Id
+                           LEFT JOIN appraisal.MachineryAppraisalDetails mad ON mad.AppraisalPropertyId = ap.Id
+                           LEFT JOIN appraisal.LeaseAgreementDetails lsd ON lsd.AppraisalPropertyId = ap.Id
+                           WHERE ap.Id IN @PropertyIds
+                           """;
+
+            var facts = (await connection.QueryAsync<PropertyFactsRow>(
+                    factsSql,
+                    new { PropertyIds = propertyIds }))
+                .GroupBy(f => f.AppraisalPropertyId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            foreach (var property in propertyGroup.Properties!)
+            {
+                if (property.PropertyId is null ||
+                    !facts.TryGetValue(property.PropertyId.Value, out var f))
+                    continue;
+
+                property.BuildingAge = f.BuildingAge;
+                property.IsUnderConstruction = f.IsUnderConstruction;
+                // Only meaningful while the building is unfinished.
+                property.ConstructionProgressPct = f.IsUnderConstruction == true ? f.ConstructionProgressPct : null;
+                property.BuildingArea = f.BuildingArea;
+                property.CondoName = f.CondoName;
+                property.FloorNumber = f.FloorNumber;
+                property.RoomNumber = f.RoomNumber;
+                property.RoomLayoutType = f.RoomLayoutType;
+                property.RoomLayoutTypeOther = f.RoomLayoutTypeOther;
+                property.YearOfManufacture = f.YearOfManufacture;
+                property.MachineAge = f.MachineAge;
+                property.RemainingLeaseYears = f.RemainingLeaseYears;
+                property.LeaseEndDate = f.LeaseEndDate;
+                property.LeaseRentFee = f.LeaseRentFee;
+            }
         }
 
         return propertyGroup;
@@ -184,6 +251,37 @@ public record PropertyGroupItemDto
 
     /// <summary>Building only: storeys. Decimal because a mezzanine is recorded as a half floor.</summary>
     public decimal? NumberOfFloors { get; set; }
+    /// <summary>Building (B / LB) or condo: age in years as entered. Null for other types or when blank.</summary>
+    public int? BuildingAge { get; set; }
+    /// <summary>Building (B / LB) or condo: still under construction. Null for other property types.</summary>
+    public bool? IsUnderConstruction { get; set; }
+    /// <summary>
+    /// Building or condo, and only while under construction: overall current progress, 0-100, from its
+    /// construction inspection. Null when finished or when no inspection has been recorded yet.
+    /// </summary>
+    public decimal? ConstructionProgressPct { get; set; }
+    /// <summary>Building / land-and-building: the building's total floor area (m²).</summary>
+    public decimal? BuildingArea { get; set; }
+    /// <summary>Condo only: project name.</summary>
+    public string? CondoName { get; set; }
+    /// <summary>Condo only: floor as printed on the unit deed (may be "12A").</summary>
+    public string? FloorNumber { get; set; }
+    /// <summary>Condo only: unit number.</summary>
+    public string? RoomNumber { get; set; }
+    /// <summary>Condo only: RoomLayout parameter code.</summary>
+    public string? RoomLayoutType { get; set; }
+    /// <summary>Condo only: free-text layout when RoomLayoutType is "other".</summary>
+    public string? RoomLayoutTypeOther { get; set; }
+    /// <summary>Machinery only: year of manufacture.</summary>
+    public int? YearOfManufacture { get; set; }
+    /// <summary>Machinery only: age in years as entered.</summary>
+    public decimal? MachineAge { get; set; }
+    /// <summary>Lease types only: remaining lease term in years at the appraisal date, as entered.</summary>
+    public decimal? RemainingLeaseYears { get; set; }
+    /// <summary>Lease types only: contract end date.</summary>
+    public DateTime? LeaseEndDate { get; set; }
+    /// <summary>Lease types only: contractual rent.</summary>
+    public decimal? LeaseRentFee { get; set; }
     /// <summary>Title deed no(s): comma-joined LandTitles for land, unit deed for condo.</summary>
     public string? TitleNo { get; set; }
     /// <summary>True for plain land (L/LB) flagged "rented out to others"; null for non-land types.</summary>
@@ -196,6 +294,25 @@ public record PropertyGroupItemDto
 public record PropertyPhotoDto(Guid MappingId, Guid DocumentId, bool IsThumbnail);
 
 internal record PropertyPhotoRow(Guid MappingId, Guid AppraisalPropertyId, Guid DocumentId, bool IsThumbnail);
+
+internal record PropertyFactsRow
+{
+    public Guid AppraisalPropertyId { get; init; }
+    public int? BuildingAge { get; init; }
+    public bool? IsUnderConstruction { get; init; }
+    public decimal? BuildingArea { get; init; }
+    public decimal? ConstructionProgressPct { get; init; }
+    public string? CondoName { get; init; }
+    public string? FloorNumber { get; init; }
+    public string? RoomNumber { get; init; }
+    public string? RoomLayoutType { get; init; }
+    public string? RoomLayoutTypeOther { get; init; }
+    public int? YearOfManufacture { get; init; }
+    public decimal? MachineAge { get; init; }
+    public decimal? RemainingLeaseYears { get; init; }
+    public DateTime? LeaseEndDate { get; init; }
+    public decimal? LeaseRentFee { get; init; }
+}
 
 public record LandTitleDto
 {
