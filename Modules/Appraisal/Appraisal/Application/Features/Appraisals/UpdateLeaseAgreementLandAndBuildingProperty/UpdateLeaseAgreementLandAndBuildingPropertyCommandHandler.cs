@@ -148,6 +148,12 @@ public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
         if (command.LandAreaDeductions is not null)
             SyncDeductions(landDetail, command.LandAreaDeductions);
 
+        // The deed guard needs both lists final, so it runs once here rather than inside either
+        // sync — and also when only the titles changed, since a smaller deed can fall under the
+        // deductions already recorded.
+        if (command.Titles is not null || command.LandAreaDeductions is not null)
+            landDetail.RecalculateDeductedArea();
+
         // 7. Update Building detail via domain method
         buildingDetail.Update(
             // Building - Identification
@@ -394,9 +400,8 @@ public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
     }
 
     /// <summary>
-    /// Same add / update / remove shape as <see cref="SyncTitles"/>. The closing
-    /// <c>RecalculateDeductedArea</c> is what keeps the stored total honest when an existing row's
-    /// area was edited in place — adds and removes settle it themselves.
+    /// Same add / update / remove shape as <see cref="SyncTitles"/>. Rows edited in place leave the
+    /// stored total stale until the caller's <c>RecalculateDeductedArea</c>, which runs after both syncs.
     /// </summary>
     private static void SyncDeductions(
         LandAppraisalDetail landDetail,
@@ -432,8 +437,6 @@ public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
                 landDetail.AddDeduction(deduction);
             }
         }
-
-        landDetail.RecalculateDeductedArea();
     }
 
     private static void SyncSurfaces(

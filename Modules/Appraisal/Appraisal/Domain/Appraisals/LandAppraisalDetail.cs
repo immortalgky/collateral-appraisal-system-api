@@ -487,7 +487,9 @@ public class LandAppraisalDetail : Entity<Guid>
             copy._deductions.Add(deductionCopy);
         }
 
-        copy.RecalculateDeductedArea();
+        // Sum only: a copy carries the source as it stands, even rows saved before the deed guard
+        // below existed — blocking the copy would block the workflow that makes it.
+        copy.SumDeductions();
 
         return copy;
     }
@@ -550,14 +552,14 @@ public class LandAppraisalDetail : Entity<Guid>
     public void AddDeduction(LandAreaDeduction deduction)
     {
         _deductions.Add(deduction);
-        RecalculateDeductedArea();
+        SumDeductions();
     }
 
     public void RemoveDeduction(Guid deductionId)
     {
         var deduction = _deductions.FirstOrDefault(d => d.Id == deductionId);
         if (deduction != null) _deductions.Remove(deduction);
-        RecalculateDeductedArea();
+        SumDeductions();
     }
 
     public void UpdateDeduction(LandAreaDeduction updatedDeduction)
@@ -572,18 +574,48 @@ public class LandAppraisalDetail : Entity<Guid>
                 updatedDeduction.Remark);
         }
 
-        RecalculateDeductedArea();
+        SumDeductions();
+    }
+
+    /// <summary>
+    /// Settles <see cref="DeductedAreaInSqWa"/> once every title and deduction is in place, and
+    /// refuses deductions that add up to more than the registered area. Call it LAST, after both
+    /// lists are synced: the update handlers edit rows in place, so the list is only consistent
+    /// once the whole sync has run. Idempotent: calling it twice changes nothing.
+    /// <para>
+    /// Only when the deed area is fully known: every title carries an area. Until then the
+    /// registered total is partial, and a half-filled form must still save.
+    /// </para>
+    /// </summary>
+    public void RecalculateDeductedArea()
+    {
+        SumDeductions();
+
+        // A 0-0-0 area is a form field left at its default, not a deed with no land.
+        if (_titles.Count == 0 || _titles.Exists(t => t.Area?.TotalSquareWa is not > 0m))
+            return;
+
+        // Compare what will be STORED, or a list that passes now could fail on the next save once it
+        // comes back from the database: each title column is decimal(10,2), rounded one column at a
+        // time, and each deduction decimal(18,4).
+        static decimal Stored(decimal? value, int scale) =>
+            Math.Round(value ?? 0m, scale, MidpointRounding.AwayFromZero);
+        var deedArea = _titles.Sum(t =>
+            Stored(t.Area!.Rai, 2) * 400m + Stored(t.Area.Ngan, 2) * 100m + Stored(t.Area.SquareWa, 2));
+        var deducted = _deductions.Sum(d => Stored(d.AreaInSqWa, 4));
+        if (Stored(deducted, 2) > deedArea)
+            throw new DomainException(
+                $"Land area deductions ({DeductedAreaInSqWa:#,##0.##} sq wa) exceed the registered title area ({deedArea:#,##0.##} sq wa).");
     }
 
     /// <summary>
     /// Keeps <see cref="DeductedAreaInSqWa"/> equal to the rows behind it. Stored rather than
     /// computed so the read-side SQL twin in <c>PricingPropertyDataService.LandAreaSql</c> can
     /// subtract a single column instead of aggregating a child table on every pricing screen load.
-    /// Every mutator above calls this. It is public because the update handlers edit existing rows
-    /// in place — the same shape SyncTitles uses — and must be able to settle the total afterwards.
-    /// Idempotent: calling it twice changes nothing.
+    /// No deed guard here: the mutators above run mid-sync, when rows not yet updated still carry
+    /// their old areas — <see cref="RecalculateDeductedArea"/> checks the finished state.
     /// </summary>
-    public void RecalculateDeductedArea()
+    private void SumDeductions()
     {
         DeductedAreaInSqWa = _deductions.Sum(d => d.AreaInSqWa ?? 0m);
     }
