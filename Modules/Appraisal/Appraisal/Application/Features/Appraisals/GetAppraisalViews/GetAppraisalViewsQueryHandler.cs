@@ -26,6 +26,7 @@ public class GetAppraisalViewsQueryHandler(
         var views = new List<SmartViewDto>
         {
             BuildMyAssignments(currentUserService.Username),
+            BuildMyRequests(currentUserService.Username),
             new(
                 Key: "sla-at-risk",
                 Name: "SLA At Risk",
@@ -102,6 +103,25 @@ public class GetAppraisalViewsQueryHandler(
             Key: "my-assignments",
             Name: "My Assignments",
             Description: "Appraisals currently assigned to you",
+            Filters: filters
+        );
+    }
+
+    /// <summary>
+    /// Appraisals on requests the current user raised as requestor (RM) — how a credit officer
+    /// finds their own customers' work. Offered to everyone, like My Assignments; for someone who
+    /// never raises requests it is simply empty.
+    /// </summary>
+    private static SmartViewDto BuildMyRequests(string? username)
+    {
+        var filters = new Dictionary<string, string>();
+        if (!string.IsNullOrWhiteSpace(username))
+            filters["requestor"] = username;
+
+        return new SmartViewDto(
+            Key: "my-requests",
+            Name: "My Requests",
+            Description: "Appraisals on requests you raised as requestor",
             Filters: filters
         );
     }
