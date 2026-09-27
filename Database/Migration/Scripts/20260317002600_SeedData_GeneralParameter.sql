@@ -208,14 +208,14 @@ GO
 -- ----------------------------------------
 INSERT INTO parameter.Parameters ([group], [country], [language], [code], [description], [isactive], [seqno])
 VALUES
-    (N'AppraisalType', N'TH', N'EN', N'01', N'New Appraisal', 1, 1),
-    (N'AppraisalType', N'TH', N'TH', N'01', N'ประเมินใหม่', 1, 1),
-    (N'AppraisalType', N'TH', N'EN', N'02', N'Reappraisal', 1, 2),
-    (N'AppraisalType', N'TH', N'TH', N'02', N'ทบทวน', 1, 2),
-    (N'AppraisalType', N'TH', N'EN', N'03', N'Construction inspection/machine installation', 1, 3),
-    (N'AppraisalType', N'TH', N'TH', N'03', N'ตรวจงวด/ติดตั้งเครื่องจักร', 1, 3),
-    (N'AppraisalType', N'TH', N'EN', N'04', N'Block', 1, 4),
-    (N'AppraisalType', N'TH', N'TH', N'04', N'ิBlock', 1, 4);
+    (N'AppraisalType', N'TH', N'EN', N'New', N'New Appraisal', 1, 1),
+    (N'AppraisalType', N'TH', N'TH', N'New', N'ประเมินใหม่', 1, 1),
+    (N'AppraisalType', N'TH', N'EN', N'ReAppraisal', N'Reappraisal', 1, 2),
+    (N'AppraisalType', N'TH', N'TH', N'ReAppraisal', N'ทบทวน', 1, 2),
+    (N'AppraisalType', N'TH', N'EN', N'Progressive', N'Construction inspection/machine installation', 1, 3),
+    (N'AppraisalType', N'TH', N'TH', N'Progressive', N'ตรวจงวด/ติดตั้งเครื่องจักร', 1, 3),
+    (N'AppraisalType', N'TH', N'EN', N'PreAppraisal', N'Block', 1, 4),
+    (N'AppraisalType', N'TH', N'TH', N'PreAppraisal', N'Block', 1, 4);
 GO
 
 -- ----------------------------------------
