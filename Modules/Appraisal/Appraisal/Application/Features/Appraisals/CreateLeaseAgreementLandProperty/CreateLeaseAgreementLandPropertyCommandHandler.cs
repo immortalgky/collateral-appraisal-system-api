@@ -154,6 +154,7 @@ public class CreateLeaseAgreementLandPropertyCommandHandler(
 
         // Area deductions — AddDeduction keeps the stored total in step on every add.
         if (command.LandAreaDeductions is { Count: > 0 })
+        {
             foreach (var deductionData in command.LandAreaDeductions)
             {
                 var deduction = LandAreaDeduction.Create(landDetail.Id, deductionData.ReasonCode);
@@ -164,6 +165,10 @@ public class CreateLeaseAgreementLandPropertyCommandHandler(
 
                 landDetail.AddDeduction(deduction);
             }
+
+            // After the loop, not per add: the deed guard checks the finished list.
+            landDetail.RecalculateDeductedArea();
+        }
 
         // Update lease agreement detail if provided
         if (command.LeaseAgreement is not null)

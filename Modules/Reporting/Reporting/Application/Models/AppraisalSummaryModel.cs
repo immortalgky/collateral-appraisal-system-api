@@ -647,6 +647,16 @@ public sealed class SummaryGroupRow
     /// <summary>One entry per land title — rendered as separate lines in every land row.</summary>
     public List<string> LandDescriptions { get; init; } = [];
 
+    /// <summary>
+    /// One line per land-area deduction, e.g. "แนวสายส่งไฟฟ้าแรงสูง ประมาณ 4-2-50 ไร่" — printed under
+    /// the title list after "หักเนื้อที่ประเมินเนื่องจาก". Empty when nothing was deducted, and the
+    /// row then prints exactly as before.
+    /// </summary>
+    public List<string> LandDeductionLines { get; init; } = [];
+
+    /// <summary>What is left after <see cref="LandDeductionLines"/>, e.g. "36-2-89 ไร่ หรือ 14,689 ตารางวา".</summary>
+    public string? LandNetAreaText { get; init; }
+
     /// <summary>Building clause (พร้อม…), newline-joined per building. Shown after the land
     /// titles in the market/combined land row (separated from the land title list). Excludes
     /// enhancement-only properties — see <see cref="DevelopmentDescriptions"/>.</summary>

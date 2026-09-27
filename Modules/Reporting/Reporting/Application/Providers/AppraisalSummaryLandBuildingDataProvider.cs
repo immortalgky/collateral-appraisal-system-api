@@ -30,6 +30,7 @@ namespace Reporting.Application.Providers;
 ///     RS24  appraisal.ConstructionInspections — per-property construction progress, which drives
 ///           the เมื่อแล้วเสร็จ 100% / ตามสภาพปัจจุบัน split
 ///     RS25  ที่ตั้งทรัพย์สิน anchors (AppraisalSummaryCommonLoader.CollateralLocationSql)
+///     RS26  appraisal.LandAreaDeductions — per-group หักเนื้อที่ประเมินเนื่องจาก… lines
 ///
 ///   Conditionally (Batch 2 — 0–2 extra round-trips):
 ///     Q6  auth.AspNetUsers — staff (only for Internal assignment)
@@ -609,7 +610,44 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 GROUP BY wd.ConstructionInspectionId
             ) wd_agg ON wd_agg.ConstructionInspectionId = ci.Id
             WHERE ap.AppraisalId = @AppraisalId;
-            """ + AppraisalSummaryCommonLoader.CollateralLocationSql; // RS25
+            """ + AppraisalSummaryCommonLoader.CollateralLocationSql // RS25
+            + """
+
+            -- RS26: Land-area deductions per group, printed as หักเนื้อที่ประเมินเนื่องจาก… under the
+            -- titles. Same group/property join as RS13. The reason label is picked with TOP 1 rather
+            -- than joined, so a duplicate parameter row cannot print a deduction twice, and without
+            -- IsActive so a retired reason still names the rows recorded under it.
+            SELECT
+                pgi.PropertyGroupId,
+                pgi.SequenceInGroup,
+                d.ReasonCode,
+                d.ReasonOther,
+                d.Remark,
+                d.AreaInSqWa,
+                pReason.[Description] AS ReasonDescription
+            FROM appraisal.PropertyGroupItems pgi
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
+            JOIN appraisal.LandAppraisalDetails lad ON lad.AppraisalPropertyId = ap.Id
+            JOIN appraisal.LandAreaDeductions d ON d.LandAppraisalDetailId = lad.Id
+            OUTER APPLY (
+                SELECT TOP 1 p.[Description]
+                FROM parameter.Parameters p
+                WHERE p.[Group] = 'LandAreaDeductionReason'
+                  AND p.[Language] = 'TH'
+                  AND p.[Code] = d.ReasonCode
+                ORDER BY p.IsActive DESC
+            ) pReason
+            WHERE ap.AppraisalId = @AppraisalId
+              AND d.AreaInSqWa > 0
+              -- Only from a property with some title area: คงเหลือ is title area − deductions, so a cut
+              -- from a property with no listed area would subtract from land the reader never sees.
+              AND EXISTS (SELECT 1 FROM appraisal.LandTitles lt
+                          WHERE lt.LandAppraisalDetailId = lad.Id
+                            AND ISNULL(lt.AreaRai, 0) * 400 + ISNULL(lt.AreaNgan, 0) * 100 + ISNULL(lt.AreaSquareWa, 0) > 0)
+            -- The form's order: EF loads this owned collection ordered by its key, so sort by the
+            -- same native uniqueidentifier comparison (no char cast, no CreatedAt).
+            ORDER BY pgi.PropertyGroupId, pgi.SequenceInGroup, d.Id;
+            """;
 
         var batchParams = new DynamicParameters();
         batchParams.Add("AppraisalId", appraisalId);
@@ -639,6 +677,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         AppraisalSummaryCommonLoader.PrevAppraisalRow? prevAppraisal;
         List<ConstructionProgressRow> constructionProgressRows;
         CollateralLocations locations;
+        List<GroupDeductionRow> deductionRows;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, batchParams))
         {
@@ -724,6 +763,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             // RS25
             locations = AppraisalSummaryCommonLoader.ComposeCollateralLocations(
                 await multi.ReadAsync<AppraisalSummaryCommonLoader.CollateralLocationRow>());
+
+            // RS26
+            deductionRows = (await multi.ReadAsync<GroupDeductionRow>()).ToList();
         }
 
         var customerName = customerNames.Count > 0
@@ -906,6 +948,11 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         var titlesByGroup = groupTitleRows
             .GroupBy(r => r.PropertyGroupId)
             .ToDictionary(g => g.Key, g => g.OrderBy(r => r.SequenceInGroup).ThenBy(r => r.TitleId).ToList());
+
+        // Already in print order (RS26 ORDER BY); GroupBy keeps it.
+        var deductionsByGroup = deductionRows
+            .GroupBy(r => r.PropertyGroupId)
+            .ToDictionary(g => g.Key, g => g.ToList());
 
         // Position of each title in the printed รายการทรัพย์สิน list — groups in display order,
         // titles within a group in the same order the list itself uses. ราคาประเมินราชการ below
@@ -1147,6 +1194,32 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             // its gross priced area here until it is re-priced; the title-derived net area is only
             // the fallback for a group whose pricing carries no area (not priced at a per-unit rate).
             var totalSquareWa = g.PricedLandArea is > 0m ? g.PricedLandArea.Value : titleNetSquareWa;
+
+            // หักเนื้อที่ประเมินเนื่องจาก… / คงเหลือ lines under the titles. The appraiser's remark names
+            // the reason when they wrote one (it reads like the bank's own wording, "ที่ดินส่วนที่อยู่
+            // ภายใต้แนวสายไฟฟ้าแรงสูง"); otherwise code 99's free text, otherwise the reason label.
+            // คงเหลือ is the title arithmetic (deed − deductions), which is what the lines above it add
+            // up to — normally equal to the พื้นที่ cell, which prints the priced area.
+            deductionsByGroup.TryGetValue(g.GroupId, out var groupDeductions);
+            // Not when the pricing excluded the land area: คงเหลือ เนื้อที่ประเมิน would claim land was
+            // appraised when none was — the same gate the market row's area cells use.
+            List<string> landDeductionLines = groupDeductions is null || g.IncludeLandArea == false
+                ? []
+                : groupDeductions.ConvertAll(d =>
+                {
+                    // Never the bare code: it would print glued to เนื่องจาก ("…เนื่องจาก05"). A code
+                    // with no label (seed missing, row deleted) reads as the generic "other" reason.
+                    // A multi-line remark is flattened so "ประมาณ …" stays on the reason's own line.
+                    var reason = ThaiAddressFormatter.Stated(d.Remark)
+                                 ?? (d.ReasonCode == "99" ? ThaiAddressFormatter.Stated(d.ReasonOther) : null)
+                                 ?? ThaiAddressFormatter.Stated(d.ReasonDescription)
+                                 ?? "สาเหตุอื่น";
+                    reason = string.Join(" ", reason.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+                    return $"{reason} ประมาณ {SqWaAsRaiNganWa(d.AreaInSqWa)}";
+                });
+            var landNetAreaText = landDeductionLines.Count > 0
+                ? $"{SqWaAsRaiNganWa(titleNetSquareWa)} หรือ {titleNetSquareWa:#,##0.##} ตารางวา"
+                : null;
 
             bool isCost = string.Equals(g.ApproachType, "Cost", StringComparison.OrdinalIgnoreCase);
 
@@ -1390,6 +1463,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 MarketLandUnitPrice = marketLandUnitPrice,
                 LandDescription = landDescription,
                 LandDescriptions = landParts,
+                LandDeductionLines = landDeductionLines,
+                LandNetAreaText = landNetAreaText,
                 BuildingDescription = buildingDescription,
                 DevelopmentDescriptions = developmentDescriptions,
                 TotalSquareWa = totalSquareWa == 0m ? null : totalSquareWa,
@@ -1718,6 +1793,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
+
+
     /// <summary>
     /// Whether a Building Detail actually carries a house number. Appraisers type "-" for "none"
     /// (35 of the 232 rows on the dev database), so a dash-only value must read as absent — it is
@@ -1726,6 +1803,14 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     /// </summary>
     private static bool HasHouseNumber(string? houseNumber) =>
         !string.IsNullOrWhiteSpace(houseNumber) && houseNumber.Trim().Trim('-', '–', '—').Length > 0;
+
+    /// <summary>A square-wa total in the same "R-N-W ไร่" shorthand as the title lines, carried
+    /// by <see cref="ThaiLandAreaFormatter.NormalizeTotal"/>.</summary>
+    private static string SqWaAsRaiNganWa(decimal squareWa)
+    {
+        var t = ThaiLandAreaFormatter.NormalizeTotal(0m, 0m, squareWa);
+        return BuildAreaString(t.Rai, t.Ngan, t.Wa);
+    }
 
     private static string BuildAreaString(decimal? rai, decimal? ngan, decimal? sqwa)
         // Thai land-area shorthand rai-ngan-wa; every empty position shows 0 (e.g. "9-2-41 ไร่", "1-0-0 ไร่").
@@ -2053,6 +2138,17 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public string? SubDistrict { get; init; }
         public string? District { get; init; }
         public string? Province { get; init; }
+    }
+
+    private sealed class GroupDeductionRow
+    {
+        public Guid PropertyGroupId { get; init; }
+        public int SequenceInGroup { get; init; }
+        public string ReasonCode { get; init; } = default!;
+        public string? ReasonOther { get; init; }
+        public string? Remark { get; init; }
+        public decimal AreaInSqWa { get; init; }   // RS26 keeps only > 0
+        public string? ReasonDescription { get; init; }
     }
 
     private sealed class GroupBuildingRow
