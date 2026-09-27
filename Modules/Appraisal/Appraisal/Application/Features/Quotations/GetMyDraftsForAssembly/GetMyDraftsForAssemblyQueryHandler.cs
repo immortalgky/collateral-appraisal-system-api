@@ -58,6 +58,22 @@ public class GetMyDraftsForAssemblyQueryHandler(
 
         var quotationIds = rows.Select(r => r.Id).ToArray();
 
+        // ── Segment Set: distinct live Banking Segments of each draft's appraisals ────────────
+        var segmentRows = await connection.QueryAsync<(Guid QuotationRequestId, string? BankingSegment)>(
+            """
+            SELECT qa.QuotationRequestId, a.BankingSegment
+            FROM appraisal.QuotationRequestAppraisals qa
+            INNER JOIN appraisal.Appraisals a ON a.Id = qa.AppraisalId
+            WHERE qa.QuotationRequestId IN @QuotationIds
+            """,
+            new { QuotationIds = quotationIds });
+
+        var segmentSetLookup = segmentRows
+            .GroupBy(r => r.QuotationRequestId)
+            .ToDictionary(
+                g => g.Key,
+                g => SegmentCoverage.BuildSegmentSet(g.Select(r => r.BankingSegment)));
+
         // ── Preview query: top 5 appraisal numbers per quotation ─────────────
         // Uses QuotationRequestItems (display items added on AddAppraisal)
         var previewSql = """
@@ -83,6 +99,7 @@ public class GetMyDraftsForAssemblyQueryHandler(
             RequestDate: r.RequestDate,
             CutOffTime: r.CutOffTime,
             BankingSegment: r.BankingSegment,
+            SegmentSet: segmentSetLookup.GetValueOrDefault(r.Id) ?? [],
             TotalAppraisals: r.TotalAppraisals,
             TotalCompaniesInvited: r.TotalCompaniesInvited,
             AppraisalNumberPreview: previewLookup.TryGetValue(r.Id, out var preview)

@@ -150,6 +150,10 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
         if (exception is BulkUploadParseException bulkEx)
             problemDetails.Extensions.Add("rowErrors", bulkEx.RowErrors);
 
+        if (exception is BadRequestException { Extensions: not null } badRequestEx)
+            foreach (var (key, value) in badRequestEx.Extensions)
+                problemDetails.Extensions[key] = value;
+
         if (exception is ConflictException { Code: not null } conflictEx)
             problemDetails.Extensions.Add("errorCode", conflictEx.Code);
 
