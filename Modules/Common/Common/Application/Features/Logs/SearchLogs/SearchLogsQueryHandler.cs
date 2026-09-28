@@ -13,6 +13,11 @@ public class SearchLogsQueryHandler(ISqlConnectionFactory connectionFactory, IDa
 
     private static readonly string[] KnownLevels = ["Information", "Warning", "Error", "Fatal"];
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S2077:Formatting SQL queries is security-sensitive",
+        Justification =
+            "Nothing user-supplied is interpolated. The WHERE clause comes from LogQueryParser/LogQueryContext, " +
+            "which emit only fixed SQL fragments with every search value bound as a @parameter; " +
+            "IdBoundsSql is built only from compile-time constants, and the ORDER BY direction is only ever the literal ASC or DESC.")]
     public async Task<SearchLogsResult> Handle(SearchLogsQuery query, CancellationToken cancellationToken)
     {
         var filter = query.Filter;

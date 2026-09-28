@@ -25,7 +25,9 @@ public static class LogQueryParser
     // free-text tokens instead of one key clause. Not worth the added complexity: the FE never
     // generates this syntax, and typing a space into a key value degrades to a free-text search
     // rather than erroring, which is an acceptable result for a search box.
-    private static readonly Regex TokenPattern = new(@"-?""[^""]*""|-?\S+", RegexOptions.Compiled);
+    // Match timeout: ReDoS hardening (S6444).
+    private static readonly Regex TokenPattern =
+        new(@"-?""[^""]*""|-?\S+", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     private static readonly string[] KnownKeys =
         ["appraisal", "request", "corr", "user", "level", "path", "source"];

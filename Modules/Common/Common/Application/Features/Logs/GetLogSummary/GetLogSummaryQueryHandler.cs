@@ -10,6 +10,11 @@ public class GetLogSummaryQueryHandler(ISqlConnectionFactory connectionFactory, 
 {
     private const int BucketCount = 48;
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S2077:Formatting SQL queries is security-sensitive",
+        Justification =
+            "Nothing user-supplied is interpolated. The WHERE clause comes from LogQueryParser/LogQueryContext, " +
+            "which emit only fixed SQL fragments with every search value bound as a @parameter; " +
+            "IdBoundsSql is built only from compile-time constants.")]
     public async Task<LogSummaryDto> Handle(GetLogSummaryQuery query, CancellationToken cancellationToken)
     {
         var filter = query.Filter;
