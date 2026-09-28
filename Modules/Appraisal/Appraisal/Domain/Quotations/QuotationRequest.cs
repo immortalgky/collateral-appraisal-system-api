@@ -531,7 +531,7 @@ public class QuotationRequest : Aggregate<Guid>
             TentativelySelectedAt = null;
             TentativelySelectedBy = null;
             TentativelySelectedByRole = null;
-            Status = "PendingRmSelection";
+            Status = "UnderAdminReview";
         }
     }
 
@@ -557,7 +557,7 @@ public class QuotationRequest : Aggregate<Guid>
         TentativelySelectedAt = null;
         TentativelySelectedBy = null;
         TentativelySelectedByRole = null;
-        Status = "PendingRmSelection";
+        Status = "UnderAdminReview";
     }
 
     /// <summary>
