@@ -332,36 +332,31 @@ an ungated node **and its whole subtree**, so for this release:
 ## Log viewer / Serilog config (this release)
 
 > **MUST DO before starting the new build: regenerate `appsettings.Production.json`'s `Serilog`
-> section from the template on every server.** Skipping this breaks in one of two ways depending on
-> what the server's file currently has:
-> - **Old array-shaped `WriteTo`/`Using` (`[...]`)** merges with the base file's now-keyed `WriteTo`
->   as if the array indices were object keys — `"0"`, `"1"`, `"2"` sitting *next to* `"Database"`,
->   not replacing it. If the old array's entry 0 also happened to be an MSSqlServer/Database sink,
->   that's two sinks both writing to `dbo.Logs`, silently double-inserting every log row.
-> - **Old `Using` naming a sink package that's gone** (`Serilog.Sinks.Seq`, `Serilog.Sinks.Console`
->   if console was ever added to a prod file by hand) **fails host startup outright** — Serilog can't
->   resolve the sink type named in `Using` and throws before the app binds to a port.
+> and `TimeZone` sections from the template on every server.** Skipping this breaks in one of these ways
+> depending on what the server's file currently has:
+> - **Old `Using` naming a sink package that's gone** (`Serilog.Sinks.Seq`, `Serilog.Sinks.Console`,
+>   `Serilog.Sinks.Grafana.Loki`) **fails host startup outright** — Serilog can't resolve the sink
+>   type named in `Using` and throws before the app binds to a port.
+> - **Old `columnOptionsSection`** keeps writing the old column set: the new `UserName`,
+>   `SourceContext`, `RequestPath` and `MessageTemplate` columns stay NULL, `RequestId` keeps
+>   holding ASP.NET connection ids, and `Properties` keeps the duplicated message — the log page's
+>   `user:`, top problems and `request:` filters then find nothing on new rows.
+> - **No `Database` (MSSqlServer) sink at all** → nothing reaches `dbo.Logs` and the log page is
+>   empty.
 
 **Regenerate `appsettings.Production.json` from the template — don't hand-patch the old file.**
-The `Serilog` section moved from index-based JSON arrays (`Using`/`WriteTo`/`Enrich` as `[...]`) to
-keyed objects (`{...}`). An array at the same index in two merged config files clobbers rather than
-adds — that's why Seq/Console silently disappeared from prod once before. With keyed objects each
-environment file only needs to state its *deltas* from the base `appsettings.json`. Production now
-writes to `File` + the `Database` sink (`MSSqlServer`, inherited from the base file) only — no
-Console, no Seq (the `Serilog.Sinks.Seq` package is no longer referenced at all). If your existing
-`appsettings.Production.json` still has the old array shape, replace it wholesale from the
-`.template`, then re-substitute your environment's real values (`ConnectionStrings:Database`, etc.)
-— don't try to hand-edit the shape in place.
+The template is self-contained: production runs on that one file, so its `Serilog` section carries
+everything — the `Database` sink (`MSSqlServer` → `dbo.Logs`, with the new `UserName`,
+`SourceContext`, `RequestPath` columns and `RequestId` ← `CasRequestId`), the `File` sink, the level
+overrides and `Enrich`. `Using`/`WriteTo` changed from JSON arrays to keyed objects (`"Database"`,
+`"File"`); an old array-shaped file must be replaced wholesale from the `.template`, then
+re-substitute your environment's real values (`ConnectionStrings:Database`, etc.). No Console, no Seq
+(the `Serilog.Sinks.Seq` package is no longer referenced at all).
 
-**The old prod-only `MinimumLevel:Override` for `MassTransit`/`Workflow` was intentionally dropped,
-not lost in the refactor.** The pre-refactor array-shaped template pinned both back up to
-`"Information"` for production specifically. That override is gone now — production inherits
-whatever the base `appsettings.json` says: `MassTransit` has its own explicit `"Warning"` override
-there, so that one lands the same place either way. `Workflow` has **no** override entry in the base
-file at all, so it currently falls through to `MinimumLevel:Default` (`"Information"`), not
-`"Warning"` — flagging this because it doesn't match what I was told to write here; if `Workflow`
-was meant to be quieter than Information in production, that needs its own override added to the
-base file (or a prod-specific one), which nothing does today.
+**Level changes vs the old template:** `MassTransit` drops from `Information` to `Warning` and
+`OpenIddict` is now `Warning` (both were most of the noise); `Workflow` has no override and stays at
+the `Information` default, same as before; `Microsoft.EntityFrameworkCore.Model.Validation` is
+`Error` (prod only).
 
 **`File`'s `restrictedToMinimumLevel` is `Warning`, not `Information` — this is a deliberate,
 user-approved decision, not an oversight.** The file is the fallback for when the DB sink is down,
@@ -373,14 +368,10 @@ off the server's local disk was the whole point. Don't "fix" this by raising it 
 collector in any environment; when regenerating `appsettings.Production.json` from the template you
 will no longer be asked to fill in that token — nothing else to do.
 
-**`TimeZone` override removed from the template — it was stale, not a reflection of production.**
-Production has always run Thai local time with `ForceUtc: false`; the `.template` file just carried
-the wrong values (`DefaultTimeZone: UTC` / `ForceUtc: true`) and nobody had regenerated
-`appsettings.Production.json` from it since. The template now has no `TimeZone` override at all —
-it inherits the base file's `Asia/Bangkok` / `ForceUtc: false`, same as every real environment.
-Since `Deploy-App.ps1` never overwrites an existing server's `appsettings.Production.json` (see
-*What gets preserved* above), this change only takes effect the next time someone regenerates that
-file from the template on a given server — nothing to do on servers that already have a correct one.
+**`TimeZone` in the template is now `Asia/Bangkok` / `ForceUtc: false`.** The old template said
+`UTC` / `ForceUtc: true`, which was stale — production has always run Thai local time. Servers whose
+`appsettings.Production.json` already has the Thai values need nothing; regenerating from the template
+now gives the right values instead of the wrong ones.
 
 **Migration `AddLogViewerSchema` — DBA note.** This is a schema-only migration (`01_EF_*.sql` in the
 bundle), no data backfill. It drops and recreates `IX_Logs_TimeStamp` on `dbo.Logs` (adding an
