@@ -1,5 +1,7 @@
+using Appraisal.Application.Features.Quotations.Shared;
 using Dapper;
 using Shared.Data;
+using Shared.Identity;
 
 namespace Appraisal.Application.Features.Quotations.Documents;
 
@@ -35,13 +37,21 @@ public record QuotationDocumentDto(
     long? FileSizeBytes,
     string? MimeType);
 
-public class ListQuotationDocumentsQueryHandler(ISqlConnectionFactory sqlConnectionFactory)
+public class ListQuotationDocumentsQueryHandler(
+    IQuotationRepository quotationRepository,
+    ICurrentUserService currentUser,
+    ISqlConnectionFactory sqlConnectionFactory)
     : IQueryHandler<ListQuotationDocumentsQuery, List<QuotationDocumentDto>>
 {
     public async Task<List<QuotationDocumentDto>> Handle(
         ListQuotationDocumentsQuery query,
         CancellationToken cancellationToken)
     {
+        var quotation = await quotationRepository.GetForViewAccessCheckAsync(query.QuotationRequestId, cancellationToken)
+                        ?? throw new NotFoundException($"Quotation request '{query.QuotationRequestId}' not found.");
+
+        QuotationAccessPolicy.EnsureCanViewQuotation(quotation, currentUser);
+
         const string sql = """
                            SELECT
                                qd.Id,

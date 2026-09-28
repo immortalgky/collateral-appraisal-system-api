@@ -1,3 +1,5 @@
+namespace Appraisal.Infrastructure.Configurations;
+
 public class QuotationDocumentConfiguration : IEntityTypeConfiguration<QuotationDocument>
 {
     public void Configure(EntityTypeBuilder<QuotationDocument> builder)

@@ -22,6 +22,11 @@ public interface IQuotationRepository
     /// </summary>
     Task<QuotationRequest?> GetByIdWithDocumentsAsync(Guid id, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Read-only load of just what QuotationAccessPolicy.EnsureCanViewQuotation reads (Invitations, Quotations).
+    /// </summary>
+    Task<QuotationRequest?> GetForViewAccessCheckAsync(Guid id, CancellationToken cancellationToken = default);
+
     Task<QuotationRequest?> GetByNumberAsync(string quotationNumber, CancellationToken cancellationToken = default);
 
     /// <summary>

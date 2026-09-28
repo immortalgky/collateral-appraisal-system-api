@@ -53,8 +53,18 @@ public class QuotationRepository(AppraisalDbContext dbContext) : IQuotationRepos
     public async Task<QuotationRequest?> GetByIdWithDocumentsAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await _dbContext.QuotationRequests
-            .Include(q => q.Appraisals)
             .Include(q => q.Documents)
+            .FirstOrDefaultAsync(q => q.Id == id, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<QuotationRequest?> GetForViewAccessCheckAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.QuotationRequests
+            .AsNoTracking()
+            .Include(q => q.Invitations)
+            .Include(q => q.Quotations)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(q => q.Id == id, cancellationToken);
     }
 

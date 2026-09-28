@@ -679,7 +679,7 @@ public class QuotationRequest : Aggregate<Guid>
         ArgumentNullException.ThrowIfNull(data);
 
         if (_documents.Any(d => d.DocumentId == data.DocumentId))
-            throw new InvalidOperationException(
+            throw new ConflictException(
                 $"Document {data.DocumentId} is already linked to this quotation");
 
         var doc = QuotationDocument.Create(Id, data);

@@ -35,16 +35,11 @@ public record GenerateQuotationDocumentCommand(Guid QuotationRequestId, string D
 
 public class GenerateQuotationDocumentCommandValidator : AbstractValidator<GenerateQuotationDocumentCommand>
 {
-    private static readonly HashSet<string> ValidTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Summary"
-    };
-
     public GenerateQuotationDocumentCommandValidator()
     {
         RuleFor(x => x.DocumentType)
             .NotEmpty()
-            .Must(t => ValidTypes.Contains(t))
+            .Must(t => QuotationDocumentGenerator.ReportKeyMap.ContainsKey(t))
             .WithMessage("DocumentType must be 'Summary'.");
     }
 }
@@ -57,15 +52,15 @@ public class GenerateQuotationDocumentCommandHandler(
 {
     public async Task<QuotationDocumentDto> Handle(
         GenerateQuotationDocumentCommand command,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
         QuotationAccessPolicy.EnsureAdmin(currentUser);
 
-        var quotation = await quotationRepository.GetByIdWithDocumentsAsync(command.QuotationRequestId, ct)
+        var quotation = await quotationRepository.GetByIdWithDocumentsAsync(command.QuotationRequestId, cancellationToken)
             ?? throw new NotFoundException($"Quotation {command.QuotationRequestId} not found");
 
         var quotationDoc = await quotationDocumentGenerator.GenerateAndLinkAsync(
-            quotation, command.DocumentType, ct);
+            quotation, command.DocumentType, cancellationToken);
 
         return new QuotationDocumentDto(
             quotationDoc.Id,

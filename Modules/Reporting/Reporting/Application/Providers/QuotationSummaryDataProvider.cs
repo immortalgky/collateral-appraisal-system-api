@@ -1,4 +1,5 @@
 using System.Globalization;
+using Reporting.Application.Formatting;
 using Reporting.Application.Models;
 using Reporting.Application.Services;
 
@@ -34,7 +35,7 @@ public sealed class QuotationSummaryDataProvider(
     private static readonly Dictionary<string, string> LandOnlyLabels = new()
     {
         ["L"] = "ที่ดินเปล่า",
-        ["LSL"] = "สิทธการเช่าที่ดิน",
+        ["LSL"] = "สิทธิการเช่าที่ดิน",
     };
     private static readonly HashSet<string> CondoFamilies = ["U", "LSU"];
     private static readonly HashSet<string> MachineFamilies = ["MAC"];
@@ -69,6 +70,13 @@ public sealed class QuotationSummaryDataProvider(
         var items = (await connection.QueryAsync<ItemRow>(itemsSql, p)).ToList();
         if (items.Count == 0)
         {
+            // Unknown id must 404 rather than render an empty PDF.
+            var exists = await connection.ExecuteScalarAsync<bool>(
+                "SELECT CASE WHEN EXISTS (SELECT 1 FROM appraisal.QuotationRequests WHERE Id = @QuotationRequestId) THEN 1 ELSE 0 END",
+                p);
+            if (!exists)
+                throw new NotFoundException("Quotation", entityId);
+
             logger.LogDebug("QuotationSummary: no items for quotation {QuotationRequestId}", quotationRequestId);
             return new QuotationSummaryModel { Rows = Array.Empty<QuotationSummaryRowModel>() };
         }
@@ -130,9 +138,9 @@ public sealed class QuotationSummaryDataProvider(
         var buildingTypeDescriptions = ToDescriptionMap(paramRows, "BuildingType");
         var machineStatusDescriptions = ToDescriptionMap(paramRows, "MachineStatus");
 
-        string PropertyTypeDescription(string? code) => Describe(code, propertyTypeDescriptions);
-        string BuildingTypeDescription(string? code) => Describe(code, buildingTypeDescriptions);
-        string MachineStatusDescription(string? code) => Describe(code, machineStatusDescriptions);
+        string PropertyTypeDescription(string? code) => ParameterCodeFormatter.Translate(code, propertyTypeDescriptions) ?? "";
+        string BuildingTypeDescription(string? code) => ParameterCodeFormatter.Translate(code, buildingTypeDescriptions) ?? "";
+        string MachineStatusDescription(string? code) => ParameterCodeFormatter.Translate(code, machineStatusDescriptions) ?? "";
 
         // ── Build rows ────────────────────────────────────────────────────────
         var rows = items
@@ -279,14 +287,8 @@ public sealed class QuotationSummaryDataProvider(
 
     private static string FormatArea(decimal d) => d.ToString("0.##", CultureInfo.InvariantCulture);
 
-    private static string Describe(string? code, IReadOnlyDictionary<string, string> descriptions)
-    {
-        if (string.IsNullOrEmpty(code)) return "";
-        return descriptions.GetValueOrDefault(code, code);
-    }
-
-    private static Dictionary<string, string> ToDescriptionMap(IEnumerable<ParameterRow> rows, string group) =>
-        rows.Where(r => r.Group == group).ToDictionary(r => r.Code, r => r.Description ?? r.Code);
+    private static Dictionary<string, string?> ToDescriptionMap(IEnumerable<ParameterRow> rows, string group) =>
+        rows.Where(r => r.Group == group).DistinctBy(r => r.Code).ToDictionary(r => r.Code, r => r.Description);
 
     // ── Private Dapper flat DTOs ──────────────────────────────────────────────
 

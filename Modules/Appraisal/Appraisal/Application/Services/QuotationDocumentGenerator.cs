@@ -35,8 +35,8 @@ internal sealed class QuotationDocumentGenerator(
     : IQuotationDocumentGenerator
 {
     // Maps the user-facing DocumentType to the registered report key.
-    private static readonly Dictionary<string, string> ReportKeyMap =
-        new(StringComparer.OrdinalIgnoreCase)
+    internal static readonly Dictionary<string, string> ReportKeyMap =
+        new(StringComparer.Ordinal)
         {
             { "Summary", QuotationDocumentConstants.SummaryReportKey }
         };

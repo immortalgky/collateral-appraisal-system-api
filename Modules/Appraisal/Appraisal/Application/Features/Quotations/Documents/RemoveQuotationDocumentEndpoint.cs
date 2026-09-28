@@ -36,11 +36,11 @@ public class RemoveQuotationDocumentCommandHandler(
     IIntegrationEventOutbox outbox)
     : ICommandHandler<RemoveQuotationDocumentCommand>
 {
-    public async Task<Unit> Handle(RemoveQuotationDocumentCommand command, CancellationToken ct)
+    public async Task<Unit> Handle(RemoveQuotationDocumentCommand command, CancellationToken cancellationToken)
     {
         QuotationAccessPolicy.EnsureAdmin(currentUserService);
 
-        var quotation = await quotationRepository.GetByIdWithDocumentsAsync(command.QuotationRequestId, ct)
+        var quotation = await quotationRepository.GetByIdWithDocumentsAsync(command.QuotationRequestId, cancellationToken)
             ?? throw new NotFoundException($"Quotation {command.QuotationRequestId} not found");
 
         quotation.RemoveDocument(command.DocumentId);

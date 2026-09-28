@@ -1,3 +1,4 @@
+using System.Globalization;
 using Auth.Contracts.Users;
 using MassTransit;
 using Notification.Contracts.Email;
@@ -59,10 +60,10 @@ public sealed class ShortlistSentToRmEmailHandler(
                 var companyName = await ResolveCompanyNameAsync(row.CompanyId, ct) ?? row.CompanyId.ToString();
                 var cells = msg.Columns
                     .Select(col => row.AmountByAppraisalId.TryGetValue(col.AppraisalId, out var amt)
-                        ? amt.ToString("#,##0.##")
+                        ? amt.ToString("#,##0.00", CultureInfo.InvariantCulture)
                         : "-")
                     .ToList();
-                rows.Add(new QuotationFeeNoticeRow(companyName, cells, row.Total.ToString("#,##0.##")));
+                rows.Add(new QuotationFeeNoticeRow(companyName, cells, row.Total.ToString("#,##0.00", CultureInfo.InvariantCulture)));
             }
 
             var subject = $"แจ้งค่าธรรมเนียมประเมิน ลูกค้าราย {msg.CustomerName ?? "-"}";

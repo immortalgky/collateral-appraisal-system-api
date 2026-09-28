@@ -53,11 +53,11 @@ public class LinkQuotationDocumentCommandHandler(
 {
     public async Task<QuotationDocumentDto> Handle(
         LinkQuotationDocumentCommand command,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
         QuotationAccessPolicy.EnsureAdmin(currentUserService);
 
-        var quotation = await quotationRepository.GetByIdWithDocumentsAsync(command.QuotationRequestId, ct)
+        var quotation = await quotationRepository.GetByIdWithDocumentsAsync(command.QuotationRequestId, cancellationToken)
             ?? throw new NotFoundException($"Quotation {command.QuotationRequestId} not found");
 
         var userCode = currentUserService.UserCode
