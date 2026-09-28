@@ -17,6 +17,16 @@ public interface IQuotationRepository
     /// </summary>
     Task<QuotationRequest?> GetByIdWithSharedDocumentsAsync(Guid id, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Loads the aggregate including the Documents collection — used by the quotation-document
+    /// </summary>
+    Task<QuotationRequest?> GetByIdWithDocumentsAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Read-only load of just what QuotationAccessPolicy.EnsureCanViewQuotation reads (Invitations, Quotations).
+    /// </summary>
+    Task<QuotationRequest?> GetForViewAccessCheckAsync(Guid id, CancellationToken cancellationToken = default);
+
     Task<QuotationRequest?> GetByNumberAsync(string quotationNumber, CancellationToken cancellationToken = default);
 
     /// <summary>

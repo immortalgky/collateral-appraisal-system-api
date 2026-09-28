@@ -98,6 +98,12 @@ public class QuotationRequestConfiguration : IEntityTypeConfiguration<QuotationR
             .OnDelete(DeleteBehavior.Cascade)
             .HasConstraintName("FK_QuotationSharedDocuments_QuotationRequests_QuotationRequestId");
 
+        builder.HasMany(q => q.Documents)
+            .WithOne()
+            .HasForeignKey(d => d.QuotationRequestId)
+            .OnDelete(DeleteBehavior.Cascade)
+            .HasConstraintName("FK_QuotationDocuments_QuotationRequests_QuotationRequestId");
+
         // ── Indexes ───────────────────────────────────────────────────────────
         builder.HasIndex(q => q.Status);
         builder.HasIndex(q => q.CutOffTime);

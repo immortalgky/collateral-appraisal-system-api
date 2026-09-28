@@ -111,6 +111,7 @@ public class AppraisalDbContext : DbContext
     public DbSet<CompanyQuotationItem> CompanyQuotationItems => Set<CompanyQuotationItem>();
     public DbSet<QuotationNegotiation> QuotationNegotiations => Set<QuotationNegotiation>();
     public DbSet<QuotationSharedDocument> QuotationSharedDocuments => Set<QuotationSharedDocument>();
+    public DbSet<QuotationDocument> QuotationDocuments => Set<QuotationDocument>();
     public DbSet<QuotationActivityLog> QuotationActivityLogs => Set<QuotationActivityLog>();
     public DbSet<QuotationEmail> QuotationEmails => Set<QuotationEmail>();
 
