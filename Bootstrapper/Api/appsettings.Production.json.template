@@ -36,52 +36,39 @@
   "Auth": {
     "InternalAuthBaseUrl": "#{AUTH_INTERNAL_BASE_URL}#"
   },
+  // Only the deltas from appsettings.json's Serilog section, added under new keys — prod writes to
+  // MSSqlServer (inherited "Database" sink) + File only. No Console, no Seq (package isn't even
+  // referenced anymore — the old array-indexed "Using"/"WriteTo" here used to silently clobber the
+  // base file's entries at the same index instead of adding to them).
   "Serilog": {
-    "Using": [
-      "Serilog.Sinks.Console",
-      "Serilog.Sinks.File",
-      "Serilog.Sinks.Seq"
-    ],
+    "Using": {
+      "File": "Serilog.Sinks.File"
+    },
     "MinimumLevel": {
-      "Default": "Information",
       "Override": {
-        "Microsoft": "Warning",
-        "System": "Warning",
-        "Workflow": "Information",
-        "MassTransit": "Information"
+        // Dev keeps seeing these to fix the underlying issue; prod only wants the row.
+        "Microsoft.EntityFrameworkCore.Model.Validation": "Error"
       }
     },
-    "WriteTo": [
-      {
-        "Name": "Console",
-        "Args": {
-          "formatter": "Serilog.Formatting.Compact.CompactJsonFormatter, Serilog.Formatting.Compact"
-        }
-      },
-      {
+    "WriteTo": {
+      // restrictedToMinimumLevel: Warning — the file is the fallback for when the DB sink is down,
+      // not a mirror of it. Information includes the HTTP request/response logging line, whose body
+      // can carry customer PII (see Program.cs); keeping that off server disk and only ever in the
+      // access-controlled dbo.Logs table (LOGS_VIEW permission) was a deliberate call, not an oversight.
+      "File": {
         "Name": "File",
         "Args": {
           "path": "logs/log-.txt",
           "rollingInterval": "Day",
           "retainedFileCountLimit": 30,
+          "restrictedToMinimumLevel": "Warning",
           "formatter": "Serilog.Formatting.Compact.CompactJsonFormatter, Serilog.Formatting.Compact"
         }
-      },
-      {
-        "Name": "Seq",
-        "Args": {
-          "serverUrl": "#{SEQ_SERVER_URL}#",
-          "apiKey": "#{SEQ_API_KEY}#"
-        }
       }
-    ],
-    "Enrich": [
-      "FromLogContext",
-      "WithMachineName",
-      "WithProcessId",
-      "WithThreadId",
-      "WithEnvironmentName"
-    ],
+    },
+    // No Enrich override here — WithEnvironmentName never resolved (same reason as
+    // WithMachineName/WithProcessId/WithThreadId in the base file); dropped rather than kept as
+    // dead config. Inherits base's Enrich (FromLogContext) unchanged.
     "Properties": {
       "Application": "Collateral Appraisal System",
       "Environment": "Production"
@@ -92,21 +79,17 @@
     "UseRedisBackplane": true,
     "ChannelPrefix": "cas-prod"
   },
-  "TimeZone": {
-    "DefaultTimeZone": "UTC",
-    "ForceUtc": true,
-    "Culture": "en-US",
-    "DateFormat": "yyyy-MM-dd",
-    "TimeFormat": "HH:mm:ss",
-    "DateTimeFormat": "yyyy-MM-dd HH:mm:ss"
-  },
+  // No TimeZone override — inherits base's DefaultTimeZone: Asia/Bangkok, ForceUtc: false. This
+  // used to override to UTC/ForceUtc:true, which was stale: the bank's servers run Thai local time
+  // and dbo.Logs.TimeStamp is written server-local by Serilog (convertToUtc:false), so ApplicationNow
+  // must stay on the same clock as the server, not UTC, or the two are 7 hours apart.
+  // No Tracing:OtlpEndpoint override — falls back to base's null. There is no OTLP collector in
+  // any environment (see project_no_external_observability_stack); the #{OTLP_ENDPOINT}# deploy
+  // token is retired, not just unused here — remove it from the deploy pipeline's token list too.
   "Observability": {
     "Enabled": true,
     "ServiceName": "CollateralAppraisalSystem",
-    "ServiceVersion": "#{SERVICE_VERSION}#",
-    "Tracing": {
-      "OtlpEndpoint": "#{OTLP_ENDPOINT}#"
-    }
+    "ServiceVersion": "#{SERVICE_VERSION}#"
   },
   "WorkflowResilience": {
     "Retry": {

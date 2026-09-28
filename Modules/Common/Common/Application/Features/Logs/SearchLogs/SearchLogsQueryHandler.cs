@@ -1,121 +1,124 @@
 using Dapper;
 using Shared.CQRS;
 using Shared.Data;
-using Shared.Pagination;
+using Shared.Time;
 
 namespace Common.Application.Features.Logs.SearchLogs;
 
-public class SearchLogsQueryHandler(ISqlConnectionFactory connectionFactory)
-    : IQueryHandler<SearchLogsQuery, PaginatedResult<LogDto>>
+public class SearchLogsQueryHandler(ISqlConnectionFactory connectionFactory, IDateTimeProvider dateTimeProvider)
+    : IQueryHandler<SearchLogsQuery, SearchLogsResult>
 {
-    public async Task<PaginatedResult<LogDto>> Handle(
-        SearchLogsQuery query,
-        CancellationToken cancellationToken)
+    private const int DefaultPageSize = 50;
+    private const int MaxPageSize = 200;
+
+    private static readonly string[] KnownLevels = ["Information", "Warning", "Error", "Fatal"];
+
+    public async Task<SearchLogsResult> Handle(SearchLogsQuery query, CancellationToken cancellationToken)
     {
-        // Explicit projection — column order MUST match LogDto's positional record constructor.
-        var sql = @"
-SELECT
-    Id,
-    TimeStamp,
-    Level,
-    Message,
-    Exception,
-    CorrelationId,
-    EntityId,
-    AppraisalId,
-    RequestId,
-    WorkflowInstanceId,
-    CollateralId,
-    DocumentId,
-    MachineName
-FROM dbo.Logs";
-
-        var conditions = new List<string>();
-        var parameters = new DynamicParameters();
-
         var filter = query.Filter;
-
-        if (!string.IsNullOrWhiteSpace(filter.Level))
-        {
-            conditions.Add("Level = @Level");
-            parameters.Add("Level", filter.Level.Trim());
-        }
-
-        if (!string.IsNullOrWhiteSpace(filter.CorrelationId))
-        {
-            conditions.Add("CorrelationId = @CorrelationId");
-            parameters.Add("CorrelationId", filter.CorrelationId.Trim());
-        }
-
-        if (!string.IsNullOrWhiteSpace(filter.AppraisalId))
-        {
-            conditions.Add("AppraisalId = @AppraisalId");
-            parameters.Add("AppraisalId", filter.AppraisalId.Trim());
-        }
-
-        if (!string.IsNullOrWhiteSpace(filter.RequestId))
-        {
-            conditions.Add("RequestId = @RequestId");
-            parameters.Add("RequestId", filter.RequestId.Trim());
-        }
-
-        if (!string.IsNullOrWhiteSpace(filter.EntityId))
-        {
-            conditions.Add("EntityId = @EntityId");
-            parameters.Add("EntityId", filter.EntityId.Trim());
-        }
-
-        if (!string.IsNullOrWhiteSpace(filter.WorkflowInstanceId))
-        {
-            conditions.Add("WorkflowInstanceId = @WorkflowInstanceId");
-            parameters.Add("WorkflowInstanceId", filter.WorkflowInstanceId.Trim());
-        }
-
-        if (!string.IsNullOrWhiteSpace(filter.CollateralId))
-        {
-            conditions.Add("CollateralId = @CollateralId");
-            parameters.Add("CollateralId", filter.CollateralId.Trim());
-        }
-
-        if (!string.IsNullOrWhiteSpace(filter.DocumentId))
-        {
-            conditions.Add("DocumentId = @DocumentId");
-            parameters.Add("DocumentId", filter.DocumentId.Trim());
-        }
-
-        if (!string.IsNullOrWhiteSpace(filter.Search))
-        {
-            conditions.Add("Message LIKE @Search ESCAPE '\\'");
-            parameters.Add("Search", "%" + EscapeLike(filter.Search.Trim()) + "%");
-        }
-
-        if (filter.From.HasValue)
-        {
-            conditions.Add("TimeStamp >= @From");
-            parameters.Add("From", filter.From.Value);
-        }
-
-        if (filter.To.HasValue)
-        {
-            // A date-only "To" (e.g. 2026-05-26) binds to midnight; treat it as inclusive of the
-            // whole end day so logs during that day aren't silently excluded.
-            var to = filter.To.Value.TimeOfDay == TimeSpan.Zero
-                ? filter.To.Value.Date.AddDays(1).AddTicks(-1)
-                : filter.To.Value;
-            conditions.Add("TimeStamp <= @To");
-            parameters.Add("To", to);
-        }
-
-        if (conditions.Count > 0)
-            sql += " WHERE " + string.Join(" AND ", conditions);
-
+        var applicationNow = dateTimeProvider.ApplicationNow;
+        var pageSize = Math.Clamp(filter.PageSize ?? DefaultPageSize, 1, MaxPageSize);
         var sortDir = string.Equals(filter.SortDir, "asc", StringComparison.OrdinalIgnoreCase) ? "ASC" : "DESC";
-        var orderBy = $"TimeStamp {sortDir}";
 
-        return await connectionFactory.QueryPaginatedAsync<LogDto>(sql, orderBy, query.Paging, parameters);
+        // Every value in `levels` unknown (e.g. a typo, or a stale FE build sending an old name) —
+        // return an empty page rather than silently dropping the filter and showing every level.
+        if (!TryParseLevels(filter.Levels, out var levels))
+            return new SearchLogsResult([], false);
+
+        // Live (afterId) never applies the upper TimeStamp bound — see LogQueryContext.Build's doc
+        // comment on includeUpperTimeBound. forceBounding whenever a levels filter is set (see that
+        // param's doc comment) or the requested order is ascending: an unanchored "ORDER BY Id ASC"
+        // browse (no afterId/beforeId already seeking to a specific Id) starts its scan from the
+        // oldest retained row in the whole 30-day table, not from @From, unless bounded.
+        var ctx = LogQueryContext.Build(filter.Q, filter.From, filter.To, applicationNow,
+            includeUpperTimeBound: !filter.AfterId.HasValue,
+            forceBounding: levels.Length > 0 || sortDir == "ASC");
+        var conditions = ctx.Conditions;
+        var parameters = ctx.Parameters;
+
+        if (levels.Length > 0)
+        {
+            conditions.Add("Level IN @Levels");
+            parameters.Add("Levels", levels);
+        }
+
+        // Live mode always fetches ascending (oldest-of-the-new-rows first) starting right after
+        // the cursor, regardless of the requested sortDir. Fetching newest-first instead (TOP N
+        // ORDER BY Id DESC) would silently skip the middle of a burst: once more than pageSize rows
+        // arrived since the last poll, DESC + TOP only returns the newest slice, the client advances
+        // its cursor to the top of that slice, and the rows between the old cursor and the returned
+        // slice are never seen again. Fetching ascending never skips — hasMore then means "more
+        // newer rows exist beyond this batch", so the FE should re-poll immediately (not wait for the
+        // next 5s tick) until hasMore is false. Reversed to newest-first below to match display order.
+        // Accepted limitation: Id is a bigint IDENTITY, and the identity value is reserved before
+        // the row commits — two concurrent batches can commit out of Id order, so a rare reorder
+        // within one poll interval is possible (a lower Id committing after a higher one already
+        // returned). The row isn't lost, just late by one poll; the next normal (non-Live) search
+        // over the same window shows it correctly ordered.
+        var effectiveSortDir = sortDir;
+        if (filter.AfterId.HasValue)
+        {
+            conditions.Add("Id > @AfterId");
+            parameters.Add("AfterId", filter.AfterId.Value);
+            effectiveSortDir = "ASC";
+        }
+        else if (filter.BeforeId.HasValue)
+        {
+            // "Load more" in the current sort direction — older-in-order rows than the last one seen.
+            conditions.Add(sortDir == "ASC" ? "Id > @BeforeId" : "Id < @BeforeId");
+            parameters.Add("BeforeId", filter.BeforeId.Value);
+        }
+
+        var sql = $@"
+{ctx.IdBoundsSql}
+SELECT TOP (@FetchCount)
+    Id, TimeStamp, Level, Message, Exception, CorrelationId, EntityId, AppraisalId, RequestId,
+    WorkflowInstanceId, CollateralId, DocumentId, MachineName, UserName,
+    COALESCE(SourceContext, JSON_VALUE(Properties, '$.Properties.SourceContext')) AS SourceContext,
+    COALESCE(RequestPath, JSON_VALUE(Properties, '$.Properties.RequestPath')) AS RequestPath
+FROM dbo.Logs
+WHERE {string.Join(" AND ", conditions)}
+ORDER BY Id {effectiveSortDir}";
+
+        // Fetch one extra row to know whether there's more without a separate COUNT query.
+        parameters.Add("FetchCount", pageSize + 1);
+
+        var connection = connectionFactory.GetOpenConnection();
+        var rows = (await connection.QueryAsync<LogListItem>(
+            new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))).ToList();
+
+        var hasMore = rows.Count > pageSize;
+        if (hasMore) rows.RemoveAt(rows.Count - 1);
+        // Only reverse back to newest-first when that's the requested order — Live almost always
+        // asks for desc, but if a caller combines afterId with an explicit sortDir=asc, the
+        // ascending fetch already matches what was requested.
+        if (filter.AfterId.HasValue && sortDir == "DESC") rows.Reverse();
+
+        return new SearchLogsResult(rows, hasMore);
     }
 
-    // Escapes SQL Server LIKE wildcards so user input matches literally; paired with ESCAPE '\'.
-    private static string EscapeLike(string input) =>
-        input.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_").Replace("[", "\\[");
+    // Keeps only the 4 known levels (case-insensitive) and dedupes — a caller sending a huge garbage
+    // CSV in `levels` used to turn into "Level IN @Levels" with thousands of parameters, which SQL
+    // Server's ~2100 parameter limit turns into a 500. At most 4 distinct values now.
+    //
+    // Returns false only when `levels` was actually supplied but none of its values matched a known
+    // level — the caller treats that as "return nothing", not "no filter". True + an empty array
+    // means no filter was requested at all (levels was null/blank), which is different: that case
+    // means "show every level", not "show none".
+    private static bool TryParseLevels(string? levels, out string[] known)
+    {
+        known = [];
+        if (string.IsNullOrWhiteSpace(levels)) return true;
+
+        var rawTokens = levels.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (rawTokens.Length == 0) return true;
+
+        known = rawTokens
+            .Select(l => KnownLevels.FirstOrDefault(k => string.Equals(k, l, StringComparison.OrdinalIgnoreCase)))
+            .OfType<string>()
+            .Distinct()
+            .ToArray();
+
+        return known.Length > 0;
+    }
 }

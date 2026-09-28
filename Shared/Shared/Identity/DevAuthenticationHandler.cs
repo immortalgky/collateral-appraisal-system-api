@@ -66,6 +66,7 @@ public class DevAuthenticationHandler(
             // tracking code — that is the exact shape the revoke script leaves a credit user in.
             // Removing both is neither audience: nothing masks, and `appraisal.browse` answers 403.
             new Claim("permissions", "ADDRESS_MASTER_MANAGE"),
+            new Claim("permissions", "LOGS_VIEW"),
             // Roles
             new Claim("roles", "Admin"),
             // Scopes
