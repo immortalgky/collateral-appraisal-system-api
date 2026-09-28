@@ -3,7 +3,7 @@ namespace Common.Application.Features.Logs.SearchLogs;
 /// <summary>
 /// Positional record — column order must match the SELECT list in SearchLogsQueryHandler.
 /// </summary>
-public record LogDto(
+public record LogListItem(
     long Id,
     DateTime TimeStamp,
     string? Level,
@@ -16,5 +16,8 @@ public record LogDto(
     string? WorkflowInstanceId,
     string? CollateralId,
     string? DocumentId,
-    string? MachineName
+    string? MachineName,
+    string? UserName,
+    string? SourceContext,
+    string? RequestPath
 );

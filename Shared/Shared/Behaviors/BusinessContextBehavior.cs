@@ -57,6 +57,18 @@ public class BusinessContextBehavior<TRequest, TResponse> : IPipelineBehavior<TR
                             "DocumentId" => ("DocumentId", "document.id"),
                             _ => (p.Name, p.Name.ToLowerInvariant())
                         };
+
+                        // "RequestId" (not "CasRequestId") would collide with the RequestId ASP.NET's
+                        // own hosting log scope pushes for every HTTP request (its connection-scoped
+                        // trace id, e.g. "0HNO...:00000001") — that scope value wins over ours, so the
+                        // dbo.Logs RequestId column ended up with zero real GUIDs. Applied generically
+                        // (not just to the literal "RequestId" property case above) because the Request
+                        // module's own commands hit the exact same name through the "Id" branch too:
+                        // module="Request" -> logName="RequestId". The MSSqlServer sink's RequestId
+                        // column maps to this CasRequestId property instead (see appsettings
+                        // columnOptionsSection).
+                        if (logName == "RequestId") logName = "CasRequestId";
+
                         return (Prop: p, LogName: logName, TagName: tagName);
                     })
                     .ToArray();

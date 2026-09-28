@@ -32,6 +32,7 @@ using Shared.Observability;
 using Auth.Infrastructure.HealthChecks;
 using Notification.Infrastructure.Email.HealthChecks;
 using Integration.Infrastructure.HealthChecks;
+using Microsoft.AspNetCore.HttpLogging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -43,7 +44,37 @@ builder.Configuration.AddDecryptedSecrets();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-builder.Host.UseSerilog((context, config) => config.ReadFrom.Configuration(context.Configuration));
+// Needed by HttpUserEnricher below (reads the authenticated user off the current request).
+builder.Services.AddHttpContextAccessor();
+
+builder.Host.UseSerilog((context, services, config) => config
+    .ReadFrom.Configuration(context.Configuration)
+    .Enrich.With(new HttpUserEnricher(services.GetRequiredService<IHttpContextAccessor>()))
+    .Enrich.With(new RequestIdBackfillEnricher())
+    // Added in code, not via the "WithMachineName" config method — that method never resolved
+    // (no Serilog.Enrichers.Environment package referenced), so MachineName was always NULL.
+    .Enrich.WithProperty("MachineName", Environment.MachineName));
+
+// HTTP request/response logging for external-facing /api/* endpoints (LOS/CLS). No headers are
+// captured — Authorization must never reach the log table. Binary/multipart bodies are skipped
+// automatically by the middleware's default media-type allow-list. Wired into the pipeline via
+// UseWhen below so it only runs for /api paths.
+// Won't fix: request/response bodies can still contain customer PII (names, addresses, etc.) —
+// accepted by the product owner as a tradeoff for LOS/CLS integration debuggability. dbo.Logs
+// access is already restricted to the LOGS_VIEW permission; no further redaction planned. This log
+// line is Information level, so it does NOT land in the production File sink (restrictedToMinimumLevel:
+// Warning there — see appsettings.Production.json.template) — only in the DB, which is the only place
+// this PII was ever meant to be readable from.
+builder.Services.AddHttpLogging(options =>
+{
+    options.LoggingFields = HttpLoggingFields.RequestMethod | HttpLoggingFields.RequestPath |
+                             HttpLoggingFields.RequestQuery | HttpLoggingFields.ResponseStatusCode |
+                             HttpLoggingFields.Duration | HttpLoggingFields.RequestBody |
+                             HttpLoggingFields.ResponseBody;
+    options.CombineLogs = true; // one event per request instead of separate request/response lines
+    options.RequestBodyLogLimit = 32 * 1024;
+    options.ResponseBodyLogLimit = 32 * 1024;
+});
 
 // Add shared services (time abstraction, security, etc.)
 builder.Services.AddSharedServices(builder.Configuration);
@@ -484,6 +515,28 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseCors("SPAPolicy");
 app.UseMiddleware<CorrelationIdMiddleware>();
+
+// Must stay above UseRouting (see gotcha_middleware_after_userouting_never_runs) — placed after
+// CorrelationIdMiddleware so the combined log line carries CorrelationId, and before
+// UseExceptionHandler so a 500 written by the handler is still captured with its response body.
+// Scoped to /api/v1 and /api/v2 only — the external LOS/CLS integration surface (every endpoint
+// in the Integration module lives under one of these two prefixes, policy "Integration"). Plain
+// "/api" would also have logged the SPA's own traffic (/api/workflows/..., /api/sla/...,
+// /api/fee-structures, etc. — none of those are versioned), which isn't what this was for.
+//
+// 401/403 responses on these routes are logged on purpose — an expired/rotated client secret or a
+// missing scope is exactly the integration incident this exists to diagnose; suppressing them would
+// hide it. (An IHttpLoggingInterceptor can't suppress them anyway: with CombineLogs, request-phase
+// fields are already committed before OnResponseAsync sees the status code, and this middleware has
+// to sit before UseAuthentication/UseAuthorization in our pipeline, so OnRequestAsync never knows
+// the eventual outcome either.) Volume risk is low — these routes sit behind the bank's F5 on an
+// internal network, and the body cap is 32KB per side (request, response — see
+// RequestBodyLogLimit/ResponseBodyLogLimit below), so a combined row can hold up to ~64KB of body
+// text, not 32KB.
+app.UseWhen(
+    ctx => ctx.Request.Path.StartsWithSegments("/api/v1") || ctx.Request.Path.StartsWithSegments("/api/v2"),
+    b => b.UseHttpLogging());
+
 app.UseExceptionHandler(options => { });
 
 // Add health check endpoints
@@ -561,9 +614,6 @@ app.MapHealthChecks("/health/external", new HealthCheckOptions
         await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(response));
     }
 }).AllowAnonymous();
-
-// Prometheus metrics scrape endpoint
-app.MapPrometheusScrapingEndpoint("/metrics").AllowAnonymous();
 
 // Must stay above UseRouting: registered at UseHangfire's position (below) this middleware never runs
 // — verified with probe headers on a clean build, twice. It only adjusts framing headers on /hangfire
