@@ -68,7 +68,10 @@ public record AppraisalResultGroup(
 
 public record AppraisalResultCollateral(
     string? CollateralType,
-    // Land / LandAndBuilding
+    // Land / LandAndBuilding. For a normal appraisal a parcel may hold several titles: TitleNo..PageNo
+    // list every title's value comma-joined ("1234,1235"), blanks and repeats dropped, so the nth
+    // entries of two fields need not belong to the same title, and Rai/Ngan/Wa are the area summed
+    // across all titles. A block unit reports the project's single deed and the unit's own land area.
     string? TitleNo,
     string? LandNo,
     string? Rawang,

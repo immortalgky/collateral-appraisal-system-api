@@ -181,7 +181,8 @@ internal static class GetAppraisalResultSql
                                                    pfv.FinalValueOverride AS GroupUnitPrice,
                                                    pfv.ValuePerUnit AS GroupValuePerUnit,   -- selected method's per-Wa/Sqm rate → AppraisalValueWaOrM
                                                    ap.Id AS PropertyId, ap.PropertyType,
-                                                   -- Land/LB fields (from LandAppraisalDetails + first LandTitle)
+                                                   -- Land/LB fields (from LandAppraisalDetails + first LandTitle). The lt title
+                                                   -- columns are v1-only; v2 reports every title from lta.All*/TotalSqWa below.
                                                    lad.Province, lad.District, lad.SubDistrict, lad.LandOffice,
                                                    lt.TitleNumber AS TitleNo, lt.LandParcelNumber AS LandNo,
                                                    lt.Rawang, lt.SurveyNumber AS SurveyNo,
@@ -272,7 +273,11 @@ internal static class GetAppraisalResultSql
                                                    -- PMA / pre-completion prices stored directly on the property (no ValuationAnalyses yet)
                                                    ap.SellingPrice           AS PropSellingPrice,
                                                    ap.ForcedSalePrice        AS PropForcedSalePrice,
-                                                   ap.BuildingInsurancePrice AS PropBuildingInsurancePrice
+                                                   ap.BuildingInsurancePrice AS PropBuildingInsurancePrice,
+                                                   -- Every title of the parcel (v2 only; v1 matches Filter2 against the
+                                                   -- first-title lt.TitleNumber above, so lt must stay single-row).
+                                                   lta.AllTitleNo, lta.AllLandNo, lta.AllRawang, lta.AllSurveyNo,
+                                                   lta.AllBookNo, lta.AllPageNo, lta.TotalSqWa
                                                -- Keyed on AppraisalProperties (not PropertyGroups) so UNGROUPED properties
                                                -- (e.g. PMA input) are still returned; grouping/pricing are LEFT JOINed.
                                                FROM appraisal.AppraisalProperties ap
@@ -318,6 +323,21 @@ internal static class GetAppraisalResultSql
                                                    SELECT *, ROW_NUMBER() OVER (PARTITION BY LandAppraisalDetailId ORDER BY Id) AS rn
                                                    FROM appraisal.LandTitles
                                                ) lt ON lt.LandAppraisalDetailId = lad.Id AND lt.rn = 1
+                                               -- DistinctJoined in C# drops the repeats (STRING_AGG has no DISTINCT). Blank values
+                                               -- are skipped, so the nth entry of one list need not belong to the same title as
+                                               -- the nth entry of another.
+                                               OUTER APPLY (
+                                                   SELECT STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.TitleNumber)), '') AS nvarchar(max)), ',')      WITHIN GROUP (ORDER BY t.Id) AS AllTitleNo,
+                                                          STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.LandParcelNumber)), '') AS nvarchar(max)), ',') WITHIN GROUP (ORDER BY t.Id) AS AllLandNo,
+                                                          STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.Rawang)), '') AS nvarchar(max)), ',')           WITHIN GROUP (ORDER BY t.Id) AS AllRawang,
+                                                          STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.SurveyNumber)), '') AS nvarchar(max)), ',')     WITHIN GROUP (ORDER BY t.Id) AS AllSurveyNo,
+                                                          STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.BookNumber)), '') AS nvarchar(max)), ',')       WITHIN GROUP (ORDER BY t.Id) AS AllBookNo,
+                                                          STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.PageNumber)), '') AS nvarchar(max)), ',')       WITHIN GROUP (ORDER BY t.Id) AS AllPageNo,
+                                                          -- Summed in sq.wa and re-split in C#, so 3 ngan + 2 ngan carries into rai.
+                                                          SUM(ISNULL(t.AreaRai, 0) * 400 + ISNULL(t.AreaNgan, 0) * 100 + ISNULL(t.AreaSquareWa, 0)) AS TotalSqWa
+                                                   FROM appraisal.LandTitles t
+                                                   WHERE t.LandAppraisalDetailId = lad.Id
+                                               ) lta
                                                LEFT JOIN appraisal.BuildingAppraisalDetails bad ON bad.AppraisalPropertyId = ap.Id
                                                LEFT JOIN appraisal.CondoAppraisalDetails cad ON cad.AppraisalPropertyId = ap.Id
                                                LEFT JOIN appraisal.VehicleAppraisalDetails vad ON vad.AppraisalPropertyId = ap.Id
@@ -549,7 +569,15 @@ internal sealed record CollateralRow(
     // PMA / pre-completion prices stored on the property (used when ValuationAnalyses is absent)
     decimal? PropSellingPrice,
     decimal? PropForcedSalePrice,
-    decimal? PropBuildingInsurancePrice);
+    decimal? PropBuildingInsurancePrice,
+    // All titles of the parcel, comma-joined / summed (v2 only; see lta in GroupsAndCollaterals)
+    string? AllTitleNo,
+    string? AllLandNo,
+    string? AllRawang,
+    string? AllSurveyNo,
+    string? AllBookNo,
+    string? AllPageNo,
+    decimal? TotalSqWa);
 
 // Legacy (AS400) appraisal header row: appraisal identity + type and the request-level MarketValue.
 // The title address is resolved per collateral (see CollateralRow / ProjectRow), not here.
@@ -695,56 +723,61 @@ internal static class AppraisalResultBuilder
                 .Select(g =>
                 {
                     var first = g.First();
-                    var collaterals = g.Select(r => new AppraisalResultCollateral(
-                        r.PropertyType,
-                        // A condo carries its deed number on the condo detail. r.TitleNo is the LAND
-                        // title (LandTitles.TitleNumber) and is always null on a condo property, so
-                        // the deed came back blank for every condo. CondoBuiltOnTitleNo already
-                        // resolves cad.TitleNumber with the pre-rename BuiltOnTitleNumber fallback.
-                        r.TitleNo ?? r.CondoBuiltOnTitleNo,
-                        r.LandNo,
-                        r.Rawang,
-                        r.SurveyNo,
-                        r.BookNo,
-                        r.PageNo,
-                        r.Rai,
-                        r.Ngan,
-                        r.Wa,
-                        NullIfBlank(r.Village),
-                        r.HouseNo,
-                        r.BuildingType,
-                        r.BuildingAge ?? r.CondoBuildingAge,
-                        r.TotalFloor ?? r.CondoTotalFloor,
-                        r.ConstructionPct,
-                        r.RoomNo,
-                        r.FloorNo,
-                        r.BuildingNo,
-                        r.CondoRegistrationNumber,
-                        NullIfBlank(r.CondoName),
-                        // v1 reports the condo's usable area, or the building's gross area for a
-                        // non-condo. cad is null on a building row and vice versa, so this picks
-                        // whichever one the collateral actually carries.
-                        r.AreaUtilize ?? r.TotalBuildingArea,
-                        r.ContractNo,
-                        r.LesseeName,
-                        r.LessorName,
-                        r.Province ?? r.CadProvince,
-                        r.District ?? r.CadDistrict,
-                        r.SubDistrict ?? r.CadSubDistrict,
-                        r.LandOffice ?? r.CadLandOffice,
-                        null, // projectName - block only
-                        ParseDecorate(r.BuildingDecorationType ?? r.CondoDecorationType),
-                        r.VehicleRegistrationNo,
-                        r.VehicleBrand,
-                        r.VehicleModel,
-                        r.VesselRegistrationNo,
-                        r.VesselName,
-                        r.VesselType,
-                        r.MachineName,
-                        r.MachineBrand,
-                        r.MachineModel,
-                        r.MachineSerialNo
-                    )).ToList();
+                    var collaterals = g.Select(r =>
+                    {
+                        // A parcel can hold several titles: every one is reported, comma-joined without repeats,
+                        // with the land area summed across them.
+                        var (rai, ngan, wa) = SplitSqWa(r.TotalSqWa);
+                        return new AppraisalResultCollateral(
+                            r.PropertyType,
+                            // A condo carries its deed number on the condo detail. r.AllTitleNo is the LAND
+                            // title (LandTitles.TitleNumber) and is always null on a condo property, so
+                            // the deed came back blank for every condo. CondoBuiltOnTitleNo already
+                            // resolves cad.TitleNumber with the pre-rename BuiltOnTitleNumber fallback.
+                            DistinctJoined(r.AllTitleNo) ?? NullIfBlank(r.CondoBuiltOnTitleNo),
+                            DistinctJoined(r.AllLandNo),
+                            DistinctJoined(r.AllRawang),
+                            DistinctJoined(r.AllSurveyNo),
+                            DistinctJoined(r.AllBookNo),
+                            DistinctJoined(r.AllPageNo),
+                            rai,
+                            ngan,
+                            wa,
+                            NullIfBlank(r.Village),
+                            r.HouseNo,
+                            r.BuildingType,
+                            r.BuildingAge ?? r.CondoBuildingAge,
+                            r.TotalFloor ?? r.CondoTotalFloor,
+                            r.ConstructionPct,
+                            r.RoomNo,
+                            r.FloorNo,
+                            r.BuildingNo,
+                            r.CondoRegistrationNumber,
+                            NullIfBlank(r.CondoName),
+                            // v1 reports the condo's usable area, or the building's gross area for a
+                            // non-condo. cad is null on a building row and vice versa, so this picks
+                            // whichever one the collateral actually carries.
+                            r.AreaUtilize ?? r.TotalBuildingArea,
+                            r.ContractNo,
+                            r.LesseeName,
+                            r.LessorName,
+                            r.Province ?? r.CadProvince,
+                            r.District ?? r.CadDistrict,
+                            r.SubDistrict ?? r.CadSubDistrict,
+                            r.LandOffice ?? r.CadLandOffice,
+                            null, // projectName - block only
+                            ParseDecorate(r.BuildingDecorationType ?? r.CondoDecorationType),
+                            r.VehicleRegistrationNo,
+                            r.VehicleBrand,
+                            r.VehicleModel,
+                            r.VesselRegistrationNo,
+                            r.VesselName,
+                            r.VesselType,
+                            r.MachineName,
+                            r.MachineBrand,
+                            r.MachineModel,
+                            r.MachineSerialNo);
+                    }).ToList();
 
                     return new AppraisalResultGroup(
                         first.GroupAppraisedValue,
@@ -922,6 +955,14 @@ internal static class AppraisalResultBuilder
     // These name columns hold "" as often as NULL; both mean "no name", and v2 omits nulls.
     private static string? NullIfBlank(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
+
+    // Drops blanks and repeats from a comma-joined title list (see lta in GroupsAndCollaterals), keeping
+    // first-seen order: "B01,b01, B02" -> "B01,B02". Done here because STRING_AGG has no DISTINCT.
+    // A value keyed with its own comma ("1234,1235") is split like any other entry, since the consumer
+    // splits on ',' too and could not tell the two apart anyway. TrimEntries also catches the
+    // tab/CR/LF-only values RTRIM lets through.
+    internal static string? DistinctJoined(string? joined) =>
+        NullIfBlank(string.Join(',', SplitKeys(joined)));
 
     // Resolves a single block/project unit by the selector. Throws ValidationException (→ 400) when
     // the selector is missing/wrong for the project type and strict is on; returns null (no match /
