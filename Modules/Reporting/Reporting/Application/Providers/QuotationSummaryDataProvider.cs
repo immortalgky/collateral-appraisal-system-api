@@ -210,7 +210,7 @@ public sealed class QuotationSummaryDataProvider(
                 return JoinNonEmpty(
                     !string.IsNullOrEmpty(buildingTypes) ? $"{label} ({buildingTypes})" : label,
                     !string.IsNullOrEmpty(titleNumbers) ? $"โฉนดเลขที่ {titleNumbers}" : "",
-                    $"เนื้อที่ {FormatWhole(rai)}-{FormatWhole(ngan)}-{FormatArea(wa)}",
+                    $"เนื้อที่ {FormatWhole(rai)}-{FormatWhole(ngan)}-{FormatArea(wa)} ไร่",
                     FormatDopaAddress(landTitles));
             }
 
