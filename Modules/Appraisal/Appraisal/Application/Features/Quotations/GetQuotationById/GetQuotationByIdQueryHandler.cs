@@ -142,6 +142,9 @@ public class GetQuotationByIdQueryHandler(
                     ? item.PropertyType
                     : TranslateCollateralType(meta.CollateralType);
                 titlesByRequestId.TryGetValue(meta.RequestId, out var titles);
+
+                var channel = meta.Channel;
+
                 return new QuotationAppraisalResult(
                     AppraisalId: a.AppraisalId,
                     AddedAt: a.AddedAt,
@@ -150,6 +153,7 @@ public class GetQuotationByIdQueryHandler(
                     PropertyType: propertyType,
                     Address: item?.PropertyLocation,
                     LoanType: quotation.BankingSegment,
+                    Channel: channel,
                     RequestId: meta.RequestId == Guid.Empty ? null : meta.RequestId,
                     CustomerName: customerName,
                     MaxAppraisalDays: item?.MaxAppraisalDays,
@@ -286,13 +290,13 @@ public class GetQuotationByIdQueryHandler(
         _ => code,
     };
 
-    private async Task<Dictionary<Guid, (Guid RequestId, string? AppraisalNumber, string? CollateralType, string? AppraisalType)>> ResolveAppraisalMetaAsync(Guid[] appraisalIds)
+    private async Task<Dictionary<Guid, (Guid RequestId, string? AppraisalNumber, string? CollateralType, string? AppraisalType, string? Channel)>> ResolveAppraisalMetaAsync(Guid[] appraisalIds)
     {
         if (appraisalIds.Length == 0)
-            return new Dictionary<Guid, (Guid, string?, string?, string?)>();
+            return new Dictionary<Guid, (Guid, string?, string?, string?, string?)>();
 
         var connection = connectionFactory.GetOpenConnection();
-        var rows = await connection.QueryAsync<(Guid AppraisalId, Guid RequestId, string? AppraisalNumber, string? CollateralType, string? AppraisalType)>(
+        var rows = await connection.QueryAsync<(Guid AppraisalId, Guid RequestId, string? AppraisalNumber, string? CollateralType, string? AppraisalType, string? Channel)>(
             """
             SELECT a.Id AS AppraisalId,
                    a.RequestId,
@@ -301,7 +305,8 @@ public class GetQuotationByIdQueryHandler(
                     FROM [request].[RequestProperties] rp
                     WHERE rp.RequestId = a.RequestId
                     ORDER BY rp.Id) AS CollateralType,
-                   a.AppraisalType
+                   a.AppraisalType,
+                   a.Channel
             FROM [appraisal].[Appraisals] a
             WHERE a.Id IN @AppraisalIds
             """,
@@ -309,7 +314,7 @@ public class GetQuotationByIdQueryHandler(
 
         return rows.ToDictionary(
             r => r.AppraisalId,
-            r => (r.RequestId, r.AppraisalNumber, r.CollateralType, r.AppraisalType));
+            r => (r.RequestId, r.AppraisalNumber, r.CollateralType, r.AppraisalType, r.Channel));
     }
 
     private async Task<Dictionary<Guid, string?>> ResolveAppraisalCustomerNamesAsync(Guid[] appraisalIds)
