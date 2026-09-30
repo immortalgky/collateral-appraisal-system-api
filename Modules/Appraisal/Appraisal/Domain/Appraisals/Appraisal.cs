@@ -910,45 +910,6 @@ public class Appraisal : Aggregate<Guid>
         activeAssignment?.Cancel(reason ?? "Cancelled via workflow");
     }
 
-    /// <summary>
-    /// Applies admin corrections to one property's descriptive data and raises
-    /// <see cref="AppraisalPropertyCorrectedEvent"/> carrying a field-level diff.
-    ///
-    /// This is the ONLY path that may change property data on a closed appraisal, and it exists so
-    /// such changes are attributable: the caller must supply a reason, and every changed field is
-    /// recorded with its previous and new value.
-    ///
-    /// A <see cref="PropertyCorrectionOutcome.ChangedFieldCount"/> of zero means the payload
-    /// matched what is already stored — no event is raised, and the caller should reject the
-    /// request rather than write an empty audit row.
-    /// </summary>
-    public PropertyCorrectionOutcome CorrectPropertyData(
-        Guid propertyId, PropertyCorrectionData data, string reason, string by)
-    {
-        ArgumentNullException.ThrowIfNull(data);
-        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        ArgumentException.ThrowIfNullOrWhiteSpace(by);
-
-        var property = GetProperty(propertyId) ?? throw new PropertyNotFoundException(propertyId);
-
-        var diff = new Dictionary<string, object?>();
-        property.ApplyCorrection(data, diff);
-
-        if (diff.Count == 0) return new PropertyCorrectionOutcome(0, "{}");
-
-        var changedFields = JsonSerializer.Serialize(diff);
-
-        AddDomainEvent(new AppraisalPropertyCorrectedEvent(
-            Id,
-            propertyId,
-            property.PropertyType.Code,
-            changedFields,
-            reason,
-            by));
-
-        return new PropertyCorrectionOutcome(diff.Count, changedFields);
-    }
-
     private void UpdateStatus(AppraisalStatus newStatus)
     {
         var oldStatus = Status;

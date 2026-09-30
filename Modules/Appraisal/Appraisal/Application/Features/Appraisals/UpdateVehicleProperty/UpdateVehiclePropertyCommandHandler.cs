@@ -24,47 +24,7 @@ public class UpdateVehiclePropertyCommandHandler(
         var property = appraisal.GetProperty(command.PropertyId)
             ?? throw new PropertyNotFoundException(command.PropertyId);
 
-        // 3. Validate property type
-        if (property.PropertyType != PropertyType.Vehicle)
-            throw new InvalidOperationException($"Property {command.PropertyId} is not a vehicle property");
-
-        // 4. Get the vehicle detail
-        var detail = property.VehicleDetail
-            ?? throw new InvalidOperationException($"Vehicle detail not found for property {command.PropertyId}");
-
-        // 5. Update via domain method
-        detail.Update(
-            propertyName: command.PropertyName,
-            vehicleName: command.VehicleName,
-            engineNo: command.EngineNo,
-            chassisNo: command.ChassisNo,
-            registrationNumber: command.RegistrationNumber,
-            brand: command.Brand,
-            model: command.Model,
-            yearOfManufacture: command.YearOfManufacture,
-            countryOfManufacture: command.CountryOfManufacture,
-            purchaseDate: command.PurchaseDate,
-            purchasePrice: command.PurchasePrice,
-            capacity: command.Capacity,
-            width: command.Width,
-            length: command.Length,
-            height: command.Height,
-            energyUse: command.EnergyUse,
-            energyUseRemark: command.EnergyUseRemark,
-            ownerName: command.OwnerName,
-            isOwnerVerified: command.IsOwnerVerified,
-            canUse: command.CanUse,
-            location: command.Location,
-            conditionUse: command.ConditionUse,
-            vehicleCondition: command.VehicleCondition,
-            vehicleAge: command.VehicleAge,
-            vehicleEfficiency: command.VehicleEfficiency,
-            vehicleTechnology: command.VehicleTechnology,
-            usePurpose: command.UsePurpose,
-            vehiclePart: command.VehiclePart,
-            remark: command.Remark,
-            other: command.Other,
-            appraiserOpinion: command.AppraiserOpinion);
+        VehiclePropertyApplier.Apply(property, command);
 
         return MediatR.Unit.Value;
     }
