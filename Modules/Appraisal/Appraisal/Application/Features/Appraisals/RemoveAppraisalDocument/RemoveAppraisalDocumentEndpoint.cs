@@ -19,8 +19,10 @@ public class RemoveAppraisalDocumentEndpoint : ICarterModule
             .WithName("RemoveAppraisalDocument")
             .Produces<RemoveAppraisalDocumentResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .WithSummary("Remove a valuation document attachment")
             .WithDescription("Removes a document attachment from the appraisal's valuation document checklist.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Documents");
     }
 }
