@@ -84,7 +84,6 @@ public record GetLeaseAgreementLandAndBuildingPropertyResult(
     string? RoyalDecree,
     bool? IsEncroached,
     string? EncroachmentRemark,
-    decimal? EncroachmentArea,
     bool? IsLandlocked,
     string? LandlockedRemark,
     bool? IsForestBoundary,
@@ -170,11 +169,8 @@ public record GetLeaseAgreementLandAndBuildingPropertyResult(
     string? UtilizationTypeOther,
     // Area & Pricing
     decimal? TotalBuildingArea,
+    decimal? BuildingCostValue,
     decimal? BuildingInsurancePrice,
-    decimal? FinalCostValueOverride,
-    decimal? BuildingInsurancePriceOverride,
-    decimal? SellingPrice,
-    decimal? ForcedSalePrice,
     // Remarks
     string? Remark,
     // Depreciation Details

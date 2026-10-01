@@ -114,6 +114,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
                 t.Notes
             FROM request.RequestTitles t
             WHERE t.RequestId = @RequestId
+            ORDER BY t.SequenceNumber, t.CreatedAt, t.Id
             """;
         var titleRows = await connection.QueryAsync<TitleRow>(titleSql, requestParams);
 

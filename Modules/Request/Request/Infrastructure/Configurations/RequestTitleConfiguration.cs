@@ -27,6 +27,9 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
 
         builder.Property(p => p.CollateralStatus);
 
+        builder.Property(p => p.SequenceNumber)
+            .HasDefaultValue(0);
+
         builder.Property(p => p.OwnerName)
             .HasMaxLength(500);
 

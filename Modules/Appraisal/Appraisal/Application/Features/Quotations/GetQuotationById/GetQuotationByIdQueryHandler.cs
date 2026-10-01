@@ -366,6 +366,7 @@ public class GetQuotationByIdQueryHandler(
             LEFT JOIN [parameter].[DopaDistricts] dd ON dd.Code = dsd.DistrictCode
             LEFT JOIN [parameter].[DopaProvinces] dp ON dp.Code = dd.ProvinceCode
             WHERE rt.RequestId IN @RequestIds
+            ORDER BY rt.SequenceNumber, rt.CreatedAt, rt.Id
             """,
             new { RequestIds = requestIds });
 

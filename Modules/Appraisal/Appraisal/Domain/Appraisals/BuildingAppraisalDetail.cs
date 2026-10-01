@@ -78,23 +78,20 @@ public class BuildingAppraisalDetail : Entity<Guid>
     public decimal? TotalBuildingArea { get; private set; }
 
     // Pricing
+    /// <summary>
+    /// The Building Cost Value shown on the property screen: the appraiser's typed figure, otherwise the one
+    /// computed from every depreciation row (<see cref="ResolveDerivedValues"/>, on every save). Null only
+    /// when nothing was typed and there are no rows; readers still fall back to the computed value for it.
+    /// </summary>
+    public decimal? BuildingCostValue { get; private set; }
+
+    /// <summary>
+    /// The fire-insurance coverage shown on the property screen: the appraiser's typed figure, otherwise the
+    /// one computed from the IsBuilding depreciation rows (<see cref="ResolveDerivedValues"/>, on every save).
+    /// Null only when nothing was typed and there are no IsBuilding rows. A non-null value is not proof it was
+    /// typed — the frontend treats a value equal to the computed one as "not entered".
+    /// </summary>
     public decimal? BuildingInsurancePrice { get; private set; }
-
-    /// <summary>
-    /// The appraiser's own final cost for this building, keyed on the property form and rounded to
-    /// the nearest 1,000 there. Null means "not overridden": readers fall back to the computed
-    /// SUM(DepreciationDetails.PriceAfterDepreciation), which keeps following the table.
-    /// </summary>
-    public decimal? FinalCostValueOverride { get; private set; }
-
-    /// <summary>
-    /// The appraiser's own fire-insurance coverage for this building. Null means "not entered":
-    /// the appraisal-level total then falls back to the depreciated value of the IsBuilding rows.
-    /// Not to be confused with the legacy <see cref="BuildingInsurancePrice"/>, which no reader uses.
-    /// </summary>
-    public decimal? BuildingInsurancePriceOverride { get; private set; }
-    public decimal? SellingPrice { get; private set; }
-    public decimal? ForcedSalePrice { get; private set; }
 
     // Other
     public string? Remark { get; private set; }
@@ -181,11 +178,8 @@ public class BuildingAppraisalDetail : Entity<Guid>
         string? utilizationTypeOther = null,
         // Area & Pricing
         decimal? totalBuildingArea = null,
+        decimal? buildingCostValue = null,
         decimal? buildingInsurancePrice = null,
-        decimal? finalCostValueOverride = null,
-        decimal? buildingInsurancePriceOverride = null,
-        decimal? sellingPrice = null,
-        decimal? forcedSalePrice = null,
         // Other
         string? remark = null)
     {
@@ -256,11 +250,8 @@ public class BuildingAppraisalDetail : Entity<Guid>
 
         // Area & Pricing
         TotalBuildingArea = totalBuildingArea;
+        BuildingCostValue = buildingCostValue;
         BuildingInsurancePrice = buildingInsurancePrice;
-        FinalCostValueOverride = finalCostValueOverride;
-        BuildingInsurancePriceOverride = buildingInsurancePriceOverride;
-        SellingPrice = sellingPrice;
-        ForcedSalePrice = forcedSalePrice;
 
         // Other
         Remark = remark;
@@ -322,11 +313,8 @@ public class BuildingAppraisalDetail : Entity<Guid>
             UtilizationType = source.UtilizationType,
             UtilizationTypeOther = source.UtilizationTypeOther,
             TotalBuildingArea = source.TotalBuildingArea,
+            BuildingCostValue = source.BuildingCostValue,
             BuildingInsurancePrice = source.BuildingInsurancePrice,
-            FinalCostValueOverride = source.FinalCostValueOverride,
-            BuildingInsurancePriceOverride = source.BuildingInsurancePriceOverride,
-            SellingPrice = source.SellingPrice,
-            ForcedSalePrice = source.ForcedSalePrice,
             Remark = source.Remark
         };
 
@@ -388,6 +376,44 @@ public class BuildingAppraisalDetail : Entity<Guid>
     /// </summary>
     internal void SetHouseNumber(string? houseNumber) =>
         HouseNumber = string.IsNullOrWhiteSpace(houseNumber) ? null : houseNumber.Trim();
+
+    /// <summary>
+    /// Fire-insurance value derived from the depreciation schedule: the IsBuilding rows' depreciated value,
+    /// rounded to the nearest 1,000 (the same way SQL <c>ROUND(x, -3)</c> does, midpoint away from zero).
+    /// Each row is taken at the 2 decimals the column stores, so a value computed before save matches the one
+    /// recomputed from the saved rows (and the screen's, which does the same). Null when there are no
+    /// IsBuilding rows. This is the one definition; the valuation summary uses it too, and
+    /// <c>BuildingInsuranceCalculator</c> mirrors it in SQL.
+    /// </summary>
+    public decimal? ComputeInsurancePrice() => RoundedDepreciatedValue(_depreciationDetails.Where(d => d.IsBuilding));
+
+    /// <summary>
+    /// Building Cost Value derived from the depreciation schedule: the depreciated value of EVERY row
+    /// (Non-Building included, which is what the Cost approach prices), rounded like
+    /// <see cref="ComputeInsurancePrice"/>. Null when there are no rows. Mirrored in SQL as
+    /// <c>ROUND(SUM(bdd.PriceAfterDepreciation), -3)</c> by every reader that still falls back for a NULL.
+    /// </summary>
+    public decimal? ComputeBuildingCostValue() => RoundedDepreciatedValue(_depreciationDetails);
+
+    private static decimal? RoundedDepreciatedValue(IEnumerable<BuildingDepreciationDetail> source)
+    {
+        var rows = source.ToList();
+        if (rows.Count == 0) return null;
+        var total = rows.Sum(d => Math.Round(d.PriceAfterDepreciation, 2, MidpointRounding.AwayFromZero));
+        return Math.Round(total / 1000, MidpointRounding.AwayFromZero) * 1000;
+    }
+
+    /// <summary>
+    /// Makes <see cref="BuildingInsurancePrice"/> and <see cref="BuildingCostValue"/> the values shown on
+    /// screen: the appraiser's typed value when there is one, otherwise the computed one. Call after
+    /// <see cref="Update"/> and after the depreciation rows are synced; a null typed value then
+    /// re-computes from the current rows on every save.
+    /// </summary>
+    public void ResolveDerivedValues()
+    {
+        BuildingInsurancePrice ??= ComputeInsurancePrice();
+        BuildingCostValue ??= ComputeBuildingCostValue();
+    }
 
     public void RemoveDepreciationDetail(Guid depreciationDetailId)
     {

@@ -111,7 +111,7 @@ CompletedBuilding AS (
     SELECT b.AppraisalId, SUM(b.BuildingValue) AS CompletedBuildingValue
     FROM (
         SELECT ap.AppraisalId,
-               ISNULL(COALESCE(bad.FinalCostValueOverride,
+               ISNULL(COALESCE(bad.BuildingCostValue,
                                ROUND(SUM(bdd.PriceAfterDepreciation), -3)), 0) AS BuildingValue
         FROM appraisal.BuildingAppraisalDetails bad
         JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
@@ -130,7 +130,7 @@ CompletedBuilding AS (
                       FROM appraisal.ConstructionInspections ciG
                       JOIN appraisal.AppraisalProperties apG ON apG.Id = ciG.AppraisalPropertyId
                       WHERE apG.AppraisalId = ap.AppraisalId)
-        GROUP BY ap.AppraisalId, bad.Id, bad.FinalCostValueOverride
+        GROUP BY ap.AppraisalId, bad.Id, bad.BuildingCostValue
     ) b
     GROUP BY b.AppraisalId
 ),

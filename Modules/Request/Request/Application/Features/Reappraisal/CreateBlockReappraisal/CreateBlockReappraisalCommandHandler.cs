@@ -214,6 +214,7 @@ public class CreateBlockReappraisalCommandHandler(
         {
             var titles = await dbContext.RequestTitles
                 .Where(t => requestIds.Contains(t.RequestId))
+                .InDisplayOrder()
                 .ToListAsync(cancellationToken);
 
             foreach (var title in titles)

@@ -118,6 +118,7 @@ public class GetPropertyGroupByIdQueryHandler(
                            FROM appraisal.LandTitles lt
                            INNER JOIN appraisal.LandAppraisalDetails lad ON lad.Id = lt.LandAppraisalDetailId
                            WHERE lad.AppraisalPropertyId IN @PropertyIds
+                           ORDER BY lt.SequenceNumber, lt.Id
                            """;
 
             var titles = await connection.QueryAsync<LandTitleDto>(

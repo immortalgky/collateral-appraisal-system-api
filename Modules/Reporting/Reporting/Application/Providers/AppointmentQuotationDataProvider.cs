@@ -118,7 +118,7 @@ public sealed class AppointmentQuotationDataProvider(
             LEFT JOIN parameter.DopaDistricts     ddist ON ddist.Code = t.DopaDistrict
             LEFT JOIN parameter.DopaSubDistricts  dsub  ON dsub.Code  = t.DopaSubDistrict
             WHERE t.RequestId = @RequestId
-            ORDER BY t.Id
+            ORDER BY t.SequenceNumber, t.CreatedAt, t.Id
             """;
 
         var titleAddr = await connection.QueryFirstOrDefaultAsync<TitleAddrRow>(titleAddrSql, detailParams);

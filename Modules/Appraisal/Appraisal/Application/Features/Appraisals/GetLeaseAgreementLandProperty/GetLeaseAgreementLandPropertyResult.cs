@@ -97,7 +97,6 @@ public record GetLeaseAgreementLandPropertyResult
     public string? RoyalDecree { get; init; }
     public bool? IsEncroached { get; init; }
     public string? EncroachmentRemark { get; init; }
-    public decimal? EncroachmentArea { get; init; }
     public bool? IsLandlocked { get; init; }
     public string? LandlockedRemark { get; init; }
     public bool? IsForestBoundary { get; init; }

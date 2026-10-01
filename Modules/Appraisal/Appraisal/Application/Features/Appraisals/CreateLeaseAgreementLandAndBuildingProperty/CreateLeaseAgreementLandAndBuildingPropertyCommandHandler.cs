@@ -99,7 +99,6 @@ public class CreateLeaseAgreementLandAndBuildingPropertyCommandHandler(
             royalDecree: command.RoyalDecree,
             isEncroached: command.IsEncroached,
             encroachmentRemark: command.EncroachmentRemark,
-            encroachmentArea: command.EncroachmentArea,
             isLandlocked: command.IsLandlocked,
             landlockedRemark: command.LandlockedRemark,
             isForestBoundary: command.IsForestBoundary,
@@ -237,16 +236,16 @@ public class CreateLeaseAgreementLandAndBuildingPropertyCommandHandler(
             utilizationType: command.UtilizationType,
             utilizationTypeOther: command.UtilizationTypeOther,
             // Building - Pricing
+            buildingCostValue: command.BuildingCostValue,
             buildingInsurancePrice: command.BuildingInsurancePrice,
-            finalCostValueOverride: command.FinalCostValueOverride,
-            buildingInsurancePriceOverride: command.BuildingInsurancePriceOverride,
-            sellingPrice: command.SellingPrice,
-            forcedSalePrice: command.ForcedSalePrice,
             remark: command.Remark);
 
         // 6. Add depreciation details if provided
         if (command.DepreciationDetails is { Count: > 0 })
             AddDepreciationDetails(property.BuildingDetail, command.DepreciationDetails);
+
+        // After the depreciation rows: a building with no typed coverage stores the value computed from them
+        property.BuildingDetail.ResolveDerivedValues();
 
         // 6b. Add surfaces if provided
         if (command.Surfaces is { Count: > 0 })

@@ -104,8 +104,6 @@ public record UpdateCondoPropertyCommand(
     // not accepted from the client (see UpdateCondoPropertyCommandHandler).
     string? FireInsuranceCode = null,
     decimal? BuildingInsurancePriceOverride = null,
-    decimal? SellingPrice = null,
-    decimal? ForcedSalePrice = null,
     // Other
     string? Remark = null,
     // Construction Inspection (null = no-op)

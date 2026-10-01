@@ -74,16 +74,16 @@ public class CreateBuildingPropertyCommandHandler(
             command.UtilizationType,
             command.UtilizationTypeOther,
             command.TotalBuildingArea,
+            command.BuildingCostValue,
             command.BuildingInsurancePrice,
-            command.FinalCostValueOverride,
-            command.BuildingInsurancePriceOverride,
-            command.SellingPrice,
-            command.ForcedSalePrice,
             command.Remark);
 
         // Add depreciation details if provided
         if (command.DepreciationDetails is { Count: > 0 })
             AddDepreciationDetails(property.BuildingDetail, command.DepreciationDetails);
+
+        // After the depreciation rows: a building with no typed coverage stores the value computed from them
+        property.BuildingDetail.ResolveDerivedValues();
 
         // Add surfaces if provided
         if (command.Surfaces is { Count: > 0 })

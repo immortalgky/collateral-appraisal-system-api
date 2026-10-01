@@ -163,7 +163,7 @@ public sealed class CollatrevTestFileBuilder(
                            (SELECT TOP 1 lt.TitleNumber
                             FROM appraisal.LandTitles lt
                             WHERE lt.LandAppraisalDetailId = lad.Id
-                            ORDER BY lt.TitleNumber) AS TitleNumber
+                            ORDER BY lt.SequenceNumber, lt.Id) AS TitleNumber
                     FROM appraisal.AppraisalProperties ap
                     JOIN appraisal.LandAppraisalDetails lad ON lad.AppraisalPropertyId = ap.Id
                     WHERE ap.AppraisalId = a.Id

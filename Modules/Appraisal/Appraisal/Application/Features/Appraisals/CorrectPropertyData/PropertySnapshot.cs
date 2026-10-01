@@ -30,9 +30,12 @@ internal static class PropertySnapshot
         "BuildingDepreciationDetailId", "ConstructionInspectionId", "RentalInfoId",
     ];
 
+    // LandTitle.SequenceNumber is list-position bookkeeping stamped on every title save, so rows that predate
+    // the column would log 0 -> n on the first correction and a no-op correction would stop being rejected.
+    // A real reorder is audited once, as Land.TitleOrder, by SnapshotDiff.
     private static readonly HashSet<string> Derived =
     [
-        "DeductedAreaInSqWa", "ScheduleEntries",
+        "DeductedAreaInSqWa", "ScheduleEntries", "SequenceNumber",
         "ConstructionValue", "CurrentProportionPct", "PreviousPropertyValue", "CurrentPropertyValue",
     ];
 

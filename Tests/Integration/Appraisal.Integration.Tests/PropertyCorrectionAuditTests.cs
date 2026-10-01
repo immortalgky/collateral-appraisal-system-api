@@ -121,6 +121,42 @@ public class PropertyCorrectionAuditTests(IntegrationTestFixture fixture)
     }
 
     [Fact]
+    public async Task A_correction_that_only_reorders_titles_is_stored_and_audited_as_one_field()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (appraisalId, propertyId) = await SeedAsync(a =>
+        {
+            var property = a.AddLandProperty();
+            foreach (var number in new[] { "111", "222", "333" })
+            {
+                var title = LandTitle.Create(property.LandDetail!.Id, number, "DEED");
+                title.Update(null, null, null, null, null, null, null, null, LandArea.Create(1m, 0m, 0m),
+                    null, null, null, null, null, null, null);
+                title.SetSequenceNumber(property.LandDetail.Titles.Count + 1);
+                property.LandDetail.AddTitle(title);
+            }
+            return property;
+        }, ct);
+        var ids = (await ReloadAsync(appraisalId, propertyId, ct)).LandDetail!.Titles
+            .ToDictionary(t => t.TitleNumber, t => t.Id);
+
+        string Row(string number) =>
+            $$"""{ "id": "{{ids[number]}}", "titleNumber": "{{number}}", "titleType": "DEED", "rai": 1, "ngan": 0, "squareWa": 0 }""";
+
+        var result = await CorrectAsync(appraisalId, propertyId, "land-detail",
+            $$"""{ "titles": [ {{Row("333")}}, {{Row("111")}}, {{Row("222")}} ] }""", ct);
+
+        Assert.Equal(["Land.TitleOrder"], result.ChangedFields);
+        var titles = (await ReloadAsync(appraisalId, propertyId, ct)).LandDetail!.Titles;
+        Assert.Equal(["333", "111", "222"], titles.Select(t => t.TitleNumber));
+        Assert.Equal(ids.Values.Order(), titles.Select(t => t.Id).Order()); // reordered in place, none re-created
+        var log = Assert.Single(await LogsAsync(appraisalId, ct));
+        using var changes = JsonDocument.Parse(log.ChangedFields);
+        Assert.Equal("111, 222, 333", changes.RootElement.GetProperty("Land.TitleOrder").GetProperty("from").GetString());
+        Assert.Equal("333, 111, 222", changes.RootElement.GetProperty("Land.TitleOrder").GetProperty("to").GetString());
+    }
+
+    [Fact]
     public async Task A_correction_that_changes_nothing_is_rejected_and_rolls_back_what_it_flushed()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -130,6 +166,7 @@ public class PropertyCorrectionAuditTests(IntegrationTestFixture fixture)
             property.BuildingDetail!.Update(ownerName: "Owner A", isAppraisable: true);
             var dep = property.BuildingDetail.AddDepreciationDetail("Period", "main", 10m, 2020);
             dep.AddPeriod(1, 5, 2m, 10m, 100m);
+            property.BuildingDetail.ResolveDerivedValues(); // as saved since insurance became a stored value
             return property;
         }, ct);
         var before = (await ReloadAsync(appraisalId, propertyId, ct)).BuildingDetail!.DepreciationDetails.Single();
@@ -163,6 +200,7 @@ public class PropertyCorrectionAuditTests(IntegrationTestFixture fixture)
             property.BuildingDetail!.Update(ownerName: "Owner A", isAppraisable: true);
             property.BuildingDetail.AddDepreciationDetail("Period", "main", 10m, 2020)
                 .AddPeriod(1, 5, 2m, 10m, 100m);
+            property.BuildingDetail.ResolveDerivedValues(); // as saved since insurance became a stored value
             return property;
         }, ct);
         var depId = (await ReloadAsync(appraisalId, propertyId, ct)).BuildingDetail!.DepreciationDetails.Single().Id;

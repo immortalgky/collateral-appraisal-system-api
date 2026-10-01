@@ -104,8 +104,6 @@ public record CreateLeaseAgreementCondoPropertyCommand(
     // not accepted from the client (see CreateCondoPropertyCommandHandler).
     string? FireInsuranceCode = null,
     decimal? BuildingInsurancePriceOverride = null,
-    decimal? SellingPrice = null,
-    decimal? ForcedSalePrice = null,
     // Other
     string? Remark = null,
     LeaseAgreementData? LeaseAgreement = null,

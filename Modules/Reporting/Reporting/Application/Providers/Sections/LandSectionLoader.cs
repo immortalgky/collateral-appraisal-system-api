@@ -117,7 +117,7 @@ internal static class LandSectionLoader
             JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
             JOIN appraisal.LandTitles lt ON lt.LandAppraisalDetailId = lad.Id
             WHERE ap.AppraisalId = @AppraisalId
-            ORDER BY ap.SequenceNumber, lt.Id;
+            ORDER BY ap.SequenceNumber, lt.SequenceNumber, lt.Id;
 
             -- RS03: Q3 — Thai descriptions for every coded land field, in one round-trip.
             -- Consumed as a group→(code→description) lookup; JsonCodesToThai falls back to

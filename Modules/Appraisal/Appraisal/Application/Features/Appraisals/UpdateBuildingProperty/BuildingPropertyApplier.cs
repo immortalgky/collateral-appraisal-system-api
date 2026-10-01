@@ -4,8 +4,10 @@ namespace Appraisal.Application.Features.Appraisals.UpdateBuildingProperty;
 
 /// <summary>
 /// Writes an <see cref="UpdateBuildingPropertyCommand"/> payload into the property. Shared by the real page handler and
-/// the data-correction command so both apply exactly the same rules; the side effects that belong
-/// to the real page (valuation recompute, insurance derivation) stay in the handler.
+/// the data-correction command so both apply exactly the same rules, including the building's stored
+/// insurance, re-resolved from its depreciation rows unless a figure was typed (so a correction that
+/// edits a row moves it, while the approved ValuationAnalyses total stays as approved). The side effect
+/// that belongs to the real page only — the valuation recompute — stays in the handler.
 /// </summary>
 public static class BuildingPropertyApplier
 {
@@ -69,16 +71,16 @@ public static class BuildingPropertyApplier
             utilizationType: command.UtilizationType,
             utilizationTypeOther: command.UtilizationTypeOther,
             totalBuildingArea: command.TotalBuildingArea,
+            buildingCostValue: command.BuildingCostValue,
             buildingInsurancePrice: command.BuildingInsurancePrice,
-            finalCostValueOverride: command.FinalCostValueOverride,
-            buildingInsurancePriceOverride: command.BuildingInsurancePriceOverride,
-            sellingPrice: command.SellingPrice,
-            forcedSalePrice: command.ForcedSalePrice,
             remark: command.Remark);
 
         // Sync depreciation details (null = no-op, list = sync)
         if (command.DepreciationDetails is not null)
             SyncDepreciationDetails(detail, command.DepreciationDetails);
+
+        // After the depreciation rows: a building with no typed coverage stores the value computed from them
+        detail.ResolveDerivedValues();
 
         // Sync surfaces (null = no-op, list = sync)
         if (command.Surfaces is not null)

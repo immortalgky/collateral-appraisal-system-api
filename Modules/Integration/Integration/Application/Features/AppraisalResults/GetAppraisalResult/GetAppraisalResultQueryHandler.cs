@@ -319,20 +319,24 @@ internal static class GetAppraisalResultSql
                                                    ORDER BY pm.Id
                                                ) pbv
                                                LEFT JOIN appraisal.LandAppraisalDetails lad ON lad.AppraisalPropertyId = ap.Id
-                                               LEFT JOIN (
-                                                   SELECT *, ROW_NUMBER() OVER (PARTITION BY LandAppraisalDetailId ORDER BY Id) AS rn
-                                                   FROM appraisal.LandTitles
-                                               ) lt ON lt.LandAppraisalDetailId = lad.Id AND lt.rn = 1
+                                               -- First title per land. A correlated TOP 1 seeks this land's titles; a ROW_NUMBER over
+                                               -- the whole table would sort all of LandTitles, since SequenceNumber is not indexed.
+                                               OUTER APPLY (
+                                                   SELECT TOP 1 *
+                                                   FROM appraisal.LandTitles t1
+                                                   WHERE t1.LandAppraisalDetailId = lad.Id
+                                                   ORDER BY t1.SequenceNumber, t1.Id
+                                               ) lt
                                                -- DistinctJoined in C# drops the repeats (STRING_AGG has no DISTINCT). Blank values
                                                -- are skipped, so the nth entry of one list need not belong to the same title as
                                                -- the nth entry of another.
                                                OUTER APPLY (
-                                                   SELECT STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.TitleNumber)), '') AS nvarchar(max)), ',')      WITHIN GROUP (ORDER BY t.Id) AS AllTitleNo,
-                                                          STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.LandParcelNumber)), '') AS nvarchar(max)), ',') WITHIN GROUP (ORDER BY t.Id) AS AllLandNo,
-                                                          STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.Rawang)), '') AS nvarchar(max)), ',')           WITHIN GROUP (ORDER BY t.Id) AS AllRawang,
-                                                          STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.SurveyNumber)), '') AS nvarchar(max)), ',')     WITHIN GROUP (ORDER BY t.Id) AS AllSurveyNo,
-                                                          STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.BookNumber)), '') AS nvarchar(max)), ',')       WITHIN GROUP (ORDER BY t.Id) AS AllBookNo,
-                                                          STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.PageNumber)), '') AS nvarchar(max)), ',')       WITHIN GROUP (ORDER BY t.Id) AS AllPageNo,
+                                                   SELECT STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.TitleNumber)), '') AS nvarchar(max)), ',')      WITHIN GROUP (ORDER BY t.SequenceNumber, t.Id) AS AllTitleNo,
+                                                          STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.LandParcelNumber)), '') AS nvarchar(max)), ',') WITHIN GROUP (ORDER BY t.SequenceNumber, t.Id) AS AllLandNo,
+                                                          STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.Rawang)), '') AS nvarchar(max)), ',')           WITHIN GROUP (ORDER BY t.SequenceNumber, t.Id) AS AllRawang,
+                                                          STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.SurveyNumber)), '') AS nvarchar(max)), ',')     WITHIN GROUP (ORDER BY t.SequenceNumber, t.Id) AS AllSurveyNo,
+                                                          STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.BookNumber)), '') AS nvarchar(max)), ',')       WITHIN GROUP (ORDER BY t.SequenceNumber, t.Id) AS AllBookNo,
+                                                          STRING_AGG(CAST(NULLIF(LTRIM(RTRIM(t.PageNumber)), '') AS nvarchar(max)), ',')       WITHIN GROUP (ORDER BY t.SequenceNumber, t.Id) AS AllPageNo,
                                                           -- Summed in sq.wa and re-split in C#, so 3 ngan + 2 ngan carries into rai.
                                                           SUM(ISNULL(t.AreaRai, 0) * 400 + ISNULL(t.AreaNgan, 0) * 100 + ISNULL(t.AreaSquareWa, 0)) AS TotalSqWa
                                                    FROM appraisal.LandTitles t

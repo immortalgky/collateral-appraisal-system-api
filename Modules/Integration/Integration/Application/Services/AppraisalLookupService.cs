@@ -121,7 +121,7 @@ public class AppraisalLookupService(
         FROM appraisal.LandAppraisalDetails lad
         JOIN appraisal.LandTitles lt ON lt.LandAppraisalDetailId = lad.Id
         WHERE lad.AppraisalPropertyId = @PropertyId
-        ORDER BY lt.Id;  -- deterministic "first" title; matches the GET's Titles[0] (clustered PK / NEWSEQUENTIALID order)
+        ORDER BY lt.SequenceNumber, lt.Id;  -- deterministic "first" title; matches the GET's Titles[0]
 
         SELECT
             -- Condo deed number moved to TitleNumber; BuiltOnTitleNumber is the pre-rename fallback.
