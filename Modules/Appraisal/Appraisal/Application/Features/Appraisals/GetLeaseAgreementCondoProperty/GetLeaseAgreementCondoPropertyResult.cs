@@ -106,8 +106,6 @@ public record GetLeaseAgreementCondoPropertyResult(
     string? FireInsuranceCode,
     decimal? BuildingInsurancePrice,
     decimal? BuildingInsurancePriceOverride,
-    decimal? SellingPrice,
-    decimal? ForceSellingPrice,
     // Other
     string? Remark,
     // Lease Agreement & Rental Info

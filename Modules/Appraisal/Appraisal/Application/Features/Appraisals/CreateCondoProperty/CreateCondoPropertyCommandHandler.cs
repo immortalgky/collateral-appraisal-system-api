@@ -110,8 +110,6 @@ public class CreateCondoPropertyCommandHandler(
             command.EnvironmentType,
             command.EnvironmentTypeOther,
             buildingInsurancePrice,
-            command.SellingPrice,
-            command.ForcedSalePrice,
             command.Remark,
             command.LandOffice,
             dopaAddress,

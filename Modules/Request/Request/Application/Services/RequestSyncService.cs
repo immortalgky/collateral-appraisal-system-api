@@ -33,13 +33,17 @@ public class RequestSyncService(
 
         var resultTitles = new List<RequestTitle>();
 
+        // The incoming list order wins: each title is stamped with its 1-based position, new or updated.
+        var numbered = incomingTitles.Select((dto, i) => (dto, sequence: i + 1)).ToList();
+
         // CREATE: Titles without ID
-        var toCreate = incomingTitles.Where(t => !t.Id.HasValue || t.Id.Value == Guid.Empty);
-        foreach (var dto in toCreate)
+        var toCreate = numbered.Where(t => !t.dto.Id.HasValue || t.dto.Id.Value == Guid.Empty);
+        foreach (var (dto, sequence) in toCreate)
         {
             var title = TitleFactory.Create(
                 dto.CollateralType,
                 dto.ToRequestTitleData() with { RequestId = requestId });
+            title.SetSequenceNumber(sequence);
 
             SyncTitleDocuments(title, dto.Documents, forcedSource);
             await titleRepository.AddAsync(title, cancellationToken);
@@ -47,8 +51,8 @@ public class RequestSyncService(
         }
 
         // UPDATE: Titles with matching ID
-        var toUpdate = incomingTitles.Where(t => t.Id.HasValue && existingIds.Contains(t.Id.Value));
-        foreach (var dto in toUpdate)
+        var toUpdate = numbered.Where(t => t.dto.Id.HasValue && existingIds.Contains(t.dto.Id.Value));
+        foreach (var (dto, sequence) in toUpdate)
         {
             var existing = existingById[dto.Id!.Value];
 
@@ -60,6 +64,7 @@ public class RequestSyncService(
                 var newTitle = TitleFactory.Create(
                     dto.CollateralType,
                     dto.ToRequestTitleData() with { RequestId = requestId });
+                newTitle.SetSequenceNumber(sequence);
 
                 // Reset document IDs for a new title
                 var docsWithoutIds = dto.Documents
@@ -73,12 +78,14 @@ public class RequestSyncService(
             else
             {
                 existing.Update(dto.ToRequestTitleData());
+                existing.SetSequenceNumber(sequence);
                 SyncTitleDocuments(existing, dto.Documents, forcedSource);
                 resultTitles.Add(existing);
             }
         }
 
-        return resultTitles;
+        // In the order just stamped, not created-then-updated, so a caller taking [0] gets the requester's first title.
+        return resultTitles.OrderBy(t => t.SequenceNumber).ToList();
     }
 
     public Task SyncDocumentsAsync(

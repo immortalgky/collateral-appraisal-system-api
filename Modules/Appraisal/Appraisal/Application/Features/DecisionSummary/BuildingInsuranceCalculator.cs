@@ -25,17 +25,18 @@ internal static class BuildingInsuranceCalculator
             -- coverage the appraiser keyed by hand reaches the book exactly as typed.
             SELECT ISNULL(SUM(x.InsuranceValue), 0)
             FROM (
-                -- One row per building: the appraiser's keyed coverage wins, otherwise the
-                -- depreciated value of its IsBuilding rows. LEFT JOIN so a building with no rows
-                -- still contributes its keyed figure.
-                SELECT COALESCE(bad.BuildingInsurancePriceOverride, ROUND(SUM(bdd.PriceAfterDepreciation), -3)) AS InsuranceValue
+                -- One row per building: the stored coverage (typed, or computed on save from the
+                -- IsBuilding rows), otherwise — for a row not saved since that became stored — the
+                -- depreciated value of its IsBuilding rows. LEFT JOIN so a building with no rows still
+                -- contributes its stored figure.
+                SELECT COALESCE(bad.BuildingInsurancePrice, ROUND(SUM(bdd.PriceAfterDepreciation), -3)) AS InsuranceValue
                 FROM appraisal.BuildingAppraisalDetails bad
                 JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
                 LEFT JOIN appraisal.BuildingDepreciationDetails bdd
                        ON bdd.BuildingAppraisalDetailId = bad.Id
                       AND bdd.IsBuilding = 1
                 WHERE ap.AppraisalId = @AppraisalId
-                GROUP BY bad.Id, bad.BuildingInsurancePriceOverride
+                GROUP BY bad.Id, bad.BuildingInsurancePrice
 
                 UNION ALL
 

@@ -46,6 +46,7 @@ public class GetDecisionSummaryQueryHandler(
             JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
             JOIN appraisal.PropertyGroupItems gi ON gi.AppraisalPropertyId = ap.Id
             WHERE ap.AppraisalId = @AppraisalId
+            ORDER BY ap.SequenceNumber, CONVERT(char(36), ap.Id), lt.SequenceNumber, lt.Id
             """;
 
         // Query 3b: Condo government prices — kept separate from govPriceSql above: condo area is
@@ -586,7 +587,7 @@ public class GetDecisionSummaryQueryHandler(
                 -- rounding has to happen per building, or two building rows on one property would be
                 -- ROUND(a + b) here against ROUND(a) + ROUND(b) there and the listing would miss the
                 -- column by up to 1,000 baht.
-                ISNULL(COALESCE(bad.FinalCostValueOverride,
+                ISNULL(COALESCE(bad.BuildingCostValue,
                                 ROUND(SUM(bdd.PriceAfterDepreciation), -3)), 0) AS AppraisalValue
             -- Driven from the building, LEFT JOINed to its schedule: an appraiser who keys a Building
             -- Cost Value instead of filling in a depreciation table leaves no BuildingDepreciationDetails
@@ -603,7 +604,7 @@ public class GetDecisionSummaryQueryHandler(
               -- above adds it as 0 either way, but driving from BuildingAppraisalDetails (needed so
               -- an override-only building is not dropped) would otherwise put a blank 0-baht row in
               -- this listing for every such building.
-              AND (bad.FinalCostValueOverride IS NOT NULL
+              AND (bad.BuildingCostValue IS NOT NULL
                    OR EXISTS (SELECT 1 FROM appraisal.BuildingDepreciationDetails d
                               WHERE d.BuildingAppraisalDetailId = bad.Id))
               -- Scoped exactly as CompletedBuildingValueSql is, or these rows would list a building
@@ -614,7 +615,7 @@ public class GetDecisionSummaryQueryHandler(
                         AND gi.PropertyGroupId IN ({ConstructionCurrentValueService.CiGroupsSql}))
                    OR NOT EXISTS ({ConstructionCurrentValueService.CiGroupsSql}))
             GROUP BY ap.Id, ap.SequenceNumber, bad.Id, bad.HouseNumber, bad.BuiltOnTitleNumber,
-                     bad.ModelName, bad.PropertyName, bad.FinalCostValueOverride
+                     bad.ModelName, bad.PropertyName, bad.BuildingCostValue
             -- bad.Id last: the rows are one per building now, so two buildings on one property tie
             -- on every other key and would otherwise shuffle between requests.
             ORDER BY ap.SequenceNumber, CONVERT(char(36), ap.Id), CONVERT(char(36), bad.Id)

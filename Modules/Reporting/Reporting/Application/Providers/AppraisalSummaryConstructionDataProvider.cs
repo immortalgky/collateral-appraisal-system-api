@@ -256,7 +256,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
                 -- BuildingDepreciationDetails rows, and driving from that table dropped exactly the
                 -- building this COALESCE exists to honour. Same direction as
                 -- PricingPropertyDataService.BuildingFinalCostValuesSql.
-                SELECT ISNULL(COALESCE(bad.FinalCostValueOverride,
+                SELECT ISNULL(COALESCE(bad.BuildingCostValue,
                                        ROUND(SUM(bdd.PriceAfterDepreciation), -3)), 0) AS BuildingValue
                 FROM appraisal.BuildingAppraisalDetails bad
                 JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
@@ -274,7 +274,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
                           WHERE gi.AppraisalPropertyId = ap.Id
                             AND gi.PropertyGroupId IN ({ciGroupsSql}))
                        OR NOT EXISTS ({ciGroupsSql}))
-                GROUP BY bad.Id, bad.FinalCostValueOverride
+                GROUP BY bad.Id, bad.BuildingCostValue
             ) b;
 
             -- RS04: QCI4 — ชื่ออาคาร = village name of the first L/LB land property, or the

@@ -82,6 +82,13 @@ internal static class SnapshotDiff
                 if (RowId(a[i]) is not { } id || !paired.Contains(id))
                     Record(changes, $"{path}[{RowLabel(collection, a[i], i)}]", null, Summary(a[i]));
 
+            if (collection == "Titles" && TitleOrderChanged(b, a, paired))
+            {
+                var (from, to) = TitleOrder(b, a);
+                if (from != to) // e.g. 111 removed and a new 111 added in its place: the row entries already say it
+                    Record(changes, path[..^"Titles".Length] + "TitleOrder", from, to);
+            }
+
             return;
         }
 
@@ -95,6 +102,58 @@ internal static class SnapshotDiff
             else
                 CompareMembers(b[i], a[i], rowPath, changes);
         }
+    }
+
+    // Titles carry a stored position (SequenceNumber, left out of the per-row diff), so a reorder is one entry,
+    // not a change on every row it moved. It counts when the titles present on both sides changed their
+    // relative order, or a new title sits ahead of an existing one. Additions at the end and removals are
+    // already their own entries and do not count.
+    private static bool TitleOrderChanged(List<JsonObject> before, List<JsonObject> after, HashSet<Guid> paired)
+    {
+        var keptBefore = before.Select(RowId).Where(id => id is { } v && paired.Contains(v));
+        var keptAfter = after.Select(RowId).Where(id => id is { } v && paired.Contains(v));
+        if (!keptBefore.SequenceEqual(keptAfter))
+            return true;
+
+        var lastKept = after.FindLastIndex(row => RowId(row) is { } id && paired.Contains(id));
+        return after.Take(Math.Max(lastKept, 0)).Any(row => RowId(row) is not { } id || !paired.Contains(id));
+    }
+
+    // The order as deed numbers. "from" numbers the 2nd, 3rd... occurrence of a repeated number "(2)", "(3)" in the
+    // before order. "to" is the after numbers: a kept title whose number did not change carries its "from" label (so
+    // swapping two "111"s still reads "111, 111 (2)" -> "111 (2), 111"); a renumbered or new title shows its own
+    // number, with the next suffix that the "to" list does not already use.
+    private static (string From, string To) TitleOrder(List<JsonObject> before, List<JsonObject> after)
+    {
+        // "—" for a title without a number, as the confirm dialog shows it (formDiff.ts orderLabels).
+        static string Number(JsonObject row) => row["TitleNumber"]?.ToString() is { Length: > 0 } n ? n : "—";
+
+        var seen = new Dictionary<string, int>();
+        var kept = new Dictionary<Guid, (string Number, string Label)>();
+        var from = before.Select(row =>
+        {
+            var number = Number(row);
+            seen[number] = seen.GetValueOrDefault(number) + 1;
+            var label = seen[number] == 1 ? number : $"{number} ({seen[number]})";
+            if (RowId(row) is { } id) kept[id] = (number, label);
+            return label;
+        }).ToList();
+
+        string?[] carried = after
+            .Select(row => RowId(row) is { } id && kept.TryGetValue(id, out var was) && was.Number == Number(row) ? was.Label : null)
+            .ToArray();
+        var used = carried.OfType<string>().ToHashSet();
+        var to = after.Select((row, i) =>
+        {
+            if (carried[i] is { } label)
+                return label;
+            var number = Number(row);
+            label = number;
+            for (var n = 2; !used.Add(label); n++)
+                label = $"{number} ({n})";
+            return label;
+        });
+        return (string.Join(", ", from), string.Join(", ", to));
     }
 
     private static bool IsRows(JsonNode? node) =>

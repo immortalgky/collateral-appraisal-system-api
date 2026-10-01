@@ -188,6 +188,7 @@ public class CreateRequestService(
         {
             var title = TitleFactory.Create(titleDto.CollateralType,
                 titleDto.ToRequestTitleData() with { RequestId = requestId });
+            title.SetSequenceNumber(titles.Count + 1);
 
             foreach (var doc in titleDto.Documents)
                 title.AddDocument(new TitleDocumentData

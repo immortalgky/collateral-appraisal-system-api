@@ -124,8 +124,6 @@ public class CondoAppraisalDetail : Entity<Guid>
     /// rate-derived <see cref="BuildingInsurancePrice"/> above keeps following the condition and area.
     /// </summary>
     public decimal? BuildingInsurancePriceOverride { get; private set; }
-    public decimal? SellingPrice { get; private set; }
-    public decimal? ForcedSalePrice { get; private set; }
 
     // Other
     public string? Remark { get; private set; }
@@ -217,8 +215,6 @@ public class CondoAppraisalDetail : Entity<Guid>
         string? environmentTypeOther = null,
         // Pricing
         decimal? buildingInsurancePrice = null,
-        decimal? sellingPrice = null,
-        decimal? forcedSalePrice = null,
         // Other
         string? remark = null,
         // Scalar field
@@ -322,8 +318,6 @@ public class CondoAppraisalDetail : Entity<Guid>
 
         // Pricing
         BuildingInsurancePrice = buildingInsurancePrice;
-        SellingPrice = sellingPrice;
-        ForcedSalePrice = forcedSalePrice;
 
         // Other
         Remark = remark;
@@ -469,8 +463,6 @@ public class CondoAppraisalDetail : Entity<Guid>
             FireInsuranceCode = source.FireInsuranceCode,
             BuildingInsurancePrice = source.BuildingInsurancePrice,
             BuildingInsurancePriceOverride = source.BuildingInsurancePriceOverride,
-            SellingPrice = source.SellingPrice,
-            ForcedSalePrice = source.ForcedSalePrice,
             Remark = source.Remark
         };
 

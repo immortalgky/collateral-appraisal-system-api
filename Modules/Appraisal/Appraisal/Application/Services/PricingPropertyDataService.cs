@@ -189,13 +189,13 @@ public class PricingPropertyDataService(
             -- ISNULL: a building with no schedule and no override is worth 0 (the group SUM already
             -- skipped it); without it the per-building read would hand Dapper a NULL decimal.
             SELECT bad.AppraisalPropertyId,
-                   ISNULL(COALESCE(bad.FinalCostValueOverride, ROUND(SUM(bdd.PriceAfterDepreciation), -3)), 0) AS FinalCostValue
+                   ISNULL(COALESCE(bad.BuildingCostValue, ROUND(SUM(bdd.PriceAfterDepreciation), -3)), 0) AS FinalCostValue
             FROM appraisal.BuildingAppraisalDetails bad
             INNER JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
             INNER JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = ap.Id
             LEFT JOIN appraisal.BuildingDepreciationDetails bdd ON bdd.BuildingAppraisalDetailId = bad.Id
             WHERE pgi.PropertyGroupId = @PropertyGroupId
-            GROUP BY bad.Id, bad.AppraisalPropertyId, bad.FinalCostValueOverride
+            GROUP BY bad.Id, bad.AppraisalPropertyId, bad.BuildingCostValue
         """;
 
     private const string BuildingCostSql =

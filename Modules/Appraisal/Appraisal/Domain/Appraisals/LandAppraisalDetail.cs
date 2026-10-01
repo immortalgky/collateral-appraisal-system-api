@@ -1,3 +1,5 @@
+using System.Data.SqlTypes;
+
 namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
@@ -8,7 +10,11 @@ namespace Appraisal.Domain.Appraisals;
 public class LandAppraisalDetail : Entity<Guid>
 {
     private readonly List<LandTitle> _titles = [];
-    public IReadOnlyList<LandTitle> Titles => _titles.AsReadOnly();
+    // SequenceNumber, then Id compared the way SQL Server orders uniqueidentifier (SqlGuid), so rows that
+    // predate the column (all 0) come out in the same order as every SQL reader's `ORDER BY SequenceNumber, Id`
+    // whatever order EF loaded them in — Guid.CompareTo orders the bytes differently.
+    public IReadOnlyList<LandTitle> Titles =>
+        _titles.OrderBy(t => t.SequenceNumber).ThenBy(t => new SqlGuid(t.Id)).ToList().AsReadOnly();
 
     private readonly List<LandAreaDeduction> _deductions = [];
     public IReadOnlyList<LandAreaDeduction> Deductions => _deductions.AsReadOnly();
@@ -98,7 +104,6 @@ public class LandAppraisalDetail : Entity<Guid>
     // whitelist keep working unchanged.
     public bool? IsEncroached { get; private set; }
     public string? EncroachmentRemark { get; private set; }
-    public decimal? EncroachmentArea { get; private set; }
 
     /// <summary>
     /// Sum of <see cref="Deductions"/>, maintained by the domain — never set from the outside.
@@ -236,7 +241,6 @@ public class LandAppraisalDetail : Entity<Guid>
         string? royalDecree = null,
         bool? isEncroached = null,
         string? encroachmentRemark = null,
-        decimal? encroachmentArea = null,
         bool? isLandlocked = null,
         string? landlockedRemark = null,
         bool? isForestBoundary = null,
@@ -336,7 +340,6 @@ public class LandAppraisalDetail : Entity<Guid>
         RoyalDecree = royalDecree;
         IsEncroached = isEncroached;
         EncroachmentRemark = encroachmentRemark;
-        EncroachmentArea = encroachmentArea;
         IsLandlocked = isLandlocked;
         LandlockedRemark = landlockedRemark;
         IsForestBoundary = isForestBoundary;
@@ -439,7 +442,6 @@ public class LandAppraisalDetail : Entity<Guid>
             RoyalDecree = source.RoyalDecree,
             IsEncroached = source.IsEncroached,
             EncroachmentRemark = source.EncroachmentRemark,
-            EncroachmentArea = source.EncroachmentArea,
             IsLandlocked = source.IsLandlocked,
             LandlockedRemark = source.LandlockedRemark,
             IsForestBoundary = source.IsForestBoundary,
@@ -477,7 +479,7 @@ public class LandAppraisalDetail : Entity<Guid>
                 title.BoundaryMarkerType, title.BoundaryMarkerRemark,
                 title.DocumentValidationResultType, title.IsMissingFromSurvey,
                 title.GovernmentPricePerSqWa, title.GovernmentPrice, title.Remark);
-            copy._titles.Add(titleCopy);
+            copy.AddTitle(titleCopy); // numbered 1..n in the source's order
         }
 
         foreach (var deduction in source.Deductions)
@@ -516,6 +518,10 @@ public class LandAppraisalDetail : Entity<Guid>
 
     public void AddTitle(LandTitle title)
     {
+        // A title added without a position goes last, so a path that does not number it cannot become
+        // "the first title" that LOS / AS400 / reports pick.
+        if (title.SequenceNumber == 0)
+            title.SetSequenceNumber(_titles.Count == 0 ? 1 : _titles.Max(t => t.SequenceNumber) + 1);
         _titles.Add(title);
     }
 

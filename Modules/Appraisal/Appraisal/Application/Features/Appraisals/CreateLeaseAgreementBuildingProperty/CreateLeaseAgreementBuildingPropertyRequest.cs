@@ -66,12 +66,9 @@ public record CreateLeaseAgreementBuildingPropertyRequest(
     string? UtilizationTypeOther = null,
     // Area & Pricing
     decimal? TotalBuildingArea = null,
-    decimal? BuildingInsurancePrice = null,
     // Appraiser-keyed overrides; null means "use the derived figure".
-    decimal? FinalCostValueOverride = null,
-    decimal? BuildingInsurancePriceOverride = null,
-    decimal? SellingPrice = null,
-    decimal? ForcedSalePrice = null,
+    decimal? BuildingCostValue = null,
+    decimal? BuildingInsurancePrice = null,
     // Other
     string? Remark = null,
     // Depreciation Details

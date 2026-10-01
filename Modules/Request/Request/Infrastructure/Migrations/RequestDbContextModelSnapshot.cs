@@ -111,6 +111,11 @@ namespace Request.Infrastructure.Migrations
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("SequenceNumber")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("TitleFamily")
                         .IsRequired()
                         .HasMaxLength(10)

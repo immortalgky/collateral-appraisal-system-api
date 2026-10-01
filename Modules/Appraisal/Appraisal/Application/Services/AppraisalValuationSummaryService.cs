@@ -146,18 +146,14 @@ public class AppraisalValuationSummaryService(
             //
             // KEEP IN SYNC with Features/DecisionSummary/BuildingInsuranceCalculator.cs, which computes
             // the same total in SQL for the read/save path.
-            // Per property, the appraiser's keyed coverage wins over the derived figure; null means
-            // "not entered". The derived figure is rounded to the nearest 1,000 per property, the same
-            // way the property form shows it and the same way Final Cost Value rounds.
+            // Per property, the stored figure (the appraiser's typed value, or the one already computed on
+            // save) wins; a row still null falls back to BuildingAppraisalDetail.ComputeInsurancePrice, which
+            // rounds to the nearest 1,000 the way the property form shows it and Final Cost Value rounds.
             // KEEP IN SYNC with BuildingInsuranceCalculator.cs, which rounds with SQL ROUND(x, -3).
             var buildingInsurance = properties
                 .Where(ap => ap.BuildingDetail != null)
-                .Sum(ap => ap.BuildingDetail!.BuildingInsurancePriceOverride
-                           ?? Math.Round(
-                               ap.BuildingDetail.DepreciationDetails
-                                   .Where(d => d.IsBuilding)
-                                   .Sum(d => d.PriceAfterDepreciation) / 1000,
-                               MidpointRounding.AwayFromZero) * 1000);
+                .Sum(ap => ap.BuildingDetail!.BuildingInsurancePrice
+                           ?? ap.BuildingDetail.ComputeInsurancePrice() ?? 0m);
 
             // Covers lease-agreement condo too — it populates this same CondoDetail nav.
             var condoInsurance = properties

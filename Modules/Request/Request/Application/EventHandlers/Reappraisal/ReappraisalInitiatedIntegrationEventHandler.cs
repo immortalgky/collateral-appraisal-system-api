@@ -163,6 +163,7 @@ public class ReappraisalInitiatedIntegrationEventHandler(
         // Load titles and documents via EF Core — owned collections require it.
         var titles = await dbContext.RequestTitles
             .Where(t => t.RequestId == row.RequestId)
+            .InDisplayOrder()
             .ToListAsync(cancellationToken);
 
         var titleDtos = titles.Select(t => t.ToDto()).ToList();

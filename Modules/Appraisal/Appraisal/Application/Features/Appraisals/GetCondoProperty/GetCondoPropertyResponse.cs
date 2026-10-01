@@ -104,8 +104,6 @@ public record GetCondoPropertyResponse(
     string? FireInsuranceCode,
     decimal? BuildingInsurancePrice,
     decimal? BuildingInsurancePriceOverride,
-    decimal? SellingPrice,
-    decimal? ForceSellingPrice,
     // Other
     string? Remark,
     // Construction Inspection

@@ -81,7 +81,6 @@ public record UpdateLandAndBuildingPropertyCommand(
     string? RoyalDecree = null,
     bool? IsEncroached = null,
     string? EncroachmentRemark = null,
-    decimal? EncroachmentArea = null,
     bool? IsLandlocked = null,
     string? LandlockedRemark = null,
     bool? IsForestBoundary = null,
@@ -165,11 +164,8 @@ public record UpdateLandAndBuildingPropertyCommand(
     string? UtilizationTypeOther = null,
     // Area & Pricing
     decimal? TotalBuildingArea = null,
+    decimal? BuildingCostValue = null,
     decimal? BuildingInsurancePrice = null,
-    decimal? FinalCostValueOverride = null,
-    decimal? BuildingInsurancePriceOverride = null,
-    decimal? SellingPrice = null,
-    decimal? ForcedSalePrice = null,
     // Remarks
     string? Remark = null,
     // Depreciation Details (null = no-op, list = sync)

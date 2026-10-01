@@ -35,8 +35,9 @@ internal sealed record PropertyCorrectionTarget(PropertyType Type, Func<Correcti
 /// property that would wipe the lease.
 ///
 /// What the real handlers do besides applying the payload is deliberately not here: no valuation
-/// recompute (approved figures stay as approved) and no LOS push. The one derived value kept is the condo
-/// fire-insurance price, and only when its inputs changed.
+/// recompute (approved figures stay as approved) and no LOS push. Derived values kept per property: the condo
+/// fire-insurance price, only when its inputs changed, and a building's stored insurance, which the shared
+/// applier re-resolves from its depreciation rows unless a figure was typed.
 /// </summary>
 internal static class PropertyCorrectionTargets
 {

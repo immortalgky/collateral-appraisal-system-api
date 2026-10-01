@@ -162,7 +162,6 @@ public class GetLandAndBuildingPropertyQueryHandler(
             landDetail.RoyalDecree,
             landDetail.IsEncroached,
             landDetail.EncroachmentRemark,
-            landDetail.EncroachmentArea,
             landDetail.IsLandlocked,
             landDetail.LandlockedRemark,
             landDetail.IsForestBoundary,
@@ -276,11 +275,8 @@ public class GetLandAndBuildingPropertyQueryHandler(
             buildingDetail.UtilizationTypeOther,
             // Area & Pricing
             buildingDetail.TotalBuildingArea,
+            buildingDetail.BuildingCostValue,
             buildingDetail.BuildingInsurancePrice,
-            buildingDetail.FinalCostValueOverride,
-            buildingDetail.BuildingInsurancePriceOverride,
-            buildingDetail.SellingPrice,
-            buildingDetail.ForcedSalePrice,
             // Remarks
             landDetail.Remark,
             // Depreciation Details

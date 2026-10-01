@@ -11,6 +11,7 @@ public class RequestTitleRepository(RequestDbContext dbContext)
     {
         return await _dbContext.RequestTitles
             .Where(t => t.RequestId == requestId)
+            .InDisplayOrder()
             .ToListAsync(cancellationToken);
     }
 
@@ -26,6 +27,7 @@ public class RequestTitleRepository(RequestDbContext dbContext)
         return await _dbContext.RequestTitles
             .Include(t => t.Documents)
             .Where(t => t.RequestId == requestId)
+            .InDisplayOrder()
             .ToListAsync(cancellationToken);
     }
 
