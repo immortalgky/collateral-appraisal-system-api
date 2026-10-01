@@ -170,7 +170,13 @@ public class ReappraisalIngestor(
             book.SetBook(key.Number, isBlockUnit, spelling);
 
             if (book.RowHash == detail.RowHash)
+            {
+                // Rows from before projects had a coordinate source would otherwise stay blank (and
+                // out of nearby results) until AS400 changed something on the row.
+                if (book.Latitude is null)
+                    needsEnrichment.Add(book);
                 continue;
+            }
 
             book.UpdateFrom(
                 detail.RowHash,

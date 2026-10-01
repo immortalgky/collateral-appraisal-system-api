@@ -10,6 +10,8 @@ internal static class ProcessedBooksSql
     /// One row per book under a collateral (`c`, the most recently listed copy: books were one row per
     /// file before they were deduplicated) and the reappraisal it produced (`na`), by the same rule as
     /// reporting.vw_RCAS002_ReappraisalDue: newest non-cancelled first. No `na` row = none found.
+    /// Copies are ranked across every status before the Consumed test, as RCAS002 does: a book reopened
+    /// as Pending keeps older Consumed copies, which must not hold it in this tab.
     /// </summary>
     public const string From = """
         FROM (
@@ -17,9 +19,9 @@ internal static class ProcessedBooksSql
                    v.NormalizedSurveyNumber, v.CifNumber, v.CustomerName, v.CollateralId, v.CollateralName,
                    v.PriorAppraisalSource, v.FirstSeenFileDate, v.LastSeenFileDate, v.IsBlockUnit,
                    ROW_NUMBER() OVER (PARTITION BY v.CollateralId, v.NormalizedSurveyNumber
-                                      ORDER BY v.LastSeenFileDate DESC, v.Id) AS Rn
+                                      ORDER BY v.LastSeenFileDate DESC,
+                                               CASE WHEN v.Status = 'Consumed' THEN 0 ELSE 1 END, v.Id) AS Rn
             FROM collateral.vw_ReappraisalCandidates v
-            WHERE v.Status = 'Consumed'
         ) c
         OUTER APPLY (
             SELECT TOP 1 rb.AppraisalId, rb.AppraisalNumber, rb.Status, rb.GroupTag, rb.CompletedAt,
@@ -38,6 +40,7 @@ internal static class ProcessedBooksSql
             WHERE cu.CandidateId = c.Id
         ) un
         WHERE c.Rn = 1
+          AND c.Status = 'Consumed'
         """;
 
     /// <summary>State of the new reappraisal, for the tab's quick filters.</summary>

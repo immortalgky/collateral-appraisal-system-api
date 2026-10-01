@@ -240,10 +240,11 @@ public class GetReappraisalCandidatesQueryHandler(ISqlConnectionFactory connecti
             ? "DESC"
             : "ASC";
 
+        // Blanks last in either direction (SQL Server puts NULL first on ASC): a book whose prior
+        // appraisal cannot be traced has no due date and must not head the "most due" order.
         // Keep CifNumber as a stable tiebreaker, but not when it's already the sort column
         // (SQL Server rejects a column appearing twice in ORDER BY).
-        return column == "c.CifNumber"
-            ? $"{column} {direction}"
-            : $"{column} {direction}, c.CifNumber ASC";
+        var nullsLast = $"CASE WHEN {column} IS NULL THEN 1 ELSE 0 END, {column} {direction}";
+        return column == "c.CifNumber" ? nullsLast : $"{nullsLast}, c.CifNumber ASC";
     }
 }
