@@ -171,6 +171,9 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
         if (exception is ConflictException { Code: not null } conflictEx)
             problemDetails.Extensions.Add("errorCode", conflictEx.Code);
 
+        if (exception is BadRequestException { Code: not null } badRequestEx)
+            problemDetails.Extensions.Add("errorCode", badRequestEx.Code);
+
         // Not the middleware's token: it hands us `RequestAborted`, which is already cancelled for
         // anything arising from a cancellation — the write would throw, this method would return
         // false, and the middleware would log a second error and rethrow what we just handled.

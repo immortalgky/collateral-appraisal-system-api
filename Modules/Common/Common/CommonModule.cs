@@ -1,6 +1,7 @@
 using Common.Application.Features.Monitoring.Shared;
 using Common.Infrastructure;
 using Common.Infrastructure.Configuration;
+using Common.Infrastructure.Metrics;
 using Common.Infrastructure.Scheduling;
 using Common.Infrastructure.Seed;
 using Microsoft.AspNetCore.Builder;
@@ -37,6 +38,9 @@ public static class CommonModule
 
         // Seeders
         services.AddScoped<IDataSeeder<CommonDbContext>, SystemConfigurationDataSeed>();
+
+        // One row per instance per minute into common.SystemMetricSamples (see plan section F).
+        services.AddHostedService<SystemMetricsSampler>();
 
         return services;
     }

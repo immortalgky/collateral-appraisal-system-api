@@ -1410,7 +1410,7 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<Guid>("AppraisalId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("AppraisalPropertyId")
+                    b.Property<Guid?>("AppraisalPropertyId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("ChangedAt")

@@ -8,9 +8,10 @@ public record GetPropertyCorrectionsQuery(Guid AppraisalId, Guid? PropertyId)
 
 public record GetPropertyCorrectionsResult(IReadOnlyList<PropertyCorrectionEntry> Corrections);
 
+/// <summary><see cref="AppraisalPropertyId"/> is null for document entries (PropertyType "DOCUMENT").</summary>
 public record PropertyCorrectionEntry(
     Guid Id,
-    Guid AppraisalPropertyId,
+    Guid? AppraisalPropertyId,
     string PropertyType,
     string Reason,
     string ChangedBy,

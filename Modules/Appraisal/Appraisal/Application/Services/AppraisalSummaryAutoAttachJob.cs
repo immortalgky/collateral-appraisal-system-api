@@ -21,7 +21,9 @@ namespace Appraisal.Application.Services;
 ///
 /// Contract with the rest of the pipeline: <b>exactly one</b> AppraisalResultReadyIntegrationEvent is
 /// published per run, whatever happens. Skipping it on failure would leave LOS never being told the
-/// case finished.
+/// case finished. The single exception is a run started with <c>notifyExternal: false</c> (the data-correction
+/// page's "regenerate without notifying the source system"): that run attaches the summary but publishes
+/// nothing on any path, and logs that it stayed silent.
 ///
 /// Retries are handled in-method rather than by Hangfire ([AutomaticRetry(Attempts = 0)]) so there is a
 /// single, predictable exit: a Hangfire-level retry would re-publish the event and fire the webhook again.
@@ -56,17 +58,33 @@ public class AppraisalSummaryAutoAttachJob(
 
     private static readonly TimeSpan PublishRetryDelay = TimeSpan.FromSeconds(3);
 
+    /// <summary>
+    /// The automatic post-approval entry point (AppraisalSummaryAutoAttachConsumer) and the signature of jobs already
+    /// queued in Hangfire — NOT legacy, do not remove. Always notifies the source system.
+    /// </summary>
+    public Task RunAsync(
+        Guid appraisalId,
+        Guid requestId,
+        DateTime completedAt,
+        bool force,
+        CancellationToken ct = default) =>
+        RunAsync(appraisalId, requestId, completedAt, force, notifyExternal: true, ct);
+
     /// <param name="force">
     /// true = always re-render, even if a post-completion summary is already attached. Used by the admin
     /// regenerate endpoint; the automatic path passes false so a second run skips the render. It still
     /// publishes the result-ready event — re-running means LOS is told to collect again, which is the point
     /// of the admin path and harmless on a replay.
     /// </param>
+    /// <param name="notifyExternal">
+    /// false = attach the summary but publish no result-ready event, so the source system is not told.
+    /// </param>
     public async Task RunAsync(
         Guid appraisalId,
         Guid requestId,
         DateTime completedAt,
         bool force,
+        bool notifyExternal,
         CancellationToken ct = default)
     {
         // The argument is ApplicationNow at the time AppraisalCompletedEventHandler ran, not the committee
@@ -98,7 +116,7 @@ public class AppraisalSummaryAutoAttachJob(
                 terminalPublishAttempted = true;
                 await PublishResultReadyAsync(
                     appraisalId, requestId, approvedAt, documentReady: false,
-                    failureReason: "Appraisal not found.", ct);
+                    failureReason: "Appraisal not found.", notifyExternal, ct);
                 return;
             }
 
@@ -119,7 +137,7 @@ public class AppraisalSummaryAutoAttachJob(
                     appraisalId, documentTypeCode);
                 terminalPublishAttempted = true;
                 await PublishResultReadyAsync(
-                    appraisalId, requestId, approvedAt, documentReady: true, failureReason: null, ct);
+                    appraisalId, requestId, approvedAt, documentReady: true, failureReason: null, notifyExternal, ct);
                 return;
             }
 
@@ -156,7 +174,7 @@ public class AppraisalSummaryAutoAttachJob(
                 await PublishResultReadyAsync(
                     appraisalId, requestId, approvedAt, documentReady: false,
                     failureReason: "No summary form applies to this appraisal; regenerating cannot change it.",
-                    ct);
+                    notifyExternal, ct);
                 return;
             }
 
@@ -186,15 +204,18 @@ public class AppraisalSummaryAutoAttachJob(
             // SaveChanges comes next. AddAppraisalDocumentCommand is an ITransactionalCommand, so the
             // AppraisalDocuments row and this event commit together — there is no window where the document
             // is attached but the webhook never fires, or vice versa. Same shape as ReportGenerationJob.
-            outbox.Publish(
-                new AppraisalResultReadyIntegrationEvent
-                {
-                    AppraisalId = appraisalId,
-                    RequestId = requestId,
-                    CompletedAt = approvedAt,
-                    DocumentReady = true
-                },
-                correlationId: appraisalId.ToString());
+            if (notifyExternal)
+            {
+                outbox.Publish(
+                    new AppraisalResultReadyIntegrationEvent
+                    {
+                        AppraisalId = appraisalId,
+                        RequestId = requestId,
+                        CompletedAt = approvedAt,
+                        DocumentReady = true
+                    },
+                    correlationId: appraisalId.ToString());
+            }
 
             await sender.Send(
                 new AddAppraisalDocumentCommand(
@@ -228,6 +249,17 @@ public class AppraisalSummaryAutoAttachJob(
             // The requeued run renders and uploads again, so anything already uploaded here is abandoned.
             // This exit needs the same trail as the failure path below, or a shutdown mid-upload leaves a
             // file nothing points at and nothing recorded.
+            LogPossibleOrphan(uploadedDocumentId, appraisalId);
+            throw;
+        }
+        catch (Exception ex) when (!notifyExternal)
+        {
+            // A silent run has no webhook to release, so swallowing here would report success for a
+            // regeneration that attached nothing. Fail the job instead so it shows in the Hangfire dashboard.
+            logger.LogError(ex,
+                "[SUMMARY-AUTO] Silent summary regeneration (notifyExternal=false) failed for AppraisalId={AppraisalId}; "
+                + "the source system was not notified",
+                appraisalId);
             LogPossibleOrphan(uploadedDocumentId, appraisalId);
             throw;
         }
@@ -266,7 +298,7 @@ public class AppraisalSummaryAutoAttachJob(
                 // that releases the webhook and leave the case stalled.
                 await PublishResultReadyAsync(
                     appraisalId, requestId, approvedAt, documentReady: false,
-                    failureReason: Truncate(ex.Message, 2000), CancellationToken.None);
+                    failureReason: Truncate(ex.Message, 2000), notifyExternal, CancellationToken.None);
             }
             catch (Exception publishEx)
             {
@@ -317,8 +349,25 @@ public class AppraisalSummaryAutoAttachJob(
         DateTime completedAt,
         bool documentReady,
         string? failureReason,
+        bool notifyExternal,
         CancellationToken ct)
     {
+        if (!notifyExternal)
+        {
+            logger.LogInformation(
+                "[SUMMARY-AUTO] notifyExternal=false — not publishing AppraisalResultReadyIntegrationEvent for "
+                + "AppraisalId={AppraisalId} (documentReady={DocumentReady}, reason={FailureReason})",
+                appraisalId, documentReady, failureReason);
+
+            // On the early-return paths (appraisal gone, no summary form applies) a silent run has attached
+            // nothing and has no webhook to release — returning would show Succeeded for a regeneration that
+            // did nothing. Throw so the catch marks the job Failed.
+            if (!documentReady)
+                throw new InvalidOperationException(
+                    $"Silent summary regeneration attached nothing for AppraisalId={appraisalId}: {failureReason}");
+            return;
+        }
+
         // Two ways a success event can still be in flight here, and each needs a different reset:
         //   - thrown BEFORE the command's SaveChanges — it is staged in the scoped OutboxScope.
         //   - thrown DURING it (deadlock, timeout) — DispatchDomainEventInterceptor had already drained the

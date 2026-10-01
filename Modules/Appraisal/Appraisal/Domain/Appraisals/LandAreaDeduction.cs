@@ -19,7 +19,7 @@ namespace Appraisal.Domain.Appraisals;
 /// </para>
 /// <para>
 /// This never touches a title deed's own area. <see cref="LandTitle.Area"/> is the registered legal
-/// fact and stays untouched — see the note on <see cref="LandTitle.ApplyCorrection"/>.
+/// fact and stays untouched.
 /// </para>
 /// </remarks>
 public class LandAreaDeduction : Entity<Guid>

@@ -36,52 +36,83 @@
   "Auth": {
     "InternalAuthBaseUrl": "#{AUTH_INTERNAL_BASE_URL}#"
   },
+  // Self-contained: production runs on this file alone, so every Serilog setting lives here, not
+  // inherited from appsettings.json. Keys match the base file ("Database", "File"), so if the base
+  // file is ever loaded too, these override it one-to-one instead of adding a second sink. Keep
+  // columnOptionsSection in step with appsettings.json and the dbo.Logs migration.
   "Serilog": {
-    "Using": [
-      "Serilog.Sinks.Console",
-      "Serilog.Sinks.File",
-      "Serilog.Sinks.Seq"
-    ],
+    "Using": {
+      "Database": "Serilog.Sinks.MSSqlServer",
+      "File": "Serilog.Sinks.File"
+    },
     "MinimumLevel": {
       "Default": "Information",
       "Override": {
         "Microsoft": "Warning",
+        "Microsoft.Hosting.Lifetime": "Information",
         "System": "Warning",
-        "Workflow": "Information",
-        "MassTransit": "Information"
+        "MassTransit": "Warning",
+        "Hangfire": "Warning",
+        "OpenIddict": "Warning",
+        // The inbound /api/v1 and /api/v2 request/response line (Program.cs UseHttpLogging).
+        "Microsoft.AspNetCore.HttpLogging": "Information",
+        // Dev keeps seeing these to fix the underlying issue; prod only wants the row.
+        "Microsoft.EntityFrameworkCore.Model.Validation": "Error"
       }
     },
-    "WriteTo": [
-      {
-        "Name": "Console",
+    "WriteTo": {
+      "Database": {
+        "Name": "MSSqlServer",
         "Args": {
-          "formatter": "Serilog.Formatting.Compact.CompactJsonFormatter, Serilog.Formatting.Compact"
+          "connectionString": "Database",
+          "sinkOptionsSection": {
+            "tableName": "Logs",
+            "schemaName": "dbo",
+            "autoCreateSqlTable": false,
+            "batchPostingLimit": 200,
+            "period": "0.00:00:05"
+          },
+          "restrictedToMinimumLevel": "Information",
+          "columnOptionsSection": {
+            "disableTriggers": true,
+            "addStandardColumns": [ "LogEvent" ],
+            "removeStandardColumns": [ "Properties" ],
+            "timeStamp": { "columnName": "TimeStamp", "convertToUtc": false },
+            "logEvent": { "columnName": "Properties", "excludeStandardColumns": true },
+            "additionalColumns": [
+              { "ColumnName": "CorrelationId", "DataType": "nvarchar", "DataLength": 64 },
+              { "ColumnName": "EntityId", "DataType": "nvarchar", "DataLength": 64 },
+              { "ColumnName": "AppraisalId", "DataType": "nvarchar", "DataLength": 64 },
+              { "ColumnName": "RequestId", "DataType": "nvarchar", "DataLength": 64, "PropertyName": "CasRequestId" },
+              { "ColumnName": "WorkflowInstanceId", "DataType": "nvarchar", "DataLength": 64 },
+              { "ColumnName": "CollateralId", "DataType": "nvarchar", "DataLength": 64 },
+              { "ColumnName": "DocumentId", "DataType": "nvarchar", "DataLength": 64 },
+              { "ColumnName": "MachineName", "DataType": "nvarchar", "DataLength": 128 },
+              { "ColumnName": "UserName", "DataType": "nvarchar", "DataLength": 128 },
+              { "ColumnName": "SourceContext", "DataType": "nvarchar", "DataLength": 256 },
+              { "ColumnName": "RequestPath", "DataType": "nvarchar", "DataLength": 400 }
+            ]
+          }
         }
       },
-      {
+      // restrictedToMinimumLevel: Warning — the file is the fallback for when the DB sink is down,
+      // not a mirror of it. Information includes the HTTP request/response logging line, whose body
+      // can carry customer PII (see Program.cs); keeping that off server disk and only ever in the
+      // access-controlled dbo.Logs table (LOGS_VIEW permission) was a deliberate call, not an oversight.
+      "File": {
         "Name": "File",
         "Args": {
           "path": "logs/log-.txt",
           "rollingInterval": "Day",
           "retainedFileCountLimit": 30,
+          "restrictedToMinimumLevel": "Warning",
           "formatter": "Serilog.Formatting.Compact.CompactJsonFormatter, Serilog.Formatting.Compact"
         }
-      },
-      {
-        "Name": "Seq",
-        "Args": {
-          "serverUrl": "#{SEQ_SERVER_URL}#",
-          "apiKey": "#{SEQ_API_KEY}#"
-        }
       }
-    ],
-    "Enrich": [
-      "FromLogContext",
-      "WithMachineName",
-      "WithProcessId",
-      "WithThreadId",
-      "WithEnvironmentName"
-    ],
+    },
+    // MachineName and UserName are added in code (Program.cs); the WithMachineName/WithProcessId/
+    // WithThreadId/WithEnvironmentName enrichers have no package and never resolved.
+    "Enrich": [ "FromLogContext" ],
     "Properties": {
       "Application": "Collateral Appraisal System",
       "Environment": "Production"
@@ -92,21 +123,23 @@
     "UseRedisBackplane": true,
     "ChannelPrefix": "cas-prod"
   },
+  // Thai local time, not UTC: dbo.Logs.TimeStamp is written server-local by Serilog
+  // (convertToUtc: false), so ApplicationNow must stay on the server's clock.
   "TimeZone": {
-    "DefaultTimeZone": "UTC",
-    "ForceUtc": true,
+    "DefaultTimeZone": "Asia/Bangkok",
+    "ForceUtc": false,
     "Culture": "en-US",
     "DateFormat": "yyyy-MM-dd",
     "TimeFormat": "HH:mm:ss",
     "DateTimeFormat": "yyyy-MM-dd HH:mm:ss"
   },
+  // No Tracing:OtlpEndpoint — tracing stays off. There is no OTLP collector in
+  // any environment (see project_no_external_observability_stack); the #{OTLP_ENDPOINT}# deploy
+  // token is retired, not just unused here — remove it from the deploy pipeline's token list too.
   "Observability": {
     "Enabled": true,
     "ServiceName": "CollateralAppraisalSystem",
-    "ServiceVersion": "#{SERVICE_VERSION}#",
-    "Tracing": {
-      "OtlpEndpoint": "#{OTLP_ENDPOINT}#"
-    }
+    "ServiceVersion": "#{SERVICE_VERSION}#"
   },
   "WorkflowResilience": {
     "Retry": {

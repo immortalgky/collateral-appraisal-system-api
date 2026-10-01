@@ -1,16 +1,12 @@
 namespace Common.Application.Features.Logs.SearchLogs;
 
 public record SearchLogsFilter(
-    string? Level,
-    string? CorrelationId,
-    string? AppraisalId,
-    string? RequestId,
-    string? EntityId,
-    string? WorkflowInstanceId,
-    string? CollateralId,
-    string? DocumentId,
-    string? Search,
+    string? Q,
     DateTime? From,
     DateTime? To,
+    string? Levels,
+    long? BeforeId,
+    long? AfterId,
+    int? PageSize,
     string? SortDir
 );

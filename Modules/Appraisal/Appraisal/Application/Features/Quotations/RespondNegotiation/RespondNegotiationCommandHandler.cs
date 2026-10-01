@@ -63,7 +63,7 @@ public class RespondNegotiationCommandHandler(
 
             if (missingReasonItems.Any())
                 throw new BadRequestException(
-                    "A reason is required for each item negotiated with $0 discount.");
+                    "A reason is required for each item negotiated with 0 Baht discount.");
         }
 
         quotation.RespondNegotiation(

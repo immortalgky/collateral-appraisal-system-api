@@ -3,7 +3,15 @@ using System.Text.Json;
 namespace Auth.Domain.Auth.Features.Token;
 
 public record TokenCommand(string GrantType, string ClientId, string Code, string CodeVerifier, string RedirectUri)
-    : ICommand<TokenResult>;
+    : ICommand<TokenResult>
+{
+    /// <summary>
+    /// Suppresses the authorization code and PKCE verifier in logs. The global <c>LoggingBehavior</c>
+    /// logs the whole request via ToString, so the record's generated one would write both in plaintext.
+    /// </summary>
+    public override string ToString() =>
+        $"{nameof(TokenCommand)} {{ GrantType = {GrantType}, ClientId = {ClientId}, Code = ***, CodeVerifier = ***, RedirectUri = {RedirectUri} }}";
+}
 
 public record TokenResult(
     string AccessToken,
