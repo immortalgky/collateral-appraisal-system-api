@@ -26,6 +26,9 @@ public class ReappraisalCandidateConfiguration : IEntityTypeConfiguration<Reappr
         builder.Property(p => p.ReviewDate).IsRequired();
         builder.Property(p => p.CollateralId).IsRequired().HasMaxLength(19);
         builder.Property(p => p.SurveyNumber).IsRequired().HasMaxLength(10);
+        builder.Property(p => p.NormalizedSurveyNumber).HasMaxLength(10);
+        builder.Property(p => p.LastSeenFileDate);
+        builder.Property(p => p.IsBlockUnit).HasDefaultValue(false);
         builder.Property(p => p.CollateralCode).IsRequired().HasMaxLength(3);
         builder.Property(p => p.CollateralCategory).IsRequired().HasMaxLength(5);
 
@@ -79,6 +82,16 @@ public class ReappraisalCandidateConfiguration : IEntityTypeConfiguration<Reappr
         builder.HasIndex(p => new { p.SourceFileDate, p.CollateralId, p.SurveyNumber })
             .IsUnique()
             .HasDatabaseName("IX_ReappraisalCandidate_FileDate_CollateralId_SurveyNumber");
+
+        // The book key: the ingestor finds a book's row across months by it, and every join to
+        // appraisal.Appraisals goes through NormalizedSurveyNumber.
+        builder.HasIndex(p => new { p.NormalizedSurveyNumber, p.CollateralId })
+            .HasDatabaseName("IX_ReappraisalCandidate_NormalizedSurveyNumber_CollateralId");
+
+        // "The latest COLLATREV file" is MAX(LastSeenFileDate), read by every list page and report: one
+        // index read instead of a table scan. (Every row has it: set on create, backfilled on old rows.)
+        builder.HasIndex(p => p.LastSeenFileDate)
+            .HasDatabaseName("IX_ReappraisalCandidate_LastSeenFileDate");
 
         // Supporting indexes for the list query filters.
         builder.HasIndex(p => p.Status)

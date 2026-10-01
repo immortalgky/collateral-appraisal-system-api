@@ -47,7 +47,8 @@ public class AppraisalCreationRequestedIntegrationEventHandler(
                 message.AppraisalType,
                 workflowDefinitionId: message.WorkflowDefinitionId,
                 groupTag: message.GroupTag,
-                context.CancellationToken);
+                prevAppraisalNumber: message.PrevAppraisalNumber,
+                cancellationToken: context.CancellationToken);
 
             logger.LogInformation(
                 "Successfully processed AppraisalCreationRequestedIntegrationEvent. Created/Retrieved AppraisalId: {AppraisalId} for RequestId: {RequestId}",

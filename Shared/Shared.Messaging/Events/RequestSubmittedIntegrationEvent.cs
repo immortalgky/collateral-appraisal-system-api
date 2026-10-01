@@ -27,14 +27,18 @@ public record RequestSubmittedIntegrationEvent : IntegrationEvent
 
     // Construction Inspection fields
     public Guid? PrevAppraisalId { get; set; }
+
+    // The prior book's number when it is NOT an appraisal in this system (legacy AS400 "99A…").
+    // Never set together with PrevAppraisalId.
+    public string? PrevAppraisalNumber { get; set; }
     public string? AppraisalType { get; set; }
 
     // Reappraisal batch label — NULL for non-reappraisal requests.
-    // Flows through to Appraisal.GroupTag; not stored on Request.
+    // Flows through to Appraisal.GroupTag; persisted on Request (Request.GroupTag) for AS400 reappraisal.
     public string? GroupTag { get; set; }
 
     // How the request entered the system — "UI" vs "API". Drives whether the workflow
     // applies the appraisal-initiation-check task. Distinct from business Channel; not stored
-    // on Request. NULL for reappraisal (it discriminates on Channel == 'SIBS').
+    // on Request. "SIBS" for an AS400 periodical reappraisal (Request.GroupTag set).
     public string? EntrySource { get; set; }
 }

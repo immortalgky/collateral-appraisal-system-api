@@ -175,6 +175,10 @@ namespace Request.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("GroupTag")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<bool>("IsPma")
                         .HasColumnType("bit");
 
@@ -185,6 +189,14 @@ namespace Request.Infrastructure.Migrations
                     b.Property<string>("Purpose")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("ReappraisalBookNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("ReappraisalCollateralId")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<DateTime?>("RequestedAt")
                         .HasColumnType("datetime2");
@@ -210,6 +222,10 @@ namespace Request.Infrastructure.Migrations
                     b.HasIndex("ExternalCaseKey")
                         .HasDatabaseName("IX_Request_ExternalCaseKey")
                         .HasFilter("[ExternalCaseKey] IS NOT NULL");
+
+                    b.HasIndex("ReappraisalBookNumber")
+                        .HasDatabaseName("IX_Request_ReappraisalBookNumber")
+                        .HasFilter("[ReappraisalBookNumber] IS NOT NULL");
 
                     b.HasIndex("RequestedAt")
                         .IsDescending()

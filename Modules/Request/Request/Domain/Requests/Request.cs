@@ -26,6 +26,29 @@ public class Request : Aggregate<Guid>
     public string? ExternalCaseKey { get; private set; }
     public string? ExternalSystem { get; private set; }
 
+    /// <summary>
+    /// Reappraisal batch this request was created in (the Initiate group number). Persisted because
+    /// staff submit reappraisal requests one by one, later, from the request list — the value has to
+    /// survive until <see cref="Submit"/> hands it to <c>Appraisal.GroupTag</c>. NULL otherwise.
+    /// </summary>
+    public string? GroupTag { get; private set; }
+
+    /// <summary>
+    /// The AS400 book (normalised survey number) this periodical reappraisal request reviews. System
+    /// field, set by Initiate with <see cref="GroupTag"/> and never edited: the prior-appraisal fields
+    /// on the form are staff-editable, and "is this book already waiting?" / "which book did this
+    /// submit review?" must not change when staff clear them. NULL on every other request.
+    /// </summary>
+    public string? ReappraisalBookNumber { get; private set; }
+
+    /// <summary>
+    /// AS400's collateral id of the COLLATREV row this request reviews — a key on the AS400 side only
+    /// (CAS has no link to it). It tells the units of one block project apart: each is a different
+    /// collateral under the same book. System field, set by Initiate; never sent anywhere (it is NOT the
+    /// ExternalCaseKey, which drives the LOS webhooks).
+    /// </summary>
+    public string? ReappraisalCollateralId { get; private set; }
+
     private readonly List<RequestCustomer> _customers = [];
     public IReadOnlyList<RequestCustomer> Customers => _customers.AsReadOnly();
 
@@ -198,6 +221,49 @@ public class Request : Aggregate<Guid>
         SoftDelete = SoftDelete.Delete(deletedBy, deletedAt);
     }
 
+    /// <summary>Marks this request as created by Initiate for an AS400 book, in a reappraisal batch.</summary>
+    public void MarkAsPeriodicalReappraisal(
+        string groupTag, string? bookNumber, string? collateralId = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(groupTag);
+        GroupTag = groupTag;
+        ReappraisalBookNumber = string.IsNullOrWhiteSpace(bookNumber) ? null : bookNumber.Trim();
+        ReappraisalCollateralId = string.IsNullOrWhiteSpace(collateralId) ? null : collateralId.Trim();
+    }
+
+    /// <summary>
+    /// The prior value and date Initiate determined for this periodical reappraisal — for a block-project
+    /// unit, the unit's appraised price in the project appraisal and that appraisal's date rather than the
+    /// whole project's. Kept through saves while the prior appraisal is unchanged (update handlers).
+    /// </summary>
+    public void SetReappraisalPriorValue(decimal? value, DateTime? date)
+    {
+        if (ReappraisalBookNumber is null)
+            throw new InvalidOperationException("Only a periodical reappraisal created by Initiate carries its own prior value.");
+        if (Detail is null)
+            throw new InvalidOperationException("Request has no detail to record a prior value on.");
+
+        Detail = Detail.WithPriorValue(value, date);
+    }
+
+    /// <summary>
+    /// Records a prior book that exists only in AS400 (legacy "99A…"): it has no PrevAppraisalId to
+    /// resolve from, so its number, value and date are stored as sent by the periodical reappraisal
+    /// feed. System-only — the reappraisal consumer is the one caller. Submit forwards the number to
+    /// the new appraisal, where it links the chain and the regulatory origination, so no client input
+    /// may set it.
+    /// </summary>
+    public void SetLegacyPriorBook(string number, decimal? value, DateTime? date)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(number);
+        if (Detail is null)
+            throw new InvalidOperationException("Request has no detail to record a prior book on.");
+        if (Detail.PrevAppraisalId.HasValue)
+            throw new InvalidOperationException("A prior book outside CAS is never set alongside PrevAppraisalId.");
+
+        Detail = Detail.WithLegacyPriorBook(number.Trim(), value, date);
+    }
+
     public void SetExternalReference(string externalCaseKey, string externalSystem)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(externalCaseKey);
@@ -208,10 +274,10 @@ public class Request : Aggregate<Guid>
     }
 
     /// <summary>
-    /// Submits the request. <paramref name="groupTag"/> is a transient hint for reappraisal
-    /// batches — it is NOT persisted on Request; it flows into <see cref="RequestSubmittedEvent"/>
-    /// so downstream handlers can stamp <c>Appraisal.GroupTag</c> when the Appraisal is created.
-    /// <paramref name="entrySource"/> is likewise transient — it records HOW the request entered
+    /// Submits the request. <paramref name="groupTag"/> (falling back to the persisted
+    /// <see cref="GroupTag"/>) flows into <see cref="RequestSubmittedEvent"/> so downstream handlers
+    /// can stamp <c>Appraisal.GroupTag</c> when the Appraisal is created.
+    /// <paramref name="entrySource"/> is transient — it records HOW the request entered
     /// the system (<c>UI</c> vs <c>API</c>) so the workflow can decide whether the
     /// <c>appraisal-initiation-check</c> task applies. It is distinct from the business
     /// <c>Channel</c> and is NOT persisted on Request.
@@ -226,7 +292,7 @@ public class Request : Aggregate<Guid>
 
         UpdateStatus(RequestStatus.Submitted);
         RequestedAt = submittedAt;
-        AddDomainEvent(new RequestSubmittedEvent(this, groupTag, entrySource));
+        AddDomainEvent(new RequestSubmittedEvent(this, groupTag ?? GroupTag, entrySource));
     }
 
     public void Complete(DateTime completedAt)

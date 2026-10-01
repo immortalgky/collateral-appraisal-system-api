@@ -35,6 +35,13 @@ public class Appraisal : Aggregate<Guid>
     // construction-inspection fee (Progressive bypasses the normal tier/quotation pipeline).
     public Guid? PrevAppraisalId { get; private set; }
 
+    /// <summary>
+    /// The prior book when it is NOT an appraisal in CAS — a legacy AS400 "99A…" book, reappraised
+    /// from the periodical reappraisal feed. Lets the appraisal chain (and the regulatory origination
+    /// value) reach back past CAS. Never set together with <see cref="PrevAppraisalId"/>.
+    /// </summary>
+    public string? PrevAppraisalNumber { get; private set; }
+
     // For Progressive (construction-inspection) appraisals — which inspection round this is
     // (1st, 2nd, ...). System-assigned at creation = (completed Progressive inspections already on
     // the same collateral) + 1. NULL for non-Progressive appraisals.
@@ -197,6 +204,21 @@ public class Appraisal : Aggregate<Guid>
         if (trimmed.Length > 40)
             throw new ArgumentException("GroupTag must not exceed 40 characters.", nameof(tag));
         GroupTag = trimmed;
+    }
+
+    /// <summary>
+    /// Records a prior book that exists only in AS400. System-only — called once at creation, and only
+    /// when there is no <see cref="PrevAppraisalId"/>.
+    /// </summary>
+    public void SetPrevAppraisalNumber(string number)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(number);
+        if (PrevAppraisalId.HasValue)
+            throw new InvalidOperationException("PrevAppraisalNumber is only for a prior book outside CAS.");
+        var trimmed = number.Trim();
+        if (trimmed.Length > 20)
+            throw new ArgumentException("PrevAppraisalNumber must not exceed 20 characters.", nameof(number));
+        PrevAppraisalNumber = trimmed;
     }
 
     /// <summary>

@@ -10,6 +10,10 @@ namespace Appraisal.Application.Features.Appraisals.GetPreviousAppraisalChain;
 /// appraisal.Appraisals.PrevAppraisalId -> that appraisal -> repeat. Returns the chain
 /// nearest-ancestor-first; the queried appraisal itself is excluded.
 ///
+/// When the oldest CAS appraisal was itself reappraised from a legacy AS400 book (PrevAppraisalNumber,
+/// no PrevAppraisalId), that book is appended as the final item with no AppraisalId — so the chain
+/// does not look broken at the CAS boundary. Its value/date come from the bank's legacy listing.
+///
 /// Visibility enforcement (enforced server-side in this handler — never trust the client):
 ///   Internal (bank) callers — <see cref="AppraisalAccessScope.GetEnforcedCompanyId"/> returns
 ///     null; the full chain is returned.
@@ -37,6 +41,26 @@ public class GetPreviousAppraisalChainQueryHandler(
         // never need it, so it is joined in only when there is a company to enforce. Its own
         // joins are all rn=1/TOP 1/1:1, so this cannot fan out the chain.
         var accessJoin = string.Empty;
+        // The legacy book belongs to no company, so an external caller never sees it.
+        var legacyArm = """
+
+            UNION ALL
+
+            SELECT CAST(NULL AS uniqueidentifier), c.PrevAppraisalNumber,
+                   CAST(l.ValuationDate AS datetime2), l.ValuationPriceInBaht, CAST(NULL AS nvarchar(50)),
+                   c.Depth + 1
+            FROM chain c
+            -- The book's latest valuation — the appraisal just before this chain, as the candidate list
+            -- dates it — with date and price from the same listing row.
+            OUTER APPLY (
+                SELECT TOP 1 x.ValuationDate, x.ValuationPriceInBaht
+                FROM appraisal.AS400ReportListing x
+                WHERE x.ApplicationId = c.PrevAppraisalNumber
+                ORDER BY x.ValuationDate DESC, x.ValuationPriceInBaht DESC  -- deterministic on a same-day tie
+            ) l
+            WHERE c.PrevAppraisalId IS NULL
+              AND c.PrevAppraisalNumber IS NOT NULL
+            """;
         if (enforcedCompanyId.HasValue)
         {
             accessJoin = """
@@ -46,6 +70,7 @@ public class GetPreviousAppraisalChainQueryHandler(
                  AND TRY_CAST(al.AssigneeCompanyId AS uniqueidentifier) = @CompanyId
                 """;
             parameters.Add("CompanyId", enforcedCompanyId.Value);
+            legacyArm = string.Empty;
         }
 
         // ── Recursive CTE: walks appraisal.Appraisals.PrevAppraisalId up to the chain root.
@@ -75,14 +100,14 @@ public class GetPreviousAppraisalChainQueryHandler(
         // raw appointment slot.
         var sql = $"""
             WITH chain AS (
-                SELECT a.Id, a.PrevAppraisalId, 1 AS Depth,
+                SELECT a.Id, a.PrevAppraisalId, a.PrevAppraisalNumber, 1 AS Depth,
                        CAST('|' + CAST(a.Id AS varchar(36)) + '|' AS varchar(max)) AS Path
                 FROM appraisal.Appraisals a
                 WHERE a.Id = @AppraisalId AND a.IsDeleted = 0
 
                 UNION ALL
 
-                SELECT p.Id, p.PrevAppraisalId, c.Depth + 1,
+                SELECT p.Id, p.PrevAppraisalId, p.PrevAppraisalNumber, c.Depth + 1,
                        CAST(c.Path + CAST(p.Id AS varchar(36)) + '|' AS varchar(max))
                 FROM chain c
                 JOIN appraisal.Appraisals p ON p.Id = c.PrevAppraisalId AND p.IsDeleted = 0
@@ -97,8 +122,8 @@ public class GetPreviousAppraisalChainQueryHandler(
                 c.Depth
             FROM chain c
             JOIN appraisal.vw_AppraisalCopyTemplate v ON v.AppraisalId = c.Id{accessJoin}
-            WHERE c.Depth > 1
-            ORDER BY c.Depth
+            WHERE c.Depth > 1{legacyArm}
+            ORDER BY Depth
             OPTION (MAXRECURSION 0)
             """;
 

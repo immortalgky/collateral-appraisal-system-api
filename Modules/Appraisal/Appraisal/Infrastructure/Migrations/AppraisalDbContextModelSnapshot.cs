@@ -454,6 +454,10 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<Guid?>("PrevAppraisalId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("PrevAppraisalNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<string>("Priority")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -512,6 +516,9 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.HasIndex("PrevAppraisalId")
                         .HasFilter("[PrevAppraisalId] IS NOT NULL");
+
+                    b.HasIndex("PrevAppraisalNumber")
+                        .HasFilter("[PrevAppraisalNumber] IS NOT NULL");
 
                     b.HasIndex("RequestId");
 
