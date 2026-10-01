@@ -14,12 +14,17 @@ public sealed record Rcas002Filter(
     string? SortBy,
     string? SortDir);
 
-/// <summary>RCAS002 — รายงานการครบกำหนดทบทวนหลักประกันตามประเภท (collateral review-due by type).</summary>
+/// <summary>
+/// RCAS002 — รายงานการครบกำหนดทบทวนหลักประกันตามประเภท (collateral review-due by type).
+/// The whole history, one row per AS400 book: reviewed books always (with the reappraisal they
+/// produced), waiting and skipped books while they are on AS400's latest file.
+/// </summary>
 internal static class Rcas002Report
 {
     private static readonly HashSet<string> AllowedSort = new(StringComparer.OrdinalIgnoreCase)
     {
-        "ReviewType", "ReviewTypeCode", "RemainingDays", "AppraisalNumber", "ValuationDate", "PastDueDay"
+        "ReviewType", "ReviewTypeCode", "RemainingDays", "AppraisalNumber", "ValuationDate", "PastDueDay",
+        "ReviewStatusCode", "NewAppraisalSubmittedAt", "NewAppraisalCompletedAt"
     };
 
     // FSD sort sequence: "Review Type, Remaining Day". Sort by the raw code so the order is 1/2/3,
@@ -62,6 +67,11 @@ internal static class Rcas002Report
             new("Valuation Date", r => r.ValuationDate, ColumnFormat.Date),
             new("Next Valuation Date", r => r.NextValuationDate, ColumnFormat.Date),
             new("Remaining Days", r => r.RemainingDays, ColumnFormat.Integer),
+            new("Review Status", r => r.ReviewStatus),
+            new("New Appraisal No.", r => r.NewAppraisalNumber),
+            new("Submitted Date", r => r.NewAppraisalSubmittedAt, ColumnFormat.Date),
+            new("Completed Date", r => r.NewAppraisalCompletedAt, ColumnFormat.Date),
+            new("New Appraisal Status", r => r.NewAppraisalStatus),
         ],
     };
 

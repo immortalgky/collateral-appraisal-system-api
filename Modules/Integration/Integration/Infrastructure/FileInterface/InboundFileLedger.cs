@@ -31,7 +31,13 @@ public class InboundFileLedger(
     private const int BatchSize = 1000;
 
     /// <summary>
-    /// Drops files already ingested successfully, judged by name + size alone so nothing is read.
+    /// Drops files the ledger is finished with (<see cref="InboundFileLog.FinishedStatuses"/>), judged
+    /// by name + size alone so nothing is read. Failed or interrupted files stay in, to be retried.
+    ///
+    /// A file quarantined for its CONTENT stays in too: AS400 files are fixed-width, so a corrected
+    /// re-send keeps the same name and size and only the hash can tell it apart. The runner checks
+    /// <see cref="IsQuarantinedContentAsync"/> before touching the ledger, so the unchanged bad file
+    /// costs a download and nothing else. A file quarantined for its NAME (no hash) is dropped here.
     /// Everything returned still has to pass <see cref="TryClaimAsync"/> once its bytes are known.
     /// </summary>
     public async Task<IReadOnlyList<InboundFileInfo>> FilterUnprocessedAsync(
@@ -49,7 +55,8 @@ public class InboundFileLedger(
             var rows = await dbContext.InboundFileLogs
                 .AsNoTracking()
                 .Where(l => l.InterfaceCode == interfaceCode
-                            && l.Status == InboundFileStatus.Succeeded
+                            && InboundFileLog.FinishedStatuses.Contains(l.Status)
+                            && !(l.Status == InboundFileStatus.Quarantined && l.ContentHash != null)
                             && chunk.Contains(l.FileName))
                 .Select(l => new { l.FileName, l.SizeBytes })
                 .ToListAsync(cancellationToken);
@@ -62,15 +69,23 @@ public class InboundFileLedger(
 
         if (pending.Count != files.Count)
             logger.LogInformation(
-                "[InboundFileLedger] {Code}: {Skipped} of {Total} file(s) already ingested; {Pending} to process",
+                "[InboundFileLedger] {Code}: {Skipped} of {Total} file(s) already handled; {Pending} to process",
                 interfaceCode, files.Count - pending.Count, files.Count, pending.Count);
 
         return pending;
     }
 
     /// <summary>
-    /// Opens a ledger row for this attempt. Call before reading the file so a crash mid-ingest still
-    /// leaves a trace of what was being processed.
+    /// Opens the ledger row for this attempt. Call before ingesting so a crash mid-ingest still leaves a
+    /// trace of what was being processed. (The runner reads and hashes the file first, to recognise an
+    /// already-quarantined file without touching the ledger; a crash while downloading leaves nothing,
+    /// and the next run simply tries again.)
+    ///
+    /// A file that failed or was interrupted before is retried on its existing row rather than a new
+    /// one: a second row would carry the same (interface, file name, hash) the moment the content is
+    /// hashed, and the unique index would reject it — the retry would never get through. A finished
+    /// row is never reopened, so a file re-sent under the same name after succeeding gets its own row
+    /// and the earlier success stays on record.
     /// </summary>
     public async Task<InboundFileLog> BeginAsync(
         string interfaceCode,
@@ -78,10 +93,25 @@ public class InboundFileLedger(
         DateOnly? fileDate,
         CancellationToken cancellationToken = default)
     {
-        var entry = InboundFileLog.Start(
-            interfaceCode, file.FileName, fileDate, file.SizeBytes, dateTimeProvider.ApplicationNow);
+        var now = dateTimeProvider.ApplicationNow;
 
-        dbContext.InboundFileLogs.Add(entry);
+        var entry = await dbContext.InboundFileLogs
+            .Where(l => l.InterfaceCode == interfaceCode
+                        && l.FileName == file.FileName
+                        && !InboundFileLog.FinishedStatuses.Contains(l.Status))
+            .OrderByDescending(l => l.StartedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (entry is null)
+        {
+            entry = InboundFileLog.Start(interfaceCode, file.FileName, fileDate, file.SizeBytes, now);
+            dbContext.InboundFileLogs.Add(entry);
+        }
+        else
+        {
+            entry.Reopen(file.SizeBytes, fileDate, now);
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return entry;
@@ -90,39 +120,62 @@ public class InboundFileLedger(
     /// <summary>
     /// Stamps the content hash and reports whether this exact content is new.
     ///
-    /// Returns <c>false</c> when the same (interface, file name, hash) has already succeeded — the
-    /// file survived the size check but is byte-identical to one we have done, so ingestion must be
-    /// skipped. The open ledger row is closed as <see cref="InboundFileStatus.SkippedStale"/>.
+    /// Returns <c>false</c> when a finished row already holds the same (interface, file name, hash) —
+    /// the file survived the size check but is byte-identical to one the ledger is done with, so
+    /// ingestion must be skipped. The open row is closed as <see cref="InboundFileStatus.SkippedStale"/>
+    /// WITHOUT the hash: the unique index allows only one row per content, and it is taken.
+    ///
+    /// An unfinished row holding the hash is an earlier attempt at this same content (possible when a
+    /// crash left several rows for one file). It gives the hash up so this attempt can carry it;
+    /// otherwise the save below would violate the unique index and the file could never be retried.
     /// </summary>
     public async Task<bool> TryClaimAsync(
         InboundFileLog entry,
         string contentHash,
         CancellationToken cancellationToken = default)
     {
-        var duplicate = await dbContext.InboundFileLogs
-            .AsNoTracking()
-            .AnyAsync(l => l.Id != entry.Id
-                           && l.InterfaceCode == entry.InterfaceCode
-                           && l.FileName == entry.FileName
-                           && l.ContentHash == contentHash
-                           && l.Status == InboundFileStatus.Succeeded,
-                cancellationToken);
+        var holders = dbContext.InboundFileLogs
+            .Where(l => l.Id != entry.Id
+                        && l.InterfaceCode == entry.InterfaceCode
+                        && l.FileName == entry.FileName
+                        && l.ContentHash == contentHash);
 
-        entry.SetContentHash(contentHash);
+        var duplicate = await holders
+            .AnyAsync(l => InboundFileLog.FinishedStatuses.Contains(l.Status), cancellationToken);
 
         if (duplicate)
         {
             logger.LogInformation(
-                "[InboundFileLedger] {Code}: {File} is byte-identical to a file already ingested; skipping",
+                "[InboundFileLedger] {Code}: {File} is byte-identical to a file already handled; skipping",
                 entry.InterfaceCode, entry.FileName);
 
-            entry.MarkSkippedStale("Content already ingested under the same file name.",
+            entry.MarkSkippedStale("Content already handled under the same file name.",
                 dateTimeProvider.ApplicationNow);
+        }
+        else
+        {
+            await holders.ExecuteUpdateAsync(
+                s => s.SetProperty(l => l.ContentHash, (string?)null), cancellationToken);
+
+            entry.SetContentHash(contentHash);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return !duplicate;
     }
+
+    /// <summary>
+    /// Whether these exact bytes were already quarantined under this file name — the same bad file
+    /// still sitting in the drop folder. Checked before a ledger row is opened, so re-seeing it every
+    /// run neither re-parses it nor adds a row.
+    /// </summary>
+    public Task<bool> IsQuarantinedContentAsync(
+        string interfaceCode, string fileName, string contentHash, CancellationToken cancellationToken = default) =>
+        dbContext.InboundFileLogs.AnyAsync(l => l.InterfaceCode == interfaceCode
+                                                && l.FileName == fileName
+                                                && l.ContentHash == contentHash
+                                                && l.Status == InboundFileStatus.Quarantined,
+            cancellationToken);
 
     public Task MarkSucceededAsync(
         InboundFileLog entry, int received, int updated, int unchanged,
@@ -132,7 +185,7 @@ public class InboundFileLedger(
         return dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>Transient failure — the file stays eligible, so the next run retries it.</summary>
+    /// <summary>Transient failure — the file stays eligible, and the next run retries it on this row.</summary>
     public Task MarkFailedAsync(InboundFileLog entry, string? error, CancellationToken cancellationToken = default)
     {
         entry.MarkFailed(error, dateTimeProvider.ApplicationNow);

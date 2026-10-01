@@ -46,6 +46,7 @@ public class AppraisalCreationService(
         string? appraisalType = null,
         Guid? workflowDefinitionId = null,
         string? groupTag = null,
+        string? prevAppraisalNumber = null,
         CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Creating appraisal from request {RequestId} with {TitleCount} titles",
@@ -135,6 +136,9 @@ public class AppraisalCreationService(
         // Stamp the reappraisal batch tag when provided (system-only; no user edit path).
         if (!string.IsNullOrWhiteSpace(groupTag))
             appraisal.SetGroupTag(groupTag);
+
+        if (prevAppraisalId is null && !string.IsNullOrWhiteSpace(prevAppraisalNumber))
+            appraisal.SetPrevAppraisalNumber(prevAppraisalNumber);
 
         // Track prior→new property mapping so we can duplicate PropertyPhotoMapping rows
         // AFTER Phase 1 SaveChanges (which is where DB-generated IDs land on the new properties).

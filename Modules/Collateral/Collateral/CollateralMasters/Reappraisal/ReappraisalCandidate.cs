@@ -6,7 +6,16 @@ namespace Collateral.CollateralMasters.Reappraisal;
 /// Each row corresponds to one 649-char Detail record in the monthly
 /// AS400_COLLATREV_YYYYMMDD.txt file (Collateral Review Interface).
 ///
-/// Lifecycle: Pending → Consumed (initiate called) | Deleted (staff deleted it).
+/// One row per BOOK — (<see cref="CollateralId"/>, <see cref="NormalizedSurveyNumber"/>) — across every
+/// monthly file. AS400 does not know what CAS has already reviewed, so it keeps sending the same books
+/// month after month; each later file refreshes the row instead of adding another one.
+///
+/// Lifecycle:
+///   Pending  → Consumed  when the reappraisal request is submitted.
+///   Pending  → Deleted   staff chose "not reviewing this round"; shown on its own tab.
+///   Deleted  → Pending   staff restored it.
+///   Consumed → Pending   a later file still lists the book but the reappraisal it produced was
+///                        cancelled, so nothing is reviewing it any more.
 /// </summary>
 public class ReappraisalCandidate
 {
@@ -17,8 +26,16 @@ public class ReappraisalCandidate
     /// <summary>The source filename (e.g. AS400_COLLATREV_20260501.txt).</summary>
     public string SourceFileName { get; private set; } = default!;
 
-    /// <summary>Date parsed from the filename (YYYYMMDD portion).</summary>
+    /// <summary>Date of the file this book FIRST appeared in (YYYYMMDD portion of its name).</summary>
     public DateOnly SourceFileDate { get; private set; }
+
+    /// <summary>
+    /// Date of the latest file that listed this book. A Pending or Deleted book missing from the latest
+    /// file is no longer due and is hidden. Not advanced for Consumed books — a book already reviewed is
+    /// skipped outright when AS400 repeats it. NULL on rows ingested before this column existed; readers
+    /// fall back to <see cref="SourceFileDate"/>.
+    /// </summary>
+    public DateOnly? LastSeenFileDate { get; private set; }
 
     /// <summary>EffectiveDate from the Header record (DDMMYYYY pos 2–9).</summary>
     public DateOnly EffectiveDate { get; private set; }
@@ -48,6 +65,21 @@ public class ReappraisalCandidate
     /// FSD calls it "Old Appraisal Report No".
     /// </summary>
     public string SurveyNumber { get; private set; } = default!;
+
+    /// <summary>
+    /// <see cref="SurveyNumber"/> as CAS stores it (<see cref="As400AppraisalNumber.Normalize"/>). The key
+    /// every lookup uses; <see cref="SurveyNumber"/> keeps the raw value for audit. NULL only on rows
+    /// ingested before this column existed and not yet backfilled.
+    /// </summary>
+    public string? NormalizedSurveyNumber { get; private set; }
+
+    /// <summary>
+    /// The book is a block-project appraisal — the number AS400 sent (with or without 'B', or a unit
+    /// ticket) names one UNIT of the project. Such a review is per collateral, not per book: other units
+    /// of the same project are reviewed separately. A ticket's <see cref="NormalizedSurveyNumber"/> is
+    /// the project's appraisal number; the ticket stays in <see cref="SurveyNumber"/> to find the unit.
+    /// </summary>
+    public bool IsBlockUnit { get; private set; }
 
     /// <summary>Collateral type code e.g. "11A" (pos 40–42).</summary>
     public string CollateralCode { get; private set; } = default!;
@@ -221,6 +253,8 @@ public class ReappraisalCandidate
             IngestedAt = ingestedAt,
             RowHash = rowHash,
             Status = ReappraisalCandidateStatus.Pending,
+            LastSeenFileDate = sourceFileDate,
+            NormalizedSurveyNumber = As400AppraisalNumber.Normalize(surveyNumber),
             ReviewType = reviewType,
             ReviewDate = reviewDate,
             CollateralId = collateralId,
@@ -262,16 +296,46 @@ public class ReappraisalCandidate
         };
     }
 
-    /// <summary>Marks this candidate as initiated into reappraisal requests.</summary>
+    /// <summary>Marks this book as reviewed — its reappraisal request has been submitted.</summary>
     public void MarkConsumed()
     {
         Status = ReappraisalCandidateStatus.Consumed;
     }
 
-    /// <summary>Soft-deletes this candidate from the list.</summary>
+    /// <summary>"Not reviewing this round" — moves the book to its own tab until staff restore it.</summary>
     public void MarkDeleted()
     {
         Status = ReappraisalCandidateStatus.Deleted;
+    }
+
+    /// <summary>
+    /// Back to the to-do list: staff restored a book they had skipped, or the reappraisal a consumed
+    /// book produced was cancelled.
+    /// </summary>
+    public void MarkPending()
+    {
+        Status = ReappraisalCandidateStatus.Pending;
+    }
+
+    /// <summary>
+    /// The book as resolved by the ingestor (a ticket becomes its project's appraisal number), and the
+    /// number exactly as this file sent it — a unit sent as "B…" one month may come as its ticket the
+    /// next, and the ticket is what finds the unit (collateral.vw_ReappraisalCandidateUnits).
+    /// </summary>
+    public void SetBook(string bookNumber, bool isBlockUnit, string surveyNumber)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookNumber);
+        ArgumentException.ThrowIfNullOrWhiteSpace(surveyNumber);
+        NormalizedSurveyNumber = bookNumber;
+        IsBlockUnit = isBlockUnit;
+        SurveyNumber = surveyNumber;
+    }
+
+    /// <summary>Records that a file dated <paramref name="fileDate"/> listed this book.</summary>
+    public void MarkSeen(DateOnly fileDate)
+    {
+        if (LastSeenFileDate is null || fileDate > LastSeenFileDate)
+            LastSeenFileDate = fileDate;
     }
 
     /// <summary>
@@ -285,8 +349,8 @@ public class ReappraisalCandidate
     }
 
     /// <summary>
-    /// Updates the RowHash (and any changed field values) when a re-ingested file
-    /// has different content for the same (SourceFileDate, CollateralId, SurveyNumber).
+    /// Refreshes the book with a later file's values. Status is left alone — a skipped book stays
+    /// skipped however many times AS400 repeats it.
     /// </summary>
     public void UpdateFrom(
         string rowHash,
@@ -364,9 +428,6 @@ public class ReappraisalCandidate
         IBGRetail = ibgRetail;
         Group = @group;
         EffectiveDateAppraisal = effectiveDateAppraisal;
-
-        // Reset to Pending so staff can act on the refreshed row.
-        if (Status == ReappraisalCandidateStatus.Deleted)
-            Status = ReappraisalCandidateStatus.Pending;
+        NormalizedSurveyNumber ??= As400AppraisalNumber.Normalize(SurveyNumber);
     }
 }

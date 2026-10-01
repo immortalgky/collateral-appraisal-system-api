@@ -18,7 +18,7 @@ namespace Integration.Infrastructure.FileInterface;
 /// <param name="IngestAsync">
 /// Parses the bytes and applies them. Throwing <see cref="FormatException"/> means the layout is
 /// wrong and will never parse, so the runner quarantines instead of retrying; any other exception is
-/// treated as transient and leaves the file eligible for the next run.
+/// treated as transient: the ledger row is marked failed and the next run retries it.
 /// </param>
 public sealed record InboundFileInterface(
     string Code,
@@ -50,9 +50,9 @@ public sealed record InboundIngestOutcome(
 ///
 /// Per run:
 ///   1. Resolve inbox directory + pattern from <c>integration.FileInterfaceConfigs</c>.
-///   2. List files, then drop the ones the ledger already recorded as ingested — on name and size,
-///      so nothing is downloaded to find out it is old. Production drop folders are never emptied,
-///      so this listing only grows.
+///   2. List files, then drop the ones the ledger is finished with (ingested, quarantined, or
+///      skipped) — on name and size, so nothing is downloaded to find out it is old. Production drop
+///      folders are never emptied, so this listing only grows. Failed files stay in and are retried.
 ///   3. Order what is left by the date in the file name, oldest first, so a backlog is applied in
 ///      the order it was produced.
 ///   4. Download, hash, and claim through the ledger — the second, exact pass that catches a file
@@ -115,7 +115,7 @@ public class InboundFileRunner(
             }
             catch (Exception ex)
             {
-                // Nothing is recorded as succeeded here, so the file stays eligible for the next run.
+                // Nothing is recorded as finished here, so the file stays eligible for the next run.
                 logger.LogError(ex, "{Tag} Failed to ingest {File}; leaving for retry", iface.LogTag, file.FileName);
             }
         }
@@ -133,16 +133,16 @@ public class InboundFileRunner(
     {
         logger.LogInformation("{Tag} Processing {File}", iface.LogTag, file.FileName);
 
-        var entry = await ledger.BeginAsync(iface.Code, file, fileDate, cancellationToken);
-
         if (fileDate is null)
         {
+            var undated = await ledger.BeginAsync(iface.Code, file, fileDate, cancellationToken);
+
             // Without a date the file cannot be placed in the sequence, so it can never be applied
             // safely however many times it is retried.
             const string reason = "File name does not carry a parsable date.";
             logger.LogWarning("{Tag} {File}: {Reason} Quarantining", iface.LogTag, file.FileName, reason);
 
-            await ledger.MarkQuarantinedAsync(entry, reason, cancellationToken);
+            await ledger.MarkQuarantinedAsync(undated, reason, cancellationToken);
             await MoveAsync(iface, file, failedDirectory, "Quarantined", cancellationToken);
             return;
         }
@@ -153,6 +153,17 @@ public class InboundFileRunner(
         {
             (content, hash) = await InboundFileLedger.ReadAndHashAsync(stream, cancellationToken);
         }
+
+        // The same bad bytes quarantined before, still in the drop folder: nothing new to try. A
+        // corrected re-send has a different hash and goes on to ingest.
+        if (await ledger.IsQuarantinedContentAsync(iface.Code, file.FileName, hash, cancellationToken))
+        {
+            logger.LogInformation("{Tag} {File} is the same content already quarantined; skipping",
+                iface.LogTag, file.FileName);
+            return;
+        }
+
+        var entry = await ledger.BeginAsync(iface.Code, file, fileDate, cancellationToken);
 
         if (!await ledger.TryClaimAsync(entry, hash, cancellationToken))
         {
@@ -173,6 +184,23 @@ public class InboundFileRunner(
             await ledger.MarkQuarantinedAsync(entry, ex.Message, cancellationToken);
             await MoveAsync(iface, file, failedDirectory, "Quarantined", cancellationToken);
             return;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Transient: record it so the ledger shows the failure instead of a row stuck in progress.
+            // The next run reopens this row and retries. Cancellation is a shutdown, not a file failure.
+            try
+            {
+                await ledger.MarkFailedAsync(entry, ex.Message, cancellationToken);
+            }
+            catch (Exception markEx)
+            {
+                // Usually the same outage. Keep the original failure as the one reported; the row stays
+                // in progress and the next run reopens it anyway.
+                logger.LogWarning(markEx, "{Tag} {File}: could not record the failure in the ledger",
+                    iface.LogTag, file.FileName);
+            }
+            throw;
         }
 
         if (outcome.SkippedStale)

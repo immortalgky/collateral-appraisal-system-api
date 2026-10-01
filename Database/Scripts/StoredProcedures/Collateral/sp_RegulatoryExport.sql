@@ -83,7 +83,7 @@ BEGIN
         -- Collateral AS400 named by appraisal number, which is all of them from before ticketing.
         SELECT s.HostCollateralId, s.PropertyType, s.PropertyTypeDesc,
                a.Id AS AppraisalId, a.AppraisalNumber, a.AppraisalType, a.RequestId, a.PrevAppraisalId,
-               pr.ProjectType
+               a.PrevAppraisalNumber, pr.ProjectType
         FROM #Src s
         JOIN appraisal.Appraisals a
             ON  a.AppraisalNumber = s.CasAppraisalNumber
@@ -96,13 +96,50 @@ BEGIN
         -- Collateral AS400 named by a ticket we issued. The id is already in hand, so this is a seek.
         SELECT s.HostCollateralId, s.PropertyType, s.PropertyTypeDesc,
                a.Id AS AppraisalId, a.AppraisalNumber, a.AppraisalType, a.RequestId, a.PrevAppraisalId,
-               pr.ProjectType
+               a.PrevAppraisalNumber, pr.ProjectType
         FROM #Src s
         JOIN appraisal.Appraisals a
             ON  a.Id        = s.TicketAppraisalId
             AND a.IsDeleted = 0
         LEFT JOIN appraisal.Projects pr ON pr.AppraisalId = a.Id
         WHERE s.TicketAppraisalId IS NOT NULL
+
+        UNION ALL
+
+        -- Collateral AS400 still names by a legacy "99…" book that CAS has since reappraised (Initiate
+        -- stamped the book on the request: Request.ReappraisalBookNumber). Completed only; arm 1 always
+        -- wins. Same as vw_RegulatoryExport — see the note on this arm there.
+        SELECT s.HostCollateralId, s.PropertyType, s.PropertyTypeDesc,
+               a.Id AS AppraisalId, a.AppraisalNumber, a.AppraisalType, a.RequestId, a.PrevAppraisalId,
+               -- The book this arm matched, as the chain's legacy book: the appraisal's own PrevAppraisalNumber
+               -- comes from fields staff can clear, the request's book is a system field.
+               COALESCE(a.PrevAppraisalNumber, s.CasAppraisalNumber) AS PrevAppraisalNumber, pr.ProjectType
+        FROM #Src s
+        CROSS APPLY (
+            SELECT TOP 1 x.Id, x.AppraisalNumber, x.AppraisalType, x.RequestId, x.PrevAppraisalId,
+                         x.PrevAppraisalNumber
+            FROM appraisal.Appraisals x
+            -- A periodical reappraisal of the book: the request Initiate created for it carries the book
+            -- in ReappraisalBookNumber, a system field — not the appraisal's PrevAppraisalNumber, which
+            -- comes from prior-appraisal fields staff can clear. By book, not collateral: one request
+            -- reviews every collateral the book is listed under (a block-project book never reaches
+            -- this arm: its project appraisal matches arm 1, which always wins).
+            JOIN request.Requests xr
+                ON  xr.Id = x.RequestId
+                AND xr.IsDeleted = 0
+            WHERE xr.ReappraisalBookNumber = s.CasAppraisalNumber
+              AND x.Status = 'Completed'
+              AND x.IsDeleted = 0
+              -- SOURCE 1 reports only an appraisal with a valuation (e.ValuationDate); one without
+              -- would be dropped there AND excluded from SOURCE 2, losing the collateral entirely.
+              AND EXISTS (SELECT 1 FROM appraisal.ValuationAnalyses v
+                          WHERE v.AppraisalId = x.Id AND v.ValuationDate IS NOT NULL)
+            ORDER BY x.CompletedAt DESC, x.Id DESC
+        ) a
+        LEFT JOIN appraisal.Projects pr ON pr.AppraisalId = a.Id
+        WHERE s.TicketAppraisalId IS NULL
+          AND NOT EXISTS (SELECT 1 FROM appraisal.Appraisals a1
+                          WHERE a1.AppraisalNumber = s.CasAppraisalNumber AND a1.IsDeleted = 0)
     )
     SELECT * INTO #Anchor FROM Anchor;
     CREATE CLUSTERED INDEX ix ON #Anchor(AppraisalId);
@@ -113,6 +150,9 @@ BEGIN
             an.AppraisalId,
             an.AppraisalId      AS AncestorId,
             an.PrevAppraisalId,
+            -- Same type as the recursive member's p.PrevAppraisalNumber (nvarchar(20)): Anchor arm 3 widens
+            -- it through COALESCE with the feed's number, and a recursive CTE refuses a length mismatch (240).
+            CAST(an.PrevAppraisalNumber AS nvarchar(20)) AS PrevAppraisalNumber,
             0                   AS Depth,
             CAST('|' + CAST(an.AppraisalId AS varchar(36)) + '|' AS varchar(max)) AS Path
         FROM #Anchor an
@@ -123,6 +163,7 @@ BEGIN
             w.AppraisalId,
             p.Id,
             p.PrevAppraisalId,
+            p.PrevAppraisalNumber,
             w.Depth + 1,
             CAST(w.Path + CAST(p.Id AS varchar(36)) + '|' AS varchar(max))
         FROM Walk w
@@ -273,17 +314,46 @@ BEGIN
     SELECT * INTO #PUR FROM ProjectUnitRow;
     CREATE UNIQUE CLUSTERED INDEX ix ON #PUR(HostCollateralId);
 
-    WITH LegacyByCollateral AS (
-        SELECT
-            CAST(CAST(l.CollateralID AS bigint) AS varchar(19)) AS HostCollateralId,
-            MIN(l.ValuationDate)                                AS ValuationDate,
-            MIN(l.ValuationPriceInBaht)                         AS ValuationPriceInBaht
-        FROM appraisal.AS400ReportListing l
-        WHERE l.CollateralID IS NOT NULL
-        GROUP BY CAST(CAST(l.CollateralID AS bigint) AS varchar(19))
+    -- Keyed by the book number — see LegacyByApplication in vw_RegulatoryExport.
+    WITH LegacyByApplication AS (
+        -- Earliest listing row, date and price from the same row (see the view).
+        SELECT x.ApplicationId, x.ValuationDate, x.ValuationPriceInBaht
+        FROM (
+            SELECT
+                RTRIM(l.ApplicationId) AS ApplicationId,
+                l.ValuationDate,
+                l.ValuationPriceInBaht,
+                ROW_NUMBER() OVER (PARTITION BY RTRIM(l.ApplicationId)
+                                   ORDER BY CASE WHEN l.ValuationDate IS NULL THEN 1 ELSE 0 END,
+                                            l.ValuationDate, l.ValuationPriceInBaht) AS rn
+            FROM appraisal.AS400ReportListing l
+            WHERE l.ApplicationId IS NOT NULL
+        ) x
+        WHERE x.rn = 1
     )
-    SELECT * INTO #Legacy FROM LegacyByCollateral;
-    CREATE UNIQUE CLUSTERED INDEX ix ON #Legacy(HostCollateralId);
+    SELECT * INTO #Legacy FROM LegacyByApplication;
+    CREATE UNIQUE CLUSTERED INDEX ix ON #Legacy(ApplicationId);
+
+    -- The legacy book at the far end of each anchor's chain. DISTINCT: an appraisal covering several
+    -- collateral is walked once per collateral, and the join below would fan out without it.
+    SELECT DISTINCT w.AppraisalId, lg.ValuationDate, lg.ValuationPriceInBaht
+    INTO #LegacyByChain
+    FROM #Walk w
+    JOIN #Legacy lg ON lg.ApplicationId = w.PrevAppraisalNumber
+    WHERE w.PrevAppraisalId IS NULL
+      AND w.PrevAppraisalNumber IS NOT NULL;
+    CREATE CLUSTERED INDEX ix ON #LegacyByChain(AppraisalId);
+
+    -- The listing for the collateral id: SOURCE 1's fallback when the chain names no book, SOURCE 2's key.
+    SELECT
+        CAST(CAST(l.CollateralID AS bigint) AS varchar(19)) AS HostCollateralId,
+        MIN(l.ValuationDate)                                AS ValuationDate,
+        MIN(l.ValuationPriceInBaht)                         AS ValuationPriceInBaht
+    INTO #LegacyByCollateral
+    FROM appraisal.AS400ReportListing l
+    WHERE l.CollateralID IS NOT NULL
+    GROUP BY CAST(CAST(l.CollateralID AS bigint) AS varchar(19));
+    CREATE UNIQUE CLUSTERED INDEX ix ON #LegacyByCollateral(HostCollateralId);
 
     WITH Earliest AS (
         SELECT AppraisalId, AncestorId, ValuationDate, AppraisedValue
@@ -491,8 +561,8 @@ BEGIN
         CASE WHEN puv.EarliestUnitValue IS NOT NULL THEN puv.EarliestUnitValue
              -- A project unit with no unit data reports 0; see ProjectUnitRow.
              WHEN pur.HostCollateralId IS NOT NULL THEN 0
-             WHEN lgc.ValuationDate IS NOT NULL AND lgc.ValuationDate < e.ValuationDate
-                  THEN lgc.ValuationPriceInBaht
+             WHEN lgo.ValuationDate IS NOT NULL AND lgo.ValuationDate < e.ValuationDate
+                  THEN lgo.ValuationPriceInBaht
              ELSE e.AppraisedValue END                               AS EarliestAppraisalValue,
 
         -- Still the money figure, but emitted only while the work is unfinished — gated on the same
@@ -520,8 +590,8 @@ BEGIN
         CASE WHEN an.AppraisalType = 'Progressive' THEN av.ValuationDate END
                                                                      AS LatestProgressiveAppraisalDate,
 
-        CASE WHEN lgc.ValuationDate IS NOT NULL AND lgc.ValuationDate < e.ValuationDate
-             THEN lgc.ValuationDate ELSE e.ValuationDate END      AS EarliestAppraisalDate,
+        CASE WHEN lgo.ValuationDate IS NOT NULL AND lgo.ValuationDate < e.ValuationDate
+             THEN lgo.ValuationDate ELSE e.ValuationDate END      AS EarliestAppraisalDate,
 
         -- The company the appraisal was assigned to, or NULL when it was done in-house.
         -- RegulatoryFileWriter turns this into field 15: a value means External (1), NULL means
@@ -604,10 +674,18 @@ BEGIN
           AND aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
         ORDER BY aa.AssignedAt DESC, aa.CreatedAt DESC, aa.Id DESC
     ) asg
-    -- The legacy listing for THIS collateral, if AS400 valued it before CAS existed. Joined on the
-    -- collateral id, not the appraisal number: the '99…' number that owns the listing row is a
-    -- different number from the one the feed reports today.
-    LEFT JOIN #Legacy lgc ON lgc.HostCollateralId = an.HostCollateralId
+    -- The legacy book this collateral's chain started from, if AS400 valued it before CAS existed.
+    LEFT JOIN #LegacyByChain lgch ON lgch.AppraisalId = an.AppraisalId
+    LEFT JOIN #LegacyByCollateral lgc ON lgc.HostCollateralId = an.HostCollateralId
+    -- The chain's book first; the collateral-id listing only when the chain names none. Same as
+    -- vw_RegulatoryExport — see the note on `lgo` there.
+    OUTER APPLY (
+        SELECT TOP 1 x.ValuationDate, x.ValuationPriceInBaht
+        FROM (VALUES (1, lgch.ValuationDate, lgch.ValuationPriceInBaht),
+                     (2, lgc.ValuationDate,  lgc.ValuationPriceInBaht)) x(Pref, ValuationDate, ValuationPriceInBaht)
+        WHERE x.ValuationDate IS NOT NULL
+        ORDER BY x.Pref
+    ) lgo
     LEFT JOIN #PUV puv     ON puv.HostCollateralId = an.HostCollateralId
     LEFT JOIN #PUR pur       ON pur.HostCollateralId = an.HostCollateralId
     -- A collateral with no valuation anywhere in its history has no origination value to report, which is
@@ -647,7 +725,8 @@ BEGIN
         s.PropertyTypeDesc                                           AS BuildingTypeDescription
 
     FROM #Src s
-    JOIN #Legacy lg ON lg.HostCollateralId = s.HostCollateralId
+    -- The listing for this collateral, by collateral id — see the note in vw_RegulatoryExport.
+    JOIN #LegacyByCollateral lg ON lg.HostCollateralId = s.HostCollateralId
     -- Only where SOURCE 1 could not report it. A collateral that CAS has appraised is reported from the
     -- appraisal; emitting the listing row as well would double-count one physical collateral.
     WHERE NOT EXISTS (
@@ -657,6 +736,13 @@ BEGIN
       -- CasAppraisalNumber is the raw ticket string, which matches no appraisal, so without this guard
       -- the test above would pass and the same collateral would be reported from both sources.
       AND s.TicketAppraisalId IS NULL
+      -- Reviewed in CAS since (Anchor arm 3): SOURCE 1 reports it from the new appraisal.
+      AND NOT EXISTS (
+            SELECT 1 FROM appraisal.Appraisals a
+            JOIN appraisal.ValuationAnalyses v ON v.AppraisalId = a.Id AND v.ValuationDate IS NOT NULL
+            JOIN request.Requests ar ON ar.Id = a.RequestId AND ar.IsDeleted = 0
+            WHERE ar.ReappraisalBookNumber = s.CasAppraisalNumber
+              AND a.Status = 'Completed' AND a.IsDeleted = 0)
       AND lg.ValuationDate IS NOT NULL
 
     -- The grain is the collateral, and one appraisal legitimately covers several of them, so
