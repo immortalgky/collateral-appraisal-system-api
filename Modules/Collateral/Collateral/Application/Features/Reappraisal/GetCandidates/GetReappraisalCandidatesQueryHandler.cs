@@ -206,7 +206,7 @@ public class GetReappraisalCandidatesQueryHandler(ISqlConnectionFactory connecti
             un.RoomNumber      AS UnitRoomNumber,
             un.HouseNumber     AS UnitHouseNumber,
             un.PlotNumber      AS UnitPlotNumber
-        """ + ProcessedBooksSql.From;
+        """ + "\n" + ProcessedBooksSql.From;  // a raw literal drops its last newline
 
     /// <summary>LIKE wildcards typed into the search box match themselves.</summary>
     private static string EscapeLike(string s) =>
