@@ -221,16 +221,29 @@ Val AS (
 
 -- The oldest ancestor that actually has a valuation — that is the origination. Depth breaks ties so
 -- the result cannot change between runs when two rounds share a date.
+--
+-- RootBook: the legacy AS400 book at the far end of the chain, if there is one. A chain that reaches
+-- back past CAS ends on an appraisal with no PrevAppraisalId but a PrevAppraisalNumber — the "99…"
+-- book it was reappraised from (set at creation by periodical reappraisal; older chains carry none).
+-- The walk cannot step into it because it is not an appraisal, so it is read off the root here.
+-- Computed in this CTE, not in one of its own: every reference to Walk re-runs the recursion, and a
+-- second one took the view on U3 from 2 s to 40 s. Hence the LEFT JOIN — the root need not have a
+-- valuation of its own — with ancestors lacking one sorted last, so rn = 1 is the same row as before.
 Earliest AS (
-    SELECT AppraisalId, AncestorId, ValuationDate, AppraisedValue
+    SELECT AppraisalId, AncestorId, ValuationDate, AppraisedValue, RootBook
     FROM (
         SELECT w.AppraisalId, w.AncestorId, v.ValuationDate, v.AppraisedValue,
+               MAX(CASE WHEN w.PrevAppraisalId IS NULL THEN w.PrevAppraisalNumber END)
+                   OVER (PARTITION BY w.AppraisalId) AS RootBook,
+               CASE WHEN v.AppraisalId IS NULL THEN 0 ELSE 1 END AS HasVal,
                ROW_NUMBER() OVER (PARTITION BY w.AppraisalId
-                                  ORDER BY v.ValuationDate ASC, w.Depth DESC) AS rn
+                                  ORDER BY CASE WHEN v.AppraisalId IS NULL THEN 1 ELSE 0 END,
+                                           v.ValuationDate ASC, w.Depth DESC) AS rn
         FROM Walk w
-        JOIN Val v ON v.AppraisalId = w.AncestorId
+        LEFT JOIN Val v ON v.AppraisalId = w.AncestorId
     ) z
     WHERE rn = 1
+      AND HasVal = 1
 ),
 
 -- ── Construction status ────────────────────────────────────────────────────────────────────────
@@ -587,7 +600,7 @@ ProjectUnitValue AS (
 -- '99…' appraisal number.
 --
 -- Keyed by the BOOK NUMBER (ApplicationId), for SOURCE 1's origination: the number at the far end of
--- the chain (LegacyByChain) — written once and auditable, rather than guessed from the collateral id.
+-- the chain (Earliest.RootBook) — written once and auditable, rather than guessed from the collateral id.
 -- The collateral-id match (LegacyByCollateral) remains SOURCE 1's fallback for a chain whose root
 -- names no book, and SOURCE 2's key: that source reports one collateral per row, and COLLATLINK can
 -- report several collateral under one "99…" number, so a book match would hand each the same row.
@@ -613,21 +626,6 @@ LegacyByApplication AS (
         WHERE l.ApplicationId IS NOT NULL
     ) x
     WHERE x.rn = 1
-),
-
--- The legacy AS400 book at the far end of the chain, if there is one. A chain that reaches back past
--- CAS ends on an appraisal with no PrevAppraisalId but a PrevAppraisalNumber — the "99…" book it was
--- reappraised from (set at creation by periodical reappraisal; older chains carry none and are
--- matched by collateral id below). Found by the book's NUMBER: the walk
--- above cannot step into it because it is not an appraisal. DISTINCT: a walk has one root, but an
--- appraisal covering several collateral is anchored (and walked) once per collateral — without it
--- the join below fans each of those rows out N times, as Earliest's rn = 1 guards against.
-LegacyByChain AS (
-    SELECT DISTINCT w.AppraisalId, lg.ValuationDate, lg.ValuationPriceInBaht
-    FROM Walk w
-    JOIN LegacyByApplication lg ON lg.ApplicationId = w.PrevAppraisalNumber
-    WHERE w.PrevAppraisalId IS NULL
-      AND w.PrevAppraisalNumber IS NOT NULL
 ),
 
 -- SOURCE 1's fallback (`lgo`) and SOURCE 2's key (`lg`). Aggregated per collateral before it
@@ -843,7 +841,7 @@ OUTER APPLY (
     ORDER BY aa.AssignedAt DESC, aa.CreatedAt DESC, aa.Id DESC
 ) asg
 -- The legacy book this collateral's chain started from, if AS400 valued it before CAS existed.
-LEFT JOIN LegacyByChain lgch       ON lgch.AppraisalId = an.AppraisalId
+LEFT JOIN LegacyByApplication lgch ON lgch.ApplicationId = e.RootBook
 LEFT JOIN LegacyByCollateral lgc   ON lgc.HostCollateralId = an.HostCollateralId
 -- The legacy origination to weigh against the first CAS valuation: the book the chain names first,
 -- and only when the chain names none, the listing for the collateral id (the rule this view used on
