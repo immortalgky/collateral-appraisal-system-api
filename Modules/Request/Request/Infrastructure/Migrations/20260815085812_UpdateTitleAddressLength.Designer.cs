@@ -3,17 +3,20 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Request.Infrastructure;
 
 #nullable disable
 
-namespace Request.Infrastructure.Migrations
+namespace Request.infrastructure.Migrations
 {
     [DbContext(typeof(RequestDbContext))]
-    partial class RequestDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260815085812_UpdateTitleAddressLength")]
+    partial class UpdateTitleAddressLength
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -55,7 +58,7 @@ namespace Request.Infrastructure.Migrations
                     b.Property<string>("CreatedWorkstation")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime?>("LastModifiedAt")
+                    b.Property<DateTime>("LastModifiedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<Guid>("RequestId")
@@ -111,11 +114,6 @@ namespace Request.Infrastructure.Migrations
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<int>("SequenceNumber")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(0);
-
                     b.Property<string>("TitleFamily")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -132,12 +130,6 @@ namespace Request.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("OwnerName")
-                        .HasDatabaseName("IX_RequestTitle_OwnerName")
-                        .HasFilter("[OwnerName] IS NOT NULL");
-
-                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("OwnerName"), new[] { "RequestId" });
 
                     b.HasIndex("RequestId")
                         .HasDatabaseName("IX_TitleDeedInfo_RequestId");
@@ -180,10 +172,6 @@ namespace Request.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<string>("GroupTag")
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
                     b.Property<bool>("IsPma")
                         .HasColumnType("bit");
 
@@ -194,14 +182,6 @@ namespace Request.Infrastructure.Migrations
                     b.Property<string>("Purpose")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
-
-                    b.Property<string>("ReappraisalBookNumber")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("ReappraisalCollateralId")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
 
                     b.Property<DateTime?>("RequestedAt")
                         .HasColumnType("datetime2");
@@ -227,10 +207,6 @@ namespace Request.Infrastructure.Migrations
                     b.HasIndex("ExternalCaseKey")
                         .HasDatabaseName("IX_Request_ExternalCaseKey")
                         .HasFilter("[ExternalCaseKey] IS NOT NULL");
-
-                    b.HasIndex("ReappraisalBookNumber")
-                        .HasDatabaseName("IX_Request_ReappraisalBookNumber")
-                        .HasFilter("[ReappraisalBookNumber] IS NOT NULL");
 
                     b.HasIndex("RequestedAt")
                         .IsDescending()
@@ -583,10 +559,6 @@ namespace Request.Infrastructure.Migrations
 
                             b1.HasKey("RequestTitleId");
 
-                            b1.HasIndex("ProjectName")
-                                .HasDatabaseName("IX_RequestTitle_ProjectName")
-                                .HasFilter("[ProjectName] IS NOT NULL");
-
                             b1.ToTable("RequestTitles", "request");
 
                             b1.WithOwner()
@@ -737,10 +709,6 @@ namespace Request.Infrastructure.Migrations
                                 .HasDatabaseName("IX_Request_Requestor")
                                 .HasFilter("[IsDeleted] = 0");
 
-                            b1.HasIndex("Username")
-                                .HasDatabaseName("IX_Request_RequestorName")
-                                .HasFilter("[IsDeleted] = 0");
-
                             b1.ToTable("Requests", "request");
 
                             b1.WithOwner()
@@ -769,12 +737,6 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnType("uniqueidentifier");
 
                             b1.HasKey("Id");
-
-                            b1.HasIndex("ContactNumber")
-                                .HasDatabaseName("IX_RequestCustomer_ContactNumber")
-                                .HasFilter("[ContactNumber] IS NOT NULL");
-
-                            SqlServerIndexBuilderExtensions.IncludeProperties(b1.HasIndex("ContactNumber"), new[] { "RequestId" });
 
                             b1.HasIndex("Name")
                                 .HasDatabaseName("IX_RequestCustomer_Name");
@@ -820,10 +782,6 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnName("PrevAppraisalValue");
 
                             b1.HasKey("RequestId");
-
-                            b1.HasIndex("PrevAppraisalNumber")
-                                .HasDatabaseName("IX_Request_PrevAppraisalNumber")
-                                .HasFilter("[PrevAppraisalNumber] IS NOT NULL");
 
                             b1.ToTable("RequestDetails", "request");
 
@@ -873,14 +831,6 @@ namespace Request.Infrastructure.Migrations
                                         .HasColumnName("DealerCode");
 
                                     b2.HasKey("RequestDetailRequestId");
-
-                                    b2.HasIndex("ContactPersonName")
-                                        .HasDatabaseName("IX_Request_ContactPersonName")
-                                        .HasFilter("[ContactPersonName] IS NOT NULL");
-
-                                    b2.HasIndex("ContactPersonPhone")
-                                        .HasDatabaseName("IX_Request_ContactPersonPhone")
-                                        .HasFilter("[ContactPersonPhone] IS NOT NULL");
 
                                     b2.ToTable("RequestDetails", "request");
 
@@ -1154,11 +1104,6 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(10)")
                                 .HasColumnName("BuildingType");
 
-                            b1.Property<string>("BuildingTypeOther")
-                                .HasMaxLength(100)
-                                .HasColumnType("nvarchar(100)")
-                                .HasColumnName("BuildingTypeOther");
-
                             b1.Property<string>("PropertyType")
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)")
@@ -1286,12 +1231,6 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)")
                                 .HasColumnName("CondoName");
 
-                            b1.Property<string>("CondoRegistrationNumber")
-                                .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(100)
-                                .HasColumnType("nvarchar(100)")
-                                .HasColumnName("CondoRegistrationNumber");
-
                             b1.Property<string>("FloorNumber")
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(10)
@@ -1312,14 +1251,6 @@ namespace Request.Infrastructure.Migrations
 
                             b1.HasKey("TitleCondoId");
 
-                            b1.HasIndex("CondoName")
-                                .HasDatabaseName("IX_RequestTitle_CondoName")
-                                .HasFilter("[CondoName] IS NOT NULL");
-
-                            b1.HasIndex("RoomNumber")
-                                .HasDatabaseName("IX_RequestTitle_RoomNumber")
-                                .HasFilter("[RoomNumber] IS NOT NULL");
-
                             b1.ToTable("RequestTitles", "request");
 
                             b1.WithOwner()
@@ -1339,8 +1270,8 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(500)
-                                .HasColumnType("nvarchar(500)")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)")
                                 .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
@@ -1450,10 +1381,6 @@ namespace Request.Infrastructure.Migrations
 
                             b1.HasKey("TitleLandId");
 
-                            b1.HasIndex("LandParcelNumber")
-                                .HasDatabaseName("IX_RequestTitle_LandParcelNumber")
-                                .HasFilter("[LandParcelNumber] IS NOT NULL");
-
                             b1.ToTable("RequestTitles", "request");
 
                             b1.WithOwner()
@@ -1473,8 +1400,8 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(500)
-                                .HasColumnType("nvarchar(500)")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)")
                                 .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
@@ -1639,8 +1566,8 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(500)
-                                .HasColumnType("nvarchar(500)")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)")
                                 .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
@@ -1725,12 +1652,6 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(100)")
                                 .HasColumnName("CondoName");
 
-                            b1.Property<string>("CondoRegistrationNumber")
-                                .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(100)
-                                .HasColumnType("nvarchar(100)")
-                                .HasColumnName("CondoRegistrationNumber");
-
                             b1.Property<string>("FloorNumber")
                                 .ValueGeneratedOnUpdateSometimes()
                                 .HasMaxLength(10)
@@ -1770,8 +1691,8 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(500)
-                                .HasColumnType("nvarchar(500)")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)")
                                 .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
@@ -1900,8 +1821,8 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(500)
-                                .HasColumnType("nvarchar(500)")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)")
                                 .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
@@ -2063,8 +1984,8 @@ namespace Request.Infrastructure.Migrations
 
                             b1.Property<string>("TitleNumber")
                                 .ValueGeneratedOnUpdateSometimes()
-                                .HasMaxLength(500)
-                                .HasColumnType("nvarchar(500)")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)")
                                 .HasColumnName("TitleNumber");
 
                             b1.Property<string>("TitleType")
@@ -2165,21 +2086,12 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnType("nvarchar(300)")
                                 .HasColumnName("VehicleLocation");
 
-                            b1.Property<string>("VehicleRegistrationNumber")
-                                .HasMaxLength(50)
-                                .HasColumnType("nvarchar(50)")
-                                .HasColumnName("VehicleRegistrationNumber");
-
                             b1.Property<string>("VehicleType")
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)")
                                 .HasColumnName("VehicleType");
 
                             b1.HasKey("TitleVehicleId");
-
-                            b1.HasIndex("LicensePlateNumber")
-                                .HasDatabaseName("IX_RequestTitle_LicensePlateNumber")
-                                .HasFilter("[LicensePlateNumber] IS NOT NULL");
 
                             b1.ToTable("RequestTitles", "request");
 
