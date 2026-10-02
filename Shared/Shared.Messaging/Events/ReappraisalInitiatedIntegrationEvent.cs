@@ -45,8 +45,10 @@ public record ReappraisalInitiatedIntegrationEvent : IntegrationEvent
     /// <summary>
     /// The prior book's number when it is NOT an appraisal in this system — a legacy AS400 "99A…"
     /// book. Never set together with <see cref="PrevAppraisalId"/>. With it come the prior value and
-    /// date from the bank's listing (appraisal.AS400ReportListing) — never the COLLATREV row's copies;
-    /// null when the book has no listing row.
+    /// date from the bank's listing (appraisal.vw_LegacyBookLatestValuation) — never the COLLATREV row's
+    /// copies. Both are null when the listing has no valid row for the book (none at all, or only rows
+    /// without a real date); the value alone can be null when the chosen row carries no price. So a null
+    /// does not prove the book is missing from the listing.
     /// </summary>
     public string? PrevAppraisalNumber { get; set; }
     public decimal? PrevAppraisalValue { get; set; }

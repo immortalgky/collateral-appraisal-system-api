@@ -3,8 +3,9 @@
 -- collateral.vw_ReappraisalCandidates (last appraisal / prior source), the reappraisal detail page's nearby
 -- query, Initiate (the request's prior value/date) and the request page's legacy chain arm, so they agree.
 --
--- 1900-01-01 is the source's "no date" placeholder (As400LegacyImporter skips it too): such a row, like one
--- with no date at all, is not a valuation. A book with only those rows has no row here.
+-- 1900-01-01 is the source's "no date" placeholder: a row dated on or before 1901-01-01 — the same cutoff
+-- As400LegacyImporter uses, so the two agree on which rows count — or with no date at all is not a
+-- valuation. A book with only those rows has no row here.
 -- BookNumber is the raw, char-padded ApplicationId: `=` ignores trailing spaces, so callers compare it as is
 -- and the predicate reaches the listing's index; RTRIM only for display or as a dictionary key.
 -- The regulatory export's origination is a different rule (the EARLIEST row) and is not read from here.
