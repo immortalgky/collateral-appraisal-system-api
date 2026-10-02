@@ -14,13 +14,10 @@
 --
 -- Reads the BASE table collateral.ReappraisalCandidates (not collateral.vw_ReappraisalCandidates) on
 -- purpose: repeatable view scripts deploy in folder-alphabetical order, so a sibling view may not
--- exist yet on a fresh deploy. The base table exists after EF migrations, and
--- appraisal.vw_AppraisalList (folder "Appraisal") sorts before this view.
+-- exist yet on a fresh deploy. The base table exists after EF migrations.
 -- NOTE: the reappraisal vertical moved request -> collateral schema; this view follows it.
--- NextValuationDate / RemainingDays derive from the matched in-system appraisal's appraisal date
--- (+5 years) — ValuationAnalyses.ValuationDate, falling back to the latest non-cancelled
--- appointment, then the legacy listing / AS400's own valuation date for a book not in CAS — the
--- same way vw_ReappraisalCandidates does.
+-- NextValuationDate / RemainingDays are AS400's review due date (ReviewDate), as the reappraisal list
+-- shows it — it already follows the review type's cycle (Stage 3 is due sooner).
 -- c.ValuationDate is a DIFFERENT field: the AS400 inbound value off the Collatrev file.
 --
 -- CODE -> DESCRIPTION RESOLUTION:
@@ -80,10 +77,8 @@ SELECT c.Id,
        c.CurrentValue                      AS OldAppraisalValue,
        c.PastDueDay,
        c.ValuationDate,
-       DATEADD(YEAR, 5, appr.AppraisalDate) AS NextValuationDate,
-       DATEDIFF(DAY,
-                CAST(GETDATE() AS DATE),
-                DATEADD(YEAR, 5, appr.AppraisalDate)) AS RemainingDays,
+       c.ReviewDate                        AS NextValuationDate,
+       DATEDIFF(DAY, CAST(GETDATE() AS DATE), c.ReviewDate) AS RemainingDays,
        -- Appended (not inserted mid-list) so the SELECT order still matches the positional Rcas002Row.
        c.ReviewType                        AS ReviewTypeCode, -- raw 1/2/3: filter binds the code, sort follows code order
        CASE c.Status
@@ -98,29 +93,6 @@ SELECT c.Id,
        c.Status                            AS ReviewStatusCode
 FROM ranked c
          CROSS JOIN latest
-         -- a.CompletedAt is the last fallback: a legacy/migrated appraisal can have neither a
-         -- ValuationAnalyses row nor an Appointment row, and without it NextValuationDate and
-         -- RemainingDays are NULL, so the collateral drops out of the reappraisal-due report
-         -- despite having a perfectly good completion date to anchor the +5 years on.
-         OUTER APPLY (
-    SELECT TOP 1 COALESCE(va.ValuationDate, al.AppointmentDateTime, a.CompletedAt) AS AppraisalDate
-    FROM appraisal.Appraisals a
-             INNER JOIN appraisal.vw_AppraisalList al ON al.Id = a.Id
-             LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = a.Id
-    WHERE a.AppraisalNumber = c.BookNumber
-      AND a.IsDeleted = 0
-    ORDER BY COALESCE(va.ValuationDate, al.AppointmentDateTime, a.CompletedAt) DESC
-    ) la
-         -- A book with no CAS appraisal (legacy AS400 "99A…", or unmatched) falls back to the bank's
-         -- legacy listing, then to the valuation date AS400 sent — same rule as vw_ReappraisalCandidates.
-         OUTER APPLY (
-    SELECT MAX(l.ValuationDate) AS ValuationDate  -- latest valuation drives the next-due date
-    FROM appraisal.AS400ReportListing l
-    WHERE l.ApplicationId = c.BookNumber
-    ) legacy
-         CROSS APPLY (
-    SELECT CAST(COALESCE(la.AppraisalDate, legacy.ValuationDate, c.ValuationDate) AS DATE) AS AppraisalDate
-    ) appr
          -- The reappraisal this book produced, newest non-cancelled first. Two arms, one key each:
          -- PrevAppraisalId for a book that is a CAS appraisal, PrevAppraisalNumber for a legacy
          -- AS400 book (never both on one row). Submitted = when the request was sent into the workflow.

@@ -23,6 +23,7 @@ public class GetReappraisalCandidatesQueryHandler(ISqlConnectionFactory connecti
                 c.Status,
                 c.ReviewType,
                 c.AppraisalDate,
+                c.ReviewDate,
                 c.RemainingDay,
                 c.OldAppraisalReportNumber,
                 c.CifNumber,
@@ -134,7 +135,9 @@ public class GetReappraisalCandidatesQueryHandler(ISqlConnectionFactory connecti
         if (query.ReviewDateTo.HasValue)
         {
             sql += " AND c.ReviewDate <= @ReviewDateTo";
-            p.Add("ReviewDateTo", query.ReviewDateTo.Value.ToDateTime(TimeOnly.MaxValue));
+            // Midnight, not TimeOnly.MaxValue: ReviewDate is a date, and 23:59:59.9999999 sent as datetime
+            // rounds up to the next day's midnight — the filter would take one day too many.
+            p.Add("ReviewDateTo", query.ReviewDateTo.Value.ToDateTime(TimeOnly.MinValue));
         }
 
         if (!consumed && query.RemainingDayFrom.HasValue)
@@ -161,14 +164,14 @@ public class GetReappraisalCandidatesQueryHandler(ISqlConnectionFactory connecti
         return new GetReappraisalCandidatesResult(result);
     }
 
-    // Due first: the book closest to (or furthest past) its five-year mark leads; an untraceable book
-    // (no date at all) goes last instead of first.
+    // Due first: the book closest to (or furthest past) the review date AS400 set leads. c.Id last: AS400
+    // sets due dates in batches, so without a unique key OFFSET/FETCH could repeat or skip rows across pages.
     private const string DefaultOrderBy =
-        "CASE WHEN c.RemainingDay IS NULL THEN 1 ELSE 0 END, c.RemainingDay ASC, c.CifNumber ASC";
+        "c.RemainingDay ASC, c.CifNumber ASC, c.Id ASC";
 
     // Processed tab: the latest submission first; a book with no reappraisal found goes last.
     private const string ConsumedDefaultOrderBy =
-        "CASE WHEN na.SubmittedAt IS NULL THEN 1 ELSE 0 END, na.SubmittedAt DESC, c.CifNumber ASC";
+        "CASE WHEN na.SubmittedAt IS NULL THEN 1 ELSE 0 END, na.SubmittedAt DESC, c.CifNumber ASC, c.Id ASC";
 
     private static readonly Dictionary<string, string> ConsumedSortableColumns = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -224,6 +227,7 @@ public class GetReappraisalCandidatesQueryHandler(ISqlConnectionFactory connecti
         ["CustomerName"] = "c.CustomerName",
         ["ReviewType"] = "c.ReviewType",
         ["RemainingDay"] = "c.RemainingDay",
+        ["ReviewDate"] = "c.ReviewDate",
         ["AppraisalDate"] = "c.AppraisalDate",
     };
 
@@ -240,11 +244,11 @@ public class GetReappraisalCandidatesQueryHandler(ISqlConnectionFactory connecti
             ? "DESC"
             : "ASC";
 
-        // Blanks last in either direction (SQL Server puts NULL first on ASC): a book whose prior
-        // appraisal cannot be traced has no due date and must not head the "most due" order.
-        // Keep CifNumber as a stable tiebreaker, but not when it's already the sort column
-        // (SQL Server rejects a column appearing twice in ORDER BY).
+        // Blanks last in either direction (SQL Server puts NULL first on ASC): a book with no value in
+        // the sorted column (e.g. no traceable last appraisal) must not head the list.
+        // Keep CifNumber, then the unique Id, as tiebreakers so paging is stable — CifNumber not when it's
+        // already the sort column (SQL Server rejects a column appearing twice in ORDER BY).
         var nullsLast = $"CASE WHEN {column} IS NULL THEN 1 ELSE 0 END, {column} {direction}";
-        return column == "c.CifNumber" ? nullsLast : $"{nullsLast}, c.CifNumber ASC";
+        return column == "c.CifNumber" ? $"{nullsLast}, c.Id ASC" : $"{nullsLast}, c.CifNumber ASC, c.Id ASC";
     }
 }

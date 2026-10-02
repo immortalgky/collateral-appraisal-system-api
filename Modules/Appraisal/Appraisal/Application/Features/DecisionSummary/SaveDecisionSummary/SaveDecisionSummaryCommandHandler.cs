@@ -95,8 +95,8 @@ public class SaveDecisionSummaryCommandHandler(
             // ValuationDate is derived from the appraisal's appointments, NOT stamped with "now".
             // Saving the decision summary is not an appraisal event, but this is the first writer of
             // the row when no pricing has been entered — and ValuationDate leads every appraisal-date
-            // read surface (the printed book, both AS400 feeds, History Search, the +5-year
-            // reappraisal anchor), so "now" would publish a save timestamp as the appraisal date.
+            // read surface (the printed book, both AS400 feeds, History Search, the reappraisal list's
+            // last-appraisal date), so "now" would publish a save timestamp as the appraisal date.
             // ApplicationNow remains only when no appointment exists to derive from.
             var seedDate = await appraisalDateResolver
                                .ResolveFromAppointmentsAsync(command.AppraisalId, cancellationToken)

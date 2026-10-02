@@ -45,7 +45,8 @@ public record ReappraisalInitiatedIntegrationEvent : IntegrationEvent
     /// <summary>
     /// The prior book's number when it is NOT an appraisal in this system — a legacy AS400 "99A…"
     /// book. Never set together with <see cref="PrevAppraisalId"/>. With it come the prior value and
-    /// date AS400 sent (COLLATREV), since nothing in CAS can supply them.
+    /// date from the bank's listing (appraisal.AS400ReportListing) — never the COLLATREV row's copies;
+    /// null when the book has no listing row.
     /// </summary>
     public string? PrevAppraisalNumber { get; set; }
     public decimal? PrevAppraisalValue { get; set; }

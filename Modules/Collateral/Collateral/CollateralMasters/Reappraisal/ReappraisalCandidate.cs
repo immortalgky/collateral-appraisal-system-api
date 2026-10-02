@@ -53,7 +53,7 @@ public class ReappraisalCandidate
     /// <summary>ReviewType: 1 = Normal, 2 = Before Stage 3, 3 = Stage 3 (pos 2).</summary>
     public string ReviewType { get; private set; } = default!;
 
-    /// <summary>AS400-provided due date for reappraisal — the list "Appraisal Date" (pos 3–10, DDMMYYYY).</summary>
+    /// <summary>AS400-provided due date for reappraisal — the list's "Review Due" (pos 3–10, DDMMYYYY).</summary>
     public DateOnly ReviewDate { get; private set; }
 
     /// <summary>Bank collateral ID (dec19, pos 11–29).</summary>

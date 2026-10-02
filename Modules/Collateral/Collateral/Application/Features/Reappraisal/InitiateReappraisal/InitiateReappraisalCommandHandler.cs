@@ -20,7 +20,7 @@ namespace Collateral.Application.Features.Reappraisal.InitiateReappraisal;
 ///   4. Generate one shared group number.
 ///   5. Publish one <see cref="ReappraisalInitiatedIntegrationEvent"/> per working item via the
 ///      Collateral outbox. A book not in CAS (legacy AS400 "99A…") is published too, carrying its
-///      number, value and date instead of a PrevAppraisalId.
+///      number — and the value/date from the bank's listing, when it has one — instead of a PrevAppraisalId.
 ///   6. SaveChanges (outbox messages in one transaction).
 ///
 /// Candidates are NOT consumed here: Initiate only creates requests, and a book counts as reviewed
@@ -208,11 +208,17 @@ public class InitiateReappraisalCommandHandler(
         var units = await FindUnitsAsync(
             toProcess.Select(i => i.Candidate).OfType<ReappraisalCandidate>().Where(c => c.IsBlockUnit).Select(c => c.Id).ToList(),
             cancellationToken);
+        // A book with no appraisal in CAS (legacy AS400 "99A…") has only its number — and the prior
+        // value/date from the bank's listing — to carry into the request. XOR with PrevAppraisalId.
+        // Every item here has a book number (NoBookNumber was skipped above).
+        static bool IsLegacy(WorkingItem i) => !i.AppraisalId.HasValue && i.Candidate is not null;
+        var legacyPriors = await FindLegacyPriorsAsync(
+            toProcess.Where(IsLegacy).Select(i => i.AppraisalNumber!).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            cancellationToken);
         foreach (var item in toProcess)
         {
-            // A book with no appraisal in CAS (legacy AS400 "99A…") has only its number — and the prior
-            // value/date AS400 sent — to carry into the request. XOR with PrevAppraisalId.
-            var legacy = !item.AppraisalId.HasValue && item.Candidate is not null;
+            var legacy = IsLegacy(item);
+            var legacyPrior = legacy ? legacyPriors.GetValueOrDefault(item.AppraisalNumber!) : null;
 
             outbox.Publish(new ReappraisalInitiatedIntegrationEvent
             {
@@ -227,8 +233,8 @@ public class InitiateReappraisalCommandHandler(
                 CollateralId   = item.Candidate?.CollateralId,
                 PrevAppraisalId = item.AppraisalId,
                 PrevAppraisalNumber = legacy ? item.AppraisalNumber : null,
-                PrevAppraisalValue  = legacy ? item.Candidate!.CurrentValue : null,
-                PrevAppraisalDate   = legacy ? item.Candidate!.ValuationDate?.ToDateTime(TimeOnly.MinValue) : null,
+                PrevAppraisalValue  = legacyPrior?.Value,
+                PrevAppraisalDate   = legacyPrior?.Date,
                 IsBlockUnit    = item.Candidate?.IsBlockUnit == true,
                 ProjectUnitId  = item.Candidate is { IsBlockUnit: true } u ? units.GetValueOrDefault(u.Id) : null,
                 Requestor      = command.Requestor,
@@ -361,12 +367,30 @@ public class InitiateReappraisalCommandHandler(
         return rows.ToDictionary(r => r.CandidateId, r => r.ProjectUnitId);
     }
 
+    /// <summary>
+    /// A legacy book's prior value/date for the request: its latest valuation in the bank's listing
+    /// (appraisal.vw_LegacyBookLatestValuation, shared with the list and the request page) — never the
+    /// COLLATREV row's own copies. A book not in the listing gets none.
+    /// </summary>
+    private async Task<Dictionary<string, LegacyPriorRow>> FindLegacyPriorsAsync(IReadOnlyList<string> books, CancellationToken _)
+    {
+        // IN ignores the char-padded BookNumber's trailing spaces; RTRIM only for the returned key.
+        const string sql = """
+            SELECT RTRIM(lv.BookNumber) AS Book, lv.ValuationPriceInBaht AS Value, lv.ValuationDate AS Date
+            FROM appraisal.vw_LegacyBookLatestValuation lv
+            WHERE lv.BookNumber IN @Books
+            """;
+        var rows = await QueryChunkedAsync<LegacyPriorRow, string>(sql, books, chunk => new { Books = chunk });
+        return rows.ToDictionary(r => r.Book, StringComparer.OrdinalIgnoreCase);
+    }
+
     // ── Private record types ───────────────────────────────────────────────────
 
     private sealed record PrevAppraisalRow(Guid Id, string SurveyNumber);
     private sealed record NearbyAppraisalRow(Guid AppraisalId, string? AppraisalNumber);
     private sealed record BookReviewRow(string BookNumber, string? CollateralId, bool IsOpen);
     private sealed record UnitRow(Guid CandidateId, Guid? ProjectUnitId);
+    private sealed record LegacyPriorRow(string Book, decimal? Value, DateTime? Date);
 
     private sealed record WorkingItem(
         Guid? AppraisalId,

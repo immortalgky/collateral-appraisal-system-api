@@ -94,7 +94,7 @@ curl -k "https://localhost:7111/reappraisal/candidates?remainingDayTo=0"   # ove
 curl -k "https://localhost:7111/reappraisal/candidates?cifNumber=68057984"
 ```
 Each item: `oldAppraisalReportNumber` (= SurveyNumber), `cifNumber`, `customerName`, `reviewType`,
-`appraisalDate` (= ReviewDate), `remainingDay` (row 2 negative = overdue), `channel = "AS400"`.
+`appraisalDate` (last appraisal), `reviewDate` (due), `remainingDay` (row 2 negative = overdue), `channel = "AS400"`.
 
 ## Step 7 — Candidate detail + nearby group
 Take an `id` from Step 6 (row 1):
@@ -214,8 +214,10 @@ Positions are **Unicode code-points, not bytes** — the parser indexes by char,
 
 ### Dates
 - **Filename** date = `YYYYMMDD`; **in-file** dates (EffectiveDate, ReviewDate, ValuationDate) = `DDMMYYYY`.
-- List "Appraisal Date" = the file's `ReviewDate` (AS400-provided; CAS does not compute it).
-  "Remaining Days" = ReviewDate − today. `SurveyNo` = our **Appraisal Number** (FSD "Old Appraisal Report No").
+- Review due date = the file's `ReviewDate` (AS400-provided — it follows the review type's cycle, so
+  Stage 3 falls due sooner; CAS does not recompute it). "Remaining Days" = ReviewDate − today, in the
+  list, the detail page, nearby books and RCAS002. "Appraisal Date" is the last appraisal (CAS, else the
+  bank's listing for a 99A book, else the file's ValuationDate). `SurveyNo` = our **Appraisal Number** (FSD "Old Appraisal Report No").
 
 ## Block-project units
 
