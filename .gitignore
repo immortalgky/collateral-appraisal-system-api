@@ -61,6 +61,9 @@ _ReSharper*/
 *.tmp
 *.tmp.*
 
+# Office owner-lock files (Excel/Word/PowerPoint leave these next to an open doc)
+~$*
+
 # Database backups
 Database/Backups/
 
