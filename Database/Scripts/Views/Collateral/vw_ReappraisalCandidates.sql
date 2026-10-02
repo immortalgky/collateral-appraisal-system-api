@@ -25,27 +25,28 @@ SELECT
     COALESCE(c.LastSeenFileDate, c.SourceFileDate)      AS LastSeenFileDate,
     CAST(CASE WHEN COALESCE(c.LastSeenFileDate, c.SourceFileDate) = latest.FileDate
               THEN 1 ELSE 0 END AS BIT)                 AS IsInLatestFile,
-    -- AppraisalDate / RemainingDay / DaysSinceLastAppraisal are all derived from the matched
+    -- RemainingDay counts down to ReviewDate — the review due date AS400 sends (pos 3–10), which
+    -- already follows the review type's cycle (Stage 3 is due sooner); CAS does not recompute it.
+    -- AppraisalDate / DaysSinceLastAppraisal describe the last appraisal: the matched
     -- in-system appraisal's appraisal date — ValuationAnalyses.ValuationDate, falling back to the
     -- latest non-cancelled appointment (see OUTER APPLY `last_appr` below). A book with no CAS
     -- appraisal (legacy AS400 "99" series, or unmatched) falls back to the legacy listing, then to
-    -- the valuation date AS400 sent — otherwise it silently drops out of the due schedule:
-    --   AppraisalDate            = AppraisalDate
-    --   RemainingDay             = (AppraisalDate + 5 years) − today
+    -- the valuation date AS400 sent:
+    --   RemainingDay             = ReviewDate − today
     --   DaysSinceLastAppraisal   = today − AppraisalDate
-    -- NULL when SurveyNumber doesn't resolve to any in-system appraisal. Note c.ValuationDate
+    -- AppraisalDate is NULL only when the book is in none of the three. Note c.ValuationDate
     -- below is a DIFFERENT field — the AS400 inbound value off the Collatrev file, not ours.
     appr.AppraisalDate                                                                     AS AppraisalDate,
-    DATEDIFF(DAY,
-        CAST(GETDATE() AS DATE),
-        DATEADD(YEAR, 5, appr.AppraisalDate))                                              AS RemainingDay,
+    DATEDIFF(DAY, CAST(GETDATE() AS DATE), c.ReviewDate)                                  AS RemainingDay,
     DATEDIFF(DAY,
         appr.AppraisalDate,
         CAST(GETDATE() AS DATE))                                                           AS DaysSinceLastAppraisal,
     -- Where the prior book lives: 'CAS' (an appraisal in this system), 'AS400Legacy' (the bank's
     -- legacy listing — a 99A… book), or 'Unknown'. The FE labels the row with it.
     CASE WHEN last_appr.AppraisalDate IS NOT NULL OR prev_cas.Id IS NOT NULL THEN 'CAS'
-         WHEN legacy.ValuationDate IS NOT NULL THEN 'AS400Legacy'
+         -- In the bank's listing at all — even with only placeholder-dated rows, which give no date.
+         WHEN EXISTS (SELECT 1 FROM appraisal.AS400ReportListing l WHERE l.ApplicationId = bk.Number)
+              THEN 'AS400Legacy'
          ELSE 'Unknown'
     END                                                                                    AS PriorAppraisalSource,
     c.CollateralId,
@@ -146,11 +147,9 @@ OUTER APPLY (
     ORDER BY w.CreatedAt DESC
 ) open_draft
 -- Last in-system appraisal date for this candidate (matched via SurveyNumber = AppraisalNumber).
--- Drives AppraisalDate / RemainingDay / DaysSinceLastAppraisal above. NULL when unmatched.
--- a.CompletedAt is the last fallback: a legacy/migrated appraisal can have neither a
--- ValuationAnalyses row nor an Appointment row, and without it AppraisalDate is NULL, so
--- RemainingDay / DaysSinceLastAppraisal are NULL too and the candidate silently drops out of the
--- reappraisal-due schedule despite having a perfectly good completion date.
+-- Drives AppraisalDate / DaysSinceLastAppraisal above (not the due date — that is ReviewDate). NULL
+-- when unmatched. a.CompletedAt is the last fallback: a legacy/migrated appraisal can have neither a
+-- ValuationAnalyses row nor an Appointment row, and still has a perfectly good completion date.
 OUTER APPLY (
     SELECT TOP 1 COALESCE(va.ValuationDate, al.AppointmentDateTime, a.CompletedAt) AS AppraisalDate
     FROM appraisal.Appraisals a
@@ -160,14 +159,15 @@ OUTER APPLY (
       AND a.IsDeleted = 0
     ORDER BY COALESCE(va.ValuationDate, al.AppointmentDateTime, a.CompletedAt) DESC
 ) last_appr
--- The bank's legacy listing for a 99A… book that never existed in CAS. ApplicationId is char-padded;
--- `=` ignores trailing spaces, so no RTRIM (which would stop the comparison being sargable).
--- The book's LATEST valuation there: this drives the next-due clock (the regulatory origination is
--- the one that takes the earliest).
+-- The bank's legacy listing for a 99A… book that never existed in CAS: the book's LATEST valuation there
+-- is its last appraisal (appraisal.vw_LegacyBookLatestValuation, the one definition).
 OUTER APPLY (
-    SELECT MAX(l.ValuationDate) AS ValuationDate
-    FROM appraisal.AS400ReportListing l
-    WHERE l.ApplicationId = bk.Number
+    -- TOP 1: provably one row, so a query that reads no column of it can drop the lookup. Only read when
+    -- CAS has no date (appr below), so it is not probed for a CAS book.
+    SELECT TOP 1 lv.ValuationDate
+    FROM appraisal.vw_LegacyBookLatestValuation lv
+    WHERE lv.BookNumber = bk.Number
+      AND last_appr.AppraisalDate IS NULL
 ) legacy
 CROSS APPLY (
     SELECT CAST(COALESCE(last_appr.AppraisalDate, legacy.ValuationDate, c.ValuationDate) AS DATE) AS AppraisalDate

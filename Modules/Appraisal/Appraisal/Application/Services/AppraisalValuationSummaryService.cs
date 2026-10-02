@@ -212,9 +212,8 @@ public class AppraisalValuationSummaryService(
             // property delete, unit-price calculation and final-values change, so an appraisal whose
             // only appointment was cancelled would have its appraisal date silently dragged forward
             // to "today" on each save. Since ValuationDate now LEADS every read surface — the printed
-            // book, both AS400 result feeds, the 360 view, decision summary, History Search — and
-            // anchors the +5-year reappraisal clock in vw_ReappraisalCandidates / RCAS002, that
-            // rewrite would propagate a wrong appraisal date to the bank's reappraisal schedule.
+            // book, both AS400 result feeds, the 360 view, decision summary, History Search and the
+            // reappraisal list's last-appraisal date, that rewrite would propagate a wrong appraisal date.
             // Preserving keeps the last real date (usually the appointment that was later cancelled).
             //
             // ApplicationNow survives only for a genuinely new row with nothing to preserve;
@@ -304,7 +303,7 @@ public class AppraisalValuationSummaryService(
     /// booked for 1 Mar, worked and priced (ValuationDate = 1 Mar), then rescheduled to 15 Mar with
     /// no pricing save afterwards, left every appraisal-date surface reporting 1 Mar indefinitely:
     /// the 360 view, decision summary, the printed book, both AS400 result APIs, History Search, and
-    /// the +5-year reappraisal anchor in vw_ReappraisalCandidates / vw_RCAS002_ReappraisalDue. The
+    /// the reappraisal list's last-appraisal date (vw_ReappraisalCandidates). The
     /// two dates never reconverged unless someone happened to re-save pricing.
     /// </para>
     ///

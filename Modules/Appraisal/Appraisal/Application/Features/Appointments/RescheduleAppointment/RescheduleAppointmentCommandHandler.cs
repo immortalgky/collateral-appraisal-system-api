@@ -45,8 +45,8 @@ public class RescheduleAppointmentCommandHandler(
         // own date, so this runs on BOTH branches below — the read side derives its fallback from the
         // appointment row without consulting approval state, and ValuationDate must not disagree with
         // it. Without this the appraisal date stays pinned to the ORIGINAL slot on every surface that
-        // reads it (the printed book, both AS400 feeds, History Search, the +5-year reappraisal
-        // anchor) until an unrelated pricing save happens to re-derive it. No-ops for an off-system
+        // reads it (the printed book, both AS400 feeds, History Search, the reappraisal list's
+        // last-appraisal date) until an unrelated pricing save happens to re-derive it. No-ops for an off-system
         // engagement, whose hand-keyed book date outranks any appointment.
         await valuationSummaryService.SyncValuationDateFromAppointmentAsync(
             command.AppraisalId, command.NewDateTime, cancellationToken);

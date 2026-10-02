@@ -25,6 +25,7 @@ public class GetReappraisalCandidateByIdQueryHandler(ISqlConnectionFactory conne
                 c.ReviewType,
                 c.AppraisalDate,
                 c.DaysSinceLastAppraisal,
+                c.ReviewDate,
                 c.RemainingDay,
                 c.OldAppraisalReportNumber,
                 c.NormalizedSurveyNumber,
@@ -158,7 +159,9 @@ public class GetReappraisalCandidateByIdQueryHandler(ISqlConnectionFactory conne
                         -- Appraisal date = ValuationAnalyses.ValuationDate, appointment as fallback.
                         -- ValuationDate leads because an off-system external engagement has no
                         -- Appointment row at all.
-                        COALESCE(va.ValuationDate, al.AppointmentDateTime) AS AppraisalDate,
+                        -- Same rule as the list (vw_ReappraisalCandidates.last_appr): CompletedAt last, for a
+                        -- migrated appraisal with neither a valuation row nor an appointment.
+                        COALESCE(va.ValuationDate, al.AppointmentDateTime, a.CompletedAt) AS AppraisalDate,
                         CAST(d.Latitude   AS decimal(10,7)) AS Latitude,
                         CAST(d.Longitude  AS decimal(10,7)) AS Longitude,
                         geography::Point(
@@ -198,10 +201,13 @@ public class GetReappraisalCandidateByIdQueryHandler(ISqlConnectionFactory conne
                            rc.CifName, rc.ReviewDate, rc.ReviewType, rc.CurrentValue, rc.ValuationDate,
                            rc.Latitude, rc.Longitude,
                            -- one row per book: a book listed under several collateral is one reappraisal
-                           -- (each collateral of a block project is its own unit, so its own row)
+                           -- (each collateral of a block project is its own unit, so its own row). The
+                           -- soonest-due copy stands for it, whole — each collateral carries its own
+                           -- ReviewDate. Which collateral it is only matters for a block unit (its own row
+                           -- anyway): any other book's request is matched and consumed by book.
                            ROW_NUMBER() OVER (PARTITION BY rc.NormalizedSurveyNumber,
                                                            CASE WHEN rc.IsBlockUnit = 1 THEN rc.CollateralId END
-                                              ORDER BY rc.Id) AS BookRn
+                                              ORDER BY rc.ReviewDate, rc.Id) AS BookRn
                     FROM collateral.ReappraisalCandidates rc
                     WHERE rc.Status = 'Pending'
                       -- Same rule as the list: only books on AS400's latest file. Hides books that
@@ -219,9 +225,13 @@ public class GetReappraisalCandidateByIdQueryHandler(ISqlConnectionFactory conne
                     COALESCE(cand.SurveyNumber,   appl.AppraisalNumber)                         AS OldAppraisalReportNumber,
                     COALESCE(cand.CifName,         appl.CustomerName)                           AS CustomerName,
                     cand.CurrentValue,
-                    -- A book with no CAS appraisal (legacy AS400) falls back to the valuation date AS400 sent.
+                    -- With no CAS appraisal in range (appl): the listing for a 99A book, then the file's date.
+                    -- A CAS book whose own appraisal is outside AppraisalCoords also lands here, so it can
+                    -- differ from the list's CAS date — kept cheap rather than a CAS lookup per row.
                     dt.AppraisalDate                                                              AS AppraisalDate,
-                    DATEDIFF(DAY, CAST(GETDATE() AS date), DATEADD(YEAR, 5, dt.AppraisalDate))    AS RemainingDay,
+                    -- Due = the review date AS400 sent; an in-system appraisal not on the file has none.
+                    cand.ReviewDate                                                               AS ReviewDate,
+                    DATEDIFF(DAY, CAST(GETDATE() AS date), cand.ReviewDate)                       AS RemainingDay,
                     cand.ReviewType,
                     DATEDIFF(DAY, dt.AppraisalDate, CAST(GETDATE() AS date))                      AS DaysSinceLastAppraisal,
                     CAST(ROUND(
@@ -245,7 +255,11 @@ public class GetReappraisalCandidateByIdQueryHandler(ISqlConnectionFactory conne
                 FROM AppraisalCoords appl
                 FULL OUTER JOIN (SELECT * FROM CandidateCoords WHERE BookRn = 1) cand
                     ON cand.BookNumber = appl.AppraisalNumber
-                CROSS APPLY (SELECT CAST(COALESCE(appl.AppraisalDate, cand.ValuationDate) AS date) AS AppraisalDate) dt
+                -- Only when CAS supplied no date (appl): the listing is a bank-supplied table, probed per book at most.
+                OUTER APPLY (SELECT TOP 1 lv.ValuationDate
+                             FROM appraisal.vw_LegacyBookLatestValuation lv
+                             WHERE appl.AppraisalId IS NULL AND lv.BookNumber = cand.BookNumber) lg
+                CROSS APPLY (SELECT CAST(COALESCE(appl.AppraisalDate, lg.ValuationDate, cand.ValuationDate) AS date) AS AppraisalDate) dt
                 WHERE
                     (appl.AppraisalId IS NOT NULL OR cand.Id IS NOT NULL)
                     AND (cand.Id      IS NULL OR cand.Id        <> @SelfCandidateId)

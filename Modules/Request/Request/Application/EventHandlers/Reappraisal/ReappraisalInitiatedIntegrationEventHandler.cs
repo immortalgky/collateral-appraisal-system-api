@@ -138,7 +138,7 @@ public class ReappraisalInitiatedIntegrationEventHandler(
             request.SetReappraisalPriorValue(unit.Price, unit.ValuationDate);
 
         // A prior book that is not an appraisal in CAS (legacy AS400 "99A…"): only its number and the
-        // value/date AS400 sent. Set through the domain, never through the create DTO, so no other
+        // value/date from the bank's listing (appraisal.AS400ReportListing), when it has one. Set through the domain, never through the create DTO, so no other
         // caller of CreateRequestService can plant one.
         if (!prevId.HasValue && !string.IsNullOrWhiteSpace(msg.PrevAppraisalNumber))
             request.SetLegacyPriorBook(msg.PrevAppraisalNumber, msg.PrevAppraisalValue, msg.PrevAppraisalDate);

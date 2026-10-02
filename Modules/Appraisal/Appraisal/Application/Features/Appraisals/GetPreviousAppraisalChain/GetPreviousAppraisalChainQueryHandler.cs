@@ -51,12 +51,11 @@ public class GetPreviousAppraisalChainQueryHandler(
                    c.Depth + 1
             FROM chain c
             -- The book's latest valuation — the appraisal just before this chain, as the candidate list
-            -- dates it — with date and price from the same listing row.
+            -- dates it (appraisal.vw_LegacyBookLatestValuation, the one definition).
             OUTER APPLY (
-                SELECT TOP 1 x.ValuationDate, x.ValuationPriceInBaht
-                FROM appraisal.AS400ReportListing x
-                WHERE x.ApplicationId = c.PrevAppraisalNumber
-                ORDER BY x.ValuationDate DESC, x.ValuationPriceInBaht DESC  -- deterministic on a same-day tie
+                SELECT lv.ValuationDate, lv.ValuationPriceInBaht
+                FROM appraisal.vw_LegacyBookLatestValuation lv
+                WHERE lv.BookNumber = c.PrevAppraisalNumber
             ) l
             WHERE c.PrevAppraisalId IS NULL
               AND c.PrevAppraisalNumber IS NOT NULL
