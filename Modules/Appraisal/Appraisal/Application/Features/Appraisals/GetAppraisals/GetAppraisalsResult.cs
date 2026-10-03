@@ -117,6 +117,11 @@ public record AppraisalDto
     // SLA Computed
     public int? ElapsedHours { get; init; }
     public int? RemainingHours { get; init; }
+
+    /// <summary>
+    /// The most recent <c>Finalized</c> Quotation Request this appraisal was ever attached to.
+    /// </summary>
+    public string? PreviouslyQuotedNumber { get; init; }
 }
 
 /// <summary>
