@@ -380,8 +380,9 @@ public class BuildingAppraisalDetail : Entity<Guid>
     /// <summary>
     /// Fire-insurance value derived from the depreciation schedule: the IsBuilding rows' depreciated value,
     /// rounded to the nearest 1,000 (the same way SQL <c>ROUND(x, -3)</c> does, midpoint away from zero).
-    /// Each row is taken at the 2 decimals the column stores, so a value computed before save matches the one
-    /// recomputed from the saved rows (and the screen's, which does the same). Null when there are no
+    /// Each row already holds the 2 decimals the column stores (<see cref="BuildingDepreciationDetail"/> rounds
+    /// on the way in), so a value computed before save matches the one recomputed from the saved rows (and the
+    /// screen's, which does the same). Null when there are no
     /// IsBuilding rows. This is the one definition; the valuation summary uses it too, and
     /// <c>BuildingInsuranceCalculator</c> mirrors it in SQL.
     /// </summary>
@@ -399,7 +400,7 @@ public class BuildingAppraisalDetail : Entity<Guid>
     {
         var rows = source.ToList();
         if (rows.Count == 0) return null;
-        var total = rows.Sum(d => Math.Round(d.PriceAfterDepreciation, 2, MidpointRounding.AwayFromZero));
+        var total = rows.Sum(d => d.PriceAfterDepreciation);
         return Math.Round(total / 1000, MidpointRounding.AwayFromZero) * 1000;
     }
 
