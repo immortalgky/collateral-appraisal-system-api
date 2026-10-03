@@ -21,23 +21,26 @@ SELECT
     c.Status,
     c.ReviewType,
     c.ReviewDate,
+    -- The review due date: AS400's EffectiveDateAppraisal (pos 642–649), which AS400 sets per book —
+    -- sooner when the book falls into a stage (Stage 2/3: 3 years instead of the normal 5). No value =
+    -- no due date (ReviewDate is not used for it).
+    c.EffectiveDateAppraisal                            AS DueDate,
     c.SourceFileDate                                    AS FirstSeenFileDate,
     COALESCE(c.LastSeenFileDate, c.SourceFileDate)      AS LastSeenFileDate,
     CAST(CASE WHEN COALESCE(c.LastSeenFileDate, c.SourceFileDate) = latest.FileDate
               THEN 1 ELSE 0 END AS BIT)                 AS IsInLatestFile,
-    -- RemainingDay counts down to ReviewDate — the review due date AS400 sends (pos 3–10), which
-    -- already follows the review type's cycle (Stage 3 is due sooner); CAS does not recompute it.
+    -- RemainingDay counts down to DueDate (above); CAS does not recompute it.
     -- AppraisalDate / DaysSinceLastAppraisal describe the last appraisal: the matched
     -- in-system appraisal's appraisal date — ValuationAnalyses.ValuationDate, falling back to the
     -- latest non-cancelled appointment (see OUTER APPLY `last_appr` below). A book with no CAS
     -- appraisal (legacy AS400 "99" series, or unmatched) falls back to the legacy listing, then to
     -- the valuation date AS400 sent:
-    --   RemainingDay             = ReviewDate − today
+    --   RemainingDay             = DueDate − today
     --   DaysSinceLastAppraisal   = today − AppraisalDate
     -- AppraisalDate is NULL only when the book is in none of the three. Note c.ValuationDate
     -- below is a DIFFERENT field — the AS400 inbound value off the Collatrev file, not ours.
     appr.AppraisalDate                                                                     AS AppraisalDate,
-    DATEDIFF(DAY, CAST(GETDATE() AS DATE), c.ReviewDate)                                  AS RemainingDay,
+    DATEDIFF(DAY, CAST(GETDATE() AS DATE), c.EffectiveDateAppraisal)                      AS RemainingDay,
     DATEDIFF(DAY,
         appr.AppraisalDate,
         CAST(GETDATE() AS DATE))                                                           AS DaysSinceLastAppraisal,
@@ -147,7 +150,7 @@ OUTER APPLY (
     ORDER BY w.CreatedAt DESC
 ) open_draft
 -- Last in-system appraisal date for this candidate (matched via SurveyNumber = AppraisalNumber).
--- Drives AppraisalDate / DaysSinceLastAppraisal above (not the due date — that is ReviewDate). NULL
+-- Drives AppraisalDate / DaysSinceLastAppraisal above (not the due date — that is DueDate). NULL
 -- when unmatched. a.CompletedAt is the last fallback: a legacy/migrated appraisal can have neither a
 -- ValuationAnalyses row nor an Appointment row, and still has a perfectly good completion date.
 OUTER APPLY (

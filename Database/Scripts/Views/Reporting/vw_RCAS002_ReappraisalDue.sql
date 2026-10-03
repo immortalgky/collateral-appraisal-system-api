@@ -16,8 +16,8 @@
 -- purpose: repeatable view scripts deploy in folder-alphabetical order, so a sibling view may not
 -- exist yet on a fresh deploy. The base table exists after EF migrations.
 -- NOTE: the reappraisal vertical moved request -> collateral schema; this view follows it.
--- NextValuationDate / RemainingDays are AS400's review due date (ReviewDate), as the reappraisal list
--- shows it — it already follows the review type's cycle (Stage 3 is due sooner).
+-- NextValuationDate / RemainingDays are the review due date as the reappraisal list shows it: AS400's
+-- EffectiveDateAppraisal (sooner when a book falls into a stage); NULL when AS400 sent none.
 -- c.ValuationDate is a DIFFERENT field: the AS400 inbound value off the Collatrev file.
 --
 -- CODE -> DESCRIPTION RESOLUTION:
@@ -77,8 +77,8 @@ SELECT c.Id,
        c.CurrentValue                      AS OldAppraisalValue,
        c.PastDueDay,
        c.ValuationDate,
-       c.ReviewDate                        AS NextValuationDate,
-       DATEDIFF(DAY, CAST(GETDATE() AS DATE), c.ReviewDate) AS RemainingDays,
+       c.EffectiveDateAppraisal            AS NextValuationDate,
+       DATEDIFF(DAY, CAST(GETDATE() AS DATE), c.EffectiveDateAppraisal) AS RemainingDays,
        -- Appended (not inserted mid-list) so the SELECT order still matches the positional Rcas002Row.
        c.ReviewType                        AS ReviewTypeCode, -- raw 1/2/3: filter binds the code, sort follows code order
        CASE c.Status

@@ -15,7 +15,9 @@ public class ReappraisalCandidateDetail
     public string Status { get; set; } = default!;
     public string ReviewType { get; set; } = default!;
     public DateOnly? AppraisalDate { get; set; }
-    /// <summary>Review due date AS400 sent (ReviewDate); RemainingDay counts down to it.</summary>
+    /// <summary>Review due date — AS400's EffectiveDateAppraisal (NULL when not sent); RemainingDay counts down to it.</summary>
+    public DateOnly? DueDate { get; set; }
+    /// <summary>AS400's normal-cycle review date; the detail shows it beside DueDate.</summary>
     public DateOnly? ReviewDate { get; set; }
     public int? RemainingDay { get; set; }
     public string OldAppraisalReportNumber { get; set; } = default!;
@@ -54,7 +56,6 @@ public class ReappraisalCandidateDetail
     public string? Stage { get; set; }
     public string? IBGRetail { get; set; }
     public string? Group { get; set; }
-    public DateOnly? EffectiveDateAppraisal { get; set; }
 
     public string? FlagLessAge4Y { get; set; }
     public string? FlagGreaterAge4Y { get; set; }
@@ -107,8 +108,8 @@ public class NearbyReappraisalCandidate
     public string? CustomerName { get; set; }
     public decimal? CurrentValue { get; set; }
     public DateOnly? AppraisalDate { get; set; }
-    /// <summary>Review due date AS400 sent; NULL for an in-system appraisal not on the file.</summary>
-    public DateOnly? ReviewDate { get; set; }
+    /// <summary>Review due date (see the detail's DueDate); NULL for an in-system appraisal not on the file.</summary>
+    public DateOnly? DueDate { get; set; }
     public int? RemainingDay { get; set; }
     public string? ReviewType { get; set; }
     public int? DaysSinceLastAppraisal { get; set; }

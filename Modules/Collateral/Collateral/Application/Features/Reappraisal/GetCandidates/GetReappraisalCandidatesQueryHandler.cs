@@ -23,7 +23,7 @@ public class GetReappraisalCandidatesQueryHandler(ISqlConnectionFactory connecti
                 c.Status,
                 c.ReviewType,
                 c.AppraisalDate,
-                c.ReviewDate,
+                c.DueDate,
                 c.RemainingDay,
                 c.OldAppraisalReportNumber,
                 c.CifNumber,
@@ -126,16 +126,18 @@ public class GetReappraisalCandidatesQueryHandler(ISqlConnectionFactory connecti
             p.Add("ReviewType", query.ReviewType.Trim());
         }
 
-        if (query.ReviewDateFrom.HasValue)
+        // The review-date range filters on the due date (DueDate), what the list shows and counts down to —
+        // the to-do tabs only, like RemainingDay: the processed tab shows no due date.
+        if (!consumed && query.ReviewDateFrom.HasValue)
         {
-            sql += " AND c.ReviewDate >= @ReviewDateFrom";
+            sql += " AND c.DueDate >= @ReviewDateFrom";
             p.Add("ReviewDateFrom", query.ReviewDateFrom.Value.ToDateTime(TimeOnly.MinValue));
         }
 
-        if (query.ReviewDateTo.HasValue)
+        if (!consumed && query.ReviewDateTo.HasValue)
         {
-            sql += " AND c.ReviewDate <= @ReviewDateTo";
-            // Midnight, not TimeOnly.MaxValue: ReviewDate is a date, and 23:59:59.9999999 sent as datetime
+            sql += " AND c.DueDate <= @ReviewDateTo";
+            // Midnight, not TimeOnly.MaxValue: DueDate is a date, and 23:59:59.9999999 sent as datetime
             // rounds up to the next day's midnight — the filter would take one day too many.
             p.Add("ReviewDateTo", query.ReviewDateTo.Value.ToDateTime(TimeOnly.MinValue));
         }
@@ -164,10 +166,11 @@ public class GetReappraisalCandidatesQueryHandler(ISqlConnectionFactory connecti
         return new GetReappraisalCandidatesResult(result);
     }
 
-    // Due first: the book closest to (or furthest past) the review date AS400 set leads. c.Id last: AS400
-    // sets due dates in batches, so without a unique key OFFSET/FETCH could repeat or skip rows across pages.
+    // Due first: the book closest to (or furthest past) the review due date (DueDate) leads; one with no
+    // due date goes last (SQL Server puts NULL first on ASC). c.Id last: AS400 sets due dates in batches,
+    // so without a unique key OFFSET/FETCH could repeat or skip rows across pages.
     private const string DefaultOrderBy =
-        "c.RemainingDay ASC, c.CifNumber ASC, c.Id ASC";
+        "CASE WHEN c.RemainingDay IS NULL THEN 1 ELSE 0 END, c.RemainingDay ASC, c.CifNumber ASC, c.Id ASC";
 
     // Processed tab: the latest submission first; a book with no reappraisal found goes last.
     private const string ConsumedDefaultOrderBy =
@@ -227,7 +230,7 @@ public class GetReappraisalCandidatesQueryHandler(ISqlConnectionFactory connecti
         ["CustomerName"] = "c.CustomerName",
         ["ReviewType"] = "c.ReviewType",
         ["RemainingDay"] = "c.RemainingDay",
-        ["ReviewDate"] = "c.ReviewDate",
+        ["DueDate"] = "c.DueDate",
         ["AppraisalDate"] = "c.AppraisalDate",
     };
 

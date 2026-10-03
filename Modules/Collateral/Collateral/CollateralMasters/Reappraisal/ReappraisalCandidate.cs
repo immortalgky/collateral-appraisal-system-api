@@ -53,7 +53,8 @@ public class ReappraisalCandidate
     /// <summary>ReviewType: 1 = Normal, 2 = Before Stage 3, 3 = Stage 3 (pos 2).</summary>
     public string ReviewType { get; private set; } = default!;
 
-    /// <summary>AS400-provided due date for reappraisal — the list's "Review Due" (pos 3–10, DDMMYYYY).</summary>
+    /// <summary>AS400 review date on the normal 5-year cycle (pos 3–10, DDMMYYYY). Not the due date —
+    /// that is <see cref="EffectiveDateAppraisal"/> (vw_ReappraisalCandidates.DueDate).</summary>
     public DateOnly ReviewDate { get; private set; }
 
     /// <summary>Bank collateral ID (dec19, pos 11–29).</summary>
@@ -182,7 +183,8 @@ public class ReappraisalCandidate
     /// <summary>Review group code 1/2/3 matching ReviewType (pos 641).</summary>
     public string? Group { get; private set; }
 
-    /// <summary>Effective appraisal date (pos 642–649, DDMMYYYY).</summary>
+    /// <summary>Review due date AS400 sets per book (pos 642–649, DDMMYYYY): sooner than ReviewDate when the book
+    /// falls into a stage (Stage 2/3: 3 years). The due date the list counts down to; none when not sent.</summary>
     public DateOnly? EffectiveDateAppraisal { get; private set; }
 
     // ── Enrichment (populated post-ingest via SurveyNumber→AppraisalNumber join) ─

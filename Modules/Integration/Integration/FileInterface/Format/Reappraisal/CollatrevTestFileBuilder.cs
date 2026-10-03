@@ -48,13 +48,19 @@ public sealed class CollatrevTestFileBuilder(
         return new GenerateReappraisalTestFileResult(path, rows.Count, surveyNumbers);
     }
 
+    private static readonly int[] DaysToDue = [-45, 30, 75, 200, 800];
+
     private static Dictionary<string, string?> BuildRow(CompletedAppraisalRow a, int index, DateOnly fileDate)
     {
         var stage = (index % 3) + 1;
         var stageStr = stage.ToString();
 
-        var baseDate = a.CompletedAt ?? fileDate.ToDateTime(TimeOnly.MinValue);
-        var reviewDate = baseDate.AddYears(stage == 3 ? 3 : 5);
+        // Spread the due dates around the file date so every list chip has rows: overdue, due within
+        // 90 days, within a year, and later (EffectiveDateAppraisal, the due date). ReviewDate is the normal
+        // 5-year cycle: the same day for a normal book, 2 years later for a staged one (2/3), which falls
+        // due on a 3-year cycle. Dates are not derived from the appraisal's own ValuationDate.
+        var due = fileDate.ToDateTime(TimeOnly.MinValue).AddDays(DaysToDue[index / 3 % DaysToDue.Length]);
+        var reviewDate = stage == 1 ? due : due.AddYears(2);
 
         var collateralId = (60_000_000 + index).ToString();
         var cifNo = (69_000_000 + index).ToString();
@@ -101,7 +107,7 @@ public sealed class CollatrevTestFileBuilder(
             ["Stage"] = stageStr,
             ["IBGRetail"] = a.BankingSegment,
             ["Group"] = stageStr,
-            ["EffectiveDateAppraisal"] = a.CompletedAt is { } ca ? Ddmmyyyy(ca) : null,
+            ["EffectiveDateAppraisal"] = Ddmmyyyy(due),
         };
     }
 

@@ -25,6 +25,7 @@ public class GetReappraisalCandidateByIdQueryHandler(ISqlConnectionFactory conne
                 c.ReviewType,
                 c.AppraisalDate,
                 c.DaysSinceLastAppraisal,
+                c.DueDate,
                 c.ReviewDate,
                 c.RemainingDay,
                 c.OldAppraisalReportNumber,
@@ -57,7 +58,6 @@ public class GetReappraisalCandidateByIdQueryHandler(ISqlConnectionFactory conne
                 c.Stage,
                 c.IBGRetail,
                 c.[Group],
-                c.EffectiveDateAppraisal,
                 c.FlagLessAge4Y,
                 c.FlagGreaterAge4Y,
                 c.CountAgeingDate,
@@ -198,16 +198,17 @@ public class GetReappraisalCandidateByIdQueryHandler(ISqlConnectionFactory conne
                 CandidateCoords AS (
                     SELECT rc.Id, rc.SurveyNumber, rc.CollateralId, rc.IsBlockUnit,
                            rc.NormalizedSurveyNumber AS BookNumber, rc.GeoPoint,
-                           rc.CifName, rc.ReviewDate, rc.ReviewType, rc.CurrentValue, rc.ValuationDate,
+                           rc.CifName, rc.EffectiveDateAppraisal AS DueDate, rc.ReviewType, rc.CurrentValue, rc.ValuationDate,
                            rc.Latitude, rc.Longitude,
                            -- one row per book: a book listed under several collateral is one reappraisal
                            -- (each collateral of a block project is its own unit, so its own row). The
                            -- soonest-due copy stands for it, whole — each collateral carries its own
-                           -- ReviewDate. Which collateral it is only matters for a block unit (its own row
+                           -- due date. Which collateral it is only matters for a block unit (its own row
                            -- anyway): any other book's request is matched and consumed by book.
                            ROW_NUMBER() OVER (PARTITION BY rc.NormalizedSurveyNumber,
                                                            CASE WHEN rc.IsBlockUnit = 1 THEN rc.CollateralId END
-                                              ORDER BY rc.ReviewDate, rc.Id) AS BookRn
+                                              ORDER BY CASE WHEN rc.EffectiveDateAppraisal IS NULL THEN 1 ELSE 0 END,
+                                                       rc.EffectiveDateAppraisal, rc.Id) AS BookRn
                     FROM collateral.ReappraisalCandidates rc
                     WHERE rc.Status = 'Pending'
                       -- Same rule as the list: only books on AS400's latest file. Hides books that
@@ -229,9 +230,10 @@ public class GetReappraisalCandidateByIdQueryHandler(ISqlConnectionFactory conne
                     -- A CAS book whose own appraisal is outside AppraisalCoords also lands here, so it can
                     -- differ from the list's CAS date — kept cheap rather than a CAS lookup per row.
                     dt.AppraisalDate                                                              AS AppraisalDate,
-                    -- Due = the review date AS400 sent; an in-system appraisal not on the file has none.
-                    cand.ReviewDate                                                               AS ReviewDate,
-                    DATEDIFF(DAY, CAST(GETDATE() AS date), cand.ReviewDate)                       AS RemainingDay,
+                    -- Due = AS400's EffectiveDateAppraisal; none when AS400 sent none, or for an in-system
+                    -- appraisal not on the file.
+                    cand.DueDate                                                                  AS DueDate,
+                    DATEDIFF(DAY, CAST(GETDATE() AS date), cand.DueDate)                          AS RemainingDay,
                     cand.ReviewType,
                     DATEDIFF(DAY, dt.AppraisalDate, CAST(GETDATE() AS date))                      AS DaysSinceLastAppraisal,
                     CAST(ROUND(

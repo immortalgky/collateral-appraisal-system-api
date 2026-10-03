@@ -15,7 +15,7 @@ internal static class ProcessedBooksSql
     /// </summary>
     public const string From = """
         FROM (
-            SELECT v.Id, v.Status, v.ReviewType, v.ReviewDate, v.OldAppraisalReportNumber,
+            SELECT v.Id, v.Status, v.ReviewType, v.OldAppraisalReportNumber,
                    v.NormalizedSurveyNumber, v.CifNumber, v.CustomerName, v.CollateralId, v.CollateralName,
                    v.PriorAppraisalSource, v.FirstSeenFileDate, v.LastSeenFileDate, v.IsBlockUnit,
                    ROW_NUMBER() OVER (PARTITION BY v.CollateralId, v.NormalizedSurveyNumber
