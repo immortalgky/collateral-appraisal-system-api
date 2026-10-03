@@ -68,9 +68,21 @@ public class ApprovalActivity : WorkflowActivityBase
             var inlineQuorum = GetProperty<QuorumConfig>(context, "quorum");
             var inlineMajority = GetProperty<MajorityConfig>(context, "majority");
 
+            // Released from a meeting → approve under that meeting's committee, not the tier the
+            // appraisal's current value would pick. A meeting item routed back for rework can come
+            // back below the meeting threshold; it must still be judged (quorum, majority,
+            // conditions, and the committeeCode stamped on the appraisal) by the group that heard it.
+            var meetingCommitteeId = Guid.TryParse(
+                GetVariable<string?>(context, "meetingCommitteeId", null), out var parsedMeetingCommitteeId)
+                ? parsedMeetingCommitteeId
+                : (Guid?)null;
+            var effectiveMemberSource = meetingCommitteeId is { } committeeId
+                ? new MemberSourceConfig("committee", null, null, committeeId, null, null)
+                : memberSourceConfig;
+
             // Resolve members, quorum, majority, conditions
             var groupInfo = await _memberResolver.ResolveMembersAsync(
-                memberSourceConfig, context.Variables, inlineQuorum, inlineMajority, cancellationToken);
+                effectiveMemberSource, context.Variables, inlineQuorum, inlineMajority, cancellationToken);
 
             // Member override: the pending-meeting step supplies the roster of the meeting that
             // released this appraisal, so per-meeting add/remove/position edits govern who votes
@@ -78,6 +90,12 @@ public class ApprovalActivity : WorkflowActivityBase
             // still come from groupInfo. Each member's meeting position becomes their approval role,
             // which is what lands on ApprovalVote.MemberRole and what RoleRequired conditions match.
             var overrideMembers = GetVariable<List<MeetingMemberOverride>>(context, "meetingMemberOverrides", []);
+
+            if (overrideMembers.Count > 0 && meetingCommitteeId is null)
+                _logger.LogWarning(
+                    "ApprovalActivity {ActivityId}: released from a meeting with no committee recorded; " +
+                    "falling back to the value-based tier {CommitteeCode}",
+                    context.ActivityId, groupInfo.CommitteeCode ?? "inline");
             var resolvedMembers = overrideMembers.Count > 0
                 ? overrideMembers.Select(m => new ApprovalMemberInfo(m.UserId, m.Role)).ToList()
                 : groupInfo.Members;
@@ -141,13 +159,15 @@ public class ApprovalActivity : WorkflowActivityBase
                 ["activityName"] = activityName
             };
 
-            // Consume-once: meetingMemberOverrides is a GLOBAL variable, so clear it now that this
-            // round has snapshotted it into _members. Without this, a route_back from here sends the
-            // appraisal back for rework, and if the revised appraisalValue then falls into a tier
-            // that skips the meeting (approval-tier-switch → pending-approval directly), that round
-            // would silently inherit the old meeting's roster instead of its own committee.
+            // Consume-once: meetingMemberOverrides and meetingCommitteeId are GLOBAL variables, so
+            // clear them now that this round has snapshotted them. A route_back from here flips the
+            // meeting item to RoutedBack, and the engine sends the reworked appraisal back to that
+            // meeting whatever its new value; the next release supplies a fresh roster and committee.
+            // Clearing keeps a later round that never passed a meeting from inheriting stale ones.
             if (overrideMembers.Count > 0)
                 outputData["meetingMemberOverrides"] = new List<MeetingMemberOverride>();
+            if (meetingCommitteeId is not null)
+                outputData["meetingCommitteeId"] = "";
 
             // Calculate the SLA deadline via the business-time SLA calculator — the same path
             // TaskActivity uses — so approval activities (a) count in BUSINESS hours (excl.

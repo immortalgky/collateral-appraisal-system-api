@@ -140,6 +140,38 @@ public class ApprovalActivityMemberOverrideTests
         result.OutputData.Should().NotContainKey("meetingMemberOverrides");
     }
 
+    [Fact]
+    public async Task Execute_WithMeetingCommittee_ResolvesThatCommitteeInsteadOfTheConfiguredSource()
+    {
+        // A routed-back appraisal reworked below the meeting threshold still comes back through its
+        // meeting; it must be approved under that meeting's committee, not the tier its value picks.
+        var meetingCommitteeId = Guid.NewGuid();
+        var variables = WithOverride(("meeting-1", nameof(CommitteeMemberPosition.Chairman)));
+        variables["meetingCommitteeId"] = meetingCommitteeId.ToString();
+
+        var result = await BuildActivity().ExecuteAsync(BuildContext(variables), CancellationToken.None);
+
+        await _memberResolver.Received(1).ResolveMembersAsync(
+            Arg.Is<MemberSourceConfig>(c => c.Type == "committee" && c.CommitteeId == meetingCommitteeId),
+            Arg.Any<Dictionary<string, object>>(), Arg.Any<QuorumConfig?>(), Arg.Any<MajorityConfig?>(),
+            Arg.Any<CancellationToken>());
+        // Consumed once, like the roster.
+        result.OutputData["meetingCommitteeId"].Should().Be("");
+    }
+
+    [Fact]
+    public async Task Execute_WithoutMeetingCommittee_ResolvesTheConfiguredSource()
+    {
+        var result = await BuildActivity().ExecuteAsync(
+            BuildContext(new Dictionary<string, object>()), CancellationToken.None);
+
+        await _memberResolver.Received(1).ResolveMembersAsync(
+            Arg.Is<MemberSourceConfig>(c => c.CommitteeCode == "COMMITTEE_WITH_MEETING" && c.CommitteeId == null),
+            Arg.Any<Dictionary<string, object>>(), Arg.Any<QuorumConfig?>(), Arg.Any<MajorityConfig?>(),
+            Arg.Any<CancellationToken>());
+        result.OutputData.Should().NotContainKey("meetingCommitteeId");
+    }
+
     // -- Helpers --
 
     private static string Normalized =>
