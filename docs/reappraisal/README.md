@@ -94,7 +94,7 @@ curl -k "https://localhost:7111/reappraisal/candidates?remainingDayTo=0"   # ove
 curl -k "https://localhost:7111/reappraisal/candidates?cifNumber=68057984"
 ```
 Each item: `oldAppraisalReportNumber` (= SurveyNumber), `cifNumber`, `customerName`, `reviewType`,
-`appraisalDate` (last appraisal), `reviewDate` (due), `remainingDay` (row 2 negative = overdue), `channel = "AS400"`.
+`appraisalDate` (last appraisal), `dueDate` (due), `remainingDay` (row 2 negative = overdue), `channel = "AS400"`.
 
 ## Step 7 — Candidate detail + nearby group
 Take an `id` from Step 6 (row 1):
@@ -206,16 +206,19 @@ Positions are **Unicode code-points, not bytes** — the parser indexes by char,
 > `CifNumber`, `TitleNumber`, `ApplicationNumber`) — see the SQL above.
 
 ### Sample rows in `AS400_COLLATREV_20260501.txt`
-- **Row 1** — Review Type 1 (Normal), ASCII, **future** ReviewDate (positive Remaining Days);
+- **Row 1** — Review Type 1 (Normal), ASCII, **future** due date (EffectiveDateAppraisal = ReviewDate, positive Remaining Days);
   `SurveyNo` `68A000001` by default — override with a real appraisal number (Step 1) for geo enrichment.
-- **Row 2** — Review Type 2 (Before Stage 3), **Thai** name/address, **past** ReviewDate (overdue),
+- **Row 2** — Review Type 2 (Before Stage 3), **Thai** name/address, **past** due date (overdue): its
+  EffectiveDateAppraisal (2025) is sooner than its ReviewDate (2027), so the staged date wins;
   `SurveyNo` with no in-system match (lat/lon stays NULL).
-- **Row 3** — Review Type 3 (Stage 3), most optional fields blank (null handling), `SllOver100M = Y`.
+- **Row 3** — Review Type 3 (Stage 3), most optional fields blank (null handling — no EffectiveDateAppraisal, so no due date: Remaining Days blank, listed last), `SllOver100M = Y`.
 
 ### Dates
 - **Filename** date = `YYYYMMDD`; **in-file** dates (EffectiveDate, ReviewDate, ValuationDate) = `DDMMYYYY`.
-- Review due date = the file's `ReviewDate` (AS400-provided — it follows the review type's cycle, so
-  Stage 3 falls due sooner; CAS does not recompute it). "Remaining Days" = ReviewDate − today, in the
+- Review due date (`DueDate`) = the row's `EffectiveDateAppraisal` (pos 642–649) — AS400 sets it per book,
+  sooner when the book falls into a stage (Stage 2/3: 3 years; normal 5). `ReviewDate` (the normal 5-year
+  cycle) is shown on the detail page but is not the due date; no `EffectiveDateAppraisal` = no due date.
+  CAS does not recompute it. "Remaining Days" = DueDate − today, in the
   list, the detail page, nearby books and RCAS002. "Appraisal Date" is the last appraisal (CAS, else the
   bank's listing for a 99A book, else the file's ValuationDate). `SurveyNo` = our **Appraisal Number** (FSD "Old Appraisal Report No").
 

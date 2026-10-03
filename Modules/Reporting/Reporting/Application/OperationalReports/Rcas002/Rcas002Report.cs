@@ -27,15 +27,31 @@ internal static class Rcas002Report
         "ReviewStatusCode", "NewAppraisalSubmittedAt", "NewAppraisalCompletedAt"
     };
 
-    // FSD sort sequence: "Review Type, Remaining Day". Sort by the raw code so the order is 1/2/3,
-    // not the alphabetical order of the resolved labels.
-    private static readonly string[] DefaultSort = ["ReviewTypeCode", "RemainingDays"];
+    // Default: the FSD sort sequence "Review Type, Remaining Day", by the raw code so the order is 1/2/3,
+    // not the alphabetical order of the resolved labels. A book with no due date (AS400 sent no
+    // EffectiveDateAppraisal) goes last — within its review type on the default order — in either
+    // direction (SQL Server puts NULL first on ASC).
+    private const string NoDueLast = "CASE WHEN RemainingDays IS NULL THEN 1 ELSE 0 END";
+
+    private static string OrderBy(Rcas002Filter f)
+    {
+        var custom = !string.IsNullOrWhiteSpace(f.SortBy) && AllowedSort.Contains(f.SortBy);
+        if (!custom)
+        {
+            var dir = string.Equals(f.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
+            return $"ReviewTypeCode {dir}, {NoDueLast}, RemainingDays {dir}";
+        }
+        var orderBy = ReportFilterSql.OrderBy(f.SortBy, f.SortDir, AllowedSort, f.SortBy!);
+        return string.Equals(f.SortBy, "RemainingDays", StringComparison.OrdinalIgnoreCase)
+            ? $"{NoDueLast}, {orderBy}"
+            : orderBy;
+    }
 
     public static readonly ReportDefinition<Rcas002Row, Rcas002Filter> Definition = new()
     {
         BaseName = "RCAS002-ReappraisalDue",
         Title = "รายงานการครบกำหนดทบทวนหลักประกันตามประเภท",
-        OrderBy = f => ReportFilterSql.OrderBy(f.SortBy, f.SortDir, AllowedSort, DefaultSort),
+        OrderBy = OrderBy,
         Build = Build,
         DescribeFilter = f =>
         [

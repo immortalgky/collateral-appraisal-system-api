@@ -14,10 +14,10 @@ public class ReappraisalCandidateListItem
     /// <summary>Date of the prior appraisal; NULL when the book cannot be traced anywhere.</summary>
     public DateOnly? AppraisalDate { get; set; }
 
-    /// <summary>Review due date AS400 sent (ReviewDate) — the list's due column.</summary>
-    public DateOnly? ReviewDate { get; set; }
+    /// <summary>Review due date — AS400's EffectiveDateAppraisal (NULL when not sent). The list's due column.</summary>
+    public DateOnly? DueDate { get; set; }
 
-    /// <summary>Days remaining until ReviewDate (negative = already overdue).</summary>
+    /// <summary>Days remaining until DueDate (negative = already overdue).</summary>
     public int? RemainingDay { get; set; }
 
     /// <summary>Old Appraisal Report Number (= SurveyNumber = CCSURV).</summary>
