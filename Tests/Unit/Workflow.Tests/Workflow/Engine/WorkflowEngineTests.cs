@@ -727,6 +727,125 @@ public class WorkflowEngineTests
         };
     }
 
+    #region Routed-back meeting redirect
+
+    /// <summary>
+    /// An appraisal routed back from a meeting and reworked below the meeting threshold makes the
+    /// tier switch pick approval directly. It must go back to its meeting instead — otherwise the
+    /// meeting item stays RoutedBack forever and the meeting can never end.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteWorkflowAsync_ApprovalNextWithRoutedBackMeetingItem_ReturnsToTheMeeting()
+    {
+        var workflowSchema = CreateApprovalTierSchema(switchToMeetingEdge: true);
+        var workflowInstance = CreateTestWorkflowInstance();
+        ArrangeSwitchPicksApproval(workflowSchema, workflowInstance);
+
+        await _workflowEngine.ExecuteWorkflowAsync(workflowSchema, workflowInstance, workflowSchema.Activities[0]);
+
+        await _lifecycleManager.Received(1).AdvanceWorkflowAsync(
+            workflowInstance, "pending-meeting", cancellationToken: Arg.Any<CancellationToken>());
+        await _lifecycleManager.DidNotReceive().AdvanceWorkflowAsync(
+            workflowInstance, "pending-approval", cancellationToken: Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteWorkflowAsync_TwoEdgesToTheSameMeeting_StillReturnsToTheMeeting()
+    {
+        var workflowSchema = CreateApprovalTierSchema(switchToMeetingEdge: true);
+        workflowSchema.Transitions.Add(new() { Id = "switch-to-meeting-2", From = "approval-tier-switch", To = "pending-meeting" });
+        var workflowInstance = CreateTestWorkflowInstance();
+        ArrangeSwitchPicksApproval(workflowSchema, workflowInstance);
+
+        await _workflowEngine.ExecuteWorkflowAsync(workflowSchema, workflowInstance, workflowSchema.Activities[0]);
+
+        await _lifecycleManager.Received(1).AdvanceWorkflowAsync(
+            workflowInstance, "pending-meeting", cancellationToken: Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteWorkflowAsync_NoEdgeToAMeeting_KeepsTheScheduledNextWithoutQuerying()
+    {
+        var workflowSchema = CreateApprovalTierSchema(switchToMeetingEdge: false);
+        var workflowInstance = CreateTestWorkflowInstance();
+        ArrangeSwitchPicksApproval(workflowSchema, workflowInstance);
+
+        await _workflowEngine.ExecuteWorkflowAsync(workflowSchema, workflowInstance, workflowSchema.Activities[0]);
+
+        await _lifecycleManager.Received(1).AdvanceWorkflowAsync(
+            workflowInstance, "pending-approval", cancellationToken: Arg.Any<CancellationToken>());
+        // No reachable meeting → the lookup is skipped, so non-meeting workflows pay no query.
+        await _persistenceService.DidNotReceive().GetOpenMeetingItemActivityIdAsync(
+            Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteWorkflowAsync_NoOpenMeetingItem_KeepsTheScheduledNext()
+    {
+        var workflowSchema = CreateApprovalTierSchema(switchToMeetingEdge: true);
+        var workflowInstance = CreateTestWorkflowInstance();
+        ArrangeSwitchPicksApproval(workflowSchema, workflowInstance);
+        _persistenceService.GetOpenMeetingItemActivityIdAsync(workflowInstance.Id, Arg.Any<CancellationToken>())
+            .Returns((string?)null);
+
+        await _workflowEngine.ExecuteWorkflowAsync(workflowSchema, workflowInstance, workflowSchema.Activities[0]);
+
+        await _lifecycleManager.Received(1).AdvanceWorkflowAsync(
+            workflowInstance, "pending-approval", cancellationToken: Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteWorkflowAsync_OpenItemOnAMeetingThisStepCannotReach_KeepsTheScheduledNext()
+    {
+        // The engine only follows an edge the schema has — it never jumps to an unreachable meeting.
+        var workflowSchema = CreateApprovalTierSchema(switchToMeetingEdge: true);
+        var workflowInstance = CreateTestWorkflowInstance();
+        ArrangeSwitchPicksApproval(workflowSchema, workflowInstance);
+        _persistenceService.GetOpenMeetingItemActivityIdAsync(workflowInstance.Id, Arg.Any<CancellationToken>())
+            .Returns("some-other-meeting");
+
+        await _workflowEngine.ExecuteWorkflowAsync(workflowSchema, workflowInstance, workflowSchema.Activities[0]);
+
+        await _lifecycleManager.Received(1).AdvanceWorkflowAsync(
+            workflowInstance, "pending-approval", cancellationToken: Arg.Any<CancellationToken>());
+    }
+
+    private void ArrangeSwitchPicksApproval(WorkflowSchema workflowSchema, WorkflowInstance workflowInstance)
+    {
+        _activityFactory.CreateActivity(Arg.Any<string>()).Returns(_mockActivity);
+        _mockActivity.ExecuteAsync(Arg.Any<ActivityContext>(), Arg.Any<CancellationToken>())
+            .Returns(
+                ActivityResult.Success(new Dictionary<string, object>()),
+                ActivityResult.Pending(new Dictionary<string, object>()));
+        _flowControlManager.DetermineNextActivityAsync(
+                workflowSchema, "approval-tier-switch", Arg.Any<ActivityResult>(),
+                Arg.Any<Dictionary<string, object>>(), Arg.Any<CancellationToken>())
+            .Returns("pending-approval");
+        _persistenceService.GetOpenMeetingItemActivityIdAsync(workflowInstance.Id, Arg.Any<CancellationToken>())
+            .Returns("pending-meeting");
+    }
+
+    private WorkflowSchema CreateApprovalTierSchema(bool switchToMeetingEdge)
+    {
+        var schema = CreateTestWorkflowSchema();
+        schema.Activities = new List<ActivityDefinition>
+        {
+            CreateTestActivityDefinition("approval-tier-switch", ActivityTypes.SwitchActivity),
+            CreateTestActivityDefinition("pending-approval", ActivityTypes.ApprovalActivity),
+            CreateTestActivityDefinition("pending-meeting", ActivityTypes.MeetingActivity)
+        };
+        schema.Transitions = new List<TransitionDefinition>
+        {
+            new() { Id = "switch-to-approval", From = "approval-tier-switch", To = "pending-approval" },
+            new() { Id = "meeting-to-approval", From = "pending-meeting", To = "pending-approval" }
+        };
+        if (switchToMeetingEdge)
+            schema.Transitions.Add(new() { Id = "switch-to-meeting", From = "approval-tier-switch", To = "pending-meeting" });
+        return schema;
+    }
+
+    #endregion
+
     private WorkflowSchema CreateTestWorkflowSchema()
     {
         return new WorkflowSchema

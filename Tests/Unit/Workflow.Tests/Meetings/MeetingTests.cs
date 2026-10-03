@@ -65,6 +65,18 @@ public class MeetingTests
     }
 
     [Fact]
+    public void SnapshotCommittee_RecordsTheCommitteeTheRosterCameFrom()
+    {
+        var meeting = BuildNewMeeting();
+        var committee = BuildCommittee();
+        committee.AddMember("user-1", "Alice", CommitteeMemberPosition.Chairman);
+
+        meeting.SnapshotCommittee(committee, meetingSeq: 1);
+
+        meeting.CommitteeId.Should().Be(committee.Id);
+    }
+
+    [Fact]
     public void SnapshotCommittee_CalledTwice_Throws()
     {
         var meeting = BuildNewMeeting();
@@ -922,7 +934,7 @@ public class MeetingTests
     // =========================================================================
 
     [Fact]
-    public void ReinstateRoutedBackItem_WhenPresent_FlipsBackToPending_MeetingStaysRoutedBack()
+    public void ReinstateRoutedBackItem_WhenPresent_FlipsBackToPending_AndReopensTheMeeting()
     {
         var meeting = BuildInvitationSentMeetingWithOneItem();
         var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
@@ -933,7 +945,8 @@ public class MeetingTests
 
         var item = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision);
         item.ItemDecision.Should().Be(ItemDecision.Pending);
-        meeting.Status.Should().Be(MeetingStatus.RoutedBack);
+        // Its only routed-back item is back, so the meeting reopens for release (InvitationSent).
+        meeting.Status.Should().Be(MeetingStatus.InvitationSent);
     }
 
     [Fact]

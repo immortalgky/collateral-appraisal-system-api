@@ -15,6 +15,14 @@ public class Meeting : Aggregate<Guid>
     public DateTime? EndedAt { get; private set; }
     public DateTime? CancelledAt { get; private set; }
 
+    /// <summary>
+    /// The committee this meeting's roster was snapshotted from. A released item is approved under
+    /// this committee's quorum/majority/conditions — not the tier its current value would pick —
+    /// so an appraisal that returns after rework is judged by the same group that heard it.
+    /// Null only on rows created before the column existed and missed by the backfill script.
+    /// </summary>
+    public Guid? CommitteeId { get; private set; }
+
     // ----- Meeting number -----
 
     public string? MeetingNo { get; private set; }
@@ -95,10 +103,13 @@ public class Meeting : Aggregate<Guid>
     {
         ArgumentNullException.ThrowIfNull(committee);
 
-        if (_members.Count > 0)
+        // CommitteeId too: a committee with no active members for this parity snapshots nobody,
+        // and a second call must not silently re-point the meeting at another committee.
+        if (_members.Count > 0 || CommitteeId is not null)
             throw new InvalidOperationException(
                 "Committee snapshot has already been taken for this meeting");
 
+        CommitteeId = committee.Id;
         foreach (var cm in committee.GetActiveMembers(meetingSeq))
             _members.Add(MeetingMember.CreateSnapshot(Id, cm));
     }
@@ -480,7 +491,7 @@ public class Meeting : Aggregate<Guid>
             .AsReadOnly();
 
         AddDomainEvent(new MeetingItemReleasedDomainEvent(
-            Id, appraisalId, item.WorkflowInstanceId.Value, item.ActivityId, actor, approvers));
+            Id, appraisalId, item.WorkflowInstanceId.Value, item.ActivityId, actor, approvers, CommitteeId));
 
         // Auto-transition: if every Decision item has been Released, end the meeting.
         var allDecisionItems = _items.Where(i => i.Kind == MeetingItemKind.Decision).ToList();
