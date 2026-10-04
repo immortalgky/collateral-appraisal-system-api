@@ -145,6 +145,15 @@ public static class IntegrationModule
         // FailedMessages:Enabled is false, so a disabled collector never blocks startup.
         services.AddOptions<FailedMessagesOptions>()
             .Bind(configuration.GetSection(FailedMessagesOptions.SectionName))
+            // The management API is the same broker as RabbitMQ:Host, so its URL lives with the other
+            // broker settings. Assigned unconditionally (blank = default); the old FailedMessages key is never
+            // read, only flagged so Validate() can reject it.
+            .Configure(o =>
+            {
+                var url = configuration["RabbitMQ:ManagementUrl"];
+                o.ManagementUrl = string.IsNullOrWhiteSpace(url) ? FailedMessagesOptions.DefaultManagementUrl : url;
+                o.LegacyManagementUrlPresent = configuration["FailedMessages:ManagementUrl"] is not null;
+            })
             .ValidateOnStart();
         services.PostConfigure<FailedMessagesOptions>(o => o.Validate());
         services.AddHttpClient(FailedMessageCollectorService.ManagementHttpClientName, (sp, client) =>

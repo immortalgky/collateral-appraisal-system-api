@@ -1,5 +1,8 @@
 using FluentAssertions;
 using Integration.FailedMessages;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Integration.Tests;
 
@@ -67,7 +70,7 @@ public class FailedMessagesOptionsValidationTests
     public void Validate_ManagementUrl_HttpToRemoteHost_Throws(string url) =>
         new FailedMessagesOptions { Enabled = true, ManagementUrl = url }.Invoking(o => o.Validate()).Should()
             .Throw<InvalidOperationException>()
-            .WithMessage("FailedMessages:ManagementUrl*plain http*non-loopback*https*");
+            .WithMessage("RabbitMQ:ManagementUrl*plain http*non-loopback*https*");
 
     [Theory]
     [InlineData("")]
@@ -76,5 +79,52 @@ public class FailedMessagesOptionsValidationTests
     [InlineData("ftp://localhost")]
     public void Validate_ManagementUrl_NotAnHttpUrl_Throws(string url) =>
         new FailedMessagesOptions { Enabled = true, ManagementUrl = url }.Invoking(o => o.Validate()).Should()
-            .Throw<InvalidOperationException>().WithMessage("FailedMessages:ManagementUrl must be an absolute http(s) URL*");
+            .Throw<InvalidOperationException>().WithMessage("RabbitMQ:ManagementUrl must be an absolute http(s) URL*");
+
+    // The URL is read from RabbitMQ:ManagementUrl (same section as Host/Username/Password); absent or blank
+    // falls back to the localhost default.
+    [Theory]
+    [InlineData("https://rabbit.example:15671", "https://rabbit.example:15671")]
+    [InlineData(null, FailedMessagesOptions.DefaultManagementUrl)]
+    [InlineData("", FailedMessagesOptions.DefaultManagementUrl)]
+    [InlineData("  ", FailedMessagesOptions.DefaultManagementUrl)]
+    public void IntegrationModule_ReadsManagementUrlFromRabbitMqSection(string? rabbitMq, string expected) =>
+        ResolveOptions(enabled: true, rabbitMq, legacy: null).ManagementUrl.Should().Be(expected);
+
+    [Fact]
+    public void IntegrationModule_EnabledWithPlainHttpRemoteManagementUrl_FailsOnResolve() =>
+        FluentActions.Invoking(() => ResolveOptions(enabled: true, "http://rabbit.internal.example:15672", legacy: null))
+            .Should().Throw<InvalidOperationException>().WithMessage("RabbitMQ:ManagementUrl*plain http*non-loopback*");
+
+    // No fallback to the old key, and it must not be silently ignored either.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("https://new.example:15671")]
+    public void IntegrationModule_EnabledWithLegacyKey_FailsOnResolve(string? rabbitMq) =>
+        FluentActions.Invoking(() => ResolveOptions(enabled: true, rabbitMq, legacy: "https://old.example:15671"))
+            .Should().Throw<InvalidOperationException>()
+            .WithMessage("FailedMessages:ManagementUrl has moved to RabbitMQ:ManagementUrl*");
+
+    // Validate() is a no-op while disabled, so a hand-edited config must not block startup.
+    [Fact]
+    public void IntegrationModule_DisabledWithLegacyKey_DoesNotThrow() =>
+        ResolveOptions(enabled: false, null, legacy: "https://old.example:15671").ManagementUrl
+            .Should().Be(FailedMessagesOptions.DefaultManagementUrl);
+
+    private static FailedMessagesOptions ResolveOptions(bool enabled, string? rabbitMq, string? legacy)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["FailedMessages:Enabled"] = enabled.ToString(),
+                ["RabbitMQ:ManagementUrl"] = rabbitMq,
+                ["FailedMessages:ManagementUrl"] = legacy,
+            })
+            .Build();
+        var services = new ServiceCollection();
+        services.AddIntegrationModule(configuration);
+
+        using var provider = services.BuildServiceProvider();
+        return provider.GetRequiredService<IOptions<FailedMessagesOptions>>().Value;
+    }
 }

@@ -87,8 +87,8 @@ Rules: `module` checked against a six-item whitelist before it becomes a schema 
 terms are LIKE-escaped (`LikePattern.Escape`) and always bound as parameters.
 
 ### 3. Collector (BackgroundService on every node, no lease)
-Config `FailedMessages { Enabled, Interval=15s, BatchPerQueue=100, ManagementUrl=http://localhost:15672 }`;
-credentials = existing `RabbitMQ:Username/Password`; node = `Environment.MachineName`. Each round, each step in its
+Config `FailedMessages { Enabled, Interval=15s, BatchPerQueue=100 }`;
+management URL = `RabbitMQ:ManagementUrl` (default `http://localhost:15672`), credentials = existing `RabbitMQ:Username/Password`; node = `Environment.MachineName`. Each round, each step in its
 own try/catch:
 1. **Discover** queues ending `_error`/`_skipped` with messages via `GET /api/queues`; if the Management API fails,
    fall back to the app's MassTransit endpoint names + suffix, checked with `QueueDeclarePassive` (verify the MT 8.4.1
@@ -134,7 +134,7 @@ Then: run `dotnet run --project Database/Database.csproj migrate` (or the DBA bu
 (menu cache). Until the tag is set the screen shows "Management API not authorised" in queue health; collection and
 retry keep working over AMQP.
 
-**`FailedMessages:ManagementUrl` must not be plain http to a remote host.** The collector re-sends the app's AMQP
+**`RabbitMQ:ManagementUrl` must not be plain http to a remote host.** The collector re-sends the app's AMQP
 username/password as HTTP Basic auth to the Management API every round (15s), so `FailedMessagesOptions.Validate()`
 fails host startup for an `http://` URL whose host is not loopback (`localhost`, `127.x.x.x`, `[::1]`). Allowed:
 `https://` to any host, and `http://` to loopback — the per-node design and the prod template default
