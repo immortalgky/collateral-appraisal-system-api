@@ -16,9 +16,10 @@ public class GetOutboxMessagesQueryHandler(
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S2077:Formatting SQL queries is security-sensitive",
         Justification =
-            "Every [{module}] schema name interpolated here (the UNION built by OutboxUnionSql, and the " +
-            "per-module detail/newer-sent queries below it) comes only from OutboxModuleWhitelist.Modules " +
-            "— module/group.Key is the UNION's own synthetic Module literal, never request.Module or any " +
+            "Every [{module}] schema name interpolated here (the id-only page UNION built by OutboxUnionSql, " +
+            "and the per-module display-column/newer-sent queries for just that page's rows below it) comes " +
+            "only from OutboxModuleWhitelist.Modules — module/group.Key is the UNION's own synthetic Module " +
+            "literal, never request.Module or any " +
             "other caller input directly. request.Module only SELECTS which whitelist branch Build emits " +
             "(it is validated by GetOutboxMessagesQueryValidator and again inside OutboxUnionSql.Build, and " +
             "only the whitelist's own literal is interpolated). Every actual value " +
@@ -75,14 +76,17 @@ public class GetOutboxMessagesQueryHandler(
             return all.Count == 0 ? null : string.Join(" AND ", all);
         }
 
-        // Page over the small/cheap columns only — no Payload — so paginating doesn't drag the
-        // (potentially large) JSON body across the network for every row on every page, most of which
-        // the caller never opens a detail view for.
-        var union = OutboxUnionSql.Build(
-            "Id, EventType, CorrelationId, OccurredAt, ProcessingStartedAt, Status", WhereFor, onlyModule);
+        // Page over (Module, Id, OccurredAt, Status) ONLY — the Failed and All tabs (no Search, not Resent) can
+        // answer that from the primary key or IX_IntegrationEventOutbox_Polling (Status, OccurredAt) without
+        // reading the rows. Search (EventType/CorrelationId LIKE), Stuck (ProcessingStartedAt) and Resent
+        // (the audit-log EXISTS) still read the rows to evaluate their predicate, but never carry the in-row
+        // payload through the UNION's sort, which paging over EventType/CorrelationId used to (a clustered scan
+        // of all six tables and a full sort before OFFSET). The display columns are fetched below for just the
+        // page's rows.
+        var union = OutboxUnionSql.Build("Id, OccurredAt, Status", WhereFor, onlyModule);
 
         var sql = $"""
-            SELECT o.Module, o.Id, o.EventType, o.CorrelationId, o.OccurredAt, o.ProcessingStartedAt, o.Status
+            SELECT o.Module, o.Id, o.OccurredAt, o.Status
             FROM ({union}) o
             """;
 
@@ -97,7 +101,7 @@ public class GetOutboxMessagesQueryHandler(
         if (pageRows.Count == 0)
             return new PaginatedResult<OutboxMessageListDto>([], raw.Count, request.PageNumber, request.PageSize);
 
-        // Exactly one Payload/display-column fetch and one newerSentCount fetch PER MODULE PRESENT
+        // Exactly one display-column/Payload fetch and one newerSentCount fetch PER MODULE PRESENT
         // ON THE PAGE (never per row) — `module` here is always one of OutboxUnionSql's own synthetic
         // `Module` literals (from OutboxModuleWhitelist.Modules), never caller input.
         var details = new Dictionary<(string Module, Guid Id), OutboxDetailRow>();
@@ -110,7 +114,7 @@ public class GetOutboxMessagesQueryHandler(
 
             var detailRows = await sqlConnectionFactory.QueryAsync<OutboxDetailRow>(
                 $"""
-                SELECT Id, Payload, Error, ProcessedAt, RetryCount
+                SELECT Id, EventType, CorrelationId, ProcessingStartedAt, Payload, Error, ProcessedAt, RetryCount
                 FROM [{module}].[IntegrationEventOutbox]
                 WHERE Id IN @Ids
                 """,
@@ -121,7 +125,9 @@ public class GetOutboxMessagesQueryHandler(
             // A row older than the Processed retention window is not queried at all: its count is unknown
             // (NewerSentCountRule), so it is reported as null below instead of a misleading 0.
             var withCorrelation = rows
-                .Where(r => r.CorrelationId is not null && !NewerSentCountRule.HistoryMayBePurged(r.OccurredAt, now))
+                .Where(r => !NewerSentCountRule.HistoryMayBePurged(r.OccurredAt, now)
+                            && details.GetValueOrDefault((module, r.Id))?.CorrelationId is not null)
+                .Select(r => (r.Id, CorrelationId: details[(module, r.Id)].CorrelationId!, r.OccurredAt))
                 .ToList();
             if (withCorrelation.Count == 0)
                 continue;
@@ -140,34 +146,61 @@ public class GetOutboxMessagesQueryHandler(
                 newerSentCounts[(module, count.Id)] = count.NewerSentCount;
         }
 
-        var items = pageRows.Select(row =>
-        {
-            var detail = details.GetValueOrDefault((row.Module, row.Id));
-            var (refType, refId, refNumber) = FailedMessageReferenceResolver.Resolve(detail?.Payload);
-
-            var resolution = IntegrationEventNamespace.TryResolve(row.EventType, out _);
-
-            return new OutboxMessageListDto(
-                row.Module, row.Id, row.EventType, row.CorrelationId, row.OccurredAt, detail?.ProcessedAt,
-                row.ProcessingStartedAt, detail?.Error, detail?.RetryCount ?? 0, row.Status,
-                refType, refId, refNumber, NewerSentCountFor(row, now),
-                resolution == TypeResolution.Resolved,
-                OutboxFailureClass.Classify(row.Status, detail?.Error, resolution));
-        }).ToList();
+        var items = BuildItems(pageRows, details, newerSentCounts, now);
 
         return new PaginatedResult<OutboxMessageListDto>(items, raw.Count, request.PageNumber, request.PageSize);
+    }
+
+    /// <summary>
+    /// Merges the page query's rows with the per-module display-column fetch. Every page row yields exactly one
+    /// item, in page order — the page's count comes from the id query, so dropping a row (purged, or changed,
+    /// between the two queries) would leave a short or empty page while the total is still positive. A row with
+    /// no detail keeps what the page query read and has empty/null detail fields. Status comes from the page
+    /// query for every row, so a row listed under one tab never shows another status because of the later read.
+    /// </summary>
+    internal static List<OutboxMessageListDto> BuildItems(
+        IReadOnlyList<OutboxPageRow> pageRows,
+        IReadOnlyDictionary<(string Module, Guid Id), OutboxDetailRow> details,
+        IReadOnlyDictionary<(string Module, Guid Id), int> newerSentCounts,
+        DateTime now)
+    {
+        var items = new List<OutboxMessageListDto>(pageRows.Count);
+        foreach (var row in pageRows)
+        {
+            if (!details.TryGetValue((row.Module, row.Id), out var detail))
+            {
+                // NewerSentCount null = unknown: without the CorrelationId "none newer" can't be claimed.
+                items.Add(new OutboxMessageListDto(
+                    row.Module, row.Id, "", null, row.OccurredAt, null, null, null, 0, row.Status,
+                    null, null, null, null, false, null));
+                continue;
+            }
+
+            var (refType, refId, refNumber) = FailedMessageReferenceResolver.Resolve(detail.Payload);
+
+            var resolution = IntegrationEventNamespace.TryResolve(detail.EventType, out _);
+
+            items.Add(new OutboxMessageListDto(
+                row.Module, row.Id, detail.EventType, detail.CorrelationId, row.OccurredAt, detail.ProcessedAt,
+                detail.ProcessingStartedAt, detail.Error, detail.RetryCount, row.Status,
+                refType, refId, refNumber, NewerSentCountFor(row, detail.CorrelationId),
+                resolution == TypeResolution.Resolved,
+                OutboxFailureClass.Classify(row.Status, detail.Error, resolution)));
+        }
+
+        return items;
 
         // No CorrelationId = no sibling group, so 0 is certain; an old row's history may be purged = unknown.
-        int? NewerSentCountFor(OutboxPageRow row, DateTime asOf) =>
-            row.CorrelationId is null ? 0
-            : NewerSentCountRule.HistoryMayBePurged(row.OccurredAt, asOf) ? null
+        int? NewerSentCountFor(OutboxPageRow row, string? correlationId) =>
+            correlationId is null ? 0
+            : NewerSentCountRule.HistoryMayBePurged(row.OccurredAt, now) ? null
             : newerSentCounts.GetValueOrDefault((row.Module, row.Id));
     }
 
     /// <summary>Builds a `(VALUES ...)` table constructor for one module's page rows — everything is a
     /// parameter, nothing interpolated, so this stays safe with an arbitrary CorrelationId value.</summary>
     private static (string Sql, DynamicParameters Parameters) BuildNewerSentPageValues(
-        IReadOnlyList<OutboxPageRow> rows)
+        IReadOnlyList<(Guid Id, string CorrelationId, DateTime OccurredAt)> rows)
     {
         var parameters = new DynamicParameters();
         var clauses = new List<string>(rows.Count);
@@ -184,11 +217,12 @@ public class GetOutboxMessagesQueryHandler(
         return (string.Join(", ", clauses), parameters);
     }
 
-    private record OutboxPageRow(
-        string Module, Guid Id, string EventType, string? CorrelationId, DateTime OccurredAt,
-        DateTime? ProcessingStartedAt, string Status);
+    internal record OutboxPageRow(string Module, Guid Id, DateTime OccurredAt, string Status);
 
-    private record OutboxDetailRow(Guid Id, string Payload, string? Error, DateTime? ProcessedAt, int RetryCount);
+    // Positional: the SELECT above lists these columns in exactly this order.
+    internal record OutboxDetailRow(
+        Guid Id, string EventType, string? CorrelationId, DateTime? ProcessingStartedAt,
+        string Payload, string? Error, DateTime? ProcessedAt, int RetryCount);
 
     private record NewerSentCountRow(Guid Id, int NewerSentCount);
 }

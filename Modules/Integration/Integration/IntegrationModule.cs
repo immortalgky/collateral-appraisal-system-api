@@ -1,3 +1,4 @@
+using System.Net;
 using Integration.Application.Services;
 using Integration.Contracts.FileInterface;
 using Integration.Contracts.FileSink;
@@ -156,17 +157,7 @@ public static class IntegrationModule
             })
             .ValidateOnStart();
         services.PostConfigure<FailedMessagesOptions>(o => o.Validate());
-        services.AddHttpClient(FailedMessageCollectorService.ManagementHttpClientName, (sp, client) =>
-        {
-            var managementUrl = sp.GetRequiredService<IOptions<FailedMessagesOptions>>().Value.ManagementUrl;
-            // HttpClient/Uri only APPENDS a relative request path onto BaseAddress's own
-            // path when BaseAddress ends with '/' — otherwise the last path segment (or, if ManagementUrl
-            // has no path at all, silently nothing) is dropped. A trailing slash here is what lets a
-            // ManagementUrl with a path prefix (e.g. "http://host:15672/rabbit") still work once paired
-            // with the collector's now-relative (no leading '/') request paths.
-            client.BaseAddress = new Uri(managementUrl.TrimEnd('/') + "/");
-            client.Timeout = TimeSpan.FromSeconds(5);
-        });
+        AddManagementHttpClient(services);
         if (configuration.GetValue<bool>($"{FailedMessagesOptions.SectionName}:Enabled"))
             services.AddHostedService<FailedMessageCollectorService>();
 
@@ -183,6 +174,27 @@ public static class IntegrationModule
         });
 
         return services;
+    }
+
+    /// <summary>The collector's Management API client. Internal so a unit test can inspect its handler.</summary>
+    internal static void AddManagementHttpClient(IServiceCollection services)
+    {
+        services.AddHttpClient(FailedMessageCollectorService.ManagementHttpClientName, (sp, client) =>
+        {
+            var managementUrl = sp.GetRequiredService<IOptions<FailedMessagesOptions>>().Value.ManagementUrl;
+            // HttpClient/Uri only APPENDS a relative request path onto BaseAddress's own
+            // path when BaseAddress ends with '/' — otherwise the last path segment (or, if ManagementUrl
+            // has no path at all, silently nothing) is dropped. A trailing slash here is what lets a
+            // ManagementUrl with a path prefix (e.g. "http://host:15672/rabbit") still work once paired
+            // with the collector's now-relative (no leading '/') request paths.
+            client.BaseAddress = new Uri(managementUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(5);
+        })
+        // gzip/deflate: the projected response is ~169 KB per round per node, ~5 KB compressed.
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+        });
     }
 
     public static IApplicationBuilder UseIntegrationModule(this IApplicationBuilder app)

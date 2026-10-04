@@ -39,6 +39,16 @@ public class FailedMessageCollectorService(
 {
     public const string ManagementHttpClientName = "FailedMessagesManagement";
 
+    /// <summary>
+    /// Asks the broker for just the fields <see cref="ParseManagementQueues"/> reads: the unprojected response is
+    /// ~4.9 KB per queue (every queue in the shared vhost), 70% of it never read. Dotted paths project nested
+    /// fields. Adding a field to the parser means adding it here (a unit test applies this projection to a
+    /// sample and compares the parser output).
+    /// </summary>
+    internal const string ManagementQueueColumns =
+        "name,messages,messages_ready,messages_unacknowledged,consumers," +
+        "message_stats.publish_details.rate,message_stats.deliver_get_details.rate,messages_ready_details.samples";
+
     private static readonly JsonSerializerOptions QueuesJsonOptions =
         new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
@@ -309,7 +319,7 @@ public class FailedMessageCollectorService(
             // like "http://host:15672/rabbit/". A relative reference (no leading '/') is appended after
             // BaseAddress's path instead, which is why the client is configured with a trailing '/'.
             using var request = new HttpRequestMessage(HttpMethod.Get,
-                $"api/queues/{Uri.EscapeDataString(_vhost)}?lengths_age=1800&lengths_incr=60");
+                $"api/queues/{Uri.EscapeDataString(_vhost)}?lengths_age=1800&lengths_incr=60&columns={ManagementQueueColumns}");
             request.Headers.Authorization = BuildBasicAuthHeader();
 
             using var response = await client.SendAsync(request, ct);

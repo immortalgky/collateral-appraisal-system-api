@@ -106,4 +106,24 @@ public class FailedMessageDomainTests
         message.RevertRetry("some reason", DateTime.Now).Should().BeFalse();
         message.Status.Should().Be(FailedMessageStatus.Pending);
     }
+
+    [Fact]
+    public void FailedMessageStatus_All_ListsEveryStatusConstant()
+    {
+        // A literal array (typed string[]), exactly the four statuses, in declaration order.
+        string[] all = FailedMessageStatus.All;
+        all.Should().Equal("Pending", "RetryRequested", "Retried", "Discarded");
+    }
+
+    /// <summary>The literal array is hand-maintained, so a status constant added without joining it fails here.</summary>
+    [Fact]
+    public void FailedMessageStatus_All_ContainsEveryPublicStringConstant()
+    {
+        var constants = typeof(FailedMessageStatus)
+            .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            .Where(f => f.IsLiteral && f.FieldType == typeof(string))
+            .Select(f => (string)f.GetRawConstantValue()!);
+
+        FailedMessageStatus.All.Should().BeEquivalentTo(constants);
+    }
 }

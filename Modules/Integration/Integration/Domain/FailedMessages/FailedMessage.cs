@@ -197,6 +197,10 @@ public static class FailedMessageStatus
     public const string RetryRequested = "RetryRequested";
     public const string Retried = "Retried";
     public const string Discarded = "Discarded";
+
+    /// <summary>Every status above. Queries that must name "every status" (to seek the Status index) build
+    /// their list from this, so a status added above must be added here too (a unit test enforces it).</summary>
+    public static readonly string[] All = [Pending, RetryRequested, Retried, Discarded];
 }
 
 /// <summary>

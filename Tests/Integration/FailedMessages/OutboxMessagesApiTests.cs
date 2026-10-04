@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Integration.Application.Features.FailedMessages.GetFailedMessagesSummary;
+using Integration.Application.Features.OutboxMessages;
 using Integration.Application.Features.OutboxMessages.GetOutboxMessage;
 using Integration.Application.Features.OutboxMessages.GetOutboxMessages;
 using Integration.Application.Features.OutboxMessages.ResendOutboxMessages;
@@ -138,6 +139,138 @@ public class OutboxMessagesApiTests(IntegrationTestFixture fixture) : Integratio
         }
 
         Assert.Equal(expected, paged);
+    }
+
+    private sealed class LegacyOutboxPageRow
+    {
+        public string Module { get; set; } = "";
+        public Guid Id { get; set; }
+        public string EventType { get; set; } = "";
+        public string? CorrelationId { get; set; }
+        public DateTime OccurredAt { get; set; }
+        public DateTime? ProcessingStartedAt { get; set; }
+        public string Status { get; set; } = "";
+    }
+
+    /// <summary>The list query as it was before paging over ids only: page over every display column.</summary>
+    private static async Task<(int Count, List<LegacyOutboxPageRow> Rows)> LegacyPageAsync(
+        IntegrationDbContext db, string status, string? module, string? search, int page, int size, DateTime now,
+        CancellationToken ct)
+    {
+        var conditions = new List<string>();
+        var parameters = new List<Microsoft.Data.SqlClient.SqlParameter>();
+        if (status == "Failed")
+            conditions.Add("o.Status = 'Failed'");
+        else if (status == "Stuck")
+        {
+            conditions.Add(OutboxUnionSql.StuckPredicate);
+            parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("StuckThreshold", System.Data.SqlDbType.DateTime2)
+            {
+                Value = now - OutboxDeliveryPolicy.StuckThreshold
+            });
+        }
+        if (search is not null)
+        {
+            conditions.Add("(o.EventType LIKE @Search ESCAPE '\\' OR o.CorrelationId LIKE @Search ESCAPE '\\')");
+            parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("Search", $"%{search}%"));
+        }
+
+        var union = OutboxUnionSql.Build(
+            "Id, EventType, CorrelationId, OccurredAt, ProcessingStartedAt, Status",
+            conditions.Count == 0 ? null : string.Join(" AND ", conditions), module);
+        var sql = $"SELECT o.Module, o.Id, o.EventType, o.CorrelationId, o.OccurredAt, o.ProcessingStartedAt, o.Status FROM ({union}) o";
+
+        // Fresh parameter instances per command (a SqlParameter can't be shared between two commands).
+        Microsoft.Data.SqlClient.SqlParameter[] Fresh() => parameters
+            .Select(p => new Microsoft.Data.SqlClient.SqlParameter(p.ParameterName, p.SqlDbType) { Value = p.Value })
+            .ToArray();
+
+        var count = await db.Database
+            .SqlQueryRaw<int>($"SELECT COUNT(*) AS Value FROM ({sql}) AS CountQuery", Fresh())
+            .SingleAsync(ct);
+        var rows = await db.Database
+            .SqlQueryRaw<LegacyOutboxPageRow>(
+                $"{sql} ORDER BY o.OccurredAt DESC, o.Module, o.Id DESC OFFSET {(page - 1) * size} ROWS FETCH NEXT {size} ROWS ONLY",
+                Fresh())
+            .ToListAsync(ct);
+        return (count, rows);
+    }
+
+    /// <summary>
+    /// Paging over (Module, Id, OccurredAt) only and fetching the display columns for just the page's rows
+    /// must return exactly what paging over every column returned: the same rows, in the same order, with
+    /// the same count and display values. Seeded rows tie on OccurredAt across modules and statuses
+    /// (Failed, stuck Processing, fresh Processing, Pending, Processed); compared on the All, Failed and
+    /// Stuck tabs, with and without a search and a module filter, plus an unfiltered All page over the
+    /// whole shared database.
+    /// </summary>
+    [Theory]
+    [InlineData("All", null, true)]
+    [InlineData("Failed", null, true)]
+    [InlineData("Stuck", null, true)]
+    [InlineData("All", "appraisal", true)]
+    [InlineData("Failed", "request", true)]
+    [InlineData("All", null, false)]
+    public async Task GetOutboxMessages_PageContentsAndOrder_AreIdenticalToThePreIdOnlyQuery(
+        string status, string? module, bool searchSeededSlice)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = Fixture.IntegrationTestWebApplicationFactory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IntegrationDbContext>();
+        var now = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>().ApplicationNow;
+        var marker = $"IdOnlyPage{Guid.NewGuid():N}";
+        var eventType = $"Test.{marker}";
+
+        // Every row of a tie group shares ONE OccurredAt, across modules.
+        var tieA = now.AddMinutes(-30);
+        var tieB = now.AddMinutes(-31);
+        foreach (var module2 in new[] { "request", "appraisal", "workflow", "document" })
+        {
+            await SeedAsync(module2, "Failed", tieA, eventType: eventType, correlationId: Guid.NewGuid().ToString(),
+                error: "boom");
+            await SeedAsync(module2, "Failed", tieA, eventType: eventType);
+            await SeedAsync(module2, "Processed", tieA, eventType: eventType, processedAt: tieA);
+            await SeedAsync(module2, "Pending", tieB, eventType: eventType);
+            await SeedAsync(module2, "Processing", tieB, eventType: eventType,
+                processingStartedAt: now.AddMinutes(-10), correlationId: Guid.NewGuid().ToString());
+            await SeedAsync(module2, "Processing", tieB, eventType: eventType, processingStartedAt: null);
+            await SeedAsync(module2, "Processing", now, eventType: eventType, processingStartedAt: now);
+        }
+
+        var search = searchSeededSlice ? marker : null;
+        var size = searchSeededSlice ? 3 : 7;
+        var maxPage = searchSeededSlice ? 6 : 2;
+        var compared = 0;
+
+        for (var page = 1; page <= maxPage; page++)
+        {
+            var (legacyCount, legacyRows) = await LegacyPageAsync(db, status, module, search, page, size, now, ct);
+
+            var url = $"/admin/outbox-messages?status={status}&pageSize={size}&pageNumber={page}" +
+                      (module is null ? "" : $"&module={module}") + (search is null ? "" : $"&search={search}");
+            var response = await _client.GetAsync(url, ct);
+            response.EnsureSuccessStatusCode();
+            var result = await response.Content.ReadFromJsonAsync<PaginatedResult<OutboxMessageListDto>>(
+                JsonHelper.Options, ct);
+            Assert.NotNull(result);
+
+            Assert.Equal(legacyCount, result!.Count);
+            Assert.Equal(
+                legacyRows.Select(r => (r.Module, r.Id)).ToList(),
+                result.Items.Select(i => (i.Module, i.Id)).ToList());
+            foreach (var (legacy, item) in legacyRows.Zip(result.Items))
+            {
+                Assert.Equal(legacy.EventType, item.EventType);
+                Assert.Equal(legacy.CorrelationId, item.CorrelationId);
+                Assert.Equal(legacy.OccurredAt, item.OccurredAt);
+                Assert.Equal(legacy.ProcessingStartedAt, item.ProcessingStartedAt);
+                Assert.Equal(legacy.Status, item.Status);
+            }
+            compared += legacyRows.Count;
+        }
+
+        // Not vacuous: the pages really did contain rows to compare.
+        Assert.True(compared >= 2, $"only {compared} rows compared");
     }
 
     [Fact]

@@ -7,6 +7,7 @@ using Integration.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -348,5 +349,118 @@ public class FailedMessageManagementFetchTests
         var db = scope.ServiceProvider.GetRequiredService<IntegrationDbContext>();
         var snapshot = await db.BrokerSnapshots.SingleAsync(TestContext.Current.CancellationToken);
         snapshot.ManagementStatus.Should().Be(BrokerManagementStatus.Ok);
+    }
+
+    private static readonly string[] ParserReadsColumns =
+    [
+        "name", "messages", "messages_ready", "messages_unacknowledged", "consumers",
+        "message_stats.publish_details.rate", "message_stats.deliver_get_details.rate",
+        "messages_ready_details.samples"
+    ];
+
+    /// <summary>
+    /// The 15 s Management call asks the broker for ONLY the fields ParseManagementQueues reads
+    /// (<c>columns=</c>) — the unprojected response is ~4.9 KB per queue, 2.8 KB of it
+    /// <c>messages_details</c>/<c>messages_unacknowledged_details</c> nobody reads.
+    /// </summary>
+    [Fact]
+    public async Task FetchManagementQueuesAsync_AsksOnlyForTheColumnsTheParserReads()
+    {
+        var handler = new FakeHttpMessageHandler(_ => JsonResponse(HttpStatusCode.OK, "[]"));
+        var collector = CreateCollector(new FakeHttpClientFactory(handler));
+
+        await collector.FetchManagementQueuesAsync(CancellationToken.None);
+
+        var query = System.Web.HttpUtility.ParseQueryString(handler.LastRequestUri!.Query);
+        query["lengths_age"].Should().Be("1800");
+        query["lengths_incr"].Should().Be("60");
+        query["columns"].Should().NotBeNull("the call must project the response");
+        query["columns"]!.Split(',').Should().BeEquivalentTo(ParserReadsColumns);
+    }
+
+    /// <summary>
+    /// Drift guard: apply the broker's own <c>columns=</c> projection (dotted paths keep only the named
+    /// leaf) to a realistic full payload using the columns the collector ACTUALLY sent, and require the
+    /// parser to produce exactly the same output as for the unprojected payload. A field the parser
+    /// starts reading without being added to the column list makes this diverge.
+    /// </summary>
+    [Fact]
+    public async Task ParseManagementQueues_ProjectedPayload_IsIdenticalToTheFullPayload()
+    {
+        const string full = """
+            [
+              {"name":"appraisal-sync","vhost":"cas","durable":true,"auto_delete":false,"state":"running",
+               "messages":9,"messages_details":{"rate":0.0},"messages_ready":7,
+               "messages_ready_details":{"rate":0.5,"samples":[{"sample":7,"timestamp":1700000060000},{"sample":5,"timestamp":1700000000000}]},
+               "messages_unacknowledged":2,"messages_unacknowledged_details":{"rate":0.0,"samples":[{"sample":2,"timestamp":1}]},
+               "consumers":3,"consumer_utilisation":null,"memory":55000,
+               "message_stats":{"publish":10,"publish_details":{"rate":1.5},"deliver_get":8,"deliver_get_details":{"rate":2.25},"ack":8,"ack_details":{"rate":2.0}}},
+              {"name":"appraisal-sync_error","vhost":"cas","messages":3,"messages_details":{"rate":0.0},"consumers":0},
+              {"name":"someone-elses-queue","vhost":"cas","messages":99,"consumers":1}
+            ]
+            """;
+        var handler = new FakeHttpMessageHandler(_ => JsonResponse(HttpStatusCode.OK, "[]"));
+        await CreateCollector(new FakeHttpClientFactory(handler)).FetchManagementQueuesAsync(CancellationToken.None);
+        var columns = System.Web.HttpUtility.ParseQueryString(handler.LastRequestUri!.Query)["columns"]!.Split(',');
+
+        var projected = new System.Text.Json.Nodes.JsonArray();
+        foreach (var queue in System.Text.Json.Nodes.JsonNode.Parse(full)!.AsArray())
+        {
+            var copy = new System.Text.Json.Nodes.JsonObject();
+            foreach (var path in columns)
+                CopyPath(queue!.AsObject(), copy, path.Split('.'));
+            projected.Add(copy);
+        }
+
+        var ours = new HashSet<string>(StringComparer.Ordinal) { "appraisal-sync_error", "appraisal-sync_skipped" };
+        var fromFull = FailedMessageCollectorService.ParseManagementQueues(full, ours);
+        var fromProjected = FailedMessageCollectorService.ParseManagementQueues(projected.ToJsonString(), ours);
+
+        fromProjected.FaultQueues.Should().Equal(fromFull.FaultQueues);
+        fromProjected.QueuesJson.Should().Be(fromFull.QueuesJson);
+        fromFull.QueuesJson.Should().Contain("1.5").And.Contain("2.25").And.Contain("[5,7]",
+            "the sample must actually carry the fields the projection has to keep");
+
+        static void CopyPath(
+            System.Text.Json.Nodes.JsonObject from, System.Text.Json.Nodes.JsonObject to, string[] path)
+        {
+            if (!from.TryGetPropertyValue(path[0], out var value) || value is null)
+                return;
+            if (path.Length == 1)
+            {
+                to[path[0]] = value.DeepClone();
+                return;
+            }
+            if (value is not System.Text.Json.Nodes.JsonObject child)
+                return;
+            if (!to.TryGetPropertyValue(path[0], out var existing) || existing is not System.Text.Json.Nodes.JsonObject target)
+            {
+                target = new System.Text.Json.Nodes.JsonObject();
+                to[path[0]] = target;
+            }
+            CopyPath(child, target, path[1..]);
+        }
+    }
+
+    /// <summary>
+    /// With <c>columns=</c> the response is ~169 KB for 125 queues; asking for gzip too (what
+    /// AutomaticDecompression negotiates) brings it to ~5 KB. The named client must therefore decompress.
+    /// </summary>
+    [Fact]
+    public void ManagementHttpClient_PrimaryHandler_DecompressesGzipAndDeflate()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOptions<FailedMessagesOptions>();
+        IntegrationModule.AddManagementHttpClient(services);
+        using var provider = services.BuildServiceProvider();
+
+        HttpMessageHandler? handler = provider.GetRequiredService<IHttpMessageHandlerFactory>()
+            .CreateHandler(FailedMessageCollectorService.ManagementHttpClientName);
+        while (handler is DelegatingHandler delegating)
+            handler = delegating.InnerHandler;
+
+        handler.Should().BeOfType<SocketsHttpHandler>().Which.AutomaticDecompression
+            .Should().Be(DecompressionMethods.GZip | DecompressionMethods.Deflate);
     }
 }

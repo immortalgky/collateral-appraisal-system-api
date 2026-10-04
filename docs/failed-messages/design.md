@@ -100,7 +100,8 @@ own try/catch:
    nack / the broker closing the channel with a soft error (406, 403, ...) / unbuildable publish → back to `Pending` +
    `RetryFailed` audit (a closed channel also ends the round); unknown outcome (incl. the 30 s confirm
    timeout, which also ends the round) → stay RetryRequested with the claim kept.
-4. **Snapshot** `GET /api/queues?lengths_age=1800&lengths_incr=60` → upsert `BrokerSnapshots`; always update
+4. **Snapshot** `GET /api/queues?lengths_age=1800&lengths_incr=60&columns=…` (`columns` = only the fields the parser reads,
+   `FailedMessageCollectorService.ManagementQueueColumns`; gzip accepted) → upsert `BrokerSnapshots`; always update
    `CollectedAt` and `ManagementStatus` (401 → Unauthorized, connect error → Unreachable).
 
 Tests: unit (header/envelope parsing, reference resolution); integration against docker RabbitMQ

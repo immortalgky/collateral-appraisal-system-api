@@ -21,9 +21,10 @@ public class GetFailedMessagesSummaryQueryHandler(
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S2077:Formatting SQL queries is security-sensitive",
         Justification =
-            "outboxUnion is built by OutboxUnionSql.Build, which only ever interpolates its own six " +
+            "failedUnion/stuckUnion are built by OutboxUnionSql.Build, which only ever interpolates its own six " +
             "hard-coded OutboxModuleWhitelist.Modules schema literals — never caller input (this query has " +
-            "no module/status parameter from the request at all). Since/StuckThreshold are bound as " +
+            "no module/status parameter from the request at all). allStatuses is built from the " +
+            "FailedMessageStatus constants, also never caller input. Since/StuckThreshold are bound as " +
             "@parameters.")]
     public async Task<FailedMessagesSummaryDto> Handle(
         GetFailedMessagesSummaryQuery request, CancellationToken cancellationToken)
@@ -32,27 +33,31 @@ public class GetFailedMessagesSummaryQueryHandler(
         var since24h = now.AddHours(-24);
         // "Stuck" is OutboxUnionSql.StuckPredicate — the very predicate GET /admin/outbox-messages?status=Stuck uses.
 
-        // OccurredAt is selected too — the Stuck-count CASE below needs it for the rolling-deploy
-        // NULL-ProcessingStartedAt rule, not just Status/ProcessingStartedAt. Module/schema
-        // names come only from OutboxUnionSql's own whitelist iteration (OutboxModuleWhitelist.Modules),
-        // never caller input — the same rule every other outbox query in this feature already follows.
-        // The summary only ever counts Failed/Processing rows, so the filter is
-        // pushed inside each per-module branch — each one can then seek
-        // IX_IntegrationEventOutbox_Polling (Status, OccurredAt) for just those statuses, instead of
-        // scanning every Pending/Processed row in all six schemas only to discard them after the UNION.
-        var outboxUnion = OutboxUnionSql.Build(
-            "Status, ProcessingStartedAt, OccurredAt", "Status IN ('Failed', 'Processing')");
+        // The summary is polled every 15 s, so every statement is written to be answered from an index, not
+        // from the ~10 KB-wide FailedMessages rows or the outbox payloads. Module/schema names come only from
+        // OutboxUnionSql's own whitelist iteration (OutboxModuleWhitelist.Modules), never caller input — the
+        // same rule every other outbox query in this feature already follows.
+        // Failed and Stuck are two separate counts, each filtered INSIDE every per-module branch: Failed is
+        // answered by IX_IntegrationEventOutbox_Polling (Status, OccurredAt) alone, and Stuck only touches
+        // the handful of Processing rows. (One SUM(CASE...) over Failed+Processing needed
+        // ProcessingStartedAt, which that index lacks, for every Failed row.)
+        var failedUnion = OutboxUnionSql.Build("Id", "o.Status = 'Failed'");
+        var stuckUnion = OutboxUnionSql.Build("Id", OutboxUnionSql.StuckPredicate);
+
+        // Names every status so the 24h Total seeks IX_FailedMessages_Status_FaultedAt once per status
+        // instead of scanning FaultedAt across all of them. Built from the FailedMessageStatus constants
+        // (never caller input), so it stays inline text and the optimizer can seek per status.
+        var allStatuses = string.Join(", ", FailedMessageStatus.All.Select(status => $"'{status}'"));
 
         // ONE round trip for everything — a multi-statement batch (Dapper
-        // QueryMultipleAsync) instead of 6 separate ones, and the outbox Failed/Stuck counts share a
-        // single UNION pass (SUM(CASE…)) instead of two. Every parameter is still bound, not interpolated.
+        // QueryMultipleAsync) instead of 6 separate ones. Every parameter is still bound, not interpolated.
         var sql = $"""
             SELECT COUNT(*) AS PendingCount, MIN(FaultedAt) AS OldestPendingAt
             FROM integration.FailedMessages
             WHERE Status = 'Pending';
 
             SELECT
-                (SELECT COUNT(*) FROM integration.FailedMessages WHERE FaultedAt >= @Since) AS Total,
+                (SELECT COUNT(*) FROM integration.FailedMessages WHERE Status IN ({allStatuses}) AND FaultedAt >= @Since) AS Total,
                 (SELECT COUNT(*) FROM integration.FailedMessages WHERE Status = 'Retried' AND ActionAt >= @Since) AS Retried,
                 (SELECT COUNT(*) FROM integration.FailedMessages WHERE Status = 'Discarded' AND ActionAt >= @Since) AS Discarded;
 
@@ -63,9 +68,8 @@ public class GetFailedMessagesSummaryQueryHandler(
             ORDER BY COUNT(*) DESC;
 
             SELECT
-                SUM(CASE WHEN o.Status = 'Failed' THEN 1 ELSE 0 END) AS FailedCount,
-                SUM(CASE WHEN {OutboxUnionSql.StuckPredicate} THEN 1 ELSE 0 END) AS StuckCount
-            FROM ({outboxUnion}) o;
+                (SELECT COUNT(*) FROM ({failedUnion}) o) AS FailedCount,
+                (SELECT COUNT(*) FROM ({stuckUnion}) o) AS StuckCount;
 
             SELECT Node, CollectedAt, ManagementStatus, QueuesJson, LastError FROM integration.BrokerSnapshots;
 
@@ -182,9 +186,7 @@ public class GetFailedMessagesSummaryQueryHandler(
 
     private record QueueCountRow(string Node, string SourceQueue, string Kind, int Count);
 
-    // SUM(CASE…) over zero UNION rows (all six outbox tables empty) returns SQL NULL, not 0 — nullable so
-    // Dapper doesn't reject the binding; coalesced to 0 where the DTO is built.
-    private record OutboxCountsRow(int? FailedCount, int? StuckCount);
+    private record OutboxCountsRow(int FailedCount, int StuckCount);
 
     private record StoredQueueSnapshot(
         string Name, long? Ready, long? Unacked, int? Consumers, double? PublishRate, double? DeliverRate,

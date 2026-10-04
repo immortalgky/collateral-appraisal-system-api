@@ -7,14 +7,17 @@ using Integration.Application.Features.FailedMessages.GetFailedMessage;
 using Integration.Application.Features.FailedMessages.GetFailedMessages;
 using Integration.Application.Features.FailedMessages.GetFailedMessagesSummary;
 using Integration.Application.Features.FailedMessages.RetryFailedMessages;
+using Integration.Application.Features.OutboxMessages;
 using Integration.Domain.FailedMessages;
 using Integration.FailedMessages;
 using Integration.Fixtures;
 using Integration.Helpers;
 using Integration.Infrastructure;
 using Integration.WebApplicationFactories;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Shared.Data.Outbox;
 using Shared.Pagination;
 using Shared.Time;
 
@@ -62,11 +65,14 @@ public class FailedMessagesApiTests(IntegrationTestFixture fixture) : Integratio
     /// schema, the same pattern OutboxMessagesApiTests.SeedAsync uses — needed here only to prove the
     /// summary's outbox UNION filter (Status IN ('Failed','Processing')) excludes Pending/Processed rows
     /// without an EF DbContext for every module's own schema.</summary>
-    private static async Task SeedOutboxRowAsync(IntegrationDbContext db, string module, string status, DateTime occurredAt)
+    private static async Task SeedOutboxRowAsync(
+        IntegrationDbContext db, string module, string status, DateTime occurredAt,
+        DateTime? processingStartedAt = null)
     {
         object?[] parameters =
         [
-            Guid.CreateVersion7(), "Test.SummaryOutboxProbe", "{}", "{}", null, occurredAt, null, null, status, null
+            Guid.CreateVersion7(), "Test.SummaryOutboxProbe", "{}", "{}", null, occurredAt, null, null, status,
+            processingStartedAt
         ];
         await db.Database.ExecuteSqlRawAsync(
             "INSERT INTO [" + module + "].[IntegrationEventOutbox] " +
@@ -132,6 +138,79 @@ public class FailedMessagesApiTests(IntegrationTestFixture fixture) : Integratio
         // not, proving OutboxUnionSql's per-branch Status filter excludes them rather than just failing
         // to be counted by the CASE (which would pass this assertion even with no filter at all).
         Assert.Equal(1, summary.OutboxFailedCount - before.OutboxFailedCount);
+    }
+
+    /// <summary>
+    /// The summary's last-24h counts and outbox Failed/Stuck counts must equal what the original
+    /// formulations compute over the SAME database: one combined SUM(CASE...) over the Failed/Processing
+    /// UNION, and a Total with no status list. Seeds every status inside and outside the 24 h window, and
+    /// outbox rows for every Stuck/not-Stuck case (stale ProcessingStartedAt, fresh, NULL + old OccurredAt,
+    /// NULL + fresh) plus Failed/Pending/Processed rows across several module schemas.
+    /// </summary>
+    [Fact]
+    public async Task GetFailedMessagesSummary_Counts_EqualTheLegacyFormulations_OnSeededData()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IntegrationDbContext>();
+        var now = scope.ServiceProvider.GetRequiredService<IDateTimeProvider>().ApplicationNow;
+        var node = $"NODE-{Guid.NewGuid():N}"[..12];
+
+        foreach (var status in FailedMessageStatus.All)
+        {
+            await SeedAsync(db, node, "webhook-dispatch", FailedMessageKind.Error, "System.TimeoutException",
+                now.AddHours(-1), status: status);
+            await SeedAsync(db, node, "webhook-dispatch", FailedMessageKind.Error, "System.TimeoutException",
+                now.AddHours(-48), status: status);
+        }
+
+        var stuckSince = now.AddMinutes(-10);
+        await SeedOutboxRowAsync(db, "request", "Failed", now);
+        await SeedOutboxRowAsync(db, "appraisal", "Failed", now.AddDays(-3));
+        await SeedOutboxRowAsync(db, "workflow", "Failed", now);
+        await SeedOutboxRowAsync(db, "request", "Processing", now, processingStartedAt: stuckSince);
+        await SeedOutboxRowAsync(db, "appraisal", "Processing", now, processingStartedAt: now.AddSeconds(-10));
+        await SeedOutboxRowAsync(db, "workflow", "Processing", stuckSince, processingStartedAt: null);
+        await SeedOutboxRowAsync(db, "document", "Processing", now, processingStartedAt: null);
+        await SeedOutboxRowAsync(db, "collateral", "Pending", now);
+        await SeedOutboxRowAsync(db, "reporting", "Processed", now);
+
+        var summary = await GetSummaryAsync();
+
+        var since = summary.ServerTime.AddHours(-24);
+        var threshold = summary.ServerTime - OutboxDeliveryPolicy.StuckThreshold;
+        var legacyUnion = OutboxUnionSql.Build(
+            "Status, ProcessingStartedAt, OccurredAt", "Status IN ('Failed', 'Processing')");
+
+        async Task<int> Scalar(string sql) => await db.Database
+            .SqlQueryRaw<int>(sql,
+                new SqlParameter("Since", System.Data.SqlDbType.DateTime2) { Value = since },
+                new SqlParameter("StuckThreshold", System.Data.SqlDbType.DateTime2) { Value = threshold })
+            .SingleAsync(ct);
+
+        var legacyTotal = await Scalar(
+            "SELECT COUNT(*) AS Value FROM integration.FailedMessages WHERE FaultedAt >= @Since");
+        var legacyRetried = await Scalar(
+            "SELECT COUNT(*) AS Value FROM integration.FailedMessages WHERE Status = 'Retried' AND ActionAt >= @Since");
+        var legacyDiscarded = await Scalar(
+            "SELECT COUNT(*) AS Value FROM integration.FailedMessages WHERE Status = 'Discarded' AND ActionAt >= @Since");
+        var legacyFailed = await Scalar(
+            $"SELECT ISNULL(SUM(CASE WHEN o.Status = 'Failed' THEN 1 ELSE 0 END), 0) AS Value FROM ({legacyUnion}) o");
+        var legacyStuck = await Scalar(
+            $"SELECT ISNULL(SUM(CASE WHEN {OutboxUnionSql.StuckPredicate} THEN 1 ELSE 0 END), 0) AS Value FROM ({legacyUnion}) o");
+
+        Assert.Equal(legacyTotal, summary.Last24h.Total);
+        Assert.Equal(legacyRetried, summary.Last24h.Retried);
+        Assert.Equal(legacyDiscarded, summary.Last24h.Discarded);
+        Assert.Equal(legacyFailed, summary.OutboxFailedCount);
+        Assert.Equal(legacyStuck, summary.OutboxStuckCount);
+
+        // Not vacuous: the seeded rows really do land in each count (>= : the DB is shared).
+        Assert.True(summary.Last24h.Total >= 4);
+        Assert.True(summary.Last24h.Retried >= 1);
+        Assert.True(summary.Last24h.Discarded >= 1);
+        Assert.True(summary.OutboxFailedCount >= 3);
+        Assert.True(summary.OutboxStuckCount >= 2);
     }
 
     /// <summary>A node with Pending FailedMessages rows but NO BrokerSnapshot row at
