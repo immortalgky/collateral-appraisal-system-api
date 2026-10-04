@@ -89,8 +89,21 @@ public class FailedMessageConfiguration : IEntityTypeConfiguration<FailedMessage
             .HasFilter("[MessageId] IS NOT NULL")
             .HasDatabaseName("UX_FailedMessages_Dedup");
 
+        // The summary and the list are polled every 15 s. The INCLUDE columns make this index cover
+        // the summary's Pending GROUP BYs (SourceQueue/ExceptionType/Node/Kind), the list's queue filter, and the
+        // list's search predicate (MessageId/RefNumber/ExceptionMessage), so none of them touches the
+        // ~10 KB-wide clustered rows (a not-found search otherwise key-looks-up every Pending row).
         builder.HasIndex(x => new { x.Status, x.FaultedAt })
+            .IncludeProperties(x => new
+            {
+                x.SourceQueue, x.ExceptionType, x.Node, x.Kind, x.MessageId, x.RefNumber, x.ExceptionMessage
+            })
             .HasDatabaseName("IX_FailedMessages_Status_FaultedAt");
+
+        // Summary's last-24h Retried/Discarded counts (Status + ActionAt) and FailedMessageCleanupJob's
+        // DELETE predicate (Status IN ('Retried','Discarded') AND ActionAt < cutoff).
+        builder.HasIndex(x => new { x.Status, x.ActionAt })
+            .HasDatabaseName("IX_FailedMessages_Status_ActionAt");
 
         builder.HasIndex(x => new { x.Node, x.Status })
             .HasDatabaseName("IX_FailedMessages_Node_Status");
