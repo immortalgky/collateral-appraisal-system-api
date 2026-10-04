@@ -353,6 +353,11 @@ public class AppraisalCreationService(
                 // (below), so RecomputeAsync's appointment-derived fallback would see no rows here and
                 // stamp DateTime.Now. This mirrors the non-CI path, where ValuationDate is the
                 // appointment date.
+                //
+                // The aggregate was added and saved by this context, and EF does not mark its Properties
+                // as loaded (verified), which RecomputeAsync requires for the insurance sum — so load them
+                // through the repository first (a fix-up onto the tracked instances).
+                await appraisalRepository.GetByIdWithPropertiesAsync(appraisal.Id, cancellationToken);
                 await valuationSummaryService.RecomputeAsync(
                     appraisal.Id, cancellationToken, appointment?.AppointmentDateTime);
             }

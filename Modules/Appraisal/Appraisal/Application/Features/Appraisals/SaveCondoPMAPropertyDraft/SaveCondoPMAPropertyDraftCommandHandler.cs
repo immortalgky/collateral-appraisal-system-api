@@ -40,8 +40,6 @@ public class SaveCondoPMAPropertyDraftCommandHandler(
             province: command.Province,
             dateTimeProvider: dateTimeProvider);
 
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
-
         return MediatR.Unit.Value;
     }
 }

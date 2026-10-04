@@ -56,6 +56,8 @@ public class InternalFollowupAssignedIntegrationEventHandler(
             message.InternalAppraiserId,
             message.InternalFollowupAssignmentMethod);
 
+        // Kept on purpose: assignment events only touch AppraisalAssignment rows, so this stamps Appraisals.UpdatedAt
+        // (read by GetAppraisalStatus and vw_MisCasReport).
         await appraisalRepository.UpdateAsync(appraisal, ct);
         await unitOfWork.SaveChangesAsync(ct);
 

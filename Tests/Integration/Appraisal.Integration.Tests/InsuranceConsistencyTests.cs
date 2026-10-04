@@ -78,6 +78,9 @@ public class InsuranceConsistencyTests(IntegrationTestFixture fixture)
             var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
             var summaryService = scope.ServiceProvider.GetRequiredService<AppraisalValuationSummaryService>();
 
+            // Callers load the properties through the repository; RecomputeAsync reuses them.
+            await scope.ServiceProvider.GetRequiredService<IAppraisalRepository>()
+                .GetByIdWithPropertiesAsync(appraisalId, ct);
             await summaryService.RecomputeAsync(appraisalId, ct);
             await db.SaveChangesAsync(ct);
 
@@ -143,6 +146,8 @@ public class InsuranceConsistencyTests(IntegrationTestFixture fixture)
         using (var scope = CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+            await scope.ServiceProvider.GetRequiredService<IAppraisalRepository>()
+                .GetByIdWithPropertiesAsync(appraisalId, ct);
             await scope.ServiceProvider.GetRequiredService<AppraisalValuationSummaryService>()
                 .RecomputeAsync(appraisalId, ct);
             await db.SaveChangesAsync(ct);

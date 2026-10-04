@@ -398,6 +398,26 @@ public class CreateRequestEndpoint : ICarterModule
 - `OpenIddictDbContext` for Auth module
 - Each with custom interceptors for auditing and domain events
 
+#### Data access: repository for writes, direct query for reads
+
+1. **Command handlers** load and save through the aggregate's repository only. A repository returns
+   aggregate roots, never DTOs.
+2. **Query handlers** do not call write-side repository methods. Read with Dapper + views
+   (`ISqlConnectionFactory`, `Database/Scripts/Views/`), or EF with `AsNoTracking()` + `Select` into a
+   DTO. Loading a tracked aggregate to display one field is the anti-pattern (e.g. `Get*Property`
+   handlers calling `GetByIdWithPropertiesAsync`, which loads every property of the appraisal).
+3. **Application/domain services** that compute across tables may use the module's DbContext directly,
+   but take the aggregate the caller already loaded instead of reloading it.
+4. **Never inject another module's DbContext.** Cross-module data goes through integration events or
+   that module's contracts/queries.
+
+`AppraisalProperty` has 9 `OwnsOne` details, each with nested `OwnsMany` collections. Owned types are
+always loaded with their owner, and `.Include()` cannot exclude them, so any EF query touching
+`AppraisalProperty` joins about 21 tables. Use `.AsSplitQuery()` (or project to a DTO): the single-query
+form took 18.8 s to compile on SIT. When a query loads collections, `First`/`Take`/`Skip` need a unique
+ordering (`.OrderBy(...).ThenBy(x => x.Id)`). Without one, split queries can pair the root row with
+another row's children, and nothing fails to tell you.
+
 ### Configuration
 
 - **appsettings.json** contains:

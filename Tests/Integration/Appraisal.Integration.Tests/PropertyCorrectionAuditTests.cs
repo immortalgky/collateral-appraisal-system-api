@@ -16,7 +16,8 @@ namespace Integration.Appraisal.Integration.Tests;
 /// cover what matters most here: that the change and its audit row commit or roll back together
 /// (TransactionalBehavior), that rows created by the payload are flushed with their ids before the
 /// after-snapshot is taken, and that the real update logic works when nothing but the correction's own
-/// SaveChanges persists it (the condo / land-and-building handlers call UpdateAsync, this path does not).
+/// SaveChanges persists it (no property handler calls UpdateAsync any more, so change tracking alone has to
+/// carry the update, as it does here).
 /// </summary>
 [Collection("Integration")]
 public class PropertyCorrectionAuditTests(IntegrationTestFixture fixture)
