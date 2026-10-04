@@ -11,12 +11,10 @@ public class AddPropertyToGroupCommandHandler(
         AddPropertyToGroupCommand command,
         CancellationToken cancellationToken)
     {
-        var appraisal = await appraisalRepository.GetByIdAsync(command.AppraisalId, cancellationToken)
+        var appraisal = await appraisalRepository.GetByIdWithPropertiesAsync(command.AppraisalId, cancellationToken)
                         ?? throw new InvalidOperationException($"Appraisal {command.AppraisalId} not found");
 
         appraisal.AddPropertyToGroup(command.GroupId, command.PropertyId);
-
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
 
         return new AddPropertyToGroupResult(true);
     }

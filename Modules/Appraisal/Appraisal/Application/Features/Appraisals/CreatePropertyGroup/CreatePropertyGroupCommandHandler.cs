@@ -16,8 +16,6 @@ public class CreatePropertyGroupCommandHandler(
 
         var group = appraisal.CreateGroup(command.GroupName, command.Description);
 
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
-
         return new CreatePropertyGroupResult(group.Id, group.GroupNumber);
     }
 }

@@ -19,8 +19,6 @@ public class UpdatePropertyGroupCommandHandler(
 
         group.Update(command.GroupName, command.Description);
 
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
-
         return new UpdatePropertyGroupResult(group.Id);
     }
 }

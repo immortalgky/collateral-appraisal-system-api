@@ -22,6 +22,11 @@ namespace Appraisal.Application.Services;
 /// (the changed analysis is Modified); flows that INSERT new analyses or DELETE existing ones must
 /// call this POST-save (see AppraisalCreationService / DeletePropertyGroupCommandHandler).
 /// </para>
+/// <para>
+/// For a non-block appraisal the aggregate must be tracked with its Properties loaded (load it via
+/// <c>IAppraisalRepository.GetByIdWithPropertiesAsync</c>); otherwise RecomputeAsync throws rather than
+/// summing an empty list. When not passed, it may still be found through <c>db.Appraisals.Local</c>.
+/// </para>
 /// </summary>
 public class AppraisalValuationSummaryService(
     AppraisalDbContext db,
@@ -38,8 +43,9 @@ public class AppraisalValuationSummaryService(
     /// </param>
     /// <param name="appraisal">
     /// The already-resolved aggregate, when the caller has one in hand (e.g. the pre-save event
-    /// handler resolves it by group). When null it is looked up by <paramref name="appraisalId"/>.
-    /// Must be the aggregate for <paramref name="appraisalId"/>.
+    /// handler resolves it by group). When null it is taken from <c>db.Appraisals.Local</c> or looked up
+    /// by <paramref name="appraisalId"/>. Must be the aggregate for <paramref name="appraisalId"/>; for a
+    /// non-block appraisal its Properties must be loaded (see the class remarks), else this throws.
     /// </param>
     /// <param name="isBlock">
     /// Optional hint: pass <c>false</c> from callers that already know the appraisal is a normal
@@ -109,6 +115,16 @@ public class AppraisalValuationSummaryService(
         }
         else
         {
+            // BuildingAppraisalDetail is owned by AppraisalProperty (OwnsOne) — reach via the nav.
+            // Callers load the properties through IAppraisalRepository.GetByIdWithPropertiesAsync (split
+            // query) and this reuses them. Summing an unloaded collection would silently write
+            // InsuranceValue = 0, and reloading here duplicated the ~21-table owned graph (the
+            // single-query form took 18.8 s to compile on SIT), so an unloaded collection is a bug.
+            if (!db.Entry(appraisal).Collection(a => a.Properties).IsLoaded)
+                throw new InvalidOperationException(
+                    $"Appraisal {appraisalId} was passed to RecomputeAsync without its Properties loaded. " +
+                    "Load it with IAppraisalRepository.GetByIdWithPropertiesAsync before recomputing.");
+
             var propertyGroupIds = appraisal.Groups.Select(g => g.Id).ToList();
 
             var pricingAnalyses = await db.PricingAnalyses
@@ -132,10 +148,7 @@ public class AppraisalValuationSummaryService(
 
             approach = selectedApproachTypes.Count == 1 ? selectedApproachTypes[0] : "Combined";
 
-            // BuildingAppraisalDetail is owned by AppraisalProperty (OwnsOne) — reach via the nav.
-            var properties = await db.AppraisalProperties
-                .Where(ap => ap.AppraisalId == appraisalId)
-                .ToListAsync(ct);
+            var properties = appraisal.Properties;
 
             // Insurance is the sum of every insurable structure on the appraisal. The two property
             // families derive their figure differently but land in the same column:

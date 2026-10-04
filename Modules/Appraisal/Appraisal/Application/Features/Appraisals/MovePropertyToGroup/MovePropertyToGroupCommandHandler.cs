@@ -8,12 +8,10 @@ public class MovePropertyToGroupCommandHandler(
         MovePropertyToGroupCommand command,
         CancellationToken cancellationToken)
     {
-        var appraisal = await appraisalRepository.GetByIdAsync(command.AppraisalId, cancellationToken)
+        var appraisal = await appraisalRepository.GetByIdWithPropertiesAsync(command.AppraisalId, cancellationToken)
                         ?? throw new InvalidOperationException($"Appraisal {command.AppraisalId} not found");
 
         appraisal.MovePropertyToGroup(command.PropertyId, command.TargetGroupId, command.TargetPosition);
-
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
 
         return new MovePropertyToGroupResult(true);
     }
