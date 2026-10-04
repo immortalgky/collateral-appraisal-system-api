@@ -32,9 +32,6 @@ public class AppraisalValueChangedIntegrationEventConsumer(
     ILogger<AppraisalValueChangedIntegrationEventConsumer> logger)
     : IConsumer<AppraisalValueChangedIntegrationEvent>
 {
-    // Matches InboxGuard.StaleThresholdMinutes so the two share the same reclaim window.
-    private const int StaleThresholdMinutes = 5;
-
     public async Task Consume(ConsumeContext<AppraisalValueChangedIntegrationEvent> context)
     {
         var ct = context.CancellationToken;
@@ -53,7 +50,7 @@ public class AppraisalValueChangedIntegrationEventConsumer(
                 return;
 
             if (existing?.Status == InboxMessageStatus.Processing
-                && existing.StartedAt >= dateTimeProvider.ApplicationNow.AddMinutes(-StaleThresholdMinutes))
+                && existing.StartedAt >= dateTimeProvider.ApplicationNow - InboxGuardPolicy.StaleThreshold)
                 return;
 
             if (existing?.Status == InboxMessageStatus.Processing)

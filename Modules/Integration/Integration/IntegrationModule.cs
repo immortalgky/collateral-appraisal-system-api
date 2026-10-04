@@ -2,6 +2,7 @@ using Integration.Application.Services;
 using Integration.Contracts.FileInterface;
 using Integration.Contracts.FileSink;
 using Integration.Contracts.FileSource;
+using Integration.FailedMessages;
 using Integration.Domain.IdempotencyRecords;
 using Integration.Domain.WebhookDeliveries;
 using Integration.Domain.WebhookSubscriptions;
@@ -26,6 +27,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http.Resilience;
+using Microsoft.Extensions.Options;
 using Request.Application.Services;
 using Shared.Data;
 using Shared.Security;
@@ -134,6 +136,30 @@ public static class IntegrationModule
         // Register unit of work
         services.AddScoped<IIntegrationUnitOfWork>(sp =>
             new IntegrationUnitOfWork(sp.GetRequiredService<IntegrationDbContext>(), sp));
+
+        // Failed-messages collector (docs/failed-messages/design.md §3) — per-node BackgroundService,
+        // only registered when enabled, reading the app's own RabbitMQ credentials/host.
+        // Same ValidateOnStart/PostConfigure pattern as BackgroundJobsOptions
+        // (Shared/Shared/Extensions/SharedServicesExtensions.cs) — forces Validate() to run during host
+        // startup so a bad cadence fails fast instead of on first resolution. Validate() is a no-op while
+        // FailedMessages:Enabled is false, so a disabled collector never blocks startup.
+        services.AddOptions<FailedMessagesOptions>()
+            .Bind(configuration.GetSection(FailedMessagesOptions.SectionName))
+            .ValidateOnStart();
+        services.PostConfigure<FailedMessagesOptions>(o => o.Validate());
+        services.AddHttpClient(FailedMessageCollectorService.ManagementHttpClientName, (sp, client) =>
+        {
+            var managementUrl = sp.GetRequiredService<IOptions<FailedMessagesOptions>>().Value.ManagementUrl;
+            // HttpClient/Uri only APPENDS a relative request path onto BaseAddress's own
+            // path when BaseAddress ends with '/' — otherwise the last path segment (or, if ManagementUrl
+            // has no path at all, silently nothing) is dropped. A trailing slash here is what lets a
+            // ManagementUrl with a path prefix (e.g. "http://host:15672/rabbit") still work once paired
+            // with the collector's now-relative (no leading '/') request paths.
+            client.BaseAddress = new Uri(managementUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(5);
+        });
+        if (configuration.GetValue<bool>($"{FailedMessagesOptions.SectionName}:Enabled"))
+            services.AddHostedService<FailedMessageCollectorService>();
 
         // Register DbContext
         services.AddDbContext<IntegrationDbContext>((sp, options) =>

@@ -4,9 +4,10 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using RabbitMQ.Client.Exceptions;
 using Shared.Configurations;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
@@ -15,18 +16,8 @@ using Shared.Time;
 
 namespace Shared.Tests.Messaging;
 
-/// <summary>Minimal DbContext carrying only the outbox tables, for exercising the delivery service.</summary>
-public class OutboxTestDbContext(DbContextOptions<OutboxTestDbContext> options) : DbContext(options)
-{
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        modelBuilder.AddIntegrationEventOutbox();
-        base.OnModelCreating(modelBuilder);
-    }
-}
-
-/// <summary>Fake host lifetime, only needed to satisfy the constructor — ProcessBatchAsync itself
-/// takes a single already-combined token and never looks at IHostApplicationLifetime directly.</summary>
+/// <summary>Fake host lifetime, only needed to satisfy the constructor — ProcessBatchAsync itself takes a
+/// single already-combined token and never looks at IHostApplicationLifetime directly.</summary>
 public class FakeHostApplicationLifetime : IHostApplicationLifetime
 {
     public CancellationToken ApplicationStarted { get; set; } = CancellationToken.None;
@@ -35,28 +26,48 @@ public class FakeHostApplicationLifetime : IHostApplicationLifetime
     public void StopApplication() { }
 }
 
-/// <summary>Records every CancellationToken a save was actually invoked with, so a test can
-/// assert a healthy (non-cancelled) save used CancellationToken.None rather than a bounded token.</summary>
-public class RecordingOutboxTestDbContext(DbContextOptions<OutboxTestDbContext> options) : OutboxTestDbContext(options)
+/// <summary>
+/// The same cases as the base outbox fix's IntegrationEventDeliveryServiceTests, adapted to this PR's
+/// constructor (required <see cref="IHostApplicationLifetime"/>) and its extra
+/// MessageId publish callback (<c>bus.Publish(..., IPipe&lt;PublishContext&gt;, ...)</c> instead of the
+/// bare 3-arg overload). Drives <see cref="IntegrationEventDeliveryService{TDbContext}.ProcessBatchAsync"/>
+/// directly against an EF Core InMemory database, same pattern as
+/// <see cref="IntegrationEventDeliveryServiceMessageIdTests"/>.
+/// </summary>
+public class IntegrationEventDeliveryServiceShutdownTests
 {
-    public List<CancellationToken> SaveTokens { get; } = [];
-
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(options)
     {
-        SaveTokens.Add(cancellationToken);
-        return base.SaveChangesAsync(cancellationToken);
+        protected override void OnModelCreating(ModelBuilder modelBuilder) =>
+            modelBuilder.ApplyConfiguration(new IntegrationEventOutboxConfiguration());
     }
-}
 
-public class IntegrationEventDeliveryServiceTests
-{
+    /// <summary>Records every CancellationToken a save was actually invoked with, so a test can
+    /// assert a healthy (non-cancelled) save used CancellationToken.None rather than a bounded token.</summary>
+    public class RecordingTestDbContext(DbContextOptions<TestDbContext> options) : TestDbContext(options)
+    {
+        public List<CancellationToken> SaveTokens { get; } = [];
+
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            SaveTokens.Add(cancellationToken);
+            return base.SaveChangesAsync(cancellationToken);
+        }
+    }
+
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    private static IntegrationEventDeliveryService<OutboxTestDbContext> CreateService(
-        IDateTimeProvider dateTimeProvider, int? batchSize = null, TimeSpan? publishTimeout = null)
+    private static DbContextOptions<TestDbContext> NewDbOptions() =>
+        new DbContextOptionsBuilder<TestDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+
+    private static TestDbContext NewDb() => new(NewDbOptions());
+
+    private static IntegrationEventDeliveryService<TestDbContext> NewService(
+        IDateTimeProvider dateTimeProvider, IHostApplicationLifetime? lifetime = null, int? batchSize = null,
+        TimeSpan? publishTimeout = null)
     {
         var options = new BackgroundJobsOptions();
         if (batchSize.HasValue)
@@ -64,27 +75,24 @@ public class IntegrationEventDeliveryServiceTests
         if (publishTimeout.HasValue)
             options.OutboxDelivery.PublishTimeout = publishTimeout.Value;
 
-        return new IntegrationEventDeliveryService<OutboxTestDbContext>(
+        return new IntegrationEventDeliveryService<TestDbContext>(
             Substitute.For<IServiceScopeFactory>(),
-            NullLogger<IntegrationEventDeliveryService<OutboxTestDbContext>>.Instance,
+            Substitute.For<ILogger<IntegrationEventDeliveryService<TestDbContext>>>(),
             dateTimeProvider,
             Options.Create(options),
-            new FakeHostApplicationLifetime());
+            lifetime ?? new FakeHostApplicationLifetime());
     }
-
-    private static DbContextOptions<OutboxTestDbContext> CreateDbOptions() =>
-        new DbContextOptionsBuilder<OutboxTestDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-
-    private static OutboxTestDbContext CreateDb() => new(CreateDbOptions());
 
     private static IntegrationEventOutboxMessage ValidMessage(DateTime occurredAt, string correlationId) =>
         IntegrationEventOutboxMessage.Create(
-            typeof(IntegrationEvent).AssemblyQualifiedName!,
-            JsonSerializer.Serialize(new IntegrationEvent(), SerializerOptions),
+            typeof(AssignmentSlaRecalculatedIntegrationEvent).AssemblyQualifiedName!,
+            JsonSerializer.Serialize(new AssignmentSlaRecalculatedIntegrationEvent(), SerializerOptions),
             occurredAt,
             correlationId);
+
+    /// <summary>Every test's bus stub uses this same 4-arg shape — PR-B's extra MessageId callback turns
+    /// into an <c>IPipe&lt;PublishContext&gt;</c> under MassTransit's own Publish extension methods.</summary>
+    private static IBus NewBus() => Substitute.For<IBus>();
 
     /// <summary>
     /// REGRESSION: when the first message of a correlation group fails to publish, the rest of that
@@ -94,17 +102,17 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_FirstMessageInGroupThrows_RestOfGroupGoesBackToPending()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var first = ValidMessage(occurredAt, "group-1");
         var second = ValidMessage(occurredAt.AddSeconds(1), "group-1");
         db.Set<IntegrationEventOutboxMessage>().AddRange(first, second);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var callCount = 0;
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 callCount++;
@@ -116,15 +124,17 @@ public class IntegrationEventDeliveryServiceTests
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt);
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
 
         processed.Should().Be(0);
         callCount.Should().Be(1, "the batch must stop after the first failure, not keep publishing");
 
-        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().ToListAsync();
+        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .ToListAsync(TestContext.Current.CancellationToken);
         rows.Should().OnlyContain(m => m.Status != OutboxMessageStatus.Processing);
+        rows.Should().OnlyContain(m => m.ProcessingStartedAt == null);
 
         var reloadedFirst = rows.Single(m => m.Id == first.Id);
         reloadedFirst.Status.Should().Be(OutboxMessageStatus.Pending);
@@ -143,16 +153,16 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_NonOceExceptionDuringShutdown_RethrowsWithoutBurningRetry()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var first = ValidMessage(occurredAt, "group-1");
         db.Set<IntegrationEventOutboxMessage>().Add(first);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         using var cts = new CancellationTokenSource();
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 // Simulate the bus being stopped concurrently with the publish call.
@@ -163,16 +173,18 @@ public class IntegrationEventDeliveryServiceTests
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt);
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
         var act = async () => await service.ProcessBatchAsync(db, bus, cts.Token);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
 
-        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().ToListAsync();
+        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .ToListAsync(TestContext.Current.CancellationToken);
         rows.Should().OnlyContain(m => m.RetryCount == 0, "shutdown must not burn a retry");
         rows.Should().OnlyContain(m => m.Status == OutboxMessageStatus.Pending,
             "shutdown must put rows back to Pending, not leave them Processing");
+        rows.Should().OnlyContain(m => m.ProcessingStartedAt == null);
     }
 
     /// <summary>
@@ -185,21 +197,21 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_ApplicationStoppingCancelledButStoppingTokenIsNot_TreatsBusStoppingAsShutdown()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var first = ValidMessage(occurredAt, "group-1");
         var second = ValidMessage(occurredAt.AddSeconds(1), "group-1");
         db.Set<IntegrationEventOutboxMessage>().AddRange(first, second);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Simulate ExecuteAsync's linked token: stoppingToken never fires, only ApplicationStopping does.
         using var applicationStoppingCts = new CancellationTokenSource();
         using var linkedCts =
             CancellationTokenSource.CreateLinkedTokenSource(CancellationToken.None, applicationStoppingCts.Token);
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 // MassTransit's bus stops before our own stoppingToken is cancelled.
@@ -210,16 +222,20 @@ public class IntegrationEventDeliveryServiceTests
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt);
 
-        var service = CreateService(dateTimeProvider);
+        var lifetime = Substitute.For<IHostApplicationLifetime>();
+        lifetime.ApplicationStopping.Returns(applicationStoppingCts.Token);
+        var service = NewService(dateTimeProvider, lifetime);
 
         var act = async () => await service.ProcessBatchAsync(db, bus, linkedCts.Token);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
 
-        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().ToListAsync();
+        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .ToListAsync(TestContext.Current.CancellationToken);
         rows.Should().OnlyContain(m => m.RetryCount == 0, "shutdown must not burn a retry");
         rows.Should().OnlyContain(m => m.Status == OutboxMessageStatus.Pending,
             "shutdown must put rows back to Pending, not leave them Processing");
+        rows.Should().OnlyContain(m => m.ProcessingStartedAt == null);
     }
 
     /// <summary>
@@ -230,7 +246,7 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_DisallowedNamespaceAtHeadOfGroup_FailsHeadAndStillDeliversRestOfGroup()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         // Resolves fine (it's a real BCL type) but its namespace isn't the allowed one.
@@ -238,28 +254,31 @@ public class IntegrationEventDeliveryServiceTests
             typeof(string).AssemblyQualifiedName!, "\"x\"", occurredAt, correlationId: "group-1");
         var second = ValidMessage(occurredAt.AddSeconds(1), "group-1");
         db.Set<IntegrationEventOutboxMessage>().AddRange(disallowed, second);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt);
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
 
         processed.Should().Be(1, "the second, valid message in the group is still delivered");
-        await bus.Received(1).Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>());
+        await bus.Received(1).Publish(
+            Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>());
 
-        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().ToListAsync();
+        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .ToListAsync(TestContext.Current.CancellationToken);
 
         var reloadedHead = rows.Single(m => m.Id == disallowed.Id);
         reloadedHead.Status.Should().Be(OutboxMessageStatus.Failed);
         reloadedHead.RetryCount.Should().Be(0, "deterministic failures fail immediately, no retries burned");
         reloadedHead.Error.Should().StartWith(OutboxFailureReasons.Disallowed);
+        reloadedHead.ProcessingStartedAt.Should().Be(occurredAt, "a Failed row keeps its last claim, which the purge ages it by");
 
         var reloadedSecond = rows.Single(m => m.Id == second.Id);
         reloadedSecond.Status.Should().Be(OutboxMessageStatus.Processed);
@@ -274,28 +293,30 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_UnresolvableTypeAtHeadOfGroup_WithinGracePeriod_HoldsWholeGroupPending()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var unresolvable = IntegrationEventOutboxMessage.Create(
             "Some.Unresolvable.Type, SomeAssembly", "{}", occurredAt, correlationId: "group-1");
         var second = ValidMessage(occurredAt.AddSeconds(1), "group-1");
         db.Set<IntegrationEventOutboxMessage>().AddRange(unresolvable, second);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var bus = Substitute.For<IBus>();
+        var bus = NewBus();
 
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt); // age = 0, well within the grace period
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
 
         processed.Should().Be(0, "the whole group is held back, including the message after the unresolvable one");
-        await bus.DidNotReceive().Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>());
+        await bus.DidNotReceive().Publish(
+            Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>());
 
-        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().ToListAsync();
+        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .ToListAsync(TestContext.Current.CancellationToken);
         rows.Should().OnlyContain(m => m.Status == OutboxMessageStatus.Pending);
         rows.Should().OnlyContain(m => m.RetryCount == 0, "held within the grace period, not a retry");
     }
@@ -307,31 +328,33 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_UnresolvableTypeAtHeadOfGroup_PastGracePeriod_FailsHeadAndStillDeliversRestOfGroup()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var unresolvable = IntegrationEventOutboxMessage.Create(
             "Some.Unresolvable.Type, SomeAssembly", "{}", occurredAt, correlationId: "group-1");
         var second = ValidMessage(occurredAt.AddSeconds(1), "group-1");
         db.Set<IntegrationEventOutboxMessage>().AddRange(unresolvable, second);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt + OutboxDeliveryPolicy.VersionSkewGracePeriod
             + TimeSpan.FromMinutes(1)); // past the grace period
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
 
         processed.Should().Be(1, "the second, valid message in the group is still delivered");
-        await bus.Received(1).Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>());
+        await bus.Received(1).Publish(
+            Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>());
 
-        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().ToListAsync();
+        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .ToListAsync(TestContext.Current.CancellationToken);
 
         var reloadedHead = rows.Single(m => m.Id == unresolvable.Id);
         reloadedHead.Status.Should().Be(OutboxMessageStatus.Failed);
@@ -351,7 +374,7 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_PublishFailsForEveryMessage_AbortsWholeBatchAfterFirstFailure()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var messages = new[]
@@ -362,24 +385,27 @@ public class IntegrationEventDeliveryServiceTests
             ValidMessage(occurredAt.AddSeconds(3), "group-2")
         };
         db.Set<IntegrationEventOutboxMessage>().AddRange(messages);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(_ => throw new InvalidOperationException("transport down"));
 
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt);
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
 
         processed.Should().Be(0);
-        await bus.Received(1).Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>());
+        await bus.Received(1).Publish(
+            Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>());
 
-        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().ToListAsync();
+        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .ToListAsync(TestContext.Current.CancellationToken);
         rows.Should().OnlyContain(m => m.Status == OutboxMessageStatus.Pending);
+        rows.Should().OnlyContain(m => m.ProcessingStartedAt == null);
         rows.Count(m => m.RetryCount == 1).Should().Be(1, "only the message that actually failed burns a retry");
         rows.Count(m => m.RetryCount == 0).Should().Be(3,
             "the rest of the batch — including the untried second group — goes back to Pending with no retry burned");
@@ -392,28 +418,30 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_TokenAlreadyCancelled_ReturnsZeroWithoutClaimingAnyRows()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var message = ValidMessage(occurredAt, "group-1");
         db.Set<IntegrationEventOutboxMessage>().Add(message);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var bus = Substitute.For<IBus>();
+        var bus = NewBus();
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt);
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
         var processed = await service.ProcessBatchAsync(db, bus, cts.Token);
 
         processed.Should().Be(0);
-        await bus.DidNotReceive().Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>());
+        await bus.DidNotReceive().Publish(
+            Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>());
 
-        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().ToListAsync();
+        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .ToListAsync(TestContext.Current.CancellationToken);
         rows.Should().OnlyContain(m => m.Status == OutboxMessageStatus.Pending,
             "a cancelled token must not claim the batch at all");
     }
@@ -426,22 +454,22 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_TokenNotCancelled_SavesUseCancellationTokenNone()
     {
-        await using var db = new RecordingOutboxTestDbContext(CreateDbOptions());
+        await using var db = new RecordingTestDbContext(NewDbOptions());
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var message = ValidMessage(occurredAt, "group-1");
         db.Set<IntegrationEventOutboxMessage>().Add(message);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         db.SaveTokens.Clear(); // drop the seed save above, only care about ProcessBatchAsync's own saves
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt);
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
         var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
 
@@ -459,28 +487,31 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_DeserializeFailureAtHeadOfGroup_WithinGracePeriod_HoldsWholeGroupPending()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var malformed = IntegrationEventOutboxMessage.Create(
-            typeof(IntegrationEvent).AssemblyQualifiedName!, "{ not valid json", occurredAt, correlationId: "group-1");
+            typeof(AssignmentSlaRecalculatedIntegrationEvent).AssemblyQualifiedName!, "{ not valid json", occurredAt,
+            correlationId: "group-1");
         var second = ValidMessage(occurredAt.AddSeconds(1), "group-1");
         db.Set<IntegrationEventOutboxMessage>().AddRange(malformed, second);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var bus = Substitute.For<IBus>();
+        var bus = NewBus();
 
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt); // age = 0, well within the grace period
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
 
         processed.Should().Be(0, "the whole group is held back, including the message after the malformed one");
-        await bus.DidNotReceive().Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>());
+        await bus.DidNotReceive().Publish(
+            Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>());
 
-        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().ToListAsync();
+        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .ToListAsync(TestContext.Current.CancellationToken);
         rows.Should().OnlyContain(m => m.Status == OutboxMessageStatus.Pending);
         rows.Should().OnlyContain(m => m.RetryCount == 0, "held within the grace period, not a retry");
     }
@@ -492,31 +523,34 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_DeserializeFailureAtHeadOfGroup_PastGracePeriod_FailsHeadAndStillDeliversRestOfGroup()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var malformed = IntegrationEventOutboxMessage.Create(
-            typeof(IntegrationEvent).AssemblyQualifiedName!, "{ not valid json", occurredAt, correlationId: "group-1");
+            typeof(AssignmentSlaRecalculatedIntegrationEvent).AssemblyQualifiedName!, "{ not valid json", occurredAt,
+            correlationId: "group-1");
         var second = ValidMessage(occurredAt.AddSeconds(1), "group-1");
         db.Set<IntegrationEventOutboxMessage>().AddRange(malformed, second);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt + OutboxDeliveryPolicy.VersionSkewGracePeriod
             + TimeSpan.FromMinutes(1)); // past the grace period
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
 
         processed.Should().Be(1, "the second, valid message in the group is still delivered");
-        await bus.Received(1).Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>());
+        await bus.Received(1).Publish(
+            Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>());
 
-        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().ToListAsync();
+        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .ToListAsync(TestContext.Current.CancellationToken);
 
         var reloadedHead = rows.Single(m => m.Id == malformed.Id);
         reloadedHead.Status.Should().Be(OutboxMessageStatus.Failed);
@@ -536,7 +570,7 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_MoreHeldRowsThanBatchSize_NormalRowStillProcessedWithinTwoCalls()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         const int batchSize = 5;
 
@@ -549,25 +583,25 @@ public class IntegrationEventDeliveryServiceTests
 
         db.Set<IntegrationEventOutboxMessage>().AddRange(heldMessages);
         db.Set<IntegrationEventOutboxMessage>().Add(normal);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt); // age = 0 for every held row, well within grace
 
-        var service = CreateService(dateTimeProvider, batchSize);
+        var service = NewService(dateTimeProvider, batchSize: batchSize);
 
-        var firstBatch = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var firstBatch = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
         firstBatch.Should().Be(0, "the first batch is entirely the earliest held rows");
 
-        var secondBatch = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var secondBatch = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
         secondBatch.Should().Be(1, "excluding the first batch's held ids finally brings the normal row into range");
 
         var reloadedNormal = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
-            .SingleAsync(m => m.Id == normal.Id);
+            .SingleAsync(m => m.Id == normal.Id, TestContext.Current.CancellationToken);
         reloadedNormal.Status.Should().Be(OutboxMessageStatus.Processed);
     }
 
@@ -578,29 +612,31 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_TransportUnavailableException_AbortsBatchWithoutBurningRetry()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var first = ValidMessage(occurredAt, "group-1");
         var second = ValidMessage(occurredAt.AddSeconds(1), "group-2");
         db.Set<IntegrationEventOutboxMessage>().AddRange(first, second);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(_ => throw new TransportUnavailableException("RabbitMQ endpoint not ready"));
 
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt);
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
 
         processed.Should().Be(0);
-        await bus.Received(1).Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>());
+        await bus.Received(1).Publish(
+            Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>());
 
-        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().ToListAsync();
+        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .ToListAsync(TestContext.Current.CancellationToken);
         rows.Should().OnlyContain(m => m.Status == OutboxMessageStatus.Pending);
         rows.Should().OnlyContain(m => m.RetryCount == 0, "transport-unavailable must not burn a retry");
     }
@@ -613,29 +649,29 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_WrappedBrokerUnreachableException_AbortsBatchWithoutBurningRetry()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var first = ValidMessage(occurredAt, "group-1");
         db.Set<IntegrationEventOutboxMessage>().Add(first);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(_ => throw new InvalidOperationException(
-                "publish failed", new RabbitMQ.Client.Exceptions.BrokerUnreachableException(
-                    new Exception("connection refused"))));
+                "publish failed", new BrokerUnreachableException(new Exception("connection refused"))));
 
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt);
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
 
         processed.Should().Be(0);
 
-        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().ToListAsync();
+        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .ToListAsync(TestContext.Current.CancellationToken);
         rows.Should().OnlyContain(m => m.Status == OutboxMessageStatus.Pending);
         rows.Should().OnlyContain(m => m.RetryCount == 0,
             "a wrapped BrokerUnreachableException must still be recognised via the InnerException chain");
@@ -650,41 +686,42 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_LaterMessageSharesHeldCorrelationId_NotPublishedWhileHeadIsHeld()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var head = IntegrationEventOutboxMessage.Create(
             "Some.Unresolvable.Type, SomeAssembly", "{}", occurredAt, correlationId: "group-1");
         db.Set<IntegrationEventOutboxMessage>().Add(head);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt);
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
         // First poll: only the head exists; unresolvable-within-grace holds its (one-row) group.
-        var firstBatch = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var firstBatch = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
         firstBatch.Should().Be(0);
 
         // A later message for the SAME correlation arrives after the head is already held —
         // simulating a message published moments after the one that got stuck.
         var later = ValidMessage(occurredAt.AddSeconds(1), "group-1");
         db.Set<IntegrationEventOutboxMessage>().Add(later);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Second poll, still within the recheck interval: the later message must not be published —
         // it shares the held CorrelationId, so the whole group stays excluded, not just the head's Id.
-        var secondBatch = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var secondBatch = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
         secondBatch.Should().Be(0, "the later message's group is still held");
-        await bus.DidNotReceive().Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>());
+        await bus.DidNotReceive().Publish(
+            Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>());
 
         var reloadedLater = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
-            .SingleAsync(m => m.Id == later.Id);
+            .SingleAsync(m => m.Id == later.Id, TestContext.Current.CancellationToken);
         reloadedLater.Status.Should().Be(OutboxMessageStatus.Pending);
     }
 
@@ -698,16 +735,16 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_HeldGroupCapReached_EvictsSoonestDueGroupEntirely()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var t0 = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var now = t0;
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(_ => now);
-        var service = CreateService(dateTimeProvider, batchSize: 600);
+        var service = NewService(dateTimeProvider, batchSize: 600);
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
         // "first": the very first group ever held, so its recheck-after time is the earliest of all —
@@ -716,10 +753,10 @@ public class IntegrationEventDeliveryServiceTests
             "Some.Unresolvable.Type, SomeAssembly", "{}", t0, correlationId: "first");
         var firstTail = ValidMessage(t0.AddSeconds(1), "first");
         db.Set<IntegrationEventOutboxMessage>().AddRange(firstHead, firstTail);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         now = t0;
-        (await service.ProcessBatchAsync(db, bus, CancellationToken.None)).Should().Be(0, "'first' is held");
+        (await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken)).Should().Be(0, "'first' is held");
 
         // 499 more single-message groups, each its own correlation, all held slightly later than
         // "first" — brings the held-group count to exactly OutboxDeliveryPolicy.MaxHeldMessages (500).
@@ -728,29 +765,29 @@ public class IntegrationEventDeliveryServiceTests
                 "Some.Unresolvable.Type, SomeAssembly", "{}", t0.AddSeconds(2), correlationId: $"filler-{i}"))
             .ToList();
         db.Set<IntegrationEventOutboxMessage>().AddRange(fillers);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         now = t0.AddSeconds(2);
-        (await service.ProcessBatchAsync(db, bus, CancellationToken.None)).Should().Be(0, "all 499 fillers are held");
+        (await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken)).Should().Be(0, "all 499 fillers are held");
 
         // One more distinct group pushes the cap over the edge, evicting "first" (soonest-due).
         var late = IntegrationEventOutboxMessage.Create(
             "Some.Unresolvable.Type, SomeAssembly", "{}", t0.AddSeconds(3), correlationId: "late");
         db.Set<IntegrationEventOutboxMessage>().Add(late);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         now = t0.AddSeconds(3);
-        (await service.ProcessBatchAsync(db, bus, CancellationToken.None)).Should().Be(0, "'late' is held, evicting 'first'");
+        (await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken)).Should().Be(0, "'late' is held, evicting 'first'");
 
         // Long past "first"'s own grace period (but everything else's much shorter recheck window
         // has also long since expired by now — irrelevant here, only "first" is asserted on).
         now = t0 + OutboxDeliveryPolicy.VersionSkewGracePeriod + TimeSpan.FromMinutes(5);
-        var finalBatch = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var finalBatch = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
         finalBatch.Should().Be(1, "only 'first's tail is a publishable message — everything else here is unresolvable");
 
         var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
             .Where(m => m.Id == firstHead.Id || m.Id == firstTail.Id)
-            .ToListAsync();
+            .ToListAsync(TestContext.Current.CancellationToken);
 
         rows.Single(m => m.Id == firstHead.Id).Status.Should().Be(OutboxMessageStatus.Failed,
             "'first's head is unresolvable and, once no longer held, is now also past its own grace period");
@@ -766,16 +803,16 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_AlreadyClosedExceptionWithPreconditionFailed_BurnsRetryLikeAnyOtherFailure()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var message = ValidMessage(occurredAt, "group-1");
         db.Set<IntegrationEventOutboxMessage>().Add(message);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
-            .Returns(_ => throw new RabbitMQ.Client.Exceptions.AlreadyClosedException(
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
+            .Returns(_ => throw new AlreadyClosedException(
                 new RabbitMQ.Client.Events.ShutdownEventArgs(
                     RabbitMQ.Client.ShutdownInitiator.Peer, RabbitMQ.Client.Constants.PreconditionFailed,
                     "PRECONDITION_FAILED - argument mismatch", "cause", CancellationToken.None)));
@@ -783,13 +820,14 @@ public class IntegrationEventDeliveryServiceTests
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt);
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
 
         processed.Should().Be(0);
 
-        var row = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        var row = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .SingleAsync(m => m.Id == message.Id, TestContext.Current.CancellationToken);
         row.Status.Should().Be(OutboxMessageStatus.Pending);
         row.RetryCount.Should().Be(1,
             "a 406 PRECONDITION_FAILED is this message's fault, not the broker's — it burns a retry");
@@ -802,16 +840,16 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_AlreadyClosedExceptionWithConnectionForced_TreatedAsTransportUnavailable()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var message = ValidMessage(occurredAt, "group-1");
         db.Set<IntegrationEventOutboxMessage>().Add(message);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
-            .Returns(_ => throw new RabbitMQ.Client.Exceptions.AlreadyClosedException(
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
+            .Returns(_ => throw new AlreadyClosedException(
                 new RabbitMQ.Client.Events.ShutdownEventArgs(
                     RabbitMQ.Client.ShutdownInitiator.Library, RabbitMQ.Client.Constants.ConnectionForced,
                     "CONNECTION_FORCED", "cause", CancellationToken.None)));
@@ -819,13 +857,14 @@ public class IntegrationEventDeliveryServiceTests
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt);
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
 
         processed.Should().Be(0);
 
-        var row = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        var row = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .SingleAsync(m => m.Id == message.Id, TestContext.Current.CancellationToken);
         row.Status.Should().Be(OutboxMessageStatus.Pending);
         row.RetryCount.Should().Be(0,
             "a connection-level close (320 CONNECTION_FORCED) means the broker is unavailable, not this message's fault");
@@ -841,33 +880,33 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_ConnectionExceptionWrappingSoftErrorClose_BurnsRetry()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var message = ValidMessage(occurredAt, "group-1");
         db.Set<IntegrationEventOutboxMessage>().Add(message);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var inner = new RabbitMQ.Client.Exceptions.AlreadyClosedException(
+        var inner = new AlreadyClosedException(
             new RabbitMQ.Client.Events.ShutdownEventArgs(
                 RabbitMQ.Client.ShutdownInitiator.Peer, RabbitMQ.Client.Constants.PreconditionFailed,
                 "PRECONDITION_FAILED - argument mismatch", "cause", CancellationToken.None));
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
-            .Returns(_ => throw new RabbitMqConnectionException(
-                "channel closed by broker", inner));
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
+            .Returns(_ => throw new RabbitMqConnectionException("channel closed by broker", inner));
 
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt);
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
 
         processed.Should().Be(0);
 
-        var row = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        var row = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .SingleAsync(m => m.Id == message.Id, TestContext.Current.CancellationToken);
         row.Status.Should().Be(OutboxMessageStatus.Pending);
         row.RetryCount.Should().Be(1,
             "the inner 406 says the message is at fault even though the outer type is a ConnectionException");
@@ -883,32 +922,33 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_ConnectionExceptionWrappingFirstFailedRpc_BurnsRetry()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var message = ValidMessage(occurredAt, "group-1");
         db.Set<IntegrationEventOutboxMessage>().Add(message);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var inner = new RabbitMQ.Client.Exceptions.OperationInterruptedException(
+        var inner = new OperationInterruptedException(
             new RabbitMQ.Client.Events.ShutdownEventArgs(
                 RabbitMQ.Client.ShutdownInitiator.Peer, RabbitMQ.Client.Constants.PreconditionFailed,
                 "PRECONDITION_FAILED - inequivalent arg 'x-queue-type'", "cause", CancellationToken.None));
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(_ => throw new RabbitMqConnectionException("channel RPC failed", inner));
 
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt);
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
 
         processed.Should().Be(0);
 
-        var row = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        var row = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .SingleAsync(m => m.Id == message.Id, TestContext.Current.CancellationToken);
         row.Status.Should().Be(OutboxMessageStatus.Pending);
         row.RetryCount.Should().Be(1,
             "the first failed RPC surfaces as the base OperationInterruptedException — a 406 is this message's fault");
@@ -925,23 +965,24 @@ public class IntegrationEventDeliveryServiceTests
     /// accepts the call but never acknowledges must not block this loop forever — bounded by
     /// BackgroundJobsOptions.OutboxDelivery.PublishTimeout, treated the same as the broker being
     /// unreachable. Passed in per-service (not a shared static), so this can't leak into other
-    /// tests running in parallel.
+    /// tests running in parallel. PR-B's 4-arg bus.Publish overload puts the CancellationToken at
+    /// index 3 (after the IPipe&lt;PublishContext&gt;), not index 2 as in main-fork's 3-arg overload.
     /// </summary>
     [Fact]
     public async Task ProcessBatchAsync_PublishExceedsTimeout_AbortsBatchWithoutBurningRetry()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var message = ValidMessage(occurredAt, "group-1");
         db.Set<IntegrationEventOutboxMessage>().Add(message);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(async callInfo =>
             {
-                var publishToken = callInfo.ArgAt<CancellationToken>(2);
+                var publishToken = callInfo.ArgAt<CancellationToken>(3);
                 // A broker that accepts the call but never acknowledges — only the per-publish
                 // CancelAfter timeout ends this; the outer token here is never cancelled.
                 await Task.Delay(Timeout.Infinite, publishToken);
@@ -950,13 +991,14 @@ public class IntegrationEventDeliveryServiceTests
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt);
 
-        var service = CreateService(dateTimeProvider, publishTimeout: TimeSpan.FromMilliseconds(50));
+        var service = NewService(dateTimeProvider, publishTimeout: TimeSpan.FromMilliseconds(50));
 
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken);
 
         processed.Should().Be(0);
 
-        var row = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        var row = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .SingleAsync(m => m.Id == message.Id, TestContext.Current.CancellationToken);
         row.Status.Should().Be(OutboxMessageStatus.Pending);
         row.RetryCount.Should().Be(0, "a publish timeout is not this message's fault — no retry burned");
     }
@@ -969,15 +1011,15 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_ElapsedPastThirdOfLease_RenewsLeaseBeforePublish()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var message = ValidMessage(occurredAt, "group-1");
         db.Set<IntegrationEventOutboxMessage>().Add(message);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
         // Simulates wall-clock time advancing during the batch: the first read establishes "now"
@@ -987,10 +1029,10 @@ public class IntegrationEventDeliveryServiceTests
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(_ => occurredAt.AddSeconds(15 * readCount++));
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
         var renewCalls = 0;
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None,
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken,
             (_, _) =>
             {
                 renewCalls++;
@@ -999,9 +1041,11 @@ public class IntegrationEventDeliveryServiceTests
 
         processed.Should().Be(1);
         renewCalls.Should().Be(1, "elapsed time since the lease was last (re)acquired exceeded a third of LeaseDuration");
-        await bus.Received(1).Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>());
+        await bus.Received(1).Publish(
+            Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>());
 
-        var row = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        var row = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .SingleAsync(m => m.Id == message.Id, TestContext.Current.CancellationToken);
         row.Status.Should().Be(OutboxMessageStatus.Processed);
     }
 
@@ -1014,24 +1058,24 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_LeaseStampedEarlierThanBatchStart_UsesStampAsRenewalBaseline()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var message = ValidMessage(occurredAt, "group-1");
         db.Set<IntegrationEventOutboxMessage>().Add(message);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(occurredAt);
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
         var renewCalls = 0;
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None,
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken,
             renewLease: (_, _) =>
             {
                 renewCalls++;
@@ -1050,28 +1094,30 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_LeaseRenewalLost_AbortsBatchWithoutBurningRetry()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var message = ValidMessage(occurredAt, "group-1");
         db.Set<IntegrationEventOutboxMessage>().Add(message);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var bus = Substitute.For<IBus>();
+        var bus = NewBus();
 
         var readCount = 0;
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(_ => occurredAt.AddSeconds(15 * readCount++));
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None,
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken,
             (_, _) => Task.FromResult(false));
 
         processed.Should().Be(0);
-        await bus.DidNotReceive().Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>());
+        await bus.DidNotReceive().Publish(
+            Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>());
 
-        var row = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        var row = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .SingleAsync(m => m.Id == message.Id, TestContext.Current.CancellationToken);
         row.Status.Should().Be(OutboxMessageStatus.Pending);
         row.RetryCount.Should().Be(0, "losing the lease is not this message's fault — no retry burned");
     }
@@ -1083,28 +1129,30 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_LeaseRenewalThrows_TreatedLikeLostLeaseWithoutBurningRetry()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         var message = ValidMessage(occurredAt, "group-1");
         db.Set<IntegrationEventOutboxMessage>().Add(message);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var bus = Substitute.For<IBus>();
+        var bus = NewBus();
 
         var readCount = 0;
         var dateTimeProvider = Substitute.For<IDateTimeProvider>();
         dateTimeProvider.ApplicationNow.Returns(_ => occurredAt.AddSeconds(15 * readCount++));
 
-        var service = CreateService(dateTimeProvider);
+        var service = NewService(dateTimeProvider);
 
-        var processed = await service.ProcessBatchAsync(db, bus, CancellationToken.None,
+        var processed = await service.ProcessBatchAsync(db, bus, TestContext.Current.CancellationToken,
             (_, _) => throw new InvalidOperationException("lease table unavailable"));
 
         processed.Should().Be(0);
-        await bus.DidNotReceive().Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>());
+        await bus.DidNotReceive().Publish(
+            Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>());
 
-        var row = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().SingleAsync(m => m.Id == message.Id);
+        var row = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking()
+            .SingleAsync(m => m.Id == message.Id, TestContext.Current.CancellationToken);
         row.Status.Should().Be(OutboxMessageStatus.Pending);
         row.RetryCount.Should().Be(0,
             "a renewal DB failure is indistinguishable from losing the lease — no retry burned");
@@ -1113,25 +1161,25 @@ public class IntegrationEventDeliveryServiceTests
     // ---- Transport suspects: a timeout / transport failure burns a retry only when the message is
     // provably at fault (another publish succeeded earlier in the same batch). ----
 
-    private static IntegrationEventOutboxMessage MessageWithEventId(
-        Guid eventId, DateTime occurredAt, string correlationId) =>
+    private static IntegrationEventOutboxMessage MessageWithId(Guid id, DateTime occurredAt, string correlationId) =>
         IntegrationEventOutboxMessage.Create(
-            typeof(IntegrationEvent).AssemblyQualifiedName!,
-            JsonSerializer.Serialize(new IntegrationEvent { EventId = eventId }, SerializerOptions),
+            typeof(AssignmentSlaRecalculatedIntegrationEvent).AssemblyQualifiedName!,
+            JsonSerializer.Serialize(new AssignmentSlaRecalculatedIntegrationEvent { AppraisalId = id },
+                SerializerOptions),
             occurredAt,
             correlationId);
 
-    /// <summary>Records the EventId of every acknowledged publish in order. A publish whose EventId
+    /// <summary>Records the AppraisalId of every acknowledged publish in order. A publish whose id
     /// <paramref name="hangs"/> accepts is never acknowledged — only the per-publish timeout ends it.</summary>
     private static IBus RecordingBus(List<Guid> published, Func<Guid, bool> hangs)
     {
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
+        var bus = NewBus();
+        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<IPipe<PublishContext>>(), Arg.Any<CancellationToken>())
             .Returns(async callInfo =>
             {
-                var id = ((IntegrationEvent)callInfo.ArgAt<object>(0)).EventId;
+                var id = ((AssignmentSlaRecalculatedIntegrationEvent)callInfo.ArgAt<object>(0)).AppraisalId;
                 if (hangs(id))
-                    await Task.Delay(Timeout.Infinite, callInfo.ArgAt<CancellationToken>(2));
+                    await Task.Delay(Timeout.Infinite, callInfo.ArgAt<CancellationToken>(3));
                 published.Add(id);
             });
         return bus;
@@ -1151,21 +1199,22 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_BrokerDownEveryPublishTimesOut_NoRetryBurnedOnAnyRow()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var ct = TestContext.Current.CancellationToken;
 
         var first = ValidMessage(occurredAt, "group-1");
         var second = ValidMessage(occurredAt.AddSeconds(1), "group-2");
         db.Set<IntegrationEventOutboxMessage>().AddRange(first, second);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(ct);
 
         var bus = RecordingBus([], _ => true);
-        var service = CreateService(FixedClock(occurredAt), publishTimeout: TimeSpan.FromMilliseconds(50));
+        var service = NewService(FixedClock(occurredAt), publishTimeout: TimeSpan.FromMilliseconds(50));
 
         for (var poll = 0; poll < 3; poll++)
-            (await service.ProcessBatchAsync(db, bus, CancellationToken.None)).Should().Be(0);
+            (await service.ProcessBatchAsync(db, bus, ct)).Should().Be(0);
 
-        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().ToListAsync();
+        var rows = await db.Set<IntegrationEventOutboxMessage>().AsNoTracking().ToListAsync(ct);
         rows.Should().OnlyContain(m => m.Status == OutboxMessageStatus.Pending);
         rows.Should().OnlyContain(m => m.RetryCount == 0, "a broker-down timeout is nobody's fault");
     }
@@ -1178,27 +1227,27 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_SuspectTimesOutAfterAnotherGroupPublished_BurnsRetryUntilFailed()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var ct = TestContext.Current.CancellationToken;
         const int maxRetries = 5; // BackgroundJobsOptions.OutboxDelivery.MaxRetries default
 
         var poisonId = Guid.NewGuid();
-        var poison = MessageWithEventId(poisonId, occurredAt, "group-poison");
+        var poison = MessageWithId(poisonId, occurredAt, "group-poison");
         db.Set<IntegrationEventOutboxMessage>().Add(poison);
 
         var healthy = new List<IntegrationEventOutboxMessage>();
-        var published = new List<Guid>();
-        var bus = RecordingBus(published, id => id == poisonId);
-        var service = CreateService(FixedClock(occurredAt), publishTimeout: TimeSpan.FromMilliseconds(50));
+        var bus = RecordingBus([], id => id == poisonId);
+        var service = NewService(FixedClock(occurredAt), publishTimeout: TimeSpan.FromMilliseconds(50));
 
         for (var poll = 0; poll <= maxRetries + 1; poll++)
         {
             var next = ValidMessage(occurredAt.AddSeconds(1 + poll), $"group-healthy-{poll}");
             healthy.Add(next);
             db.Set<IntegrationEventOutboxMessage>().Add(next);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(ct);
 
-            await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+            await service.ProcessBatchAsync(db, bus, ct);
 
             if (poll == 0)
             {
@@ -1222,28 +1271,29 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_GroupContainsSuspect_ProcessedAfterOtherGroupsAndStaysInOrder()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var ct = TestContext.Current.CancellationToken;
 
         var suspect1 = Guid.NewGuid();
         var suspect2 = Guid.NewGuid();
         var other = Guid.NewGuid();
         db.Set<IntegrationEventOutboxMessage>().AddRange(
-            MessageWithEventId(suspect1, occurredAt, "group-suspect"),
-            MessageWithEventId(suspect2, occurredAt.AddSeconds(1), "group-suspect"),
-            MessageWithEventId(other, occurredAt.AddSeconds(2), "group-other"));
-        await db.SaveChangesAsync();
+            MessageWithId(suspect1, occurredAt, "group-suspect"),
+            MessageWithId(suspect2, occurredAt.AddSeconds(1), "group-suspect"),
+            MessageWithId(other, occurredAt.AddSeconds(2), "group-other"));
+        await db.SaveChangesAsync(ct);
 
         var published = new List<Guid>();
         var hang = true;
         var bus = RecordingBus(published, id => hang && id == suspect1);
-        var service = CreateService(FixedClock(occurredAt), publishTimeout: TimeSpan.FromMilliseconds(50));
+        var service = NewService(FixedClock(occurredAt), publishTimeout: TimeSpan.FromMilliseconds(50));
 
-        await service.ProcessBatchAsync(db, bus, CancellationToken.None); // suspect1 times out, nothing succeeded
+        await service.ProcessBatchAsync(db, bus, ct); // suspect1 times out, nothing succeeded
         published.Should().BeEmpty();
 
         hang = false;
-        await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        await service.ProcessBatchAsync(db, bus, ct);
 
         published.Should().Equal(other, suspect1, suspect2);
     }
@@ -1252,132 +1302,55 @@ public class IntegrationEventDeliveryServiceTests
     [Fact]
     public async Task ProcessBatchAsync_SuspectLaterPublishes_IsNoLongerProcessedLast()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var ct = TestContext.Current.CancellationToken;
 
         var suspectId = Guid.NewGuid();
-        var suspect = MessageWithEventId(suspectId, occurredAt, "group-suspect");
+        var suspect = MessageWithId(suspectId, occurredAt, "group-suspect");
         db.Set<IntegrationEventOutboxMessage>().Add(suspect);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(ct);
 
         var published = new List<Guid>();
         var hang = true;
         var bus = RecordingBus(published, id => hang && id == suspectId);
-        var service = CreateService(FixedClock(occurredAt), publishTimeout: TimeSpan.FromMilliseconds(50));
+        var service = NewService(FixedClock(occurredAt), publishTimeout: TimeSpan.FromMilliseconds(50));
 
-        await service.ProcessBatchAsync(db, bus, CancellationToken.None); // times out: suspect
+        await service.ProcessBatchAsync(db, bus, ct); // times out: suspect
         hang = false;
-        await service.ProcessBatchAsync(db, bus, CancellationToken.None); // publishes: cleared
+        await service.ProcessBatchAsync(db, bus, ct); // publishes: cleared
         suspect.Status.Should().Be(OutboxMessageStatus.Processed);
 
         // Re-queue the same row next to a newer group. Were it still a suspect it would go last.
         var newerId = Guid.NewGuid();
         suspect.MarkAsPending();
-        db.Set<IntegrationEventOutboxMessage>().Add(
-            MessageWithEventId(newerId, occurredAt.AddSeconds(1), "group-newer"));
-        await db.SaveChangesAsync();
+        db.Set<IntegrationEventOutboxMessage>().Add(MessageWithId(newerId, occurredAt.AddSeconds(1), "group-newer"));
+        await db.SaveChangesAsync(ct);
         published.Clear();
 
-        await service.ProcessBatchAsync(db, bus, CancellationToken.None);
+        await service.ProcessBatchAsync(db, bus, ct);
 
         published.Should().Equal(suspectId, newerId);
-    }
-
-    private static Exception TransportDownException(string kind) => kind switch
-    {
-        "transport-unavailable" => new TransportUnavailableException("RabbitMQ endpoint not ready"),
-        "broker-unreachable" => new RabbitMQ.Client.Exceptions.BrokerUnreachableException(
-            new InvalidOperationException("no route to broker")),
-        "connection-forced" => new RabbitMQ.Client.Exceptions.AlreadyClosedException(
-            new RabbitMQ.Client.Events.ShutdownEventArgs(
-                RabbitMQ.Client.ShutdownInitiator.Library, RabbitMQ.Client.Constants.ConnectionForced,
-                "CONNECTION_FORCED", "cause", CancellationToken.None)),
-        _ => throw new ArgumentOutOfRangeException(nameof(kind))
-    };
-
-    /// <summary>
-    /// REGRESSION: the "another publish succeeded, so the message is at fault" rule applies ONLY to the
-    /// client-side publish timeout. A clear transport-down exception after earlier publishes means the
-    /// broker flapped, so the in-flight healthy message must not burn a retry. It still aborts the batch and
-    /// becomes a suspect, so its group goes last next time.
-    /// </summary>
-    [Theory]
-    [InlineData("transport-unavailable")]
-    [InlineData("broker-unreachable")]
-    [InlineData("connection-forced")]
-    public async Task ProcessBatchAsync_TransportDownAfterOtherPublishesSucceeded_NoRetryBurnedAndMessageBecomesSuspect(
-        string kind)
-    {
-        await using var db = CreateDb();
-        var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-
-        var okId = Guid.NewGuid();
-        var flapId = Guid.NewGuid();
-        var laterId = Guid.NewGuid();
-        var ok = MessageWithEventId(okId, occurredAt, "group-ok");
-        var flap = MessageWithEventId(flapId, occurredAt.AddSeconds(1), "group-flap");
-        var later = MessageWithEventId(laterId, occurredAt.AddSeconds(2), "group-later");
-        db.Set<IntegrationEventOutboxMessage>().AddRange(ok, flap, later);
-        await db.SaveChangesAsync();
-
-        var published = new List<Guid>();
-        var down = true;
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
-            {
-                var id = ((IntegrationEvent)callInfo.ArgAt<object>(0)).EventId;
-                if (down && id == flapId)
-                    throw TransportDownException(kind);
-                published.Add(id);
-                return Task.CompletedTask;
-            });
-
-        var service = CreateService(FixedClock(occurredAt));
-
-        (await service.ProcessBatchAsync(db, bus, CancellationToken.None)).Should().Be(1);
-
-        ok.Status.Should().Be(OutboxMessageStatus.Processed);
-        flap.Status.Should().Be(OutboxMessageStatus.Pending);
-        flap.RetryCount.Should().Be(0, "a transport-down exception is never this message's fault, even after other publishes");
-        later.Status.Should().Be(OutboxMessageStatus.Pending, "the batch aborted");
-        later.RetryCount.Should().Be(0);
-
-        down = false;
-        await service.ProcessBatchAsync(db, bus, CancellationToken.None);
-
-        // The suspect's group goes last.
-        published.Should().Equal(okId, laterId, flapId);
-    }
-
-    private static IBus CountingBus(List<Guid> published)
-    {
-        var bus = Substitute.For<IBus>();
-        bus.Publish(Arg.Any<object>(), Arg.Any<Type>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
-            {
-                published.Add(((IntegrationEvent)callInfo.ArgAt<object>(0)).EventId);
-                return Task.CompletedTask;
-            });
-        return bus;
     }
 
     /// <summary>A payload that deserialises to null carries the DeserializationReturnedNull prefix.</summary>
     [Fact]
     public async Task ProcessBatchAsync_PayloadDeserialisesToNull_PastGracePeriod_FailsWithReturnedNullPrefix()
     {
-        await using var db = CreateDb();
+        await using var db = NewDb();
         var occurredAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var ct = TestContext.Current.CancellationToken;
 
         var nullPayload = IntegrationEventOutboxMessage.Create(
-            typeof(IntegrationEvent).AssemblyQualifiedName!, "null", occurredAt, correlationId: "group-1");
+            typeof(AssignmentSlaRecalculatedIntegrationEvent).AssemblyQualifiedName!, "null", occurredAt,
+            correlationId: "group-1");
         db.Set<IntegrationEventOutboxMessage>().Add(nullPayload);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(ct);
 
-        var service = CreateService(FixedClock(occurredAt + OutboxDeliveryPolicy.VersionSkewGracePeriod
+        var service = NewService(FixedClock(occurredAt + OutboxDeliveryPolicy.VersionSkewGracePeriod
             + TimeSpan.FromMinutes(1)));
 
-        await service.ProcessBatchAsync(db, Substitute.For<IBus>(), CancellationToken.None);
+        await service.ProcessBatchAsync(db, NewBus(), ct);
 
         nullPayload.Status.Should().Be(OutboxMessageStatus.Failed);
         nullPayload.Error.Should().StartWith(OutboxFailureReasons.DeserializationReturnedNull);

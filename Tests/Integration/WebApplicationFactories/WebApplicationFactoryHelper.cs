@@ -14,6 +14,7 @@ using Collateral;
 using Common;
 using Parameter;
 using Integration.Infrastructure;
+using Shared.Messaging.Services;
 
 namespace Integration.WebApplicationFactories;
 
@@ -40,10 +41,33 @@ public static class WebApplicationFactoryHelper
                         ["RabbitMq:Host"] = rabbitMqConnectionString,
                         ["RabbitMq:Username"] = "testuser",
                         ["RabbitMq:Password"] = "testpw",
+                        // appsettings.Development.json turns the failed-messages collector on; the
+                        // shared test host must not poll a broker/management API that isn't there for
+                        // every other test. The collector e2e test constructs its own instance instead.
+                        ["FailedMessages:Enabled"] = "false",
                     }
                 );
             }
         );
+
+        // ConfigureAppConfiguration (above) is applied too late for IntegrationModule's registration-time
+        // `FailedMessages:Enabled` check, so the collector was still registered and polling every 15 s in the
+        // shared test host — retrying any RetryRequested row seeded for this node mid-test (flaky under load).
+        // UseSetting is visible to builder.Configuration during Program's service registration.
+        builder.UseSetting("FailedMessages:Enabled", "false");
+
+        // The real outbox delivery loops (one per module DbContext) poll the same tables the tests seed, so
+        // they can claim a seeded Pending row or re-process a just-reset orphan between a test's write and its
+        // assertion. No test relies on real delivery, so the shared host does not run them.
+        builder.ConfigureServices(services =>
+        {
+            foreach (var descriptor in services
+                         .Where(d => d.ServiceType == typeof(IHostedService)
+                                     && d.ImplementationType is { IsGenericType: true } type
+                                     && type.GetGenericTypeDefinition() == typeof(IntegrationEventDeliveryService<>))
+                         .ToList())
+                services.Remove(descriptor);
+        });
 
         builder.ConfigureServices(configureServicesAction.Invoke);
     }

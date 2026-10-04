@@ -34,9 +34,6 @@ public class AppointmentDateChangedIntegrationEventConsumer(
     ILogger<AppointmentDateChangedIntegrationEventConsumer> logger)
     : IConsumer<AppointmentDateChangedIntegrationEvent>
 {
-    // Matches InboxGuard.StaleThresholdMinutes so the two share the same reclaim window.
-    private const int StaleThresholdMinutes = 5;
-
     public async Task Consume(ConsumeContext<AppointmentDateChangedIntegrationEvent> context)
     {
         var ct = context.CancellationToken;
@@ -56,7 +53,7 @@ public class AppointmentDateChangedIntegrationEventConsumer(
 
             // Processing but still within the live window — another consumer is handling it.
             if (existing?.Status == InboxMessageStatus.Processing
-                && existing.StartedAt >= dateTimeProvider.ApplicationNow.AddMinutes(-StaleThresholdMinutes))
+                && existing.StartedAt >= dateTimeProvider.ApplicationNow - InboxGuardPolicy.StaleThreshold)
                 return;
 
             // Stale Processing row: remove it so our coming INSERT doesn't hit a PK collision.

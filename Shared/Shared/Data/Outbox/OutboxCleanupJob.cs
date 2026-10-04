@@ -11,30 +11,51 @@ public class OutboxCleanupJob<TDbContext>(
     where TDbContext : DbContext
 {
     private const int BatchSize = 1000;
-    private const int RetentionDays = 7;
+    // Failed Messages PR only: read from OutboxDeliveryPolicy, which the outbox query handlers also read to
+    // tell when a Processed sibling's history may already have been purged.
+    private const int RetentionDays = OutboxDeliveryPolicy.ProcessedRetentionDays;
 
+    // Failed Messages PR only: the reset-stuck-Processing UPDATE (NULL rule + 1-hour backstop) and the Failed
+    // purge below changed here, so Sonar counts them as new code.
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S2077:Formatting SQL queries is security-sensitive",
+        Justification =
+            "The only concatenated fragments are BatchSize (a compile-time const int) and the schema name, " +
+            "read from the EF model (GetDefaultSchema) — never caller input. Statuses are literals and every " +
+            "cutoff (including the two in the stuck-Processing reset: the NULL-ProcessingStartedAt OccurredAt " +
+            "cutoff and the 1-hour ProcessingStartedAt backstop) is bound as a positional {n} parameter.")]
     public async Task ExecuteAsync(CancellationToken cancellationToken)
     {
         var now = dateTimeProvider.ApplicationNow;
         var cutoff = now.AddDays(-RetentionDays);
+        var failedCutoff = now.AddDays(-OutboxDeliveryPolicy.FailedRetentionDays);
         var schema = dbContext.Model.GetDefaultSchema() ?? "dbo";
         var totalDeleted = 0;
 
         logger.LogInformation("[OUTBOX-CLEANUP] Starting cleanup for {DbContext}, cutoff: {Cutoff}",
             typeof(TDbContext).Name, cutoff);
 
-        // Reset stuck Processing messages (instance crashed mid-batch) back to Pending. Keyed on
-        // OccurredAt, not on when the row actually became Processing — this DbContext has no
-        // ProcessingStartedAt column, so a genuinely-in-flight row with an old OccurredAt (e.g. one
-        // that sat behind a backlog before finally being claimed) could theoretically be reset out
-        // from under an instance still working it. A ProcessingStartedAt-based reset belongs to a
-        // separate change and is intentionally not made here.
-        var stuckCutoff = now.AddMinutes(-5);
+        // Reset rows left in Processing, two signatures only:
+        //  (1) ProcessingStartedAt IS NULL: a node still on an OLD binary mid-rolling-deploy marks Processing
+        //      without stamping it, so the only column this job can age such a row by is OccurredAt, against
+        //      OutboxDeliveryPolicy's 1-hour threshold — long enough that no legitimate rolling deploy is
+        //      mistaken for orphaned.
+        //  (2) ProcessingStartedAt older than OutboxDeliveryPolicy.StuckProcessingBackstopThreshold (1 hour):
+        //      the backstop for when the lease-holding delivery service's per-poll ResetOrphanedProcessingAsync
+        //      keeps failing (its failures are swallowed) or never runs, so a stuck row must not wait
+        //      forever. One hour is far beyond any possible batch (50 x 15s = 12.5 minutes, and mid-batch
+        //      lease renewal keeps the lease), so a live batch is never reset.
+        // A NON-NULL ProcessingStartedAt younger than that is deliberately NOT reset here: the delivery service's
+        // own 5-minute reset owns it, and this daily job ignores the lease — a slow-but-alive batch (50
+        // publishes x 7s is about 6 minutes) could have its in-flight rows reset at 02:00 and republished.
+        var stuckCutoff = now - OutboxDeliveryPolicy.OrphanedProcessingThreshold; // stale inbox claims, below
+        var nullStartedCutoff = now - OutboxDeliveryPolicy.NullProcessingStartedAtOrphanedThreshold;
+        var backstopCutoff = now - OutboxDeliveryPolicy.StuckProcessingBackstopThreshold;
         var reset = await dbContext.Database.ExecuteSqlRawAsync(
             "UPDATE [" + schema + "].[IntegrationEventOutbox] " +
-            "SET Status = 'Pending' " +
-            "WHERE Status = 'Processing' AND OccurredAt < {0}",
-            new object[] { stuckCutoff }, cancellationToken);
+            "SET Status = 'Pending', ProcessingStartedAt = NULL " +
+            "WHERE Status = 'Processing' AND " +
+            "((ProcessingStartedAt IS NULL AND OccurredAt < {0}) OR ProcessingStartedAt < {1})",
+            new object[] { nullStartedCutoff, backstopCutoff }, cancellationToken);
 
         if (reset > 0)
             logger.LogWarning("[OUTBOX-CLEANUP] Reset {Count} stuck Processing messages to Pending for {DbContext}",
@@ -52,13 +73,15 @@ public class OutboxCleanupJob<TDbContext>(
             totalDeleted += deleted;
         } while (deleted == BatchSize && !cancellationToken.IsCancellationRequested);
 
-        // Delete dead-letter messages older than retention period
+        // Failed Messages PR only: delete dead-letter messages by their LAST activity — the latest claim, or
+        // OccurredAt for a row that has none — so a row an operator resent that failed again is not purged
+        // for being created long ago (design D7).
         do
         {
             deleted = await dbContext.Database.ExecuteSqlRawAsync(
                 "DELETE TOP(" + BatchSize + ") FROM [" + schema + "].[IntegrationEventOutbox] " +
-                "WHERE Status = 'Failed' AND OccurredAt < {0}",
-                new object[] { cutoff }, cancellationToken);
+                "WHERE Status = 'Failed' AND COALESCE(ProcessingStartedAt, OccurredAt) < {0}",
+                new object[] { failedCutoff }, cancellationToken);
 
             totalDeleted += deleted;
         } while (deleted == BatchSize && !cancellationToken.IsCancellationRequested);

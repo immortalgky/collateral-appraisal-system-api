@@ -915,6 +915,13 @@ public class AuthDataSeed(
                 "View paginated webhook delivery list and delivery details", "Integration"),
             ("WEBHOOK_DELIVERIES_RETRY", "Retry Webhook Deliveries",
                 "Manually retry a failed webhook delivery", "Integration"),
+            // Failed Messages / Outbox Monitor admin (docs/failed-messages/design.md)
+            ("FAILED_MESSAGE_VIEW", "View Failed Messages",
+                "View failed/skipped consumer messages, outbox failures, and per-node queue health",
+                "Integration"),
+            ("FAILED_MESSAGE_MANAGE", "Manage Failed Messages",
+                "Retry/discard failed messages and resend failed outbox rows",
+                "Integration"),
             // Webhook Subscriptions admin
             ("WEBHOOK_SUBSCRIPTIONS_MANAGE", "Manage Webhook Subscriptions",
                 "Create, edit, activate/deactivate and delete webhook subscriptions", "Integration"),

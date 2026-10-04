@@ -5,17 +5,19 @@ using Shared.Messaging.Services;
 namespace Shared.Tests.Messaging;
 
 /// <summary>Unit tests for the shared type-resolution helper, independent of the delivery
-/// service that consumes it.</summary>
+/// service that consumes it. Same cases as the base outbox fix's
+/// IntegrationEventNamespaceTests, using this codebase's <see cref="AssignmentSlaRecalculatedIntegrationEvent"/>
+/// as the sample event.</summary>
 public class IntegrationEventNamespaceTests
 {
     [Fact]
     public void TryResolve_TypeInAllowedNamespace_ReturnsResolved()
     {
         var resolution = IntegrationEventNamespace.TryResolve(
-            typeof(IntegrationEvent).AssemblyQualifiedName!, out var type);
+            typeof(AssignmentSlaRecalculatedIntegrationEvent).AssemblyQualifiedName!, out var type);
 
         resolution.Should().Be(TypeResolution.Resolved);
-        type.Should().Be(typeof(IntegrationEvent));
+        type.Should().Be(typeof(AssignmentSlaRecalculatedIntegrationEvent));
     }
 
     [Fact]

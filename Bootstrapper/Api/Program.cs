@@ -33,6 +33,7 @@ using Auth.Infrastructure.HealthChecks;
 using Notification.Infrastructure.Email.HealthChecks;
 using Integration.Infrastructure.HealthChecks;
 using Microsoft.AspNetCore.HttpLogging;
+using OrderedEndpoints = Integration.FailedMessages.OrderedEndpoints;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -124,6 +125,14 @@ builder.Services.AddScoped<IOutboxScope, OutboxScope>();
 builder.Services.AddScoped<IIntegrationEventOutbox, IntegrationEventOutbox>();
 builder.Services.AddScoped(typeof(InboxGuard<>));
 
+// Failed Messages collector discover-fallback (design §3 step 1): records every receive endpoint this
+// node opens, for when the RabbitMQ management tag isn't set yet. Registered both as itself (the
+// collector's constructor injection) and via AddReceiveEndpointObserver (so MassTransit's own container
+// wiring connects it to the bus) — same singleton instance either way.
+builder.Services.AddSingleton<ReceiveEndpointDiscoveryObserver>();
+builder.Services.AddReceiveEndpointObserver<ReceiveEndpointDiscoveryObserver>(
+    sp => sp.GetRequiredService<ReceiveEndpointDiscoveryObserver>());
+
 // MUST be registered before the IntegrationEventDeliveryService hosted services below: .NET starts
 // hosted services in registration order and stops them in reverse, so the bus now starts first and
 // stops last — a delivery service can no longer publish into a bus that has already stopped during
@@ -190,7 +199,7 @@ builder.Services.AddMassTransit(config =>
         // Partitioned by AppraisalId so per-appraisal ordering holds on the single consuming node.
         // Each app node has its own RabbitMQ broker (no clustering) → no competing consumers, so the
         // in-process partitioner alone is sufficient; no SingleActiveConsumer needed.
-        configurator.ReceiveEndpoint("webhook-dispatch", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.WebhookDispatch, e =>
         {
             var partitioner = e.CreatePartitioner(16);
             e.UseMessageRetry(RetryInsidePartition);
@@ -220,7 +229,7 @@ builder.Services.AddMassTransit(config =>
 
         // #2 External cycle tracking — close-before-open must not silently no-op and
         // corrupt cycle counts / SLA business-minutes.
-        configurator.ReceiveEndpoint("appraisal-ext-cycle", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.AppraisalExtCycle, e =>
         {
             var partitioner = e.CreatePartitioner(16);
             e.UseMessageRetry(RetryInsidePartition);
@@ -240,7 +249,7 @@ builder.Services.AddMassTransit(config =>
         // is staged in the outbox before the transition (earlier OccurredAt), so it is delivered first and,
         // serialized here, sets the assignment to Assigned before the transition handler stamps SLADueDate
         // at the window's start activity (otherwise the Pending guard would skip the stamp).
-        configurator.ReceiveEndpoint("appraisal-sync", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.AppraisalSync, e =>
         {
             var partitioner = e.CreatePartitioner(16);
             e.UseMessageRetry(RetryInsidePartition);
@@ -257,7 +266,7 @@ builder.Services.AddMassTransit(config =>
 
         // #4 Dashboard status counter — the decrement-old/increment-new bucket move is not
         // commutative; serialize per appraisal so out-of-order transitions don't drift counts.
-        configurator.ReceiveEndpoint("appraisal-status-dashboard", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.AppraisalStatusDashboard, e =>
         {
             var partitioner = e.CreatePartitioner(16);
             e.UseMessageRetry(RetryInsidePartition);
@@ -268,7 +277,7 @@ builder.Services.AddMassTransit(config =>
         // #5 Assignment SLA recalculation — unconditionally re-stamps AppraisalAssignment.SLADueDate
         // whenever an appointment-anchored group-window deadline shifts due to a reschedule.
         // Partitioned by AppraisalId so per-appraisal ordering holds.
-        configurator.ReceiveEndpoint("appraisal-sla-recalc", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.AppraisalSlaRecalc, e =>
         {
             var partitioner = e.CreatePartitioner(16);
             e.UseMessageRetry(RetryInsidePartition);
@@ -295,7 +304,7 @@ builder.Services.AddMassTransit(config =>
         //
         // All three consumers are [ExcludeFromConfigureEndpoints] so ConfigureEndpoints does not
         // also create unordered auto-queues for them.
-        configurator.ReceiveEndpoint("workflow-instance-variables", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.WorkflowInstanceVariables, e =>
         {
             var partitioner = e.CreatePartitioner(16);
             e.UseMessageRetry(RetryInsidePartition);
@@ -318,7 +327,7 @@ builder.Services.AddMassTransit(config =>
         // that save's own status event arrives; self-correcting, not a data-loss risk. Consumer is
         // [ExcludeFromConfigureEndpoints] to prevent ConfigureEndpoints from also creating an
         // unordered auto-queue.
-        configurator.ReceiveEndpoint("pma-sync-status", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.PmaSyncStatus, e =>
         {
             var partitioner = e.CreatePartitioner(16);
             e.UseMessageRetry(RetryInsidePartition);
