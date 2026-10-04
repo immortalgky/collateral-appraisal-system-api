@@ -5,8 +5,7 @@ using Shared.Messaging.Services;
 namespace Shared.Tests.Messaging;
 
 /// <summary>Unit tests for the shared type-resolution helper, independent of the delivery
-/// service that consumes it. Same cases as the base outbox fix's
-/// IntegrationEventNamespaceTests, using this codebase's <see cref="AssignmentSlaRecalculatedIntegrationEvent"/>
+/// service that consumes it. Uses this codebase's <see cref="AssignmentSlaRecalculatedIntegrationEvent"/>
 /// as the sample event.</summary>
 public class IntegrationEventNamespaceTests
 {
