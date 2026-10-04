@@ -1,6 +1,7 @@
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
 using Workflow.AssigneeSelection.Services;
+using Workflow.Services.Configuration;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Models;
 using Workflow.Workflow.Schema;
@@ -8,52 +9,79 @@ using Workflow.Workflow.Schema;
 namespace Workflow.Workflow.Activities;
 
 /// <summary>
-/// Automatic activity that selects an internal followup staff member via round-robin
-/// or uses a staff member already selected by admin.
+/// Automatic activity that selects an internal followup staff member: the person who completed the
+/// configured <c>sameAssigneeAsActivity</c> source activity (e.g. the PMA input), else a staff member
+/// already selected by admin, else round-robin.
 /// Sits between company-selection and ext-appraisal-assignment in the workflow.
 /// </summary>
 public class InternalFollowupSelectionActivity : WorkflowActivityBase
 {
     private readonly IInternalStaffRoundRobinService _staffRoundRobinService;
+    private readonly ITaskConfigurationService _configurationService;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly IIntegrationEventOutbox _outbox;
     private readonly ILogger<InternalFollowupSelectionActivity> _logger;
 
     public InternalFollowupSelectionActivity(
         IInternalStaffRoundRobinService staffRoundRobinService,
+        ITaskConfigurationService configurationService,
         IDateTimeProvider dateTimeProvider,
         IIntegrationEventOutbox outbox,
         ILogger<InternalFollowupSelectionActivity> logger)
     {
         _staffRoundRobinService = staffRoundRobinService;
+        _configurationService = configurationService;
         _dateTimeProvider = dateTimeProvider;
         _outbox = outbox;
         _logger = logger;
     }
 
+    private const string StaffIdKey = "internalFollowupStaffId";
+    private const string MethodKey = "internalFollowupMethod";
+    private const string DecisionKey = "decision";
+    private const string StaffSelectedDecision = "staff_selected";
+
     public override string ActivityType => ActivityTypes.InternalFollowupSelectionActivity;
     public override string Name => "Internal Followup Selection Activity";
-    public override string Description => "Selects internal followup staff via round-robin or uses admin-selected staff";
+    public override string Description => "Selects internal followup staff from a source activity's completer, admin selection or round-robin";
 
     protected override async Task<ActivityResult> ExecuteActivityAsync(
         ActivityContext context,
         CancellationToken cancellationToken = default)
     {
-        var existingStaffId = GetVariable<string>(context, "internalFollowupStaffId", "");
-        var existingMethod = GetVariable<string>(context, "internalFollowupMethod", "");
+        var existingStaffId = GetVariable<string>(context, StaffIdKey, "");
+        var existingMethod = GetVariable<string>(context, MethodKey, "");
 
         var outputData = new Dictionary<string, object>
         {
             ["selectedAt"] = _dateTimeProvider.ApplicationNow
         };
 
+        // The source activity's completer wins, even over an admin-selected staff member.
+        var sourceCompleter = await ResolveSourceCompleterAsync(context, cancellationToken);
+        if (sourceCompleter is not null)
+        {
+            // "Manual" on purpose: the FE admin page only accepts manual/roundrobin, and Manual means a
+            // pre-determined person rather than a round-robin pick.
+            outputData[StaffIdKey] = sourceCompleter;
+            outputData[MethodKey] = "Manual";
+            outputData[DecisionKey] = StaffSelectedDecision;
+
+            _logger.LogInformation(
+                "InternalFollowupSelectionActivity {ActivityId}: using {StaffId} who completed the source activity",
+                context.ActivityId, sourceCompleter);
+
+            PublishFollowupAssignedEvent(context, sourceCompleter, "Manual");
+            return ActivityResult.Success(outputData);
+        }
+
         // If admin already selected a followup staff, use it
         if (!string.IsNullOrEmpty(existingStaffId))
         {
             var method = string.IsNullOrEmpty(existingMethod) ? "Manual" : existingMethod;
-            outputData["internalFollowupStaffId"] = existingStaffId;
-            outputData["internalFollowupMethod"] = method;
-            outputData["decision"] = "staff_selected";
+            outputData[StaffIdKey] = existingStaffId;
+            outputData[MethodKey] = method;
+            outputData[DecisionKey] = StaffSelectedDecision;
 
             _logger.LogInformation(
                 "InternalFollowupSelectionActivity {ActivityId}: using admin-selected staff {StaffId}",
@@ -68,9 +96,9 @@ public class InternalFollowupSelectionActivity : WorkflowActivityBase
 
         if (result.IsSuccess)
         {
-            outputData["internalFollowupStaffId"] = result.UserId!;
-            outputData["internalFollowupMethod"] = "RoundRobin";
-            outputData["decision"] = "staff_selected";
+            outputData[StaffIdKey] = result.UserId!;
+            outputData[MethodKey] = "RoundRobin";
+            outputData[DecisionKey] = StaffSelectedDecision;
 
             _logger.LogInformation(
                 "InternalFollowupSelectionActivity {ActivityId}: round-robin selected staff {StaffId}",
@@ -81,7 +109,7 @@ public class InternalFollowupSelectionActivity : WorkflowActivityBase
         }
 
         // No matching staff — still proceed but without followup staff
-        outputData["decision"] = "no_match";
+        outputData[DecisionKey] = "no_match";
         outputData["selectionError"] = result.ErrorMessage ?? "No eligible internal staff";
 
         _logger.LogWarning(
@@ -89,6 +117,24 @@ public class InternalFollowupSelectionActivity : WorkflowActivityBase
             context.ActivityId, result.ErrorMessage);
 
         return ActivityResult.Success(outputData);
+    }
+
+    // Source activity: DB override AdditionalConfiguration first (scoped like AssignmentContextBuilder), then the JSON
+    // properties. Returns the newest completer of that activity, or null when no source is set or nobody completed it.
+    private async Task<string?> ResolveSourceCompleterAsync(ActivityContext context, CancellationToken cancellationToken)
+    {
+        var config = await _configurationService.GetConfigurationAsync(
+            context.ActivityId,
+            context.WorkflowInstance.WorkflowDefinitionId.ToString(),
+            JsonPropertyReader.NullIfEmpty(JsonPropertyReader.GetString(context.Variables, "bankingSegment")),
+            cancellationToken);
+
+        var properties = JsonPropertyReader.Overlay(context.Properties, config?.AdditionalConfiguration);
+        var source = JsonPropertyReader.GetString(properties, JsonPropertyReader.SameAssigneeAsActivityKey);
+
+        return string.IsNullOrWhiteSpace(source)
+            ? null
+            : WorkflowActivityExecution.NewestCompletedBy(context.WorkflowInstance.ActivityExecutions, source);
     }
 
     protected override WorkflowActivityExecution CreateActivityExecution(ActivityContext context)

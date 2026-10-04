@@ -205,7 +205,12 @@ public class AssignmentContextBuilder : IAssignmentContextBuilder
     /// shape <c>excludeAssigneesFrom</c> wants to compare against. <c>AssigneeUserId</c> is
     /// not used here because it is only set for stages whose pipeline picked a specific user
     /// and is null for the initial fan-out spawn (where the maker is assigned to a group pool).
-    /// Bare activity-id entries keep the existing completed-execution lookup.
+    /// Bare activity-id entries map to the <see cref="WorkflowActivityExecution.CompletedBy"/> of the
+    /// newest completed execution (same filters as <c>PreviousOwnerAssigneeSelector</c> and
+    /// <c>SegregationOfDutiesGuard</c>). <c>AssignedTo</c> is not used: task activities create their execution with
+    /// the instance's <c>CurrentAssignee</c> at that moment (often null, a previous holder or a group label), which
+    /// is not the person who did the work. Bare-id <c>excludeAssigneesFrom</c> therefore excludes the real
+    /// completer rather than that stale value.
     /// </summary>
     private static Dictionary<string, string> BuildPriorAssigneesMap(
         ActivityContext activityCtx,
@@ -214,10 +219,10 @@ public class AssignmentContextBuilder : IAssignmentContextBuilder
         var map = new Dictionary<string, string>();
         var executions = activityCtx.WorkflowInstance.ActivityExecutions;
 
-        // --- Bare activity-id entries (original behavior) ---
-        foreach (var exec in executions.Where(e =>
-                     e.Status == ActivityExecutionStatus.Completed && !string.IsNullOrEmpty(e.AssignedTo)))
-            map[exec.ActivityId] = exec.AssignedTo!;
+        // --- Bare activity-id entries: the newest completer of each activity ---
+        foreach (var activityId in executions.Select(e => e.ActivityId).Distinct())
+            if (WorkflowActivityExecution.NewestCompletedBy(executions, activityId) is { } completedBy)
+                map[activityId] = completedBy;
 
         // --- <activityId>:<stageName> entries (stage-scoped history) ---
         if (fanOutKey.HasValue)

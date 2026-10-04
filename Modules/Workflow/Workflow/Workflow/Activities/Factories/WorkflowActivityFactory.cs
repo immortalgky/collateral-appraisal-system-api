@@ -270,11 +270,20 @@ public class WorkflowActivityFactory : IWorkflowActivityFactory
             Type = ActivityTypes.InternalFollowupSelectionActivity,
             Name = "Internal Followup Selection Activity",
             Description =
-                "Selects internal followup staff via round-robin or uses admin-selected staff.",
+                "Selects internal followup staff: the person who completed the source activity if one is configured, " +
+                "else the admin-selected staff, else round-robin.",
             Category = "Flow Control",
             Icon = "user-group",
             Color = "#14b8a6",
-            Properties = new List<ActivityPropertyDefinition>()
+            Properties = new List<ActivityPropertyDefinition>
+            {
+                new()
+                {
+                    Name = "sameAssigneeAsActivity", DisplayName = "Same Assignee As Activity", Type = "string",
+                    Required = false,
+                    Description = "Id of an earlier task activity whose completer becomes the followup staff"
+                }
+            }
         };
 
         // Approval Activity Definition

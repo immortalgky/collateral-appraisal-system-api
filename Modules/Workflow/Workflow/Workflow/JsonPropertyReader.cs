@@ -13,6 +13,39 @@ public static class JsonPropertyReader
     /// <summary>Returns null for null/empty strings, otherwise the value unchanged.</summary>
     public static string? NullIfEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
 
+    /// <summary>Property / <c>AdditionalConfiguration</c> key naming the activity whose completer a strategy reuses.</summary>
+    public const string SameAssigneeAsActivityKey = "sameAssigneeAsActivity";
+
+    /// <summary>
+    /// Overlays <paramref name="overrides"/> on <paramref name="baseline"/> per key (override wins), skipping
+    /// values that are not set (see <see cref="IsSet"/>) so they never erase a baseline value. Returns the
+    /// baseline itself when there is nothing to overlay; otherwise a copy, never mutating the baseline.
+    /// </summary>
+    public static Dictionary<string, object> Overlay(
+        Dictionary<string, object> baseline, Dictionary<string, object>? overrides)
+    {
+        if (overrides is not { Count: > 0 }) return baseline;
+
+        var merged = new Dictionary<string, object>(baseline);
+        foreach (var (key, value) in overrides)
+            if (IsSet(value))
+                merged[key] = value;
+        return merged;
+    }
+
+    /// <summary>
+    /// False for null, a JSON null, or an empty/whitespace string: the "this override value is not set" rule
+    /// shared by the property overlay, admin validation and the followup-selection activity.
+    /// </summary>
+    public static bool IsSet(object? value) => value switch
+    {
+        null => false,
+        string s => !string.IsNullOrWhiteSpace(s),
+        JsonElement { ValueKind: JsonValueKind.Null or JsonValueKind.Undefined } => false,
+        JsonElement { ValueKind: JsonValueKind.String } je => !string.IsNullOrWhiteSpace(je.GetString()),
+        _ => true
+    };
+
     public static string? GetString(Dictionary<string, object> props, string key)
     {
         if (!props.TryGetValue(key, out var val) || val is null) return null;
