@@ -2,8 +2,8 @@ namespace Integration.FailedMessages;
 
 /// <summary>
 /// Tunables for the per-node failed-message collector (docs/failed-messages/design.md §3, D10).
-/// Broker credentials/host are NOT here — they reuse the app's existing "RabbitMQ" section
-/// (design assumption 3 / D8), so the collector never has its own set of secrets to manage.
+/// Broker credentials/host/management URL are NOT configured here — they reuse the app's existing
+/// "RabbitMQ" section (design assumption 3 / D8), so the collector never has its own set of secrets to manage.
 /// </summary>
 public class FailedMessagesOptions
 {
@@ -18,10 +18,17 @@ public class FailedMessagesOptions
     /// <summary>Max messages drained per <c>_error</c>/<c>_skipped</c> queue, per round.</summary>
     public int BatchPerQueue { get; set; } = 100;
 
+    public const string DefaultManagementUrl = "http://localhost:15672";
+
     /// <summary>RabbitMQ management API base URL for this node's own broker (design: localhost per node).
+    /// Populated from <c>RabbitMQ:ManagementUrl</c> by <c>IntegrationModule</c>, not from the FailedMessages section.
     /// The app's AMQP username/password are re-sent as HTTP Basic auth on every round, so <see cref="Validate"/>
     /// rejects plain <c>http://</c> to a non-loopback host (https anywhere, or http to loopback, is fine).</summary>
-    public string ManagementUrl { get; set; } = "http://localhost:15672";
+    public string ManagementUrl { get; set; } = DefaultManagementUrl;
+
+    /// <summary>Set by <c>IntegrationModule</c> when the pre-move <c>FailedMessages:ManagementUrl</c> key is still in
+    /// configuration. It is never read (no fallback), so <see cref="Validate"/> fails loudly instead of ignoring it.</summary>
+    public bool LegacyManagementUrlPresent { get; set; }
 
     /// <summary>Same ValidateOnStart/PostConfigure pattern as
     /// <c>Shared.Configurations.BackgroundJobsOptions</c> — fail fast at host startup on a bad cadence
@@ -38,12 +45,15 @@ public class FailedMessagesOptions
         if (BatchPerQueue < 1)
             throw new InvalidOperationException("FailedMessages:BatchPerQueue must be at least 1");
 
+        if (LegacyManagementUrlPresent)
+            throw new InvalidOperationException(
+                "FailedMessages:ManagementUrl has moved to RabbitMQ:ManagementUrl — move the value and remove the old key");
         if (!Uri.TryCreate(ManagementUrl, UriKind.Absolute, out var url)
             || url.Scheme is not ("http" or "https"))
-            throw new InvalidOperationException("FailedMessages:ManagementUrl must be an absolute http(s) URL");
+            throw new InvalidOperationException("RabbitMQ:ManagementUrl must be an absolute http(s) URL");
         if (url.Scheme == "http" && !url.IsLoopback)
             throw new InvalidOperationException(
-                $"FailedMessages:ManagementUrl uses plain http to non-loopback host '{url.Host}', which would send "
+                $"RabbitMQ:ManagementUrl uses plain http to non-loopback host '{url.Host}', which would send "
                 + "the RabbitMQ password in cleartext (HTTP Basic auth) every round — use https, or http to localhost");
     }
 }
