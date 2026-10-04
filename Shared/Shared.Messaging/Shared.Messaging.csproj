@@ -21,4 +21,13 @@
         <ProjectReference Include="..\..\Modules\Request\Request.Contracts\Request.Contracts.csproj"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <!-- Tests/Integration/Integration.csproj (assembly name "Integration") exercises the real
+             ResetOrphanedProcessingAsync SQL against a Testcontainers database. -->
+        <InternalsVisibleTo Include="Integration"/>
+        <!-- Tests/Unit/Shared.Tests/Shared.Tests.csproj exercises ProcessBatchAsync's MessageId
+             assignment (S8) with a substitute IBus, without a real database or broker. -->
+        <InternalsVisibleTo Include="Shared.Tests"/>
+    </ItemGroup>
+
 </Project>

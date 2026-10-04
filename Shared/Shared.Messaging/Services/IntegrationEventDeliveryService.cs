@@ -51,6 +51,12 @@ public class IntegrationEventDeliveryService<TDbContext>(
     // for the same reason.
     private readonly Dictionary<Guid, DateTime> _transportSuspects = new();
 
+    // Failed Messages PR only (not in the base outbox fix): ResetOrphanedProcessingAsync runs real SQL
+    // every poll, so it is throttled to at most once a minute per service instance — a busy poll loop
+    // must not hammer the table with a redundant UPDATE that almost always touches zero rows.
+    private static readonly TimeSpan OrphanResetThrottle = TimeSpan.FromMinutes(1);
+    private DateTime _lastOrphanReset = DateTime.MinValue;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("[OUTBOX] Delivery service started for {DbContext} (instance: {InstanceId})",
@@ -80,6 +86,10 @@ public class IntegrationEventDeliveryService<TDbContext>(
                         await Task.Delay(_pollInterval, token);
                         continue;
                     }
+
+                    // Failed Messages PR only: recover rows orphaned in Processing instead of waiting for
+                    // the once-a-day OutboxCleanupJob reset.
+                    await TryResetOrphanedProcessingAsync(dbContext, token);
 
                     var bus = scope.ServiceProvider.GetRequiredService<IBus>();
                     var processedCount = await ProcessBatchAsync(dbContext, bus, token, leaseStampedAt: leaseStampedAt);
@@ -166,6 +176,69 @@ public class IntegrationEventDeliveryService<TDbContext>(
             // Concurrent first-time INSERT race — PK violation, lost the race
             return false;
         }
+    }
+
+    /// <summary>
+    /// Failed Messages PR only: the reset is housekeeping, not a precondition for delivery. If its UPDATE
+    /// keeps failing (lock timeout, permission) the batch below must still run, so a non-cancellation
+    /// failure is logged as a Warning and swallowed — <see cref="_lastOrphanReset"/> stays unarmed, so the
+    /// next poll tries again. Cancellation still propagates.
+    /// </summary>
+    internal async Task TryResetOrphanedProcessingAsync(TDbContext dbContext, CancellationToken ct)
+    {
+        try
+        {
+            await ResetOrphanedProcessingAsync(dbContext, ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            logger.LogWarning(ex,
+                "[OUTBOX] Failed to reset orphaned Processing rows for {DbContext}; delivering the batch anyway",
+                _lockId);
+        }
+    }
+
+    /// <summary>
+    /// Failed Messages PR only (not in the base outbox fix): recovers rows left <c>Processing</c> by a
+    /// crash or an ungraceful shutdown, instead of waiting for the once-a-day
+    /// <see cref="OutboxCleanupJob{TDbContext}"/> reset. Same fixed threshold as that job's own
+    /// stuck-Processing reset (see <see cref="OutboxDeliveryPolicy.OrphanedProcessingThreshold"/>).
+    /// Throttled to at most once a minute per service instance via <see cref="_lastOrphanReset"/>,
+    /// stamped only AFTER the reset UPDATE actually succeeds, so a failed reset (e.g. a transient DB
+    /// blip) is retried on the very next poll instead of sitting out the full throttle window. Uses the
+    /// loop's own token (the one <see cref="TryAcquireLeaseAsync"/> is called with) like every other
+    /// per-round SQL call in the polling loop; only the batch claim/reset saves and the shutdown lease
+    /// release get the dedicated shutdown-safe bound (they can run past a cancelled loop token by
+    /// design). Internal (rather than private) so an integration test can exercise the real SQL against
+    /// a real database — EF Core InMemory doesn't support <c>ExecuteSqlRawAsync</c>.
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S2077:Formatting SQL queries is security-sensitive",
+        Justification =
+            "The only concatenated fragment is the schema name, read from the EF model (GetDefaultSchema) — " +
+            "never caller input. The status is a literal and the threshold is bound as a positional {0} parameter.")]
+    internal async Task ResetOrphanedProcessingAsync(TDbContext dbContext, CancellationToken ct)
+    {
+        var now = dateTimeProvider.ApplicationNow;
+        if (now - _lastOrphanReset < OrphanResetThrottle)
+            return;
+
+        var threshold = now - OutboxDeliveryPolicy.OrphanedProcessingThreshold;
+        var schema = dbContext.Model.GetDefaultSchema() ?? "dbo";
+
+        // Only rows with a NON-NULL ProcessingStartedAt are considered here. A NULL comes only from a
+        // node still on old code mid-rolling-deploy (marks Processing without stamping the column) — that
+        // case is left to OutboxCleanupJob's own daily reset (its NULL-with-old-OccurredAt rule), which is
+        // unchanged, rather than this per-poll reset resetting a row that might still be legitimately
+        // in-flight on the old binary.
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "UPDATE [" + schema + "].[IntegrationEventOutbox] " +
+            "SET Status = 'Pending', ProcessingStartedAt = NULL " +
+            "WHERE Status = 'Processing' AND ProcessingStartedAt IS NOT NULL AND ProcessingStartedAt < {0}",
+            new object[] { threshold }, ct);
+
+        // Only stamped once the UPDATE above has actually completed without throwing — a failure here
+        // (e.g. a transient DB blip) must not arm the throttle on a reset that never happened.
+        _lastOrphanReset = now;
     }
 
     /// <summary>
@@ -383,8 +456,10 @@ public class IntegrationEventDeliveryService<TDbContext>(
 
         // Mark all as Processing first — prevents another instance from picking them up if our
         // lease expires during a long batch.
+        // Failed Messages PR only: stamps ProcessingStartedAt so orphaned Processing rows can be aged.
+        var processingStartedAt = dateTimeProvider.ApplicationNow;
         foreach (var msg in messages)
-            msg.MarkAsProcessing();
+            msg.MarkAsProcessing(processingStartedAt);
         await SaveChangesBoundedAsync(dbContext, token);
 
         // Group by CorrelationId for ordered delivery within correlation. Groups holding a transport
@@ -519,7 +594,9 @@ public class IntegrationEventDeliveryService<TDbContext>(
 
                     try
                     {
-                        await bus.Publish(eventObject, eventType!, publishCts.Token);
+                        // Failed Messages PR only: MessageId = outbox row Id, so a fault traces back to
+                        // its outbox row and an accidental re-publish is caught by InboxGuard.
+                        await bus.Publish(eventObject, eventType!, ctx => ctx.MessageId = message.Id, publishCts.Token);
                         message.MarkAsProcessed(dateTimeProvider.ApplicationNow);
                         processedCount++;
                     }

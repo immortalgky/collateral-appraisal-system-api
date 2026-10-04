@@ -1388,6 +1388,9 @@ namespace Collateral.Migrations
                     b.Property<DateTime?>("ProcessedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("ProcessingStartedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("RetryCount")
                         .HasColumnType("int");
 

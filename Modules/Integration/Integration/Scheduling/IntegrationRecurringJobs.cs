@@ -1,4 +1,5 @@
 using Hangfire;
+using Integration.FailedMessages;
 using Integration.FileInterface.Jobs.CollateralResult;
 using Integration.FileInterface.Jobs.HostLink;
 using Integration.FileInterface.Jobs.Reappraisal;
@@ -50,6 +51,13 @@ public static class IntegrationRecurringJobs
         new RecurringJobDefinition("regulatory-export", "0 3 2 * *",
             "Full monthly regulatory (Basel/RDT) collateral snapshot (2nd at 03:00, after the COLLATLINK ingest).",
             (mgr, cron, opt) => mgr.AddOrUpdate<RegulatoryExportJob>(
-                "regulatory-export", j => j.ExecuteAsync(CancellationToken.None), cron, opt))
+                "regulatory-export", j => j.ExecuteAsync(CancellationToken.None), cron, opt)),
+
+        // Retention for the Failed Messages screen (design D6). 02:30 so it doesn't collide with the
+        // five per-module outbox-cleanup-* jobs (02:00) or Reporting's report-artifact-cleanup (03:00).
+        new RecurringJobDefinition("failed-messages-cleanup", "30 2 * * *",
+            "Purge Retried/Discarded FailedMessages rows older than 90 days (daily at 02:30).",
+            (mgr, cron, opt) => mgr.AddOrUpdate<FailedMessageCleanupJob>(
+                "failed-messages-cleanup", j => j.ExecuteAsync(CancellationToken.None), cron, opt))
     };
 }

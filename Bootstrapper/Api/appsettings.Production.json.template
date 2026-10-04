@@ -18,6 +18,12 @@
     "Username": "#{RABBITMQ_USERNAME}#",
     "Password": "#{RABBITMQ_PASSWORD}#"
   },
+  "FailedMessages": {
+    "Enabled": true,
+    "Interval": "00:00:15",
+    "BatchPerQueue": 100,
+    "ManagementUrl": "http://localhost:15672"
+  },
   "OAuth2": {
     "SigningCertificate": {
       "Source": "store",

@@ -20,7 +20,7 @@ namespace Appraisal.Application.EventHandlers;
 /// this path is deliberately unconditional — a reschedule must overwrite the prior value.
 ///
 /// Idempotency: the InboxMessage INSERT is staged in the same SaveChangesAsync as the work so
-/// claim and mutation never split across separate commits (M4 fix). A PK violation on the inbox
+/// claim and mutation never split across separate commits. A PK violation on the inbox
 /// INSERT means another consumer committed first — we skip gracefully.
 /// Placed on the partitioned "appraisal-sla-recalc" endpoint (Program.cs) so per-appraisal
 /// ordering holds; [ExcludeFromConfigureEndpoints] prevents ConfigureEndpoints from also
@@ -35,9 +35,6 @@ public class AssignmentSlaRecalculatedIntegrationEventConsumer(
     ILogger<AssignmentSlaRecalculatedIntegrationEventConsumer> logger)
     : IConsumer<AssignmentSlaRecalculatedIntegrationEvent>
 {
-    // Must match InboxGuard.StaleThresholdMinutes so the two share the same reclaim window.
-    private const int StaleThresholdMinutes = 5;
-
     public async Task Consume(ConsumeContext<AssignmentSlaRecalculatedIntegrationEvent> context)
     {
         var ct = context.CancellationToken;
@@ -57,7 +54,7 @@ public class AssignmentSlaRecalculatedIntegrationEventConsumer(
 
             // Processing but still within the live window — another consumer is handling it.
             if (existing?.Status == InboxMessageStatus.Processing
-                && existing.StartedAt >= dateTimeProvider.ApplicationNow.AddMinutes(-StaleThresholdMinutes))
+                && existing.StartedAt >= dateTimeProvider.ApplicationNow - InboxGuardPolicy.StaleThreshold)
                 return;
 
             // Stale Processing row: remove it so the coming INSERT doesn't hit a PK collision.
