@@ -49,7 +49,7 @@ public static class OutboxDeliveryPolicy
     /// </summary>
     public static readonly TimeSpan ShutdownSafeSaveTimeout = TimeSpan.FromSeconds(10);
 
-    // ---- Failed Messages PR only: retention and orphaned/stuck-Processing thresholds, kept next to the other
+    // ---- Retention and orphaned/stuck-Processing thresholds, kept next to the other
     // shared outbox delivery timing knobs. ----
 
     /// <summary>How long a Processed outbox row (and a Processed inbox entry) is kept before

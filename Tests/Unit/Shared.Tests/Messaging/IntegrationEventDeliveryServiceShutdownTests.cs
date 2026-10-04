@@ -27,8 +27,7 @@ public class FakeHostApplicationLifetime : IHostApplicationLifetime
 }
 
 /// <summary>
-/// The same cases as the base outbox fix's IntegrationEventDeliveryServiceTests, adapted to this PR's
-/// constructor (required <see cref="IHostApplicationLifetime"/>) and its extra
+/// Covers the delivery service's constructor (required <see cref="IHostApplicationLifetime"/>) and its
 /// MessageId publish callback (<c>bus.Publish(..., IPipe&lt;PublishContext&gt;, ...)</c> instead of the
 /// bare 3-arg overload). Drives <see cref="IntegrationEventDeliveryService{TDbContext}.ProcessBatchAsync"/>
 /// directly against an EF Core InMemory database, same pattern as
@@ -90,7 +89,7 @@ public class IntegrationEventDeliveryServiceShutdownTests
             occurredAt,
             correlationId);
 
-    /// <summary>Every test's bus stub uses this same 4-arg shape — PR-B's extra MessageId callback turns
+    /// <summary>Every test's bus stub uses this same 4-arg shape — the MessageId callback turns
     /// into an <c>IPipe&lt;PublishContext&gt;</c> under MassTransit's own Publish extension methods.</summary>
     private static IBus NewBus() => Substitute.For<IBus>();
 
@@ -965,8 +964,8 @@ public class IntegrationEventDeliveryServiceShutdownTests
     /// accepts the call but never acknowledges must not block this loop forever — bounded by
     /// BackgroundJobsOptions.OutboxDelivery.PublishTimeout, treated the same as the broker being
     /// unreachable. Passed in per-service (not a shared static), so this can't leak into other
-    /// tests running in parallel. PR-B's 4-arg bus.Publish overload puts the CancellationToken at
-    /// index 3 (after the IPipe&lt;PublishContext&gt;), not index 2 as in main-fork's 3-arg overload.
+    /// tests running in parallel. The 4-arg bus.Publish overload puts the CancellationToken at
+    /// index 3 (after the IPipe&lt;PublishContext&gt;), not index 2 as in the bare 3-arg overload.
     /// </summary>
     [Fact]
     public async Task ProcessBatchAsync_PublishExceedsTimeout_AbortsBatchWithoutBurningRetry()

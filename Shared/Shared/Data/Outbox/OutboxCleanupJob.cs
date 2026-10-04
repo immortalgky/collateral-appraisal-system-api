@@ -11,12 +11,10 @@ public class OutboxCleanupJob<TDbContext>(
     where TDbContext : DbContext
 {
     private const int BatchSize = 1000;
-    // Failed Messages PR only: read from OutboxDeliveryPolicy, which the outbox query handlers also read to
+    // Read from OutboxDeliveryPolicy, which the outbox query handlers also read to
     // tell when a Processed sibling's history may already have been purged.
     private const int RetentionDays = OutboxDeliveryPolicy.ProcessedRetentionDays;
 
-    // Failed Messages PR only: the reset-stuck-Processing UPDATE (NULL rule + 1-hour backstop) and the Failed
-    // purge below changed here, so Sonar counts them as new code.
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S2077:Formatting SQL queries is security-sensitive",
         Justification =
             "The only concatenated fragments are BatchSize (a compile-time const int) and the schema name, " +
@@ -73,7 +71,7 @@ public class OutboxCleanupJob<TDbContext>(
             totalDeleted += deleted;
         } while (deleted == BatchSize && !cancellationToken.IsCancellationRequested);
 
-        // Failed Messages PR only: delete dead-letter messages by their LAST activity — the latest claim, or
+        // Delete dead-letter messages by their LAST activity — the latest claim, or
         // OccurredAt for a row that has none — so a row an operator resent that failed again is not purged
         // for being created long ago (design D7).
         do

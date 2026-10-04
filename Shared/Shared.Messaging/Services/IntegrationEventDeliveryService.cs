@@ -51,7 +51,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
     // for the same reason.
     private readonly Dictionary<Guid, DateTime> _transportSuspects = new();
 
-    // Failed Messages PR only (not in the base outbox fix): ResetOrphanedProcessingAsync runs real SQL
+    // ResetOrphanedProcessingAsync runs real SQL
     // every poll, so it is throttled to at most once a minute per service instance — a busy poll loop
     // must not hammer the table with a redundant UPDATE that almost always touches zero rows.
     private static readonly TimeSpan OrphanResetThrottle = TimeSpan.FromMinutes(1);
@@ -87,7 +87,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
                         continue;
                     }
 
-                    // Failed Messages PR only: recover rows orphaned in Processing instead of waiting for
+                    // Recover rows orphaned in Processing instead of waiting for
                     // the once-a-day OutboxCleanupJob reset.
                     await TryResetOrphanedProcessingAsync(dbContext, token);
 
@@ -179,7 +179,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
     }
 
     /// <summary>
-    /// Failed Messages PR only: the reset is housekeeping, not a precondition for delivery. If its UPDATE
+    /// The reset is housekeeping, not a precondition for delivery. If its UPDATE
     /// keeps failing (lock timeout, permission) the batch below must still run, so a non-cancellation
     /// failure is logged as a Warning and swallowed — <see cref="_lastOrphanReset"/> stays unarmed, so the
     /// next poll tries again. Cancellation still propagates.
@@ -199,7 +199,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
     }
 
     /// <summary>
-    /// Failed Messages PR only (not in the base outbox fix): recovers rows left <c>Processing</c> by a
+    /// Recovers rows left <c>Processing</c> by a
     /// crash or an ungraceful shutdown, instead of waiting for the once-a-day
     /// <see cref="OutboxCleanupJob{TDbContext}"/> reset. Same fixed threshold as that job's own
     /// stuck-Processing reset (see <see cref="OutboxDeliveryPolicy.OrphanedProcessingThreshold"/>).
@@ -301,7 +301,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
     // etc.) — a problem with THIS message, not the broker. An OperationInterruptedException carrying one
     // of these must burn a retry like any other publish failure, not be retried forever as if the
     // broker were down. Verified these exist with these exact values in RabbitMQ.Client 7.1.2 via
-    // reflection over RabbitMQ.Client.Constants — see the PR notes for the exact command.
+    // reflection over RabbitMQ.Client.Constants.
     private static readonly ushort[] ChannelLevelSoftErrorReplyCodes =
     [
         RabbitMQ.Client.Constants.AccessRefused, // 403
@@ -313,7 +313,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
     /// <summary>
     /// Looks for a sign that the broker itself is unreachable, as opposed to a problem with this one
     /// message. Verified against the installed MassTransit 8.4.1 / RabbitMQ.Client 7.1.2 assemblies by
-    /// reflection — see the PR notes for the exact command. <see cref="ConnectionException"/> covers
+    /// reflection. <see cref="ConnectionException"/> covers
     /// <c>RabbitMqConnectionException</c> (its only subclass at this version) so future transports that
     /// also derive from it are covered for free.
     /// The whole InnerException chain is scanned for a channel soft-error close FIRST: MassTransit wraps
@@ -456,7 +456,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
 
         // Mark all as Processing first — prevents another instance from picking them up if our
         // lease expires during a long batch.
-        // Failed Messages PR only: stamps ProcessingStartedAt so orphaned Processing rows can be aged.
+        // Stamps ProcessingStartedAt so orphaned Processing rows can be aged.
         var processingStartedAt = dateTimeProvider.ApplicationNow;
         foreach (var msg in messages)
             msg.MarkAsProcessing(processingStartedAt);
@@ -594,7 +594,7 @@ public class IntegrationEventDeliveryService<TDbContext>(
 
                     try
                     {
-                        // Failed Messages PR only: MessageId = outbox row Id, so a fault traces back to
+                        // MessageId = outbox row Id, so a fault traces back to
                         // its outbox row and an accidental re-publish is caught by InboxGuard.
                         await bus.Publish(eventObject, eventType!, ctx => ctx.MessageId = message.Id, publishCts.Token);
                         message.MarkAsProcessed(dateTimeProvider.ApplicationNow);
