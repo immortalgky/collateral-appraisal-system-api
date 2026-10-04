@@ -140,6 +140,7 @@ public class AuthDataSeed(
                 // PMA property tab — granted here only (kept out of the shared arrays) so it appears
                 // exclusively on the int-pma-input activity, hidden on this role's other activities.
                 "APPRAISAL_PROPERTY_PMA_VIEW", "APPRAISAL_PROPERTY_PMA_EDIT",
+                "REPORT_EVALUATION_VIEW", "REPORT_EVALUATION_EDIT",
                 ..appraisalSectionViews, ..appraisalSectionEdits
             ]);
         await SeedRoleWithPermissionsAsync(IntAppraisalCheckerRoleName,
@@ -881,6 +882,9 @@ public class AuthDataSeed(
             ("INVOICE_APPROVE", "Approve Invoices", "Approve or reject submitted invoices", "Invoice"),
             // Service Quality Evaluation
             ("REPORT_EVALUATION_VIEW", "View Service Quality Evaluation", "View service quality evaluation reports",
+                "Common"),
+            ("REPORT_EVALUATION_EDIT", "Edit Service Quality Evaluation",
+                "Submit and complete service quality evaluation scores for external appraisal companies",
                 "Common"),
             ("EVALUATION_CONFIG_MANAGE", "Manage Evaluation Criteria Config",
                 "View and edit service-quality evaluation criteria labels, weights, guidance, and thresholds per banking segment",
