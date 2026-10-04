@@ -48,6 +48,15 @@ public class OutboxDeliveryJobOptions
     /// <summary>How long the DB-backed processing lease is held before another instance can claim it.</summary>
     public TimeSpan LeaseDuration { get; set; } = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// Upper bound on a single publish call. MassTransit has no built-in publish/send timeout, so
+    /// without this a broker that accepts the connection but never acknowledges could block a
+    /// publish indefinitely. Must not exceed half of LeaseDuration: the lease is renewed mid-batch
+    /// only once a third of it has elapsed, so the longest stretch without a renewal is
+    /// LeaseDuration/3 + PublishTimeout, which has to stay strictly inside the lease.
+    /// </summary>
+    public TimeSpan PublishTimeout { get; set; } = TimeSpan.FromSeconds(15);
+
     public void Validate()
     {
         if (PollInterval <= TimeSpan.Zero)
@@ -58,6 +67,13 @@ public class OutboxDeliveryJobOptions
             throw new InvalidOperationException("BackgroundJobs:OutboxDelivery:MaxRetries cannot be negative");
         if (LeaseDuration <= TimeSpan.Zero)
             throw new InvalidOperationException("BackgroundJobs:OutboxDelivery:LeaseDuration must be positive");
+        if (PublishTimeout <= TimeSpan.Zero)
+            throw new InvalidOperationException("BackgroundJobs:OutboxDelivery:PublishTimeout must be positive");
+        if (PublishTimeout > LeaseDuration / 2)
+            throw new InvalidOperationException(
+                "BackgroundJobs:OutboxDelivery:PublishTimeout must not exceed half of LeaseDuration " +
+                "(the lease is renewed after LeaseDuration/3, so LeaseDuration/3 + PublishTimeout must stay " +
+                "inside the lease)");
     }
 }
 
