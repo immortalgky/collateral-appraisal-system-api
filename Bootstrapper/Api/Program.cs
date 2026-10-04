@@ -123,13 +123,12 @@ builder.Services.AddScoped<ISqlConnectionFactory>(provider =>
 builder.Services.AddScoped<IOutboxScope, OutboxScope>();
 builder.Services.AddScoped<IIntegrationEventOutbox, IntegrationEventOutbox>();
 builder.Services.AddScoped(typeof(InboxGuard<>));
-builder.Services.AddHostedService<IntegrationEventDeliveryService<RequestDbContext>>();
-builder.Services.AddHostedService<IntegrationEventDeliveryService<AppraisalDbContext>>();
-builder.Services.AddHostedService<IntegrationEventDeliveryService<DocumentDbContext>>();
-builder.Services.AddHostedService<IntegrationEventDeliveryService<WorkflowDbContext>>();
-builder.Services.AddHostedService<IntegrationEventDeliveryService<CollateralDbContext>>();
-builder.Services.AddHostedService<IntegrationEventDeliveryService<Reporting.Data.ReportingDbContext>>();
 
+// MUST be registered before the IntegrationEventDeliveryService hosted services below: .NET starts
+// hosted services in registration order and stops them in reverse, so the bus now starts first and
+// stops last — a delivery service can no longer publish into a bus that has already stopped during
+// shutdown. (The delivery services also link IHostApplicationLifetime.ApplicationStopping as
+// defence in depth, in case this ordering is ever disturbed again.)
 builder.Services.AddMassTransit(config =>
 {
     config.SetKebabCaseEndpointNameFormatter();
@@ -337,6 +336,14 @@ builder.Services.AddMassTransit(config =>
         configurator.ConfigureEndpoints(context);
     });
 });
+
+// Registered after AddMassTransit (see the comment above it) so these stop before the bus does.
+builder.Services.AddHostedService<IntegrationEventDeliveryService<RequestDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<AppraisalDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<DocumentDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<WorkflowDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<CollateralDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<Reporting.Data.ReportingDbContext>>();
 
 builder.Services.AddHttpClient("CAS", client =>
 {

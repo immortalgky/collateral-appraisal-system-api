@@ -13,6 +13,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="Shared.Tests"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\Shared\Shared.csproj"/>
         <ProjectReference Include="..\..\Modules\Request\Request.Contracts\Request.Contracts.csproj"/>
     </ItemGroup>

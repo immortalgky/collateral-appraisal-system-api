@@ -23,7 +23,12 @@ public class OutboxCleanupJob<TDbContext>(
         logger.LogInformation("[OUTBOX-CLEANUP] Starting cleanup for {DbContext}, cutoff: {Cutoff}",
             typeof(TDbContext).Name, cutoff);
 
-        // Reset stuck Processing messages (instance crashed mid-batch) back to Pending
+        // Reset stuck Processing messages (instance crashed mid-batch) back to Pending. Keyed on
+        // OccurredAt, not on when the row actually became Processing — this DbContext has no
+        // ProcessingStartedAt column, so a genuinely-in-flight row with an old OccurredAt (e.g. one
+        // that sat behind a backlog before finally being claimed) could theoretically be reset out
+        // from under an instance still working it. A ProcessingStartedAt-based reset belongs to a
+        // separate change and is intentionally not made here.
         var stuckCutoff = now.AddMinutes(-5);
         var reset = await dbContext.Database.ExecuteSqlRawAsync(
             "UPDATE [" + schema + "].[IntegrationEventOutbox] " +

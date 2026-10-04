@@ -40,6 +40,11 @@ public class IntegrationEventOutboxMessage
         Status = OutboxMessageStatus.Processing;
     }
 
+    public void MarkAsPending()
+    {
+        Status = OutboxMessageStatus.Pending;
+    }
+
     public void MarkAsProcessed(DateTime processedAt)
     {
         Status = OutboxMessageStatus.Processed;
@@ -50,9 +55,20 @@ public class IntegrationEventOutboxMessage
     public void IncrementRetryCount(string error, int maxRetries)
     {
         RetryCount++;
-        Error = error.Length > 2000 ? error[..2000] : error;
+        Error = Truncate(error);
         Status = RetryCount >= maxRetries ? OutboxMessageStatus.Failed : OutboxMessageStatus.Pending;
     }
+
+    /// <summary>Deterministic failure (disallowed type, bad payload) — fails immediately, no retries burned.</summary>
+    public void MarkAsFailed(string error)
+    {
+        Status = OutboxMessageStatus.Failed;
+        Error = Truncate(error);
+    }
+
+    private const int MaxErrorLength = 2000;
+
+    private static string Truncate(string error) => error.Length > MaxErrorLength ? error[..MaxErrorLength] : error;
 }
 
 public enum OutboxMessageStatus
