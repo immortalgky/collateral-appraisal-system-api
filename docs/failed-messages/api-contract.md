@@ -154,6 +154,10 @@ appraisal-sla-recalc, workflow-instance-variables, pma-sync-status
 (`Error`/`Skipped`) tells which fault queue the row was collected from. `isOrderedQueue = true` when a
 row's `sourceQueue` is in this list.
 
+Retention: a `Skipped` row still `Pending` is deleted once its last admin action (or, if none, the time the collector stored it) is older than
+`FailedMessages:SkippedPendingRetentionDays` (default 30), so an old Skipped row can disappear from the list and summary
+without any operator action. `Error` rows are never purged while `Pending`; Retried/Discarded rows go after 90 days.
+
 ## Non-transient exception match
 
 Decided: `isNonTransient = true` when `exceptionType`'s **simple name** (the segment after the last

@@ -32,7 +32,7 @@ Status: **design approved 2026-09-27, not implemented.** Mock: `collateral-appra
 | D3 | The **owning node** performs the retry (API sets `RetryRequested`) | API connects to the other node's broker | No cross-node AMQP/credentials |
 | D4 | Ordered (partitioned) endpoints: **warn, allow** | Block retry | User decision; stale-overwrite risk surfaced in drawer + confirm |
 | D5 | Permissions `FAILED_MESSAGE_VIEW` (read) / `FAILED_MESSAGE_MANAGE` (retry/discard/resend) — VIEW / MANAGE only | One permission | Read vs act split; no third level |
-| D6 | Retention 90 days for Retried/Discarded; Pending never purged | 30 days; forever | User decision |
+| D6 | Retention 90 days for Retried/Discarded. Pending is never purged, except `Kind = Skipped` rows still Pending after `FailedMessages:SkippedPendingRetentionDays` (default 30, counted from the later of `CollectedAt` and the last admin `ActionAt`) | 30 days; forever | User decision; a Skipped message has no consumer so Retry cannot help, and a broken binding fed `_skipped` ~540 rows in 5 days on dev. Error rows are never purged while Pending |
 | D7 | Outbox `Failed` retention 7 → 90 days, counted from the row's last claim (`ProcessingStartedAt`, else `OccurredAt`) so a resent row that fails again is not purged for being old (`Processed` stays 7) | Never delete; keep 7 | User decision; aligns with the screen |
 | D8 | Management API account: add tag `management` to the **existing** app user; **bank runs it** | Separate read-only user | User decision (option ก). Collector degrades gracefully until done |
 | D9 | Everything on screen comes from DB; queue health is a per-node latest-snapshot row | Live calls | LB + per-node brokers + localhost-only 15672 |
@@ -62,7 +62,14 @@ Status: **design approved 2026-09-27, not implemented.** Mock: `collateral-appra
 **Existing tables** — `IntegrationEventOutbox` in six schemas gains `ProcessingStartedAt` (PR-B).
 `OutboxCleanupJob`: `Processed` 7 days, `Failed` 90 days.
 
-**Retention** — Hangfire `failed-messages-cleanup` daily: delete Retried/Discarded with `ActionAt` older than 90 days.
+**Retention** — Hangfire `failed-messages-cleanup` daily: delete Retried/Discarded with `ActionAt` older than 90 days,
+and `Kind = Skipped AND Status = Pending` rows with `COALESCE(ActionAt, CollectedAt)` older than `FailedMessages:SkippedPendingRetentionDays`
+(default 30, must be 1 to 3650, validated at startup even when `FailedMessages:Enabled` is false because the job runs without the
+collector). The Skipped rule keys on `COALESCE(ActionAt, CollectedAt)`, not `FaultedAt`: for a Skipped row `FaultedAt` is the AMQP/envelope
+send time, which can be long before the row was collected, and `ActionAt` is set when a retry came back unroutable and the
+row returned to Pending, so such a row gets a fresh window. Before deleting, the job logs one line per
+`SourceQueue`/`MessageType` group with the count and the oldest/newest `CollectedAt` (one grouped SELECT, same predicate). Error rows are never purged by it, whatever their status; a
+Skipped row that was Discarded/Retried stays on the 90-day `ActionAt` rule.
 
 ### 2. API (Integration module, Carter + MediatR; 1-based `pageNumber`/`pageSize`)
 Read — policy for `FAILED_MESSAGE_VIEW`:
@@ -87,7 +94,7 @@ Rules: `module` checked against a six-item whitelist before it becomes a schema 
 terms are LIKE-escaped (`LikePattern.Escape`) and always bound as parameters.
 
 ### 3. Collector (BackgroundService on every node, no lease)
-Config `FailedMessages { Enabled, Interval=15s, BatchPerQueue=100 }`;
+Config `FailedMessages { Enabled, Interval=15s, BatchPerQueue=100, SkippedPendingRetentionDays=30 }` (the last is read by the cleanup job, not the collector);
 management URL = `RabbitMQ:ManagementUrl` (default `http://localhost:15672`), credentials = existing `RabbitMQ:Username/Password`; node = `Environment.MachineName`. Each round, each step in its
 own try/catch:
 1. **Discover** queues ending `_error`/`_skipped` with messages via `GET /api/queues`; if the Management API fails,
@@ -131,6 +138,11 @@ rabbitmq-plugins list | grep management          # rabbitmq_management must be e
 rabbitmqctl list_users                            # see the app user's current tags
 rabbitmqctl set_user_tags <app-user> management  # REPLACES existing tags — include any the user already has
 ```
+New config key `FailedMessages:SkippedPendingRetentionDays` (default 30) is in `appsettings.json`, `appsettings.Development.json`
+and the production template — no schema change. Add it to the server's single `appsettings` file (the template is
+self-contained); leaving it out falls back to 30. A value outside 1 to 3650 stops the app at startup. The first nightly run after
+deploy deletes every Skipped/Pending row older than the setting, in batches of 1000.
+
 Then: run `dotnet run --project Database/Database.csproj migrate` (or the DBA bundle) and restart every instance
 (menu cache). Until the tag is set the screen shows "Management API not authorised" in queue health; collection and
 retry keep working over AMQP.
@@ -198,6 +210,7 @@ one-deploy rolling window; Request integration tests 3/4 fail on main already (p
 `todo-outbox-stuck-processing-fix.md`.
 
 ## Changelog
+- 2026-10-05: Skipped rows left Pending are now purged after `FailedMessages:SkippedPendingRetentionDays` (default 30), keyed on `COALESCE(ActionAt, CollectedAt)` (D6).
 - 2026-10-03: PII masking/reveal removed by user decision — menu permission implies the right to see the data.
   Removed: body/header masking, the `reveal-body` / `reveal-payload` endpoints and their `RevealBody` audit action, the
   exception-message scrubber and the `ExceptionMessageScrubbed` column (edited out of the unreleased `AddFailedMessages`

@@ -56,7 +56,8 @@ public static class IntegrationRecurringJobs
         // Retention for the Failed Messages screen (design D6). 02:30 so it doesn't collide with the
         // five per-module outbox-cleanup-* jobs (02:00) or Reporting's report-artifact-cleanup (03:00).
         new RecurringJobDefinition("failed-messages-cleanup", "30 2 * * *",
-            "Purge Retried/Discarded FailedMessages rows older than 90 days (daily at 02:30).",
+            "Purge Retried/Discarded FailedMessages rows older than 90 days, Pending Skipped rows idle longer than " +
+            "FailedMessages:SkippedPendingRetentionDays (default 30), and broker snapshots not refreshed for 7 days (daily at 02:30).",
             (mgr, cron, opt) => mgr.AddOrUpdate<FailedMessageCleanupJob>(
                 "failed-messages-cleanup", j => j.ExecuteAsync(CancellationToken.None), cron, opt))
     };
