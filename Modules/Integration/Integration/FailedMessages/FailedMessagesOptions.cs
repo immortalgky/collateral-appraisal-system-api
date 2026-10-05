@@ -18,6 +18,16 @@ public class FailedMessagesOptions
     /// <summary>Max messages drained per <c>_error</c>/<c>_skipped</c> queue, per round.</summary>
     public int BatchPerQueue { get; set; } = 100;
 
+    /// <summary>Days a <c>Kind = Skipped</c> row may stay <c>Pending</c> (counted from the later of <c>CollectedAt</c> and the last admin <c>ActionAt</c>) before
+    /// <see cref="FailedMessageCleanupJob"/> purges it. A Skipped message has no consumer, so retrying it cannot help
+    /// and a broken binding would otherwise grow the table without bound. Must be between 1 and <see cref="MaxSkippedPendingRetentionDays"/>. Applies whether or
+    /// not <see cref="Enabled"/> — the cleanup job runs regardless of the collector.</summary>
+    public int SkippedPendingRetentionDays { get; set; } = 30;
+
+    /// <summary>Upper bound for <see cref="SkippedPendingRetentionDays"/> (ten years): <c>AddDays(-days)</c> throws once the
+    /// cutoff leaves <see cref="DateTime"/>'s range, which would abort the whole nightly cleanup job.</summary>
+    public const int MaxSkippedPendingRetentionDays = 3650;
+
     public const string DefaultManagementUrl = "http://localhost:15672";
 
     /// <summary>RabbitMQ management API base URL for this node's own broker (design: localhost per node).
@@ -33,10 +43,15 @@ public class FailedMessagesOptions
     /// <summary>Same ValidateOnStart/PostConfigure pattern as
     /// <c>Shared.Configurations.BackgroundJobsOptions</c> — fail fast at host startup on a bad cadence
     /// instead of the collector silently never running (Interval &lt;= 0) or draining nothing every
-    /// round (BatchPerQueue &lt;= 0). Skipped entirely while <see cref="Enabled"/> is false: a disabled
-    /// collector never reads these values, so a bad one must not block API startup.</summary>
+    /// round (BatchPerQueue &lt;= 0). Collector settings are skipped while <see cref="Enabled"/> is false (a disabled
+    /// collector never reads them, so a bad one must not block API startup); <see cref="SkippedPendingRetentionDays"/>
+    /// is always checked, because <see cref="FailedMessageCleanupJob"/> runs whether or not the collector does.</summary>
     public void Validate()
     {
+        if (SkippedPendingRetentionDays is < 1 or > MaxSkippedPendingRetentionDays)
+            throw new InvalidOperationException(
+                $"FailedMessages:SkippedPendingRetentionDays must be between 1 and {MaxSkippedPendingRetentionDays}");
+
         if (!Enabled)
             return;
 

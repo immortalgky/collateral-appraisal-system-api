@@ -142,8 +142,9 @@ public static class IntegrationModule
         // only registered when enabled, reading the app's own RabbitMQ credentials/host.
         // Same ValidateOnStart/PostConfigure pattern as BackgroundJobsOptions
         // (Shared/Shared/Extensions/SharedServicesExtensions.cs) — forces Validate() to run during host
-        // startup so a bad cadence fails fast instead of on first resolution. Validate() is a no-op while
-        // FailedMessages:Enabled is false, so a disabled collector never blocks startup.
+        // startup so a bad cadence fails fast instead of on first resolution. While FailedMessages:Enabled is
+        // false Validate() skips the collector settings (a disabled collector never blocks startup) but still checks
+        // SkippedPendingRetentionDays, which the always-on cleanup job reads.
         services.AddOptions<FailedMessagesOptions>()
             .Bind(configuration.GetSection(FailedMessagesOptions.SectionName))
             // The management API is the same broker as RabbitMQ:Host, so its URL lives with the other
