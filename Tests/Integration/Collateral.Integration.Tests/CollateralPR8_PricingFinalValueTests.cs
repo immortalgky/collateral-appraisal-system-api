@@ -80,6 +80,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
 
         // PricingFinalValue.Create(methodId, finalValue)
         var fv = PricingFinalValue.Create(method.Id, finalValueAdjusted);
+        fv.SetFinalValueOverride(finalValueAdjusted);
         fv.SetBuildingValue(buildingCost);
         fv.SetIndicatedValue(appraisalPrice);
         method.SetFinalValue(fv);
@@ -130,6 +131,17 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
         await svc.ProcessAppraisalAsync(appraisalId, TestContext.Current.CancellationToken);
     }
 
+    /// <summary>
+    /// Re-raises the final-value event once the analysis is persisted. The ValuationAnalyses rollup
+    /// reads PricingAnalyses from the database, so on the save that inserts one it totals 0 — and the
+    /// engagement prefers that appraisal-level total over the per-group PricingFinalValue.
+    /// </summary>
+    private static async Task RollUpFinalValueAsync(AppraisalDbContext appraisalDb, PricingAnalysis pa)
+    {
+        pa.SetFinalValues(pa.FinalAppraisedValue!.Value);
+        await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+    }
+
     // -----------------------------------------------------------------------
     // PR8-1: Cost approach, single property — all three values populated on IsMaster
     // -----------------------------------------------------------------------
@@ -163,6 +175,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
 
             appraisalDb.PricingAnalyses.Add(pa);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            await RollUpFinalValueAsync(appraisalDb, pa);
         }
 
         await ProcessAppraisalInNewScopeAsync(appraisalId);
@@ -183,8 +196,10 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
         // UnitPrice is no longer stored anywhere in this module: nothing read it (the view exposed it
         // but no caller projected it), and the snapshot takes it straight from the appraisal contract.
         var eng = Assert.Single(master.Engagements);
-        Assert.Equal(500_000m,   eng.BuildingValue);   // PricingFinalValue.BuildingValue
-        Assert.Equal(1_500_000m, eng.AppraisalValue);  // PricingFinalValue.IndicatedValue
+        // BuildingValue is deliberately LB-only (see AppendEngagement) and this is bare land; the
+        // group's 500k still reaches the snapshot (PR8-5).
+        Assert.Null(eng.BuildingValue);
+        Assert.Equal(1_500_000m, eng.AppraisalValue);  // ValuationAnalyses total
     }
 
     // -----------------------------------------------------------------------
@@ -295,6 +310,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
 
             appraisalDb.PricingAnalyses.Add(pa);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            await RollUpFinalValueAsync(appraisalDb, pa);
         }
 
         await ProcessAppraisalInNewScopeAsync(appraisalId);
@@ -390,6 +406,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
 
             appraisalDb.PricingAnalyses.Add(pa);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            await RollUpFinalValueAsync(appraisalDb, pa);
         }
 
         await ProcessAppraisalInNewScopeAsync(appraisalId);
@@ -413,7 +430,7 @@ public class CollateralPR8_PricingFinalValueTests(IntegrationTestFixture fixture
         var firstGroup = groupsEl.EnumerateArray().First();
 
         // Group-level values — populated from IsMaster LandDetail after PR-8 wiring
-        Assert.True(firstGroup.TryGetProperty("buildingCost", out var bcEl), "Group missing 'buildingCost'");
+        Assert.True(firstGroup.TryGetProperty("buildingValue", out var bcEl), "Group missing 'buildingValue'");
         Assert.True(firstGroup.TryGetProperty("appraisalValue", out var avEl), "Group missing 'appraisalValue'");
         Assert.Equal(200_000m, bcEl.GetDecimal());
         Assert.Equal(700_000m, avEl.GetDecimal());

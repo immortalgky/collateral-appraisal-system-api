@@ -1,3 +1,5 @@
 {
-    "comment": "Original comment."
+    "comment": "Original comment.",
+    "commentedBy": "admin",
+    "commentedByName": "System Administrator"
 }

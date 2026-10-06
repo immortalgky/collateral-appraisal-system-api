@@ -115,7 +115,7 @@ public class CollateralReadEndpointTests(IntegrationTestFixture fixture)
         var titleNo = $"READ-LOOKUP-{Guid.NewGuid():N}".Substring(0, 25);
         var masterId = await SeedLandMasterAsync("LO-READ", "Bangkok", "Bangrak", "Silom", titleNo);
 
-        var url = $"/collateral-masters/lookup?type=Land"
+        var url = $"/collateral-masters/lookup?type=L"
                   + $"&landOfficeCode=LO-READ"
                   + $"&province=Bangkok"
                   + $"&district=Bangrak"
@@ -131,7 +131,7 @@ public class CollateralReadEndpointTests(IntegrationTestFixture fixture)
         var root = doc.RootElement;
 
         Assert.Equal(masterId.ToString(), root.GetProperty("id").GetString());
-        Assert.Equal("Land", root.GetProperty("collateralType").GetString());
+        Assert.Equal("L", root.GetProperty("collateralType").GetString());
         Assert.True(root.TryGetProperty("landDetail", out var ld));
         Assert.Equal(titleNo, ld.GetProperty("titleNumber").GetString());
     }
@@ -142,7 +142,7 @@ public class CollateralReadEndpointTests(IntegrationTestFixture fixture)
     [Fact]
     public async Task Lookup_NoMatch_Returns404()
     {
-        var url = "/collateral-masters/lookup?type=Land"
+        var url = "/collateral-masters/lookup?type=L"
                   + "&landOfficeCode=LO-GHOST"
                   + "&province=Ghost Province"
                   + "&district=Ghost Amphur"
@@ -172,7 +172,7 @@ public class CollateralReadEndpointTests(IntegrationTestFixture fixture)
         var root = doc.RootElement;
 
         Assert.Equal(masterId.ToString(), root.GetProperty("id").GetString());
-        Assert.Equal("Land", root.GetProperty("collateralType").GetString());
+        Assert.Equal("L", root.GetProperty("collateralType").GetString());
         // Land detail should be populated
         Assert.True(root.TryGetProperty("landDetail", out var ld));
         Assert.Equal("Chiang Mai", ld.GetProperty("province").GetString());
