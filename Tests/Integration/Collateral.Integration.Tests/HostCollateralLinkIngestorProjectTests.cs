@@ -109,7 +109,9 @@ public class HostCollateralLinkIngestorProjectTests(IntegrationTestFixture fixtu
         var result = await ingestor.IngestAsync("AS400_COLLATLINK_20260601.txt", new DateOnly(2026, 6, 1), parsed);
 
         Assert.Equal(1, result.ProjectSkipped);
-        Assert.Equal(0, result.Updated);
+        // Updated counts HostCollateralLinks rows, one per collateral id: the unit ids ARE stored there
+        // for the export views to resolve. Only the master is left unwritten, asserted below.
+        Assert.Equal(3, result.Updated);
         Assert.Equal(0, result.NotFound);
 
         var master = await LoadMasterAsync(db, appraisalId);

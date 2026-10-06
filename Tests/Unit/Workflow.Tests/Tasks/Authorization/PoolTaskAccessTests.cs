@@ -63,7 +63,7 @@ public class PoolTaskAccessTests
     [Fact]
     public void BuildSqlClause_SqlContainsInClauseAndCompanyCondition()
     {
-        var result = PoolTaskAccess.BuildSqlClause(["ExtAdmin"], null, null);
+        var result = PoolTaskAccess.BuildSqlClause(["ExtAdmin"], null, Guid.NewGuid());
 
         result.Should().NotBeNull();
         result!.Sql.Should().Contain("AssigneeUserId IN (");
@@ -81,12 +81,14 @@ public class PoolTaskAccessTests
     }
 
     [Fact]
-    public void BuildSqlClause_NullCompanyId_ParameterIsNull()
+    public void BuildSqlClause_NullCompanyId_MatchesOnlyRowsWithoutACompany()
     {
+        // Internal caller: no company parameter at all, so a company-scoped row can never match.
         var result = PoolTaskAccess.BuildSqlClause(["ExtAdmin"], null, null);
 
         result.Should().NotBeNull();
-        result!.Parameters["PoolCallerCompanyId"].Should().BeNull();
+        result!.Sql.Should().EndWith("AND AssigneeCompanyId IS NULL)");
+        result.Parameters.Should().NotContainKey("PoolCallerCompanyId");
     }
 
     // ── IsOwner ──

@@ -2,7 +2,6 @@ using System.Text.Json;
 using Integration.Fixtures;
 using Integration.Helpers;
 using Integration.Request.Integration.Tests.Helpers;
-using Request.Application.Features.Requests.DeleteRequest;
 
 namespace Integration.Request.Integration.Tests;
 
@@ -21,9 +20,8 @@ public class DeleteRequestTests(IntegrationTestFixture fixture) : IntegrationTes
         Assert.Null(deleteStatusCodeException);
 
         var deleteResponseContent = await deleteRequestResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        var deleteRequestResult = JsonSerializer.Deserialize<DeleteRequestResult>(deleteResponseContent, JsonHelper.Options);
-        Assert.NotNull(deleteRequestResult);
-        Assert.True(deleteRequestResult.IsSuccess);
+        // The endpoint returns a bare boolean, not a DeleteRequestResult object.
+        Assert.True(JsonSerializer.Deserialize<bool>(deleteResponseContent, JsonHelper.Options));
 
         // Get the deleted request by Id
         var getRequestByIdResponse = await _client.GetAsync($"/requests/{createRequestResult.Id}", TestContext.Current.CancellationToken);

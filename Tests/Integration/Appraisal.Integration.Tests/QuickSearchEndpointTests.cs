@@ -1,14 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Text.Encodings.Web;
 using System.Text.Json;
 using Appraisal.Infrastructure;
 using Integration.Fixtures;
 using Integration.WebApplicationFactories;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Shared.Data;
 using Dapper;
 using AppraisalAggregate = Appraisal.Domain.Appraisals.Appraisal;
@@ -255,38 +251,4 @@ public class QuickSearchEndpointTests(IntegrationTestFixture fixture)
         Assert.Empty(result.Groups);
         Assert.Equal(0, result.TotalMatchedAppraisals);
     }
-}
-
-
-/// <summary>
-/// A host whose authentication scheme never authenticates anyone, so endpoints can be tested for
-/// requiring authorization at all. Reuses the fixture's container connection strings.
-/// </summary>
-file sealed class AnonymousWebApplicationFactory(
-    string mssqlConnectionString,
-    string rabbitMqConnectionString
-) : IntegrationTestWebApplicationFactory(mssqlConnectionString, rabbitMqConnectionString)
-{
-    protected override void ConfigureAuthServices(IServiceCollection services)
-    {
-        services
-            .AddAuthentication("Anonymous")
-            .AddScheme<AuthenticationSchemeOptions, AnonymousAuthHandler>("Anonymous", _ => { });
-        services.AddAuthorization();
-        services.Configure<AuthenticationOptions>(options =>
-        {
-            options.DefaultAuthenticateScheme = "Anonymous";
-            options.DefaultChallengeScheme = "Anonymous";
-        });
-    }
-}
-
-file sealed class AnonymousAuthHandler(
-    IOptionsMonitor<AuthenticationSchemeOptions> options,
-    ILoggerFactory logger,
-    UrlEncoder encoder
-) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
-{
-    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
-        => Task.FromResult(AuthenticateResult.NoResult());
 }
