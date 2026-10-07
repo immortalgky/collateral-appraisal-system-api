@@ -21,7 +21,6 @@ public class CreateRequestEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithTags("Requests")
             .WithSummary("Create a new request")
-            .WithDescription("Creates a new request in the system.")
-            .AllowAnonymous();
+            .WithDescription("Creates a new request in the system.");
     }
 }
