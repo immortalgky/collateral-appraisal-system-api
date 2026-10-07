@@ -1,7 +1,6 @@
 using Auth.Application.Features.Users.ChangePassword;
 using Auth.Application.Features.Users.CreateUser;
 using Auth.Application.Features.Users.ResetPassword;
-using Auth.Domain.Auth.Features.RegisterUser;
 
 namespace Auth.Tests.Users;
 
@@ -17,8 +16,7 @@ public class PasswordCommandRedactionTests
         [
             new ChangePasswordCommand(Guid.NewGuid(), Secret, Secret, Secret),
             new ResetPasswordCommand(Guid.NewGuid(), Secret, Secret),
-            new CreateUserCommand("u1", Secret, "u1@x.test", "U", "One", null, null, null, []),
-            new RegisterUserCommand("u2", Secret, "u2@x.test", "U", "Two", null, null, null, null, [], [])
+            new CreateUserCommand("u1", Secret, "u1@x.test", "U", "One", null, null, null, [])
         ];
 
         foreach (var command in commands)
