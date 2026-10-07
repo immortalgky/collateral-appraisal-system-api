@@ -22,7 +22,6 @@ public class UpdateDraftRequestEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithTags("Requests")
             .WithSummary("Update a draft request")
-            .WithDescription("Updates an existing draft request.")
-            .AllowAnonymous();
+            .WithDescription("Updates an existing draft request.");
     }
 }

@@ -1,5 +1,6 @@
 @baseUrl = https://localhost:7111/api/v1
 POST {{baseUrl}}/requests
+X-Dev-Auth: dev-bypass
 headers: localhost:7111
 Content-Type: application/json
 

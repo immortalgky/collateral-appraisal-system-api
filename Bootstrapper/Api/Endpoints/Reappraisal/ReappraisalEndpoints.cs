@@ -77,8 +77,7 @@ public class ReappraisalEndpoints : ICarterModule
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithTags("Reappraisal")
             .WithSummary("List reappraisal candidates")
-            .WithDescription("Returns a paginated list of AS400 COLLATREV reappraisal candidates with optional filters.")
-            .AllowAnonymous();
+            .WithDescription("Returns a paginated list of AS400 COLLATREV reappraisal candidates with optional filters.");
 
         // ── GET /reappraisal/candidates/{id} ─────────────────────────────
         app.MapGet("/reappraisal/candidates/{id:guid}",
@@ -101,8 +100,7 @@ public class ReappraisalEndpoints : ICarterModule
             .Produces(StatusCodes.Status404NotFound)
             .WithTags("Reappraisal")
             .WithSummary("Get reappraisal candidate detail")
-            .WithDescription("Returns full detail for one candidate plus nearby candidates for group selection.")
-            .AllowAnonymous();
+            .WithDescription("Returns full detail for one candidate plus nearby candidates for group selection.");
 
         // ── POST /reappraisal/initiate ────────────────────────────────────
         app.MapPost("/reappraisal/initiate",
@@ -125,8 +123,7 @@ public class ReappraisalEndpoints : ICarterModule
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithTags("Reappraisal")
             .WithSummary("Initiate reappraisal requests")
-            .WithDescription("Creates one reappraisal request per selected candidate, grouped under a shared group number.")
-            .AllowAnonymous();
+            .WithDescription("Creates one reappraisal request per selected candidate, grouped under a shared group number.");
 
         // ── DELETE /reappraisal/candidates/{id} ──────────────────────────
         app.MapDelete("/reappraisal/candidates/{id:guid}",
@@ -148,8 +145,7 @@ public class ReappraisalEndpoints : ICarterModule
             .Produces(StatusCodes.Status404NotFound)
             .WithTags("Reappraisal")
             .WithSummary("Delete reappraisal candidate")
-            .WithDescription("Marks the book \"not reviewing this round\" (Status = Deleted) — it moves to its own tab until restored. Does not affect any created requests.")
-            .AllowAnonymous();
+            .WithDescription("Marks the book \"not reviewing this round\" (Status = Deleted) — it moves to its own tab until restored. Does not affect any created requests.");
 
         // ── POST /reappraisal/candidates/{id}/restore ────────────────────
         app.MapPost("/reappraisal/candidates/{id:guid}/restore",
@@ -171,9 +167,7 @@ public class ReappraisalEndpoints : ICarterModule
             .Produces(StatusCodes.Status404NotFound)
             .WithTags("Reappraisal")
             .WithSummary("Restore reappraisal candidate")
-            .WithDescription("Puts a book marked \"not reviewing this round\" back on the to-do list (Status = Pending).")
-            // Login-only. The routes above are still AllowAnonymous — a pre-existing gap, not copied here.
-            .RequireAuthorization();
+            .WithDescription("Puts a book marked \"not reviewing this round\" back on the to-do list (Status = Pending).");
     }
 }
 

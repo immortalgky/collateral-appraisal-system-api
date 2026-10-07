@@ -25,7 +25,6 @@ public class GetRequestCommentByIdEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithTags("Request Comments")
             .WithSummary("Get request comment by ID")
-            .WithDescription("Retrieves a specific comment by its ID.")
-            .AllowAnonymous();
+            .WithDescription("Retrieves a specific comment by its ID.");
     }
 }

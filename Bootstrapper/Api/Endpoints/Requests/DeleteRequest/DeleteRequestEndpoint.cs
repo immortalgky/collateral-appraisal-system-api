@@ -12,14 +12,13 @@ public class DeleteRequestEndpoint : ICarterModule
                 {
                     var command = new DeleteRequestCommand(id);
                     var result = await sender.Send(command, cancellationToken);
-                    return Results.Ok(result.IsSuccess);
+                    return Results.Ok(new DeleteRequestResponse(result.IsSuccess));
                 })
             .WithName("DeleteRequest")
             .Produces<DeleteRequestResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithTags("Requests")
             .WithSummary("Delete request by ID")
-            .WithDescription("Deletes a request by its ID.")
-            .AllowAnonymous();
+            .WithDescription("Deletes a request by its ID.");
     }
 }

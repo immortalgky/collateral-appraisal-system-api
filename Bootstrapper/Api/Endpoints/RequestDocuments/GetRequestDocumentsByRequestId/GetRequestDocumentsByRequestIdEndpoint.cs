@@ -24,7 +24,6 @@ public class GetRequestDocumentsByRequestIdEndpoint : ICarterModule
             .Produces<GetRequestDocumentsByRequestIdResponse>(StatusCodes.Status200OK)
             .WithTags("Request Documents")
             .WithSummary("Get all documents for a request")
-            .WithDescription("Retrieves all documents for a request, grouped by request-level and per-title sections.")
-            .AllowAnonymous();
+            .WithDescription("Retrieves all documents for a request, grouped by request-level and per-title sections.");
     }
 }

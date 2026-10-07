@@ -4,7 +4,8 @@
 # Note: Replace requestId with a valid request ID that has at least one title
 @requestId = 19248d4c-3cf3-4cc3-4773-08de2efe7c24
 
-PATCH {{baseUrl}}/requests/{{requestId}}/submit
+POST {{baseUrl}}/requests/{{requestId}}/submit
+X-Dev-Auth: dev-bypass
 Host: localhost:7111
 Content-Type: application/json
 
@@ -13,7 +14,8 @@ Content-Type: application/json
 ### Submit Request - Should fail (request not found)
 @invalidRequestId = 00000000-0000-0000-0000-000000000000
 
-PATCH {{baseUrl}}/requests/{{invalidRequestId}}/submit
+POST {{baseUrl}}/requests/{{invalidRequestId}}/submit
+X-Dev-Auth: dev-bypass
 Host: localhost:7111
 Content-Type: application/json
 
@@ -23,7 +25,8 @@ Content-Type: application/json
 # Create a request without titles first, then use its ID here
 @requestWithoutTitlesId = replace-with-actual-id
 
-PATCH {{baseUrl}}/requests/{{requestWithoutTitlesId}}/submit
+POST {{baseUrl}}/requests/{{requestWithoutTitlesId}}/submit
+X-Dev-Auth: dev-bypass
 Host: localhost:7111
 Content-Type: application/json
 
