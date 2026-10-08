@@ -35,6 +35,7 @@ public class NotificationEmailTemplatesTests
                 new QuotationFeeNoticeRow("บริษัท บี", ["37,450", "26,750"], "169,060"),
             ],
             AdminName: "แอดมิน หนึ่ง",
+            AdminPhone: "02-123-4567",
             Channel: "LOS");
 
         var html = NewRenderer().QuotationFeeNotice("แจ้งค่าธรรมเนียมประเมิน ลูกค้าราย บริษัท ทดสอบ จำกัด", model);
@@ -65,6 +66,7 @@ public class NotificationEmailTemplatesTests
             Columns: [new QuotationFeeNoticeColumn("A", null, null)],
             Rows: [new QuotationFeeNoticeRow("<script>x</script>", ["1"], "1")],
             AdminName: "Admin",
+            AdminPhone: null,
             Channel: "CLS");
 
         var html = NewRenderer().QuotationFeeNotice("Subject", model);
@@ -85,11 +87,12 @@ public class NotificationEmailTemplatesTests
                 new DocumentFollowupNoticeItem("เล่มประเมินสมบูรณ์", "รายละเอียด บรรทัดแรก\nบรรทัดสอง"),
                 new DocumentFollowupNoticeItem("เอกสารแผนที่ภาพถ่ายทางอากาศ", null),
             ],
-            AdminName: "แอดมิน สอง");
+            AdminName: "แอดมิน สอง",
+            AdminPhone: "02-123-4567");
 
         var html = NewRenderer().DocumentFollowupNotice("งานติดตามเอกสารของลูกค้าราย ลูกค้า ก", model);
 
-        Assert.Contains("เรียน สมหญิง", html);
+        Assert.Contains("เรียน คุณสมหญิง", html);
         Assert.Contains("69A00317", html);
         // Document name as a bold header, notes below (long/multiline notes wrap).
         Assert.Contains("<strong>", html); // customer/appraisal
@@ -97,6 +100,7 @@ public class NotificationEmailTemplatesTests
         Assert.Contains("2. เอกสารแผนที่ภาพถ่ายทางอากาศ", html);
         Assert.Contains("รายละเอียด บรรทัดแรก<br/>บรรทัดสอง", html);
         Assert.Contains("แอดมิน สอง", html);
+        Assert.Contains("Tel : 02-123-4567", html);
     }
 
     [Fact]
@@ -116,8 +120,9 @@ public class NotificationEmailTemplatesTests
         Assert.Contains("ขอรายละเอียดข้อมูลเพิ่มเติม ลูกค้าราย <strong>บริษัท ทดสอบ จำกัด</strong> " +
                         "หมายเลขเล่มประเมิน <strong>69002246</strong><br/>โดยมีรายละเอียดดังนี้", html);
         Assert.Contains("โฉนดไม่ตรงกับเอกสาร", html);
-        // Footer contact = sender full name + phone.
-        Assert.Contains("กรุณาติดต่อ แอดมิน สาม 02-123-4567", html);
+        // Footer contact names the sender; their phone sits in the signature below.
+        Assert.Contains("กรุณาติดต่อ แอดมิน สาม", html);
+        Assert.Contains("Tel : 02-123-4567", html);
         Assert.Contains("Best Regards", html);
     }
 
