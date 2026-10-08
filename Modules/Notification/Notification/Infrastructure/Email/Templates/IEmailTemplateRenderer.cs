@@ -41,6 +41,7 @@ public sealed record QuotationFeeNoticeModel(
     IReadOnlyList<QuotationFeeNoticeColumn> Columns,
     IReadOnlyList<QuotationFeeNoticeRow> Rows,
     string AdminName,
+    string? AdminPhone,
     string Channel);
 
 /// <summary>A table column header: report number, then property type + province name on their own lines.</summary>

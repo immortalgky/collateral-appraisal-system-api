@@ -61,7 +61,8 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
 
         sb.Append("<p style=\"margin:16px 0 0;\">จึงเรียนมาเพื่อโปรดทราบ</p>");
         sb.Append("<p style=\"margin:4px 0 0;\">").Append(Enc(model.AdminName)).Append("</p>");
-        sb.Append("<p style=\"margin:4px 0 0;\">Tel : 0 2359 0000 Ext.5032</p>");
+        if (!string.IsNullOrWhiteSpace(model.AdminPhone))
+            sb.Append("<p style=\"margin:4px 0 0;\">Tel : ").Append(Enc(model.AdminPhone)).Append("</p>");
         return Wrap(subject, sb.ToString(), showTitle: false);
     }
 
@@ -112,20 +113,18 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
             .Append("</p>");
         sb.Append(RemarkBlock(model.Remark));
 
-        // Footer contact = sender's full name + phone.
-        var contact = Enc(model.SenderName);
-        if (!string.IsNullOrWhiteSpace(model.SenderPhone))
-            contact += " " + Enc(model.SenderPhone);
         sb.Append("<p style=\"margin:16px 0 0;\">หากมีข้อสงสัยกรุณาติดต่อ ")
-            .Append(contact).Append("</p>");
+            .Append(Enc(model.SenderName)).Append("</p>");
         sb.Append("<p style=\"margin:16px 0 0;\">จึงเรียนมาเพื่อโปรดทราบ</p>");
         sb.Append("<p style=\"margin:4px 0 0;\">").Append(Enc(model.SenderName)).Append("</p>");
-        sb.Append("<p style=\"margin:4px 0 0;\">Tel : 0 2359 0000 Ext.5032</p>");
+        if (!string.IsNullOrWhiteSpace(model.SenderPhone))
+            sb.Append("<p style=\"margin:4px 0 0;\">Tel : ").Append(Enc(model.SenderPhone)).Append("</p>");
         return Wrap(subject, sb.ToString(), showTitle: false);
     }
 
     // Signatory requested by the bank; hardcoded until a configurable sender exists.
     private const string AppraisalCompletedSignatureName = "เสาวลักษณ์ สุคนธา";
+    private const string AppraisalCompletedPhone = "0 2359 0000 Ext.5032";
 
     public string AppraisalCompletedNotice(string subject, AppraisalCompletedNoticeModel model)
     {
@@ -141,7 +140,7 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
         sb.Append("<p style=\"margin:24px 0 0;\">สามารถดูผลราคาประเมินฉบับสมบูรณ์ได้ที่ระบบ CAS</p>");
         sb.Append("<p style=\"margin:24px 0 0;\">ขอแสดงความนับถือ</p>");
         sb.Append("<p style=\"margin:4px 0 0;\">").Append(Enc(AppraisalCompletedSignatureName)).Append("</p>");
-        sb.Append("<p style=\"margin:4px 0 0;\">Tel : 0 2359 0000 Ext.5032</p>");
+        sb.Append("<p style=\"margin:4px 0 0;\">Tel : ").Append(Enc(AppraisalCompletedPhone)).Append("</p>");
         return Wrap(subject, sb.ToString(), showTitle: false);
     }
 
