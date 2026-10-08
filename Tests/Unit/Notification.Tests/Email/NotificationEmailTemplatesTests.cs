@@ -85,11 +85,12 @@ public class NotificationEmailTemplatesTests
                 new DocumentFollowupNoticeItem("เล่มประเมินสมบูรณ์", "รายละเอียด บรรทัดแรก\nบรรทัดสอง"),
                 new DocumentFollowupNoticeItem("เอกสารแผนที่ภาพถ่ายทางอากาศ", null),
             ],
-            AdminName: "แอดมิน สอง");
+            AdminName: "แอดมิน สอง",
+            AdminPhone: "02-123-4567");
 
         var html = NewRenderer().DocumentFollowupNotice("งานติดตามเอกสารของลูกค้าราย ลูกค้า ก", model);
 
-        Assert.Contains("เรียน สมหญิง", html);
+        Assert.Contains("เรียน คุณสมหญิง", html);
         Assert.Contains("69A00317", html);
         // Document name as a bold header, notes below (long/multiline notes wrap).
         Assert.Contains("<strong>", html); // customer/appraisal
@@ -97,6 +98,7 @@ public class NotificationEmailTemplatesTests
         Assert.Contains("2. เอกสารแผนที่ภาพถ่ายทางอากาศ", html);
         Assert.Contains("รายละเอียด บรรทัดแรก<br/>บรรทัดสอง", html);
         Assert.Contains("แอดมิน สอง", html);
+        Assert.Contains("Tel : 02-123-4567", html);
     }
 
     [Fact]
