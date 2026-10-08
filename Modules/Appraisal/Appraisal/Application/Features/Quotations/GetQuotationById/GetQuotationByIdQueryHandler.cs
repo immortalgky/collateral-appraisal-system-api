@@ -103,8 +103,9 @@ public class GetQuotationByIdQueryHandler(
             .ToList();
 
         // C2: build a lookup from the denormalized Items collection so we can enrich
-        // each appraisal join row with AppraisalNumber, PropertyType, Address, and LoanType.
-        // LoanType maps to BankingSegment (stored on the quotation at creation time).
+        // each appraisal join row with AppraisalNumber, PropertyType, Address, and BankingSegment.
+        // BankingSegment is the appraisal's own segment (live from the Appraisals table): a quotation
+        // has no single segment, only a Segment Set derived from its appraisals.
         var itemsByAppraisalId = quotation.Items
             .GroupBy(i => i.AppraisalId)
             .ToDictionary(g => g.Key, g => g.First());
@@ -152,8 +153,8 @@ public class GetQuotationByIdQueryHandler(
                     AppraisalNumber: appraisalNumber,
                     PropertyType: propertyType,
                     Address: item?.PropertyLocation,
-                    LoanType: quotation.BankingSegment,
                     Channel: channel,
+                    BankingSegment: meta.BankingSegment,
                     RequestId: meta.RequestId == Guid.Empty ? null : meta.RequestId,
                     CustomerName: customerName,
                     MaxAppraisalDays: item?.MaxAppraisalDays,
@@ -169,6 +170,10 @@ public class GetQuotationByIdQueryHandler(
         // UI can render Expired (auto-declined at cutoff) rows alongside Pending/Submitted/Declined.
         // Per-row status is surfaced on the FE via the matching CompanyQuotation entry.
         // External company users do not see the list of rival invitees; they get an empty list.
+
+        // Read the cached set instead of recomputing from appraisalMetaMap — that's the whole
+        var segmentSet = quotation.BankingSegment;
+
         List<InvitedCompanyResult> invitedCompanies;
         if (QuotationAccessPolicy.CanViewInvitedCompanies(currentUser))
         {
@@ -178,7 +183,16 @@ public class GetQuotationByIdQueryHandler(
             var companyInfoMap = await ResolveCompanyInfoAsync(invitationCompanyIds);
             invitedCompanies = invitationCompanyIds
                 .Where(id => companyInfoMap.ContainsKey(id))
-                .Select(id => new InvitedCompanyResult(id, companyInfoMap[id].Name, companyInfoMap[id].NameLocal, companyInfoMap[id].Email))
+                .Select(id =>
+                {
+                    return new InvitedCompanyResult(
+                        id,
+                        companyInfoMap[id].Name,
+                        companyInfoMap[id].NameLocal,
+                        companyInfoMap[id].Email,
+                        companyInfoMap[id].LoanTypes,
+                        SegmentCoverage.MissingSegments(segmentSet, companyInfoMap[id].LoanTypes));
+                })
                 .OrderBy(r => r.CompanyName)
                 .ToList();
         }
@@ -290,13 +304,13 @@ public class GetQuotationByIdQueryHandler(
         _ => code,
     };
 
-    private async Task<Dictionary<Guid, (Guid RequestId, string? AppraisalNumber, string? CollateralType, string? AppraisalType, string? Channel)>> ResolveAppraisalMetaAsync(Guid[] appraisalIds)
+    private async Task<Dictionary<Guid, (Guid RequestId, string? AppraisalNumber, string? CollateralType, string? AppraisalType, string? Channel, string? BankingSegment)>> ResolveAppraisalMetaAsync(Guid[] appraisalIds)
     {
         if (appraisalIds.Length == 0)
-            return new Dictionary<Guid, (Guid, string?, string?, string?, string?)>();
+            return new Dictionary<Guid, (Guid, string?, string?, string?, string?, string?)>();
 
         var connection = connectionFactory.GetOpenConnection();
-        var rows = await connection.QueryAsync<(Guid AppraisalId, Guid RequestId, string? AppraisalNumber, string? CollateralType, string? AppraisalType, string? Channel)>(
+        var rows = await connection.QueryAsync<(Guid AppraisalId, Guid RequestId, string? AppraisalNumber, string? CollateralType, string? AppraisalType, string? Channel, string? BankingSegment)>(
             """
             SELECT a.Id AS AppraisalId,
                    a.RequestId,
@@ -306,7 +320,8 @@ public class GetQuotationByIdQueryHandler(
                     WHERE rp.RequestId = a.RequestId
                     ORDER BY rp.Id) AS CollateralType,
                    a.AppraisalType,
-                   a.Channel
+                   a.Channel,
+                   a.BankingSegment
             FROM [appraisal].[Appraisals] a
             WHERE a.Id IN @AppraisalIds
             """,
@@ -314,7 +329,7 @@ public class GetQuotationByIdQueryHandler(
 
         return rows.ToDictionary(
             r => r.AppraisalId,
-            r => (r.RequestId, r.AppraisalNumber, r.CollateralType, r.AppraisalType, r.Channel));
+            r => (r.RequestId, r.AppraisalNumber, r.CollateralType, r.AppraisalType, r.Channel, r.BankingSegment));
     }
 
     private async Task<Dictionary<Guid, string?>> ResolveAppraisalCustomerNamesAsync(Guid[] appraisalIds)
@@ -465,21 +480,21 @@ public class GetQuotationByIdQueryHandler(
         return rows.ToDictionary(r => r.Id, r => (r.Name, r.NameLocal));
     }
 
-    private async Task<Dictionary<Guid, (string Name, string? NameLocal, string? Email)>> ResolveCompanyInfoAsync(Guid[] companyIds)
+    private async Task<Dictionary<Guid, (string Name, string? NameLocal, string? Email, List<string> LoanTypes)>> ResolveCompanyInfoAsync(Guid[] companyIds)
     {
         if (companyIds.Length == 0)
-            return new Dictionary<Guid, (string, string?, string?)>();
+            return new Dictionary<Guid, (string, string?, string?, List<string>)>();
 
         var connection = connectionFactory.GetOpenConnection();
-        var rows = await connection.QueryAsync<(Guid Id, string Name, string? NameLocal, string? Email)>(
+        var rows = await connection.QueryAsync<(Guid Id, string Name, string? NameLocal, string? Email, string? LoanTypes)>(
             """
-            SELECT c.Id, c.Name, NULLIF(c.NameLocal, N'') AS NameLocal, c.Email
+            SELECT c.Id, c.Name, NULLIF(c.NameLocal, N'') AS NameLocal, c.Email, c.LoanTypes
             FROM [auth].[Companies] c
             WHERE c.Id IN @CompanyIds
             """,
             new { CompanyIds = companyIds });
 
-        return rows.ToDictionary(r => r.Id, r => (r.Name, r.NameLocal, r.Email));
+        return rows.ToDictionary(r => r.Id, r => (r.Name, r.NameLocal, r.Email, SegmentCoverage.ParseLoanTypes(r.LoanTypes)));
     }
 
     private async Task<IReadOnlyList<QuotationSharedDocumentResult>> EnrichSharedDocumentsAsync(

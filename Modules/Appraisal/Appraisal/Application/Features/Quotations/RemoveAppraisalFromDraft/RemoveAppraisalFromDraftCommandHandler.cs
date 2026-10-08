@@ -7,6 +7,7 @@ using Shared.Time;
 namespace Appraisal.Application.Features.Quotations.RemoveAppraisalFromDraft;
 
 public class RemoveAppraisalFromDraftCommandHandler(
+    ISqlConnectionFactory connectionFactory,
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
     IIntegrationEventOutbox outbox,
@@ -32,6 +33,21 @@ public class RemoveAppraisalFromDraftCommandHandler(
 
         if (quotation.Status != "Draft")
             throw new BadRequestException($"Cannot remove appraisal from quotation in status '{quotation.Status}'.");
+
+        // Recompute BankingSegment from the set that will remain AFTER this removal, and set it
+        // BEFORE calling RemoveAppraisal below. If this is the last appraisal, RemoveAppraisal
+        // auto-cancels the quotation (QuotationRequest.cs) — Status stops being "Draft" the
+        // moment that happens, inside that same call — so SetBankingSegment's Draft-only guard
+        // would reject a call made after it, leaving a stale, non-empty cached value on a now
+        // appraisal-less Cancelled quotation. Setting it first, while still Draft, correctly
+        // clears it to [] in that case too.
+        var remainingAppraisalIds = quotation.Appraisals
+            .Where(a => a.AppraisalId != command.AppraisalId)
+            .Select(a => a.AppraisalId)
+            .ToArray();
+        var appraisalSegments = await SegmentCoverage.LoadAppraisalSegmentSetAsync(
+            connectionFactory.GetOpenConnection(), remainingAppraisalIds);
+        quotation.SetBankingSegment(appraisalSegments.ToList());
 
         // Domain guard: appraisal must be present on this quotation
         try

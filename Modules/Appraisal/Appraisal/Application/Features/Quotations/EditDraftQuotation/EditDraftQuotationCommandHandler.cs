@@ -4,6 +4,7 @@ using Shared.Identity;
 namespace Appraisal.Application.Features.Quotations.EditDraftQuotation;
 
 public class EditDraftQuotationCommandHandler(
+    ISqlConnectionFactory connectionFactory,
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser)
     : ICommandHandler<EditDraftQuotationCommand, EditDraftQuotationResult>
@@ -36,8 +37,16 @@ public class EditDraftQuotationCommandHandler(
 
         // Per-appraisal MaxAppraisalDays. We only touch items the caller listed; entries
         // whose AppraisalId isn't on the quotation throw via the aggregate guard.
-        foreach (var entry in command.Appraisals)
-            quotation.SetItemMaxAppraisalDays(entry.AppraisalId, entry.MaxAppraisalDays);
+        if (command.Appraisals is { Count: > 0 })
+        {
+            foreach (var entry in command.Appraisals)
+            {
+                quotation.SetItemMaxAppraisalDays(entry.AppraisalId, entry.MaxAppraisalDays);
+            }
+
+            var appraisalCoverage = await SegmentCoverage.LoadAppraisalSegmentSetAsync(connectionFactory.GetOpenConnection(), quotation.Appraisals.Select(a => a.AppraisalId).ToArray());
+            quotation.SetBankingSegment(appraisalCoverage);
+        }
 
         // Quotation-level special requirements (null/empty clears it).
         quotation.SetSpecialRequirements(command.SpecialRequirements);

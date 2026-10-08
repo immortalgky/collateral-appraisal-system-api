@@ -10,6 +10,12 @@ public class BadRequestException : Exception
     /// </summary>
     public string? Code { get; }
 
+    /// <summary>
+    /// Optional machine-readable payload (e.g. an error code and the offending items) surfaced as
+    /// ProblemDetails extensions so the client can act on it without parsing <see cref="Exception.Message"/>.
+    /// </summary>
+    public IReadOnlyDictionary<string, object?>? Extensions { get; }
+
     public BadRequestException(string message) : base(message)
     {
     }
@@ -23,5 +29,10 @@ public class BadRequestException : Exception
     {
         Details = details;
         Code = code;
+    }
+    
+    public BadRequestException(string message, IReadOnlyDictionary<string, object?> extensions) : base(message)
+    {
+        Extensions = extensions;
     }
 }

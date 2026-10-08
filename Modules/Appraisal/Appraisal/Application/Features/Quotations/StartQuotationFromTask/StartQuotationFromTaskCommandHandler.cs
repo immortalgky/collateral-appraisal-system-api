@@ -82,6 +82,9 @@ public class StartQuotationFromTaskCommandHandler(
             estimatedValue: summary.EstimatedValue,
             maxAppraisalDays: command.MaxAppraisalDays);
 
+        var appraisalSegments = await SegmentCoverage.LoadAppraisalSegmentSetAsync(connectionFactory.GetOpenConnection(), quotation.Appraisals.Select(a => a.AppraisalId).ToArray());
+        quotation.SetBankingSegment(appraisalSegments.ToList());
+
         quotationRepository.Update(quotation);
 
         outbox.Publish(new AppraisalAddedToQuotationIntegrationEvent
@@ -136,7 +139,7 @@ public class StartQuotationFromTaskCommandHandler(
             requestId: command.RequestId,
             workflowInstanceId: command.WorkflowInstanceId,
             taskExecutionId: command.TaskExecutionId,
-            bankingSegment: command.BankingSegment,
+            bankingSegment: [],
             addedBy: requestedBy,
             now: dateTimeProvider.ApplicationNow,
             rmUsername: rmUsername,
@@ -151,6 +154,9 @@ public class StartQuotationFromTaskCommandHandler(
             propertyLocation: summary.PropertyLocation,
             estimatedValue: summary.EstimatedValue,
             maxAppraisalDays: command.MaxAppraisalDays);
+
+        var appraisalSegments = await SegmentCoverage.LoadAppraisalSegmentSetAsync(connectionFactory.GetOpenConnection(), quotation.Appraisals.Select(a => a.AppraisalId).ToArray());
+        quotation.SetBankingSegment(appraisalSegments.ToList());
 
         // Invite each company
         var distinctCompanyIds = command.InvitedCompanyIds.Distinct().ToList();

@@ -112,6 +112,7 @@ public class AppraisalRepository(AppraisalDbContext dbContext, ISqlConnectionFac
             SELECT a.Id          AS AppraisalId,
                    a.AppraisalNumber,
                    a.RequestId,
+                   a.BankingSegment,
                    (SELECT TOP 1 rp.PropertyType
                     FROM [request].[RequestProperties] rp
                     WHERE rp.RequestId = a.RequestId
@@ -146,6 +147,7 @@ public class AppraisalRepository(AppraisalDbContext dbContext, ISqlConnectionFac
         return rows
             .Select(r => new AppraisalSummary(
                 AppraisalId: r.AppraisalId,
+                BankingSegment: r.BankingSegment,
                 AppraisalNumber: r.AppraisalNumber,
                 PropertyType: r.PropertyType,
                 PropertyLocation: string.IsNullOrWhiteSpace(r.PropertyLocation) ? null : r.PropertyLocation,
@@ -159,6 +161,7 @@ public class AppraisalRepository(AppraisalDbContext dbContext, ISqlConnectionFac
         Guid AppraisalId,
         string? AppraisalNumber,
         Guid RequestId,
+        string? BankingSegment,
         string? PropertyType,
         string? PropertyLocation);
 }

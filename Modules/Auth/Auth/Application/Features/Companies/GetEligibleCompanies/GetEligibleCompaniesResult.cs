@@ -15,6 +15,9 @@ public record EligibleCompanyDto(
     decimal AverageRating,
     int     EvaluationCount,
     int     ActiveAssignments,
+    // Banking Segments the company is approved to appraise (Company.LoanTypes); lets the quotation
+    // pickers show segment coverage against the appraisals' segments.
+    List<string> LoanTypes,
     // Advisory: false when the company is outside its MOU approval window. The picker is intentionally
     // unfiltered (shared with user-account association), so the FE can use this to badge/disable rows.
     bool    IsAssignable = true);

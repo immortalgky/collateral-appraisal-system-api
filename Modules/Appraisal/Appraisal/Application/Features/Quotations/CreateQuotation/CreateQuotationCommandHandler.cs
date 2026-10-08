@@ -64,6 +64,9 @@ public class CreateQuotationCommandHandler(
                 var rmUsername = await ResolveRmAsync(firstRequestId, cancellationToken);
                 quotation.SetRmInfo(rmUsername);
             }
+
+            var appraisalCoverage = SegmentCoverage.BuildSegmentSet(summaries.Select(a => a.BankingSegment));
+            quotation.SetBankingSegment(appraisalCoverage);
         }
 
         // Invite companies atomically at create time — same domain method as EditDraftQuotation
