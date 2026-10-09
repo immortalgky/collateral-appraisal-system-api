@@ -16,7 +16,7 @@ public record CreateProjectModelRequest(
     decimal? UsableAreaMin = null,
     decimal? UsableAreaMax = null,
     decimal? StandardUsableArea = null,
-    string? FireInsuranceCondition = null,
+    string? FireInsuranceCode = null,
     string? RoomLayoutType = null,        // Condo
     string? RoomLayoutTypeOther = null,   // Condo
     string? GroundFloorMaterialType = null,

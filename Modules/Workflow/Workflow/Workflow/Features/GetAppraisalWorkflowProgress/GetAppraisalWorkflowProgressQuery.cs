@@ -27,6 +27,13 @@ public class ActivityLogItemDto
     public string? TaskDescription { get; set; }
     public string? AssignedTo { get; set; }
     public string? AssignedToDisplayName { get; set; }
+
+    /// <summary>'1' = a named person; anything else = a POOL, and then <see cref="AssignedTo"/>
+    /// holds a group name rather than a user code — optionally suffixed ":Team_&lt;teamId&gt;" by
+    /// PoolAssigneeSelector. <see cref="AssignedToDisplayName"/> is only resolved for '1', so a
+    /// client cannot tell the two apart without this and ends up printing a raw group-plus-GUID
+    /// where it means to print a person.</summary>
+    public string? AssignedType { get; set; }
     /// <summary>When this row's assignee received the task (PendingTask/CompletedTask
     /// AssigneeAssignedAt), not the frozen SLA anchor — so a reassigned task reports each
     /// holder's own start and <see cref="TimeTaken"/> is that holder's own elapsed time.</summary>

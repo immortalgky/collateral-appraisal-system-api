@@ -42,6 +42,17 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
         // External system integration
         builder.Property(p => p.ExternalCaseKey).HasMaxLength(100);
         builder.Property(p => p.ExternalSystem).HasMaxLength(50);
+
+        // Reappraisal batch group number, kept until staff submit (same length as Appraisal.GroupTag).
+        builder.Property(p => p.GroupTag).HasMaxLength(40);
+
+        // The AS400 book a periodical reappraisal request reviews (same length as the survey number
+        // columns it is matched to). request.vw_WaitingReappraisalRequests seeks on it per book.
+        builder.Property(p => p.ReappraisalBookNumber).HasMaxLength(20);
+        builder.Property(p => p.ReappraisalCollateralId).HasMaxLength(50);
+        builder.HasIndex(p => p.ReappraisalBookNumber)
+            .HasFilter("[ReappraisalBookNumber] IS NOT NULL")
+            .HasDatabaseName("IX_Request_ReappraisalBookNumber");
         builder.HasIndex(p => p.ExternalCaseKey)
             .HasFilter("[ExternalCaseKey] IS NOT NULL")
             .HasDatabaseName("IX_Request_ExternalCaseKey");
@@ -192,6 +203,7 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
 
             property.Property(p => p.PropertyType).HasMaxLength(10).HasColumnName("PropertyType");
             property.Property(p => p.BuildingType).HasMaxLength(10).HasColumnName("BuildingType");
+            property.Property(p => p.BuildingTypeOther).HasMaxLength(100).HasColumnName("BuildingTypeOther");
             property.Property(p => p.SellingPrice).HasPrecision(19, 4).HasColumnName("SellingPrice");
 
             //Index

@@ -15,6 +15,6 @@ public record SaveProfitRentAnalysisCommand(
     IReadOnlyList<ProfitRentGrowthPeriodInput>? GrowthPeriods,
     string? Remark,
     decimal? EstimatePriceRounded,
-    decimal? AppraisalPrice,
-    decimal? FinalValueAdjusted = null
+    decimal? IndicatedValue,
+    decimal? FinalValueOverride = null
 ) : ICommand<SaveProfitRentAnalysisResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

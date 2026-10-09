@@ -63,7 +63,11 @@ public static class RentalScheduleComputer
                                 : info.ContractRentalFeePerYear;
                             if (prevBase > 0)
                             {
-                                growthRatePercent = Math.Round(periodEntry.GrowthAmount / prevBase * 100m, 2);
+                                // AwayFromZero: RentalInfoForm.tsx derives the same percentage as
+                                // `Math.round((growthAmount / prevBase) * 100 * 100) / 100`, halves up.
+                                growthRatePercent = Math.Round(
+                                    periodEntry.GrowthAmount / prevBase * 100m, 2,
+                                    MidpointRounding.AwayFromZero);
                             }
                         }
                     }

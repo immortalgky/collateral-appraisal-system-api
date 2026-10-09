@@ -109,12 +109,11 @@ public record RsqResultDto(
 public record FinalValueDto(
     Guid Id,
     decimal FinalValue,
-    decimal FinalValueRounded,
-    decimal? FinalValueAdjusted,
+    decimal? FinalValueOverride,
     bool IncludeLandArea,
     decimal? LandArea,
     decimal? LandValue,       // user-edited land price
     decimal? BuildingValue,   // user-edited building value
-    decimal? AppraisalPrice,  // user-edited final total (hasBuildingValue only)
+    decimal? IndicatedValue,  // user-edited final total (hasBuildingValue only)
     bool HasBuildingValue
 );

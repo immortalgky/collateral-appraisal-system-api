@@ -26,13 +26,12 @@ public class SetFinalValueEndpoint : ICarterModule
                         id,
                         methodId,
                         request.FinalValue,
-                        request.FinalValueRounded,
                         request.IncludeLandArea,
                         request.LandArea,
                         request.LandValue,
                         request.HasBuildingValue,
                         request.BuildingValue,
-                        request.AppraisalPrice
+                        request.IndicatedValue
                     );
 
                     var result = await sender.Send(command, cancellationToken);

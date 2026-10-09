@@ -102,14 +102,26 @@ namespace Common.Migrations
                     b.Property<string>("Message")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("MessageTemplate")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Properties")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("RequestId")
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<string>("RequestPath")
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<string>("SourceContext")
+                        .HasColumnType("nvarchar(256)");
+
                     b.Property<DateTime>("TimeStamp")
                         .HasColumnType("datetime2(3)");
+
+                    b.Property<string>("UserName")
+                        .HasColumnType("nvarchar(128)");
 
                     b.Property<string>("WorkflowInstanceId")
                         .HasColumnType("nvarchar(64)");
@@ -143,11 +155,79 @@ namespace Common.Migrations
                     b.HasIndex("TimeStamp")
                         .HasDatabaseName("IX_Logs_TimeStamp");
 
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("TimeStamp"), new[] { "Level" });
+
                     b.HasIndex("WorkflowInstanceId")
                         .HasDatabaseName("IX_Logs_WorkflowInstanceId")
                         .HasFilter("[WorkflowInstanceId] IS NOT NULL");
 
+                    b.HasIndex("Level", "TimeStamp")
+                        .HasDatabaseName("IX_Logs_Level_TimeStamp");
+
+                    b.HasIndex("UserName", "TimeStamp")
+                        .HasDatabaseName("IX_Logs_UserName_TimeStamp")
+                        .HasFilter("[UserName] IS NOT NULL");
+
                     b.ToTable("Logs", "dbo");
+                });
+
+            modelBuilder.Entity("Common.Domain.Metrics.SystemMetricSample", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("CpuPercent")
+                        .HasColumnType("decimal(5,1)");
+
+                    b.Property<int>("ExceptionsPerMin")
+                        .HasColumnType("int");
+
+                    b.Property<int>("GcHeapMb")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Gen2Collections")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Http5xxPerMin")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("MachineMemoryPercent")
+                        .HasColumnType("decimal(5,1)");
+
+                    b.Property<string>("MachineName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int?>("P95Ms")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ProcessStartedAt")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<int>("RequestsPerMin")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ThreadCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ThreadPoolQueue")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("TimeStamp")
+                        .HasColumnType("datetime2(3)");
+
+                    b.Property<int>("WorkingSetMb")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TimeStamp")
+                        .HasDatabaseName("IX_SystemMetricSamples_TimeStamp");
+
+                    b.ToTable("SystemMetricSamples", "common");
                 });
 
             modelBuilder.Entity("Common.Domain.Notes.DashboardNote", b =>

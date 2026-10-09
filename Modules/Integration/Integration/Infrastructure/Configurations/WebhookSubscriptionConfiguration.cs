@@ -23,9 +23,12 @@ public class WebhookSubscriptionConfiguration : IEntityTypeConfiguration<Webhook
             .IsRequired();
 
         // Nullable — only used for AuthType = HMAC. TokenBearer subscriptions carry their
-        // credential in ClientSecret instead.
+        // credential in ClientSecret instead. Both secrets are stored as ColumnSecretCipher
+        // ENC:v1: values, far longer than the 256-char plaintext limit: a 256-char secret (up to 768
+        // UTF-8 bytes, e.g. Thai) is ~1,450 chars with RSA-4096 and ~3,800 with RSA-16384 — 4000 is
+        // the largest non-MAX nvarchar and covers every practical key size.
         builder.Property(x => x.SecretKey)
-            .HasMaxLength(256);
+            .HasMaxLength(4000);
 
         builder.Property(x => x.AuthType)
             .HasMaxLength(20)
@@ -39,7 +42,7 @@ public class WebhookSubscriptionConfiguration : IEntityTypeConfiguration<Webhook
             .HasMaxLength(100);
 
         builder.Property(x => x.ClientSecret)
-            .HasMaxLength(256);
+            .HasMaxLength(4000);
 
         builder.Property(x => x.HttpMethod)
             .HasMaxLength(10)

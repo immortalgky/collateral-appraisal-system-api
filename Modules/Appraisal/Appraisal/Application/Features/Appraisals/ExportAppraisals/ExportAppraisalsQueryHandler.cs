@@ -6,6 +6,7 @@ using ClosedXML.Excel;
 using Dapper;
 using Shared.CQRS;
 using Shared.Data;
+using Shared.Exceptions;
 using Shared.Identity;
 using Shared.Time;
 
@@ -41,6 +42,18 @@ public class ExportAppraisalsQueryHandler(
         ExportAppraisalsQuery query,
         CancellationToken cancellationToken)
     {
+        // Credit-side callers see every appraisal in the bank, so an unrestricted 10,000-row
+        // spreadsheet of them is the whole collateral book leaving in one click. Masking the
+        // columns is not enough here: the row set itself is the sensitive part. Refuse instead.
+        //
+        // Keyed on "cannot open the workspace", NOT on IsTrackingOnly — the same distinction the
+        // quick search destination needed. A caller holding NEITHER code is not tracking-only, so
+        // the narrower test let them straight through to the full export, and the endpoint carries
+        // no policy beyond login. The UI hides the button on APPRAISAL_VIEW, so this now matches
+        // what the button already implies.
+        if (!AppraisalFieldScope.CanOpenWorkspace(currentUser))
+            throw new ForbiddenException("Exporting the appraisal list is not available on this permission.");
+
         var enforcedCompanyId = AppraisalAccessScope.GetEnforcedCompanyId(currentUser);
         // RequiresView is ignored on purpose: the export always reads the view, so it never
         // takes the cheap base-table path. Check the flag before pointing any query at

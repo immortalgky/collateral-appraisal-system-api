@@ -21,16 +21,11 @@ public sealed class DocumentFollowupEmailHandler(
     ILogger<DocumentFollowupEmailHandler> logger)
     : IConsumer<DocumentFollowupEmailIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<DocumentFollowupEmailIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
-
-        var msg = context.Message;
-        var ct = context.CancellationToken;
-
-        try
+    public Task Consume(ConsumeContext<DocumentFollowupEmailIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, async ct =>
         {
+            var msg = context.Message;
+
             var rm = string.IsNullOrWhiteSpace(msg.RmUsername)
                 ? null
                 : await userLookupService.GetRequestorAsync(msg.RmUsername, ct);
@@ -40,17 +35,20 @@ public sealed class DocumentFollowupEmailHandler(
                 logger.LogWarning(
                     "Skipping document-followup email: no RM email for RmUsername={RmUsername} (MessageId={MessageId})",
                     msg.RmUsername, context.MessageId);
-                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
                 return;
             }
 
-            var adminName = await ResolveNameAsync(msg.ActingUsername, ct);
+            var admin = string.IsNullOrWhiteSpace(msg.ActingUsername)
+                ? null
+                : await userLookupService.GetRequestorAsync(msg.ActingUsername, ct);
+            var adminName = admin?.Name ?? msg.ActingUsername ?? string.Empty;
+
             var subject = $"งานติดตามเอกสารของลูกค้าราย {msg.CustomerName ?? "-"}";
             var items = msg.Items
                 .Select(i => new DocumentFollowupNoticeItem(i.DocumentName, i.Notes))
                 .ToList();
             var model = new DocumentFollowupNoticeModel(
-                rm.Name, msg.CustomerName, msg.AppraisalNumber, items, adminName);
+                rm.Name, msg.CustomerName, msg.AppraisalNumber, items, adminName, admin?.ContactNo);
             var html = templateRenderer.DocumentFollowupNotice(subject, model);
 
             await emailSender.SendAsync(new EmailMessage(
@@ -59,21 +57,5 @@ public sealed class DocumentFollowupEmailHandler(
                 To: [rm.Email],
                 Source: "DocumentFollowup",
                 ReferenceId: msg.FollowupId.ToString()), ct);
-
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex,
-                "Error sending document-followup email (MessageId={MessageId})", context.MessageId);
-            throw;
-        }
-    }
-
-    private async Task<string> ResolveNameAsync(string? username, CancellationToken ct)
-    {
-        if (string.IsNullOrWhiteSpace(username)) return string.Empty;
-        var info = await userLookupService.GetRequestorAsync(username, ct);
-        return info?.Name ?? username;
-    }
+        }, context.CancellationToken);
 }

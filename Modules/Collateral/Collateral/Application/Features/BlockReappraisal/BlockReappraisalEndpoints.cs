@@ -79,10 +79,11 @@ public class BlockReappraisalEndpoints : ICarterModule
                 "/block-reappraisal/{collateralMasterId:guid}/opt-out",
                 async (
                     Guid collateralMasterId,
+                    MarkBlockReappraisalNotRequiredRequest request,
                     ISender sender,
                     CancellationToken cancellationToken) =>
                 {
-                    var command = new MarkBlockReappraisalNotRequiredCommand(collateralMasterId);
+                    var command = new MarkBlockReappraisalNotRequiredCommand(collateralMasterId, request.Remark);
                     var result = await sender.Send(command, cancellationToken);
                     return Results.Ok(result);
                 })

@@ -21,11 +21,11 @@ public class AppraisalCompletedConsumer(
     InboxGuard<CollateralDbContext> inboxGuard)
     : IConsumer<AppraisalCompletedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<AppraisalCompletedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<AppraisalCompletedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<AppraisalCompletedIntegrationEvent> context)
+    {
         var msg = context.Message;
 
         logger.LogInformation(
@@ -52,7 +52,5 @@ public class AppraisalCompletedConsumer(
         logger.LogInformation(
             "AppraisalCompletedConsumer: completed for AppraisalId={AppraisalId}",
             msg.AppraisalId);
-
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }
 }

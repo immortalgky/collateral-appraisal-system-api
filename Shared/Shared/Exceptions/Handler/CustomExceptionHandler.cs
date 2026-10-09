@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Shared.Security;
 
 namespace Shared.Exceptions.Handler;
 
@@ -89,6 +90,19 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
                 exception.GetType().Name,
                 httpContext.Response.StatusCode = StatusCodes.Status409Conflict
             ),
+            // Our own authorisation rules, whose message is written for the caller to read.
+            // Above the UnauthorizedAccessException arm, which is deliberately mute.
+            ForbiddenException =>
+            (
+                exception.Message,
+                exception.GetType().Name,
+                httpContext.Response.StatusCode = StatusCodes.Status403Forbidden
+            ),
+            // Fixed line, never the exception's own message. System.IO throws this same type with
+            // the absolute path in the message ("Access to the path 'X' is denied."), and document
+            // upload (DocumentService) and download (DownloadDocumentEndpoint) are on request
+            // paths — so passing it through would answer a tripped NAS ACL with the server's
+            // storage layout. Throw ForbiddenException where the caller needs to be told why.
             UnauthorizedAccessException =>
             (
                 "Access is denied",
@@ -100,6 +114,14 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
                 "The request was cancelled",
                 exception.GetType().Name,
                 httpContext.Response.StatusCode = StatusCodes.Status499ClientClosedRequest
+            ),
+            // Fixed line: the message names the certificate thumbprint, store and config keys, which
+            // are for the server log (written above), not the browser.
+            SecretCipherException =>
+            (
+                "Secret storage is unavailable. Please contact support",
+                exception.GetType().Name,
+                httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError
             ),
             DbUpdateException =>
             (
@@ -131,14 +153,26 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
 
         problemDetails.Extensions.Add("traceId", httpContext.TraceIdentifier);
 
+        // Only what the caller needs. A ValidationFailure also carries AttemptedValue (and the same value
+        // again in FormattedMessagePlaceholderValues), which would echo a rejected password or secret
+        // back in plaintext — into HAR files, proxy captures and bug reports.
         if (exception is ValidationException validationException)
-            problemDetails.Extensions.Add("ValidationErrors", validationException.Errors);
+            problemDetails.Extensions.Add("ValidationErrors", validationException.Errors.Select(e => new
+            {
+                e.PropertyName,
+                e.ErrorMessage,
+                e.ErrorCode,
+                e.Severity
+            }));
 
         if (exception is BulkUploadParseException bulkEx)
             problemDetails.Extensions.Add("rowErrors", bulkEx.RowErrors);
 
         if (exception is ConflictException { Code: not null } conflictEx)
             problemDetails.Extensions.Add("errorCode", conflictEx.Code);
+
+        if (exception is BadRequestException { Code: not null } badRequestEx)
+            problemDetails.Extensions.Add("errorCode", badRequestEx.Code);
 
         // Not the middleware's token: it hands us `RequestAborted`, which is already cancelled for
         // anything arising from a cancellation — the write would throw, this method would return

@@ -82,7 +82,6 @@ public record UpdateLandPropertyCommand(
     string? RoyalDecree = null,
     bool? IsEncroached = null,
     string? EncroachmentRemark = null,
-    decimal? EncroachmentArea = null,
     bool? IsLandlocked = null,
     string? LandlockedRemark = null,
     bool? IsForestBoundary = null,
@@ -108,6 +107,8 @@ public record UpdateLandPropertyCommand(
     string? Remark = null,
 // Land Titles
     List<LandTitleItemData>? Titles = null,
+    // Area deductions (null = no-op, empty list = clear all)
+    List<LandAreaDeductionData>? LandAreaDeductions = null,
 // Rental
     bool? IsRentedOut = null,
     LeaseAgreementData? LeaseAgreement = null,

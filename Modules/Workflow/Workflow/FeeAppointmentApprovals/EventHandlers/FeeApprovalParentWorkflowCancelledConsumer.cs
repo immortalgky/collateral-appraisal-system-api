@@ -19,11 +19,11 @@ public class FeeApprovalParentWorkflowCancelledConsumer(
     ILogger<FeeApprovalParentWorkflowCancelledConsumer> logger)
     : IConsumer<WorkflowCancelled>
 {
-    public async Task Consume(ConsumeContext<WorkflowCancelled> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<WorkflowCancelled> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<WorkflowCancelled> context)
+    {
         var msg = context.Message;
 
         // Resolve the appraisalId from the cancelled workflow's variables
@@ -33,20 +33,17 @@ public class FeeApprovalParentWorkflowCancelledConsumer(
 
         if (workflowInstance is null)
         {
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
             return;
         }
 
         // Read appraisalId from variables (same helper pattern as RaiseHandler)
         if (!workflowInstance.Variables.TryGetValue("appraisalId", out var rawAppraisalId))
         {
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
             return;
         }
 
         if (!Guid.TryParse(rawAppraisalId?.ToString(), out var appraisalId))
         {
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
             return;
         }
 
@@ -56,7 +53,6 @@ public class FeeApprovalParentWorkflowCancelledConsumer(
 
         if (openApprovals.Count == 0)
         {
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
             return;
         }
 
@@ -92,7 +88,5 @@ public class FeeApprovalParentWorkflowCancelledConsumer(
                     approval.Id, appraisalId);
             }
         }
-
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }
 }

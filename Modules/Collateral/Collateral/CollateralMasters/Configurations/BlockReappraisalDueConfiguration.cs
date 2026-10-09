@@ -25,6 +25,7 @@ public class BlockReappraisalDueConfiguration : IEntityTypeConfiguration<BlockRe
         builder.Property(r => r.LastAppraisedDate);
         builder.Property(r => r.DueDate).IsRequired();
         builder.Property(r => r.Status).IsRequired().HasMaxLength(20).HasDefaultValue("Pending");
+        builder.Property(r => r.NotRequiredRemark).HasMaxLength(500);
 
         builder.Property(r => r.CreatedAt).IsRequired();
         builder.Property(r => r.UpdatedAt).IsRequired();

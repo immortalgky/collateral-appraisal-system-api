@@ -16,7 +16,8 @@ public class ApplySelectionEndpoint : ICarterModule
                     var command = new ApplySelectionCommand(
                         id,
                         request.Selections ?? [],
-                        request.FinalApproachId);
+                        request.FinalApproachId,
+                        request.FullyDescribedApproachIds ?? []);
 
                     var result = await sender.Send(command, cancellationToken);
 

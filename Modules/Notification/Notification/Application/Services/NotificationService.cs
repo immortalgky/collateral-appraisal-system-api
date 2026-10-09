@@ -148,19 +148,28 @@ public class NotificationService : INotificationService
         // Store in database
         await _notificationRepository.AddNotificationAsync(notification);
 
-        // Send real-time notification via SignalR
-        await _hubContext.Clients.Group($"user-{username}")
-            .SendAsync("ReceiveNotification", new NotificationDto(
-                notification.Id,
-                notification.Title,
-                notification.Message,
-                notification.Type,
-                notification.CreatedAt,
-                notification.IsRead,
-                notification.ActionUrl,
-                notification.Metadata));
+        // Send real-time notification via SignalR. Best-effort: the row above is the delivery (the bell
+        // list reads it), and throwing here would make the consumer's bus retry store it again.
+        try
+        {
+            await _hubContext.Clients.Group($"user-{username}")
+                .SendAsync("ReceiveNotification", new NotificationDto(
+                    notification.Id,
+                    notification.Title,
+                    notification.Message,
+                    notification.Type,
+                    notification.CreatedAt,
+                    notification.IsRead,
+                    notification.ActionUrl,
+                    notification.Metadata));
 
-        _logger.LogInformation("Sent notification to user {Username}: {Title}", username, title);
+            _logger.LogInformation("Sent notification to user {Username}: {Title}", username, title);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Stored notification {NotificationId} for {Username} but the real-time push failed",
+                notification.Id, username);
+        }
     }
 
     public async Task SendNotificationToGroupAsync(string groupName, string title, string message, NotificationType type, string? actionUrl = null, Dictionary<string, object>? metadata = null)

@@ -15,4 +15,5 @@ public record QuotationSentEmailIntegrationEvent : IntegrationEvent
     public string? Bcc { get; init; }
     public string Subject { get; init; } = default!;
     public string? Content { get; init; }
+    public IReadOnlyList<EmailAttachmentRefData> AttachmentRefs { get; init; } = [];
 }

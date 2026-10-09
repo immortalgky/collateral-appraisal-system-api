@@ -21,16 +21,16 @@ public class UpdateLandPMAPropertyCommandHandler(
                         ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
         LandPmaApplier.Apply(
-            appraisal,
-            command.PropertyId,
-            command.SellingPrice,
-            command.ForcedSalePrice,
-            command.BuildingInsurancePrice,
-            command.Titles,
-            command.SubDistrict,
-            command.District,
-            command.Province,
-            dateTimeProvider);
+            appraisal: appraisal,
+            propertyId: command.PropertyId,
+            sellingPrice: command.SellingPrice,
+            forcedSalePrice: command.ForcedSalePrice,
+            buildingInsurancePrice: command.BuildingInsurancePrice,
+            titles: command.Titles,
+            subDistrict: command.SubDistrict,
+            district: command.District,
+            province: command.Province,
+            dateTimeProvider: dateTimeProvider);
 
         // Push the updated PMA to the external LOS system asynchronously (outbox → integration
         // event → webhook, delivered by the Integration module). Save stays atomic — the outbox

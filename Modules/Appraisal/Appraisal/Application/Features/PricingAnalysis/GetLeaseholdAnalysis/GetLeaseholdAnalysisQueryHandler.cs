@@ -40,7 +40,6 @@ public class GetLeaseholdAnalysisQueryHandler(
             la.TotalIncomeOverLeaseTerm,
             la.ValueAtLeaseExpiry,
             method.FinalValue?.FinalValue ?? 0m,
-            method.FinalValue?.FinalValueRounded ?? 0m,
             la.IsPartialUsage,
             la.PartialRai,
             la.PartialNgan,
@@ -50,6 +49,7 @@ public class GetLeaseholdAnalysisQueryHandler(
             la.PartialLandPrice,
             la.EstimateNetPrice,
             la.EstimatePriceRounded,
+            method.FinalValue?.IndicatedValue,
             la.LandGrowthPeriods.OrderBy(p => p.FromYear).Select(p => new LandGrowthPeriodDto(
                 p.Id, p.FromYear, p.ToYear, p.GrowthRatePercent
             )).ToList(),

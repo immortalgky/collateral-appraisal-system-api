@@ -98,6 +98,12 @@ public class QuotationRequestConfiguration : IEntityTypeConfiguration<QuotationR
             .OnDelete(DeleteBehavior.Cascade)
             .HasConstraintName("FK_QuotationSharedDocuments_QuotationRequests_QuotationRequestId");
 
+        builder.HasMany(q => q.Documents)
+            .WithOne()
+            .HasForeignKey(d => d.QuotationRequestId)
+            .OnDelete(DeleteBehavior.Cascade)
+            .HasConstraintName("FK_QuotationDocuments_QuotationRequests_QuotationRequestId");
+
         // ── Indexes ───────────────────────────────────────────────────────────
         builder.HasIndex(q => q.Status);
         builder.HasIndex(q => q.CutOffTime);
@@ -269,6 +275,7 @@ public class CompanyQuotationItemConfiguration : IEntityTypeConfiguration<Compan
         builder.Property(i => i.FeeAmount).HasPrecision(18, 2).HasDefaultValue(0m).IsRequired();
         builder.Property(i => i.Discount).HasPrecision(18, 2).HasDefaultValue(0m).IsRequired();
         builder.Property(i => i.NegotiatedDiscount).HasPrecision(18, 2).IsRequired(false);
+        builder.Property(i => i.ItemNegotiationReason).HasMaxLength(500);
         builder.Property(i => i.VatPercent).HasPrecision(18, 2).HasDefaultValue(0m).IsRequired();
 
         // Derived computed helpers — not persisted

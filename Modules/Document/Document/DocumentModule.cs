@@ -42,6 +42,10 @@ public static class DocumentModule
         services.AddScoped<IDocumentCreatorService>(sp => (IDocumentCreatorService)sp.GetRequiredService<IDocumentService>());
         services.AddSingleton<IImageResizeService, ImageResizeService>();
 
+        services.Configure<ChunkedUploadOptions>(configuration.GetSection(ChunkedUploadOptions.SectionName));
+        services.AddSingleton<IChunkedUploadStore, ChunkedUploadStore>();
+        services.AddTransient<ChunkedUploadCleanupJob>();
+
         // Email attachment content port — consumed by Notification module's DocumentAttachmentResolver.
         services.AddTransient<IDocumentContentProvider, DocumentContentProvider>();
 

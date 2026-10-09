@@ -39,8 +39,12 @@ public class SaveMachineCostItemsCommandHandler(
         // Mirror the committed total into the shared PricingFinalValue (single source of truth).
         // Land area and building value are not applicable for MachineryCost.
         method.MirrorMachineCostTotalToFinalValue();
-        method.FinalValue!.SetFinalValueAdjusted(command.FinalValueAdjusted);
-        method.FinalValue.SetAppraisalPrice(command.AppraisalPrice);
+        method.FinalValue!.SetFinalValueOverride(command.FinalValueOverride);
+        method.FinalValue.SetIndicatedValue(command.IndicatedValue);
+
+        // The edited FMV total the appraiser typed over wins over the raw FMV sum the calc service
+        // just wrote to MethodValue.
+        method.SyncMethodValueWithIndicatedValue();
         var totalFmv = method.FinalValue.FinalValue;
 
         // Roll the recalculated method value up through approach → analysis (null-safe, idempotent).

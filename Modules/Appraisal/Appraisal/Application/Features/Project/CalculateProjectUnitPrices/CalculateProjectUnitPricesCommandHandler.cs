@@ -2,7 +2,7 @@ using Appraisal.Application.Configurations;
 using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using MediatR;
-using Parameter.Contracts.PricingParameters;
+using Appraisal.Application.Features.FireInsuranceRates.GetFireInsuranceRates;
 using DomainProject = Appraisal.Domain.Projects.Project;
 
 namespace Appraisal.Application.Features.Project.CalculateProjectUnitPrices;
@@ -48,13 +48,13 @@ public class CalculateProjectUnitPricesCommandHandler(
         // Fetch fire-insurance coverage rates (Parameter-module reference data; no kind filter —
         // both Condo and LandAndBuilding conditions are needed).
         var ratesResult = await mediator.Send(new GetFireInsuranceRatesQuery(), cancellationToken);
-        var ratesByCondition = ratesResult.Rates.ToDictionary(
-            r => r.Condition,
+        var ratesByCode = ratesResult.Rates.ToDictionary(
+            r => r.Code,
             r => r.RatePerSqm,
             StringComparer.Ordinal);
 
         // Domain method performs all type-specific calculations and returns the updated price rows
-        var prices = project.CalculateUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCondition);
+        var prices = project.CalculateUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCode);
 
         // Upsert: new rows get Added, existing rows were mutated in-place by the domain method
         foreach (var price in prices)

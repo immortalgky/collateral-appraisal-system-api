@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Appraisal.Application.Features.HistorySearch;
 using Integration.Fixtures;
+using Integration.WebApplicationFactories;
 using Appraisal.Infrastructure;
 using Appraisal.Domain.MarketComparables;
 using Microsoft.Extensions.DependencyInjection;
@@ -91,7 +92,9 @@ public class HistorySearchEndpointTests(IntegrationTestFixture fixture)
             District: null,
             Province: null);
 
-        var client = fixture.IntegrationTestWebApplicationFactory.CreateClient();
+        await using var factory = new AnonymousWebApplicationFactory(
+            fixture.ConnectionString, fixture.RabbitMq.GetConnectionString());
+        using var client = factory.CreateClient();
 
         // Act — no auth header.
         var response = await client.PostAsJsonAsync("/history-search", query, JsonOpts);

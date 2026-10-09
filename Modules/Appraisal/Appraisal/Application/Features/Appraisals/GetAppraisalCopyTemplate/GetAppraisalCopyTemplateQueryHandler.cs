@@ -26,7 +26,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
 
         // ── 1. Header row (from the view we created) ──────────────────────
         const string headerSql = """
-            SELECT AppraisalId, AppraisalNumber, AppointmentDate, [Status], AppraisalValue, RequestId,
+            SELECT AppraisalId, AppraisalNumber, AppointmentDate, AppraisalDate, [Status], AppraisalValue, RequestId,
                    HouseNumber, ProjectName, Moo, Soi, Road, SubDistrict, District, Province, Postcode,
                    ContactPersonName, ContactPersonPhone, DealerCode,
                    BankingSegment, LoanApplicationNumber, FacilityLimit,
@@ -54,7 +54,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
         var customerRows = await connection.QueryAsync<CustomerRow>(customerSql, requestParams);
 
         // ── 3. Properties ─────────────────────────────────────────────────
-        const string propertySql = "SELECT PropertyType, BuildingType, SellingPrice FROM request.RequestProperties WHERE RequestId = @RequestId";
+        const string propertySql = "SELECT PropertyType, BuildingType, BuildingTypeOther, SellingPrice FROM request.RequestProperties WHERE RequestId = @RequestId";
         var propertyRows = await connection.QueryAsync<PropertyRow>(propertySql, requestParams);
 
         // ── 4. Documents (reference-copy only — filename + storage key) ───
@@ -114,6 +114,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
                 t.Notes
             FROM request.RequestTitles t
             WHERE t.RequestId = @RequestId
+            ORDER BY t.SequenceNumber, t.CreatedAt, t.Id
             """;
         var titleRows = await connection.QueryAsync<TitleRow>(titleSql, requestParams);
 
@@ -135,6 +136,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
             header.AppraisalNumber,
             header.AppraisalValue,       // From appraisal.ValuationAnalyses.AppraisedValue (LEFT JOIN; null if no valuation yet)
             header.AppointmentDate,
+            header.AppraisalDate,        // COALESCE(ValuationDate, AppointmentDateTime, CompletedAt) in the view
             priorInspectionCount + 1);
 
         var detail = new RequestDetailCopyDto(
@@ -166,7 +168,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
             .ToList();
 
         var properties = propertyRows
-            .Select(r => new RequestPropertyDto(r.PropertyType, r.BuildingType, r.SellingPrice))
+            .Select(r => new RequestPropertyDto(r.PropertyType, r.BuildingType, r.BuildingTypeOther, r.SellingPrice))
             .ToList();
 
         var documents = documentRows
@@ -250,6 +252,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
         public Guid AppraisalId { get; set; }
         public string? AppraisalNumber { get; set; }
         public DateTime? AppointmentDate { get; set; }
+        public DateTime? AppraisalDate { get; set; }
         public string Status { get; set; } = "";
         public decimal? AppraisalValue { get; set; }
         public Guid RequestId { get; set; }
@@ -284,6 +287,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
     {
         public string? PropertyType { get; set; }
         public string? BuildingType { get; set; }
+        public string? BuildingTypeOther { get; set; }
         public decimal? SellingPrice { get; set; }
     }
 

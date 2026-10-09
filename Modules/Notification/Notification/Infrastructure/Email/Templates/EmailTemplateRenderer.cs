@@ -12,7 +12,7 @@ namespace Notification.Infrastructure.Email.Templates;
 internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTemplateRenderer
 {
     public string QuotationSent(string subject, string? adminContent) =>
-        Wrap(subject, BuildBody(adminContent));
+        Wrap(subject, adminContent);
 
     public string MeetingInvitation(string subject, string? adminContent) =>
         Wrap(subject, BuildBody(adminContent));
@@ -21,11 +21,11 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
     {
         var sb = new System.Text.StringBuilder();
 
-        sb.Append("<p style=\"margin:0 0 12px;\">เรียน ").Append(Enc(model.RmName)).Append("</p>");
+        sb.Append("<p style=\"margin:0 0 12px;\">เรียน คุณ").Append(Enc(model.RmName)).Append("</p>");
 
         sb.Append("<p style=\"margin:0 0 4px;\">แจ้งค่าธรรมเนียมประเมิน ลูกค้าราย <strong>")
             .Append(Enc(model.CustomerName ?? "-")).Append("</strong></p>");
-        sb.Append("<p style=\"margin:0 0 12px;font-weight:700;color:#c0392b;\">(รบกวนเลือกภายใน 2 วัน)</p>");
+        sb.Append("<p style=\"margin:0 0 12px;font-weight:700;color:#c0392b;\">(รบกวนเลือกภายใน 1 วัน)</p>");
 
         // ── Fee-comparison table ──────────────────────────────────────────────
         sb.Append("<table role=\"presentation\" cellpadding=\"6\" cellspacing=\"0\" " +
@@ -36,7 +36,7 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
             sb.Append(ColumnHeader(col));
         // Last header carries an intentional line break, so it is emitted as raw markup.
         sb.Append("<th style=\"border:1px solid #d0d3d7;text-align:center;font-weight:700;\">" +
-                  "ค่าธรรมเนียม / บาท<br/>รวม Vat</th>");
+                  "ค่าธรรมเนียม (บาท) รวม Vat</th>");
         sb.Append("</tr></thead><tbody>");
 
         foreach (var row in model.Rows)
@@ -54,27 +54,29 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
 
         // ── Note ──────────────────────────────────────────────────────────────
         sb.Append("<p style=\"margin:14px 0 0;font-size:13px;line-height:1.6;\">")
-            .Append("<strong>หมายเหตุ</strong> ณ วันสำรวจหากพบว่ามีที่ดิน, สิ่งปลูกสร้างเพิ่มหรือไม่ตรงตามที่แจ้ง " +
-                    "ค่าธรรมเนียมอาจมีเรียกเก็บเพิ่ม<br/>")
-            .Append("- หากเลือกบริษัทประเมินราคาภายนอกแล้ว รบกวนสินเชื่อแจ้งชื่อกลับสำนักประเมินภายใน 2 วัน " +
-                    "(นับจากวันแจ้งเลือกบริษัทประเมินฯ) (ตามมติที่ประชุม ลงวันที่ 31 ม.ค. 2560)<br/>")
-            .Append("- หากเลยกำหนดตามที่แจ้ง ขอให้เป็นดุลยพินิจของทางสำนักประเมินในการตัดสินใจ เลือกบริษัทประเมิน หรือ ยกเลิก")
+            .Append("<strong>หมายเหตุ</strong><br/>")
+            .Append("1. ณ วันสำรวจ หากพบว่าที่ดินหรือสิ่งปลูกสร้างมีรายละเอียดเพิ่มเติม หรือไม่ตรงตามข้อมูลที่แจ้งไว้ อาจมีการเรียกเก็บค่าธรรมเนียมเพิ่มเติม<br/>")
+            .Append("2. หากพ้นระยะเวลาที่กำหนดดังกล่าว ขอให้เป็นดุลพินิจของทางสำนักประเมินในการพิจารณาดำเนินการต่อ การเลือกบริษัทประเมิน หรือการยกเลิกคำขอ<br/>")
             .Append("</p>");
 
+        sb.Append("<p style=\"margin:16px 0 0;\">หากมีข้อสงสัย กรุณาติดต่อ ").Append(Enc(model.AdminName)).Append("</p>");
         sb.Append("<p style=\"margin:16px 0 0;\">จึงเรียนมาเพื่อโปรดทราบ</p>");
         sb.Append("<p style=\"margin:4px 0 0;\">").Append(Enc(model.AdminName)).Append("</p>");
-
+        if (!string.IsNullOrWhiteSpace(model.AdminPhone))
+            sb.Append("<p style=\"margin:4px 0 0;\">Tel : ").Append(Enc(model.AdminPhone)).Append("</p>");
         return Wrap(subject, sb.ToString(), showTitle: false);
     }
 
     public string DocumentFollowupNotice(string subject, DocumentFollowupNoticeModel model)
     {
         var sb = new System.Text.StringBuilder();
-        sb.Append("<p style=\"margin:0 0 12px;\">เรียน ").Append(Enc(model.RmName)).Append("</p>");
-        sb.Append("<p style=\"margin:0 0 12px;\">งานติดตามเอกสารของลูกค้าราย <strong>")
+        sb.Append("<p style=\"margin:0 0 12px;\">เรียน คุณ").Append(Enc(model.RmName)).Append("</p>");
+        sb.Append("<p style=\"margin:0 0 4px;\">เรื่อง ติดตามเอกสารเพิ่มเติม").Append("</p>");
+        sb .Append("<p style=\"margin:0 0 12px;\">ลูกค้า: <strong>") 
             .Append(Enc(model.CustomerName ?? "-"))
-            .Append("</strong> หมายเลขเล่มประเมิน <strong>")
+            .Append("<br/></strong>Appraisal No.: <strong>")
             .Append(Enc(model.AppraisalNumber ?? "-")).Append("</strong></p>");
+        sb.Append("<p style=\"margin:16px 0 0;\">เอกสารที่ขอเพิ่มเติม").Append("</p>");
 
         // Each requested document: numbered name as a header, remark/notes wrapping below it.
         var itemNumber = 1;
@@ -91,26 +93,58 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
             itemNumber++;
         }
 
+        sb.Append("<p style=\"margin:16px 0 0;\">หากมีข้อสงสัย กรุณาติดต่อ ").Append(Enc(model.AdminName)).Append("</p>");
         sb.Append("<p style=\"margin:16px 0 0;\">จึงเรียนมาเพื่อโปรดทราบ</p>");
         sb.Append("<p style=\"margin:4px 0 0;\">").Append(Enc(model.AdminName)).Append("</p>");
+        if (!string.IsNullOrWhiteSpace(model.AdminPhone))
+            sb.Append("<p style=\"margin:4px 0 0;\">Tel : ").Append(Enc(model.AdminPhone)).Append("</p>");
         return Wrap(subject, sb.ToString(), showTitle: false);
     }
 
     public string RouteBackNotice(string subject, RouteBackNoticeModel model)
     {
         var sb = new System.Text.StringBuilder();
-        sb.Append("<p style=\"margin:0 0 12px;\">เรียน ").Append(Enc(model.RmName)).Append("</p>");
-
-        // Body is just the sender's comment (no descriptive header).
+        sb.Append("<p style=\"margin:0 0 12px;\">เรียน คุณ").Append(Enc(model.RmName)).Append("</p>");
+        sb.Append("<p style=\"margin:0 0 4px;\">เรื่อง ขอข้อมูลเพิ่มเติม").Append("</p>");
+        sb.Append("<p style=\"margin:0 0 12px;\">ลูกค้า: <strong>")
+            .Append(Enc(model.CustomerName ?? "-"))
+            .Append("<br/></strong>Appraisal No.: <strong>")
+            .Append(Enc(model.AppraisalNumber ?? "-"))
+            .Append("</strong>")
+            // "details as follows" only when there are details to follow.
+            .Append(string.IsNullOrWhiteSpace(model.Remark) ? "" : "<br/>โดยมีรายละเอียดดังนี้")
+            .Append("</p>");
         sb.Append(RemarkBlock(model.Remark));
 
-        // Footer contact = sender's full name + phone.
-        var contact = Enc(model.SenderName);
+        sb.Append("<p style=\"margin:16px 0 0;\">หากมีข้อสงสัยกรุณาติดต่อ ")
+            .Append(Enc(model.SenderName)).Append("</p>");
+        sb.Append("<p style=\"margin:16px 0 0;\">จึงเรียนมาเพื่อโปรดทราบ</p>");
+        sb.Append("<p style=\"margin:4px 0 0;\">").Append(Enc(model.SenderName)).Append("</p>");
         if (!string.IsNullOrWhiteSpace(model.SenderPhone))
-            contact += " " + Enc(model.SenderPhone);
-        sb.Append("<p style=\"margin:16px 0 0;\">หากมีข้อสงสัยหรือต้องการสอบถามข้อมูลเพิ่มเติม กรุณาติดต่อ ")
-            .Append(contact).Append("</p>");
-        sb.Append("<p style=\"margin:12px 0 0;\">Best Regards</p>");
+            sb.Append("<p style=\"margin:4px 0 0;\">Tel : ").Append(Enc(model.SenderPhone)).Append("</p>");
+        return Wrap(subject, sb.ToString(), showTitle: false);
+    }
+
+    // Signatory requested by the bank; hardcoded until a configurable sender exists.
+    private const string AppraisalCompletedSignatureName = "เสาวลักษณ์ สุคนธา";
+    private const string AppraisalCompletedPhone = "0 2359 0000 Ext.5032";
+
+    public string AppraisalCompletedNotice(string subject, AppraisalCompletedNoticeModel model)
+    {
+        var channel = Enc(model.Channel);
+        var sb = new System.Text.StringBuilder();
+        sb.Append("<p style=\"margin:0 0 12px;\">เรียน คุณ").Append(Enc(model.RmName)).Append("</p>");
+        sb.Append("<p style=\"margin:0 0 12px;text-indent:2em;\">ขอแจ้งให้ทราบว่า การประเมินหลักประกันของลูกค้า <strong>")
+            .Append(Enc(model.CustomerName ?? "-"))
+            .Append("</strong> เลขเล่มประเมิน <strong>")
+            .Append(Enc(model.AppraisalNumber ?? "-"))
+            .Append("</strong> ได้ดำเนินการเสร็จสิ้นและผ่านการอนุมัติเรียบร้อยแล้ว");
+            // The full report is attached in CAS itself, whatever the request's channel.
+        sb.Append("<p style=\"margin:24px 0 0;\">สามารถดูผลราคาประเมินฉบับสมบูรณ์ได้ที่ระบบ CAS</p>");
+        sb.Append("<p style=\"margin:16px 0 0;\">หากมีข้อสงสัย กรุณาติดต่อ ").Append(Enc(AppraisalCompletedSignatureName)).Append("</p>");
+        sb.Append("<p style=\"margin:24px 0 0;\">ขอแสดงความนับถือ</p>");
+        sb.Append("<p style=\"margin:4px 0 0;\">").Append(Enc(AppraisalCompletedSignatureName)).Append("</p>");
+        sb.Append("<p style=\"margin:4px 0 0;\">Tel : ").Append(Enc(AppraisalCompletedPhone)).Append("</p>");
         return Wrap(subject, sb.ToString(), showTitle: false);
     }
 

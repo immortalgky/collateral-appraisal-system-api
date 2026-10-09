@@ -8,7 +8,7 @@ namespace Appraisal.Tests.Domain.Services;
 /// price unit is persisted onto the method (UnitType / ValuePerUnit) and how it drives
 /// final-value rounding:
 ///   PerSqWa / PerSqm → per-unit rate  → no rounding, ValuePerUnit populated.
-///   PerUnit (or none) → whole lumpsum → floor to nearest 1,000, ValuePerUnit null.
+///   PerUnit (or none) → whole lumpsum → nearest 1,000 (halves up), ValuePerUnit null.
 /// </summary>
 public class SaleGridCalculationServiceTests
 {
@@ -27,14 +27,14 @@ public class SaleGridCalculationServiceTests
     }
 
     [Fact]
-    public void PerUnit_comparable_yields_lumpsum_floored_to_thousand_with_null_valuePerUnit()
+    public void PerUnit_comparable_yields_lumpsum_rounded_to_thousand_with_null_valuePerUnit()
     {
         var method = BuildMethod((1_234_567m, "PerUnit"));
 
         _sut.Recalculate(method);
 
         Assert.Equal("PerUnit", method.UnitType);
-        Assert.Equal(1_234_000m, method.MethodValue); // floored to nearest 1,000
+        Assert.Equal(1_235_000m, method.MethodValue); // nearest 1,000, matching the screen
         Assert.Null(method.ValuePerUnit);
     }
 
@@ -70,7 +70,7 @@ public class SaleGridCalculationServiceTests
         _sut.Recalculate(method);
 
         Assert.Equal("PerUnit", method.UnitType);
-        Assert.Equal(5_000m, method.MethodValue); // floored
+        Assert.Equal(6_000m, method.MethodValue); // 5,555 → nearest 1,000
         Assert.Null(method.ValuePerUnit);
     }
 

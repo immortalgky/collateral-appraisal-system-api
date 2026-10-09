@@ -38,8 +38,8 @@ public class
         builder.Property(e => e.PurchasePrice).HasPrecision(18, 2);
 
         // Dimensions
-        builder.Property(e => e.Capacity).HasMaxLength(100);
-        builder.Property(e => e.MachineDimensions).HasMaxLength(200);
+        builder.Property(e => e.Capacity).HasMaxLength(300);
+        builder.Property(e => e.MachineDimensions).HasMaxLength(300);
         builder.Property(e => e.Width).HasPrecision(10, 2);
         builder.Property(e => e.Length).HasPrecision(10, 2);
         builder.Property(e => e.Height).HasPrecision(10, 2);
@@ -57,7 +57,7 @@ public class
         builder.Property(e => e.MachineCondition).HasMaxLength(100);
         builder.Property(e => e.MachineEfficiency).HasMaxLength(100);
         builder.Property(e => e.MachineTechnology).HasMaxLength(100);
-        builder.Property(e => e.UsagePurpose).HasMaxLength(200);
+        builder.Property(e => e.UsagePurpose).HasMaxLength(300);
         builder.Property(e => e.MachineParts).HasMaxLength(4000);
 
         // Valuation

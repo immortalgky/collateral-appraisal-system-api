@@ -63,9 +63,11 @@ public class GetAppraisalWorkflowProgressQueryHandler(
 
                                     -- Wrapped in a derived table because SQL Server only allows plain
                                     -- output-column references in a UNION's ORDER BY, not expressions.
-                                    SELECT log.* FROM (
+                                    SELECT log.*, c.Name AS CompanyName, c.NameLocal AS CompanyNameLocal
+                                    FROM (
                                         SELECT pt.Id AS RowId,
                                                pt.TaskName, pt.TaskDescription, pt.AssignedTo, pt.AssignedType,
+                                               pt.AssigneeCompanyId,
                                                pt.AssigneeAssignedAt, pt.AssignedAt, pt.OpenedAt,
                                                pt.TaskStatus                AS TaskState,
                                                pt.SlaStartAt, pt.DueAt, pt.SlaStatus, pt.SlaDurationHours,
@@ -82,6 +84,7 @@ public class GetAppraisalWorkflowProgressQueryHandler(
 
                                         SELECT ct.Id AS RowId,
                                                ct.TaskName, ct.TaskDescription, ct.AssignedTo, ct.AssignedType,
+                                               ct.AssigneeCompanyId,
                                                ct.AssigneeAssignedAt, ct.AssignedAt, ct.OpenedAt,
                                                ct.TaskStatus                AS TaskState,
                                                ct.SlaStartAt, ct.DueAt, ct.SlaStatus, ct.SlaDurationHours,
@@ -92,6 +95,31 @@ public class GetAppraisalWorkflowProgressQueryHandler(
                                         FROM workflow.CompletedTasks ct
                                         WHERE ct.CorrelationId = @RequestId
                                     ) log
+                                    -- The firm a task belongs to, read from the TASK itself.
+                                    --
+                                    -- Until now the only company here came from the assignee's own
+                                    -- employer (userMap below), which a POOL row cannot have: it has
+                                    -- no assignee. AssigneeCompanyId was never even selected, so the
+                                    -- link that does exist never left the database, and the rail fell
+                                    -- back to naming the group while the brief — which reads the task
+                                    -- — named the firm, two blocks apart on one screen.
+                                    --
+                                    -- Two ways a task names a firm, the same pair GetAppraisalBrief
+                                    -- resolves: the column (FanOutTasksAssignedEventHandler writes it)
+                                    -- and the team guid PoolAssigneeSelector spells into the assignee
+                                    -- name as ":Team_<teamId>", which CompanyTeamService fills with an
+                                    -- external user's CompanyId. An INTERNAL team id matches no company
+                                    -- row, which is the right answer for it. ':Team_' is 6 characters.
+                                    LEFT JOIN auth.Companies c
+                                           ON c.Id = COALESCE(
+                                                  log.AssigneeCompanyId,
+                                                  CASE WHEN CHARINDEX(':Team_', log.AssignedTo) > 0
+                                                       THEN TRY_CONVERT(UNIQUEIDENTIFIER,
+                                                                SUBSTRING(log.AssignedTo,
+                                                                          CHARINDEX(':Team_', log.AssignedTo) + 6,
+                                                                          36))
+                                                  END)
+                                          AND c.IsDeleted = 0
                                     -- Order on the per-holder stamp, not AssignedAt: a supervisor reassign
                                     -- deliberately freezes AssignedAt across the outgoing audit row and the
                                     -- incoming holder's row, so AssignedAt alone ties and SQL Server is free
@@ -412,16 +440,18 @@ public class GetAppraisalWorkflowProgressQueryHandler(
         return rows.Select((r, idx) =>
         {
             string? displayName = null;
-            string? companyName = null;
-            string? companyNameLocal = null;
+            // The task's own firm, which a pool row has and an assignee-derived one does not.
+            var companyName = r.CompanyName;
+            var companyNameLocal = r.CompanyNameLocal;
             if (r.AssignedType == userAssignedType && r.AssignedTo is not null)
             {
                 if (userMap.TryGetValue(r.AssignedTo, out var user))
                 {
                     displayName = $"{user.FirstName} {user.LastName}".Trim();
                     if (string.IsNullOrWhiteSpace(displayName)) displayName = r.AssignedTo;
-                    companyName = user.CompanyName;
-                    companyNameLocal = user.CompanyNameLocal;
+                    // Only where the task named no firm — an individual's task rarely carries one.
+                    companyName ??= user.CompanyName;
+                    companyNameLocal ??= user.CompanyNameLocal;
                 }
                 else
                 {
@@ -446,6 +476,7 @@ public class GetAppraisalWorkflowProgressQueryHandler(
                 TaskDescription = r.TaskDescription,
                 AssignedTo = r.AssignedTo,
                 AssignedToDisplayName = displayName,
+                AssignedType = r.AssignedType,
                 StartDate = r.AssigneeAssignedAt,
                 StepEnteredAt = r.AssignedAt,
                 OpenedAt = r.OpenedAt,
@@ -484,6 +515,9 @@ public class GetAppraisalWorkflowProgressQueryHandler(
         public string? TaskDescription { get; set; }
         public string? AssignedTo { get; set; }
         public string? AssignedType { get; set; }
+        public Guid? AssigneeCompanyId { get; set; }
+        public string? CompanyName { get; set; }
+        public string? CompanyNameLocal { get; set; }
         public DateTime AssigneeAssignedAt { get; set; }
         public DateTime AssignedAt { get; set; }
         public DateTime? OpenedAt { get; set; }

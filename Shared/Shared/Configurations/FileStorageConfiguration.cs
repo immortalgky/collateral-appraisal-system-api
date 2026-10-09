@@ -59,6 +59,26 @@ public class FileStorageConfiguration
     public long MaxRequestBodyBytes => (long)MaxFileSizeBytes + 1024 * 1024;
 
     /// <summary>
+    /// The largest file the external upload route (<c>POST /api/v1/documents</c>) accepts in one
+    /// request. Separate from <see cref="MaxFileSizeBytes"/> because the two routes are not alike:
+    /// the app splits a large file into chunks, while an outside system — LOS — sends whatever it
+    /// has in a single request and cannot be asked to do otherwise.
+    /// <para>
+    /// That route streams the body straight to storage instead of letting the framework buffer it,
+    /// so the size here costs disk on the share rather than memory or system-drive space. It does
+    /// still have to fit through IIS (<c>maxAllowedContentLength</c>, per node) and whatever the
+    /// load balancer allows, neither of which the application controls.
+    /// </para>
+    /// </summary>
+    public long IntegrationMaxFileSizeBytes { get; set; } = 1024L * 1024 * 1024;
+
+    /// <summary>
+    /// The request-body ceiling for the external upload route: the file plus its multipart
+    /// envelope. See <see cref="MaxRequestBodyBytes"/> for why the allowance exists.
+    /// </summary>
+    public long IntegrationMaxRequestBodyBytes => IntegrationMaxFileSizeBytes + 1024 * 1024;
+
+    /// <summary>
     /// How many bytes of attachments one report book may carry, and therefore also the largest
     /// single appendix that can fit in one. The assembler holds every page of the book in memory
     /// at once, which is why this is a limit of its own rather than the upload limit.

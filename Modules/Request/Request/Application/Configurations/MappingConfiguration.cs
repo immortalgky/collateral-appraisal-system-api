@@ -66,6 +66,7 @@ public static class MappingConfiguration
             .ConstructUsing(src => RequestProperty.Create(
                 src.PropertyType,
                 src.BuildingType,
+                src.BuildingTypeOther,
                 src.SellingPrice
             ));
 

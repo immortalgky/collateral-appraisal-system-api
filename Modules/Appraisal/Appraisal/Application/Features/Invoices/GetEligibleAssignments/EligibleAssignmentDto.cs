@@ -15,5 +15,6 @@ public record EligibleAssignmentDto(
     decimal PayPartialAmount,
     decimal RemainingFee,
     DateTime? SubmittedDate,
-    DateTime? LastPaymentDate
+    DateTime? LastPaymentDate,
+    string? CostCenter
 );

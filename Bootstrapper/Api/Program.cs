@@ -32,6 +32,8 @@ using Shared.Observability;
 using Auth.Infrastructure.HealthChecks;
 using Notification.Infrastructure.Email.HealthChecks;
 using Integration.Infrastructure.HealthChecks;
+using Microsoft.AspNetCore.HttpLogging;
+using OrderedEndpoints = Integration.FailedMessages.OrderedEndpoints;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -43,7 +45,37 @@ builder.Configuration.AddDecryptedSecrets();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-builder.Host.UseSerilog((context, config) => config.ReadFrom.Configuration(context.Configuration));
+// Needed by HttpUserEnricher below (reads the authenticated user off the current request).
+builder.Services.AddHttpContextAccessor();
+
+builder.Host.UseSerilog((context, services, config) => config
+    .ReadFrom.Configuration(context.Configuration)
+    .Enrich.With(new HttpUserEnricher(services.GetRequiredService<IHttpContextAccessor>()))
+    .Enrich.With(new RequestIdBackfillEnricher())
+    // Added in code, not via the "WithMachineName" config method — that method never resolved
+    // (no Serilog.Enrichers.Environment package referenced), so MachineName was always NULL.
+    .Enrich.WithProperty("MachineName", Environment.MachineName));
+
+// HTTP request/response logging for external-facing /api/* endpoints (LOS/CLS). No headers are
+// captured — Authorization must never reach the log table. Binary/multipart bodies are skipped
+// automatically by the middleware's default media-type allow-list. Wired into the pipeline via
+// UseWhen below so it only runs for /api paths.
+// Won't fix: request/response bodies can still contain customer PII (names, addresses, etc.) —
+// accepted by the product owner as a tradeoff for LOS/CLS integration debuggability. dbo.Logs
+// access is already restricted to the LOGS_VIEW permission; no further redaction planned. This log
+// line is Information level, so it does NOT land in the production File sink (restrictedToMinimumLevel:
+// Warning there — see appsettings.Production.json.template) — only in the DB, which is the only place
+// this PII was ever meant to be readable from.
+builder.Services.AddHttpLogging(options =>
+{
+    options.LoggingFields = HttpLoggingFields.RequestMethod | HttpLoggingFields.RequestPath |
+                             HttpLoggingFields.RequestQuery | HttpLoggingFields.ResponseStatusCode |
+                             HttpLoggingFields.Duration | HttpLoggingFields.RequestBody |
+                             HttpLoggingFields.ResponseBody;
+    options.CombineLogs = true; // one event per request instead of separate request/response lines
+    options.RequestBodyLogLimit = 32 * 1024;
+    options.ResponseBodyLogLimit = 32 * 1024;
+});
 
 // Add shared services (time abstraction, security, etc.)
 builder.Services.AddSharedServices(builder.Configuration);
@@ -92,13 +124,20 @@ builder.Services.AddScoped<ISqlConnectionFactory>(provider =>
 builder.Services.AddScoped<IOutboxScope, OutboxScope>();
 builder.Services.AddScoped<IIntegrationEventOutbox, IntegrationEventOutbox>();
 builder.Services.AddScoped(typeof(InboxGuard<>));
-builder.Services.AddHostedService<IntegrationEventDeliveryService<RequestDbContext>>();
-builder.Services.AddHostedService<IntegrationEventDeliveryService<AppraisalDbContext>>();
-builder.Services.AddHostedService<IntegrationEventDeliveryService<DocumentDbContext>>();
-builder.Services.AddHostedService<IntegrationEventDeliveryService<WorkflowDbContext>>();
-builder.Services.AddHostedService<IntegrationEventDeliveryService<CollateralDbContext>>();
-builder.Services.AddHostedService<IntegrationEventDeliveryService<Reporting.Data.ReportingDbContext>>();
 
+// Failed Messages collector discover-fallback (design §3 step 1): records every receive endpoint this
+// node opens, for when the RabbitMQ management tag isn't set yet. Registered both as itself (the
+// collector's constructor injection) and via AddReceiveEndpointObserver (so MassTransit's own container
+// wiring connects it to the bus) — same singleton instance either way.
+builder.Services.AddSingleton<ReceiveEndpointDiscoveryObserver>();
+builder.Services.AddReceiveEndpointObserver<ReceiveEndpointDiscoveryObserver>(
+    sp => sp.GetRequiredService<ReceiveEndpointDiscoveryObserver>());
+
+// MUST be registered before the IntegrationEventDeliveryService hosted services below: .NET starts
+// hosted services in registration order and stops them in reverse, so the bus now starts first and
+// stops last — a delivery service can no longer publish into a bus that has already stopped during
+// shutdown. (The delivery services also link IHostApplicationLifetime.ApplicationStopping as
+// defence in depth, in case this ordering is ever disturbed again.)
 builder.Services.AddMassTransit(config =>
 {
     config.SetKebabCaseEndpointNameFormatter();
@@ -121,17 +160,38 @@ builder.Services.AddMassTransit(config =>
         });
 
         configurator.PrefetchCount = 16;
+
+        // Non-transient exceptions: data must change before retry can succeed.
+        // Skip retries — go straight to dead-letter for ops triage.
+        static void IgnoreNonTransient(IRetryConfigurator r)
+        {
+            r.Ignore<Shared.Exceptions.ConflictException>();
+            r.Ignore<Collateral.CollateralMasters.Exceptions.MissingIdentityKeyException>();
+        }
+
         configurator.UseMessageRetry(r =>
         {
             r.Exponential(5,
                 TimeSpan.FromSeconds(1),
                 TimeSpan.FromSeconds(30),
                 TimeSpan.FromSeconds(5));
-            // Non-transient exceptions: data must change before retry can succeed.
-            // Skip retries — go straight to dead-letter for ops triage.
-            r.Ignore<Shared.Exceptions.ConflictException>();
-            r.Ignore<Collateral.CollateralMasters.Exceptions.MissingIdentityKeyException>();
+            IgnoreNonTransient(r);
         });
+
+        // For every partitioned endpoint below: retries INSIDE the partition (see there). The partition is held
+        // while it waits, so every appraisal hashing to it waits too and each waiting message holds one of the
+        // endpoint's 16 concurrency slots. Hence ~18s of waits rather than the bus's longer exponential policy
+        // (per-attempt time can exceed the waits: EF's retrying strategy runs inside each attempt on
+        // webhook-dispatch, appraisal-status-dashboard and workflow-instance-variables, and on webhook-dispatch
+        // each HTTP call can take ~30s under the standard resilience handler). Its Ignore list MUST stay a subset
+        // of the bus policy's: an exception ignored here is handed to the bus retry, which runs OUTSIDE the
+        // partition and reorders (verified).
+        static void RetryInsidePartition(IRetryConfigurator r)
+        {
+            r.Intervals(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5),
+                TimeSpan.FromSeconds(10));
+            IgnoreNonTransient(r);
+        }
 
         // Single partitioned endpoint for webhook ordering per appraisal.
         // WebhookDispatchConsumer is marked [ExcludeFromConfigureEndpoints] so ConfigureEndpoints
@@ -139,9 +199,10 @@ builder.Services.AddMassTransit(config =>
         // Partitioned by AppraisalId so per-appraisal ordering holds on the single consuming node.
         // Each app node has its own RabbitMQ broker (no clustering) → no competing consumers, so the
         // in-process partitioner alone is sufficient; no SingleActiveConsumer needed.
-        configurator.ReceiveEndpoint("webhook-dispatch", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.WebhookDispatch, e =>
         {
             var partitioner = e.CreatePartitioner(16);
+            e.UseMessageRetry(RetryInsidePartition);
             e.ConfigureConsumer<WebhookDispatchConsumer>(context);
             e.UsePartitioner<AppraisalCreatedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
             e.UsePartitioner<AppraisalStatusChangedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
@@ -155,13 +216,23 @@ builder.Services.AddMassTransit(config =>
         // processes ConcurrentMessageLimit (= PrefetchCount = 16) in parallel. Each consumer is
         // marked [ExcludeFromConfigureEndpoints] so ConfigureEndpoints does not also auto-create a
         // default (unordered) queue for it.
+        //
+        // Every partitioned endpoint (webhook-dispatch above and #2-#7) also retries at endpoint level
+        // (RetryInsidePartition, declared before ConfigureConsumer and UsePartitioner, the only order that has
+        // been verified; keep it, and add it to any new ordering-critical endpoint). The bus-level retry sits
+        // OUTSIDE the partitioner, so a failed message leaves its partition while it waits and the next message
+        // for the same appraisal overtakes it. An endpoint-level retry runs inside the partition and holds it, and
+        // does not stack with the bus retry: its attempts are all a message gets. Verified against RabbitMQ with
+        // MassTransit 8.4.1; PartitionedRetryOrderingTests re-checks that framework behaviour on its own in-memory
+        // bus in the same order, but nothing checks this file's wiring.
         // ---------------------------------------------------------------------
 
         // #2 External cycle tracking — close-before-open must not silently no-op and
         // corrupt cycle counts / SLA business-minutes.
-        configurator.ReceiveEndpoint("appraisal-ext-cycle", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.AppraisalExtCycle, e =>
         {
             var partitioner = e.CreatePartitioner(16);
+            e.UseMessageRetry(RetryInsidePartition);
             e.ConfigureConsumer<ExternalCycleTrackingHandler>(context);
             e.UsePartitioner<WorkflowTransitionedIntegrationEvent>(
                 partitioner, m => m.Message.AppraisalId ?? m.Message.WorkflowInstanceId);
@@ -178,9 +249,10 @@ builder.Services.AddMassTransit(config =>
         // is staged in the outbox before the transition (earlier OccurredAt), so it is delivered first and,
         // serialized here, sets the assignment to Assigned before the transition handler stamps SLADueDate
         // at the window's start activity (otherwise the Pending guard would skip the stamp).
-        configurator.ReceiveEndpoint("appraisal-sync", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.AppraisalSync, e =>
         {
             var partitioner = e.CreatePartitioner(16);
+            e.UseMessageRetry(RetryInsidePartition);
             e.ConfigureConsumer<WorkflowTransitionedIntegrationEventHandler>(context);
             e.ConfigureConsumer<CompanyAssignedIntegrationEventHandler>(context);
             e.ConfigureConsumer<InternalAssignedIntegrationEventHandler>(context);
@@ -194,9 +266,10 @@ builder.Services.AddMassTransit(config =>
 
         // #4 Dashboard status counter — the decrement-old/increment-new bucket move is not
         // commutative; serialize per appraisal so out-of-order transitions don't drift counts.
-        configurator.ReceiveEndpoint("appraisal-status-dashboard", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.AppraisalStatusDashboard, e =>
         {
             var partitioner = e.CreatePartitioner(16);
+            e.UseMessageRetry(RetryInsidePartition);
             e.ConfigureConsumer<AppraisalStatusChangedDashboardHandler>(context);
             e.UsePartitioner<AppraisalStatusChangedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
         });
@@ -204,9 +277,10 @@ builder.Services.AddMassTransit(config =>
         // #5 Assignment SLA recalculation — unconditionally re-stamps AppraisalAssignment.SLADueDate
         // whenever an appointment-anchored group-window deadline shifts due to a reschedule.
         // Partitioned by AppraisalId so per-appraisal ordering holds.
-        configurator.ReceiveEndpoint("appraisal-sla-recalc", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.AppraisalSlaRecalc, e =>
         {
             var partitioner = e.CreatePartitioner(16);
+            e.UseMessageRetry(RetryInsidePartition);
             e.ConfigureConsumer<AssignmentSlaRecalculatedIntegrationEventConsumer>(context);
             e.UsePartitioner<AssignmentSlaRecalculatedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
         });
@@ -230,9 +304,10 @@ builder.Services.AddMassTransit(config =>
         //
         // All three consumers are [ExcludeFromConfigureEndpoints] so ConfigureEndpoints does not
         // also create unordered auto-queues for them.
-        configurator.ReceiveEndpoint("workflow-instance-variables", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.WorkflowInstanceVariables, e =>
         {
             var partitioner = e.CreatePartitioner(16);
+            e.UseMessageRetry(RetryInsidePartition);
 
             e.ConfigureConsumer<AppraisalCreatedIntegrationEventConsumer>(context);
             e.ConfigureConsumer<AppraisalValueChangedIntegrationEventConsumer>(context);
@@ -252,9 +327,10 @@ builder.Services.AddMassTransit(config =>
         // that save's own status event arrives; self-correcting, not a data-loss risk. Consumer is
         // [ExcludeFromConfigureEndpoints] to prevent ConfigureEndpoints from also creating an
         // unordered auto-queue.
-        configurator.ReceiveEndpoint("pma-sync-status", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.PmaSyncStatus, e =>
         {
             var partitioner = e.CreatePartitioner(16);
+            e.UseMessageRetry(RetryInsidePartition);
             e.ConfigureConsumer<PmaExternalSyncStatusChangedIntegrationEventHandler>(context);
             e.UsePartitioner<PmaExternalSyncStatusChangedIntegrationEvent>(partitioner, m => m.Message.AppraisalId);
         });
@@ -269,6 +345,14 @@ builder.Services.AddMassTransit(config =>
         configurator.ConfigureEndpoints(context);
     });
 });
+
+// Registered after AddMassTransit (see the comment above it) so these stop before the bus does.
+builder.Services.AddHostedService<IntegrationEventDeliveryService<RequestDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<AppraisalDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<DocumentDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<WorkflowDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<CollateralDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<Reporting.Data.ReportingDbContext>>();
 
 builder.Services.AddHttpClient("CAS", client =>
 {
@@ -447,6 +531,28 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseCors("SPAPolicy");
 app.UseMiddleware<CorrelationIdMiddleware>();
+
+// Must stay above UseRouting (see gotcha_middleware_after_userouting_never_runs) — placed after
+// CorrelationIdMiddleware so the combined log line carries CorrelationId, and before
+// UseExceptionHandler so a 500 written by the handler is still captured with its response body.
+// Scoped to /api/v1 and /api/v2 only — the external LOS/CLS integration surface (every endpoint
+// in the Integration module lives under one of these two prefixes, policy "Integration"). Plain
+// "/api" would also have logged the SPA's own traffic (/api/workflows/..., /api/sla/...,
+// /api/fee-structures, etc. — none of those are versioned), which isn't what this was for.
+//
+// 401/403 responses on these routes are logged on purpose — an expired/rotated client secret or a
+// missing scope is exactly the integration incident this exists to diagnose; suppressing them would
+// hide it. (An IHttpLoggingInterceptor can't suppress them anyway: with CombineLogs, request-phase
+// fields are already committed before OnResponseAsync sees the status code, and this middleware has
+// to sit before UseAuthentication/UseAuthorization in our pipeline, so OnRequestAsync never knows
+// the eventual outcome either.) Volume risk is low — these routes sit behind the bank's F5 on an
+// internal network, and the body cap is 32KB per side (request, response — see
+// RequestBodyLogLimit/ResponseBodyLogLimit below), so a combined row can hold up to ~64KB of body
+// text, not 32KB.
+app.UseWhen(
+    ctx => ctx.Request.Path.StartsWithSegments("/api/v1") || ctx.Request.Path.StartsWithSegments("/api/v2"),
+    b => b.UseHttpLogging());
+
 app.UseExceptionHandler(options => { });
 
 // Add health check endpoints
@@ -524,9 +630,6 @@ app.MapHealthChecks("/health/external", new HealthCheckOptions
         await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(response));
     }
 }).AllowAnonymous();
-
-// Prometheus metrics scrape endpoint
-app.MapPrometheusScrapingEndpoint("/metrics").AllowAnonymous();
 
 // Must stay above UseRouting: registered at UseHangfire's position (below) this middleware never runs
 // — verified with probe headers on a clean build, twice. It only adjusts framing headers on /hangfire

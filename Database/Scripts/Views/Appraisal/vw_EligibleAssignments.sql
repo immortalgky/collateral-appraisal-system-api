@@ -38,7 +38,12 @@ SELECT aa.Id                                                          AS Assignm
        (SELECT MAX(h.PaymentDate)
         FROM appraisal.AppraisalFeePaymentHistory h
         WHERE h.AppraisalFeeId = af.Id
-          AND h.Source <> 'BankAbsorb')                               AS LastPaymentDate
+          AND h.Source <> 'BankAbsorb')                               AS LastPaymentDate,
+       -- Cost Center of the REQUESTOR (the appraisal book's RequestedBy):
+       -- AspNetUsers.AoCode -> Officers.OfficerCode -> CostCenterCode -> CostCenters.Description.
+       -- Mirrors reporting.vw_RCAS009_FeeSummary's CostCenter resolution; falls back to the raw
+       -- code when the CostCenters lookup finds no description (known code-width mismatch).
+       COALESCE(rcc.Description, rof.CostCenterCode)                  AS CostCenter
 FROM appraisal.AppraisalAssignments aa
          INNER JOIN appraisal.AppraisalFees af ON af.AssignmentId = aa.Id
          INNER JOIN appraisal.Appraisals a ON a.Id = aa.AppraisalId
@@ -48,6 +53,9 @@ FROM appraisal.AppraisalAssignments aa
                            ROW_NUMBER() OVER (PARTITION BY ap2.AppraisalId ORDER BY ap2.SequenceNumber) AS rn
                     FROM appraisal.AppraisalProperties ap2) ap
                    ON ap.AppraisalId = a.Id AND ap.rn = 1
+         LEFT JOIN auth.AspNetUsers ru ON ru.UserName = a.RequestedBy
+         LEFT JOIN auth.Officers rof ON rof.OfficerCode = ru.AoCode
+         LEFT JOIN auth.CostCenters rcc ON rcc.Code = rof.CostCenterCode
 WHERE aa.AssignmentStatus IN ('Verified', 'Completed')
   AND af.BankAbsorbAmount > 0
   -- Invoice gate: assignment must have passed bank verification (Verified) OR be terminal Completed.

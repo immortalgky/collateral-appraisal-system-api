@@ -342,10 +342,13 @@ public static class AuthModule
             .AddUserPermissionPolicy("workflow.admin", "WORKFLOW_ADMIN")
             .AddUserPermissionPolicy("WebhookDeliveriesView", "WEBHOOK_DELIVERIES_VIEW")
             .AddUserPermissionPolicy("WebhookDeliveriesRetry", "WEBHOOK_DELIVERIES_RETRY")
+            .AddUserPermissionPolicy("FailedMessageView", "FAILED_MESSAGE_VIEW")
+            .AddUserPermissionPolicy("FailedMessageManage", "FAILED_MESSAGE_MANAGE")
             // OAuth client / scope registration + webhook subscription admin
             .AddUserPermissionPolicy("OAuthClientsManage", "OAUTH_CLIENTS_MANAGE")
             .AddUserPermissionPolicy("OAuthScopesManage", "OAUTH_SCOPES_MANAGE")
             .AddUserPermissionPolicy("WebhookSubscriptionsManage", "WEBHOOK_SUBSCRIPTIONS_MANAGE")
+            .AddUserPermissionPolicy("WebhookSecretReveal", "WEBHOOK_SECRET_REVEAL")
             .AddUserPermissionPolicy("OAuthTokensRevoke", "OAUTH_TOKENS_REVOKE")
             .AddUserPermissionPolicy("LogsView", "LOGS_VIEW")
             // Prefix policies so the optional :TEAM scope variant satisfies the endpoint too
@@ -358,18 +361,25 @@ public static class AuthModule
             .AddUserPermissionPolicy("address-master.manage", "ADDRESS_MASTER_MANAGE")
             .AddUserPermissionPolicy("reappraisal.generate-test-file", "REAPPRAISAL_GENERATE_TEST_FILE")
             .AddUserPermissionPolicy("appraisal.data-correction", "APPRAISAL_DATA_CORRECTION")
+            // Appraisal read surface. Accepts EITHER the full APPRAISAL_VIEW or the credit-side
+            // APPRAISAL_TRACKING_VIEW; the handlers then mask the fields a tracking-only caller
+            // must not receive. A prefix policy on "APPRAISAL_" would be wrong here — it would
+            // also match the menu-only APPRAISAL_*_VIEW section permissions that RequestMaker and
+            // the appraisal roles already hold.
+            .AddUserPermissionAnyPolicy("appraisal.browse",
+                ["APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW"])
             // ── Monitoring feature policies (FSD §2.6.8) ──────────────────────────
             // Any-prefix policies: caller needs ANY permission with the given prefix.
             .AddMonitoringPrefixPolicy("monitoring.pending-internal", "MONITORING:PENDING_INTERNAL:")
             .AddMonitoringPrefixPolicy("monitoring.pending-external", "MONITORING:PENDING_EXTERNAL:")
             // Single-permission policies (admin screens — no layer split)
-            .AddMonitoringAnyPolicy("monitoring.pending-quotation",
+            .AddUserPermissionAnyPolicy("monitoring.pending-quotation",
                 ["MONITORING:PENDING_QUOTATION"])
-            .AddMonitoringAnyPolicy("monitoring.pending-followup",
+            .AddUserPermissionAnyPolicy("monitoring.pending-followup",
                 ["MONITORING:PENDING_FOLLOWUP"])
-            .AddMonitoringAnyPolicy("monitoring.pending-evaluation",
+            .AddUserPermissionAnyPolicy("monitoring.pending-evaluation",
                 ["MONITORING:PENDING_EVALUATION"])
-            .AddMonitoringAnyPolicy("monitoring.meeting-followup",
+            .AddUserPermissionAnyPolicy("monitoring.meeting-followup",
                 ["MONITORING:MEETING_FOLLOWUP"])
             // Top-breaches: visible to anyone with any OLA monitoring permission
             .AddMonitoringTopBreachesPolicy()
@@ -384,10 +394,8 @@ public static class AuthModule
             // claim; the handler reads them from the database instead. Admin still qualifies, holding
             // every permission.
             //
-            // Note this authorises the dashboard on its own — the matching sidebar entry needs
-            // LOGS_VIEW as well, because the "System" group it sits under is gated on that and
-            // GetMyMenuQueryHandler hides a whole subtree when its parent is hidden. So a user with
-            // only JOB_SCHEDULE_MANAGE can reach /hangfire by URL but has no menu route to it.
+            // The matching sidebar entry is gated on JOB_SCHEDULE_MANAGE too; its "System" group
+            // has no gate of its own and shows whenever any child is visible.
             .AddPolicy("HangfireDashboard", policy =>
                 policy.AddAuthenticationSchemes(IdentityConstants.ApplicationScheme)
                     .RequireAuthenticatedUser()
@@ -561,7 +569,7 @@ public static class AuthModule
     /// Policy that passes when the user holds ANY of the listed exact permission codes.
     /// Used for admin-level monitoring screens with a flat permission model.
     /// </summary>
-    private static AuthorizationBuilder AddMonitoringAnyPolicy(
+    private static AuthorizationBuilder AddUserPermissionAnyPolicy(
         this AuthorizationBuilder authorizationBuilder,
         string policyName,
         string[] permissionCodes

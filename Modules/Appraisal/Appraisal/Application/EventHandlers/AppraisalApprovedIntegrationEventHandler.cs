@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Shared.Messaging.Events;
 using Shared.Messaging.Filters;
+using Shared.Time;
 
 namespace Appraisal.Application.EventHandlers;
 
@@ -20,6 +21,7 @@ public class AppraisalApprovedIntegrationEventHandler(
     IAppraisalRepository appraisalRepository,
     IAppraisalUnitOfWork unitOfWork,
     AppraisalDbContext dbContext,
+    IDateTimeProvider dateTimeProvider,
     InboxGuard<AppraisalDbContext> inboxGuard)
     : IConsumer<AppraisalApprovedIntegrationEvent>
 {
@@ -27,6 +29,9 @@ public class AppraisalApprovedIntegrationEventHandler(
     {
         if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
             return;
+
+        // Identifies our own claim when releasing it below — see ReleaseClaimAsync.
+        var claimedBefore = dateTimeProvider.ApplicationNow;
 
         var message = context.Message;
         var ct = context.CancellationToken;
@@ -44,11 +49,20 @@ public class AppraisalApprovedIntegrationEventHandler(
 
             if (appraisal is null)
             {
-                logger.LogWarning(
-                    "Appraisal {AppraisalId} not found when handling {IntegrationEvent}",
-                    message.AppraisalId,
-                    nameof(AppraisalApprovedIntegrationEvent));
-                return;
+                // An appraisal that cannot be found while handling its own committee-approval event is a
+                // data anomaly, not a normal outcome — the approval can never be stamped, so CompletedAt,
+                // the AppraisalReviews row, AppraisalCompletedEvent and everything downstream of it
+                // (including the summary and the LOS webhook) never happen for this appraisal.
+                //
+                // Deliberately NOT marked Processed: that would ack the message and make the skip permanent,
+                // so a replay after the data is repaired could never re-stamp it. Throwing instead sends it
+                // through the bus retries and finally to the dead-letter queue, where ops can see it and
+                // replay it later. The claim is released on the way out by the catch below, so those retries
+                // actually re-execute rather than being skipped.
+                throw new NotFoundException(
+                    $"Appraisal ({message.AppraisalId}) not found while stamping committee approval. "
+                    + "AppraisalDbContext filters soft-deleted appraisals globally, so the row may exist "
+                    + "with IsDeleted = 1 rather than be missing.");
             }
 
             appraisal.MarkApprovedByCommittee(message.CommitteeCode, message.ApprovedAt);
@@ -69,6 +83,37 @@ public class AppraisalApprovedIntegrationEventHandler(
                 "Error processing {IntegrationEvent} for AppraisalId: {AppraisalId}",
                 nameof(AppraisalApprovedIntegrationEvent),
                 message.AppraisalId);
+
+            // The claim was committed before any of this ran. Rethrowing without releasing it makes the bus
+            // retries useless: they all land inside InboxGuard's 5-minute stale window, each one is told to
+            // skip, and the first of them acks the message. The committee approval would then never be
+            // stamped — no CompletedAt, no AppraisalReviews row, no AppraisalCompletedEvent, so nothing
+            // downstream runs — with a single log line and nothing in the dead-letter queue to find it by.
+            // Realistic trigger is transient: a timeout on the GetByIdWithAllDataAsync load, or a deadlock
+            // on SaveChanges — exactly what the retry policy exists to absorb.
+            //
+            // CancellationToken.None, and swallowed, so a failing release cannot replace the original error.
+            try
+            {
+                // Drop the half-applied aggregate state before handing the message back. The failed attempt
+                // leaves Appraisal Modified (CompletedAt already set in memory) and a new AppraisalReview
+                // Added; ReleaseClaimAsync detaches only the InboxMessage. Bus-level UseMessageRetry sits
+                // outside the consumer factory, so a retry should get a fresh scope and this should be moot —
+                // but "should" is not worth betting committee-approval data on: if the scope were reused,
+                // TryClaimAsync's own SaveChanges would commit that leftover state as a side effect of
+                // inserting the claim row.
+                dbContext.ChangeTracker.Clear();
+
+                await inboxGuard.ReleaseClaimAsync(
+                    context.MessageId, GetType().Name, claimedBefore, CancellationToken.None);
+            }
+            catch (Exception releaseEx)
+            {
+                logger.LogError(releaseEx,
+                    "Could not release the inbox claim for AppraisalId {AppraisalId}; bus retries will skip "
+                    + "this message until the claim goes stale",
+                    message.AppraisalId);
+            }
 
             throw;
         }

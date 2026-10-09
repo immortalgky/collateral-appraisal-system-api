@@ -32,8 +32,10 @@ public class AddAppraisalDocumentEndpoint : ICarterModule
             .WithName("AddAppraisalDocument")
             .Produces<AddAppraisalDocumentResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .WithSummary("Attach a valuation document")
             .WithDescription("Links an already-uploaded document (image or PDF, via POST /documents) to a VAL_DOC document type checklist entry for the appraisal.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Documents");
     }
 }

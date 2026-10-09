@@ -27,8 +27,10 @@ public class ClosedAppraisalWriteGuardTests(IntegrationTestFixture fixture) : In
     private IServiceScope CreateScope()
         => fixture.IntegrationTestWebApplicationFactory.Services.CreateScope();
 
-    /// <summary>Seeds a land appraisal, optionally cancelling it so it counts as closed.</summary>
-    private async Task<(Guid AppraisalId, Guid PropertyId)> SeedAsync(bool closed, CancellationToken ct)
+    private enum SeedAs { Open, Cancelled, Completed }
+
+    /// <summary>Seeds a land appraisal in <paramref name="state"/>; Cancelled and Completed both count as closed.</summary>
+    private async Task<(Guid AppraisalId, Guid PropertyId)> SeedAsync(SeedAs state, CancellationToken ct)
     {
         using var scope = CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
@@ -39,7 +41,9 @@ public class ClosedAppraisalWriteGuardTests(IntegrationTestFixture fixture) : In
         var property = appraisal.AddLandProperty();
         property.LandDetail!.Update(propertyName: "Guard Plot", ownerName: "Owner A");
 
-        if (closed)
+        if (state == SeedAs.Completed)
+            appraisal.SyncStatusFromWorkflow(AppraisalStatus.Completed);
+        else if (state == SeedAs.Cancelled)
             appraisal.Cancel("EMP999", DateTime.Now, "seeded as closed");
 
         db.Appraisals.Add(appraisal);
@@ -59,7 +63,7 @@ public class ClosedAppraisalWriteGuardTests(IntegrationTestFixture fixture) : In
     public async Task Property_write_on_a_closed_appraisal_is_refused()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (appraisalId, propertyId) = await SeedAsync(closed: true, ct);
+        var (appraisalId, propertyId) = await SeedAsync(SeedAs.Cancelled, ct);
 
         var response = await UpdateLandDetailAsync(appraisalId, propertyId, "Owner B", ct);
 
@@ -83,7 +87,7 @@ public class ClosedAppraisalWriteGuardTests(IntegrationTestFixture fixture) : In
     public async Task Property_write_on_a_live_appraisal_still_works()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (appraisalId, propertyId) = await SeedAsync(closed: false, ct);
+        var (appraisalId, propertyId) = await SeedAsync(SeedAs.Open, ct);
 
         var response = await UpdateLandDetailAsync(appraisalId, propertyId, "Owner B", ct);
 
@@ -102,4 +106,51 @@ public class ClosedAppraisalWriteGuardTests(IntegrationTestFixture fixture) : In
 
         Assert.NotEqual(HttpStatusCode.Conflict, response.StatusCode);
     }
+
+    // The valuation-document endpoints used to have no guard at all. The data-correction page is now
+    // the only sanctioned way to change them on a closed appraisal.
+    [Theory]
+    [InlineData("POST")]
+    [InlineData("PUT")]
+    [InlineData("DELETE")]
+    public async Task Document_writes_on_a_Completed_appraisal_are_refused(string method)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (appraisalId, _) = await SeedAsync(SeedAs.Completed, ct);
+
+        var response = await SendDocumentWriteAsync(method, appraisalId, ct);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Contains("APPRAISAL_CLOSED", await response.Content.ReadAsStringAsync(ct));
+    }
+
+    [Fact]
+    public async Task Document_write_on_a_live_appraisal_still_reaches_the_handler()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (appraisalId, _) = await SeedAsync(SeedAs.Open, ct);
+
+        // The document does not exist, so a request that got past the guard is a 404, not a 409.
+        var response = await SendDocumentWriteAsync("DELETE", appraisalId, ct);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    private async Task<HttpResponseMessage> SendDocumentWriteAsync(string method, Guid appraisalId, CancellationToken ct)
+        => method switch
+        {
+            "POST" => await _client.PostAsJsonAsync(
+                $"/appraisals/{appraisalId}/documents",
+                new
+                {
+                    documentTypeCode = "D005",
+                    documentId = Guid.NewGuid(),
+                    fileName = "late.pdf",
+                    mimeType = "application/pdf",
+                    fileSizeBytes = 1,
+                }, ct),
+            "PUT" => await _client.PutAsJsonAsync(
+                $"/appraisals/{appraisalId}/documents/{Guid.NewGuid()}", new { notes = "late note" }, ct),
+            _ => await _client.DeleteAsync($"/appraisals/{appraisalId}/documents/{Guid.NewGuid()}", ct),
+        };
 }

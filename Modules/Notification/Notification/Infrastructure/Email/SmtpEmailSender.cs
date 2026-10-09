@@ -130,7 +130,20 @@ internal sealed class SmtpEmailSender(
                 await client.AuthenticateAsync(config.Username, config.Password, ct);
 
             await client.SendAsync(mime, ct);
-            await client.DisconnectAsync(quit: true, ct);
+
+            // The server has accepted the mail at this point. A failed QUIT must not surface as a send
+            // failure: callers release their inbox claim on throw, so the bus retry would send it twice.
+            try
+            {
+                // Short cap: the mail is already accepted and CancellationToken.None can't interrupt a hung QUIT.
+                client.Timeout = 10_000;
+                await client.DisconnectAsync(quit: true, CancellationToken.None);
+            }
+            catch (Exception disconnectEx)
+            {
+                logger.LogWarning(disconnectEx,
+                    "Email sent but SMTP disconnect failed (subject '{Subject}')", message.Subject);
+            }
 
             logger.LogInformation(
                 "Email sent ({RecipientCount} recipient(s)) subject '{Subject}'",

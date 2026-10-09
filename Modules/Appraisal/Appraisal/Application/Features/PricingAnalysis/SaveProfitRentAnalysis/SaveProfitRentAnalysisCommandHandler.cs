@@ -83,7 +83,9 @@ public class SaveProfitRentAnalysisCommandHandler(
             .Select(s => new ProfitRentCalculationService.AppraisalScheduleRow(s.Year, s.NumberOfMonths, s.ContractRentalFee))
             .ToList();
 
-        // Recalculate (backend is source of truth)
+        // Recalculate (backend is source of truth).
+        // TotalLandAreaInSqWa carries the NET appraisable area here (registered area less the
+        // appraiser's deductions) under a historical name — pricing wants net, so this is correct.
         var calcResult = _calcService.Calculate(analysis, calcSchedule, propertyData.TotalLandAreaInSqWa);
 
         analysis.SetComputedValues(
@@ -110,36 +112,47 @@ public class SaveProfitRentAnalysisCommandHandler(
         method.SetValue(finalPrice, null, PricingUnit.PerUnit);
 
         // Ensure the shared PricingFinalValue row always carries the calc-derived value
-        // as its base (FinalValue/FinalValueRounded ← calcResult).
-        // User overrides (EstimatePriceRounded, AppraisalPrice) are persisted separately
-        // via SetFinalValueAdjusted / SetAppraisalPrice below.
+        // as its base (FinalValue ← calcResult).
+        // User overrides (EstimatePriceRounded, IndicatedValue) are persisted separately
+        // via SetFinalValueOverride / SetIndicatedValue below.
         var finalValue = method.FinalValue;
         if (finalValue is null)
         {
-            finalValue = PricingFinalValue.Create(method.Id, calcResult.FinalValueRounded, calcResult.FinalValueRounded);
+            finalValue = PricingFinalValue.Create(method.Id, calcResult.FinalValueRounded);
             method.SetFinalValue(finalValue);
         }
         else
         {
-            finalValue.UpdateFinalValue(calcResult.FinalValueRounded, calcResult.FinalValueRounded);
+            finalValue.UpdateFinalValue(calcResult.FinalValueRounded);
         }
 
-        // Building cost (optional)
-        decimal? totalBuildingCost = null;
-        decimal? appraisalPrice = null;
+        // Building cost (optional). The group's building value is the Building Cost method's
+        // SAVED value when there is one — the appraiser may have keyed it over the roll-up — else
+        // the per-building roll-up (BuildingCostSql). Same rule as the screen and as the
+        // WQS/SAG/DC building row (BuildingCostLink.tsx). Found by type across ALL approaches and
+        // without an IsSelected filter: the BC method sits under Cost, not necessarily PR's own
+        // approach, and is deselected on purpose once linked to a market method. 0 means "never
+        // saved" (CostBuildingPanel re-seeds on it), so it falls back rather than pricing at zero.
+        var bcMethodValue = pricingAnalysis.Approaches
+            .SelectMany(a => a.Methods)
+            .FirstOrDefault(m => m.MethodType == "BuildingCost")
+            ?.MethodValue;
+        var groupBuildingValue = bcMethodValue is > 0 ? bcMethodValue.Value : propertyData.TotalBuildingCost;
 
-        if (command.IncludeBuildingCost && propertyData.TotalBuildingCost > 0)
+        decimal? totalBuildingCost = null;
+
+        if (command.IncludeBuildingCost && groupBuildingValue > 0)
         {
-            totalBuildingCost = propertyData.TotalBuildingCost;
+            totalBuildingCost = groupBuildingValue;
             var priceWithBuilding = finalPrice + totalBuildingCost.Value;
-            appraisalPrice = command.AppraisalPrice ?? priceWithBuilding;
 
             finalValue.SetBuildingValue(totalBuildingCost.Value);
-            finalValue.SetFinalValueAdjusted(command.FinalValueAdjusted);
-            finalValue.SetAppraisalPrice(appraisalPrice.Value);
+            finalValue.SetFinalValueOverride(command.FinalValueOverride);
+            finalValue.SetIndicatedValue(command.IndicatedValue);
 
-            // Propagate building-inclusive price upward
-            method.SetValue(appraisalPrice.Value, null, PricingUnit.PerUnit);
+            // Propagate building-inclusive price upward, then let the appraiser's typed-over total
+            // (if any) win.
+            method.SetValue(priceWithBuilding, null, PricingUnit.PerUnit);
         }
         else
         {
@@ -147,9 +160,14 @@ public class SaveProfitRentAnalysisCommandHandler(
                 finalValue.ClearBuildingValue();
 
             // Land area and building value are not applicable for the non-building ProfitRent path.
-            finalValue.SetFinalValueAdjusted(command.FinalValueAdjusted);
-            finalValue.SetAppraisalPrice(command.AppraisalPrice);
+            finalValue.SetFinalValueOverride(command.FinalValueOverride);
+            finalValue.SetIndicatedValue(command.IndicatedValue);
+
+            // finalPrice already carries MethodValue here (set above); nothing further to propagate.
         }
+
+        method.SyncMethodValueWithIndicatedValue();
+        var indicatedValue = method.FinalValue!.IndicatedValue;
 
         // Roll the new method value up through approach → analysis (null-safe, idempotent).
         pricingAnalysis.RecalculateRollup();
@@ -163,6 +181,6 @@ public class SaveProfitRentAnalysisCommandHandler(
             calcResult.TotalPresentValue,
             calcResult.FinalValueRounded,
             totalBuildingCost,
-            appraisalPrice);
+            indicatedValue);
     }
 }

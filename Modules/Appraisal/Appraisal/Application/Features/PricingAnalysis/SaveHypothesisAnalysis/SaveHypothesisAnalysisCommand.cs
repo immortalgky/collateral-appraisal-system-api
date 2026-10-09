@@ -10,6 +10,7 @@ public record SaveHypothesisAnalysisCommand(
     CondominiumSummaryInput? CondominiumSummary,
     IReadOnlyList<HypothesisCostItemInput> CostItems,
     string? Remark,
-    decimal? FinalValueAdjusted = null,
-    decimal? AppraisalPrice = null
+    decimal? FinalValueOverride = null,
+    decimal? IndicatedValue = null,
+    IReadOnlyList<ModelBuildingMappingInput>? ModelBuildingMappings = null
 ) : ICommand<SaveHypothesisAnalysisResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

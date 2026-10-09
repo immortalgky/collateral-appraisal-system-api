@@ -47,6 +47,7 @@ public class CreateVesselPropertyCommandHandler(
             netTonnage: command.NetTonnage,
             energyUse: command.EnergyUse,
             energyUseRemark: command.EnergyUseRemark,
+            ownerName: command.OwnerName,
             isOwnerVerified: command.IsOwnerVerified,
             canUse: command.CanUse,
             formerName: command.FormerName,

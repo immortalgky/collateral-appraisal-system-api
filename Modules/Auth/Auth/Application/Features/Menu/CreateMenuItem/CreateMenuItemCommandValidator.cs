@@ -20,10 +20,6 @@ public class CreateMenuItemCommandValidator : AbstractValidator<CreateMenuItemCo
         RuleFor(x => x.ViewPermissionCode).MaximumLength(100);
         RuleFor(x => x.ViewPermissionPrefix).MaximumLength(200);
         RuleFor(x => x.EditPermissionCode).MaximumLength(100);
-        RuleFor(x => x)
-            .Must(x => !string.IsNullOrWhiteSpace(x.ViewPermissionCode) || !string.IsNullOrWhiteSpace(x.ViewPermissionPrefix))
-            .WithName("ViewPermission")
-            .WithMessage("At least one of ViewPermissionCode or ViewPermissionPrefix is required");
         RuleFor(x => x.Translations).NotEmpty()
             .WithMessage("At least one translation is required");
         RuleFor(x => x.Translations)

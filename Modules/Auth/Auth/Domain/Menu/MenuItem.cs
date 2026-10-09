@@ -45,8 +45,7 @@ public class MenuItem : Entity<Guid>
     {
         if (string.IsNullOrWhiteSpace(itemKey))
             throw new DomainException("ItemKey is required");
-        if (string.IsNullOrWhiteSpace(viewPermissionCode) && string.IsNullOrWhiteSpace(viewPermissionPrefix))
-            throw new DomainException("At least one of ViewPermissionCode or ViewPermissionPrefix is required");
+        EnsurePageHasViewGate(path, viewPermissionCode, viewPermissionPrefix);
 
         var item = new MenuItem
         {
@@ -81,8 +80,7 @@ public class MenuItem : Entity<Guid>
         string? editPermissionCode,
         string? viewPermissionPrefix = null)
     {
-        if (string.IsNullOrWhiteSpace(viewPermissionCode) && string.IsNullOrWhiteSpace(viewPermissionPrefix))
-            throw new DomainException("At least one of ViewPermissionCode or ViewPermissionPrefix is required");
+        EnsurePageHasViewGate(path, viewPermissionCode, viewPermissionPrefix);
 
         Path = string.IsNullOrWhiteSpace(path) ? null : path.Trim();
         Icon = icon ?? throw new DomainException("Icon is required");
@@ -91,6 +89,20 @@ public class MenuItem : Entity<Guid>
         ViewPermissionCode = string.IsNullOrWhiteSpace(viewPermissionCode) ? null : viewPermissionCode.Trim();
         ViewPermissionPrefix = string.IsNullOrWhiteSpace(viewPermissionPrefix) ? null : viewPermissionPrefix.Trim();
         EditPermissionCode = string.IsNullOrWhiteSpace(editPermissionCode) ? null : editPermissionCode.Trim();
+    }
+
+    /// <summary>
+    /// A page (Path set) needs a view gate: GetMyMenuQueryHandler never shows an ungated leaf, so a page
+    /// saved without one would be silently invisible to everyone, Admin included. Only a group (no Path)
+    /// may leave both empty — it then shows whenever any of its children does.
+    /// </summary>
+    private static void EnsurePageHasViewGate(string? path, string? viewPermissionCode, string? viewPermissionPrefix)
+    {
+        if (!string.IsNullOrWhiteSpace(path) && string.IsNullOrWhiteSpace(viewPermissionCode) &&
+            string.IsNullOrWhiteSpace(viewPermissionPrefix))
+            throw new DomainException(
+                "A menu item with a Path needs a ViewPermissionCode or ViewPermissionPrefix. " +
+                "Only a group (no Path) may leave both empty.");
     }
 
     public void Reparent(Guid? parentId)

@@ -1,4 +1,5 @@
 using MassTransit;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
@@ -31,9 +32,6 @@ public class AppraisalValueChangedIntegrationEventConsumer(
     ILogger<AppraisalValueChangedIntegrationEventConsumer> logger)
     : IConsumer<AppraisalValueChangedIntegrationEvent>
 {
-    // Matches InboxGuard.StaleThresholdMinutes so the two share the same reclaim window.
-    private const int StaleThresholdMinutes = 5;
-
     public async Task Consume(ConsumeContext<AppraisalValueChangedIntegrationEvent> context)
     {
         var ct = context.CancellationToken;
@@ -52,7 +50,7 @@ public class AppraisalValueChangedIntegrationEventConsumer(
                 return;
 
             if (existing?.Status == InboxMessageStatus.Processing
-                && existing.StartedAt >= dateTimeProvider.ApplicationNow.AddMinutes(-StaleThresholdMinutes))
+                && existing.StartedAt >= dateTimeProvider.ApplicationNow - InboxGuardPolicy.StaleThreshold)
                 return;
 
             if (existing?.Status == InboxMessageStatus.Processing)
@@ -129,7 +127,9 @@ public class AppraisalValueChangedIntegrationEventConsumer(
             // is no "Processing" row to block the retry.
             throw;
         }
-        catch (DbUpdateException)
+        // Only a duplicate key is the idempotent case. Any other DbUpdateException means the work did not
+        // land; swallowing it acked the message with nothing done, so let it throw for the retry.
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 })
         {
             // PK violation on the InboxMessage INSERT: another consumer committed the same message
             // between our read and our save — idempotent skip.

@@ -1,6 +1,7 @@
 @requestId = 2EF682E6-2DA9-4EAE-B398-F68BC16DE48E
 
 POST {{baseUrl}}/requests/{{requestId}}/comments
+X-Dev-Auth: dev-bypass
 Host: localhost:7111
 Content-Type: application/json
 

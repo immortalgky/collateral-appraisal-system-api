@@ -1,5 +1,6 @@
 using Appraisal.Domain.Appraisals.Hypothesis;
 using Appraisal.Domain.Appraisals.Income;
+using Appraisal.Domain.Services;
 
 namespace Appraisal.Domain.Appraisals;
 
@@ -32,6 +33,34 @@ public class PricingAnalysisMethod : Entity<Guid>
     public string? UnitType { get; private set; } // PerSqWa, PerSqm, PerUnit (PerUnit = whole-unit lumpsum)
     public bool IsSelected { get; private set; }
     public string? Remark { get; private set; }
+
+    /// <summary>
+    /// Per-method calc mode: true = system-computed, false = manually entered. This is additive to,
+    /// not a replacement for, <see cref="PricingAnalysis.UseSystemCalc"/> — that column answers "was
+    /// the analysis's headline figure calculated or typed"; this one answers it per method, because
+    /// several methods can each contribute to that figure (a Cost approach sums role-tagged
+    /// methods; other approaches show several side by side) and the report needs to know which of
+    /// them, specifically, was typed. The two are never synced automatically in either direction —
+    /// see <see cref="PricingAnalysis.ContributingMethodsUseSystemCalc"/> for the rollup rule a
+    /// caller compares them against. Seeded from the group flag by a one-time backfill script — see
+    /// <c>Database/Migration/Scripts/</c> — so existing manual groups start with every method manual
+    /// too, rather than silently flipping to system.
+    /// </summary>
+    public bool UseSystemCalc { get; private set; } = true;
+
+    /// <summary>
+    /// This method's component of a Cost approach: Land / Building / LandAndBuilding / Machinery.
+    /// Null for any method outside a Cost approach — a Cost approach sums MethodValue across its
+    /// selected, role-tagged methods instead of adopting a single selected method's value verbatim.
+    /// </summary>
+    public string? Role { get; private set; }
+
+    /// <summary>
+    /// For a WQS/SaleGrid/DirectComparison method with Role=LandAndBuilding: the BuildingCost method
+    /// (in the same approach) whose value is folded into this method's own total. The linked method
+    /// is deselected so the Cost rollup does not count its value a second time.
+    /// </summary>
+    public Guid? LinkedMethodId { get; private set; }
 
     // Final Value (1:1)
     public PricingFinalValue? FinalValue { get; private set; }
@@ -80,6 +109,7 @@ public class PricingAnalysisMethod : Entity<Guid>
     /// <summary>
     /// Deep-clone for CI carry-forward — copies all scalars, every child collection, and all 1:1 method analyses.
     /// <paramref name="propertyIdMap"/> remaps prior AppraisalPropertyId → new id on MachineCostItems
+    /// and on Hypothesis model → building mappings
     /// (caller passes the prior→new property map built during property copy). Items whose property
     /// is unmapped are dropped.
     /// </summary>
@@ -98,7 +128,12 @@ public class PricingAnalysisMethod : Entity<Guid>
             ValuePerUnit = source.ValuePerUnit,
             UnitType = source.UnitType,
             IsSelected = source.IsSelected,
-            Remark = source.Remark
+            Remark = source.Remark,
+            Role = source.Role,
+            UseSystemCalc = source.UseSystemCalc
+            // LinkedMethodId intentionally NOT copied: it points at a sibling method's Id, which is
+            // only meaningful once that sibling has been cloned too. PricingAnalysisApproach.CloneForAnalysis
+            // remaps it in a second pass after every method in the approach has its new Id.
         };
 
         foreach (var l in source.ComparableLinks)
@@ -139,7 +174,8 @@ public class PricingAnalysisMethod : Entity<Guid>
             clone.IncomeAnalysis = Income.IncomeAnalysis.CloneForMethod(source.IncomeAnalysis, clone.Id);
 
         if (source.HypothesisAnalysis is not null)
-            clone.HypothesisAnalysis = Hypothesis.HypothesisAnalysis.CloneForMethod(source.HypothesisAnalysis, clone.Id);
+            clone.HypothesisAnalysis = Hypothesis.HypothesisAnalysis.CloneForMethod(
+                source.HypothesisAnalysis, clone.Id, propertyIdMap);
 
         return clone;
     }
@@ -166,6 +202,18 @@ public class PricingAnalysisMethod : Entity<Guid>
         MethodValue = value;
         ValuePerUnit = valuePerUnit;
         UnitType = unitType;
+
+        // Stamp the unit onto the final-value row so it survives what happens to UnitType here:
+        // SetCalcMode nulls this column but leaves that row's figures standing. It lives in the
+        // aggregate rather than in each save handler so the rule is stated once, for every caller.
+        //
+        // Only ever upgrades, never erases — the hazard is clobbering, not forgetting. No caller
+        // means "the unit is now unknown": each either names a unit outright or passes
+        // `method.UnitType` through to preserve it, and after a calc-mode flip that is NULL. Writing
+        // it would wipe the durable answer one line before a handler reads it, which is precisely
+        // what this column exists to prevent.
+        if (unitType is not null)
+            FinalValue?.SetFinalValueUnitType(unitType);
     }
 
     public void SetComparativeAnalysisTemplate(Guid? templateId)
@@ -178,6 +226,83 @@ public class PricingAnalysisMethod : Entity<Guid>
         Remark = remark;
     }
 
+    /// <summary>
+    /// Flips this method's calc mode and applies the required consequences as ONE atomic
+    /// operation — unselecting, clearing the recorded value, and dropping any manual land-area
+    /// entry — so a caller can never set the flag without also discarding the now-stale figure it
+    /// governed. This logic used to live duplicated (and inconsistently) across save handlers on
+    /// an abandoned branch; it lives here instead for the same reason <c>RemoveMethod</c> nulls a
+    /// sibling's <see cref="LinkedMethodId"/> itself rather than trusting every caller to do it —
+    /// a rule the database cannot enforce for us must be enforced in exactly one place.
+    /// <para>
+    /// No-op if the mode is not actually changing, so a repeated PUT with the same value is
+    /// harmless rather than re-clearing a value someone just set.
+    /// </para>
+    /// <para>
+    /// Does not cascade to a Role=LandAndBuilding method's <see cref="LinkedMethodId"/> sibling:
+    /// the flag is deliberately per-method (see the class remarks above), so an appraiser can leave
+    /// one side of a linked pair on system calc while overriding only the other.
+    /// </para>
+    /// <para>
+    /// This is for a caller with NOTHING new in hand — a user flipping a mode switch on an
+    /// otherwise-untouched method. A caller that already holds a freshly computed or typed value
+    /// (the automatic save handlers) must use <see cref="RecordCalcMode"/> instead: this method
+    /// would immediately discard the value that caller just wrote.
+    /// </para>
+    /// </summary>
+    public void SetCalcMode(bool useSystemCalc)
+    {
+        if (useSystemCalc == UseSystemCalc)
+            return;
+
+        UseSystemCalc = useSystemCalc;
+        SetAsUnselected();
+        ClearValue();
+        FinalValue?.ExcludeLandArea();
+        // The typed-over total goes with the rest of the bundle, but only in the manual → system
+        // direction. That flip says "compute this from the comparables", and a figure left behind
+        // does the opposite: SyncMethodValueWithIndicatedValue pushes it back over MethodValue on the
+        // next save, so the method stayed pinned to a number the appraiser had just abandoned.
+        //
+        // The other direction is the opposite situation — the appraiser is switching to manual
+        // precisely to commit their own figure, and the board echoes the current value back with the
+        // flip. Clearing there dropped it, and UpdateMethod's "the value actually moved" gate then
+        // refused to re-stamp an unchanged number, so the method silently stopped being pinned at
+        // the moment it was supposed to start.
+        if (useSystemCalc)
+            FinalValue?.ClearIndicatedValue();
+    }
+
+    /// <summary>
+    /// Stamps how the value this method ALREADY holds was produced, without touching MethodValue,
+    /// ValuePerUnit, UnitType, FinalValue, or selection. The counterpart to <see cref="SetCalcMode"/>
+    /// for a caller in the opposite situation: the four automatic save handlers (SetFinalValue,
+    /// UpdateFinalValue, SetManualCostBreakdown, SaveComparativeAnalysis) arrive holding the figure
+    /// they just computed or received from the appraiser, in the same call — calling
+    /// <see cref="SetCalcMode"/> there would clear that figure and deselect the method out from
+    /// under the very save that just produced it. Two operations, not one growing a per-caller
+    /// special case: "flip with nothing in hand" and "record what I just wrote" are different jobs.
+    /// <para>
+    /// Deliberately does not touch <see cref="PricingAnalysis.UseSystemCalc"/> (the group-level
+    /// toggle) — see that property's remarks and <see cref="PricingAnalysis.ContributingMethodsUseSystemCalc"/>.
+    /// </para>
+    /// </summary>
+    public void RecordCalcMode(bool useSystemCalc)
+    {
+        UseSystemCalc = useSystemCalc;
+    }
+
+    /// <summary>
+    /// Clears the recorded value and its breakdown, without touching selection or calc mode.
+    /// Private: the only caller is <see cref="SetCalcMode"/>.
+    /// </summary>
+    private void ClearValue()
+    {
+        MethodValue = null;
+        ValuePerUnit = null;
+        UnitType = null;
+    }
+
     public void SetAsSelected()
     {
         IsSelected = true;
@@ -188,9 +313,134 @@ public class PricingAnalysisMethod : Entity<Guid>
         IsSelected = false;
     }
 
+    private static readonly string[] ValidRoles = ["Land", "Building", "LandAndBuilding", "Machinery"];
+
+    /// <summary>
+    /// Sets this method's component within a Cost approach. Null clears it (methods outside a Cost
+    /// approach, or a method reverted by <see cref="PricingAnalysisApproach.UnlinkBuildingCostMethod"/>
+    /// before being re-tagged "Land").
+    /// </summary>
+    public void SetRole(string? role)
+    {
+        if (role is not null && !ValidRoles.Contains(role))
+            throw new DomainException($"Role must be one of: {string.Join(", ", ValidRoles)}");
+
+        Role = role;
+    }
+
+    /// <summary>
+    /// Points this method at the BuildingCost method (in the same approach) whose value is folded
+    /// into this method's own total. Null clears the link. Set by
+    /// <see cref="PricingAnalysisApproach.LinkOrCreateBuildingCostMethod"/>,
+    /// <see cref="PricingAnalysisApproach.UnlinkBuildingCostMethod"/>, and
+    /// <see cref="PricingAnalysisApproach.RemoveMethod"/> (which nulls it on siblings of a method
+    /// being deleted, since the self-referencing FK is NO ACTION and cannot do this for us).
+    /// </summary>
+    public void SetLinkedMethod(Guid? linkedMethodId)
+    {
+        LinkedMethodId = linkedMethodId;
+    }
+
     public void SetFinalValue(PricingFinalValue finalValue)
     {
         FinalValue = finalValue;
+
+        // Carries the unit onto a freshly attached row. A caller that attaches before pricing (the
+        // BuildingCost seed, SetValue one line later) leaves it alone here and the right value
+        // lands there; one that attaches after (WQS and the other calc services) gets it first
+        // time. Same upgrade-only rule as SetValue, so attaching a row that already knows its unit
+        // to a method that has forgotten its own cannot blank it.
+        if (UnitType is not null)
+            finalValue.SetFinalValueUnitType(UnitType);
+    }
+
+    /// <summary>
+    /// Applies the appraiser's typed-over <see cref="PricingFinalValue.IndicatedValue"/> on top of
+    /// MethodValue. No-op when there is no override — MethodValue is left as whichever figure the
+    /// method's own calculation (or manual entry) just produced. Single seam for the rule every
+    /// pricing save handler must apply: MethodValue = IndicatedValue ?? FinalValue. Call last, after
+    /// FinalValue and its IndicatedValue are both set for this save, so the edited figure the
+    /// appraiser typed always reaches the number used downstream (rollup, the book, AS400 exports).
+    /// </summary>
+    public void SyncMethodValueWithIndicatedValue()
+    {
+        if (FinalValue?.IndicatedValue is { } indicated)
+            MethodValue = indicated;
+    }
+
+    /// <summary>
+    /// On a <c>Role = Land</c> method, makes <see cref="PricingFinalValue.LandValue"/> the figure the
+    /// appraiser settled on rather than the raw <c>area × rate</c> this save derived.
+    /// <para>
+    /// Such a method prices land and nothing else (leaving LandAndBuilding goes through
+    /// <c>RevertToLand</c>, so the role is the guarantee), which makes its IndicatedValue the land
+    /// price itself. Without this the row carries two answers to one question — the arithmetic in
+    /// LandValue and the appraised figure in IndicatedValue — and every reader has to know which to
+    /// prefer. Settling it here means they can all just read the column: the summary book, the
+    /// engagement's frozen CurrentValue, the LOS payload and the MIS land columns.
+    /// </para>
+    /// <para>
+    /// Deliberately NOT applied to <c>LandAndBuilding</c>: there IndicatedValue spans land AND
+    /// building, so writing it to LandValue would count the building twice. A row with no typed
+    /// figure, or one whose land area the appraiser excluded, keeps what it had.
+    /// </para>
+    /// <para>
+    /// Call LAST — after <see cref="PricingFinalValue.SetIndicatedValue"/> AND after whatever wrote
+    /// LandValue for this save (<see cref="ApplyLandAreaValue"/>, or
+    /// <see cref="PricingFinalValue.SetLandAreaValues"/> on the manual-cost path). The four save
+    /// handlers do those two in different orders, so there is no single position that works by
+    /// symmetry: placed before the land write it is silently overwritten, placed before
+    /// SetIndicatedValue it reads the previous save's figure. Both mistakes are invisible at
+    /// compile time and reach the book, LOS and the AS400 files.
+    /// </para>
+    /// </summary>
+    /// <param name="buildingWasPresentBeforeThisSave">
+    /// <see cref="PricingFinalValue.HasBuildingValue"/> as it stood when the save began.
+    /// <para>
+    /// The one question that matters: does IndicatedValue describe land ALONE? It describes whatever
+    /// the row covered when it was written, so a row that carried a building carries a land+building
+    /// total — and the save that unticks the building clears the flag without necessarily replacing
+    /// that total. The board typically echoes the stored figure straight back, so a value arriving on
+    /// the same request is no evidence either: an echoed combined total looks exactly like a
+    /// recomputed land-only one.
+    /// </para>
+    /// <para>
+    /// So: a building anywhere in this row's recent past disqualifies the figure, full stop. An
+    /// earlier attempt asked instead whether THIS request wrote IndicatedValue, which reads as a
+    /// proxy for "so it must be current" — it is not, and every caller that passed a literal true for
+    /// it turned the guard off. The cost of the strict rule is small and self-correcting: after an
+    /// untick, LandValue keeps ApplyLandAreaValue's area × rate until the next save, by which time no
+    /// building is in the picture and the sync settles it.
+    /// </para>
+    /// </param>
+    public void SyncLandValueWithIndicatedValue(bool buildingWasPresentBeforeThisSave)
+    {
+        if (buildingWasPresentBeforeThisSave)
+            return;
+
+        if (!string.Equals(Role, "Land", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        // Only when this method actually prices land BY AREA — the same condition ApplyLandAreaValue
+        // turns away on. A whole-unit lumpsum carries no rate, and its stored LandArea is whatever an
+        // earlier save under a rate unit left behind; writing the indicated value against that area
+        // resurrects a figure the doc above says is left alone, and SetLandAreaValues forces
+        // IncludeLandArea back to true while doing it.
+        if (!PricingUnit.IsPerUnitRate(UnitType ?? FinalValue?.FinalValueUnitType))
+            return;
+
+        // HasBuildingValue as well as the role, because the two are set by different callers and can
+        // disagree mid-save. SetFinalValue and UpdateFinalValue write a building value without
+        // re-tagging the role (only SaveComparativeAnalysis routes through LinkOrCreateBuildingCost-
+        // Method, which does), so a Role=Land row can carry a building — and then IndicatedValue
+        // spans land AND building, and copying it into LandValue hands the building to every reader
+        // that treats this column as land: the engagement's CurrentValue, the book's land subtotal,
+        // LOS and the AS400 regulatory file, each adding the building again from its own source.
+        if (FinalValue is not { IncludeLandArea: true, HasBuildingValue: false, LandArea: { } area } fv)
+            return;
+
+        if (fv.IndicatedValue is { } indicated)
+            fv.SetLandAreaValues(area, indicated);
     }
 
     /// <summary>
@@ -204,9 +454,134 @@ public class PricingAnalysisMethod : Entity<Guid>
     }
 
     /// <summary>
-    /// Mirrors the current MachineCostItems FMV total into the shared <see cref="FinalValue"/>
-    /// (FinalValue / FinalValueRounded), creating it if absent. User-authored fields
-    /// (FinalValueAdjusted / AppraisalPrice) are deliberately left untouched. Call AFTER recalculation
+    /// Records the land area this method priced, and what that land is worth, when — and only when —
+    /// this method prices land BY AREA. Single home for a rule three save handlers used to carry a
+    /// copy of each (SetFinalValue, UpdateFinalValue, SaveComparativeAnalysis); it decides money that
+    /// reaches the engagement's frozen CurrentValue, the LOS payload and the AS400 regulatory file,
+    /// so it is stated once.
+    /// <para>
+    /// Only the cost approach records land separately at all — it is the one approach that breaks a
+    /// collateral into named components. Market, income and residual price the collateral as a single
+    /// figure, so they get their land figures CLEARED, not merely skipped (see
+    /// <see cref="PricingFinalValue.ClearLandAreaValues"/>), and an <paramref name="explicitLandValue"/>
+    /// does NOT rescue them: there is no separable land figure to record.
+    /// </para>
+    /// <para>
+    /// The caller passes the approach type rather than letting this read <see cref="Role"/>, even
+    /// though today Role is null exactly when the approach is not Cost. Role is also null on cost
+    /// rows that predate it — a category this aggregate names in several places ("older rows predate
+    /// Role") — and treating those as market would wipe a land value that is real, on the next save
+    /// of any kind, including one that never touched the price.
+    /// </para>
+    /// <para>
+    /// WITHIN the cost approach, a per-unit RATE (PerSqWa/PerSqm) means the final value prices land
+    /// per unit area, so area and value are derivable and must NOT be gated on the building-cost
+    /// toggle. PerUnit is a whole-unit lumpsum carrying no land rate, so the row is left alone.
+    /// The unit only gets a say once the approach check above has passed: a non-cost method records
+    /// no land whatever its unit, and a lumpsum one is cleared rather than skipped so a figure left
+    /// by an earlier save under a rate unit cannot survive as a land value.
+    /// </para>
+    /// <para>
+    /// The unit is read LIVE first and the row's own stamp only when this method has genuinely
+    /// forgotten its own. Stamp-first would let a unit that has since become a lump sum be
+    /// multiplied by the land area. The stamp is consulted only while the row still includes land
+    /// area, because the one thing that nulls <see cref="UnitType"/> — <see cref="SetCalcMode"/> →
+    /// <see cref="ClearValue"/> — also calls <see cref="PricingFinalValue.ExcludeLandArea"/> in the
+    /// same operation; reading it unconditionally would let the next save recompute the figures and
+    /// flip IncludeLandArea back to true, quietly undoing an exclusion the appraiser asked for.
+    /// </para>
+    /// <para>
+    /// The appraiser's typed-over rate wins over the calculated one: <see cref="ValuePerUnit"/> is
+    /// whatever the calc service produced, and <see cref="PricingFinalValue.FinalValueOverride"/>
+    /// exists precisely to replace it — reading it second meant a saved override never reached the
+    /// land value at all. An explicit <paramref name="explicitLandValue"/> still wins over both; the
+    /// cost approach enters that figure by hand.
+    /// </para>
+    /// </summary>
+    /// <param name="landAreaFromTitles">
+    /// Area from the property's land titles — authoritative, never taken from the request.
+    /// </param>
+    /// <param name="explicitLandValue">A land value supplied by the caller, or null to derive one.</param>
+    /// <param name="includeLandArea">
+    /// The appraiser's own answer to "does this method price land at all" — false clears the area and
+    /// value outright. Null means the request did not say, which is not the same as false: the save
+    /// DTOs default it, so an ordinary save must not read silence as a decision to exclude.
+    /// </param>
+    /// <param name="isCostApproach">
+    /// True when this method sits under the Cost approach. Only that approach records a land figure
+    /// of its own; everything else values the collateral as one lump.
+    /// </param>
+    public void ApplyLandAreaValue(
+        decimal landAreaFromTitles,
+        decimal? explicitLandValue,
+        bool? includeLandArea,
+        bool isCostApproach)
+    {
+        if (FinalValue is null)
+            return;
+
+        if (includeLandArea == false)
+        {
+            FinalValue.ExcludeLandArea();
+            return;
+        }
+
+        // No titled land to derive from — nothing to write and nothing to correct, so the row is left
+        // exactly as it is. This comes FIRST, ahead of the approach check below, because a pricing
+        // analysis that is not anchored to a property group has no titles by definition and its land
+        // figures were put there deliberately: CreateReferenceFromMethod builds a "Market" approach
+        // and calls SetLandAreaValues to carry the DCF non-HBU land-area override. Clearing ahead of
+        // this guard destroyed that override on the reference's first save.
+        if (landAreaFromTitles <= 0m)
+            return;
+
+        // Market, income and residual value land and whatever stands on it as ONE figure. Their
+        // comparables being quoted per square wa says how the market prices a parcel, NOT that the
+        // resulting figure excludes the buildings on it, so multiplying that rate by the land area
+        // produces the whole property's value under a column named LandValue.
+        if (!isCostApproach)
+        {
+            FinalValue.ClearLandAreaValues();
+
+            // The flag is still the appraiser's own answer and still drives whether the book prints
+            // this group's พื้นที่ / ราคาต่อหน่วย columns, so an explicit "yes" is honoured even though
+            // no figures come with it. Without this the flag was one-way for non-cost methods:
+            // SetLandAreaValues is the only other writer that turns it back on, and this branch
+            // returns before reaching it, so unticking and re-ticking left it false forever.
+            if (includeLandArea == true)
+                FinalValue.MarkLandAreaIncluded();
+
+            return;
+        }
+
+        var unit = UnitType ?? (FinalValue.IncludeLandArea ? FinalValue.FinalValueUnitType : null);
+        if (!PricingUnit.IsPerUnitRate(unit))
+            return;
+
+        // Rounded to whole baht: a rate over a fractional area (503.33 sq.wa × 111,111) lands on
+        // satang nobody entered and nobody can act on, and that figure is printed in the book and
+        // exported to LOS and AS400.
+        //
+        // A land value the caller supplied is stored as given here — but on a Role=Land method it
+        // does not survive the save: every handler calls SyncLandValueWithIndicatedValue afterwards,
+        // which replaces it with IndicatedValue. That is the decision, not an oversight — for a
+        // method whose whole subject is land, the figure the appraiser committed IS the land price,
+        // and having two ways to say it was what let the row disagree with itself. The parameter
+        // still matters for the other roles.
+        var rate = FinalValue.FinalValueOverride ?? ValuePerUnit;
+        var landValue = explicitLandValue
+                        ?? (rate.HasValue
+                            ? Math.Round(landAreaFromTitles * rate.Value, 0, MidpointRounding.AwayFromZero)
+                            : (decimal?)null);
+
+        if (landValue.HasValue)
+            FinalValue.SetLandAreaValues(landAreaFromTitles, landValue.Value);
+    }
+
+    /// <summary>
+    /// Mirrors the current MachineCostItems FMV total into the shared <see cref="FinalValue"/>,
+    /// creating it if absent. User-authored fields
+    /// (FinalValueOverride / IndicatedValue) are deliberately left untouched. Call AFTER recalculation
     /// so the items hold current values. Single source of the MachineryCost mirror formula — shared by
     /// the save path (SaveMachineCostItemsCommandHandler) and the property-delete cleanup path
     /// (PricingReferenceCleanupService).
@@ -216,9 +591,18 @@ public class PricingAnalysisMethod : Entity<Guid>
         var totalFmv = _machineCostItems.Sum(i => i.FairMarketValue ?? 0);
 
         if (FinalValue is null)
-            SetFinalValue(PricingFinalValue.Create(Id, totalFmv, totalFmv));
+            SetFinalValue(PricingFinalValue.Create(Id, totalFmv));
         else
-            FinalValue.UpdateFinalValue(totalFmv, totalFmv);
+            FinalValue.UpdateFinalValue(totalFmv);
+
+        // The only writer of a final value that never routes through SetValue, so it is the only
+        // one that has to name the unit itself. Machinery is always a whole-unit lumpsum (a sum of
+        // per-machine FMV) — said outright rather than left null and relying on null happening to
+        // read as lumpsum. Stamps the ROW only: UnitType is this method's own column and this
+        // operation's contract is to mirror the FMV total, not to decide the method's price unit.
+        // The literal matches PricingAnalysisApproach.cs's BuildingCost seed; PricingUnit.PerUnit
+        // is reachable (same assembly) but the two sibling writers should read alike.
+        FinalValue.SetFinalValueUnitType("PerUnit");
     }
 
     public void SetRsqResult(PricingRsqResult rsqResult)

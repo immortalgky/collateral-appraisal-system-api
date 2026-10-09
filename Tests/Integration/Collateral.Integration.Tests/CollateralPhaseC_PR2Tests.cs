@@ -572,15 +572,15 @@ public class CollateralPhaseC_PR2Tests(IntegrationTestFixture fixture)
         using var doc = JsonDocument.Parse(engagement.Snapshot);
         var root = doc.RootElement;
 
-        // PR-4 snapshot shape: { groups: [{ buildingCost, appraisalValue, properties: [{ unitPrice }] }] }
+        // PR-4 snapshot shape: { groups: [{ buildingValue, appraisalValue, properties: [{ unitPrice }] }] }
         Assert.True(root.TryGetProperty("groups", out var groupsEl), "Snapshot missing 'groups'");
         var firstGroup = groupsEl.EnumerateArray().First();
 
-        // buildingCost and appraisalValue live on the group
-        Assert.True(firstGroup.TryGetProperty("buildingCost",  out _), "Group missing 'buildingCost'");
+        // buildingValue and appraisalValue live on the group
+        Assert.True(firstGroup.TryGetProperty("buildingValue", out _), "Group missing 'buildingValue'");
         Assert.True(firstGroup.TryGetProperty("appraisalValue",out _), "Group missing 'appraisalValue'");
 
-        Assert.Equal(JsonValueKind.Null, firstGroup.GetProperty("buildingCost").ValueKind);
+        Assert.Equal(JsonValueKind.Null, firstGroup.GetProperty("buildingValue").ValueKind);
 
         // appraisalValue is null when no PricingAnalysis FinalAppraisedValue present
         Assert.Equal(JsonValueKind.Null, firstGroup.GetProperty("appraisalValue").ValueKind);

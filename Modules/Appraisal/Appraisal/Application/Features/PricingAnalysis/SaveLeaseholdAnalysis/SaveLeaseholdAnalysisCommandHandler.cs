@@ -100,7 +100,9 @@ public class SaveLeaseholdAnalysisCommandHandler(
             .Select(s => new LeaseholdCalculationService.AppraisalScheduleRow(s.Year, s.ContractRentalFee))
             .ToList();
 
-        // Recalculate computed values (backend is source of truth)
+        // Recalculate computed values (backend is source of truth).
+        // TotalLandAreaInSqWa carries the NET appraisable area here (registered area less the
+        // appraiser's deductions) under a historical name — pricing wants net, so this is correct.
         var calcResult = _calcService.Calculate(analysis, appraisalSchedule, propertyData.TotalLandAreaInSqWa);
 
         analysis.SetComputedValues(
@@ -119,48 +121,54 @@ public class SaveLeaseholdAnalysisCommandHandler(
                 r.RentalIncome, r.PvFactor, r.NetCurrentRentalIncome));
         }
 
-        // Handle partial usage
+        // Handle partial usage. EstimatePriceRounded stores the SYSTEM-COMPUTED partial estimate
+        // only — never the appraiser's override. Mixing the two into this one column meant a later
+        // recalc without a resent override silently erased whatever the appraiser had typed. The
+        // override lives in FinalValue.IndicatedValue (below), same as every other method.
         decimal? computedEstimatePriceRounded;
         if (command.IsPartialUsage)
         {
+            // PricePerSqWa prices the REMAINING (non-leased) land for this partial-usage estimate —
+            // a different figure than LandValuePerSqWa, which feeds the land-growth model over the
+            // lease term. Passing LandValuePerSqWa here priced the remainder at the wrong rate.
+            // The total it is subtracted from — propertyData.TotalLandAreaInSqWa — is the NET
+            // appraisable area despite its name, which is what the remainder should be taken from.
             var (partialLandArea, partialLandPrice, estimateNetPrice, estimatePriceRounded) =
                 LeaseholdCalculationService.CalculatePartialUsage(
                     calcResult.FinalValueRounded,
                     command.PartialRai, command.PartialNgan, command.PartialWa,
-                    command.LandValuePerSqWa, propertyData.TotalLandAreaInSqWa);
+                    command.PricePerSqWa, propertyData.TotalLandAreaInSqWa);
 
             computedEstimatePriceRounded = estimatePriceRounded;
 
-            // Store user override if provided, otherwise use computed
-            var finalEstimate = command.EstimatePriceRounded ?? estimatePriceRounded;
-
             analysis.SetPartialUsage(true,
                 command.PartialRai, command.PartialNgan, command.PartialWa,
-                partialLandArea, command.LandValuePerSqWa,
-                partialLandPrice, estimateNetPrice, finalEstimate);
+                partialLandArea, command.PricePerSqWa,
+                partialLandPrice, estimateNetPrice, estimatePriceRounded);
         }
         else
         {
             computedEstimatePriceRounded = null;
-
-            // Store user override if provided
-            analysis.SetPartialUsage(false, null, null, null, null, null, null, null,
-                command.EstimatePriceRounded);
+            analysis.SetPartialUsage(false, null, null, null, null, null, null, null, null);
         }
 
-        // Set method value: user override > partial estimate > final value rounded
+        // Set method value: user override > partial estimate > final value rounded.
+        // command.EstimatePriceRounded is the client's continuously-refreshed computed figure, not
+        // an override input — falling back to it here would stamp IndicatedValue as "overridden" on
+        // every save, even when the appraiser never touched anything. IndicatedValue is the only
+        // override field; null means no override, same as every other method.
         var computedEstimate = computedEstimatePriceRounded ?? calcResult.FinalValueRounded;
-        var finalPrice = command.EstimatePriceRounded ?? computedEstimate;
-        method.SetValue(finalPrice, null, PricingUnit.PerUnit);
+        method.SetValue(computedEstimate, null, PricingUnit.PerUnit);
 
         // Mirror the committed final value into the shared PricingFinalValue (single source of truth).
         // Land area and building value are not applicable for Leasehold.
         if (method.FinalValue is null)
-            method.SetFinalValue(PricingFinalValue.Create(method.Id, calcResult.FinalValue, calcResult.FinalValueRounded));
+            method.SetFinalValue(PricingFinalValue.Create(method.Id, calcResult.FinalValueRounded));
         else
-            method.FinalValue.UpdateFinalValue(calcResult.FinalValue, calcResult.FinalValueRounded);
-        method.FinalValue!.SetFinalValueAdjusted(command.FinalValueAdjusted);
-        method.FinalValue.SetAppraisalPrice(command.AppraisalPrice ?? finalPrice);
+            method.FinalValue.UpdateFinalValue(calcResult.FinalValueRounded);
+        method.FinalValue!.SetFinalValueOverride(command.FinalValueOverride);
+        method.FinalValue.SetIndicatedValue(command.IndicatedValue);
+        method.SyncMethodValueWithIndicatedValue();
 
         // Roll the new method value up through approach → analysis (null-safe, idempotent).
         pricingAnalysis.RecalculateRollup();

@@ -10,6 +10,7 @@ public record GetPoolTasksFilterRequest(
     string? TaskName = null,
     string? Search = null,
     string? AppraisalNumber = null,
+    string? Channel = null,
     string? CustomerName = null,
     string? TaskStatus = null,
     string? TaskType = null,
@@ -45,6 +46,7 @@ public record PoolTaskDto
     public string? ActivityId { get; init; }
     public string? AppraisalNumber { get; init; }
     public string? RequestNumber { get; init; }
+    public string? Channel { get; init; }
     public string? CustomerName { get; init; }
     public string? TaskType { get; init; }
     public string? TaskDescription { get; init; }

@@ -56,6 +56,12 @@ public record GetAppraisalsFilterRequest(
     // Matches appraisals having at least one property of the given type(s); comma-separated for IN.
     public string? PropertyType { get; init; }
     public string? SubDistrict { get; init; }
+
+    /// <summary>
+    /// The request's requestor (RM) user code(s), e.g. "P5229"; comma-separated for IN. Matched on
+    /// request.Requests.Requestor — who asked for the appraisal, not who keyed the request.
+    /// </summary>
+    public string? Requestor { get; init; }
     public DateTime? RequestedAtFrom { get; init; }
     public DateTime? RequestedAtTo { get; init; }
 }

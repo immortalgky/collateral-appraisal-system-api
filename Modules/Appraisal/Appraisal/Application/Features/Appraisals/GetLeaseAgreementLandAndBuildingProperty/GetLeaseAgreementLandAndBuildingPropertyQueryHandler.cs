@@ -162,7 +162,6 @@ public class GetLeaseAgreementLandAndBuildingPropertyQueryHandler(
             landDetail.RoyalDecree,
             landDetail.IsEncroached,
             landDetail.EncroachmentRemark,
-            landDetail.EncroachmentArea,
             landDetail.IsLandlocked,
             landDetail.LandlockedRemark,
             landDetail.IsForestBoundary,
@@ -186,6 +185,7 @@ public class GetLeaseAgreementLandAndBuildingPropertyQueryHandler(
             landDetail.HasBuilding,
             landDetail.HasBuildingOther,
             landDetail.TotalLandAreaInSqWa,
+            landDetail.NetLandAreaInSqWa,
             // Land titles
             landDetail.Titles.Select(title => new LandTitleItemData(
                 title.Id,
@@ -209,6 +209,14 @@ public class GetLeaseAgreementLandAndBuildingPropertyQueryHandler(
                 title.GovernmentPricePerSqWa,
                 title.GovernmentPrice,
                 title.Remark
+            )).ToList(),
+
+            landDetail.Deductions.Select(d => new LandAreaDeductionData(
+                d.Id,
+                d.ReasonCode,
+                d.ReasonOther,
+                d.AreaInSqWa,
+                d.Remark
             )).ToList(),
 
             // Building - Identification (from Building)
@@ -266,9 +274,8 @@ public class GetLeaseAgreementLandAndBuildingPropertyQueryHandler(
             buildingDetail.UtilizationTypeOther,
             // Area & Pricing
             buildingDetail.TotalBuildingArea,
+            buildingDetail.BuildingCostValue,
             buildingDetail.BuildingInsurancePrice,
-            buildingDetail.SellingPrice,
-            buildingDetail.ForcedSalePrice,
             // Remarks
             landDetail.Remark,
             // Depreciation Details

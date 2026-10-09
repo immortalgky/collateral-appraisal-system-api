@@ -40,6 +40,10 @@ namespace Collateral.Migrations
                     b.Property<DateTime?>("LastAppraisedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("NotRequiredRemark")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("OldAppraisalNumber")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -1199,6 +1203,14 @@ namespace Collateral.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
+                    b.Property<bool>("IsBlockUnit")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateOnly?>("LastSeenFileDate")
+                        .HasColumnType("date");
+
                     b.Property<decimal?>("Latitude")
                         .HasPrecision(10, 7)
                         .HasColumnType("decimal(10,7)");
@@ -1210,6 +1222,10 @@ namespace Collateral.Migrations
                     b.Property<decimal?>("MortgageAmount")
                         .HasPrecision(15, 2)
                         .HasColumnType("decimal(15,2)");
+
+                    b.Property<string>("NormalizedSurveyNumber")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
 
                     b.Property<int?>("PastDueDay")
                         .HasColumnType("int");
@@ -1266,12 +1282,18 @@ namespace Collateral.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("LastSeenFileDate")
+                        .HasDatabaseName("IX_ReappraisalCandidate_LastSeenFileDate");
+
                     b.HasIndex("ReviewDate")
                         .HasDatabaseName("IX_ReappraisalCandidate_ReviewDate");
 
                     b.HasIndex("Status")
                         .HasDatabaseName("IX_ReappraisalCandidate_Status_Pending")
                         .HasFilter("[Status] = 'Pending'");
+
+                    b.HasIndex("NormalizedSurveyNumber", "CollateralId")
+                        .HasDatabaseName("IX_ReappraisalCandidate_NormalizedSurveyNumber_CollateralId");
 
                     b.HasIndex("SourceFileDate", "CollateralId", "SurveyNumber")
                         .IsUnique()
@@ -1364,6 +1386,9 @@ namespace Collateral.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ProcessingStartedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<int>("RetryCount")

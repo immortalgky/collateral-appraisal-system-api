@@ -296,8 +296,10 @@
         "id": "internal-followup-selection",
         "name": "Internal Followup Selection",
         "type": "InternalFollowupSelectionActivity",
-        "description": "Selects internal followup staff via round-robin or uses admin-selected staff",
-        "properties": {},
+        "description": "Selects internal followup staff: the completer of the source activity if configured, else admin-selected staff, else round-robin",
+        "properties": {
+          "sameAssigneeAsActivity": "int-pma-input"
+        },
         "position": {
           "x": 300,
           "y": 193

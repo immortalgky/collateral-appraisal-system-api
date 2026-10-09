@@ -84,6 +84,8 @@ docker-volumes/
 # -------------------------------------
 Bootstrapper/Api/wwwroot/uploads/documents/
 Bootstrapper/Api/wwwroot/uploads/reports/
+# Chunked-upload staging — same runtime origin as the two above, and a load test fills it.
+Bootstrapper/Api/wwwroot/uploads/temp/
 
 # -------------------------------------
 # File-interface job runtime dirs (side-effects of local Hangfire runs;

@@ -78,9 +78,20 @@ public class BuildingAppraisalDetail : Entity<Guid>
     public decimal? TotalBuildingArea { get; private set; }
 
     // Pricing
+    /// <summary>
+    /// The Building Cost Value shown on the property screen: the appraiser's typed figure, otherwise the one
+    /// computed from every depreciation row (<see cref="ResolveDerivedValues"/>, on every save). Null only
+    /// when nothing was typed and there are no rows; readers still fall back to the computed value for it.
+    /// </summary>
+    public decimal? BuildingCostValue { get; private set; }
+
+    /// <summary>
+    /// The fire-insurance coverage shown on the property screen: the appraiser's typed figure, otherwise the
+    /// one computed from the IsBuilding depreciation rows (<see cref="ResolveDerivedValues"/>, on every save).
+    /// Null only when nothing was typed and there are no IsBuilding rows. A non-null value is not proof it was
+    /// typed — the frontend treats a value equal to the computed one as "not entered".
+    /// </summary>
     public decimal? BuildingInsurancePrice { get; private set; }
-    public decimal? SellingPrice { get; private set; }
-    public decimal? ForcedSalePrice { get; private set; }
 
     // Other
     public string? Remark { get; private set; }
@@ -167,9 +178,8 @@ public class BuildingAppraisalDetail : Entity<Guid>
         string? utilizationTypeOther = null,
         // Area & Pricing
         decimal? totalBuildingArea = null,
+        decimal? buildingCostValue = null,
         decimal? buildingInsurancePrice = null,
-        decimal? sellingPrice = null,
-        decimal? forcedSalePrice = null,
         // Other
         string? remark = null)
     {
@@ -240,9 +250,8 @@ public class BuildingAppraisalDetail : Entity<Guid>
 
         // Area & Pricing
         TotalBuildingArea = totalBuildingArea;
+        BuildingCostValue = buildingCostValue;
         BuildingInsurancePrice = buildingInsurancePrice;
-        SellingPrice = sellingPrice;
-        ForcedSalePrice = forcedSalePrice;
 
         // Other
         Remark = remark;
@@ -304,9 +313,8 @@ public class BuildingAppraisalDetail : Entity<Guid>
             UtilizationType = source.UtilizationType,
             UtilizationTypeOther = source.UtilizationTypeOther,
             TotalBuildingArea = source.TotalBuildingArea,
+            BuildingCostValue = source.BuildingCostValue,
             BuildingInsurancePrice = source.BuildingInsurancePrice,
-            SellingPrice = source.SellingPrice,
-            ForcedSalePrice = source.ForcedSalePrice,
             Remark = source.Remark
         };
 
@@ -362,6 +370,52 @@ public class BuildingAppraisalDetail : Entity<Guid>
         return detail;
     }
 
+    /// <summary>
+    /// Seeds บ้านเลขที่ at appraisal creation. Not <see cref="Update"/>: that overwrites every field,
+    /// including <see cref="IsAppraisable"/>'s default of true.
+    /// </summary>
+    internal void SetHouseNumber(string? houseNumber) =>
+        HouseNumber = string.IsNullOrWhiteSpace(houseNumber) ? null : houseNumber.Trim();
+
+    /// <summary>
+    /// Fire-insurance value derived from the depreciation schedule: the IsBuilding rows' depreciated value,
+    /// rounded to the nearest 1,000 (the same way SQL <c>ROUND(x, -3)</c> does, midpoint away from zero).
+    /// Each row already holds the 2 decimals the column stores (<see cref="BuildingDepreciationDetail"/> rounds
+    /// on the way in), so a value computed before save matches the one recomputed from the saved rows (and the
+    /// screen's, which does the same). Null when there are no
+    /// IsBuilding rows. This is the one definition; the valuation summary uses it too, and
+    /// <c>BuildingInsuranceCalculator</c> mirrors it in SQL.
+    /// </summary>
+    public decimal? ComputeInsurancePrice() => RoundedDepreciatedValue(_depreciationDetails.Where(d => d.IsBuilding));
+
+    /// <summary>
+    /// Building Cost Value derived from the depreciation schedule: the depreciated value of EVERY row
+    /// (Non-Building included, which is what the Cost approach prices), rounded like
+    /// <see cref="ComputeInsurancePrice"/>. Null when there are no rows. Mirrored in SQL as
+    /// <c>ROUND(SUM(bdd.PriceAfterDepreciation), -3)</c> by every reader that still falls back for a NULL.
+    /// </summary>
+    public decimal? ComputeBuildingCostValue() => RoundedDepreciatedValue(_depreciationDetails);
+
+    private static decimal? RoundedDepreciatedValue(IEnumerable<BuildingDepreciationDetail> source)
+    {
+        var rows = source.ToList();
+        if (rows.Count == 0) return null;
+        var total = rows.Sum(d => d.PriceAfterDepreciation);
+        return Math.Round(total / 1000, MidpointRounding.AwayFromZero) * 1000;
+    }
+
+    /// <summary>
+    /// Makes <see cref="BuildingInsurancePrice"/> and <see cref="BuildingCostValue"/> the values shown on
+    /// screen: the appraiser's typed value when there is one, otherwise the computed one. Call after
+    /// <see cref="Update"/> and after the depreciation rows are synced; a null typed value then
+    /// re-computes from the current rows on every save.
+    /// </summary>
+    public void ResolveDerivedValues()
+    {
+        BuildingInsurancePrice ??= ComputeInsurancePrice();
+        BuildingCostValue ??= ComputeBuildingCostValue();
+    }
+
     public void RemoveDepreciationDetail(Guid depreciationDetailId)
     {
         var detail = _depreciationDetails.FirstOrDefault(d => d.Id == depreciationDetailId)
@@ -391,71 +445,5 @@ public class BuildingAppraisalDetail : Entity<Guid>
         var surface = _surfaces.FirstOrDefault(s => s.Id == surfaceId)
                       ?? throw new InvalidOperationException($"Surface {surfaceId} not found");
         _surfaces.Remove(surface);
-    }
-
-    /// <summary>
-    /// Applies admin corrections to this building, recording each change in <paramref name="diff"/>.
-    /// Not routed through <see cref="Update"/>, which overwrites every property unconditionally.
-    /// </summary>
-    internal void ApplyCorrection(BuildingCorrection edit, Dictionary<string, object?> diff)
-    {
-        CorrectionDiff.Apply("Building.PropertyName", PropertyName, edit.PropertyName, v => PropertyName = v, diff);
-        CorrectionDiff.Apply("Building.BuildingNumber", BuildingNumber, edit.BuildingNumber, v => BuildingNumber = v, diff);
-        CorrectionDiff.Apply("Building.ModelName", ModelName, edit.ModelName, v => ModelName = v, diff);
-        CorrectionDiff.Apply("Building.BuiltOnTitleNumber", BuiltOnTitleNumber, edit.BuiltOnTitleNumber, v => BuiltOnTitleNumber = v, diff);
-        CorrectionDiff.Apply("Building.HouseNumber", HouseNumber, edit.HouseNumber, v => HouseNumber = v, diff);
-        CorrectionDiff.Apply("Building.NoHouseNumber", NoHouseNumber, edit.NoHouseNumber, v => NoHouseNumber = v, diff);
-        CorrectionDiff.Apply("Building.OwnerName", OwnerName, edit.OwnerName, v => OwnerName = v, diff);
-        CorrectionDiff.Apply("Building.IsOwnerVerified", IsOwnerVerified, edit.IsOwnerVerified, v => IsOwnerVerified = v, diff);
-        CorrectionDiff.Apply("Building.HasObligation", HasObligation, edit.HasObligation, v => HasObligation = v, diff);
-        CorrectionDiff.Apply("Building.ObligationDetails", ObligationDetails, edit.ObligationDetails, v => ObligationDetails = v, diff);
-        CorrectionDiff.Apply("Building.BuildingConditionType", BuildingConditionType, edit.BuildingConditionType, v => BuildingConditionType = v, diff);
-        CorrectionDiff.Apply("Building.BuildingConditionTypeOther", BuildingConditionTypeOther, edit.BuildingConditionTypeOther, v => BuildingConditionTypeOther = v, diff);
-        CorrectionDiff.Apply("Building.IsUnderConstruction", IsUnderConstruction, edit.IsUnderConstruction, v => IsUnderConstruction = v, diff);
-        CorrectionDiff.Apply("Building.ConstructionLicenseExpirationDate", ConstructionLicenseExpirationDate, edit.ConstructionLicenseExpirationDate, v => ConstructionLicenseExpirationDate = v, diff);
-        CorrectionDiff.Apply("Building.IsAppraisable", IsAppraisable, edit.IsAppraisable, v => IsAppraisable = v, diff);
-        CorrectionDiff.Apply("Building.BuildingType", BuildingType, edit.BuildingType, v => BuildingType = v, diff);
-        CorrectionDiff.Apply("Building.BuildingTypeOther", BuildingTypeOther, edit.BuildingTypeOther, v => BuildingTypeOther = v, diff);
-        CorrectionDiff.Apply("Building.NumberOfFloors", NumberOfFloors, edit.NumberOfFloors, v => NumberOfFloors = v, diff);
-        CorrectionDiff.Apply("Building.DecorationType", DecorationType, edit.DecorationType, v => DecorationType = v, diff);
-        CorrectionDiff.Apply("Building.DecorationTypeOther", DecorationTypeOther, edit.DecorationTypeOther, v => DecorationTypeOther = v, diff);
-        CorrectionDiff.Apply("Building.IsEncroachingOthers", IsEncroachingOthers, edit.IsEncroachingOthers, v => IsEncroachingOthers = v, diff);
-        CorrectionDiff.Apply("Building.EncroachingOthersRemark", EncroachingOthersRemark, edit.EncroachingOthersRemark, v => EncroachingOthersRemark = v, diff);
-        CorrectionDiff.Apply("Building.EncroachingOthersArea", EncroachingOthersArea, edit.EncroachingOthersArea, v => EncroachingOthersArea = v, diff);
-        CorrectionDiff.Apply("Building.BuildingMaterialType", BuildingMaterialType, edit.BuildingMaterialType, v => BuildingMaterialType = v, diff);
-        CorrectionDiff.Apply("Building.BuildingStyleType", BuildingStyleType, edit.BuildingStyleType, v => BuildingStyleType = v, diff);
-        CorrectionDiff.Apply("Building.BuildingStyleTypeOther", BuildingStyleTypeOther, edit.BuildingStyleTypeOther, v => BuildingStyleTypeOther = v, diff);
-        CorrectionDiff.Apply("Building.IsResidential", IsResidential, edit.IsResidential, v => IsResidential = v, diff);
-        CorrectionDiff.Apply("Building.BuildingAge", BuildingAge, edit.BuildingAge, v => BuildingAge = v, diff);
-        CorrectionDiff.Apply("Building.ConstructionYear", ConstructionYear, edit.ConstructionYear, v => ConstructionYear = v, diff);
-        CorrectionDiff.Apply("Building.ResidentialRemark", ResidentialRemark, edit.ResidentialRemark, v => ResidentialRemark = v, diff);
-        CorrectionDiff.Apply("Building.ConstructionStyleType", ConstructionStyleType, edit.ConstructionStyleType, v => ConstructionStyleType = v, diff);
-        CorrectionDiff.Apply("Building.ConstructionStyleRemark", ConstructionStyleRemark, edit.ConstructionStyleRemark, v => ConstructionStyleRemark = v, diff);
-        CorrectionDiff.ApplyList("Building.StructureType", StructureType, edit.StructureType, v => StructureType = v, diff);
-        CorrectionDiff.Apply("Building.StructureTypeOther", StructureTypeOther, edit.StructureTypeOther, v => StructureTypeOther = v, diff);
-        CorrectionDiff.ApplyList("Building.RoofFrameType", RoofFrameType, edit.RoofFrameType, v => RoofFrameType = v, diff);
-        CorrectionDiff.Apply("Building.RoofFrameTypeOther", RoofFrameTypeOther, edit.RoofFrameTypeOther, v => RoofFrameTypeOther = v, diff);
-        CorrectionDiff.ApplyList("Building.RoofType", RoofType, edit.RoofType, v => RoofType = v, diff);
-        CorrectionDiff.Apply("Building.RoofTypeOther", RoofTypeOther, edit.RoofTypeOther, v => RoofTypeOther = v, diff);
-        CorrectionDiff.ApplyList("Building.CeilingType", CeilingType, edit.CeilingType, v => CeilingType = v, diff);
-        CorrectionDiff.Apply("Building.CeilingTypeOther", CeilingTypeOther, edit.CeilingTypeOther, v => CeilingTypeOther = v, diff);
-        CorrectionDiff.ApplyList("Building.InteriorWallType", InteriorWallType, edit.InteriorWallType, v => InteriorWallType = v, diff);
-        CorrectionDiff.Apply("Building.InteriorWallTypeOther", InteriorWallTypeOther, edit.InteriorWallTypeOther, v => InteriorWallTypeOther = v, diff);
-        CorrectionDiff.ApplyList("Building.ExteriorWallType", ExteriorWallType, edit.ExteriorWallType, v => ExteriorWallType = v, diff);
-        CorrectionDiff.Apply("Building.ExteriorWallTypeOther", ExteriorWallTypeOther, edit.ExteriorWallTypeOther, v => ExteriorWallTypeOther = v, diff);
-        CorrectionDiff.ApplyList("Building.FenceType", FenceType, edit.FenceType, v => FenceType = v, diff);
-        CorrectionDiff.Apply("Building.FenceTypeOther", FenceTypeOther, edit.FenceTypeOther, v => FenceTypeOther = v, diff);
-        CorrectionDiff.Apply("Building.ConstructionType", ConstructionType, edit.ConstructionType, v => ConstructionType = v, diff);
-        CorrectionDiff.Apply("Building.ConstructionTypeOther", ConstructionTypeOther, edit.ConstructionTypeOther, v => ConstructionTypeOther = v, diff);
-        CorrectionDiff.Apply("Building.UtilizationType", UtilizationType, edit.UtilizationType, v => UtilizationType = v, diff);
-        CorrectionDiff.Apply("Building.UtilizationTypeOther", UtilizationTypeOther, edit.UtilizationTypeOther, v => UtilizationTypeOther = v, diff);
-        // TotalBuildingArea is deliberately NOT correctable: the RCN/depreciation figures are
-        // computed from it, and this feature corrects descriptive data only — it neither
-        // recomputes prices nor returns the appraisal to the workflow. Same reasoning as the
-        // land title's area; see CorrectionDto_DoesNotExposeArea.
-        CorrectionDiff.Apply("Building.BuildingInsurancePrice", BuildingInsurancePrice, edit.BuildingInsurancePrice, v => BuildingInsurancePrice = v, diff);
-        CorrectionDiff.Apply("Building.SellingPrice", SellingPrice, edit.SellingPrice, v => SellingPrice = v, diff);
-        CorrectionDiff.Apply("Building.ForcedSalePrice", ForcedSalePrice, edit.ForcedSalePrice, v => ForcedSalePrice = v, diff);
-        CorrectionDiff.Apply("Building.Remark", Remark, edit.Remark, v => Remark = v, diff);
     }
 }

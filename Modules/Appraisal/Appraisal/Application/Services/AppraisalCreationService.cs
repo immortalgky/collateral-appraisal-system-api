@@ -46,6 +46,7 @@ public class AppraisalCreationService(
         string? appraisalType = null,
         Guid? workflowDefinitionId = null,
         string? groupTag = null,
+        string? prevAppraisalNumber = null,
         CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Creating appraisal from request {RequestId} with {TitleCount} titles",
@@ -135,6 +136,9 @@ public class AppraisalCreationService(
         // Stamp the reappraisal batch tag when provided (system-only; no user edit path).
         if (!string.IsNullOrWhiteSpace(groupTag))
             appraisal.SetGroupTag(groupTag);
+
+        if (prevAppraisalId is null && !string.IsNullOrWhiteSpace(prevAppraisalNumber))
+            appraisal.SetPrevAppraisalNumber(prevAppraisalNumber);
 
         // Track prior→new property mapping so we can duplicate PropertyPhotoMapping rows
         // AFTER Phase 1 SaveChanges (which is where DB-generated IDs land on the new properties).
@@ -304,8 +308,7 @@ public class AppraisalCreationService(
             }
             else
             {
-                var initialGroup = appraisal.CreateGroup("Group 1", "Auto-generated group for all properties");
-                foreach (var property in appraisal.Properties) initialGroup.AddProperty(property.Id);
+                CreateDefaultGroupsByFamily(appraisal);
             }
 
             var assignment = appraisal.AssignAdmin();
@@ -350,6 +353,11 @@ public class AppraisalCreationService(
                 // (below), so RecomputeAsync's appointment-derived fallback would see no rows here and
                 // stamp DateTime.Now. This mirrors the non-CI path, where ValuationDate is the
                 // appointment date.
+                //
+                // The aggregate was added and saved by this context, and EF does not mark its Properties
+                // as loaded (verified), which RecomputeAsync requires for the insurance sum — so load them
+                // through the repository first (a fix-up onto the tracked instances).
+                await appraisalRepository.GetByIdWithPropertiesAsync(appraisal.Id, cancellationToken);
                 await valuationSummaryService.RecomputeAsync(
                     appraisal.Id, cancellationToken, appointment?.AppointmentDateTime);
             }
@@ -458,6 +466,9 @@ public class AppraisalCreationService(
         var primary = titles.FirstOrDefault(t => GetAppraisalFamily(t) == "LB") ?? titles.First();
         UpdateLandDetailTopFields(landDetail, primary);
 
+        // LB: the title's DOPA house number belongs to the building (the summary's เลขที่ reads it there).
+        property.BuildingDetail?.SetHouseNumber(primary.DopaAddress?.HouseNumber);
+
         foreach (var t in titles) AddLandTitleFromRequest(landDetail, t);
     }
 
@@ -479,8 +490,11 @@ public class AppraisalCreationService(
         var primary = titles.FirstOrDefault(t => GetAppraisalFamily(t) == "LS") ?? titles.First();
         UpdateLandDetailTopFields(landDetail, primary);
 
+        // LS: same as LB — the title's DOPA house number belongs to the building.
+        property.BuildingDetail?.SetHouseNumber(primary.DopaAddress?.HouseNumber);
+
         foreach (var t in titles) AddLandTitleFromRequest(landDetail, t);
-        // BuildingDetail / LeaseAgreementDetail / RentalInfo stay empty — populated later by appraiser
+        // The rest of BuildingDetail / LeaseAgreementDetail / RentalInfo stays empty — populated later by appraiser
     }
 
     private void CreateCondoProperty(
@@ -515,8 +529,10 @@ public class AppraisalCreationService(
             usableArea: requestTitle.UsableArea,
             address: adminAddress,
             ownerName: requestTitle.OwnerName,
-            street: requestTitle.TitleAddress?.Road,
-            soi: requestTitle.TitleAddress?.Soi,
+            // Street-level parts come from the DOPA address, the same one the summary's
+            // ตำบล/อำเภอ/จังหวัด come from, so ที่ตั้งทรัพย์สิน reads as one address.
+            street: requestTitle.DopaAddress?.Road,
+            soi: requestTitle.DopaAddress?.Soi,
             dopaAddress: dopaAddress);
     }
 
@@ -551,8 +567,10 @@ public class AppraisalCreationService(
             usableArea: requestTitle.UsableArea,
             address: adminAddress,
             ownerName: requestTitle.OwnerName,
-            street: requestTitle.TitleAddress?.Road,
-            soi: requestTitle.TitleAddress?.Soi,
+            // Street-level parts come from the DOPA address, the same one the summary's
+            // ตำบล/อำเภอ/จังหวัด come from, so ที่ตั้งทรัพย์สิน reads as one address.
+            street: requestTitle.DopaAddress?.Road,
+            soi: requestTitle.DopaAddress?.Soi,
             dopaAddress: dopaAddress);
     }
 
@@ -602,10 +620,13 @@ public class AppraisalCreationService(
             requestTitle.TitleAddress?.ProjectName,
             address: adminAddress,
             ownerName: requestTitle.OwnerName,
-            street: requestTitle.TitleAddress?.Road,
-            soi: requestTitle.TitleAddress?.Soi,
-            village: requestTitle.TitleAddress?.Moo,
-            addressLocation: requestTitle.TitleAddress?.HouseNumber,
+            // Street-level parts come from the DOPA address, the same one the summary's
+            // ตำบล/อำเภอ/จังหวัด come from, so ที่ตั้งทรัพย์สิน reads as one address.
+            // ProjectName is the "Village/Building" field; Moo has no property column.
+            street: requestTitle.DopaAddress?.Road,
+            soi: requestTitle.DopaAddress?.Soi,
+            village: requestTitle.DopaAddress?.ProjectName,
+            addressLocation: requestTitle.DopaAddress?.HouseNumber,
             dopaAddress: dopaAddress);
     }
 
@@ -873,6 +894,34 @@ public class AppraisalCreationService(
     }
 
     /// <summary>
+    /// Default grouping for a fresh appraisal: one PropertyGroup per collateral family present
+    /// among its properties (see PropertyType.Family), since a group may not mix families. When
+    /// only one family is present this reproduces the old behaviour exactly — a single group named
+    /// "Group 1" holding every property.
+    /// </summary>
+    private static void CreateDefaultGroupsByFamily(Domain.Appraisals.Appraisal appraisal)
+    {
+        var families = appraisal.Properties.Select(p => p.PropertyType.Family).Distinct().ToList();
+
+        if (families.Count <= 1)
+        {
+            var group = appraisal.CreateGroup("Group 1", "Auto-generated group for all properties");
+            foreach (var property in appraisal.Properties)
+                appraisal.AddPropertyToGroup(group.Id, property.Id);
+            return;
+        }
+
+        var groupNumber = 1;
+        foreach (var family in families)
+        {
+            var group = appraisal.CreateGroup($"Group {groupNumber}", "Auto-generated group for all properties");
+            foreach (var property in appraisal.Properties.Where(p => p.PropertyType.Family == family))
+                appraisal.AddPropertyToGroup(group.Id, property.Id);
+            groupNumber++;
+        }
+    }
+
+    /// <summary>
     /// Mirrors the prior appraisal's PropertyGroups (including names, descriptions, group numbers,
     /// and property→group mapping) onto the new CI appraisal. Replaces the default "Group 1" path
     /// so each cloned PricingAnalysis can attach to a corresponding new group via FK.
@@ -895,8 +944,7 @@ public class AppraisalCreationService(
             logger.LogWarning(
                 "CI mirror groups: prior appraisal {PrevAppraisalId} not found; falling back to default Group 1.",
                 prevAppraisalId);
-            var initialGroup = appraisal.CreateGroup("Group 1", "Auto-generated group for all properties");
-            foreach (var property in appraisal.Properties) initialGroup.AddProperty(property.Id);
+            CreateDefaultGroupsByFamily(appraisal);
             return map;
         }
 
@@ -911,7 +959,8 @@ public class AppraisalCreationService(
             {
                 if (!newPropertyByPriorId.TryGetValue(item.AppraisalPropertyId, out var newProp))
                     continue; // prior property not copied (unsupported type) — skip
-                appraisal.AddPropertyToGroup(newGroup.Id, newProp.Id);
+                // Prior groups may predate the one-family rule — mirror them verbatim.
+                appraisal.AddPropertyToGroup(newGroup.Id, newProp.Id, enforceFamily: false);
             }
         }
 
@@ -919,8 +968,7 @@ public class AppraisalCreationService(
         // to a default group so downstream pricing/valuation flows have somewhere to live.
         if (map.Count == 0)
         {
-            var fallback = appraisal.CreateGroup("Group 1", "Auto-generated group for all properties");
-            foreach (var property in appraisal.Properties) fallback.AddProperty(property.Id);
+            CreateDefaultGroupsByFamily(appraisal);
         }
 
         logger.LogInformation(
@@ -1011,6 +1059,10 @@ public class AppraisalCreationService(
             .ThenInclude(m => m.HypothesisAnalysis!)
             .ThenInclude(h => h.CostItems)
             .ThenInclude(ci => ci.DepreciationPeriods)
+            .Include(p => p.Approaches)
+            .ThenInclude(a => a.Methods)
+            .ThenInclude(m => m.HypothesisAnalysis!)
+            .ThenInclude(h => h.ModelBuildingMappings)
             .Where(p => p.SubjectType == PricingAnalysisSubjectType.PropertyGroup
                         && p.AnchorId != null
                         && priorGroupIds.Contains(p.AnchorId.Value))

@@ -1,7 +1,8 @@
 @baseUrl= https://localhost:7111
 @requestId=B65E497C-D3E9-41E4-BC46-190AAB36A50C
 
-PATCH {{baseUrl}}/requests/{{requestId}}
+PUT {{baseUrl}}/requests/{{requestId}}
+X-Dev-Auth: dev-bypass
 headers: localhost:7111
 Content-Type: application/json
 

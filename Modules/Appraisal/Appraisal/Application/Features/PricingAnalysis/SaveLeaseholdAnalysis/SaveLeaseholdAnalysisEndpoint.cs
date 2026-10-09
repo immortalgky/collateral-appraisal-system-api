@@ -34,8 +34,8 @@ public class SaveLeaseholdAnalysisEndpoint : ICarterModule
                         request.PricePerSqWa,
                         request.Remark,
                         request.EstimatePriceRounded,
-                        request.FinalValueAdjusted,
-                        request.AppraisalPrice
+                        request.FinalValueOverride,
+                        request.IndicatedValue
                     );
 
                     var result = await sender.Send(command);

@@ -36,7 +36,12 @@ public class GetPricingAnalysisQueryHandler(
                 m.FinalValue?.LandArea,
                 m.FinalValue?.LandValue,
                 m.FinalValue?.BuildingValue,
-                m.FinalValue?.AppraisalPrice
+                m.FinalValue?.IndicatedValue,
+                m.Role,
+                m.LinkedMethodId,
+                m.Remark,
+                m.UseSystemCalc,
+                m.UpdatedAt
             )).ToList()
         )).ToList();
 
@@ -105,5 +110,14 @@ public record MethodDto(
     decimal? LandArea = null,
     decimal? LandValue = null,
     decimal? BuildingValue = null,
-    decimal? AppraisalPrice = null
+    decimal? IndicatedValue = null,
+    // Which part of the group's value this method produces (Land/Building/LandAndBuilding/Machinery),
+    // and the sibling method in the same approach it's linked to (WQS/SAG/DC -> its Building Cost method).
+    string? Role = null,
+    Guid? LinkedMethodId = null,
+    string? Remark = null,
+    // Per-method calc mode: true = system-computed, false = manually entered.
+    bool UseSystemCalc = true,
+    // Audit timestamp (Entity<Guid>.UpdatedAt) — null until the method's first save after creation.
+    DateTime? UpdatedAt = null
 );

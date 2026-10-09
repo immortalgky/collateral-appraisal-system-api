@@ -146,7 +146,7 @@ public class CreateRequestService(
         if (command.Properties is { Count: > 0 })
         {
             var properties = command.Properties
-                .Select(p => RequestProperty.Create(p.PropertyType, p.BuildingType, p.SellingPrice))
+                .Select(p => RequestProperty.Create(p.PropertyType, p.BuildingType, p.BuildingTypeOther, p.SellingPrice))
                 .ToList();
 
             request.SetProperties(properties);
@@ -188,6 +188,7 @@ public class CreateRequestService(
         {
             var title = TitleFactory.Create(titleDto.CollateralType,
                 titleDto.ToRequestTitleData() with { RequestId = requestId });
+            title.SetSequenceNumber(titles.Count + 1);
 
             foreach (var doc in titleDto.Documents)
                 title.AddDocument(new TitleDocumentData

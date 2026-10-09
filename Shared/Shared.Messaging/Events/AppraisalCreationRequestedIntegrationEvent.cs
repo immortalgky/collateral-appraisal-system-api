@@ -28,6 +28,10 @@ public record AppraisalCreationRequestedIntegrationEvent : IntegrationEvent
 
     // Construction Inspection fields
     public Guid? PrevAppraisalId { get; set; }
+
+    // The prior book's number when it is NOT an appraisal in this system (legacy AS400 "99A…").
+    // Never set together with PrevAppraisalId.
+    public string? PrevAppraisalNumber { get; set; }
     public string? AppraisalType { get; set; }
 
     // Reappraisal batch label — NULL for non-reappraisal requests.

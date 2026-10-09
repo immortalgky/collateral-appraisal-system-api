@@ -37,14 +37,19 @@ public class RemoveMethodCommandHandler(
         // Active cleanup: delete all reference PricingAnalyses whose HostMethodId == this method (DL10).
         await cleanupService.CleanupForMethodRemovalAsync(command.MethodId, cancellationToken);
 
-        // If the removed method was selected, clear approach and final value selections
-        if (method.IsSelected)
+        // A selected component of a multi-select Cost approach: the rest of the selection stays and
+        // the values re-derive from it (the domain does the removal on this path).
+        if (!pricingAnalysis.TryRemoveSelectedCostComponent(approach.Id, command.MethodId))
         {
-            approach.Unselect();
-            pricingAnalysis.ClearFinalValues();
-        }
+            // If the removed method was selected, clear approach and final value selections
+            if (method.IsSelected)
+            {
+                approach.Unselect();
+                pricingAnalysis.ClearFinalValues();
+            }
 
-        approach.RemoveMethod(command.MethodId);
+            approach.RemoveMethod(command.MethodId);
+        }
 
         if (approach.Methods.Count == 0)
             pricingAnalysis.RemoveApproach(approach.Id);

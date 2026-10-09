@@ -8,6 +8,6 @@ public record SaveMachineCostItemsCommand(
     Guid MethodId,
     IReadOnlyList<MachineCostItemInput> Items,
     string? Remark = null,
-    decimal? FinalValueAdjusted = null,
-    decimal? AppraisalPrice = null
+    decimal? FinalValueOverride = null,
+    decimal? IndicatedValue = null
 ) : ICommand<SaveMachineCostItemsResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

@@ -292,6 +292,109 @@ belongs to AS400 and we cannot move anything out of it. `integration.InboundFile
 prevents a file being ingested twice. The trade-off is that quarantined files also stay put, so a
 file that could not be parsed shows up only in that table and in Seq.
 
+## Menu parents ungated — NOT backward-compatible (this release)
+
+Two scripts in the `db/` bundle — `20260925120000_UpdateSeed_UngateMenuGroups.sql` and
+`20260926120000_UpdateSeed_UngateMenuParents.sql` — remove the Path and view permission from every
+menu parent: a group now shows whenever any entry inside it is visible. The previous app build hides
+an ungated node **and its whole subtree**, so for this release:
+
+1. Run the bundle (step 3) and deploy the new API **and** SPA (step 4) back to back, and **do not
+   restart an old-build API node in between**. An old node shows the old menu only while its cached
+   copy lasts: its first menu request after a (re)start, or any save/reorder/delete at `/admin/menus`
+   on it, reloads the new rows and hides every section for everyone — `/admin/menus` included. Keep
+   the window short and freeze `/admin/menus` edits during it. Starting the new build is the restart
+   the menu cache needs; nothing else is required afterwards.
+2. **App rollback:** first run `rollback\Restore_MenuParentGates.sql` from the release zip (source:
+   `deploy/rollback/`). It is one transaction and refuses — listing them — while any other item is
+   ungated (e.g. a group an admin created), until each has a view permission. Run it with `-b` so a
+   refusal fails the command instead of exiting 0:
+   ```powershell
+   sqlcmd -S <server> -d <database> -E -b -i rollback\Restore_MenuParentGates.sql
+   # SQL authentication: replace -E with -U <user> -P <password>
+   ```
+   Only when it succeeds, roll back the app. **Before deploying again — the same zip or any later build** (all of them contain these scripts),
+   delete the two scripts' rows from the journal so the bundle applies them again — otherwise they are
+   skipped as already run and the parents keep their old gates:
+   ```sql
+   DELETE FROM dbo.DatabaseMigrationHistory
+   WHERE ScriptName LIKE N'%20260925120000_UpdateSeed_UngateMenuGroups.sql'
+      OR ScriptName LIKE N'%20260926120000_UpdateSeed_UngateMenuParents.sql';
+   ```
+3. Ask users to **reload open browser tabs** after the SPA deploy: a tab still running the old SPA
+   renders the new menu with duplicate keys (two path-less sub-groups side by side) until reloaded.
+4. Tell the admins: removing a parent's permission no longer hides that whole section — only the
+   entries gated on that code. It changes what a role sees for `REQUEST_VIEW`, `TASK_LIST_VIEW`,
+   `QUOTATION_VIEW`, `INVOICE_VIEW`, `REPORT_VIEW`, `USER_MANAGE`, `COLLATERAL_ADMIN` (Master Data),
+   `SLA_CONFIG_MANAGE` (Business Rules), `LOGS_VIEW` (System) and `STANDALONE_USE` (Standalone, which
+   no longer gates anything). To hide a section, remove the permissions of the entries inside it.
+
+## Log viewer / Serilog config (this release)
+
+> **MUST DO before starting the new build: regenerate `appsettings.Production.json`'s `Serilog`
+> and `TimeZone` sections from the template on every server.** Skipping this breaks in one of these ways
+> depending on what the server's file currently has:
+> - **Old `Using` naming a sink package that's gone** (`Serilog.Sinks.Seq`, `Serilog.Sinks.Console`,
+>   `Serilog.Sinks.Grafana.Loki`) **fails host startup outright** — Serilog can't resolve the sink
+>   type named in `Using` and throws before the app binds to a port.
+> - **Old `columnOptionsSection`** keeps writing the old column set: the new `UserName`,
+>   `SourceContext`, `RequestPath` and `MessageTemplate` columns stay NULL, `RequestId` keeps
+>   holding ASP.NET connection ids, and `Properties` keeps the duplicated message — the log page's
+>   `user:`, top problems and `request:` filters then find nothing on new rows.
+> - **No `Database` (MSSqlServer) sink at all** → nothing reaches `dbo.Logs` and the log page is
+>   empty.
+
+**Regenerate `appsettings.Production.json` from the template — don't hand-patch the old file.**
+The template is self-contained: production runs on that one file, so its `Serilog` section carries
+everything — the `Database` sink (`MSSqlServer` → `dbo.Logs`, with the new `UserName`,
+`SourceContext`, `RequestPath` columns and `RequestId` ← `CasRequestId`), the `File` sink, the level
+overrides and `Enrich`. `Using`/`WriteTo` changed from JSON arrays to keyed objects (`"Database"`,
+`"File"`); an old array-shaped file must be replaced wholesale from the `.template`, then
+re-substitute your environment's real values (`ConnectionStrings:Database`, etc.). No Console, no Seq
+(the `Serilog.Sinks.Seq` package is no longer referenced at all).
+
+**Level changes vs the old template:** `MassTransit` drops from `Information` to `Warning` and
+`OpenIddict` is now `Warning` (both were most of the noise); `Workflow` has no override and stays at
+the `Information` default, same as before; `Microsoft.EntityFrameworkCore.Model.Validation` is
+`Error` (prod only).
+
+**`File`'s `restrictedToMinimumLevel` is `Warning`, not `Information` — this is a deliberate,
+user-approved decision, not an oversight.** The file is the fallback for when the DB sink is down,
+not a mirror of it. The HTTP request/response logging line (see `Program.cs`) is Information level
+and can carry customer PII in its body; keeping it DB-only (behind the `LOGS_VIEW` permission) and
+off the server's local disk was the whole point. Don't "fix" this by raising it back to Information.
+
+**`Observability:Tracing:OtlpEndpoint` / `#{OTLP_ENDPOINT}#` is gone.** There was never an OTLP
+collector in any environment; when regenerating `appsettings.Production.json` from the template you
+will no longer be asked to fill in that token — nothing else to do.
+
+**`TimeZone` in the template is now `Asia/Bangkok` / `ForceUtc: false`.** The old template said
+`UTC` / `ForceUtc: true`, which was stale — production has always run Thai local time. Servers whose
+`appsettings.Production.json` already has the Thai values need nothing; regenerating from the template
+now gives the right values instead of the wrong ones.
+
+**Migration `AddLogViewerSchema` — DBA note.** This is a schema-only migration (`01_EF_*.sql` in the
+bundle), no data backfill. It drops and recreates `IX_Logs_TimeStamp` on `dbo.Logs` (adding an
+`INCLUDE(Level)`) and adds a new `IX_Logs_Level_TimeStamp`. Neither is marked online — Standard
+Edition can't do online index ops, so the generated script can't assume it either. Before running
+the bundle in production:
+1. Check `SELECT COUNT(*) FROM dbo.Logs` first — the table only retains 30 days (`LogsCleanupJob`),
+   so this is normally small, but confirm before the rebuild rather than finding out mid-lock.
+2. Run the `db/` bundle in a low-traffic window; the index rebuild takes an exclusive lock on
+   `dbo.Logs` for its duration and every write to that table (i.e. every log line the app emits)
+   blocks until it completes.
+3. **Don't pre-create these two indexes yourself.** The EF idempotent script only checks whether
+   the *migration* has already run (`__EFMigrationsHistory`), not whether each index already exists
+   — it emits a plain `CREATE INDEX`, no `IF NOT EXISTS`. A pre-created index makes that statement
+   fail with "already exists" and aborts the bundle partway through. Either accept the lock in a
+   low-traffic window, or — on Enterprise/Developer — edit the generated `01_EF_*.sql` file for this
+   migration before running it and add `WITH (ONLINE = ON)` to both `CREATE INDEX` statements.
+
+**Deploy API and SPA together.** `/admin/logs`'s query/response contract changed in this release
+(new filters, cursor-based paging, the system-metrics panel) — an old SPA build against the new API,
+or vice versa, will not render the page correctly. Same one-node-at-a-time rollout as usual (see
+step 4 above) is fine; just don't leave a mismatched pair serving side by side for long.
+
 ## RabbitMQ — one-off unbind when a consumer changes message type (do this release)
 
 MassTransit declares exchange→queue bindings at startup and **never removes obsolete ones**. When a
@@ -341,3 +444,19 @@ Every `Deploy-App` / `Deploy-Web` run mirrors the previous live folder to
 Database migrations are **not** auto-rolled-back — schema changes are
 backward-compatible across a single release so the previous app build still runs.
 Reversing a migration means restoring the pre-deployment backup.
+
+> **Exceptions — the release that ungates the menu parents and encrypts webhook secrets.** The previous
+> build cannot use either change:
+> - **Menu:** run `rollback\Restore_MenuParentGates.sql` first — see "Menu parents ungated" above.
+> - **Webhook secrets:** any secret saved by this release is stored as `ENC:v1:…`, which the previous
+>   build would send as-is (wrong HMAC key / wrong LOS client secret). After rolling back, write each
+>   such secret back in plaintext (the old screen can set SecretKey only; ClientSecret needs SQL):
+>   ```sql
+>   -- find them (BIN2: case-sensitive, like the app's own check)
+>   SELECT Id, SystemCode, EventType FROM integration.WebhookSubscriptions
+>   WHERE SecretKey    LIKE N'ENC:v1:%' COLLATE Latin1_General_BIN2
+>      OR ClientSecret LIKE N'ENC:v1:%' COLLATE Latin1_General_BIN2;
+>   -- then, per row, with the real value from the receiving system:
+>   UPDATE integration.WebhookSubscriptions SET ClientSecret = N'<plaintext>' WHERE Id = '<id>';
+>   UPDATE integration.WebhookSubscriptions SET SecretKey    = N'<plaintext>' WHERE Id = '<id>';
+>   ```

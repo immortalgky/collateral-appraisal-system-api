@@ -83,7 +83,6 @@ public record CreateLeaseAgreementLandPropertyCommand(
     string? RoyalDecree = null,
     bool? IsEncroached = null,
     string? EncroachmentRemark = null,
-    decimal? EncroachmentArea = null,
     bool? IsLandlocked = null,
     string? LandlockedRemark = null,
     bool? IsForestBoundary = null,
@@ -109,6 +108,8 @@ public record CreateLeaseAgreementLandPropertyCommand(
     string? Remark = null,
     // Land Titles
     List<LandTitleItemData>? Titles = null,
+    // Area deductions taken off the appraised area
+    List<LandAreaDeductionData>? LandAreaDeductions = null,
     // Lease Agreement & Rental Info
     LeaseAgreementData? LeaseAgreement = null,
     RentalInfoData? RentalInfo = null

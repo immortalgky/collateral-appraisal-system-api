@@ -48,7 +48,7 @@
     </tr>
     <tr class="grp-total">
       <td>มูลค่าทรัพย์สิน (ปัดเศษ) (C81)</td>
-      <td class="num">{{ if hyp.lb_total_asset_value_rounded != null }}{{ hyp.lb_total_asset_value_rounded | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if hyp.lb_effective_asset_value != null }}{{ hyp.lb_effective_asset_value | math.format "N2" }}{{ end }}</td>
     </tr>
     <tr>
       <td>มูลค่าต่อตารางวา (C82)</td>
@@ -108,7 +108,7 @@
     </tr>
     <tr class="grp-total">
       <td>มูลค่าทรัพย์สิน (ปัดเศษ) (E58)</td>
-      <td class="num">{{ if hyp.cnd_total_asset_value_rounded != null }}{{ hyp.cnd_total_asset_value_rounded | math.format "N2" }}{{ end }}</td>
+      <td class="num">{{ if hyp.cnd_effective_asset_value != null }}{{ hyp.cnd_effective_asset_value | math.format "N2" }}{{ end }}</td>
     </tr>
     <tr>
       <td>มูลค่าต่อตารางเมตร (E59)</td>

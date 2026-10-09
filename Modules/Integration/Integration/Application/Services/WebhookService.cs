@@ -3,6 +3,7 @@ using Integration.Domain.WebhookSubscriptions;
 using Integration.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
 using Shared.Exceptions;
+using Shared.Security;
 using Shared.Time;
 using System.Globalization;
 using System.Net;
@@ -19,7 +20,8 @@ public class WebhookService(
     IHttpClientFactory httpClientFactory,
     IWebhookTokenProvider tokenProvider,
     ILogger<WebhookService> logger,
-    IDateTimeProvider dateTimeProvider
+    IDateTimeProvider dateTimeProvider,
+    ColumnSecretCipher cipher
 ) : IWebhookService
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -70,7 +72,12 @@ public class WebhookService(
             {
                 eventId,
                 eventType,
-                occurredAt = occurredAt.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ", System.Globalization.CultureInfo.InvariantCulture),
+                // Application-local time (IDateTimeProvider.ApplicationNow, Asia/Bangkok), no offset -- the same
+                // clock as the dates in the result payloads LOS fetches after this notification (their format
+                // differs: this one keeps milliseconds).
+                // Every caller passes an ApplicationNow-stamped value; ToUniversalTime() used to reinterpret
+                // it by the HOST's zone, which on a UTC host emitted Thai wall-clock time labelled "Z".
+                occurredAt = occurredAt.ToString("yyyy-MM-ddTHH:mm:ss.fff", CultureInfo.InvariantCulture),
                 externalCaseKey,
                 data
             };
@@ -145,13 +152,13 @@ public class WebhookService(
             }
             else
             {
-                if (string.IsNullOrEmpty(subscription.SecretKey))
+                if (string.IsNullOrWhiteSpace(subscription.SecretKey))
                     throw new InvalidOperationException(
                         $"HMAC subscription {subscription.Id} ({subscription.SystemCode}) is missing SecretKey.");
 
                 var unixTimestamp = ((DateTimeOffset)dateTimeProvider.ApplicationNow.ToUniversalTime()).ToUnixTimeSeconds();
                 var signedPayload = $"{unixTimestamp}.{delivery.Payload}";
-                var signature = GenerateSignature(signedPayload, subscription.SecretKey);
+                var signature = GenerateSignature(signedPayload, cipher.Unprotect(subscription.SecretKey));
 
                 req.Headers.Add("X-Timestamp", unixTimestamp.ToString(CultureInfo.InvariantCulture));
                 req.Headers.Add("X-Signature", $"sha256={signature}");

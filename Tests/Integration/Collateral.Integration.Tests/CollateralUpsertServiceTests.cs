@@ -76,6 +76,8 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         var prop = appraisal.AddMachineryProperty();
         prop.MachineryDetail!.Update(
             registrationNumber: registrationNo,
+            // An unregistered machine has its registration number cleared by the domain.
+            registrationStatus: registrationNo is not null,
             serialNo: serialNo,
             brand: brand,
             model: model,
@@ -2052,7 +2054,6 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
                 lesseeName: "Tenant Inc",
                 leaseStartDate: new DateTime(2022, 1, 1));
             var lhGroup = a.CreateGroup("Leasehold Group");
-            lhGroup.AddProperty(lhProp.Id);
 
             // The pre-seeded condo, present in THIS appraisal too (required for
             // UpsertLeaseholdAsync's no-land underlying-resolution fallback). Left ungrouped.
@@ -2062,9 +2063,12 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
             var machineProp = SeedMachineryProperty(a, registrationNo: machineRegNo,
                 serialNo: "S1", brand: "BRAND-L", model: "M1", manufacturer: "MFR-L");
             var machineGroup = a.CreateGroup("Machine Group");
-            machineGroup.AddProperty(machineProp.Id);
 
             appraisalDb.Appraisals.Add(a);
+            await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            // Property Ids are store-generated, so group membership is added after the first save.
+            a.AddPropertyToGroup(lhGroup.Id, lhProp.Id);
+            a.AddPropertyToGroup(machineGroup.Id, machineProp.Id);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
             appraisalId = a.Id;
         }

@@ -50,7 +50,13 @@ public class DocumentFollowupRequiredWebhookConsumer(
             {
                 appraisalNumber = keys.AppraisalNumber,
                 reasonCode = msg.ReasonCode,
-                reason = msg.Reason
+                reason = msg.Reason,
+                documents = msg.Documents.Select(d => new
+                {
+                    documentType = d.DocumentType,
+                    documentTypeName = d.DocumentTypeName,
+                    remark = d.Remark
+                })
             },
             cancellationToken: context.CancellationToken);
     }

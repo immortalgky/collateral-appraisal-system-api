@@ -18,6 +18,7 @@ public class SaveIncomeAnalysisCommandHandler(
     IncomeCalculationService calcService,
     ISender mediator,
     PricingReferenceCleanupService cleanupService,
+    PricingPropertyDataService propertyDataService,
     ILogger<SaveIncomeAnalysisCommandHandler> logger
 ) : ICommandHandler<SaveIncomeAnalysisCommand, SaveIncomeAnalysisResult>
 {
@@ -45,6 +46,10 @@ public class SaveIncomeAnalysisCommandHandler(
 
         // 3. Validate all DetailJson before touching the aggregate
         ValidateDetailJsons(command.Sections);
+        IncomeDisplaySeqValidator.EnsureUnique(command.Sections);
+
+        // 3a. HBU split land can't exceed the group's own land (HANDOFF §3.18).
+        await ValidateHbuSplitAgainstGroupLandAsync(command, pricingAnalysis, cancellationToken);
 
         // 4. Create IncomeAnalysis on first save or update parameters on re-save
         var analysis = method.IncomeAnalysis;
@@ -128,14 +133,11 @@ public class SaveIncomeAnalysisCommandHandler(
         
 
         // 7. Propagate the user's adjusted appraisal price up the chain.
-        // Priority: AppraisalPriceRounded (explicit override) → derived appraisal price
-        //           (FinalValueAdjust + HBU.TotalValue when applicable) → FinalValueRounded.
+        // Priority: IndicatedValue (explicit override, applied via SyncMethodValueWithIndicatedValue
+        //           below) → derived appraisal price (FinalValueAdjust + HBU.TotalValue when
+        //           applicable) → FinalValueRounded.
         decimal methodValue;
-        if (command.AppraisalPriceRounded is > 0)
-        {
-            methodValue = command.AppraisalPriceRounded.Value;
-        }
-        else if (command.FinalValueAdjust.HasValue)
+        if (command.FinalValueAdjust.HasValue)
         {
             // Mirror the frontend TotalValue derivation:
             // totalWa = AreaRai*400 + AreaNgan*100 + AreaWa
@@ -159,11 +161,12 @@ public class SaveIncomeAnalysisCommandHandler(
 
         // Mirror the committed final value into the shared PricingFinalValue (single source of truth).
         if (method.FinalValue is null)
-            method.SetFinalValue(PricingFinalValue.Create(method.Id, result.FinalValue, result.FinalValueRounded));
+            method.SetFinalValue(PricingFinalValue.Create(method.Id, result.FinalValueRounded));
         else
-            method.FinalValue.UpdateFinalValue(result.FinalValue, result.FinalValueRounded);
-        method.FinalValue.SetFinalValueAdjusted(command.FinalValueAdjust);
-        method.FinalValue.SetAppraisalPrice(command.AppraisalPriceRounded);
+            method.FinalValue.UpdateFinalValue(result.FinalValueRounded);
+        method.FinalValue.SetFinalValueOverride(command.FinalValueAdjust);
+        method.FinalValue.SetIndicatedValue(command.IndicatedValue);
+        method.SyncMethodValueWithIndicatedValue();
 
         // Roll the new method value up through approach → analysis (null-safe, idempotent).
         pricingAnalysis.RecalculateRollup();
@@ -175,15 +178,45 @@ public class SaveIncomeAnalysisCommandHandler(
         var remainingRooms = GatherMethodRoomNames(command.Sections);
         await cleanupService.CleanupForIncomeRoomsAsync(command.MethodId, remainingRooms, cancellationToken);
 
+        // Raw and rounded as separate figures, same as Preview: the screen's "มูลค่าจากรายได้
+        // (ผลรวม PV)" row reads finalValue, and passing the stored (rounded) value twice made
+        // it jump from …720.01 to …000.00 on save, then back on the next preview.
         return new SaveIncomeAnalysisResult(IncomeAnalysisMapper.ToDto(
             analysis,
-            method.FinalValue?.FinalValue,
-            method.FinalValue?.FinalValueRounded,
-            method.FinalValue?.FinalValueAdjusted,
-            method.FinalValue?.AppraisalPrice));
+            result.FinalValue,
+            result.FinalValueRounded,
+            method.FinalValue?.FinalValueOverride,
+            method.FinalValue?.IndicatedValue));
     }
 
     // ── Validation ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// When the property is NOT at its highest and best use, part of the group's land is split
+    /// off and valued separately. That part is sized only (no new property), so it must fit in
+    /// the group's NET land — title deeds less recorded deductions (encroachment etc.), the
+    /// same figure every pricing method uses (PricingPropertyDataService, also what the screen
+    /// shows). Skipped when the group has no land figure (nothing to measure against).
+    /// </summary>
+    private async Task ValidateHbuSplitAgainstGroupLandAsync(
+        SaveIncomeAnalysisCommand command,
+        Domain.Appraisals.PricingAnalysis pricingAnalysis,
+        CancellationToken cancellationToken)
+    {
+        var hbu = command.HighestBestUsed;
+        if (command.IsHighestBestUsed || hbu is null) return;
+        if (pricingAnalysis.SubjectType != PricingAnalysisSubjectType.PropertyGroup
+            || pricingAnalysis.AnchorId is not { } groupId) return;
+
+        var splitWa = (hbu.AreaRai ?? 0) * 400m + (hbu.AreaNgan ?? 0) * 100m + (hbu.AreaWa ?? 0m);
+        if (splitWa <= 0) return;
+
+        var groupLandWa = await propertyDataService.GetTotalLandAreaInSqWaAsync(groupId, cancellationToken);
+
+        if (groupLandWa is > 0 && splitWa > groupLandWa.Value)
+            throw new BadRequestException(
+                $"HBU split land ({splitWa:N2} sq.wa) exceeds the group's net land ({groupLandWa.Value:N2} sq.wa).");
+    }
 
     private static void ValidateDetailJsons(IReadOnlyList<IncomeSectionInput> sections)
     {

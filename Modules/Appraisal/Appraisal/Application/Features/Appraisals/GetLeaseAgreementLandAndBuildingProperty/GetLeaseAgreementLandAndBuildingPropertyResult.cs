@@ -84,7 +84,6 @@ public record GetLeaseAgreementLandAndBuildingPropertyResult(
     string? RoyalDecree,
     bool? IsEncroached,
     string? EncroachmentRemark,
-    decimal? EncroachmentArea,
     bool? IsLandlocked,
     string? LandlockedRemark,
     bool? IsForestBoundary,
@@ -108,8 +107,12 @@ public record GetLeaseAgreementLandAndBuildingPropertyResult(
     bool? HasBuilding,
     string? HasBuildingOther,
     decimal TotalLandAreaInSqWa,
+    // Registered area less the deductions — what the appraisal prices
+    decimal NetLandAreaInSqWa,
     // Land Titles
     List<LandTitleItemData>? Titles,
+    // Area deductions taken off the appraised area
+    List<LandAreaDeductionData>? LandAreaDeductions,
     // Building - Identification
     string? BuildingNumber,
     string? ModelName,
@@ -166,9 +169,8 @@ public record GetLeaseAgreementLandAndBuildingPropertyResult(
     string? UtilizationTypeOther,
     // Area & Pricing
     decimal? TotalBuildingArea,
+    decimal? BuildingCostValue,
     decimal? BuildingInsurancePrice,
-    decimal? SellingPrice,
-    decimal? ForcedSalePrice,
     // Remarks
     string? Remark,
     // Depreciation Details

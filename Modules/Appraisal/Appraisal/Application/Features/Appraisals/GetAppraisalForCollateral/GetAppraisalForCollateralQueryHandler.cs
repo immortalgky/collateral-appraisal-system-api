@@ -432,11 +432,11 @@ public class GetAppraisalForCollateralQueryHandler(
     /// identified by PricingAnalysisApproach.ApproachType == "Cost" and IsSelected == true.
     ///
     /// Field mapping (per user spec):
-    ///   UnitPrice     ← method.FinalValue.FinalValueAdjusted   (the adjusted per-unit rate)
+    ///   UnitPrice     ← method.FinalValue.FinalValueOverride   (the adjusted per-unit rate)
     ///   BuildingValue ← method.FinalValue.BuildingValue (non-null when HasBuildingValue)
-    ///   AppraisalValue← method.FinalValue.AppraisalPrice
-    ///                   ?? method.FinalValue.FinalValueAdjusted
-    ///                   ?? method.FinalValue.FinalValueRounded
+    ///   AppraisalValue← method.FinalValue.IndicatedValue
+    ///                   ?? method.FinalValue.FinalValueOverride
+    ///                   ?? method.FinalValue.FinalValue
     ///
     /// For non-cost approaches we still capture AppraisalValue (but UnitPrice + BuildingValue = null).
     /// Every property in the same group gets the same PricingInfoForCollateral instance.
@@ -473,13 +473,15 @@ public class GetAppraisalForCollateralQueryHandler(
                     Methods = a.Methods.Select(m => new
                     {
                         m.IsSelected,
+                        m.Role,
+                        m.MethodValue,
                         FinalValue = m.FinalValue == null ? null : new
                         {
                             m.FinalValue.HasBuildingValue,
                             m.FinalValue.BuildingValue,
-                            m.FinalValue.AppraisalPrice,
-                            m.FinalValue.FinalValueAdjusted,
-                            m.FinalValue.FinalValueRounded
+                            m.FinalValue.IndicatedValue,
+                            m.FinalValue.FinalValueOverride,
+                            m.FinalValue.FinalValue
                         }
                     }).ToList()
                 }).ToList()
@@ -500,22 +502,61 @@ public class GetAppraisalForCollateralQueryHandler(
 
             if (selectedApproach is null) continue;
 
-            var selectedMethod = selectedApproach.Methods.FirstOrDefault(m => m.IsSelected)
-                ?? selectedApproach.Methods.FirstOrDefault();
+            var fallbackMethod = selectedApproach.Methods.FirstOrDefault();
+            if (fallbackMethod is null) continue;
 
-            if (selectedMethod is null) continue;
+            // A Cost approach may now have up to one SELECTED method per role — Land,
+            // LandAndBuilding, Building, Machinery (PricingAnalysisApproach.
+            // EnsureNoComponentCountedTwice enforces it) — instead of exactly one selected method
+            // overall. Preserve the old "nothing selected -> treat the first method as if it were"
+            // fallback for parity when the group predates selection entirely.
+            var selectedMethods = selectedApproach.Methods.Where(m => m.IsSelected).ToList();
+            if (selectedMethods.Count == 0)
+                selectedMethods = [fallbackMethod];
 
-            bool isCostApproach = selectedApproach.ApproachType == "Cost"
-                && selectedMethod.FinalValue?.HasBuildingValue == true;
+            // The land-bearing method is "the" method in the single-method world this reader used to
+            // assume. Every non-Cost approach's methods never carry a Role at all (Role is Cost-only),
+            // so this falls back to "any selected method" there — unchanged from before.
+            // Never a Building/Machinery-role method: its FinalValueOverride is not a land rate (on
+            // MachineryCost it is a whole-value total), and would reach Collateral Master as UnitPrice.
+            // Same land-side filter as vw_CollateralResultExport's landM and GetAppraisalResult's pfv.
+            var landMethod = selectedMethods.FirstOrDefault(m => m.Role is "Land" or "LandAndBuilding")
+                ?? selectedMethods.FirstOrDefault(m => m.Role is null);
 
-            decimal? unitPrice    = isCostApproach ? selectedMethod.FinalValue?.FinalValueAdjusted : null;
-            decimal? buildingCost = isCostApproach ? selectedMethod.FinalValue?.BuildingValue : null;
+            // A WQS/SAG/DC linked to a BuildingCost method (Role=LandAndBuilding) snapshots the
+            // building figure onto its OWN row at save time; an unlinked, separately-selected
+            // BuildingCost method (Role=Building) carries it on its own row instead. At most one of
+            // the two exists per approach, so this never double-counts.
+            var buildingMethod = selectedMethods.FirstOrDefault(m => m.Role == "Building");
+            // The Building-role method's figure is its MethodValue (IndicatedValue ?? FinalValue, or a
+            // value set on the selection board with no FinalValue row) — what the rollup sums, and
+            // what LOS (GetAppraisalResult pbv) and the book report.
+            decimal? buildingCost = landMethod?.FinalValue?.BuildingValue
+                                    ?? buildingMethod?.MethodValue
+                                    ?? buildingMethod?.FinalValue?.IndicatedValue
+                                    ?? buildingMethod?.FinalValue?.FinalValue;
 
-            // AppraisalValue is always the user-confirmed final total regardless of approach type.
-            var fv = selectedMethod.FinalValue;
-            decimal? appraisalValue = fv?.AppraisalPrice
-                                      ?? fv?.FinalValueAdjusted
-                                      ?? fv?.FinalValueRounded;
+            bool isCostApproach = selectedApproach.ApproachType == "Cost" && buildingCost.HasValue;
+
+            decimal? unitPrice = isCostApproach ? landMethod?.FinalValue?.FinalValueOverride : null;
+            buildingCost = isCostApproach ? buildingCost : null;
+
+            // AppraisalValue is the user-confirmed final total — Cost = sum of components
+            // (PricingAnalysisApproach), so this sums every selected method's own figure rather than
+            // reading one. Each method's figure is MethodValue first — exactly what the domain rollup
+            // sums into PricingAnalysis.FinalAppraisedValue — so Collateral Master, LOS and the book
+            // agree. The FinalValue tiers are only a fallback for a row with no MethodValue.
+            // FinalValueOverride is NOT a tier: on a per-sq.wa method it holds the land RATE (the
+            // report's ราคาต่อหน่วย), not a total, so reading it as a value was only safe while an
+            // IndicatedValue happened to sit in front of it.
+            var perMethodValues = selectedMethods
+                .Select(m => m.MethodValue
+                    ?? m.FinalValue?.IndicatedValue
+                    ?? m.FinalValue?.FinalValue)
+                .ToList();
+            decimal? appraisalValue = perMethodValues.Any(v => v.HasValue)
+                ? perMethodValues.Sum(v => v ?? 0m)
+                : null;
 
             groupPricing[pa.AnchorId.Value] = new PricingInfoForCollateral(
                 IsCostApproach: isCostApproach,

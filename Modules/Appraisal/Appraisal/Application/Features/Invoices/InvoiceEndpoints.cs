@@ -62,11 +62,12 @@ public class InvoiceEndpoints : ICarterModule
             [FromQuery] DateOnly? submittedDateFrom = null,
             [FromQuery] DateOnly? submittedDateTo = null,
             [FromQuery] Guid? currentInvoiceId = null,
+            [FromQuery] string? costCenter = null,
             CancellationToken ct = default) =>
         {
             if (currentUser.CompanyId is not { } companyId) return Results.Forbid();
             var query = new GetEligibleAssignmentsQuery(
-                companyId, searchAppraisalNo, submittedDateFrom, submittedDateTo, currentInvoiceId);
+                companyId, searchAppraisalNo, submittedDateFrom, submittedDateTo, currentInvoiceId, costCenter);
             var result = await sender.Send(query, ct);
             return Results.Ok(result);
         })

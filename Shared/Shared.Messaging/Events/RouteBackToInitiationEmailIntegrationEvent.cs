@@ -24,6 +24,6 @@ public record RouteBackToInitiationEmailIntegrationEvent : IntegrationEvent
     /// <summary>The decision remark ([รายละเอียดNotification]) — what to correct.</summary>
     public string? Remark { get; init; }
 
-    /// <summary>Resolved route-back reason description (from the RoutebackReason parameter group) — used as the subject.</summary>
+    /// <summary>Resolved route-back reason description (from the RoutebackReason parameter group). Not currently used by the email.</summary>
     public string? ReasonText { get; init; }
 }

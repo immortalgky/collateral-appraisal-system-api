@@ -1,4 +1,5 @@
 using MassTransit;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
@@ -33,9 +34,6 @@ public class AppointmentDateChangedIntegrationEventConsumer(
     ILogger<AppointmentDateChangedIntegrationEventConsumer> logger)
     : IConsumer<AppointmentDateChangedIntegrationEvent>
 {
-    // Matches InboxGuard.StaleThresholdMinutes so the two share the same reclaim window.
-    private const int StaleThresholdMinutes = 5;
-
     public async Task Consume(ConsumeContext<AppointmentDateChangedIntegrationEvent> context)
     {
         var ct = context.CancellationToken;
@@ -55,7 +53,7 @@ public class AppointmentDateChangedIntegrationEventConsumer(
 
             // Processing but still within the live window — another consumer is handling it.
             if (existing?.Status == InboxMessageStatus.Processing
-                && existing.StartedAt >= dateTimeProvider.ApplicationNow.AddMinutes(-StaleThresholdMinutes))
+                && existing.StartedAt >= dateTimeProvider.ApplicationNow - InboxGuardPolicy.StaleThreshold)
                 return;
 
             // Stale Processing row: remove it so our coming INSERT doesn't hit a PK collision.
@@ -243,7 +241,9 @@ public class AppointmentDateChangedIntegrationEventConsumer(
             // InboxMessage rolled back with the work, so no "Processing" row blocks the retry.
             throw;
         }
-        catch (DbUpdateException)
+        // Only a duplicate key is the idempotent case. Any other DbUpdateException means the work did not
+        // land; swallowing it acked the message with nothing done, so let it throw for the retry.
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 })
         {
             // PK violation on InboxMessage INSERT: another consumer committed the same message
             // between our read and our save — idempotent skip.

@@ -14,7 +14,7 @@ public class GetTasksQueryHandler(
 {
     private static readonly HashSet<string> AllowedSortFields = new(StringComparer.OrdinalIgnoreCase)
     {
-        "AppraisalNumber", "RequestNumber", "CustomerName", "TaskType", "Purpose", "PropertyType",
+        "AppraisalNumber", "RequestNumber", "Channel", "CustomerName", "TaskType", "Purpose", "PropertyType",
         "Status", "AppointmentDateTime", "RequestedBy", "RequestReceivedDate", "RequestedAt",
         "ReportReceivedAt", "AssignedDate", "Movement", "InternalFollowupStaff", "Appraiser",
         "Priority", "DueAt", "SlaStatus", "ElapsedHours", "RemainingHours"
@@ -67,6 +67,13 @@ public class GetTasksQueryHandler(
                 parameters.Add("AppraisalNumber", filter.AppraisalNumber);
             }
 
+            if (!string.IsNullOrWhiteSpace(filter.Channel))
+            {
+                conditions.Add("Channel = @Channel");
+                parameters.Add("Channel", filter.Channel);
+            }
+
+
             if (!string.IsNullOrWhiteSpace(filter.CustomerName))
             {
                 conditions.Add("CustomerName LIKE '%' + @CustomerName + '%'");
@@ -83,6 +90,12 @@ public class GetTasksQueryHandler(
             {
                 conditions.Add("TaskType = @TaskType");
                 parameters.Add("TaskType", filter.TaskType);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.Purpose))
+            {
+                conditions.Add("Purpose = @Purpose");
+                parameters.Add("Purpose", filter.Purpose);
             }
 
             if (filter.DateFrom.HasValue)

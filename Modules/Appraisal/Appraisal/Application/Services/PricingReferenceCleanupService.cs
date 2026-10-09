@@ -102,8 +102,12 @@ public class PricingReferenceCleanupService(
                 calculationServiceResolver.Resolve(method.MethodType)?.Recalculate(method);
 
                 // Mirror the remaining total into the shared PricingFinalValue.
-                // FinalValueAdjusted / AppraisalPrice are user-authored — left untouched.
+                // FinalValueOverride / IndicatedValue are user-authored — left untouched.
                 method.MirrorMachineCostTotalToFinalValue();
+
+                // Re-apply any existing override — Recalculate() above just overwrote MethodValue
+                // with the raw (reduced) FMV sum.
+                method.SyncMethodValueWithIndicatedValue();
             }
 
             // Roll the reduced method total up through approach → analysis so the appraisal-level

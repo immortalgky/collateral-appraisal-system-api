@@ -33,6 +33,8 @@ public class AppraisalFilterBuilderTests
         { new GetAppraisalsFilterRequest { AppraisalNumber = "691" }, "AppraisalNumber LIKE '%' + @AppraisalNumber + '%'" },
         { new GetAppraisalsFilterRequest { RequestedAtFrom = new DateTime(2026, 1, 1) }, "RequestedAt >= @RequestedAtFrom" },
         { new GetAppraisalsFilterRequest { RequestedAtTo = new DateTime(2026, 1, 1) }, "RequestedAt < DATEADD(day, 1, @RequestedAtTo)" },
+        // Requestor reads request.Requests through a RequestId subquery, so it too stays off the view.
+        { new GetAppraisalsFilterRequest { Requestor = "P5229" }, "rq.Requestor IN @Requestors" },
         // Free text is not in this table: it contributes no WHERE condition at all any more, only a
         // FROM. See Search_does_not_force_the_view below.
     };
@@ -562,5 +564,27 @@ public class AppraisalFilterBuilderTests
 
         // Falls back to the default field; the direction is still the caller's.
         Assert.Equal("CreatedAt ASC, Id ASC", orderBy);
+    }
+
+    [Fact]
+    public void Requestor_filter_takes_several_codes_and_ignores_blanks()
+    {
+        var result = AppraisalFilterBuilder.BuildFilter(
+            new GetAppraisalsFilterRequest { Requestor = " P5229, ,P1001 " });
+
+        Assert.Contains("request.Requests rq", result.WhereClause);
+        Assert.Contains("rq.IsDeleted = 0", result.WhereClause);
+        Assert.Equal(["P5229", "P1001"], result.Parameters.Get<string[]>("Requestors"));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" , ")]
+    public void An_empty_requestor_filters_nothing(string? requestor)
+    {
+        var result = AppraisalFilterBuilder.BuildFilter(new GetAppraisalsFilterRequest { Requestor = requestor });
+
+        Assert.DoesNotContain("rq.Requestor", result.WhereClause);
     }
 }

@@ -227,7 +227,7 @@ public class CollateralAdminEndpointTests(IntegrationTestFixture fixture)
         }
 
         // Verify lookup no longer returns it (lookup filters !IsDeleted)
-        var lookupUrl = $"/collateral-masters/lookup?type=Land"
+        var lookupUrl = $"/collateral-masters/lookup?type=L"
                         + $"&landOfficeCode=LO-A07"
                         + $"&province=Chiang+Mai"
                         + $"&district=Mueang"
@@ -296,7 +296,7 @@ public class CollateralAdminEndpointTests(IntegrationTestFixture fixture)
         }
 
         // Verify lookup returns the master
-        var lookupUrl = $"/collateral-masters/lookup?type=Land"
+        var lookupUrl = $"/collateral-masters/lookup?type=L"
                         + $"&landOfficeCode=LO-A08"
                         + $"&province=Phuket"
                         + $"&district=Mueang"

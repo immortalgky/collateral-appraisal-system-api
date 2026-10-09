@@ -6,7 +6,7 @@ public record DocumentFollowupRaisedDomainEvent(
     Guid AppraisalId,
     Guid RaisingWorkflowInstanceId,
     string RaisingActivityId,
-    IReadOnlyList<string> DocumentTypes) : IDomainEvent;
+    IReadOnlyList<(string DocumentType, string? Notes)> LineItems) : IDomainEvent;
 
 public record DocumentFollowupResolvedDomainEvent(Guid FollowupId, Guid RaisingPendingTaskId) : IDomainEvent;
 

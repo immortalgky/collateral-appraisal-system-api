@@ -1,6 +1,6 @@
 ### Create request
 POST {{baseUrl}}/requests
-
+X-Dev-Auth: dev-bypass
 Content-Type: application/json
 
 {

@@ -6,11 +6,10 @@ namespace Appraisal.Application.Features.PricingAnalysis.SetFinalValue;
 public record SetFinalValueResponse(
     Guid FinalValueId,
     decimal FinalValue,
-    decimal FinalValueRounded,
     bool IncludeLandArea,
     decimal? LandArea,
     decimal? LandValue,
     bool HasBuildingValue,
     decimal? BuildingValue,
-    decimal? AppraisalPrice
+    decimal? IndicatedValue
 );

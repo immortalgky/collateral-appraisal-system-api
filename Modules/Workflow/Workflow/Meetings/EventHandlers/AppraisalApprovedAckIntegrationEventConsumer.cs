@@ -27,11 +27,11 @@ public class AppraisalApprovedAckIntegrationEventConsumer(
     InboxGuard<WorkflowDbContext> inboxGuard)
     : IConsumer<AppraisalApprovedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<AppraisalApprovedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<AppraisalApprovedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<AppraisalApprovedIntegrationEvent> context)
+    {
         var msg = context.Message;
         var groupMap = settings.Value.AcknowledgementGroupByCommitteeCode;
 
@@ -41,7 +41,6 @@ public class AppraisalApprovedAckIntegrationEventConsumer(
             logger.LogDebug(
                 "Committee code {CommitteeCode} has no acknowledgement group mapping; skipping enqueue for AppraisalId {AppraisalId}",
                 msg.CommitteeCode, msg.AppraisalId);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
             return;
         }
 
@@ -59,7 +58,6 @@ public class AppraisalApprovedAckIntegrationEventConsumer(
             logger.LogInformation(
                 "Acknowledgement already enqueued for AppraisalId {AppraisalId} CommitteeId {CommitteeId}; skipping",
                 msg.AppraisalId, msg.CommitteeId);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
             return;
         }
 
@@ -74,7 +72,6 @@ public class AppraisalApprovedAckIntegrationEventConsumer(
 
         dbContext.AppraisalAcknowledgementQueueItems.Add(item);
         await unitOfWork.SaveChangesAsync(context.CancellationToken);
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
 
         logger.LogInformation(
             "Enqueued AppraisalAcknowledgementQueueItem {ItemId} for AppraisalId {AppraisalId} CommitteeCode {CommitteeCode} Group {Group}",

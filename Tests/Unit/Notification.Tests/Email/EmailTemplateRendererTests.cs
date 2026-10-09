@@ -5,12 +5,17 @@ using Shared.Time;
 namespace Notification.Tests.Email;
 
 /// <summary>
-/// Guards <see cref="EmailTemplateRenderer"/>'s body rendering — the sole HTML-encoding boundary for
-/// admin-typed content. Two behaviours are pinned: (1) all user text is HTML-encoded (no markup/XSS
-/// injection), and (2) line breaks survive as &lt;br/&gt; because Outlook's Word engine ignores the
-/// CSS white-space:pre-wrap the body also carries. Every case runs against BOTH public entry points
-/// (<c>MeetingInvitation</c> and <c>QuotationSent</c>) so the guarantee holds even if their body paths
-/// later diverge — rather than relying on them sharing the same private <c>BuildBody</c> today.
+/// Guards <see cref="EmailTemplateRenderer"/>'s body rendering. The two public entry points take
+/// different kinds of content, so they are pinned separately:
+/// <list type="bullet">
+/// <item><c>MeetingInvitation</c> takes admin-typed plain text. It is HTML-encoded (no markup/XSS
+/// injection) and line breaks survive as &lt;br/&gt;, because Outlook's Word engine ignores the CSS
+/// white-space:pre-wrap the body also carries.</item>
+/// <item><c>QuotationSent</c> takes a ready-made HTML fragment (since CA-280 the frontend builds the
+/// quotation table and escapes each value itself), so it is emitted as-is — encoding it again would
+/// print the markup as literal text.</item>
+/// </list>
+/// The subject is HTML-encoded on both.
 /// </summary>
 public class EmailTemplateRendererTests
 {
@@ -18,7 +23,7 @@ public class EmailTemplateRendererTests
     // cleanly distinguishes "body rendered" from "body suppressed" without colliding on shell markup.
     private const string BodyMarker = "white-space:pre-wrap";
 
-    /// <summary>The renderer's two public templates, exercised identically by every test.</summary>
+    /// <summary>The renderer's two public templates.</summary>
     public enum Template { MeetingInvitation, QuotationSent }
 
     public static TheoryData<Template> Templates =>
@@ -38,14 +43,23 @@ public class EmailTemplateRendererTests
         };
     }
 
-    [Theory]
-    [MemberData(nameof(Templates))]
-    public void Content_HtmlTags_AreEncoded_NotInjected(Template template)
+    [Fact]
+    public void MeetingInvitation_Content_HtmlTags_AreEncoded_NotInjected()
     {
-        var html = Render(template, "Subject", "<script>alert('xss')</script>");
+        var html = Render(Template.MeetingInvitation, "Subject", "<script>alert('xss')</script>");
 
         Assert.Contains("&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;", html);
         Assert.DoesNotContain("<script>", html);
+    }
+
+    [Fact]
+    public void QuotationSent_Content_IsEmittedAsHtml_NotEncoded()
+    {
+        const string fragment = "<p style=\"margin:0 0 8px;\">Dear &amp; all</p><table><tr><td>1.</td></tr></table>";
+
+        var html = Render(Template.QuotationSent, "Subject", fragment);
+
+        Assert.Contains(fragment, html);
     }
 
     [Theory]
@@ -59,25 +73,21 @@ public class EmailTemplateRendererTests
     }
 
     [Theory]
-    [InlineData(Template.MeetingInvitation, "Line1\r\nLine2")] // Windows CRLF
-    [InlineData(Template.MeetingInvitation, "Line1\rLine2")]   // lone CR (old Mac)
-    [InlineData(Template.MeetingInvitation, "Line1\nLine2")]   // Unix LF
-    [InlineData(Template.QuotationSent, "Line1\r\nLine2")]
-    [InlineData(Template.QuotationSent, "Line1\rLine2")]
-    [InlineData(Template.QuotationSent, "Line1\nLine2")]
-    public void SingleNewline_BecomesExactlyOneBr(Template template, string content)
+    [InlineData("Line1\r\nLine2")] // Windows CRLF
+    [InlineData("Line1\rLine2")]   // lone CR (old Mac)
+    [InlineData("Line1\nLine2")]   // Unix LF
+    public void MeetingInvitation_SingleNewline_BecomesExactlyOneBr(string content)
     {
-        var html = Render(template, "Subject", content);
+        var html = Render(Template.MeetingInvitation, "Subject", content);
 
         Assert.Contains("Line1<br/>Line2", html);
         Assert.DoesNotContain("Line1<br/><br/>Line2", html); // CRLF must not double up
     }
 
-    [Theory]
-    [MemberData(nameof(Templates))]
-    public void BlankLine_BecomesTwoBr_ForParagraphSpacing(Template template)
+    [Fact]
+    public void MeetingInvitation_BlankLine_BecomesTwoBr_ForParagraphSpacing()
     {
-        var html = Render(template, "Subject", "Para1\n\nPara2");
+        var html = Render(Template.MeetingInvitation, "Subject", "Para1\n\nPara2");
 
         Assert.Contains("Para1<br/><br/>Para2", html);
     }
@@ -96,11 +106,10 @@ public class EmailTemplateRendererTests
         Assert.DoesNotContain(BodyMarker, html);
     }
 
-    [Theory]
-    [MemberData(nameof(Templates))]
-    public void NonEmptyContent_RendersBody(Template template)
+    [Fact]
+    public void MeetingInvitation_NonEmptyContent_RendersBody()
     {
-        var html = Render(template, "Subject", "Hello");
+        var html = Render(Template.MeetingInvitation, "Subject", "Hello");
 
         Assert.Contains(BodyMarker, html);
         Assert.Contains("Hello", html);

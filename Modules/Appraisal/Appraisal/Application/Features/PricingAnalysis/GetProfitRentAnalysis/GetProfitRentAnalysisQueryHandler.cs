@@ -37,10 +37,10 @@ public class GetProfitRentAnalysisQueryHandler(
             pr.TotalContractRentalFee,
             pr.TotalReturnsFromLease,
             pr.TotalPresentValue,
-            method.FinalValue?.FinalValueRounded ?? 0m,
+            method.FinalValue?.FinalValue ?? 0m,
             pr.EstimatePriceRounded,
             method.FinalValue?.BuildingValue,
-            method.FinalValue?.AppraisalPrice,
+            method.FinalValue?.IndicatedValue,
             pr.GrowthPeriods.OrderBy(p => p.FromYear).Select(p => new ProfitRentGrowthPeriodDto(
                 p.Id, p.FromYear, p.ToYear, p.GrowthRatePercent
             )).ToList(),

@@ -96,16 +96,16 @@ internal static class IncomeSectionLoader
         // Confirmed against IncomeAnalysisConfiguration.cs lines 44-79.
         // HBU columns: HighestBestUsed_AreaRai/Ngan/Wa/PricePerSqWa
         // Confirmed against IncomeAnalysisConfiguration.cs lines 36-39.
-        // Phase C: FinalValueRounded/FinalValueAdjust/AppraisalPriceRounded are sourced
+        // Phase C: FinalValueRounded/FinalValueAdjust/IndicatedValue are sourced
         // from PricingFinalValues (dropped from IncomeAnalyses).
         const string headerSql = """
             SELECT
                 ia.TotalNumberOfYears,
                 ia.CapitalizeRate,
                 ia.DiscountedRate,
-                COALESCE(pfv.FinalValueRounded, 0)  AS FinalValueRounded,
-                pfv.FinalValueAdjusted              AS FinalValueAdjust,
-                pfv.AppraisalPrice                  AS AppraisalPriceRounded,
+                COALESCE(pfv.FinalValue, 0)  AS FinalValueRounded,
+                pfv.FinalValueOverride              AS FinalValueAdjust,
+                pfv.IndicatedValue                  AS IndicatedValue,
                 ia.IsHighestBestUsed,
                 ia.HighestBestUsed_AreaRai,
                 ia.HighestBestUsed_AreaNgan,
@@ -149,11 +149,11 @@ internal static class IncomeSectionLoader
         }
 
         // ── W1: Compute effective final value — mirror SaveIncomeAnalysisCommandHandler.cs:137-159 ─
-        // Priority: AppraisalPriceRounded > 0  →  FinalValueAdjust + HBU land value  →  FinalValueRounded
+        // Priority: IndicatedValue (override, null-based)  →  FinalValueAdjust + HBU land value  →  FinalValueRounded
         decimal? effectiveFinalValue;
-        if (row.AppraisalPriceRounded is > 0)
+        if (row.IndicatedValue.HasValue)
         {
-            effectiveFinalValue = row.AppraisalPriceRounded;
+            effectiveFinalValue = row.IndicatedValue;
         }
         else if (row.FinalValueAdjust.HasValue)
         {
@@ -181,7 +181,7 @@ internal static class IncomeSectionLoader
             DiscountedRate       = row.DiscountedRate,
             FinalValueRounded    = row.FinalValueRounded,
             FinalValueAdjust     = row.FinalValueAdjust,
-            AppraisalPriceRounded= row.AppraisalPriceRounded,
+            IndicatedValue       = row.IndicatedValue,
             EffectiveFinalValue  = effectiveFinalValue,
             IsHighestBestUsed    = row.IsHighestBestUsed,
             HbuAreaRai           = row.HighestBestUsed_AreaRai,
@@ -231,7 +231,7 @@ internal static class IncomeSectionLoader
         decimal? DiscountedRate,
         decimal? FinalValueRounded,
         decimal? FinalValueAdjust,
-        decimal? AppraisalPriceRounded,
+        decimal? IndicatedValue,
         bool     IsHighestBestUsed,
         int?     HighestBestUsed_AreaRai,
         int?     HighestBestUsed_AreaNgan,

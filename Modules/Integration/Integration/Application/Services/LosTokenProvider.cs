@@ -1,8 +1,11 @@
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json.Serialization;
 using Integration.Domain.WebhookSubscriptions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Shared.Security;
 
 namespace Integration.Application.Services;
 
@@ -16,6 +19,7 @@ namespace Integration.Application.Services;
 public class LosTokenProvider(
     IHttpClientFactory httpClientFactory,
     IMemoryCache cache,
+    ColumnSecretCipher cipher,
     ILogger<LosTokenProvider> logger) : IWebhookTokenProvider
 {
     public const string HttpClientName = "WebhookToken";
@@ -32,8 +36,13 @@ public class LosTokenProvider(
         CancellationToken cancellationToken = default)
     {
         var cacheKey = CacheKey(subscription.Id);
+        var fingerprint = Fingerprint(subscription);
 
-        if (cache.TryGetValue(cacheKey, out CachedToken? cached) && cached is not null)
+        // A token is reused only while the settings it was issued for are unchanged. Comparing a
+        // fingerprint (rather than invalidating on update) also covers the other app node, whose
+        // IMemoryCache the updating node cannot reach.
+        if (cache.TryGetValue(cacheKey, out CachedToken? cached) && cached is not null &&
+            cached.Fingerprint == fingerprint)
             return (cached.TokenType, cached.AccessToken);
 
         if (string.IsNullOrWhiteSpace(subscription.TokenEndpoint) ||
@@ -48,7 +57,8 @@ public class LosTokenProvider(
         var client = httpClientFactory.CreateClient(HttpClientName);
         using var request = new HttpRequestMessage(HttpMethod.Post, subscription.TokenEndpoint)
         {
-            Content = JsonContent.Create(new LosTokenRequest(subscription.ClientId, subscription.ClientSecret))
+            Content = JsonContent.Create(
+                new LosTokenRequest(subscription.ClientId, cipher.Unprotect(subscription.ClientSecret)))
         };
 
         var response = await client.SendAsync(request, cancellationToken);
@@ -63,7 +73,7 @@ public class LosTokenProvider(
         var tokenType = string.IsNullOrWhiteSpace(body.TokenType) ? "Bearer" : body.TokenType;
 
         var cacheDuration = TimeSpan.FromSeconds(Math.Max(body.ExpiresIn - ExpiryMarginSeconds, MinCacheSeconds));
-        var token = new CachedToken(tokenType, body.AccessToken);
+        var token = new CachedToken(tokenType, body.AccessToken, fingerprint);
         cache.Set(cacheKey, token, cacheDuration);
 
         logger.LogInformation(
@@ -75,7 +85,15 @@ public class LosTokenProvider(
 
     public void InvalidateToken(Guid subscriptionId) => cache.Remove(CacheKey(subscriptionId));
 
-    private sealed record CachedToken(string TokenType, string AccessToken);
+    /// <summary>
+    /// Hash of everything the token is tied to: where it is fetched, with which credentials, and where
+    /// it is sent. The stored (encrypted) ClientSecret changes on every re-entry, so a rotation counts.
+    /// </summary>
+    private static string Fingerprint(WebhookSubscription s) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"{s.TokenEndpoint}\n{s.ClientId}\n{s.ClientSecret}\n{s.CallbackUrl}")));
+
+    private sealed record CachedToken(string TokenType, string AccessToken, string Fingerprint);
 }
 
 internal sealed record LosTokenRequest(

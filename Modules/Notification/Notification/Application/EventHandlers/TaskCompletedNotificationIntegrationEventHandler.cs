@@ -26,11 +26,11 @@ public class TaskCompletedNotificationIntegrationEventHandler : IConsumer<TaskCo
         _dateTimeProvider = dateTimeProvider;
     }
 
-    public async Task Consume(ConsumeContext<TaskCompletedIntegrationEvent> context)
-    {
-        if (await _inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<TaskCompletedIntegrationEvent> context) =>
+        _inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<TaskCompletedIntegrationEvent> context)
+    {
         var taskCompleted = context.Message;
 
         _logger.LogInformation("Processing TaskCompleted notification for task {TaskName} with action {ActionTaken}",
@@ -56,8 +56,6 @@ public class TaskCompletedNotificationIntegrationEventHandler : IConsumer<TaskCo
 
             _logger.LogInformation("Successfully sent TaskCompleted notification for task {TaskName}",
                 taskCompleted.TaskName);
-
-            await _inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
         }
         catch (Exception ex)
         {

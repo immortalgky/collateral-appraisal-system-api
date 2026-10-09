@@ -25,7 +25,6 @@ public class CreateDraftRequestEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithTags("Requests")
             .WithSummary("Create a draft request")
-            .WithDescription("Creates a draft request that can be completed later.")
-            .AllowAnonymous();
+            .WithDescription("Creates a draft request that can be completed later.");
     }
 }

@@ -9,6 +9,8 @@ public record UpdateMethodResult(
     decimal? MethodValue,
     decimal? ValuePerUnit,
     string? UnitType,
+    string? Remark,
+    bool UseSystemCalc,
     decimal? ApproachValue,
     decimal? FinalAppraisedValue
 );

@@ -26,13 +26,12 @@ public class AppraisalAcknowledgedIntegrationEventHandler(
         var ct = context.CancellationToken;
 
         // Look up the review row BEFORE claiming the inbox. The approval event creates this row and
-        // there is no ordering guarantee between the two integration events. If we claimed first and
-        // then threw, redelivery would see our own (non-stale) Processing inbox row and skip forever
-        // (InboxGuard's 5-min stale window > MassTransit's retry budget) — silently losing the link.
-        var review = await dbContext.AppraisalReviews
-            .FirstOrDefaultAsync(r => r.AppraisalId == message.AppraisalId, ct);
+        // there is no ordering guarantee between the two integration events. Checking before the claim keeps
+        // this expected miss off the inbox entirely, so its retries never depend on a claim being released.
+        var reviewExists = await dbContext.AppraisalReviews
+            .AnyAsync(r => r.AppraisalId == message.AppraisalId, ct);
 
-        if (review is null)
+        if (!reviewExists)
         {
             logger.LogWarning(
                 "No AppraisalReview found for AppraisalId {AppraisalId} when handling {IntegrationEvent}; will retry",
@@ -43,16 +42,16 @@ public class AppraisalAcknowledgedIntegrationEventHandler(
         }
 
         // Row exists — now claim for idempotency. A concurrent delivery loses the claim race and skips.
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, ct))
-            return;
+        await inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, async _ =>
+        {
+            var review = await dbContext.AppraisalReviews.FirstAsync(r => r.AppraisalId == message.AppraisalId, ct);
+            review.SetAcknowledgementMeeting(message.MeetingId);
 
-        review.SetAcknowledgementMeeting(message.MeetingId);
+            await unitOfWork.SaveChangesAsync(ct);
 
-        await unitOfWork.SaveChangesAsync(ct);
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
-
-        logger.LogInformation(
-            "Linked acknowledgement meeting {MeetingId} to Committee review for AppraisalId {AppraisalId}",
-            message.MeetingId, message.AppraisalId);
+            logger.LogInformation(
+                "Linked acknowledgement meeting {MeetingId} to Committee review for AppraisalId {AppraisalId}",
+                message.MeetingId, message.AppraisalId);
+        }, ct);
     }
 }

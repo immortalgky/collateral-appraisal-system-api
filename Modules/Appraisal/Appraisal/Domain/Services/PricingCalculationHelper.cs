@@ -88,14 +88,46 @@ internal static class PricingCalculationHelper
     /// <summary>
     /// Rounds a computed final value based on the comparable price unit.
     /// PerSqWa / PerSqm (per-Sq.Wa / per-Sq.M rate) → no rounding (prices are small).
-    /// Else (PerUnit total price)                   → floor to nearest 1,000.
+    /// Else (PerUnit total price)                   → nearest 1,000, halves up.
+    /// <para>
+    /// This used to floor. The screen never did: `buildWQSDerivedRules.ts` rounds the same figure to
+    /// the NEAREST thousand, so an appraiser saw one number and the save wrote another, up to 999
+    /// baht lower. The three market domains still export an unused `floorToThousands` beside the
+    /// `roundToThousand` they actually call, which reads as a switch made on the client and never
+    /// carried back here.
+    /// </para>
+    /// <para>
+    /// AwayFromZero, not Math.Round's default: banker's rounding would send x.5 to the nearer EVEN
+    /// thousand, which is neither what the screen does nor what every other rounded figure in
+    /// pricing does (Leasehold, Income, ProfitRent and the force-sale value all round halves up).
+    /// </para>
     /// </summary>
     public static decimal RoundFinalValue(decimal finalValue, IEnumerable<PricingCalculation> calculations)
     {
         var detectedUnit = DetectPriceUnit(calculations);
         var isUnitPrice = PricingUnit.IsPerUnitRate(detectedUnit);
-        return isUnitPrice ? finalValue : Math.Floor(finalValue / 1_000m) * 1_000m;
+        return isUnitPrice
+            ? finalValue
+            : Math.Round(finalValue / 1_000m, MidpointRounding.AwayFromZero) * 1_000m;
     }
+
+    /// <summary>
+    /// Rounds an intermediate comparable figure to satang, mirroring the screen's `round2`
+    /// (`Math.round(n * 100) / 100`) in calculateSaleAdjustmentGrid.ts / calculateDirectComparison.ts.
+    /// <para>
+    /// The screen rounds every step; this side used to round none, so a price over a fractional area
+    /// left sub-satang tails that accumulated across comparables. Nobody noticed while editing —
+    /// the screen shows its own figures — but reopening a saved job re-seeds the grid from what was
+    /// stored here, and the cells came back with satang the appraiser never typed.
+    /// </para>
+    /// <para>
+    /// AwayFromZero rather than JS's round-toward-positive-infinity: the two differ only on a
+    /// negative value landing exactly on half a satang, and every other rounded figure in pricing
+    /// rounds halves away from zero.
+    /// </para>
+    /// </summary>
+    public static decimal Round2(decimal value)
+        => Math.Round(value, 2, MidpointRounding.AwayFromZero);
 
     /// <summary>
     /// Resolves the method's committed price unit from its calculations,

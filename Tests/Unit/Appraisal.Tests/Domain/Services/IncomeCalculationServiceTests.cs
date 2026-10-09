@@ -13,6 +13,9 @@ namespace Appraisal.Tests.Domain.Services;
 /// </summary>
 public class IncomeCalculationServiceTests
 {
+    // Long enough for any projection in these tests; -1 means "no user override".
+    private static readonly decimal[] NoOccupancyOverride = Enumerable.Repeat(-1m, 50).ToArray();
+
     private readonly IncomeCalculationService _sut = new();
 
     // ── Helper helpers ────────────────────────────────────────────────────
@@ -154,7 +157,9 @@ public class IncomeCalculationServiceTests
             IncreaseRateYrs = 1,
             OccupancyRateFirstYearPct = 60m,
             OccupancyRatePct = 5m,
-            OccupancyRateYrs = 1
+            OccupancyRateYrs = 1,
+            // -1 = no per-year override: use the formula (Compute* indexes d.OccupancyRate[y]).
+            OccupancyRate = NoOccupancyOverride,
         };
 
         var analysis = BuildAnalysisWithSingleAssumption(3, 5m, 8m, "01", Serialize(detail));
@@ -189,7 +194,9 @@ public class IncomeCalculationServiceTests
             IncreaseRateYrs = 1,
             OccupancyRateFirstYearPct = 70m,
             OccupancyRatePct = 0m,
-            OccupancyRateYrs = 1
+            OccupancyRateYrs = 1,
+            // -1 = no per-year override: use the formula (Compute* indexes d.OccupancyRate[y]).
+            OccupancyRate = NoOccupancyOverride,
         };
 
         var analysis = BuildAnalysisWithSingleAssumption(3, 5m, 8m, "02", Serialize(detail));
@@ -244,7 +251,9 @@ public class IncomeCalculationServiceTests
             IncreaseRateYrs = 1,
             OccupancyRateFirstYearPct = 80m,
             OccupancyRatePct = 0m,
-            OccupancyRateYrs = 1
+            OccupancyRateYrs = 1,
+            // -1 = no per-year override: use the formula (Compute* indexes d.OccupancyRate[y]).
+            OccupancyRate = NoOccupancyOverride,
         };
 
         var analysis = BuildAnalysisWithSingleAssumption(3, 5m, 8m, "04", Serialize(detail));
@@ -297,7 +306,9 @@ public class IncomeCalculationServiceTests
             IncreaseRateYrs = 1,
             OccupancyRateFirstYearPct = 90m,
             OccupancyRatePct = 0m,
-            OccupancyRateYrs = 1
+            OccupancyRateYrs = 1,
+            // -1 = no per-year override: use the formula (Compute* indexes d.OccupancyRate[y]).
+            OccupancyRate = NoOccupancyOverride,
         };
 
         var analysis = BuildAnalysisWithSingleAssumption(3, 5m, 8m, "06", Serialize(detail));
@@ -356,7 +367,9 @@ public class IncomeCalculationServiceTests
             IncreaseRateYrs = 1,
             OccupancyRateFirstYearPct = 60m,
             OccupancyRatePct = 0m,
-            OccupancyRateYrs = 1
+            OccupancyRateYrs = 1,
+            // -1 = no per-year override: use the formula (Compute* indexes d.OccupancyRate[y]).
+            OccupancyRate = NoOccupancyOverride,
         };
         category.AddAssumption("I01", "Room Income", "positive", 1, "01", Serialize(detail01));
 
@@ -378,6 +391,117 @@ public class IncomeCalculationServiceTests
         Assert.Equal(109_500m, method08Values[0]);
         Assert.Equal(109_500m, method08Values[1]);
         Assert.Equal(109_500m, method08Values[2]);
+    }
+
+    [Fact]
+    public void Method08_StillReadsMethod01_WhenExpensesAreLoadedBeforeIncome()
+    {
+        // Save loads sections from the database, where SQL Server orders uniqueidentifier by its
+        // last bytes — so the expense section (and its method 08) can arrive BEFORE the income
+        // section's method 01. Same inputs as the test above, collection order reversed:
+        // 08 must still see 01's series (2190/yr) and come out 50 × 2190, not 0.
+        var analysis = IncomeAnalysis.Create(Guid.NewGuid(), "test", "Test", 3, 365, 5m, 8m);
+
+        var income = IncomeSection.Create(analysis.Id, "income", "Income", "positive", 1);
+        income.AddCategory("income", "Cat", "positive", 1)
+            .AddAssumption("I01", "Room Income", "positive", 1, "01", Serialize(new Method01Detail
+            {
+                SumSaleableArea = 10m,
+                AvgRoomRate = 1000m,
+                IncreaseRatePct = 0m,
+                IncreaseRateYrs = 1,
+                OccupancyRateFirstYearPct = 60m,
+                OccupancyRatePct = 0m,
+                OccupancyRateYrs = 1,
+                OccupancyRate = [60m, 60m, 60m] // the per-year series the client always sends
+            }));
+
+        var expenses = IncomeSection.Create(analysis.Id, "expenses", "Expenses", "negative", 2);
+        var fnb = expenses.AddCategory("expenses", "Direct", "negative", 1)
+            .AddAssumption("E07", "F&B", "negative", 1, "08", Serialize(new Method08Detail
+            {
+                FirstYearAmt = 50m,
+                IncreaseRatePct = 0m,
+                IncreaseRateYrs = 1
+            }));
+
+        var summarySection = IncomeSection.Create(analysis.Id, "summaryDCF", "Summary", "empty", 3);
+        analysis.ReplaceSections([expenses, summarySection, income]); // load order ≠ display order
+
+        var result = _sut.Calculate(analysis);
+
+        Assert.All(result.MethodValues[fnb.Id], v => Assert.Equal(109_500m, v));
+    }
+
+    // Cross-ref rule (2026-09-21): 08 reads room-nights from 01/02 only, 11 reads leased
+    // area from 06 only, same-kind producers are summed. 10 rooms × 365 × 60% = 2190/yr.
+    private static string Room01(decimal rooms) => Serialize(new Method01Detail
+    {
+        SumSaleableArea = rooms, AvgRoomRate = 1000m, IncreaseRatePct = 0m, IncreaseRateYrs = 1,
+        OccupancyRateFirstYearPct = 60m, OccupancyRatePct = 0m, OccupancyRateYrs = 1,
+        OccupancyRate = [60m, 60m, 60m],
+    });
+
+    private static readonly string Fnb08 = Serialize(new Method08Detail
+    {
+        FirstYearAmt = 50m, IncreaseRatePct = 0m, IncreaseRateYrs = 1,
+    });
+
+    private static (IncomeAnalysis analysis, IncomeCategory income, IncomeCategory expenses) TwoSectionAnalysis()
+    {
+        var analysis = IncomeAnalysis.Create(Guid.NewGuid(), "test", "Test", 3, 365, 5m, 8m);
+        var inc = IncomeSection.Create(analysis.Id, "income", "Income", "positive", 1);
+        var exp = IncomeSection.Create(analysis.Id, "expenses", "Expenses", "negative", 2);
+        var summary = IncomeSection.Create(analysis.Id, "summaryDCF", "Summary", "empty", 3);
+        analysis.ReplaceSections([inc, exp, summary]);
+        return (analysis, inc.AddCategory("income", "Inc", "positive", 1), exp.AddCategory("expenses", "Exp", "negative", 1));
+    }
+
+    [Fact]
+    public void Method08_IgnoresLeasedAreaRow_EvenWhenItIsAboveTheRoomRow()
+    {
+        var (analysis, income, expenses) = TwoSectionAnalysis();
+        income.AddAssumption("I02", "Shops", "positive", 1, "06", Serialize(new Method06Detail
+        {
+            SumSaleableArea = 500m, AvgRentalRatePerMonth = 300m, IncreaseRatePct = 0m, IncreaseRateYrs = 1,
+            OccupancyRateFirstYearPct = 80m, OccupancyRatePct = 0m, OccupancyRateYrs = 1,
+            OccupancyRate = [80m, 80m, 80m],
+        }));
+        income.AddAssumption("I01", "Rooms", "positive", 2, "01", Room01(10m));
+        var fnb = expenses.AddAssumption("E07", "F&B", "negative", 1, "08", Fnb08);
+
+        var result = _sut.Calculate(analysis);
+
+        // 50 × 2190 room-nights — not 50 × (500 sq.m × 80%) from the shops row above it.
+        Assert.All(result.MethodValues[fnb.Id], v => Assert.Equal(109_500m, v));
+    }
+
+    [Fact]
+    public void Method08_SumsRoomNightsAcrossRoomRows()
+    {
+        var (analysis, income, expenses) = TwoSectionAnalysis();
+        income.AddAssumption("I01", "Building A", "positive", 1, "01", Room01(10m));
+        income.AddAssumption("I01", "Building B", "positive", 2, "01", Room01(10m));
+        var fnb = expenses.AddAssumption("E07", "F&B", "negative", 1, "08", Fnb08);
+
+        var result = _sut.Calculate(analysis);
+
+        Assert.All(result.MethodValues[fnb.Id], v => Assert.Equal(219_000m, v)); // 50 × 4380
+    }
+
+    [Fact]
+    public void Method11_WithoutALeasedAreaRow_IsZero_NotRoomNights()
+    {
+        var (analysis, income, expenses) = TwoSectionAnalysis();
+        income.AddAssumption("I01", "Rooms", "positive", 1, "01", Room01(10m));
+        var energy = expenses.AddAssumption("E05", "Energy", "negative", 1, "11", Serialize(new Method11Detail
+        {
+            EnergyCostIndex = 30m, IncreaseRatePct = 0m, IncreaseRateYrs = 1,
+        }));
+
+        var result = _sut.Calculate(analysis);
+
+        Assert.All(result.MethodValues[energy.Id], v => Assert.Equal(0m, v));
     }
 
     // ── Method 09 ─────────────────────────────────────────────────────────
@@ -470,7 +594,9 @@ public class IncomeCalculationServiceTests
             IncreaseRateYrs = 1,
             OccupancyRateFirstYearPct = 90m,
             OccupancyRatePct = 0m,
-            OccupancyRateYrs = 1
+            OccupancyRateYrs = 1,
+            // -1 = no per-year override: use the formula (Compute* indexes d.OccupancyRate[y]).
+            OccupancyRate = NoOccupancyOverride,
         };
         category.AddAssumption("I06", "Rental", "positive", 1, "06", Serialize(detail06));
 

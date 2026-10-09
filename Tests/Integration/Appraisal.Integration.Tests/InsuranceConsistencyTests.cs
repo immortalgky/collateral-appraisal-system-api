@@ -78,6 +78,9 @@ public class InsuranceConsistencyTests(IntegrationTestFixture fixture)
             var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
             var summaryService = scope.ServiceProvider.GetRequiredService<AppraisalValuationSummaryService>();
 
+            // Callers load the properties through the repository; RecomputeAsync reuses them.
+            await scope.ServiceProvider.GetRequiredService<IAppraisalRepository>()
+                .GetByIdWithPropertiesAsync(appraisalId, ct);
             await summaryService.RecomputeAsync(appraisalId, ct);
             await db.SaveChangesAsync(ct);
 
@@ -98,5 +101,66 @@ public class InsuranceConsistencyTests(IntegrationTestFixture fixture)
         Assert.Equal(expected, efInsurance);
         Assert.Equal(expected, dapperInsurance);
         Assert.Equal(efInsurance, dapperInsurance);
+    }
+
+    [Fact]
+    public async Task Building_insurance_uses_the_stored_value_typed_or_computed_on_both_paths()
+    {
+        var ct = TestContext.Current.CancellationToken;
+
+        Guid appraisalId;
+        using (var scope = CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+
+            var appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "New", "Normal", DateTime.Now);
+            appraisal.SetAppraisalNumber($"INS-{Guid.NewGuid():N}"[..18]);
+
+            // Keyed coverage wins over the depreciated value (700k here).
+            var keyed = appraisal.AddBuildingProperty();
+            keyed.BuildingDetail!.Update(ownerName: "Test Owner", buildingInsurancePrice: 400_000m);
+            keyed.BuildingDetail.AddDepreciationDetail("Gross", isBuilding: true, priceAfterDepreciation: 700_000m);
+
+            // Nothing typed: the save path stores the value computed from the IsBuilding rows, rounded to 1,000.
+            var derived = appraisal.AddBuildingProperty();
+            derived.BuildingDetail!.Update(ownerName: "Test Owner");
+            derived.BuildingDetail.AddDepreciationDetail("Gross", isBuilding: true, priceAfterDepreciation: 250_400m);
+            derived.BuildingDetail.ResolveDerivedValues();
+
+            db.Appraisals.Add(appraisal);
+            await db.SaveChangesAsync(ct);
+            appraisalId = appraisal.Id;
+        }
+
+        const decimal expected = 400_000m + 250_000m;
+
+        using (var scope = CreateScope())
+        {
+            var saved = await scope.ServiceProvider.GetRequiredService<IAppraisalRepository>()
+                .GetByIdWithPropertiesAsync(appraisalId, ct);
+            Assert.Contains(saved!.Properties, p => p.BuildingDetail!.BuildingInsurancePrice == 400_000m);
+            Assert.Contains(saved.Properties, p => p.BuildingDetail!.BuildingInsurancePrice == 250_000m);
+        }
+
+        decimal efInsurance;
+        using (var scope = CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+            await scope.ServiceProvider.GetRequiredService<IAppraisalRepository>()
+                .GetByIdWithPropertiesAsync(appraisalId, ct);
+            await scope.ServiceProvider.GetRequiredService<AppraisalValuationSummaryService>()
+                .RecomputeAsync(appraisalId, ct);
+            await db.SaveChangesAsync(ct);
+            efInsurance = (await db.ValuationAnalyses.AsNoTracking()
+                .FirstAsync(v => v.AppraisalId == appraisalId, ct)).InsuranceValue ?? 0m;
+        }
+
+        decimal dapperInsurance;
+        using (var scope = CreateScope())
+            dapperInsurance = await BuildingInsuranceCalculator.ComputeAsync(
+                scope.ServiceProvider.GetRequiredService<ISqlConnectionFactory>(), appraisalId);
+
+        Assert.Equal(expected, efInsurance);
+        Assert.Equal(expected, dapperInsurance);
     }
 }

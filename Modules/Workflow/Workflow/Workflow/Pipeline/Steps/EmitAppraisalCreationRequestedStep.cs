@@ -109,6 +109,7 @@ public class EmitAppraisalCreationRequestedStep(
                 RequestedBy = source.RequestedBy,
                 RequestedAt = source.RequestedAt,
                 PrevAppraisalId = source.PrevAppraisalId,
+                PrevAppraisalNumber = source.PrevAppraisalNumber,
                 AppraisalType = source.AppraisalType,
                 GroupTag = source.GroupTag
             }, source.RequestId.ToString());

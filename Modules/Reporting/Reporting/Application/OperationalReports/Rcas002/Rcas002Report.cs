@@ -14,23 +14,44 @@ public sealed record Rcas002Filter(
     string? SortBy,
     string? SortDir);
 
-/// <summary>RCAS002 — รายงานการครบกำหนดทบทวนหลักประกันตามประเภท (collateral review-due by type).</summary>
+/// <summary>
+/// RCAS002 — รายงานการครบกำหนดทบทวนหลักประกันตามประเภท (collateral review-due by type).
+/// The whole history, one row per AS400 book: reviewed books always (with the reappraisal they
+/// produced), waiting and skipped books while they are on AS400's latest file.
+/// </summary>
 internal static class Rcas002Report
 {
     private static readonly HashSet<string> AllowedSort = new(StringComparer.OrdinalIgnoreCase)
     {
-        "ReviewType", "ReviewTypeCode", "RemainingDays", "AppraisalNumber", "ValuationDate", "PastDueDay"
+        "ReviewType", "ReviewTypeCode", "RemainingDays", "AppraisalNumber", "ValuationDate", "PastDueDay",
+        "ReviewStatusCode", "NewAppraisalSubmittedAt", "NewAppraisalCompletedAt"
     };
 
-    // FSD sort sequence: "Review Type, Remaining Day". Sort by the raw code so the order is 1/2/3,
-    // not the alphabetical order of the resolved labels.
-    private static readonly string[] DefaultSort = ["ReviewTypeCode", "RemainingDays"];
+    // Default: the FSD sort sequence "Review Type, Remaining Day", by the raw code so the order is 1/2/3,
+    // not the alphabetical order of the resolved labels. A book with no due date (AS400 sent no
+    // EffectiveDateAppraisal) goes last — within its review type on the default order — in either
+    // direction (SQL Server puts NULL first on ASC).
+    private const string NoDueLast = "CASE WHEN RemainingDays IS NULL THEN 1 ELSE 0 END";
+
+    private static string OrderBy(Rcas002Filter f)
+    {
+        var custom = !string.IsNullOrWhiteSpace(f.SortBy) && AllowedSort.Contains(f.SortBy);
+        if (!custom)
+        {
+            var dir = string.Equals(f.SortDir, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
+            return $"ReviewTypeCode {dir}, {NoDueLast}, RemainingDays {dir}";
+        }
+        var orderBy = ReportFilterSql.OrderBy(f.SortBy, f.SortDir, AllowedSort, f.SortBy!);
+        return string.Equals(f.SortBy, "RemainingDays", StringComparison.OrdinalIgnoreCase)
+            ? $"{NoDueLast}, {orderBy}"
+            : orderBy;
+    }
 
     public static readonly ReportDefinition<Rcas002Row, Rcas002Filter> Definition = new()
     {
         BaseName = "RCAS002-ReappraisalDue",
         Title = "รายงานการครบกำหนดทบทวนหลักประกันตามประเภท",
-        OrderBy = f => ReportFilterSql.OrderBy(f.SortBy, f.SortDir, AllowedSort, DefaultSort),
+        OrderBy = OrderBy,
         Build = Build,
         DescribeFilter = f =>
         [
@@ -62,6 +83,11 @@ internal static class Rcas002Report
             new("Valuation Date", r => r.ValuationDate, ColumnFormat.Date),
             new("Next Valuation Date", r => r.NextValuationDate, ColumnFormat.Date),
             new("Remaining Days", r => r.RemainingDays, ColumnFormat.Integer),
+            new("Review Status", r => r.ReviewStatus),
+            new("New Appraisal No.", r => r.NewAppraisalNumber),
+            new("Submitted Date", r => r.NewAppraisalSubmittedAt, ColumnFormat.Date),
+            new("Completed Date", r => r.NewAppraisalCompletedAt, ColumnFormat.Date),
+            new("New Appraisal Status", r => r.NewAppraisalStatus),
         ],
     };
 

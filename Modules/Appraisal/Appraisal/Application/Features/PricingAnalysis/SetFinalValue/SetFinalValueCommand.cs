@@ -10,11 +10,10 @@ public record SetFinalValueCommand(
     Guid PricingAnalysisId,
     Guid MethodId,
     decimal FinalValue,
-    decimal FinalValueRounded,
     bool? IncludeLandArea,
     decimal? LandArea,
     decimal? LandValue,
     bool? HasBuildingValue,
     decimal? BuildingValue,
-    decimal? AppraisalPrice
+    decimal? IndicatedValue
 ) : ICommand<SetFinalValueResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

@@ -6,7 +6,8 @@ public record SendQuotationRequest(
     string? Cc,
     string? Bcc,
     string Subject,
-    string? Content);
+    string? Content,
+    string[]? Attachments);
 
 /// <summary>
 /// POST /quotations/{id}/send — Admin explicitly sends a Draft quotation to invited companies.
@@ -32,7 +33,8 @@ public class SendQuotationEndpoint : ICarterModule
                         request.Cc,
                         request.Bcc,
                         request.Subject,
-                        request.Content);
+                        request.Content,
+                        request.Attachments);
                     var result = await sender.Send(command, cancellationToken);
                     return Results.Ok(result);
                 })

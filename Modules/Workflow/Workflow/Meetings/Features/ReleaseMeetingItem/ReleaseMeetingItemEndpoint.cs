@@ -46,8 +46,16 @@ public class ReleaseMeetingItemCommandHandler(
         // Releasing hands this roster to the approval activity as its voting members. Refuse now if
         // it cannot satisfy the committee's quorum or approval conditions — otherwise the round
         // opens and silently never resolves.
-        var committee = await committeeRepository.GetByCodeAsync(MeetingCommittee.WithMeetingCode, ct)
-            ?? throw new NotFoundException($"Committee {MeetingCommittee.WithMeetingCode} not found");
+        // Checked against the committee the approval will actually run under — the meeting's own —
+        // so the gate and the round it opens never disagree. Fail closed on a meeting with no
+        // committee recorded (missed by the backfill): the approval would otherwise re-pick a tier
+        // from the appraisal's value, which is exactly what releasing through a meeting must not do.
+        var committeeId = meeting.CommitteeId
+            ?? throw new ConflictException(
+                $"Meeting {meeting.MeetingNo ?? meeting.Id.ToString()} has no committee recorded; " +
+                "contact an administrator before releasing.");
+        var committee = await committeeRepository.GetByIdWithMembersAsync(committeeId, ct)
+            ?? throw new NotFoundException($"Committee {committeeId} not found");
 
         // Resolved here rather than inside the domain check: the roster stores usernames, and only
         // infrastructure can say which of them are real users.

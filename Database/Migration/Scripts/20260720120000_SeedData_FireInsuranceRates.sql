@@ -7,8 +7,17 @@
 -- parameter.Parameters group 'FireInsuranceCondition' (codes '01'-'12').
 --
 -- Idempotent: skips the block if Code '01' already exists.
+--
+-- The table is dropped by EF migration DropPricingParameterFireInsuranceRates, and `migrate`
+-- runs every EF migration before any script. On a fresh database this file therefore runs
+-- after the drop, so it must skip rather than fail (the rates now seed into
+-- appraisal.FireInsuranceRates via 20260917091000_SeedData_MoveFireInsuranceRatesToAppraisal).
 -- ============================================================
 
+-- Nested IF on purpose: T-SQL does not short-circuit name resolution across AND, so the
+-- existence check must guard the statements that name the table, not sit beside them.
+IF OBJECT_ID(N'parameter.PricingParameterFireInsuranceRates', N'U') IS NOT NULL
+BEGIN
 IF NOT EXISTS (SELECT 1 FROM parameter.PricingParameterFireInsuranceRates WHERE Code = '01')
 BEGIN
 
@@ -28,4 +37,5 @@ BEGIN
     ('11', 'SingleHouseArea400To500',           'LandAndBuilding', 25000, 11),
     ('12', 'SingleHouseAreaGreaterThan500',     'LandAndBuilding', 30000, 12);
 
+END;
 END;

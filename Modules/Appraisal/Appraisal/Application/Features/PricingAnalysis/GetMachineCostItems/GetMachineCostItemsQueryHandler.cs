@@ -52,7 +52,10 @@ public class GetMachineCostItemsQueryHandler(
 
         var totalFmv = items.Sum(i => i.FairMarketValue ?? 0);
 
-        return new GetMachineCostItemsResult(items, totalFmv, method.Remark);
+        return new GetMachineCostItemsResult(
+            items, totalFmv, method.Remark,
+            method.FinalValue?.IndicatedValue,
+            method.FinalValue?.FinalValueOverride);
     }
 
     private async Task<Dictionary<Guid, string?>> LoadPropertyNamesAsync(Guid[] propertyIds)

@@ -24,6 +24,7 @@ public class BlockReappraisalDue
 
     /// <summary>"Pending" or "Consumed". Default: "Pending".</summary>
     public string Status { get; private set; } = "Pending";
+    public string? NotRequiredRemark { get; private set; }
 
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
@@ -88,10 +89,11 @@ public class BlockReappraisalDue
     /// <summary>
     /// Marks this row as Consumed — called by Phase D when a reappraisal is raised.
     /// </summary>
-    public void MarkConsumed()
+    public void MarkConsumed(string? remark)
     {
         Status = "Consumed";
         UpdatedAt = DateTime.UtcNow;
+        NotRequiredRemark = remark;
     }
 
     /// <summary>

@@ -18,7 +18,7 @@ public class ExclusionRuleValidator : IAssignmentValidator
         foreach (var sourceActivityId in context.Rules.ExcludeAssigneesFrom)
         {
             if (context.PriorAssignees.TryGetValue(sourceActivityId, out var excludedUserId)
-                && excludedUserId == context.SelectedAssignee)
+                && string.Equals(excludedUserId, context.SelectedAssignee, StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogWarning(
                     "Assignee {Assignee} was excluded because they completed {SourceActivity}",

@@ -19,11 +19,11 @@ public class QuotationCompaniesAutoExpiredIntegrationEventHandler(
 {
     private const string AutoExpireReason = "Auto-expired — no response by due date";
 
-    public async Task Consume(ConsumeContext<QuotationCompaniesAutoExpiredIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<QuotationCompaniesAutoExpiredIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<QuotationCompaniesAutoExpiredIntegrationEvent> context)
+    {
         var message = context.Message;
         var ct = context.CancellationToken;
 
@@ -50,7 +50,5 @@ public class QuotationCompaniesAutoExpiredIntegrationEventHandler(
                     companyId, message.QuotationRequestId);
             }
         }
-
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
     }
 }

@@ -19,6 +19,7 @@ public record AppraisalDto
     public string? RequestNumber { get; init; }
     public string Status { get; init; } = null!;
     public string AppraisalType { get; init; } = null!;
+    public int? InspectionNumber { get; init; }
     public string Priority { get; init; } = null!;
     public bool IsPma { get; init; }
     public string? Purpose { get; init; }
@@ -66,9 +67,11 @@ public record AppraisalDto
     public DateTime? AppointmentDateTime { get; init; }
 
     // Columns the view has always returned but the DTO used to drop on the floor. Adding them
-    // costs nothing at query time — the page already does SELECT * and Dapper binds by name — but
-    // note the view itself must not gain or reorder columns: RCAS001/002/004/008/009/010 bind
-    // SELECT * from downstream views to positional records.
+    // costs nothing at query time — the page already does SELECT * and Dapper binds by name.
+    // The view must never REORDER columns, and may only gain them at the END: RCAS001/002/004/
+    // 008/009/010 bind SELECT * from their own reporting views to positional records. Those views
+    // name every column they take from this one (none selects v.*), so an appended column never
+    // reaches them — a reordered or inserted one could, through any future v.*.
 
     /// <summary>Groups appraisals raised together; null for a standalone one.</summary>
     public string? GroupTag { get; init; }
@@ -97,6 +100,19 @@ public record AppraisalDto
 
     /// <summary>First-submission timestamp — the SLA end-point.</summary>
     public DateTime? SubmittedAt { get; init; }
+
+    /// <summary>
+    /// Display name ("First Last") of <see cref="AssigneeUserId"/>, resolved by the view from
+    /// auth.AspNetUsers. Null for External work (no AssigneeUserId) and for a code with no user row.
+    /// </summary>
+    public string? AssigneeName { get; init; }
+
+    /// <summary>User code of the request's requestor (RM), e.g. "P5229" — the value the
+    /// <c>requestor</c> filter matches.</summary>
+    public string? RequestorCode { get; init; }
+
+    /// <summary>Requestor's name as the request recorded it.</summary>
+    public string? RequestorName { get; init; }
 
     // SLA Computed
     public int? ElapsedHours { get; init; }

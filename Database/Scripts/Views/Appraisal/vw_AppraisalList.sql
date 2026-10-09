@@ -7,6 +7,7 @@ SELECT a.Id,
        r.RequestNumber,
        a.Status AS Status,
        a.AppraisalType,
+       a.InspectionNumber,
        a.Priority,
        a.IsPma,
        a.Purpose,
@@ -30,17 +31,22 @@ SELECT a.Id,
        -- ('U'/'LB'/'L') share the PropertyType wire format, so they union directly.
        -- This is a display aggregate — the propertyType FILTER runs the equivalent union as a
        -- semi-join (see AppraisalFilterBuilder), it does not read this column.
-       -- UNION (not UNION ALL) dedupes across both sources.
-       (SELECT STRING_AGG(pt.PropertyType, ', ') WITHIN GROUP (ORDER BY pt.PropertyType)
-        FROM (SELECT ap3.PropertyType
-              FROM appraisal.AppraisalProperties ap3
-              WHERE ap3.AppraisalId = a.Id
-                AND ap3.PropertyType IS NOT NULL
-              UNION
-              SELECT pr.ProjectType
-              FROM appraisal.Projects pr
-              WHERE pr.AppraisalId = a.Id
-                AND pr.ProjectType IS NOT NULL) pt)                                 AS PropertyTypes,
+       -- Ordered by the first property of each type the appraiser ADDED (SequenceNumber, then Id),
+       -- so the list reads in the order the appraisal itself does — not alphabetically by code,
+       -- which once translated reads as a shuffle. GROUP BY dedupes across both sources; a block
+       -- appraisal's single ProjectType sorts first (0), which is moot since it has no properties.
+       (SELECT STRING_AGG(pt.PropertyType, ', ') WITHIN GROUP (ORDER BY pt.FirstSeq, pt.FirstId)
+        FROM (SELECT src.PropertyType, MIN(src.Seq) AS FirstSeq, MIN(src.Id) AS FirstId
+              FROM (SELECT ap3.PropertyType, ap3.SequenceNumber AS Seq, ap3.Id
+                    FROM appraisal.AppraisalProperties ap3
+                    WHERE ap3.AppraisalId = a.Id
+                      AND ap3.PropertyType IS NOT NULL
+                    UNION ALL
+                    SELECT pr.ProjectType, 0, NULL
+                    FROM appraisal.Projects pr
+                    WHERE pr.AppraisalId = a.Id
+                      AND pr.ProjectType IS NOT NULL) src
+              GROUP BY src.PropertyType) pt)                                        AS PropertyTypes,
        -- Latest active assignment info
        la.AssigneeUserId,
        la.AssigneeCompanyId,
@@ -69,7 +75,16 @@ SELECT a.Id,
        COALESCE(ll.District, cc.District)                                                   AS District,
        COALESCE(ll.SubDistrict, cc.SubDistrict)                                             AS SubDistrict,
        -- Latest appointment
-       apt.AppointmentDateTime
+       apt.AppointmentDateTime,
+       -- Display name of the internal assignee (AssigneeUserId holds the bank code, e.g. P5229).
+       -- APPENDED LAST on purpose: every downstream view names its columns, and appending keeps
+       -- each existing column at its ordinal regardless.
+       asg.AssigneeName,
+       -- Who raised the request (the RM): the user code and the name the request captured at the
+       -- time. Read from the request row already joined above, so no extra join. Appended last
+       -- for the same reason as AssigneeName.
+       r.Requestor                                                                         AS RequestorCode,
+       NULLIF(r.RequestorName, N'')                                                        AS RequestorName
        -- ElapsedHours / RemainingHours are computed in C# (GetAppraisalsQueryHandler) using
        -- IBusinessTimeCalculator so they exclude weekends, holidays and lunch. They are NOT
        -- derived here: a SQL DATEDIFF would count calendar hours (nights/weekends included).
@@ -160,5 +175,15 @@ FROM appraisal.Appraisals a
                       WHERE AssignmentId = la.Id
                         AND Status != 'Cancelled'
                       ORDER BY AppointmentDateTime DESC) apt
+         -- OUTER APPLY TOP 1 rather than a LEFT JOIN: IX_AspNetUsers_UserName is not unique, so a
+         -- join could duplicate a row and could not be eliminated by the optimizer. A TOP 1 apply
+         -- returns at most one row, so when a consumer (the RCAS reports) never reads AssigneeName
+         -- the apply is dropped from the plan. Joined on UserName, not Id — AssigneeUserId is the
+         -- bank code (see vw_AppraisalDetail). The index INCLUDEs FirstName/LastName, so it seeks.
+         OUTER APPLY (SELECT TOP 1
+                             NULLIF(LTRIM(RTRIM(CONCAT(NULLIF(u.FirstName, N''), N' ',
+                                                       NULLIF(u.LastName, N'')))), N'') AS AssigneeName
+                      FROM auth.AspNetUsers u
+                      WHERE u.UserName = la.AssigneeUserId) asg
          LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = a.Id
 WHERE a.IsDeleted = 0

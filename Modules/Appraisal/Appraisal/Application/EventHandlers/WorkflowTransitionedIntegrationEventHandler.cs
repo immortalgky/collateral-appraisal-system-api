@@ -78,11 +78,11 @@ public class WorkflowTransitionedIntegrationEventHandler(
             "pending-approval",
         };
 
-    public async Task Consume(ConsumeContext<WorkflowTransitionedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<WorkflowTransitionedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<WorkflowTransitionedIntegrationEvent> context)
+    {
         var message = context.Message;
         var ct = context.CancellationToken;
 
@@ -92,7 +92,6 @@ public class WorkflowTransitionedIntegrationEventHandler(
             logger.LogDebug(
                 "WorkflowTransitionedIntegrationEvent skipped: AppraisalId={AppraisalId} DestinationActivityId={DestinationActivityId}",
                 message.AppraisalId, message.DestinationActivityId);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
             return;
         }
 
@@ -120,7 +119,6 @@ public class WorkflowTransitionedIntegrationEventHandler(
                     "Appraisal {AppraisalId} not found when handling {IntegrationEvent}",
                     message.AppraisalId,
                     nameof(WorkflowTransitionedIntegrationEvent));
-                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
                 return;
             }
 
@@ -143,7 +141,6 @@ public class WorkflowTransitionedIntegrationEventHandler(
                 logger.LogDebug(
                     "WorkflowTransitionedIntegrationEvent: no mapping for transition {Source} → {Destination}, skipping",
                     message.SourceActivityId, message.DestinationActivityId);
-                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
                 return;
             }
 
@@ -201,7 +198,6 @@ public class WorkflowTransitionedIntegrationEventHandler(
             }
 
             await unitOfWork.SaveChangesAsync(ct);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
 
             logger.LogInformation(
                 "Successfully processed workflow transition for AppraisalId {AppraisalId} ({Source} → {Destination}); appraisalStatusChanged={AppraisalChanged} assignmentStatusChanged={AssignmentChanged}",

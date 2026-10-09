@@ -33,9 +33,7 @@ public class CommitteeAddConditionTests
     [InlineData("COMMITTEE")]          // a committee CODE, not a position — the original bug
     [InlineData("COMMITTEE_WITH_MEETING")]
     [InlineData("Underwriter")]        // plausible synonym for UW
-    [InlineData("")]
-    [InlineData(null)]
-    public void AddCondition_RoleRequired_RejectsAnythingThatIsNotAPositionName(string? role)
+    public void AddCondition_RoleRequired_RejectsAnythingThatIsNotAPositionName(string role)
     {
         var committee = BuildCommittee();
 
@@ -44,6 +42,23 @@ public class CommitteeAddConditionTests
 
         act.Should().Throw<ArgumentException>()
             .WithMessage("*Allowed values*");
+        committee.Conditions.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void AddCondition_RoleRequired_RejectsAMissingRole(string? role)
+    {
+        var committee = BuildCommittee();
+
+        var act = () => committee.AddCondition(
+            ConditionType.RoleRequired, role, minVotesRequired: null, priority: 1, description: null);
+
+        // A blank role gets its own message — there is no value to call invalid.
+        act.Should().Throw<ArgumentException>()
+            .WithMessage("*requires a role*");
         committee.Conditions.Should().BeEmpty();
     }
 

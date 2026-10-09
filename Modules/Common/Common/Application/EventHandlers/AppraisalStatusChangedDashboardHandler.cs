@@ -32,11 +32,11 @@ public class AppraisalStatusChangedDashboardHandler(
     InboxGuard<CommonDbContext> inboxGuard,
     IDateTimeProvider dateTimeProvider) : IConsumer<AppraisalStatusChangedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<AppraisalStatusChangedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<AppraisalStatusChangedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<AppraisalStatusChangedIntegrationEvent> context)
+    {
         var message = context.Message;
 
         // Initial creation is owned by AppraisalCreatedDashboardStatusHandler; this handler only
@@ -91,7 +91,5 @@ public class AppraisalStatusChangedDashboardHandler(
             transaction.Rollback();
             throw;
         }
-
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }
 }

@@ -46,7 +46,7 @@ internal class GetRequestDocumentsByRequestIdQueryHandler(ISqlConnectionFactory 
                            LEFT JOIN [parameter].[DocumentTypes] dt ON dt.[Code] = td.[DocumentType]
                            LEFT JOIN [document].[Documents] d ON d.[Id] = td.[DocumentId]
                            WHERE t.[RequestId] = @RequestId
-                           ORDER BY t.[CreatedAt] ASC, td.[Id] ASC;
+                           ORDER BY t.[SequenceNumber] ASC, t.[CreatedAt] ASC, t.[Id] ASC, td.[Id] ASC;
                            """;
 
         var connection = connectionFactory.GetOpenConnection();

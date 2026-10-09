@@ -236,15 +236,14 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
     // -----------------------------------------------------------------------
     // PR6-3: AssignmentFeeService CI fee read-back
     //
-    // AssignmentFeeService.ResolveSourceForAppraisalAsync (line ~191) sends
-    // GetConstructionInspectionFeeForAppraisalQuery(prevId) to retrieve the
-    // CI fee amount captured on the prior appraisal's engagement.
+    // GetConstructionInspectionFeeForAppraisalQuery returns the CI fee captured on
+    // the prior appraisal's engagement.
     //
-    // Setup: create a prior appraisal, run ProcessAppraisalAsync, patch the
-    // engagement's ConstructionInspectionFeeAmount, then call the service.
+    // AssignmentFeeService.ResolveSourceForAppraisalAsync no longer reads the
+    // engagement (d7670a5a): it reads the prior appraisal's latest assignment's
+    // AppraisalFee.ConstructionInspectionFeeAmount, so the fee is seeded there too.
     //
-    // Assert: the service returns AssignmentFeeSource.ConstructionInspection
-    // with the exact amount seeded on the engagement.
+    // Assert: both return the seeded amount.
     // -----------------------------------------------------------------------
     [Fact]
     public async Task PR6_3_AssignmentFeeService_CIFeeReadBack_ReturnsSeedFeeAmount()
@@ -263,6 +262,16 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
             appraisalDb.Appraisals.Add(a);
             await appraisalDb.SaveChangesAsync(ct);
             priorAppraisalId = a.Id;
+
+            // The fee source AssignmentFeeService reads: the prior appraisal's assignment fee.
+            var assignment = AppraisalAssignment.Create(
+                a.Id, "External", assigneeCompanyId: Guid.NewGuid().ToString(), assignedBy: "test");
+            appraisalDb.AppraisalAssignments.Add(assignment);
+            await appraisalDb.SaveChangesAsync(ct);
+            var appraisalFee = AppraisalFee.Create(assignment.Id);
+            appraisalFee.SetConstructionInspectionFee(seededCIFee);
+            appraisalDb.AppraisalFees.Add(appraisalFee);
+            await appraisalDb.SaveChangesAsync(ct);
         }
 
         await ProcessAppraisalInNewScopeAsync(priorAppraisalId);
@@ -361,12 +370,12 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
             var g1 = a.CreateGroup("Group 1");
             var p1 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title1, "Chanote");
             p1.Id = Guid.NewGuid();
-            g1.AddProperty(p1.Id);
+            g1.AddProperty(p1.Id, p1.PropertyType.Code, null);
 
             var g2 = a.CreateGroup("Group 2");
             var p2 = SeedLandProperty(a, "LO-002", "Chiang Mai", "Mueang", "Chang Phueak", title2, "Chanote");
             p2.Id = Guid.NewGuid();
-            g2.AddProperty(p2.Id);
+            g2.AddProperty(p2.Id, p2.PropertyType.Code, null);
 
             appraisalDb.Appraisals.Add(a);
             await appraisalDb.SaveChangesAsync(ct);
@@ -407,14 +416,16 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
 
         var engagement = engagements.Single();
 
-        // Snapshot must contain two groups (one per group on the appraisal)
+        // Both groups are land, and land titles across ALL groups collapse into one snapshot
+        // group (one IsMaster + alias, 5b7ae023) — so one group carrying both titles.
         Assert.NotNull(engagement.Snapshot);
         using var doc = JsonDocument.Parse(engagement.Snapshot);
         var root = doc.RootElement;
 
         Assert.True(root.TryGetProperty("groups", out var groupsEl));
         var groupList = groupsEl.EnumerateArray().ToList();
-        Assert.Equal(2, groupList.Count);
+        Assert.Single(groupList);
+        Assert.Equal(2, groupList[0].GetProperty("properties").GetArrayLength());
 
         // Exactly one group is marked isPrimary
         var primaryGroups = groupList.Count(g =>
@@ -463,8 +474,8 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
             var p2 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title2, "NorSor4Jor");
             p1.Id = Guid.NewGuid();
             p2.Id = Guid.NewGuid();
-            g.AddProperty(p1.Id);
-            g.AddProperty(p2.Id);
+            g.AddProperty(p1.Id, p1.PropertyType.Code, null);
+            g.AddProperty(p2.Id, p2.PropertyType.Code, p1.PropertyType.Code);
             appraisalDb.Appraisals.Add(a);
             await appraisalDb.SaveChangesAsync(ct);
             appraisalId1 = a.Id;

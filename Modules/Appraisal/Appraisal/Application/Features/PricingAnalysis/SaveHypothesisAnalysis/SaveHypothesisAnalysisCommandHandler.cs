@@ -59,9 +59,21 @@ public class SaveHypothesisAnalysisCommandHandler(
         // ── Compute and persist ───────────────────────────────────────────
         if (analysis.Variant == HypothesisVariant.LandBuilding)
         {
+            var buildingValues = await HypothesisBuildingValues.LoadAsync(
+                pricingAnalysis.SubjectType, pricingAnalysis.AnchorId, propertyDataService, cancellationToken);
+
+            var modelBuildingMappings =
+                HypothesisBuildingValues.DropBuildingsOutsideGroup(command.ModelBuildingMappings, buildingValues);
+            if (modelBuildingMappings is not null)
+            {
+                analysis.ReplaceModelBuildingMappings(modelBuildingMappings
+                    .Select(m => (m.ModelName, m.AppraisalPropertyId, m.TotalCost)));
+            }
+
             var inputSummary = MapLandBuildingInput(command.LandBuildingSummary);
             var snapshot = _calcService.ComputeLandBuilding(
-                analysis, analysis.LandBuildingUnitRows, inputSummary, totalLandAreaFromTitles);
+                analysis, analysis.LandBuildingUnitRows, inputSummary, totalLandAreaFromTitles, buildingValues,
+                command.IndicatedValue);
 
             analysis.UpdateLandBuildingSummary(snapshot.Summary);
 
@@ -70,16 +82,20 @@ public class SaveHypothesisAnalysisCommandHandler(
             method.SetValue(finalValue, null, PricingUnit.PerUnit);
             MirrorToFinalValue(method, finalValue);
             // Land area and building value are not applicable for Hypothesis.
-            method.FinalValue!.SetFinalValueAdjusted(command.FinalValueAdjusted);
-            method.FinalValue.SetAppraisalPrice(command.AppraisalPrice);
+            method.FinalValue!.SetFinalValueOverride(command.FinalValueOverride);
+            method.FinalValue.SetIndicatedValue(command.IndicatedValue);
+            // The appraiser's typed-over total wins over the computed C81 total just set above.
+            method.SyncMethodValueWithIndicatedValue();
 
-            // Only roll a POSITIVE value up. TotalAssetValueRounded is null while the hypothesis
-            // inputs are still incomplete, which lands here as 0 — propagating that would zero the
-            // approach and FinalAppraisedValue, and push AppraisedValue = 0 into ValuationAnalyses
-            // (and the workflow approval tier) on a mid-edit save. RecalculateRollup's own guard is
-            // null-only, so the > 0 test the old PropagateValue helper applied has to live here.
+            // Only roll a POSITIVE MethodValue up. TotalAssetValueRounded is null while the
+            // hypothesis inputs are still incomplete, which lands as 0 — propagating that would zero
+            // the approach and FinalAppraisedValue, and push AppraisedValue = 0 into ValuationAnalyses
+            // (and the workflow approval tier) on a mid-edit save. Gated on MethodValue, not the
+            // computed total: SyncMethodValueWithIndicatedValue has already copied in a typed-over
+            // figure, which must roll up even while the computed total is still 0.
+            // RecalculateRollup's own guard is null-only, so the > 0 test has to live here.
             // Note this is hypothesis-specific: the other handlers guarded on HasValue, not > 0.
-            if (finalValue > 0)
+            if ((method.MethodValue ?? 0m) > 0m)
                 pricingAnalysis.RecalculateRollup();
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -91,7 +107,8 @@ public class SaveHypothesisAnalysisCommandHandler(
         {
             var inputSummary = MapCondominiumInput(command.CondominiumSummary);
             var computedSummary = _calcService.ComputeCondominium(
-                analysis, analysis.CondominiumUnitRows, inputSummary, totalLandAreaFromTitles);
+                analysis, analysis.CondominiumUnitRows, inputSummary, totalLandAreaFromTitles,
+                indicatedValue: command.IndicatedValue);
 
             analysis.UpdateCondominiumSummary(computedSummary);
 
@@ -100,11 +117,13 @@ public class SaveHypothesisAnalysisCommandHandler(
             method.SetValue(finalValue, null, PricingUnit.PerUnit);
             MirrorToFinalValue(method, finalValue);
             // Land area and building value are not applicable for Hypothesis.
-            method.FinalValue!.SetFinalValueAdjusted(command.FinalValueAdjusted);
-            method.FinalValue.SetAppraisalPrice(command.AppraisalPrice);
+            method.FinalValue!.SetFinalValueOverride(command.FinalValueOverride);
+            method.FinalValue.SetIndicatedValue(command.IndicatedValue);
+            // The appraiser's typed-over total wins over the computed E58 total just set above.
+            method.SyncMethodValueWithIndicatedValue();
 
             // See the LandBuilding branch above: 0 means "not computed yet", never a real value.
-            if (finalValue > 0)
+            if ((method.MethodValue ?? 0m) > 0m)
                 pricingAnalysis.RecalculateRollup();
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -229,8 +248,8 @@ public class SaveHypothesisAnalysisCommandHandler(
     private static void MirrorToFinalValue(PricingAnalysisMethod method, decimal value)
     {
         if (method.FinalValue is null)
-            method.SetFinalValue(PricingFinalValue.Create(method.Id, value, value));
+            method.SetFinalValue(PricingFinalValue.Create(method.Id, value));
         else
-            method.FinalValue.UpdateFinalValue(value, value);
+            method.FinalValue.UpdateFinalValue(value);
     }
 }

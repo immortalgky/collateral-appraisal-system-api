@@ -67,9 +67,8 @@ public record UpdateBuildingPropertyCommand(
     string? UtilizationTypeOther = null,
     // Area & Pricing
     decimal? TotalBuildingArea = null,
+    decimal? BuildingCostValue = null,
     decimal? BuildingInsurancePrice = null,
-    decimal? SellingPrice = null,
-    decimal? ForcedSalePrice = null,
     // Other
     string? Remark = null,
     // Depreciation Details (null = no-op, list = sync)

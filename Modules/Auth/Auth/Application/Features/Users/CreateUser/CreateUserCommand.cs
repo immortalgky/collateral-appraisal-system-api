@@ -21,4 +21,9 @@ public record CreateUserCommand(
     string? EmployeeId = null,
     // Ad-hoc account: created closed, no password, usable only inside an admin-opened access window.
     bool IsTemporaryAccess = false
-) : ICommand<CreateUserResult>, ITransactionalCommand<IAuthUnitOfWork>;
+) : ICommand<CreateUserResult>, ITransactionalCommand<IAuthUnitOfWork>
+{
+    /// <summary>Leaves the initial password out entirely — see ChangePasswordCommand.ToString.</summary>
+    public override string ToString() =>
+        $"{nameof(CreateUserCommand)} {{ Username = {Username}, AuthSource = {AuthSource} }}";
+}

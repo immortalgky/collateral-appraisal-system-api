@@ -100,11 +100,10 @@ public record UpdateCondoPropertyCommand(
     bool? IsMissingFromSurvey = null,
     decimal? GovernmentPricePerSqm = null,
     decimal? GovernmentPrice = null,
-    // BuildingInsurancePrice is derived server-side from FireInsuranceCondition × UsableArea —
+    // BuildingInsurancePrice is derived server-side from FireInsuranceCode × UsableArea —
     // not accepted from the client (see UpdateCondoPropertyCommandHandler).
-    string? FireInsuranceCondition = null,
-    decimal? SellingPrice = null,
-    decimal? ForcedSalePrice = null,
+    string? FireInsuranceCode = null,
+    decimal? BuildingInsurancePriceOverride = null,
     // Other
     string? Remark = null,
     // Construction Inspection (null = no-op)

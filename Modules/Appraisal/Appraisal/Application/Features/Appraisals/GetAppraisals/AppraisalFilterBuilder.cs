@@ -189,6 +189,25 @@ internal static class AppraisalFilterBuilder
                 parameters.Add("CustomerName", LikePattern.Escape(customerName));
             }
 
+            // Requestor (RM). Same `RequestId IN (…)` shape as the customer filter above and for the
+            // same reasons: the WHERE is shared by the view and the base table, so it cannot
+            // correlate on an alias, and a subquery on request.Requests keeps requiresView off —
+            // the count stays on appraisal.Appraisals. IX_Request_Requestor is filtered on
+            // IsDeleted = 0; repeating that predicate is what lets the optimizer seek it.
+            var requestors = (filter.Requestor ?? "")
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (requestors.Length > 0)
+            {
+                conditions.Add(
+                    """
+                    RequestId IN (SELECT rq.Id
+                                  FROM request.Requests rq
+                                  WHERE rq.Requestor IN @Requestors
+                                    AND rq.IsDeleted = 0)
+                    """);
+                parameters.Add("Requestors", requestors);
+            }
+
             var requestNumber = StripWidenMarker(filter.RequestNumber);
             if (!string.IsNullOrWhiteSpace(requestNumber))
             {

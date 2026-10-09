@@ -15,10 +15,10 @@ public record ProfitRentAnalysisDto(
     decimal TotalContractRentalFee,
     decimal TotalReturnsFromLease,
     decimal TotalPresentValue,
-    decimal FinalValueRounded,
+    decimal FinalValue,
     decimal? EstimatePriceRounded,
     decimal? TotalBuildingCost,
-    decimal? AppraisalPrice,
+    decimal? IndicatedValue,
     List<ProfitRentGrowthPeriodDto> GrowthPeriods,
     List<ProfitRentCalculationDetailDto> CalculationDetails
 );

@@ -28,11 +28,20 @@ public sealed class LandSection
     /// <summary>รวมเนื้อที่ดิน (งาน) — normalised carried sum.</summary>
     public int TotalNgan { get; init; }
 
-    /// <summary>รวมเนื้อที่ดิน (ตร.วา) — normalised carried sum.</summary>
-    public int TotalSquareWa { get; init; }
+    /// <summary>
+    /// รวมเนื้อที่ดิน (ตร.วา) — normalised carried sum. Decimal, not int: a deed records square wa to
+    /// two places and this row is reconciled against the deed.
+    /// </summary>
+    public decimal TotalSquareWa { get; init; }
 
     /// <summary>รวมทั้งหมดเป็นตารางวา ("หรือ X ตารางวา").</summary>
     public decimal TotalAreaInWa { get; init; }
+
+    /// <summary>หัก เนื้อที่ที่ตัดออกจากการประเมิน (ตร.ว.) — 0 when nothing was deducted.</summary>
+    public decimal DeductedAreaInWa { get; init; }
+
+    /// <summary>คงเหลือ เนื้อที่ที่ใช้ประเมิน (ตร.ว.) — what the pricing actually used.</summary>
+    public decimal NetAreaInWa { get; init; }
 
     /// <summary>
     /// ตรวจสอบจาก — land check-method, resolved from LandAppraisalDetails.LandCheckMethodType

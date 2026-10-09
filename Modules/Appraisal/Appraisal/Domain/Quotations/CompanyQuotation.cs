@@ -409,7 +409,8 @@ public class CompanyQuotation : Entity<Guid>
         decimal? counterPrice,
         string? message,
         Guid companyUserId,
-        IReadOnlyDictionary<Guid, decimal?>? itemDiscounts = null)
+        IReadOnlyDictionary<Guid, decimal?>? itemDiscounts = null,
+        IReadOnlyDictionary<Guid, string?>? itemReasons = null)
     {
         var negotiation = _negotiations.FirstOrDefault(n => n.Id == negotiationId)
                           ?? throw new InvalidOperationException($"Negotiation '{negotiationId}' not found");
@@ -435,7 +436,11 @@ public class CompanyQuotation : Entity<Guid>
                     foreach (var item in _items)
                     {
                         if (itemDiscounts.TryGetValue(item.AppraisalId, out var discount))
-                            item.SetNegotiatedDiscount(discount);
+                        {
+                            string? reason = null;
+                            itemReasons?.TryGetValue(item.AppraisalId, out reason);
+                            item.SetNegotiatedDiscount(discount, reason);
+                        }
 
                         // Sync per-item negotiated fields so downstream readers
                         // (CompanyAssignedIntegrationEvent, finalization) pick up the post-discount

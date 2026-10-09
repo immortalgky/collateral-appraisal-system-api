@@ -36,5 +36,8 @@ public interface IAppraisalCreationService
         Guid? workflowDefinitionId = null,
         // Reappraisal batch label — stamps Appraisal.GroupTag when non-null/non-empty.
         string? groupTag = null,
+        // Prior book that is not an appraisal in CAS (legacy AS400 "99A…"); ignored when
+        // prevAppraisalId is set — the two are never stored together.
+        string? prevAppraisalNumber = null,
         CancellationToken cancellationToken = default);
 }

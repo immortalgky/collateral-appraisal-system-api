@@ -148,6 +148,10 @@ public class PricingAnalysisRepository(AppraisalDbContext dbContext)
                 .ThenInclude(a => a.Methods)
                     .ThenInclude(m => m.HypothesisAnalysis!)
                         .ThenInclude(ha => ha.CostItems)
+            .Include(pa => pa.Approaches)
+                .ThenInclude(a => a.Methods)
+                    .ThenInclude(m => m.HypothesisAnalysis!)
+                        .ThenInclude(ha => ha.ModelBuildingMappings)
             .AsSplitQuery()
             .FirstOrDefaultAsync(pa => pa.Id == id, cancellationToken);
     }

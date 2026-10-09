@@ -35,6 +35,13 @@ public class Appraisal : Aggregate<Guid>
     // construction-inspection fee (Progressive bypasses the normal tier/quotation pipeline).
     public Guid? PrevAppraisalId { get; private set; }
 
+    /// <summary>
+    /// The prior book when it is NOT an appraisal in CAS — a legacy AS400 "99A…" book, reappraised
+    /// from the periodical reappraisal feed. Lets the appraisal chain (and the regulatory origination
+    /// value) reach back past CAS. Never set together with <see cref="PrevAppraisalId"/>.
+    /// </summary>
+    public string? PrevAppraisalNumber { get; private set; }
+
     // For Progressive (construction-inspection) appraisals — which inspection round this is
     // (1st, 2nd, ...). System-assigned at creation = (completed Progressive inspections already on
     // the same collateral) + 1. NULL for non-Progressive appraisals.
@@ -197,6 +204,21 @@ public class Appraisal : Aggregate<Guid>
         if (trimmed.Length > 40)
             throw new ArgumentException("GroupTag must not exceed 40 characters.", nameof(tag));
         GroupTag = trimmed;
+    }
+
+    /// <summary>
+    /// Records a prior book that exists only in AS400. System-only — called once at creation, and only
+    /// when there is no <see cref="PrevAppraisalId"/>.
+    /// </summary>
+    public void SetPrevAppraisalNumber(string number)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(number);
+        if (PrevAppraisalId.HasValue)
+            throw new InvalidOperationException("PrevAppraisalNumber is only for a prior book outside CAS.");
+        var trimmed = number.Trim();
+        if (trimmed.Length > 20)
+            throw new ArgumentException("PrevAppraisalNumber must not exceed 20 characters.", nameof(number));
+        PrevAppraisalNumber = trimmed;
     }
 
     /// <summary>
@@ -576,7 +598,10 @@ public class Appraisal : Aggregate<Guid>
     /// <summary>
     /// Add a property to a group
     /// </summary>
-    public void AddPropertyToGroup(Guid groupId, Guid propertyId)
+    /// <param name="enforceFamily">False only when mirroring a prior appraisal's groups (CI /
+    /// reappraisal): groups created before the one-family rule may mix families, and the cloned
+    /// pricing attaches group-for-group, so the copy must reproduce them as they were.</param>
+    public void AddPropertyToGroup(Guid groupId, Guid propertyId, bool enforceFamily = true)
     {
         var group = _groups.FirstOrDefault(g => g.Id == groupId)
                     ?? throw new InvalidOperationException($"Group {groupId} not found");
@@ -589,7 +614,19 @@ public class Appraisal : Aggregate<Guid>
         if (existingGroup is not null)
             throw new InvalidOperationException($"Property {propertyId} is already in group {existingGroup.GroupName}");
 
-        group.AddProperty(propertyId);
+        group.AddProperty(propertyId, property.PropertyType.Code,
+            enforceFamily ? GetGroupMemberTypeCode(group) : null);
+    }
+
+    /// <summary>
+    /// PropertyType code of any property already in the group, or null if empty. Used to enforce
+    /// the one-family-per-group rule in PropertyGroup, which has no access to sibling properties.
+    /// </summary>
+    private string? GetGroupMemberTypeCode(PropertyGroup group)
+    {
+        if (group.Items.Count == 0) return null;
+        var memberId = group.Items[0].AppraisalPropertyId;
+        return _properties.First(p => p.Id == memberId).PropertyType.Code;
     }
 
     /// <summary>
@@ -642,14 +679,18 @@ public class Appraisal : Aggregate<Guid>
         if (sourceGroup.Id == targetGroupId)
             throw new InvalidOperationException("Property is already in the target group");
 
+        var property = _properties.FirstOrDefault(p => p.Id == propertyId)
+                       ?? throw new InvalidOperationException($"Property {propertyId} not found");
+
         // Remove from source (auto-resequences remaining items)
         sourceGroup.RemoveProperty(propertyId);
 
         // Add to target at position, or append
+        var existingMemberTypeCode = GetGroupMemberTypeCode(targetGroup);
         if (targetPosition.HasValue)
-            targetGroup.InsertProperty(propertyId, targetPosition.Value);
+            targetGroup.InsertProperty(propertyId, targetPosition.Value, property.PropertyType.Code, existingMemberTypeCode);
         else
-            targetGroup.AddProperty(propertyId);
+            targetGroup.AddProperty(propertyId, property.PropertyType.Code, existingMemberTypeCode);
     }
 
     /// <summary>
@@ -889,45 +930,6 @@ public class Appraisal : Aggregate<Guid>
             a.AssignmentStatus != AssignmentStatus.Cancelled);
 
         activeAssignment?.Cancel(reason ?? "Cancelled via workflow");
-    }
-
-    /// <summary>
-    /// Applies admin corrections to one property's descriptive data and raises
-    /// <see cref="AppraisalPropertyCorrectedEvent"/> carrying a field-level diff.
-    ///
-    /// This is the ONLY path that may change property data on a closed appraisal, and it exists so
-    /// such changes are attributable: the caller must supply a reason, and every changed field is
-    /// recorded with its previous and new value.
-    ///
-    /// A <see cref="PropertyCorrectionOutcome.ChangedFieldCount"/> of zero means the payload
-    /// matched what is already stored — no event is raised, and the caller should reject the
-    /// request rather than write an empty audit row.
-    /// </summary>
-    public PropertyCorrectionOutcome CorrectPropertyData(
-        Guid propertyId, PropertyCorrectionData data, string reason, string by)
-    {
-        ArgumentNullException.ThrowIfNull(data);
-        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        ArgumentException.ThrowIfNullOrWhiteSpace(by);
-
-        var property = GetProperty(propertyId) ?? throw new PropertyNotFoundException(propertyId);
-
-        var diff = new Dictionary<string, object?>();
-        property.ApplyCorrection(data, diff);
-
-        if (diff.Count == 0) return new PropertyCorrectionOutcome(0, "{}");
-
-        var changedFields = JsonSerializer.Serialize(diff);
-
-        AddDomainEvent(new AppraisalPropertyCorrectedEvent(
-            Id,
-            propertyId,
-            property.PropertyType.Code,
-            changedFields,
-            reason,
-            by));
-
-        return new PropertyCorrectionOutcome(diff.Count, changedFields);
     }
 
     private void UpdateStatus(AppraisalStatus newStatus)

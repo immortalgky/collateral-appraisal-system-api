@@ -45,6 +45,20 @@ public class IntegrationTestFixture : IAsyncLifetime
     
     public AuthWebApplicationFactory AuthWebApplicationFactory { get; private set; } = default!;
 
+    /// <summary>
+    /// Shared for the whole "Integration" collection, like the two factories above — never
+    /// explicitly disposed (same as them). A [Theory] over several 403 cases that instead created and
+    /// `await using`-disposed a FRESH WebApplicationFactory per case hit a real, intermittent
+    /// NullReferenceException out of Reporting's PuppeteerBrowserPool.DisposeAsync (every
+    /// WebApplicationFactory&lt;Program&gt; boots one); a single long-lived instance whose HttpClient is
+    /// created fresh per call (CreateClient() reuses the same host) avoids that teardown path entirely.
+    /// </summary>
+    public ViewOnlyFailedMessagePermissionWebApplicationFactory ViewOnlyFailedMessagePermissionWebApplicationFactory
+    {
+        get;
+        private set;
+    } = default!;
+
     async ValueTask IAsyncLifetime.InitializeAsync()
     {
         await Mssql.StartAsync();
@@ -100,6 +114,10 @@ public class IntegrationTestFixture : IAsyncLifetime
             RabbitMq.GetConnectionString()
         );
         AuthWebApplicationFactory = new AuthWebApplicationFactory(
+            ConnectionString,
+            RabbitMq.GetConnectionString()
+        );
+        ViewOnlyFailedMessagePermissionWebApplicationFactory = new ViewOnlyFailedMessagePermissionWebApplicationFactory(
             ConnectionString,
             RabbitMq.GetConnectionString()
         );

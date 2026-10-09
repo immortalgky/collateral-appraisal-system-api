@@ -11,6 +11,8 @@ namespace Appraisal.Tests.Application.Features;
 /// Coverage:
 /// 1. PricingFinalValue entity — Create, UpdateFinalValue, BuildingValue/HasBuildingValue
 ///    rename sanity (formerly BuildingCost/HasBuildingCost), CloneForMethod round-trip.
+///    FinalValue is the single stored figure (FinalValueRounded was merged into it);
+///    FinalValueAdjusted was renamed FinalValueOverride.
 /// 2. Mirror-to-PricingFinalValue domain simulation — first save creates row, second save
 ///    updates in place; this pattern is shared by all 5 handlers (Income, Leasehold,
 ///    ProfitRent, Hypothesis, MachineryCost).
@@ -33,45 +35,43 @@ public class PricingFinalValueConsolidationTests
     // ─────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void Create_Sets_FinalValue_And_FinalValueRounded()
+    public void Create_Sets_FinalValue()
     {
         var methodId = Guid.NewGuid();
 
-        var pfv = PricingFinalValue.Create(methodId, 1_000_000m, 1_000_000m);
+        var pfv = PricingFinalValue.Create(methodId, 1_000_000m);
 
         Assert.Equal(methodId, pfv.PricingMethodId);
         Assert.Equal(1_000_000m, pfv.FinalValue);
-        Assert.Equal(1_000_000m, pfv.FinalValueRounded);
     }
 
     [Fact]
     public void Create_DefaultsTo_IncludeLandArea_True_And_HasBuildingValue_False()
     {
-        var pfv = PricingFinalValue.Create(Guid.NewGuid(), 500_000m, 500_000m);
+        var pfv = PricingFinalValue.Create(Guid.NewGuid(), 500_000m);
 
         Assert.True(pfv.IncludeLandArea);
         Assert.False(pfv.HasBuildingValue);
         Assert.Null(pfv.BuildingValue);
-        Assert.Null(pfv.FinalValueAdjusted);
-        Assert.Null(pfv.AppraisalPrice);
+        Assert.Null(pfv.FinalValueOverride);
+        Assert.Null(pfv.IndicatedValue);
     }
 
     [Fact]
-    public void UpdateFinalValue_Overwrites_Both_Fields()
+    public void UpdateFinalValue_Overwrites_FinalValue()
     {
-        var pfv = PricingFinalValue.Create(Guid.NewGuid(), 100m, 100m);
+        var pfv = PricingFinalValue.Create(Guid.NewGuid(), 100m);
 
-        pfv.UpdateFinalValue(200m, 200m);
+        pfv.UpdateFinalValue(200m);
 
         Assert.Equal(200m, pfv.FinalValue);
-        Assert.Equal(200m, pfv.FinalValueRounded);
     }
 
     // BuildingValue/HasBuildingValue rename sanity (formerly BuildingCost/HasBuildingCost in Phase B1)
     [Fact]
     public void SetBuildingValue_Sets_HasBuildingValue_True_And_Stores_Amount()
     {
-        var pfv = PricingFinalValue.Create(Guid.NewGuid(), 500_000m, 500_000m);
+        var pfv = PricingFinalValue.Create(Guid.NewGuid(), 500_000m);
 
         pfv.SetBuildingValue(150_000m);
 
@@ -82,7 +82,7 @@ public class PricingFinalValueConsolidationTests
     [Fact]
     public void ClearBuildingValue_Sets_HasBuildingValue_False_And_Clears_Amount()
     {
-        var pfv = PricingFinalValue.Create(Guid.NewGuid(), 500_000m, 500_000m);
+        var pfv = PricingFinalValue.Create(Guid.NewGuid(), 500_000m);
         pfv.SetBuildingValue(150_000m);
 
         pfv.ClearBuildingValue();
@@ -92,23 +92,23 @@ public class PricingFinalValueConsolidationTests
     }
 
     [Fact]
-    public void SetFinalValueAdjusted_Stores_Value()
+    public void SetFinalValueOverride_Stores_Value()
     {
-        var pfv = PricingFinalValue.Create(Guid.NewGuid(), 500_000m, 500_000m);
+        var pfv = PricingFinalValue.Create(Guid.NewGuid(), 500_000m);
 
-        pfv.SetFinalValueAdjusted(480_000m);
+        pfv.SetFinalValueOverride(480_000m);
 
-        Assert.Equal(480_000m, pfv.FinalValueAdjusted);
+        Assert.Equal(480_000m, pfv.FinalValueOverride);
     }
 
     [Fact]
-    public void SetAppraisalPrice_Stores_Value()
+    public void SetIndicatedValue_Stores_Value()
     {
-        var pfv = PricingFinalValue.Create(Guid.NewGuid(), 500_000m, 500_000m);
+        var pfv = PricingFinalValue.Create(Guid.NewGuid(), 500_000m);
 
-        pfv.SetAppraisalPrice(490_000m);
+        pfv.SetIndicatedValue(490_000m);
 
-        Assert.Equal(490_000m, pfv.AppraisalPrice);
+        Assert.Equal(490_000m, pfv.IndicatedValue);
     }
 
     /// <summary>
@@ -118,27 +118,26 @@ public class PricingFinalValueConsolidationTests
     [Fact]
     public void CloneForMethod_DeepCopies_BuildingValue_HasBuildingValue_RoundTrip()
     {
-        var source = PricingFinalValue.Create(Guid.NewGuid(), 800_000m, 800_000m);
+        var source = PricingFinalValue.Create(Guid.NewGuid(), 800_000m);
         source.SetBuildingValue(250_000m);
-        source.SetFinalValueAdjusted(750_000m);
-        source.SetAppraisalPrice(760_000m);
+        source.SetFinalValueOverride(750_000m);
+        source.SetIndicatedValue(760_000m);
 
         var newMethodId = Guid.NewGuid();
         var clone = PricingFinalValue.CloneForMethod(source, newMethodId);
 
         Assert.Equal(newMethodId, clone.PricingMethodId);
         Assert.Equal(800_000m, clone.FinalValue);
-        Assert.Equal(800_000m, clone.FinalValueRounded);
         Assert.True(clone.HasBuildingValue);
         Assert.Equal(250_000m, clone.BuildingValue);
-        Assert.Equal(750_000m, clone.FinalValueAdjusted);
-        Assert.Equal(760_000m, clone.AppraisalPrice);
+        Assert.Equal(750_000m, clone.FinalValueOverride);
+        Assert.Equal(760_000m, clone.IndicatedValue);
     }
 
     [Fact]
     public void CloneForMethod_WithoutBuildingValue_Clones_False_Null()
     {
-        var source = PricingFinalValue.Create(Guid.NewGuid(), 300_000m, 300_000m);
+        var source = PricingFinalValue.Create(Guid.NewGuid(), 300_000m);
         // no SetBuildingValue call
 
         var clone = PricingFinalValue.CloneForMethod(source, Guid.NewGuid());
@@ -172,11 +171,10 @@ public class PricingFinalValueConsolidationTests
         const decimal value = 2_500_000m;
 
         // Handler pattern: create on first save
-        method.SetFinalValue(PricingFinalValue.Create(method.Id, value, value));
+        method.SetFinalValue(PricingFinalValue.Create(method.Id, value));
 
         Assert.NotNull(method.FinalValue);
         Assert.Equal(value, method.FinalValue.FinalValue);
-        Assert.Equal(value, method.FinalValue.FinalValueRounded);
         Assert.Equal(method.Id, method.FinalValue.PricingMethodId);
     }
 
@@ -184,15 +182,14 @@ public class PricingFinalValueConsolidationTests
     public void Mirror_SecondSave_ExistingRow_UpdatesInPlace_RowIdStable()
     {
         var method = BuildMethod("MachineryCost");
-        method.SetFinalValue(PricingFinalValue.Create(method.Id, 1_000_000m, 1_000_000m));
+        method.SetFinalValue(PricingFinalValue.Create(method.Id, 1_000_000m));
         var originalRowId = method.FinalValue!.Id;
 
         // Handler pattern: update in place on subsequent saves
-        method.FinalValue.UpdateFinalValue(1_500_000m, 1_500_000m);
+        method.FinalValue.UpdateFinalValue(1_500_000m);
 
         Assert.Equal(originalRowId, method.FinalValue.Id); // same row, not a new Create
         Assert.Equal(1_500_000m, method.FinalValue.FinalValue);
-        Assert.Equal(1_500_000m, method.FinalValue.FinalValueRounded);
     }
 
     [Theory]
@@ -207,7 +204,7 @@ public class PricingFinalValueConsolidationTests
         var method = BuildMethod(methodType);
 
         const decimal val = 3_000_000m;
-        method.SetFinalValue(PricingFinalValue.Create(method.Id, val, val));
+        method.SetFinalValue(PricingFinalValue.Create(method.Id, val));
 
         Assert.NotNull(method.FinalValue);
         Assert.Equal(method.Id, method.FinalValue.PricingMethodId);
@@ -231,7 +228,7 @@ public class PricingFinalValueConsolidationTests
 
         // Simulate handler: set method value + mirror to PricingFinalValue
         method.SetValue(4_000_000m);
-        method.SetFinalValue(PricingFinalValue.Create(method.Id, 4_000_000m, 4_000_000m));
+        method.SetFinalValue(PricingFinalValue.Create(method.Id, 4_000_000m));
 
         approach.SetValue(method.MethodValue!.Value);
         pa.SetFinalValues(approach.ApproachValue!.Value);
@@ -244,7 +241,7 @@ public class PricingFinalValueConsolidationTests
     {
         // When the user-rounded PricingFinalValue differs from MethodValue,
         // FinalAppraisedValue must track MethodValue (the canonical commit value),
-        // not the user-side rounding in PricingFinalValue.FinalValueRounded.
+        // not the user-side rounding in PricingFinalValue.FinalValue.
         var pa = PricingAnalysis.CreateForPropertyGroup(Guid.NewGuid());
         var approach = pa.AddApproach("Cost");
         var method = approach.AddMethod("MachineryCost");
@@ -253,13 +250,13 @@ public class PricingFinalValueConsolidationTests
         const decimal userRounded = 4_950_000m; // different, user-edited
 
         method.SetValue(methodVal);
-        method.SetFinalValue(PricingFinalValue.Create(method.Id, userRounded, userRounded));
+        method.SetFinalValue(PricingFinalValue.Create(method.Id, userRounded));
 
         approach.SetValue(method.MethodValue!.Value);
         pa.SetFinalValues(approach.ApproachValue!.Value);
 
         Assert.Equal(methodVal, pa.FinalAppraisedValue);     // rollup == MethodValue
-        Assert.Equal(userRounded, method.FinalValue!.FinalValueRounded); // PFV row unaffected
+        Assert.Equal(userRounded, method.FinalValue!.FinalValue); // PFV row unaffected
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -330,7 +327,6 @@ public class PricingFinalValueConsolidationTests
 
         Assert.NotNull(method.FinalValue);
         Assert.Equal(1_500_000m, method.FinalValue.FinalValue);
-        Assert.Equal(1_500_000m, method.FinalValue.FinalValueRounded);
         Assert.Equal(method.Id, method.FinalValue.PricingMethodId);
     }
 
@@ -340,7 +336,7 @@ public class PricingFinalValueConsolidationTests
         var (pa, method) = BuildMachineryAnalysis();
 
         // Simulate prior save: row already exists
-        method.SetFinalValue(PricingFinalValue.Create(method.Id, 1_500_000m, 1_500_000m));
+        method.SetFinalValue(PricingFinalValue.Create(method.Id, 1_500_000m));
         var existingRowId = method.FinalValue!.Id;
 
         var handler = BuildHandler(pa);
@@ -358,11 +354,10 @@ public class PricingFinalValueConsolidationTests
         // Row must be updated in-place (same Id), not replaced with a new Create
         Assert.Equal(existingRowId, method.FinalValue!.Id);
         Assert.Equal(2_000_000m, method.FinalValue.FinalValue);
-        Assert.Equal(2_000_000m, method.FinalValue.FinalValueRounded);
     }
 
     [Fact]
-    public async Task SaveMachineCostItems_StoresFinalValueAdjusted_And_AppraisalPrice()
+    public async Task SaveMachineCostItems_StoresFinalValueOverride_And_IndicatedValue()
     {
         var (pa, method) = BuildMachineryAnalysis();
         var handler = BuildHandler(pa);
@@ -373,14 +368,14 @@ public class PricingFinalValueConsolidationTests
             MethodId: method.Id,
             Items: [ValidItem(propA, 800_000m)],
             Remark: null,
-            FinalValueAdjusted: 780_000m,
-            AppraisalPrice: 790_000m
+            FinalValueOverride: 780_000m,
+            IndicatedValue: 790_000m
         );
 
         await handler.Handle(command, CancellationToken.None);
 
-        Assert.Equal(780_000m, method.FinalValue!.FinalValueAdjusted);
-        Assert.Equal(790_000m, method.FinalValue.AppraisalPrice);
+        Assert.Equal(780_000m, method.FinalValue!.FinalValueOverride);
+        Assert.Equal(790_000m, method.FinalValue.IndicatedValue);
     }
 
     [Fact]
@@ -401,6 +396,5 @@ public class PricingFinalValueConsolidationTests
         // Even with no items the row is created (with totalFmv = 0)
         Assert.NotNull(method.FinalValue);
         Assert.Equal(0m, method.FinalValue.FinalValue);
-        Assert.Equal(0m, method.FinalValue.FinalValueRounded);
     }
 }

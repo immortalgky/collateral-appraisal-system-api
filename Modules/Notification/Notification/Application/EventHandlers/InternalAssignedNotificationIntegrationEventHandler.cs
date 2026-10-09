@@ -11,11 +11,11 @@ public class InternalAssignedNotificationIntegrationEventHandler(
     ILogger<InternalAssignedNotificationIntegrationEventHandler> logger,
     InboxGuard<NotificationDbContext> inboxGuard) : IConsumer<InternalAssignedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<InternalAssignedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<InternalAssignedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<InternalAssignedIntegrationEvent> context)
+    {
         var message = context.Message;
 
         logger.LogInformation(
@@ -29,7 +29,6 @@ public class InternalAssignedNotificationIntegrationEventHandler(
                 logger.LogWarning(
                     "InternalAssigned event has no CompletedBy for AppraisalId {AppraisalId}. Skipping checker notification.",
                     message.AppraisalId);
-                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
                 return;
             }
 
@@ -51,8 +50,6 @@ public class InternalAssignedNotificationIntegrationEventHandler(
             logger.LogInformation(
                 "Sent InternalAssigned notification to checker {CompletedBy} for appraisal {AppraisalNumber}",
                 message.CompletedBy, appraisalNumber);
-
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
         }
         catch (Exception ex)
         {

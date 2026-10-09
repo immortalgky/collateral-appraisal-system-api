@@ -69,8 +69,9 @@ public sealed class ProfitRentSection
     public decimal? EstimatePriceRounded { get; init; }
 
     /// <summary>
-    /// Effective final value — mirrors SaveProfitRentAnalysisCommandHandler.cs:110:
-    ///   EstimatePriceRounded ?? FinalValueRounded
+    /// Effective final value — mirrors SaveProfitRentAnalysisCommandHandler's
+    /// SyncMethodValueWithIndicatedValue precedence:
+    ///   IndicatedValue (appraiser's override, PricingFinalValues) ?? EstimatePriceRounded ?? FinalValueRounded
     /// Computed in ProfitRentSectionLoader.LoadOneAsync.
     /// </summary>
     public decimal? EffectiveFinalValue { get; init; }

@@ -20,7 +20,7 @@ internal static class IncomeAnalysisMapper
         decimal? finalValue,
         decimal? finalValueRounded,
         decimal? finalValueAdjust,
-        decimal? appraisalPriceRounded)
+        decimal? indicatedValue)
     {
         return new IncomeAnalysisDto(
             Id: analysis.Id,
@@ -40,7 +40,7 @@ internal static class IncomeAnalysisMapper
                 AreaNgan: analysis.HighestBestUsed.AreaNgan,
                 AreaWa: analysis.HighestBestUsed.AreaWa,
                 PricePerSqWa: analysis.HighestBestUsed.PricePerSqWa),
-            AppraisalPriceRounded: appraisalPriceRounded,
+            IndicatedValue: indicatedValue,
             Sections: analysis.Sections
                 .OrderBy(s => s.DisplaySeq)
                 .Select(MapSection)

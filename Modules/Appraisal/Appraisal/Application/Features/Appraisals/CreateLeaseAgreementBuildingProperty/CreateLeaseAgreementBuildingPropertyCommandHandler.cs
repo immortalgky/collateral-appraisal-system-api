@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
+using Appraisal.Application.Services;
 
 namespace Appraisal.Application.Features.Appraisals.CreateLeaseAgreementBuildingProperty;
 
@@ -7,7 +8,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateLeaseAgreementBuilding
 /// </summary>
 public class CreateLeaseAgreementBuildingPropertyCommandHandler(
     IAppraisalRepository appraisalRepository,
-    IAppraisalUnitOfWork unitOfWork
+    IAppraisalUnitOfWork unitOfWork,
+    AppraisalValuationSummaryService valuationSummaryService
 ) : ICommandHandler<CreateLeaseAgreementBuildingPropertyCommand, CreateLeaseAgreementBuildingPropertyResult>
 {
     public async Task<CreateLeaseAgreementBuildingPropertyResult> Handle(
@@ -72,14 +74,16 @@ public class CreateLeaseAgreementBuildingPropertyCommandHandler(
             command.UtilizationType,
             command.UtilizationTypeOther,
             command.TotalBuildingArea,
+            command.BuildingCostValue,
             command.BuildingInsurancePrice,
-            command.SellingPrice,
-            command.ForcedSalePrice,
             command.Remark);
 
         // Add depreciation details if provided
         if (command.DepreciationDetails is { Count: > 0 })
             AddDepreciationDetails(property.BuildingDetail, command.DepreciationDetails);
+
+        // After the depreciation rows: a building with no typed coverage stores the value computed from them
+        property.BuildingDetail.ResolveDerivedValues();
 
         // Add surfaces if provided
         if (command.Surfaces is { Count: > 0 })
@@ -132,6 +136,8 @@ public class CreateLeaseAgreementBuildingPropertyCommandHandler(
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
 
         if (command.GroupId.HasValue) appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);
 

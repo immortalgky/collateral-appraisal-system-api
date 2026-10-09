@@ -52,6 +52,15 @@ internal class UpdateRequestCommandHandler(
             command.IsPma
         ));
 
+        var legacyBook = LegacyPriorBook.ForUpdate(command.Detail, request.Detail);
+        // A periodical reappraisal keeps the prior value/date Initiate set (a block-project unit's are the
+        // unit's, not the whole project's) while its prior appraisal is unchanged.
+        var unitPrior = request.ReappraisalBookNumber is not null
+                        && request.Detail?.PrevAppraisalId is { } storedPrev
+                        && command.Detail?.PrevAppraisalId == storedPrev
+            ? request.Detail
+            : null;
+
         AppraisalReferenceResult? appraisalRef = null;
         if (command.Detail?.PrevAppraisalId.HasValue == true)
             appraisalRef = await mediator.Send(
@@ -90,9 +99,9 @@ internal class UpdateRequestCommandHandler(
                 command.Detail?.Fee?.FeePaymentType,
                 command.Detail?.Fee?.FeeNotes,
                 command.Detail?.Fee?.AbsorbedAmount),
-            PrevAppraisalNumber: appraisalRef?.AppraisalNumber,
-            PrevAppraisalValue: appraisalRef?.AppraisalValue,
-            PrevAppraisalDate: appraisalRef?.AppraisalDate
+            PrevAppraisalNumber: appraisalRef is null ? legacyBook.Number : appraisalRef.AppraisalNumber,
+            PrevAppraisalValue: unitPrior is not null ? unitPrior.PrevAppraisalValue : appraisalRef is null ? legacyBook.Value : appraisalRef.AppraisalValue,
+            PrevAppraisalDate: unitPrior is not null ? unitPrior.PrevAppraisalDate : appraisalRef is null ? legacyBook.Date : appraisalRef.AppraisalDate
         )));
 
         var customers = command.Customers?
@@ -101,7 +110,7 @@ internal class UpdateRequestCommandHandler(
         request.SetCustomers(customers);
 
         var properties = command.Properties?
-            .Select(p => RequestProperty.Create(p.PropertyType, p.BuildingType, p.SellingPrice))
+            .Select(p => RequestProperty.Create(p.PropertyType, p.BuildingType, p.BuildingTypeOther, p.SellingPrice))
             .ToList();
         request.SetProperties(properties);
 

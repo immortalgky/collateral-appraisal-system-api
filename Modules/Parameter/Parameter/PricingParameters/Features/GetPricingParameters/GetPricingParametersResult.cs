@@ -7,8 +7,7 @@ public record GetPricingParametersResult(
     List<JobPositionDto> JobPositions,
     List<TaxBracketDto> TaxBrackets,
     List<AssumptionTypeDto> AssumptionTypes,
-    List<AssumptionMethodMatrixDto> AssumptionMethodMatrix,
-    List<FireInsuranceRateDto> FireInsuranceRates);
+    List<AssumptionMethodMatrixDto> AssumptionMethodMatrix);
 
 public record RoomTypeDto(string Code, string Name, int DisplaySeq);
 
@@ -19,6 +18,3 @@ public record TaxBracketDto(int Tier, decimal TaxRate, decimal MinValue, decimal
 public record AssumptionTypeDto(string Code, string Name, string Category, int DisplaySeq);
 
 public record AssumptionMethodMatrixDto(string AssumptionType, List<string> AllowedMethodCodes);
-
-// FireInsuranceRateDto intentionally lives in Parameter.Contracts.PricingParameters so the
-// cross-module GetFireInsuranceRatesQuery and this aggregate payload share one shape.

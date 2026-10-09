@@ -16,7 +16,8 @@ public class DeletePropertyGroupCommandHandler(
         DeletePropertyGroupCommand command,
         CancellationToken cancellationToken)
     {
-        var appraisal = await appraisalRepository.GetByIdAsync(command.AppraisalId, cancellationToken)
+        // Properties are loaded because RecomputeAsync below sums insurance from them.
+        var appraisal = await appraisalRepository.GetByIdWithPropertiesAsync(command.AppraisalId, cancellationToken)
                         ?? throw new InvalidOperationException($"Appraisal {command.AppraisalId} not found");
 
         // Active cleanup: delete subject PA + any reference PAs hosted by its methods (DL10).
@@ -24,8 +25,6 @@ public class DeletePropertyGroupCommandHandler(
         await cleanupService.CleanupForPropertyGroupAsync(command.GroupId, cancellationToken);
 
         appraisal.DeleteGroup(command.GroupId);
-
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
 
         // Flush the group's PricingAnalysis deletion BEFORE recomputing the appraisal summary.
         // RecomputeAsync sums PropertyGroup PricingAnalyses with SQL, and a row in the Deleted state

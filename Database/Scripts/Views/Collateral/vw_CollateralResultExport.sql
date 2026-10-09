@@ -250,19 +250,46 @@ MachineLife AS (
 ),
 
 -- ── Land and building components ───────────────────────────────────────────────────────────────
--- Pricing is held per property GROUP, not per appraisal: the selected approach's selected method
--- carries the final values. Land and building components only exist on a cost approach that priced
--- a building; every other approach reports the total alone, which is why both come back NULL there.
+-- Pricing is held per property GROUP, not per appraisal: the selected approach's selected method(s)
+-- carry the final values. Land and building components only exist on a cost approach that priced a
+-- building; every other approach reports the total alone, which is why both come back NULL there.
+--
+-- AppraisalValue for this row (below, in Assembled) comes from ValuationAnalyses.AppraisedValue, NOT
+-- from this CTE — only the Land/Building split lives here, so there is no separate "group total"
+-- reading to keep in step with the Role-based split below.
+--
+-- A Cost approach may now have up to one SELECTED method per role — Land, LandAndBuilding, Building,
+-- Machinery (PricingAnalysisApproach.EnsureNoComponentCountedTwice enforces it) — instead of exactly
+-- one selected method overall. landM/buildM below each pick that approach's (at most one) selected
+-- method for their role; a WQS/SAG/DC linked to a BuildingCost method reports Role=LandAndBuilding
+-- and carries its own snapshotted BuildingValue, so COALESCE prefers that over a separately-selected
+-- BuildingCost method's own FinalValue, which only exists when unlinked.
+--
+-- CORRECTED 2026-09-19: an earlier version of this CTE relied on "Role is only ever set on a
+-- Cost-approach method" to imply the old "ApproachType = 'Cost'" gate, instead of stating it. That
+-- reasoning only holds AFTER migrate (both the schema and this item's backfill) has run — every row
+-- is Role = NULL until then, and a Cost-approach method the backfill does not reach (or one added
+-- through some future path this backfill's MethodType list does not cover) would stay NULL forever.
+-- Both OUTER APPLYs now filter ApproachType = 'Cost' explicitly again, AND allow Role IS NULL through
+-- on the land side, so an untagged Cost method is still found instead of silently dropping this
+-- appraisal's Land/Building split. The Building side deliberately does NOT allow NULL: an untagged
+-- method could be anything, but it is never safe to guess "this one is the building component" — an
+-- untagged Land-and-building-in-one-row method already reports both through its own BuildingValue
+-- column (see the CASE WHEN below), so nothing is lost by staying strict here.
 SelectedPricing AS (
     SELECT AppraisalId, PropertyGroupId, UnitPrice, BuildingValue
     FROM (
         SELECT
             gi.AppraisalId,
             gi.PropertyGroupId,
-            CASE WHEN ap.ApproachType = 'Cost' AND fv.HasBuildingValue = 1
-                 THEN fv.FinalValueAdjusted END AS UnitPrice,
-            CASE WHEN ap.ApproachType = 'Cost' AND fv.HasBuildingValue = 1
-                 THEN fv.BuildingValue END      AS BuildingValue,
+            -- Restores the original "only report a split when the cost approach actually priced a
+            -- building" gate (see the header comment): a Role=Land-only method (or an untagged one
+            -- with no BuildingValue of its own and no separate Building-role sibling) reports nothing
+            -- here, same as before this item existed.
+            CASE WHEN landM.BuildingValue IS NOT NULL OR buildM.FinalValue IS NOT NULL
+                 THEN landM.FinalValueOverride END AS UnitPrice,
+            CASE WHEN landM.BuildingValue IS NOT NULL OR buildM.FinalValue IS NOT NULL
+                 THEN COALESCE(landM.BuildingValue, buildM.FinalValue) END AS BuildingValue,
             ROW_NUMBER() OVER (
                 PARTITION BY gi.AppraisalId
                 -- Prefer the selected cost approach, then any selected approach, mirroring
@@ -270,7 +297,6 @@ SelectedPricing AS (
                 ORDER BY CASE WHEN ap.IsSelected = 1 AND ap.ApproachType = 'Cost' THEN 0
                               WHEN ap.IsSelected = 1 THEN 1
                               ELSE 2 END,
-                         CASE WHEN m.IsSelected = 1 THEN 0 ELSE 1 END,
                          gi.SequenceNumber) AS rn
         FROM (
             SELECT DISTINCT p.AppraisalId, pgi.PropertyGroupId, p.SequenceNumber
@@ -279,8 +305,30 @@ SelectedPricing AS (
         ) gi
         JOIN appraisal.PricingAnalysis pa        ON pa.AnchorId = gi.PropertyGroupId
         JOIN appraisal.PricingAnalysisApproaches ap ON ap.PricingAnalysisId = pa.Id
-        JOIN appraisal.PricingAnalysisMethods m  ON m.ApproachId = ap.Id
-        JOIN appraisal.PricingFinalValues fv     ON fv.PricingMethodId = m.Id
+        -- landM/buildM: at most one row each by construction (PricingAnalysisApproach.
+        -- EnsureNoComponentCountedTwice), but that guarantee lives in C#, not here — ORDER BY makes
+        -- both deterministic by construction rather than by invariant, in case this ever runs
+        -- against older or hand-edited data.
+        OUTER APPLY (
+            SELECT TOP 1 fv.FinalValueOverride, fv.BuildingValue
+            FROM appraisal.PricingAnalysisMethods pm
+            JOIN appraisal.PricingFinalValues fv ON fv.PricingMethodId = pm.Id
+            WHERE pm.ApproachId = ap.Id AND pm.IsSelected = 1
+              AND ap.ApproachType = 'Cost'
+              AND (pm.Role IS NULL OR pm.Role IN ('Land', 'LandAndBuilding'))
+            ORDER BY pm.Id
+        ) landM
+        OUTER APPLY (
+            -- MethodValue = IndicatedValue ?? FinalValue: the building figure the appraised value
+            -- actually contains, including one the appraiser typed over.
+            SELECT TOP 1 COALESCE(pm.MethodValue, fv.IndicatedValue, fv.FinalValue) AS FinalValue
+            FROM appraisal.PricingAnalysisMethods pm
+            LEFT JOIN appraisal.PricingFinalValues fv ON fv.PricingMethodId = pm.Id
+            WHERE pm.ApproachId = ap.Id AND pm.IsSelected = 1
+              AND ap.ApproachType = 'Cost'
+              AND pm.Role = 'Building'
+            ORDER BY pm.Id
+        ) buildM
     ) z
     WHERE rn = 1
 ),

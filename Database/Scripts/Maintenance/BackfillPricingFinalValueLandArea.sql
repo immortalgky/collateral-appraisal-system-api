@@ -25,6 +25,19 @@
 
   Run this MANUALLY (SSMS / sqlcmd). It is NOT part of DbUp/EF migrations.
 
+  !! STALE AS OF 2026-09-23 — DO NOT RUN WITHOUT READING THIS !!
+  The rate precedence below, COALESCE(m.ValuePerUnit, fv.FinalValueOverride),
+  is the bug that was fixed in the save handlers that day: the calculated rate
+  shadowed the appraiser's hand-entered override, so an override could never
+  reach LandValue. The handlers now read FinalValueOverride ?? ValuePerUnit
+  (SetFinalValue / UpdateFinalValue / SaveComparativeAnalysis command handlers).
+  Running this script as written would write the OLD, wrong figure over rows
+  that have since been saved correctly. The "mirrors the forward fix exactly"
+  claim immediately below is no longer true and applies only to LandArea.
+  Leaving the SQL unchanged was a deliberate call (the owner scoped that day's
+  work to code only) — flip both COALESCEs before any future run.
+  See docs/pricing-redesign/REVIEW-LOG-landvalue-unittype.md.
+
   DERIVATION — mirrors the forward fix exactly, so backfilled rows are
   indistinguishable from newly-saved ones:
     LandArea  = SUM over the group's land titles of
@@ -34,7 +47,7 @@
                 (LandAppraisalDetail.cs:120) — the same value the forward fix reads
                 via PricingPropertyDataService.GetTotalLandAreaFromTitlesAsync.
     Rate      = COALESCE(PricingAnalysisMethods.ValuePerUnit,
-                         PricingFinalValues.FinalValueAdjusted)
+                         PricingFinalValues.FinalValueOverride)
     LandValue = LandArea * Rate
 
   SCOPE / GUARDS (all required):
@@ -71,17 +84,17 @@ SET XACT_ABORT ON;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- PREVIEW — uncomment and run this SELECT first to eyeball the affected rows.
--- Sanity-check a few: TotalSquareWa * Rate should reconcile with fv.AppraisalPrice.
+-- Sanity-check a few: TotalSquareWa * Rate should reconcile with fv.IndicatedValue.
 -- ─────────────────────────────────────────────────────────────────────────────
 /*
 SELECT  fv.Id                                   AS PricingFinalValueId,
         pg.GroupNumber,
         m.UnitType,
         src.TotalSquareWa                       AS NewLandArea,
-        COALESCE(m.ValuePerUnit, fv.FinalValueAdjusted) AS Rate,
+        COALESCE(m.ValuePerUnit, fv.FinalValueOverride) AS Rate,
         src.TotalSquareWa
-          * COALESCE(m.ValuePerUnit, fv.FinalValueAdjusted)          AS NewLandValue,
-        fv.AppraisalPrice                       AS ExistingAppraisalPrice,
+          * COALESCE(m.ValuePerUnit, fv.FinalValueOverride)          AS NewLandValue,
+        fv.IndicatedValue                       AS ExistingAppraisalPrice,
         fv.LandArea                             AS ExistingLandArea,
         fv.LandValue                            AS ExistingLandValue
 FROM        appraisal.PricingFinalValues        fv
@@ -93,13 +106,21 @@ INNER JOIN  appraisal.PropertyGroups            pg  ON pg.Id  = pa.AnchorId
 INNER JOIN  appraisal.Appraisals                a   ON a.Id   = pg.AppraisalId
                                                    AND a.IsDeleted = 0
 CROSS APPLY (
-    SELECT TotalSquareWa = SUM( (ISNULL(lt.AreaRai, 0)  * 400)
-                              + (ISNULL(lt.AreaNgan, 0) * 100)
-                              +  ISNULL(lt.AreaSquareWa, 0) )
+    -- NET area, as GetTotalLandAreaFromTitlesAsync now returns (PricingPropertyDataService.LandAreaSql):
+    -- gross per property, less that property's own deduction, floored at 0, then summed.
+    SELECT TotalSquareWa = SUM( CASE WHEN d.GrossArea - ISNULL(lad.DeductedAreaInSqWa, 0) < 0
+                                     THEN 0
+                                     ELSE d.GrossArea - ISNULL(lad.DeductedAreaInSqWa, 0) END )
     FROM       appraisal.PropertyGroupItems    gi
     INNER JOIN appraisal.AppraisalProperties   p   ON p.Id   = gi.AppraisalPropertyId
     INNER JOIN appraisal.LandAppraisalDetails  lad ON lad.AppraisalPropertyId = p.Id
-    INNER JOIN appraisal.LandTitles            lt  ON lt.LandAppraisalDetailId = lad.Id
+    CROSS APPLY (
+        SELECT GrossArea = SUM( (ISNULL(lt.AreaRai, 0)  * 400)
+                              + (ISNULL(lt.AreaNgan, 0) * 100)
+                              +  ISNULL(lt.AreaSquareWa, 0) )
+        FROM appraisal.LandTitles lt
+        WHERE lt.LandAppraisalDetailId = lad.Id
+    ) d
     WHERE gi.PropertyGroupId = pg.Id
 ) src
 WHERE   fv.LandArea IS NULL
@@ -107,7 +128,7 @@ WHERE   fv.LandArea IS NULL
   AND   fv.IncludeLandArea = 1
   AND   ISNULL(fv.HasBuildingValue, 0) = 0
   AND   src.TotalSquareWa > 0
-  AND   COALESCE(m.ValuePerUnit, fv.FinalValueAdjusted) IS NOT NULL
+  AND   COALESCE(m.ValuePerUnit, fv.FinalValueOverride) IS NOT NULL
 ORDER BY pg.GroupNumber;
 */
 
@@ -116,7 +137,7 @@ BEGIN TRANSACTION;
 UPDATE  fv
 SET     fv.LandArea  = src.TotalSquareWa,
         fv.LandValue = src.TotalSquareWa
-                     * COALESCE(m.ValuePerUnit, fv.FinalValueAdjusted)
+                     * COALESCE(m.ValuePerUnit, fv.FinalValueOverride)
 FROM        appraisal.PricingFinalValues        fv
 INNER JOIN  appraisal.PricingAnalysisMethods    m   ON m.Id  = fv.PricingMethodId
 INNER JOIN  appraisal.PricingAnalysisApproaches apr ON apr.Id = m.ApproachId
@@ -126,13 +147,21 @@ INNER JOIN  appraisal.PropertyGroups            pg  ON pg.Id  = pa.AnchorId
 INNER JOIN  appraisal.Appraisals                a   ON a.Id   = pg.AppraisalId
                                                    AND a.IsDeleted = 0
 CROSS APPLY (
-    SELECT TotalSquareWa = SUM( (ISNULL(lt.AreaRai, 0)  * 400)
-                              + (ISNULL(lt.AreaNgan, 0) * 100)
-                              +  ISNULL(lt.AreaSquareWa, 0) )
+    -- NET area, as GetTotalLandAreaFromTitlesAsync now returns (PricingPropertyDataService.LandAreaSql):
+    -- gross per property, less that property's own deduction, floored at 0, then summed.
+    SELECT TotalSquareWa = SUM( CASE WHEN d.GrossArea - ISNULL(lad.DeductedAreaInSqWa, 0) < 0
+                                     THEN 0
+                                     ELSE d.GrossArea - ISNULL(lad.DeductedAreaInSqWa, 0) END )
     FROM       appraisal.PropertyGroupItems    gi
     INNER JOIN appraisal.AppraisalProperties   p   ON p.Id   = gi.AppraisalPropertyId
     INNER JOIN appraisal.LandAppraisalDetails  lad ON lad.AppraisalPropertyId = p.Id
-    INNER JOIN appraisal.LandTitles            lt  ON lt.LandAppraisalDetailId = lad.Id
+    CROSS APPLY (
+        SELECT GrossArea = SUM( (ISNULL(lt.AreaRai, 0)  * 400)
+                              + (ISNULL(lt.AreaNgan, 0) * 100)
+                              +  ISNULL(lt.AreaSquareWa, 0) )
+        FROM appraisal.LandTitles lt
+        WHERE lt.LandAppraisalDetailId = lad.Id
+    ) d
     WHERE gi.PropertyGroupId = pg.Id
 ) src
 WHERE   fv.LandArea IS NULL
@@ -140,7 +169,7 @@ WHERE   fv.LandArea IS NULL
   AND   fv.IncludeLandArea = 1
   AND   ISNULL(fv.HasBuildingValue, 0) = 0
   AND   src.TotalSquareWa > 0
-  AND   COALESCE(m.ValuePerUnit, fv.FinalValueAdjusted) IS NOT NULL;
+  AND   COALESCE(m.ValuePerUnit, fv.FinalValueOverride) IS NOT NULL;
 
 PRINT CONCAT('Backfilled LandArea/LandValue on ', @@ROWCOUNT, ' pricing final value row(s).');
 

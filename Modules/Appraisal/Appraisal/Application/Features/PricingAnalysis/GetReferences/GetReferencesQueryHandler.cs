@@ -23,8 +23,8 @@ public class GetReferencesQueryHandler(
                 .Select(m => new ReferenceMethodDto(
                     m.Id,
                     m.MethodType,
-                    m.FinalValue?.FinalValueRounded,
-                    m.FinalValue?.FinalValueAdjusted
+                    m.FinalValue?.FinalValue,
+                    m.FinalValue?.FinalValueOverride
                 ))
                 .ToList();
 
