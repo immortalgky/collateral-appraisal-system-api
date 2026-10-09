@@ -13,4 +13,7 @@ public record UpdateUserRequest(
     // Bank-internal officer code; only persisted for bank users (CompanyId == null).
     string? AoCode = null,
     // Bank staff employee id; only persisted for bank users (CompanyId == null).
-    string? EmployeeId = null);
+    string? EmployeeId = null,
+    // null = leave the temporary-access flag unchanged. Only send a value to deliberately convert the
+    // account, in either direction.
+    bool? IsTemporaryAccess = null);

@@ -13,4 +13,6 @@ public record PasswordPolicyConfigDto(
     string Blocklist,
     bool LockoutEnabled,
     int MaxFailedAccessAttempts,
-    int LockoutMinutes);
+    int LockoutMinutes,
+    /// <summary>Longest access window an admin may open on a temporary-access account, in hours.</summary>
+    int MaxAccessWindowHours);

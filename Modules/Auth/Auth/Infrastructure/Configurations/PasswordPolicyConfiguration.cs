@@ -29,5 +29,9 @@ public class PasswordPolicyConfiguration : IEntityTypeConfiguration<PasswordPoli
         builder.Property(p => p.LockoutEnabled).IsRequired();
         builder.Property(p => p.MaxFailedAccessAttempts).IsRequired();
         builder.Property(p => p.LockoutMinutes).IsRequired();
+
+        builder.Property(p => p.MaxAccessWindowHours)
+            .IsRequired()
+            .HasDefaultValue(8);
     }
 }

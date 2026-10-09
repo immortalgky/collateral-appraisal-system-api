@@ -23,6 +23,7 @@ public class GetPasswordPolicyConfigQueryHandler(IPasswordPolicyProvider policyP
             p.Blocklist,
             p.LockoutEnabled,
             p.MaxFailedAccessAttempts,
-            p.LockoutMinutes);
+            p.LockoutMinutes,
+            p.MaxAccessWindowHours);
     }
 }

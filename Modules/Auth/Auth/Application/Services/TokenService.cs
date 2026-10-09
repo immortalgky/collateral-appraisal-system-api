@@ -1,10 +1,13 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Linq;
 using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
 using Auth.Infrastructure.Configuration;
 using Auth.Infrastructure.Repository;
 using OpenIddict.EntityFrameworkCore.Models;
+using Microsoft.Extensions.Options;
+using OpenIddict.Server;
 using OpenIddict.Server.AspNetCore;
 using Shared.Time;
 
@@ -18,6 +21,7 @@ public class TokenService(
     IRoleRepository roleRepository,
     IPasswordPolicyProvider passwordPolicyProvider,
     IDateTimeProvider dateTimeProvider,
+    IOptionsMonitor<OpenIddictServerOptions> serverOptions,
     ILogger<TokenService> logger
 ) : ITokenService
 {
@@ -44,7 +48,7 @@ public class TokenService(
         { OpenIddictConstants.Claims.PhoneNumberVerified, OpenIddictConstants.Scopes.Phone }
     };
 
-    public async Task<ClaimsPrincipal> CreateAuthCodeFlowAccessTokenPrincipal(
+    public async Task<TokenGrantResult> CreateAuthCodeFlowAccessTokenPrincipal(
         OpenIddictRequest request,
         ClaimsPrincipal principal
     )
@@ -63,7 +67,13 @@ public class TokenService(
         var user = await LoadUserWithPermissionsAsync(userIdGuid)
             ?? throw new InvalidOperationException("Cannot find user associated with the token.");
 
-        return await BuildAccessTokenPrincipal(request, userId, username, user);
+        // The authorization code was minted from the Identity cookie, which survives both
+        // deactivation and the end of an access window — so without this check either could be
+        // walked around simply by holding an open browser session.
+        if (!user.IsUsable(dateTimeProvider.ApplicationNow))
+            return new TokenGrantResult(null, "This account is no longer active. Please sign in again.");
+
+        return new TokenGrantResult(await BuildAccessTokenPrincipal(request, userId, username, user), null);
     }
 
     private Task<ApplicationUser?> LoadUserWithPermissionsAsync(Guid userId) =>
@@ -100,6 +110,12 @@ public class TokenService(
         if (user.CompanyId.HasValue)
             identity.AddClaim("company_id", user.CompanyId.Value.ToString());
 
+        // Temporary-access accounts carry the end of their window in the token, so the SPA can warn
+        // and sign out on time instead of discovering the window closed through a 401 mid-task.
+        // Local time on purpose: the whole system runs on bank-local time (see IDateTimeProvider).
+        if (user.AccessExpiresAt is not null)
+            identity.AddClaim("access_expires_at", user.AccessExpiresAt.Value.ToString("s"));
+
         // Add permissions and roles (original approach)
         identity.SetClaims("permissions", await GetUserPermissions(user));
         identity.SetClaims("roles", [.. await userManager.GetRolesAsync(user)]);
@@ -118,11 +134,48 @@ public class TokenService(
         var claimsPrincipal = new ClaimsPrincipal(identity);
         claimsPrincipal.SetScopes(effectiveScopes);
 
+        // An access token is a bearer credential nothing re-checks until it expires, so a token that
+        // outlives the access window would keep the API open after the window shut. Shorten this one
+        // to whatever is left — never lengthen it: the client's own configured lifetime stays the ceiling.
+        if (user.AccessExpiresAt is { } windowEnd)
+        {
+            var remaining = windowEnd - dateTimeProvider.ApplicationNow;
+            var ceiling = await ResolveAccessTokenLifetimeAsync(request.ClientId);
+            if (remaining > TimeSpan.Zero && remaining < ceiling)
+                claimsPrincipal.SetAccessTokenLifetime(remaining);
+        }
+
         // Deliberately does NOT call SetRefreshTokenLifetime. A lifetime attached to the principal
         // outranks everything else in OpenIddict, which would silently shadow the per-client value
         // stored on the application row — an admin could edit it in /admin/clients and see no effect.
         // Session length is owned by that setting; see AuthModule for the server-wide fallback.
         return claimsPrincipal;
+    }
+
+    /// <summary>
+    /// The access-token lifetime this client would normally get: its own per-application setting when
+    /// it has one, otherwise the server-wide default configured in AuthModule. Only ever used as an
+    /// upper bound, so a missing or unparsable value simply leaves the normal lifetime in force.
+    /// </summary>
+    private async Task<TimeSpan> ResolveAccessTokenLifetimeAsync(string? clientId)
+    {
+        // Read the server-wide default from OpenIddict's own options rather than restating the number
+        // AuthModule configures: a copy here would silently stop shortening tokens the day someone
+        // raises that setting, which is exactly what this clamp exists to prevent.
+        var fallback = serverOptions.CurrentValue.AccessTokenLifetime ?? TimeSpan.FromMinutes(15);
+        if (string.IsNullOrEmpty(clientId))
+            return fallback;
+
+        var application = await applicationManager.FindByClientIdAsync(clientId);
+        if (application is null)
+            return fallback;
+
+        var settings = await applicationManager.GetSettingsAsync(application);
+        return settings.TryGetValue(OpenIddictConstants.Settings.TokenLifetimes.AccessToken, out var raw)
+               && TimeSpan.TryParse(raw, CultureInfo.InvariantCulture, out var configured)
+               && configured > TimeSpan.Zero
+            ? configured
+            : fallback;
     }
 
     public async Task<ClaimsPrincipal> CreateClientCredFlowAccessTokenPrincipal(
@@ -194,20 +247,21 @@ public class TokenService(
     /// instead of lingering for the full refresh-token lifetime, and — when the refresh may
     /// proceed — builds the new access-token principal from the SAME user load (no second query).
     /// </summary>
-    public async Task<RefreshTokenResult> CreateRefreshFlowPrincipalAsync(
+    public async Task<TokenGrantResult> CreateRefreshFlowPrincipalAsync(
         OpenIddictRequest request,
         ClaimsPrincipal principal)
     {
         var userId = principal.FindFirstValue(OpenIddictConstants.Claims.Subject);
         if (!Guid.TryParse(userId, out var id))
-            return new RefreshTokenResult(null, "The refresh token is no longer valid.");
+            return new TokenGrantResult(null, "The refresh token is no longer valid.");
 
         var user = await LoadUserWithPermissionsAsync(id);
-        if (user is null || !user.IsActive)
-            return new RefreshTokenResult(null, "This account is no longer active. Please sign in again.");
+        // Covers both deactivation and a temporary account whose access window has run out.
+        if (user is null || !user.IsUsable(dateTimeProvider.ApplicationNow))
+            return new TokenGrantResult(null, "This account is no longer active. Please sign in again.");
 
         if (user.MustChangePassword)
-            return new RefreshTokenResult(null, "A password change is required. Please sign in again to continue.");
+            return new TokenGrantResult(null, "A password change is required. Please sign in again to continue.");
 
         // Local-password accounts only — LDAP passwords are governed by AD, and legacy accounts with
         // no recorded change date are not force-expired (consistent with the login page).
@@ -235,7 +289,7 @@ public class TokenService(
                     // interactive login re-evaluates expiry and flips it.
                     logger.LogWarning(ex, "Failed to persist MustChangePassword on expiry for {UserId} — refresh still rejected", user.Id);
                 }
-                return new RefreshTokenResult(null, "Your password has expired. Please sign in again to set a new one.");
+                return new TokenGrantResult(null, "Your password has expired. Please sign in again to set a new one.");
             }
         }
 
@@ -244,7 +298,7 @@ public class TokenService(
         // optional scope parameter carry forward the original grant's scopes rather than losing them.
         var built = await BuildAccessTokenPrincipal(request, id.ToString(), username, user,
             scopesFallback: principal.GetScopes());
-        return new RefreshTokenResult(built, null);
+        return new TokenGrantResult(built, null);
     }
 
     internal async Task<ImmutableArray<string>> GetUserPermissions(ApplicationUser user)

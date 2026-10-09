@@ -12,4 +12,8 @@ public record UpdatePasswordPolicyConfigCommand(
     string? Blocklist,
     bool LockoutEnabled,
     int MaxFailedAccessAttempts,
-    int LockoutMinutes) : ICommand;
+    int LockoutMinutes,
+    // Optional: the command binds straight from the request body, and a client that predates this
+    // field must not save a 0 over the stored cap (nor be rejected for omitting it). Null = leave
+    // whatever the admin set last time alone.
+    int? MaxAccessWindowHours = null) : ICommand;

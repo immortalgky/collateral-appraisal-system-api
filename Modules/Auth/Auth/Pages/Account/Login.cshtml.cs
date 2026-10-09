@@ -78,6 +78,17 @@ public class Login(
             return Page();
         }
 
+        // Temporary-access account whose window has run out. The message stays the generic one on
+        // purpose: "that account exists but its window closed" tells an outsider the account is real
+        // and worth attacking, and the admin who opened the window already knows when it ends. The
+        // audit log carries the true reason.
+        if (!user.IsUsable(dateTimeProvider.ApplicationNow))
+        {
+            await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "Expired" });
+            Error = "Invalid login attempt.";
+            return Page();
+        }
+
         // Authentication source is per-user: LDAP users authenticate against AD with their AD password;
         // everyone else uses their local password.
         return AuthSources.IsLdap(user.AuthSource)

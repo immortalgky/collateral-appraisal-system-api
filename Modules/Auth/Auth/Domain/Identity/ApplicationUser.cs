@@ -34,4 +34,19 @@ public class ApplicationUser : IdentityUser<Guid>
     /// normally; it is only hidden from those reads, and there is no way to opt back in through the API,
     /// so maintaining such an account has to happen in the database.</summary>
     public bool IsSystem { get; set; } = false;
+
+    /// <summary>Ad-hoc account that is closed by default and only usable inside an access window an
+    /// admin opens (see <see cref="AccessExpiresAt"/>). Local-password accounts only: opening a window
+    /// rotates the password, which we cannot do for an AD-backed account. The flag is what gates the
+    /// access-window endpoint — a normal staff account can never have its password rotated by it.</summary>
+    public bool IsTemporaryAccess { get; set; } = false;
+
+    /// <summary>End of the current access window. Null means "no expiry" — every ordinary account.
+    /// A value in the past means the account is closed. Checked by <see cref="IsUsable"/>.</summary>
+    public DateTime? AccessExpiresAt { get; set; }
+
+    /// <summary>Whether the account may be used right now: active, and inside its access window when
+    /// it has one. Every account-state gate (login, refresh, Hangfire dashboard) asks this single
+    /// question so a window that has run out closes the same doors deactivation closes.</summary>
+    public bool IsUsable(DateTime now) => IsActive && (AccessExpiresAt is null || AccessExpiresAt > now);
 }
