@@ -59,6 +59,7 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
             .Append("2. หากพ้นระยะเวลาที่กำหนดดังกล่าว ขอให้เป็นดุลพินิจของทางสำนักประเมินในการพิจารณาดำเนินการต่อ การเลือกบริษัทประเมิน หรือการยกเลิกคำขอ<br/>")
             .Append("</p>");
 
+        sb.Append("<p style=\"margin:16px 0 0;\">หากมีข้อสงสัย กรุณาติดต่อ ").Append(Enc(model.AdminName)).Append("</p>");
         sb.Append("<p style=\"margin:16px 0 0;\">จึงเรียนมาเพื่อโปรดทราบ</p>");
         sb.Append("<p style=\"margin:4px 0 0;\">").Append(Enc(model.AdminName)).Append("</p>");
         if (!string.IsNullOrWhiteSpace(model.AdminPhone))
@@ -75,6 +76,7 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
             .Append(Enc(model.CustomerName ?? "-"))
             .Append("<br/></strong>Appraisal No.: <strong>")
             .Append(Enc(model.AppraisalNumber ?? "-")).Append("</strong></p>");
+        sb.Append("<p style=\"margin:16px 0 0;\">เอกสารที่ขอเพิ่มเติม").Append("</p>");
 
         // Each requested document: numbered name as a header, remark/notes wrapping below it.
         var itemNumber = 1;
@@ -91,6 +93,7 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
             itemNumber++;
         }
 
+        sb.Append("<p style=\"margin:16px 0 0;\">หากมีข้อสงสัย กรุณาติดต่อ ").Append(Enc(model.AdminName)).Append("</p>");
         sb.Append("<p style=\"margin:16px 0 0;\">จึงเรียนมาเพื่อโปรดทราบ</p>");
         sb.Append("<p style=\"margin:4px 0 0;\">").Append(Enc(model.AdminName)).Append("</p>");
         if (!string.IsNullOrWhiteSpace(model.AdminPhone))
@@ -138,6 +141,7 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
             .Append("</strong> ได้ดำเนินการเสร็จสิ้นและผ่านการอนุมัติเรียบร้อยแล้ว");
             // The full report is attached in CAS itself, whatever the request's channel.
         sb.Append("<p style=\"margin:24px 0 0;\">สามารถดูผลราคาประเมินฉบับสมบูรณ์ได้ที่ระบบ CAS</p>");
+        sb.Append("<p style=\"margin:16px 0 0;\">หากมีข้อสงสัย กรุณาติดต่อ ").Append(Enc(AppraisalCompletedSignatureName)).Append("</p>");
         sb.Append("<p style=\"margin:24px 0 0;\">ขอแสดงความนับถือ</p>");
         sb.Append("<p style=\"margin:4px 0 0;\">").Append(Enc(AppraisalCompletedSignatureName)).Append("</p>");
         sb.Append("<p style=\"margin:4px 0 0;\">Tel : ").Append(Enc(AppraisalCompletedPhone)).Append("</p>");
