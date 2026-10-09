@@ -45,7 +45,9 @@
 -- Notes:
 --   * auth.MenuItems' PK column is MenuItemId; IconStyle 0 = Solid, Scope 0 = Main.
 --   * The link table is auth.RolePermissions (plural).
---   * SortOrder is MAX(root sibling) + 10, never a literal: long-lived databases carry
+--   * SortOrder is taken from the old main.appraisal group so the new node lands in its
+--     place (step 3 runs before step 4 deletes it). Only when that group is missing does it
+--     fall back to MAX(root sibling) + 10 -- never a literal: long-lived databases carry
 --     values from an older build whose counter ran across the whole tree.
 --   * MenuTreeCache ("auth:menu:full") has NO TTL, so RESTART THE API after this runs
 --     (every instance -- it is a per-node IMemoryCache). The affected users must also
@@ -108,7 +110,9 @@ INSERT INTO auth.MenuItems
      SortOrder, ViewPermissionCode, ViewPermissionPrefix, EditPermissionCode, IsSystem, CreatedAt)
 SELECT @TrackingMenuId, N'main.appraisal-tracking', 0, NULL, N'/appraisals/search',
        N'radar', 0, N'text-sky-500',
-       ISNULL((SELECT MAX(c.SortOrder) FROM auth.MenuItems c WHERE c.ParentId IS NULL AND c.Scope = 0), 0) + 10,
+       COALESCE(
+           (SELECT o.SortOrder FROM auth.MenuItems o WHERE o.ItemKey = N'main.appraisal'),
+           ISNULL((SELECT MAX(c.SortOrder) FROM auth.MenuItems c WHERE c.ParentId IS NULL AND c.Scope = 0), 0) + 10),
        N'APPRAISAL_TRACKING_VIEW', NULL, NULL,
        1, SYSDATETIME()
 WHERE NOT EXISTS (SELECT 1 FROM auth.MenuItems m WHERE m.ItemKey = N'main.appraisal-tracking');
