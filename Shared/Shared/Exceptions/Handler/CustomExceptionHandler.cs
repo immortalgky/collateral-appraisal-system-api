@@ -168,11 +168,15 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
         if (exception is BulkUploadParseException bulkEx)
             problemDetails.Extensions.Add("rowErrors", bulkEx.RowErrors);
 
+        if (exception is BadRequestException { Extensions: not null } badRequestEx)
+            foreach (var (key, value) in badRequestEx.Extensions)
+                problemDetails.Extensions[key] = value;
+
+        if (exception is BadRequestException { Code: not null } badRequestCodeEx)
+            problemDetails.Extensions.Add("errorCode", badRequestCodeEx.Code);
+
         if (exception is ConflictException { Code: not null } conflictEx)
             problemDetails.Extensions.Add("errorCode", conflictEx.Code);
-
-        if (exception is BadRequestException { Code: not null } badRequestEx)
-            problemDetails.Extensions.Add("errorCode", badRequestEx.Code);
 
         // Not the middleware's token: it hands us `RequestAborted`, which is already cancelled for
         // anything arising from a cancellation — the write would throw, this method would return

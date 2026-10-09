@@ -32,7 +32,7 @@ public record GetQuotationByIdResult(
     Guid? RequestId,
     Guid? WorkflowInstanceId,
     Guid? TaskExecutionId,
-    string? BankingSegment,
+    IReadOnlyList<string> BankingSegment,
     string? RmUserName,
     string? RmUserFullName,
     DateTime? SubmissionsClosedAt,
@@ -104,8 +104,9 @@ public record QuotationAppraisalResult(
     string? AppraisalNumber,
     string? PropertyType,
     string? Address,
-    string? LoanType,
     string? Channel,
+    // The appraisal's own Banking Segment.
+    string? BankingSegment,
     // v7: the appraisal's owning request — FE uses this to call `/requests/{requestId}/documents`
     // when building the "share documents" picker.
     Guid? RequestId,
@@ -191,4 +192,14 @@ public record CompanyQuotationNegotiationResult(
     DateTime? RespondedAt
 );
 
-public sealed record InvitedCompanyResult(Guid CompanyId, string CompanyName, string? CompanyNameLocal, string? Email);
+/// <summary>
+/// LoanTypes = the company's Banking Segments; MissingSegments = Segment Set entries it cannot appraise
+/// (empty = covers the quotation). Advisory here; the Send guard enforces it.
+/// </summary>
+public sealed record InvitedCompanyResult(
+    Guid CompanyId,
+    string CompanyName,
+    string? CompanyNameLocal,
+    string? Email,
+    IReadOnlyList<string> LoanTypes,
+    IReadOnlyList<string> MissingSegments);
