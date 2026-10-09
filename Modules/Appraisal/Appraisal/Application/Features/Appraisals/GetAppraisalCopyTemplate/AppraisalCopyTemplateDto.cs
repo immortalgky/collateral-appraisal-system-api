@@ -13,6 +13,7 @@ public record AppraisalCopyTemplateDto(
     List<RequestCustomerDto> Customers,
     List<RequestPropertyDto> Properties,
     List<RequestTitleDto> Titles,
+    // Kept for the pre-carry-forward FE; remove when the FE carry-forward release is live.
     List<RequestDocumentDto> Documents
 );
 

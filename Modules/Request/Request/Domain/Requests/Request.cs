@@ -246,12 +246,35 @@ public class Request : Aggregate<Guid>
         Detail = Detail.WithPriorValue(value, date);
     }
 
+    /// <summary>Prefix of an AS400-only prior book number; LOS may send one on create.</summary>
+    public const string LegacyPriorBookPrefix = "99A";
+
+    /// <summary>Purpose "07" (a new appraisal): the only purpose that must not reference a prior appraisal.</summary>
+    public const string NewAppraisalPurpose = "07";
+
+    /// <summary>
+    /// A book number as CAS stores it: spaces trimmed, upper-cased, and the 'B' AS400 puts in front of a block
+    /// project's number dropped (B62A00645 is our 62A00645). Same rule as Collateral's As400AppraisalNumber.Normalize
+    /// and collateral.vw_HostCollateralLinkKeys.CasAppraisalNumber — keep them identical; the reappraisal flow
+    /// stores books in this form, so a legacy test has to read them the same way.
+    /// </summary>
+    public static string? NormalizeBookNumber(string? number)
+    {
+        if (string.IsNullOrWhiteSpace(number)) return null;
+        var s = number.Trim(' ').ToUpperInvariant();
+        return s.Length > 1 && s[0] == 'B' ? s[1..] : s;
+    }
+
+    public static bool IsLegacyPriorBook(string? number) =>
+        NormalizeBookNumber(number)?.StartsWith(LegacyPriorBookPrefix, StringComparison.Ordinal) == true;
+
     /// <summary>
     /// Records a prior book that exists only in AS400 (legacy "99A…"): it has no PrevAppraisalId to
-    /// resolve from, so its number, value and date are stored as sent by the periodical reappraisal
-    /// feed. System-only — the reappraisal consumer is the one caller. Submit forwards the number to
-    /// the new appraisal, where it links the chain and the regulatory origination, so no client input
-    /// may set it.
+    /// resolve from, so its number, value and date are stored as sent. Two callers: the periodical
+    /// reappraisal consumer (from the AS400 listing) and Integration create, when LOS sends a 99A
+    /// number with no id (checked by PriorAppraisalNumberResolver); an Integration resubmit rebuilds
+    /// the detail with the same number instead. Never from the UI form. Submit forwards the number to
+    /// the new appraisal, where it links the chain and the regulatory origination.
     /// </summary>
     public void SetLegacyPriorBook(string number, decimal? value, DateTime? date)
     {

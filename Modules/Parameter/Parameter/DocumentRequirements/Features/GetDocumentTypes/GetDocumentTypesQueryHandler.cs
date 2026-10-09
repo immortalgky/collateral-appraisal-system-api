@@ -27,6 +27,8 @@ public class GetDocumentTypesQueryHandler : IQueryHandler<GetDocumentTypesQuery,
             Category = dt.Category,
             IsActive = dt.IsActive,
             SortOrder = dt.SortOrder,
+            CarryForwardByDefault = dt.CarryForwardByDefault,
+            IsCarryForwardLocked = dt.IsCarryForwardLocked,
             CreatedOn = dt.CreatedAt,
             UpdatedOn = dt.UpdatedAt
         }).ToList();

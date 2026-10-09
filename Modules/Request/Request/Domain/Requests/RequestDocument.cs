@@ -73,6 +73,9 @@ public class RequestDocument : Entity<Guid>
             FileName = data.FileName;
             FilePath = data.FilePath;
             Prefix = data.Prefix;
+            // A different file is a different origin (the sync passes the payload's, or the stored one when
+            // nothing was swapped); everything else about the row keeps its Source.
+            Source = data.Source ?? "REQUEST";
 
             UploadedBy = data.DocumentId.HasValue ? data.UploadedBy : null;
             UploadedByName = data.DocumentId.HasValue ? data.UploadedByName : null;

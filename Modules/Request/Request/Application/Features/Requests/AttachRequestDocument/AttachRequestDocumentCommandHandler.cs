@@ -23,7 +23,7 @@ internal class AttachRequestDocumentCommandHandler(
             1,
             null,
             null,
-            command.Source ?? "REQUEST",
+            ClientDocumentSource.Normalize(command.Source),
             false,
             currentUser.Username,
             currentUser.Username,

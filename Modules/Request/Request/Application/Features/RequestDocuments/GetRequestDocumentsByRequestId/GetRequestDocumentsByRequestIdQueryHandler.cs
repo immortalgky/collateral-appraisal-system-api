@@ -6,16 +6,12 @@ namespace Request.Application.Features.RequestDocuments.GetRequestDocumentsByReq
 internal class GetRequestDocumentsByRequestIdQueryHandler(ISqlConnectionFactory connectionFactory)
     : IQueryHandler<GetRequestDocumentsByRequestIdQuery, GetRequestDocumentsByRequestIdResult>
 {
-    public async Task<GetRequestDocumentsByRequestIdResult> Handle(
-        GetRequestDocumentsByRequestIdQuery query,
-        CancellationToken cancellationToken)
-    {
-        const string sql = """
+    internal const string Sql = """
                            -- Result set 1: Request-level documents
                            SELECT rd.[Id], rd.[DocumentId], rd.[DocumentType], dt.[Name] AS [DocumentTypeName],
                                   rd.[FileName], rd.[FilePath], rd.[Notes], rd.[IsRequired],
                                   rd.[UploadedBy], rd.[UploadedByName], rd.[UploadedAt],
-                                  d.[FileSizeBytes], d.[MimeType]
+                                  d.[FileSizeBytes], d.[MimeType], rd.[Source]
                            FROM [request].[RequestDocuments] rd
                            LEFT JOIN [parameter].[DocumentTypes] dt ON dt.[Code] = rd.[DocumentType]
                            LEFT JOIN [document].[Documents] d ON d.[Id] = rd.[DocumentId]
@@ -40,7 +36,7 @@ internal class GetRequestDocumentsByRequestIdQueryHandler(ISqlConnectionFactory 
                                td.[Id], td.[DocumentId], td.[DocumentType], dt.[Name] AS [DocumentTypeName],
                                td.[FileName], td.[FilePath], td.[Notes], td.[IsRequired],
                                td.[UploadedBy], td.[UploadedByName], td.[UploadedAt],
-                               d.[FileSizeBytes], d.[MimeType]
+                               d.[FileSizeBytes], d.[MimeType], td.[Source]
                            FROM [request].[RequestTitles] t
                            LEFT JOIN [request].[RequestTitleDocuments] td ON t.[Id] = td.[TitleId]
                            LEFT JOIN [parameter].[DocumentTypes] dt ON dt.[Code] = td.[DocumentType]
@@ -49,8 +45,12 @@ internal class GetRequestDocumentsByRequestIdQueryHandler(ISqlConnectionFactory 
                            ORDER BY t.[SequenceNumber] ASC, t.[CreatedAt] ASC, t.[Id] ASC, td.[Id] ASC;
                            """;
 
+    public async Task<GetRequestDocumentsByRequestIdResult> Handle(
+        GetRequestDocumentsByRequestIdQuery query,
+        CancellationToken cancellationToken)
+    {
         var connection = connectionFactory.GetOpenConnection();
-        using var multi = await connection.QueryMultipleAsync(sql, new { query.RequestId });
+        using var multi = await connection.QueryMultipleAsync(Sql, new { query.RequestId });
 
         // Result set 1: request-level documents
         var requestDocs = (await multi.ReadAsync<DocumentItemDto>()).ToList();
@@ -96,7 +96,8 @@ internal class GetRequestDocumentsByRequestIdQueryHandler(ISqlConnectionFactory 
                     r.UploadedByName,
                     r.UploadedAt,
                     r.FileSizeBytes,
-                    r.MimeType))
+                    r.MimeType,
+                    r.Source))
                 .ToList();
 
             var collateralTypeCode = group.Key.CollateralType;
@@ -167,4 +168,5 @@ internal record TitleDocumentRow(
     string? UploadedByName,
     DateTime? UploadedAt,
     long? FileSizeBytes,
-    string? MimeType);
+    string? MimeType,
+    string? Source);

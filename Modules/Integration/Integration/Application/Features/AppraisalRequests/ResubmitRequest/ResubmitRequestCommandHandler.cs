@@ -1,3 +1,4 @@
+using Integration.Application.Services;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using Request.Application.Services;
@@ -15,6 +16,7 @@ public class ResubmitRequestCommandHandler(
     IUpdateRequestService updateRequestService,
     IRequestSyncService syncService,
     ISender mediator,
+    IAppraisalLookupService appraisalLookup,
     IIntegrationEventOutbox outbox,
     ILogger<ResubmitRequestCommandHandler> logger
 ) : ICommandHandler<ResubmitRequestCommand, ResubmitRequestResult>
@@ -77,6 +79,10 @@ public class ResubmitRequestCommandHandler(
         if (command.Properties is null)
             throw new BadRequestException("Properties is required.");
 
+        // The request being resubmitted may be a periodical reappraisal draft: its recorded book number is a prior
+        // that needs no CAS lookup. (Create has no such request.)
+        var stored = await updateRequestService.GetByIdWithDocumentsAsync(command.RequestId, ct);
+
         var resubmitData = new ResubmitRequestData(
             command.RequestId,
             command.Purpose,
@@ -85,7 +91,8 @@ public class ResubmitRequestCommandHandler(
             command.Creator,
             command.Priority,
             command.IsPma.Value,
-            command.Detail,
+            await PriorAppraisalNumberResolver.ResolveAsync(
+                appraisalLookup, command.Purpose, command.Detail, ct, stored?.ReappraisalBookNumber),
             command.Customers,
             command.Properties,
             command.Titles,
@@ -94,12 +101,14 @@ public class ResubmitRequestCommandHandler(
 
         var request = await updateRequestService.ResubmitRequestAsync(resubmitData, ct);
 
+        // Source: the payload's per row, whitelisted by ClientDocumentSource (a PREV file stays PREV, FOLLOWUP is
+        // never taken from a client), the same as create.
         if (command.Documents is not null)
-            await syncService.SyncDocumentsAsync(request, command.Documents, ct, forcedSource: "REQUEST");
+            await syncService.SyncDocumentsAsync(request, command.Documents, ct, forcedSource: null);
 
         IReadOnlyList<RequestTitle> titles = [];
         if (command.Titles is not null)
-            titles = await syncService.SyncTitlesAsync(command.RequestId, command.Titles, ct, forcedSource: "REQUEST");
+            titles = await syncService.SyncTitlesAsync(command.RequestId, command.Titles, ct, forcedSource: null);
 
         request.Validate();
         foreach (var title in titles)
@@ -152,17 +161,18 @@ public class ResubmitRequestCommandHandler(
             throw new ConflictException(
                 $"Followup {followup.Id} is not fully provisioned — workflow instance not yet attached.");
 
-        // Sync documents, trusting the payload's Source per row (forcedSource: null).
+        // Sync documents. The mode decides the label, not the client: every row added (or given a different
+        // file) here answers the follow-up, so the server stamps it FOLLOWUP; rows left as they are keep theirs.
         // The followup branch does NOT mutate request data, only the document/title collections.
         if (command.Documents is not null)
         {
             var requestAggregate = await updateRequestService.GetByIdWithDocumentsAsync(command.RequestId, ct);
-            await syncService.SyncDocumentsAsync(requestAggregate, command.Documents, ct, forcedSource: null);
+            await syncService.SyncDocumentsAsync(requestAggregate, command.Documents, ct, forcedSource: "FOLLOWUP");
         }
 
         IReadOnlyList<RequestTitle> titles = [];
         if (command.Titles is not null)
-            titles = await syncService.SyncTitlesAsync(command.RequestId, command.Titles, ct, forcedSource: null);
+            titles = await syncService.SyncTitlesAsync(command.RequestId, command.Titles, ct, forcedSource: "FOLLOWUP");
 
         foreach (var title in titles)
             title.Validate();

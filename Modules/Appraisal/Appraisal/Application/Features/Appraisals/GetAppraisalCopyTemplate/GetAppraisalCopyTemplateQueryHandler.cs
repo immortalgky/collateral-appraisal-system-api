@@ -58,6 +58,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
         var propertyRows = await connection.QueryAsync<PropertyRow>(propertySql, requestParams);
 
         // ── 4. Documents (reference-copy only — filename + storage key) ───
+        // Kept for the pre-carry-forward FE; remove when the FE carry-forward release is live.
         const string documentSql = """
             SELECT Id, RequestId, DocumentId, DocumentType, FileName, Prefix, [Set], Notes,
                    FilePath, Source, IsRequired, UploadedBy, UploadedByName, UploadedAt

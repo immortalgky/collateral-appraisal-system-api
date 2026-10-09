@@ -36,6 +36,14 @@ public class DocumentTypeConfiguration : IEntityTypeConfiguration<DocumentType>
             .IsRequired()
             .HasDefaultValue(0);
 
+        // The sentinel must be the default itself: with a non-nullable bool EF treats CLR false as
+        // "unset" and omits it from the INSERT, so the column default (1) would silently win over an
+        // explicit false. Sentinel true sends false and lets true fall back to the same default.
+        builder.Property(d => d.CarryForwardByDefault)
+            .IsRequired()
+            .HasDefaultValue(true)
+            .HasSentinel(true);
+
         builder.Property(d => d.CreatedAt).IsRequired();
         builder.Property(d => d.CreatedBy).IsRequired();
 

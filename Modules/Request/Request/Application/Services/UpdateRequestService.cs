@@ -1,9 +1,8 @@
-using System;
-
 namespace Request.Application.Services;
 
-public class UpdateRequestService(    
-    IRequestRepository requestRepository
+public class UpdateRequestService(
+    IRequestRepository requestRepository,
+    ISender mediator
 ) : IUpdateRequestService
 {
     public async Task<Domain.Requests.Request> GetByIdWithDocumentsAsync(Guid requestId, CancellationToken cancellationToken)
@@ -35,6 +34,14 @@ public class UpdateRequestService(
             command.IsPma
         ));
 
+        // Resubmit replaces the request data, so the prior appraisal is whatever LOS sent now: an id is
+        // re-resolved from CAS, a 99A number becomes the legacy book, nothing means no prior (the guard
+        // below decides whether the purpose can do without one).
+        var prevAppraisalId = PriorAppraisalFields.NormalizeId(command.Detail.PrevAppraisalId);
+        var prior = await PriorAppraisalFields.ResolveAsync(
+            mediator, request, prevAppraisalId, LegacyPriorBook.ForResubmit(command.Detail, request.ReappraisalBookNumber),
+            cancellationToken);
+
         request.SetDetail(RequestDetail.Create(new RequestDetailData(
             command.Detail.HasAppraisalBook,
             LoanDetail.Create(new LoanDetailData(
@@ -45,7 +52,7 @@ public class UpdateRequestService(
                 command.Detail.LoanDetail?.PreviousFacilityLimit,
                 command.Detail.LoanDetail?.TotalSellingPrice
             )),
-            command.Detail.PrevAppraisalId,
+            prevAppraisalId,
             Address.Create(new AddressData(
                 command.Detail.Address?.HouseNumber,
                 command.Detail.Address?.ProjectName,
@@ -67,8 +74,16 @@ public class UpdateRequestService(
             Fee.Create(
                 command.Detail.Fee?.FeePaymentType,
                 command.Detail.Fee?.FeeNotes,
-                command.Detail.Fee?.AbsorbedAmount)
+                command.Detail.Fee?.AbsorbedAmount),
+            prior.Number,
+            prior.Value,
+            prior.Date
         )));
+
+        await PriorAppraisalSubmissionGuard.EnsureValidAsync(
+            request.Purpose, request.Detail?.PrevAppraisalId,
+            request.Detail?.PrevAppraisalNumber ?? command.Detail.PrevAppraisalNumber, mediator,
+            cancellationToken, prior.Reference, request.ReappraisalBookNumber);
 
         var customers = command.Customers
             .Select(c => RequestCustomer.Create(c.Name, c.ContactNumber))
