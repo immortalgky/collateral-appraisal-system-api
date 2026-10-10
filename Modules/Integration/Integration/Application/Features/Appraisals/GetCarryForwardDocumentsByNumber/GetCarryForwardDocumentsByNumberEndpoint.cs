@@ -5,25 +5,25 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace Integration.Application.Features.Appraisals.GetAppraisalDocuments;
+namespace Integration.Application.Features.Appraisals.GetCarryForwardDocumentsByNumber;
 
-public class GetAppraisalDocumentsEndpoint : ICarterModule
+public class GetCarryForwardDocumentsByNumberEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/v1/appraisals/{appraisalNumber}/documents", async (
+        app.MapGet("/api/v1/appraisals/{appraisalNumber}/carry-forward-documents", async (
             string appraisalNumber,
             ISender sender,
             CancellationToken cancellationToken) =>
         {
             var result = await sender.Send(
-                new GetAppraisalDocumentsQuery(appraisalNumber), cancellationToken);
+                new GetCarryForwardDocumentsByNumberQuery(appraisalNumber), cancellationToken);
 
             return result is null
                 ? Results.NotFound()
                 : Results.Ok(result);
         })
-        .WithName("GetAppraisalDocumentsIntegration")
+        .WithName("GetCarryForwardDocumentsIntegration")
         .WithTags("Integration - Appraisals")
         .Produces<CarryForwardDocumentsResult>()
         .ProducesProblem(StatusCodes.Status404NotFound)
