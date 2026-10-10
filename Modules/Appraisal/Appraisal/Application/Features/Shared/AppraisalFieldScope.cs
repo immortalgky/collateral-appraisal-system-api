@@ -54,6 +54,15 @@ public static class AppraisalFieldScope
         string.Equals(status, ApprovedStatus, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
+    /// True when the includes of GET /appraisals/{id} must hold back what is not yet released (download ids and
+    /// paths, the appraised value): unless the appraisal is released, only a caller who positively holds
+    /// <c>APPRAISAL_VIEW</c> gets them. Inverted on purpose compared with <see cref="IsTrackingOnly"/>: a caller
+    /// with NEITHER permission is not "tracking only", yet must not see an in-progress appraisal's value either.
+    /// </summary>
+    public static bool WithholdsUnreleased(ICurrentUserService user, string? status) =>
+        !CanOpenWorkspace(user) && !IsReleased(status);
+
+    /// <summary>
     /// Withholds the appraised value until the committee has approved it.
     ///
     /// That is now the ONLY thing masked. The assignment and appraiser columns used to clear too,

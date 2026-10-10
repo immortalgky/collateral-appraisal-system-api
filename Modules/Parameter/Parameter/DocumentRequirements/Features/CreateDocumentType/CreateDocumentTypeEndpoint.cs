@@ -6,7 +6,8 @@ public record CreateDocumentTypeRequest(
     string? Description,
     string? Category,
     int SortOrder = 0,
-    string? NameTh = null);
+    string? NameTh = null,
+    bool CarryForwardByDefault = true);
 
 public class CreateDocumentTypeEndpoint : ICarterModule
 {
@@ -23,7 +24,8 @@ public class CreateDocumentTypeEndpoint : ICarterModule
                     request.Description,
                     request.Category,
                     request.SortOrder,
-                    request.NameTh);
+                    request.NameTh,
+                    request.CarryForwardByDefault);
 
                 var result = await sender.Send(command, cancellationToken);
 

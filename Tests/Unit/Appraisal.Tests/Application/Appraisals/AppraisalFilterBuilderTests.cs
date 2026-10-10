@@ -88,8 +88,25 @@ public class AppraisalFilterBuilderTests
         new GetAppraisalsFilterRequest(District: "1003"),              // first land location
         new GetAppraisalsFilterRequest(AssignedDateFrom: new DateTime(2026, 1, 1)),
         new GetAppraisalsFilterRequest(AppointmentDateTo: new DateTime(2026, 1, 1)),
+        new GetAppraisalsFilterRequest { AppraisalDateFrom = new DateTime(2026, 1, 1) },
         new GetAppraisalsFilterRequest { SubDistrict = "100301" },   // exact geocode, not a LIKE
     ];
+
+    [Fact]
+    public void Appraisal_date_range_is_inclusive_of_the_end_day_and_needs_the_view()
+    {
+        var from = new DateTime(2026, 1, 1);
+        var to = new DateTime(2026, 1, 31);
+
+        var result = AppraisalFilterBuilder.BuildFilter(
+            new GetAppraisalsFilterRequest { AppraisalDateFrom = from, AppraisalDateTo = to });
+
+        Assert.Contains("AppraisalDate >= @AppraisalDateFrom", result.WhereClause);
+        Assert.Contains("AppraisalDate < DATEADD(day, 1, @AppraisalDateTo)", result.WhereClause);
+        Assert.Equal(from, result.Parameters.Get<DateTime>("AppraisalDateFrom"));
+        Assert.Equal(to, result.Parameters.Get<DateTime>("AppraisalDateTo"));
+        Assert.True(result.RequiresView);
+    }
 
     [Theory]
     [MemberData(nameof(ViewOnlyFilters))]
@@ -421,6 +438,7 @@ public class AppraisalFilterBuilderTests
     [InlineData("CreatedAt", "desc", "CreatedAt DESC, Id ASC")]   // …while saved searches hold PascalCase
     [InlineData("customerName", "asc", "customerName ASC, Id ASC")]
     [InlineData(null, null, "CreatedAt DESC, Id ASC")]            // default
+    [InlineData("appraisalDate", "desc", "appraisalDate DESC, Id ASC")]
     [InlineData("; DROP TABLE x", null, "CreatedAt DESC, Id ASC")] // not whitelisted → default
     public void Sort_field_is_whitelisted_case_insensitively(string? sortBy, string? sortDir, string expected)
     {

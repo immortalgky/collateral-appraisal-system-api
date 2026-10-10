@@ -41,6 +41,8 @@ internal class UpdateRequestCommandHandler(
         if (requestorInfo is null)
             throw new NotFoundException("Requestor", command.RequestorEmployeeId);
 
+        request.EnsurePurposeUnchanged(command.Purpose);
+
         // Store only the requestor identity (employee code + name); org detail is resolved on read.
         request.Save(new RequestData(
             command.Purpose,
@@ -52,21 +54,28 @@ internal class UpdateRequestCommandHandler(
             command.IsPma
         ));
 
-        var legacyBook = LegacyPriorBook.ForUpdate(command.Detail, request.Detail);
-        // A periodical reappraisal keeps the prior value/date Initiate set (a block-project unit's are the
-        // unit's, not the whole project's) while its prior appraisal is unchanged.
-        var unitPrior = request.ReappraisalBookNumber is not null
-                        && request.Detail?.PrevAppraisalId is { } storedPrev
-                        && command.Detail?.PrevAppraisalId == storedPrev
-            ? request.Detail
-            : null;
+        var prevAppraisalId = PriorAppraisalFields.NormalizeId(command.Detail?.PrevAppraisalId);
 
-        AppraisalReferenceResult? appraisalRef = null;
-        if (command.Detail?.PrevAppraisalId.HasValue == true)
-            appraisalRef = await mediator.Send(
-                new GetAppraisalReferenceQuery(command.Detail.PrevAppraisalId.Value), cancellationToken);
+        // A submitted request keeps its stored prior as is, so there is nothing to resolve: the id (or legacy
+        // number) is only checked against the stored one. Resolving anyway would cost a cross-module lookup per
+        // save, and a lookup that comes back empty (the prior was deleted since) must not wipe what the request
+        // was submitted with.
+        (string? Number, decimal? Value, DateTime? Date) prior;
+        if (request.HasBeenSubmitted())
+        {
+            request.EnsurePriorUnchanged(prevAppraisalId, command.Detail?.PrevAppraisalNumber);
+            prior = (request.Detail?.PrevAppraisalNumber, request.Detail?.PrevAppraisalValue,
+                request.Detail?.PrevAppraisalDate);
+        }
+        else
+        {
+            var resolved = await PriorAppraisalFields.ResolveAsync(
+                mediator, request, prevAppraisalId,
+                LegacyPriorBook.ForUpdate(request.Purpose, command.Detail, request.Detail), cancellationToken);
+            prior = (resolved.Number, resolved.Value, resolved.Date);
+        }
 
-        request.SetDetail(RequestDetail.Create(new RequestDetailData(
+        var detail = RequestDetail.Create(new RequestDetailData(
             command.Detail?.HasAppraisalBook ?? false,
             LoanDetail.Create(new LoanDetailData(
                 command.Detail?.LoanDetail?.BankingSegment,
@@ -76,7 +85,7 @@ internal class UpdateRequestCommandHandler(
                 command.Detail?.LoanDetail?.PreviousFacilityLimit,
                 command.Detail?.LoanDetail?.TotalSellingPrice
             )),
-            command.Detail?.PrevAppraisalId,
+            prevAppraisalId,
             Address.Create(new AddressData(
                 command.Detail?.Address?.HouseNumber,
                 command.Detail?.Address?.ProjectName,
@@ -99,10 +108,11 @@ internal class UpdateRequestCommandHandler(
                 command.Detail?.Fee?.FeePaymentType,
                 command.Detail?.Fee?.FeeNotes,
                 command.Detail?.Fee?.AbsorbedAmount),
-            PrevAppraisalNumber: appraisalRef is null ? legacyBook.Number : appraisalRef.AppraisalNumber,
-            PrevAppraisalValue: unitPrior is not null ? unitPrior.PrevAppraisalValue : appraisalRef is null ? legacyBook.Value : appraisalRef.AppraisalValue,
-            PrevAppraisalDate: unitPrior is not null ? unitPrior.PrevAppraisalDate : appraisalRef is null ? legacyBook.Date : appraisalRef.AppraisalDate
-        )));
+            PrevAppraisalNumber: prior.Number,
+            PrevAppraisalValue: prior.Value,
+            PrevAppraisalDate: prior.Date
+        ));
+        request.SetDetail(detail);
 
         var customers = command.Customers?
             .Select(c => RequestCustomer.Create(c.Name, c.ContactNumber))

@@ -8,6 +8,7 @@ using Request.Application.Features.Reappraisal.CreateBlockReappraisal;
 using Request.Contracts.Requests.Dtos;
 using Shared.Data;
 using Shared.Identity;
+using Shared.Time;
 
 namespace Api.Endpoints.BlockReappraisal;
 
@@ -22,8 +23,9 @@ namespace Api.Endpoints.BlockReappraisal;
 ///
 /// Double-submit safety: the BlockReappraisalDue row is claimed with a single atomic
 /// UPDATE (Pending → Consumed). Only the caller that flips it proceeds to create the Request;
-/// concurrent callers see 0 rows affected and are rejected. Not transactional with the Request
-/// create — if the create fails, the daily scan re-adds the row while the project is still due.
+/// concurrent callers see 0 rows affected and are rejected. The claim is not part of the Request
+/// transaction: if the command throws, that transaction has rolled back (nothing is left behind), so the
+/// claim is released back to Pending (only when no request for it was committed) and the error is rethrown.
 /// </summary>
 public class BlockReappraisalCreateEndpoint : ICarterModule
 {
@@ -36,6 +38,7 @@ public class BlockReappraisalCreateEndpoint : ICarterModule
                     ISender sender,
                     ISqlConnectionFactory connectionFactory,
                     ICurrentUserService currentUser,
+                    IDateTimeProvider dateTimeProvider,
                     CancellationToken cancellationToken) =>
                 {
                     // ── Resolve PrevAppraisalId from the project's latest engagement ──────
@@ -69,18 +72,21 @@ public class BlockReappraisalCreateEndpoint : ICarterModule
                     // Only the caller that flips Pending → Consumed proceeds; concurrent callers
                     // see 0 rows affected and are rejected. This eliminates the duplicate-Request
                     // race (the command-level in-flight dedupe is blind until the new appraisal
-                    // materializes asynchronously). If the create later fails, the daily scan
-                    // re-adds the row while the project is still due.
+                    // materializes asynchronously). Released below when the command fails
+                    // (it is transactional, so a failure leaves no request behind).
+                    // The claimed row's id is kept: a release only ever re-opens THIS caller's claim.
                     const string claimSql = """
                         UPDATE collateral.BlockReappraisalDue
-                           SET Status = 'Consumed', UpdatedAt = GETUTCDATE()
+                           SET Status = 'Consumed', UpdatedAt = @Now
+                        OUTPUT inserted.Id
                          WHERE CollateralMasterId = @CollateralMasterId AND Status = 'Pending'
                         """;
 
-                    var claimed = await connection.ExecuteAsync(
-                        claimSql, new { CollateralMasterId = collateralMasterId });
+                    var claimedAt = dateTimeProvider.ApplicationNow;
+                    var claimedDueId = await connection.QueryFirstOrDefaultAsync<Guid?>(
+                        claimSql, new { CollateralMasterId = collateralMasterId, Now = claimedAt });
 
-                    if (claimed == 0)
+                    if (claimedDueId is null)
                         return Results.Ok(new CreateBlockReappraisalResult(
                             CreatedRequestId: null,
                             RequestNumber: null,
@@ -100,7 +106,52 @@ public class BlockReappraisalCreateEndpoint : ICarterModule
                         Requestor: userInfo,
                         Creator: userInfo);
 
-                    var result = await sender.Send(command, cancellationToken);
+                    CreateBlockReappraisalResult result;
+                    try
+                    {
+                        result = await sender.Send(command, cancellationToken);
+                    }
+                    catch
+                    {
+                        // The command is transactional, so a failure normally leaves no request behind, and the
+                        // claim is handed back — otherwise the project vanishes from the due list with no request.
+                        // But the commit may have gone through when the failure is a timeout or a dropped
+                        // connection; handing the claim back then would invite a duplicate block reappraisal.
+                        // So release only when no purpose-09 request for this prior appraisal exists since the
+                        // claim (a request carries no link to the due row; this is the closest reliable one, and
+                        // when in doubt the row stays Consumed - the daily BlockReappraisalJob re-adds a project
+                        // that is still due). Best effort: the original error is what the caller must see.
+                        // CancellationToken.None: a cancelled request must not skip the release.
+                        try
+                        {
+                            await connection.ExecuteAsync(new CommandDefinition(
+                                """
+                                UPDATE collateral.BlockReappraisalDue
+                                   SET Status = 'Pending', UpdatedAt = @Now
+                                 WHERE Id = @DueId AND Status = 'Consumed'
+                                   AND NOT EXISTS (SELECT 1
+                                                     FROM request.Requests r
+                                                     JOIN request.RequestDetails d ON d.RequestId = r.Id
+                                                    WHERE r.IsDeleted = 0 AND r.Purpose = '09'
+                                                      AND d.PrevAppraisalId = @PrevAppraisalId
+                                                      AND r.CreatedAt >= @ClaimedAt)
+                                """,
+                                new
+                                {
+                                    DueId = claimedDueId.Value,
+                                    PrevAppraisalId = prevAppraisalId.Value,
+                                    ClaimedAt = claimedAt,
+                                    Now = dateTimeProvider.ApplicationNow
+                                },
+                                cancellationToken: CancellationToken.None));
+                        }
+                        catch
+                        {
+                            // See above: the row stays Consumed and the daily job re-adds it.
+                        }
+
+                        throw;
+                    }
 
                     // The due row was already claimed (Consumed) above; a Skipped result (a real
                     // in-flight reappraisal already existed) is still correct — the project should

@@ -18,7 +18,7 @@ internal static class AppraisalFilterBuilder
         "Priority", "SLADueDate", "SLAStatus", "CreatedAt", "AssignedDate",
         "AppointmentDateTime", "Province", "District", "SubDistrict", "Channel", "BankingSegment",
         "FacilityLimit", "PropertyCount", "ElapsedHours", "RemainingHours",
-        "AssignmentType", "CompanyName", "RequestedAt", "Purpose"
+        "AssignmentType", "CompanyName", "RequestedAt", "Purpose", "AppraisalDate"
     };
 
     /// <param name="addressMatch">
@@ -154,6 +154,10 @@ internal static class AppraisalFilterBuilder
 
             if (AddDateRangeFilter(conditions, parameters, filter.AppointmentDateFrom, filter.AppointmentDateTo,
                     "AppointmentDateTime", "AppointmentDateFrom", "AppointmentDateTo"))
+                requiresView = true;
+
+            if (AddDateRangeFilter(conditions, parameters, filter.AppraisalDateFrom, filter.AppraisalDateTo,
+                    "AppraisalDate", "AppraisalDateFrom", "AppraisalDateTo"))
                 requiresView = true;
 
             // Picker-specific additive fields

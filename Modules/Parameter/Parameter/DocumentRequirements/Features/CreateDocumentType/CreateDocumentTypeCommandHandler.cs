@@ -31,7 +31,12 @@ public class CreateDocumentTypeCommandHandler : ICommandHandler<CreateDocumentTy
             command.Description,
             command.Category,
             command.SortOrder,
-            command.NameTh);
+            command.NameTh,
+            command.CarryForwardByDefault);
+
+        // Same rule as update: these codes are always carried forward, so "don't use" is not valid.
+        if (!command.CarryForwardByDefault && documentType.IsCarryForwardLocked)
+            throw new BadRequestException($"Document type '{documentType.Code}' is always carried forward from the previous appraisal");
 
         _repository.AddDocumentType(documentType);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

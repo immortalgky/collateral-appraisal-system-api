@@ -1,3 +1,6 @@
+using System.Data;
+using Appraisal.Domain.Appraisals.Exceptions;
+using Dapper;
 using Shared.Identity;
 
 namespace Appraisal.Application.Features.Shared;
@@ -16,4 +19,28 @@ public static class AppraisalAccessScope
     /// caller is internal (bank) and may see all rows.
     /// </summary>
     public static Guid? GetEnforcedCompanyId(ICurrentUserService user) => user.CompanyId;
+
+    // For an external (company) caller: only appraisals assigned to their company, as the sibling appraisal
+    // reads do (GetPreviousAppraisalChain).
+    private const string CompanyScopeSql = """
+        SELECT CAST(CASE WHEN EXISTS (
+                   SELECT 1 FROM appraisal.vw_AppraisalList al
+                   WHERE al.Id = @AppraisalId
+                     AND TRY_CAST(al.AssigneeCompanyId AS uniqueidentifier) = @CompanyId)
+               THEN 1 ELSE 0 END AS bit)
+        """;
+
+    /// <summary>
+    /// 404 for an external (company) caller on an appraisal not assigned to its company, so existence is never
+    /// confirmed. Internal callers (no company) pass without a query.
+    /// </summary>
+    public static async Task EnsureCallerMayReadAsync(
+        IDbConnection connection, ICurrentUserService user, Guid appraisalId, CancellationToken cancellationToken)
+    {
+        if (GetEnforcedCompanyId(user) is { } companyId
+            && !await connection.ExecuteScalarAsync<bool>(new CommandDefinition(
+                CompanyScopeSql, new { AppraisalId = appraisalId, CompanyId = companyId },
+                cancellationToken: cancellationToken)))
+            throw new AppraisalNotFoundException(appraisalId);
+    }
 }
