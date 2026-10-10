@@ -84,7 +84,12 @@ SELECT a.Id,
        -- time. Read from the request row already joined above, so no extra join. Appended last
        -- for the same reason as AssigneeName.
        r.Requestor                                                                         AS RequestorCode,
-       NULLIF(r.RequestorName, N'')                                                        AS RequestorName
+       NULLIF(r.RequestorName, N'')                                                        AS RequestorName,
+       -- The appraisal (valuation) date, same expression as vw_AppraisalCopyTemplate.AppraisalDate:
+       -- ValuationAnalyses.ValuationDate leads; the latest non-cancelled appointment is only a
+       -- fallback for an appraisal with no valuation row yet; CompletedAt covers legacy rows with
+       -- neither. Appended last for the same reason as AssigneeName.
+       COALESCE(va.ValuationDate, apt.AppointmentDateTime, a.CompletedAt)                  AS AppraisalDate
        -- ElapsedHours / RemainingHours are computed in C# (GetAppraisalsQueryHandler) using
        -- IBusinessTimeCalculator so they exclude weekends, holidays and lunch. They are NOT
        -- derived here: a SQL DATEDIFF would count calendar hours (nights/weekends included).

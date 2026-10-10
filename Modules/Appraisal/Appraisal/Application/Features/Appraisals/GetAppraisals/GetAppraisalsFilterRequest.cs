@@ -64,4 +64,8 @@ public record GetAppraisalsFilterRequest(
     public string? Requestor { get; init; }
     public DateTime? RequestedAtFrom { get; init; }
     public DateTime? RequestedAtTo { get; init; }
+
+    /// <summary>Range on the view's AppraisalDate (valuation date); needs the view.</summary>
+    public DateTime? AppraisalDateFrom { get; init; }
+    public DateTime? AppraisalDateTo { get; init; }
 }
