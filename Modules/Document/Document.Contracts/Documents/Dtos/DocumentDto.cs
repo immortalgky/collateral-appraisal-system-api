@@ -1,14 +1,17 @@
 namespace Document.Contracts.Documents.Dtos;
 
 public record DocumentDto(
-    long Id,
-    string RelateRequest,
-    long RelateId,
-    string DocType,
-    string Filename,
-    DateTime UploadTime,
-    string Prefix,
-    short Set,
-    string Comment,
-    string FilePath 
+    Guid Id,
+    string DocumentType,
+    string DocumentCategory,
+    string FileName,
+    string FileExtension,
+    long FileSizeBytes,
+    string MimeType,
+    string StorageUrl,
+    string UploadedBy,
+    string UploadedByName,
+    DateTime UploadedAt,
+    string? Description,
+    bool IsActive
 );

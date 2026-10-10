@@ -9,6 +9,9 @@ internal class GetDocumentByIdHandler(IDocumentRepository documentRepository)
     {
         var document = await documentRepository.GetByIdAsync(query.Id, cancellationToken);
 
+        if (document is null || document.IsDeleted)
+            throw new NotFoundException("Document", query.Id);
+
         var result = document.Adapt<DocumentDto>();
 
         return new GetDocumentByIdResult(result);
