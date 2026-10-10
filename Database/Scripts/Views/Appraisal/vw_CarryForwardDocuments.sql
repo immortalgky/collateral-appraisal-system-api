@@ -1,6 +1,6 @@
 -- The files a new request referencing a prior appraisal may reuse, one row per file, keyed by the PRIOR
--- appraisal (AppraisalId). Read by GetCarryForwardDocumentsQueryHandler, which backs both
--- GET /appraisals/{id}/carry-forward-documents and the Integration GET /api/v1/appraisals/{no}/carry-forward-documents.
+-- appraisal (AppraisalId). Read by GetCarryForwardDocumentsQueryHandler, which backs
+-- GET /appraisals/{id}?include=documents and the system-created reappraisals.
 --
 -- Level 'Request' / 'Title': every file the prior request holds, except the summary codes D036 / D042 /
 --   D043. Those are the summaries of the appraisal BEFORE this one (or an earlier round's, attached to the

@@ -1,9 +1,7 @@
-using Appraisal.Application.Features.Shared;
 using Appraisal.Contracts.Appraisals;
 using Appraisal.Domain.Appraisals;
 using Dapper;
 using Reporting.Contracts;
-using Shared.Identity;
 
 namespace Appraisal.Application.Features.Appraisals.GetCarryForwardDocuments;
 
@@ -12,9 +10,7 @@ namespace Appraisal.Application.Features.Appraisals.GetCarryForwardDocuments;
 /// appraisal.vw_CarryForwardDocuments. Files are shared by DocumentId, so rows whose link has no
 /// file yet (empty checklist placeholders) and files already soft-deleted are left out.
 /// </summary>
-public class GetCarryForwardDocumentsQueryHandler(
-    ISqlConnectionFactory connectionFactory,
-    ICurrentUserService currentUser)
+public class GetCarryForwardDocumentsQueryHandler(ISqlConnectionFactory connectionFactory)
     : IRequestHandler<GetCarryForwardDocumentsQuery, CarryForwardDocumentsResult>
 {
     internal const string SummaryDocumentType = "D036";
@@ -40,30 +36,11 @@ public class GetCarryForwardDocumentsQueryHandler(
         ORDER BY GroupOrder, Seq, UploadedAt, RowId
         """;
 
-    // With EnforceCallerScope, external (company) callers see only appraisals assigned to their company, as the
-    // sibling appraisal reads do (GetPreviousAppraisalChain); anything else is "not found", so existence is
-    // never confirmed.
-    private const string CompanyScopeSql = """
-        SELECT CAST(CASE WHEN EXISTS (
-                   SELECT 1 FROM appraisal.vw_AppraisalList al
-                   WHERE al.Id = @AppraisalId
-                     AND TRY_CAST(al.AssigneeCompanyId AS uniqueidentifier) = @CompanyId)
-               THEN 1 ELSE 0 END AS bit)
-        """;
-
     public async Task<CarryForwardDocumentsResult> Handle(
         GetCarryForwardDocumentsQuery query,
         CancellationToken cancellationToken)
     {
         var connection = connectionFactory.GetOpenConnection();
-
-        // Only when the caller asks (the FE endpoint): Integration and background callers have no company user.
-        if (query.EnforceCallerScope
-            && AppraisalAccessScope.GetEnforcedCompanyId(currentUser) is { } companyId
-            && !await connection.ExecuteScalarAsync<bool>(new CommandDefinition(
-                CompanyScopeSql, new { query.AppraisalId, CompanyId = companyId },
-                cancellationToken: cancellationToken)))
-            throw new AppraisalNotFoundException(query.AppraisalId);
 
         // The summary code depends on the appraisal's type, so the header is read first.
         var header = await connection.QueryFirstOrDefaultAsync<HeaderRow>(new CommandDefinition(
@@ -72,7 +49,7 @@ public class GetCarryForwardDocumentsQueryHandler(
         if (header is null)
             throw new AppraisalNotFoundException(query.AppraisalId);
 
-        if (header.Status != AppraisalStatus.Completed.Code)
+        if (!query.AnyStatus && header.Status != AppraisalStatus.Completed.Code)
             throw new ConflictException(
                 $"Appraisal '{header.AppraisalNumber ?? query.AppraisalId.ToString()}' has status '{header.Status}'. " +
                 "Only Completed appraisals can be referenced.");

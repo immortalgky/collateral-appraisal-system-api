@@ -39,4 +39,9 @@ public record GetAppraisalByIdResult
     public string? CreatedBy { get; set; }
     public DateTime? UpdatedOn { get; set; }
     public string? UpdatedBy { get; set; }
+
+    // Opt-in (?include=request / ?include=documents); absent from the JSON unless asked for.
+    public Appraisal.Application.Features.Appraisals.GetAppraisalRequest.AppraisalRequestDto? Request { get; set; }
+
+    public List<AppraisalDocumentDto>? Documents { get; set; }
 }

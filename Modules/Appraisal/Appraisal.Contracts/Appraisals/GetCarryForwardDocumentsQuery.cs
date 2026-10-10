@@ -3,16 +3,16 @@ using MediatR;
 namespace Appraisal.Contracts.Appraisals;
 
 /// <summary>
-/// The files of a Completed appraisal that a new request referencing it may reuse: every file of the
-/// prior request (request level and per title) plus the prior appraisal's summary report re-typed
-/// as D036. Throws 404 when the appraisal does not exist and 409 when it is not Completed.
-/// Shared by the FE endpoint, the Integration endpoint and the system-created reappraisals.
+/// The files of an appraisal that a new request referencing it may reuse: every file of its request
+/// (request level and per title) plus its summary report re-typed as D036. Throws 404 when the appraisal
+/// does not exist and, unless <paramref name="AnyStatus"/>, 409 when it is not Completed.
+/// Read by GET /appraisals/{id}?include=documents and by the system-created reappraisals.
 /// </summary>
-/// <param name="EnforceCallerScope">
-/// Set only by the FE endpoint: an external (company) user then gets 404 for an appraisal not assigned to
-/// their company. Off for Integration (LOS policy) and background callers, which have no company user.
+/// <param name="AnyStatus">
+/// Return the data whatever the appraisal's status (the include reads; the consumer checks the status from the
+/// header). Off for the system-created reappraisals, which carry nothing from an appraisal that is not Completed.
 /// </param>
-public record GetCarryForwardDocumentsQuery(Guid AppraisalId, bool EnforceCallerScope = false)
+public record GetCarryForwardDocumentsQuery(Guid AppraisalId, bool AnyStatus = false)
     : IRequest<CarryForwardDocumentsResult>;
 
 public record CarryForwardDocumentsResult(

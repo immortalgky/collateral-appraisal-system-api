@@ -1,23 +1,17 @@
-using Appraisal.Contracts.Appraisals;
 using Dapper;
-using MediatR;
-using Request.Contracts.RequestDocuments.Dto;
 using Request.Contracts.Requests.Dtos;
 
-namespace Appraisal.Application.Features.Appraisals.GetAppraisalCopyTemplate;
+namespace Appraisal.Application.Features.Appraisals.GetAppraisalRequest;
 
 /// <summary>
-/// Returns a copy-ready snapshot of a completed appraisal's request data.
+/// Returns an appraisal's request data, shaped to pre-fill a new request (any status; the consumer checks it).
 /// Uses Dapper + cross-schema joins (appraisal → request) — both schemas
 /// live in the same SQL Server database so the join is free.
 /// </summary>
-public class GetAppraisalCopyTemplateQueryHandler(
-    ISqlConnectionFactory connectionFactory,
-    ISender sender
-) : IQueryHandler<GetAppraisalCopyTemplateQuery, AppraisalCopyTemplateDto>
+public class GetAppraisalRequestQueryHandler(ISqlConnectionFactory connectionFactory) : IQueryHandler<GetAppraisalRequestQuery, AppraisalRequestDto>
 {
-    public async Task<AppraisalCopyTemplateDto> Handle(
-        GetAppraisalCopyTemplateQuery query,
+    public async Task<AppraisalRequestDto> Handle(
+        GetAppraisalRequestQuery query,
         CancellationToken cancellationToken)
     {
         var connection = connectionFactory.GetOpenConnection();
@@ -26,12 +20,13 @@ public class GetAppraisalCopyTemplateQueryHandler(
 
         // ── 1. Header row (from the view we created) ──────────────────────
         const string headerSql = """
-            SELECT AppraisalId, AppraisalNumber, AppointmentDate, AppraisalDate, [Status], AppraisalValue, RequestId,
+            SELECT AppraisalId, RequestId,
                    HouseNumber, ProjectName, Moo, Soi, Road, SubDistrict, District, Province, Postcode,
                    ContactPersonName, ContactPersonPhone, DealerCode,
                    BankingSegment, LoanApplicationNumber, FacilityLimit,
                    AdditionalFacilityLimit, PreviousFacilityLimit, TotalSellingPrice,
-                   HasAppraisalBook
+                   HasAppraisalBook,
+                   PrevAppraisalId, PrevAppraisalNumber, PrevAppraisalValue, PrevAppraisalDate
             FROM appraisal.vw_AppraisalCopyTemplate
             WHERE AppraisalId = @AppraisalId
             """;
@@ -41,14 +36,15 @@ public class GetAppraisalCopyTemplateQueryHandler(
         if (header is null)
             throw new AppraisalNotFoundException(query.AppraisalId);
 
-        if (header.Status != "Completed")
-            throw new ConflictException(
-                $"Appraisal '{header.AppraisalNumber ?? query.AppraisalId.ToString()}' is not eligible for copy " +
-                $"because its status is '{header.Status}'. Only Completed appraisals can be copied.");
-
         // ── 2. Customers ──────────────────────────────────────────────────
         var requestParams = new DynamicParameters();
         requestParams.Add("RequestId", header.RequestId);
+
+        // This appraisal's own prior book, as its request stored it (CAS id + number/value/date, or a legacy number).
+        var prevAppraisal = header.PrevAppraisalId is null && string.IsNullOrWhiteSpace(header.PrevAppraisalNumber)
+            ? null
+            : new PrevAppraisalDto(
+                header.PrevAppraisalId, header.PrevAppraisalNumber, header.PrevAppraisalValue, header.PrevAppraisalDate);
 
         const string customerSql = "SELECT Name, ContactNumber FROM request.RequestCustomers WHERE RequestId = @RequestId";
         var customerRows = await connection.QueryAsync<CustomerRow>(customerSql, requestParams);
@@ -57,17 +53,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
         const string propertySql = "SELECT PropertyType, BuildingType, BuildingTypeOther, SellingPrice FROM request.RequestProperties WHERE RequestId = @RequestId";
         var propertyRows = await connection.QueryAsync<PropertyRow>(propertySql, requestParams);
 
-        // ── 4. Documents (reference-copy only — filename + storage key) ───
-        // Kept for the pre-carry-forward FE; remove when the FE carry-forward release is live.
-        const string documentSql = """
-            SELECT Id, RequestId, DocumentId, DocumentType, FileName, Prefix, [Set], Notes,
-                   FilePath, Source, IsRequired, UploadedBy, UploadedByName, UploadedAt
-            FROM request.RequestDocuments
-            WHERE RequestId = @RequestId
-            """;
-        var documentRows = await connection.QueryAsync<DocumentRow>(documentSql, requestParams);
-
-        // ── 5. Titles (flat TPH table — all collateral-type columns are on the same row) ─
+        // ── 4. Titles (flat TPH table — all collateral-type columns are on the same row) ─
         // RequestTitles uses table-per-hierarchy; owned entities are stored as flat columns.
         const string titleSql = """
             SELECT
@@ -121,25 +107,6 @@ public class GetAppraisalCopyTemplateQueryHandler(
 
         // ── Map to DTOs ───────────────────────────────────────────────────
 
-        // If a NEW Construction-Inspection request copies this appraisal, this is the round it would
-        // be: inspections already in this appraisal's chain + 1. Computed for every copy-template
-        // call; the FE only surfaces it for CI purposes.
-        //
-        // Uses the SAME query AppraisalCreationService stamps from, over the SAME chain, so the
-        // number previewed here is the number the appraisal actually receives — including when the
-        // user picks the original appraisal rather than the newest inspection.
-        var chain = await sender.Send(
-            new ResolveLatestInAppraisalChainQuery(header.AppraisalId), cancellationToken);
-        var priorInspectionCount = chain?.ProgressiveCount ?? 0;
-
-        var prevAppraisal = new PrevAppraisalSnapshotDto(
-            header.AppraisalId,
-            header.AppraisalNumber,
-            header.AppraisalValue,       // From appraisal.ValuationAnalyses.AppraisedValue (LEFT JOIN; null if no valuation yet)
-            header.AppointmentDate,
-            header.AppraisalDate,        // COALESCE(ValuationDate, AppointmentDateTime, CompletedAt) in the view
-            priorInspectionCount + 1);
-
         var detail = new RequestDetailCopyDto(
             header.HasAppraisalBook,
             new LoanDetailDto(
@@ -170,24 +137,6 @@ public class GetAppraisalCopyTemplateQueryHandler(
 
         var properties = propertyRows
             .Select(r => new RequestPropertyDto(r.PropertyType, r.BuildingType, r.BuildingTypeOther, r.SellingPrice))
-            .ToList();
-
-        var documents = documentRows
-            .Select(r => new RequestDocumentDto(
-                r.Id,
-                r.RequestId,
-                r.DocumentId,
-                r.DocumentType,
-                r.FileName,
-                r.Prefix,
-                r.Set,
-                r.Notes,
-                r.FilePath,
-                r.Source,
-                r.IsRequired,
-                r.UploadedBy,
-                r.UploadedByName,
-                r.UploadedAt))
             .ToList();
 
         var titles = titleRows
@@ -243,7 +192,7 @@ public class GetAppraisalCopyTemplateQueryHandler(
             })
             .ToList();
 
-        return new AppraisalCopyTemplateDto(prevAppraisal, detail, customers, properties, titles, documents);
+        return new AppraisalRequestDto(prevAppraisal, detail, customers, properties, titles);
     }
 
     // ── Private flat-row types for Dapper hydration ──────────────────────
@@ -251,11 +200,6 @@ public class GetAppraisalCopyTemplateQueryHandler(
     private class CopyTemplateHeaderRow
     {
         public Guid AppraisalId { get; set; }
-        public string? AppraisalNumber { get; set; }
-        public DateTime? AppointmentDate { get; set; }
-        public DateTime? AppraisalDate { get; set; }
-        public string Status { get; set; } = "";
-        public decimal? AppraisalValue { get; set; }
         public Guid RequestId { get; set; }
         public string? HouseNumber { get; set; }
         public string? ProjectName { get; set; }
@@ -276,6 +220,10 @@ public class GetAppraisalCopyTemplateQueryHandler(
         public decimal? PreviousFacilityLimit { get; set; }
         public decimal? TotalSellingPrice { get; set; }
         public bool HasAppraisalBook { get; set; }
+        public Guid? PrevAppraisalId { get; set; }
+        public string? PrevAppraisalNumber { get; set; }
+        public decimal? PrevAppraisalValue { get; set; }
+        public DateTime? PrevAppraisalDate { get; set; }
     }
 
     private class CustomerRow
@@ -290,24 +238,6 @@ public class GetAppraisalCopyTemplateQueryHandler(
         public string? BuildingType { get; set; }
         public string? BuildingTypeOther { get; set; }
         public decimal? SellingPrice { get; set; }
-    }
-
-    private class DocumentRow
-    {
-        public Guid? Id { get; set; }
-        public Guid RequestId { get; set; }
-        public Guid? DocumentId { get; set; }
-        public string DocumentType { get; set; } = "";
-        public string? FileName { get; set; }
-        public string? Prefix { get; set; }
-        public short? Set { get; set; }
-        public string? Notes { get; set; }
-        public string? FilePath { get; set; }
-        public string? Source { get; set; }
-        public bool IsRequired { get; set; }
-        public string? UploadedBy { get; set; }
-        public string? UploadedByName { get; set; }
-        public DateTime? UploadedAt { get; set; }
     }
 
     private class TitleRow
