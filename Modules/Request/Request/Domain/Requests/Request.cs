@@ -177,6 +177,41 @@ public class Request : Aggregate<Guid>
     }
 
     /// <summary>
+    /// A submitted request's purpose is locked: the appraisal is built from it at first submit and
+    /// nothing re-bases it afterwards. Resending the stored value passes. Compared exactly (ordinal),
+    /// because <see cref="Save"/> stores the value as given. Call before <see cref="Save"/>.
+    /// </summary>
+    public void EnsurePurposeUnchanged(string? purpose)
+    {
+        RuleCheck.Valid()
+            .AddErrorIf(HasBeenSubmitted() && !string.Equals(purpose, Purpose, StringComparison.Ordinal),
+                "The purpose of a request that has already been submitted cannot be changed.")
+            .ThrowIfInvalid();
+    }
+
+    /// <summary>
+    /// A submitted request's prior appraisal is locked for the same reason as its purpose. A prior in CAS
+    /// is identified by its id alone. A legacy book (no id) is identified by its number, compared
+    /// normalised (<see cref="NormalizeBookNumber"/>); an omitted number is not a change, because the form
+    /// never sends it back. The caller keeps the stored prior fields, so nothing here can rewrite them.
+    /// Call before <see cref="SetDetail"/>.
+    /// </summary>
+    public void EnsurePriorUnchanged(Guid? incomingPrevAppraisalId, string? incomingPrevAppraisalNumber)
+    {
+        var storedId = Detail?.PrevAppraisalId;
+        var changed = storedId.HasValue
+            ? incomingPrevAppraisalId != storedId
+            : incomingPrevAppraisalId.HasValue
+              || (NormalizeBookNumber(incomingPrevAppraisalNumber) is { } number
+                  && number != NormalizeBookNumber(Detail?.PrevAppraisalNumber));
+
+        RuleCheck.Valid()
+            .AddErrorIf(HasBeenSubmitted() && changed,
+                "The prior appraisal of a request that has already been submitted cannot be changed.")
+            .ThrowIfInvalid();
+    }
+
+    /// <summary>
     /// Promotes the request to "New" (validated, ready to submit) after a full save.
     /// Silently does nothing once the request has been submitted: editing a submitted request --
     /// for example after a route-back to appraisal-initiation -- is legitimate, but it must not
