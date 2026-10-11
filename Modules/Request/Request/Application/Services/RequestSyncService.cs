@@ -4,9 +4,36 @@ namespace Request.Application.Services;
 /// Service for synchronizing request-related data (titles, documents).
 /// </summary>
 public class RequestSyncService(
-    IRequestTitleRepository titleRepository
+    IRequestTitleRepository titleRepository,
+    IDateTimeProvider dateTimeProvider
 ) : IRequestSyncService
 {
+    // A file with no upload time (the default date) gets the current app time (ApplicationNow, the clock the
+    // audit columns use), as on create - never 0001-01-01.
+    // An empty placeholder (no file) has no upload, so it keeps what the caller sent.
+    private DateTime? UploadedAtFor(Guid? documentId, DateTime? uploadedAt) =>
+        documentId.HasValue && uploadedAt == default(DateTime) ? dateTimeProvider.ApplicationNow : uploadedAt;
+
+    // The label of a row being ADDED. A forced label (the Followup resubmit stamps FOLLOWUP) applies only to a row
+    // that ends up with a file: an empty placeholder is not an answer to anything, and a FOLLOWUP label on it
+    // would stick to whatever staff upload into it later.
+    private static string NewRowSource(string? forcedSource, string? payloadSource, Guid? documentId) =>
+        forcedSource is not null && documentId.HasValue ? forcedSource : ClientDocumentSource.Normalize(payloadSource);
+
+    // The label of an existing row after a sync. A server-stamped FOLLOWUP row never changes; a row whose file
+    // changed takes the forced label only if it still has a file, else the payload's (whitelisted) one.
+    private static string? UpdatedSource(
+        string? storedSource, Guid? storedDocumentId, Guid? newDocumentId, string? forcedSource, string? payloadSource) =>
+        ReStamped(storedSource, storedDocumentId, newDocumentId)
+            ? NewRowSource(forcedSource, payloadSource, newDocumentId)
+            : storedSource;
+
+    // A row that receives a different file (a carried PREV file replaced, or an empty saved slot filled)
+    // takes the payload's Source; a server-stamped FOLLOWUP row never changes label. Every Source taken from
+    // a payload goes through ClientDocumentSource, whoever the caller is.
+    private static bool ReStamped(string? storedSource, Guid? storedDocumentId, Guid? newDocumentId) =>
+        !ClientDocumentSource.IsFollowUp(storedSource) && storedDocumentId != newDocumentId;
+
     public async Task<IReadOnlyList<RequestTitle>> SyncTitlesAsync(
         Guid requestId,
         List<RequestTitleDto> titles,
@@ -66,11 +93,16 @@ public class RequestSyncService(
                     dto.ToRequestTitleData() with { RequestId = requestId });
                 newTitle.SetSequenceNumber(sequence);
 
-                // Reset document IDs for a new title
+                // Reset document IDs for a new title. The rows are re-created, so a stored FOLLOWUP file the
+                // client echoes back keeps its label (and only that: a client cannot make a FOLLOWUP row).
+                var storedLabels = existing.Documents
+                    .Where(d => d.DocumentId.HasValue)
+                    .GroupBy(d => d.DocumentId!.Value)
+                    .ToDictionary(g => g.Key, g => g.First().Source);
                 var docsWithoutIds = dto.Documents
                     .Select(d => d with { Id = null })
                     .ToList();
-                SyncTitleDocuments(newTitle, docsWithoutIds, forcedSource);
+                SyncTitleDocuments(newTitle, docsWithoutIds, forcedSource, storedLabels);
 
                 await titleRepository.AddAsync(newTitle, cancellationToken);
                 resultTitles.Add(newTitle);
@@ -121,16 +153,17 @@ public class RequestSyncService(
                 dto.Set,
                 dto.Notes,
                 dto.FilePath,
-                forcedSource ?? dto.Source,
+                NewRowSource(forcedSource, dto.Source, dto.DocumentId),
                 dto.IsRequired,
                 dto.UploadedBy,
                 dto.UploadedByName,
-                dto.UploadedAt
+                UploadedAtFor(dto.DocumentId, dto.UploadedAt)
             ));
 
         // UPDATE: Docs with matching ID — only when something actually changed.
         // Source is intentionally PRESERVED on update (audit-trail data — a data-fix resubmit
-        // must not silently relabel a previously FOLLOWUP-sourced row back to REQUEST).
+        // must not silently relabel a previously FOLLOWUP-sourced row back to REQUEST). The exception: a
+        // non-FOLLOWUP row that receives a different file (see ReStamped) takes the payload's.
         var existingById = existingDocs.Where(d => d.Id != Guid.Empty).ToDictionary(d => d.Id);
         foreach (var dto in incomingDocs.Where(d => d.Id.HasValue && existingIds.Contains(d.Id.Value)))
         {
@@ -146,11 +179,11 @@ public class RequestSyncService(
                 dto.Set,
                 dto.Notes,
                 dto.FilePath,
-                existing.Source,
+                UpdatedSource(existing.Source, existing.DocumentId, dto.DocumentId, forcedSource, dto.Source),
                 dto.IsRequired,
                 dto.UploadedBy,
                 dto.UploadedByName,
-                dto.UploadedAt
+                UploadedAtFor(dto.DocumentId, dto.UploadedAt)
             ));
         }
 
@@ -171,8 +204,8 @@ public class RequestSyncService(
                dto.UploadedByName != existing.UploadedByName;
     }
 
-    private static void SyncTitleDocuments(RequestTitle title, List<RequestTitleDocumentDto> documents,
-        string? forcedSource = null)
+    private void SyncTitleDocuments(RequestTitle title, List<RequestTitleDocumentDto> documents,
+        string? forcedSource = null, IReadOnlyDictionary<Guid, string?>? storedLabels = null)
     {
         var existingDocs = title.Documents.ToList();
         var existingIds = existingDocs
@@ -192,8 +225,17 @@ public class RequestSyncService(
         // CREATE: Docs without ID
         foreach (var dto in documents.Where(d => !d.Id.HasValue || d.Id.Value == Guid.Empty))
         {
-            var data = dto.ToTitleDocumentData();
-            title.AddDocument(forcedSource is null ? data : data with { Source = forcedSource });
+            // A title re-created for a new collateral type: a file it already held keeps its stored label, so only
+            // a genuinely new file takes the forced one.
+            var source = dto.DocumentId is { } fileId && storedLabels is not null && storedLabels.TryGetValue(fileId, out var stored)
+                ? ClientDocumentSource.Normalize(stored, echoesStoredFollowUp: true)
+                : NewRowSource(forcedSource, dto.Source, dto.DocumentId);
+            var data = dto.ToTitleDocumentData() with
+            {
+                Source = source,
+                UploadedAt = UploadedAtFor(dto.DocumentId, dto.UploadedAt)!.Value
+            };
+            title.AddDocument(data);
         }
 
         // UPDATE: Docs with matching ID (only if changed).
@@ -204,7 +246,14 @@ public class RequestSyncService(
             var existing = existingDocs.FirstOrDefault(e => e.Id == dto.Id!.Value);
             if (existing is not null && HasDocumentChanges(dto, existing))
             {
-                var data = dto.ToTitleDocumentData() with { Source = existing.Source };
+                var data = dto.ToTitleDocumentData() with
+                {
+                    Source = UpdatedSource(existing.Source, existing.DocumentId, dto.DocumentId, forcedSource, dto.Source),
+                    // The same file keeps its stored upload time when the payload leaves it out (a notes-only edit).
+                    UploadedAt = dto.UploadedAt == default && dto.DocumentId == existing.DocumentId
+                        ? existing.UploadedAt
+                        : UploadedAtFor(dto.DocumentId, dto.UploadedAt)!.Value
+                };
                 title.UpdateDocument(dto.Id!.Value, data);
             }
         }
@@ -212,8 +261,9 @@ public class RequestSyncService(
 
     private static bool HasDocumentChanges(RequestTitleDocumentDto dto, TitleDocument existing)
     {
-        // Source intentionally excluded — it's preserved across updates, so a payload Source
-        // difference should not force an Update call.
+        // Source intentionally excluded — it's preserved across updates (re-stamped only when the
+        // DocumentId changes, which is itself a change), so a payload Source difference alone
+        // should not force an Update call.
         return dto.DocumentId != existing.DocumentId ||
                dto.DocumentType != existing.DocumentType ||
                dto.FileName != existing.FileName ||

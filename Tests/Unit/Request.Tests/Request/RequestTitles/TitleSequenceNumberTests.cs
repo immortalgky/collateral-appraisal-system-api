@@ -65,7 +65,7 @@ public class TitleSequenceNumberTests
         var titleRepository = Substitute.For<IRequestTitleRepository>();
         titleRepository.GetByRequestIdWithDocumentsAsync(requestId, Arg.Any<CancellationToken>())
             .Returns(existing);
-        var service = new RequestSyncService(titleRepository);
+        var service = new RequestSyncService(titleRepository, Substitute.For<IDateTimeProvider>());
 
         // C first, then a new row, then A, B — the new row sits in the middle of the existing ones.
         var result = await service.SyncTitlesAsync(requestId, [

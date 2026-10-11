@@ -1,9 +1,9 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
+using Shared.Identity;
 
 namespace Notification.Domain.Notifications.Hubs;
 
-public class NotificationHub : Hub
+public class NotificationHub(ConnectionSessionTracker sessions) : Hub
 {
     public async Task JoinGroup(string groupName)
     {
@@ -23,11 +23,18 @@ public class NotificationHub : Hub
             await Groups.AddToGroupAsync(Context.ConnectionId, $"user-{username}");
         }
 
+        // A browser session's id rides in the "sid" claim; remember it so the connection can be closed
+        // when that session ends (see SessionConnectionSweeper). Bearer / dev callers carry none.
+        if (Guid.TryParse(Context.User?.FindFirst("sid")?.Value, out var sessionId))
+            sessions.Add(Context.ConnectionId, sessionId, Context);
+
         await base.OnConnectedAsync();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
+        sessions.Remove(Context.ConnectionId);
+
         var username = ResolveUsername();
         if (!string.IsNullOrEmpty(username))
         {
@@ -37,19 +44,8 @@ public class NotificationHub : Hub
         await base.OnDisconnectedAsync(exception);
     }
 
-    // NotificationService publishes to group "user-{username}" using the login string
-    // (e.g. "sth.staff2"). The "name" claim is always present in the access token
-    // (TokenService.GetDestinations forces it to both tokens) and equals ApplicationUser.UserName,
-    // so it's the reliable primary source. ClaimTypes.Name is the fallback in case OpenIddict's
-    // inbound claim mapping is ever enabled. preferred_username is last because it only ships
-    // when the "profile" scope is requested.
-    private string? ResolveUsername()
-    {
-        var user = Context.User;
-        if (user?.Identity?.IsAuthenticated != true) return null;
-
-        return user.FindFirst("name")?.Value
-            ?? user.FindFirst(ClaimTypes.Name)?.Value
-            ?? user.FindFirst("preferred_username")?.Value;
-    }
+    // NotificationService publishes to group "user-{username}" using the login string (e.g. "sth.staff2").
+    // GetUserCode is the one place that knows which claim carries it, and in which order to look.
+    private string? ResolveUsername() =>
+        Context.User?.Identity?.IsAuthenticated == true ? Context.User.GetUserCode() : null;
 }

@@ -22,5 +22,8 @@ public record MeResponse(
     List<string> Permissions,
     List<MeGroupDto> Groups,
     List<MeTeamDto> Teams,
-    bool MustChangePassword
+    bool MustChangePassword,
+    // End of a temporary-access window, server local time, whole seconds, no 'Z' — the value the
+    // access_expires_at token claim carried. Null (omitted) for ordinary accounts.
+    DateTime? AccessExpiresAt
 );

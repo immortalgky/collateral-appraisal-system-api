@@ -13,9 +13,10 @@ internal class SubmitRequestCommandHandler(
         var request = await requestRepository.GetByIdWithDocumentsAsync(command.Id, cancellationToken);
         if (request is null) throw new RequestNotFoundException(command.Id);
 
-        // Appeal/Progressive require a Completed prior appraisal — reject before submitting.
+        // Purpose-dependent prior appraisal rule (required / forbidden / Completed) — reject before submitting.
         await PriorAppraisalSubmissionGuard.EnsureValidAsync(
-            request.Purpose, request.Detail?.PrevAppraisalId, mediator, cancellationToken);
+            request.Purpose, request.Detail?.PrevAppraisalId, request.Detail?.PrevAppraisalNumber, mediator,
+            cancellationToken, reappraisalBookNumber: request.ReappraisalBookNumber);
 
         var titles = (await requestTitleRepository
             .GetByRequestIdWithDocumentsAsync(request.Id, cancellationToken)).ToList();

@@ -498,7 +498,6 @@ public class AuthDataSeed(
                     OpenIddictConstants.Permissions.Endpoints.Authorization,
                     OpenIddictConstants.Permissions.Endpoints.EndSession,
                     OpenIddictConstants.Permissions.Endpoints.Token,
-                    OpenIddictConstants.Permissions.GrantTypes.Password,
                     OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
                     OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
                     OpenIddictConstants.Permissions.ResponseTypes.Code,
@@ -525,6 +524,7 @@ public class AuthDataSeed(
                 }
             };
             AddOriginUris(spa, origins);
+            AddBffUris(spa);
             await manager.CreateAsync(spa);
             logger.LogInformation("Seeded `spa` OAuth client for origin(s) {Origins}", string.Join(", ", origins));
         }
@@ -546,7 +546,6 @@ public class AuthDataSeed(
                     OpenIddictConstants.Permissions.Endpoints.Authorization,
                     OpenIddictConstants.Permissions.Endpoints.EndSession,
                     OpenIddictConstants.Permissions.Endpoints.Token,
-                    OpenIddictConstants.Permissions.GrantTypes.Password,
                     OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
                     OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
                     OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
@@ -627,6 +626,25 @@ public class AuthDataSeed(
             descriptor.RedirectUris.Add(new Uri($"{origin}/callback"));
             descriptor.PostLogoutRedirectUris.Add(new Uri($"{origin}/"));
         }
+    }
+
+    /// <summary>
+    /// The API's own OIDC callbacks. The API is the OIDC client now, so the browser comes back to
+    /// <c>{AppBaseUrl}/signin-oidc</c> and <c>/signout-callback-oidc</c>. Existing databases get these from
+    /// the migration script 20261010090000_SeedData_SpaBffRedirectUris.sql — the seeder only runs in
+    /// Development, and only creates the client when it is missing.
+    /// </summary>
+    private void AddBffUris(OpenIddictApplicationDescriptor descriptor)
+    {
+        var apiBase = configuration["AppBaseUrl"]?.TrimEnd('/');
+        if (string.IsNullOrEmpty(apiBase))
+        {
+            logger.LogError("AppBaseUrl is empty — the `spa` client gets no API callback URIs, so sign-in will fail.");
+            return;
+        }
+
+        descriptor.RedirectUris.Add(new Uri($"{apiBase}/signin-oidc"));
+        descriptor.PostLogoutRedirectUris.Add(new Uri($"{apiBase}/signout-callback-oidc"));
     }
 
     private async Task SeedCompaniesAsync()

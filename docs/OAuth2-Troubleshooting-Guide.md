@@ -1,5 +1,12 @@
 # OAuth2 Troubleshooting Guide
 
+> **Superseded for the browser SPA (BFF migration).** The SPA no longer holds tokens: it signs in through the
+> API (`GET /auth/login` -> our OpenIddict -> `/signin-oidc`) and keeps only an HttpOnly session cookie backed by
+> `auth.UserSessions`. `POST /auth/token`, `POST /auth/refresh`, the password grant and the SPA-side PKCE/refresh
+> flows described below no longer exist. Machine clients (LOS, CLS) are unchanged: `client_credentials` against
+> `/connect/token`. The OpenIddict concepts here still apply to those clients and to the API's own sign-in.
+
+
 ## Common Issues and Solutions for OAuth2/OpenIddict
 
 This guide helps you quickly identify and resolve common OAuth2 authentication issues in our Collateral Appraisal System.

@@ -1,9 +1,11 @@
+using Auth.Infrastructure.Session;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace Auth.Pages.Account;
 
 [AllowAnonymous]
+[AllowWhilePasswordChangeRequired]
 public class AccessDenied : PageModel
 {
     public void OnGet()
