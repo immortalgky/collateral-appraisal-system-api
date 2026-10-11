@@ -38,6 +38,9 @@ public static class WebApplicationFactoryHelper
                     {
                         ["ConnectionStrings:DefaultConnection"] = mssqlConnectionString,
                         ["ConnectionStrings:Database"] = mssqlConnectionString,
+                        // appsettings.Development.json points Hangfire at the developer's own database; a test
+                        // host must not register jobs or start a worker against it.
+                        ["ConnectionStrings:Hangfire"] = mssqlConnectionString,
                         ["RabbitMq:Host"] = rabbitMqConnectionString,
                         ["RabbitMq:Username"] = "testuser",
                         ["RabbitMq:Password"] = "testpw",
@@ -55,6 +58,7 @@ public static class WebApplicationFactoryHelper
         // shared test host — retrying any RetryRequested row seeded for this node mid-test (flaky under load).
         // UseSetting is visible to builder.Configuration during Program's service registration.
         builder.UseSetting("FailedMessages:Enabled", "false");
+        builder.UseSetting("ConnectionStrings:Hangfire", mssqlConnectionString);
 
         // The real outbox delivery loops (one per module DbContext) poll the same tables the tests seed, so
         // they can claim a seeded Pending row or re-process a just-reset orphan between a test's write and its

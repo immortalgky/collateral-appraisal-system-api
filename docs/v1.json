@@ -1158,28 +1158,6 @@
         }
       }
     },
-    "/auth/token": {
-      "post": {
-        "tags": [
-          "Api"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TokenRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/auth/clients": {
       "post": {
         "tags": [
@@ -3660,33 +3638,6 @@
         "properties": {
           "isSuccess": {
             "type": "boolean"
-          }
-        }
-      },
-      "TokenRequest": {
-        "required": [
-          "grantType",
-          "clientId",
-          "code",
-          "codeVerifier",
-          "redirectUri"
-        ],
-        "type": "object",
-        "properties": {
-          "grantType": {
-            "type": "string"
-          },
-          "clientId": {
-            "type": "string"
-          },
-          "code": {
-            "type": "string"
-          },
-          "codeVerifier": {
-            "type": "string"
-          },
-          "redirectUri": {
-            "type": "string"
           }
         }
       },

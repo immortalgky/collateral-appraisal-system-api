@@ -37,6 +37,10 @@ param(
     [string]$Environment = 'Production',
     [switch]$SkipEf,                      # regenerate only the SQL-file sections (fast)
 
+    # The API's public base URL (the environment's AppBaseUrl, e.g. https://host:7111). Substituted for the
+    # $ApiBaseUrl$ token in one-time scripts (the `spa` client's sign-in callbacks).
+    [string]$ApiBaseUrl,
+
     # Defaults baked into 00_CreateDatabase.sql's DECLARE block. The DBA can edit
     # them in the generated file; these only set the starting point.
     [string]$Collation   = 'SQL_Latin1_General_CP1_CI_AS',
@@ -524,6 +528,10 @@ foreach ($f in $oneTime) {
         continue
     }
     $text = (Read-ScriptText $f.FullName).TrimEnd()
+    if ($text.Contains('$ApiBaseUrl$')) {
+        if ($ApiBaseUrl) { $text = $text.Replace('$ApiBaseUrl$', $ApiBaseUrl.Trim().TrimEnd('/')) }
+        else { Write-Warning "$($f.Name) needs -ApiBaseUrl; the token is left in place and the script will stop with a clear message if it applies to a database that has the 'spa' client." }
+    }
     $res  = (Get-ResourceName $f.FullName).Replace("'", "''")
     [void]$sb2.AppendLine("-- ---------------------------------------------------------------------------")
     [void]$sb2.AppendLine("-- $($f.Name)")

@@ -48,5 +48,9 @@ public class ApplicationUser : IdentityUser<Guid>
     /// <summary>Whether the account may be used right now: active, and inside its access window when
     /// it has one. Every account-state gate (login, refresh, Hangfire dashboard) asks this single
     /// question so a window that has run out closes the same doors deactivation closes.</summary>
-    public bool IsUsable(DateTime now) => IsActive && (AccessExpiresAt is null || AccessExpiresAt > now);
+    public bool IsUsable(DateTime now) => IsUsable(IsActive, AccessExpiresAt, now);
+
+    /// <summary>The rule itself, for callers that hold a cached copy of the two fields instead of the user.</summary>
+    public static bool IsUsable(bool isActive, DateTime? accessExpiresAt, DateTime now) =>
+        isActive && (accessExpiresAt is null || accessExpiresAt > now);
 }

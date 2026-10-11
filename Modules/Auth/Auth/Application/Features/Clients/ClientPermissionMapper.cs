@@ -12,11 +12,10 @@ public static class ClientPermissionMapper
 {
     public const string GrantAuthorizationCode = "authorization_code";
     public const string GrantClientCredentials = "client_credentials";
-    public const string GrantPassword = "password";
     public const string GrantRefreshToken = "refresh_token";
 
     public static readonly string[] AllGrantTypes =
-        [GrantAuthorizationCode, GrantClientCredentials, GrantPassword, GrantRefreshToken];
+        [GrantAuthorizationCode, GrantClientCredentials, GrantRefreshToken];
 
     public static readonly HashSet<string> SystemClientIds =
         new(StringComparer.OrdinalIgnoreCase) { "spa", "los", "cls" };
@@ -82,9 +81,6 @@ public static class ClientPermissionMapper
         if (gts.Contains(GrantClientCredentials))
             perms.Add(Consts.Permissions.GrantTypes.ClientCredentials);
 
-        if (gts.Contains(GrantPassword))
-            perms.Add(Consts.Permissions.GrantTypes.Password);
-
         if (gts.Contains(GrantRefreshToken))
             perms.Add(Consts.Permissions.GrantTypes.RefreshToken);
 
@@ -103,7 +99,6 @@ public static class ClientPermissionMapper
         var result = new List<string>();
         if (set.Contains(Consts.Permissions.GrantTypes.AuthorizationCode)) result.Add(GrantAuthorizationCode);
         if (set.Contains(Consts.Permissions.GrantTypes.ClientCredentials)) result.Add(GrantClientCredentials);
-        if (set.Contains(Consts.Permissions.GrantTypes.Password)) result.Add(GrantPassword);
         if (set.Contains(Consts.Permissions.GrantTypes.RefreshToken)) result.Add(GrantRefreshToken);
         return result;
     }

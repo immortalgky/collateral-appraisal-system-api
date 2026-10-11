@@ -33,6 +33,10 @@ param(
     # API URL in at BUILD time, so this must match the target environment.
     [string]$FrontendMode = 'production',
     [switch]$SkipDbScripts,
+    # The API's public base URL (the environment's AppBaseUrl). The `spa` OAuth client's sign-in callbacks
+    # are registered against it by a one-time DB script. Defaults to VITE_API_URL of .env.<FrontendMode>,
+    # which is the same public API address.
+    [string]$ApiBaseUrl,
     [switch]$SkipDbTool,
     # Target RID for the .NET outputs. Framework-dependent either way (the server
     # supplies the runtime), but naming the RID makes the build emit the WINDOWS
@@ -96,8 +100,21 @@ Invoke-Step "Publish secret tool (CasSecretTool)" {
 if ($SkipDbScripts) {
     Write-Host "==> Generate database SQL scripts (skipped)" -ForegroundColor Yellow
 } else {
+    if (-not $ApiBaseUrl) {
+        $feEnv = Join-Path $FrontendRepo ".env.$FrontendMode"
+        $m = if (Test-Path $feEnv) { Select-String -Path $feEnv -Pattern '^\s*VITE_API_URL\s*=\s*(\S+)' | Select-Object -First 1 }
+        if ($m) {
+            # .env values may be quoted and may carry a path; the DB scripts need only scheme://host[:port].
+            $raw = $m.Matches[0].Groups[1].Value.Trim('"', "'")
+            $uri = $null
+            if (-not [Uri]::TryCreate($raw, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -notin 'http', 'https') {
+                throw "VITE_API_URL in $feEnv is '$raw', which is not an absolute http(s) URL. Fix it or pass -ApiBaseUrl."
+            }
+            $ApiBaseUrl = $uri.GetLeftPart('Authority')
+        }
+    }
     Invoke-Step "Generate database SQL scripts" {
-        & "$PSScriptRoot/New-DbDeploymentScripts.ps1" -Version $Version -OutDir (Join-Path $stage 'db')
+        & "$PSScriptRoot/New-DbDeploymentScripts.ps1" -Version $Version -OutDir (Join-Path $stage 'db') -ApiBaseUrl $ApiBaseUrl
     }
 }
 

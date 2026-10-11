@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Auth.Application.Configurations;
 
 namespace Auth.Application.Features.Users.SetAccessWindow;
@@ -20,4 +21,9 @@ public record SetAccessWindowCommand(Guid UserId, DateTime ExpiresAt, string Rea
 
 /// <param name="Password">The newly generated password — null when nothing was rotated (an extend, or
 /// a close, where a password would be useless anyway). Shown to the admin once and never again.</param>
-public record SetAccessWindowResult(DateTime AccessExpiresAt, string? Password);
+public record SetAccessWindowResult(DateTime AccessExpiresAt, string? Password)
+{
+    /// <summary>For the endpoint to evict after commit; not part of the response.</summary>
+    [JsonIgnore]
+    public IReadOnlyList<Guid> EndedSessionIds { get; init; } = [];
+}

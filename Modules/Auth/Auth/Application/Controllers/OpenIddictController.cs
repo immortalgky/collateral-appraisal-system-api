@@ -4,15 +4,16 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.WebUtilities;
 using OpenIddict.Server.AspNetCore;
-using Auth.Application.Helpers;
 using Auth.Application.Services;
 using Auth.Domain.Auditing;
 using Auth.Domain.Identity;
+using Auth.Infrastructure.Session;
 using Microsoft.AspNetCore.Identity;
 using Shared.Time;
 
 namespace Auth.Application.Controllers;
 
+[AllowWhilePasswordChangeRequired]
 public class OpenIddictController(
     ITokenService tokenService,
     IAuthAuditWriter auditWriter,
@@ -28,13 +29,13 @@ public class OpenIddictController(
         if (request is null)
             return BadRequest(new { error = "Invalid request" });
 
-        // prompt=login means the client wants a genuinely interactive sign-in. The SPA sends it on
-        // every trip through this endpoint, because it only lands here once its silent refresh has
-        // already failed — i.e. the session is over and the user must prove who they are again.
+        // prompt=login means the client wants a genuinely interactive sign-in. The API's OIDC handler
+        // sends it on every challenge: it only challenges when the browser has no valid app session, so
+        // the user must prove who they are again.
         //
         // Without this branch the Identity SSO cookie alone is enough to mint a fresh authorization
         // code, so a user who closed the browser (or idled out) would be signed straight back in
-        // without typing a password, defeating the session-scoped refresh cookie. Relying on that
+        // without typing a password, defeating the session-scoped app cookie. Relying on that
         // cookie expiring on its own is not sound: it is already a session cookie, yet Chromium
         // browsers configured to "continue where you left off" restore session cookies on relaunch.
         //
@@ -48,11 +49,6 @@ public class OpenIddictController(
         if (request.HasPromptValue(OpenIddictConstants.PromptValues.Login))
         {
             await HttpContext.SignOutAsync("Identity.Application");
-            // Drop the refresh cookie alongside the SSO cookie. Without this, a user who lands on the
-            // password form and walks away still holds a working refresh token: the SPA's silent
-            // /auth/refresh keeps succeeding for the rest of its lifetime, so "prove who you are
-            // again" would not actually be enforced.
-            RefreshTokenCookieHelper.ClearRefreshTokenCookie(HttpContext);
             return Redirect($"/Account/Login?ReturnUrl={Uri.EscapeDataString(BuildAuthorizeUrlWithoutPrompt())}");
         }
 
@@ -69,7 +65,6 @@ public class OpenIddictController(
         if (signedInUser is null || !signedInUser.IsUsable(dateTimeProvider.ApplicationNow))
         {
             await HttpContext.SignOutAsync("Identity.Application");
-            RefreshTokenCookieHelper.ClearRefreshTokenCookie(HttpContext);
             return Redirect(
                 $"/Account/Login?ReturnUrl={Uri.EscapeDataString(BuildAuthorizeUrlWithoutPrompt())}");
         }
@@ -181,16 +176,17 @@ public class OpenIddictController(
     [HttpPost("~/connect/logout")]
     public async Task<IActionResult> Logout()
     {
-        // /connect/logout is anonymous and may be hit without an active session, so only
-        // audit when we actually have an authenticated user to attribute the logout to.
-        if (User.Identity?.IsAuthenticated == true)
+        // /connect/logout is anonymous and may be hit without an active session, so only audit when
+        // the SSO cookie names a user to attribute the logout to. The cookie has to be authenticated
+        // explicitly: User comes from the default scheme (the app session), which is not this cookie.
+        var idpUser = (await HttpContext.AuthenticateAsync("Identity.Application")).Principal;
+        if (idpUser?.Identity?.IsAuthenticated == true)
         {
-            Guid? userId = Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) ? id : null;
-            await auditWriter.RecordAuthEventAsync(AuditAction.LoggedOut, userId, User.Identity?.Name);
+            Guid? userId = Guid.TryParse(idpUser.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) ? id : null;
+            await auditWriter.RecordAuthEventAsync(AuditAction.LoggedOut, userId, idpUser.Identity.Name);
         }
 
         await HttpContext.SignOutAsync("Identity.Application");
-        RefreshTokenCookieHelper.ClearRefreshTokenCookie(HttpContext);
 
         return SignOut(
             authenticationSchemes: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
