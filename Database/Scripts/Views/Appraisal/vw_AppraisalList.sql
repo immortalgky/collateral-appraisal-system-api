@@ -85,11 +85,13 @@ SELECT a.Id,
        -- for the same reason as AssigneeName.
        r.Requestor                                                                         AS RequestorCode,
        NULLIF(r.RequestorName, N'')                                                        AS RequestorName,
-       -- The appraisal (valuation) date, same expression as vw_AppraisalCopyTemplate.AppraisalDate:
-       -- ValuationAnalyses.ValuationDate leads; the latest non-cancelled appointment is only a
-       -- fallback for an appraisal with no valuation row yet; CompletedAt covers legacy rows with
-       -- neither. Appended last for the same reason as AssigneeName.
-       COALESCE(va.ValuationDate, apt.AppointmentDateTime, a.CompletedAt)                  AS AppraisalDate
+       -- The appraisal (valuation) date. ValuationAnalyses.ValuationDate is re-derived from the latest
+       -- non-cancelled appointment on every pricing save, so only appraisals not priced yet fall
+       -- through it; CompletedAt covers legacy rows with no valuation row. The `apt` apply is NOT
+       -- used here on purpose: an apply runs for every row before ORDER BY ... TOP can pick a page,
+       -- so sorting or range-filtering on this column would cost ~3.5 s CPU over 105k rows.
+       -- Appended last for the same reason as AssigneeName.
+       COALESCE(va.ValuationDate, a.CompletedAt)                                           AS AppraisalDate
        -- ElapsedHours / RemainingHours are computed in C# (GetAppraisalsQueryHandler) using
        -- IBusinessTimeCalculator so they exclude weekends, holidays and lunch. They are NOT
        -- derived here: a SQL DATEDIFF would count calendar hours (nights/weekends included).

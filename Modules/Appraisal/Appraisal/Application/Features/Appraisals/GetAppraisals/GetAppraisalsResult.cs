@@ -115,8 +115,8 @@ public record AppraisalDto
     public string? RequestorName { get; init; }
 
     /// <summary>
-    /// The appraisal (valuation) date: ValuationDate, falling back to the latest appointment, then
-    /// CompletedAt — the same rule as the previous-appraisal reference.
+    /// The appraisal (valuation) date: ValuationDate (re-derived from the latest appointment on every
+    /// pricing save), falling back to CompletedAt. Null for an appraisal that is not priced yet.
     /// </summary>
     public DateTime? AppraisalDate { get; init; }
 
