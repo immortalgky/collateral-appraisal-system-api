@@ -1,5 +1,12 @@
 # OAuth2 Hands-On Exercises
 
+> **Superseded for the browser SPA (BFF migration).** The SPA no longer holds tokens: it signs in through the
+> API (`GET /auth/login` -> our OpenIddict -> `/signin-oidc`) and keeps only an HttpOnly session cookie backed by
+> `auth.UserSessions`. `POST /auth/token`, `POST /auth/refresh`, the password grant and the SPA-side PKCE/refresh
+> flows described below no longer exist. Machine clients (LOS, CLS) are unchanged: `client_credentials` against
+> `/connect/token`. The OpenIddict concepts here still apply to those clients and to the API's own sign-in.
+
+
 ## Practical Learning Exercises for Junior Developers
 
 These exercises will help you understand OAuth2/OpenIddict implementation through hands-on practice. Each exercise builds on the previous ones and includes detailed solutions.

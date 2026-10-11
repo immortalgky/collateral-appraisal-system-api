@@ -1,5 +1,6 @@
 using Auth.Application.Services;
 using Auth.Domain.Auditing;
+using Auth.Domain.Sessions;
 using Auth.Infrastructure;
 using Microsoft.AspNetCore.Identity;
 using Shared.Exceptions;
@@ -9,7 +10,9 @@ namespace Auth.Application.Features.Users.ResetPassword;
 public class ResetPasswordCommandHandler(
     UserManager<ApplicationUser> userManager,
     IAuthAuditWriter auditWriter,
-    AuthDbContext dbContext)
+    AuthDbContext dbContext,
+    IUserSessionService sessions,
+    AuthorizationClaimsBuilder claims)
     : ICommandHandler<ResetPasswordCommand>
 {
     public async Task<Unit> Handle(ResetPasswordCommand command, CancellationToken cancellationToken)
@@ -37,6 +40,10 @@ public class ResetPasswordCommandHandler(
         if (!updateResult.Succeeded)
             throw new InvalidOperationException(string.Join("; ", updateResult.Errors.Select(e => e.Description)));
 
+        // Whoever held the old password must not stay signed in on it.
+        await sessions.RevokeUserAsync(user.Id, user.UserName, SessionEndReason.PasswordReset,
+            cancellationToken: cancellationToken);
+
         auditWriter.Record(
             AuditAction.Updated,
             AuditEntityType.User,
@@ -44,6 +51,11 @@ public class ResetPasswordCommandHandler(
             user.UserName,
             new { action = "passwordReset" });
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        // The forced-change flag must reach this node's cached view of the user now (the other node's within
+        // its CacheLifetime) — but only now that it is in the database. Dropping the cached view any earlier would let a concurrent request
+        // re-read the old flag and cache it again.
+        claims.Invalidate(user.Id);
 
         return Unit.Value;
     }

@@ -1,5 +1,6 @@
 using Auth.Application.Services;
 using Auth.Domain.Auditing;
+using Auth.Domain.Sessions;
 using Auth.Infrastructure.Configuration;
 using Microsoft.AspNetCore.Identity;
 using Shared.Exceptions;
@@ -11,7 +12,8 @@ public class SetAccessWindowCommandHandler(
     UserManager<ApplicationUser> userManager,
     IPasswordPolicyProvider passwordPolicyProvider,
     IAuthAuditWriter auditWriter,
-    IDateTimeProvider dateTimeProvider)
+    IDateTimeProvider dateTimeProvider,
+    IUserSessionService sessions)
     : ICommandHandler<SetAccessWindowCommand, SetAccessWindowResult>
 {
     public async Task<SetAccessWindowResult> Handle(
@@ -64,6 +66,7 @@ public class SetAccessWindowCommandHandler(
         user.AccessExpiresAt = command.ExpiresAt;
 
         string? password = null;
+        IReadOnlyList<Guid> endedSessions = [];
         if (!command.ExtendOnly)
         {
             var generated = TemporaryPasswordGenerator.Generate(policy);
@@ -87,6 +90,12 @@ public class SetAccessWindowCommandHandler(
             if (!result.Succeeded)
                 throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
 
+            // The password just rotated, so every browser session opened on the previous one ends — a window
+            // that is being closed really does end the session, and a new window starts clean.
+            endedSessions = await sessions.RevokeUserAsync(user.Id, user.UserName,
+                closing ? SessionEndReason.AccessExpired : SessionEndReason.PasswordReset,
+                cancellationToken: cancellationToken);
+
             // A closed window's password is dead on arrival — rotating it is the point, handing it
             // back is not. Only an open window returns one.
             password = closing ? null : generated;
@@ -105,6 +114,8 @@ public class SetAccessWindowCommandHandler(
                 passwordRotated = !command.ExtendOnly
             });
 
-        return new SetAccessWindowResult(command.ExpiresAt, password);
+        // The cached view of the user and of the ended sessions is dropped by the endpoint once the transactional
+        // behavior has committed.
+        return new SetAccessWindowResult(command.ExpiresAt, password) { EndedSessionIds = endedSessions };
     }
 }

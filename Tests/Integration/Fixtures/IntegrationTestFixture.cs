@@ -45,6 +45,9 @@ public class IntegrationTestFixture : IAsyncLifetime
     
     public AuthWebApplicationFactory AuthWebApplicationFactory { get; private set; } = default!;
 
+    /// <summary>Keeps the real authentication schemes (cookie, OIDC, Bearer) — see <see cref="WebApplicationFactories.BffWebApplicationFactory"/>.</summary>
+    public BffWebApplicationFactory BffWebApplicationFactory { get; private set; } = default!;
+
     /// <summary>
     /// Shared for the whole "Integration" collection, like the two factories above — never
     /// explicitly disposed (same as them). A [Theory] over several 403 cases that instead created and
@@ -114,6 +117,10 @@ public class IntegrationTestFixture : IAsyncLifetime
             RabbitMq.GetConnectionString()
         );
         AuthWebApplicationFactory = new AuthWebApplicationFactory(
+            ConnectionString,
+            RabbitMq.GetConnectionString()
+        );
+        BffWebApplicationFactory = new BffWebApplicationFactory(
             ConnectionString,
             RabbitMq.GetConnectionString()
         );

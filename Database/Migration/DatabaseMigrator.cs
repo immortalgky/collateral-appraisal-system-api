@@ -35,15 +35,23 @@ public class DatabaseMigrator
             // new environment — and took the whole migration down with it. Nothing under
             // Migration/Scripts reads a view, a procedure or a function, so no dependency runs the
             // other way.
-            var upgrader = DeployChanges.To
+            var builder = DeployChanges.To
                 .SqlDatabase(connectionString)
                 .WithScriptsEmbeddedInAssembly(typeof(DatabaseMigrator).Assembly,
                     script => FilterMigrationScripts(script, environment))
                 .LogToAutodetectedLog()
                 .WithTransaction()
                 .WithExecutionTimeout(TimeSpan.FromSeconds(300))
-                .JournalToSqlTable("dbo", "DatabaseMigrationHistory")
-                .Build();
+                .JournalToSqlTable("dbo", "DatabaseMigrationHistory");
+
+            // Per-environment values a script cannot know (e.g. the API's public URL), written $Name$ in the
+            // script. DbUp refuses a $Name$ it has no entry for, even in a script that would never use it,
+            // so every known name is always passed — blank when unset — and the script that needs a value
+            // checks for blank itself and fails with a message that says what to set.
+            foreach (var variable in GetScriptVariables(environment))
+                builder = builder.WithVariable(variable.Key, variable.Value);
+
+            var upgrader = builder.Build();
 
             var result = upgrader.PerformUpgrade();
 
@@ -292,6 +300,13 @@ public class DatabaseMigrator
             throw;
         }
     }
+
+    private static readonly string[] KnownScriptVariables = ["ApiBaseUrl"];
+
+    private Dictionary<string, string> GetScriptVariables(string environment) =>
+        KnownScriptVariables.ToDictionary(
+            name => name,
+            name => _configuration[$"Environments:{environment}:Variables:{name}"]?.Trim() ?? "");
 
     private string GetConnectionString()
     {
