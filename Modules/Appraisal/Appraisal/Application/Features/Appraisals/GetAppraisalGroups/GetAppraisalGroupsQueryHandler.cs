@@ -1,6 +1,7 @@
 using Appraisal.Application.Features.Appraisals.GetAppraisals;
 using Appraisal.Application.Features.Appraisals.Shared;
 using Appraisal.Application.Features.Shared;
+using Appraisal.Domain.Appraisals;
 using Dapper;
 using Shared.CQRS;
 using Shared.Data;
@@ -55,13 +56,15 @@ public class GetAppraisalGroupsQueryHandler(
             ? (filter.ViewFrom, filter.WhereClause)
             : (filter.BaseTableFrom, filter.BaseTableWhereClause);
 
+        // breached/atRisk skip closed appraisals: the SLA refresh leaves them at the status they closed with, and a
+        // delivered job is not "needs attention". count is every row in the group.
         // The key is normalised in SQL so NULL and '' land in ONE group instead of two that both read "".
         var key = $"ISNULL(NULLIF({column}, N''), N'')";
         return $"""
             SELECT {key} AS [Key],
                    COUNT(*) AS [Count],
-                   SUM(CASE WHEN SLAStatus = 'Breached' THEN 1 ELSE 0 END) AS Breached,
-                   SUM(CASE WHEN SLAStatus = 'AtRisk' THEN 1 ELSE 0 END) AS AtRisk
+                   SUM(CASE WHEN SLAStatus = 'Breached' AND Status NOT IN {AppraisalSla.ClosedStatusesSql} THEN 1 ELSE 0 END) AS Breached,
+                   SUM(CASE WHEN SLAStatus = 'AtRisk' AND Status NOT IN {AppraisalSla.ClosedStatusesSql} THEN 1 ELSE 0 END) AS AtRisk
             FROM {from}{where}
             GROUP BY {key}
             ORDER BY COUNT(*) DESC, {key}{filter.SearchQueryHint}

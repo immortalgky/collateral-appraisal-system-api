@@ -108,7 +108,19 @@ public class GetAppraisalGroupsQueryHandlerTests
         Assert.Contains("ISNULL(NULLIF(SLAStatus, N''), N'') AS [Key]", sql);
         Assert.Contains("GROUP BY ISNULL(NULLIF(SLAStatus, N''), N'')", sql);
         Assert.Contains("ORDER BY COUNT(*) DESC, ISNULL(NULLIF(SLAStatus, N''), N'')", sql);
-        Assert.Contains("SLAStatus = 'Breached'", sql);
-        Assert.Contains("SLAStatus = 'AtRisk'", sql);
+        Assert.Contains("COUNT(*) AS [Count]", sql);
+    }
+
+    [Fact]
+    public void Breached_and_at_risk_skip_closed_appraisals_but_count_does_not()
+    {
+        var sql = GetAppraisalGroupsQueryHandler.BuildSql(
+            "Status", needsView: false, AppraisalFilterBuilder.BuildFilter(null));
+
+        Assert.Contains(
+            "SUM(CASE WHEN SLAStatus = 'Breached' AND Status NOT IN ('Completed', 'Cancelled') THEN 1 ELSE 0 END) AS Breached", sql);
+        Assert.Contains(
+            "SUM(CASE WHEN SLAStatus = 'AtRisk' AND Status NOT IN ('Completed', 'Cancelled') THEN 1 ELSE 0 END) AS AtRisk", sql);
+        Assert.Contains("COUNT(*) AS [Count]", sql); // every row in the group, closed or not
     }
 }

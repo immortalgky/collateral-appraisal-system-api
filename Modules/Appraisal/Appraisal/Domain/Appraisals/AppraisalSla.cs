@@ -7,6 +7,13 @@ namespace Appraisal.Domain.Appraisals;
 /// </summary>
 public static class AppraisalSla
 {
+    /// <summary>
+    /// Statuses of a closed appraisal, as a SQL list. Its SLAStatus is left at whatever it closed with, so anything
+    /// that reports or refreshes SLA must skip these rows: the refresh job never writes them, and the group counts do
+    /// not count them as breached or at risk. One list for both.
+    /// </summary>
+    public const string ClosedStatusesSql = "('Completed', 'Cancelled')";
+
     /// <summary>An appraisal due within this many days is AtRisk.</summary>
     public const int AtRiskWindowDays = 2;
 

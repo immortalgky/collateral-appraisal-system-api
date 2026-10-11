@@ -40,7 +40,7 @@ public class AppraisalSlaStatusRefreshJob(
                                  ELSE 'OnTrack' END AS NewStatus) x
         WHERE a.IsDeleted = 0
           AND a.SLADueDate IS NOT NULL
-          AND a.Status NOT IN ('Completed', 'Cancelled')
+          AND a.Status NOT IN {{AppraisalSla.ClosedStatusesSql}}
           AND ISNULL(a.SLAStatus, '') <> x.NewStatus
         """;
 
