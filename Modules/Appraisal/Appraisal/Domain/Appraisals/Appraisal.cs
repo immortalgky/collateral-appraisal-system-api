@@ -1202,19 +1202,13 @@ public class Appraisal : Aggregate<Guid>
     #region SLA Management
 
     /// <summary>
-    /// Update SLA status based on current date
+    /// Update SLA status based on current date (the rule is <see cref="AppraisalSla.StatusAt"/>)
     /// </summary>
     public void UpdateSlaStatus(DateTime now)
     {
         if (!SLADueDate.HasValue) return;
 
-        var daysRemaining = (SLADueDate.Value - now).Days;
-        SLAStatus = daysRemaining switch
-        {
-            < 0 => "Breached",
-            < 2 => "AtRisk",
-            _ => "OnTrack"
-        };
+        SLAStatus = AppraisalSla.StatusAt(SLADueDate.Value, now);
     }
 
     #endregion
