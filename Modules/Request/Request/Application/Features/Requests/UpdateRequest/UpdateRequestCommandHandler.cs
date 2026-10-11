@@ -64,6 +64,7 @@ internal class UpdateRequestCommandHandler(
         if (request.HasBeenSubmitted())
         {
             request.EnsurePriorUnchanged(prevAppraisalId, command.Detail?.PrevAppraisalNumber);
+            prevAppraisalId = request.Detail?.PrevAppraisalId;
             prior = (request.Detail?.PrevAppraisalNumber, request.Detail?.PrevAppraisalValue,
                 request.Detail?.PrevAppraisalDate);
         }

@@ -87,6 +87,37 @@ public class ResubmitRequestSourceTests
     }
 
     [Fact]
+    public async Task Data_fix_resubmit_of_a_submitted_request_sends_the_prior_number_as_LOS_gave_it_without_a_CAS_lookup()
+    {
+        var requestId = Guid.NewGuid();
+        var submitted = Request.Domain.Requests.Request.Create(new Request.Domain.Requests.RequestData(
+            "03", "LOS", new Shared.Models.UserInfo("u", "U"), new Shared.Models.UserInfo("u", "U"),
+            DateTime.Now, "Normal", false));
+        submitted.Submit(DateTime.Now);
+        var update = Substitute.For<IUpdateRequestService>();
+        update.GetByIdWithDocumentsAsync(requestId, Arg.Any<CancellationToken>()).Returns(submitted);
+        update.ResubmitRequestAsync(Arg.Any<ResubmitRequestData>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<Request.Domain.Requests.Request>(new StopHere()));
+        var lookup = Substitute.For<IAppraisalLookupService>();
+
+        var handler = new ResubmitRequestCommandHandler(
+            update, Substitute.For<IRequestSyncService>(), Substitute.For<ISender>(), lookup,
+            Substitute.For<IIntegrationEventOutbox>(), NullLogger<ResubmitRequestCommandHandler>.Instance);
+        var user = new UserInfoDto("U1", "u1");
+        var command = new ResubmitRequestCommand(
+            requestId, "03", "LOS", user, user, "Normal", false,
+            new RequestDetailDto(false, null, null, null, null, null, null, "69000001", null, null),
+            [], [], null, null);
+
+        await Assert.ThrowsAsync<StopHere>(() => handler.Handle(command, TestContext.Current.CancellationToken));
+
+        // A prior that was deleted since submit must not turn an unchanged resubmit into "No appraisal found".
+        await lookup.DidNotReceive().ResolvePriorAppraisalByNumberAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await update.Received(1).ResubmitRequestAsync(
+            Arg.Is<ResubmitRequestData>(d => d.Detail!.PrevAppraisalNumber == "69000001"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Follow_up_resubmit_stamps_new_rows_FOLLOWUP_by_mode_not_by_the_client_label()
     {
         var requestId = Guid.NewGuid();

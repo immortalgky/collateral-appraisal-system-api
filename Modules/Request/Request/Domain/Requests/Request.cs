@@ -191,19 +191,22 @@ public class Request : Aggregate<Guid>
 
     /// <summary>
     /// A submitted request's prior appraisal is locked for the same reason as its purpose. A prior in CAS
-    /// is identified by its id alone. A legacy book (no id) is identified by its number, compared
-    /// normalised (<see cref="NormalizeBookNumber"/>); an omitted number is not a change, because the form
-    /// never sends it back. The caller keeps the stored prior fields, so nothing here can rewrite them.
-    /// Call before <see cref="SetDetail"/>.
+    /// is identified by its id; a caller that sends only the book number (LOS does) matches it against the
+    /// stored number instead, since the number is all it has. A legacy book (no stored id) is identified by
+    /// its number alone. Numbers are compared normalised (<see cref="NormalizeBookNumber"/>); an omitted
+    /// number on a legacy book is not a change, because the form never sends it back. The caller keeps the
+    /// stored prior fields, so nothing here can rewrite them. Call before <see cref="SetDetail"/>.
     /// </summary>
     public void EnsurePriorUnchanged(Guid? incomingPrevAppraisalId, string? incomingPrevAppraisalNumber)
     {
         var storedId = Detail?.PrevAppraisalId;
+        var incomingNumber = NormalizeBookNumber(incomingPrevAppraisalNumber);
         var changed = storedId.HasValue
-            ? incomingPrevAppraisalId != storedId
+            ? incomingPrevAppraisalId.HasValue
+                ? incomingPrevAppraisalId != storedId
+                : incomingNumber is null || incomingNumber != NormalizeBookNumber(Detail?.PrevAppraisalNumber)
             : incomingPrevAppraisalId.HasValue
-              || (NormalizeBookNumber(incomingPrevAppraisalNumber) is { } number
-                  && number != NormalizeBookNumber(Detail?.PrevAppraisalNumber));
+              || (incomingNumber is not null && incomingNumber != NormalizeBookNumber(Detail?.PrevAppraisalNumber));
 
         RuleCheck.Valid()
             .AddErrorIf(HasBeenSubmitted() && changed,

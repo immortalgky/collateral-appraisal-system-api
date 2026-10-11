@@ -91,8 +91,12 @@ public class ResubmitRequestCommandHandler(
             command.Creator,
             command.Priority,
             command.IsPma.Value,
-            await PriorAppraisalNumberResolver.ResolveAsync(
-                appraisalLookup, command.Purpose, command.Detail, ct, stored?.ReappraisalBookNumber),
+            // A submitted request's prior is locked and only compared (see UpdateRequestService), so the number is
+            // left as LOS sent it: resolving it would look it up in CAS and reject a prior that has since been deleted.
+            stored?.HasBeenSubmitted() == true
+                ? command.Detail
+                : await PriorAppraisalNumberResolver.ResolveAsync(
+                    appraisalLookup, command.Purpose, command.Detail, ct, stored?.ReappraisalBookNumber),
             command.Customers,
             command.Properties,
             command.Titles,
