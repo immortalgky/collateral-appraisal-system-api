@@ -20,8 +20,8 @@ public class AnonymousEndpointsTests(IntegrationTestFixture fixture)
     // endpoint has no HTTP method metadata). Anything else carrying IAllowAnonymous fails the test.
     private static readonly string[] AnonymousAllowlist =
     [
-        "POST /auth/token",                    // login
-        "POST /auth/refresh",                  // token refresh
+        "GET /auth/login",                     // starts the browser sign-in (redirect to the IdP)
+        "POST /auth/logout",                   // ends the caller's own cookie session; must work for an expired one
         "GET /documents/{id:guid}/download",   // new-tab downloads cannot send a Bearer header
         "POST /api/v1/appraisals/result",      // legacy AS400 contract
         "GET connect/authorize",               // OpenIddict controller, [AllowAnonymous]

@@ -1,5 +1,6 @@
 using Auth.Application.Services;
 using Auth.Domain.Auditing;
+using Auth.Domain.Sessions;
 using Auth.Infrastructure;
 using Microsoft.AspNetCore.Identity;
 using Shared.Exceptions;
@@ -11,13 +12,17 @@ public class UpdateUserCommandHandler(
     UserManager<ApplicationUser> userManager,
     IAuthAuditWriter auditWriter,
     AuthDbContext dbContext,
-    IDateTimeProvider dateTimeProvider)
+    IDateTimeProvider dateTimeProvider,
+    IUserSessionService sessions,
+    AuthorizationClaimsBuilder claims)
     : ICommandHandler<UpdateUserCommand>
 {
     public async Task<Unit> Handle(UpdateUserCommand command, CancellationToken cancellationToken)
     {
         var user = await userManager.FindByIdAsync(command.Id.ToString())
             ?? throw new NotFoundException("User", command.Id);
+
+        SessionEndReason? endSessions = null;
 
         user.FirstName = command.FirstName;
         user.LastName = command.LastName;
@@ -78,11 +83,16 @@ public class UpdateUserCommandHandler(
                 // so testing usability here would leave it wide open under its new flag.
                 var now = dateTimeProvider.ApplicationNow;
                 var hasOpenWindow = user.AccessExpiresAt is { } windowEnd && windowEnd > now;
-                if (!hasOpenWindow) user.AccessExpiresAt = now;
+                if (!hasOpenWindow)
+                {
+                    user.AccessExpiresAt = now;
+                    endSessions = SessionEndReason.AccessExpired;
+                }
             }
             else
             {
                 user.AccessExpiresAt = null;
+                if (!user.MustChangePassword) endSessions = SessionEndReason.PasswordReset;
                 user.MustChangePassword = true;
             }
 
@@ -100,8 +110,19 @@ public class UpdateUserCommandHandler(
         if (!result.Succeeded)
             throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
 
+        // An account that just became unusable or owes a password change must not stay signed in. Same
+        // reasons the access-window and reset-password handlers use. The audit entry this enqueues is
+        // flushed by the save below.
+        if (endSessions is { } reason)
+            await sessions.RevokeUserAsync(user.Id, user.UserName, reason, cancellationToken: cancellationToken);
+
         auditWriter.Record(AuditAction.Updated, AuditEntityType.User, command.Id, user.UserName);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        // Only now is the new state in the database. Dropping the cached view any earlier would let a
+        // concurrent request re-read the old state and cache it again. Unconditional: company, roles and the
+        // rest of what this edits all feed the cached claims.
+        claims.Invalidate(user.Id);
 
         return Unit.Value;
     }

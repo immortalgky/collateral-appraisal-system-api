@@ -16,22 +16,36 @@ public class CreateRequestService(
     public async Task<(Request.Domain.Requests.Request, List<RequestTitle>)> CreateRequestAsync(CreateRequestData data,
         CancellationToken cancellationToken)
     {
+        var (request, titles, _) = await CreateAsync(data, cancellationToken);
+        return (request, titles);
+    }
+
+    // The prior appraisal reference is returned so the submit guard need not look it up again.
+    private async Task<(Request.Domain.Requests.Request, List<RequestTitle>, AppraisalReferenceResult?)> CreateAsync(
+        CreateRequestData data,
+        CancellationToken cancellationToken)
+    {
         var now = dateTimeProvider.Now;
 
-        var request = await CreateRequestAsync(data, now, cancellationToken);
+        var (request, priorReference) = await CreateRequestAsync(data, now, cancellationToken);
         var titles = await CreateTitlesAsync(data, request.Id, cancellationToken);
         await CreateCommentsAsync(data, request.Id, now, cancellationToken);
 
-        return (request, titles);
+        return (request, titles, priorReference);
     }
 
     public async Task<(Request.Domain.Requests.Request, List<RequestTitle>)> CreateAndSubmitRequestAsync(
         CreateRequestData data,
         DateTime submittedAt,
         string? externalCaseKey,
+        string? legacyPriorBookNumber,
         CancellationToken cancellationToken)
     {
-        var (request, titles) = await CreateRequestAsync(data, cancellationToken);
+        var (request, titles, priorReference) = await CreateAsync(data, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(legacyPriorBookNumber))
+            request.SetLegacyPriorBook(
+                legacyPriorBookNumber, data.Detail?.PrevAppraisalValue, data.Detail?.PrevAppraisalDate);
 
         if (!string.IsNullOrWhiteSpace(externalCaseKey) && !string.IsNullOrWhiteSpace(data.Channel))
             request.SetExternalReference(externalCaseKey, data.Channel);
@@ -39,9 +53,13 @@ public class CreateRequestService(
         request.Validate();
         foreach (var title in titles) title.Validate();
 
-        // Appeal/Progressive require a Completed prior appraisal — reject before submitting.
+        // Purpose-dependent prior appraisal rule (required / forbidden / Completed) — reject before submitting.
+        // The number falls back to the one the caller sent: only an id fills it on the request, so a number
+        // sent with no id (purpose 07, which the Integration resolver leaves alone) must still reach the guard.
         await PriorAppraisalSubmissionGuard.EnsureValidAsync(
-            request.Purpose, request.Detail?.PrevAppraisalId, mediator, cancellationToken);
+            request.Purpose, request.Detail?.PrevAppraisalId,
+            request.Detail?.PrevAppraisalNumber ?? data.Detail?.PrevAppraisalNumber, mediator,
+            cancellationToken, priorReference);
 
         // Persist before Submit so RequestSubmittedEventHandler's DB query for titles +
         // documents returns the committed state. Runs inside the caller's transaction;
@@ -55,7 +73,7 @@ public class CreateRequestService(
         return (request, titles);
     }
 
-    private async Task<Domain.Requests.Request> CreateRequestAsync(
+    private async Task<(Domain.Requests.Request, AppraisalReferenceResult?)> CreateRequestAsync(
         CreateRequestData command,
         DateTime now,
         CancellationToken cancellationToken)
@@ -88,12 +106,13 @@ public class CreateRequestService(
             command.IsPma
         ));
 
+        AppraisalReferenceResult? appraisalRef = null;
         if (command.Detail is not null)
         {
-            AppraisalReferenceResult? appraisalRef = null;
-            if (command.Detail.PrevAppraisalId.HasValue)
+            var prevAppraisalId = PriorAppraisalFields.NormalizeId(command.Detail.PrevAppraisalId);
+            if (prevAppraisalId.HasValue)
                 appraisalRef = await mediator.Send(
-                    new GetAppraisalReferenceQuery(command.Detail.PrevAppraisalId.Value), cancellationToken);
+                    new GetAppraisalReferenceQuery(prevAppraisalId.Value), cancellationToken);
 
             request.SetDetail(RequestDetail.Create(new RequestDetailData(
                 command.Detail.HasAppraisalBook,
@@ -105,7 +124,7 @@ public class CreateRequestService(
                     command.Detail.LoanDetail?.PreviousFacilityLimit,
                     command.Detail.LoanDetail?.TotalSellingPrice
                 )),
-                command.Detail.PrevAppraisalId,
+                prevAppraisalId,
                 Address.Create(new AddressData(
                     command.Detail.Address?.HouseNumber,
                     command.Detail.Address?.ProjectName,
@@ -162,7 +181,7 @@ public class CreateRequestService(
                     doc.Set,
                     doc.Notes,
                     doc.FilePath,
-                    doc.Source,
+                    ClientDocumentSource.Normalize(doc.Source),
                     doc.IsRequired,
                     doc.UploadedBy,
                     doc.UploadedByName,
@@ -171,7 +190,7 @@ public class CreateRequestService(
 
         await requestRepository.AddAsync(request, cancellationToken);
 
-        return request;
+        return (request, appraisalRef);
     }
 
     private async Task<List<RequestTitle>> CreateTitlesAsync(
@@ -200,9 +219,13 @@ public class CreateRequestService(
                     Set = doc.Set,
                     Notes = doc.Notes,
                     FilePath = doc.FilePath,
+                    Source = ClientDocumentSource.Normalize(doc.Source),
                     UploadedBy = doc.UploadedBy,
                     UploadedByName = doc.UploadedByName,
-                    UploadedAt = doc.UploadedAt
+                    // The column is NOT NULL: a file with no upload time gets the creation time (the app clock, as the audit
+                    // columns use), never 0001-01-01.
+                    // An empty placeholder (no file) has no upload, so it keeps whatever the caller sent.
+                    UploadedAt = doc.DocumentId.HasValue && doc.UploadedAt == default ? dateTimeProvider.ApplicationNow : doc.UploadedAt
                 });
 
             titles.Add(title);

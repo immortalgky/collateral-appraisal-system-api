@@ -2,15 +2,13 @@ CREATE
 OR ALTER
 VIEW appraisal.vw_AppraisalCopyTemplate AS
 SELECT
-    -- Appraisal snapshot (PrevAppraisal block)
+    -- The appraisal itself (read by GetAppraisalReference and the previous-appraisal chain)
     a.Id                    AS AppraisalId,
     a.AppraisalNumber,
-    apt.AppointmentDateTime AS AppointmentDate,
     -- The appraisal (valuation) date: ValuationAnalyses.ValuationDate, falling back to the latest
     -- non-cancelled appointment when that row does not exist yet, then to a.CompletedAt so a
-    -- legacy/migrated appraisal with neither still shows a date. Kept separate from
-    -- AppointmentDate (the raw inspection slot) — the two diverge for off-system external
-    -- engagements, which have no Appointment row and only a hand-keyed book date.
+    -- legacy/migrated appraisal with neither still shows a date. An off-system external engagement has
+    -- no Appointment row and only a hand-keyed book date.
     COALESCE(va.ValuationDate, apt.AppointmentDateTime, a.CompletedAt)
                             AS AppraisalDate,
     a.Status                AS Status,
@@ -44,7 +42,14 @@ SELECT
     d.TotalSellingPrice,
 
     -- RequestDetail: misc
-    d.HasAppraisalBook
+    d.HasAppraisalBook,
+
+    -- RequestDetail: the prior book this appraisal's request referenced (GET /appraisals/{id}?include=request).
+    -- A book in CAS has PrevAppraisalId; a legacy AS400 (99A...) book has the number only.
+    d.PrevAppraisalId,
+    d.PrevAppraisalNumber,
+    d.PrevAppraisalValue,
+    d.PrevAppraisalDate
 
 FROM appraisal.Appraisals a
          JOIN request.Requests r ON r.Id = a.RequestId

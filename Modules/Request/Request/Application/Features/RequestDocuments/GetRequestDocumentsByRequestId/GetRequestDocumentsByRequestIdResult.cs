@@ -28,4 +28,6 @@ public record DocumentItemDto(
     string? UploadedByName,
     DateTime? UploadedAt,
     long? FileSizeBytes,
-    string? MimeType);
+    string? MimeType,
+    // REQUEST / PREV / FOLLOWUP...; last because Dapper binds this record by column position.
+    string? Source);

@@ -66,11 +66,14 @@ public class RequestSubmittedEventHandler(
             PrevAppraisalId = notification.Request.Detail?.PrevAppraisalId,
             // A legacy AS400 prior book carries only its number (XOR with PrevAppraisalId). A CAS
             // prior book's number is also stored on the request, for display — not forwarded.
-            // Only for a request Initiate created: older requests can hold a free-text number typed by
-            // staff, which must not become a legacy link on the new appraisal.
-            PrevAppraisalNumber = notification.Request.ReappraisalBookNumber is not null
-                                  && notification.Request.Detail?.PrevAppraisalId is null
-                ? notification.Request.Detail?.PrevAppraisalNumber
+            // Only a book recorded through SetLegacyPriorBook: a request Initiate created, or a 99A number
+            // LOS sent. Older requests can hold a free-text number typed by staff, which must not become a
+            // legacy link on the new appraisal.
+            PrevAppraisalNumber = notification.Request.Detail?.PrevAppraisalId is null
+                                  && (notification.Request.ReappraisalBookNumber is not null
+                                      || Domain.Requests.Request.IsLegacyPriorBook(
+                                          notification.Request.Detail?.PrevAppraisalNumber))
+                ? Domain.Requests.Request.NormalizeBookNumber(notification.Request.Detail?.PrevAppraisalNumber)
                 : null,
             // Purpose "03" = standard reappraisal, "09" = block-project reappraisal — both ReAppraisal.
             AppraisalType = notification.Request.Purpose is "03" or "09" ? "ReAppraisal"

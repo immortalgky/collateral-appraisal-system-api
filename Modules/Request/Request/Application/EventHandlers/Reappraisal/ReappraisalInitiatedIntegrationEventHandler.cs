@@ -30,6 +30,7 @@ public class ReappraisalInitiatedIntegrationEventHandler(
     ICreateRequestService createRequestService,
     IRequestUnitOfWork unitOfWork,
     ISqlConnectionFactory connectionFactory,
+    ISender mediator,
     InboxGuard<RequestDbContext> inboxGuard,
     ILogger<ReappraisalInitiatedIntegrationEventHandler> logger)
     : IConsumer<ReappraisalInitiatedIntegrationEvent>
@@ -111,6 +112,17 @@ public class ReappraisalInitiatedIntegrationEventHandler(
             Appointment: null,
             Fee: new FeeDto(FeePaymentType: DefaultFeePaymentType, FeeNotes: DefaultFeeRemark, AbsorbedAmount: null));
 
+        // Documents follow the same carry-forward rule as the request page: the prior appraisal's defaultUse
+        // files, stamped PREV. A block-project unit copies none (it never copied the whole project's), and a
+        // book with no prior in CAS, or one that is not Completed, carries none — the draft is still created.
+        var carried = unit is null
+            ? await CarriedDocuments.TryFetchAsync(mediator, prevId, logger, ct)
+            : null;
+        var placeholders = snapshot is null
+            ? []
+            : await CarriedDocuments.LoadPlaceholdersAsync(connectionFactory, snapshot.RequestId, ct);
+        var (carriedDocuments, carriedTitles) = CarriedDocuments.Build(carried, snapshot?.Titles, placeholders);
+
         var createData = new CreateRequestData(
             Purpose: ReappraisalPurposeCode,
             Channel: "SIBS",
@@ -121,8 +133,8 @@ public class ReappraisalInitiatedIntegrationEventHandler(
             Detail: detail,
             Customers: customers,
             Properties: BuildProperties(snapshot),
-            Titles: unit is not null ? [unit.Title] : snapshot?.Titles,
-            Documents: snapshot?.Documents,
+            Titles: unit is not null ? [unit.Title] : carriedTitles,
+            Documents: carriedDocuments,
             Comments: null);
 
         // ── Create + persist (no submit) ──────────────────────────────────────
@@ -345,21 +357,13 @@ public class ReappraisalInitiatedIntegrationEventHandler(
         var properties = (await conn.QueryAsync<PriorRequestPropertyRow>(
             propertiesSql, new { row.RequestId })).ToList();
 
-        // Load titles and documents via EF Core — owned collections require it.
+        // Load titles via EF Core — owned collections require it. Documents are not copied (see CarriedDocuments).
         var titles = await dbContext.RequestTitles
             .Where(t => t.RequestId == row.RequestId)
             .InDisplayOrder()
             .ToListAsync(cancellationToken);
 
         var titleDtos = titles.Select(t => t.ToDto()).ToList();
-
-        var requestWithDocs = await dbContext.Requests
-            .Include(r => r.Documents)
-            .FirstOrDefaultAsync(r => r.Id == row.RequestId, cancellationToken);
-
-        var documentDtos = requestWithDocs?.Documents
-            .Select(d => d.ToDto())
-            .ToList() ?? [];
 
         return new PriorRequestSnapshot(
             row.AppraisalId, row.RequestId, row.HasAppraisalBook,
@@ -368,7 +372,7 @@ public class ReappraisalInitiatedIntegrationEventHandler(
             row.HouseNumber, row.ProjectName, row.Moo, row.Soi, row.Road,
             row.SubDistrict, row.District, row.Province, row.Postcode,
             row.ContactPersonName, row.ContactPersonPhone, row.DealerCode,
-            customers, properties, titleDtos, documentDtos);
+            customers, properties, titleDtos);
     }
 
     // ── Data builders ─────────────────────────────────────────────────────────
@@ -423,6 +427,5 @@ public class ReappraisalInitiatedIntegrationEventHandler(
         string? ContactPersonName, string? ContactPersonPhone, string? DealerCode,
         List<PriorRequestCustomerRow> Customers,
         List<PriorRequestPropertyRow> Properties,
-        List<RequestTitleDto> Titles,
-        List<RequestDocumentDto> Documents);
+        List<RequestTitleDto> Titles);
 }

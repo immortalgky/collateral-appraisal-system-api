@@ -132,7 +132,7 @@ public class Appraisal : Aggregate<Guid>
             // now, both ApplicationNow-local) when no due date is supplied (e.g. the manual
             // CreateAppraisal path, which has no workflow/SLA-policy context).
             SLADueDate = slaDueDate ?? (requestedAt ?? now).AddHours(slaHours.Value);
-            SLAStatus = "OnTrack";
+            SLAStatus = AppraisalSla.StatusAt(SLADueDate.Value, now);
         }
     }
 
@@ -845,6 +845,7 @@ public class Appraisal : Aggregate<Guid>
 
         ActualHoursToComplete = CreatedAt.HasValue ? (int)(completedAt - CreatedAt.Value).TotalHours : null;
         IsWithinSLA = !SLADueDate.HasValue || completedAt <= SLADueDate.Value;
+        SettleSlaStatus(completedAt);
 
         AddDomainEvent(new AppraisalCompletedEvent(this));
     }
@@ -864,6 +865,7 @@ public class Appraisal : Aggregate<Guid>
 
         ActualHoursToComplete = CreatedAt.HasValue ? (int)(approvedAt - CreatedAt.Value).TotalHours : null;
         IsWithinSLA = !SLADueDate.HasValue || approvedAt <= SLADueDate.Value;
+        SettleSlaStatus(approvedAt);
 
         // Terminal completion of the active engagement. By this point the workflow handler should
         // have transitioned the assignment through int-appraisal-verification → Verified, but
@@ -920,6 +922,7 @@ public class Appraisal : Aggregate<Guid>
         CancelledBy = cancelledBy;
         CancelledAt = cancelledAt;
         CancelReason = reason;
+        SettleSlaStatus(cancelledAt);
 
         UpdateStatus(AppraisalStatus.Cancelled);
 
@@ -1202,19 +1205,24 @@ public class Appraisal : Aggregate<Guid>
     #region SLA Management
 
     /// <summary>
-    /// Update SLA status based on current date
+    /// Update SLA status based on current date (the rule is <see cref="AppraisalSla.StatusAt"/>)
     /// </summary>
     public void UpdateSlaStatus(DateTime now)
     {
         if (!SLADueDate.HasValue) return;
 
-        var daysRemaining = (SLADueDate.Value - now).Days;
-        SLAStatus = daysRemaining switch
-        {
-            < 0 => "Breached",
-            < 2 => "AtRisk",
-            _ => "OnTrack"
-        };
+        SLAStatus = AppraisalSla.StatusAt(SLADueDate.Value, now);
+    }
+
+    /// <summary>
+    /// Fixes the SLA status at the moment the appraisal closes. The hourly refresh skips closed appraisals, so
+    /// without this a job marked AtRisk at 09:00 and completed at 10:30 would stay AtRisk forever.
+    /// </summary>
+    private void SettleSlaStatus(DateTime closedAt)
+    {
+        if (!SLADueDate.HasValue) return;
+
+        SLAStatus = AppraisalSla.ClosedStatusAt(SLADueDate.Value, closedAt);
     }
 
     #endregion

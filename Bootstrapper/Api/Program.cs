@@ -354,20 +354,6 @@ builder.Services.AddHostedService<IntegrationEventDeliveryService<WorkflowDbCont
 builder.Services.AddHostedService<IntegrationEventDeliveryService<CollateralDbContext>>();
 builder.Services.AddHostedService<IntegrationEventDeliveryService<Reporting.Data.ReportingDbContext>>();
 
-builder.Services.AddHttpClient("CAS", client =>
-{
-    // In-process loopback calls (TokenHandler / RefreshTokenHandler) hit /connect/token via this client.
-    // Behind an LB, AppBaseUrl is the public LB URL — but the TLS cert at that URL may not match the
-    // hostname (RemoteCertificateNameMismatch) when traffic loops back to the local node. Allow ops to
-    // point the loopback HttpClient at http(s)://localhost:<port> via Auth:InternalAuthBaseUrl while
-    // keeping AppBaseUrl = LB URL for the OpenIddict issuer claim.
-    var baseUrl = builder.Configuration["Auth:InternalAuthBaseUrl"]
-                  ?? builder.Configuration["AppBaseUrl"]
-                  ?? throw new InvalidOperationException(
-                      "Neither Auth:InternalAuthBaseUrl nor AppBaseUrl is configured in appsettings.");
-    client.BaseAddress = new Uri(baseUrl);
-});
-
 // Module services: request, etc.
 builder.Services
     .AddRequestModule(builder.Configuration)
@@ -636,8 +622,13 @@ app.MapHealthChecks("/health/external", new HealthCheckOptions
 // responses; the dashboard endpoint itself is still mapped by UseHangfire().
 app.UseHangfireDashboardFraming();
 
+// CSRF / cross-site WebSocket check for cookie sessions. Before routing, so a rejected request never
+// reaches an endpoint, and after UseCors, which has already answered the preflights.
+app.UseCsrfProtection();
+
 app.UseRouting();
 app.UseAuthentication();
+app.UseMustChangePasswordGate();
 app.UseAuthorization();
 app.MapRazorPages();
 app.MapControllers();

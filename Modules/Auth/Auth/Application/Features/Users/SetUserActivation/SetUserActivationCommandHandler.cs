@@ -1,5 +1,6 @@
 using Auth.Application.Services;
 using Auth.Domain.Auditing;
+using Auth.Domain.Sessions;
 using Auth.Infrastructure;
 using Microsoft.AspNetCore.Identity;
 using Shared.Exceptions;
@@ -11,7 +12,8 @@ public class SetUserActivationCommandHandler(
     UserManager<ApplicationUser> userManager,
     IAuthAuditWriter auditWriter,
     AuthDbContext dbContext,
-    ICurrentUserService currentUserService)
+    ICurrentUserService currentUserService,
+    IUserSessionService sessions)
     : ICommandHandler<SetUserActivationCommand>
 {
     private const string AdminRoleName = "Admin";
@@ -47,6 +49,13 @@ public class SetUserActivationCommandHandler(
         var result = await userManager.UpdateAsync(user);
         if (!result.Succeeded)
             throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
+
+        // The security stamp does not change on deactivation, and the browser session would otherwise
+        // stay live for as long as its owner keeps clicking. End it now, server side (the other node's cached
+        // copy of the row lasts up to 10 s).
+        if (!command.IsActive)
+            await sessions.RevokeUserAsync(user.Id, user.UserName, SessionEndReason.Deactivated,
+                cancellationToken: cancellationToken);
 
         auditWriter.Record(
             AuditAction.Updated,
