@@ -35,7 +35,8 @@ public class AppraisalSlaStatusRefreshJob(
     // Below the 5,000-lock escalation threshold; each batch is its own autocommit statement.
     internal const int BatchSize = 4000;
 
-    // {0} is @Now, bound as a parameter. The only interpolated values are const ints and strings.
+    // {0} is @Now, bound as a parameter. The interpolated parts are three compile-time constants: BatchSize,
+    // AppraisalSla.AtRiskWindowDays (const ints) and AppraisalSla.ClosedStatusesSql (a const string literal).
     internal static readonly string UpdateSql = $$"""
         UPDATE TOP ({{BatchSize}}) a
         SET a.SLAStatus = x.NewStatus
@@ -51,8 +52,9 @@ public class AppraisalSlaStatusRefreshJob(
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S2077:Formatting SQL queries is security-sensitive",
         Justification =
-            "UpdateSql is a fixed literal whose only interpolated part is the const AppraisalSla.AtRiskWindowDays; " +
-            "the one runtime value (now) is bound as the {0} parameter.")]
+            "UpdateSql is built once from compile-time constants only: BatchSize, AppraisalSla.AtRiskWindowDays and " +
+            "AppraisalSla.ClosedStatusesSql, none of them caller input; the one runtime value (now) is bound as " +
+            "the {0} parameter.")]
     [DisableConcurrentExecution(timeoutInSeconds: 300)]
     public async Task ExecuteAsync(CancellationToken ct = default)
     {
