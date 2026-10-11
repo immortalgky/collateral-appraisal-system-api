@@ -8,9 +8,9 @@ namespace Appraisal.Domain.Appraisals;
 public static class AppraisalSla
 {
     /// <summary>
-    /// Statuses of a closed appraisal, as a SQL list. Its SLAStatus is left at whatever it closed with, so anything
-    /// that reports or refreshes SLA must skip these rows: the refresh job never writes them, and the group counts do
-    /// not count them as breached or at risk. One list for both.
+    /// Statuses of a closed appraisal, as a SQL list. Its SLAStatus is fixed once, when it closes
+    /// (<see cref="ClosedStatusAt"/>), and the hourly refresh never writes it again; the group counts also skip these
+    /// rows, since a delivered job is not "needs attention". One list for both.
     /// </summary>
     public const string ClosedStatusesSql = "('Completed', 'Cancelled')";
 
@@ -26,4 +26,13 @@ public static class AppraisalSla
         dueDate <= now ? "Breached"
         : dueDate <= now.AddDays(AtRiskWindowDays) ? "AtRisk"
         : "OnTrack";
+
+    /// <summary>
+    /// The final status of an appraisal that closes (completes or is cancelled) at <paramref name="closedAt"/>:
+    /// Breached if it closed after the due date, else OnTrack. Never AtRisk — a closed job has no risk left. Same
+    /// comparison as <c>IsWithinSLA</c> (closing exactly on the due date is on time). The one-time data script
+    /// that settled already-closed rows applies this rule in SQL.
+    /// </summary>
+    public static string ClosedStatusAt(DateTime dueDate, DateTime closedAt) =>
+        closedAt > dueDate ? "Breached" : "OnTrack";
 }

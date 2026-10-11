@@ -13,8 +13,10 @@ namespace Appraisal.Application.Services;
 /// and the slaStatus filter, SLA sort and group counts all read that column.
 ///
 /// One set-based UPDATE, no aggregates loaded. It touches only open appraisals (not deleted, with a due date, not
-/// Completed or Cancelled — closed ones keep the status they closed with) and only rows whose status actually
-/// changes, so a run writes just the transitions. The rule is <see cref="AppraisalSla"/>'s; the SQL interpolates its
+/// Completed or Cancelled — a closed one is settled once, when it closes, by Appraisal.Complete/Cancel, and never
+/// touched again) and only rows whose status actually changes, so a run writes just the transitions. Written in
+/// batches under SQL Server's 5,000-lock escalation threshold: the first run flips every past-due open row, and one
+/// statement over that many rows would escalate to a table lock and block writers. The rule is <see cref="AppraisalSla"/>'s; the SQL interpolates its
 /// window constant rather than repeating the number.
 ///
 /// Deliberately does NOT stamp UpdatedAt/UpdatedBy: this is a derived recalculation, not an edit, and
@@ -30,9 +32,12 @@ public class AppraisalSlaStatusRefreshJob(
 {
     private const string JobTag = "[APPRAISAL-SLA-REFRESH]";
 
-    // {0} is @Now, bound as a parameter. The only interpolated value is a const int.
+    // Below the 5,000-lock escalation threshold; each batch is its own autocommit statement.
+    internal const int BatchSize = 4000;
+
+    // {0} is @Now, bound as a parameter. The only interpolated values are const ints and strings.
     internal static readonly string UpdateSql = $$"""
-        UPDATE a
+        UPDATE TOP ({{BatchSize}}) a
         SET a.SLAStatus = x.NewStatus
         FROM appraisal.Appraisals a
         CROSS APPLY (SELECT CASE WHEN a.SLADueDate <= {0} THEN 'Breached'
@@ -55,7 +60,16 @@ public class AppraisalSlaStatusRefreshJob(
 
         try
         {
-            var changed = await dbContext.Database.ExecuteSqlRawAsync(UpdateSql, [now], ct);
+            // Same @Now and the same changed-only predicate for every batch, so rows already moved no longer
+            // match and the loop ends on the first short batch.
+            var changed = 0;
+            int batch;
+            do
+            {
+                batch = await dbContext.Database.ExecuteSqlRawAsync(UpdateSql, [now], ct);
+                changed += batch;
+            } while (batch >= BatchSize);
+
             logger.LogInformation("{Tag} Refreshed SLAStatus on {Count} appraisal(s) as of {Now}", JobTag, changed, now);
         }
         catch (Exception ex)
