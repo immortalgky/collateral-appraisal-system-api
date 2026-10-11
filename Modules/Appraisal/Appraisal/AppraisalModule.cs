@@ -120,6 +120,9 @@ public static class AppraisalModule
         // the admin regenerate endpoint.
         services.AddTransient<AppraisalSummaryAutoAttachJob>();
 
+        // Hangfire hourly job: refreshes Appraisals.SLAStatus (see AppraisalRecurringJobs).
+        services.AddTransient<AppraisalSlaStatusRefreshJob>();
+
         // Register supporting data repository
         services.AddScoped<ISupportingDataRepository, SupportingDataRepository>();
         services.AddScoped<IRepository<SupportingData, Guid>, SupportingDataRepository>();

@@ -25,12 +25,18 @@ public class UpdateDocumentTypeCommandHandler : ICommandHandler<UpdateDocumentTy
             throw new NotFoundException($"Document type with ID '{command.Id}' not found");
         }
 
+        // Code reads these by code and carries them unconditionally (summary report D036 and the
+        // D042/D043 originals it is re-typed from), so "don't use by default" is not a valid setting.
+        if (command.CarryForwardByDefault == false && documentType.IsCarryForwardLocked)
+            throw new BadRequestException($"Document type '{documentType.Code}' is always carried forward from the previous appraisal");
+
         documentType.Update(
             command.Name,
             command.Description,
             command.Category,
             command.SortOrder,
-            command.NameTh);
+            command.NameTh,
+            command.CarryForwardByDefault);
 
         if (command.IsActive && !documentType.IsActive)
             documentType.Activate();

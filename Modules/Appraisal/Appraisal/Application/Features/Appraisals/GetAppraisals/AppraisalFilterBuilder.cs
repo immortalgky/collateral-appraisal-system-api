@@ -18,7 +18,7 @@ internal static class AppraisalFilterBuilder
         "Priority", "SLADueDate", "SLAStatus", "CreatedAt", "AssignedDate",
         "AppointmentDateTime", "Province", "District", "SubDistrict", "Channel", "BankingSegment",
         "FacilityLimit", "PropertyCount", "ElapsedHours", "RemainingHours",
-        "AssignmentType", "CompanyName", "RequestedAt", "Purpose"
+        "AssignmentType", "CompanyName", "RequestedAt", "Purpose", "AppraisalDate"
     };
 
     /// <param name="addressMatch">
@@ -156,6 +156,10 @@ internal static class AppraisalFilterBuilder
                     "AppointmentDateTime", "AppointmentDateFrom", "AppointmentDateTo"))
                 requiresView = true;
 
+            if (AddDateRangeFilter(conditions, parameters, filter.AppraisalDateFrom, filter.AppraisalDateTo,
+                    "AppraisalDate", "AppraisalDateFrom", "AppraisalDateTo"))
+                requiresView = true;
+
             // Picker-specific additive fields
             // Every customer on the request, not the one the view happens to surface.
             //
@@ -268,16 +272,20 @@ internal static class AppraisalFilterBuilder
         // timestamps, so translate the sort for exact ordering:
         //   ElapsedHours  ASC  ≡ CreatedAt  DESC (least elapsed = most recently created)
         //   RemainingHours ASC ≡ SLADueDate ASC  (least remaining = earliest due)
-        var primary = sortField switch
+        var (column, direction) = sortField switch
         {
-            "ElapsedHours" => $"CreatedAt {Invert(sortDir)}",
-            "RemainingHours" => $"SLADueDate {sortDir}",
-            _ => $"{sortField} {sortDir}"
+            "ElapsedHours" => ("CreatedAt", Invert(sortDir)),
+            "RemainingHours" => ("SLADueDate", sortDir),
+            _ => (sortField, sortDir)
         };
+
+        // Ties on the chosen column (and every row inside a group) read newest first, like the default list.
+        // Skipped when CreatedAt is already the primary: a column repeated in ORDER BY is a SQL error.
+        var secondary = column.Equals("CreatedAt", StringComparison.OrdinalIgnoreCase) ? "" : ", CreatedAt DESC";
 
         // Unqualified on purpose: `s` in the search FROM exposes only AppraisalId, so Id resolves
         // to the view (or the base table) in every statement that uses this clause.
-        return $"{primary}, Id ASC";
+        return $"{column} {direction}{secondary}, Id ASC";
     }
 
     private static string Invert(string dir) =>
