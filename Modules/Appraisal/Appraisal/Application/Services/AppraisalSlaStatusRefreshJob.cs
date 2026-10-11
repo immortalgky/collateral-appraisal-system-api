@@ -8,8 +8,8 @@ using Shared.Time;
 namespace Appraisal.Application.Services;
 
 /// <summary>
-/// Hangfire hourly job. <c>appraisal.Appraisals.SLAStatus</c> is set to OnTrack at creation and re-evaluated only
-/// when work starts, so without this it never moves to AtRisk or Breached as the due date approaches and passes —
+/// Hangfire hourly job. <c>appraisal.Appraisals.SLAStatus</c> is set once at creation (from its due date) and re-evaluated
+/// only when work starts, so without this it never moves to AtRisk or Breached as the due date approaches and passes —
 /// and the slaStatus filter, SLA sort and group counts all read that column.
 ///
 /// One set-based UPDATE, no aggregates loaded. It touches only open appraisals (not deleted, with a due date, not

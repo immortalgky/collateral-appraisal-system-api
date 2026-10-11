@@ -16,6 +16,10 @@
 -- Idempotent: a second run changes nothing.
 -- ============================================================
 
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+GO
+
 DECLARE @Batch INT = 1;
 
 WHILE @Batch > 0
