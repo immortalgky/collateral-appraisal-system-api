@@ -61,7 +61,7 @@ public class GetDocumentDtoMappingTests
     public async Task GetDocumentById_throws_NotFound_when_missing_or_deleted()
     {
         var deleted = NewDocument();
-        deleted.Delete("u001");
+        deleted.Delete("u001", isLinked: false, new DateTime(2026, 10, 2, 9, 0, 0));
         var repository = Substitute.For<IDocumentRepository>();
         repository.GetByIdAsync(deleted.Id, Arg.Any<CancellationToken>()).Returns(deleted);
         var handler = new GetDocumentByIdHandler(repository);
