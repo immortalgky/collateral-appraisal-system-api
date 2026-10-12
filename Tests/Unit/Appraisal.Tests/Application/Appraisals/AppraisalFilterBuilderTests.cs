@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.GetAppraisals;
+using Appraisal.Domain.Appraisals;
 
 namespace Appraisal.Tests.Application.Appraisals;
 
@@ -540,8 +541,8 @@ public class AppraisalFilterBuilderTests
     // Business-time hours are not view columns; they are monotonic in the underlying timestamps.
     [InlineData("ElapsedHours", "asc", "CreatedAt DESC, Id ASC")]
     [InlineData("ElapsedHours", "desc", "CreatedAt ASC, Id ASC")]
-    [InlineData("RemainingHours", "asc", "SLADueDate ASC, CreatedAt DESC, Id ASC")]
-    [InlineData("RemainingHours", "desc", "SLADueDate DESC, CreatedAt DESC, Id ASC")]
+    [InlineData("RemainingHours", "asc", "CASE WHEN Status IN ('Completed', 'Cancelled') THEN 1 ELSE 0 END, CASE WHEN SLADueDate IS NULL THEN 1 ELSE 0 END, SLADueDate ASC, CreatedAt DESC, Id ASC")]
+    [InlineData("RemainingHours", "desc", "CASE WHEN Status IN ('Completed', 'Cancelled') THEN 1 ELSE 0 END, CASE WHEN SLADueDate IS NULL THEN 1 ELSE 0 END, SLADueDate DESC, CreatedAt DESC, Id ASC")]
     public void Computed_hour_sorts_are_translated_to_their_underlying_timestamp(
         string sortBy, string sortDir, string expected)
     {
@@ -578,7 +579,7 @@ public class AppraisalFilterBuilderTests
     /// </summary>
     [Theory]
     [InlineData("Status", "asc", "Status ASC, CreatedAt DESC, Id ASC")]
-    [InlineData("SLADueDate", "desc", "SLADueDate DESC, CreatedAt DESC, Id ASC")]
+    [InlineData("SLADueDate", "desc", "CASE WHEN Status IN ('Completed', 'Cancelled') THEN 1 ELSE 0 END, CASE WHEN SLADueDate IS NULL THEN 1 ELSE 0 END, SLADueDate DESC, CreatedAt DESC, Id ASC")]
     [InlineData("CreatedAt", "asc", "CreatedAt ASC, Id ASC")]
     [InlineData("createdAt", "desc", "createdAt DESC, Id ASC")]
     [InlineData("ElapsedHours", "asc", "CreatedAt DESC, Id ASC")]
@@ -590,6 +591,62 @@ public class AppraisalFilterBuilderTests
             new GetAppraisalsFilterRequest(SortBy: sortBy, SortDir: sortDir));
 
         Assert.Equal(expected, orderBy);
+    }
+
+    /// <summary>
+    /// An appraisal with no due date has nothing to be near, but SQL Server sorts NULL first on ASC. The NULL flag
+    /// goes first so they trail in BOTH directions (FE: nearest due first on ascending). Only SLADueDate gets it.
+    /// </summary>
+    [Theory]
+    [InlineData("SLADueDate", "asc")]
+    [InlineData("slaDueDate", "asc")]    // the FE sends camelCase
+    [InlineData("SLADueDate", "desc")]
+    [InlineData("RemainingHours", "asc")] // translated to SLADueDate
+    [InlineData("RemainingHours", "desc")]
+    public void Sla_due_date_sorts_put_missing_due_dates_last_in_both_directions(string sortBy, string dir)
+    {
+        var orderBy = AppraisalFilterBuilder.BuildOrderBy(
+            new GetAppraisalsFilterRequest(SortBy: sortBy, SortDir: dir));
+
+        Assert.StartsWith("CASE WHEN Status IN ('Completed', 'Cancelled') THEN 1 ELSE 0 END, CASE WHEN SLADueDate IS NULL THEN 1 ELSE 0 END, ", orderBy);
+        Assert.EndsWith(", CreatedAt DESC, Id ASC", orderBy);
+        // Every other sort field is left alone.
+        Assert.DoesNotContain("CASE", AppraisalFilterBuilder.BuildOrderBy(
+            new GetAppraisalsFilterRequest(SortBy: "SLAStatus", SortDir: dir)));
+    }
+
+    /// <summary>
+    /// The pagination helper rejects ORDER BY text containing statement terminators, quotes or comment markers
+    /// (DapperPaginationExtensions.ValidateOrderBy). The closed-status literals in the SLA sort must pass it, or
+    /// every SLA sort is a 400 — the guard allows a short letters-only literal and nothing else with a quote.
+    /// </summary>
+    [Theory]
+    [InlineData("SLADueDate", "asc")]
+    [InlineData("SLADueDate", "desc")]
+    [InlineData("RemainingHours", "asc")]
+    public void Sla_sort_passes_the_pagination_order_by_guard(string sortBy, string dir)
+    {
+        var orderBy = AppraisalFilterBuilder.BuildOrderBy(new GetAppraisalsFilterRequest(SortBy: sortBy, SortDir: dir));
+
+        Assert.Null(Record.Exception(() => Shared.Pagination.DapperPaginationExtensions.ValidateOrderBy(orderBy)));
+    }
+
+    /// <summary>
+    /// Open appraisals come first, whatever the direction, and the closed list is the one the SLA refresh uses.
+    /// </summary>
+    [Theory]
+    [InlineData("asc")]
+    [InlineData("desc")]
+    public void Sla_sort_ranks_open_before_closed_then_missing_due_dates_then_the_date(string dir)
+    {
+        var orderBy = AppraisalFilterBuilder.BuildOrderBy(
+            new GetAppraisalsFilterRequest(SortBy: "SLADueDate", SortDir: dir));
+
+        Assert.Equal(
+            $"CASE WHEN Status IN {AppraisalSla.ClosedStatusesSql} THEN 1 ELSE 0 END, "
+            + "CASE WHEN SLADueDate IS NULL THEN 1 ELSE 0 END, "
+            + $"SLADueDate {dir.ToUpperInvariant()}, CreatedAt DESC, Id ASC",
+            orderBy);
     }
 
     [Fact]
