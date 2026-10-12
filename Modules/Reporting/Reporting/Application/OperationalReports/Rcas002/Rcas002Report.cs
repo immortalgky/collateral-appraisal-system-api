@@ -75,7 +75,7 @@ internal static class Rcas002Report
             new("Apply/Limit Amount", r => r.ApplyLimitAmount, ColumnFormat.Money),
             new("Collateral Type", r => r.CollateralType),
             new("Title Deed No.", r => r.TitleDeedNumber),
-            new("Retail/IBG", r => r.BankingSegment),
+            new("Banking Segment", r => r.BankingSegment),
             new("Appraisal Company", r => r.AppraisalCompany),
             new("Internal Staff", r => r.InternalAppraisalStaff),
             new("Old Appraisal Value", r => r.OldAppraisalValue, ColumnFormat.Money),

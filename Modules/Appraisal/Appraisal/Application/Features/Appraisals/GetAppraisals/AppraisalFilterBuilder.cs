@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.Shared;
+using Appraisal.Domain.Appraisals;
 using Dapper;
 using Shared.Data;
 
@@ -283,9 +284,20 @@ internal static class AppraisalFilterBuilder
         // Skipped when CreatedAt is already the primary: a column repeated in ORDER BY is a SQL error.
         var secondary = column.Equals("CreatedAt", StringComparison.OrdinalIgnoreCase) ? "" : ", CreatedAt DESC";
 
+        // SLA sorts mean "nearest due first", which only makes sense for work still open: closed appraisals
+        // (their SLAStatus is settled, the due date no longer matters) come after every open one, then an
+        // appraisal with no due date — SQL Server would put those NULLs FIRST on ASC — and only then the
+        // date in the requested direction. Same in both directions. Also covers RemainingHours, which was
+        // translated to SLADueDate above. Status is unambiguous in every caller's FROM (the search
+        // derived table exposes only AppraisalId), exactly like the filters' unqualified Status.
+        var nullsLast = column.Equals("SLADueDate", StringComparison.OrdinalIgnoreCase)
+            ? $"CASE WHEN Status IN {AppraisalSla.ClosedStatusesSql} THEN 1 ELSE 0 END, "
+              + "CASE WHEN SLADueDate IS NULL THEN 1 ELSE 0 END, "
+            : "";
+
         // Unqualified on purpose: `s` in the search FROM exposes only AppraisalId, so Id resolves
         // to the view (or the base table) in every statement that uses this clause.
-        return $"{column} {direction}{secondary}, Id ASC";
+        return $"{nullsLast}{column} {direction}{secondary}, Id ASC";
     }
 
     private static string Invert(string dir) =>
