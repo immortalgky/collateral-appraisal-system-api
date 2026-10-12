@@ -86,7 +86,7 @@ public class ReportFilterResolverTests
         };
 
         var result = ReportFilterResolver.BuildCriteria(
-            [new FilterField("Retail/IBG", "r", "bankingsegment")], ci);
+            [new FilterField("Banking Segment", "r", "bankingsegment")], ci);
 
         result.Single().Value.Should().Be("Retail");
     }
@@ -96,11 +96,11 @@ public class ReportFilterResolverTests
     {
         var result = ReportFilterResolver.BuildCriteria(
         [
-            new FilterField("Retail/IBG", "R", "BankingSegment"),
+            new FilterField("Banking Segment", "R", "BankingSegment"),
             new FilterField("Pay Type", "05", "FeePaymentMethod"),
         ], Descriptions);
 
-        result.Select(c => c.Label).Should().ContainInOrder("Retail/IBG", "Pay Type");
+        result.Select(c => c.Label).Should().ContainInOrder("Banking Segment", "Pay Type");
         result.Select(c => c.Value).Should().ContainInOrder("Retail", "Full Payment");
     }
 }
