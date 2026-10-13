@@ -122,6 +122,54 @@ public class SessionStoreTests(IntegrationTestFixture fixture)
     }
 
     [Fact]
+    public async Task A_refused_request_says_whether_the_session_idled_or_was_ended()
+    {
+        // No cookie at all: nothing to report.
+        using var anonymous = fixture.BffWebApplicationFactory.CreateBrowser(handleCookies: false);
+        using var none = await BffTestSupport.GetAsync(anonymous, "/test/whoami", null);
+        none.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        none.Headers.Contains("X-Session-End").Should().BeFalse();
+
+        // Idled: reported on the request that notices it and on every one after.
+        var (browser, user, cookie) = await SignedInAsync();
+        using var _ = browser;
+        var session = await BffTestSupport.GetSessionAsync(Services, user.Id);
+        await BffTestSupport.UpdateSessionAsync(Services, session.Id, s => s.LastActivityAt = Now.AddMinutes(-31));
+        for (var i = 0; i < 2; i++)
+        {
+            using var idled = await BffTestSupport.GetAsync(browser, "/test/whoami", cookie);
+            idled.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+            idled.Headers.GetValues("X-Session-End").Should().Equal("idle");
+        }
+
+        // Signed out (here, as in another tab): the user's own action, so nothing to report.
+        var (browser3, user3, cookie3) = await SignedInAsync();
+        using var ___ = browser3;
+        using (var logout = await BffTestSupport.SendAsync(browser3,
+                   BffTestSupport.SpaRequest(HttpMethod.Post, "/auth/logout"), cookie3))
+            logout.StatusCode.Should().Be(HttpStatusCode.OK);
+        for (var i = 0; i < 2; i++) // the second one comes from the cached "missing" entry
+        {
+            using var signedOut = await BffTestSupport.GetAsync(browser3, "/test/whoami", cookie3);
+            signedOut.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+            signedOut.Headers.Contains("X-Session-End").Should().BeFalse();
+        }
+
+        // Revoked by an administrator: "ended", and readable cross-origin.
+        var (browser2, user2, cookie2) = await SignedInAsync();
+        using var __ = browser2;
+        var revoked = await BffTestSupport.GetSessionAsync(Services, user2.Id);
+        await using (var scope = Services.CreateAsyncScope())
+            await scope.ServiceProvider.GetRequiredService<IUserSessionService>()
+                .EndAsync(revoked.Id, SessionEndReason.Revoked);
+        using var ended = await BffTestSupport.SendAsync(browser2,
+            BffTestSupport.SpaRequest(HttpMethod.Get, "/test/whoami"), cookie2);
+        ended.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        ended.Headers.GetValues("X-Session-End").Should().Equal("ended");
+        ended.Headers.GetValues("Access-Control-Expose-Headers").Single().Should().Contain("X-Session-End");
+    }
+
+    [Fact]
     public async Task Polling_alone_cannot_keep_a_session_alive_past_the_timeout()
     {
         var (browser, user, cookie) = await SignedInAsync();

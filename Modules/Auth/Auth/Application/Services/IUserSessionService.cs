@@ -15,6 +15,9 @@ public interface IUserSessionService : ISessionStatusReader
     /// <summary>The row if it exists and has not ended; idle expiry is the caller's decision.</summary>
     Task<SessionSnapshot?> GetActiveAsync(Guid id, CancellationToken cancellationToken = default);
 
+    /// <summary>Why the session ended; null when it has not ended or the row does not exist.</summary>
+    Task<SessionEndReason?> GetEndReasonAsync(Guid id, CancellationToken cancellationToken = default);
+
     /// <summary>Records activity. False when the session has ended in the meantime.</summary>
     Task<bool> TouchAsync(Guid id, DateTime now, CancellationToken cancellationToken = default);
 

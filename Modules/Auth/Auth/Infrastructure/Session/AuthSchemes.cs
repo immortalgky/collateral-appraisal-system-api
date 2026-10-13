@@ -23,6 +23,13 @@ public static class AuthSchemes
 
     // HttpContext.Items keys.
     internal const string EndReasonItem = "cas.session.end-reason";
+
+    /// <summary>
+    /// Why this request's session is gone, for the 401's <c>X-Session-End</c> header. Kept apart from
+    /// <see cref="EndReasonItem"/> (the input of <c>RemoveAsync</c>) so reporting a reason can never change the one
+    /// a later sign-out records.
+    /// </summary>
+    internal const string EndHintItem = "cas.session.end-hint";
     internal const string LogoutUrlItem = "cas.session.logout-url";
 
     // AuthenticationProperties.Items key: set on the second login attempt so a failing callback
