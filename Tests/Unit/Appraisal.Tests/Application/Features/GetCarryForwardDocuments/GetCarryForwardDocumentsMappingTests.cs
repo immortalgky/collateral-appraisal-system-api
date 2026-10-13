@@ -89,7 +89,7 @@ public class GetCarryForwardDocumentsMappingTests
     [Theory]
     [InlineData(true, true)]
     [InlineData(false, false)]
-    [InlineData(null, true)]
+    [InlineData(null, false)]
     public void Appraisal_level_files_of_other_codes_follow_the_document_type_flag_as_request_level(
         bool? flag, bool expected)
     {
@@ -115,8 +115,8 @@ public class GetCarryForwardDocumentsMappingTests
     [Theory]
     [InlineData(true, true)]
     [InlineData(false, false)]
-    [InlineData(null, true)]
-    public void DefaultUse_follows_the_document_type_flag_and_defaults_to_true_when_unknown(bool? flag, bool expected)
+    [InlineData(null, false)]
+    public void DefaultUse_follows_the_document_type_flag_and_defaults_to_false_when_unknown(bool? flag, bool expected)
     {
         var doc = Assert.Single(GetCarryForwardDocumentsQueryHandler.Map([Row("Request", "D010", byDefault: flag)], "D043"));
 

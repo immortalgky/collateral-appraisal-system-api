@@ -22,7 +22,8 @@
 -- Files are shared by DocumentId, so rows with no file yet (empty checklist placeholders), rows with no
 -- document type (cannot be placed into a section) and files soft-deleted in document.Documents are
 -- excluded. The link tables have no IsDeleted: unlinking removes
--- the row. CarryForwardByDefault is parameter.DocumentTypes.CarryForwardByDefault (NULL = unknown type).
+-- the row. CarryForwardByDefault is parameter.DocumentTypes.CarryForwardByDefault (NULL = unknown type;
+-- the caller treats both NULL and 0 as "do not use by default").
 -- No ORDER BY here (not allowed in a view): callers order by GroupOrder, Seq, UploadedAt, RowId.
 CREATE OR ALTER VIEW appraisal.vw_CarryForwardDocuments
 AS

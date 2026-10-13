@@ -83,7 +83,8 @@ public class GetCarryForwardDocumentsQueryHandler(ISqlConnectionFactory connecti
     /// <paramref name="summaryCode"/>) is re-typed D036 and always used. Any other D042 / D043 (on the request
     /// or title, or the other summary code on the appraisal) keeps its code and is never used by default: it
     /// is a stale summary that would pile up a reappraisal chain. Everything else
-    /// follows parameter.DocumentTypes.CarryForwardByDefault. Appraisal-level rows go out as level "Request".
+    /// follows parameter.DocumentTypes.CarryForwardByDefault, which is off unless an admin ticked the type (an unknown type
+    /// is off too). Appraisal-level rows go out as level "Request".
     /// </summary>
     internal static List<CarryForwardDocumentDto> Map(IEnumerable<DocumentRow> rows, string summaryCode) =>
         rows.Where(r => r.DocumentId is not null)
@@ -106,7 +107,7 @@ public class GetCarryForwardDocumentsQueryHandler(ISqlConnectionFactory connecti
                     r.UploadedBy,
                     r.UploadedByName,
                     r.UploadedAt,
-                    current || (!IsSummaryCode(r.DocumentType) && (r.CarryForwardByDefault ?? true)));
+                    current || (!IsSummaryCode(r.DocumentType) && (r.CarryForwardByDefault ?? false)));
             })
             .ToList();
 

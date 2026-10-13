@@ -16,9 +16,9 @@ public class DocumentType : Entity<Guid>
 
     /// <summary>
     /// When a request references a previous appraisal: true = files of this type are carried over
-    /// and used by default, false = offered but not linked until the maker opts in.
+    /// and used by default, false (the default) = offered but not linked until the maker opts in.
     /// </summary>
-    public bool CarryForwardByDefault { get; private set; } = true;
+    public bool CarryForwardByDefault { get; private set; }
 
     private static readonly string[] CarryForwardLockedCodes = ["D036", "D042", "D043"];
 
@@ -55,7 +55,7 @@ public class DocumentType : Entity<Guid>
         string? category = null,
         int sortOrder = 0,
         string? nameTh = null,
-        bool carryForwardByDefault = true)
+        bool carryForwardByDefault = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(code);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
