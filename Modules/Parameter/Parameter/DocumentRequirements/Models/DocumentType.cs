@@ -24,8 +24,9 @@ public class DocumentType : Entity<Guid>
 
     /// <summary>
     /// Code reads these by code (the summary report D036 and the D042/D043 originals it is re-typed from),
-    /// so the flag is ignored for them: only the prior appraisal's current summary is used by default, and
-    /// every other file of these codes is returned as not used.
+    /// so the flag is ignored for them. D036 is never carried directly (a D036 on the prior is the summary of the
+    /// generation before it); only the prior appraisal's current D042/D043 is used by default, as D036, and
+    /// every other D042/D043 file is returned as not used.
     /// </summary>
     public bool IsCarryForwardLocked =>
         CarryForwardLockedCodes.Contains(Code.Trim(), StringComparer.OrdinalIgnoreCase);

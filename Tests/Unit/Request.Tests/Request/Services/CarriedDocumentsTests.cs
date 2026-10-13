@@ -78,7 +78,6 @@ public class CarriedDocumentsTests
         var (requestDocs, titles) = CarriedDocuments.Build(
             Result(
                 current,
-                Doc("Request", "D036", defaultUse: false),
                 Doc("Request", "D042", defaultUse: false),
                 Doc("Title", "D043", "01", "A", defaultUse: false)),
             [Title("A")]);

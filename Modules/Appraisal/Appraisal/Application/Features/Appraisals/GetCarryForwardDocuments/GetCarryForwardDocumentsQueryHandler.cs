@@ -25,7 +25,7 @@ public class GetCarryForwardDocumentsQueryHandler(ISqlConnectionFactory connecti
         """;
 
     // The view (appraisal.vw_CarryForwardDocuments) holds the cross-schema joins and the soft-delete
-    // filters and returns every file. Map decides each row's defaultUse; nothing is filtered by code here.
+    // filters and returns every file but D036. Map decides each row's defaultUse; nothing else is filtered by code here.
     // Ordering uses GroupOrder / Seq / UploadedAt / RowId rather than Guid v7 order.
     private const string DocumentsSql = """
         SELECT Level, DocumentId, DocumentType, PriorTitleId, CollateralType, TitleNumber, FileName, FilePath, Prefix, [Set],
@@ -72,15 +72,17 @@ public class GetCarryForwardDocumentsQueryHandler(ISqlConnectionFactory connecti
             ? "D042"
             : "D043";
 
-    // Request / title rows store the code as given, so match like the old SQL NOT IN did: trimmed, any case.
+    // Request / title rows store the code as given, so match trimmed, any case. D036 never arrives (the view
+    // leaves it out), so only the two originals are summary codes here.
     private static bool IsSummaryCode(string code) =>
-        code.Trim().ToUpperInvariant() is "D036" or "D042" or "D043";
+        code.Trim().ToUpperInvariant() is "D042" or "D043";
 
     /// <summary>
-    /// Every file is returned. The prior appraisal's own summary (an 'Appraisal' row with
-    /// <paramref name="summaryCode"/>) is re-typed D036 and always used. Any other summary-coded file (D036 /
-    /// D042 / D043 on the request or title, or the other summary code on the appraisal) keeps its code and is
-    /// never used by default: it is a stale summary that would pile up a reappraisal chain. Everything else
+    /// Every file the view returns (it never returns D036: that is the summary of the generation before the
+    /// prior, and only one generation is carried). The prior appraisal's own summary (an 'Appraisal' row with
+    /// <paramref name="summaryCode"/>) is re-typed D036 and always used. Any other D042 / D043 (on the request
+    /// or title, or the other summary code on the appraisal) keeps its code and is never used by default: it
+    /// is a stale summary that would pile up a reappraisal chain. Everything else
     /// follows parameter.DocumentTypes.CarryForwardByDefault. Appraisal-level rows go out as level "Request".
     /// </summary>
     internal static List<CarryForwardDocumentDto> Map(IEnumerable<DocumentRow> rows, string summaryCode) =>

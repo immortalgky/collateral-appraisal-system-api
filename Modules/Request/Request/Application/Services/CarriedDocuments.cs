@@ -62,8 +62,8 @@ internal static class CarriedDocuments
     // had, filled or empty — a title document's IsRequired is not stored yet (TitleDocument.Create hard-codes
     // false), so the flag cannot tell the required ones apart. The summary codes are left out at title level:
     // these are empty slots, and a slot for a stale summary has no use — the only summary a new request gets
-    // is the carried, re-typed D036 (vw_CarryForwardDocuments returns summary-coded title files too, but with
-    // defaultUse=false, so Build never applies them).
+    // is the carried, re-typed D036 (vw_CarryForwardDocuments never returns D036, and returns D042 / D043
+    // title files with defaultUse=false, so Build never applies them).
     private const string PlaceholderSql = """
         SELECT CAST(NULL AS nvarchar(10)) AS CollateralType, CAST(NULL AS nvarchar(100)) AS TitleNumber, rd.DocumentType
         FROM request.RequestDocuments rd

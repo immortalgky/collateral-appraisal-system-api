@@ -5,7 +5,8 @@ namespace Appraisal.Contracts.Appraisals;
 /// <summary>
 /// The files of an appraisal that a new request referencing it may reuse: every file of its request
 /// (request level and per title) and every file attached to the appraisal itself. Its own summary report is
-/// re-typed D036 and used by default; other summary-coded files keep their code and default to not used.
+/// re-typed D036 and used by default; other D042/D043 files keep their code and default to not used. D036 files
+/// are never returned (a D036 on the prior is the summary of the generation before it).
 /// Throws 404 when the appraisal does not exist and, unless <paramref name="AnyStatus"/>, 409 when it is not Completed.
 /// Read by GET /appraisals/{id}?include=documents and by the system-created reappraisals.
 /// </summary>

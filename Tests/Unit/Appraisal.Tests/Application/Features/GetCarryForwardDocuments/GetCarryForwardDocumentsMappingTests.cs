@@ -68,14 +68,11 @@ public class GetCarryForwardDocumentsMappingTests
     }
 
     [Theory]
-    [InlineData("Request", "D036")]
     [InlineData("Request", "D042")]
     [InlineData("Request", "D043")]
-    [InlineData("Title", "D036")]
     [InlineData("Title", "D042")]
     [InlineData("Title", "D043")]
-    [InlineData("Appraisal", "D036")]
-    [InlineData("Request", "D036 ")]
+    [InlineData("Request", "D042 ")]
     [InlineData("Title", "d043")]
     public void Summary_coded_files_other_than_the_current_summary_keep_their_code_and_are_not_used_by_default(
         string level, string code)
