@@ -6,7 +6,7 @@ using Reporting.Contracts;
 namespace Appraisal.Application.Features.Appraisals.GetCarryForwardDocuments;
 
 /// <summary>
-/// Reads the prior request's files and the prior appraisal's summary report from
+/// Reads every file of the prior request and of the prior appraisal itself from
 /// appraisal.vw_CarryForwardDocuments. Files are shared by DocumentId, so rows whose link has no
 /// file yet (empty checklist placeholders) and files already soft-deleted are left out.
 /// </summary>
@@ -25,14 +25,13 @@ public class GetCarryForwardDocumentsQueryHandler(ISqlConnectionFactory connecti
         """;
 
     // The view (appraisal.vw_CarryForwardDocuments) holds the cross-schema joins and the soft-delete
-    // filters. It exposes both summary codes; only the one matching the appraisal's type is kept.
+    // filters and returns every file but D036. Map decides each row's defaultUse; nothing else is filtered by code here.
     // Ordering uses GroupOrder / Seq / UploadedAt / RowId rather than Guid v7 order.
     private const string DocumentsSql = """
         SELECT Level, DocumentId, DocumentType, PriorTitleId, CollateralType, TitleNumber, FileName, FilePath, Prefix, [Set],
                Notes, UploadedBy, UploadedByName, UploadedAt, CarryForwardByDefault
         FROM appraisal.vw_CarryForwardDocuments
         WHERE AppraisalId = @AppraisalId
-          AND (Level <> 'Summary' OR DocumentType = @SummaryCode)
         ORDER BY GroupOrder, Seq, UploadedAt, RowId
         """;
 
@@ -42,7 +41,7 @@ public class GetCarryForwardDocumentsQueryHandler(ISqlConnectionFactory connecti
     {
         var connection = connectionFactory.GetOpenConnection();
 
-        // The summary code depends on the appraisal's type, so the header is read first.
+        // The current summary's code depends on the appraisal's type, so the header is read first.
         var header = await connection.QueryFirstOrDefaultAsync<HeaderRow>(new CommandDefinition(
             HeaderSql, new { query.AppraisalId }, cancellationToken: cancellationToken));
 
@@ -56,10 +55,12 @@ public class GetCarryForwardDocumentsQueryHandler(ISqlConnectionFactory connecti
 
         var rows = await connection.QueryAsync<DocumentRow>(new CommandDefinition(
             DocumentsSql,
-            new { query.AppraisalId, SummaryCode = SummaryCodeFor(header.ProjectExists, header.AppraisalType) },
+            new { query.AppraisalId },
             cancellationToken: cancellationToken));
 
-        return new CarryForwardDocumentsResult(header.AppraisalId, header.AppraisalNumber, Map(rows));
+        return new CarryForwardDocumentsResult(
+            header.AppraisalId, header.AppraisalNumber,
+            Map(rows, SummaryCodeFor(header.ProjectExists, header.AppraisalType)));
     }
 
     /// <summary>
@@ -71,16 +72,30 @@ public class GetCarryForwardDocumentsQueryHandler(ISqlConnectionFactory connecti
             ? "D042"
             : "D043";
 
-    internal static List<CarryForwardDocumentDto> Map(IEnumerable<DocumentRow> rows) =>
+    // Request / title rows store the code as given, so match trimmed, any case. D036 never arrives (the view
+    // leaves it out), so only the two originals are summary codes here.
+    private static bool IsSummaryCode(string code) =>
+        code.Trim().ToUpperInvariant() is "D042" or "D043";
+
+    /// <summary>
+    /// Every file the view returns (it never returns D036: that is the summary of the generation before the
+    /// prior, and only one generation is carried). The prior appraisal's own summary (an 'Appraisal' row with
+    /// <paramref name="summaryCode"/>) is re-typed D036 and always used. Any other D042 / D043 (on the request
+    /// or title, or the other summary code on the appraisal) keeps its code and is never used by default: it
+    /// is a stale summary that would pile up a reappraisal chain. Everything else
+    /// follows parameter.DocumentTypes.CarryForwardByDefault, which is off unless an admin ticked the type (an unknown type
+    /// is off too). Appraisal-level rows go out as level "Request".
+    /// </summary>
+    internal static List<CarryForwardDocumentDto> Map(IEnumerable<DocumentRow> rows, string summaryCode) =>
         rows.Where(r => r.DocumentId is not null)
             .Select(r =>
             {
-                var summary = r.Level == "Summary";
+                var current = r.Level == "Appraisal" && r.DocumentType == summaryCode;
                 return new CarryForwardDocumentDto(
                     r.DocumentId!.Value,
-                    summary ? SummaryDocumentType : r.DocumentType,
+                    current ? SummaryDocumentType : r.DocumentType,
                     r.DocumentType,
-                    summary ? "Request" : r.Level,
+                    r.Level == "Appraisal" ? "Request" : r.Level,
                     r.PriorTitleId,
                     r.CollateralType,
                     r.TitleNumber,
@@ -92,7 +107,7 @@ public class GetCarryForwardDocumentsQueryHandler(ISqlConnectionFactory connecti
                     r.UploadedBy,
                     r.UploadedByName,
                     r.UploadedAt,
-                    summary || (r.CarryForwardByDefault ?? true));
+                    current || (!IsSummaryCode(r.DocumentType) && (r.CarryForwardByDefault ?? false)));
             })
             .ToList();
 

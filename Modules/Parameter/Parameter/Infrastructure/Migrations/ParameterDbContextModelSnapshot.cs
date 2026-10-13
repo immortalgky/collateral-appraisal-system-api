@@ -401,7 +401,7 @@ namespace Parameter.Infrastructure.Migrations
                     b.Property<bool>("CarryForwardByDefault")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
-                        .HasDefaultValue(true);
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Category")
                         .HasMaxLength(100)
