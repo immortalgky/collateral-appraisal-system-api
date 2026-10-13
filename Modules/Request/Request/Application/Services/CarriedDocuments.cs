@@ -60,8 +60,10 @@ internal static class CarriedDocuments
     // Request level: the types of every row marked required, filled or empty — a required type must stay
     // on the checklist even when its file was not carried. Title level: every document type the prior title
     // had, filled or empty — a title document's IsRequired is not stored yet (TitleDocument.Create hard-codes
-    // false), so the flag cannot tell the required ones apart. The summary codes are left out at title level
-    // as in vw_CarryForwardDocuments: the only summary a new request gets is the carried, re-typed D036.
+    // false), so the flag cannot tell the required ones apart. The summary codes are left out at title level:
+    // these are empty slots, and a slot for a stale summary has no use — the only summary a new request gets
+    // is the carried, re-typed D036 (vw_CarryForwardDocuments returns summary-coded title files too, but with
+    // defaultUse=false, so Build never applies them).
     private const string PlaceholderSql = """
         SELECT CAST(NULL AS nvarchar(10)) AS CollateralType, CAST(NULL AS nvarchar(100)) AS TitleNumber, rd.DocumentType
         FROM request.RequestDocuments rd

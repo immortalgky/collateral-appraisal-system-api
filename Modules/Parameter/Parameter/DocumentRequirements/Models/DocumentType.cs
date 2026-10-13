@@ -23,8 +23,9 @@ public class DocumentType : Entity<Guid>
     private static readonly string[] CarryForwardLockedCodes = ["D036", "D042", "D043"];
 
     /// <summary>
-    /// Code reads these by code and carries them unconditionally (the summary report D036 and the
-    /// D042/D043 originals it is re-typed from), so "don't use by default" is not a valid setting.
+    /// Code reads these by code (the summary report D036 and the D042/D043 originals it is re-typed from),
+    /// so the flag is ignored for them: only the prior appraisal's current summary is used by default, and
+    /// every other file of these codes is returned as not used.
     /// </summary>
     public bool IsCarryForwardLocked =>
         CarryForwardLockedCodes.Contains(Code.Trim(), StringComparer.OrdinalIgnoreCase);

@@ -2,13 +2,14 @@
 -- appraisal (AppraisalId). Read by GetCarryForwardDocumentsQueryHandler, which backs
 -- GET /appraisals/{id}?include=documents and the system-created reappraisals.
 --
--- Level 'Request' / 'Title': every file the prior request holds, except the summary codes D036 / D042 /
---   D043. Those are the summaries of the appraisal BEFORE this one (or an earlier round's, attached to the
---   request), and carrying them would pile stale summaries up a reappraisal chain; the only summary a new
---   request gets is this appraisal's own, below, re-typed D036.
--- Level 'Summary': this appraisal's D042 / D043 summary report, ALL files of each code. DocumentType keeps
---   the original code; the caller keeps the one that matches the appraisal's type (D042 for a
---   construction inspection, else D043) and re-types it as D036.
+-- Level 'Request' / 'Title': every file the prior request holds, whatever its code.
+-- Level 'Appraisal': every file attached to the prior appraisal itself (appraisal.AppraisalDocuments: the
+--   auto-attached summary D042 / D043, the valuation report D001, VAL_DOC ...). DocumentType keeps the
+--   original code; the caller (GetCarryForwardDocumentsQueryHandler) maps the level to 'Request' and
+--   re-types the one summary matching the appraisal's type (D042 for a construction inspection, else D043)
+--   as D036.
+-- The summary codes D036 / D042 / D043 are NOT filtered out here: the caller defaults every one of them
+--   except that current summary to "do not use", so stale summaries never pile up a reappraisal chain.
 --
 -- Title rows carry CollateralType and TitleNumber (the per-type number) as the title's KEY. The number is the
 -- one rule the request page uses (titleList.ts movableIdentity), kept identical in CarriedDocuments.NumberOf
@@ -19,7 +20,7 @@
 -- Files are shared by DocumentId, so rows with no file yet (empty checklist placeholders), rows with no
 -- document type (cannot be placed into a section) and files soft-deleted in document.Documents are
 -- excluded. The link tables have no IsDeleted: unlinking removes
--- the row. CarryForwardByDefault is NULL for 'Summary' rows (always used).
+-- the row. CarryForwardByDefault is parameter.DocumentTypes.CarryForwardByDefault (NULL = unknown type).
 -- No ORDER BY here (not allowed in a view): callers order by GroupOrder, Seq, UploadedAt, RowId.
 CREATE OR ALTER VIEW appraisal.vw_CarryForwardDocuments
 AS
@@ -50,7 +51,6 @@ FROM appraisal.Appraisals a
 WHERE a.IsDeleted = 0
   AND rd.DocumentId IS NOT NULL
   AND LTRIM(RTRIM(rd.DocumentType)) <> ''
-  AND rd.DocumentType NOT IN ('D036', 'D042', 'D043')
 
 UNION ALL
 
@@ -87,12 +87,11 @@ FROM appraisal.Appraisals a
 WHERE a.IsDeleted = 0
   AND td.DocumentId IS NOT NULL
   AND LTRIM(RTRIM(td.DocumentType)) <> ''
-  AND td.DocumentType NOT IN ('D036', 'D042', 'D043')
 
 UNION ALL
 
 SELECT a.Id,
-       'Summary',
+       'Appraisal',
        2,
        ad.SortOrder,
        ad.DocumentId,
@@ -108,10 +107,11 @@ SELECT a.Id,
        ad.CreatedBy,
        ad.UploadedByName,
        ad.CreatedAt,
-       NULL,
+       dt.CarryForwardByDefault,
        ad.Id
 FROM appraisal.Appraisals a
          JOIN appraisal.AppraisalDocuments ad ON ad.AppraisalId = a.Id
          JOIN document.Documents d ON d.Id = ad.DocumentId AND d.IsDeleted = 0
+         LEFT JOIN parameter.DocumentTypes dt ON dt.Code = ad.DocumentTypeCode
 WHERE a.IsDeleted = 0
-  AND ad.DocumentTypeCode IN ('D042', 'D043');
+  AND LTRIM(RTRIM(ad.DocumentTypeCode)) <> '';
