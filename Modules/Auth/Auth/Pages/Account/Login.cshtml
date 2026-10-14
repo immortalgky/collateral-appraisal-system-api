@@ -152,7 +152,8 @@
         var username = document.getElementById('name').value;
         // sessionStorage can throw (blocked storage, private modes); the language switch must still happen.
         var url = location.pathname + location.search;
-        try { if (username) sessionStorage.setItem('login-username', JSON.stringify({ url: url, username: username })); } catch (e) { }
+        // Saved even when empty: the user cleared a prefilled field, and the reload must not bring it back.
+        try { sessionStorage.setItem('login-username', JSON.stringify({ url: url, username: username })); } catch (e) { }
         location.replace(url);
     }
 
@@ -171,11 +172,12 @@
     (function () {
         try {
             // Only the page we switched language on gets the username back, and it is read once: a stale
-            // value must never prefill someone else's later sign-in.
+            // value must never prefill someone else's later sign-in. It wins, even when empty, over the
+            // server's login_hint prefill: it is what the user had in the field.
             var saved = JSON.parse(sessionStorage.getItem('login-username') || 'null');
             sessionStorage.removeItem('login-username');
             var input = document.getElementById('name');
-            if (saved && saved.url === location.pathname + location.search && !input.value) input.value = saved.username;
+            if (saved && saved.url === location.pathname + location.search) input.value = saved.username;
         } catch (e) { }
     })();
 
