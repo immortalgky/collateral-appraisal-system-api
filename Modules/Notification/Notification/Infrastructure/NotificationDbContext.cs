@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Notification.Domain.Email;
 using Notification.Domain.Notifications.Models;
 using Shared.Data.Outbox;
+using Shared.Scheduling;
 
 namespace Notification.Data;
 
@@ -21,6 +22,9 @@ public class NotificationDbContext : DbContext
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(NotificationDbContext).Assembly);
 
         modelBuilder.AddIntegrationEventInbox();
+
+        // Admin-editable schedule for this module's recurring jobs (notification.JobSchedules)
+        modelBuilder.AddJobSchedules();
 
         base.OnModelCreating(modelBuilder);
     }

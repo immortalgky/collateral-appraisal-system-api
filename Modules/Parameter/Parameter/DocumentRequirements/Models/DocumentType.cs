@@ -16,15 +16,17 @@ public class DocumentType : Entity<Guid>
 
     /// <summary>
     /// When a request references a previous appraisal: true = files of this type are carried over
-    /// and used by default, false = offered but not linked until the maker opts in.
+    /// and used by default, false (the default) = offered but not linked until the maker opts in.
     /// </summary>
-    public bool CarryForwardByDefault { get; private set; } = true;
+    public bool CarryForwardByDefault { get; private set; }
 
     private static readonly string[] CarryForwardLockedCodes = ["D036", "D042", "D043"];
 
     /// <summary>
-    /// Code reads these by code and carries them unconditionally (the summary report D036 and the
-    /// D042/D043 originals it is re-typed from), so "don't use by default" is not a valid setting.
+    /// Code reads these by code (the summary report D036 and the D042/D043 originals it is re-typed from),
+    /// so the flag is ignored for them. D036 is never carried directly (a D036 on the prior is the summary of the
+    /// generation before it); only the prior appraisal's current D042/D043 is used by default, as D036, and
+    /// every other D042/D043 file is returned as not used.
     /// </summary>
     public bool IsCarryForwardLocked =>
         CarryForwardLockedCodes.Contains(Code.Trim(), StringComparer.OrdinalIgnoreCase);
@@ -53,7 +55,7 @@ public class DocumentType : Entity<Guid>
         string? category = null,
         int sortOrder = 0,
         string? nameTh = null,
-        bool carryForwardByDefault = true)
+        bool carryForwardByDefault = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(code);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);

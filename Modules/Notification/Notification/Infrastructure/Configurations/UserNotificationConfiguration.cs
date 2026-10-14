@@ -56,7 +56,8 @@ public class UserNotificationConfiguration : IEntityTypeConfiguration<UserNotifi
             .HasDatabaseName("IX_UserNotifications_UserId");
 
         builder.HasIndex(x => x.CreatedAt)
-            .HasDatabaseName("IX_UserNotifications_CreatedAt");
+            .HasDatabaseName("IX_UserNotifications_CreatedAt")
+            .IncludeProperties(x => x.IsRead);
 
         builder.HasIndex(x => new { x.Username, x.IsRead })
             .HasDatabaseName("IX_UserNotifications_UserId_IsRead");
