@@ -21,7 +21,8 @@ public class Login(
     IPasswordPolicyProvider passwordPolicyProvider,
     IAuthAuditWriter auditWriter,
     AuthDbContext dbContext,
-    BffUrls urls)
+    BffUrls urls,
+    IOptions<IdentityOptions> identityOptions)
     : PageModel
 {
     private readonly LdapConfiguration _ldapConfig = ldapOptions.Value;
@@ -79,6 +80,8 @@ public class Login(
             return Redirect(urls.SpaHome);
 
         ReturnUrl = returnUrl;
+        // "Continue as ...": the authorize request carries the username to show. Razor encodes it on output.
+        Username = LoginHint.FromAuthorizeUrl(returnUrl, identityOptions.Value.User.AllowedUserNameCharacters) ?? "";
         return Page();
     }
 

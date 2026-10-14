@@ -1,5 +1,7 @@
 using Auth.Infrastructure.Session;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
 namespace Auth.Application.Features.Auth.Login;
 
@@ -12,7 +14,8 @@ public class LoginEndpoint : ICarterModule
     {
         // A top-level navigation from the SPA, not an XHR: it ends in a redirect chain through the IdP.
         app.MapGet("/auth/login", (HttpContext http, BffUrls urls, ILogger<LoginEndpoint> logger,
-                string? returnUrl, string? retry) =>
+                IOptions<IdentityOptions> identity, string? returnUrl, string? retry,
+                [FromQuery(Name = LoginHint.Parameter)] string? loginHint) =>
             {
                 // A request under another host than AppBaseUrl (the SPA's VITE_API_URL not equal to it) will sign in on
                 // AppBaseUrl and then call an API whose cookie never arrives. Whether this is wrong depends on how the
@@ -30,6 +33,14 @@ public class LoginEndpoint : ICarterModule
                 // sign-in completes (AppSessionEvents.TicketReceivedAsync).
                 var properties = new AuthenticationProperties { RedirectUri = urls.ResolveReturnUrl(returnUrl) };
                 if (retry == "1") properties.Items[AuthSchemes.RetryItem] = "1";
+                // The "Continue as ..." button: the IdP's sign-in page opens with this username filled in.
+                // Not on the retry after a stale state: that one starts over without it.
+                if (retry != "1"
+                    && LoginHint.Sanitize(loginHint, identity.Value.User.AllowedUserNameCharacters) is { } hint)
+                {
+                    properties.SetParameter(OpenIdConnectParameterNames.LoginHint, hint);
+                    properties.Items[AuthSchemes.LoginHintItem] = hint;
+                }
                 return Results.Challenge(properties, [AuthSchemes.Oidc]);
             })
             .AllowAnonymous()

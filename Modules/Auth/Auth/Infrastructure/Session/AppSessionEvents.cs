@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Time;
 
@@ -195,6 +196,8 @@ public static class AppSessionEvents
         var message = context.ProtocolMessage;
         message.IssuerAddress = urls.ToPublic(message.IssuerAddress);
         message.RedirectUri = urls.PublicBase + context.Options.CallbackPath;
+        // Set by /auth/login ("Continue as ..."); the handler itself does not copy it onto the authorize request.
+        message.LoginHint = context.Properties.GetParameter<string>(OpenIdConnectParameterNames.LoginHint);
         return Task.CompletedTask;
     }
 
@@ -227,6 +230,15 @@ public static class AppSessionEvents
     public static async Task TicketReceivedAsync(TicketReceivedContext context)
     {
         var http = context.HttpContext;
+
+        // "Continue as A" that was signed in as B must not land on A's page: keep only the origin of the return URL
+        // (already checked against the allowed SPA origins), or the SPA home when it is a path on this API.
+        if (context.Properties?.Items.Remove(AuthSchemes.LoginHintItem, out var hint) == true
+            && !string.Equals(hint, context.Principal?.FindFirstValue("name"), StringComparison.OrdinalIgnoreCase))
+            context.ReturnUri = Uri.TryCreate(context.ReturnUri, UriKind.Absolute, out var target)
+                ? target.GetLeftPart(UriPartial.Authority) + "/"
+                : http.RequestServices.GetRequiredService<BffUrls>().SpaHome;
+
         // The sign-in completed: forget that an earlier attempt failed.
         http.Response.Cookies.Delete(RetryCookie(http), RetryCookieOptions());
 
