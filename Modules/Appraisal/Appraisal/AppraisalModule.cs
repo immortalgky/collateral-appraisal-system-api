@@ -12,6 +12,8 @@ using Shared.Data.Seed;
 using Appraisal.Contracts.Services;
 using Appraisal.Scheduling;
 using Shared.Scheduling;
+using Appraisal.Application.Features.Assignments.GetAssignmentDefaults;
+using Appraisal.Infrastructure.FileAssignmentDefaults;
 
 namespace Appraisal;
 
@@ -91,6 +93,9 @@ public static class AppraisalModule
         // Summary construction card and the AppraisalForCollateralResult contract, so the screen
         // and the outbound regulatory file cannot drift apart.
         services.AddScoped<IConstructionCurrentValueService, ConstructionCurrentValueService>();
+
+        // Per-Appraisal-Type defaults for the Administration page (Config/assignment-defaults.json).
+        services.AddSingleton<IAssignmentDefaultsProvider, FileAssignmentDefaultsProvider>();
 
         // Register Application Services (pricing)
         services.AddScoped<PricingPropertyDataService>();
