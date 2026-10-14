@@ -131,15 +131,13 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
 
     public string AppraisalCompletedNotice(string subject, AppraisalCompletedNoticeModel model)
     {
-        var channel = Enc(model.Channel);
         var sb = new System.Text.StringBuilder();
         sb.Append("<p style=\"margin:0 0 12px;\">เรียน คุณ").Append(Enc(model.RmName)).Append("</p>");
         sb.Append("<p style=\"margin:0 0 12px;text-indent:2em;\">ขอแจ้งให้ทราบว่า การประเมินหลักประกันของลูกค้า <strong>")
             .Append(Enc(model.CustomerName ?? "-"))
             .Append("</strong> เลขเล่มประเมิน <strong>")
             .Append(Enc(model.AppraisalNumber ?? "-"))
-            .Append("</strong> ได้ดำเนินการเสร็จสิ้นและผ่านการอนุมัติเรียบร้อยแล้ว");
-            // The full report is attached in CAS itself, whatever the request's channel.
+            .Append("</strong> ได้ดำเนินการเสร็จสิ้นและผ่านการอนุมัติเรียบร้อยแล้ว</p>");
         sb.Append("<p style=\"margin:24px 0 0;\">สามารถดูผลราคาประเมินฉบับสมบูรณ์ได้ที่ระบบ CAS</p>");
         sb.Append("<p style=\"margin:16px 0 0;\">หากมีข้อสงสัย กรุณาติดต่อ ").Append(Enc(AppraisalCompletedSignatureName)).Append("</p>");
         sb.Append("<p style=\"margin:24px 0 0;\">ขอแสดงความนับถือ</p>");

@@ -40,7 +40,7 @@ public class NotificationEmailTemplatesTests
 
         var html = NewRenderer().QuotationFeeNotice("แจ้งค่าธรรมเนียมประเมิน ลูกค้าราย บริษัท ทดสอบ จำกัด", model);
 
-        Assert.Contains("เรียน สมชาย ใจดี", html);
+        Assert.Contains("เรียน คุณสมชาย ใจดี", html);
         Assert.Contains("บริษัทประเมิน", html);
         Assert.Contains("69A00317", html);
         Assert.Contains("69A00323", html);
@@ -50,8 +50,7 @@ public class NotificationEmailTemplatesTests
         Assert.Contains("25,680", html);
         Assert.Contains("139,100", html);
         Assert.Contains("แอดมิน หนึ่ง", html);
-        Assert.Contains("รบกวนเลือกภายใน 2 วัน", html);
-        Assert.Contains("- ขอให้ทำการเข้าไปเลือกบริษัทประเมินในระบบ LOS", html);
+        Assert.Contains("รบกวนเลือกภายใน 1 วัน", html);
         Assert.Contains("แจ้งค่าธรรมเนียมประเมิน ลูกค้าราย <strong>บริษัท ทดสอบ จำกัด</strong>", html);
         // The visible subject-title heading is suppressed (subject stays as Subject line + preview).
         Assert.DoesNotContain("font-size:20px;font-weight:700;color:#222", html);
@@ -104,7 +103,7 @@ public class NotificationEmailTemplatesTests
     }
 
     [Fact]
-    public void RouteBackNotice_RendersRemarkAndBestRegards()
+    public void RouteBackNotice_RendersRemarkAndClosing()
     {
         var model = new RouteBackNoticeModel(
             RmName: "สมชาย",
@@ -116,14 +115,14 @@ public class NotificationEmailTemplatesTests
 
         var html = NewRenderer().RouteBackNotice("ขอรายละเอียดข้อมูลเพิ่มเติม ลูกค้าราย บริษัท ทดสอบ จำกัด", model);
 
-        Assert.Contains("เรียน สมชาย", html);
-        Assert.Contains("ขอรายละเอียดข้อมูลเพิ่มเติม ลูกค้าราย <strong>บริษัท ทดสอบ จำกัด</strong> " +
-                        "หมายเลขเล่มประเมิน <strong>69002246</strong><br/>โดยมีรายละเอียดดังนี้", html);
+        Assert.Contains("เรียน คุณสมชาย", html);
+        Assert.Contains("ลูกค้า: <strong>บริษัท ทดสอบ จำกัด<br/></strong>" +
+                        "Appraisal No.: <strong>69002246</strong><br/>โดยมีรายละเอียดดังนี้", html);
         Assert.Contains("โฉนดไม่ตรงกับเอกสาร", html);
         // Footer contact names the sender; their phone sits in the signature below.
         Assert.Contains("กรุณาติดต่อ แอดมิน สาม", html);
         Assert.Contains("Tel : 02-123-4567", html);
-        Assert.Contains("Best Regards", html);
+        Assert.Contains("จึงเรียนมาเพื่อโปรดทราบ", html);
     }
 
     [Fact]
@@ -133,7 +132,7 @@ public class NotificationEmailTemplatesTests
 
         var html = NewRenderer().RouteBackNotice("Subject", model);
 
-        Assert.Contains("หมายเลขเล่มประเมิน <strong>69002246</strong></p>", html);
+        Assert.Contains("Appraisal No.: <strong>69002246</strong></p>", html);
         Assert.DoesNotContain("โดยมีรายละเอียดดังนี้", html);
     }
 
@@ -149,11 +148,11 @@ public class NotificationEmailTemplatesTests
         Assert.Contains("&lt;i&gt;cust&lt;/i&gt;", html);
         Assert.DoesNotContain("<i>cust</i>", html);
         // Missing appraisal number falls back to "-".
-        Assert.Contains("หมายเลขเล่มประเมิน <strong>-</strong>", html);
+        Assert.Contains("Appraisal No.: <strong>-</strong>", html);
     }
 
     [Fact]
-    public void AppraisalCompletedNotice_UsesChannel_AndEncodesValues()
+    public void AppraisalCompletedNotice_RendersClosedParagraph_AndEncodesValues()
     {
         var model = new AppraisalCompletedNoticeModel(
             RmName: "สมชาย ใจดี",
@@ -163,12 +162,13 @@ public class NotificationEmailTemplatesTests
 
         var html = NewRenderer().AppraisalCompletedNotice("แจ้งผลการประเมินหลักประกันเสร็จสิ้น – ลูกค้า ABC", model);
 
-        Assert.Contains("เรียน สมชาย ใจดี", html);
+        Assert.Contains("เรียน คุณสมชาย ใจดี", html);
         Assert.Contains("เลขเล่มประเมิน <strong>69A00317</strong>", html);
-        Assert.Contains("บันทึกข้อมูลในระบบ LOS", html);
-        Assert.Contains("ดำเนินงานในระบบ CAS แล้ว", html);
-        Assert.DoesNotContain("CLS", html);
+        // Intro paragraph is closed (not left open into the next <p>).
+        Assert.Contains("ผ่านการอนุมัติเรียบร้อยแล้ว</p>", html);
+        Assert.Contains("สามารถดูผลราคาประเมินฉบับสมบูรณ์ได้ที่ระบบ CAS", html);
         Assert.Contains("เสาวลักษณ์ สุคนธา", html);
+        Assert.Contains("Tel : ", html);
         Assert.Contains("ABC &lt;b&gt;Co&lt;/b&gt;", html);
         Assert.DoesNotContain("<b>Co</b>", html);
     }
