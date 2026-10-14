@@ -50,7 +50,7 @@ public class NotificationCleanupTests(IntegrationTestFixture fixture)
             var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
             db.UserNotifications.AddRange(read31, unread31, unread91, read29);
             db.EmailSendLogs.AddRange(mail91, mail89);
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await using (var scope = Services.CreateAsyncScope())
@@ -58,15 +58,15 @@ public class NotificationCleanupTests(IntegrationTestFixture fixture)
             // The job is internal to the Notification module; build it the way Hangfire does, from the container.
             var jobType = typeof(NotificationRecurringJobs).Assembly.GetType("Notification.Scheduling.NotificationCleanupJob")!;
             var job = ActivatorUtilities.CreateInstance(scope.ServiceProvider, jobType);
-            await (Task)jobType.GetMethod("ExecuteAsync")!.Invoke(job, [CancellationToken.None])!;
+            await (Task)jobType.GetMethod("ExecuteAsync")!.Invoke(job, [TestContext.Current.CancellationToken])!;
         }
 
         await using var check = Services.CreateAsyncScope();
         var checkDb = check.ServiceProvider.GetRequiredService<NotificationDbContext>();
         var notifications = await checkDb.UserNotifications.AsNoTracking()
-            .Where(n => n.Username == marker).Select(n => n.Id).ToListAsync();
+            .Where(n => n.Username == marker).Select(n => n.Id).ToListAsync(TestContext.Current.CancellationToken);
         var mails = await checkDb.EmailSendLogs.AsNoTracking()
-            .Where(e => e.Subject == marker).Select(e => e.Id).ToListAsync();
+            .Where(e => e.Subject == marker).Select(e => e.Id).ToListAsync(TestContext.Current.CancellationToken);
         notifications.Should().BeEquivalentTo([unread31.Id, read29.Id]);
         mails.Should().BeEquivalentTo([mail89.Id]);
     }
@@ -93,19 +93,19 @@ public class NotificationCleanupTests(IntegrationTestFixture fixture)
                 db.Set<InboxMessage>().Add(row);
             }
 
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await using (var scope = Services.CreateAsyncScope())
         {
             var job = ActivatorUtilities.CreateInstance<OutboxCleanupJob<NotificationDbContext>>(scope.ServiceProvider);
-            await job.ExecuteAsync(CancellationToken.None);
+            await job.ExecuteAsync(TestContext.Current.CancellationToken);
         }
 
         await using var check = Services.CreateAsyncScope();
         var remaining = await check.ServiceProvider.GetRequiredService<NotificationDbContext>()
             .Set<InboxMessage>().AsNoTracking()
-            .Where(m => m.ConsumerType == consumer).Select(m => m.MessageId).ToListAsync();
+            .Where(m => m.ConsumerType == consumer).Select(m => m.MessageId).ToListAsync(TestContext.Current.CancellationToken);
         remaining.Should().BeEquivalentTo([recentId]);
     }
 }
