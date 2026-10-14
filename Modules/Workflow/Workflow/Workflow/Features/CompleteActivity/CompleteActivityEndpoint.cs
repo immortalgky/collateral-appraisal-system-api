@@ -1,8 +1,10 @@
+using Auth.Contracts.Users;
 using Shared.CQRS;
 using Shared.Identity;
 using Workflow.Workflow.Pipeline;
 using Workflow.Workflow.Services;
 using Workflow.Workflow.Activities.Core;
+using Workflow.Workflow.Models;
 
 namespace Workflow.Workflow.Features.CompleteActivity;
 
@@ -16,6 +18,8 @@ public class CompleteActivityEndpoint : ICarterModule
                 CompleteActivityRequest request,
                 ISender sender,
                 ICurrentUserService currentUserService,
+                IUserLookupService userLookupService,
+                ILogger<CompleteActivityEndpoint> logger,
                 CancellationToken cancellationToken) =>
             {
                 var command = new CompleteActivityCommand
@@ -31,7 +35,9 @@ public class CompleteActivityEndpoint : ICarterModule
                 try
                 {
                     var result = await sender.Send(command, cancellationToken);
-                    return Results.Ok(result);
+                    // After the command returns, i.e. after the transaction committed: a display name
+                    // must never fail or slow the business write.
+                    return Results.Ok(await WithNextAssigneeDisplayNameAsync(result, userLookupService, logger, cancellationToken));
                 }
                 catch (WorkflowActionFailedException ex)
                 {
@@ -51,6 +57,26 @@ public class CompleteActivityEndpoint : ICarterModule
             })
             .WithName("CompleteActivity")
             .WithTags("Workflows");
+    }
+
+    /// <summary>
+    /// Adds the next assignee's display name on the success path. Null when there is no next assignee,
+    /// the workflow is not Running/Suspended (CurrentAssignee is stale for terminal statuses), it is not a
+    /// known user (e.g. a pool/group code), or the lookup fails for any reason, including a timeout or a
+    /// caller abort (best-effort; the commit has already happened).
+    /// </summary>
+    internal static async Task<CompleteActivityResponse> WithNextAssigneeDisplayNameAsync(
+        CompleteActivityResponse response, IUserLookupService userLookupService, ILogger logger, CancellationToken ct,
+        TimeSpan? timeout = null)
+    {
+        if (response.Status is not (nameof(WorkflowStatus.Running) or nameof(WorkflowStatus.Suspended))
+            || string.IsNullOrWhiteSpace(response.NextAssignee))
+            return response;
+
+        // Post-commit: any lookup failure, timeout or caller abort leaves the name null (never a 500).
+        var users = await UserDisplayName.TryLookupAsync(
+            userLookupService, [response.NextAssignee], logger, ct, honourCallerCancellation: false, timeout);
+        return response with { NextAssigneeDisplayName = UserDisplayName.Resolve(users, response.NextAssignee) };
     }
 }
 
@@ -142,6 +168,14 @@ public record CompleteActivityResponse
     public string? NextActivityId { get; init; }
     public string? CurrentAssignee { get; init; }
     public string? NextAssignee { get; init; }
+
+    /// <summary>
+    /// Display name of <see cref="NextAssignee"/> (success path only). Null when there is no next assignee,
+    /// or when it is not a known user (e.g. a pool/group code) — the FE falls back to <see cref="NextAssignee"/>.
+    /// Deliberately null rather than echoing the code (unlike approval-list member names, which fall back
+    /// to the username server-side).
+    /// </summary>
+    public string? NextAssigneeDisplayName { get; init; }
     public bool IsCompleted { get; init; }
     public List<StructuredValidationError>? ValidationErrors { get; init; }
     public List<StructuredWarning>? Warnings { get; init; }

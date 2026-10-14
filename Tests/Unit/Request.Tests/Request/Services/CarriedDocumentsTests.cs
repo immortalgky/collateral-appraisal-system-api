@@ -72,6 +72,21 @@ public class CarriedDocumentsTests
     }
 
     [Fact]
+    public void A_reappraisal_gets_exactly_one_D036_set_the_stale_summary_codes_are_not_applied()
+    {
+        var current = Doc("Request", "D036");
+        var (requestDocs, titles) = CarriedDocuments.Build(
+            Result(
+                current,
+                Doc("Request", "D042", defaultUse: false),
+                Doc("Title", "D043", "01", "A", defaultUse: false)),
+            [Title("A")]);
+
+        Assert.Equal(current.DocumentId, Assert.Single(requestDocs).DocumentId);
+        Assert.Empty(titles!.Single().Documents);
+    }
+
+    [Fact]
     public void A_title_file_goes_to_the_one_copied_title_with_its_key_trimmed_and_case_insensitive()
     {
         var doc = Doc("Title", collateralType: "01", titleNumber: " ab-1 ");

@@ -18,7 +18,7 @@ public static class ClientPermissionMapper
         [GrantAuthorizationCode, GrantClientCredentials, GrantRefreshToken];
 
     public static readonly HashSet<string> SystemClientIds =
-        new(StringComparer.OrdinalIgnoreCase) { "spa", "los", "cls" };
+        new(StringComparer.OrdinalIgnoreCase) { "spa" };
 
     /// <summary>
     /// A token lifetime an admin may override for a single client. OpenIddict reads these settings

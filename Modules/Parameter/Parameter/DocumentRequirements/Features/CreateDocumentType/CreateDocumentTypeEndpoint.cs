@@ -7,7 +7,7 @@ public record CreateDocumentTypeRequest(
     string? Category,
     int SortOrder = 0,
     string? NameTh = null,
-    bool CarryForwardByDefault = true);
+    bool? CarryForwardByDefault = null);
 
 public class CreateDocumentTypeEndpoint : ICarterModule
 {

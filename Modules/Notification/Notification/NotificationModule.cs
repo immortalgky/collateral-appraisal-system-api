@@ -9,8 +9,10 @@ using Notification.Domain.Notifications.Services;
 using Notification.Infrastructure.Email;
 using Notification.Infrastructure.Email.Attachments;
 using Notification.Infrastructure.Email.Templates;
+using Notification.Scheduling;
 using Shared.Data.Extensions;
 using Shared.Data.Seed;
+using Shared.Scheduling;
 using StackExchange.Redis;
 
 namespace Notification;
@@ -60,6 +62,8 @@ public static class NotificationModule
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IRealtimeNotifier, RealtimeNotifier>();
 
+        services.AddTransient<NotificationCleanupJob>();
+
         // Register data seeder
         services.AddScoped<IDataSeeder<NotificationDbContext>, NotificationDataSeed>();
 
@@ -90,6 +94,7 @@ public static class NotificationModule
         });
 
         app.UseDataSeeding<NotificationDbContext>();
+        app.UseModuleRecurringJobs<NotificationDbContext>(NotificationRecurringJobs.All);
 
         return app;
     }

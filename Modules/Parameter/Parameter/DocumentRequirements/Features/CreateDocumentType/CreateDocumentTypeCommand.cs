@@ -7,4 +7,4 @@ public record CreateDocumentTypeCommand(
     string? Category,
     int SortOrder = 0,
     string? NameTh = null,
-    bool CarryForwardByDefault = true) : ICommand<CreateDocumentTypeResult>;
+    bool? CarryForwardByDefault = null) : ICommand<CreateDocumentTypeResult>;

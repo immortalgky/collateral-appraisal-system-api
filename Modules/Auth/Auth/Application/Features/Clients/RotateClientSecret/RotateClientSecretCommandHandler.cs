@@ -23,8 +23,8 @@ public class RotateClientSecretCommandHandler(IOpenIddictApplicationManager appl
         var descriptor = new OpenIddictApplicationDescriptor();
         await applicationManager.PopulateAsync(descriptor, app, cancellationToken);
 
-        // Seeded core clients (spa/los/cls) back live integrations whose secret is coordinated
-        // out-of-band — block silent UI rotation, mirroring the DeleteClient guard.
+        // The seeded SPA client (spa) backs the app's own login — block UI rotation,
+        // mirroring the DeleteClient guard.
         if (ClientPermissionMapper.SystemClientIds.Contains(descriptor.ClientId ?? ""))
             throw new ConflictException(
                 $"Client '{descriptor.ClientId}' is a system client; its secret cannot be rotated from the UI.");
