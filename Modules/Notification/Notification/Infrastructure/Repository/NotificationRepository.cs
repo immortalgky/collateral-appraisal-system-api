@@ -69,11 +69,4 @@ public class NotificationRepository : INotificationRepository
         return await _context.UserNotifications
             .CountAsync(n => n.Username == username && !n.IsRead);
     }
-
-    public async Task DeleteOldNotificationsAsync(DateTime cutoffDate)
-    {
-        await _context.UserNotifications
-            .Where(n => n.CreatedAt < cutoffDate)
-            .ExecuteDeleteAsync();
-    }
 }

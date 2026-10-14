@@ -13,7 +13,7 @@ namespace Common.Application.Features.JobSchedules;
 /// Admin maintenance for the per-module <c>{schema}.JobSchedules</c> tables — the rows that override
 /// a Hangfire recurring job's cron, timezone and enabled state.
 ///
-/// Rows live in nine module schemas, so this reads and writes through
+/// Rows live in ten module schemas, so this reads and writes through
 /// <see cref="IJobScheduleRegistry"/> rather than a DbContext of its own. The registry is populated
 /// at startup by <c>UseModuleRecurringJobs&lt;TContext&gt;</c>, so a job absent from the code catalog
 /// is not listed here — matching the startup behaviour, which ignores orphan rows.
