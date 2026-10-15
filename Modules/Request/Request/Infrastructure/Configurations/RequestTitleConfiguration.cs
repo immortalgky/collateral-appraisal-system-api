@@ -27,6 +27,9 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
 
         builder.Property(p => p.CollateralStatus);
 
+        builder.Property(p => p.SequenceNumber)
+            .HasDefaultValue(0);
+
         builder.Property(p => p.OwnerName)
             .HasMaxLength(500);
 
@@ -617,6 +620,10 @@ public class TitleVehicleConfiguration : IEntityTypeConfiguration<TitleVehicle>
             vehicle.Property(p => p.VehicleType)
                 .HasMaxLength(10)
                 .HasColumnName("VehicleType");
+
+            vehicle.Property(p => p.VehicleRegistrationNumber)
+                .HasMaxLength(50)
+                .HasColumnName("VehicleRegistrationNumber");
 
             vehicle.Property(p => p.VehicleLocation)
                 .HasMaxLength(300)

@@ -1,3 +1,4 @@
+using Auth.Contracts.Users;
 using Shared.Identity;
 using Workflow.Data.Repository;
 using Workflow.Domain;
@@ -6,6 +7,7 @@ using Workflow.Meetings.Domain;
 using Workflow.Workflow.Activities.Approval;
 using Workflow.Workflow.Models;
 using Workflow.Workflow.Repositories;
+using Workflow.Workflow.Services;
 
 namespace Workflow.Workflow.Features.GetApprovalList;
 
@@ -58,7 +60,11 @@ public record ApprovalMemberStatus(
     string? Vote,
     string? Comments,
     DateTime? VotedAt,
-    bool IsCurrentUser);
+    bool IsCurrentUser,
+    // "First Last", or the username when the user is not found / has no name. Display only;
+    // null only if the stored member has no username. Kept last so a stale positional call can't misalign.
+    // Unlike nextAssigneeDisplayName on complete-activity, which stays null so the FE applies its own fallback.
+    string? DisplayName);
 
 public record ApprovalConditionStatus(
     string ConditionType,
@@ -76,7 +82,9 @@ public class GetApprovalListQueryHandler(
     IWorkflowInstanceRepository workflowInstanceRepository,
     IApprovalVoteRepository voteRepository,
     WorkflowDbContext dbContext,
-    ICurrentUserService currentUser
+    ICurrentUserService currentUser,
+    IUserLookupService userLookupService,
+    ILogger<GetApprovalListQueryHandler> logger
 ) : IQueryHandler<GetApprovalListQuery, GetApprovalListResponse>
 {
     public async Task<GetApprovalListResponse> Handle(GetApprovalListQuery query, CancellationToken ct)
@@ -103,8 +111,11 @@ public class GetApprovalListQueryHandler(
         if (execution is not null)
             votes = await voteRepository.GetVotesForExecutionAsync(execution.Id, ct);
 
+        var names = await UserDisplayName.TryLookupAsync(
+            userLookupService, members.Select(m => m.Username), logger, ct);
+
         var currentUsername = currentUser.Username;
-        var memberStatuses = members.Select(m =>
+        var memberStatuses = ApprovalListProjection.OrderByCommitteeRole(members.Select(m =>
         {
             var memberVote = votes.FirstOrDefault(v =>
                 string.Equals(v.Member, m.Username, StringComparison.OrdinalIgnoreCase));
@@ -117,8 +128,9 @@ public class GetApprovalListQueryHandler(
                 memberVote?.Comments,
                 memberVote?.VotedAt,
                 !string.IsNullOrEmpty(currentUsername)
-                    && string.Equals(currentUsername, m.Username, StringComparison.OrdinalIgnoreCase));
-        }).ToList();
+                    && string.Equals(currentUsername, m.Username, StringComparison.OrdinalIgnoreCase),
+                UserDisplayName.Resolve(names, m.Username) ?? m.Username);
+        }));
 
         var totalVotes = votes.Count;
         var totalMembers = members.Count;

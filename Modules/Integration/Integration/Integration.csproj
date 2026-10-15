@@ -18,6 +18,9 @@
         <PackageReference Include="SSH.NET" />
         <!-- Explicit: RegulatoryExcelWriter builds the xlsx companion with ClosedXML. -->
         <PackageReference Include="ClosedXML" />
+        <!-- Explicit: FailedMessageCollectorService talks to RabbitMQ directly (its own connection,
+             never MassTransit's) to drain _error/_skipped queues and republish retries. -->
+        <PackageReference Include="RabbitMQ.Client" />
     </ItemGroup>
 
     <ItemGroup>
@@ -33,6 +36,16 @@
 
     <ItemGroup>
         <Folder Include="Application\Features\AppraisalRequests\ResubmitRequest\"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Tests/Integration/Integration.csproj (assembly name "Integration", NOT this module's
+             "Integration.Module") exercises the collector's internal RunRoundAsync overload directly. -->
+        <InternalsVisibleTo Include="Integration"/>
+        <!-- Tests/Unit/Integration.Tests/Integration.Tests.csproj (assembly name "Integration.Tests")
+             exercises BuildUnparseableEntity/AlreadyCollectedAsync directly (S2 dedup-by-existence-check
+             follow-up) without needing a broker or Testcontainers database. -->
+        <InternalsVisibleTo Include="Integration.Tests"/>
     </ItemGroup>
 
 </Project>

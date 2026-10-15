@@ -13,7 +13,6 @@ public class DeleteParameterEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithTags("Parameter")
             .WithSummary("Delete parameter by parID")
-            .WithDescription("Deletes a parameter by its ID.")
-            .AllowAnonymous();
+            .WithDescription("Deletes a parameter by its ID.");
     }
 }

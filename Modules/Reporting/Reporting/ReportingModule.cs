@@ -107,6 +107,7 @@ public static class ReportingModule
         services.AddTransient<IReportDataProvider, AppraisalBookDataProvider>();
         services.AddTransient<IReportDataProvider, MeetingInvitationDataProvider>();
         services.AddTransient<IReportDataProvider, MeetingMinuteDataProvider>();
+        services.AddTransient<IReportDataProvider, QuotationSummaryDataProvider>();
 
         // In-memory cache for the report-definition config table (60s TTL per node).
         // AddMemoryCache is idempotent — safe to call even if another module already called it.

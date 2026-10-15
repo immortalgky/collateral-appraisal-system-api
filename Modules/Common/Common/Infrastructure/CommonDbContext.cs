@@ -1,6 +1,7 @@
 using System.Reflection;
 using Common.Domain.Configuration;
 using Common.Domain.Logs;
+using Common.Domain.Metrics;
 using Common.Domain.Notes;
 using Common.Domain.ReadModels;
 using Common.Domain.SavedSearches;
@@ -20,6 +21,7 @@ public class CommonDbContext(DbContextOptions<CommonDbContext> options) : DbCont
     public DbSet<SavedSearch> SavedSearches => Set<SavedSearch>();
     public DbSet<SystemConfiguration> SystemConfigurations => Set<SystemConfiguration>();
     public DbSet<JobSchedule> JobSchedules => Set<JobSchedule>();
+    public DbSet<SystemMetricSample> SystemMetricSamples => Set<SystemMetricSample>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

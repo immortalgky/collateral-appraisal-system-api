@@ -1,9 +1,8 @@
-using System;
-
 namespace Request.Application.Services;
 
-public class UpdateRequestService(    
-    IRequestRepository requestRepository
+public class UpdateRequestService(
+    IRequestRepository requestRepository,
+    ISender mediator
 ) : IUpdateRequestService
 {
     public async Task<Domain.Requests.Request> GetByIdWithDocumentsAsync(Guid requestId, CancellationToken cancellationToken)
@@ -25,6 +24,11 @@ public class UpdateRequestService(
         var request = await requestRepository.GetByIdWithDocumentsAsync(command.RequestId, cancellationToken);
         if (request is null) throw new RequestNotFoundException(command.RequestId);
 
+        // Once submitted the appraisal has been built from the purpose and prior, and nothing re-bases it, so
+        // LOS may resend them but not change them (the same rule as the screen's update). Rejected before
+        // anything is written.
+        request.EnsurePurposeUnchanged(command.Purpose);
+
         request.Save(new RequestData(
             command.Purpose,
             command.Channel,
@@ -34,6 +38,28 @@ public class UpdateRequestService(
             command.Priority,
             command.IsPma
         ));
+
+        var prevAppraisalId = PriorAppraisalFields.NormalizeId(command.Detail.PrevAppraisalId);
+
+        // A submitted request keeps its stored prior as is: the id or number LOS sent is only checked against it.
+        // Re-resolving would cost a lookup per resubmit, and one that comes back empty (the prior was deleted
+        // since) must not wipe what the request was submitted with. The submit-time guard is skipped for the same
+        // reason: purpose and prior are unchanged, so the combination it checked at submit still stands.
+        var locked = request.HasBeenSubmitted();
+        PriorAppraisalFields? prior = null;
+        if (locked)
+        {
+            request.EnsurePriorUnchanged(prevAppraisalId, command.Detail.PrevAppraisalNumber);
+            // LOS may identify a CAS prior by number only; the stored id stays.
+            prevAppraisalId = request.Detail?.PrevAppraisalId;
+        }
+        else
+            // Resubmit replaces the request data, so the prior appraisal is whatever LOS sent now: an id is
+            // re-resolved from CAS, a 99A number becomes the legacy book, nothing means no prior (the guard
+            // below decides whether the purpose can do without one).
+            prior = await PriorAppraisalFields.ResolveAsync(
+                mediator, request, prevAppraisalId, LegacyPriorBook.ForResubmit(command.Detail, request.ReappraisalBookNumber),
+                cancellationToken);
 
         request.SetDetail(RequestDetail.Create(new RequestDetailData(
             command.Detail.HasAppraisalBook,
@@ -45,7 +71,7 @@ public class UpdateRequestService(
                 command.Detail.LoanDetail?.PreviousFacilityLimit,
                 command.Detail.LoanDetail?.TotalSellingPrice
             )),
-            command.Detail.PrevAppraisalId,
+            prevAppraisalId,
             Address.Create(new AddressData(
                 command.Detail.Address?.HouseNumber,
                 command.Detail.Address?.ProjectName,
@@ -67,8 +93,17 @@ public class UpdateRequestService(
             Fee.Create(
                 command.Detail.Fee?.FeePaymentType,
                 command.Detail.Fee?.FeeNotes,
-                command.Detail.Fee?.AbsorbedAmount)
+                command.Detail.Fee?.AbsorbedAmount),
+            locked ? request.Detail?.PrevAppraisalNumber : prior!.Number,
+            locked ? request.Detail?.PrevAppraisalValue : prior!.Value,
+            locked ? request.Detail?.PrevAppraisalDate : prior!.Date
         )));
+
+        if (!locked)
+            await PriorAppraisalSubmissionGuard.EnsureValidAsync(
+                request.Purpose, request.Detail?.PrevAppraisalId,
+                request.Detail?.PrevAppraisalNumber ?? command.Detail.PrevAppraisalNumber, mediator,
+                cancellationToken, prior!.Reference, request.ReappraisalBookNumber);
 
         var customers = command.Customers
             .Select(c => RequestCustomer.Create(c.Name, c.ContactNumber))
@@ -76,7 +111,7 @@ public class UpdateRequestService(
         request.SetCustomers(customers);
 
         var properties = command.Properties
-            .Select(p => RequestProperty.Create(p.PropertyType, p.BuildingType, p.SellingPrice))
+            .Select(p => RequestProperty.Create(p.PropertyType, p.BuildingType, p.BuildingTypeOther, p.SellingPrice))
             .ToList();
         request.SetProperties(properties);
 

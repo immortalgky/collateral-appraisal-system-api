@@ -101,10 +101,9 @@ public record GetCondoPropertyResponse(
     bool? IsMissingFromSurvey,
     decimal? GovernmentPricePerSqm,
     decimal? GovernmentPrice,
-    string? FireInsuranceCondition,
+    string? FireInsuranceCode,
     decimal? BuildingInsurancePrice,
-    decimal? SellingPrice,
-    decimal? ForceSellingPrice,
+    decimal? BuildingInsurancePriceOverride,
     // Other
     string? Remark,
     // Construction Inspection

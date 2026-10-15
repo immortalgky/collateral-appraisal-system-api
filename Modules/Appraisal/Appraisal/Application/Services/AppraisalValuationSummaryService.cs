@@ -22,6 +22,11 @@ namespace Appraisal.Application.Services;
 /// (the changed analysis is Modified); flows that INSERT new analyses or DELETE existing ones must
 /// call this POST-save (see AppraisalCreationService / DeletePropertyGroupCommandHandler).
 /// </para>
+/// <para>
+/// For a non-block appraisal the aggregate must be tracked with its Properties loaded (load it via
+/// <c>IAppraisalRepository.GetByIdWithPropertiesAsync</c>); otherwise RecomputeAsync throws rather than
+/// summing an empty list. When not passed, it may still be found through <c>db.Appraisals.Local</c>.
+/// </para>
 /// </summary>
 public class AppraisalValuationSummaryService(
     AppraisalDbContext db,
@@ -38,8 +43,9 @@ public class AppraisalValuationSummaryService(
     /// </param>
     /// <param name="appraisal">
     /// The already-resolved aggregate, when the caller has one in hand (e.g. the pre-save event
-    /// handler resolves it by group). When null it is looked up by <paramref name="appraisalId"/>.
-    /// Must be the aggregate for <paramref name="appraisalId"/>.
+    /// handler resolves it by group). When null it is taken from <c>db.Appraisals.Local</c> or looked up
+    /// by <paramref name="appraisalId"/>. Must be the aggregate for <paramref name="appraisalId"/>; for a
+    /// non-block appraisal its Properties must be loaded (see the class remarks), else this throws.
     /// </param>
     /// <param name="isBlock">
     /// Optional hint: pass <c>false</c> from callers that already know the appraisal is a normal
@@ -47,7 +53,7 @@ public class AppraisalValuationSummaryService(
     /// event only fires for PropertyGroup analyses) to skip the block-detection query on the hot
     /// pricing-save path. When null the block flag is resolved with a query.
     /// </param>
-    public async Task RecomputeAsync(
+    public virtual async Task RecomputeAsync(
         Guid appraisalId,
         CancellationToken ct,
         DateTime? valuationDate = null,
@@ -109,6 +115,16 @@ public class AppraisalValuationSummaryService(
         }
         else
         {
+            // BuildingAppraisalDetail is owned by AppraisalProperty (OwnsOne) — reach via the nav.
+            // Callers load the properties through IAppraisalRepository.GetByIdWithPropertiesAsync (split
+            // query) and this reuses them. Summing an unloaded collection would silently write
+            // InsuranceValue = 0, and reloading here duplicated the ~21-table owned graph (the
+            // single-query form took 18.8 s to compile on SIT), so an unloaded collection is a bug.
+            if (!db.Entry(appraisal).Collection(a => a.Properties).IsLoaded)
+                throw new InvalidOperationException(
+                    $"Appraisal {appraisalId} was passed to RecomputeAsync without its Properties loaded. " +
+                    "Load it with IAppraisalRepository.GetByIdWithPropertiesAsync before recomputing.");
+
             var propertyGroupIds = appraisal.Groups.Select(g => g.Id).ToList();
 
             var pricingAnalyses = await db.PricingAnalyses
@@ -132,10 +148,7 @@ public class AppraisalValuationSummaryService(
 
             approach = selectedApproachTypes.Count == 1 ? selectedApproachTypes[0] : "Combined";
 
-            // BuildingAppraisalDetail is owned by AppraisalProperty (OwnsOne) — reach via the nav.
-            var properties = await db.AppraisalProperties
-                .Where(ap => ap.AppraisalId == appraisalId)
-                .ToListAsync(ct);
+            var properties = appraisal.Properties;
 
             // Insurance is the sum of every insurable structure on the appraisal. The two property
             // families derive their figure differently but land in the same column:
@@ -146,16 +159,22 @@ public class AppraisalValuationSummaryService(
             //
             // KEEP IN SYNC with Features/DecisionSummary/BuildingInsuranceCalculator.cs, which computes
             // the same total in SQL for the read/save path.
+            // Per property, the stored figure (the appraiser's typed value, or the one already computed on
+            // save) wins; a row still null falls back to BuildingAppraisalDetail.ComputeInsurancePrice, which
+            // rounds to the nearest 1,000 the way the property form shows it and Final Cost Value rounds.
+            // KEEP IN SYNC with BuildingInsuranceCalculator.cs, which rounds with SQL ROUND(x, -3).
             var buildingInsurance = properties
                 .Where(ap => ap.BuildingDetail != null)
-                .SelectMany(ap => ap.BuildingDetail!.DepreciationDetails)
-                .Where(d => d.IsBuilding)
-                .Sum(d => d.PriceAfterDepreciation);
+                .Sum(ap => ap.BuildingDetail!.BuildingInsurancePrice
+                           ?? ap.BuildingDetail.ComputeInsurancePrice() ?? 0m);
 
             // Covers lease-agreement condo too — it populates this same CondoDetail nav.
             var condoInsurance = properties
                 .Where(ap => ap.CondoDetail != null)
-                .Sum(ap => ap.CondoDetail!.BuildingInsurancePrice ?? 0m);
+                .Sum(ap => ap.CondoDetail!.BuildingInsurancePriceOverride
+                           ?? Math.Round(
+                               (ap.CondoDetail.BuildingInsurancePrice ?? 0m) / 1000,
+                               MidpointRounding.AwayFromZero) * 1000);
 
             insuranceTotal = buildingInsurance + condoInsurance;
         }
@@ -206,9 +225,8 @@ public class AppraisalValuationSummaryService(
             // property delete, unit-price calculation and final-values change, so an appraisal whose
             // only appointment was cancelled would have its appraisal date silently dragged forward
             // to "today" on each save. Since ValuationDate now LEADS every read surface — the printed
-            // book, both AS400 result feeds, the 360 view, decision summary, History Search — and
-            // anchors the +5-year reappraisal clock in vw_ReappraisalCandidates / RCAS002, that
-            // rewrite would propagate a wrong appraisal date to the bank's reappraisal schedule.
+            // book, both AS400 result feeds, the 360 view, decision summary, History Search and the
+            // reappraisal list's last-appraisal date, that rewrite would propagate a wrong appraisal date.
             // Preserving keeps the last real date (usually the appointment that was later cancelled).
             //
             // ApplicationNow survives only for a genuinely new row with nothing to preserve;
@@ -235,12 +253,36 @@ public class AppraisalValuationSummaryService(
         var rate = await forceSaleRateResolver.ResolveAsync(appraisalId, row.ForceSaleRate, ct);
         var forced = total * rate / 100m;
 
+        // Every pricing change rewrites these three columns, Book Verification or not (user
+        // decision 2026-09-23). A verified price is the reviewer's answer to "do we accept the
+        // appraisal company's figure", not a lock on the appraisal: leaving it standing meant the
+        // book, LOS, the AS400 feed and the workflow's approval tier all kept quoting a number the
+        // pricing screen had already moved away from, with nothing on any screen saying so.
+        //
+        // The cost of this, stated plainly: a figure the reviewer typed in Decision Summary is
+        // overwritten the next time anyone touches pricing, and they are not told. The guard that
+        // used to sit here (added 2026-09-22 in b7f8bfcc) existed for exactly that reason. If that
+        // becomes a problem, the fix is to CLEAR IsPriceVerified on a pricing change so the review
+        // is re-requested — not to freeze a stale total again.
+        //
+        // The three are written as a coherent triple on purpose: recomputing one while leaving
+        // another frozen emitted things like "force-sale 1.27M of appraised 0" to the collateral
+        // master and the AS400 feed.
+        //
+        // The integration event below must publish THIS: the workflow's approval tier / committee
+        // routing has to agree with the book.
+        var appraisedValue = total;
+
         row.UpdateSummary(
             approach,
             date,
-            total,
+            appraisedValue,
             Math.Round(forced / 1000, MidpointRounding.AwayFromZero) * 1000,
-            Math.Round(insuranceTotal / 1000, MidpointRounding.AwayFromZero) * 1000);
+            // insuranceTotal is NOT rounded here: each property already rounded its derived figure to
+            // the nearest 1,000, so an all-derived appraisal still totals to a multiple of 1,000,
+            // while a coverage the appraiser keyed by hand reaches the book exactly as typed.
+            // KEEP IN SYNC with BuildingInsuranceCalculator.cs.
+            insuranceTotal);
 
         // Surface the new appraisal-level appraised value to the Workflow module so the
         // approval-tier switch / committee selection route on appraised value (not facility limit).
@@ -248,13 +290,13 @@ public class AppraisalValuationSummaryService(
         // appraised value actually changed — the approval tier keys off this value, so republishing an
         // unchanged total (e.g. an insurance-only refresh, or a re-run of CalculateProjectUnitPrices
         // with no price change) is redundant cross-module churn. Mirrors the domain rollup's gate.
-        if (previousAppraisedValue != total)
+        if (previousAppraisedValue != appraisedValue)
         {
             outbox.Publish(new AppraisalValueChangedIntegrationEvent
             {
                 AppraisalId = appraisalId,
                 CorrelationId = appraisal.RequestId,
-                AppraisedValue = total,
+                AppraisedValue = appraisedValue,
                 OccurredOn = dateTimeProvider.ApplicationNow
             });
         }
@@ -274,7 +316,7 @@ public class AppraisalValuationSummaryService(
     /// booked for 1 Mar, worked and priced (ValuationDate = 1 Mar), then rescheduled to 15 Mar with
     /// no pricing save afterwards, left every appraisal-date surface reporting 1 Mar indefinitely:
     /// the 360 view, decision summary, the printed book, both AS400 result APIs, History Search, and
-    /// the +5-year reappraisal anchor in vw_ReappraisalCandidates / vw_RCAS002_ReappraisalDue. The
+    /// the reappraisal list's last-appraisal date (vw_ReappraisalCandidates). The
     /// two dates never reconverged unless someone happened to re-save pricing.
     /// </para>
     ///

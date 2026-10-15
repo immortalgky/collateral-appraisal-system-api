@@ -71,9 +71,8 @@ public record GetBuildingPropertyResponse(
     string? UtilizationTypeOther,
     // Area & Pricing
     decimal? TotalBuildingArea,
+    decimal? BuildingCostValue,
     decimal? BuildingInsurancePrice,
-    decimal? SellingPrice,
-    decimal? ForcedSalePrice,
     // Other
     string? Remark,
     // Depreciation Details

@@ -15,11 +15,11 @@ public class AppraisalCreatedDashboardStatusHandler(
     InboxGuard<CommonDbContext> inboxGuard,
     IDateTimeProvider dateTimeProvider) : IConsumer<AppraisalCreatedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<AppraisalCreatedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<AppraisalCreatedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<AppraisalCreatedIntegrationEvent> context)
+    {
         var message = context.Message;
 
         logger.LogInformation(
@@ -40,7 +40,5 @@ public class AppraisalCreatedDashboardStatusHandler(
                 VALUES ('Pending', 1, @Now);
             """,
             new { Now = new DateTimeOffset(dateTimeProvider.ApplicationNow) });
-
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }
 }

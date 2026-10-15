@@ -16,7 +16,7 @@ namespace Integration.Collateral.Integration.Tests;
 /// PR-4 integration tests covering:
 ///   1. Single group, single property  — one engagement row per appraisal.
 ///   2. Single group, multi-title land — one IsMaster + alias masters; single engagement anchored to IsMaster.
-///   3. Multi-group appraisal          — two groups → two IsMasters; ONLY the primary-group IsMaster gets the engagement.
+///   3. Multi-group appraisal          — two land groups collapse into one IsMaster + alias; the IsMaster gets the engagement.
 ///   4. Mixed type (Land + Condo)      — each group gets its own IsMaster; one engagement total.
 ///   5. Re-appraisal same composition  — running ProcessAppraisalAsync twice is idempotent (no duplicate engagement).
 ///   6. Alias-alone graceful behavior  — alias property whose parent IsMaster is absent → service succeeds, engagement
@@ -70,6 +70,19 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
             ownerName: "Test Owner",
             address: Address.Create("Test Subdistrict", "Test District", province), landOffice: landOffice);
         return prop;
+    }
+
+    /// <summary>
+    /// Property Ids are store-generated (NEWSEQUENTIALID), so they are Guid.Empty until the first
+    /// save. Group membership is therefore added after saving, as the create-property handlers do.
+    /// </summary>
+    private static async Task GroupSavedPropertiesAsync(
+        AppraisalDbContext appraisalDb, AppraisalAggregate appraisal, PropertyGroup group,
+        params AppraisalProperty[] properties)
+    {
+        foreach (var p in properties)
+            appraisal.AddPropertyToGroup(group.Id, p.Id);
+        await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
     }
 
     private IServiceScope CreateScope()
@@ -146,17 +159,16 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
             var g = a.CreateGroup("Group A");
             var p1 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title1, "Chanote");
             var p2 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title2, "NorSor4Jor");
-            g.AddProperty(p1.Id);
-            g.AddProperty(p2.Id);
 
             appraisalDb.Appraisals.Add(a);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            await GroupSavedPropertiesAsync(appraisalDb, a, g, p1, p2);
             appraisalId = a.Id;
             prop1Id = p1.Id;
             prop2Id = p2.Id;
 
             // Seed cost-approach pricing so UnitPrice propagation can be asserted.
-            // FinalValueAdjusted → UnitPrice on IsMaster + alias (BLOCKER 1 regression guard).
+            // FinalValueOverride → UnitPrice on IsMaster + alias (BLOCKER 1 regression guard).
             var pa = SeedCostApproachPricing(g.Id, expectedUnitPrice, buildingCost: 200_000m, appraisalPrice: 1_000_000m);
             appraisalDb.PricingAnalyses.Add(pa);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -214,9 +226,9 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
         method.SetAsSelected();
         method.SetValue(appraisalPrice);
 
-        var fv = PricingFinalValue.Create(method.Id, finalValueAdjusted, appraisalPrice);
+        var fv = PricingFinalValue.Create(method.Id, finalValueAdjusted);
         fv.SetBuildingValue(buildingCost);
-        fv.SetAppraisalPrice(appraisalPrice);
+        fv.SetIndicatedValue(appraisalPrice);
         method.SetFinalValue(fv);
 
         pa.SetFinalValues(appraisalPrice);
@@ -241,15 +253,15 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
             // Group 1 (lower GroupNumber = primary)
             var g1 = a.CreateGroup("Group 1");
             var p1 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title1, "Chanote");
-            g1.AddProperty(p1.Id);
 
             // Group 2 (higher GroupNumber = secondary)
             var g2 = a.CreateGroup("Group 2");
             var p2 = SeedLandProperty(a, "LO-002", "Chiang Mai", "Mueang", "Chang Phueak", title2, "Chanote");
-            g2.AddProperty(p2.Id);
 
             appraisalDb.Appraisals.Add(a);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            await GroupSavedPropertiesAsync(appraisalDb, a, g1, p1);
+            await GroupSavedPropertiesAsync(appraisalDb, a, g2, p2);
             appraisalId = a.Id;
         }
 
@@ -270,14 +282,17 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
             .FirstAsync(m => m.LandDetail != null && m.LandDetail.TitleNumber == title2,
                 TestContext.Current.CancellationToken);
 
-        // Both created as IsMaster (different groups)
-        Assert.True(master1.IsMaster);
-        Assert.True(master2.IsMaster);
+        // Land titles across ALL groups collapse into one IsMaster; the other becomes its alias
+        // (one-collateral-per-appraisal model, 5b7ae023). Which title wins is not asserted.
+        CollateralMaster[] masters = [master1, master2];
+        var isMaster = Assert.Single(masters, m => m.IsMaster);
+        var alias = Assert.Single(masters, m => !m.IsMaster);
+        Assert.Equal(isMaster.Id, alias.ParentMasterId);
 
-        // Only one engagement total; it sits on the primary (group 1) IsMaster
-        Assert.Single(master1.Engagements);
-        Assert.Empty(master2.Engagements);
-        Assert.Equal(appraisalId, master1.Engagements.Single().AppraisalId);
+        // Only one engagement total; it sits on the IsMaster
+        Assert.Single(isMaster.Engagements);
+        Assert.Empty(alias.Engagements);
+        Assert.Equal(appraisalId, isMaster.Engagements.Single().AppraisalId);
     }
 
     // -----------------------------------------------------------------------
@@ -298,16 +313,16 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
             // Group 1: Land (primary)
             var g1 = a.CreateGroup("Land Group");
             var pLand = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", titleLand, "Chanote");
-            g1.AddProperty(pLand.Id);
 
             // Group 2: Condo (secondary)
             var g2 = a.CreateGroup("Condo Group");
             var pCondo = SeedCondoProperty(a, "LO-002", "CONDO-REG-001", "A", "5", "501",
                 titleCondo, "Chanote", "Bangkok");
-            g2.AddProperty(pCondo.Id);
 
             appraisalDb.Appraisals.Add(a);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            await GroupSavedPropertiesAsync(appraisalDb, a, g1, pLand);
+            await GroupSavedPropertiesAsync(appraisalDb, a, g2, pCondo);
             appraisalId = a.Id;
         }
 
@@ -394,10 +409,9 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
             var g = a.CreateGroup("Group AB");
             var p1 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title1, "Chanote");
             var p2 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title2, "NorSor4Jor");
-            g.AddProperty(p1.Id);
-            g.AddProperty(p2.Id);
             appraisalDb.Appraisals.Add(a);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            await GroupSavedPropertiesAsync(appraisalDb, a, g, p1, p2);
             appraisalId1 = a.Id;
         }
 
@@ -548,11 +562,10 @@ public class CollateralPR4_EngagementGranularityTests(IntegrationTestFixture fix
             var g = a.CreateGroup("MultiTitle Group");
             var p1 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title1, "Chanote");
             var p2 = SeedLandProperty(a, "LO-001", "Bangkok", "Bangrak", "Silom", title2, "NorSor4Jor");
-            g.AddProperty(p1.Id);
-            g.AddProperty(p2.Id);
 
             appraisalDb.Appraisals.Add(a);
             await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            await GroupSavedPropertiesAsync(appraisalDb, a, g, p1, p2);
             appraisalId = a.Id;
         }
 

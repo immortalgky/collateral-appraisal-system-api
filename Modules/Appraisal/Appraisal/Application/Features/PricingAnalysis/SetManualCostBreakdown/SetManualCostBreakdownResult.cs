@@ -11,7 +11,7 @@ public record SetManualCostBreakdownResult(
     decimal? LandValue,
     decimal? BuildingValue,
     decimal ComputedTotal,
-    decimal? AppraisalPrice,
+    decimal? IndicatedValue,
     decimal? MethodValue,
     decimal? ApproachValue,
     decimal? FinalAppraisedValue

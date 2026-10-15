@@ -5,5 +5,6 @@ public record GetEligibleAssignmentsQuery(
     string? SearchAppraisalNo = null,
     DateOnly? SubmittedDateFrom = null,
     DateOnly? SubmittedDateTo = null,
-    Guid? CurrentInvoiceId = null
+    Guid? CurrentInvoiceId = null,
+    string? CostCenter = null
 ) : IQuery<IEnumerable<EligibleAssignmentDto>>;

@@ -14,10 +14,12 @@ public static class MediatRExtensions
         {
             config.RegisterServicesFromAssemblies(assemblies);
             config.AddOpenBehavior(typeof(BusinessContextBehavior<,>));
+            // LoggingBehavior wraps ValidationBehavior so a request rejected by validation still gets
+            // a "failed" line carrying its payload, and wraps TransactionalBehavior so its "ok" means
+            // committed (SaveChanges + CommitTransaction already ran) and ElapsedMs includes that time.
+            config.AddOpenBehavior(typeof(LoggingBehavior<,>));
             config.AddOpenBehavior(typeof(ValidationBehavior<,>));
             config.AddOpenBehavior(typeof(TransactionalBehavior<,>));
-            config.AddOpenBehavior(typeof(LoggingBehavior<,>));
-            config.AddOpenBehavior(typeof(MetricsBehavior<,>));
         });
 
         services.AddValidatorsFromAssemblies(assemblies);

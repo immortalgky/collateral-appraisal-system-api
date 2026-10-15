@@ -32,9 +32,9 @@ public class BuildingDepreciationPeriod : Entity<Guid>
             BuildingDepreciationDetailId = buildingDepreciationDetailId,
             AtYear = atYear,
             ToYear = toYear,
-            DepreciationPerYear = depreciationPerYear,
-            TotalDepreciationPct = totalDepreciationPct,
-            PriceDepreciation = priceDepreciation
+            DepreciationPerYear = BuildingDepreciationDetail.Stored(depreciationPerYear, 4),
+            TotalDepreciationPct = BuildingDepreciationDetail.Stored(totalDepreciationPct, 4),
+            PriceDepreciation = BuildingDepreciationDetail.Stored(priceDepreciation, 2)
         };
     }
 }

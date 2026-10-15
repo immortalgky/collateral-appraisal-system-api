@@ -36,6 +36,12 @@ public class DocumentTypeConfiguration : IEntityTypeConfiguration<DocumentType>
             .IsRequired()
             .HasDefaultValue(0);
 
+        // The default is "don't use". EF's sentinel for a non-nullable bool is CLR false, the same as the
+        // column default (0), so an unset/false value falls back to it and an explicit true is inserted.
+        builder.Property(d => d.CarryForwardByDefault)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         builder.Property(d => d.CreatedAt).IsRequired();
         builder.Property(d => d.CreatedBy).IsRequired();
 

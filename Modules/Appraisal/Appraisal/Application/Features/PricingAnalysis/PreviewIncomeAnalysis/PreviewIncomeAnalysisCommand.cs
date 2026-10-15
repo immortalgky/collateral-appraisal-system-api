@@ -18,5 +18,5 @@ public record PreviewIncomeAnalysisCommand(
     decimal? FinalValueAdjust = null,
     bool IsHighestBestUsed = true,
     HighestBestUsedInput? HighestBestUsed = null,
-    decimal? AppraisalPriceRounded = null
+    decimal? IndicatedValue = null
 ) : ICommand<PreviewIncomeAnalysisResult>;

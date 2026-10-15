@@ -27,11 +27,11 @@ public class AppraisalRejectedConsumer(
     InboxGuard<CollateralDbContext> inboxGuard)
     : IConsumer<AppraisalRejectedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<AppraisalRejectedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<AppraisalRejectedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<AppraisalRejectedIntegrationEvent> context)
+    {
         var msg = context.Message;
         var ct = context.CancellationToken;
 
@@ -46,7 +46,6 @@ public class AppraisalRejectedConsumer(
             logger.LogInformation(
                 "AppraisalRejectedConsumer: PendingCollateralResult already spooled for AppraisalId={AppraisalId} — skipping",
                 msg.AppraisalId);
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
             return;
         }
 
@@ -68,8 +67,6 @@ public class AppraisalRejectedConsumer(
 
         dbContext.PendingCollateralResults.Add(pending);
         await dbContext.SaveChangesAsync(ct);
-
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
 
         logger.LogInformation(
             "AppraisalRejectedConsumer: spooled PendingCollateralResult {PendingId} for AppraisalId={AppraisalId}",

@@ -20,6 +20,11 @@ public class GetAppraisalDocumentsEndpoint : ICarterModule
             .Produces<GetAppraisalDocumentsResponse>()
             .WithSummary("Get the valuation document checklist for an appraisal")
             .WithDescription("Returns every VAL_DOC document type (parameter.DocumentTypes) with its attached files for the given appraisal.")
-            .WithTags("Appraisal Documents");
+            .WithTags("Appraisal Documents")
+            // This endpoint carried no authorization call at all, so it was covered only by the
+            // global fallback. Made explicit rather than raising it to a permission policy:
+            // RequestMaker and every appraisal role open this page today, so a policy here would
+            // be a regression. The credit-side gate lives in the brief endpoint instead.
+            .RequireAuthorization();
     }
 }

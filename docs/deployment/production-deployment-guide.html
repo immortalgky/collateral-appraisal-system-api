@@ -960,27 +960,51 @@ $cert = <span class="c">Get-ChildItem</span> Cert:\LocalMachine\My | Where-Objec
       <div class="row"><input type="checkbox" checked style="margin-right:8px"><label style="width:auto">Allow unlisted file name extensions</label></div>
       <div class="row"><input type="checkbox" checked style="margin-right:8px"><label style="width:auto">Allow unlisted verbs</label></div>
       <div class="hint" style="margin-top:10px">Request Limits</div>
-      <div class="row"><label>Maximum allowed content length (Bytes):</label><div class="field" style="max-width:130px"><b>52428800</b></div></div>
+      <div class="row"><label>Maximum allowed content length (Bytes):</label><div class="field" style="max-width:130px"><b>62914560</b></div></div>
       <div class="row"><label>Maximum URL length (Bytes):</label><div class="field" style="max-width:130px">4096</div></div>
       <div class="row"><label>Maximum query string (Bytes):</label><div class="field" style="max-width:130px">2048</div></div>
     </div>
     <div class="win-foot"><span class="win-btn primary">OK</span><span class="win-btn">Cancel</span></div>
   </div>
   <div class="fig-cap"><b>Figure 6.5</b> &mdash; Request Filtering. Set <b>Maximum allowed content length</b>
-    to <code>52428800</code> (50&nbsp;MB) on the API site.</div>
+    to <code>62914560</code> (60&nbsp;MB) on the API site &mdash; deliberately <i>above</i> the
+    application's own limit, not equal to it. IIS measures <i>Content-Length</i>, which carries the
+    MIME boundaries and the other form fields as well as the file, and it answers before ASP.NET
+    Core runs: set to the application's limit it would reject every oversized upload itself, with a
+    bare <code>404.13</code> the SPA cannot turn into a message. With headroom, a file in the band
+    just above the limit &mdash; roughly 51&ndash;60&nbsp;MB &mdash; reaches the application, which
+    answers <code>&#123;"title":"PayloadTooLarge","detail":"File too large&hellip;"&#125;</code>
+    instead. Anything larger than 60&nbsp;MB is still stopped by IIS with the bare
+    <code>404.13</code>, which is the point of keeping it as the outer guard: a body that size
+    should not reach the application at all. Raise both numbers together if
+    <code>FileStorage:MaxFileSizeBytes</code> is ever raised. Verify through the application's own
+    upload (<code>POST /documents</code>) &mdash; the external <code>/api/v1/documents</code> route
+    answers oversized uploads in plain text, by design, so a JSON body is not what proves the IIS
+    setting took there.</div>
 </div>
 <div class="cmd-cap"><span class="who">Run on: each app node</span>PowerShell equivalent</div>
 <pre class="cmd"><span class="c">Set-WebConfigurationProperty</span> -PSPath 'IIS:\Sites\CAS-Api' `
     -Filter 'system.webServer/security/requestFiltering/requestLimits' `
-    -Name maxAllowedContentLength -Value 52428800
+    -Name maxAllowedContentLength -Value 62914560
 
 <span class="cm"># Verify</span>
 <span class="c">Get-WebConfigurationProperty</span> -PSPath 'IIS:\Sites\CAS-Api' `
     -Filter 'system.webServer/security/requestFiltering/requestLimits' `
     -Name maxAllowedContentLength | Select-Object Value</pre>
 <div class="note warn">
-  <b>This setting lives in <code>web.config</code>, which the deploy script preserves.</b> Set it once;
-  it survives releases. If you ever recreate <code>web.config</code> from a fresh publish, re-apply it.
+  <b>This setting lives in <code>web.config</code>, which the deploy script preserves.</b> It survives
+  releases, and if you ever recreate <code>web.config</code> from a fresh publish, re-apply it.
+  <br><br>
+  <b>Nodes built before this value was raised must be re-applied by hand.</b> Because the deploy
+  script never overwrites <code>web.config</code>, an existing node still carries whatever was set
+  when it was built &mdash; and the earlier value, <code>52428800</code>, is now <i>below</i> the
+  application's own request limit. A node whose <code>web.config</code> was regenerated from a clean
+  publish is worse off still: the published file ships <b>no <code>&lt;requestLimits&gt;</code> at
+  all</b>, so IIS falls back to its own <code>30000000</code> default. On either kind of node a
+  full-size upload is refused by IIS with a bare <code>404.13</code> before the application can
+  answer with a message. Run the PowerShell above on every existing app node once, then confirm
+  with the Verify command &mdash; checking that the element is present, not only that it reads
+  what you expect; §6.6 shows what to expect.
 </div>
 
 <h3 id="iis6">6.6 Confirm the API <code>web.config</code></h3>
@@ -993,7 +1017,7 @@ $cert = <span class="c">Get-ChildItem</span> Cert:\LocalMachine\My | Where-Objec
 <span class="cm"># Expect, inside &lt;system.webServer&gt;:</span>
 <span class="cm">#   &lt;aspNetCore processPath="dotnet" arguments=".\Api.dll"</span>
 <span class="cm">#               stdoutLogEnabled="false" hostingModel="inprocess" /&gt;</span>
-<span class="cm">#   &lt;requestLimits maxAllowedContentLength="52428800" /&gt;   (from §6.5)</span></pre>
+<span class="cm">#   &lt;requestLimits maxAllowedContentLength="62914560" /&gt;   (from §6.5)</span></pre>
 <div class="note">
   <b>Enabling the stdout log for troubleshooting.</b> If the application will not start and the Event
   Log is not specific enough, temporarily set <code>stdoutLogEnabled="true"</code> and

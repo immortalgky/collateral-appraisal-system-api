@@ -43,6 +43,12 @@ public class GetEligibleAssignmentsQueryHandler(
             parameters.Add("SubmittedDateTo", request.SubmittedDateTo.Value.ToDateTime(TimeOnly.MaxValue));
         }
 
+        if (!string.IsNullOrWhiteSpace(request.CostCenter))
+        {
+            conditions.Add("v.CostCenter LIKE @CostCenter");
+            parameters.Add("CostCenter", $"%{request.CostCenter}%");
+        }
+
         // Exclude assignments already on another invoice. The current draft (CurrentInvoiceId)
         // is exempt so its items stay visible/checked while editing.
         conditions.Add("""
@@ -69,7 +75,8 @@ public class GetEligibleAssignmentsQueryHandler(
                    v.PayPartialAmount,
                    v.RemainingFee,
                    v.SubmittedDate,
-                   v.LastPaymentDate
+                   v.LastPaymentDate,
+                   v.CostCenter
             FROM appraisal.vw_EligibleAssignments v
             {where}
             ORDER BY v.SubmittedDate DESC

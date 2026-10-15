@@ -10,11 +10,10 @@ public record UpdateFinalValueCommand(
     Guid PricingAnalysisId,
     Guid FinalValueId,
     decimal FinalValue,
-    decimal FinalValueRounded,
     bool? IncludeLandArea,
     decimal? LandArea,
     decimal? LandValue,
     bool? HasBuildingValue,
     decimal? BuildingValue,
-    decimal? AppraisalPrice
+    decimal? IndicatedValue
 ) : ICommand<UpdateFinalValueResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

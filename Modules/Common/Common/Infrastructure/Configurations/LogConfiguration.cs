@@ -52,8 +52,38 @@ public class LogConfiguration : IEntityTypeConfiguration<Log>
         builder.Property(x => x.MachineName)
             .HasColumnType("nvarchar(128)");
 
+        builder.Property(x => x.UserName)
+            .HasColumnType("nvarchar(128)");
+
+        builder.Property(x => x.SourceContext)
+            .HasColumnType("nvarchar(256)");
+
+        builder.Property(x => x.RequestPath)
+            .HasColumnType("nvarchar(400)");
+
+        builder.Property(x => x.MessageTemplate)
+            .HasColumnType("nvarchar(max)");
+
+        // INCLUDE(Level) lets the summary histogram (GROUP BY over TimeStamp, aggregating by Level)
+        // seek this index directly and read Level from the leaf, instead of scanning the whole
+        // (Level, TimeStamp) index every time regardless of window size (Level is that index's
+        // leading key, so a TimeStamp-only predicate can't seek it).
         builder.HasIndex(x => x.TimeStamp)
+            .IncludeProperties(x => x.Level)
             .HasDatabaseName("IX_Logs_TimeStamp");
+
+        // Not redundant with IX_Logs_TimeStamp above despite the overlapping columns: this one has
+        // Level as the LEADING key, so it seeks directly for a level-filtered search over a wide
+        // window (e.g. "level:Error" over 30 days) and for the top-problems query (Level IN
+        // ('Warning','Error','Fatal')), neither of which IX_Logs_TimeStamp can seek on — Level is
+        // only in its INCLUDE, not its key, so a level predicate there means scanning every row in
+        // the TimeStamp range regardless of Level.
+        builder.HasIndex(x => new { x.Level, x.TimeStamp })
+            .HasDatabaseName("IX_Logs_Level_TimeStamp");
+
+        builder.HasIndex(x => new { x.UserName, x.TimeStamp })
+            .HasFilter("[UserName] IS NOT NULL")
+            .HasDatabaseName("IX_Logs_UserName_TimeStamp");
 
         builder.HasIndex(x => x.AppraisalId)
             .HasFilter("[AppraisalId] IS NOT NULL")

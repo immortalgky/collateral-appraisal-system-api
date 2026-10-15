@@ -24,6 +24,6 @@ public record SaveLeaseholdAnalysisCommand(
     decimal? PricePerSqWa,
     string? Remark,
     decimal? EstimatePriceRounded,
-    decimal? FinalValueAdjusted = null,
-    decimal? AppraisalPrice = null
+    decimal? FinalValueOverride = null,
+    decimal? IndicatedValue = null
 ) : ICommand<SaveLeaseholdAnalysisResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

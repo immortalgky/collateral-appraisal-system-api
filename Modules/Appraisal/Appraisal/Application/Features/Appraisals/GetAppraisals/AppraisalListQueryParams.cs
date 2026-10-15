@@ -31,6 +31,9 @@ public sealed record AppraisalListQueryParams
     [FromQuery(Name = "assigneeUserId")] public string? AssigneeUserId { get; init; }
     [FromQuery(Name = "assigneeCompanyId")] public string? AssigneeCompanyId { get; init; }
 
+    /// <summary>The request's requestor (RM) user code(s); comma-separated for IN.</summary>
+    [FromQuery(Name = "requestor")] public string? Requestor { get; init; }
+
     // Request metadata
     [FromQuery(Name = "channel")] public string? Channel { get; init; }
     [FromQuery(Name = "bankingSegment")] public string? BankingSegment { get; init; }
@@ -59,6 +62,8 @@ public sealed record AppraisalListQueryParams
     [FromQuery(Name = "appointmentDateTo")] public DateTime? AppointmentDateTo { get; init; }
     [FromQuery(Name = "requestedAtFrom")] public DateTime? RequestedAtFrom { get; init; }
     [FromQuery(Name = "requestedAtTo")] public DateTime? RequestedAtTo { get; init; }
+    [FromQuery(Name = "appraisalDateFrom")] public DateTime? AppraisalDateFrom { get; init; }
+    [FromQuery(Name = "appraisalDateTo")] public DateTime? AppraisalDateTo { get; init; }
 
     // Sorting
     [FromQuery(Name = "sortBy")] public string? SortBy { get; init; }
@@ -97,7 +102,10 @@ public sealed record AppraisalListQueryParams
             AppraisalNumber = AppraisalNumber,
             RequestNumber = RequestNumber,
             SubDistrict = SubDistrict,
+            Requestor = Requestor,
             RequestedAtFrom = RequestedAtFrom,
             RequestedAtTo = RequestedAtTo,
+            AppraisalDateFrom = AppraisalDateFrom,
+            AppraisalDateTo = AppraisalDateTo,
         };
 }

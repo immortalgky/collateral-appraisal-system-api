@@ -15,7 +15,7 @@ public class ProjectModelAssumption
     public decimal? UsableAreaTo { get; private set; }
     public decimal? StandardLandPrice { get; private set; } // LB only
     public decimal? CoverageAmount { get; private set; }
-    public string? FireInsuranceCondition { get; private set; }
+    public string? FireInsuranceCode { get; private set; }
 
     private ProjectModelAssumption()
     {
@@ -29,7 +29,7 @@ public class ProjectModelAssumption
         decimal? usableAreaTo,
         decimal? standardLandPrice,
         decimal? coverageAmount,
-        string? fireInsuranceCondition)
+        string? fireInsuranceCode)
     {
         return new ProjectModelAssumption
         {
@@ -41,7 +41,7 @@ public class ProjectModelAssumption
             UsableAreaTo = usableAreaTo,
             StandardLandPrice = standardLandPrice,
             CoverageAmount = coverageAmount,
-            FireInsuranceCondition = fireInsuranceCondition
+            FireInsuranceCode = fireInsuranceCode
         };
     }
 
@@ -53,7 +53,7 @@ public class ProjectModelAssumption
         decimal? usableAreaTo,
         decimal? standardLandPrice,
         decimal? coverageAmount,
-        string? fireInsuranceCondition)
+        string? fireInsuranceCode)
     {
         ProjectModelId = projectModelId;
         ModelType = modelType;
@@ -62,6 +62,6 @@ public class ProjectModelAssumption
         UsableAreaTo = usableAreaTo;
         StandardLandPrice = standardLandPrice;
         CoverageAmount = coverageAmount;
-        FireInsuranceCondition = fireInsuranceCondition;
+        FireInsuranceCode = fireInsuranceCode;
     }
 }

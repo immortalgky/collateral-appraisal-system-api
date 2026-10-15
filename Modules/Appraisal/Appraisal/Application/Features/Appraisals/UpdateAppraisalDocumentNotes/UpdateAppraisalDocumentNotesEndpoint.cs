@@ -20,8 +20,10 @@ public class UpdateAppraisalDocumentNotesEndpoint : ICarterModule
             .WithName("UpdateAppraisalDocumentNotes")
             .Produces<UpdateAppraisalDocumentNotesResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .WithSummary("Update notes on a valuation document attachment")
             .WithDescription("Updates the Notes field of a single valuation document checklist attachment.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Appraisal Documents");
     }
 }

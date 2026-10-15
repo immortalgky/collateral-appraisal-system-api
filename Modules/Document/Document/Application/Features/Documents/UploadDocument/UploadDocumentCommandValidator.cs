@@ -19,7 +19,10 @@ public class UploadDocumentCommandValidator : AbstractValidator<UploadDocumentCo
             .GreaterThan(0)
             .WithMessage("File cannot be empty")
             .LessThanOrEqualTo(_fileStorageConfig.MaxFileSizeBytes)
-            .WithMessage($"File size must not exceed {_fileStorageConfig.MaxFileSizeBytes / 1_000_000}MB")
+            // MiB, matching MaxFileSizeBytes itself and the endpoint's own pre-check message —
+            // dividing by 1_000_000 here said "52MB" for the same 50 MiB limit.
+            .WithMessage(
+                $"File size must not exceed {_fileStorageConfig.MaxFileSizeBytes / (1024 * 1024)}MB")
             .When(x => x.File != null);
 
         RuleFor(x => x.File.FileName)

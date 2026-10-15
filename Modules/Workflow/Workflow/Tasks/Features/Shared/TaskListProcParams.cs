@@ -34,6 +34,7 @@ public static class TaskListProcParams
         p.Add("TaskName", N(filter?.TaskName));
         p.Add("Search", Pattern(filter?.Search));
         p.Add("AppraisalNumber", Pattern(filter?.AppraisalNumber));
+        p.Add("Channel", N(filter?.Channel));
         p.Add("CustomerName", Pattern(filter?.CustomerName));
         p.Add("TaskStatus", N(filter?.TaskStatus));
         p.Add("TaskType", N(filter?.TaskType));

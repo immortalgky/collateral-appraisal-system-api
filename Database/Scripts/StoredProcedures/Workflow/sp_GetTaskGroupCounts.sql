@@ -10,6 +10,7 @@ CREATE OR ALTER PROCEDURE [workflow].[sp_GetTaskGroupCounts]
     @TaskName             NVARCHAR(100) = NULL,
     @Search               NVARCHAR(200) = NULL,  -- already LIKE-escaped by caller; matched with ESCAPE '\'
     @AppraisalNumber      NVARCHAR(50)  = NULL,
+    @Channel              NVARCHAR(10)  = NULL,
     @CustomerName         NVARCHAR(200) = NULL,
     @TaskStatus           NVARCHAR(50)  = NULL,
     @TaskType             NVARCHAR(100) = NULL,
@@ -38,6 +39,7 @@ BEGIN
     ----------------------------------------------------------------------------
     DECLARE @NeedEnrich BIT = CASE WHEN
            @Status IS NOT NULL OR @Priority IS NOT NULL OR @AppraisalNumber IS NOT NULL
+        OR @Channel IS NOT NULL
         OR @CustomerName IS NOT NULL OR @Search IS NOT NULL OR @Purpose IS NOT NULL
         OR @AppointmentDateFrom IS NOT NULL OR @AppointmentDateTo IS NOT NULL
         OR @RequestedAtFrom IS NOT NULL OR @RequestedAtTo IS NOT NULL
@@ -197,7 +199,7 @@ BEGIN
                 gc_resolved.TaskStatus, gc_resolved.SlaStatus, gc_resolved.ActivityId,
                 a.Status                                   AS AStatus,
                 COALESCE(a.Priority, r.Priority)           AS Priority,
-                r.Purpose,
+                r.Purpose, r.Channel,
                 ap.AppointmentDateTime
             FROM gc_resolved
                 LEFT JOIN appraisal.Appraisals a ON a.Id = gc_resolved.RAppraisalId
@@ -227,6 +229,7 @@ BEGIN
             FROM gc_enriched
             WHERE (@Status   IS NULL OR AStatus = @Status)
               AND (@Priority IS NULL OR Priority = @Priority)
+              AND (@Channel  IS NULL OR Channel = @Channel)
               -- @AppraisalNumber / @CustomerName / @Search are applied per-branch in gc_resolved (#f_cust/#f_appr/#f_search pushdown).
               AND (@AppointmentDateFrom IS NULL OR AppointmentDateTime >= @AppointmentDateFrom)
               AND (@AppointmentDateTo   IS NULL OR AppointmentDateTime <  DATEADD(day, 1, @AppointmentDateTo))
@@ -314,7 +317,7 @@ BEGIN
                 gc_resolved.TaskStatus, gc_resolved.SlaStatus, gc_resolved.ActivityId,
                 a.Status                                   AS AStatus,
                 COALESCE(a.Priority, r.Priority)           AS Priority,
-                r.Purpose,
+                r.Purpose, r.Channel,
                 COALESCE(a.RequestedAt, r.RequestedAt)     AS RequestReceivedDate
             FROM gc_resolved
                 LEFT JOIN appraisal.Appraisals a ON a.Id = gc_resolved.RAppraisalId
@@ -339,6 +342,7 @@ BEGIN
             FROM gc_light
             WHERE (@Status   IS NULL OR AStatus = @Status)
               AND (@Priority IS NULL OR Priority = @Priority)
+              AND (@Channel  IS NULL OR Channel = @Channel)
               -- @AppraisalNumber / @CustomerName / @Search are applied per-branch in gc_resolved (#f_cust/#f_appr/#f_search pushdown).
               AND (@RequestedAtFrom IS NULL OR RequestReceivedDate >= @RequestedAtFrom)
               AND (@RequestedAtTo   IS NULL OR RequestReceivedDate <  DATEADD(day, 1, @RequestedAtTo))

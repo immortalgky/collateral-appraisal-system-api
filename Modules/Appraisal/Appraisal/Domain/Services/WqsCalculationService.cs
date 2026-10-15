@@ -44,12 +44,12 @@ public class WqsCalculationService : IPricingCalculationService
 
             if (method.FinalValue is null)
             {
-                var finalValue = PricingFinalValue.Create(method.Id, fv, fvRounded);
+                var finalValue = PricingFinalValue.Create(method.Id, fvRounded);
                 method.SetFinalValue(finalValue);
             }
             else
             {
-                method.FinalValue.UpdateFinalValue(fv, fvRounded);
+                method.FinalValue.UpdateFinalValue(fvRounded);
             }
 
             // Persist the resolved price unit so consumers read it instead of re-deriving.
@@ -59,7 +59,7 @@ public class WqsCalculationService : IPricingCalculationService
             method.SetValue(fvRounded, valuePerUnit, unitType);
 
             // Use user's FinalValueRounded (if set) for lowest/highest center
-            var centerValue = (double)method.FinalValue!.FinalValueRounded;
+            var centerValue = (double)method.FinalValue!.FinalValue;
             var lowest = (decimal)(centerValue - (double)rsq.StandardError);
             var highest = (decimal)(centerValue + (double)rsq.StandardError);
 

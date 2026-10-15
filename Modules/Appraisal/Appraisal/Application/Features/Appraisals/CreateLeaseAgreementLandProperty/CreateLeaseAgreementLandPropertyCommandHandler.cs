@@ -93,7 +93,6 @@ public class CreateLeaseAgreementLandPropertyCommandHandler(
             command.RoyalDecree,
             command.IsEncroached,
             command.EncroachmentRemark,
-            command.EncroachmentArea,
             command.IsLandlocked,
             command.LandlockedRemark,
             command.IsForestBoundary,
@@ -151,6 +150,24 @@ public class CreateLeaseAgreementLandPropertyCommandHandler(
 
                 landDetail.AddTitle(title);
             }
+
+        // Area deductions — AddDeduction keeps the stored total in step on every add.
+        if (command.LandAreaDeductions is { Count: > 0 })
+        {
+            foreach (var deductionData in command.LandAreaDeductions)
+            {
+                var deduction = LandAreaDeduction.Create(landDetail.Id, deductionData.ReasonCode);
+                deduction.Update(
+                    deductionData.ReasonOther,
+                    deductionData.AreaInSqWa,
+                    deductionData.Remark);
+
+                landDetail.AddDeduction(deduction);
+            }
+
+            // After the loop, not per add: the deed guard checks the finished list.
+            landDetail.RecalculateDeductedArea();
+        }
 
         // Update lease agreement detail if provided
         if (command.LeaseAgreement is not null)

@@ -56,15 +56,17 @@ public sealed class AppraisalSummaryModel
     /// </summary>
     public string? SummaryPropertyType { get; init; }
 
-    /// <summary>Field 7 — Full collateral address built via ThaiAddressFormatter.</summary>
-    public string? CollateralAddress { get; init; }
+    /// <summary>
+    /// Field 7 — ที่ตั้งทรัพย์สิน, composed from the property (AppraisalSummaryCommonLoader.CollateralLocationSql).
+    /// Settable so the internal book can fall back to the machine location for a machine-only appraisal.
+    /// </summary>
+    public string? CollateralAddress { get; set; }
 
     /// <summary>
-    /// Field 8 — Administrative sub-district (เขตการปกครอง). Sourced from
-    /// request.RequestDetails — the same sub-district that feeds the ตำบล/แขวง segment of
-    /// <see cref="CollateralAddress"/>, so the two header lines always agree. Resolved against
-    /// the DOPA master, falling back to Title for rows saved while the Location form still
-    /// captured Title geocodes.
+    /// Field 8 — Administrative sub-district (เขตการปกครอง). The property's (block: the project's)
+    /// DOPA sub-district — the same one that feeds the ตำบล/แขวง segment of
+    /// <see cref="CollateralAddress"/>, so the two header lines always agree. The DOPA master's
+    /// name, else the stored code; blank only when there is no code.
     /// </summary>
     public string? AdministrativeDistrict { get; init; }
 
@@ -645,6 +647,16 @@ public sealed class SummaryGroupRow
     /// <summary>One entry per land title — rendered as separate lines in every land row.</summary>
     public List<string> LandDescriptions { get; init; } = [];
 
+    /// <summary>
+    /// One line per land-area deduction, e.g. "แนวสายส่งไฟฟ้าแรงสูง ประมาณ 4-2-50 ไร่" — printed under
+    /// the title list after "หักเนื้อที่ประเมินเนื่องจาก". Empty when nothing was deducted, and the
+    /// row then prints exactly as before.
+    /// </summary>
+    public List<string> LandDeductionLines { get; init; } = [];
+
+    /// <summary>What is left after <see cref="LandDeductionLines"/>, e.g. "36-2-89 ไร่ หรือ 14,689 ตารางวา".</summary>
+    public string? LandNetAreaText { get; init; }
+
     /// <summary>Building clause (พร้อม…), newline-joined per building. Shown after the land
     /// titles in the market/combined land row (separated from the land title list). Excludes
     /// enhancement-only properties — see <see cref="DevelopmentDescriptions"/>.</summary>
@@ -673,13 +685,16 @@ public sealed class SummaryGroupRow
     public decimal? MarketLandArea { get; init; }
 
     /// <summary>Land rate per square-wa / square-metre for the market/combined row
-    /// (PricingAnalysisMethods.ValuePerUnit, else PricingFinalValues.FinalValueAdjusted).</summary>
+    /// (PricingAnalysisMethods.ValuePerUnit, else PricingFinalValues.FinalValueOverride).</summary>
     public decimal? MarketLandUnitPrice { get; init; }
 
-    /// <summary>Land price per square-wa (PricingFinalValues.FinalValueAdjusted). Cost approach only.</summary>
+    /// <summary>Land price per square-wa (PricingFinalValues.FinalValueOverride). Cost approach only.</summary>
     public decimal? LandUnitPrice { get; init; }
 
-    /// <summary>Land appraised value (PricingFinalValues.LandValue). Cost approach only.</summary>
+    /// <summary>Land appraised value for the land ROW: <see cref="TotalSquareWa"/> ×
+    /// <see cref="LandUnitPrice"/>, so the row reconciles with the two cells printed beside it.
+    /// Falls back to PricingFinalValues.LandValue when there is no unit price to multiply by.
+    /// The appraiser's own adjusted figure is <see cref="LandSubtotal"/>. Cost approach only.</summary>
     public decimal? LandValue { get; init; }
 
     /// <summary>Building line items — one per BuildingAppraisalDetail, valued by its IsBuilding=1

@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals.Shared;
+using Appraisal.Domain.Appraisals;
 using Dapper;
 using Shared.Data;
 
@@ -18,7 +19,7 @@ internal static class AppraisalFilterBuilder
         "Priority", "SLADueDate", "SLAStatus", "CreatedAt", "AssignedDate",
         "AppointmentDateTime", "Province", "District", "SubDistrict", "Channel", "BankingSegment",
         "FacilityLimit", "PropertyCount", "ElapsedHours", "RemainingHours",
-        "AssignmentType", "CompanyName", "RequestedAt", "Purpose"
+        "AssignmentType", "CompanyName", "RequestedAt", "Purpose", "AppraisalDate"
     };
 
     /// <param name="addressMatch">
@@ -156,6 +157,10 @@ internal static class AppraisalFilterBuilder
                     "AppointmentDateTime", "AppointmentDateFrom", "AppointmentDateTo"))
                 requiresView = true;
 
+            if (AddDateRangeFilter(conditions, parameters, filter.AppraisalDateFrom, filter.AppraisalDateTo,
+                    "AppraisalDate", "AppraisalDateFrom", "AppraisalDateTo"))
+                requiresView = true;
+
             // Picker-specific additive fields
             // Every customer on the request, not the one the view happens to surface.
             //
@@ -187,6 +192,25 @@ internal static class AppraisalFilterBuilder
                                   WHERE c.Name LIKE '%' + @CustomerName + '%' ESCAPE '\')
                     """);
                 parameters.Add("CustomerName", LikePattern.Escape(customerName));
+            }
+
+            // Requestor (RM). Same `RequestId IN (…)` shape as the customer filter above and for the
+            // same reasons: the WHERE is shared by the view and the base table, so it cannot
+            // correlate on an alias, and a subquery on request.Requests keeps requiresView off —
+            // the count stays on appraisal.Appraisals. IX_Request_Requestor is filtered on
+            // IsDeleted = 0; repeating that predicate is what lets the optimizer seek it.
+            var requestors = (filter.Requestor ?? "")
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (requestors.Length > 0)
+            {
+                conditions.Add(
+                    """
+                    RequestId IN (SELECT rq.Id
+                                  FROM request.Requests rq
+                                  WHERE rq.Requestor IN @Requestors
+                                    AND rq.IsDeleted = 0)
+                    """);
+                parameters.Add("Requestors", requestors);
             }
 
             var requestNumber = StripWidenMarker(filter.RequestNumber);
@@ -249,16 +273,31 @@ internal static class AppraisalFilterBuilder
         // timestamps, so translate the sort for exact ordering:
         //   ElapsedHours  ASC  ≡ CreatedAt  DESC (least elapsed = most recently created)
         //   RemainingHours ASC ≡ SLADueDate ASC  (least remaining = earliest due)
-        var primary = sortField switch
+        var (column, direction) = sortField switch
         {
-            "ElapsedHours" => $"CreatedAt {Invert(sortDir)}",
-            "RemainingHours" => $"SLADueDate {sortDir}",
-            _ => $"{sortField} {sortDir}"
+            "ElapsedHours" => ("CreatedAt", Invert(sortDir)),
+            "RemainingHours" => ("SLADueDate", sortDir),
+            _ => (sortField, sortDir)
         };
+
+        // Ties on the chosen column (and every row inside a group) read newest first, like the default list.
+        // Skipped when CreatedAt is already the primary: a column repeated in ORDER BY is a SQL error.
+        var secondary = column.Equals("CreatedAt", StringComparison.OrdinalIgnoreCase) ? "" : ", CreatedAt DESC";
+
+        // SLA sorts mean "nearest due first", which only makes sense for work still open: closed appraisals
+        // (their SLAStatus is settled, the due date no longer matters) come after every open one, then an
+        // appraisal with no due date — SQL Server would put those NULLs FIRST on ASC — and only then the
+        // date in the requested direction. Same in both directions. Also covers RemainingHours, which was
+        // translated to SLADueDate above. Status is unambiguous in every caller's FROM (the search
+        // derived table exposes only AppraisalId), exactly like the filters' unqualified Status.
+        var nullsLast = column.Equals("SLADueDate", StringComparison.OrdinalIgnoreCase)
+            ? $"CASE WHEN Status IN {AppraisalSla.ClosedStatusesSql} THEN 1 ELSE 0 END, "
+              + "CASE WHEN SLADueDate IS NULL THEN 1 ELSE 0 END, "
+            : "";
 
         // Unqualified on purpose: `s` in the search FROM exposes only AppraisalId, so Id resolves
         // to the view (or the base table) in every statement that uses this clause.
-        return $"{primary}, Id ASC";
+        return $"{nullsLast}{column} {direction}{secondary}, Id ASC";
     }
 
     private static string Invert(string dir) =>

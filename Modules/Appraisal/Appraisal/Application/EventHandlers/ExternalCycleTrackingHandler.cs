@@ -52,17 +52,10 @@ public class ExternalCycleTrackingHandler(
         // Per-AppraisalId ordering is enforced by the partitioned
         // "appraisal-ext-cycle" endpoint (Program.cs). The defensive close-before-open and
         // idempotent OpenExternalCycle remain as belt-and-suspenders.
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, ct))
-            return;
-
         try
         {
-            if (isOpen)
-                await HandleOpenAsync(message, ct);
-            else
-                await HandleCloseAsync(message, ct);
-
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
+            await inboxGuard.RunOnceAsync(context.MessageId, GetType().Name,
+                _ => isOpen ? HandleOpenAsync(message, ct) : HandleCloseAsync(message, ct), ct);
         }
         catch (Exception ex)
         {

@@ -88,7 +88,7 @@ internal static class AppraisalSearchPredicate
         new("documents", RankDocument, "appraisalNumber", """
             SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'appraisalNumber' AS Fld, a.AppraisalNumber AS Val
             FROM appraisal.Appraisals a
-            WHERE a.IsDeleted = 0 AND a.AppraisalNumber LIKE {P} ESCAPE '\'
+            WHERE a.IsDeleted = 0 AND a.AppraisalNumber LIKE {PN} ESCAPE '\'
             """),
         new("documents", RankDocument, "requestNumber", """
             SELECT {TOP}a.Id AS AppraisalId, {R} AS Rnk, 'requestNumber' AS Fld, r.RequestNumber AS Val
@@ -351,6 +351,7 @@ internal static class AppraisalSearchPredicate
         var sql = string.Join("\n            UNION ALL\n",
             arms.Select(a => a.Sql
                 .Replace("{TOP}", top)
+                .Replace("{PN}", "@NumberPattern")
                 .Replace("{P}", "@SearchPattern")
                 .Replace("{R}", a.Rank.ToString())));
 
@@ -359,7 +360,24 @@ internal static class AppraisalSearchPredicate
         // Prefix by default (term%), substring only when the user types '*'. This is what lets the
         // filtered indexes on RequestTitles and RequestCustomers seek instead of scan.
         parameters.Add("SearchPattern", LikePattern.Build(trimmed));
+        parameters.Add("NumberPattern", NumberPattern(trimmed));
         return (sql, parameters);
+    }
+
+    /// <summary>
+    /// Appraisal numbers are <c>{yy}{running:D6}</c>, so people type the tail ("105454") or the
+    /// running number. A term of digits only is therefore a substring match on that column (a
+    /// leading wildcard, so it scans — ~105k rows); anything else keeps the prefix/glob rules.
+    /// Any Unicode decimal digit (Thai ๐-๙, full-width) is normalised to ASCII first.
+    /// </summary>
+    internal static string NumberPattern(string trimmed)
+    {
+        var ascii = string.Create(trimmed.Length, trimmed, static (span, t) =>
+        {
+            for (var i = 0; i < t.Length; i++)
+                span[i] = char.IsDigit(t[i]) ? (char)('0' + (int)char.GetNumericValue(t[i])) : t[i];
+        });
+        return ascii.All(char.IsAsciiDigit) ? $"%{ascii}%" : LikePattern.Build(trimmed);
     }
 
     /// <summary>

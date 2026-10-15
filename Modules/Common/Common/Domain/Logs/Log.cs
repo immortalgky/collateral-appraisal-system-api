@@ -21,4 +21,8 @@ public class Log
     public string? CollateralId { get; set; }
     public string? DocumentId { get; set; }
     public string? MachineName { get; set; }
+    public string? UserName { get; set; }
+    public string? SourceContext { get; set; }
+    public string? RequestPath { get; set; }
+    public string? MessageTemplate { get; set; }
 }

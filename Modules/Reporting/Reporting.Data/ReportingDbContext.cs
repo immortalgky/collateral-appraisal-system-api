@@ -138,5 +138,13 @@ public class ReportingDbContext(DbContextOptions<ReportingDbContext> options) : 
             displayNameEn: "Meeting Minute",
             category: "Meeting",
             generationMode: ReportGenerationMode.Sync),
+
+        ReportDefinition.Create(
+            reportTypeKey: "quotation-summary",
+            templateId: "quotation-summary",
+            displayNameTh: "สรุปรายการเล่มประเมิน",
+            displayNameEn: "Quotation Summary",
+            category: "Quotation",
+            generationMode: ReportGenerationMode.Sync),
     ];
 }

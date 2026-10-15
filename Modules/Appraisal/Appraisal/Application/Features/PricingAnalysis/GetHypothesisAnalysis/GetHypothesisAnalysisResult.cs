@@ -16,12 +16,22 @@ public record GetHypothesisAnalysisResult(
     IReadOnlyList<CostItemDto> CostItems,
     string? Remark,
     /// <summary>
-    /// System-derived C01: sum of LandAppraisalDetail.TotalLandAreaInSqWa across all land titles
-    /// in the property group. Null when the analysis is on a ProjectModel (no land-title chain),
+    /// System-derived C01: sum of LandAppraisalDetail.NetLandAreaInSqWa across all land titles
+    /// in the property group — registered title area LESS the appraiser's listed deductions, as
+    /// returned by PricingPropertyDataService.GetTotalLandAreaFromTitlesAsync. Pricing uses net;
+    /// the report book, Collateral Master and the AS400 exports keep the registered deed figure.
+    /// Null when the analysis is on a ProjectModel (no land-title chain),
     /// or when the group has no land properties / titles entered yet.
     /// The FE should display this as the authoritative C01 when non-null.
     /// </summary>
-    decimal? TotalLandAreaFromTitles = null
+    decimal? TotalLandAreaFromTitles = null,
+    /// <summary>
+    /// The appraiser's typed-over C81/E58 total; null means they did not override.
+    /// Source: PricingFinalValues.IndicatedValue.
+    /// </summary>
+    decimal? IndicatedValue = null,
+    /// <summary>L&amp;B house model → building mappings (empty for condo / none saved yet).</summary>
+    IReadOnlyList<SaveHypothesisAnalysis.ModelBuildingMappingInput>? ModelBuildingMappings = null
 );
 
 public record UploadHistoryDto(

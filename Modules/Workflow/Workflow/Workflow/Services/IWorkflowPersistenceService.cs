@@ -143,4 +143,14 @@ public interface IWorkflowPersistenceService
         string activityId,
         string activityType,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The activity id of this instance's newest non-Released Decision item (RoutedBack, or Pending
+    /// after a recall) on a live (non-cancelled) meeting, or null. An appraisal routed back from a
+    /// meeting must return to that meeting whatever its reworked value; the engine uses this to
+    /// steer it there.
+    /// </summary>
+    Task<string?> GetOpenMeetingItemActivityIdAsync(
+        Guid workflowInstanceId,
+        CancellationToken cancellationToken = default);
 }

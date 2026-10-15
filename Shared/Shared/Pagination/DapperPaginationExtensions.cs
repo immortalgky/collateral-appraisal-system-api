@@ -22,14 +22,20 @@ public static class DapperPaginationExtensions
             RegexOptions.Compiled,
             TimeSpan.FromSeconds(1));
 
-    private static void ValidateOrderBy(string orderBy)
+    // A short letters-only literal such as 'Completed' is harmless: it cannot close itself, carry a terminator or
+    // comment, or hold another quote. ORDER BY clauses that rank by status (the appraisal list's SLA sort puts open
+    // before closed) need one; everything else with a quote is still rejected.
+    private static readonly Regex _plainWordLiteral =
+        new(@"(?<!')'[A-Za-z]{1,30}'(?!')", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+
+    internal static void ValidateOrderBy(string orderBy)
     {
         // BadRequestException maps to HTTP 400 via CustomExceptionHandler; a bare ArgumentException
         // would fall through to the 500 default and leak the message.
         if (string.IsNullOrWhiteSpace(orderBy))
             throw new BadRequestException("orderBy clause must not be empty.");
 
-        if (_orderByInjectionPattern.IsMatch(orderBy))
+        if (_orderByInjectionPattern.IsMatch(_plainWordLiteral.Replace(orderBy, "x")))
             throw new BadRequestException("Invalid orderBy clause.");
     }
 

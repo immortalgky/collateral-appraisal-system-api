@@ -137,6 +137,8 @@ namespace Notification.Migrations
                     b.HasIndex("CreatedAt")
                         .HasDatabaseName("IX_UserNotifications_CreatedAt");
 
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("CreatedAt"), new[] { "IsRead" });
+
                     b.HasIndex("Username")
                         .HasDatabaseName("IX_UserNotifications_UserId");
 
@@ -178,6 +180,45 @@ namespace Notification.Migrations
                         .HasDatabaseName("IX_InboxMessage_StaleProcessing");
 
                     b.ToTable("InboxMessage", "notification");
+                });
+
+            modelBuilder.Entity("Shared.Scheduling.JobSchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("CronExpression")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("JobId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("TimeZoneId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("JobId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_JobSchedules_JobId");
+
+                    b.ToTable("JobSchedules", "notification");
                 });
 #pragma warning restore 612, 618
         }

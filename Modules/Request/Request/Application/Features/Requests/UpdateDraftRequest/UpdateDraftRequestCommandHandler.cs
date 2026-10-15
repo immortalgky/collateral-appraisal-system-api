@@ -47,10 +47,10 @@ internal class UpdateDraftRequestCommandHandler(
             command.IsPma
         ));
 
-        AppraisalReferenceResult? appraisalRef = null;
-        if (command.Detail?.PrevAppraisalId.HasValue == true)
-            appraisalRef = await mediator.Send(
-                new GetAppraisalReferenceQuery(command.Detail.PrevAppraisalId.Value), cancellationToken);
+        var prevAppraisalId = PriorAppraisalFields.NormalizeId(command.Detail?.PrevAppraisalId);
+        var prior = await PriorAppraisalFields.ResolveAsync(
+            mediator, request, prevAppraisalId,
+            LegacyPriorBook.ForUpdate(request.Purpose, command.Detail, request.Detail), cancellationToken);
 
         request.SetDetail(RequestDetail.Create(new RequestDetailData(
             command.Detail?.HasAppraisalBook ?? false,
@@ -62,7 +62,7 @@ internal class UpdateDraftRequestCommandHandler(
                 command.Detail?.LoanDetail?.PreviousFacilityLimit,
                 command.Detail?.LoanDetail?.TotalSellingPrice
             )),
-            command.Detail?.PrevAppraisalId,
+            prevAppraisalId,
             Address.Create(new AddressData(
                 command.Detail?.Address?.HouseNumber,
                 command.Detail?.Address?.ProjectName,
@@ -85,9 +85,9 @@ internal class UpdateDraftRequestCommandHandler(
                 command.Detail?.Fee?.FeePaymentType,
                 command.Detail?.Fee?.FeeNotes,
                 command.Detail?.Fee?.AbsorbedAmount),
-            PrevAppraisalNumber: appraisalRef?.AppraisalNumber,
-            PrevAppraisalValue: appraisalRef?.AppraisalValue,
-            PrevAppraisalDate: appraisalRef?.AppraisalDate
+            PrevAppraisalNumber: prior.Number,
+            PrevAppraisalValue: prior.Value,
+            PrevAppraisalDate: prior.Date
         )));
 
         var customers = command.Customers?
@@ -96,7 +96,7 @@ internal class UpdateDraftRequestCommandHandler(
         request.SetCustomers(customers);
 
         var properties = command.Properties?
-            .Select(p => RequestProperty.Create(p.PropertyType, p.BuildingType, p.SellingPrice))
+            .Select(p => RequestProperty.Create(p.PropertyType, p.BuildingType, p.BuildingTypeOther, p.SellingPrice))
             .ToList();
         request.SetProperties(properties);
 

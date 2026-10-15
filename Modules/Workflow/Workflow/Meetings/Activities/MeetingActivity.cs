@@ -52,11 +52,7 @@ public class MeetingActivity : WorkflowActivityBase
 
             // Re-entry path: if this appraisal+workflowInstance already has a non-Released Decision
             // item on a still-live meeting — RoutedBack (rework) or Pending (a secretary recall) —
-            // re-enter that same meeting instead of enqueueing a new queue row. Excludes Cancelled
-            // meetings: Meeting.Cancel() does not remove its items, so a stale Pending/RoutedBack row
-            // left behind by a cancel-and-reschedule must not win over the live meeting's row.
-            // OrderByDescending(AddedAt) makes the pick deterministic if more than one such row
-            // somehow exists.
+            // re-enter that same meeting instead of enqueueing a new queue row (see OpenMeetingItems).
             //
             // This predicate depends on the workflow engine having already flushed the Meeting
             // aggregate's reset (Released → Pending on recall, or the RoutedBack reinstate) to the
@@ -64,14 +60,8 @@ public class MeetingActivity : WorkflowActivityBase
             // after every activity completes and before the next one executes, so by the time
             // MeetingActivity re-enters here that write has already landed — this predicate would
             // otherwise see stale data.
-            var existingItem = await _dbContext.MeetingItems
-                .Where(mi =>
-                    mi.AppraisalId == appraisalId &&
-                    mi.WorkflowInstanceId == context.WorkflowInstanceId &&
-                    mi.Kind == MeetingItemKind.Decision &&
-                    mi.ItemDecision != ItemDecision.Released &&
-                    _dbContext.Meetings.Any(m => m.Id == mi.MeetingId && m.Status != MeetingStatus.Cancelled))
-                .OrderByDescending(mi => mi.AddedAt)
+            var existingItem = await _dbContext.OpenMeetingItems(context.WorkflowInstanceId)
+                .Where(mi => mi.AppraisalId == appraisalId)
                 .FirstOrDefaultAsync(cancellationToken);
 
             if (existingItem is not null)
@@ -184,6 +174,11 @@ public class MeetingActivity : WorkflowActivityBase
             outputData[$"{normalized}_meetingMemberOverrides"] = memberOverrides;
             outputData["meetingMemberOverrides"] = memberOverrides;
         }
+
+        // The meeting's committee: the downstream ApprovalActivity approves under it rather than
+        // re-picking a tier from the (possibly reworked) appraisal value.
+        if (resumeInput.TryGetValue("meetingCommitteeId", out var meetingCommitteeId))
+            outputData["meetingCommitteeId"] = meetingCommitteeId;
 
         if (resumeInput.TryGetValue("routeBackReason", out var routeBackReason))
             outputData[$"{normalized}_routeBackReason"] = routeBackReason;

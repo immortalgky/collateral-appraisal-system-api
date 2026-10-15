@@ -65,9 +65,9 @@ public record UpdateBuildingPropertyRequest(
     string? UtilizationTypeOther = null,
     // Area & Pricing
     decimal? TotalBuildingArea = null,
+    // Appraiser-keyed overrides; null means "use the derived figure".
+    decimal? BuildingCostValue = null,
     decimal? BuildingInsurancePrice = null,
-    decimal? SellingPrice = null,
-    decimal? ForcedSalePrice = null,
     // Other
     string? Remark = null,
     // Depreciation Details (null = no-op, list = sync)

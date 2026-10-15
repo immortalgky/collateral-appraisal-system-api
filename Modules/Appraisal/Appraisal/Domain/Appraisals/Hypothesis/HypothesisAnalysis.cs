@@ -15,11 +15,13 @@ public class HypothesisAnalysis : Entity<Guid>
     private readonly List<LandBuildingUnitRow> _landBuildingUnitRows = [];
     private readonly List<CondominiumUnitRow> _condominiumUnitRows = [];
     private readonly List<HypothesisCostItem> _costItems = [];
+    private readonly List<HypothesisModelBuildingMapping> _modelBuildingMappings = [];
 
     public IReadOnlyList<HypothesisUnitDetailUpload> Uploads => _uploads.AsReadOnly();
     public IReadOnlyList<LandBuildingUnitRow> LandBuildingUnitRows => _landBuildingUnitRows.AsReadOnly();
     public IReadOnlyList<CondominiumUnitRow> CondominiumUnitRows => _condominiumUnitRows.AsReadOnly();
     public IReadOnlyList<HypothesisCostItem> CostItems => _costItems.AsReadOnly();
+    public IReadOnlyList<HypothesisModelBuildingMapping> ModelBuildingMappings => _modelBuildingMappings.AsReadOnly();
 
     public Guid PricingMethodId { get; private set; }
     public HypothesisVariant Variant { get; private set; }
@@ -184,6 +186,39 @@ public class HypothesisAnalysis : Entity<Guid>
         _costItems.Clear();
     }
 
+    // ── House model → building mappings (L&B) ─────────────────────────────
+
+    /// <summary>
+    /// Full replace keyed by model name: update rows that exist, add new ones, drop the rest.
+    /// Whether each building belongs to the group is checked by the caller, which has the data.
+    /// </summary>
+    public void ReplaceModelBuildingMappings(
+        IEnumerable<(string ModelName, Guid? AppraisalPropertyId, decimal? TotalCost)> mappings)
+    {
+        AssertVariant(HypothesisVariant.LandBuilding);
+
+        // Backstop for the validators: one mapping per house model, or save and preview disagree
+        // on which duplicate wins.
+        var incoming = new Dictionary<string, (string ModelName, Guid? AppraisalPropertyId, decimal? TotalCost)>(
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var m in mappings)
+            if (!incoming.TryAdd(m.ModelName.Trim(), m))
+                throw new DomainException($"House model '{m.ModelName.Trim()}' is mapped more than once.");
+
+        _modelBuildingMappings.RemoveAll(m => !incoming.ContainsKey(m.ModelName));
+
+        foreach (var (name, m) in incoming)
+        {
+            var existing = _modelBuildingMappings.FirstOrDefault(
+                x => string.Equals(x.ModelName, name, StringComparison.OrdinalIgnoreCase));
+            if (existing is null)
+                _modelBuildingMappings.Add(
+                    HypothesisModelBuildingMapping.Create(Id, name, m.AppraisalPropertyId, m.TotalCost));
+            else
+                existing.Update(m.AppraisalPropertyId, m.TotalCost);
+        }
+    }
+
     // ── Invariant helpers ─────────────────────────────────────────────────
 
     private void AssertVariant(HypothesisVariant expected)
@@ -197,7 +232,8 @@ public class HypothesisAnalysis : Entity<Guid>
     /// Deep-clone for CI carry-forward. Maps prior upload IDs to new ones so child
     /// LandBuildingUnitRow/CondominiumUnitRow.UploadId references stay consistent.
     /// </summary>
-    public static HypothesisAnalysis CloneForMethod(HypothesisAnalysis source, Guid newPricingMethodId)
+    public static HypothesisAnalysis CloneForMethod(
+        HypothesisAnalysis source, Guid newPricingMethodId, IReadOnlyDictionary<Guid, Guid>? propertyIdMap = null)
     {
         var clone = new HypothesisAnalysis
         {
@@ -235,6 +271,9 @@ public class HypothesisAnalysis : Entity<Guid>
 
         foreach (var ci in source.CostItems)
             clone._costItems.Add(HypothesisCostItem.CloneForAnalysis(ci, clone.Id));
+
+        foreach (var m in source.ModelBuildingMappings)
+            clone._modelBuildingMappings.Add(HypothesisModelBuildingMapping.CloneForAnalysis(m, clone.Id, propertyIdMap));
 
         return clone;
     }

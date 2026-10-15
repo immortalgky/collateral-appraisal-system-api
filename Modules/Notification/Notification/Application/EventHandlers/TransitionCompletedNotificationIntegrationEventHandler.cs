@@ -22,11 +22,11 @@ public class TransitionCompletedNotificationIntegrationEventHandler : IConsumer<
         _inboxGuard = inboxGuard;
     }
 
-    public async Task Consume(ConsumeContext<TransitionCompletedIntegrationEvent> context)
-    {
-        if (await _inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<TransitionCompletedIntegrationEvent> context) =>
+        _inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<TransitionCompletedIntegrationEvent> context)
+    {
         var transitionCompleted = context.Message;
 
         _logger.LogInformation(
@@ -51,8 +51,6 @@ public class TransitionCompletedNotificationIntegrationEventHandler : IConsumer<
 
             _logger.LogInformation("Successfully sent TransitionCompleted notification for request {RequestId}",
                 transitionCompleted.RequestId);
-
-            await _inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
         }
         catch (Exception ex)
         {

@@ -177,16 +177,16 @@ public record AppraisalPropertyForCollateral(
 /// PricingFinalValue). NULL when non-cost approach or no pricing analysis present.
 ///
 /// Field mappings from PricingAnalysisMethod / PricingFinalValue:
-///   UnitPrice     ← PricingFinalValue.FinalValueAdjusted  (the adjusted unit price per sq.wa)
+///   UnitPrice     ← PricingFinalValue.FinalValueOverride  (the adjusted unit price per sq.wa)
 ///   BuildingValue ← PricingFinalValue.BuildingValue        (building value component, cost approach)
-///   AppraisalValue ← PricingFinalValue.AppraisalPrice      (user-edited final total)
-///                    fallback: FinalValueAdjusted → FinalValueRounded
+///   AppraisalValue ← PricingFinalValue.IndicatedValue      (user-edited final total)
+///                    fallback: FinalValueOverride → FinalValueRounded
 /// </summary>
 public record PricingInfoForCollateral(
     bool IsCostApproach,
-    decimal? UnitPrice,         // PricingFinalValue.FinalValueAdjusted (cost approach only)
+    decimal? UnitPrice,         // PricingFinalValue.FinalValueOverride (cost approach only)
     decimal? BuildingValue,     // PricingFinalValue.BuildingValue (cost approach only)
-    decimal? AppraisalValue     // PricingFinalValue.AppraisalPrice (all approaches)
+    decimal? AppraisalValue     // PricingFinalValue.IndicatedValue (all approaches)
 );
 
 /// <summary>

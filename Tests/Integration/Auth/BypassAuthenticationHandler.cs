@@ -21,6 +21,9 @@ public class BypassAuthenticationHandler(
             new Claim("permissions", "request:write"),
             new Claim("permissions", "document:read"),
             new Claim("permissions", "document:write"),
+            new Claim("permissions", "FAILED_MESSAGE_VIEW"),
+            new Claim("permissions", "FAILED_MESSAGE_MANAGE"),
+            new Claim("permissions", "HISTORY_SEARCH_VIEW"),
         };
         var identity = new ClaimsIdentity(claims, Scheme.Name);
         var principal = new ClaimsPrincipal(identity);

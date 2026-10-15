@@ -25,6 +25,7 @@ public class CreateBlockReappraisalCommandHandler(
     IReappraisalGroupNumberGenerator groupNumberGenerator,
     ISqlConnectionFactory connectionFactory,
     RequestDbContext dbContext,
+    ISender mediator,
     ILogger<CreateBlockReappraisalCommandHandler> logger
 ) : ICommandHandler<CreateBlockReappraisalCommand, CreateBlockReappraisalResult>
 {
@@ -43,6 +44,11 @@ public class CreateBlockReappraisalCommandHandler(
         CreateBlockReappraisalCommand command,
         CancellationToken cancellationToken)
     {
+        // Purpose 09 requires a Completed prior appraisal — reject first, before a group number is generated or
+        // anything is read, so the endpoint can hand the due row back.
+        await PriorAppraisalSubmissionGuard.EnsureValidAsync(
+            ReappraisalPurposeCode, command.PrevAppraisalId, null, mediator, cancellationToken);
+
         // ── Step 1: Generate group number ────────────────────────────────────
         var groupNumber = await groupNumberGenerator.GenerateAsync(cancellationToken);
 
@@ -88,9 +94,19 @@ public class CreateBlockReappraisalCommandHandler(
 
         var properties = snapshot?.Properties is { Count: > 0 }
             ? snapshot.Properties
-                .Select(p => new RequestPropertyDto(p.PropertyType, p.BuildingType, p.SellingPrice))
+                .Select(p => new RequestPropertyDto(p.PropertyType, p.BuildingType, p.BuildingTypeOther, p.SellingPrice))
                 .ToList()
             : null;
+
+        // Documents follow the same carry-forward rule as the request page: the prior appraisal's defaultUse
+        // files, stamped PREV (the prior request's own rows are no longer copied).
+        // Intentional: this request is auto-submitted (no draft for staff), so unmatched title files and
+        // defaultUse=false files are simply not carried; appraisers ask for them through document follow-ups.
+        var carried = await CarriedDocuments.TryFetchAsync(mediator, command.PrevAppraisalId, logger, cancellationToken);
+        var placeholders = snapshot is null
+            ? []
+            : await CarriedDocuments.LoadPlaceholdersAsync(connectionFactory, snapshot.RequestId, cancellationToken);
+        var (carriedDocuments, carriedTitles) = CarriedDocuments.Build(carried, snapshot?.Titles, placeholders);
 
         var createData = new CreateRequestData(
             Purpose: ReappraisalPurposeCode,
@@ -102,8 +118,8 @@ public class CreateBlockReappraisalCommandHandler(
             Detail: detail,
             Customers: customers,
             Properties: properties,
-            Titles: snapshot?.Titles,
-            Documents: snapshot?.Documents,
+            Titles: carriedTitles,
+            Documents: carriedDocuments,
             Comments: null);
 
         // ── Step 5: Create → save → submit (mirrors InitiateReappraisal pattern) ─
@@ -188,7 +204,7 @@ public class CreateBlockReappraisalCommandHandler(
             """;
 
         const string propertiesSql = """
-            SELECT RequestId, PropertyType, BuildingType, SellingPrice
+            SELECT RequestId, PropertyType, BuildingType, BuildingTypeOther, SellingPrice
             FROM request.RequestProperties
             WHERE RequestId IN @RequestIds
             ORDER BY RequestId, Id
@@ -207,13 +223,13 @@ public class CreateBlockReappraisalCommandHandler(
             ? new List<PriorRequestPropertyRow>()
             : (await conn.QueryAsync<PriorRequestPropertyRow>(propertiesSql, new { RequestIds = requestIds })).ToList();
 
-        // Titles and request-level documents must be loaded via EF Core (owned collections / TPH hierarchy).
+        // Titles must be loaded via EF Core (owned collections / TPH hierarchy). Documents are not copied (see CarriedDocuments).
         var titlesByRequest = new Dictionary<Guid, List<RequestTitleDto>>();
-        var documentsByRequest = new Dictionary<Guid, List<RequestDocumentDto>>();
         if (requestIds.Count > 0)
         {
             var titles = await dbContext.RequestTitles
                 .Where(t => requestIds.Contains(t.RequestId))
+                .InDisplayOrder()
                 .ToListAsync(cancellationToken);
 
             foreach (var title in titles)
@@ -225,18 +241,6 @@ public class CreateBlockReappraisalCommandHandler(
                     titlesByRequest[title.RequestId] = list;
                 }
                 list.Add(dto);
-            }
-
-            var requestsWithDocs = await dbContext.Requests
-                .Include(r => r.Documents)
-                .Where(r => requestIds.Contains(r.Id))
-                .ToListAsync(cancellationToken);
-
-            foreach (var req in requestsWithDocs)
-            {
-                documentsByRequest[req.Id] = req.Documents
-                    .Select(d => d.ToDto())
-                    .ToList();
             }
         }
 
@@ -254,8 +258,7 @@ public class CreateBlockReappraisalCommandHandler(
                 r.ContactPersonName, r.ContactPersonPhone, r.DealerCode,
                 customersByRequest.TryGetValue(r.RequestId, out var cList) ? cList : [],
                 propertiesByRequest.TryGetValue(r.RequestId, out var pList) ? pList : [],
-                titlesByRequest.TryGetValue(r.RequestId, out var tList) ? tList : [],
-                documentsByRequest.TryGetValue(r.RequestId, out var dList) ? dList : []));
+                titlesByRequest.TryGetValue(r.RequestId, out var tList) ? tList : []));
     }
 
     // ── DTO builders ──────────────────────────────────────────────────────────
@@ -292,7 +295,7 @@ public class CreateBlockReappraisalCommandHandler(
         string? ContactPersonName, string? ContactPersonPhone, string? DealerCode);
 
     private sealed record PriorRequestCustomerRow(Guid RequestId, string? Name, string? ContactNumber);
-    private sealed record PriorRequestPropertyRow(Guid RequestId, string? PropertyType, string? BuildingType, decimal? SellingPrice);
+    private sealed record PriorRequestPropertyRow(Guid RequestId, string? PropertyType, string? BuildingType, string? BuildingTypeOther, decimal? SellingPrice);
 
     private sealed record PriorRequestSnapshot(
         Guid AppraisalId, Guid RequestId, bool HasAppraisalBook,
@@ -303,6 +306,5 @@ public class CreateBlockReappraisalCommandHandler(
         string? ContactPersonName, string? ContactPersonPhone, string? DealerCode,
         List<PriorRequestCustomerRow> Customers,
         List<PriorRequestPropertyRow> Properties,
-        List<RequestTitleDto> Titles,
-        List<RequestDocumentDto> Documents);
+        List<RequestTitleDto> Titles);
 }

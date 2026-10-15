@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace Reporting.Application.Formatting;
@@ -79,11 +80,33 @@ public static class ThaiAddressFormatter
         return sb.ToString().Trim();
     }
 
+    // Hyphen-minus, en/em dash, and the minus sign / hyphens / fullwidth forms that pasted or IME
+    // text brings in.
+    private static readonly char[] Dashes = ['-', '–', '—', '−', '‐', '‑', '‒', '－', '﹣'];
+
+    /// <summary>
+    /// The trimmed value, or null when it is blank or only dashes (the placeholders for "no value")
+    /// — so a segment and its label drop out instead of printing "ซอย -".
+    /// </summary>
+    public static string? Stated(string? value)
+    {
+        var trimmed = value?.Trim();
+        return string.IsNullOrEmpty(trimmed) || trimmed.All(c => char.IsWhiteSpace(c) || Dashes.Contains(c)) ? null : trimmed;
+    }
+
+    /// <summary>
+    /// Whether a free-text numeric field (e.g. a condo floor) was actually filled in. Blank or dashes
+    /// mean not stated; so does a numeric zero, which the form cannot tell apart from "not stated" and
+    /// which would otherwise print as a fact ("ชั้นที่ 0"). Non-numeric text (e.g. "G") counts as stated.
+    /// </summary>
+    public static bool IsStated(string? value) =>
+        // Strip the dash placeholders before parsing, so "–0" or "0 -" still read as zero.
+        Stated(value)?.Trim(Dashes).Trim() is { } core
+        && (!decimal.TryParse(core, NumberStyles.Any, CultureInfo.InvariantCulture, out var n) || n != 0m);
+
     private static void Append(StringBuilder sb, string? label, string? value, bool spaceAfterLabel = true)
     {
-        // Treat a lone "-" (a common placeholder for "no value") as blank so the
-        // segment — and its label — drops out cleanly instead of printing "ซอย -".
-        if (string.IsNullOrWhiteSpace(value) || value.Trim() == "-")
+        if (Stated(value) is not { } stated)
             return;
 
         if (sb.Length > 0)
@@ -96,6 +119,6 @@ public static class ThaiAddressFormatter
                 sb.Append(' ');
         }
 
-        sb.Append(value.Trim());
+        sb.Append(stated);
     }
 }

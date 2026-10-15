@@ -30,11 +30,11 @@ public class ReportGenerationCompletedNotificationIntegrationEventHandler
         _inboxGuard = inboxGuard;
     }
 
-    public async Task Consume(ConsumeContext<ReportGenerationCompletedIntegrationEvent> context)
-    {
-        if (await _inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<ReportGenerationCompletedIntegrationEvent> context) =>
+        _inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<ReportGenerationCompletedIntegrationEvent> context)
+    {
         var msg = context.Message;
 
         try
@@ -51,8 +51,6 @@ public class ReportGenerationCompletedNotificationIntegrationEventHandler
                     ["reportTypeKey"] = msg.ReportTypeKey,
                     ["fileName"] = msg.FileName,
                 });
-
-            await _inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
         }
         catch (Exception ex)
         {

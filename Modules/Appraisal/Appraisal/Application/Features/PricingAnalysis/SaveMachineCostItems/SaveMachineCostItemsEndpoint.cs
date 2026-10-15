@@ -18,8 +18,8 @@ public class SaveMachineCostItemsEndpoint : ICarterModule
                         methodId,
                         request.Items,
                         request.Remark,
-                        request.FinalValueAdjusted,
-                        request.AppraisalPrice
+                        request.FinalValueOverride,
+                        request.IndicatedValue
                     );
 
                     var result = await sender.Send(command);

@@ -32,6 +32,7 @@ public record RequestTitleDto
 
     // VehicleInfo fields
     public string? VehicleType { get; init; }
+    public string? VehicleRegistrationNumber { get; init; }
     public string? VehicleLocation { get; init; }
     public string? VIN { get; init; }
     public string? LicensePlateNumber { get; init; }

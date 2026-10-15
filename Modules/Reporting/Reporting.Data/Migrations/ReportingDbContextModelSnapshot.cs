@@ -119,6 +119,17 @@ namespace Reporting.Data.Migrations
                             IsEnabled = true,
                             TemplateId = "meeting-minute",
                             Version = 1
+                        },
+                        new
+                        {
+                            ReportTypeKey = "quotation-summary",
+                            Category = "Quotation",
+                            DisplayNameEn = "Quotation Summary",
+                            DisplayNameTh = "สรุปรายการเล่มประเมิน",
+                            GenerationMode = "Sync",
+                            IsEnabled = true,
+                            TemplateId = "quotation-summary",
+                            Version = 1
                         });
                 });
 
@@ -316,6 +327,9 @@ namespace Reporting.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ProcessingStartedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<int>("RetryCount")

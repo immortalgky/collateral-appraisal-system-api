@@ -238,12 +238,23 @@ release-pipeline variables for the tokens:
 - `AppBaseUrl` must be the **public load-balancer URL** (e.g. `https://cas.example.com`),
   not the per-server hostname. OpenIddict stamps this into the JWT `iss` claim; mismatched
   issuers between nodes will fail validation on the other node.
-- `Auth:InternalAuthBaseUrl` is for **in-process loopback calls only** (`TokenHandler` /
-  `RefreshTokenHandler` calling `/connect/token` on themselves). Set to
-  `http://localhost:<kestrel-port>` or `https://localhost:<kestrel-port>`. Without it,
-  the loopback call goes out through the LB and you get `RemoteCertificateNameMismatch`
-  if the LB's TLS cert doesn't include the hostname being used. If omitted, the code
-  falls back to `AppBaseUrl`.
+- `Auth:InternalAuthBaseUrl` is where the API reaches its own OpenIddict for the OIDC
+  back-channel (discovery, JWKS, authorization-code redemption) when a browser signs in. Set
+  to `http://localhost:<kestrel-port>` or `https://localhost:<kestrel-port>`. Without it,
+  the call goes out through the LB and you get `RemoteCertificateNameMismatch` if the LB's
+  TLS cert doesn't include the hostname being used. If omitted, the code falls back to the
+  identity provider's public address (`Auth:Idp:PublicBaseUrl`, itself defaulting to
+  `AppBaseUrl`). Browsers are always sent to the public address.
+- The SPA's `VITE_API_URL` should equal `AppBaseUrl` (same host and port): the sign-in callback
+  and the `__Host-` session cookie land on `AppBaseUrl`, so an SPA calling the API on another
+  host never receives the cookie. The API does not block on this (it cannot tell how the load
+  balancer forwards Host): `/auth/login` logs `[AUTH-HOST-MISMATCH]` once, and a sign-in that
+  cannot complete logs `[AUTH-OIDC-STATE-FAILURE]` with both hosts and answers "Sign-in failed"
+  with the same hint. Nothing requires the F5 to preserve Host.
+- The session cookie names end in a suffix derived from the `AppBaseUrl` port (`-7112`), so
+  environments sharing a host (SIT1-4, UAT2-4) do not collide; nothing to configure. Set
+  `Auth:Session:CookieSuffix` only to override.
+- `Auth:Idp:PublicBaseUrl` is optional: set it only when the IdP is split out of the API.
 - The same two thumbprints must be deployed to **both** servers.
 - Strip any whitespace from thumbprints copied from `certlm.msc` (Windows likes to prefix
   an invisible LRM character).
@@ -277,12 +288,15 @@ dotnet ef database update \
 
 > This is the test that would have caught the previous JWT decrypt failure.
 
-1. Disable Server B at the LB. Hit `/connect/token` (or your login flow) → get an access
-   token and a refresh token.
+1. Disable Server B at the LB. Sign in through the SPA (or open `https://<lb>/auth/login`)
+   and call `GET /auth/me` → 200. For a machine client, `POST /connect/token` with
+   `grant_type=client_credentials` → access token.
 2. Re-enable Server B, disable Server A.
-3. Using the **same** refresh token, call `POST /connect/token` with
-   `grant_type=refresh_token`. **Must succeed**. (Pre-fix: failed with IDX10609.)
-4. Using the **same** access token, hit any protected endpoint via Server B. **Must succeed**.
+3. With the **same** browser session (no new sign-in) call `GET /auth/me` → **must succeed**
+   (the session lives in `auth.UserSessions`; the cookie is protected with the shared keyring).
+   The machine client's **same** access token must also work on Server B. (Pre-fix: failed
+   with IDX10609.)
+4. Hit any protected endpoint via Server B with each of the two credentials. **Must succeed**.
 5. `SELECT TOP 5 Id, FriendlyName, Xml FROM auth.DataProtectionKeys` — at least one row,
    `Xml` contains the encrypted keyring.
 6. `GET https://<lb>/.well-known/openid-configuration` — the `issuer` and all endpoint

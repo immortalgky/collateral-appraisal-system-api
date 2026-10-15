@@ -109,7 +109,7 @@ def build_trailer(count):
 
 def sample_rows(survey1):
     return [
-        # Row 1 — Normal Review, ASCII, FUTURE ReviewDate (positive Remaining Days).
+        # Row 1 — Normal Review, ASCII, FUTURE due date (EffectiveDateAppraisal = ReviewDate, positive Remaining Days).
         # SurveyNo should match a real appraisal.Appraisals.AppraisalNumber for geo enrichment.
         {
             "RecordType": "D", "ReviewType": "1", "ReviewDate": "01122026",
@@ -129,11 +129,11 @@ def sample_rows(survey1):
             "CountAgeingDate": "4/9", "CollateralDescription": "Overdraft facility",
             "ExternalValuerName": "", "InternalValuerName": "Bank Appraiser 1",
             "SllOver100M": "N", "SllDescription": "Internal appraisal <=100M",
-            "Stage": "1", "IBGRetail": "Retail", "Group": "1", "EffectiveDateAppraisal": "28112019",
+            "Stage": "1", "IBGRetail": "Retail", "Group": "1", "EffectiveDateAppraisal": "01122026",
         },
-        # Row 2 — Before Stage 3, THAI text, PAST ReviewDate (overdue), SurveyNo with no in-system match.
+        # Row 2 — Before Stage 3, THAI text, PAST staged due date (EffectiveDateAppraisal 2025, before ReviewDate 2027 — overdue), SurveyNo with no in-system match.
         {
-            "RecordType": "D", "ReviewType": "2", "ReviewDate": "15012025",
+            "RecordType": "D", "ReviewType": "2", "ReviewDate": "15012027",
             "CollateralId": "55077", "SurveyNo": "6800002",
             "CollateralCode": "12B", "CollateralCategory": "RE",
             "CollateralName": "คอนโดสุขุมวิท ชั้น 8",
@@ -150,9 +150,9 @@ def sample_rows(survey1):
             "CountAgeingDate": "5/2", "CollateralDescription": "คอนโดมิเนียม",
             "ExternalValuerName": "ABC Valuer Co Ltd", "InternalValuerName": "",
             "SllOver100M": "N", "SllDescription": "ประเมินภายในสำหรับที่ไม่เกิน 100 ล้าน",
-            "Stage": "2", "IBGRetail": "IBG", "Group": "2", "EffectiveDateAppraisal": "10012020",
+            "Stage": "2", "IBGRetail": "IBG", "Group": "2", "EffectiveDateAppraisal": "15012025",
         },
-        # Row 3 — Stage 3, minimal/blank optional fields (null handling), SllOver100M = Y.
+        # Row 3 — Stage 3, minimal/blank optional fields (null handling — no EffectiveDateAppraisal, so no due date), SllOver100M = Y.
         {
             "RecordType": "D", "ReviewType": "3", "ReviewDate": "01062026",
             "CollateralId": "55078", "SurveyNo": "6800003",

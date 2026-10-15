@@ -83,6 +83,12 @@ public class GetHypothesisAnalysisQueryHandler(
             condoRows,
             costItems,
             method.Remark,
-            totalLandAreaFromTitles);
+            totalLandAreaFromTitles,
+            method.FinalValue?.IndicatedValue,
+            ha.ModelBuildingMappings
+                .OrderBy(m => m.ModelName)
+                .Select(m => new SaveHypothesisAnalysis.ModelBuildingMappingInput(
+                    m.ModelName, m.AppraisalPropertyId, m.TotalCost))
+                .ToList());
     }
 }

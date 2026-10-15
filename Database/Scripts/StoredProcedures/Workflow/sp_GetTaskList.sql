@@ -10,6 +10,7 @@ CREATE OR ALTER PROCEDURE [workflow].[sp_GetTaskList]
     @TaskName             NVARCHAR(100) = NULL,
     @Search               NVARCHAR(200) = NULL,  -- already LIKE-escaped by caller; matched with ESCAPE '\'
     @AppraisalNumber      NVARCHAR(50)  = NULL,
+    @Channel              NVARCHAR(10)  = NULL,
     @CustomerName         NVARCHAR(200) = NULL,
     @TaskStatus           NVARCHAR(50)  = NULL,
     @TaskType             NVARCHAR(100) = NULL,
@@ -52,7 +53,7 @@ BEGIN
         SET @SortBy = 'RequestReceivedDate';
 
     IF @SortBy IS NULL OR @SortBy NOT IN (
-        'AppraisalNumber','RequestNumber','CustomerName','TaskType','Purpose','PropertyType',
+        'AppraisalNumber','RequestNumber','Channel','CustomerName','TaskType','Purpose','PropertyType',
         'Status','AppointmentDateTime','RequestedBy','RequestReceivedDate','AssignedDate',
         'Movement','InternalFollowupStaff','Appraiser','Priority','DueAt','SlaStatus')
         SET @SortBy = 'AssignedDate';
@@ -69,10 +70,11 @@ BEGIN
     ----------------------------------------------------------------------------
     DECLARE @NeedEnrich BIT = CASE WHEN
            @Status IS NOT NULL OR @Priority IS NOT NULL OR @AppraisalNumber IS NOT NULL
+        OR @Channel IS NOT NULL
         OR @CustomerName IS NOT NULL OR @Search IS NOT NULL OR @Purpose IS NOT NULL
         OR @AppointmentDateFrom IS NOT NULL OR @AppointmentDateTo IS NOT NULL
         OR @RequestedAtFrom IS NOT NULL OR @RequestedAtTo IS NOT NULL
-        OR @SortBy IN ('AppraisalNumber','RequestNumber','CustomerName','Purpose','PropertyType',
+        OR @SortBy IN ('AppraisalNumber','RequestNumber','Channel','CustomerName','Purpose','PropertyType',
                        'Status','RequestedBy','AppointmentDateTime','RequestReceivedDate',
                        'InternalFollowupStaff','Appraiser','Priority')
       THEN 1 ELSE 0 END;
@@ -274,7 +276,7 @@ BEGIN
             COALESCE(a.Priority, r.Priority)           AS Priority,
             COALESCE(a.RequestedBy, r.Requestor)       AS RequestedBy,
             COALESCE(a.RequestedAt, r.RequestedAt)     AS RequestReceivedDate,
-            r.RequestNumber, r.Purpose,
+            r.RequestNumber, r.Purpose, r.Channel,
             c.Name                                     AS CustomerName,
             p.PropertyType,
             ap.AppointmentDateTime,
@@ -313,6 +315,7 @@ BEGIN
                        WHEN 'CustomerName'          THEN CustomerName
                        WHEN 'AppraisalNumber'       THEN AppraisalNumber
                        WHEN 'RequestNumber'         THEN RequestNumber
+                       WHEN 'Channel'               THEN Channel
                        WHEN 'TaskType'              THEN TaskName
                        WHEN 'Purpose'               THEN Purpose
                        WHEN 'PropertyType'          THEN PropertyType
@@ -329,6 +332,7 @@ BEGIN
                        WHEN 'CustomerName'          THEN CustomerName
                        WHEN 'AppraisalNumber'       THEN AppraisalNumber
                        WHEN 'RequestNumber'         THEN RequestNumber
+                       WHEN 'Channel'               THEN Channel
                        WHEN 'TaskType'              THEN TaskName
                        WHEN 'Purpose'               THEN Purpose
                        WHEN 'PropertyType'          THEN PropertyType
@@ -360,6 +364,7 @@ BEGIN
     WHERE (@Status          IS NULL OR AStatus = @Status)
       AND (@Priority        IS NULL OR Priority = @Priority)
       AND (@Purpose         IS NULL OR Purpose = @Purpose)
+      AND (@Channel         IS NULL OR Channel = @Channel)
       -- @AppraisalNumber / @CustomerName / @Search are applied per-branch in `resolved` (#f_cust/#f_appr/#f_search pushdown).
       AND (@AppointmentDateFrom IS NULL OR AppointmentDateTime >= @AppointmentDateFrom)
       AND (@AppointmentDateTo   IS NULL OR AppointmentDateTime <  DATEADD(day, 1, @AppointmentDateTo))
@@ -461,7 +466,7 @@ BEGIN
             COALESCE(a.Priority, r.Priority)           AS Priority,
             COALESCE(a.RequestedBy, r.Requestor)       AS RequestedBy,
             COALESCE(a.RequestedAt, r.RequestedAt)     AS RequestReceivedDate,
-            r.RequestNumber, r.Purpose,
+            r.RequestNumber, r.Purpose, r.Channel,
             r.Id                                       AS ReqId  -- = COALESCE(RRequestIdOverride, a.RequestId)
         FROM resolved
             LEFT JOIN appraisal.Appraisals a ON a.Id = resolved.RAppraisalId
@@ -475,6 +480,7 @@ BEGIN
                    CASE @SortBy
                        WHEN 'AppraisalNumber' THEN AppraisalNumber
                        WHEN 'RequestNumber'   THEN RequestNumber
+                       WHEN 'Channel'         THEN Channel
                        WHEN 'TaskType'        THEN TaskName
                        WHEN 'Purpose'         THEN Purpose
                        WHEN 'Status'          THEN AStatus
@@ -487,6 +493,7 @@ BEGIN
                    CASE @SortBy
                        WHEN 'AppraisalNumber' THEN AppraisalNumber
                        WHEN 'RequestNumber'   THEN RequestNumber
+                       WHEN 'Channel'         THEN Channel
                        WHEN 'TaskType'        THEN TaskName
                        WHEN 'Purpose'         THEN Purpose
                        WHEN 'Status'          THEN AStatus
@@ -513,6 +520,7 @@ BEGIN
     WHERE (@Status          IS NULL OR AStatus  = @Status)
       AND (@Priority        IS NULL OR Priority = @Priority)
       AND (@Purpose         IS NULL OR Purpose = @Purpose)
+      AND (@Channel         IS NULL OR Channel = @Channel)
       -- @AppraisalNumber / @CustomerName / @Search are applied per-branch in `resolved` (#f_cust/#f_appr/#f_search pushdown).
       AND (@RequestedAtFrom IS NULL OR RequestReceivedDate >= @RequestedAtFrom)
       AND (@RequestedAtTo   IS NULL OR RequestReceivedDate <  DATEADD(day, 1, @RequestedAtTo))

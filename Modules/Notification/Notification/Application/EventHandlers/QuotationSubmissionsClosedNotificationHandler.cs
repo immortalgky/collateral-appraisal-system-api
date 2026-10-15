@@ -19,11 +19,11 @@ public class QuotationSubmissionsClosedNotificationHandler(
     ILogger<QuotationSubmissionsClosedNotificationHandler> logger,
     InboxGuard<NotificationDbContext> inboxGuard) : IConsumer<QuotationSubmissionsClosedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<QuotationSubmissionsClosedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<QuotationSubmissionsClosedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<QuotationSubmissionsClosedIntegrationEvent> context)
+    {
         var message = context.Message;
         var ct = context.CancellationToken;
 
@@ -59,8 +59,6 @@ public class QuotationSubmissionsClosedNotificationHandler(
             logger.LogInformation(
                 "Sent QuotationSubmissionsClosed notification to {Count} IntAdmin user(s) for QuotationRequestId={QuotationRequestId}",
                 adminUsernames.Length, message.QuotationRequestId);
-
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
         }
         catch (Exception ex)
         {

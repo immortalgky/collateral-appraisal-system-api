@@ -1,5 +1,6 @@
 using Appraisal.Application.Features.Appraisals.Shared;
 using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
+using Appraisal.Application.Services;
 
 namespace Appraisal.Application.Features.Appraisals.CreateLandAndBuildingProperty;
 
@@ -8,7 +9,8 @@ namespace Appraisal.Application.Features.Appraisals.CreateLandAndBuildingPropert
 /// </summary>
 public class CreateLandAndBuildingPropertyCommandHandler(
     IAppraisalRepository appraisalRepository,
-    IAppraisalUnitOfWork unitOfWork
+    IAppraisalUnitOfWork unitOfWork,
+    AppraisalValuationSummaryService valuationSummaryService
 ) : ICommandHandler<CreateLandAndBuildingPropertyCommand, CreateLandAndBuildingPropertyResult>
 {
     public async Task<CreateLandAndBuildingPropertyResult> Handle(
@@ -97,7 +99,6 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             royalDecree: command.RoyalDecree,
             isEncroached: command.IsEncroached,
             encroachmentRemark: command.EncroachmentRemark,
-            encroachmentArea: command.EncroachmentArea,
             isLandlocked: command.IsLandlocked,
             landlockedRemark: command.LandlockedRemark,
             isForestBoundary: command.IsForestBoundary,
@@ -159,6 +160,24 @@ public class CreateLandAndBuildingPropertyCommandHandler(
                 property.LandDetail.AddTitle(title);
             }
 
+        // Area deductions — AddDeduction keeps the stored total in step on every add.
+        if (command.LandAreaDeductions is { Count: > 0 })
+        {
+            foreach (var deductionData in command.LandAreaDeductions)
+            {
+                var deduction = LandAreaDeduction.Create(property.LandDetail.Id, deductionData.ReasonCode);
+                deduction.Update(
+                    deductionData.ReasonOther,
+                    deductionData.AreaInSqWa,
+                    deductionData.Remark);
+
+                property.LandDetail.AddDeduction(deduction);
+            }
+
+            // After the loop, not per add: the deed guard checks the finished list.
+            property.LandDetail.RecalculateDeductedArea();
+        }
+
         // 5. Update Building detail with additional fields
         property.BuildingDetail!.Update(
             // Building - Identification
@@ -218,14 +237,16 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             utilizationType: command.UtilizationType,
             utilizationTypeOther: command.UtilizationTypeOther,
             // Building - Pricing
+            buildingCostValue: command.BuildingCostValue,
             buildingInsurancePrice: command.BuildingInsurancePrice,
-            sellingPrice: command.SellingPrice,
-            forcedSalePrice: command.ForcedSalePrice,
             remark: command.Remark);
 
         // 6. Add depreciation details if provided
         if (command.DepreciationDetails is { Count: > 0 })
             AddDepreciationDetails(property.BuildingDetail, command.DepreciationDetails);
+
+        // After the depreciation rows: a building with no typed coverage stores the value computed from them
+        property.BuildingDetail.ResolveDerivedValues();
 
         // 6b. Add surfaces if provided
         if (command.Surfaces is { Count: > 0 })
@@ -285,6 +306,8 @@ public class CreateLandAndBuildingPropertyCommandHandler(
 
         // 7. Save aggregate
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
 
         if (command.GroupId.HasValue)
             appraisal.AddPropertyToGroup(command.GroupId.Value, property.Id);

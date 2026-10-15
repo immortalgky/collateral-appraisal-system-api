@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Reporting.Contracts;
 
 namespace Reporting.Application.Services;
 
@@ -48,8 +49,13 @@ public sealed class ReportGenerationService(
         if (registration.Provider is ICompositeReportProvider composite)
         {
             var childKeys = await composite.GetChildReportKeysAsync(resolvedEntityId, cancellationToken);
+
+            // Not the same failure as an unknown/disabled key above: the report exists and is enabled, the
+            // entity simply matches none of its forms. Callers that automate this report need to tell the two
+            // apart — one is a misconfiguration to fix, the other is just what the data is. Subclasses
+            // NotFoundException so every existing catch site (and the 404 mapping) is unaffected.
             if (childKeys.Count == 0)
-                throw new NotFoundException(nameof(reportTypeKey), reportTypeKey);
+                throw new NoApplicableReportException(reportTypeKey, resolvedEntityId);
 
             var childPdfs = new List<byte[]>(childKeys.Count);
             foreach (var childKey in childKeys)

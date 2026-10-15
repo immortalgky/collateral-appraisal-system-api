@@ -6,8 +6,8 @@ namespace Appraisal.Application.Services;
 ///
 /// <para>
 /// ValuationDate now LEADS every read surface that shows an appraisal date: the printed book, both
-/// AS400 result feeds, vw_AppraisalDetail, decision summary, History Search, and the +5-year
-/// reappraisal anchor in vw_ReappraisalCandidates / vw_RCAS002_ReappraisalDue. That makes it a
+/// AS400 result feeds, vw_AppraisalDetail, decision summary, History Search, and the last-appraisal
+/// date in vw_ReappraisalCandidates. That makes it a
 /// reported date, not an internal timestamp — so every writer has to derive it the same way, and
 /// none of them may quietly substitute "now" for a date they could not resolve.
 /// </para>

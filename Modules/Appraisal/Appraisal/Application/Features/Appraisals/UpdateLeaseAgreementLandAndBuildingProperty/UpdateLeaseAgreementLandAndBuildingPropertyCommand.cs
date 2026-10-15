@@ -82,7 +82,6 @@ public record UpdateLeaseAgreementLandAndBuildingPropertyCommand(
     string? RoyalDecree = null,
     bool? IsEncroached = null,
     string? EncroachmentRemark = null,
-    decimal? EncroachmentArea = null,
     bool? IsLandlocked = null,
     string? LandlockedRemark = null,
     bool? IsForestBoundary = null,
@@ -107,6 +106,8 @@ public record UpdateLeaseAgreementLandAndBuildingPropertyCommand(
     string? HasBuildingOther = null,
     // Land Titles
     List<LandTitleItemData>? Titles = null,
+    // Area deductions (null = no-op, empty list = clear all)
+    List<LandAreaDeductionData>? LandAreaDeductions = null,
     //=================================
     // Building - Identification
     string? BuildingNumber = null,
@@ -164,9 +165,8 @@ public record UpdateLeaseAgreementLandAndBuildingPropertyCommand(
     string? UtilizationTypeOther = null,
     // Area & Pricing
     decimal? TotalBuildingArea = null,
+    decimal? BuildingCostValue = null,
     decimal? BuildingInsurancePrice = null,
-    decimal? SellingPrice = null,
-    decimal? ForcedSalePrice = null,
     // Remarks
     string? Remark = null,
     // Depreciation Details (null = no-op, list = sync)

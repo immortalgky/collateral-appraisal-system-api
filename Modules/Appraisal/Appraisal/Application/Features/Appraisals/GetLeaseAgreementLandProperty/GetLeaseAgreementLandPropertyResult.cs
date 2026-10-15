@@ -97,7 +97,6 @@ public record GetLeaseAgreementLandPropertyResult
     public string? RoyalDecree { get; init; }
     public bool? IsEncroached { get; init; }
     public string? EncroachmentRemark { get; init; }
-    public decimal? EncroachmentArea { get; init; }
     public bool? IsLandlocked { get; init; }
     public string? LandlockedRemark { get; init; }
     public bool? IsForestBoundary { get; init; }
@@ -125,8 +124,14 @@ public record GetLeaseAgreementLandPropertyResult
     public string? Remark { get; init; }
     public decimal TotalLandAreaInSqWa { get; init; }
 
+    /// <summary>Registered area less the deductions — what the appraisal prices.</summary>
+    public decimal NetLandAreaInSqWa { get; init; }
+
     // Land Titles
     public List<LandTitleItemData>? Titles { get; init; }
+
+    // Area deductions taken off the appraised area
+    public List<LandAreaDeductionData>? LandAreaDeductions { get; init; }
 
     // Lease Agreement & Rental Info
     public LeaseAgreementDetailDto? LeaseAgreement { get; init; }

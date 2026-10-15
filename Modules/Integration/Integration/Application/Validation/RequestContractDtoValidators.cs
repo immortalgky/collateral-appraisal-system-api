@@ -95,7 +95,7 @@ public class RequestCustomerDtoValidator : AbstractValidator<RequestCustomerDto>
 {
     public RequestCustomerDtoValidator()
     {
-        RuleFor(x => x.Name).MaximumLength(80);
+        RuleFor(x => x.Name).MaximumLength(260);
         RuleFor(x => x.ContactNumber).MaximumLength(100);
     }
 }

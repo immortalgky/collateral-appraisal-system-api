@@ -1,3 +1,5 @@
+using Auth.Infrastructure.Session;
+
 namespace Auth.Application.Features.Auth.GetPasswordPolicy;
 
 public class GetPasswordPolicyEndpoint : ICarterModule
@@ -12,6 +14,7 @@ public class GetPasswordPolicyEndpoint : ICarterModule
                     return Results.Ok(result);
                 })
             .RequireAuthorization()
+            .AllowWhilePasswordChangeRequired()
             .WithName("GetPasswordPolicy")
             .Produces<GetPasswordPolicyResult>()
             .WithSummary("Get password policy")

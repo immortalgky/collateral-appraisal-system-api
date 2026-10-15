@@ -1,3 +1,5 @@
+using System.Data.SqlTypes;
+
 namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
@@ -8,7 +10,14 @@ namespace Appraisal.Domain.Appraisals;
 public class LandAppraisalDetail : Entity<Guid>
 {
     private readonly List<LandTitle> _titles = [];
-    public IReadOnlyList<LandTitle> Titles => _titles.AsReadOnly();
+    // SequenceNumber, then Id compared the way SQL Server orders uniqueidentifier (SqlGuid), so rows that
+    // predate the column (all 0) come out in the same order as every SQL reader's `ORDER BY SequenceNumber, Id`
+    // whatever order EF loaded them in — Guid.CompareTo orders the bytes differently.
+    public IReadOnlyList<LandTitle> Titles =>
+        _titles.OrderBy(t => t.SequenceNumber).ThenBy(t => new SqlGuid(t.Id)).ToList().AsReadOnly();
+
+    private readonly List<LandAreaDeduction> _deductions = [];
+    public IReadOnlyList<LandAreaDeduction> Deductions => _deductions.AsReadOnly();
 
     // Foreign Key - 1:1 with AppraisalProperties
     public Guid AppraisalPropertyId { get; private set; }
@@ -89,9 +98,18 @@ public class LandAppraisalDetail : Entity<Guid>
     public bool? IsInExpropriationLine { get; private set; }
     public string? ExpropriationLineRemark { get; private set; }
     public string? RoyalDecree { get; private set; }
+    // The original three encroachment fields. Descriptive only — they were never deducted from
+    // anything, and they still are not: the money-bearing figure is DeductedAreaInSqWa below, backed
+    // by the Deductions rows. Kept as-is so old records, the 360 view and the data-correction
+    // whitelist keep working unchanged.
     public bool? IsEncroached { get; private set; }
     public string? EncroachmentRemark { get; private set; }
-    public decimal? EncroachmentArea { get; private set; }
+
+    /// <summary>
+    /// Sum of <see cref="Deductions"/>, maintained by the domain — never set from the outside.
+    /// Stored so the read-side SQL can subtract one column; see <c>RecalculateDeductedArea</c>.
+    /// </summary>
+    public decimal? DeductedAreaInSqWa { get; private set; }
     public bool? IsLandlocked { get; private set; }
     public string? LandlockedRemark { get; private set; }
     public bool? IsForestBoundary { get; private set; }
@@ -121,10 +139,26 @@ public class LandAppraisalDetail : Entity<Guid>
     // Rental Flag
     public bool? IsRentedOut { get; private set; }
 
-    // Computed: total land area across all titles
+    /// <summary>
+    /// Registered area across all title deeds — the legal fact. Report this to Collateral Master,
+    /// the AS400 exports and the per-title rows of the book: encroachment is an appraisal judgement
+    /// and does not change how big the parcel legally is.
+    /// </summary>
     public decimal TotalLandAreaInSqWa =>
         _titles.Where(t => t.Area != null && t.Area.HasValue)
                .Sum(t => t.Area!.TotalSquareWa ?? 0);
+
+    /// <summary>
+    /// The area an appraisal may actually price: registered area less everything the appraiser
+    /// listed in <see cref="Deductions"/>. THIS is what every pricing path must use — it reaches
+    /// them through PricingPropertyDataService, which is the only place that has to choose.
+    /// <para>
+    /// Floored at zero: a deduction typed larger than the parcel is a data-entry slip, and a
+    /// negative area would otherwise flow straight into an area × rate multiplication.
+    /// </para>
+    /// </summary>
+    public decimal NetLandAreaInSqWa =>
+        Math.Max(0m, TotalLandAreaInSqWa - (DeductedAreaInSqWa ?? 0m));
 
     private LandAppraisalDetail()
     {
@@ -207,7 +241,6 @@ public class LandAppraisalDetail : Entity<Guid>
         string? royalDecree = null,
         bool? isEncroached = null,
         string? encroachmentRemark = null,
-        decimal? encroachmentArea = null,
         bool? isLandlocked = null,
         string? landlockedRemark = null,
         bool? isForestBoundary = null,
@@ -307,7 +340,6 @@ public class LandAppraisalDetail : Entity<Guid>
         RoyalDecree = royalDecree;
         IsEncroached = isEncroached;
         EncroachmentRemark = encroachmentRemark;
-        EncroachmentArea = encroachmentArea;
         IsLandlocked = isLandlocked;
         LandlockedRemark = landlockedRemark;
         IsForestBoundary = isForestBoundary;
@@ -410,7 +442,6 @@ public class LandAppraisalDetail : Entity<Guid>
             RoyalDecree = source.RoyalDecree,
             IsEncroached = source.IsEncroached,
             EncroachmentRemark = source.EncroachmentRemark,
-            EncroachmentArea = source.EncroachmentArea,
             IsLandlocked = source.IsLandlocked,
             LandlockedRemark = source.LandlockedRemark,
             IsForestBoundary = source.IsForestBoundary,
@@ -448,8 +479,19 @@ public class LandAppraisalDetail : Entity<Guid>
                 title.BoundaryMarkerType, title.BoundaryMarkerRemark,
                 title.DocumentValidationResultType, title.IsMissingFromSurvey,
                 title.GovernmentPricePerSqWa, title.GovernmentPrice, title.Remark);
-            copy._titles.Add(titleCopy);
+            copy.AddTitle(titleCopy); // numbered 1..n in the source's order
         }
+
+        foreach (var deduction in source.Deductions)
+        {
+            var deductionCopy = LandAreaDeduction.Create(copy.Id, deduction.ReasonCode);
+            deductionCopy.Update(deduction.ReasonOther, deduction.AreaInSqWa, deduction.Remark);
+            copy._deductions.Add(deductionCopy);
+        }
+
+        // Sum only: a copy carries the source as it stands, even rows saved before the deed guard
+        // below existed — blocking the copy would block the workflow that makes it.
+        copy.SumDeductions();
 
         return copy;
     }
@@ -476,6 +518,10 @@ public class LandAppraisalDetail : Entity<Guid>
 
     public void AddTitle(LandTitle title)
     {
+        // A title added without a position goes last, so a path that does not number it cannot become
+        // "the first title" that LOS / AS400 / reports pick.
+        if (title.SequenceNumber == 0)
+            title.SetSequenceNumber(_titles.Count == 0 ? 1 : _titles.Max(t => t.SequenceNumber) + 1);
         _titles.Add(title);
     }
 
@@ -509,153 +555,74 @@ public class LandAppraisalDetail : Entity<Guid>
             );
     }
 
-    /// <summary>
-    /// Applies admin corrections to this land detail, recording each change in <paramref name="diff"/>.
-    /// Only fields the caller actually supplied are touched.
-    ///
-    /// Deliberately NOT routed through <see cref="Update"/>: that method overwrites all ~77
-    /// properties unconditionally, so a partial correction would wipe everything unsupplied — the
-    /// data-loss trap documented on <see cref="UpdatePmaFields"/>.
-    /// </summary>
-    internal void ApplyCorrection(LandCorrection edit, Dictionary<string, object?> diff)
+    public void AddDeduction(LandAreaDeduction deduction)
     {
-        CorrectionDiff.Apply("Land.PropertyName", PropertyName, edit.PropertyName, v => PropertyName = v, diff);
-        CorrectionDiff.Apply("Land.LandDescription", LandDescription, edit.LandDescription, v => LandDescription = v, diff);
-        // Coordinates is an immutable record — compare components, rebuild once.
-        var latitude = Coordinates?.Latitude;
-        var longitude = Coordinates?.Longitude;
-        var coordinatesChanged = false;
-        CorrectionDiff.Apply("Land.Latitude", latitude, edit.Latitude,
-            v => { latitude = v; coordinatesChanged = true; }, diff);
-        CorrectionDiff.Apply("Land.Longitude", longitude, edit.Longitude,
-            v => { longitude = v; coordinatesChanged = true; }, diff);
-        if (coordinatesChanged)
-            Coordinates = Domain.Appraisals.GpsCoordinate.Create(latitude, longitude);
+        _deductions.Add(deduction);
+        SumDeductions();
+    }
 
-        // Address is an immutable record — compare components, rebuild once.
-        var subDistrict = Address?.SubDistrict;
-        var district = Address?.District;
-        var province = Address?.Province;
-        var addressChanged = false;
-        CorrectionDiff.Apply("Land.SubDistrict", subDistrict, edit.SubDistrict,
-            v => { subDistrict = v; addressChanged = true; }, diff);
-        CorrectionDiff.Apply("Land.District", district, edit.District,
-            v => { district = v; addressChanged = true; }, diff);
-        CorrectionDiff.Apply("Land.Province", province, edit.Province,
-            v => { province = v; addressChanged = true; }, diff);
-        if (addressChanged)
-            Address = Domain.Appraisals.Address.Create(subDistrict, district, province);
+    public void RemoveDeduction(Guid deductionId)
+    {
+        var deduction = _deductions.FirstOrDefault(d => d.Id == deductionId);
+        if (deduction != null) _deductions.Remove(deduction);
+        SumDeductions();
+    }
 
-        CorrectionDiff.Apply("Land.LandOffice", LandOffice, edit.LandOffice, v => LandOffice = v, diff);
-        // DopaAddress is an immutable record — compare components, rebuild once.
-        var dopaSubDistrict = DopaAddress?.SubDistrict;
-        var dopaDistrict = DopaAddress?.District;
-        var dopaProvince = DopaAddress?.Province;
-        var dopaAddressChanged = false;
-        CorrectionDiff.Apply("Land.DopaSubDistrict", dopaSubDistrict, edit.DopaSubDistrict,
-            v => { dopaSubDistrict = v; dopaAddressChanged = true; }, diff);
-        CorrectionDiff.Apply("Land.DopaDistrict", dopaDistrict, edit.DopaDistrict,
-            v => { dopaDistrict = v; dopaAddressChanged = true; }, diff);
-        CorrectionDiff.Apply("Land.DopaProvince", dopaProvince, edit.DopaProvince,
-            v => { dopaProvince = v; dopaAddressChanged = true; }, diff);
-        if (dopaAddressChanged)
-            DopaAddress = Domain.Appraisals.Address.Create(dopaSubDistrict, dopaDistrict, dopaProvince);
+    public void UpdateDeduction(LandAreaDeduction updatedDeduction)
+    {
+        var deduction = _deductions.FirstOrDefault(d => d.Id == updatedDeduction.Id);
+        if (deduction != null)
+        {
+            deduction.ChangeReason(updatedDeduction.ReasonCode);
+            deduction.Update(
+                updatedDeduction.ReasonOther,
+                updatedDeduction.AreaInSqWa,
+                updatedDeduction.Remark);
+        }
 
-        CorrectionDiff.Apply("Land.OwnerName", OwnerName, edit.OwnerName, v => OwnerName = v, diff);
-        CorrectionDiff.Apply("Land.IsOwnerVerified", IsOwnerVerified, edit.IsOwnerVerified, v => IsOwnerVerified = v, diff);
-        CorrectionDiff.Apply("Land.HasObligation", HasObligation, edit.HasObligation, v => HasObligation = v, diff);
-        CorrectionDiff.Apply("Land.ObligationDetails", ObligationDetails, edit.ObligationDetails, v => ObligationDetails = v, diff);
-        CorrectionDiff.Apply("Land.IsLandLocationVerified", IsLandLocationVerified, edit.IsLandLocationVerified, v => IsLandLocationVerified = v, diff);
-        CorrectionDiff.Apply("Land.LandCheckMethodType", LandCheckMethodType, edit.LandCheckMethodType, v => LandCheckMethodType = v, diff);
-        CorrectionDiff.Apply("Land.LandCheckMethodTypeOther", LandCheckMethodTypeOther, edit.LandCheckMethodTypeOther, v => LandCheckMethodTypeOther = v, diff);
-        CorrectionDiff.Apply("Land.Street", Street, edit.Street, v => Street = v, diff);
-        CorrectionDiff.Apply("Land.Soi", Soi, edit.Soi, v => Soi = v, diff);
-        CorrectionDiff.Apply("Land.DistanceFromMainRoad", DistanceFromMainRoad, edit.DistanceFromMainRoad, v => DistanceFromMainRoad = v, diff);
-        CorrectionDiff.Apply("Land.Village", Village, edit.Village, v => Village = v, diff);
-        CorrectionDiff.Apply("Land.AddressLocation", AddressLocation, edit.AddressLocation, v => AddressLocation = v, diff);
-        CorrectionDiff.Apply("Land.LandShapeType", LandShapeType, edit.LandShapeType, v => LandShapeType = v, diff);
-        CorrectionDiff.Apply("Land.LandShapeTypeOther", LandShapeTypeOther, edit.LandShapeTypeOther, v => LandShapeTypeOther = v, diff);
-        CorrectionDiff.Apply("Land.UrbanPlanningType", UrbanPlanningType, edit.UrbanPlanningType, v => UrbanPlanningType = v, diff);
-        CorrectionDiff.ApplyList("Land.LandZoneType", LandZoneType, edit.LandZoneType, v => LandZoneType = v, diff);
-        CorrectionDiff.Apply("Land.LandZoneTypeOther", LandZoneTypeOther, edit.LandZoneTypeOther, v => LandZoneTypeOther = v, diff);
-        CorrectionDiff.ApplyList("Land.PlotLocationType", PlotLocationType, edit.PlotLocationType, v => PlotLocationType = v, diff);
-        CorrectionDiff.Apply("Land.PlotLocationTypeOther", PlotLocationTypeOther, edit.PlotLocationTypeOther, v => PlotLocationTypeOther = v, diff);
-        CorrectionDiff.Apply("Land.LandFillType", LandFillType, edit.LandFillType, v => LandFillType = v, diff);
-        CorrectionDiff.Apply("Land.LandFillTypeOther", LandFillTypeOther, edit.LandFillTypeOther, v => LandFillTypeOther = v, diff);
-        CorrectionDiff.Apply("Land.LandFillPercent", LandFillPercent, edit.LandFillPercent, v => LandFillPercent = v, diff);
-        CorrectionDiff.Apply("Land.SoilLevel", SoilLevel, edit.SoilLevel, v => SoilLevel = v, diff);
-        CorrectionDiff.Apply("Land.AccessRoadWidth", AccessRoadWidth, edit.AccessRoadWidth, v => AccessRoadWidth = v, diff);
-        CorrectionDiff.Apply("Land.RightOfWay", RightOfWay, edit.RightOfWay, v => RightOfWay = v, diff);
-        CorrectionDiff.Apply("Land.RoadFrontage", RoadFrontage, edit.RoadFrontage, v => RoadFrontage = v, diff);
-        CorrectionDiff.Apply("Land.NumberOfSidesFacingRoad", NumberOfSidesFacingRoad, edit.NumberOfSidesFacingRoad, v => NumberOfSidesFacingRoad = v, diff);
-        CorrectionDiff.Apply("Land.RoadPassInFrontOfLand", RoadPassInFrontOfLand, edit.RoadPassInFrontOfLand, v => RoadPassInFrontOfLand = v, diff);
-        CorrectionDiff.Apply("Land.LandAccessibilityType", LandAccessibilityType, edit.LandAccessibilityType, v => LandAccessibilityType = v, diff);
-        CorrectionDiff.Apply("Land.LandAccessibilityRemark", LandAccessibilityRemark, edit.LandAccessibilityRemark, v => LandAccessibilityRemark = v, diff);
-        CorrectionDiff.Apply("Land.RoadSurfaceType", RoadSurfaceType, edit.RoadSurfaceType, v => RoadSurfaceType = v, diff);
-        CorrectionDiff.Apply("Land.RoadSurfaceTypeOther", RoadSurfaceTypeOther, edit.RoadSurfaceTypeOther, v => RoadSurfaceTypeOther = v, diff);
-        CorrectionDiff.Apply("Land.HasElectricity", HasElectricity, edit.HasElectricity, v => HasElectricity = v, diff);
-        CorrectionDiff.Apply("Land.ElectricityDistance", ElectricityDistance, edit.ElectricityDistance, v => ElectricityDistance = v, diff);
-        CorrectionDiff.ApplyList("Land.PublicUtilityType", PublicUtilityType, edit.PublicUtilityType, v => PublicUtilityType = v, diff);
-        CorrectionDiff.Apply("Land.PublicUtilityTypeOther", PublicUtilityTypeOther, edit.PublicUtilityTypeOther, v => PublicUtilityTypeOther = v, diff);
-        CorrectionDiff.ApplyList("Land.LandUseType", LandUseType, edit.LandUseType, v => LandUseType = v, diff);
-        CorrectionDiff.Apply("Land.LandUseTypeOther", LandUseTypeOther, edit.LandUseTypeOther, v => LandUseTypeOther = v, diff);
-        CorrectionDiff.ApplyList("Land.LandEntranceExitType", LandEntranceExitType, edit.LandEntranceExitType, v => LandEntranceExitType = v, diff);
-        CorrectionDiff.Apply("Land.LandEntranceExitTypeOther", LandEntranceExitTypeOther, edit.LandEntranceExitTypeOther, v => LandEntranceExitTypeOther = v, diff);
-        CorrectionDiff.ApplyList("Land.TransportationAccessType", TransportationAccessType, edit.TransportationAccessType, v => TransportationAccessType = v, diff);
-        CorrectionDiff.Apply("Land.TransportationAccessTypeOther", TransportationAccessTypeOther, edit.TransportationAccessTypeOther, v => TransportationAccessTypeOther = v, diff);
-        CorrectionDiff.Apply("Land.PropertyAnticipationType", PropertyAnticipationType, edit.PropertyAnticipationType, v => PropertyAnticipationType = v, diff);
-        CorrectionDiff.Apply("Land.PropertyAnticipationTypeOther", PropertyAnticipationTypeOther, edit.PropertyAnticipationTypeOther, v => PropertyAnticipationTypeOther = v, diff);
-        CorrectionDiff.Apply("Land.IsExpropriated", IsExpropriated, edit.IsExpropriated, v => IsExpropriated = v, diff);
-        CorrectionDiff.Apply("Land.ExpropriationRemark", ExpropriationRemark, edit.ExpropriationRemark, v => ExpropriationRemark = v, diff);
-        CorrectionDiff.Apply("Land.IsInExpropriationLine", IsInExpropriationLine, edit.IsInExpropriationLine, v => IsInExpropriationLine = v, diff);
-        CorrectionDiff.Apply("Land.ExpropriationLineRemark", ExpropriationLineRemark, edit.ExpropriationLineRemark, v => ExpropriationLineRemark = v, diff);
-        CorrectionDiff.Apply("Land.RoyalDecree", RoyalDecree, edit.RoyalDecree, v => RoyalDecree = v, diff);
-        CorrectionDiff.Apply("Land.IsEncroached", IsEncroached, edit.IsEncroached, v => IsEncroached = v, diff);
-        CorrectionDiff.Apply("Land.EncroachmentRemark", EncroachmentRemark, edit.EncroachmentRemark, v => EncroachmentRemark = v, diff);
-        CorrectionDiff.Apply("Land.EncroachmentArea", EncroachmentArea, edit.EncroachmentArea, v => EncroachmentArea = v, diff);
-        CorrectionDiff.Apply("Land.IsLandlocked", IsLandlocked, edit.IsLandlocked, v => IsLandlocked = v, diff);
-        CorrectionDiff.Apply("Land.LandlockedRemark", LandlockedRemark, edit.LandlockedRemark, v => LandlockedRemark = v, diff);
-        CorrectionDiff.Apply("Land.IsForestBoundary", IsForestBoundary, edit.IsForestBoundary, v => IsForestBoundary = v, diff);
-        CorrectionDiff.Apply("Land.ForestBoundaryRemark", ForestBoundaryRemark, edit.ForestBoundaryRemark, v => ForestBoundaryRemark = v, diff);
-        CorrectionDiff.Apply("Land.OtherLegalLimitations", OtherLegalLimitations, edit.OtherLegalLimitations, v => OtherLegalLimitations = v, diff);
-        CorrectionDiff.ApplyList("Land.EvictionType", EvictionType, edit.EvictionType, v => EvictionType = v, diff);
-        CorrectionDiff.Apply("Land.EvictionTypeOther", EvictionTypeOther, edit.EvictionTypeOther, v => EvictionTypeOther = v, diff);
-        CorrectionDiff.Apply("Land.AllocationType", AllocationType, edit.AllocationType, v => AllocationType = v, diff);
-        CorrectionDiff.Apply("Land.NorthAdjacentArea", NorthAdjacentArea, edit.NorthAdjacentArea, v => NorthAdjacentArea = v, diff);
-        CorrectionDiff.Apply("Land.NorthBoundaryLength", NorthBoundaryLength, edit.NorthBoundaryLength, v => NorthBoundaryLength = v, diff);
-        CorrectionDiff.Apply("Land.SouthAdjacentArea", SouthAdjacentArea, edit.SouthAdjacentArea, v => SouthAdjacentArea = v, diff);
-        CorrectionDiff.Apply("Land.SouthBoundaryLength", SouthBoundaryLength, edit.SouthBoundaryLength, v => SouthBoundaryLength = v, diff);
-        CorrectionDiff.Apply("Land.EastAdjacentArea", EastAdjacentArea, edit.EastAdjacentArea, v => EastAdjacentArea = v, diff);
-        CorrectionDiff.Apply("Land.EastBoundaryLength", EastBoundaryLength, edit.EastBoundaryLength, v => EastBoundaryLength = v, diff);
-        CorrectionDiff.Apply("Land.WestAdjacentArea", WestAdjacentArea, edit.WestAdjacentArea, v => WestAdjacentArea = v, diff);
-        CorrectionDiff.Apply("Land.WestBoundaryLength", WestBoundaryLength, edit.WestBoundaryLength, v => WestBoundaryLength = v, diff);
-        CorrectionDiff.Apply("Land.PondArea", PondArea, edit.PondArea, v => PondArea = v, diff);
-        CorrectionDiff.Apply("Land.PondDepth", PondDepth, edit.PondDepth, v => PondDepth = v, diff);
-        CorrectionDiff.Apply("Land.HasBuilding", HasBuilding, edit.HasBuilding, v => HasBuilding = v, diff);
-        CorrectionDiff.Apply("Land.HasBuildingOther", HasBuildingOther, edit.HasBuildingOther, v => HasBuildingOther = v, diff);
-        CorrectionDiff.Apply("Land.Remark", Remark, edit.Remark, v => Remark = v, diff);
-        CorrectionDiff.Apply("Land.IsRentedOut", IsRentedOut, edit.IsRentedOut, v => IsRentedOut = v, diff);
+        SumDeductions();
     }
 
     /// <summary>
-    /// Applies corrections to existing titles, matched by id. Titles are corrected in place — never
-    /// removed and re-added — so the ids referenced by the audit trail stay stable.
+    /// Settles <see cref="DeductedAreaInSqWa"/> once every title and deduction is in place, and
+    /// refuses deductions that add up to more than the registered area. Call it LAST, after both
+    /// lists are synced: the update handlers edit rows in place, so the list is only consistent
+    /// once the whole sync has run. Idempotent: calling it twice changes nothing.
+    /// <para>
+    /// Only when the deed area is fully known: every title carries an area. Until then the
+    /// registered total is partial, and a half-filled form must still save.
+    /// </para>
     /// </summary>
-    /// <exception cref="Shared.Exceptions.NotFoundException">
-    /// A supplied TitleId does not belong to this land detail. Not ignored: it means the caller sent
-    /// a correction for the wrong property, and silently dropping it would leave the admin believing
-    /// the edit was saved.
-    /// </exception>
-    internal void ApplyTitleCorrections(
-        IReadOnlyList<LandTitleCorrection> edits,
-        Dictionary<string, object?> diff)
+    public void RecalculateDeductedArea()
     {
-        foreach (var edit in edits)
-        {
-            var title = _titles.FirstOrDefault(t => t.Id == edit.TitleId)
-                        ?? throw new NotFoundException("LandTitle", edit.TitleId);
+        SumDeductions();
 
-            title.ApplyCorrection(edit, diff);
-        }
+        // A 0-0-0 area is a form field left at its default, not a deed with no land.
+        if (_titles.Count == 0 || _titles.Exists(t => t.Area?.TotalSquareWa is not > 0m))
+            return;
+
+        // Compare what will be STORED, or a list that passes now could fail on the next save once it
+        // comes back from the database: each title column is decimal(10,2), rounded one column at a
+        // time, and each deduction decimal(18,4).
+        static decimal Stored(decimal? value, int scale) =>
+            Math.Round(value ?? 0m, scale, MidpointRounding.AwayFromZero);
+        var deedArea = _titles.Sum(t =>
+            Stored(t.Area!.Rai, 2) * 400m + Stored(t.Area.Ngan, 2) * 100m + Stored(t.Area.SquareWa, 2));
+        var deducted = _deductions.Sum(d => Stored(d.AreaInSqWa, 4));
+        if (Stored(deducted, 2) > deedArea)
+            throw new DomainException(
+                $"Land area deductions ({DeductedAreaInSqWa:#,##0.##} sq wa) exceed the registered title area ({deedArea:#,##0.##} sq wa).");
+    }
+
+    /// <summary>
+    /// Keeps <see cref="DeductedAreaInSqWa"/> equal to the rows behind it. Stored rather than
+    /// computed so the read-side SQL twin in <c>PricingPropertyDataService.LandAreaSql</c> can
+    /// subtract a single column instead of aggregating a child table on every pricing screen load.
+    /// No deed guard here: the mutators above run mid-sync, when rows not yet updated still carry
+    /// their old areas — <see cref="RecalculateDeductedArea"/> checks the finished state.
+    /// </summary>
+    private void SumDeductions()
+    {
+        DeductedAreaInSqWa = _deductions.Sum(d => d.AreaInSqWa ?? 0m);
     }
 }

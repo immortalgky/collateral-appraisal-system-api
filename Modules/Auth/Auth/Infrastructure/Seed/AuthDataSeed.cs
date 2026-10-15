@@ -42,6 +42,7 @@ public class AuthDataSeed(
     private const string ExtAppraisalVerifierRoleName = "ExtAppraisalVerifier";
     private const string AppraisalCommitteeRoleName = "AppraisalCommittee";
 
+
     public async Task SeedAllAsync()
     {
         await SeedPasswordPolicyAsync();
@@ -81,7 +82,7 @@ public class AuthDataSeed(
             [
                 "DASHBOARD_VIEW", "REQUEST_VIEW", "TASK_LIST_VIEW", "TASK_APPR_ASSIGNMENT",
                 "TASK_MONITOR_VIEW", "TASK_MONITOR_REASSIGN",
-                "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "REPORT_OP_VIEW",
+                "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "APPRAISAL_REVIEW", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "REPORT_OP_VIEW",
                 "MEETING_MANAGE", "MEETING_ADMIN", "WORKFLOW_MANAGE", "USER_MANAGE",
                 "QUOTATION_VIEW", "QUOTATION_DRAFT_VIEW", "QUOTATION_DRAFT_EDIT",
                 "TASK_QUOTATION_REVIEW", "TASK_QUOTATION_FINALIZE",
@@ -99,7 +100,7 @@ public class AuthDataSeed(
             "External Company Admin — manages external company users and external appraisal assignments.",
             AuthScopes.Company,
             [
-                "DASHBOARD_VIEW", "REQUEST_VIEW", "APPRAISAL_VIEW", "TASK_LIST_VIEW",
+                "DASHBOARD_VIEW", "REQUEST_VIEW", "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_ASSIGNMENT", "USER_MANAGE",
                 // Company-scoped: external admins may only see/reassign tasks within their own company.
                 "TASK_MONITOR_VIEW:TEAM", "TASK_MONITOR_REASSIGN:TEAM",
@@ -128,7 +129,7 @@ public class AuthDataSeed(
             "Internal Appraisal Staff — executes internal appraisals and verifies appraisal books.",
             AuthScopes.Bank,
             [
-                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
                 "TASK_APPR_BOOK_VERIFICATION", "TASK_INT_APPR_EXECUTION", "TASK_INT_PMA_INPUT",
                 "TASK_INT_OFFLINE_BOOK_KEYIN",
                 "STANDALONE_USE",
@@ -146,7 +147,7 @@ public class AuthDataSeed(
             "Internal Appraisal Checker — checks and validates internal appraisal reports.",
             AuthScopes.Bank,
             [
-                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_INT_APPR_CHECK",
                 "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
                 "TASK_FEE_APPOINTMENT_APPROVAL",
@@ -158,7 +159,7 @@ public class AuthDataSeed(
             "Internal Appraisal Verifier — final verification of internal appraisal reports.",
             AuthScopes.Bank,
             [
-                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_INT_APPR_VERIFICATION", "REPORT_VIEW", "REPORT_EVALUATION_VIEW",
                 "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
                 ..appraisalSectionViews
@@ -167,7 +168,7 @@ public class AuthDataSeed(
             "External Appraisal Staff — field appraisers from external companies who execute appraisals.",
             AuthScopes.Company,
             [
-                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "APPRAISAL_EDIT", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_ASSIGNMENT", "TASK_EXT_APPR_EXECUTION", "STANDALONE_USE",
                 "HISTORY_SEARCH_VIEW",
                 ..appraisalSectionViews, ..appraisalSectionEdits
@@ -176,7 +177,7 @@ public class AuthDataSeed(
             "External Appraisal Checker — checks external appraisal reports before verification.",
             AuthScopes.Company,
             [
-                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_CHECK",
                 "QUOTATION_EXT_VIEW", "TASK_QUOTATION_SUBMIT", "TASK_QUOTATION_NEGOTIATE",
                 "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
@@ -186,7 +187,7 @@ public class AuthDataSeed(
             "External Appraisal Verifier — final verification of external appraisal reports.",
             AuthScopes.Company,
             [
-                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_EXT_APPR_VERIFICATION",
                 "STANDALONE_USE", "HISTORY_SEARCH_VIEW",
                 ..appraisalSectionViews
@@ -195,7 +196,7 @@ public class AuthDataSeed(
             "Appraisal Committee — approves appraisals in committee meetings.",
             AuthScopes.Bank,
             [
-                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
+                "DASHBOARD_VIEW", "APPRAISAL_VIEW", "APPRAISAL_TRACKING_VIEW", "APPRAISAL_REVIEW", "TASK_LIST_VIEW",
                 "TASK_PENDING_APPROVAL", "REPORT_VIEW", "REPORT_STATISTICS_VIEW", "REPORT_EVALUATION_VIEW",
                 "MEETING_MANAGE", "COMMITTEE_MEMBER",
                 "STANDALONE_USE",
@@ -498,7 +499,6 @@ public class AuthDataSeed(
                     OpenIddictConstants.Permissions.Endpoints.Authorization,
                     OpenIddictConstants.Permissions.Endpoints.EndSession,
                     OpenIddictConstants.Permissions.Endpoints.Token,
-                    OpenIddictConstants.Permissions.GrantTypes.Password,
                     OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
                     OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
                     OpenIddictConstants.Permissions.ResponseTypes.Code,
@@ -525,6 +525,7 @@ public class AuthDataSeed(
                 }
             };
             AddOriginUris(spa, origins);
+            AddBffUris(spa);
             await manager.CreateAsync(spa);
             logger.LogInformation("Seeded `spa` OAuth client for origin(s) {Origins}", string.Join(", ", origins));
         }
@@ -546,7 +547,6 @@ public class AuthDataSeed(
                     OpenIddictConstants.Permissions.Endpoints.Authorization,
                     OpenIddictConstants.Permissions.Endpoints.EndSession,
                     OpenIddictConstants.Permissions.Endpoints.Token,
-                    OpenIddictConstants.Permissions.GrantTypes.Password,
                     OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
                     OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
                     OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
@@ -627,6 +627,25 @@ public class AuthDataSeed(
             descriptor.RedirectUris.Add(new Uri($"{origin}/callback"));
             descriptor.PostLogoutRedirectUris.Add(new Uri($"{origin}/"));
         }
+    }
+
+    /// <summary>
+    /// The API's own OIDC callbacks. The API is the OIDC client now, so the browser comes back to
+    /// <c>{AppBaseUrl}/signin-oidc</c> and <c>/signout-callback-oidc</c>. Existing databases get these from
+    /// the migration script 20261010090000_SeedData_SpaBffRedirectUris.sql — the seeder only runs in
+    /// Development, and only creates the client when it is missing.
+    /// </summary>
+    private void AddBffUris(OpenIddictApplicationDescriptor descriptor)
+    {
+        var apiBase = configuration["AppBaseUrl"]?.TrimEnd('/');
+        if (string.IsNullOrEmpty(apiBase))
+        {
+            logger.LogError("AppBaseUrl is empty — the `spa` client gets no API callback URIs, so sign-in will fail.");
+            return;
+        }
+
+        descriptor.RedirectUris.Add(new Uri($"{apiBase}/signin-oidc"));
+        descriptor.PostLogoutRedirectUris.Add(new Uri($"{apiBase}/signout-callback-oidc"));
     }
 
     private async Task SeedCompaniesAsync()
@@ -918,9 +937,18 @@ public class AuthDataSeed(
                 "View paginated webhook delivery list and delivery details", "Integration"),
             ("WEBHOOK_DELIVERIES_RETRY", "Retry Webhook Deliveries",
                 "Manually retry a failed webhook delivery", "Integration"),
+            // Failed Messages / Outbox Monitor admin (docs/failed-messages/design.md)
+            ("FAILED_MESSAGE_VIEW", "View Failed Messages",
+                "View failed/skipped consumer messages, outbox failures, and per-node queue health",
+                "Integration"),
+            ("FAILED_MESSAGE_MANAGE", "Manage Failed Messages",
+                "Retry/discard failed messages and resend failed outbox rows",
+                "Integration"),
             // Webhook Subscriptions admin
             ("WEBHOOK_SUBSCRIPTIONS_MANAGE", "Manage Webhook Subscriptions",
                 "Create, edit, activate/deactivate and delete webhook subscriptions", "Integration"),
+            ("WEBHOOK_SECRET_REVEAL", "Reveal Webhook Secrets",
+                "Decrypt and view a webhook subscription's stored secret (every reveal is audited)", "Integration"),
             // OAuth client & scope registration (OpenIddict)
             ("OAUTH_CLIENTS_MANAGE", "Manage OAuth Clients",
                 "Register and configure OAuth/OpenID Connect client applications", "Auth"),
@@ -1011,6 +1039,19 @@ public class AuthDataSeed(
             // Admin data correction on closed appraisals (standalone screen, reason + audit trail)
             ("APPRAISAL_DATA_CORRECTION", "Correct Appraisal Property Data",
                 "Correct descriptive property data on Completed/Cancelled appraisals",
+                "Appraisal"),
+            // Granted beside APPRAISAL_VIEW in every role list below, mirroring what
+            // 20260914090000_SeedData_AppraisalTrackingForCredit.sql does to an existing database.
+            // CLAUDE.md asks for both: the script is what reaches UAT/production, the seeder is
+            // what a FRESH Development database gets — and the menu node is gated on this code, so
+            // without it a rebuilt dev database has no route to the appraisal list at all.
+            //
+            // Credit-side tracking screen. Deliberately NOT a variant of APPRAISAL_VIEW:
+            // holders of this permission get the tracking screen and nothing else, and the
+            // appraisal workspace stays gated on APPRAISAL_VIEW which they do not hold.
+            ("APPRAISAL_TRACKING_VIEW", "Track Appraisal Progress",
+                "Follow an appraisal's progress and holder, and read the approved value and "
+                + "documents once the price is approved, without access to the appraisal workspace",
                 "Appraisal")
         };
 

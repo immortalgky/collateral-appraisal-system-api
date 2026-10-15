@@ -13,5 +13,5 @@ public record SetManualCostBreakdownCommand(
     Guid PricingAnalysisId,
     Guid MethodId,
     decimal? LandRatePerSqWa,
-    decimal? AppraisalPrice
+    decimal? IndicatedValue
 ) : ICommand<SetManualCostBreakdownResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

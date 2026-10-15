@@ -79,7 +79,6 @@ public record CreateLandAndBuildingPropertyRequest(
     string? RoyalDecree = null,
     bool? IsEncroached = null,
     string? EncroachmentRemark = null,
-    decimal? EncroachmentArea = null,
     bool? IsLandlocked = null,
     string? LandlockedRemark = null,
     bool? IsForestBoundary = null,
@@ -173,13 +172,15 @@ public record CreateLandAndBuildingPropertyRequest(
     DateTime? BuildingPermitDate = null,
     bool? HasOccupancyPermit = null,
     // Building - Pricing
+    // Appraiser-keyed overrides; null means "use the derived figure".
+    decimal? BuildingCostValue = null,
     decimal? BuildingInsurancePrice = null,
-    decimal? SellingPrice = null,
-    decimal? ForcedSalePrice = null,
     // Remarks
     string? Remark = null,
     // Land Titles
     List<LandTitleItemRequest>? Titles = null,
+    // Area deductions taken off the appraised area
+    List<LandAreaDeductionRequest>? LandAreaDeductions = null,
     // Depreciation Details
     List<DepreciationItemData>? DepreciationDetails = null,
     // Surfaces

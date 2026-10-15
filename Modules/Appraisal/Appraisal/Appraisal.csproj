@@ -9,6 +9,11 @@
         <ProjectReference Include="..\..\Collateral\Collateral.Contracts\Collateral.Contracts.csproj"/>
         <ProjectReference Include="..\..\Workflow\Workflow.Contracts\Workflow.Contracts.csproj"/>
         <ProjectReference Include="..\..\Auth\Auth.Contracts\Auth.Contracts.csproj"/>
+        <!-- Post-approval Appraisal Summary auto-attach: render the PDF (Reporting.Contracts)
+             and persist it as a first-class Document (Document.Contracts). Both are leaf
+             contracts projects, so neither introduces a cycle. -->
+        <ProjectReference Include="..\..\Reporting\Reporting.Contracts\Reporting.Contracts.csproj"/>
+        <ProjectReference Include="..\..\Document\Document.Contracts\Document.Contracts.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

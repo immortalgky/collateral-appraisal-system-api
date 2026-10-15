@@ -29,12 +29,12 @@ public class FeeAppointmentApprovalResolvedIntegrationEventHandler(
 {
     private const string SystemActor = "system";
 
-    public async Task Consume(
+    public Task Consume(ConsumeContext<FeeAppointmentApprovalResolvedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
+
+    private async Task HandleAsync(
         ConsumeContext<FeeAppointmentApprovalResolvedIntegrationEvent> context)
     {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
-
         var msg = context.Message;
 
         logger.LogInformation(
@@ -57,7 +57,6 @@ public class FeeAppointmentApprovalResolvedIntegrationEventHandler(
         }
 
         await dbContext.SaveChangesAsync(context.CancellationToken);
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }
 
     private async Task ApplyAppointmentOutcomeAsync(

@@ -255,4 +255,99 @@ public class AppraisalListViewRowSelectionTests(IntegrationTestFixture fixture)
 
         Assert.True(isUnique, "IX_AppraisalProperties_AppraisalId_SequenceNumber must stay unique.");
     }
+
+    // ── collateral type order ────────────────────────────────────────────────
+
+    private async Task<(string? PropertyTypes, string? AssigneeName)> ReadDisplayColumnsAsync(Guid appraisalId)
+    {
+        using var scope = CreateScope();
+        var connection = scope.ServiceProvider.GetRequiredService<ISqlConnectionFactory>().GetOpenConnection();
+        return await connection.QueryFirstAsync<(string?, string?)>(
+            "SELECT PropertyTypes, AssigneeName FROM appraisal.vw_AppraisalList WHERE Id = @Id",
+            new { Id = appraisalId });
+    }
+
+    [Fact]
+    public async Task Lists_collateral_types_in_the_order_the_appraiser_added_them()
+    {
+        Guid appraisalId;
+
+        using (var scope = CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+
+            // Land, Building, Land-and-building, then Land again. Alphabetical by code would read
+            // "B, L, LB"; entry order is "L, B, LB", and the second Land must not repeat.
+            var appraisal = NewAppraisal("VWSEL-F-");
+            appraisal.AddLandProperty();
+            appraisal.AddBuildingProperty();
+            appraisal.AddLandAndBuildingProperty();
+            appraisal.AddLandProperty();
+
+            db.Appraisals.Add(appraisal);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            appraisalId = appraisal.Id;
+        }
+
+        var (propertyTypes, _) = await ReadDisplayColumnsAsync(appraisalId);
+
+        Assert.Equal("L, B, LB", propertyTypes);
+    }
+
+    // ── assignee display name ────────────────────────────────────────────────
+
+    private async Task<string> SeedUserAsync(string firstName, string lastName)
+    {
+        var userName = $"VWU{Guid.NewGuid():N}"[..16];
+        using var scope = CreateScope();
+        var connection = scope.ServiceProvider.GetRequiredService<ISqlConnectionFactory>().GetOpenConnection();
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO auth.AspNetUsers
+                (Id, UserName, FirstName, LastName, EmailConfirmed, PhoneNumberConfirmed,
+                 TwoFactorEnabled, LockoutEnabled, AccessFailedCount, AuthSource, IsActive, MustChangePassword)
+            VALUES
+                (NEWID(), @UserName, @FirstName, @LastName, 0, 0, 0, 0, 0, N'Local', 1, 0)
+            """,
+            new { UserName = userName, FirstName = firstName, LastName = lastName });
+        return userName;
+    }
+
+    private async Task<Guid> SeedAssignedAppraisalAsync(string prefix, Func<Guid, AppraisalAssignment> assign)
+    {
+        using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+        var appraisal = NewAppraisal(prefix);
+        db.Appraisals.Add(appraisal);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        db.AppraisalAssignments.Add(assign(appraisal.Id));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        return appraisal.Id;
+    }
+
+    [Fact]
+    public async Task Names_the_internal_assignee_from_their_user_code()
+    {
+        var userName = await SeedUserAsync("Somchai", "Jaidee");
+        var appraisalId = await SeedAssignedAppraisalAsync("VWSEL-G-",
+            id => AppraisalAssignment.Create(id, "Internal", assigneeUserId: userName, assignedBy: "test"));
+
+        var (_, assigneeName) = await ReadDisplayColumnsAsync(appraisalId);
+
+        Assert.Equal("Somchai Jaidee", assigneeName);
+    }
+
+    [Fact]
+    public async Task Has_no_assignee_name_for_external_work_or_an_unknown_user_code()
+    {
+        var external = await SeedAssignedAppraisalAsync("VWSEL-H-",
+            id => AppraisalAssignment.Create(
+                id, "External", assigneeCompanyId: Guid.NewGuid().ToString(), assignedBy: "test"));
+        var unknown = await SeedAssignedAppraisalAsync("VWSEL-I-",
+            id => AppraisalAssignment.Create(id, "Internal", assigneeUserId: "NO-SUCH-USER", assignedBy: "test"));
+
+        Assert.Null((await ReadDisplayColumnsAsync(external)).AssigneeName);
+        // The row itself must survive the apply — a missing user is a null name, not a lost row.
+        Assert.Null((await ReadDisplayColumnsAsync(unknown)).AssigneeName);
+    }
 }

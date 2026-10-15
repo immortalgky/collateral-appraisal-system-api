@@ -235,7 +235,7 @@ public class HypothesisCalculationServiceTests
     // ── L&B: Cost item aggregation ────────────────────────────────────────────
 
     [Fact]
-    public void LandBuilding_PerModelBuildingCost_AggregatedCorrectly()
+    public void LandBuilding_PerModelBuildingCost_ComesFromMappedBuilding_OrTypedTotal()
     {
         var analysis = CreateLandBuildingAnalysis();
 
@@ -243,16 +243,20 @@ public class HypothesisCalculationServiceTests
         {
             MakeLbRow("A", 60m, 800_000m),
             MakeLbRow("A", 60m, 800_000m),
-            MakeLbRow("B", 80m, 1_000_000m)
+            MakeLbRow("B", 80m, 1_000_000m),
+            MakeLbRow("C", 80m, 1_000_000m)
         };
 
-        var costA = analysis.AddCostItem(HypothesisCostCategory.CostOfBuilding,
-            CostItemKind.BuildingConstruction, "Construction", 1, "A");
-        costA.SetAmounts(200_000m, 0m, 0, 0m);
-
-        var costB = analysis.AddCostItem(HypothesisCostCategory.CostOfBuilding,
-            CostItemKind.BuildingConstruction, "Construction", 2, "B");
-        costB.SetAmounts(300_000m, 0m, 0, 0m);
+        // A → a building worth 200k per house; B → typed-over total, no building; C → nothing chosen.
+        // Model names match case- and whitespace-insensitively, like the model aggregate.
+        var buildingA = Guid.NewGuid();
+        analysis.ReplaceModelBuildingMappings(
+        [
+            (" a ", buildingA, null),
+            ("B", null, 300_000m),
+            ("C", null, null)
+        ]);
+        var buildingValues = new Dictionary<Guid, decimal> { [buildingA] = 200_000m };
 
         var input = new LandBuildingSummary
         {
@@ -263,13 +267,66 @@ public class HypothesisCalculationServiceTests
             DiscountRate = 0m                // FSD C78
         };
 
-        var result = Sut.ComputeLandBuilding(analysis, rows, input);
+        var result = Sut.ComputeLandBuilding(analysis, rows, input, buildingFinalCostValues: buildingValues);
 
-        Assert.Equal(700_000m, result.Summary.TotalProjectDevCost); // FSD C38
-        Assert.Equal(2, result.Models["A"].UnitCount);
-        Assert.Equal(400_000m, result.Models["A"].TotalValueAfterDepreciationAllUnits);
-        Assert.Equal(1, result.Models["B"].UnitCount);
-        Assert.Equal(300_000m, result.Models["B"].TotalValueAfterDepreciationAllUnits);
+        Assert.Equal(200_000m, result.Models["A"].TotalValueAfterDepreciation);        // C19 = building value
+        Assert.Equal(400_000m, result.Models["A"].TotalValueAfterDepreciationAllUnits); // C21 = 200k × 2
+        Assert.Equal(buildingA, result.Models["A"].BuildingPropertyId);
+        Assert.Equal(300_000m, result.Models["B"].TotalValueAfterDepreciationAllUnits); // typed total wins
+        Assert.Equal(0m, result.Models["C"].TotalValueAfterDepreciationAllUnits);       // unmapped = 0
+        Assert.Equal(700_000m, result.Summary.TotalProjectDevCost);                     // FSD C38
+    }
+
+    [Fact]
+    public void LandBuilding_PerSqWa_UsesTypedOverValue_WhenPresent()
+    {
+        var analysis = CreateLandBuildingAnalysis();
+        var rows = new[] { MakeLbRow("A", 60m, 800_000m) };
+        var input = new LandBuildingSummary { TotalArea = 500m, EstSalesPeriod = 1, DiscountRate = 0m };
+
+        var computed = Sut.ComputeLandBuilding(analysis, rows, input);
+        var edited = Sut.ComputeLandBuilding(analysis, rows, input, indicatedValue: 1_000_000m);
+
+        // C82 = round(C81 / C01, 100) without an override…
+        Assert.Equal(
+            Math.Round(computed.Summary.TotalAssetValueRounded!.Value / 500m / 100m, MidpointRounding.AwayFromZero) * 100m,
+            computed.Summary.TotalAssetValuePerSqWa);
+        // …and of the typed-over value with one (1,000,000 / 500 = 2,000). C81 itself is unchanged.
+        Assert.Equal(2_000m, edited.Summary.TotalAssetValuePerSqWa);
+        Assert.Equal(computed.Summary.TotalAssetValueRounded, edited.Summary.TotalAssetValueRounded);
+    }
+
+    [Fact]
+    public void Condominium_PerSqM_UsesTypedOverValue_WhenPresent()
+    {
+        var analysis = CreateCondoAnalysis();
+        var rows = new[] { MakeCondoRow(50m, 3_000_000m) };
+        var input = new CondominiumSummary { TotalBuildingArea = 400m, EstSalesDurationMonths = 12, DiscountRate = 0m };
+
+        var result = Sut.ComputeCondominium(analysis, rows, input, indicatedValue: 2_000_000m);
+
+        Assert.Equal(5_000m, result.TotalAssetValuePerSqM); // 2,000,000 / 400
+    }
+
+    [Fact]
+    public void LandBuilding_BuildingNotInGroup_CostsZero_AndLegacyCostOfBuildingRowsAreIgnored()
+    {
+        var analysis = CreateLandBuildingAnalysis();
+        var rows = new[] { MakeLbRow("A", 60m, 800_000m) };
+
+        // A mapping to a building the group no longer has (deleted, or not carried forward).
+        analysis.ReplaceModelBuildingMappings([("A", Guid.NewGuid(), null)]);
+        // A pre-mapping depreciation row: must not feed C21 any more.
+        analysis.AddCostItem(HypothesisCostCategory.CostOfBuilding,
+            CostItemKind.BuildingConstruction, "Construction", 1, "A").SetAmounts(999_000m, 0m, 0, 0m);
+
+        var input = new LandBuildingSummary { TotalArea = 500m, EstSalesPeriod = 1, DiscountRate = 0m };
+
+        var result = Sut.ComputeLandBuilding(analysis, rows, input,
+            buildingFinalCostValues: new Dictionary<Guid, decimal>());
+
+        Assert.Null(result.Models["A"].TotalCost);
+        Assert.Equal(0m, result.Models["A"].TotalValueAfterDepreciationAllUnits);
     }
 
     // ── L&B: Public utility cost (C29 uses C10A — public utility area) ────────
@@ -780,275 +837,6 @@ public class HypothesisCalculationServiceTests
 
         ex = Record.Exception(() => item.SetAmounts(100_000m));
         Assert.Null(ex);
-    }
-
-    // ── CostOfBuilding B-fields (FSD §2.1.3.5.1 Figure 52) ───────────────────
-
-    /// <summary>
-    /// Two models, two rows each.
-    /// Asserts B03/B06/B07/B08 per row and B09/B10/B11 per model.
-    /// Also verifies B06 is capped at 100% (30 yr × 5%/yr = 150 → 100).
-    /// </summary>
-    [Fact]
-    public void CostOfBuilding_BFields_ComputedCorrectly_TwoModels()
-    {
-        var analysis = CreateLandBuildingAnalysis();
-
-        // Model "Alpha": two rows
-        //   Row 1: area=100, price=10000, year=10, annual%=5 → B03=1_000_000, B06=50, B07=500_000, B08=500_000
-        //   Row 2: area=50,  price=8000,  year=30, annual%=5 → B06=min(100,150)=100, B03=400_000, B07=400_000, B08=0
-        var alpha1 = analysis.AddCostItem(HypothesisCostCategory.CostOfBuilding,
-            CostItemKind.BuildingConstruction, "Alpha Row 1", 1, "Alpha");
-        alpha1.SetAmounts(0m);
-        alpha1.SetBuildingCostInputs(100m, 10_000m, 10, 5m);
-
-        var alpha2 = analysis.AddCostItem(HypothesisCostCategory.CostOfBuilding,
-            CostItemKind.BuildingConstruction, "Alpha Row 2", 2, "Alpha");
-        alpha2.SetAmounts(0m);
-        alpha2.SetBuildingCostInputs(50m, 8_000m, 30, 5m);
-
-        // Model "Beta": two rows
-        //   Row 1: area=200, price=5000, year=2, annual%=10 → B03=1_000_000, B06=20, B07=200_000, B08=800_000
-        //   Row 2: area=80,  price=12000, year=0, annual%=3  → B03=960_000, B06=0, B07=0, B08=960_000
-        var beta1 = analysis.AddCostItem(HypothesisCostCategory.CostOfBuilding,
-            CostItemKind.BuildingConstruction, "Beta Row 1", 1, "Beta");
-        beta1.SetAmounts(0m);
-        beta1.SetBuildingCostInputs(200m, 5_000m, 2, 10m);
-
-        var beta2 = analysis.AddCostItem(HypothesisCostCategory.CostOfBuilding,
-            CostItemKind.BuildingConstruction, "Beta Row 2", 2, "Beta");
-        beta2.SetAmounts(0m);
-        beta2.SetBuildingCostInputs(80m, 12_000m, 0, 3m);
-
-        // One LB row per model so AggregateModels builds both model entries
-        var rows = new[]
-        {
-            MakeLbRow("Alpha", 100m, 2_000_000m),
-            MakeLbRow("Beta",  150m, 2_500_000m)
-        };
-
-        var input = new LandBuildingSummary
-        {
-            TotalArea = 500m,
-            EstSalesPeriod = 1,
-            ContingencyPercent = 0m,
-            ProjectContingencyPercent = 0m,
-            DiscountRate = 0m
-        };
-
-        var result = Sut.ComputeLandBuilding(analysis.CostItems, rows, input);
-
-        // ── Per-row B-field assertions ──────────────────────────────────────
-
-        // Alpha Row 1: B03=100×10000=1_000_000; B06=10×5=50; B07=1_000_000×50/100=500_000; B08=500_000
-        Assert.Equal(1_000_000m, alpha1.PriceBeforeDepreciation);   // B03
-        Assert.Equal(50m, alpha1.TotalDepreciationPercent);          // B06
-        Assert.Equal(500_000m, alpha1.DepreciationAmount);           // B07
-        Assert.Equal(500_000m, alpha1.ValueAfterDepreciation);       // B08
-
-        // Alpha Row 2: B03=50×8000=400_000; B06=min(100,150)=100; B07=400_000; B08=0
-        Assert.Equal(400_000m, alpha2.PriceBeforeDepreciation);     // B03
-        Assert.Equal(100m, alpha2.TotalDepreciationPercent);         // B06 — capped at 100
-        Assert.Equal(400_000m, alpha2.DepreciationAmount);           // B07
-        Assert.Equal(0m, alpha2.ValueAfterDepreciation);             // B08
-
-        // Beta Row 1: B03=200×5000=1_000_000; B06=2×10=20; B07=200_000; B08=800_000
-        Assert.Equal(1_000_000m, beta1.PriceBeforeDepreciation);    // B03
-        Assert.Equal(20m, beta1.TotalDepreciationPercent);           // B06
-        Assert.Equal(200_000m, beta1.DepreciationAmount);            // B07
-        Assert.Equal(800_000m, beta1.ValueAfterDepreciation);        // B08
-
-        // Beta Row 2: B03=80×12000=960_000; B06=0×3=0; B07=0; B08=960_000
-        Assert.Equal(960_000m, beta2.PriceBeforeDepreciation);      // B03
-        Assert.Equal(0m, beta2.TotalDepreciationPercent);            // B06
-        Assert.Equal(0m, beta2.DepreciationAmount);                  // B07
-        Assert.Equal(960_000m, beta2.ValueAfterDepreciation);        // B08
-
-        // ── Per-model B09/B10/B11 assertions ───────────────────────────────
-
-        var alphaAgg = result.Models["Alpha"];
-        // B09 = 100+50 = 150
-        Assert.Equal(150m, alphaAgg.TotalBuildingAreaSqM);
-        // B10 = 1_000_000+400_000 = 1_400_000
-        Assert.Equal(1_400_000m, alphaAgg.TotalPriceBeforeDepreciation);
-        // B11 = 500_000+0 = 500_000
-        Assert.Equal(500_000m, alphaAgg.TotalBuildingValueAfterDepreciation);
-
-        var betaAgg = result.Models["Beta"];
-        // B09 = 200+80 = 280
-        Assert.Equal(280m, betaAgg.TotalBuildingAreaSqM);
-        // B10 = 1_000_000+960_000 = 1_960_000
-        Assert.Equal(1_960_000m, betaAgg.TotalPriceBeforeDepreciation);
-        // B11 = 800_000+960_000 = 1_760_000
-        Assert.Equal(1_760_000m, betaAgg.TotalBuildingValueAfterDepreciation);
-
-        // ── C19 uses B11 as source → TotalValueAfterDepreciation ───────────
-        Assert.Equal(500_000m, alphaAgg.TotalValueAfterDepreciation);   // = B11 Alpha
-        Assert.Equal(1_760_000m, betaAgg.TotalValueAfterDepreciation);  // = B11 Beta
-    }
-
-    [Fact]
-    public void CostOfBuilding_NullInputs_ComputedFieldsAreNull()
-    {
-        // A newly-added row with no inputs yet should have all computed fields null.
-        var analysis = CreateLandBuildingAnalysis();
-        var item = analysis.AddCostItem(HypothesisCostCategory.CostOfBuilding,
-            CostItemKind.BuildingConstruction, "Empty Row", 1, "ModelX");
-        item.SetAmounts(0m);
-        // No SetBuildingCostInputs call — all inputs remain null
-
-        var rows = new[] { MakeLbRow("ModelX", 100m, 1_000_000m) };
-        var input = new LandBuildingSummary
-        {
-            TotalArea = 200m,
-            EstSalesPeriod = 1,
-            ContingencyPercent = 0m,
-            ProjectContingencyPercent = 0m,
-            DiscountRate = 0m
-        };
-
-        Sut.ComputeLandBuilding(analysis.CostItems, rows, input);
-
-        // All B03/B06/B07/B08 should remain null because all inputs were null
-        Assert.Null(item.PriceBeforeDepreciation);
-        Assert.Null(item.TotalDepreciationPercent);
-        Assert.Null(item.DepreciationAmount);
-        Assert.Null(item.ValueAfterDepreciation);
-    }
-
-    // ── CostOfBuilding: Period depreciation method ────────────────────────────
-
-    /// <summary>
-    /// Two periods: {1→5, 3.0%/yr} and {6→10, 2.5%/yr}.
-    ///   Period 1 contributes: (5 - 1 + 1) × 3.0 = 15.0
-    ///   Period 2 contributes: (10 - 6 + 1) × 2.5 = 12.5
-    ///   B06 = 15.0 + 12.5 = 27.5
-    ///   Row: Area=200, Price=10000 → B03=2_000_000; B07=550_000; B08=1_450_000
-    /// </summary>
-    [Fact]
-    public void CostOfBuilding_PeriodMethod_TotalDepUsesPeriodsSum()
-    {
-        var analysis = CreateLandBuildingAnalysis();
-
-        var item = analysis.AddCostItem(HypothesisCostCategory.CostOfBuilding,
-            CostItemKind.BuildingConstruction, "Period Row", 1, "M1");
-        item.SetAmounts(0m);
-        item.SetBuildingCostInputs(
-            area: 200m,
-            pricePerSqM: 10_000m,
-            year: null,
-            annualDepreciationPercent: null,
-            isBuilding: true,
-            depreciationMethod: DepreciationMethod.Period,
-            depreciationPeriods:
-            [
-                (AtYear: 1, ToYear: 5, DepreciationPerYear: 3.0m),
-                (AtYear: 6, ToYear: 10, DepreciationPerYear: 2.5m)
-            ]);
-
-        var rows = new[] { MakeLbRow("M1", 100m, 5_000_000m) };
-        var input = new LandBuildingSummary
-        {
-            TotalArea = 500m,
-            EstSalesPeriod = 1,
-            ContingencyPercent = 0m,
-            ProjectContingencyPercent = 0m,
-            DiscountRate = 0m
-        };
-
-        Sut.ComputeLandBuilding(analysis.CostItems, rows, input);
-
-        // B03 = 200 × 10_000 = 2_000_000
-        Assert.Equal(2_000_000m, item.PriceBeforeDepreciation);   // B03
-        // B06 = (5-1+1)×3.0 + (10-6+1)×2.5 = 15.0 + 12.5 = 27.5
-        Assert.Equal(27.5m, item.TotalDepreciationPercent);       // B06
-        // B07 = 2_000_000 × 27.5 / 100 = 550_000
-        Assert.Equal(550_000m, item.DepreciationAmount);          // B07
-        // B08 = 2_000_000 − 550_000 = 1_450_000
-        Assert.Equal(1_450_000m, item.ValueAfterDepreciation);    // B08
-    }
-
-    /// <summary>
-    /// Periods whose sum exceeds 100 are clamped.
-    ///   Single period: {0→100, 2%/yr} → sum = 101 × 2 = 202 → clamped to 100.
-    /// </summary>
-    [Fact]
-    public void CostOfBuilding_PeriodMethod_CapsAt100()
-    {
-        var analysis = CreateLandBuildingAnalysis();
-
-        var item = analysis.AddCostItem(HypothesisCostCategory.CostOfBuilding,
-            CostItemKind.BuildingConstruction, "High Dep Row", 1, "M1");
-        item.SetAmounts(0m);
-        item.SetBuildingCostInputs(
-            area: 100m,
-            pricePerSqM: 5_000m,
-            year: null,
-            annualDepreciationPercent: null,
-            isBuilding: true,
-            depreciationMethod: DepreciationMethod.Period,
-            depreciationPeriods:
-            [
-                (AtYear: 0, ToYear: 100, DepreciationPerYear: 2m)   // sum = 101 × 2 = 202
-            ]);
-
-        var rows = new[] { MakeLbRow("M1", 100m, 1_000_000m) };
-        var input = new LandBuildingSummary
-        {
-            TotalArea = 200m,
-            EstSalesPeriod = 1,
-            ContingencyPercent = 0m,
-            ProjectContingencyPercent = 0m,
-            DiscountRate = 0m
-        };
-
-        Sut.ComputeLandBuilding(analysis.CostItems, rows, input);
-
-        // B06 should be capped at 100 despite sum=202
-        Assert.Equal(100m, item.TotalDepreciationPercent);   // B06 capped
-        // B03 = 100 × 5000 = 500_000; B07 = 500_000; B08 = 0
-        Assert.Equal(500_000m, item.PriceBeforeDepreciation);
-        Assert.Equal(500_000m, item.DepreciationAmount);
-        Assert.Equal(0m, item.ValueAfterDepreciation);
-    }
-
-    /// <summary>
-    /// Pre-existing Gross method behavior must remain unchanged after the Period feature.
-    ///   Row: area=100, price=10000, year=10, annual%=5 → B06 = min(100, 10×5) = 50.
-    /// </summary>
-    [Fact]
-    public void CostOfBuilding_GrossMethod_StillUsesYearTimesAnnual()
-    {
-        var analysis = CreateLandBuildingAnalysis();
-
-        var item = analysis.AddCostItem(HypothesisCostCategory.CostOfBuilding,
-            CostItemKind.BuildingConstruction, "Gross Row", 1, "M1");
-        item.SetAmounts(0m);
-        item.SetBuildingCostInputs(
-            area: 100m,
-            pricePerSqM: 10_000m,
-            year: 10,
-            annualDepreciationPercent: 5m,
-            isBuilding: true,
-            depreciationMethod: DepreciationMethod.Gross);
-
-        var rows = new[] { MakeLbRow("M1", 100m, 2_000_000m) };
-        var input = new LandBuildingSummary
-        {
-            TotalArea = 200m,
-            EstSalesPeriod = 1,
-            ContingencyPercent = 0m,
-            ProjectContingencyPercent = 0m,
-            DiscountRate = 0m
-        };
-
-        Sut.ComputeLandBuilding(analysis.CostItems, rows, input);
-
-        // B03 = 100 × 10_000 = 1_000_000; B06 = min(100, 10×5) = 50; B07 = 500_000; B08 = 500_000
-        Assert.Equal(1_000_000m, item.PriceBeforeDepreciation);   // B03
-        Assert.Equal(50m, item.TotalDepreciationPercent);         // B06
-        Assert.Equal(500_000m, item.DepreciationAmount);          // B07
-        Assert.Equal(500_000m, item.ValueAfterDepreciation);      // B08
     }
 
     // ── L&B: Land area derived from titles (C01/C02/C10/C10A) ───────────────

@@ -3,3 +3,4 @@
 
 ### Get all documents for a request (combined view)
 GET {{baseUrl}}/requests/{{requestId}}/documents
+X-Dev-Auth: dev-bypass

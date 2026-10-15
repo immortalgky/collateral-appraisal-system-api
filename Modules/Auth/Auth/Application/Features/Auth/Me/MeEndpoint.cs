@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Auth.Infrastructure.Session;
 using OpenIddict.Abstractions;
 
 namespace Auth.Domain.Auth.Features.Me;
@@ -22,6 +23,7 @@ public class MeEndpoint : ICarterModule
                 return Results.Ok(response);
             })
             .RequireAuthorization()
+            .AllowWhilePasswordChangeRequired()
             .WithName("GetCurrentUser")
             .Produces<MeResponse>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)

@@ -14,11 +14,11 @@ public class DocumentUnlinkedIntegrationEventHandler(
     private readonly IRepository<Domain.Documents.Models.Document, Guid> _documentRepository =
         uow.Repository<Domain.Documents.Models.Document, Guid>();
 
-    public async Task Consume(ConsumeContext<DocumentUnlinkedIntegrationEvent> @event)
-    {
-        if (await inboxGuard.TryClaimAsync(@event.MessageId, GetType().Name, @event.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<DocumentUnlinkedIntegrationEvent> @event) =>
+        inboxGuard.RunOnceAsync(@event.MessageId, GetType().Name, _ => HandleAsync(@event), @event.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<DocumentUnlinkedIntegrationEvent> @event)
+    {
         var document =
             await _documentRepository.GetByIdAsync(@event.Message.DocumentId, @event.CancellationToken);
 
@@ -34,7 +34,5 @@ public class DocumentUnlinkedIntegrationEventHandler(
             @event.Message.DocumentId, document.ReferenceCount);
 
         await uow.SaveChangesAsync(@event.CancellationToken);
-
-        await inboxGuard.MarkAsProcessedAsync(@event.MessageId, GetType().Name, @event.CancellationToken);
     }
 }

@@ -21,15 +21,11 @@ public sealed class MeetingInvitationEmailHandler(
     ILogger<MeetingInvitationEmailHandler> logger)
     : IConsumer<MeetingInvitationEmailIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<MeetingInvitationEmailIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
-
-        var msg = context.Message;
-
-        try
+    public Task Consume(ConsumeContext<MeetingInvitationEmailIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, async _ =>
         {
+            var msg = context.Message;
+
             // Guard before the expensive attachment assembly (report PDF + document reads).
             // To is optional (recipients may all be in Cc/Bcc); skip only if there are none at all.
             var toAddresses = EmailRecipients.Parse(msg.To);
@@ -40,7 +36,6 @@ public sealed class MeetingInvitationEmailHandler(
             {
                 logger.LogWarning(
                     "Skipping meeting invitation email with no valid recipient (MessageId={MessageId})", context.MessageId);
-                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
                 return;
             }
 
@@ -64,14 +59,5 @@ public sealed class MeetingInvitationEmailHandler(
                 ReferenceId: msg.MeetingId.ToString());
 
             await emailSender.SendAsync(email, context.CancellationToken);
-
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex,
-                "Error sending meeting invitation email (MessageId={MessageId})", context.MessageId);
-            throw;
-        }
-    }
+        }, context.CancellationToken);
 }

@@ -48,6 +48,10 @@
     <tbody>
       {{ multi = model.groups.size > 1 }}
       {{ for g in model.groups }}
+        <!-- A land row carrying หักเนื้อที่ประเมินเนื่องจาก… drops its figures to the bottom of the
+             cell, level with the คงเหลือ line they belong to. Every other row stays top-aligned. -->
+        {{ nb = ""; if g.land_deduction_lines.size > 0; nb = " bottom"; end }}
+        {{ capture ded }}{{ if g.land_deduction_lines.size > 0 }}<div class="land-ded">{{ if g.land_deduction_lines.size == 1 }}<div>หักเนื้อที่ประเมินเนื่องจาก{{ g.land_deduction_lines[0] }}</div>{{ else }}<div>หักเนื้อที่ประเมินเนื่องจาก</div><ol class="land-titles land-ded-list">{{ for d in g.land_deduction_lines }}<li>{{ d }}</li>{{ end }}</ol>{{ end }}<div>คงเหลือ เนื้อที่ประเมินเพียง {{ g.land_net_area_text }}</div></div>{{ end }}{{ end }}
         {{ if g.split_land_and_building }}
         <!-- Split: land + building list + ส่วนพัฒนา, each line valued. With a SINGLE group the
              land and building blocks are separated by their own รวมมูลค่า… subtotal rows (the
@@ -58,10 +62,10 @@
              like any other Cost group but still reads สิทธิการเช่าที่ดิน on its land row. -->
         <tr class="grp-first">
           <td>{{ if g.has_land }}<span class="chk on"></span> <strong>{{ g.land_row_label }}</strong>{{ end }}</td>
-          <td>{{ if multi }}<strong>กลุ่มที่ {{ g.group_number }}</strong>{{ end }}{{ if g.land_descriptions.size > 0 }}<ol class="land-titles{{ if g.land_descriptions.size == 1 }} no-num{{ end }}">{{ for d in g.land_descriptions }}<li>{{ d }}</li>{{ end }}</ol>{{ end }}</td>
-          <td class="num">{{ if g.total_square_wa; g.total_square_wa | math.format "N2"; end }}</td>
-          <td class="num">{{ if g.land_unit_price; g.land_unit_price | math.format "N2"; end }}</td>
-          <td class="num"{{ if uc }} colspan="2"{{ end }}>{{ if g.land_value; g.land_value | math.format "N2"; end }}</td>
+          <td>{{ if multi }}<strong>กลุ่มที่ {{ g.group_number }}</strong>{{ end }}{{ if g.land_descriptions.size > 0 }}<ol class="land-titles{{ if g.land_descriptions.size == 1 }} no-num{{ end }}">{{ for d in g.land_descriptions }}<li>{{ d }}</li>{{ end }}</ol>{{ end }}{{ ded }}</td>
+          <td class="num{{ nb }}">{{ if g.total_square_wa; g.total_square_wa | math.format "N2"; end }}</td>
+          <td class="num{{ nb }}">{{ if g.land_unit_price; g.land_unit_price | math.format "N2"; end }}</td>
+          <td class="num{{ nb }}"{{ if uc }} colspan="2"{{ end }}>{{ if g.land_value; g.land_value | math.format "N2"; end }}</td>
         </tr>
         {{ per_type_subtotals = !multi && g.has_land && g.has_building }}
         {{ if per_type_subtotals }}
@@ -205,13 +209,16 @@
         {{ end }}
         {{ else }}
         <!-- Market / combined: single value, no per-unit breakdown -->
+        <!-- Bottom-align only when the deduction block ends the cell. Below a building clause or
+             ส่วนพัฒนา list the figures would sit beside those lines instead of คงเหลือ. -->
+        {{ if g.building_description || g.development_descriptions.size > 0; nb = ""; end }}
         <tr>
           <td><span class="chk on"></span> <strong>{{ g.property_type }}</strong></td>
-          <td>{{ if multi }}<strong>กลุ่มที่ {{ g.group_number }}</strong>{{ end }}{{ if g.land_descriptions.size > 0 }}<ol class="land-titles{{ if g.land_descriptions.size == 1 }} no-num{{ end }}">{{ for d in g.land_descriptions }}<li>{{ d }}</li>{{ end }}</ol>{{ end }}{{ if g.building_description }}<div class="brk" style="margin-top:1px;">{{ g.building_description }}</div>{{ end }}{{ if g.development_descriptions.size > 0 }}<div class="brk" style="margin-top:1px;"><strong>ส่วนพัฒนา</strong>{{ for d in g.development_descriptions }}
+          <td>{{ if multi }}<strong>กลุ่มที่ {{ g.group_number }}</strong>{{ end }}{{ if g.land_descriptions.size > 0 }}<ol class="land-titles{{ if g.land_descriptions.size == 1 }} no-num{{ end }}">{{ for d in g.land_descriptions }}<li>{{ d }}</li>{{ end }}</ol>{{ end }}{{ ded }}{{ if g.building_description }}<div class="brk" style="margin-top:1px;">{{ g.building_description }}</div>{{ end }}{{ if g.development_descriptions.size > 0 }}<div class="brk" style="margin-top:1px;"><strong>ส่วนพัฒนา</strong>{{ for d in g.development_descriptions }}
 - {{ d }}{{ end }}</div>{{ end }}</td>
-          <td class="num">{{ if g.show_land_unit_columns }}{{ g.market_land_area | math.format "N2" }}{{ end }}</td>
-          <td class="num">{{ if g.show_land_unit_columns }}{{ g.market_land_unit_price | math.format "N2" }}{{ end }}</td>
-          <td class="num"{{ if uc }} colspan="2"{{ end }}>{{ if g.group_total; g.group_total | math.format "N2"; end }}</td>
+          <td class="num{{ nb }}">{{ if g.show_land_unit_columns }}{{ g.market_land_area | math.format "N2" }}{{ end }}</td>
+          <td class="num{{ nb }}">{{ if g.show_land_unit_columns }}{{ g.market_land_unit_price | math.format "N2" }}{{ end }}</td>
+          <td class="num{{ nb }}"{{ if uc }} colspan="2"{{ end }}>{{ if g.group_total; g.group_total | math.format "N2"; end }}</td>
         </tr>
         {{ if multi }}
         <tr class="grp-total">

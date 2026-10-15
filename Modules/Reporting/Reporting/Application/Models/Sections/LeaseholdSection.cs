@@ -85,10 +85,11 @@ public sealed class LeaseholdSection
     public decimal? FinalValueRounded { get; init; }
 
     /// <summary>
-    /// Effective final value — mirrors SaveLeaseholdAnalysisCommandHandler.cs:153-155:
-    ///   EstimatePriceRounded ?? (computedEstimatePriceRounded ?? FinalValueRounded)
-    /// For non-partial: computedEstimatePriceRounded = null, so effective = EstimatePriceRounded ?? FinalValueRounded.
-    /// For partial: effective = EstimatePriceRounded ?? partialEstimate.
+    /// Effective final value — mirrors SaveLeaseholdAnalysisCommandHandler's
+    /// SyncMethodValueWithIndicatedValue precedence:
+    ///   IndicatedValue (appraiser's override) ?? EstimatePriceRounded (legacy column, still populated
+    ///   for rows not yet migrated — see Database/Migration/Scripts DataFix_Leasehold...) ?? FinalValueRounded.
+    /// One expression covers both partial and non-partial usage.
     /// Computed in LeaseholdSectionLoader.LoadOneAsync.
     /// </summary>
     public decimal? EffectiveFinalValue { get; init; }

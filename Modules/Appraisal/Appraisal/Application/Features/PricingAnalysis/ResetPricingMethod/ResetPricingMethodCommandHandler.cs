@@ -35,10 +35,20 @@ public class ResetPricingMethodCommandHandler(
         // (WQS, SaleGrid, DirectComparison, MachineCost). Mirrors RemoveMethodCommandHandler.
         await cleanupService.CleanupForMethodRemovalAsync(command.MethodId, cancellationToken);
 
+        // A linked/tagged LandAndBuilding method gives its building back to the BuildingCost
+        // method first — Reset keeps Role and LinkedMethodId, which would otherwise leave the
+        // BuildingCost deselected and the building out of the Cost total from now on.
+        approach.RevertToLand(method.Id);
         method.Reset();
-        approach.ClearValue();
-        approach.Unselect();
-        pricingAnalysis.ClearFinalValues();
+
+        // Multi-select Cost with other components still selected: keep the approach and re-derive
+        // from them (same as removing the method). Otherwise the approach had only this method.
+        if (!pricingAnalysis.TryRederiveCostAfterComponentReset(approach.Id))
+        {
+            approach.ClearValue();
+            approach.Unselect();
+            pricingAnalysis.ClearFinalValues();
+        }
 
         await repository.UpdateAsync(pricingAnalysis, cancellationToken);
 

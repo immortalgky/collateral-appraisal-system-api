@@ -75,8 +75,24 @@
       </tr>
       {{ if model.construction_remark }}
       <tr>
-        <td><strong>หมายเหตุ</strong></td>
+        <td><strong>หมายเหตุการตรวจ</strong></td>
         <td colspan="3" class="brk">{{ model.construction_remark }}</td>
+      </tr>
+      {{ end }}
+      <!-- เงื่อนไข / หมายเหตุ from the Decision Summary page (AppraisalDecisions), the same two the
+           standard and block books print. Kept distinct from หมายเหตุการตรวจ above, which is the
+           inspector's note on the round itself: these two are the reviewer's, they apply to the
+           whole appraisal, and a construction book was the only one dropping them. -->
+      {{ if model.condition }}
+      <tr class="cond">
+        <td><strong>เงื่อนไข</strong></td>
+        <td colspan="3" class="brk">{{ model.condition }}</td>
+      </tr>
+      {{ end }}
+      {{ if model.remark }}
+      <tr>
+        <td><strong>หมายเหตุ</strong></td>
+        <td colspan="3" class="brk">{{ model.remark }}</td>
       </tr>
       {{ end }}
     </tbody>

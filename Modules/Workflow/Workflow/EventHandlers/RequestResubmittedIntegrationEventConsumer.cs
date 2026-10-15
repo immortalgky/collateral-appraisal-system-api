@@ -26,11 +26,11 @@ public class RequestResubmittedIntegrationEventConsumer(
 {
     private const string SystemActor = "system:integration";
 
-    public async Task Consume(ConsumeContext<RequestResubmittedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<RequestResubmittedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<RequestResubmittedIntegrationEvent> context)
+    {
         var message = context.Message;
         var ct = context.CancellationToken;
 
@@ -55,8 +55,6 @@ public class RequestResubmittedIntegrationEventConsumer(
                     new ResumeParentWorkflowForRequestCommand(message.RequestId, SystemActor),
                     ct);
             }
-
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
         }
         catch (Exception ex)
         {

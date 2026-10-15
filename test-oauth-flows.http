@@ -1,4 +1,12 @@
 ### OAuth2 Flow Testing for Collateral Appraisal System
+###
+### NOTE (BFF migration): the browser SPA no longer uses these flows. It signs in through the API
+### (GET /auth/login -> IdP -> /signin-oidc) and holds only a session cookie; POST /auth/token, POST /auth/refresh
+### and the password grant are gone. What is still useful here:
+###   - client_credentials for machine clients (LOS / CLS) — sections for `background-service` and friends
+###   - poking OpenIddict directly with the `spa` client's auth-code + PKCE flow (the legacy
+###     https://localhost:3000/callback redirect URI stays registered for now)
+### The password-grant example below is expected to be rejected (unsupported_grant_type).
 ### Use with REST Client extension in VS Code or similar HTTP client
 
 @baseUrl = https://localhost:7111

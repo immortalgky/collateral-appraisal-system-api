@@ -1,0 +1,269 @@
+using Appraisal.Application.Features.Appraisals.Shared;
+using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
+
+namespace Appraisal.Application.Features.Appraisals.UpdateLeaseAgreementCondoProperty;
+
+/// <summary>
+/// Writes an <see cref="UpdateLeaseAgreementCondoPropertyCommand"/> payload into the property. Shared by the real page handler and
+/// the data-correction command so both apply exactly the same rules; the side effects that belong
+/// to the real page (valuation recompute, insurance derivation) stay in the handler.
+/// </summary>
+public static class LeaseAgreementCondoPropertyApplier
+{
+    public static void Apply(
+        AppraisalProperty property, UpdateLeaseAgreementCondoPropertyCommand command, decimal? buildingInsurancePrice)
+    {
+        // 3. Validate property type
+        if (property.PropertyType != PropertyType.LeaseAgreementCondo)
+            throw new InvalidOperationException($"Property {property.Id} is not a lease agreement condo property");
+
+        // 4. Get the condo detail
+        var detail = property.CondoDetail
+                     ?? throw new InvalidOperationException($"Condo detail not found for property {property.Id}");
+
+        // 5. Create value objects if provided
+        GpsCoordinate? coordinates = null;
+        if (command.Latitude.HasValue && command.Longitude.HasValue)
+            coordinates = GpsCoordinate.Create(command.Latitude.Value, command.Longitude.Value);
+
+        Address? address = null;
+        if (command.SubDistrict is not null || command.District is not null || command.Province is not null)
+            address = Address.Create(
+                command.SubDistrict,
+                command.District,
+                command.Province);
+        Address? dopaAddress = null;
+        if (command.DopaSubDistrict is not null || command.DopaDistrict is not null || command.DopaProvince is not null)
+            dopaAddress = Address.Create(command.DopaSubDistrict, command.DopaDistrict, command.DopaProvince);
+
+        // 6. Update condo detail via domain method
+        detail.Update(
+            propertyName: command.PropertyName,
+            condoName: command.CondoName,
+            buildingNumber: command.BuildingNumber,
+            modelName: command.ModelName,
+            condoRegistrationNumber: command.CondoRegistrationNumber,
+            roomNumber: command.RoomNumber,
+            floorNumber: command.FloorNumber,
+            usableArea: command.UsableArea,
+            isUnderConstruction: command.IsUnderConstruction,
+            titleNumber: command.TitleNumber,
+            titleType: command.TitleType,
+            coordinates: coordinates,
+            address: address,
+            ownerName: command.OwnerName,
+            isOwnerVerified: command.IsOwnerVerified,
+            buildingConditionType: command.BuildingConditionType,
+            buildingConditionTypeOther: command.BuildingConditionTypeOther,
+            hasObligation: command.HasObligation,
+            obligationDetails: command.ObligationDetails,
+            documentValidationResultType: command.DocumentValidationResultType,
+            locationType: command.LocationType,
+            street: command.Street,
+            soi: command.Soi,
+            distanceFromMainRoad: command.DistanceFromMainRoad,
+            accessRoadWidth: command.AccessRoadWidth,
+            rightOfWay: command.RightOfWay,
+            roadSurfaceType: command.RoadSurfaceType,
+            roadSurfaceTypeOther: command.RoadSurfaceTypeOther,
+            publicUtilityType: command.PublicUtilityType,
+            publicUtilityTypeOther: command.PublicUtilityTypeOther,
+            decorationType: command.DecorationType,
+            decorationTypeOther: command.DecorationTypeOther,
+            buildingAge: command.BuildingAge,
+            constructionYear: command.ConstructionYear,
+            numberOfFloors: command.NumberOfFloors,
+            buildingFormType: command.BuildingFormType,
+            constructionMaterialType: command.ConstructionMaterialType,
+            roomLayoutType: command.RoomLayoutType,
+            roomLayoutTypeOther: command.RoomLayoutTypeOther,
+            locationViewType: command.LocationViewType,
+            locationViewTypeOther: command.LocationViewTypeOther,
+            groundFloorMaterialType: command.GroundFloorMaterialType,
+            groundFloorMaterialTypeOther: command.GroundFloorMaterialTypeOther,
+            upperFloorMaterialType: command.UpperFloorMaterialType,
+            upperFloorMaterialTypeOther: command.UpperFloorMaterialTypeOther,
+            bathroomFloorMaterialType: command.BathroomFloorMaterialType,
+            bathroomFloorMaterialTypeOther: command.BathroomFloorMaterialTypeOther,
+            roofType: command.RoofType,
+            roofTypeOther: command.RoofTypeOther,
+            totalBuildingArea: command.TotalBuildingArea,
+            isExpropriated: command.IsExpropriated,
+            expropriationRemark: command.ExpropriationRemark,
+            isInExpropriationLine: command.IsInExpropriationLine,
+            expropriationLineRemark: command.ExpropriationLineRemark,
+            royalDecree: command.RoyalDecree,
+            isForestBoundary: command.IsForestBoundary,
+            forestBoundaryRemark: command.ForestBoundaryRemark,
+            facilityType: command.FacilityType,
+            facilityTypeOther: command.FacilityTypeOther,
+            environmentType: command.EnvironmentType,
+            environmentTypeOther: command.EnvironmentTypeOther,
+            buildingInsurancePrice: buildingInsurancePrice,
+            buildingInsurancePriceOverride: command.BuildingInsurancePriceOverride,
+            remark: command.Remark,
+            landOffice: command.LandOffice,
+            dopaAddress: dopaAddress,
+            landEntranceExitType: command.LandEntranceExitType,
+            landEntranceExitTypeOther: command.LandEntranceExitTypeOther,
+            landFillType: command.LandFillType,
+            landFillTypeOther: command.LandFillTypeOther,
+            urbanPlanningType: command.UrbanPlanningType,
+            landUseType: command.LandUseType,
+            landUseTypeOther: command.LandUseTypeOther,
+            isMissingFromSurvey: command.IsMissingFromSurvey,
+            governmentPricePerSqm: command.GovernmentPricePerSqm,
+            governmentPrice: command.GovernmentPrice,
+            fireInsuranceCode: command.FireInsuranceCode);
+
+        // 7. Sync area details (null = no-op, list = sync)
+        if (command.AreaDetails is not null)
+            SyncAreaDetails(detail, command.AreaDetails);
+        
+        // Sync construction inspection (null = clear, provided = upsert)
+        // Also clear if building is not under construction
+        if (command.ConstructionInspection is null || command.IsUnderConstruction == false)
+            ClearConstructionInspection(property);
+        else
+            SyncConstructionInspection(property, command.ConstructionInspection);
+
+        // 8. Update lease agreement detail if provided
+        if (command.LeaseAgreement is not null)
+        {
+            property.LeaseAgreementDetail!.Update(
+                command.LeaseAgreement.LesseeName, command.LeaseAgreement.LessorName,
+                command.LeaseAgreement.LeasePeriodAsContract, command.LeaseAgreement.RemainingLeaseAsAppraisalDate,
+                command.LeaseAgreement.ContractNo, command.LeaseAgreement.LeaseStartDate, command.LeaseAgreement.LeaseEndDate,
+                command.LeaseAgreement.LeaseRentFee, command.LeaseAgreement.RentAdjust,
+                command.LeaseAgreement.Sublease, command.LeaseAgreement.AdditionalExpenses,
+                command.LeaseAgreement.LeaseTerminate, command.LeaseAgreement.ContractRenewal,
+                command.LeaseAgreement.RentalTermsImpactingPropertyUse, command.LeaseAgreement.TerminationOfLease,
+                command.LeaseAgreement.Remark);
+        }
+
+        // 9. Update rental info if provided
+        if (command.RentalInfo is not null)
+        {
+            var rentalInfo = property.RentalInfo!;
+            rentalInfo.Update(
+                command.RentalInfo.NumberOfYears, command.RentalInfo.FirstYearStartDate,
+                command.RentalInfo.ContractRentalFeePerYear, command.RentalInfo.UpFrontTotalAmount,
+                command.RentalInfo.GrowthRateType, command.RentalInfo.GrowthRatePercent,
+                command.RentalInfo.GrowthIntervalYears);
+
+            if (command.RentalInfo.UpFrontEntries is not null)
+            {
+                rentalInfo.ClearUpFrontEntries();
+                foreach (var entry in command.RentalInfo.UpFrontEntries)
+                    rentalInfo.AddUpFrontEntry(entry.AtYear, entry.UpFrontAmount);
+            }
+
+            if (command.RentalInfo.GrowthPeriodEntries is not null)
+            {
+                rentalInfo.ClearGrowthPeriodEntries();
+                foreach (var entry in command.RentalInfo.GrowthPeriodEntries)
+                    rentalInfo.AddGrowthPeriodEntry(entry.FromYear, entry.ToYear, entry.GrowthRate, entry.GrowthAmount, entry.TotalAmount);
+            }
+
+            RentalScheduleComputer.ComputeAndSave(rentalInfo, command.RentalInfo.ScheduleOverrides);
+        }
+    }
+
+    private static void SyncAreaDetails(
+        CondoAppraisalDetail condoDetail,
+        List<CondoAppraisalAreaDetailDto> incomingAreaDetails)
+    {
+        var incomingIds = incomingAreaDetails
+            .Where(a => a.Id.HasValue)
+            .Select(a => a.Id!.Value)
+            .ToHashSet();
+
+        var idsToRemove = condoDetail.AreaDetails
+            .Where(a => !incomingIds.Contains(a.Id))
+            .Select(a => a.Id)
+            .ToList();
+
+        foreach (var id in idsToRemove)
+            condoDetail.RemoveCondoAreaDetail(id);
+
+        foreach (var dto in incomingAreaDetails)
+        {
+            if (dto.Id.HasValue)
+            {
+                var existing = condoDetail.AreaDetails.FirstOrDefault(a => a.Id == dto.Id.Value);
+                existing?.UpdateArea(dto.Sequence, dto.AreaDescription, dto.AreaSize);
+            }
+            else
+            {
+                condoDetail.AddCondoAreaDetail(CondoAppraisalAreaDetail.Create(dto.Sequence, dto.AreaDescription, dto.AreaSize));
+            }
+        }
+    }
+
+    private static void ClearConstructionInspection(AppraisalProperty property)
+    {
+        if (property.ConstructionInspection is not null)
+            property.ClearConstructionInspection();
+    }
+
+    private static void SyncConstructionInspection(
+        AppraisalProperty property,
+        ConstructionInspectionData ci)
+    {
+        if (property.ConstructionInspection is not null)
+        {
+            // Update existing
+            var inspection = property.ConstructionInspection;
+            if (ci.IsFullDetail)
+            {
+                inspection.UpdateFullDetail(ci.TotalValue, ci.Remark);
+                inspection.ClearWorkDetails();
+                if (ci.WorkDetails is { Count: > 0 })
+                {
+                    foreach (var wd in ci.WorkDetails)
+                        inspection.AddWorkDetail(wd.ConstructionWorkGroupId, wd.WorkItemName,
+                            wd.DisplayOrder, wd.ProportionPct, wd.PreviousProgressPct,
+                            wd.CurrentProgressPct, wd.ConstructionWorkItemId);
+                    inspection.ComputeAllValues();
+                }
+            }
+            else
+            {
+                inspection.UpdateSummary(ci.TotalValue, ci.SummaryDetail,
+                    ci.SummaryPreviousProgressPct, ci.SummaryPreviousValue,
+                    ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.Remark);
+                if (ci.DocumentId.HasValue)
+                    inspection.SetDocument(ci.DocumentId.Value, ci.FileName, ci.FilePath, ci.FileExtension, ci.MimeType, ci.FileSizeBytes);
+                else
+                    inspection.ClearDocument();
+            }
+        }
+        else
+        {
+            // Create new
+            ConstructionInspection inspection;
+            if (ci.IsFullDetail)
+            {
+                inspection = ConstructionInspection.CreateFullDetail(property.Id, ci.TotalValue, ci.Remark);
+                if (ci.WorkDetails is { Count: > 0 })
+                {
+                    foreach (var wd in ci.WorkDetails)
+                        inspection.AddWorkDetail(wd.ConstructionWorkGroupId, wd.WorkItemName,
+                            wd.DisplayOrder, wd.ProportionPct, wd.PreviousProgressPct,
+                            wd.CurrentProgressPct, wd.ConstructionWorkItemId);
+                    inspection.ComputeAllValues();
+                }
+            }
+            else
+            {
+                inspection = ConstructionInspection.CreateSummary(property.Id, ci.TotalValue,
+                    ci.SummaryDetail, ci.SummaryPreviousProgressPct, ci.SummaryPreviousValue,
+                    ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.Remark);
+                if (ci.DocumentId.HasValue)
+                    inspection.SetDocument(ci.DocumentId.Value, ci.FileName, ci.FilePath, ci.FileExtension, ci.MimeType, ci.FileSizeBytes);
+            }
+
+            property.SetConstructionInspection(inspection);
+        }
+    }
+}

@@ -15,12 +15,12 @@ public class CompanyAppraisalCompletedDashboardEventHandler(
     InboxGuard<CommonDbContext> inboxGuard,
     IDateTimeProvider dateTimeProvider) : IConsumer<ExternalAppraisalReturnedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<ExternalAppraisalReturnedIntegrationEvent> context)
+    public Task Consume(ConsumeContext<ExternalAppraisalReturnedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
+
+    private async Task HandleAsync(ConsumeContext<ExternalAppraisalReturnedIntegrationEvent> context)
     {
         var message = context.Message;
-
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
 
         var connection = connectionFactory.GetOpenConnection();
 
@@ -54,7 +54,5 @@ public class CompanyAppraisalCompletedDashboardEventHandler(
         logger.LogInformation(
             "Dashboard: CompanyAppraisalSummaries updated for CompanyId {CompanyId} Cycle={Cycle} BusinessMinutes={Minutes}",
             message.CompanyId, message.CycleNumber, message.BusinessMinutes);
-
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }
 }

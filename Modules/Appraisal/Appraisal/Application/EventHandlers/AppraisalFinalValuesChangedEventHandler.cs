@@ -18,6 +18,7 @@ namespace Appraisal.Application.EventHandlers;
 /// </summary>
 public class AppraisalFinalValuesChangedEventHandler(
     AppraisalDbContext db,
+    IAppraisalRepository appraisalRepository,
     AppraisalValuationSummaryService summaryService,
     ILogger<AppraisalFinalValuesChangedEventHandler> logger
 ) : INotificationHandler<AppraisalFinalValuesChangedEvent>
@@ -25,10 +26,36 @@ public class AppraisalFinalValuesChangedEventHandler(
     public async Task Handle(AppraisalFinalValuesChangedEvent notification, CancellationToken ct)
     {
         // PropertyGroup is an owned entity — can only be reached via the Appraisal aggregate.
-        var appraisal = db.Appraisals.Local
-                            .FirstOrDefault(a => a.Groups.Any(g => g.Id == notification.PropertyGroupId))
-                        ?? await db.Appraisals
-                            .FirstOrDefaultAsync(a => a.Groups.Any(g => g.Id == notification.PropertyGroupId), ct);
+        var appraisal = db.Appraisals.Local.FirstOrDefault(a => a.Groups.Any(g => g.Id == notification.PropertyGroupId));
+
+        if (appraisal is not null)
+        {
+            var properties = db.Entry(appraisal).Collection(a => a.Properties);
+
+            // Added = not in the database yet, so every property it has was added through this context:
+            // the tracked collection is already complete (and a repo query would find nothing).
+            if (!properties.IsLoaded && db.Entry(appraisal).State == EntityState.Added)
+                properties.IsLoaded = true;
+
+            if (!properties.IsLoaded)
+            {
+                // Tracked without its properties — fill them in on the tracked instance (split query).
+                // `?? appraisal`: the load applies the soft-delete filter and may return null; keep the
+                // tracked instance so RecomputeAsync's guard fails loudly instead of a silent skip.
+                appraisal = await appraisalRepository.GetByIdWithPropertiesAsync(appraisal.Id, ct) ?? appraisal;
+            }
+        }
+        else
+        {
+            var appraisalId = await db.Appraisals
+                .Where(a => a.Groups.Any(g => g.Id == notification.PropertyGroupId))
+                .Select(a => (Guid?)a.Id)
+                .FirstOrDefaultAsync(ct);
+
+            appraisal = appraisalId is null
+                ? null
+                : await appraisalRepository.GetByIdWithPropertiesAsync(appraisalId.Value, ct);
+        }
 
         if (appraisal is null)
         {

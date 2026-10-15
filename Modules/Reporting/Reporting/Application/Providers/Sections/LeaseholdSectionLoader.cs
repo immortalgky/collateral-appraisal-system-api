@@ -102,7 +102,7 @@ internal static class LeaseholdSectionLoader
                 la.DiscountRate,
                 la.TotalIncomeOverLeaseTerm,
                 la.ValueAtLeaseExpiry,
-                COALESCE(pfv.FinalValueRounded, 0) AS FinalValueRounded,
+                COALESCE(pfv.FinalValue, 0) AS FinalValueRounded,
                 la.IsPartialUsage,
                 la.PartialRai,
                 la.PartialNgan,
@@ -111,7 +111,8 @@ internal static class LeaseholdSectionLoader
                 la.PricePerSqWa,
                 la.PartialLandPrice,
                 la.EstimateNetPrice,
-                la.EstimatePriceRounded
+                la.EstimatePriceRounded,
+                pfv.IndicatedValue                              AS IndicatedValue
             FROM appraisal.LeaseholdAnalyses la
             LEFT JOIN appraisal.PricingFinalValues pfv
                 ON pfv.PricingMethodId = la.PricingMethodId
@@ -165,9 +166,13 @@ internal static class LeaseholdSectionLoader
             TotalIncomeOverLeaseTerm = header.TotalIncomeOverLeaseTerm,
             ValueAtLeaseExpiry       = header.ValueAtLeaseExpiry,
             FinalValueRounded        = header.FinalValueRounded,
-            // W3 fix: effective = EstimatePriceRounded ?? FinalValueRounded for both partial/non-partial
-            // Mirrors SaveLeaseholdAnalysisCommandHandler.cs:154-155
-            EffectiveFinalValue      = header.EstimatePriceRounded ?? header.FinalValueRounded,
+            // effective = IndicatedValue (appraiser's override) ?? EstimatePriceRounded (legacy column,
+            // still populated for rows not yet migrated to IndicatedValue — see the DbUp fix script) ??
+            // FinalValueRounded. Mirrors SaveLeaseholdAnalysisCommandHandler.cs's
+            // SyncMethodValueWithIndicatedValue precedence. Covers both partial and non-partial usage —
+            // there's only the one effective-value expression, used everywhere the section prints a
+            // final price (including the partial-usage "มูลค่าสิทธิการเช่า (ปัดเศษ)" row).
+            EffectiveFinalValue      = header.IndicatedValue ?? header.EstimatePriceRounded ?? header.FinalValueRounded,
             IsPartialUsage           = header.IsPartialUsage,
             PartialRai               = header.PartialRai,
             PartialNgan              = header.PartialNgan,
@@ -226,7 +231,8 @@ internal static class LeaseholdSectionLoader
         decimal? PricePerSqWa,
         decimal? PartialLandPrice,
         decimal? EstimateNetPrice,
-        decimal? EstimatePriceRounded);
+        decimal? EstimatePriceRounded,
+        decimal? IndicatedValue);
 
     private sealed record LeaseholdDetailRow(
         int      DisplaySequence,

@@ -39,7 +39,7 @@ public class TransactionalBehavior<TRequest, TResponse>(
             return await next(cancellationToken);
         }
 
-        logger.LogInformation("[TRANSACTION] Beginning transaction for command {Command}", typeof(TRequest).Name);
+        logger.LogDebug("[TRANSACTION] Beginning transaction for command {Command}", typeof(TRequest).Name);
 
         if (unitOfWork.HasActiveTransaction)
         {
@@ -61,7 +61,7 @@ public class TransactionalBehavior<TRequest, TResponse>(
                 await unitOfWork.SaveChangesAsync(cancellationToken);
                 await unitOfWork.CommitTransactionAsync(cancellationToken);
 
-                logger.LogInformation("[TRANSACTION] Committed transaction for command {Command}",
+                logger.LogDebug("[TRANSACTION] Committed transaction for command {Command}",
                     typeof(TRequest).Name);
             }
             catch (Exception e)

@@ -1,8 +1,12 @@
+using Appraisal.Application.Features.Shared;
 using Dapper;
+using Shared.Identity;
 
 namespace Appraisal.Application.Features.Appraisals.GetAppraisalDocuments;
 
-public class GetAppraisalDocumentsQueryHandler(ISqlConnectionFactory connectionFactory)
+public class GetAppraisalDocumentsQueryHandler(
+    ISqlConnectionFactory connectionFactory,
+    ICurrentUserService currentUser)
     : IQueryHandler<GetAppraisalDocumentsQuery, GetAppraisalDocumentsResult>
 {
     public async Task<GetAppraisalDocumentsResult> Handle(
@@ -32,10 +36,33 @@ public class GetAppraisalDocumentsQueryHandler(ISqlConnectionFactory connectionF
                             LEFT JOIN [document].[Documents] d ON d.[Id] = ad.[DocumentId]
                             WHERE dt.[Category] IN ('VAL_DOC', 'VAL_REPORT') AND dt.[IsActive] = 1
                             ORDER BY dt.[SortOrder], dt.[Code], ad.[SortOrder], ad.[Id];
+
+                            SELECT [Status] FROM [appraisal].[Appraisals] WHERE [Id] = @AppraisalId;
                             """;
 
         var connection = connectionFactory.GetOpenConnection();
-        var rows = (await connection.QueryAsync<DocumentRow>(sql, new { query.AppraisalId })).ToList();
+        await using var grid = await connection.QueryMultipleAsync(new CommandDefinition(
+            sql, new { query.AppraisalId }, cancellationToken: cancellationToken));
+
+        var rows = (await grid.ReadAsync<DocumentRow>()).ToList();
+        var status = await grid.ReadFirstOrDefaultAsync<string>();
+
+        /*
+         * The same release rule the brief endpoint applies, enforced here too.
+         *
+         * The brief withholds document ids until the committee approves the price, because a
+         * DocumentId is a working download link on its own (/documents/{id}/download). This
+         * checklist returns the very same ids for the very same appraisal, on login alone — so
+         * without this a credit user could read the brief, see an empty document list, call this
+         * endpoint, and download the files anyway. One extra request was all the rule cost.
+         *
+         * Only tracking-only callers are affected: RequestMaker and every appraisal role open
+         * this checklist while the work is in progress, which is the whole point of it.
+         */
+        if (AppraisalFieldScope.IsTrackingOnly(currentUser) && !AppraisalFieldScope.IsReleased(status))
+        {
+            rows = rows.Select(r => r with { Id = null, DocumentId = null }).ToList();
+        }
 
         var types = rows
             .GroupBy(r => new { r.TypeCode, r.TypeName, r.TypeNameTh, r.TypeCategory, r.TypeSortOrder })

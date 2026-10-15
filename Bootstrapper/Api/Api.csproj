@@ -19,7 +19,6 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Serilog.AspNetCore"/>
-        <PackageReference Include="Serilog.Sinks.Grafana.Loki"/>
         <PackageReference Include="Serilog.Sinks.MSSqlServer"/>
         <PackageReference Include="AspNetCore.HealthChecks.SqlServer"/>
         <PackageReference Include="AspNetCore.HealthChecks.Redis"/>

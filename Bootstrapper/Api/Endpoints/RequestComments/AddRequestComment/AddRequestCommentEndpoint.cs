@@ -28,7 +28,6 @@ public class AddRequestCommentEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithTags("Request Comments")
             .WithSummary("Add a comment to a request")
-            .WithDescription("Adds a new comment to the specified request.")
-            .AllowAnonymous();
+            .WithDescription("Adds a new comment to the specified request.");
     }
 }

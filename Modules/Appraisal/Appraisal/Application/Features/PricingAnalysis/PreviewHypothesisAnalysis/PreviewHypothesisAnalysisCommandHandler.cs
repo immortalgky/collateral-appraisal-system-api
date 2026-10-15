@@ -10,6 +10,7 @@ using LandBuildingSummaryInput = Appraisal.Application.Features.PricingAnalysis.
 using CondominiumSummaryInput = Appraisal.Application.Features.PricingAnalysis.SaveHypothesisAnalysis.CondominiumSummaryInput;
 using HypothesisCostItemInput = Appraisal.Application.Features.PricingAnalysis.SaveHypothesisAnalysis.HypothesisCostItemInput;
 using DepreciationPeriodInput = Appraisal.Application.Features.PricingAnalysis.SaveHypothesisAnalysis.DepreciationPeriodInput;
+using HypothesisBuildingValues = Appraisal.Application.Features.PricingAnalysis.SaveHypothesisAnalysis.HypothesisBuildingValues;
 
 namespace Appraisal.Application.Features.PricingAnalysis.PreviewHypothesisAnalysis;
 
@@ -56,12 +57,24 @@ public class PreviewHypothesisAnalysisCommandHandler(
 
         if (analysis.Variant == HypothesisVariant.LandBuilding)
         {
+            var buildingValues = await HypothesisBuildingValues.LoadAsync(
+                pricingAnalysis.SubjectType, pricingAnalysis.AnchorId, propertyDataService, cancellationToken);
+            var modelBuildingMappings =
+                HypothesisBuildingValues.DropBuildingsOutsideGroup(command.ModelBuildingMappings, buildingValues);
+
+            // Unsaved mappings from the screen, or the saved ones when the client sends none.
+            IReadOnlyList<HypothesisModelBuildingMapping> mappings = modelBuildingMappings is null
+                ? analysis.ModelBuildingMappings
+                : modelBuildingMappings
+                    .Select(m => HypothesisModelBuildingMapping.Create(
+                        analysis.Id, m.ModelName.Trim(), m.AppraisalPropertyId, m.TotalCost))
+                    .ToList();
+
             var inputSummary = MapLandBuildingInput(command.LandBuildingSummary);
             // Pass cost-item list directly — no throwaway aggregate.
-            // ComputeLandBuilding also calls ComputeBuildingDepreciation internally,
-            // which populates B03/B06/B07/B08 on each transient item.
             var snapshot = _calcService.ComputeLandBuilding(
-                transientCostItems, analysis.LandBuildingUnitRows, inputSummary, totalLandAreaFromTitles);
+                transientCostItems, mappings, buildingValues,
+                analysis.LandBuildingUnitRows, inputSummary, totalLandAreaFromTitles, command.IndicatedValue);
 
             var costItemDtos = MapCostItemDtos(transientCostItems);
 
@@ -73,7 +86,8 @@ public class PreviewHypothesisAnalysisCommandHandler(
         {
             var inputSummary = MapCondominiumInput(command.CondominiumSummary);
             var computedSummary = _calcService.ComputeCondominium(
-                transientCostItems, analysis.CondominiumUnitRows, inputSummary, totalLandAreaFromTitles);
+                transientCostItems, analysis.CondominiumUnitRows, inputSummary, totalLandAreaFromTitles,
+                command.IndicatedValue);
 
             return new PreviewHypothesisAnalysisResult(
                 analysis.Variant, null, null, computedSummary, null, totalLandAreaFromTitles);

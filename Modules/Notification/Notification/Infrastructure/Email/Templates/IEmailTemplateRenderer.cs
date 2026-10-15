@@ -20,15 +20,29 @@ public interface IEmailTemplateRenderer
 
     /// <summary>Renders the "route-back to appraisal-initiation" email (fix collateral data).</summary>
     string RouteBackNotice(string subject, RouteBackNoticeModel model);
+
+    /// <summary>Renders the "appraisal completed and approved" email sent to the RM.</summary>
+    string AppraisalCompletedNotice(string subject, AppraisalCompletedNoticeModel model);
 }
 
-/// <summary>Render model for the quotation fee-comparison email.</summary>
+/// <summary>Render model for the appraisal-completed email. <see cref="Channel"/> is the request's
+/// channel (e.g. CLS / LOS) named in the body as the system to record the result in.</summary>
+public sealed record AppraisalCompletedNoticeModel(
+    string RmName,
+    string? CustomerName,
+    string? AppraisalNumber,
+    string Channel);
+
+/// <summary>Render model for the quotation fee-comparison email. <see cref="Channel"/> is the request
+/// channel (e.g. CLS / LOS) named in the note as the system to pick the appraisal company in.</summary>
 public sealed record QuotationFeeNoticeModel(
     string RmName,
     string? CustomerName,
     IReadOnlyList<QuotationFeeNoticeColumn> Columns,
     IReadOnlyList<QuotationFeeNoticeRow> Rows,
-    string AdminName);
+    string AdminName,
+    string? AdminPhone,
+    string Channel);
 
 /// <summary>A table column header: report number, then property type + province name on their own lines.</summary>
 public sealed record QuotationFeeNoticeColumn(string ReportNumber, string? PropertyType, string? Province);
@@ -42,15 +56,19 @@ public sealed record DocumentFollowupNoticeModel(
     string? CustomerName,
     string? AppraisalNumber,
     IReadOnlyList<DocumentFollowupNoticeItem> Items,
-    string AdminName);
+    string AdminName,
+    string? AdminPhone);
 
 /// <summary>A requested document: name shown as a header, notes as the body below.</summary>
 public sealed record DocumentFollowupNoticeItem(string DocumentName, string? Notes);
 
-/// <summary>Render model for the route-back email. Body shows only the greeting + the sender's
-/// comment; the footer contact is the sender's full name + phone.</summary>
+/// <summary>Render model for the route-back email. Body shows the greeting, a customer /
+/// appraisal-number header line, then the sender's comment; the footer contact is the sender's
+/// full name + phone.</summary>
 public sealed record RouteBackNoticeModel(
     string RmName,
+    string? CustomerName,
+    string? AppraisalNumber,
     string? Remark,
     string SenderName,
     string? SenderPhone);

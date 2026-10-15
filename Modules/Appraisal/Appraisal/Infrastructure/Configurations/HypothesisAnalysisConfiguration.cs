@@ -185,6 +185,32 @@ public class HypothesisAnalysisConfiguration : IEntityTypeConfiguration<Hypothes
             .HasForeignKey(i => i.HypothesisAnalysisId)
             .OnDelete(DeleteBehavior.Cascade)
             .Metadata.PrincipalToDependent!.SetPropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.HasMany(h => h.ModelBuildingMappings)
+            .WithOne()
+            .HasForeignKey(m => m.HypothesisAnalysisId)
+            .OnDelete(DeleteBehavior.Cascade)
+            .Metadata.PrincipalToDependent!.SetPropertyAccessMode(PropertyAccessMode.Field);
+    }
+}
+
+public class HypothesisModelBuildingMappingConfiguration : IEntityTypeConfiguration<HypothesisModelBuildingMapping>
+{
+    public void Configure(EntityTypeBuilder<HypothesisModelBuildingMapping> builder)
+    {
+        builder.ToTable("HypothesisModelBuildingMappings");
+
+        builder.HasKey(m => m.Id);
+        builder.Property(m => m.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedNever();
+
+        builder.Property(m => m.HypothesisAnalysisId).IsRequired();
+        // Same width as HypothesisCostItems.ModelName.
+        builder.Property(m => m.ModelName).IsRequired().HasMaxLength(200);
+        // No FK: the building property lives in another aggregate (see the entity's summary).
+        builder.Property(m => m.AppraisalPropertyId);
+        builder.Property(m => m.TotalCost).HasPrecision(17, 2);
+
+        builder.HasIndex(m => new { m.HypothesisAnalysisId, m.ModelName }).IsUnique();
     }
 }
 

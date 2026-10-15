@@ -49,8 +49,8 @@ public class RequestTests
         var request = ModelsTestData.RequestGeneral();
         var properties = new List<RequestProperty>
         {
-            RequestProperty.Create("Condo", "Condo", 1),
-            RequestProperty.Create("Condo", "House", 1)
+            RequestProperty.Create("Condo", "Condo", "", 1),
+            RequestProperty.Create("Condo", "House", "", 1)
         };
         request.SetProperties(properties);
         Assert.Equal(2, request.Properties.Count);
@@ -62,8 +62,8 @@ public class RequestTests
         var request = ModelsTestData.RequestGeneral();
         var properties = new List<RequestProperty>
         {
-            RequestProperty.Create("Condo", "Condo", 1),
-            RequestProperty.Create("Condo", "Condo", 2)
+            RequestProperty.Create("Condo", "Condo", "", 1),
+            RequestProperty.Create("Condo", "Condo", "", 2)
         };
         Assert.Throws<ArgumentException>(() => request.SetProperties(properties));
     }
@@ -74,7 +74,7 @@ public class RequestTests
         var request = ModelsTestData.RequestGeneral();
         var properties = new List<RequestProperty>
         {
-            RequestProperty.Create("Condo", "Condo", 1)
+            RequestProperty.Create("Condo", "Condo", "", 1)
         };
         request.SetProperties(properties);
         request.SetProperties([]);

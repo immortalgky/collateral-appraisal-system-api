@@ -39,5 +39,5 @@ public record ProjectModelAssumptionData(
     decimal? UsableAreaTo = null,
     decimal? StandardLandPrice = null,
     decimal? CoverageAmount = null,
-    string? FireInsuranceCondition = null
+    string? FireInsuranceCode = null
 );

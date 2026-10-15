@@ -86,9 +86,11 @@ internal static class ProfitRentSectionLoader
 
         // ── Q2: ProfitRentAnalyses header ──────────────────────────────────────────
         // FK: PricingMethodId (unique). Source: PricingConfiguration.cs:140.
-        // W2 fix: EstimatePriceRounded confirmed on ProfitRentAnalysis.cs line 24.
-        // Effective value = EstimatePriceRounded ?? FinalValueRounded
-        //   (mirrors SaveProfitRentAnalysisCommandHandler.cs:110)
+        // EstimatePriceRounded confirmed on ProfitRentAnalysis.cs line 24 — a raw, non-computed
+        // echo of whatever the client sent, kept for back-compat.
+        // Effective value = MethodValue (what the rollup counts) ?? IndicatedValue (appraiser's
+        //   override, PricingFinalValues) ?? EstimatePriceRounded ?? FinalValueRounded — mirrors
+        //   SaveProfitRentAnalysisCommandHandler's SyncMethodValueWithIndicatedValue precedence.
         // FinalValueRounded is sourced from PricingFinalValues (Phase C: never lived on
         // ProfitRentAnalyses — mirrors LeaseholdSectionLoader / IncomeSectionLoader).
         const string headerSql = """
@@ -100,9 +102,13 @@ internal static class ProfitRentSectionLoader
                 pra.GrowthIntervalYears,
                 pra.DiscountRate,
                 pra.TotalPresentValue,
-                COALESCE(pfv.FinalValueRounded, 0) AS FinalValueRounded,
-                pra.EstimatePriceRounded
+                COALESCE(pfv.FinalValue, 0) AS FinalValueRounded,
+                pra.EstimatePriceRounded,
+                pfv.IndicatedValue          AS IndicatedValue,
+                pm.MethodValue              AS MethodValue
             FROM appraisal.ProfitRentAnalyses pra
+            JOIN appraisal.PricingAnalysisMethods pm
+                ON pm.Id = pra.PricingMethodId
             LEFT JOIN appraisal.PricingFinalValues pfv
                 ON pfv.PricingMethodId = pra.PricingMethodId
             WHERE pra.PricingMethodId = @MethodId
@@ -149,7 +155,11 @@ internal static class ProfitRentSectionLoader
             TotalPresentValue      = header.TotalPresentValue,
             FinalValueRounded      = header.FinalValueRounded,
             EstimatePriceRounded   = header.EstimatePriceRounded,
-            EffectiveFinalValue    = header.EstimatePriceRounded ?? header.FinalValueRounded,
+            // MethodValue first: it is exactly what the rollup counts — IndicatedValue when typed, else
+            // the computed price INCLUDING the building when IncludeBuildingCost is on. FinalValue on
+            // this row is land-only, so without it a building-inclusive PR saved with no override
+            // (IndicatedValue now null) printed the land figure only.
+            EffectiveFinalValue    = header.MethodValue ?? header.IndicatedValue ?? header.EstimatePriceRounded ?? header.FinalValueRounded,
             TableRows              = detailRows.Select(d => new ProfitRentCalcRow
             {
                 DisplaySequence          = d.DisplaySequence,
@@ -184,7 +194,9 @@ internal static class ProfitRentSectionLoader
         decimal? DiscountRate,
         decimal? TotalPresentValue,
         decimal? FinalValueRounded,
-        decimal? EstimatePriceRounded);
+        decimal? EstimatePriceRounded,
+        decimal? IndicatedValue,
+        decimal? MethodValue);   // positional — keep in the SELECT's column order
 
     private sealed record ProfitRentDetailRow(
         int      DisplaySequence,

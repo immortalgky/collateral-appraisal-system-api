@@ -195,10 +195,15 @@ public class ConstructionCurrentValueServiceTests(IntegrationTestFixture fixture
     }
 
     [Fact]
-    public async Task ZeroTotalValue_ReturnsNull()
+    public async Task ZeroTotalValue_StillReportsTheRecordedProgress()
     {
-        // An inspection with nothing to value is treated as "no inspection" — mirrors the previous
-        // Decision Summary behaviour, which hid the card when SUM(TotalValue) was 0.
+        // An inspection with nothing to value used to be treated as "no inspection". It is not:
+        // half a building is being built whether or not anyone has priced it yet, and the
+        // percentage is recorded. Returning null here sent IsUnderConstruction and
+        // ConstructionProgressPercent as null onto the frozen collateral engagement — recording a
+        // part-built collateral as not under construction — and blanked the MIS progress columns.
+        // The money comes out 0, which is what "not priced yet" looks like and cannot be read as
+        // "finished" because the percentage says otherwise.
         var inspection = ConstructionInspection.CreateSummary(
             Guid.Empty, totalValue: 0m,
             summaryDetail: null,
@@ -210,6 +215,11 @@ public class ConstructionCurrentValueServiceTests(IntegrationTestFixture fixture
 
         var result = await SeedAndGetAsync(inspection);
 
-        Assert.Null(result);
+        Assert.NotNull(result);
+        Assert.False(result.HasOwnValueBase);
+        Assert.Equal(50m, result.ConstructionProgressPercent);
+        Assert.True(result.IsUnderConstruction);
+        Assert.Equal(0m, result.CompleteValue);
+        Assert.Equal(0m, result.CurrentValue);
     }
 }

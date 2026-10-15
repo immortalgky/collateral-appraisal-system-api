@@ -7,4 +7,5 @@ public record UpdateDocumentTypeCommand(
     string? Category,
     int SortOrder,
     bool IsActive,
-    string? NameTh = null) : ICommand<UpdateDocumentTypeResult>;
+    string? NameTh = null,
+    bool? CarryForwardByDefault = null) : ICommand<UpdateDocumentTypeResult>;

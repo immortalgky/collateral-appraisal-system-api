@@ -29,8 +29,8 @@ public class GetIncomeAnalysisQueryHandler(
             IncomeAnalysisMapper.ToDto(
                 method.IncomeAnalysis,
                 method.FinalValue?.FinalValue,
-                method.FinalValue?.FinalValueRounded,
-                method.FinalValue?.FinalValueAdjusted,
-                method.FinalValue?.AppraisalPrice));
+                method.FinalValue?.FinalValue,
+                method.FinalValue?.FinalValueOverride,
+                method.FinalValue?.IndicatedValue));
     }
 }

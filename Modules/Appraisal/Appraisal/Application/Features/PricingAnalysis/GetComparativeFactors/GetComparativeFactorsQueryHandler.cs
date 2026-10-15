@@ -186,13 +186,12 @@ public class GetComparativeFactorsQueryHandler(
             finalValueDto = new FinalValueDto(
                 fv.Id,
                 fv.FinalValue,
-                fv.FinalValueRounded,
-                fv.FinalValueAdjusted,
+                fv.FinalValueOverride,
                 fv.IncludeLandArea,
                 fv.LandArea,
                 fv.LandValue,
                 fv.BuildingValue,
-                fv.AppraisalPrice,
+                fv.IndicatedValue,
                 fv.HasBuildingValue
             );
         }

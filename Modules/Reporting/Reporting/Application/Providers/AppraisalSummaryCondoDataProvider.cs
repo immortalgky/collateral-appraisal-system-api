@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.Json;
 using Reporting.Application.Formatting;
 using Reporting.Application.Models;
@@ -277,7 +276,7 @@ public sealed class AppraisalSummaryCondoDataProvider(
                     parts.Add($"ห้องชุดเลขที่ {c.RoomNumber}");
                 // FloorNumber is free text, so a not-stated floor can arrive as "0" as well as
                 // blank. Neither is a floor anyone lives on — drop the clause rather than print it.
-                if (IsStated(c.FloorNumber))
+                if (ThaiAddressFormatter.IsStated(c.FloorNumber))
                     parts.Add($"ชั้นที่ {c.FloorNumber}");
                 if (!string.IsNullOrWhiteSpace(c.BuildingNumber) && c.BuildingNumber.Trim().Trim('-', '–', '—').Length > 0)
                     parts.Add($"อาคารเลขที่ {c.BuildingNumber}");
@@ -372,8 +371,9 @@ public sealed class AppraisalSummaryCondoDataProvider(
             // Condo form: property type is fixed (header + appraiser opinion).
             PropertyType = "ห้องชุด",
             SummaryPropertyType = "ห้องชุด",
-            CollateralAddress = common.CollateralAddress,
-            AdministrativeDistrict = common.AdministrativeDistrict,
+            // ที่ตั้งทรัพย์สิน from the first condo property, in the condo format (ห้องชุดเลขที่ …).
+            CollateralAddress = common.CondoLocation?.Address,
+            AdministrativeDistrict = common.CondoLocation?.SubDistrict,
             LandOffice = firstCondo?.LandOffice,
             OldAppraisalValue = common.PrevAppraisedValue,
             HasPrevAppraisal = common.HasPrevAppraisal,
@@ -522,20 +522,4 @@ public sealed class AppraisalSummaryCondoDataProvider(
         rows.Where(p => !string.IsNullOrWhiteSpace(p.Code))
             .GroupBy(p => p.Code!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First().Description, StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// Whether a free-text numeric field was actually filled in. Blank means not stated; so does a
-    /// numeric zero, which the form has no way to distinguish from "not stated" and which would
-    /// otherwise print as a fact ("ชั้นที่ 0"). Non-numeric text (e.g. "G") counts as stated.
-    /// </summary>
-    private static bool IsStated(string? value)
-    {
-        // A dash is the other way this form records "not stated" — the BuildingNumber clause a few
-        // lines up strips the same three characters, so the two adjacent free-text fields agree.
-        var trimmed = value?.Trim().Trim('-', '–', '—').Trim();
-        if (string.IsNullOrWhiteSpace(trimmed)) return false;
-        return !decimal.TryParse(trimmed, NumberStyles.Any, CultureInfo.InvariantCulture, out var n)
-               || n != 0m;
-    }
-
 }

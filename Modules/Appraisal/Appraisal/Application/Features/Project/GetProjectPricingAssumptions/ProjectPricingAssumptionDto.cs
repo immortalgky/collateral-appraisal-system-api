@@ -42,8 +42,9 @@ public record ProjectModelAssumptionDto(
     decimal? UsableAreaTo,
     decimal? StandardLandPrice,
     decimal? CoverageAmount,
-    string? FireInsuranceCondition,
+    string? FireInsuranceCode,
     Guid? PricingAnalysisId,
     string? PricingAnalysisStatus,
-    decimal? FinalAppraisedValue
+    decimal? FinalAppraisedValue,
+    string? TowerName
 );

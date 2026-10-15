@@ -21,6 +21,9 @@ namespace Appraisal.Tests.Application.Features;
 /// </summary>
 public class PreviewIncomeAnalysisTests
 {
+    // Long enough for any projection in these tests; -1 means "no user override".
+    private static readonly decimal[] NoOccupancyOverride = Enumerable.Repeat(-1m, 50).ToArray();
+
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -320,7 +323,9 @@ public class PreviewIncomeAnalysisTests
             IncreaseRateYrs = 1,
             OccupancyRateFirstYearPct = 100m,
             OccupancyRatePct = 0m,
-            OccupancyRateYrs = 1
+            OccupancyRateYrs = 1,
+            // -1 = no per-year override: use the formula (Compute* indexes d.OccupancyRate[y]).
+            OccupancyRate = NoOccupancyOverride,
         });
 
         // Income section

@@ -17,11 +17,11 @@ public class ParentWorkflowCancelledConsumer(
     ILogger<ParentWorkflowCancelledConsumer> logger)
     : IConsumer<WorkflowCancelled>
 {
-    public async Task Consume(ConsumeContext<WorkflowCancelled> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<WorkflowCancelled> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<WorkflowCancelled> context)
+    {
         var msg = context.Message;
 
         var openFollowups = await dbContext.DocumentFollowups
@@ -31,7 +31,6 @@ public class ParentWorkflowCancelledConsumer(
 
         if (openFollowups.Count == 0)
         {
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
             return;
         }
 
@@ -67,7 +66,5 @@ public class ParentWorkflowCancelledConsumer(
                     followup.Id, msg.WorkflowInstanceId);
             }
         }
-
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }
 }

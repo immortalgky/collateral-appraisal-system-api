@@ -1,6 +1,8 @@
+using Microsoft.Extensions.Options;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
 using Reporting.Application.Services;
+using Shared.Configurations;
 
 namespace Reporting.Infrastructure.PdfAssembly;
 
@@ -20,13 +22,18 @@ namespace Reporting.Infrastructure.PdfAssembly;
 internal sealed class PdfSharpAssembler(
     IPdfRenderer pdfRenderer,
     IReportAttachmentSource attachmentSource,
+    IOptions<FileStorageConfiguration> fileStorageOptions,
     ILogger<PdfSharpAssembler> logger) : IPdfAssembler
 {
     // Safety caps so a request with many/large uploaded PDFs can't exhaust memory
     // on the shared app server. Beyond these, remaining attachments are skipped with
     // a warning (the generated form itself always renders).
     private const int MaxAttachments = 50;
-    private const long MaxTotalAttachmentBytes = 100L * 1024 * 1024; // 100 MB
+
+    // The same number the attach-time check refuses a file against
+    // (AddAppendixDocumentCommandHandler), so what a user is told when attaching and what the
+    // book can actually carry are one value rather than two that drift apart.
+    private readonly long _maxTotalAttachmentBytes = fileStorageOptions.Value.MaxAppendixFileSizeBytes;
 
     // Overall ceiling for a composite merge. The per-child attachment caps above are enforced
     // per AssembleAsync (i.e. per child form), so an N-form composite could otherwise import
@@ -122,7 +129,7 @@ internal sealed class PdfSharpAssembler(
     {
         foreach (var documentId in slot.DocumentIds)
         {
-            if (budget.Count >= MaxAttachments || budget.Bytes >= MaxTotalAttachmentBytes)
+            if (budget.Count >= MaxAttachments || budget.Bytes >= _maxTotalAttachmentBytes)
             {
                 logger.LogWarning(
                     "Attachment cap reached ({Count} files / {Bytes} bytes) — skipping remaining attachments in slot '{Slot}'",
@@ -136,6 +143,20 @@ internal sealed class PdfSharpAssembler(
                 logger.LogWarning(
                     "Attachment file not found for DocumentId {DocumentId} in slot '{Slot}' — skipping",
                     documentId, slot.SlotName);
+                continue;
+            }
+
+            // Check what this file would cost before reading it. The budget test at the top of the
+            // loop only knows what earlier attachments have already spent, so the first attachment
+            // passes it whatever its size — a single 1 GB PDF went straight into memory. Attaching
+            // one that big is refused at attach time (FileStorageConfiguration.MaxAppendixFileSizeBytes);
+            // this is the net under that, for rows that predate the rule.
+            var fileLength = new FileInfo(filePath).Length;
+            if (budget.Bytes + fileLength > _maxTotalAttachmentBytes)
+            {
+                logger.LogWarning(
+                    "Attachment {DocumentId} ({Bytes} bytes) would exceed the {Cap} byte attachment budget in slot '{Slot}' — skipping",
+                    documentId, fileLength, _maxTotalAttachmentBytes, slot.SlotName);
                 continue;
             }
 

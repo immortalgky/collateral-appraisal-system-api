@@ -288,7 +288,11 @@ public class AssignmentPipeline : IAssignmentPipeline
                        ?? JsonPropertyReader.NullIfEmpty(pipelineCtx.ExternalConfig?.SpecificAssignee)
                        ?? GetPropertyString(activityCtx.Properties, "assignee") ?? "",
             DueDate = _dateTimeProvider.ApplicationNow.AddDays(7),
-            Properties = activityCtx.Properties,
+            // Overlay for the properties handed to the Stage 3 selectors only: DB AdditionalConfiguration > JSON
+            // properties. Strategy resolution, the assignee group, teamIdVariable and the "assignee" UserCode still
+            // come from the JSON definition / the dedicated override columns.
+            Properties = JsonPropertyReader.Overlay(
+                activityCtx.Properties, pipelineCtx.ExternalConfig?.AdditionalConfiguration),
             StartedBy = activityCtx.WorkflowInstance.StartedBy,
             CandidatePool = pipelineCtx.CandidatePool,
             Variables = activityCtx.Variables,

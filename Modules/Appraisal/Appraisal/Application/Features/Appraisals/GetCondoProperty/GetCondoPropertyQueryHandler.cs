@@ -131,10 +131,9 @@ public class GetCondoPropertyQueryHandler(
             IsMissingFromSurvey: detail.IsMissingFromSurvey,
             GovernmentPricePerSqm: detail.GovernmentPricePerSqm,
             GovernmentPrice: detail.GovernmentPrice,
-            FireInsuranceCondition: detail.FireInsuranceCondition,
+            FireInsuranceCode: detail.FireInsuranceCode,
             BuildingInsurancePrice: detail.BuildingInsurancePrice,
-            SellingPrice: detail.SellingPrice,
-            ForceSellingPrice: detail.ForcedSalePrice,
+            BuildingInsurancePriceOverride: detail.BuildingInsurancePriceOverride,
             Remark: detail.Remark,
             ConstructionInspection: constructionDto);
     }

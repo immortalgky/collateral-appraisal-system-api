@@ -34,7 +34,6 @@
         <PackageReference Include="OpenTelemetry.Instrumentation.Http"/>
         <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore"/>
         <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol"/>
-        <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -43,6 +42,7 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Shared.Tests"/>
+        <InternalsVisibleTo Include="Appraisal.Tests"/>
     </ItemGroup>
 
 </Project>

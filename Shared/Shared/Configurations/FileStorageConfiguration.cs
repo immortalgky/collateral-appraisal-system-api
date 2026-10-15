@@ -50,6 +50,63 @@ public class FileStorageConfiguration
     public int MaxFileSizeBytes { get; set; } = 50 * 1024 * 1024;
 
     /// <summary>
+    /// The largest request body an upload may have. A multipart request carries MIME boundaries
+    /// and the other form fields alongside the file, so it is always a little larger than the file
+    /// itself — without the allowance a file of exactly <see cref="MaxFileSizeBytes"/> would be
+    /// rejected by its own envelope. Both the server limits and the endpoints' cheap
+    /// Content-Length pre-check read this; the exact per-file limit is enforced by the validator.
+    /// </summary>
+    public long MaxRequestBodyBytes => (long)MaxFileSizeBytes + 1024 * 1024;
+
+    /// <summary>
+    /// The largest file the external upload route (<c>POST /api/v1/documents</c>) accepts in one
+    /// request. Separate from <see cref="MaxFileSizeBytes"/> because the two routes are not alike:
+    /// the app splits a large file into chunks, while an outside system — LOS — sends whatever it
+    /// has in a single request and cannot be asked to do otherwise.
+    /// <para>
+    /// That route streams the body straight to storage instead of letting the framework buffer it,
+    /// so the size here costs disk on the share rather than memory or system-drive space. It does
+    /// still have to fit through IIS (<c>maxAllowedContentLength</c>, per node) and whatever the
+    /// load balancer allows, neither of which the application controls.
+    /// </para>
+    /// </summary>
+    public long IntegrationMaxFileSizeBytes { get; set; } = 1024L * 1024 * 1024;
+
+    /// <summary>
+    /// The request-body ceiling for the external upload route: the file plus its multipart
+    /// envelope. See <see cref="MaxRequestBodyBytes"/> for why the allowance exists.
+    /// </summary>
+    public long IntegrationMaxRequestBodyBytes => IntegrationMaxFileSizeBytes + 1024 * 1024;
+
+    /// <summary>
+    /// How many bytes of attachments one report book may carry, and therefore also the largest
+    /// single appendix that can fit in one. The assembler holds every page of the book in memory
+    /// at once, which is why this is a limit of its own rather than the upload limit.
+    /// <para>
+    /// Read by both the attach-time refusal (<c>AddAppendixDocumentCommandHandler</c>) and the
+    /// assembler's own budget, so the size a user is told when attaching is the size the book can
+    /// actually carry. Attachments are still counted cumulatively while a book is assembled: three
+    /// files of 40 MB each pass the attach check and the third is dropped from the book with a
+    /// warning, because what a document will eventually be bound alongside is not knowable when it
+    /// is attached.
+    /// </para>
+    /// </summary>
+    public long MaxAppendixFileSizeBytes { get; set; } = 100L * 1024 * 1024;
+
+    /// <summary>
+    /// How much memory one image may occupy once decoded — width × height × 4 bytes, measured
+    /// after whatever scaling the codec can apply while decoding.
+    /// <para>
+    /// Bytes on disk say nothing about this. A 5 MB JPEG can hold 100 megapixels, while a 40 MB
+    /// PNG holds a quarter of that; and a JPEG can be decoded straight to 1/8 scale where a PNG
+    /// must be decoded whole. So the byte limit that guards storage cannot also guard memory, and
+    /// this one does: an image over budget is refused at upload, and one already stored is served
+    /// as a placeholder rather than taken to the server out of memory.
+    /// </para>
+    /// </summary>
+    public long MaxImageDecodeBytes { get; set; } = 256L * 1024 * 1024;
+
+    /// <summary>
     /// Maximum number of files allowed per upload session
     /// </summary>
     public int MaxFilesPerSession { get; set; } = 20;

@@ -98,10 +98,10 @@ public record CreateLeaseAgreementCondoPropertyRequest(
     bool? IsMissingFromSurvey = null,
     decimal? GovernmentPricePerSqm = null,
     decimal? GovernmentPrice = null,
-    // BuildingInsurancePrice is derived server-side from FireInsuranceCondition × UsableArea.
-    string? FireInsuranceCondition = null,
-    decimal? SellingPrice = null,
-    decimal? ForcedSalePrice = null,
+    // BuildingInsurancePrice is derived server-side from FireInsuranceCode × UsableArea.
+    string? FireInsuranceCode = null,
+    // Appraiser-keyed coverage; null means "use the derived figure".
+    decimal? BuildingInsurancePriceOverride = null,
     // Other
     string? Remark = null,
     LeaseAgreementData? LeaseAgreement = null,

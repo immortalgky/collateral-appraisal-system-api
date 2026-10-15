@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Auth.Infrastructure.Session;
 using OpenIddict.Abstractions;
 
 namespace Auth.Application.Features.Users.ChangePassword;
@@ -25,6 +26,7 @@ public class ChangePasswordEndpoint : ICarterModule
                     await sender.Send(command, cancellationToken);
                     return Results.NoContent();
                 })
+            .AllowWhilePasswordChangeRequired(selfRouteValue: "id")
             .WithName("ChangePassword")
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status400BadRequest)

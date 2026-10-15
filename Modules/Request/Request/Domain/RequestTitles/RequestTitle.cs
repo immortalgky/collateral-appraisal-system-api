@@ -15,6 +15,9 @@ public abstract class RequestTitle : Aggregate<Guid>
     public Address DopaAddress { get; protected set; } = default!;
     public string? Notes { get; protected set; }
 
+    /// <summary>1-based position in the list the requester entered; 0 for rows that predate the column.</summary>
+    public int SequenceNumber { get; protected set; }
+
     private readonly List<TitleDocument> _documents = [];
     public IReadOnlyList<TitleDocument> Documents => _documents.AsReadOnly();
 
@@ -57,6 +60,8 @@ public abstract class RequestTitle : Aggregate<Guid>
         DopaAddress = requestTitleData.DopaAddress;
         Notes = requestTitleData.Notes;
     }
+
+    public void SetSequenceNumber(int sequenceNumber) => SequenceNumber = sequenceNumber;
 
     public virtual void Validate()
     {

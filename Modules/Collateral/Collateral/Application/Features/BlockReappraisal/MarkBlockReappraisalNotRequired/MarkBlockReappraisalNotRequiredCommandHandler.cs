@@ -30,7 +30,7 @@ public class MarkBlockReappraisalNotRequiredCommandHandler(
         var dueRow = await dbContext.BlockReappraisalDue
             .FirstOrDefaultAsync(r => r.CollateralMasterId == command.CollateralMasterId, cancellationToken);
 
-        dueRow?.MarkConsumed();
+        dueRow?.MarkConsumed(command.Remark);
 
         await repository.SaveChangesAsync(cancellationToken);
 

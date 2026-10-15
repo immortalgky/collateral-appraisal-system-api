@@ -23,5 +23,5 @@ public record PreviewIncomeAnalysisRequest(
     decimal? FinalValueAdjust = null,
     bool IsHighestBestUsed = true,
     HighestBestUsedInput? HighestBestUsed = null,
-    decimal? AppraisalPriceRounded = null
+    decimal? IndicatedValue = null
 );

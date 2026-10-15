@@ -18,6 +18,29 @@ internal static class ApprovalListProjection
         _ => null
     };
 
+    // Mirrors Reporting's AppraisalSummaryCommonLoader.CommitteeRoleRank (modules can't reference each other) - keep in sync.
+    internal static int CommitteeRoleRank(string? role) => role?.Trim().ToLowerInvariant() switch
+    {
+        "chairman" => 1,
+        "director" => 2,
+        "secretary" => 9,
+        _ => 5
+    };
+
+    // th-TH collation so Thai and English display names sort sensibly (the user base is Thai-named).
+    private static readonly StringComparer NameComparer =
+        StringComparer.Create(System.Globalization.CultureInfo.GetCultureInfo("th-TH"), ignoreCase: true);
+
+    // Chairman first, then by the name shown on screen (rank, then name - same as the meeting minutes report);
+    // Username is the final tie-break so the order is deterministic.
+    internal static List<ApprovalMemberStatus> OrderByCommitteeRole(IEnumerable<ApprovalMemberStatus> members) =>
+        members
+            .OrderBy(m => CommitteeRoleRank(m.Role))
+            .ThenBy(m => (m.DisplayName ?? m.Username) is null) // nameless (malformed roster entry) last
+            .ThenBy(m => m.DisplayName ?? m.Username, NameComparer)
+            .ThenBy(m => m.Username, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
     internal static bool EvaluateCondition(
         ApprovalConditionInfo condition,
         List<ApprovalMemberInfo> members,

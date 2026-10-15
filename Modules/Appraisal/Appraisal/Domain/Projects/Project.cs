@@ -59,10 +59,12 @@ public class Project : Aggregate<Guid>
     /// Whether the project is still being built. Only meaningful on a type that can carry a
     /// structure -- Create/Update drop it on bare Land, which is a subdivision of empty plots.
     /// <para>
-    /// Unlike every other field here, <see cref="Update"/> does NOT full-replace this pair: a save
-    /// that omits both leaves them alone. A cleared flag is not read back as a blank --
-    /// GetAppraisalResult reports an unset flag on a completed appraisal as 100% complete -- so
-    /// treating an omission as "clear it" turns a recorded 45% into a reported 100%.
+    /// <see cref="Update"/> full-replaces this pair whenever the payload MENTIONS it, exactly as it
+    /// does every other field — Save and Save-draft persist the same way, they only validate
+    /// differently. The one exception is a payload that omits the flag entirely: a cleared flag is
+    /// not read back as a blank (GetAppraisalResult reports an unset flag on a completed appraisal
+    /// as 100% complete), so treating an omission as "clear it" would turn a recorded 45% into a
+    /// reported 100% the moment an older client saved anything at all.
     /// </para>
     /// </summary>
     public bool? IsUnderConstruction { get; private set; }
@@ -289,29 +291,20 @@ public class Project : Aggregate<Guid>
             // the same payload in opposite ways. The UI path is closed on the form instead:
             // ProjectInfoForm hides these fields when the LOADED project type is "L", rather than
             // the route's, which always says "LB".
-            IsUnderConstruction = applicable ? isUnderConstruction : null;
-
-            if (!applicable || isUnderConstruction == false)
-            {
-                ConstructionProgressPercent = null;
-            }
-            else if (constructionProgressPercent is not null)
-            {
-                ConstructionProgressPercent = constructionProgressPercent;
-            }
-            // else: ticked, with the number momentarily blank. The ordinary way to reach it is an
-            // appraiser clearing the input to retype while a draft autosave fires; full-replacing
-            // here would erase a recorded 45 on a keystroke. A genuine clear still happens the
-            // honest way: untick, and the false arm above nulls it.
+            // Save and Save-draft persist identically; the ONLY difference between them is how
+            // strict the validator was. So a payload that ticks the flag and sends no percent
+            // stores exactly that -- it does not keep the number that was there before. Clearing
+            // the input and pressing Save draft is a real edit, not an accident to be undone.
             //
-            // The state can OUTLIVE the draft. The final validator demands a percent only when the
-            // REQUEST ticks the flag, and this whole block is skipped when the request's flag is
-            // null -- so a project left at (true, null) by an autosave can pass a final Save that
-            // omits the pair and complete that way. GetAppraisalResult then reports null rather
-            // than a number, which is the safe direction (absent, not invented) but is not what
-            // the contract comment on ConstructionPct promises. Closing it needs the validator to
-            // read the STORED flag, i.e. the DB-read-in-validator change deferred in
-            // SaveProjectCommandValidator's KNOWN GAP note.
+            // A (true, null) row is therefore reachable and can survive to completion, since the
+            // final validator demands a percent only when the REQUEST ticks the flag and this
+            // block is skipped entirely when the request's flag is null. GetAppraisalResult then
+            // reports null rather than a number -- absent, not invented, which is the safe way to
+            // be wrong. Closing that needs the validator to read the STORED flag: the
+            // DB-read-in-validator change deferred in SaveProjectCommandValidator's KNOWN GAP.
+            IsUnderConstruction = applicable ? isUnderConstruction : null;
+            ConstructionProgressPercent =
+                applicable && isUnderConstruction == true ? constructionProgressPercent : null;
         }
         BuiltOnTitleDeedNumber = ProjectType == ProjectType.Condo ? builtOnTitleDeedNumber : null;
         LicenseExpirationDate = ProjectType.IsLandAndBuildingLike() ? licenseExpirationDate : null;
@@ -638,15 +631,15 @@ public class Project : Aggregate<Guid>
     ///   <c>IPricingAnalysisRepository.GetProjectModelPricingSummariesAsync</c>. PricingAnalysis is a
     ///   separate aggregate; the domain must not navigate to it directly.
     /// </param>
-    /// <param name="ratesByCondition">
-    ///   Fire-insurance coverage rate (Baht/sq.m.) keyed by <c>FireInsuranceCondition</c> — fetched by the
-    ///   handler from <c>Parameter.Contracts.PricingParameters.GetFireInsuranceRatesQuery</c>. Coverage
+    /// <param name="ratesByCode">
+    ///   Fire-insurance coverage rate (Baht/sq.m.) keyed by <c>FireInsuranceCode</c> — fetched by the
+    ///   handler from <c>Appraisal.Application.Features.FireInsuranceRates.GetFireInsuranceRates.GetFireInsuranceRatesQuery</c>. Coverage
     ///   rates are Parameter-module reference data; the domain must not navigate to it directly.
     /// </param>
     public IReadOnlyList<ProjectUnitPrice> CalculateUnitPrices(
         IReadOnlyDictionary<Guid, ProjectUnitPrice> existingPriceMap,
         IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId,
-        IReadOnlyDictionary<string, decimal> ratesByCondition)
+        IReadOnlyDictionary<string, decimal> ratesByCode)
     {
         if (PricingAssumption is null)
             throw new InvalidProjectStateException(
@@ -654,8 +647,8 @@ public class Project : Aggregate<Guid>
 
         // TODO(Land): LandAndBuildingLike path — both LB and Land use the same calculation in v1
         return ProjectType == ProjectType.Condo
-            ? CalculateCondoUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCondition)
-            : CalculateLandAndBuildingUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCondition);
+            ? CalculateCondoUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCode)
+            : CalculateLandAndBuildingUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCode);
     }
 
     /// <summary>
@@ -663,24 +656,23 @@ public class Project : Aggregate<Guid>
     /// null/empty or has no matching rate. Callers rely on null (not zero) to trigger their
     /// own <c>??</c> fallback to a manually-entered CoverageAmount.
     /// </summary>
-    private static decimal? LookupRate(IReadOnlyDictionary<string, decimal> ratesByCondition, string? condition)
+    private static decimal? LookupRate(IReadOnlyDictionary<string, decimal> ratesByCode, string? condition)
     {
         if (string.IsNullOrEmpty(condition)) return null;
-        return ratesByCondition.TryGetValue(condition, out var rate) ? rate : null;
+        return ratesByCode.TryGetValue(condition, out var rate) ? rate : null;
     }
 
     private IReadOnlyList<ProjectUnitPrice> CalculateCondoUnitPrices(
         IReadOnlyDictionary<Guid, ProjectUnitPrice> existingPriceMap,
         IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId,
-        IReadOnlyDictionary<string, decimal> ratesByCondition)
+        IReadOnlyDictionary<string, decimal> ratesByCode)
     {
         var assumption = PricingAssumption!;
         var hasPersistedAssumptions = assumption.ModelAssumptions.Count > 0;
 
         var modelLookup = hasPersistedAssumptions
             ? assumption.ModelAssumptions
-                .Where(ma => ma.ModelType != null)
-                .GroupBy(ma => ma.ModelType!)
+                .GroupBy(ma => ma.ProjectModelId)
                 .ToDictionary(g => g.Key, g =>
                 {
                     var ma = g.First();
@@ -689,18 +681,17 @@ public class Project : Aggregate<Guid>
                     var stdPrice = model is not null && standardPriceByModelId.TryGetValue(model.Id, out var p) ? p : null;
                     return (
                         StandardPrice: stdPrice ?? 0m,
-                        CoverageAmount: LookupRate(ratesByCondition, model?.FireInsuranceCondition) ?? ma.CoverageAmount);
+                        CoverageAmount: LookupRate(ratesByCode, model?.FireInsuranceCode) ?? ma.CoverageAmount);
                 })
             : _models
-                .Where(m => m.ModelName != null)
-                .GroupBy(m => m.ModelName!)
+                .GroupBy(m => m.Id)
                 .ToDictionary(g => g.Key, g =>
                 {
                     var first = g.First();
                     var stdPrice = standardPriceByModelId.TryGetValue(first.Id, out var p) ? p : null;
                     return (
                         StandardPrice: stdPrice ?? 0m,
-                        CoverageAmount: LookupRate(ratesByCondition, first.FireInsuranceCondition));
+                        CoverageAmount: LookupRate(ratesByCode, first.FireInsuranceCode));
                 });
 
         var results = new List<ProjectUnitPrice>();
@@ -713,7 +704,7 @@ public class Project : Aggregate<Guid>
 
             decimal standardPrice = 0m;
             decimal? coverageAmount = null;
-            if (unit.ModelType != null && modelLookup.TryGetValue(unit.ModelType, out var matched))
+            if (unit.ProjectModelId is Guid unitModelId && modelLookup.TryGetValue(unitModelId, out var matched))
             {
                 standardPrice = matched.StandardPrice;
                 coverageAmount = Math.Round(
@@ -768,7 +759,7 @@ public class Project : Aggregate<Guid>
     private IReadOnlyList<ProjectUnitPrice> CalculateLandAndBuildingUnitPrices(
         IReadOnlyDictionary<Guid, ProjectUnitPrice> existingPriceMap,
         IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId,
-        IReadOnlyDictionary<string, decimal> ratesByCondition)
+        IReadOnlyDictionary<string, decimal> ratesByCode)
     {
         var assumption = PricingAssumption!;
 
@@ -796,7 +787,7 @@ public class Project : Aggregate<Guid>
 
             var standardLandArea = 0m;
             var standardPrice = 0m;
-            string? fireInsuranceCondition = null;
+            string? fireInsuranceCode = null;
             if (unit.ModelType != null && projectModelMap.TryGetValue(unit.ModelType, out var projectModel))
             {
                 standardLandArea = projectModel.StandardLandArea ?? 0m;
@@ -804,12 +795,12 @@ public class Project : Aggregate<Guid>
                 // Do not multiply by usable area for LB.
                 // FinalAppraisedValue is supplied by the handler from IPricingAnalysisRepository.
                 standardPrice = standardPriceByModelId.TryGetValue(projectModel.Id, out var sp) ? sp ?? 0m : 0m;
-                fireInsuranceCondition = projectModel.FireInsuranceCondition;
+                fireInsuranceCode = projectModel.FireInsuranceCode;
 
             }
 
             var usableArea = unit.UsableArea ?? 0m;
-            var rawCoverageAmount = (LookupRate(ratesByCondition, fireInsuranceCondition) ?? modelAssumption?.CoverageAmount) * usableArea;
+            var rawCoverageAmount = (LookupRate(ratesByCode, fireInsuranceCode) ?? modelAssumption?.CoverageAmount) * usableArea;
             var coverageAmount = rawCoverageAmount.HasValue
                 ? Math.Round(rawCoverageAmount.Value / 1000, MidpointRounding.AwayFromZero) * 1000
                 : (decimal?)null;

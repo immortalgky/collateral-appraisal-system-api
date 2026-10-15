@@ -231,6 +231,11 @@ namespace Auth.Infrastructure.Migrations
                     b.Property<int>("LockoutMinutes")
                         .HasColumnType("int");
 
+                    b.Property<int>("MaxAccessWindowHours")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(8);
+
                     b.Property<int>("MaxFailedAccessAttempts")
                         .HasColumnType("int");
 
@@ -390,6 +395,9 @@ namespace Auth.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("AccessExpiresAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("int");
 
@@ -441,6 +449,11 @@ namespace Auth.Infrastructure.Migrations
                         .HasDefaultValue(true);
 
                     b.Property<bool>("IsSystem")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsTemporaryAccess")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
@@ -924,6 +937,48 @@ namespace Auth.Infrastructure.Migrations
                     b.ToTable("UserPreferences", "auth");
                 });
 
+            modelBuilder.Entity("Auth.Domain.Sessions.UserSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EndReason")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Ip")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("LastActivityAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("Ticket")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LastActivityAt");
+
+                    b.HasIndex("UserId", "EndedAt");
+
+                    b.ToTable("UserSessions", "auth");
+                });
+
             modelBuilder.Entity("Auth.Domain.Teams.Team", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1301,6 +1356,45 @@ namespace Auth.Infrastructure.Migrations
                     b.HasIndex("ApplicationId", "Status", "Subject", "Type");
 
                     b.ToTable("OpenIddictTokens", "auth");
+                });
+
+            modelBuilder.Entity("Shared.Scheduling.JobSchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("CronExpression")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("JobId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("TimeZoneId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("JobId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_JobSchedules_JobId");
+
+                    b.ToTable("JobSchedules", "auth");
                 });
 
             modelBuilder.Entity("Auth.Domain.Groups.GroupMonitoring", b =>

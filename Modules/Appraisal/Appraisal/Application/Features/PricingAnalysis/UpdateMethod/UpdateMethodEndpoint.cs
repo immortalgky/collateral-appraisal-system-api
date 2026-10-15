@@ -23,7 +23,10 @@ public class UpdateMethodEndpoint : ICarterModule
                         methodId,
                         request.MethodValue,
                         request.ValuePerUnit,
-                        request.UnitType);
+                        request.UnitType,
+                        request.Remark,
+                        request.UseSystemCalc,
+                        request.Role);
 
                     var result = await sender.Send(command, cancellationToken);
 
@@ -37,7 +40,11 @@ public class UpdateMethodEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update method")
-            .WithDescription("Updates the value, value per unit, and/or unit type of an existing method.")
+            .WithDescription(
+                "Updates the value, value per unit, unit type, remark, calc mode, and/or role of an existing method. " +
+                "Remark: omit/null leaves it unchanged, empty string clears it, non-empty sets it. " +
+                "UseSystemCalc: omit/null leaves it unchanged; true/false sets the method's calc mode and clears its recorded value. " +
+                "Role: omit/null leaves it unchanged.")
             .WithTags("PricingAnalysis");
     }
 }

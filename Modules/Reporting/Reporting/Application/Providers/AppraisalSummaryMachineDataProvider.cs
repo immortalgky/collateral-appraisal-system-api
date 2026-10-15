@@ -99,7 +99,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
             JOIN appraisal.MachineryAppraisalDetails mad ON mad.AppraisalPropertyId = ap.Id
             -- NOTE on reconciliation: this is Σ FairMarketValue, while the group's own figure on
             -- the subtotal row is Q9's COALESCE(FinalAppraisedValue, FinalValueRounded,
-            -- AppraisalPrice). They agree on every live path — MirrorMachineCostTotalToFinalValue
+            -- IndicatedValue). They agree on every live path — MirrorMachineCostTotalToFinalValue
             -- writes Σ FMV into both FinalValue and FinalValueRounded with no rounding. They would
             -- diverge if someone overrode a MachineryCost method's final value through the
             -- type-agnostic UpdateFinalValue endpoint, but nothing calls it: useSetFinalValue and
@@ -156,9 +156,8 @@ public sealed class AppraisalSummaryMachineDataProvider(
         // GPS from the machinery summary table
         var gps = ThaiAddressFormatter.FormatGps(machSummary?.Latitude, machSummary?.Longitude);
 
-        var collateralAddress = string.IsNullOrWhiteSpace(machSummary?.MachineAddress)
-            ? null
-            : machSummary.MachineAddress.Trim();
+        // A dash placeholder counts as no address, so the property fallback below still applies.
+        var collateralAddress = ThaiAddressFormatter.Stated(machSummary?.MachineAddress);
 
         var machineByGroup = groupMachineRows
             .GroupBy(r => r.PropertyGroupId)
@@ -283,8 +282,8 @@ public sealed class AppraisalSummaryMachineDataProvider(
             // Machine form: property type is fixed (header + appraiser opinion).
             PropertyType = "เครื่องจักร",
             SummaryPropertyType = "เครื่องจักร",
-            // ที่ตั้งทรัพย์สิน from the Request detail (same as land-building); fall back to the machine's own address.
-            CollateralAddress = common.CollateralAddress ?? collateralAddress,
+            // ที่ตั้งทรัพย์สิน: the machine's own address; the land (else condo) anchor's when it has none.
+            CollateralAddress = collateralAddress ?? common.CollateralAddress,
             AdministrativeDistrict = common.AdministrativeDistrict,
             LandOffice = null,
             OldAppraisalValue = common.PrevAppraisedValue,

@@ -63,7 +63,7 @@
     <td class="tv">{{ pr.total_present_value | math.format "N2" }} บาท</td>
   </tr>
   {{ end }}
-  {{- # W2 fix: render effective_final_value = EstimatePriceRounded ?? FinalValueRounded -}}
+  {{- # render effective_final_value = IndicatedValue ?? EstimatePriceRounded ?? FinalValueRounded -}}
   {{ if pr.effective_final_value != null }}
   <tr>
     <td class="tl">มูลค่าทรัพย์สิน (ปัดเศษ)</td>

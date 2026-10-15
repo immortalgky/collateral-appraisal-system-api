@@ -24,6 +24,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect"/>
         <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore"/>
         <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore"/>
         <PackageReference Include="OpenIddict"/>
@@ -37,10 +38,6 @@
     <ItemGroup>
         <ProjectReference Include="..\..\..\Shared\Shared\Shared.csproj"/>
         <ProjectReference Include="..\Auth.Contracts\Auth.Contracts.csproj"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <Folder Include="Application\Features\Auth\Logout\"/>
     </ItemGroup>
 
     <ItemGroup>

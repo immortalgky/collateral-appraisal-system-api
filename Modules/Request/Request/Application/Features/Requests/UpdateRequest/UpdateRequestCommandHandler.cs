@@ -41,6 +41,8 @@ internal class UpdateRequestCommandHandler(
         if (requestorInfo is null)
             throw new NotFoundException("Requestor", command.RequestorEmployeeId);
 
+        request.EnsurePurposeUnchanged(command.Purpose);
+
         // Store only the requestor identity (employee code + name); org detail is resolved on read.
         request.Save(new RequestData(
             command.Purpose,
@@ -52,12 +54,29 @@ internal class UpdateRequestCommandHandler(
             command.IsPma
         ));
 
-        AppraisalReferenceResult? appraisalRef = null;
-        if (command.Detail?.PrevAppraisalId.HasValue == true)
-            appraisalRef = await mediator.Send(
-                new GetAppraisalReferenceQuery(command.Detail.PrevAppraisalId.Value), cancellationToken);
+        var prevAppraisalId = PriorAppraisalFields.NormalizeId(command.Detail?.PrevAppraisalId);
 
-        request.SetDetail(RequestDetail.Create(new RequestDetailData(
+        // A submitted request keeps its stored prior as is, so there is nothing to resolve: the id (or legacy
+        // number) is only checked against the stored one. Resolving anyway would cost a cross-module lookup per
+        // save, and a lookup that comes back empty (the prior was deleted since) must not wipe what the request
+        // was submitted with.
+        (string? Number, decimal? Value, DateTime? Date) prior;
+        if (request.HasBeenSubmitted())
+        {
+            request.EnsurePriorUnchanged(prevAppraisalId, command.Detail?.PrevAppraisalNumber);
+            prevAppraisalId = request.Detail?.PrevAppraisalId;
+            prior = (request.Detail?.PrevAppraisalNumber, request.Detail?.PrevAppraisalValue,
+                request.Detail?.PrevAppraisalDate);
+        }
+        else
+        {
+            var resolved = await PriorAppraisalFields.ResolveAsync(
+                mediator, request, prevAppraisalId,
+                LegacyPriorBook.ForUpdate(request.Purpose, command.Detail, request.Detail), cancellationToken);
+            prior = (resolved.Number, resolved.Value, resolved.Date);
+        }
+
+        var detail = RequestDetail.Create(new RequestDetailData(
             command.Detail?.HasAppraisalBook ?? false,
             LoanDetail.Create(new LoanDetailData(
                 command.Detail?.LoanDetail?.BankingSegment,
@@ -67,7 +86,7 @@ internal class UpdateRequestCommandHandler(
                 command.Detail?.LoanDetail?.PreviousFacilityLimit,
                 command.Detail?.LoanDetail?.TotalSellingPrice
             )),
-            command.Detail?.PrevAppraisalId,
+            prevAppraisalId,
             Address.Create(new AddressData(
                 command.Detail?.Address?.HouseNumber,
                 command.Detail?.Address?.ProjectName,
@@ -90,10 +109,11 @@ internal class UpdateRequestCommandHandler(
                 command.Detail?.Fee?.FeePaymentType,
                 command.Detail?.Fee?.FeeNotes,
                 command.Detail?.Fee?.AbsorbedAmount),
-            PrevAppraisalNumber: appraisalRef?.AppraisalNumber,
-            PrevAppraisalValue: appraisalRef?.AppraisalValue,
-            PrevAppraisalDate: appraisalRef?.AppraisalDate
-        )));
+            PrevAppraisalNumber: prior.Number,
+            PrevAppraisalValue: prior.Value,
+            PrevAppraisalDate: prior.Date
+        ));
+        request.SetDetail(detail);
 
         var customers = command.Customers?
             .Select(c => RequestCustomer.Create(c.Name, c.ContactNumber))
@@ -101,7 +121,7 @@ internal class UpdateRequestCommandHandler(
         request.SetCustomers(customers);
 
         var properties = command.Properties?
-            .Select(p => RequestProperty.Create(p.PropertyType, p.BuildingType, p.SellingPrice))
+            .Select(p => RequestProperty.Create(p.PropertyType, p.BuildingType, p.BuildingTypeOther, p.SellingPrice))
             .ToList();
         request.SetProperties(properties);
 

@@ -1,7 +1,9 @@
+using System.Net;
 using Integration.Application.Services;
 using Integration.Contracts.FileInterface;
 using Integration.Contracts.FileSink;
 using Integration.Contracts.FileSource;
+using Integration.FailedMessages;
 using Integration.Domain.IdempotencyRecords;
 using Integration.Domain.WebhookDeliveries;
 using Integration.Domain.WebhookSubscriptions;
@@ -26,8 +28,10 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http.Resilience;
+using Microsoft.Extensions.Options;
 using Request.Application.Services;
 using Shared.Data;
+using Shared.Security;
 using Shared.Data.Extensions;
 using Shared.Scheduling;
 using Integration.Scheduling;
@@ -111,6 +115,8 @@ public static class IntegrationModule
         // Register services
         services.AddScoped<IWebhookService, WebhookService>();
         services.AddScoped<IWebhookTokenProvider, LosTokenProvider>();
+        // Encrypts/decrypts WebhookSubscriptions.SecretKey / ClientSecret with the secrets cert.
+        services.AddSingleton<ColumnSecretCipher>();
         services.AddScoped<IAppraisalLookupService, AppraisalLookupService>();
         services.AddScoped<IQuotationFinalizeLookupService, QuotationFinalizeLookupService>();
         services.AddTransient<IUpdateRequestService, UpdateRequestService>();
@@ -132,6 +138,30 @@ public static class IntegrationModule
         services.AddScoped<IIntegrationUnitOfWork>(sp =>
             new IntegrationUnitOfWork(sp.GetRequiredService<IntegrationDbContext>(), sp));
 
+        // Failed-messages collector (docs/failed-messages/design.md §3) — per-node BackgroundService,
+        // only registered when enabled, reading the app's own RabbitMQ credentials/host.
+        // Same ValidateOnStart/PostConfigure pattern as BackgroundJobsOptions
+        // (Shared/Shared/Extensions/SharedServicesExtensions.cs) — forces Validate() to run during host
+        // startup so a bad cadence fails fast instead of on first resolution. While FailedMessages:Enabled is
+        // false Validate() skips the collector settings (a disabled collector never blocks startup) but still checks
+        // SkippedPendingRetentionDays, which the always-on cleanup job reads.
+        services.AddOptions<FailedMessagesOptions>()
+            .Bind(configuration.GetSection(FailedMessagesOptions.SectionName))
+            // The management API is the same broker as RabbitMQ:Host, so its URL lives with the other
+            // broker settings. Assigned unconditionally (blank = default); the old FailedMessages key is never
+            // read, only flagged so Validate() can reject it.
+            .Configure(o =>
+            {
+                var url = configuration["RabbitMQ:ManagementUrl"];
+                o.ManagementUrl = string.IsNullOrWhiteSpace(url) ? FailedMessagesOptions.DefaultManagementUrl : url;
+                o.LegacyManagementUrlPresent = configuration["FailedMessages:ManagementUrl"] is not null;
+            })
+            .ValidateOnStart();
+        services.PostConfigure<FailedMessagesOptions>(o => o.Validate());
+        AddManagementHttpClient(services);
+        if (configuration.GetValue<bool>($"{FailedMessagesOptions.SectionName}:Enabled"))
+            services.AddHostedService<FailedMessageCollectorService>();
+
         // Register DbContext
         services.AddDbContext<IntegrationDbContext>((sp, options) =>
         {
@@ -145,6 +175,27 @@ public static class IntegrationModule
         });
 
         return services;
+    }
+
+    /// <summary>The collector's Management API client. Internal so a unit test can inspect its handler.</summary>
+    internal static void AddManagementHttpClient(IServiceCollection services)
+    {
+        services.AddHttpClient(FailedMessageCollectorService.ManagementHttpClientName, (sp, client) =>
+        {
+            var managementUrl = sp.GetRequiredService<IOptions<FailedMessagesOptions>>().Value.ManagementUrl;
+            // HttpClient/Uri only APPENDS a relative request path onto BaseAddress's own
+            // path when BaseAddress ends with '/' — otherwise the last path segment (or, if ManagementUrl
+            // has no path at all, silently nothing) is dropped. A trailing slash here is what lets a
+            // ManagementUrl with a path prefix (e.g. "http://host:15672/rabbit") still work once paired
+            // with the collector's now-relative (no leading '/') request paths.
+            client.BaseAddress = new Uri(managementUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(5);
+        })
+        // gzip/deflate: the projected response is ~169 KB per round per node, ~5 KB compressed.
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+        });
     }
 
     public static IApplicationBuilder UseIntegrationModule(this IApplicationBuilder app)

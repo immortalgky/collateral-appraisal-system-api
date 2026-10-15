@@ -11,11 +11,11 @@ public class NotifyAssignmentCommandHandler(
     INotificationService notificationService,
     InboxGuard<NotificationDbContext> inboxGuard) : IConsumer<NotifyAssignment>
 {
-    public async Task Consume(ConsumeContext<NotifyAssignment> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<NotifyAssignment> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<NotifyAssignment> context)
+    {
         var notification = new TaskAssignedNotificationDto(
             context.Message.CorrelationId,
             context.Message.TaskName,
@@ -27,7 +27,5 @@ public class NotifyAssignmentCommandHandler(
             context.Message.NotifiedTo
         );
         await notificationService.SendTaskAssignedToOtherNotificationAsync(notification);
-
-        await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, context.CancellationToken);
     }
 }

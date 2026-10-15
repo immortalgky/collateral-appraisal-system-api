@@ -1,6 +1,5 @@
 using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
-using Appraisal.Domain.Services;
 using Shared.CQRS;
 
 namespace Appraisal.Application.Features.PricingAnalysis.UpdateFinalValue;
@@ -34,29 +33,18 @@ public class UpdateFinalValueCommandHandler(
 
         var finalValue = method.FinalValue;
 
-        // Update final value
-        finalValue.UpdateFinalValue(command.FinalValue, command.FinalValueRounded);
+        // Update final value. One figure now: the request used to carry a raw and a rounded value,
+        // and only the rounded one ever became the method value.
+        finalValue.UpdateFinalValue(command.FinalValue);
         // Preserve the existing price unit — this manual override adjusts the value, not the unit.
-        method.SetValue(command.FinalValueRounded, method.ValuePerUnit, method.UnitType);
+        method.SetValue(command.FinalValue, method.ValuePerUnit, method.UnitType);
 
-        // TODO: Temporary — propagate method value upward for manual frontend updates
-        if (method.IsSelected && method.MethodValue.HasValue)
-        {
-            var parentApproach = pricingAnalysis.Approaches
-                .FirstOrDefault(a => a.Id == method.ApproachId)
-                ?? throw new InvalidOperationException(
-                    $"Approach {method.ApproachId} not found in pricing analysis {command.PricingAnalysisId}");
-
-            parentApproach.SetValue(method.MethodValue.Value);
-
-            if (parentApproach.IsSelected)
-            {
-                pricingAnalysis.SetFinalValues(parentApproach.ApproachValue!.Value);
-            }
-        }
-
-        // TODO: Temporary — mark as manual calc since user is overriding values from frontend
-        pricingAnalysis.SetUseSystemCalc(false);
+        // The appraiser just typed this method's value — stamp only the method actually written.
+        // PricingAnalysis.UseSystemCalc (the group-level toggle) is the user's own explicit control
+        // on the summary screen and is deliberately left alone here: see its remarks and
+        // PricingAnalysis.ContributingMethodsUseSystemCalc for why a save handler must not
+        // force-write it as a side effect.
+        method.RecordCalcMode(false);
 
         // Handle land area. A per-unit RATE (PerSqWa/PerSqm) means the final value prices LAND per
         // unit area, so area and value are derivable and must NOT be gated on the building-cost
@@ -71,19 +59,16 @@ public class UpdateFinalValueCommandHandler(
 
         var landAreaFromTitles = totalLandAreaFromTitles ?? 0m;
 
-        if (command.IncludeLandArea == false)
-        {
-            finalValue.ExcludeLandArea();
-        }
-        else if (PricingUnit.IsPerUnitRate(method.UnitType) && landAreaFromTitles > 0m)
-        {
-            var rate = method.ValuePerUnit ?? finalValue.FinalValueAdjusted;
-            var landValue = command.LandValue
-                ?? (rate.HasValue ? landAreaFromTitles * rate.Value : (decimal?)null);
+        // Approach type, not method.Role: Role is also null on cost rows that predate it, and
+        // treating those as market would clear a land value that is real.
+        var isCostApproach = pricingAnalysis.Approaches
+            .First(a => a.Id == method.ApproachId).ApproachType == "Cost";
 
-            if (landValue.HasValue)
-                finalValue.SetLandAreaValues(landAreaFromTitles, landValue.Value);
-        }
+        method.ApplyLandAreaValue(
+            landAreaFromTitles, command.LandValue, command.IncludeLandArea, isCostApproach);
+
+        // Captured before the building block below flips it — see the parameter's remarks.
+        var buildingWasPresentBeforeThisSave = finalValue.HasBuildingValue;
 
         // Handle building value (toggle + amount)
         if (command.HasBuildingValue == true && command.BuildingValue.HasValue)
@@ -95,22 +80,30 @@ public class UpdateFinalValueCommandHandler(
             finalValue.ClearBuildingValue();
         }
 
-        // Appraisal price (now persisted independently of the building-cost toggle)
-        if (command.AppraisalPrice.HasValue)
+        // Indicated value (now persisted independently of the building-cost toggle)
+        if (command.IndicatedValue.HasValue)
         {
-            finalValue.SetAppraisalPrice(command.AppraisalPrice.Value);
+            finalValue.SetIndicatedValue(command.IndicatedValue.Value);
         }
+
+        // MethodValue = IndicatedValue ?? FinalValue, then roll up through approach → analysis.
+        // RecalculateRollup, not a direct approach.SetValue(this method): a Cost approach sums its
+        // selected methods (Land + Building), so one method's value is not the approach's.
+        method.SyncMethodValueWithIndicatedValue();
+        // A Role=Land method's land IS its indicated value — settle that here, after the typed
+        // figure is in, so every reader of LandValue gets one answer.
+        method.SyncLandValueWithIndicatedValue(buildingWasPresentBeforeThisSave);
+        pricingAnalysis.RecalculateRollup();
 
         return new UpdateFinalValueResult(
             finalValue.Id,
             finalValue.FinalValue,
-            finalValue.FinalValueRounded,
             finalValue.IncludeLandArea,
             finalValue.LandArea,
             finalValue.LandValue,
             finalValue.HasBuildingValue,
             finalValue.BuildingValue,
-            finalValue.AppraisalPrice
+            finalValue.IndicatedValue
         );
     }
 }

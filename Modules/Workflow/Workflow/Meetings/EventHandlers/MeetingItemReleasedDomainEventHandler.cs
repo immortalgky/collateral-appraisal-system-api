@@ -16,6 +16,8 @@ namespace Workflow.Meetings.EventHandlers;
 ///   would otherwise resolve from the committee. Sending the roster (not just user ids) is what
 ///   makes per-meeting add/remove/position edits actually govern who votes; the role carries the
 ///   meeting position so committee <c>RoleRequired</c> conditions still evaluate.
+/// - <c>meetingCommitteeId</c>: the committee the meeting was snapshotted from — the approval
+///   runs under its rules instead of the tier the appraisal's current value would pick.
 /// - <c>completedBy</c>: the secretary who released this item.
 /// </summary>
 public class MeetingItemReleasedDomainEventHandler(
@@ -31,19 +33,23 @@ public class MeetingItemReleasedDomainEventHandler(
             notification.WorkflowInstanceId, notification.ActivityId,
             notification.AppraisalId, notification.MeetingId);
 
+        var input = new Dictionary<string, object>
+        {
+            ["meetingId"] = notification.MeetingId,
+            ["meetingOutcome"] = MeetingOutcomes.Released,
+            ["meetingMemberOverrides"] = notification.Members
+                .Select(m => new { userId = m.UserId, role = m.Role })
+                .ToArray(),
+            ["completedBy"] = notification.ReleasedBy
+        };
+        if (notification.CommitteeId is { } committeeId)
+            input["meetingCommitteeId"] = committeeId.ToString();
+
         await workflowService.ResumeWorkflowAsync(
             workflowInstanceId: notification.WorkflowInstanceId,
             activityId: notification.ActivityId,
             completedBy: notification.ReleasedBy,
-            input: new Dictionary<string, object>
-            {
-                ["meetingId"] = notification.MeetingId,
-                ["meetingOutcome"] = MeetingOutcomes.Released,
-                ["meetingMemberOverrides"] = notification.Members
-                    .Select(m => new { userId = m.UserId, role = m.Role })
-                    .ToArray(),
-                ["completedBy"] = notification.ReleasedBy
-            },
+            input: input,
             cancellationToken: cancellationToken);
     }
 }

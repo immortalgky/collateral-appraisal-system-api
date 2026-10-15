@@ -14,11 +14,11 @@ public class DocumentUpdatedIntegrationEventHandler(
     private readonly IRepository<Domain.Documents.Models.Document, Guid> _documentRepository =
         uow.Repository<Domain.Documents.Models.Document, Guid>();
 
-    public async Task Consume(ConsumeContext<DocumentUpdatedIntegrationEvent> @event)
-    {
-        if (await inboxGuard.TryClaimAsync(@event.MessageId, GetType().Name, @event.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<DocumentUpdatedIntegrationEvent> @event) =>
+        inboxGuard.RunOnceAsync(@event.MessageId, GetType().Name, _ => HandleAsync(@event), @event.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<DocumentUpdatedIntegrationEvent> @event)
+    {
         var message = @event.Message;
 
         // Unlink the previous document
@@ -50,7 +50,5 @@ public class DocumentUpdatedIntegrationEventHandler(
         }
 
         await uow.SaveChangesAsync(@event.CancellationToken);
-
-        await inboxGuard.MarkAsProcessedAsync(@event.MessageId, GetType().Name, @event.CancellationToken);
     }
 }

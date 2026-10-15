@@ -18,11 +18,11 @@ public class QuotationFinalizedNotificationHandler(
     ILogger<QuotationFinalizedNotificationHandler> logger,
     InboxGuard<NotificationDbContext> inboxGuard) : IConsumer<QuotationFinalizedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<QuotationFinalizedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<QuotationFinalizedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<QuotationFinalizedIntegrationEvent> context)
+    {
         var message = context.Message;
         var ct = context.CancellationToken;
 
@@ -34,7 +34,6 @@ public class QuotationFinalizedNotificationHandler(
         {
             if (string.IsNullOrEmpty(message.RmUsername))
             {
-                await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
                 return;
             }
 
@@ -60,8 +59,6 @@ public class QuotationFinalizedNotificationHandler(
             logger.LogInformation(
                 "Sent QuotationFinalized notification to RM {RmUsername} for QuotationRequestId={QuotationRequestId}",
                 message.RmUsername, message.QuotationRequestId);
-
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
         }
         catch (Exception ex)
         {

@@ -18,11 +18,11 @@ public class QuotationStartedNotificationHandler(
     ILogger<QuotationStartedNotificationHandler> logger,
     InboxGuard<NotificationDbContext> inboxGuard) : IConsumer<QuotationStartedIntegrationEvent>
 {
-    public async Task Consume(ConsumeContext<QuotationStartedIntegrationEvent> context)
-    {
-        if (await inboxGuard.TryClaimAsync(context.MessageId, GetType().Name, context.CancellationToken))
-            return;
+    public Task Consume(ConsumeContext<QuotationStartedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, _ => HandleAsync(context), context.CancellationToken);
 
+    private async Task HandleAsync(ConsumeContext<QuotationStartedIntegrationEvent> context)
+    {
         var message = context.Message;
         var ct = context.CancellationToken;
 
@@ -62,8 +62,6 @@ public class QuotationStartedNotificationHandler(
             logger.LogInformation(
                 "Sent QuotationStarted per-user notifications for {Count} invited companies, QuotationRequestId={QuotationRequestId}",
                 message.InvitedCompanyIds.Length, message.QuotationRequestId);
-
-            await inboxGuard.MarkAsProcessedAsync(context.MessageId, GetType().Name, ct);
         }
         catch (Exception ex)
         {

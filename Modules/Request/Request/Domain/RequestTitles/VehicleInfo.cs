@@ -3,6 +3,7 @@ namespace Request.Domain.RequestTitles;
 public class VehicleInfo : ValueObject
 {
     public string? VehicleType { get; }
+    public string? VehicleRegistrationNumber { get; }
     public string? VehicleLocation { get; }
     public string? VIN { get; }
     public string? LicensePlateNumber { get; }
@@ -14,12 +15,14 @@ public class VehicleInfo : ValueObject
 
     private VehicleInfo(
         string? vehicleType,
+        string? vehicleRegistrationNumber,
         string? vehicleLocation,
         string? vin,
         string? licensePlateNumber
     )
     {
         VehicleType = vehicleType;
+        VehicleRegistrationNumber = vehicleRegistrationNumber;
         VehicleLocation = vehicleLocation;
         VIN = vin;
         LicensePlateNumber = licensePlateNumber;
@@ -27,6 +30,7 @@ public class VehicleInfo : ValueObject
 
     public static VehicleInfo Create(
         string? vehicleType,
+        string? vehicleRegistrationNumber,
         string? vehicleLocation,
         string? vin,
         string? licensePlateNumber
@@ -34,6 +38,7 @@ public class VehicleInfo : ValueObject
     {
         return new VehicleInfo(
             vehicleType,
+            vehicleRegistrationNumber,
             vehicleLocation,
             vin,
             licensePlateNumber

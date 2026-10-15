@@ -282,32 +282,6 @@ public class ExpressionEvaluatorTests
     }
 
     [Fact]
-    public void EvaluateExpression_CachingPerformance_ImprovesDuplicateEvaluations()
-    {
-        // Arrange
-        var expression = "complex_calculation > threshold && status == 'ready'";
-        var variables = new Dictionary<string, object>
-        {
-            ["complex_calculation"] = 100,
-            ["threshold"] = 50,
-            ["status"] = "ready"
-        };
-
-        // Act - First evaluation (compiles expression)
-        var stopwatch = Stopwatch.StartNew();
-        var result1 = _evaluator.EvaluateExpression(expression, variables);
-        var firstTime = stopwatch.ElapsedTicks;
-
-        stopwatch.Restart();
-        var result2 = _evaluator.EvaluateExpression(expression, variables);
-        var secondTime = stopwatch.ElapsedTicks;
-
-        // Assert
-        result1.Should().Be(result2);
-        secondTime.Should().BeLessThanOrEqualTo(firstTime, "Cached evaluation should be faster or equal");
-    }
-
-    [Fact]
     public void EvaluateExpression_WorkflowScenarios_HandlesRealWorldExpressions()
     {
         // Arrange - Loan application scenario

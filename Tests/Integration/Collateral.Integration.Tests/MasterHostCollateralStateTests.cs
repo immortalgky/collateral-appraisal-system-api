@@ -1,5 +1,4 @@
 using Collateral.Contracts;
-using Collateral.Contracts.FileInterface;
 using Collateral.Contracts.HostLink;
 using Collateral.Data;
 using Integration.Contracts.HostLink;
@@ -11,8 +10,9 @@ using CollateralMasterEntity = Collateral.CollateralMasters.Models.CollateralMas
 namespace Integration.Collateral.Integration.Tests;
 
 /// <summary>
-/// AS400 host state on the CollateralMaster: ingesting it, propagating it to the group's alias rows,
-/// and the effect on the outbound COLLATERAL_RESULT.
+/// AS400 host state on the CollateralMaster: ingesting it and propagating it to the group's alias rows.
+/// The outbound COLLATERAL_RESULT no longer reads the master (vw_CollateralResultExport walks the
+/// appraisal chain instead), so its grain is not tested here.
 ///
 /// The state used to live on CollateralEngagement, one row per appraisal. It moved because AS400 keys
 /// collateral, not appraisals — it mints one id per collateral at drawdown and reports redemption
@@ -166,12 +166,12 @@ public class MasterHostCollateralStateTests(IntegrationTestFixture fixture)
     // ── Ordering ──────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// AS400 orders its file by collateral id, not by event date, so file position says nothing about
-    /// which event is the more recent. Here the redemption is the LAST row but the OLDER event; taking
-    /// the last one would release collateral the bank still holds.
+    /// Within one file a redemption wins, wherever it sits. RecordDate cannot order the rows — it is
+    /// the transmit date, identical on every row of a file — and losing a redemption reports exposure
+    /// the bank no longer has. Here the redemption comes FIRST, so taking the last row would drop it.
     /// </summary>
     [Fact]
-    public async Task WithinOneFile_TheLatestEventDateWinsRegardlessOfRowOrder()
+    public async Task WithinOneFile_RedemptionWinsRegardlessOfRowOrder()
     {
         using var scope = CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CollateralDbContext>();
@@ -179,11 +179,11 @@ public class MasterHostCollateralStateTests(IntegrationTestFixture fixture)
         var (masterId, appraisalNumber, _) = await SeedGroupAsync(db);
 
         await IngestAsync(scope,
-            Record(appraisalNumber, "77004", HostLinkRecordIndicators.Drawdown, new DateOnly(2026, 7, 7)),
-            Record(appraisalNumber, "77004", HostLinkRecordIndicators.Redeemed, new DateOnly(2025, 5, 5)));
+            Record(appraisalNumber, "77004", HostLinkRecordIndicators.Redeemed, new DateOnly(2026, 6, 1)),
+            Record(appraisalNumber, "77004", HostLinkRecordIndicators.Drawdown, new DateOnly(2026, 6, 1)));
 
         var master = await ReloadAsync(db, masterId);
-        Assert.False(master.IsRedeemed);
+        Assert.True(master.IsRedeemed);
         Assert.Equal("77004", master.HostCollateralId);
     }
 
@@ -203,73 +203,5 @@ public class MasterHostCollateralStateTests(IntegrationTestFixture fixture)
         Assert.Equal(1, first.Updated);
         Assert.Equal(1, second.Unchanged);
         Assert.Equal(0, second.Updated);
-    }
-
-    // ── Outbound file grain ───────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// The outbound file carries one row per collateral, not per appraisal.
-    ///
-    /// This is the reason moving the id could not be done on its own: `HostCollateralId IS NOT NULL`
-    /// is the gate deciding which rows are ready to send. Keyed to the master while still emitting one
-    /// row per appraisal, every never-sent older appraisal of that master would go out at once, each
-    /// stamped with the master's single id.
-    /// </summary>
-    [Fact]
-    public async Task OutboundFile_EmitsOneRowPerMaster_UsingTheLatestEngagement()
-    {
-        using var scope = CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<CollateralDbContext>();
-
-        var (masterId, appraisalNumber, _) = await SeedGroupAsync(
-            db, appraisalDate: new DateTime(2024, 1, 1));
-
-        // Two later appraisals of the same collateral.
-        var master = await db.CollateralMasters.SingleAsync(m => m.Id == masterId);
-        var latestAppraisalId = Guid.CreateVersion7();
-
-        foreach (var (date, id, number) in new[]
-                 {
-                     (new DateTime(2025, 6, 1), Guid.CreateVersion7(), $"AP-M-{Guid.NewGuid():N}"[..16]),
-                     (new DateTime(2026, 6, 1), latestAppraisalId,     $"AP-L-{Guid.NewGuid():N}"[..16])
-                 })
-        {
-            master.AppendEngagement(
-                appraisalId: id, appraisalNumber: number,
-                requestId: Guid.CreateVersion7(), requestNumber: "RQ-HS",
-                appraisalType: "ReAppraisal", appraisalDate: date,
-                appraiserUserId: "tester", appraisalCompanyId: null, appraisalCompanyName: null,
-                constructionInspectionFeeAmount: null, snapshot: "{}", createdAt: DateTime.Now,
-                appraisedCollateralType: CollateralTypes.Land);
-        }
-
-        await db.SaveChangesAsync();
-
-        await IngestAsync(scope, Record(
-            appraisalNumber, "77006", HostLinkRecordIndicators.Drawdown, new DateOnly(2026, 1, 1)));
-
-        var query = scope.ServiceProvider.GetRequiredService<ICollateralResultQuery>();
-        var rows = await query.GetUnsentRowsAsync();
-
-        var row = Assert.Single(rows, r => r.CollateralId == "77006");
-        Assert.Equal(latestAppraisalId, row.AppraisalId);
-    }
-
-    /// <summary>A redeemed collateral keeps its id, so it is still reported — redemption is not deletion.</summary>
-    [Fact]
-    public async Task RedeemedMaster_StillAppearsInTheOutboundFile()
-    {
-        using var scope = CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<CollateralDbContext>();
-
-        var (_, appraisalNumber, appraisalId) = await SeedGroupAsync(db);
-
-        await IngestAsync(scope, Record(
-            appraisalNumber, "77007", HostLinkRecordIndicators.Redeemed, new DateOnly(2026, 4, 4)));
-
-        var query = scope.ServiceProvider.GetRequiredService<ICollateralResultQuery>();
-        var rows = await query.GetUnsentRowsAsync();
-
-        Assert.Single(rows, r => r.AppraisalId == appraisalId && r.CollateralId == "77007");
     }
 }

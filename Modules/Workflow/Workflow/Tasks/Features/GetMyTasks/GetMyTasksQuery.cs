@@ -11,6 +11,7 @@ public record GetMyTasksFilterRequest(
     string? TaskName = null,
     string? Search = null,
     string? AppraisalNumber = null,
+    string? Channel = null,
     string? CustomerName = null,
     string? TaskStatus = null,
     string? TaskType = null,

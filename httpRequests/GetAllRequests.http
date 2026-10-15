@@ -1,14 +1,17 @@
 ### Get All Requests - Default pagination
 GET {{baseUrl}}/requests
+X-Dev-Auth: dev-bypass
 Host: localhost:7111
 Content-Type: application/json
 
 ### Get All Requests - With pagination
 GET {{baseUrl}}/requests?page=1&pageSize=10
+X-Dev-Auth: dev-bypass
 Host: localhost:7111
 Content-Type: application/json
 
 ### Get All Requests - Second page
 GET {{baseUrl}}/requests?pageNumber=2&pageSize=10
+X-Dev-Auth: dev-bypass
 Host: localhost:7111
 Content-Type: application/json

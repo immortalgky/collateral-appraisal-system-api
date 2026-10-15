@@ -33,6 +33,10 @@ param(
     # API URL in at BUILD time, so this must match the target environment.
     [string]$FrontendMode = 'production',
     [switch]$SkipDbScripts,
+    # The API's public base URL (the environment's AppBaseUrl). The `spa` OAuth client's sign-in callbacks
+    # are registered against it by a one-time DB script. Defaults to VITE_API_URL of .env.<FrontendMode>,
+    # which is the same public API address.
+    [string]$ApiBaseUrl,
     [switch]$SkipDbTool,
     # Target RID for the .NET outputs. Framework-dependent either way (the server
     # supplies the runtime), but naming the RID makes the build emit the WINDOWS
@@ -96,9 +100,29 @@ Invoke-Step "Publish secret tool (CasSecretTool)" {
 if ($SkipDbScripts) {
     Write-Host "==> Generate database SQL scripts (skipped)" -ForegroundColor Yellow
 } else {
-    Invoke-Step "Generate database SQL scripts" {
-        & "$PSScriptRoot/New-DbDeploymentScripts.ps1" -Version $Version -OutDir (Join-Path $stage 'db')
+    if (-not $ApiBaseUrl) {
+        $feEnv = Join-Path $FrontendRepo ".env.$FrontendMode"
+        $m = if (Test-Path $feEnv) { Select-String -Path $feEnv -Pattern '^\s*VITE_API_URL\s*=\s*(\S+)' | Select-Object -First 1 }
+        if ($m) {
+            # .env values may be quoted and may carry a path; the DB scripts need only scheme://host[:port].
+            $raw = $m.Matches[0].Groups[1].Value.Trim('"', "'")
+            $uri = $null
+            if (-not [Uri]::TryCreate($raw, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -notin 'http', 'https') {
+                throw "VITE_API_URL in $feEnv is '$raw', which is not an absolute http(s) URL. Fix it or pass -ApiBaseUrl."
+            }
+            $ApiBaseUrl = $uri.GetLeftPart('Authority')
+        }
     }
+    Invoke-Step "Generate database SQL scripts" {
+        & "$PSScriptRoot/New-DbDeploymentScripts.ps1" -Version $Version -OutDir (Join-Path $stage 'db') -ApiBaseUrl $ApiBaseUrl
+    }
+}
+
+# --- Rollback SQL (run by hand, never by the bundle) ----------------------
+# Kept at the artifact root, NOT under db\, so Invoke-SqlDeploy.ps1 can never pick it up.
+$rollbackSrc = Join-Path $PSScriptRoot 'rollback'
+if (Test-Path $rollbackSrc) {
+    Copy-Item $rollbackSrc (Join-Path $stage 'rollback') -Recurse
 }
 
 # --- Frontend ------------------------------------------------------------
@@ -143,7 +167,7 @@ Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
 
 Write-Host ""
 Write-Host "Built $zip" -ForegroundColor Green
-Write-Host "  contains: api/  web/  tools/  db/$(if (-not $SkipDbTool) { '  database/' })   (version $Version)"
+Write-Host "  contains: api/  web/  tools/  db/$(if (Test-Path (Join-Path $stage 'rollback')) { '  rollback/' })$(if (-not $SkipDbTool) { '  database/' })   (version $Version)"
 Write-Host ""
 Write-Host "Next:"
 Write-Host "  1. Copy this zip to C:\Deploy\temp on each app server and expand it."

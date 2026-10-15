@@ -48,7 +48,7 @@ public class GetMyMenuQueryHandler(
         return new MyMenuResponse(mainTree, appraisalTree);
     }
 
-    private static List<MenuTreeNodeDto> BuildFilteredTree(
+    internal static List<MenuTreeNodeDto> BuildFilteredTree(
         IReadOnlyList<MenuItem> allItems,
         MenuScope scope,
         HashSet<string> permissions,
@@ -68,9 +68,13 @@ public class GetMyMenuQueryHandler(
             foreach (var item in siblings)
             {
                 // Base: role permissions are the ceiling.
-                // A node is visible if the user holds the exact ViewPermissionCode OR holds
+                // A gated node is visible if the user holds the exact ViewPermissionCode OR holds
                 // any permission whose key starts with ViewPermissionPrefix (prefix-match).
-                bool isVisible = (!string.IsNullOrEmpty(item.ViewPermissionCode)
+                // An ungated node (a group) is decided below by its children.
+                bool hasGate = !string.IsNullOrEmpty(item.ViewPermissionCode)
+                               || !string.IsNullOrEmpty(item.ViewPermissionPrefix);
+                bool isVisible = !hasGate
+                                 || (!string.IsNullOrEmpty(item.ViewPermissionCode)
                                     && permissions.Contains(item.ViewPermissionCode!))
                                  || (!string.IsNullOrEmpty(item.ViewPermissionPrefix)
                                     && permissions.Any(p => p.StartsWith(item.ViewPermissionPrefix!, StringComparison.Ordinal)));
@@ -91,6 +95,10 @@ public class GetMyMenuQueryHandler(
                     continue;
 
                 var children = BuildLevel(item.Id);
+
+                // Ungated node: shown only when at least one child is. An ungated leaf never shows.
+                if (!hasGate && children.Count == 0)
+                    continue;
 
                 var labels = item.Translations.ToDictionary(t => t.LanguageCode, t => t.Label);
 

@@ -23,6 +23,7 @@ public class DeleteDocumentEndpoint : ICarterModule
         .WithName("DeleteDocumentForIntegration")
         .WithTags("Integration - Documents")
         .Produces(StatusCodes.Status204NoContent)
-        .ProducesProblem(StatusCodes.Status404NotFound);
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .ProducesProblem(StatusCodes.Status409Conflict);
     }
 }
