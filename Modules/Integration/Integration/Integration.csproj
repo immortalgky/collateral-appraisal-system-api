@@ -31,6 +31,7 @@
         <ProjectReference Include="../../Workflow/Workflow.Contracts/Workflow.Contracts.csproj"/>
         <ProjectReference Include="../../Document/Document/Document.csproj"/>
         <ProjectReference Include="../../Appraisal/Appraisal/Appraisal.csproj"/>
+        <ProjectReference Include="../../Parameter/Parameter/Parameter.csproj"/>
         <ProjectReference Include="../../Collateral/Collateral.Contracts/Collateral.Contracts.csproj"/>
     </ItemGroup>
 

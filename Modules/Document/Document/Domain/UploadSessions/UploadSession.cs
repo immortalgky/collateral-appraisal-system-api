@@ -54,12 +54,20 @@ public class UploadSession : Aggregate<Guid>
 
     public void IncrementDocumentCount(long fileSizeBytes)
     {
-        ArgumentOutOfRangeException.ThrowIfEqual(Status, "Completed");
-        ArgumentOutOfRangeException.ThrowIfLessThan(ExpiresAt, DateTime.Now);
+        if (Status == "Completed")
+            throw new DomainException("Upload session has already been completed");
+        if (ExpiresAt < DateTime.Now)
+            throw new DomainException("Upload session has expired");
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(fileSizeBytes);
 
         TotalDocuments++;
         TotalSizeBytes += fileSizeBytes;
+    }
+
+    // Brings the expiry forward only; an earlier-or-equal expiry is left as it is.
+    public void Expire(DateTime now)
+    {
+        if (now < ExpiresAt) ExpiresAt = now;
     }
 
     public void Complete(DateTime completedAt)
