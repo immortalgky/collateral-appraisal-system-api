@@ -458,6 +458,10 @@ public static class AuthModule
             .AddUserPermissionPolicy("workflow.admin", "WORKFLOW_ADMIN")
             .AddUserPermissionPolicy("WebhookDeliveriesView", "WEBHOOK_DELIVERIES_VIEW")
             .AddUserPermissionPolicy("WebhookDeliveriesRetry", "WEBHOOK_DELIVERIES_RETRY")
+            // Service Quality Evaluation policies
+            .AddUserPermissionPolicy("ServiceQualityEvaluationView", "REPORT_EVALUATION_VIEW")
+            .AddUserPermissionPolicy("ServiceQualityEvaluationEdit", "REPORT_EVALUATION_EDIT")
+            // Failed message view / manage
             .AddUserPermissionPolicy("FailedMessageView", "FAILED_MESSAGE_VIEW")
             .AddUserPermissionPolicy("FailedMessageManage", "FAILED_MESSAGE_MANAGE")
             // OAuth client / scope registration + webhook subscription admin
