@@ -487,8 +487,8 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnName("DopaDistrict");
 
                             b1.Property<string>("HouseNumber")
-                                .HasMaxLength(30)
-                                .HasColumnType("nvarchar(30)")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
                                 .HasColumnName("DopaHouseNumber");
 
                             b1.Property<string>("Moo")
@@ -545,8 +545,8 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnName("District");
 
                             b1.Property<string>("HouseNumber")
-                                .HasMaxLength(30)
-                                .HasColumnType("nvarchar(30)")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
                                 .HasColumnName("HouseNumber");
 
                             b1.Property<string>("Moo")
@@ -977,8 +977,8 @@ namespace Request.Infrastructure.Migrations
                                         .HasColumnName("District");
 
                                     b2.Property<string>("HouseNumber")
-                                        .HasMaxLength(30)
-                                        .HasColumnType("nvarchar(30)")
+                                        .HasMaxLength(50)
+                                        .HasColumnType("nvarchar(50)")
                                         .HasColumnName("HouseNumber");
 
                                     b2.Property<string>("Moo")
