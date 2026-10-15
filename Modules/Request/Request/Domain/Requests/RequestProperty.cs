@@ -27,8 +27,10 @@ public class RequestProperty : ValueObject
 
     public void Validate(string? bankingSegment)
     {
+        var noBuildingPropertyTypes = new[] { "L", "LSL", "MAC", "VEH", "VES" };
         ArgumentException.ThrowIfNullOrWhiteSpace(PropertyType);
-        ArgumentException.ThrowIfNullOrWhiteSpace(BuildingType);
+        if (!noBuildingPropertyTypes.Contains(PropertyType))
+            ArgumentException.ThrowIfNullOrWhiteSpace(BuildingType);
         if (bankingSegment != "IBG")
         {
             if (SellingPrice is null || SellingPrice <= 0)
