@@ -165,6 +165,7 @@ public class UploadDocumentEndpoint : ICarterModule
             .WithMetadata(new RequestSizeLimitAttribute(configuration.IntegrationMaxRequestBodyBytes))
             .WithName("API - UploadDocument")
             .WithTags("Integration - Documents")
+            .RequireAuthorization("Integration")
             .DisableAntiforgery()
             // 200, which is what this returns — the 201 it used to declare was never true, and it
             // is what an external integrator generates a client from.

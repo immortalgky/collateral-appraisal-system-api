@@ -29,6 +29,7 @@ public class CreateUploadSessionEndpoint : ICarterModule
             })
             .WithName("API - CreateUploadSession")
             .WithTags("Integration - Upload Sessions")
+            .RequireAuthorization("Integration")
             .Produces<CreateUploadSessionResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest);
     }
