@@ -13,29 +13,27 @@ public class GetDocumentChecklistIntegrationEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/v1/document-checklist", async (
-                [FromQuery] string? propertyTypeCodes,
-                [FromQuery] string? purposeCode,
-                ISender sender,
-                CancellationToken cancellationToken) =>
-            {
-                var codes = string.IsNullOrWhiteSpace(propertyTypeCodes)
-                    ? []
-                    : propertyTypeCodes
-                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                        .ToList();
-
-                var query = new GetDocumentChecklistQuery(codes, purposeCode);
-                var result = await sender.Send(query, cancellationToken);
-
-                return Results.Ok(new GetDocumentChecklistResponse(
-                    result.ApplicationDocuments,
-                    result.PropertyTypeGroups));
-            })
+        app.MapGet("/api/v1/document-checklist", Handle)
             .WithName("Integration_GetDocumentChecklist")
             .WithTags("Integration - Document Requirements")
             .Produces<GetDocumentChecklistResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .RequireAuthorization("Integration");
+    }
+
+    private static async Task<IResult> Handle(
+        [FromQuery] string? propertyTypeCodes,
+        [FromQuery] string? purposeCode,
+        ISender sender,
+        CancellationToken ct)
+    {
+        // Null/whitespace yields an empty list; entries are trimmed before empties are dropped.
+        var codes = (propertyTypeCodes ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+        var checklist = await sender.Send(new GetDocumentChecklistQuery(codes, purposeCode), ct);
+
+        return Results.Ok(new GetDocumentChecklistResponse(checklist.ApplicationDocuments, checklist.PropertyTypeGroups));
     }
 }
