@@ -18,6 +18,8 @@ public class BrowserSessionOptionsTests
         Assert.Equal($"__Host-cas-session{expected}", options.AppCookieName);
         Assert.Equal($"__Host-cas-idp{expected}", options.IdpCookieName);
         Assert.Equal($"cas-oidc-retry{expected}", options.RetryCookieName);
+        Assert.Equal($"__Host-cas-2fa{expected}", options.TwoFactorUserCookieName);
+        Assert.Equal($"__Host-cas-2fa-remember{expected}", options.TwoFactorRememberCookieName);
     }
 
     [Theory]

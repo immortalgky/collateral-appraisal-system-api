@@ -32,6 +32,7 @@ public record GetUserByIdResult(
     bool IsTemporaryAccess,
     DateTime? AccessExpiresAt,
     DateTime? LastLoginAt,
+    bool TwoFactorEnabled,
     List<UserRoleDto> Roles,
     List<UserGroupDto> Groups,
     List<UserTeamDto> Teams,

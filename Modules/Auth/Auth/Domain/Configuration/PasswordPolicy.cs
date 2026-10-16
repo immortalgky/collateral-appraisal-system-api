@@ -46,6 +46,20 @@ public class PasswordPolicy
     /// <summary>Hard ceiling on <see cref="MaxAccessWindowHours"/> — 30 days. Not admin-editable.</summary>
     public const int MaxAccessWindowHoursCeiling = 720;
 
+    // ── Two-factor sign-in ──────────────────────────────────────────────────────
+    /// <summary>External users (those with a company) must sign in with an authenticator code and are
+    /// made to enrol at their next sign-in if they have none.</summary>
+    public bool RequireTwoFactorForExternal { get; private set; }
+
+    /// <summary>Hours a device that passed the code check skips it. 0 = ask every time.</summary>
+    public int TwoFactorRememberHours { get; private set; }
+
+    /// <summary>Hard ceiling on <see cref="TwoFactorRememberHours"/> — 30 days.</summary>
+    public const int TwoFactorRememberHoursCeiling = 720;
+
+    /// <summary>Whether this policy forces two-factor sign-in on an account of the given company.</summary>
+    public bool RequiresTwoFactor(Guid? companyId) => RequireTwoFactorForExternal && companyId is not null;
+
     // Required by EF Core
     private PasswordPolicy()
     {
@@ -67,7 +81,9 @@ public class PasswordPolicy
         LockoutEnabled = true,
         MaxFailedAccessAttempts = 5,
         LockoutMinutes = 0,
-        MaxAccessWindowHours = 8
+        MaxAccessWindowHours = 8,
+        RequireTwoFactorForExternal = false,
+        TwoFactorRememberHours = 12
     };
 
     public void Update(
@@ -83,7 +99,9 @@ public class PasswordPolicy
         bool lockoutEnabled,
         int maxFailedAccessAttempts,
         int lockoutMinutes,
-        int maxAccessWindowHours)
+        int maxAccessWindowHours,
+        bool requireTwoFactorForExternal,
+        int twoFactorRememberHours)
     {
         RequiredLength = Math.Clamp(requiredLength, 1, 128);
         RequireDigit = requireDigit;
@@ -98,5 +116,7 @@ public class PasswordPolicy
         MaxFailedAccessAttempts = Math.Clamp(maxFailedAccessAttempts, 1, 100);
         LockoutMinutes = Math.Max(0, lockoutMinutes);
         MaxAccessWindowHours = Math.Clamp(maxAccessWindowHours, 1, MaxAccessWindowHoursCeiling);
+        RequireTwoFactorForExternal = requireTwoFactorForExternal;
+        TwoFactorRememberHours = Math.Clamp(twoFactorRememberHours, 0, TwoFactorRememberHoursCeiling);
     }
 }

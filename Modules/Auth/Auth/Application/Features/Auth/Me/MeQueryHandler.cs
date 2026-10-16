@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Auth.Application.Services;
 using Auth.Infrastructure;
+using Auth.Infrastructure.Configuration;
 using Auth.Domain.Identity;
 using Shared.Exceptions;
 
@@ -10,7 +11,8 @@ namespace Auth.Domain.Auth.Features.Me;
 public class MeQueryHandler(
     AuthDbContext dbContext,
     UserManager<ApplicationUser> userManager,
-    PermissionResolver permissionResolver
+    PermissionResolver permissionResolver,
+    IPasswordPolicyProvider policyProvider
 ) : IQueryHandler<MeQuery, MeResult>
 {
     public async Task<MeResult> Handle(MeQuery query, CancellationToken cancellationToken)
@@ -79,7 +81,10 @@ public class MeQueryHandler(
             // Whole seconds, like the old token claim's "s" format.
             user.AccessExpiresAt is { } windowEnd
                 ? windowEnd.AddTicks(-(windowEnd.Ticks % TimeSpan.TicksPerSecond))
-                : null
+                : null,
+            user.TwoFactorEnabled,
+            (await policyProvider.GetAsync(cancellationToken)).RequiresTwoFactor(user.CompanyId),
+            user.TwoFactorEnabled ? await userManager.CountRecoveryCodesAsync(user) : 0
         );
     }
 }

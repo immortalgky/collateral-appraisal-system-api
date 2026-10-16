@@ -1,11 +1,9 @@
 using Auth.Application.Configurations;
 using Auth.Application.Services;
 using Auth.Domain.Auditing;
-using Auth.Infrastructure.Configuration;
 using Auth.Infrastructure.Session;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
-using Shared.Time;
 
 namespace Auth.Pages.Account;
 
@@ -17,38 +15,19 @@ public class Login(
     ILdapAuthenticationService ldapService,
     IOptions<LdapConfiguration> ldapOptions,
     ILogger<Login> logger,
-    IDateTimeProvider dateTimeProvider,
-    IPasswordPolicyProvider passwordPolicyProvider,
     IAuthAuditWriter auditWriter,
-    AuthDbContext dbContext,
+    LoginCompletion completion,
     BffUrls urls,
     IOptions<IdentityOptions> identityOptions)
-    : PageModel
+    : IdpPageModel
 {
     private readonly LdapConfiguration _ldapConfig = ldapOptions.Value;
-
-    [BindProperty] public string ReturnUrl { get; set; } = "/";
 
     [BindProperty] public string Error { get; set; } = string.Empty;
 
     [BindProperty] public string Username { get; set; } = string.Empty;
 
     [BindProperty] public string Password { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Cache-buster for /Assets/index.css. <c>asp-append-version</c> cannot be used: /Assets is served by its own
-    /// file provider, not the web root it looks in. The CSS ships with the assembly, so its module id changes
-    /// whenever the CSS can.
-    /// </summary>
-    public static readonly string AssetVersion =
-        typeof(Login).Assembly.ManifestModule.ModuleVersionId.ToString("N")[..8];
-
-    private string? _lang;
-
-    public string Lang => _lang ??= LoginText.Resolve(
-        Request.Cookies[LoginText.CookieName], Request.Headers.AcceptLanguage.ToString());
-
-    public LoginText T => LoginText.For(Lang);
 
     /// <summary>"Choose another way" target: the SPA's sign-in page (its interstitial restores the return URL itself).</summary>
     public string SpaLoginUrl => urls.SpaHome + "login";
@@ -69,14 +48,11 @@ public class Login(
     /// </summary>
     private const bool IsPersistentSignIn = false;
 
-    public IActionResult OnGet(string returnUrl = null)
+    public IActionResult OnGet(string? returnUrl = null)
     {
-        // The only legitimate way here is the OIDC flow, which arrives with the pending /connect/authorize
-        // request as its return URL. A bookmark, a typed address or a stale tab has none; signing in
-        // from it would mint a session nobody asked for, so send the browser back to the SPA to start
-        // over.
-        if (returnUrl is null || !Url.IsLocalUrl(returnUrl)
-            || !returnUrl.StartsWith("/connect/authorize", StringComparison.OrdinalIgnoreCase))
+        // Not from the OIDC flow (a bookmark, a typed address, a stale tab): send the browser back to the SPA to
+        // start over.
+        if (!IsAuthorizeReturnUrl(returnUrl))
             return Redirect(urls.SpaHome);
 
         ReturnUrl = returnUrl;
@@ -107,21 +83,13 @@ public class Login(
             return Page();
         }
 
-        if (!user.IsActive)
+        // Deactivated, or a temporary-access account whose window has run out. The latter gets the generic message on
+        // purpose: "that account exists but its window closed" tells an outsider the account is real and worth attacking,
+        // and the admin who opened the window already knows when it ends. The audit log carries the true reason.
+        if (completion.BlockedReason(user) is { } reason)
         {
-            await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "Inactive" });
-            Error = T.DeactivatedError;
-            return Page();
-        }
-
-        // Temporary-access account whose window has run out. The message stays the generic one on
-        // purpose: "that account exists but its window closed" tells an outsider the account is real
-        // and worth attacking, and the admin who opened the window already knows when it ends. The
-        // audit log carries the true reason.
-        if (!user.IsUsable(dateTimeProvider.ApplicationNow))
-        {
-            await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "Expired" });
-            Error = T.InvalidAttemptError;
+            await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason });
+            Error = reason == "Inactive" ? T.DeactivatedError : T.InvalidAttemptError;
             return Page();
         }
 
@@ -161,26 +129,15 @@ public class Login(
             return Page();
         }
 
-        await userManager.ResetAccessFailedCountAsync(user);
         await SyncLdapAttributesAsync(user, ldapResult.UserInfo);
-        await StampLastLoginAsync(user);
-        await signInManager.SignInAsync(user, IsPersistentSignIn);
-        logger.LogInformation("User {Username} logged in via LDAP", Username);
-        await auditWriter.RecordAuthEventAsync(AuditAction.LoggedIn, user.Id, Username, new { source = "Ldap" });
-        return Redirect(GetSafeRedirectUrl(user));
+        return await ContinueAfterFirstFactorAsync(user);
     }
 
     private async Task<IActionResult> LoginWithLocalPasswordAsync(ApplicationUser user)
     {
-        var result = await signInManager.PasswordSignInAsync(Username, Password, IsPersistentSignIn, lockoutOnFailure: true);
+        var result = await signInManager.CheckPasswordSignInAsync(user, Password, lockoutOnFailure: true);
         if (result.Succeeded)
-        {
-            await EnforcePasswordExpiryAsync(user);
-            await StampLastLoginAsync(user);
-            logger.LogInformation("User {Username} logged in successfully", Username);
-            await auditWriter.RecordAuthEventAsync(AuditAction.LoggedIn, user.Id, Username, new { source = "Local" });
-            return Redirect(GetSafeRedirectUrl(user));
-        }
+            return await ContinueAfterFirstFactorAsync(user);
 
         if (result.IsLockedOut)
         {
@@ -194,47 +151,20 @@ public class Login(
         return Page();
     }
 
-    // If the local password has exceeded the configured max age, flag it so the SPA routes the user
-    // to the change-password screen (reuses the MustChangePassword mechanism). The flag is set
-    // in-memory only; StampLastLoginAsync persists it alongside LastLoginAt. Legacy accounts with no
-    // PasswordChangedAt are skipped so enabling expiry doesn't lock everyone out at once.
-    private async Task EnforcePasswordExpiryAsync(ApplicationUser user)
+    // Where both sign-in sources meet: the first factor (password or LDAP bind) is proven, and one place decides
+    // whether the user still has to set up or enter a second factor or can be signed in.
+    private async Task<IActionResult> ContinueAfterFirstFactorAsync(ApplicationUser user)
     {
-        if (AuthSources.IsLdap(user.AuthSource) || user.MustChangePassword || user.PasswordChangedAt is null)
-            return;
-
-        var policy = await passwordPolicyProvider.GetAsync();
-        if (policy.ExpiryDays <= 0) return;
-
-        if (user.PasswordChangedAt.Value.AddDays(policy.ExpiryDays) < dateTimeProvider.ApplicationNow)
+        var step = await completion.DecideAsync(user);
+        if (step != SecondStep.None)
         {
-            user.MustChangePassword = true;
-            logger.LogInformation("Password expired for {Username}; requiring change on login", user.UserName);
+            await completion.ParkAsync(user);
+            return RedirectToPage(step == SecondStep.Enrol ? "TwoFactorSetup" : "TwoFactor", new { returnUrl = ReturnUrl });
         }
-    }
 
-    private async Task StampLastLoginAsync(ApplicationUser user)
-    {
-        var now = dateTimeProvider.ApplicationNow;
-        user.LastLoginAt = now;
-        try
-        {
-            // Write the bookkeeping columns directly rather than via UserManager.UpdateAsync: those
-            // are our own fields, and UpdateAsync runs the Identity UserValidator (which, with
-            // RequireUniqueEmail enabled, returns a FAILED result for any pre-existing duplicate-email
-            // account — silently dropping LastLoginAt / the expiry flag). ExecuteUpdateAsync sets only
-            // these columns and skips that validation.
-            await dbContext.Users
-                .Where(u => u.Id == user.Id)
-                .ExecuteUpdateAsync(s => s
-                    .SetProperty(u => u.LastLoginAt, now)
-                    .SetProperty(u => u.MustChangePassword, user.MustChangePassword));
-        }
-        catch (Exception ex)
-        {
-            // A transient store failure must not invalidate an otherwise-valid login
-            logger.LogWarning(ex, "Failed to stamp LastLoginAt for user {Username} — login proceeds", user.UserName);
-        }
+        await signInManager.SignInAsync(user, IsPersistentSignIn);
+        await completion.CompleteAsync(user);
+        return Redirect(GetSafeRedirectUrl(logger, user));
     }
 
     // Refresh an existing LDAP user's profile fields from AD on login. Never creates a user —
@@ -261,29 +191,5 @@ public class Login(
                 logger.LogWarning("Failed to sync AD attributes for {Username}: {Errors}",
                     user.UserName, string.Join("; ", result.Errors.Select(e => e.Description)));
         }
-    }
-
-    private string GetSafeRedirectUrl(ApplicationUser? user = null)
-    {
-        var redirectUrl = string.IsNullOrEmpty(ReturnUrl) ? "/" : ReturnUrl;
-
-        // Local URLs only: an absolute one would let a crafted link bounce a freshly signed-in user to
-        // any site. The legitimate target is always /connect/authorize on this host.
-        if (!Url.IsLocalUrl(redirectUrl))
-        {
-            logger.LogWarning("Invalid return URL: {ReturnUrl}, redirecting to home", redirectUrl);
-            redirectUrl = "/";
-        }
-
-        // If the user must change their password, append a flag so the SPA can intercept
-        // and redirect to the change-password screen before allowing normal navigation.
-        // Only append to LOCAL urls — never leak account state to an external domain.
-        if (user?.MustChangePassword == true && Url.IsLocalUrl(redirectUrl))
-        {
-            var separator = redirectUrl.Contains('?') ? "&" : "?";
-            redirectUrl += $"{separator}mustChangePassword=true";
-        }
-
-        return redirectUrl;
     }
 }

@@ -24,6 +24,8 @@ public class GetPasswordPolicyConfigQueryHandler(IPasswordPolicyProvider policyP
             p.LockoutEnabled,
             p.MaxFailedAccessAttempts,
             p.LockoutMinutes,
-            p.MaxAccessWindowHours);
+            p.MaxAccessWindowHours,
+            p.RequireTwoFactorForExternal,
+            p.TwoFactorRememberHours);
     }
 }
