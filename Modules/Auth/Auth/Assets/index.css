@@ -381,6 +381,180 @@ form {
     text-align: left;
 }
 
+/* Two-factor pages (code, recovery code, enrolment). Same column as the sign-in form. */
+.login--signin .login-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.login-step {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.75rem;
+}
+
+.login-intro {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.875rem;
+    line-height: 1.6;
+}
+
+.login-note {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.75rem;
+    line-height: 1.6;
+    text-align: center;
+}
+
+.login-aside {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.text-input.otp-input {
+    height: 52px;
+    padding: 0 16px;
+    font-family: Roboto, monospace;
+    font-size: 1.5rem;
+    letter-spacing: 0.5em;
+    text-align: center;
+}
+
+/* Recovery codes are longer and not digits: no letter-spacing, smaller type. */
+.text-input.otp-input--recovery {
+    font-size: 1.1rem;
+    letter-spacing: 0.1em;
+}
+
+.text-input.otp-input::placeholder {
+    letter-spacing: 0.5em;
+}
+
+/* The continue link after the recovery codes looks like the sign-in button. */
+a.login-button {
+    display: block;
+    text-align: center;
+    text-decoration: none;
+}
+
+.enrol-steps {
+    margin: 0;
+    padding: 16px 16px 16px 36px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+}
+
+.enrol-steps label {
+    display: block;
+    margin-bottom: 8px;
+}
+
+.enrol-scan {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 8px;
+}
+
+.enrol-qr {
+    flex: none;
+    width: 132px;
+    height: 132px;
+    background: #ffffff;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.enrol-qr svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.enrol-key {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.75rem;
+    line-height: 1.5;
+}
+
+.enrol-key code {
+    color: #ffffff;
+    font-family: Roboto, monospace;
+    font-size: 0.8125rem;
+    letter-spacing: 0.06em;
+}
+
+/* A group of four characters never breaks across lines; lines break at the spaces between groups. */
+.enrol-key-group {
+    white-space: nowrap;
+}
+
+.recovery-codes {
+    margin: 0;
+    padding: 16px;
+    list-style: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 16px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #ffffff;
+    font-family: Roboto, monospace;
+    font-size: 0.9375rem;
+    letter-spacing: 0.05em;
+    user-select: all;
+}
+
+.recovery-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.recovery-actions[hidden] {
+    display: none;
+}
+
+.recovery-action {
+    padding: 8px 14px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 6px;
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 0.8125rem;
+    cursor: pointer;
+}
+
+.recovery-action:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.recovery-action:focus-visible {
+    outline: 2px solid #93c5fd;
+    outline-offset: 2px;
+}
+
+.recovery-status {
+    min-height: 1.2em;
+    color: #93c5fd;
+    font-size: 0.8125rem;
+}
+
 /* Responsive: mobile hides image, panel goes full-width */
 @media (max-width: 600px) {
     .login-panel {

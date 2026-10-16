@@ -248,6 +248,9 @@ namespace Auth.Infrastructure.Migrations
                     b.Property<bool>("RequireNonAlphanumeric")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("RequireTwoFactorForExternal")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("RequireUppercase")
                         .HasColumnType("bit");
 
@@ -255,6 +258,9 @@ namespace Auth.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<int>("RequiredUniqueChars")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TwoFactorRememberHours")
                         .HasColumnType("int");
 
                     b.HasKey("Id");

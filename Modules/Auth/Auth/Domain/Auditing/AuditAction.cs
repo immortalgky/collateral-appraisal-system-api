@@ -10,5 +10,10 @@ public enum AuditAction
     LoginFailed,
     LoggedOut,
     SessionStarted,
-    SessionEnded
+    SessionEnded,
+    TwoFactorEnabled,
+    TwoFactorDisabled,
+    TwoFactorReset,
+    RecoveryCodeUsed,
+    TwoFactorRecoveryCodesRegenerated
 }

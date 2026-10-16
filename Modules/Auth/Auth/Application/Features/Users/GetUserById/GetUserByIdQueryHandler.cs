@@ -85,6 +85,7 @@ public class GetUserByIdQueryHandler(
             user.IsTemporaryAccess,
             user.AccessExpiresAt,
             user.LastLoginAt,
+            user.TwoFactorEnabled,
             roles,
             groups,
             teams,
