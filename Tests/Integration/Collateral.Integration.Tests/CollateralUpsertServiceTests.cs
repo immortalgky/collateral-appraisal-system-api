@@ -1350,13 +1350,10 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
 
         var result = await mediator.Send(new LookupCollateralMasterQuery(
             Type: CollateralTypes.Land,
-            LandOfficeCode: "LO-001",
             Province: "BKK",
             District: "D1",
             SubDistrict: "S1",
-            TitleType: t2.Item2,
             TitleNumber: t2.Item1,
-            SurveyNumber: null,
             CondoRegistrationNumber: null, Building: null, Floor: null, Unit: null,
             ContractNo: null, UnderlyingMasterId: null,
             Lessor: null, Lessee: null, LeaseTermStart: null,
@@ -1386,6 +1383,67 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
         Assert.Contains(t1.Item1, allGroupTitleNos);
         Assert.Contains(t2.Item1, allGroupTitleNos);
         Assert.Contains(t3.Item1, allGroupTitleNos);
+    }
+
+    // -----------------------------------------------------------------------
+    // Lookup: the full dedup key matches; a partial key (condo or land) returns not found.
+    // -----------------------------------------------------------------------
+    [Fact]
+    public async Task Lookup_FullKeyMatches_PartialKeyIsNotFound()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..8];
+        Guid appraisalId;
+        using (var seedScope = CreateScope())
+        {
+            var appraisalDb = GetAppraisalDbContext(seedScope);
+            var a = CreateAppraisalSeed(Guid.NewGuid());
+            SeedCondoProperty(a, "LO-BKK", $"LK-{tag}", "B1", "5", "501", $"CT-{tag}", "Chanote", "Bangkok");
+            appraisalDb.Appraisals.Add(a);
+            await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
+            appraisalId = a.Id;
+        }
+        await ProcessAppraisalInNewScopeAsync(appraisalId);
+
+        using var assertScope = CreateScope();
+        var mediator = assertScope.ServiceProvider.GetRequiredService<ISender>();
+
+        LookupCollateralMasterQuery Condo(string? reg, string? building, string? floor, string? unit,
+            string? province, string? district, string? subDistrict) => new(
+            Type: CollateralTypes.Condo,
+            Province: province, District: district, SubDistrict: subDistrict,
+            TitleNumber: null,
+            CondoRegistrationNumber: reg, Building: building, Floor: floor, Unit: unit,
+            ContractNo: null, UnderlyingMasterId: null,
+            Lessor: null, Lessee: null, LeaseTermStart: null,
+            MachineRegistrationNo: null, SerialNo: null,
+            Brand: null, Model: null, Manufacturer: null);
+
+        var result = await mediator.Send(
+            Condo($"LK-{tag}", "B1", "5", "501", "Bangkok", "Test District", "Test Subdistrict"),
+            TestContext.Current.CancellationToken);
+        Assert.Equal(CollateralTypes.Condo, result.CollateralType);
+        Assert.Equal($"LK-{tag}", result.CondoDetail!.CondoRegistrationNumber);
+
+        // Same registration, other province: the geography is part of the key.
+        await Assert.ThrowsAsync<NotFoundException>(() => mediator.Send(
+            Condo($"LK-{tag}", "B1", "5", "501", "Chiang Mai", "Test District", "Test Subdistrict"),
+            TestContext.Current.CancellationToken));
+
+        // Partial key (room missing) and all-blank key: not found, no wildcard match.
+        await Assert.ThrowsAsync<NotFoundException>(() => mediator.Send(
+            Condo($"LK-{tag}", "B1", "5", null, "Bangkok", "Test District", "Test Subdistrict"),
+            TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<NotFoundException>(() => mediator.Send(
+            Condo(null, null, null, null, null, null, null),
+            TestContext.Current.CancellationToken));
+
+        // Land lookup needs the full key too: title number missing -> not found.
+        await Assert.ThrowsAsync<NotFoundException>(() => mediator.Send(
+            Condo(null, null, null, null, "Bangkok", "Test District", "Test Subdistrict") with
+            {
+                Type = CollateralTypes.Land
+            },
+            TestContext.Current.CancellationToken));
     }
 
     // -----------------------------------------------------------------------

@@ -8,7 +8,7 @@ public record GetBlockUnitMaintenanceListQuery(
     /// </summary>
     string? Search,
     /// <summary>
-    /// Optional project-type filter. "Condo" or "LandAndBuilding". Null = all types.
+    /// Optional project-type filter. "U", "LB" or "L". Null = all types.
     /// </summary>
     string? ProjectType,
     /// <summary>
