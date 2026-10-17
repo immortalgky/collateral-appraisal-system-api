@@ -41,7 +41,6 @@ public class Address : ValueObject
         ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(SubDistrict), "subDistrict is required.");
         ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(District), "district is required.");
         ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(Province), "province is required.");
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(Postcode), "postcode is required.");
         ruleCheck.ThrowIfInvalid();
     }
 }
