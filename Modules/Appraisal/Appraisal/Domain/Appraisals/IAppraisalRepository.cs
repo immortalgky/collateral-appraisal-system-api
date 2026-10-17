@@ -52,6 +52,8 @@ public interface IAppraisalRepository : IRepository<Appraisal, Guid>
 public sealed record AppraisalSummary(
     Guid AppraisalId,
     string? AppraisalNumber,
+    /// <summary>The appraisal's own Banking Segment (Appraisals.BankingSegment).</summary>
+    string? BankingSegment,
     /// <summary>CollateralType code from request.RequestTitles (e.g. "L", "LB", "U").</summary>
     string? PropertyType,
     /// <summary>Province + District from the first LandAppraisalDetail row, or null if none.</summary>

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Appraisal.Domain.Quotations;
 
 namespace Appraisal.Infrastructure.Configurations;
@@ -43,7 +44,12 @@ public class QuotationRequestConfiguration : IEntityTypeConfiguration<QuotationR
         builder.Property(q => q.RequestId);
         builder.Property(q => q.WorkflowInstanceId);
         builder.Property(q => q.TaskExecutionId);
-        builder.Property(q => q.BankingSegment).HasMaxLength(50);
+        builder.Property(q => q.BankingSegment)
+            .HasConversion(
+                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null) ?? new())
+            .HasColumnType("nvarchar(max)")
+            .HasDefaultValueSql("'[]'");
 
         // ── Shortlist tracking ────────────────────────────────────────────────
         builder.Property(q => q.SubmissionsClosedAt);

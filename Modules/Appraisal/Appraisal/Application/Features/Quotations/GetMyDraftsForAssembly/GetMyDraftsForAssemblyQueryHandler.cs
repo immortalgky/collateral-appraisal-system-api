@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Appraisal.Application.Features.Quotations.Shared;
 using Dapper;
 using Shared.Data;
@@ -26,6 +27,10 @@ public class GetMyDraftsForAssemblyQueryHandler(
         using var connection = connectionFactory.GetOpenConnection();
 
         // ── Main query: get Draft quotations owned by this admin ──────────────
+        // BankingSegment is read straight from the cached column (JSON array, kept in sync on
+        // every appraisal add/remove — see QuotationRequest.SetBankingSegment) instead of joining
+        // QuotationRequestAppraisals + Appraisals here on every call; that join was the whole cost
+        // this cache exists to avoid.
         var sql = """
             SELECT
                 q.Id,
@@ -38,20 +43,10 @@ public class GetMyDraftsForAssemblyQueryHandler(
             FROM appraisal.QuotationRequests q
             WHERE q.Status = 'Draft'
               AND q.RequestedBy = @AdminUsername
+            ORDER BY q.RequestDate DESC
             """;
 
-        var parameters = new DynamicParameters();
-        parameters.Add("AdminUsername", adminUsername);
-
-        if (!string.IsNullOrWhiteSpace(query.BankingSegment))
-        {
-            sql += " AND q.BankingSegment = @BankingSegment";
-            parameters.Add("BankingSegment", query.BankingSegment);
-        }
-
-        sql += " ORDER BY q.RequestDate DESC";
-
-        var rows = (await connection.QueryAsync<DraftRow>(sql, parameters)).ToList();
+        var rows = (await connection.QueryAsync<DraftRow>(sql, new { AdminUsername = adminUsername })).ToList();
 
         if (rows.Count == 0)
             return new GetMyDraftsForAssemblyResult([]);
@@ -82,7 +77,7 @@ public class GetMyDraftsForAssemblyQueryHandler(
             QuotationNumber: r.QuotationNumber,
             RequestDate: r.RequestDate,
             CutOffTime: r.CutOffTime,
-            BankingSegment: r.BankingSegment,
+            BankingSegment: SegmentCoverage.ParseLoanTypes(r.BankingSegment),
             TotalAppraisals: r.TotalAppraisals,
             TotalCompaniesInvited: r.TotalCompaniesInvited,
             AppraisalNumberPreview: previewLookup.TryGetValue(r.Id, out var preview)

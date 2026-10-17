@@ -70,7 +70,7 @@ public class QuotationRequest : Aggregate<Guid>
     public Guid? RequestId { get; private set; }
     public Guid? WorkflowInstanceId { get; private set; }
     public Guid? TaskExecutionId { get; private set; }
-    public string? BankingSegment { get; private set; }
+    public List<string> BankingSegment { get; private set; } = [];
 
     /// <summary>
     /// Convenience accessor: returns the first appraisal ID in the collection, or null.
@@ -144,7 +144,7 @@ public class QuotationRequest : Aggregate<Guid>
         Guid requestId,
         Guid workflowInstanceId,
         Guid? taskExecutionId,
-        string bankingSegment,
+        List<string> bankingSegment,
         string addedBy,
         DateTime now,
         string? rmUsername = null,
@@ -166,7 +166,7 @@ public class QuotationRequest : Aggregate<Guid>
             RequestId = requestId,
             WorkflowInstanceId = workflowInstanceId,
             TaskExecutionId = taskExecutionId,
-            BankingSegment = bankingSegment,
+            BankingSegment = bankingSegment ?? [],
             RmUsername = rmUsername
         };
 
@@ -759,5 +759,14 @@ public class QuotationRequest : Aggregate<Guid>
         return _quotations.FirstOrDefault(q => q.Id == companyQuotationId)
                ?? throw new InvalidOperationException(
                    $"Company quotation '{companyQuotationId}' not found in this RFQ");
+    }
+
+    //
+    public void SetBankingSegment(IReadOnlyList<string> bankingSegment)
+    {
+        if (Status != "Draft")
+            throw new InvalidOperationException(
+            $"Cannot update banking-segment on a quotation in status '{Status}'. Only Draft quotations are editable.");
+        BankingSegment = bankingSegment.ToList();
     }
 }
