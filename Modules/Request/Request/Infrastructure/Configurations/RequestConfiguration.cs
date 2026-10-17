@@ -113,7 +113,7 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
 
             detail.OwnsOne(p => p.Address, address =>
             {
-                address.Property(p => p.HouseNumber).HasMaxLength(30).HasColumnName("HouseNumber");
+                address.Property(p => p.HouseNumber).HasMaxLength(50).HasColumnName("HouseNumber");
                 address.Property(p => p.ProjectName).HasMaxLength(100).HasColumnName("ProjectName");
                 address.Property(p => p.Moo).HasMaxLength(50).HasColumnName("Moo");
                 address.Property(p => p.Soi).HasMaxLength(50).HasColumnName("Soi");
