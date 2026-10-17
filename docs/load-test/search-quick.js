@@ -18,26 +18,26 @@
 // A run that only sends prefixes measures the best case and says nothing about what a user typing
 // `*smith` costs. The cases below cover all three; weights decide which one your p95 reflects.
 //
-// AUTH: a REAL bearer token is required, and it must belong to a BANK (internal) user — one whose
-// auth.AspNetUsers.CompanyId IS NULL. `X-Dev-Auth: dev-bypass` will NOT do: it stamps
-// company_id = Guid.Empty (Shared/Shared/Identity/DevAuthenticationHandler.cs) and the results are
-// then scoped to a company that matches nothing, so the run measures an empty set and looks fast.
+// AUTH: a REAL session cookie is required, and it must belong to a BANK (internal) user — one whose
+// auth.AspNetUsers.CompanyId IS NULL. `X-Dev-Auth: dev-bypass` will NOT do: the dev user has no
+// groups/team (and a company user is scoped to its own company), so it sees a near-empty scope and
+// reports misleadingly fast numbers. Get a session cookie with docs/load-test/get-appraisal-token.sh.
 //
-//   export TOKEN=$(./docs/load-test/get-appraisal-token.sh admin '<password>')
+//   export SESSION_COOKIE=$(./docs/load-test/get-appraisal-token.sh admin '<password>')
 //
 //   # 1) Baseline — single-request latency (run FIRST, record p50/p95):
-//   k6 run -e BASE_URL=https://localhost:7111 -e TOKEN="$TOKEN" \
+//   k6 run -e BASE_URL=https://localhost:7111 -e SESSION_COOKIE="$SESSION_COOKIE" \
 //          -e MODE=count -e VUS=1 -e ITERATIONS=30 \
 //          --insecure-skip-tls-verify docs/load-test/search-quick.js
 //
 //   # 2) Concurrency — what users feel when several type at once (the navbar fires per keystroke
 //   #    pause, so real concurrency here is higher than on the list page):
-//   k6 run -e BASE_URL=https://localhost:7111 -e TOKEN="$TOKEN" \
+//   k6 run -e BASE_URL=https://localhost:7111 -e SESSION_COOKIE="$SESSION_COOKIE" \
 //          -e MODE=count -e VUS=8 -e ITERATIONS=80 \
 //          --insecure-skip-tls-verify docs/load-test/search-quick.js
 //
 //   # 3) Capacity — ramp the arrival rate to find the knee:
-//   k6 run -e BASE_URL=https://localhost:7111 -e TOKEN="$TOKEN" \
+//   k6 run -e BASE_URL=https://localhost:7111 -e SESSION_COOKIE="$SESSION_COOKIE" \
 //          -e MODE=rate -e PEAK_RPS=8 \
 //          --insecure-skip-tls-verify docs/load-test/search-quick.js
 //
@@ -140,8 +140,8 @@ export const options = {
 };
 
 const HEADERS = authHeaders(
-  __ENV.TOKEN,
-  "Quick search requires an internal (CompanyId IS NULL) bank user; dev-bypass scopes to an empty company."
+  __ENV.SESSION_COOKIE,
+  "Quick search requires an internal (CompanyId IS NULL) bank user; the dev-bypass user has no groups/team, so it sees a near-empty scope."
 );
 
 function buildUrl(params) {
