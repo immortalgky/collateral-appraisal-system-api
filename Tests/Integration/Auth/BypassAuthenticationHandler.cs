@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using Auth.Infrastructure.Session;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -25,7 +26,8 @@ public class BypassAuthenticationHandler(
             new Claim("permissions", "FAILED_MESSAGE_MANAGE"),
             new Claim("permissions", "HISTORY_SEARCH_VIEW"),
         };
-        var identity = new ClaimsIdentity(claims, Scheme.Name);
+        // Plays a signed-in browser user, so it carries the cookie-session identity type the "Spa" policy accepts.
+        var identity = new ClaimsIdentity(claims, AuthSchemes.AppCookie);
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, Scheme.Name);
 

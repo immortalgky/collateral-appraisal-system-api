@@ -10,26 +10,25 @@
 // ROW_NUMBER() windows filtered by `rn = 1` on the OUTSIDE — the window has to be computed over
 // the whole table before the outer WHERE can apply.
 //
-// AUTH: a REAL bearer token is required, and it must belong to a BANK (internal) user —
-// one whose auth.AspNetUsers.CompanyId IS NULL. `X-Dev-Auth: dev-bypass` will NOT do: it stamps
-// company_id = Guid.Empty (Shared/Shared/Identity/DevAuthenticationHandler.cs), and
-// AppraisalAccessScope then forces a company filter that matches nothing, so every query returns
-// 0 rows and the test measures nothing. Get a token with docs/load-test/get-appraisal-token.sh.
+// AUTH: a REAL session cookie is required, and it must belong to a BANK (internal) user — one whose
+// auth.AspNetUsers.CompanyId IS NULL. `X-Dev-Auth: dev-bypass` will NOT do: the dev user has no
+// groups/team (and a company user is scoped to its own company), so it sees a near-empty scope and
+// reports misleadingly fast numbers. Get a session cookie with docs/load-test/get-appraisal-token.sh.
 //
-//   export TOKEN=$(./docs/load-test/get-appraisal-token.sh admin '<password>')
+//   export SESSION_COOKIE=$(./docs/load-test/get-appraisal-token.sh admin '<password>')
 //
 //   # 1) Baseline — single-request latency (run FIRST, record p50/p95):
-//   k6 run -e BASE_URL=https://localhost:7111 -e TOKEN="$TOKEN" \
+//   k6 run -e BASE_URL=https://localhost:7111 -e SESSION_COOKIE="$SESSION_COOKIE" \
 //          -e MODE=count -e VUS=1 -e ITERATIONS=30 \
 //          --insecure-skip-tls-verify docs/load-test/search-appraisals.js
 //
 //   # 2) Concurrency — what users actually feel when several search at once:
-//   k6 run -e BASE_URL=https://localhost:7111 -e TOKEN="$TOKEN" \
+//   k6 run -e BASE_URL=https://localhost:7111 -e SESSION_COOKIE="$SESSION_COOKIE" \
 //          -e MODE=count -e VUS=8 -e ITERATIONS=80 \
 //          --insecure-skip-tls-verify docs/load-test/search-appraisals.js
 //
 //   # 3) Capacity — ramp the arrival rate to find the knee:
-//   k6 run -e BASE_URL=https://localhost:7111 -e TOKEN="$TOKEN" \
+//   k6 run -e BASE_URL=https://localhost:7111 -e SESSION_COOKIE="$SESSION_COOKIE" \
 //          -e MODE=rate -e PEAK_RPS=8 \
 //          --insecure-skip-tls-verify docs/load-test/search-appraisals.js
 //
@@ -170,9 +169,9 @@ function pickShape() {
 }
 
 const HEADERS = authHeaders(
-  __ENV.TOKEN,
+  __ENV.SESSION_COOKIE,
   "It must belong to a bank/internal user (auth.AspNetUsers.CompanyId IS NULL); " +
-    "dev-bypass is company-scoped and returns 0 rows."
+    "the dev-bypass user has no groups/team, so it sees a near-empty scope."
 );
 
 const searched = new Counter("appraisal_searches");
@@ -219,7 +218,7 @@ export default function () {
 
   const ok = check(res, {
     "list 200": (r) => r.status === 200,
-    // A token that is company-scoped silently returns an empty page — that would make every
+    // A session that is company-scoped silently returns an empty page — that would make every
     // timing meaningless, so fail loudly instead of reporting a fast zero.
     "list has rows": (r) => {
       if (r.status !== 200) return false;

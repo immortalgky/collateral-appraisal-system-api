@@ -553,7 +553,8 @@ public class AuthDataSeed(
                     OpenIddictConstants.Permissions.ResponseTypes.Code,
                     OpenIddictConstants.Permissions.Scopes.Email,
                     OpenIddictConstants.Permissions.Scopes.Profile,
-                    OpenIddictConstants.Permissions.Scopes.Roles
+                    OpenIddictConstants.Permissions.Scopes.Roles,
+                    OpenIddictConstants.Permissions.Prefixes.Scope + "integration"
                 },
                 Requirements =
                 {
@@ -587,7 +588,8 @@ public class AuthDataSeed(
                     OpenIddictConstants.Permissions.Prefixes.Scope + "appraisal.read",
                     OpenIddictConstants.Permissions.Prefixes.Scope + "request.write",
                     OpenIddictConstants.Permissions.Prefixes.Scope + "document.read",
-                    OpenIddictConstants.Permissions.Prefixes.Scope + "document.write"
+                    OpenIddictConstants.Permissions.Prefixes.Scope + "document.write",
+                    OpenIddictConstants.Permissions.Prefixes.Scope + "integration"
                 }
             });
     }
