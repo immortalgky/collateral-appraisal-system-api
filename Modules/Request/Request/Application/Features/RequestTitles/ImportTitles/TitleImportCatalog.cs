@@ -50,8 +50,9 @@ public static class TitleImportCatalog
     private static readonly TitleImportColumn NotesColumn = new(
         // The form calls this "Title Detail", which reads oddly on the Vehicle/Vessel/Machine sheets;
         // the neutral label carries better and the form's own wording stays accepted as an alias.
-        "notes", "Notes", ["Title Detail", "รายละเอียด/หมายเหตุ", "รายละเอียดโฉนด", "หมายเหตุ"],
-        MaxLength: 200);
+        "notes", "Notes", ["Title Detail", "Title Detail (Additional)", "รายละเอียด/หมายเหตุ", "รายละเอียดโฉนด", "รายละเอียดโฉนด (เพิ่มเติม)", "หมายเหตุ"],
+        // 4000 as on the form and the integration API; RequestTitles.Notes is nvarchar(max).
+        MaxLength: 4000);
 
     private static readonly TitleImportColumn CollateralStatusColumn = new(
         "collateralStatus", "Previous Appraisal / CAS Status",

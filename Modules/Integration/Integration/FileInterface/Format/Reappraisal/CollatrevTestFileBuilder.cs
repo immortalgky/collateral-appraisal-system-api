@@ -127,13 +127,10 @@ public sealed class CollatrevTestFileBuilder(
         return joined.Length == 0 ? null : joined;
     }
 
-    private static (string Code, string Category) MapPropertyType(string? propertyType)
-    {
-        if (propertyType is null) return ("11A", "RE");
-        if (propertyType.Contains("Condo", StringComparison.OrdinalIgnoreCase)) return ("12B", "RE");
-        if (propertyType.Contains("Land", StringComparison.OrdinalIgnoreCase)) return ("11A", "RE");
-        return ("11A", "RE");
-    }
+    private static (string Code, string Category) MapPropertyType(string? propertyType) =>
+        propertyType?.Trim() is "U" or "LSU"
+            ? ("12B", "RE")
+            : ("11A", "RE");
 
     private async Task<IReadOnlyList<CompletedAppraisalRow>> QueryCompletedAppraisalsAsync(
         int count,

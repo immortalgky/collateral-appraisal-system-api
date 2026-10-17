@@ -295,10 +295,6 @@ public class TitleImportValidator(
         if (isLand || isBuilding || isCondo)
             ctx.Require(values, "ownerName");
 
-        // The form requires the title-detail note for land and condo (not for buildings or movables).
-        if (isLand || isCondo)
-            ctx.Require(values, "notes");
-
         if (isLand || isCondo)
         {
             ctx.Require(values, "titleNumber");

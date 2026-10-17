@@ -1122,7 +1122,7 @@ public class AppraisalCreationService(
     /// Fallback: if no master is found (first-ever appraisal or no prior completion), log a warning
     /// and leave the new project empty — parity with CI's null-prior handling.
     /// </summary>
-    private async Task SeedProjectUnitsFromPriorAsync(
+    internal async Task SeedProjectUnitsFromPriorAsync(
         Project project,
         Guid prevAppraisalId,
         CancellationToken cancellationToken)
@@ -1148,9 +1148,21 @@ public class AppraisalCreationService(
             return;
         }
 
-        // Determine project type from the master result (authoritative source).
-        // The local project.ProjectType enum and the master's string value use the same names.
-        var isCondo = masterResult.ProjectType.Equals("Condo", StringComparison.OrdinalIgnoreCase);
+        // The master stores the project type code ("U"/"LB"/"L"). Condo vs non-condo is a different
+        // unit shape, so don't seed it into this project -- same fallback as the no-master branch.
+        // LB and L share one shape, so they seed into each other.
+        if (ProjectType.IsCondoCode(masterResult.ProjectType) != (project.ProjectType == ProjectType.Condo))
+        {
+            logger.LogWarning(
+                "Block reappraisal seed: collateral master project type {MasterProjectType} differs from new project " +
+                "{ProjectId} type {ProjectType} (prior appraisal {PrevAppraisalId}). Project will start with an empty unit list.",
+                masterResult.ProjectType, project.Id, project.ProjectType.Code, prevAppraisalId);
+            return;
+        }
+
+        // The unit factory follows the project's type (the discriminator ImportUnits branches on),
+        // so the units built here always match the branch ImportUnits takes.
+        var isCondo = project.ProjectType == ProjectType.Condo;
 
         var seededUnits = new List<ProjectUnit>(masterResult.Units.Count);
 
