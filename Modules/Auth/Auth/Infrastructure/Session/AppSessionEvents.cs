@@ -198,6 +198,9 @@ public static class AppSessionEvents
         message.RedirectUri = urls.PublicBase + context.Options.CallbackPath;
         // Set by /auth/login ("Continue as ..."); the handler itself does not copy it onto the authorize request.
         message.LoginHint = context.Properties.GetParameter<string>(OpenIdConnectParameterNames.LoginHint);
+        // Same for the sign-in method; the IdP reads it back from the authorize URL it is given as the return URL.
+        if (context.Properties.GetParameter<string>(LoginMethod.Parameter) is { } method)
+            message.SetParameter(LoginMethod.Parameter, method);
         return Task.CompletedTask;
     }
 

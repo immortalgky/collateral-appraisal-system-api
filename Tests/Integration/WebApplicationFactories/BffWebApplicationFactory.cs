@@ -121,7 +121,11 @@ public sealed class BffWebApplicationFactory(
                 ? new LdapAuthResult(true, new LdapUserInfo(username, null, null, null, null, null, null))
                 : new LdapAuthResult(false, ErrorMessage: "bad password"));
 
-        public Task<LdapUserInfo?> GetUserInfoAsync(string username) => Task.FromResult<LdapUserInfo?>(null);
+        // The service bind: what the directory says about the account, as FakeDirectory has it (null = unreachable).
+        public Task<LdapUserInfo?> GetUserInfoAsync(string username) =>
+            Task.FromResult(FakeDirectory.Lookup(username) is { } account
+                ? new LdapUserInfo(username, null, null, null, null, null, null, account.UserAccountControl, account.AccountExpires, account.Computed)
+                : null);
 
         public Task CheckConnectionAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     }

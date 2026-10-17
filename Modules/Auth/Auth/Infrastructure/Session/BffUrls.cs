@@ -58,6 +58,9 @@ public sealed class BffUrls
     /// </summary>
     public string IdpPublicBase { get; }
 
+    /// <summary>The SPA origins (<c>Cors:AllowedOrigins</c>), without trailing slashes.</summary>
+    public IReadOnlyList<string> CorsOrigins => _corsOrigins;
+
     /// <summary>Where the browser lands when nothing more specific is known: the first SPA origin.</summary>
     public string SpaHome => _corsOrigins.Length > 0 ? _corsOrigins[0] + "/" : "/";
 

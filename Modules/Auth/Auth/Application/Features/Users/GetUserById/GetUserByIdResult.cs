@@ -1,3 +1,5 @@
+using Auth.Application.Features.Auth.Passkeys;
+
 namespace Auth.Application.Features.Users.GetUserById;
 
 public record UserGroupDto(Guid Id, string Name, string Scope);
@@ -33,6 +35,8 @@ public record GetUserByIdResult(
     DateTime? AccessExpiresAt,
     DateTime? LastLoginAt,
     bool TwoFactorEnabled,
+    // The passkeys the user signed in with; an admin can remove them all (DELETE /auth/users/{id}/passkeys).
+    List<PasskeyDto> Passkeys,
     List<UserRoleDto> Roles,
     List<UserGroupDto> Groups,
     List<UserTeamDto> Teams,

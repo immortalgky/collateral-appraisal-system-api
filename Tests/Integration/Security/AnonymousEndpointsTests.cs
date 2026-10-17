@@ -31,6 +31,7 @@ public class AnonymousEndpointsTests(IntegrationTestFixture fixture)
         "ANY Account/Login",                   // interactive login page, [AllowAnonymous]
         "ANY Account/TwoFactor",               // second sign-in step (authenticator or recovery code), [AllowAnonymous]
         "ANY Account/TwoFactorSetup",          // forced authenticator enrolment during sign-in, [AllowAnonymous]
+        "ANY Account/Passkey",                 // passkey sign-in page, [AllowAnonymous]
         "ANY Account/AccessDenied",            // interactive access-denied page, [AllowAnonymous]
         "GET /openapi/{documentName}.json",    // Program.cs: MapOpenApi().AllowAnonymous()
         "ANY /health",                         // Program.cs: load balancer / monitoring probes

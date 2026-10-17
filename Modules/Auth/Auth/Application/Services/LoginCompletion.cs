@@ -1,6 +1,8 @@
 using System.Security.Claims;
+using Auth.Application.Configurations;
 using Auth.Domain.Auditing;
 using Auth.Infrastructure.Configuration;
+using Auth.Infrastructure.Session;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
@@ -33,6 +35,8 @@ public class LoginCompletion(
     AuthDbContext dbContext,
     IDateTimeProvider dateTimeProvider,
     IOptions<IdentityOptions> identityOptions,
+    ILdapAuthenticationService ldapService,
+    IOptions<LdapConfiguration> ldapOptions,
     ILogger<LoginCompletion> logger)
 {
     public static SecondStep Decide(bool requiredByPolicy, bool enabled, bool deviceRemembered) =>
@@ -98,6 +102,23 @@ public class LoginCompletion(
         !user.IsActive ? "Inactive" : !user.IsUsable(dateTimeProvider.ApplicationNow) ? "Expired" : null;
 
     /// <summary>
+    /// What stands in the way of a sign-in that never sent a password to be checked (a passkey), beyond
+    /// <see cref="BlockedReason"/>: the password path gets these from its own checks. Null when none does. An LDAP account is
+    /// checked against the directory itself on every sign-in, because nothing else here would ever learn that AD disabled
+    /// it, and the directory being unreachable is a refusal, not a pass.
+    /// </summary>
+    public async Task<string?> PasswordlessBlockedReasonAsync(ApplicationUser user)
+    {
+        var ldap = AuthSources.IsLdap(user.AuthSource);
+        if (ldap && !ldapOptions.Value.Enabled) return "LdapDisabled";
+        if (await userManager.IsLockedOutAsync(user)) return "LockedOut";
+        if (!ldap) return null;
+
+        // The service bind: GetUserInfoAsync returns null for "not found" and for every error alike.
+        return AdAccountStatus.RefusalReason(await ldapService.GetUserInfoAsync(user.UserName!), dateTimeProvider.UtcNow);
+    }
+
+    /// <summary>
     /// Lets this device skip the code page for the policy's number of hours. Identity's own helper cannot be used: it
     /// writes a cookie that lives for a fixed 14 days. The stamp claim ties the cookie to the credentials, so a reset,
     /// a disable or a password change ends it.
@@ -136,7 +157,23 @@ public class LoginCompletion(
         logger.LogInformation("User {Username} logged in via {Source}", user.UserName, source);
         await auditWriter.RecordAuthEventAsync(AuditAction.LoggedIn, user.Id, user.UserName,
             secondFactor is null ? new { source } : new { source, secondFactor });
+
+        RememberLoginMethod(secondFactor == "passkey" ? LoginMethod.Passkey : LoginMethod.Password);
     }
+
+    /// <summary>
+    /// Tells the SPA's sign-in page which method this browser used last, so it can put that one first. Same attributes as
+    /// the language cookie (the SPA reads it from its own origin, so not HttpOnly); it is a preference, never a credential.
+    /// </summary>
+    private void RememberLoginMethod(string method) =>
+        signInManager.Context.Response.Cookies.Append(LoginMethod.CookieName, method, new CookieOptions
+        {
+            Path = "/",
+            SameSite = SameSiteMode.Lax,
+            Secure = true,
+            HttpOnly = false,
+            MaxAge = TimeSpan.FromDays(365)
+        });
 
     // If the local password has exceeded the configured max age, flag it so the SPA routes the user
     // to the change-password screen (reuses the MustChangePassword mechanism). The flag is set

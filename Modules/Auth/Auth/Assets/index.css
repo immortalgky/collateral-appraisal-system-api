@@ -555,6 +555,82 @@ a.login-button {
     font-size: 0.8125rem;
 }
 
+/* Passkey sign-in page. */
+.passkey-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+}
+
+.passkey-icon {
+    width: 72px;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(147, 197, 253, 0.14);
+    color: #93c5fd;
+    animation: passkey-pulse 2s ease-out infinite;
+}
+
+.passkey-icon svg {
+    width: 36px;
+    height: 36px;
+}
+
+/* Waiting for the device: a soft ring. Idle (cancelled, failed) or reduced motion: still. */
+.passkey-idle .passkey-icon {
+    animation: none;
+}
+
+@keyframes passkey-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(147, 197, 253, 0.35); }
+    70% { box-shadow: 0 0 0 18px rgba(147, 197, 253, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(147, 197, 253, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .passkey-icon {
+        animation: none;
+    }
+}
+
+.passkey-status {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.875rem;
+    line-height: 1.6;
+}
+
+.passkey-retry {
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 6px;
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.passkey-retry[hidden] {
+    display: none;
+}
+
+.passkey-retry:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.passkey-retry:focus-visible {
+    outline: 2px solid #93c5fd;
+    outline-offset: 2px;
+}
+
 /* Responsive: mobile hides image, panel goes full-width */
 @media (max-width: 600px) {
     .login-panel {

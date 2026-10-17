@@ -15,7 +15,8 @@ public class LoginEndpoint : ICarterModule
         // A top-level navigation from the SPA, not an XHR: it ends in a redirect chain through the IdP.
         app.MapGet("/auth/login", (HttpContext http, BffUrls urls, ILogger<LoginEndpoint> logger,
                 IOptions<IdentityOptions> identity, string? returnUrl, string? retry,
-                [FromQuery(Name = LoginHint.Parameter)] string? loginHint) =>
+                [FromQuery(Name = LoginHint.Parameter)] string? loginHint,
+                [FromQuery(Name = LoginMethod.Parameter)] string? method) =>
             {
                 // A request under another host than AppBaseUrl (the SPA's VITE_API_URL not equal to it) will sign in on
                 // AppBaseUrl and then call an API whose cookie never arrives. Whether this is wrong depends on how the
@@ -41,6 +42,9 @@ public class LoginEndpoint : ICarterModule
                     properties.SetParameter(OpenIdConnectParameterNames.LoginHint, hint);
                     properties.Items[AuthSchemes.LoginHintItem] = hint;
                 }
+                // "passkey" or "password": which sign-in page the IdP opens. Anything else is ignored (the IdP's default).
+                if (LoginMethod.Sanitize(method) is { } signInMethod)
+                    properties.SetParameter(LoginMethod.Parameter, signInMethod);
                 return Results.Challenge(properties, [AuthSchemes.Oidc]);
             })
             .AllowAnonymous()

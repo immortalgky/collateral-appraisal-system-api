@@ -25,6 +25,8 @@ public abstract class IdpPageModel : PageModel
 
     public TwoFactorText T2 => TwoFactorText.For(Lang);
 
+    public PasskeyText TP => PasskeyText.For(Lang);
+
     /// <summary>
     /// The only legitimate way to these pages is the OIDC flow, which arrives with the pending /connect/authorize
     /// request as its return URL. A bookmark, a typed address or a stale tab has none; signing in from it would mint a

@@ -48,7 +48,7 @@ public class Login(
     /// </summary>
     private const bool IsPersistentSignIn = false;
 
-    public IActionResult OnGet(string? returnUrl = null)
+    public IActionResult OnGet(string? returnUrl = null, string? method = null)
     {
         // Not from the OIDC flow (a bookmark, a typed address, a stale tab): send the browser back to the SPA to
         // start over.
@@ -56,6 +56,15 @@ public class Login(
             return Redirect(urls.SpaHome);
 
         ReturnUrl = returnUrl;
+        // The SPA asked for a passkey sign-in (method=passkey on the authorize request): that page first. "Use a password
+        // instead" comes back here with method=password, which is the answer to stay. It is written into the authorize URL
+        // that every later page is handed (and that the form below carries), so no later redirect back to Login (an expired
+        // two-factor step, say) turns it into the passkey page again.
+        if (LoginMethod.Sanitize(method) == LoginMethod.Password)
+            ReturnUrl = LoginMethod.WithMethod(returnUrl, LoginMethod.Password);
+        else if (LoginMethod.FromAuthorizeUrl(returnUrl) == LoginMethod.Passkey)
+            return RedirectToPage("Passkey", new { returnUrl });
+
         // "Continue as ...": the authorize request carries the username to show. Razor encodes it on output.
         Username = LoginHint.FromAuthorizeUrl(returnUrl, identityOptions.Value.User.AllowedUserNameCharacters) ?? "";
         return Page();

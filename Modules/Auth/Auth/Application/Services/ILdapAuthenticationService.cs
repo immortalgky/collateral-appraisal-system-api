@@ -28,4 +28,8 @@ public record LdapUserInfo(
     string? LastName,
     string? Department,
     string? Position,
-    string? DistinguishedName);
+    string? DistinguishedName,
+    // The directory's own account state (see AdAccountStatus). Null when the directory did not return the attribute.
+    int? UserAccountControl = null,
+    long? AccountExpires = null,
+    int? UserAccountControlComputed = null);
