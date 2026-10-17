@@ -456,6 +456,7 @@ builder.Services.AddCors(options =>
                 .WithOrigins(corsConfig.AllowedOrigins)
                 .AllowAnyHeader()
                 .AllowAnyMethod()
+                .WithExposedHeaders(Auth.Infrastructure.Session.AppSessionEvents.SessionEndHeader)
                 .AllowCredentials(); // Required for SignalR
         });
 });
