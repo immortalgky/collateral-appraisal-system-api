@@ -15,5 +15,8 @@ public enum AuditAction
     TwoFactorDisabled,
     TwoFactorReset,
     RecoveryCodeUsed,
-    TwoFactorRecoveryCodesRegenerated
+    TwoFactorRecoveryCodesRegenerated,
+    PasskeyAdded,
+    PasskeyRemoved,
+    PasskeysRevoked
 }

@@ -9,6 +9,7 @@ using Auth.Application.Services;
 using Auth.Contracts.Companies;
 using Auth.Contracts.Users;
 using Auth.Scheduling;
+using Fido2NetLib;
 using Auth.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -181,6 +182,20 @@ public static class AuthModule
         services.AddScoped<IPasswordPolicyProvider, PasswordPolicyProvider>();
         services.AddScoped<IPasswordHistoryRecorder, PasswordHistoryRecorder>();
         services.AddScoped<TwoFactorService>();
+        // Passkeys (WebAuthn). The relying-party id and origins come from the public URLs above; Fido2 itself holds no state.
+        services.AddSingleton<PasskeySettings>();
+        services.AddSingleton<PasskeyStateSealer>();
+        services.AddSingleton<IFido2>(sp =>
+        {
+            var passkey = sp.GetRequiredService<PasskeySettings>();
+            return new Fido2(new Fido2Configuration
+            {
+                RPID = passkey.RpId,
+                RPName = PasskeySettings.RpName,
+                Origins = passkey.Origins
+            }, metadataService: null!);
+        });
+        services.AddScoped<PasskeyService>();
         services.AddScoped<LoginCompletion>();
 
         // Unit of Work for the Auth module — enables ITransactionalCommand<IAuthUnitOfWork> so
@@ -424,6 +439,8 @@ public static class AuthModule
         // effect on the next restart — the admin screen states this.
         ApplyLockoutPolicy(app.ApplicationServices);
 
+        WarnAboutPasskeySettings(app.ApplicationServices);
+
         return app;
     }
 
@@ -439,6 +456,26 @@ public static class AuthModule
     /// </summary>
     public static IApplicationBuilder UseMustChangePasswordGate(this IApplicationBuilder app) =>
         app.UseMiddleware<MustChangePasswordMiddleware>();
+
+    // A passkey is bound to the identity provider's host (the relying-party id) for good. That host cannot be an IP address,
+    // and an SPA origin that is neither that host nor a subdomain of it can never register one: the browser refuses. Say so at
+    // startup, not at the first user.
+    private static void WarnAboutPasskeySettings(IServiceProvider services)
+    {
+        var settings = services.GetRequiredService<PasskeySettings>();
+        var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("Auth.Passkeys");
+        if (settings.RpIdIsIpAddress)
+            logger.LogWarning(
+                "[PASSKEY-IP-RPID] The identity provider's public address is the IP address {RpId}. WebAuthn does not accept an IP "
+                + "address as a relying-party id, so passkeys will not work until the IdP is reached by a host name.", settings.RpId);
+        if (settings.MismatchedOrigins.Count == 0) return;
+
+        logger.LogWarning(
+            "[PASSKEY-ORIGIN-MISMATCH] Passkeys are bound to {RpId} (the host of the identity provider's public address), but "
+            + "these allowed origins are not that host or a subdomain of it, so passkeys cannot be registered from them: {Origins}. "
+            + "Serve the SPA under the IdP's host or domain, or set Auth:Idp:PublicBaseUrl accordingly.",
+            settings.RpId, string.Join(", ", settings.MismatchedOrigins));
+    }
 
     private static void HardenTwoFactorCookie(CookieAuthenticationOptions options, string name)
     {

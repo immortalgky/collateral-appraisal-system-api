@@ -4,6 +4,7 @@ using Auth.Domain.Configuration;
 using Auth.Domain.Groups;
 using Auth.Domain.Menu;
 using Auth.Domain.Organization;
+using Auth.Domain.Passkeys;
 using Auth.Domain.Preferences;
 using Auth.Domain.Sessions;
 using Auth.Domain.Teams;
@@ -35,6 +36,7 @@ public class AuthDbContext(DbContextOptions<AuthDbContext> options)
     public DbSet<Officer> Officers => Set<Officer>();
     public DbSet<CostCenter> CostCenters => Set<CostCenter>();
     public DbSet<UserSession> UserSessions => Set<UserSession>();
+    public DbSet<UserPasskey> UserPasskeys => Set<UserPasskey>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

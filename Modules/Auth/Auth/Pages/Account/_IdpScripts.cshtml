@@ -26,6 +26,7 @@
     var form = document.querySelector('form[method=post]');
     if (form) form.addEventListener('submit', function () {
         var btn = form.querySelector('.login-button');
+        if (!btn) return;
         btn.disabled = true;
         btn.textContent = @Json.Serialize(Model.T2.Verifying);
         btn.classList.add('loading');
