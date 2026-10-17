@@ -46,6 +46,8 @@ public class GetQuotationByIdQueryHandler(
             ? await ResolveUserFullNameByUsernameAsync(quotation.RmUsername!)
             : null;
 
+        var invitationsById = quotation.Invitations.ToDictionary(i => i.Id);
+
         var visibleQuotations = filteredQuotations
             .Select(cq => new CompanyQuotationResult(
                 Id: cq.Id,
@@ -53,7 +55,7 @@ public class GetQuotationByIdQueryHandler(
                 CompanyName: visibleCompanyNames.GetValueOrDefault(cq.CompanyId).Name,
                 CompanyNameLocal: visibleCompanyNames.GetValueOrDefault(cq.CompanyId).NameLocal,
                 QuotationNumber: cq.QuotationNumber,
-                Status: cq.Status,
+                Status: invitationsById.GetValueOrDefault(cq.InvitationId)?.Status == "Expired" ? "Expired" : cq.Status,
                 DeclineReason: cq.DeclineReason,
                 // CompanyQuotation.CreateDraft initialises SubmittedAt = default(DateTime), which serialises
                 // as "0001-01-01T00:00:00" and renders as junk in the UI. Only emit a real value once the
