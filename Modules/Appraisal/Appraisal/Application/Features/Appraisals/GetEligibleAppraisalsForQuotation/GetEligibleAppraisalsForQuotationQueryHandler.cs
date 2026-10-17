@@ -11,6 +11,7 @@ namespace Appraisal.Application.Features.Appraisals.GetEligibleAppraisalsForQuot
 /// Reuses AppraisalFilterBuilder and appends two hard eligibility predicates:
 ///   1. AssignmentStatus IS NULL — no active (non-rejected/cancelled) assignment.
 ///   2. NOT EXISTS against QuotationRequestAppraisals where the quotation is non-terminal.
+/// Also left-joins PreviouslyQuotedNumber — informational only, does not affect eligibility.
 /// </summary>
 public class GetEligibleAppraisalsForQuotationQueryHandler(
     ISqlConnectionFactory connectionFactory,
@@ -34,6 +35,16 @@ public class GetEligibleAppraisalsForQuotationQueryHandler(
         )
         """;
 
+    private const string PreviouslyQuotedJoin = """
+        LEFT JOIN (
+            SELECT qa.AppraisalId, qr.QuotationNumber,
+                   ROW_NUMBER() OVER (PARTITION BY qa.AppraisalId ORDER BY qa.AddedAt DESC) AS rn
+            FROM appraisal.QuotationRequestAppraisals qa
+            JOIN appraisal.QuotationRequests qr ON qr.Id = qa.QuotationRequestId
+            WHERE qr.Status = 'Finalized'
+        ) pq ON pq.AppraisalId = v.Id AND pq.rn = 1
+        """;
+
     public async Task<PaginatedResult<AppraisalDto>> Handle(
         GetEligibleAppraisalsForQuotationQuery query,
         CancellationToken cancellationToken)
@@ -53,7 +64,8 @@ public class GetEligibleAppraisalsForQuotationQueryHandler(
 
         // ViewFrom keeps the `v` alias BuildEligibilityClause already writes, and puts a free-text
         // search in front of the view where FORCE ORDER can hold it.
-        var baseSql = $"SELECT v.* FROM {filter.ViewFrom}{combinedWhere}";
+        var baseSql =
+            $"SELECT v.*, pq.QuotationNumber AS PreviouslyQuotedNumber FROM {filter.ViewFrom} {PreviouslyQuotedJoin}{combinedWhere}";
 
         return await connectionFactory.QueryPaginatedAsync<AppraisalDto>(
             baseSql,
