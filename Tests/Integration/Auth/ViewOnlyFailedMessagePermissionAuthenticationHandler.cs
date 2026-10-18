@@ -1,3 +1,4 @@
+using Auth.Infrastructure.Session;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
@@ -24,7 +25,7 @@ public class ViewOnlyFailedMessagePermissionAuthenticationHandler(
             new Claim(ClaimTypes.Name, "view-only-user"),
             new Claim("permissions", "FAILED_MESSAGE_VIEW"),
         };
-        var identity = new ClaimsIdentity(claims, Scheme.Name);
+        var identity = new ClaimsIdentity(claims, AuthSchemes.AppCookie);
         var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name);
         return Task.FromResult(AuthenticateResult.Success(ticket));
     }

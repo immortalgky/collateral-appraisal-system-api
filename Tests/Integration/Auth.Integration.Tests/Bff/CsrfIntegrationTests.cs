@@ -84,7 +84,7 @@ public class CsrfIntegrationTests(IntegrationTestFixture fixture)
                 ["scope"] = "appraisal.read"
             }), TestContext.Current.CancellationToken);
         using var json = await BffTestSupport.ReadJsonAsync(tokenResponse);
-        var request = new HttpRequestMessage(HttpMethod.Post, "/test/echo");
+        var request = new HttpRequestMessage(HttpMethod.Post, "/test/machine/echo");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
             json.RootElement.GetProperty("access_token").GetString());
 

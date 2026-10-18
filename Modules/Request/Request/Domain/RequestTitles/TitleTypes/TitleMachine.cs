@@ -26,6 +26,8 @@ public sealed class TitleMachine : RequestTitle
         MachineInfo = data.MachineInfo;
     }
 
+    protected override bool RequiresTitleAddress => false;
+
     public override void Validate()
     {
         base.Validate();

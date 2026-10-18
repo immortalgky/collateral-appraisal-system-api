@@ -96,8 +96,8 @@ public static class HangfireExtensions
     {
         // The dashboard is a server-rendered page loaded by the browser itself, which cannot carry a
         // Bearer header — so it authenticates with the app session cookie, like the rest of the SPA:
-        //   - Dev: .AllowAnonymous() opts out of the global RequireAuthenticatedUser fallback policy (same
-        //     pattern as /openapi, /scalar), and HangfireAuthorizationFilter lets every request through
+        //   - Dev: .AllowAnonymous() opts out of the global "Spa" fallback policy (browser session / dev header
+        //     only; same pattern as /openapi, /scalar), and HangfireAuthorizationFilter lets every request through
         //     — including one arriving over the LAN, since it gates on the environment and not on the
         //     request's host. A dev instance bound to anything but localhost therefore serves an
         //     unauthenticated, fully interactive job dashboard.
