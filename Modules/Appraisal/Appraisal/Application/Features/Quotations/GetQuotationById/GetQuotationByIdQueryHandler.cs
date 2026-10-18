@@ -49,60 +49,69 @@ public class GetQuotationByIdQueryHandler(
             ? await ResolveUserFullNameByUsernameAsync(quotation.RmUsername!)
             : null;
 
+        var expiredInvitationIds = quotation.Invitations.Where(i => i.Status == "Expired").Select(i => i.Id).ToHashSet();
+
         var visibleQuotations = filteredQuotations
-            .Select(cq => new CompanyQuotationResult(
-                Id: cq.Id,
-                CompanyId: cq.CompanyId,
-                CompanyName: visibleCompanyNames.GetValueOrDefault(cq.CompanyId).Name,
-                CompanyNameLocal: visibleCompanyNames.GetValueOrDefault(cq.CompanyId).NameLocal,
-                QuotationNumber: cq.QuotationNumber,
-                Status: cq.Status,
-                DeclineReason: cq.DeclineReason,
-                // CompanyQuotation.CreateDraft initialises SubmittedAt = default(DateTime), which serialises
-                // as "0001-01-01T00:00:00" and renders as junk in the UI. Only emit a real value once the
-                // company has actually submitted (or progressed past Draft/PendingCheckerReview).
-                SubmittedAt: cq.Status is "Draft" or "PendingCheckerReview" ? null : cq.SubmittedAt,
-                TotalQuotedPrice: cq.TotalQuotedPrice,
-                OriginalQuotedPrice: cq.OriginalQuotedPrice,
-                CurrentNegotiatedPrice: cq.CurrentNegotiatedPrice,
-                NegotiationRounds: cq.NegotiationRounds,
-                IsShortlisted: cq.IsShortlisted,
-                IsWinner: cq.IsWinner,
-                EstimatedDays: cq.EstimatedDays,
-                ValidUntil: cq.ValidUntil,
-                ProposedStartDate: cq.ProposedStartDate,
-                ProposedCompletionDate: cq.ProposedCompletionDate,
-                Remarks: cq.Remarks,
-                Items: cq.Items.Select(i => new CompanyQuotationItemResult(
-                    Id: i.Id,
-                    AppraisalId: i.AppraisalId,
-                    ItemNumber: i.ItemNumber,
-                    QuotedPrice: i.QuotedPrice,
-                    OriginalQuotedPrice: i.OriginalQuotedPrice,
-                    CurrentNegotiatedPrice: i.CurrentNegotiatedPrice,
-                    EstimatedDays: i.EstimatedDays,
-                    FeeAmount: i.FeeAmount,
-                    Discount: i.Discount,
-                    NegotiatedDiscount: i.NegotiatedDiscount,
-                    VatPercent: i.VatPercent,
-                    ItemNotes: i.ItemNotes,
-                    ItemNegotiationReason: i.ItemNegotiationReason
-                )).ToList(),
-                Negotiations: cq.Negotiations.Select(n => new CompanyQuotationNegotiationResult(
-                    Id: n.Id,
-                    NegotiationRound: n.NegotiationRound,
-                    InitiatedBy: n.InitiatedBy,
-                    InitiatedByUserName: n.InitiatedByUserId.HasValue
-                        ? negotiationUserNames.GetValueOrDefault(n.InitiatedByUserId.Value)
-                        : null,
-                    InitiatedAt: n.InitiatedAt,
-                    CounterPrice: n.CounterPrice,
-                    Message: n.Message,
-                    Status: n.Status,
-                    ResponseMessage: n.ResponseMessage,
-                    RespondedAt: n.RespondedAt
-                )).ToList()
-            ))
+            .Select(cq =>
+            {
+                // An expired invitation's Declined row was auto-declined at cutoff: it never submitted, so
+                // its submittedAt, number, prices, items, dates and remarks are blanked (a Draft would leak unsent figures).
+                var isExpired = cq.Status == "Declined" && expiredInvitationIds.Contains(cq.InvitationId);
+                return new CompanyQuotationResult(
+                    Id: cq.Id,
+                    CompanyId: cq.CompanyId,
+                    CompanyName: visibleCompanyNames.GetValueOrDefault(cq.CompanyId).Name,
+                    CompanyNameLocal: visibleCompanyNames.GetValueOrDefault(cq.CompanyId).NameLocal,
+                    QuotationNumber: isExpired ? null : cq.QuotationNumber,
+                    Status: isExpired ? "Expired" : cq.Status,
+                    DeclineReason: cq.DeclineReason,
+                    // CompanyQuotation.CreateDraft initialises SubmittedAt = default(DateTime), which serialises
+                    // as "0001-01-01T00:00:00" and renders as junk in the UI. Emit null for an Expired row, for a
+                    // row still in Draft/PendingCheckerReview, and for any row whose time is still default; otherwise
+                    // the real submit (or decline) time.
+                    SubmittedAt: isExpired || cq.Status is "Draft" or "PendingCheckerReview" || cq.SubmittedAt == default ? null : cq.SubmittedAt,
+                    TotalQuotedPrice: isExpired ? null : cq.TotalQuotedPrice,
+                    OriginalQuotedPrice: isExpired ? null : cq.OriginalQuotedPrice,
+                    CurrentNegotiatedPrice: isExpired ? null : cq.CurrentNegotiatedPrice,
+                    NegotiationRounds: cq.NegotiationRounds,
+                    IsShortlisted: cq.IsShortlisted,
+                    IsWinner: cq.IsWinner,
+                    EstimatedDays: isExpired ? 0 : cq.EstimatedDays,
+                    ValidUntil: isExpired ? null : cq.ValidUntil,
+                    ProposedStartDate: isExpired ? null : cq.ProposedStartDate,
+                    ProposedCompletionDate: isExpired ? null : cq.ProposedCompletionDate,
+                    Remarks: isExpired ? null : cq.Remarks,
+                    Items: isExpired ? [] : cq.Items.Select(i => new CompanyQuotationItemResult(
+                        Id: i.Id,
+                        AppraisalId: i.AppraisalId,
+                        ItemNumber: i.ItemNumber,
+                        QuotedPrice: i.QuotedPrice,
+                        OriginalQuotedPrice: i.OriginalQuotedPrice,
+                        CurrentNegotiatedPrice: i.CurrentNegotiatedPrice,
+                        EstimatedDays: i.EstimatedDays,
+                        FeeAmount: i.FeeAmount,
+                        Discount: i.Discount,
+                        NegotiatedDiscount: i.NegotiatedDiscount,
+                        VatPercent: i.VatPercent,
+                        ItemNotes: i.ItemNotes,
+                        ItemNegotiationReason: i.ItemNegotiationReason
+                    )).ToList(),
+                    Negotiations: cq.Negotiations.Select(n => new CompanyQuotationNegotiationResult(
+                        Id: n.Id,
+                        NegotiationRound: n.NegotiationRound,
+                        InitiatedBy: n.InitiatedBy,
+                        InitiatedByUserName: n.InitiatedByUserId.HasValue
+                            ? negotiationUserNames.GetValueOrDefault(n.InitiatedByUserId.Value)
+                            : null,
+                        InitiatedAt: n.InitiatedAt,
+                        CounterPrice: n.CounterPrice,
+                        Message: n.Message,
+                        Status: n.Status,
+                        ResponseMessage: n.ResponseMessage,
+                        RespondedAt: n.RespondedAt
+                    )).ToList()
+                );
+            })
             .ToList();
 
         // C2: build a lookup from the denormalized Items collection so we can enrich
@@ -197,9 +206,8 @@ public class GetQuotationByIdQueryHandler(
         var segmentSet = SegmentCoverage.BuildSegmentSet(
             appraisalMetaMap.Values.Where(m => !m.IsDeleted).Select(m => m.BankingSegment));
 
-        // Resolve invited companies — include every invitation regardless of status so the
-        // UI can render Expired (auto-declined at cutoff) rows alongside Pending/Submitted/Declined.
-        // Per-row status is surfaced on the FE via the matching CompanyQuotation entry.
+        // Resolve invited companies — include every invitation regardless of status, Expired
+        // (auto-declined at cutoff) included. The FE shows no per-row status for this list.
         // External company users do not see the list of rival invitees; they get an empty list.
         List<InvitedCompanyResult> invitedCompanies;
         if (QuotationAccessPolicy.CanViewInvitedCompanies(currentUser))
