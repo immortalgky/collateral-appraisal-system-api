@@ -69,7 +69,7 @@ public class CompanyAssignedIntegrationEventHandler(
             internalFollowupMethod: assignment.InternalFollowupAssignmentMethod,
             assignedBy: "System");
 
-        var baseFeeSource = await ResolveFeeSourceAsync(message.AppraisalId, message.AssignmentMethod, assignment, ct);
+        var baseFeeSource = await ResolveFeeSourceAsync(message.AppraisalId, message.CompanyId, message.AssignmentMethod, assignment, ct);
 
         // Construction Inspection appraisals carry over the prior engagement's fee; the fee service
         // substitutes AssignmentFeeSource.ConstructionInspection when that applies. Mirrors what
@@ -99,6 +99,7 @@ public class CompanyAssignedIntegrationEventHandler(
     /// </summary>
     private async Task<AssignmentFeeSource> ResolveFeeSourceAsync(
         Guid appraisalId,
+        Guid companyId,
         string assignmentMethod,
         AppraisalAssignment assignment,
         CancellationToken ct)
@@ -109,14 +110,14 @@ public class CompanyAssignedIntegrationEventHandler(
         // Resolve the Finalized RFQ for this appraisal. Look up by appraisal id — this is
         // authoritative regardless of whether QuotationRequestId was previously backfilled
         // on the assignment. (The backfill below is a defensive cache for legacy callers.)
-        var quotationRequest = await quotationRepository.GetFinalizedByAppraisalIdAsync(appraisalId, ct);
+        var quotationRequest = await quotationRepository.GetFinalizedByAppraisalIdAsync(appraisalId, companyId, ct);
 
         if (quotationRequest is null)
             throw new BadRequestException(
-                $"Cannot use Quotation fee source: no Finalized RFQ contains appraisal '{appraisalId}'. " +
-                "Make sure the quotation is finalized with a winner before assigning.");
+                $"Cannot use Quotation fee source: the latest finalized RFQ for appraisal '{appraisalId}' was not won by company '{companyId}' (or none exists). " +
+                "Make sure the quotation is finalized with this company as the winner before assigning.");
 
-        var winningQuotation = quotationRequest.Quotations.FirstOrDefault(q => q.IsWinner)
+        var winningQuotation = quotationRequest.Quotations.FirstOrDefault(q => q.IsWinner && q.CompanyId == companyId)
             ?? throw new BadRequestException(
                 $"Cannot use Quotation fee source: RFQ '{quotationRequest.QuotationNumber ?? quotationRequest.Id.ToString()}' has no winning company quotation.");
 
@@ -125,14 +126,13 @@ public class CompanyAssignedIntegrationEventHandler(
         // The fee service expects the ex-VAT amount — VAT is recomputed on top of the AppraisalFeeItem
         // when RecalculateFromItems runs. Modern submissions populate FeeAmount/Discount/VatPercent →
         // use FeeAfterDiscount (ex-VAT). Legacy rows without a fee breakdown only have a single
-        // QuotedPrice number; fall back to that or the aggregate total as a last resort.
-        decimal amount;
-        if (item is not null && item.FeeAmount > 0m)
-            amount = item.FeeAfterDiscount;
-        else if (item is not null)
-            amount = item.QuotedPrice;
-        else
-            amount = winningQuotation.TotalQuotedPrice;
+        // QuotedPrice number; fall back to that. No per-appraisal item means the winner never priced this
+        // appraisal — the aggregate total sums other appraisals (and is VAT-inclusive), so reject instead.
+        if (item is null)
+            throw new BadRequestException(
+                $"Cannot use Quotation fee source: winning quotation has no price for appraisal '{appraisalId}'.");
+
+        var amount = item.FeeAmount > 0m ? item.FeeAfterDiscount : item.QuotedPrice;
 
         if (amount <= 0m)
             throw new BadRequestException(

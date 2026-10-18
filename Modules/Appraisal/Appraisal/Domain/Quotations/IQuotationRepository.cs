@@ -27,14 +27,26 @@ public interface IQuotationRepository
     /// </summary>
     Task<QuotationRequest?> GetForViewAccessCheckAsync(Guid id, CancellationToken cancellationToken = default);
 
+    /// <summary>Tracked load of the quotation with only its appraisal links (no items, invitations or bids).</summary>
+    Task<QuotationRequest?> GetWithAppraisalsAsync(Guid id, CancellationToken cancellationToken = default);
+
     Task<QuotationRequest?> GetByNumberAsync(string quotationNumber, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Finds the Finalized QuotationRequest linked to the given appraisal, if any.
+    /// The latest finalized QuotationRequest of the given appraisal (by SelectedAt), only if
+    /// <paramref name="winnerCompanyId"/> won it; null otherwise. An older RFQ the company won is not returned once
+    /// a later round chose another winner, so a fee is never taken from a superseded quotation.
     /// v2: searches via QuotationRequestAppraisals join table.
-    /// Returns the most recently created one if multiple exist.
     /// </summary>
-    Task<QuotationRequest?> GetFinalizedByAppraisalIdAsync(Guid appraisalId, CancellationToken cancellationToken = default);
+    Task<QuotationRequest?> GetFinalizedByAppraisalIdAsync(
+        Guid appraisalId, Guid winnerCompanyId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cheap existence form of <see cref="GetFinalizedByAppraisalIdAsync"/>: both judge the same latest finalized
+    /// RFQ of the appraisal (and only if the company won it). This one additionally requires the winner to have a
+    /// usable price for the appraisal (the fee consumer would otherwise fail).
+    /// </summary>
+    Task<bool> HasFinalizedWonByAsync(Guid appraisalId, Guid winnerCompanyId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Returns true if the given appraisal is already part of a non-terminal QuotationRequest

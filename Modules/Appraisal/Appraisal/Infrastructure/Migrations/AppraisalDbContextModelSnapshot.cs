@@ -7459,6 +7459,21 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<string>("AutoAssignMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("AutoAssignReasonCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("AutoAssignResult")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("AutoAssignedAt")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("QuotationRequestId", "AppraisalId");
 
                     b.HasIndex("AppraisalId")

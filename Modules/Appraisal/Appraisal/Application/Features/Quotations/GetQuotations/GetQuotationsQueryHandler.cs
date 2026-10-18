@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Quotations.Shared;
 using Appraisal.Contracts.Services;
 using Dapper;
 using Shared.CQRS;
@@ -25,7 +26,8 @@ public class GetQuotationsQueryHandler(
     private const string SelectColumns = """
         SELECT q.Id, q.QuotationNumber, q.RequestDate, q.CutOffTime, q.Status, q.RequestedBy,
                q.TotalAppraisals, q.TotalCompaniesInvited, q.TotalQuotationsReceived,
-               cust.CustomerName, cust.CustomerCount, cust.CustomerNames
+               cust.CustomerName, cust.CustomerCount, cust.CustomerNames,
+               q.SelectedAt
         """;
 
     // Distinct customer names for the quotation, via QuotationRequestAppraisals → Appraisals →
@@ -59,7 +61,7 @@ public class GetQuotationsQueryHandler(
         string sql;
         var dynamicParams = new DynamicParameters();
 
-        if (currentUser.IsInRole("Admin") || currentUser.IsInRole("IntAdmin"))
+        if (QuotationAccessPolicy.IsAdmin(currentUser))
         {
             sql = $"{SelectColumns} FROM appraisal.vw_QuotationList q {CustomerApply} WHERE 1 = 1";
         }

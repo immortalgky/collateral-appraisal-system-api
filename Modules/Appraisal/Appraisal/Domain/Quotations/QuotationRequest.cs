@@ -70,6 +70,14 @@ public class QuotationRequest : Aggregate<Guid>
     public Guid? RequestId { get; private set; }
     public Guid? WorkflowInstanceId { get; private set; }
     public Guid? TaskExecutionId { get; private set; }
+
+    /// <summary>
+    /// True for a quotation created on its own (<see cref="Create"/>). A quotation started from an
+    /// appraisal-assignment task (<see cref="CreateFromTask"/>) carries the parent appraisal workflow's
+    /// WorkflowInstanceId; this one never does.
+    /// </summary>
+    public bool IsStandalone => WorkflowInstanceId is null;
+
     /// <summary>Not used by application code (the Segment Set is computed from the appraisals); still mapped by EF; drop in a later PR.</summary>
     public string? BankingSegment { get; private set; }
 

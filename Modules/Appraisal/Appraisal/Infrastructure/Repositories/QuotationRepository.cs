@@ -69,6 +69,14 @@ public class QuotationRepository(AppraisalDbContext dbContext) : IQuotationRepos
     }
 
     /// <inheritdoc />
+    public async Task<QuotationRequest?> GetWithAppraisalsAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.QuotationRequests
+            .Include(q => q.Appraisals)
+            .FirstOrDefaultAsync(q => q.Id == id, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<QuotationRequest?> GetByNumberAsync(string quotationNumber,
         CancellationToken cancellationToken = default)
     {
@@ -84,17 +92,50 @@ public class QuotationRepository(AppraisalDbContext dbContext) : IQuotationRepos
     /// v2: searches via the QuotationRequestAppraisals join table, not the dropped AppraisalId column.
     /// </remarks>
     public async Task<QuotationRequest?> GetFinalizedByAppraisalIdAsync(Guid appraisalId,
-        CancellationToken cancellationToken = default)
+        Guid winnerCompanyId, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.QuotationRequests
+        var latest = await LatestFinalized(appraisalId)
             .Include(q => q.Appraisals)
             .Include(q => q.Quotations)
             .ThenInclude(cq => cq.Items)
-            .Where(q => q.Status == "Finalized" &&
-                        q.Appraisals.Any(a => a.AppraisalId == appraisalId))
-            .OrderByDescending(q => q.RequestDate)
+            .AsSplitQuery() // sibling collections would otherwise multiply into a cartesian product
+            .FirstOrDefaultAsync(cancellationToken);
+
+        // The current round decides: if the latest finalized RFQ was won by someone else, an older one this
+        // company won must not be billed.
+        return latest?.SelectedCompanyId == winnerCompanyId ? latest : null;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> HasFinalizedWonByAsync(Guid appraisalId, Guid winnerCompanyId,
+        CancellationToken cancellationToken = default)
+    {
+        // Judges the SAME quotation the fee consumer will use (the latest finalized one, only if this company won
+        // it), and also requires the winner to have a usable price for THIS appraisal by the consumer's rule
+        // (CompanyAssignedIntegrationEventHandler.ResolveFeeSourceAsync): the consumer fails after the workflow has
+        // moved on, so an unpriced winner must be refused here. Every item for the appraisal must be priced, as in
+        // QuotationAutoAssignStateReader.GetPricedAppraisalIdsAsync (the consumer takes an arbitrary first item).
+        return await LatestFinalized(appraisalId)
+            .Select(q => q.SelectedCompanyId == winnerCompanyId &&
+                         q.Quotations.Any(c =>
+                             c.IsWinner && c.CompanyId == winnerCompanyId &&
+                             c.Items.Any(i => i.AppraisalId == appraisalId) &&
+                             !c.Items.Any(i => i.AppraisalId == appraisalId &&
+                                               (i.FeeAmount > 0m
+                                                   ? i.FeeAmount - i.Discount - (i.NegotiatedDiscount ?? 0m)
+                                                   : i.QuotedPrice) <= 0m)))
             .FirstOrDefaultAsync(cancellationToken);
     }
+
+    // The latest finalized quotation of the appraisal, newest FINALIZED first (SelectedAt), not the newest draft.
+    // Deliberately NOT filtered by company: the current round decides who is billed. Shared by the fee lookup and
+    // the assign guard so they cannot pick different quotations. The ordering ends in Id, so it is unique.
+    private IOrderedQueryable<QuotationRequest> LatestFinalized(Guid appraisalId) =>
+        _dbContext.QuotationRequests
+            .Where(q => q.Status == "Finalized" && q.Appraisals.Any(a => a.AppraisalId == appraisalId))
+            .OrderByDescending(q => q.SelectedAt)
+            .ThenByDescending(q => q.RequestDate)
+            .ThenBy(q => q.Id);
 
     /// <summary>
     /// Checks whether the given appraisal is already part of any non-terminal QuotationRequest.

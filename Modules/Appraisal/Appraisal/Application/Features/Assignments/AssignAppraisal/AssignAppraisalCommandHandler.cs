@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Quotations.AutoAssign;
 using Workflow;
 
 namespace Appraisal.Application.Features.Assignments.AssignAppraisal;
@@ -17,7 +18,9 @@ namespace Appraisal.Application.Features.Assignments.AssignAppraisal;
 public class AssignAppraisalCommandHandler(
     IAppraisalRepository appraisalRepository,
     IAppraisalUnitOfWork unitOfWork,
-    IWorkflowRelayService workflowRelayService)
+    IWorkflowRelayService workflowRelayService,
+    IQuotationRepository quotationRepository,
+    IQuotationAutoAssignStateReader workflowOwnership)
     : ICommandHandler<AssignAppraisalCommand, AssignAppraisalResult>
 {
     public async Task<AssignAppraisalResult> Handle(
@@ -33,6 +36,32 @@ public class AssignAppraisalCommandHandler(
             ?? throw new BadRequestException(
                 $"No pending assignment found for appraisal '{command.AppraisalId}'. " +
                 "The workflow task must be in Pending status to accept an assignment.");
+
+        // The relay resumes command.WorkflowInstanceId and nothing else ties it to this appraisal, so a
+        // caller could otherwise resume (and bill the winner check against) a different appraisal's workflow.
+        if (!await workflowOwnership.WorkflowInstanceBelongsToAppraisalAsync(
+                command.AppraisalId, command.WorkflowInstanceId, cancellationToken))
+            throw new BadRequestException("Workflow instance does not belong to this appraisal");
+
+        // A "Quotation" assignment bills the quotation the company WON (CompanyAssignedIntegrationEventHandler).
+        // That consumer runs after the workflow has already moved on, so a non-winner has to be refused here,
+        // before the resume, or the case is left stuck with a failed message. Runs after the ownership checks so
+        // the differing error cannot be used to probe quotations of appraisals the caller has no business with.
+        // Allowlist: only EXT and P (admin-proceed-external) go on to company selection. C (reject) and R (request
+        // more info) must still work for a non-winner, and INT/EXTO name no company. P can also route to
+        // int-appraisal-execution when assignmentType is Internal, which this handler cannot see; "P + Internal +
+        // Quotation method" is an incoherent combination and is guarded anyway.
+        if (string.Equals(command.AssignmentMethod, "Quotation", StringComparison.OrdinalIgnoreCase)
+            && (string.Equals(command.DecisionTaken, "EXT", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(command.DecisionTaken, "P", StringComparison.OrdinalIgnoreCase)))
+        {
+            if (!Guid.TryParse(command.AssigneeCompanyId, out var winnerCompanyId))
+                throw new BadRequestException("A company is required for a Quotation assignment.");
+
+            if (!await quotationRepository.HasFinalizedWonByAsync(
+                    command.AppraisalId, winnerCompanyId, cancellationToken))
+                throw new BadRequestException("The selected company did not win a finalized quotation with a price for this appraisal.");
+        }
 
         // Persist the admin remark onto the row BEFORE resuming the workflow. Committing here (rather
         // than relying on a transactional marker) guarantees the value is durable before the relay
