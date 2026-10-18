@@ -1,3 +1,4 @@
+using Appraisal.Application.Services;
 using Appraisal.Application.Features.FireInsuranceRates.GetFireInsuranceRates;
 
 namespace Appraisal.Application.Features.Project.GetProjectPricingAssumptions;
@@ -11,6 +12,7 @@ namespace Appraisal.Application.Features.Project.GetProjectPricingAssumptions;
 public class GetProjectPricingAssumptionsQueryHandler(
     IProjectRepository projectRepository,
     IPricingAnalysisRepository pricingAnalysisRepository,
+    ForceSaleRateResolver forceSaleRateResolver,
     ISender mediator
 ) : IQueryHandler<GetProjectPricingAssumptionsQuery, GetProjectPricingAssumptionsResult>
 {
@@ -36,6 +38,8 @@ public class GetProjectPricingAssumptionsQueryHandler(
             StringComparer.Ordinal);
 
         var assumption = project.PricingAssumption;
+        var systemDefaultForceSalePercentage = await forceSaleRateResolver.GetSystemDefaultAsync(cancellationToken);
+        var effectiveForceSalePercentage = project.EffectiveForceSalePercentage(systemDefaultForceSalePercentage);
         var isCondo = project.ProjectType == ProjectType.Condo;
         // TODO(Land): IsLandAndBuildingLike covers both LB and Land; isCondo is the other branch
         var projectTypeName = project.ProjectType.ToCode();
@@ -66,7 +70,9 @@ public class GetProjectPricingAssumptionsQueryHandler(
                 FloorIncrementAmount: null,
                 NearGardenAdjustment: null,
                 LandIncreaseDecreaseRate: null,
-                ModelAssumptions: DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCode, towerNameById));
+                ModelAssumptions: DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCode, towerNameById),
+                EffectiveForceSalePercentage: effectiveForceSalePercentage,
+                SystemDefaultForceSalePercentage: systemDefaultForceSalePercentage);
 
             return new GetProjectPricingAssumptionsResult(shellDto);
         }
@@ -122,7 +128,9 @@ public class GetProjectPricingAssumptionsQueryHandler(
             // LB-only (null for Condo)
             assumption.NearGardenAdjustment,
             assumption.LandIncreaseDecreaseRate,
-            modelAssumptions);
+            modelAssumptions,
+            effectiveForceSalePercentage,
+            systemDefaultForceSalePercentage);
 
         return new GetProjectPricingAssumptionsResult(dto);
     }

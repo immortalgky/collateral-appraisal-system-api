@@ -5493,6 +5493,24 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Property<int?>("UnitForSaleCount")
                         .HasColumnType("int");
 
+                    b.Property<string>("UnitPriceImportFileName")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("UnitPriceImportedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UnitPriceImportedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("UnitPriceSource")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Calculated");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
