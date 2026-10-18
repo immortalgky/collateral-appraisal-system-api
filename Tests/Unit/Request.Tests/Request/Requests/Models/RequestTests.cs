@@ -68,6 +68,72 @@ public class RequestTests
         Assert.Throws<ArgumentException>(() => request.SetProperties(properties));
     }
 
+    [Theory]
+    [InlineData("L")]
+    [InlineData("LSL")]
+    [InlineData("MAC")]
+    [InlineData("VEH")]
+    [InlineData("VES")]
+    public void SetProperties_WithTwoRowsOfNoBuildingType_ShouldPass(string propertyType)
+    {
+        var request = ModelsTestData.RequestGeneral();
+        request.SetProperties(
+        [
+            RequestProperty.Create(propertyType, null, null, 1),
+            RequestProperty.Create(propertyType, null, null, 2)
+        ]);
+        Assert.Equal(2, request.Properties.Count);
+    }
+
+    [Fact]
+    public void SetProperties_WithLandAndDuplicateLandWithBuilding_ShouldFail()
+    {
+        var request = ModelsTestData.RequestGeneral();
+        var properties = new List<RequestProperty>
+        {
+            RequestProperty.Create("L", null, null, 1),
+            RequestProperty.Create("LB", "01", null, 1),
+            RequestProperty.Create("LB", "01", null, 2)
+        };
+        Assert.Throws<ArgumentException>(() => request.SetProperties(properties));
+    }
+
+    [Fact]
+    public void Validate_WithNoBuildingRow_ShouldPass()
+    {
+        var request = ModelsTestData.RequestGeneral();
+        var d = request.Detail!;
+        request.SetDetail(RequestDetail.Create(new RequestDetailData(
+            d.HasAppraisalBook, d.LoanDetail, d.PrevAppraisalId, d.Address, d.Contact,
+            Appointment.Create(new DateTime(2099, 1, 1), "Site"), d.Fee)));
+        request.SetProperties([RequestProperty.Create("L", null, null, 1)]);
+        Assert.Null(Record.Exception(() => request.Validate()));
+    }
+
+    [Fact]
+    public void SetProperties_WithDuplicateNullPropertyType_ShouldFail()
+    {
+        var request = ModelsTestData.RequestGeneral();
+        var properties = new List<RequestProperty>
+        {
+            RequestProperty.Create(null, "01", null, 1),
+            RequestProperty.Create(null, "01", null, 2)
+        };
+        Assert.Throws<ArgumentException>(() => request.SetProperties(properties));
+    }
+
+    [Fact]
+    public void SetProperties_WithDuplicateLandWithBuilding_ShouldFail()
+    {
+        var request = ModelsTestData.RequestGeneral();
+        var properties = new List<RequestProperty>
+        {
+            RequestProperty.Create("LB", "01", null, 1),
+            RequestProperty.Create("LB", "01", null, 2)
+        };
+        Assert.Throws<ArgumentException>(() => request.SetProperties(properties));
+    }
+
     [Fact]
     public void SetProperties_WithEmptyList_ShouldClearProperties()
     {
