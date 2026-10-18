@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Appraisal.Application.Features.Quotations.Shared;
 using Dapper;
 using Shared.Data;
@@ -27,17 +26,12 @@ public class GetMyDraftsForAssemblyQueryHandler(
         using var connection = connectionFactory.GetOpenConnection();
 
         // ── Main query: get Draft quotations owned by this admin ──────────────
-        // BankingSegment is read straight from the cached column (JSON array, kept in sync on
-        // every appraisal add/remove — see QuotationRequest.SetBankingSegment) instead of joining
-        // QuotationRequestAppraisals + Appraisals here on every call; that join was the whole cost
-        // this cache exists to avoid.
         var sql = """
             SELECT
                 q.Id,
                 q.QuotationNumber,
                 q.RequestDate,
                 q.CutOffTime,
-                q.BankingSegment,
                 q.TotalAppraisals,
                 q.TotalCompaniesInvited
             FROM appraisal.QuotationRequests q
@@ -72,12 +66,26 @@ public class GetMyDraftsForAssemblyQueryHandler(
                 g => g.Key,
                 g => g.Select(p => p.AppraisalNumber).Take(5).ToList());
 
+        // ── Segment Set per quotation: one grouped read, built the same way as the Send guard ──
+        var segmentRows = await connection.QueryAsync<(Guid QuotationRequestId, string? BankingSegment)>(
+            """
+            SELECT qra.QuotationRequestId, a.BankingSegment
+            FROM [appraisal].[QuotationRequestAppraisals] qra
+            JOIN [appraisal].[Appraisals] a ON a.Id = qra.AppraisalId
+            WHERE qra.QuotationRequestId IN @QuotationIds
+            """,
+            new { QuotationIds = quotationIds });
+
+        var segmentLookup = segmentRows
+            .GroupBy(r => r.QuotationRequestId)
+            .ToDictionary(g => g.Key, g => SegmentCoverage.BuildSegmentSet(g.Select(r => r.BankingSegment)));
+
         var drafts = rows.Select(r => new QuotationDraftSummaryDto(
             Id: r.Id,
             QuotationNumber: r.QuotationNumber,
             RequestDate: r.RequestDate,
             CutOffTime: r.CutOffTime,
-            BankingSegment: SegmentCoverage.ParseLoanTypes(r.BankingSegment),
+            BankingSegment: segmentLookup.GetValueOrDefault(r.Id) ?? [],
             TotalAppraisals: r.TotalAppraisals,
             TotalCompaniesInvited: r.TotalCompaniesInvited,
             AppraisalNumberPreview: previewLookup.TryGetValue(r.Id, out var preview)
@@ -93,7 +101,6 @@ public class GetMyDraftsForAssemblyQueryHandler(
         string? QuotationNumber,
         DateTime RequestDate,
         DateTime CutOffTime,
-        string? BankingSegment,
         int TotalAppraisals,
         int TotalCompaniesInvited);
 

@@ -7,7 +7,7 @@ public record QuotationDraftSummaryDto(
     string? QuotationNumber,
     DateTime RequestDate,
     DateTime CutOffTime,
-    /// <summary>Distinct Banking Segments of the draft's current appraisals (cached on QuotationRequest, kept in sync on every appraisal add/remove).</summary>
+    /// <summary>Distinct Banking Segments of the draft's current appraisals (computed live).</summary>
     IReadOnlyList<string> BankingSegment,
     int TotalAppraisals,
     int TotalCompaniesInvited,

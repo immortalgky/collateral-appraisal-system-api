@@ -4,6 +4,7 @@ using Appraisal.Infrastructure;
 using Dapper;
 using Shared.Data;
 using Shared.Data.Outbox;
+using Shared.Extensions;
 using Shared.Identity;
 using Shared.Messaging.Events;
 
@@ -143,27 +144,23 @@ public class SendQuotationCommandHandler(
         var connection = connectionFactory.GetOpenConnection();
 
         var segmentSet = await SegmentCoverage.LoadAppraisalSegmentSetAsync(connection, appraisalIds);
-        if (segmentSet.Count == 0 && segmentSet.SequenceEqual(quotation.BankingSegment))
+
+        if (segmentSet.Count == 0)
             return;
 
-        if (!segmentSet.SequenceEqual(quotation.BankingSegment))
-            quotation.SetBankingSegment(segmentSet);
-
-        var loanTypesByCompany = await SegmentCoverage.LoadCompanyLoanTypesAsync(connection, companyIds);
-        var names = (await connection.QueryAsync<(Guid Id, string Name)>(
-                "SELECT c.Id, c.Name FROM [auth].[Companies] c WHERE c.Id IN @CompanyIds",
+        var companies = (await connection.QueryAsync<(Guid Id, string Name, string? LoanTypes)>(
+                "SELECT c.Id, c.Name, c.LoanTypes FROM [auth].[Companies] c WHERE c.Id IN @CompanyIds",
                 new { CompanyIds = companyIds }))
-            .ToDictionary(r => r.Id, r => r.Name);
+            .ToDictionary(r => r.Id);
 
         var gaps = companyIds
             .Select(id =>
             {
-                var loanTypes = loanTypesByCompany.GetValueOrDefault(id) ?? [];
+                var company = companies.GetValueOrDefault(id);
+                var loanTypes = company.LoanTypes.ParseJsonStringArray();
                 return new
                 {
-                    companyId = id,
-                    companyName = names.GetValueOrDefault(id) ?? id.ToString(),
-                    loanTypes,
+                    companyName = company.Name ?? id.ToString(),
                     missingSegments = SegmentCoverage.MissingSegments(segmentSet, loanTypes)
                 };
             })
@@ -174,15 +171,13 @@ public class SendQuotationCommandHandler(
         if (gaps.Count == 0)
             return;
 
+        var detail = string.Join("; ", gaps.Select(g => $"{g.companyName} (missing {string.Join(", ", g.missingSegments)})"));
         throw new BadRequestException(
             "Cannot send quotation: some invited companies do not cover every banking segment in this quotation "
-            + $"({string.Join(", ", segmentSet)}). Remove those companies or the appraisals outside their segments.",
-            new Dictionary<string, object?>
-            {
-                ["errorCode"] = SegmentCoverage.MismatchCode,
-                ["segmentSet"] = segmentSet,
-                ["companies"] = gaps
-            });
+            + $"({string.Join(", ", segmentSet)}). Remove those companies or the appraisals outside their segments. "
+            + detail,
+            null,
+            SegmentCoverage.MismatchCode);
     }
 
     /// <summary>

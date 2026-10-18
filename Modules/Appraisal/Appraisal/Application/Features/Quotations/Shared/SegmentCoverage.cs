@@ -1,24 +1,28 @@
 using System.Data;
-using System.Text.Json;
 using Dapper;
 
 namespace Appraisal.Application.Features.Quotations.Shared;
 
 /// <summary>
-/// Segment Coverage rule (see CONTEXT.md): a company covers a quotation when its Company Loan Types
-/// include every Banking Segment in the quotation's Segment Set. Extra loan types are fine and the
+/// Segment Coverage rule: a company covers a quotation when its Company Loan Types
+/// include every Banking Segment in the quotation's Segment Set (the distinct Banking Segments of the
+/// appraisals currently on it, always computed live). Extra loan types are fine and the
 /// comparison is case-insensitive. Lives here once so the read side and the Send guard cannot drift.
 /// </summary>
 public static class SegmentCoverage
 {
     public const string MismatchCode = "SEGMENT_COVERAGE_MISMATCH";
 
-    /// <summary>Distinct, non-blank segments (first spelling wins), in first-seen order.</summary>
+    /// <summary>
+    /// Trimmed, non-blank segments, deduplicated case-insensitively and sorted (OrdinalIgnoreCase) so the
+    /// result is deterministic.
+    /// </summary>
     public static List<string> BuildSegmentSet(IEnumerable<string?> appraisalSegments) =>
         appraisalSegments
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .Select(s => s!.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Order(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
     /// <summary>Segments in the set the company cannot appraise. Empty means the company covers the set.</summary>
@@ -36,44 +40,8 @@ public static class SegmentCoverage
         if (appraisalIds.Length == 0)
             return [];
         var segments = await connection.QueryAsync<string?>(
-            "SELECT a.BankingSegment FROM [appraisal].[appraisals] a WHERE a.Id IN @AppraisalIds", new { AppraisalIds = appraisalIds }
-        );
+            "SELECT a.BankingSegment FROM [appraisal].[Appraisals] a WHERE a.Id IN @AppraisalIds",
+            new { AppraisalIds = appraisalIds });
         return BuildSegmentSet(segments);
-    }
-
-    /// <summary>
-    /// Reads Company.LoanTypes (stored as a JSON array in auth.Companies) for the given companies.
-    /// Same cross-schema Dapper pattern GetQuotationById already uses for company names.
-    /// </summary>
-    public static async Task<Dictionary<Guid, List<string>>> LoadCompanyLoanTypesAsync(
-        IDbConnection connection,
-        Guid[] companyIds)
-    {
-        if (companyIds.Length == 0)
-            return new Dictionary<Guid, List<string>>();
-
-        var rows = await connection.QueryAsync<(Guid Id, string? LoanTypes)>(
-            "SELECT c.Id, c.LoanTypes FROM [auth].[Companies] c WHERE c.Id IN @CompanyIds",
-            new { CompanyIds = companyIds });
-
-        return rows.ToDictionary(r => r.Id, r => ParseLoanTypes(r.LoanTypes));
-    }
-
-    /// <summary>Deserializes a Company.LoanTypes JSON-array column. Public so callers that must join
-    /// LoanTypes into a wider query (not just LoadCompanyLoanTypesAsync's own cross-schema read) can
-    /// reuse the exact same parsing instead of duplicating it.</summary>
-    public static List<string> ParseLoanTypes(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-            return [];
-
-        try
-        {
-            return JsonSerializer.Deserialize<List<string>>(json) ?? [];
-        }
-        catch (JsonException)
-        {
-            return [];
-        }
     }
 }

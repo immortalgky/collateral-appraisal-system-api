@@ -1,4 +1,3 @@
-using System.Data;
 using Appraisal.Application.Features.Quotations.Shared;
 using Shared.Data.Outbox;
 using Shared.Identity;
@@ -8,7 +7,6 @@ using Shared.Time;
 namespace Appraisal.Application.Features.Quotations.AddAppraisalToDraft;
 
 public class AddAppraisalToDraftCommandHandler(
-    ISqlConnectionFactory connectionFactory,
     IQuotationRepository quotationRepository,
     IAppraisalRepository appraisalRepository,
     ICurrentUserService currentUser,
@@ -64,9 +62,6 @@ public class AddAppraisalToDraftCommandHandler(
             maxAppraisalDays: command.MaxAppraisalDays);
 
         quotationRepository.Update(quotation);
-
-        var appraisalSegments = await SegmentCoverage.LoadAppraisalSegmentSetAsync(connectionFactory.GetOpenConnection(), quotation.Appraisals.Select(a => a.AppraisalId).ToArray());
-        quotation.SetBankingSegment(appraisalSegments.ToList());
 
         outbox.Publish(new AppraisalAddedToQuotationIntegrationEvent
         {

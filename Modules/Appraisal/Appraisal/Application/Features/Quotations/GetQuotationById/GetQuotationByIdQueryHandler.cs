@@ -2,6 +2,7 @@ using Appraisal.Application.Features.Quotations.Shared;
 using Appraisal.Contracts.Services;
 using Dapper;
 using Shared.Data;
+using Shared.Extensions;
 using Shared.Identity;
 
 namespace Appraisal.Application.Features.Quotations.GetQuotationById;
@@ -171,8 +172,8 @@ public class GetQuotationByIdQueryHandler(
         // Per-row status is surfaced on the FE via the matching CompanyQuotation entry.
         // External company users do not see the list of rival invitees; they get an empty list.
 
-        // Read the cached set instead of recomputing from appraisalMetaMap — that's the whole
-        var segmentSet = quotation.BankingSegment;
+        // Segment Set from the appraisals already loaded above, computed the same way as the Send guard.
+        var segmentSet = SegmentCoverage.BuildSegmentSet(appraisalMetaMap.Values.Select(m => m.BankingSegment));
 
         List<InvitedCompanyResult> invitedCompanies;
         if (QuotationAccessPolicy.CanViewInvitedCompanies(currentUser))
@@ -181,17 +182,21 @@ public class GetQuotationByIdQueryHandler(
                 .Select(i => i.CompanyId)
                 .ToArray();
             var companyInfoMap = await ResolveCompanyInfoAsync(invitationCompanyIds);
+            // Coverage only matters before Send. A company row that no longer exists is still listed
+            // (id as the name, like the Send guard) with no loan types, so it reads as missing everything.
+            var checkCoverage = quotation.Status == "Draft";
             invitedCompanies = invitationCompanyIds
-                .Where(id => companyInfoMap.ContainsKey(id))
                 .Select(id =>
                 {
+                    companyInfoMap.TryGetValue(id, out var info);
+                    var loanTypes = info.LoanTypes ?? [];
                     return new InvitedCompanyResult(
                         id,
-                        companyInfoMap[id].Name,
-                        companyInfoMap[id].NameLocal,
-                        companyInfoMap[id].Email,
-                        companyInfoMap[id].LoanTypes,
-                        SegmentCoverage.MissingSegments(segmentSet, companyInfoMap[id].LoanTypes));
+                        info.Name ?? id.ToString(),
+                        info.NameLocal,
+                        info.Email,
+                        loanTypes,
+                        checkCoverage ? SegmentCoverage.MissingSegments(segmentSet, loanTypes) : []);
                 })
                 .OrderBy(r => r.CompanyName)
                 .ToList();
@@ -245,7 +250,7 @@ public class GetQuotationByIdQueryHandler(
             RequestId: quotation.RequestId,
             WorkflowInstanceId: quotation.WorkflowInstanceId,
             TaskExecutionId: quotation.TaskExecutionId,
-            BankingSegment: quotation.BankingSegment,
+            BankingSegment: segmentSet,
             RmUserName: quotation.RmUsername,
             RmUserFullName: rmUserFullName,
             SubmissionsClosedAt: quotation.SubmissionsClosedAt,
@@ -495,7 +500,7 @@ public class GetQuotationByIdQueryHandler(
             """,
             new { CompanyIds = companyIds });
 
-        return rows.ToDictionary(r => r.Id, r => (r.Name, r.NameLocal, r.Email, SegmentCoverage.ParseLoanTypes(r.LoanTypes)));
+        return rows.ToDictionary(r => r.Id, r => (r.Name, r.NameLocal, r.Email, r.LoanTypes.ParseJsonStringArray()));
     }
 
     private async Task<IReadOnlyList<QuotationSharedDocumentResult>> EnrichSharedDocumentsAsync(

@@ -5,11 +5,19 @@ namespace Appraisal.Tests.Application.Features.Quotations;
 public class SegmentCoverageTests
 {
     [Fact]
-    public void BuildSegmentSet_DedupesCaseInsensitively_AndDropsBlanks()
+    public void BuildSegmentSet_TrimsDedupesCaseInsensitively_DropsBlanks_AndSorts()
     {
         var set = SegmentCoverage.BuildSegmentSet(["Retail", "retail", "IBG", null, " ", "IBG "]);
 
-        Assert.Equal(["Retail", "IBG"], set);
+        Assert.Equal(["IBG", "Retail"], set);
+    }
+
+    [Fact]
+    public void BuildSegmentSet_SameSegmentsInAnyOrder_GiveTheSameList()
+    {
+        Assert.Equal(
+            SegmentCoverage.BuildSegmentSet(["SME", "Retail", "IBG"]),
+            SegmentCoverage.BuildSegmentSet(["IBG", "SME", "Retail"]));
     }
 
     [Fact]
