@@ -38,7 +38,7 @@ public record TitleImportRow(
 /// <param name="MissingColumns">
 /// Columns a row actually needed that the uploaded sheet does not have. Deleting columns you do not
 /// use is supported, so this lists only the ones that were reached and found absent — not every
-/// column the template ships. Without it, dropping "Notes" from a 300-row land file produces 300
+/// column the template ships. Without it, dropping "Owner" from a 300-row land file produces 300
 /// identical row errors and no hint that the header row is the thing to fix.
 /// </param>
 public record TitleImportResult(

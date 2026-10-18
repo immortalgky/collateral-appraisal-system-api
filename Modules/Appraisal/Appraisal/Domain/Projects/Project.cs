@@ -1158,10 +1158,11 @@ public class Project : Aggregate<Guid>
             if (!string.IsNullOrWhiteSpace(unit.ModelType))
             {
                 // Match by (TowerId, ModelName) — models are now per-tower for Condo.
-                var model = _models.First(m =>
+                var model = _models.FirstOrDefault(m =>
                     m.ProjectTowerId == towerIdForUnit &&
                     string.Equals(m.ModelName, unit.ModelType, StringComparison.OrdinalIgnoreCase));
-                unit.SetProjectModelId(model.Id);
+                if (model is not null)
+                    unit.SetProjectModelId(model.Id);
             }
         }
     }

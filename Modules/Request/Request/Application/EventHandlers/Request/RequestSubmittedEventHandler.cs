@@ -91,7 +91,7 @@ public class RequestSubmittedEventHandler(
             requestTitleDtos.Count);
     }
 
-    private static RequestTitleDto MapToDto(RequestTitle title)
+    internal static RequestTitleDto MapToDto(RequestTitle title)
     {
         var dto = new RequestTitleDto
         {
@@ -100,17 +100,7 @@ public class RequestSubmittedEventHandler(
             CollateralType = title.CollateralType ?? string.Empty,
             CollateralStatus = title.CollateralStatus ?? false,
             OwnerName = title.OwnerName,
-            TitleAddress = new AddressDto(
-                title.TitleAddress.HouseNumber,
-                title.TitleAddress.ProjectName,
-                title.TitleAddress.Moo,
-                title.TitleAddress.Soi,
-                title.TitleAddress.Road,
-                title.TitleAddress.SubDistrict,
-                title.TitleAddress.District,
-                title.TitleAddress.Province,
-                title.TitleAddress.Postcode
-            ),
+            TitleAddress = title.TitleAddress?.ToDto() ?? new AddressDto(null, null, null, null, null, null, null, null, null),
             DopaAddress = new AddressDto(
                 title.DopaAddress.HouseNumber,
                 title.DopaAddress.ProjectName,

@@ -438,7 +438,7 @@
       {
         "id": "admin-finalize-reject-tentative",
         "from": "admin-finalize",
-        "to": "rm-pick-winner",
+        "to": "admin-review-submissions",
         "condition": "decision == 'reject_tentative'",
         "properties": {},
         "type": "Conditional"

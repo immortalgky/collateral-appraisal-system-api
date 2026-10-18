@@ -232,11 +232,13 @@ internal class TitleImportTemplateQueryHandler(ISqlConnectionFactory connectionF
         Line("      \u2022 Column headers may be written in English or Thai; case and spacing do not matter.");
         Line("      \u2022 Columns are matched by their header text, not their position — you may reorder");
         Line("        them, and delete any column your collateral type does not use.");
-        Line("      \u2022 The Collateral Type Code column and both address blocks cannot be removed:");
-        Line("        every row needs them whatever its type.");
+        Line("      \u2022 These columns cannot be removed: Collateral Type Code, and the Sub District, District and");
+        Line("        Province of each address the sheet has. Everything else, House No included, may go if no row needs it.");
         row += 1;
 
-        Line("3. Both addresses are required", bold: true);
+        Line("3. Addresses", bold: true);
+        Line("      \u2022 \"Title Address\" is required on the Property sheet only (land, building, condominium, lease),");
+        Line("        and the Vehicle, Vessel and Machine sheets have no title address.");
         Line("      \u2022 \"Title Address\" uses the Land Department master.");
         Line("      \u2022 \"DOPA Address\" uses the Department of Provincial Administration master.");
         Line("      \u2022 They are different data - never copy one into the other. Some localities exist in only one master.");
