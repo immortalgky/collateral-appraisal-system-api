@@ -307,7 +307,8 @@ public class GetReappraisalCandidateByIdQueryHandler(ISqlConnectionFactory conne
             FROM appraisal.Appraisals a
             WHERE a.AppraisalNumber = @SurveyNumber
               AND a.IsDeleted = 0
-            ORDER BY a.Id  -- same pick as Initiate (MIN(Id)) and the candidate view
+              AND a.Status <> 'Cancelled'   -- like a deleted one, a cancelled appraisal is not "in CAS" (same as Initiate and the candidate view)
+            ORDER BY a.Id  -- a number is one appraisal (unique index); the order only keeps the pick deterministic
             """;
         var id = await conn.QueryFirstOrDefaultAsync<Guid?>(sql, new { SurveyNumber = surveyNumber });
         return id ?? Guid.Empty;

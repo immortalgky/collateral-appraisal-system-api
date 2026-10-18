@@ -6,11 +6,13 @@ using Integration.Contracts.Reappraisal;
 namespace Integration.FileInterface.Format.Reappraisal;
 
 /// <summary>
-/// Parses the AS400 COLLATREV inbound interface — a <b>fixed-width</b> (649-char Detail) UTF-8 text file
-/// with Header (H) / Detail (D) / Trailer (T) records.
+/// Parses the AS400 COLLATREV inbound interface — a <b>fixed-width</b> (649- or 650-char Detail) UTF-8
+/// text file with Header (H) / Detail (D) / Trailer (T) records.
 ///
 ///   Header:  pos 1 = 'H', pos 2–9 = EffectiveDate (DDMMYYYY), pos 10–640 = filler (640 chars total).
-///   Detail:  pos 1 = 'D', 649 chars total; field map documented in the constants below.
+///   Detail:  pos 1 = 'D', 649 chars total, or 650 with AS400's Auto Update flag at pos 650; field map
+///            documented in the constants below. Positions 1–649 are identical in both, so one file may
+///            mix the two lengths: a 649 row simply has no flag (null).
 ///   Trailer: pos 1 = 'T', pos 2–10 = TotalDetailRecord (dec9), pos 11–640 = filler (640 chars total).
 ///
 /// IMPORTANT — char vs byte positions:
@@ -21,16 +23,13 @@ namespace Integration.FileInterface.Format.Reappraisal;
 /// </summary>
 public class CollatrevFileParser
 {
-    /// <summary>Original layout, still in use until AS400 cuts over.</summary>
+    /// <summary>Original layout, no flag (a row of this length has a null Auto Update).</summary>
     private const int DetailRecordLengthV1 = 649;
 
     /// <summary>
-    /// Revised layout: one extra character at position 650 carrying AS400's own Auto Update flag.
-    ///
-    /// <b>The flag is deliberately not read.</b> Whether our outbound result may be applied
-    /// automatically is decided by whether we can tie the appraisal to exactly one AS400 collateral,
-    /// which is our determination to make; echoing back a flag AS400 already holds adds nothing.
-    /// The length is accepted so the new file is not rejected, and no further.
+    /// Revised layout: one extra character at position 650 carrying AS400's own Auto Update flag,
+    /// read into <see cref="ParsedDetailRecord.AutoUpdate"/> (only 'Y'/'N' are kept; null on a 649 row
+    /// or any other value).
     /// </summary>
     private const int DetailRecordLengthV2 = 650;
 
@@ -47,8 +46,8 @@ public class CollatrevFileParser
     private ParsedReappraisalFile ParseLines(List<string> lines)
     {
         DateOnly effectiveDate = DateOnly.MinValue;
-        int? detailLength = null;
         var details = new List<ParsedDetailRecord>();
+        var unrecognisedFlags = 0;
         int expectedCount = -1;
         var sawTrailer = false;
 
@@ -64,24 +63,24 @@ public class CollatrevFileParser
                     break;
 
                 case 'D':
-                    // Exact match against the accepted layouts, not a minimum. A ">=" test would let
+                    // Exact match against the two accepted lengths, not a minimum. A ">=" test would let
                     // a file with shifted fields through: every field would parse, the values would
-                    // be silently wrong, and nothing would flag it.
+                    // be silently wrong, and nothing would flag it. Any other length — in any row, so
+                    // also in a file that otherwise mixes 649 and 650 — is a damaged or unknown layout.
+                    // 649 and 650 may share a file: positions 1–649 are identical, only the flag differs.
                     if (line.Length != DetailRecordLengthV1 && line.Length != DetailRecordLengthV2)
                         throw new FormatException(
                             $"Detail record is {line.Length} chars (expected {DetailRecordLengthV1} " +
                             $"or {DetailRecordLengthV2}). " +
                             $"First 40 chars: '{line[..Math.Min(40, line.Length)]}'");
-                    // One file is one layout. Mixed lengths mean the file is damaged rather than
-                    // that AS400 changed spec mid-stream, and the shorter rows would be read with
-                    // every field in the right place but the record silently incomplete.
-                    detailLength ??= line.Length;
-                    if (line.Length != detailLength)
-                        throw new FormatException(
-                            $"Detail records in this file have mixed lengths ({detailLength} and " +
-                            $"{line.Length}); the file is not a single layout.");
 
-                    details.Add(ParseDetailLine(line));
+                    // The flag is read once: it is both the row's value and the unrecognised count.
+                    string? flag = null;
+                    if (line.Length == DetailRecordLengthV2
+                        && !CollatrevAutoUpdate.TryNormalize(line[DetailRecordLengthV2 - 1].ToString(), out flag))
+                        unrecognisedFlags++;
+
+                    details.Add(ParseDetailLine(line, flag));
                     break;
 
                 case 'T':
@@ -101,10 +100,10 @@ public class CollatrevFileParser
             throw new FormatException(
                 $"Trailer count mismatch: file says {expectedCount} detail records, parsed {details.Count}.");
 
-        return new ParsedReappraisalFile(effectiveDate, details);
+        return new ParsedReappraisalFile(effectiveDate, details, unrecognisedFlags);
     }
 
-    private static ParsedDetailRecord ParseDetailLine(string line)
+    private static ParsedDetailRecord ParseDetailLine(string line, string? autoUpdate)
     {
         var hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(line)));
 
@@ -147,7 +146,9 @@ public class CollatrevFileParser
             Stage: TrimOrNull(Slice(line, 629, 1)),
             IBGRetail: TrimOrNull(Slice(line, 630, 10)),
             Group: TrimOrNull(Slice(line, 640, 1)),
-            EffectiveDateAppraisal: ParseDdmmyyyyOrNull(Slice(line, 641, 8))
+            EffectiveDateAppraisal: ParseDdmmyyyyOrNull(Slice(line, 641, 8)),
+            AutoUpdate: autoUpdate,
+            HasAutoUpdatePosition: line.Length == DetailRecordLengthV2
         );
     }
 

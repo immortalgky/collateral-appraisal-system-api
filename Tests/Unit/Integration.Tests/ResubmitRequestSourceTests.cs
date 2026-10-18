@@ -62,7 +62,7 @@ public class ResubmitRequestSourceTests
         var draft = Request.Domain.Requests.Request.Create(new Request.Domain.Requests.RequestData(
             "03", "SIBS", new Shared.Models.UserInfo("u", "U"), new Shared.Models.UserInfo("u", "U"),
             DateTime.Now, "Normal", false));
-        draft.MarkAsPeriodicalReappraisal("G-1", "62A00645");
+        draft.MarkAsPeriodicalReappraisal("G-1", "62A00645", null, null);
         var update = Substitute.For<IUpdateRequestService>();
         update.GetByIdWithDocumentsAsync(requestId, Arg.Any<CancellationToken>()).Returns(draft);
         update.ResubmitRequestAsync(Arg.Any<ResubmitRequestData>(), Arg.Any<CancellationToken>())
@@ -84,6 +84,72 @@ public class ResubmitRequestSourceTests
         await lookup.DidNotReceive().ResolvePriorAppraisalByNumberAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
         await update.Received(1).ResubmitRequestAsync(
             Arg.Is<ResubmitRequestData>(d => d.Detail!.PrevAppraisalNumber == "62A00645"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Data_fix_resubmit_of_a_reappraisal_draft_with_a_CAS_prior_by_number_only_makes_no_CAS_lookup_and_reaches_the_lock()
+    {
+        var requestId = Guid.NewGuid();
+        var draft = Request.Domain.Requests.Request.Create(new Request.Domain.Requests.RequestData(
+            "03", "SIBS", new Shared.Models.UserInfo("u", "U"), new Shared.Models.UserInfo("u", "U"),
+            DateTime.Now, "Normal", false));
+        draft.SetDetail(Request.Domain.Requests.RequestDetail.Create(new Request.Domain.Requests.RequestDetailData(
+            false, null, Guid.NewGuid(), null, null, null, null, "62A00645", 1m, null)));
+        draft.MarkAsPeriodicalReappraisal("G-1", "62A00645", null, null);
+        var update = Substitute.For<IUpdateRequestService>();
+        update.GetByIdWithDocumentsAsync(requestId, Arg.Any<CancellationToken>()).Returns(draft);
+        update.ResubmitRequestAsync(Arg.Any<ResubmitRequestData>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<Request.Domain.Requests.Request>(new StopHere()));
+        var lookup = Substitute.For<IAppraisalLookupService>();
+
+        var handler = new ResubmitRequestCommandHandler(
+            update, Substitute.For<IRequestSyncService>(), Substitute.For<ISender>(), lookup,
+            Substitute.For<IIntegrationEventOutbox>(), NullLogger<ResubmitRequestCommandHandler>.Instance);
+        var user = new UserInfoDto("U1", "u1");
+        var command = new ResubmitRequestCommand(
+            requestId, "03", "SIBS", user, user, "Normal", false,
+            new RequestDetailDto(false, null, null, null, null, null, null, "62A00645", null, null),
+            [], [], null, null);
+
+        await Assert.ThrowsAsync<StopHere>(() => handler.Handle(command, TestContext.Current.CancellationToken));
+
+        // The number goes to the update service as LOS sent it (where the lock compares it to the stored prior).
+        await lookup.DidNotReceive().ResolvePriorAppraisalByNumberAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await update.Received(1).ResubmitRequestAsync(
+            Arg.Is<ResubmitRequestData>(d => d.Detail!.PrevAppraisalNumber == "62A00645"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Data_fix_resubmit_of_an_ordinary_draft_with_a_non_99A_number_still_looks_it_up_in_CAS()
+    {
+        var requestId = Guid.NewGuid();
+        var draft = Request.Domain.Requests.Request.Create(new Request.Domain.Requests.RequestData(
+            "03", "LOS", new Shared.Models.UserInfo("u", "U"), new Shared.Models.UserInfo("u", "U"),
+            DateTime.Now, "Normal", false));
+        var update = Substitute.For<IUpdateRequestService>();
+        update.GetByIdWithDocumentsAsync(requestId, Arg.Any<CancellationToken>()).Returns(draft);
+        update.ResubmitRequestAsync(Arg.Any<ResubmitRequestData>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<Request.Domain.Requests.Request>(new StopHere()));
+        var priorId = Guid.NewGuid();
+        var lookup = Substitute.For<IAppraisalLookupService>();
+        lookup.ResolvePriorAppraisalByNumberAsync("62A00645", Arg.Any<CancellationToken>())
+            .Returns(new PriorAppraisalRef(priorId, "Completed"));
+
+        var handler = new ResubmitRequestCommandHandler(
+            update, Substitute.For<IRequestSyncService>(), Substitute.For<ISender>(), lookup,
+            Substitute.For<IIntegrationEventOutbox>(), NullLogger<ResubmitRequestCommandHandler>.Instance);
+        var user = new UserInfoDto("U1", "u1");
+        var command = new ResubmitRequestCommand(
+            requestId, "03", "LOS", user, user, "Normal", false,
+            new RequestDetailDto(false, null, null, null, null, null, null, "62A00645", null, null),
+            [], [], null, null);
+
+        await Assert.ThrowsAsync<StopHere>(() => handler.Handle(command, TestContext.Current.CancellationToken));
+
+        // Not locked: the number is resolved through CAS and reaches the update service as an id.
+        await lookup.Received(1).ResolvePriorAppraisalByNumberAsync("62A00645", Arg.Any<CancellationToken>());
+        await update.Received(1).ResubmitRequestAsync(
+            Arg.Is<ResubmitRequestData>(d => d.Detail!.PrevAppraisalId == priorId), Arg.Any<CancellationToken>());
     }
 
     [Fact]

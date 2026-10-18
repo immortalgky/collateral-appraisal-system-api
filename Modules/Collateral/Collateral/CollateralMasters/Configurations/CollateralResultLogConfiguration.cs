@@ -17,16 +17,15 @@ public class CollateralResultLogConfiguration : IEntityTypeConfiguration<Collate
         builder.Property(r => r.SentAt).IsRequired();
         builder.Property(r => r.FileName).IsRequired().HasMaxLength(100);
 
-        // Idempotency guard, keyed by appraisal AND collateral id.
+        // Row key, by appraisal AND collateral id.
         //
         // It used to be AppraisalId alone, which structurally forbade more than one outbound row per
-        // appraisal. That held while the file was one row per collateral master; it does not hold now
-        // that a block project sends one row per financed unit, each with its own AS400 id.
+        // appraisal. A block project sends one row per financed unit, each with its own AS400 id, so
+        // the key has to include the collateral id.
         //
-        // It also gives an appraisal sent WITHOUT an id (CollateralId '', Auto Update 'N') a second
-        // chance: once AS400 mints the id at drawdown, the same appraisal pairs with a new key and
-        // goes out again — this time carrying the id. Under the old index that appraisal was marked
-        // done forever and never got its id across.
+        // It is NOT what decides whether an appraisal is sent again: vw_CollateralResultExport drops any
+        // appraisal that has ANY row here, so one sent with a blank id (Auto Update 'N') is not resent
+        // when AS400 later mints an id.
         builder.HasIndex(r => new { r.AppraisalId, r.CollateralId })
             .IsUnique()
             .HasDatabaseName("UX_CollateralResultLogs_Appraisal_Collateral");

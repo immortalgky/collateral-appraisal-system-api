@@ -12,6 +12,12 @@ public sealed record GetRequestByIdResponse
     public UserInfoDto Creator { get; init; } = default!;
     public string? Priority { get; init; }
     public bool IsPma { get; init; }
+
+    /// <summary>
+    /// Created by Initiate for a COLLATREV book: its purpose and prior appraisal are locked from the start.
+    /// Only the fact is exposed, never the book number or collateral id behind it.
+    /// </summary>
+    public bool IsPeriodicalReappraisal { get; init; }
     public RequestDetailDto? Detail { get; init; }
     public List<RequestCustomerDto>? Customers { get; init; }
     public List<RequestPropertyDto>? Properties { get; init; }

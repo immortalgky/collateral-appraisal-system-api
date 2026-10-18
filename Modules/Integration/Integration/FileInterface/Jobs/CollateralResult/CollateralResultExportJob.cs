@@ -10,8 +10,9 @@ using Shared.Time;
 namespace Integration.FileInterface.Jobs.CollateralResult;
 
 /// <summary>
-/// Hangfire recurring job (several times/day). Builds the outbound "Collateral Result" file from
-/// unsent approved (A) and rejected (R) rows. File name and path come from
+/// Hangfire recurring job, daily at 04:00 (the schedule is owned by the admin job-schedule UI; the code default in
+/// IntegrationRecurringJobs only seeds fresh environments). Builds the outbound "Collateral Result" file from
+/// unsent approved (A) rows. File name and path come from
 /// <c>integration.FileInterfaceConfigs</c>. Ledger writes are delegated to <see cref="ICollateralResultLedger"/>.
 /// Delivery semantics: at-least-once (file written first, ledger updated after).
 /// </summary>
@@ -41,7 +42,7 @@ public class CollateralResultExportJob(
         var rows = await query.GetUnsentRowsAsync(ct);
         if (rows.Count == 0)
         {
-            logger.LogInformation("{Tag} No unsent rows (approved or rejected); nothing to send", JobTag);
+            logger.LogInformation("{Tag} No unsent rows; nothing to send", JobTag);
             return;
         }
 
@@ -66,14 +67,13 @@ public class CollateralResultExportJob(
     }
 
     /// <summary>
-    /// Builds exactly what the next run would send, and returns it without writing a file or
-    /// touching the ledger.
+    /// Builds the file for the same rows, in the same order, as the next run would send, and returns it
+    /// without writing a file or touching the ledger. Running the real job to get a file to look at would
+    /// mark everything sent.
     ///
-    /// The record grows from 208 to 231 characters and the collateral id is now found by walking the
-    /// appraisal chain rather than read off a CollateralMaster. Both are changes the host cannot
-    /// absorb silently, so the file has to be inspected — and diffed against what the old query
-    /// produces on the same data — before a cut-over date is agreed. Running the real job to get a
-    /// file to look at would mark everything sent.
+    /// It can differ from the delivered file: the header date is the preview day, while the job stamps
+    /// its own run date; with 0 rows the preview still returns a header and trailer, but the job sends
+    /// nothing; and the preview ignores the config's IsActive.
     /// </summary>
     public async Task<CollateralResultPreview> BuildPreviewAsync(CancellationToken ct = default)
     {
@@ -83,7 +83,6 @@ public class CollateralResultExportJob(
         return new CollateralResultPreview(
             RowCount: rows.Count,
             ApprovedCount: rows.Count(r => r.AppraisalStatus == "A"),
-            RejectedCount: rows.Count(r => r.AppraisalStatus == "R"),
             AutoUpdateCount: rows.Count(r => r.AutoUpdate == "Y"),
             RecordLength: CollateralResultFileWriter.RecordLength,
             Content: writer.BuildContent(effectiveDate, rows));
@@ -91,14 +90,12 @@ public class CollateralResultExportJob(
 }
 
 /// <param name="AutoUpdateCount">
-/// Rows that tied to exactly one AS400 collateral. The rest go out with a blank id for a human at
-/// the bank to resolve — a number worth watching before cut-over, because a sudden drop means the
-/// chain walk stopped finding matches.
+/// Rows sent with Auto Update 'Y': reappraisals Initiate raised for a COLLATREV book whose candidate
+/// carried AS400's own 'Y'. Every other row goes out 'N'.
 /// </param>
 public record CollateralResultPreview(
     int RowCount,
     int ApprovedCount,
-    int RejectedCount,
     int AutoUpdateCount,
     int RecordLength,
     string Content);
