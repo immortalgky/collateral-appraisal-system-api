@@ -123,6 +123,13 @@ public record AppraisalDto
     // SLA Computed
     public int? ElapsedHours { get; init; }
     public int? RemainingHours { get; init; }
+
+    /// <summary>
+    /// The most recent <c>Finalized</c> Quotation Request that has a number and that this appraisal was
+    /// ever attached to.
+    /// Populated only by GET /appraisals/eligible-for-quotation; null on every other endpoint.
+    /// </summary>
+    public string? PreviouslyQuotedNumber { get; init; }
 }
 
 /// <summary>
