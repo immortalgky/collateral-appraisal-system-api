@@ -13,6 +13,16 @@ public class SegmentCoverageTests
     }
 
     [Fact]
+    public void BuildSegmentSet_MixedCasing_KeepsTheSameSpellingRegardlessOfInputOrder()
+    {
+        var a = SegmentCoverage.BuildSegmentSet(["Retail", "RETAIL", "IBG"]);
+        var b = SegmentCoverage.BuildSegmentSet(["IBG", "RETAIL", "Retail"]);
+
+        Assert.Equal(a, b);
+        Assert.Equal(["IBG", "RETAIL"], a);
+    }
+
+    [Fact]
     public void BuildSegmentSet_SameSegmentsInAnyOrder_GiveTheSameList()
     {
         Assert.Equal(

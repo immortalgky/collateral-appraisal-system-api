@@ -1,6 +1,6 @@
 using Shared.Extensions;
 
-namespace Appraisal.Tests.Application.Features.Quotations;
+namespace Shared.Tests.Extensions;
 
 public class JsonStringArrayExtensionsTests
 {
@@ -12,6 +12,7 @@ public class JsonStringArrayExtensionsTests
     [InlineData("[1, 2]")]
     [InlineData("null")]
     [InlineData("not json")]
+    [InlineData("""["Retail", """)]
     public void ParseJsonStringArray_NullBlankEmptyOrMalformed_ReturnsEmpty(string? json) =>
         Assert.Empty(json.ParseJsonStringArray());
 
@@ -21,11 +22,5 @@ public class JsonStringArrayExtensionsTests
         var parsed = """[" Retail ", null, "", "  ", "IBG"]""".ParseJsonStringArray();
 
         Assert.Equal(["Retail", "IBG"], parsed);
-    }
-
-    [Fact]
-    public void ParseJsonStringArray_MalformedArray_ReturnsEmpty()
-    {
-        Assert.Empty("""["Retail", """.ParseJsonStringArray());
     }
 }

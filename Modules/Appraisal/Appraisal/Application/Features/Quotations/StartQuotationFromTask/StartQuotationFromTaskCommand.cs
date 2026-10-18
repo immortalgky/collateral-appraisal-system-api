@@ -3,7 +3,7 @@ using Appraisal.Application.Configurations;
 namespace Appraisal.Application.Features.Quotations.StartQuotationFromTask;
 
 /// <summary>
-/// Creates a new QuotationRequest (Draft) linked to an appraisal-assignment workflow task (IBG segment),
+/// Creates a new QuotationRequest (Draft) linked to an appraisal-assignment workflow task,
 /// OR adds an appraisal to an existing Draft QuotationRequest.
 ///
 /// If ExistingQuotationRequestId is provided:
@@ -12,8 +12,8 @@ namespace Appraisal.Application.Features.Quotations.StartQuotationFromTask;
 ///   - AppraisalAddedToQuotationIntegrationEvent is emitted.
 ///
 /// If ExistingQuotationRequestId is null:
-///   - A new Draft is created with the given CutOffTime, invited companies, appraisal. The Draft's
-///     BankingSegment is derived from the appraisal's own segment, not accepted from the caller.
+///   - A new Draft is created with the given CutOffTime, invited companies, appraisal. The Segment Set
+///     is not stored: it is always computed from the appraisals on the quotation.
 ///   - QuotationStartedIntegrationEvent is NOT emitted at creation — it fires when Send() is called.
 ///
 /// RequestedBy (username) and RmUserId are resolved server-side — not accepted from the request body.

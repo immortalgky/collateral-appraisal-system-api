@@ -14,14 +14,15 @@ public static class SegmentCoverage
     public const string MismatchCode = "SEGMENT_COVERAGE_MISMATCH";
 
     /// <summary>
-    /// Trimmed, non-blank segments, deduplicated case-insensitively and sorted (OrdinalIgnoreCase) so the
-    /// result is deterministic.
+    /// Trimmed, non-blank segments, deduplicated case-insensitively and sorted (OrdinalIgnoreCase). When spellings
+    /// differ only by case, the ordinally smallest one is kept, so the result does not depend on input order.
     /// </summary>
     public static List<string> BuildSegmentSet(IEnumerable<string?> appraisalSegments) =>
         appraisalSegments
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .Select(s => s!.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .GroupBy(s => s, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.Min(StringComparer.Ordinal)!)
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -40,7 +41,7 @@ public static class SegmentCoverage
         if (appraisalIds.Length == 0)
             return [];
         var segments = await connection.QueryAsync<string?>(
-            "SELECT a.BankingSegment FROM [appraisal].[Appraisals] a WHERE a.Id IN @AppraisalIds",
+            "SELECT a.BankingSegment FROM [appraisal].[Appraisals] a WHERE a.Id IN @AppraisalIds AND a.IsDeleted = 0",
             new { AppraisalIds = appraisalIds });
         return BuildSegmentSet(segments);
     }

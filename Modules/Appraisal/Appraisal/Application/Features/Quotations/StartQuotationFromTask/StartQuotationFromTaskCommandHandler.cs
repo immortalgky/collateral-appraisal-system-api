@@ -136,7 +136,6 @@ public class StartQuotationFromTaskCommandHandler(
             requestId: command.RequestId,
             workflowInstanceId: command.WorkflowInstanceId,
             taskExecutionId: command.TaskExecutionId,
-            bankingSegment: null,
             addedBy: requestedBy,
             now: dateTimeProvider.ApplicationNow,
             rmUsername: rmUsername,

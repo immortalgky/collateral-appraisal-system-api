@@ -137,7 +137,7 @@ public class SendQuotationCommandHandler(
     private async Task EnsureSegmentCoverageAsync(QuotationRequest quotation)
     {
         var appraisalIds = quotation.Appraisals.Select(a => a.AppraisalId).ToArray();
-        var companyIds = quotation.Invitations.Select(i => i.CompanyId).Distinct().ToArray();
+        var companyIds = quotation.Invitations.Select(i => i.CompanyId).ToArray();
         if (appraisalIds.Length == 0 || companyIds.Length == 0)
             return; // Send() reports the missing appraisal / invitation itself.
 
@@ -148,7 +148,7 @@ public class SendQuotationCommandHandler(
         if (segmentSet.Count == 0)
             return;
 
-        var companies = (await connection.QueryAsync<(Guid Id, string Name, string? LoanTypes)>(
+        var companies = (await connection.QueryAsync<(Guid Id, string? Name, string? LoanTypes)>(
                 "SELECT c.Id, c.Name, c.LoanTypes FROM [auth].[Companies] c WHERE c.Id IN @CompanyIds",
                 new { CompanyIds = companyIds }))
             .ToDictionary(r => r.Id);

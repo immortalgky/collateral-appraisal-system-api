@@ -7,7 +7,8 @@ namespace Appraisal.Application.Features.Quotations.GetMyDraftsForAssembly;
 
 /// <summary>
 /// Returns the calling admin's Draft quotations for the entry-modal picker.
-/// Uses Dapper for the main query and a second query for appraisal number previews.
+/// Uses Dapper for the main query, a second query for appraisal number previews and a third for each
+/// draft's Segment Set (grouped, one round trip for all drafts).
 /// </summary>
 public class GetMyDraftsForAssemblyQueryHandler(
     ISqlConnectionFactory connectionFactory,
@@ -72,7 +73,7 @@ public class GetMyDraftsForAssemblyQueryHandler(
             SELECT qra.QuotationRequestId, a.BankingSegment
             FROM [appraisal].[QuotationRequestAppraisals] qra
             JOIN [appraisal].[Appraisals] a ON a.Id = qra.AppraisalId
-            WHERE qra.QuotationRequestId IN @QuotationIds
+            WHERE qra.QuotationRequestId IN @QuotationIds AND a.IsDeleted = 0
             """,
             new { QuotationIds = quotationIds });
 
