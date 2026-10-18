@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Carter;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
@@ -11,14 +12,14 @@ public class CreateUploadSessionEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapPost("/api/v1/upload-sessions", async (
-                CreateUploadSessionRequest request,
+                ClaimsPrincipal user,
                 HttpRequest httpRequest,
                 ISender sender,
                 CancellationToken cancellationToken) =>
             {
                 var command = new CreateUploadSessionCommand(
-                    request.ClientReference,
-                    request.ExternalCaseKey,
+                    // Present on every OpenIddict access token; sub is a user id for user-bound tokens.
+                    user.FindFirstValue("client_id"),
                     httpRequest.Headers.UserAgent.ToString(),
                     httpRequest.HttpContext.Connection.RemoteIpAddress?.ToString()
                 );
@@ -30,7 +31,7 @@ public class CreateUploadSessionEndpoint : ICarterModule
             .WithName("API - CreateUploadSession")
             .WithTags("Integration - Upload Sessions")
             .RequireAuthorization("Integration")
-            .Produces<CreateUploadSessionResponse>(StatusCodes.Status201Created)
+            .Produces<CreateUploadSessionResult>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest);
     }
 }

@@ -6,6 +6,7 @@ using Auth.Infrastructure.Repository;
 using Auth.Infrastructure.Seed;
 using Auth.Infrastructure.Session;
 using Auth.Application.Services;
+using Auth.Contracts.Clients;
 using Auth.Contracts.Companies;
 using Auth.Contracts.Users;
 using Auth.Scheduling;
@@ -355,6 +356,7 @@ public static class AuthModule
         services.AddScoped<IAuthAuditWriter, AuthAuditWriter>();
         services.AddScoped<IUserLookupService, UserLookupService>();
         services.AddScoped<ICompanyLookupService, CompanyLookupService>();
+        services.AddScoped<IClientLookupService, ClientLookupService>();
         services.AddScoped<PermissionResolver>();
 
         // Browser sessions: server-side store, per-request claims, revoke/end operations.

@@ -75,18 +75,9 @@ public class CsrfIntegrationTests(IntegrationTestFixture fixture)
     {
         var (browser, cookie) = await SignedInAsync();
         using var _ = browser;
-        using var tokenResponse = await browser.PostAsync("/connect/token", new FormUrlEncodedContent(
-            new Dictionary<string, string>
-            {
-                ["grant_type"] = "client_credentials",
-                ["client_id"] = "cls",
-                ["client_secret"] = "CLS_SecretKey_2024!",
-                ["scope"] = "appraisal.read"
-            }), TestContext.Current.CancellationToken);
-        using var json = await BffTestSupport.ReadJsonAsync(tokenResponse);
+        var token = await BffTestSupport.ClientCredentialsTokenAsync(browser);
         var request = new HttpRequestMessage(HttpMethod.Post, "/test/machine/echo");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
-            json.RootElement.GetProperty("access_token").GetString());
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
         using var response = await BffTestSupport.SendAsync(browser, request, cookie);
 

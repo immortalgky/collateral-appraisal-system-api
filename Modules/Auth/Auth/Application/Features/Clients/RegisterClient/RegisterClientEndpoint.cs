@@ -16,7 +16,8 @@ public record RegisterClientRequest(
     List<string> Scopes,
     int? AccessTokenLifetimeMinutes,
     int? IdentityTokenLifetimeMinutes,
-    int? RefreshTokenLifetimeMinutes
+    int? RefreshTokenLifetimeMinutes,
+    int? UploadSessionLifetimeHours
 );
 
 public class RegisterClientEndpoint : ICarterModule
@@ -38,7 +39,8 @@ public class RegisterClientEndpoint : ICarterModule
                     request.Scopes ?? [],
                     request.AccessTokenLifetimeMinutes,
                     request.IdentityTokenLifetimeMinutes,
-                    request.RefreshTokenLifetimeMinutes);
+                    request.RefreshTokenLifetimeMinutes,
+                    request.UploadSessionLifetimeHours);
 
                 var result = await sender.Send(command, cancellationToken);
                 return Results.Created($"/auth/clients/{result.Id}", result);

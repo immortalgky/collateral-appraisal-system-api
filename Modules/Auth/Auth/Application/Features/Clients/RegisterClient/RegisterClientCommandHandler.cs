@@ -16,7 +16,8 @@ public record RegisterClientCommand(
     List<string> Scopes,
     int? AccessTokenLifetimeMinutes,
     int? IdentityTokenLifetimeMinutes,
-    int? RefreshTokenLifetimeMinutes
+    int? RefreshTokenLifetimeMinutes,
+    int? UploadSessionLifetimeHours
 ) : ICommand<RegisterClientResult>;
 
 /// <summary>ClientSecret is only ever returned here, once, at registration time.</summary>
@@ -54,6 +55,7 @@ public class RegisterClientCommandValidator : AbstractValidator<RegisterClientCo
             .ValidTokenLifetime(ClientPermissionMapper.IdentityTokenLifetime, "Identity token lifetime");
         RuleFor(x => x.RefreshTokenLifetimeMinutes)
             .ValidTokenLifetime(ClientPermissionMapper.RefreshTokenLifetime, "Refresh token lifetime");
+        RuleFor(x => x.UploadSessionLifetimeHours).ValidUploadSessionLifetime();
     }
 }
 
@@ -90,7 +92,8 @@ public class RegisterClientCommandHandler(IOpenIddictApplicationManager applicat
             new ClientTokenLifetimes(
                 command.AccessTokenLifetimeMinutes,
                 command.IdentityTokenLifetimeMinutes,
-                command.RefreshTokenLifetimeMinutes));
+                command.RefreshTokenLifetimeMinutes),
+            command.UploadSessionLifetimeHours);
 
         var created = await applicationManager.CreateAsync(descriptor, cancellationToken);
         var id = await applicationManager.GetIdAsync(created, cancellationToken) ?? "";
