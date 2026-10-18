@@ -133,9 +133,8 @@ internal static class GetAppraisalResultSql
                                                --   POST /api/v1/appraisals/result  (LegacyAppraisalResultEnvelope)
                                                --   GET  /api/v2/appraisals/{no}/result
                                                -- Neither is fixed-width, so there is no column-width or byte-offset limit here.
-                                               -- NOTE: the AS400 fixed-width ExternalValuerName is a DIFFERENT path — it reads
-                                               -- the frozen collateral.CollateralEngagements.AppraisalCompanyName snapshot via
-                                               -- Collateral/CollateralMasters/CollateralResult/CollateralResultQuery.cs, which
+                                               -- NOTE: the AS400 fixed-width ExternalValuerName is a DIFFERENT path — it is built
+                                               -- by collateral.vw_CollateralResultExport (CollateralResultExportQuery), which
                                                -- stays English. Don't conflate the two.
                                                COALESCE(NULLIF(c.NameLocal, N''), c.Name) AS CompanyName,
                                                c.HostCompanyCode AS CompanyCode,

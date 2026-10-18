@@ -26,6 +26,13 @@ public class ForceSaleRateResolver(
 {
     private const decimal FallbackRate = 70m;
 
+    /// <summary>
+    /// System-wide default alone (step 3 of the chain), for callers that apply the project's own value
+    /// themselves: within 0..100, else 70 (0 is allowed here, unlike <see cref="ResolveAsync"/>).
+    /// </summary>
+    public async Task<decimal> GetSystemDefaultAsync(CancellationToken ct) =>
+        Project.SystemDefaultOrFallback(await configReader.GetDecimalAsync("ForceSaleRateDefaultPct", FallbackRate, ct));
+
     public async Task<decimal> ResolveAsync(Guid appraisalId, decimal? overrideRate, CancellationToken ct)
     {
         var rate = overrideRate ?? await ResolveProjectOrDefaultAsync(appraisalId, ct);
@@ -42,7 +49,16 @@ public class ForceSaleRateResolver(
         return rate;
     }
 
-    private async Task<decimal> ResolveProjectOrDefaultAsync(Guid appraisalId, CancellationToken ct)
+    /// <summary>
+    /// The % a block's unit prices are calculated with: the project's own when within 0..100 (0% honoured),
+    /// else the system default, else 70. The one place that reads the project's % for the Decision Summary
+    /// paths (Calculate works on the aggregate it has already loaded).
+    /// </summary>
+    public async Task<decimal> ResolveBlockEffectivePercentAsync(Guid appraisalId, CancellationToken ct) =>
+        Project.ResolveForceSalePercentage(
+            await ReadProjectRateAsync(appraisalId), await GetSystemDefaultAsync(ct));
+
+    private Task<decimal?> ReadProjectRateAsync(Guid appraisalId)
     {
         const string projectForceSaleSql = """
             SELECT ppa.ForceSalePercentage
@@ -51,9 +67,11 @@ public class ForceSaleRateResolver(
             WHERE p.AppraisalId = @AppraisalId
             """;
 
-        var projectRate = await connectionFactory.QueryFirstOrDefaultAsync<decimal?>(
+        return connectionFactory.QueryFirstOrDefaultAsync<decimal?>(
             projectForceSaleSql, new { AppraisalId = appraisalId });
-
-        return projectRate ?? await configReader.GetDecimalAsync("ForceSaleRateDefaultPct", FallbackRate, ct);
     }
+
+    private async Task<decimal> ResolveProjectOrDefaultAsync(Guid appraisalId, CancellationToken ct) =>
+        await ReadProjectRateAsync(appraisalId)
+        ?? await configReader.GetDecimalAsync("ForceSaleRateDefaultPct", FallbackRate, ct);
 }

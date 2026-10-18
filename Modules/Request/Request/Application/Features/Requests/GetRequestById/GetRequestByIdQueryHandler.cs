@@ -49,6 +49,7 @@ internal class GetRequestByIdQueryHandler(
             Creator = new UserInfoDto(request.Creator.UserId, request.Creator.Username),
             Priority = request.Priority?.Code,
             IsPma = request.IsPma,
+            IsPeriodicalReappraisal = request.IsPeriodicalReappraisal(),
             Detail = request.Detail?.ToDto(),
             Customers = request.Customers.Select(c => c.ToDto()).ToList(),
             Properties = request.Properties.Select(p => p.ToDto()).ToList(),

@@ -50,6 +50,7 @@ public class RequestConfiguration : IEntityTypeConfiguration<Domain.Requests.Req
         // columns it is matched to). request.vw_WaitingReappraisalRequests seeks on it per book.
         builder.Property(p => p.ReappraisalBookNumber).HasMaxLength(20);
         builder.Property(p => p.ReappraisalCollateralId).HasMaxLength(50);
+        builder.Property(p => p.ReappraisalAutoUpdate).HasMaxLength(1);
         builder.HasIndex(p => p.ReappraisalBookNumber)
             .HasFilter("[ReappraisalBookNumber] IS NOT NULL")
             .HasDatabaseName("IX_Request_ReappraisalBookNumber");

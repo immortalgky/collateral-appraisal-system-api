@@ -1,3 +1,4 @@
+using Appraisal.Infrastructure;
 using Collateral.Contracts;
 using Collateral.Contracts.As400Legacy;
 using Collateral.Contracts.FileInterface;
@@ -285,6 +286,9 @@ public class As400LegacyImportTests(IntegrationTestFixture fixture)
     /// Its value came FROM AS400; sending it back would report an appraisal we never performed. The
     /// file is now built from appraisal.Appraisals (vw_CollateralResultExport), which a legacy
     /// engagement never has a row in — this pins that it stays that way.
+    ///
+    /// An in-scope appraisal is seeded alongside as a control, so an empty result cannot pass the test:
+    /// the query demonstrably returns in-scope rows, and the legacy engagement is still not among them.
     /// </summary>
     [Fact]
     public async Task LegacyEngagement_IsNeverSentBackToAs400()
@@ -307,9 +311,16 @@ public class As400LegacyImportTests(IntegrationTestFixture fixture)
         master.ApplyHostDrawdown(hostId);
         await db.SaveChangesAsync();
 
+        var appraisalDb = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+        var control = CollateralResultSeed.NewCompleted(
+            await CollateralResultSeed.InsertRequestAsync(factory), CollateralResultSeed.InScope);
+        appraisalDb.Appraisals.Add(control);
+        await appraisalDb.SaveChangesAsync();
+
         var rows = await scope.ServiceProvider.GetRequiredService<ICollateralResultQuery>()
             .GetUnsentRowsAsync();
 
+        Assert.Contains(rows, r => r.AppraisalId == control.Id);
         Assert.DoesNotContain(rows, r => r.CollateralId == hostId);
         Assert.DoesNotContain(rows, r => r.AppraisalReportNumber == appId);
     }

@@ -8,10 +8,11 @@ namespace Api.Endpoints.FileInterfaces;
 /// GET /file-interfaces/admin/collateral-result/preview — builds the next outbound file without
 /// sending it or marking anything sent.
 ///
-/// Exists for the cut-over: the record grows from 208 to 231 characters and the collateral id is now
-/// resolved by walking the appraisal chain instead of read off a CollateralMaster. The file has to be
-/// diffed against the old output on the same data before a switch-over date is agreed with AS400, and
-/// triggering the real job to obtain a file would consume the ledger.
+/// Shows the file for the same rows, in the same order, as the next run would send, so it can be
+/// inspected without consuming the ledger (triggering the real job to obtain a file would mark
+/// everything sent). It can differ from the delivered file: the header date is the preview day while the
+/// job stamps its own run date; with 0 rows the preview still returns a header and trailer but the job
+/// sends nothing; and the preview ignores the config's IsActive.
 /// </summary>
 public class PreviewCollateralResultEndpoint : ICarterModule
 {

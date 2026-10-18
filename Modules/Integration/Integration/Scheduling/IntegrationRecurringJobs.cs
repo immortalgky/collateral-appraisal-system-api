@@ -16,13 +16,14 @@ public static class IntegrationRecurringJobs
 {
     public static readonly IReadOnlyList<RecurringJobDefinition> All = new[]
     {
-        // ALL FOUR AS400 JOBS RUN ON THE 2ND OF THE MONTH, in the order they depend on each other:
-        // the two ingests at 02:00, the regulatory snapshot at 03:00, the result export at 04:00.
-        // The 2nd rather than the 1st because AS400 produces the files after month-end close.
+        // THE THREE MONTHLY AS400 JOBS RUN ON THE 2ND OF THE MONTH, in the order they depend on each other:
+        // the two ingests at 02:00, then the regulatory snapshot at 03:00. The 2nd rather than the 1st because
+        // AS400 produces the files after month-end close. The collateral-result export is the exception: it
+        // runs daily at 04:00, below.
         //
         // The one-hour gaps are the whole schedule. Anything that makes an ingest take longer than an
-        // hour — a backlog of files, a slow host — lets the exports read last month's data, and they
-        // will not fail while doing it. Move the exports later rather than the ingests earlier.
+        // hour — a backlog of files, a slow host — lets the regulatory export read last month's data, and it
+        // will not fail while doing it. Move the export later rather than the ingests earlier.
         //
         // These are starting points; an admin retunes them in integration.JobSchedules through
         // /admin/job-schedules without a deploy, and the DB row wins. Changing a value here only affects a
@@ -32,18 +33,20 @@ public static class IntegrationRecurringJobs
             (mgr, cron, opt) => mgr.AddOrUpdate<As400ReappraisalJob>(
                 "reappraisal-as400", j => j.ExecuteAsync(CancellationToken.None), cron, opt)),
 
-        // MUST stay ahead of BOTH exports below: regulatory-export takes its whole row set from
-        // collateral.HostCollateralLinks, and collateral-result-export can only emit an appraisal
-        // that already has a host link. Running either first ships a month-old picture.
+        // MUST stay ahead of regulatory-export, which takes its whole row set from collateral.HostCollateralLinks:
+        // running it first ships a month-old picture. The result export no longer needs a host link to send a row
+        // (a manual request's collateral id comes from walking the links when one exists, and goes out blank
+        // otherwise), but a fresher link file means fewer blank ids.
         new RecurringJobDefinition("host-collateral-link-as400", "0 2 2 * *",
-            "Ingest AS400 COLLATLINK host-collateral-id files (monthly, 2nd at 02:00, ahead of both exports).",
+            "Ingest AS400 COLLATLINK host-collateral-id files (monthly, 2nd at 02:00, ahead of the regulatory export).",
             (mgr, cron, opt) => mgr.AddOrUpdate<As400HostLinkJob>(
                 "host-collateral-link-as400", j => j.ExecuteAsync(CancellationToken.None), cron, opt)),
 
-        // Last of the four: it echoes the ids the link ingest lands, and it is the only one whose
-        // output the host reads back into its own month-end run.
-        new RecurringJobDefinition("collateral-result-export", "0 4 2 * *",
-            "Ship completed-appraisal prices to the AS400 host (monthly, 2nd at 04:00).",
+        // Daily at 04:00 (the schedule is owned by the admin UI; this value only seeds a fresh database): it sends
+        // each newly completed, in-scope reappraisal once, and it is the only AS400 output the host reads back into
+        // its own month-end run.
+        new RecurringJobDefinition("collateral-result-export", "0 4 * * *",
+            "Ship completed-appraisal prices to the AS400 host (daily at 04:00).",
             (mgr, cron, opt) => mgr.AddOrUpdate<CollateralResultExportJob>(
                 "collateral-result-export", j => j.ExecuteAsync(CancellationToken.None), cron, opt)),
 

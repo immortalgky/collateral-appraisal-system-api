@@ -63,7 +63,7 @@ public class QuotationRequest : Aggregate<Guid>
     /// <summary>Username (employee ID) of the RM who owns the linked request. Set at CreateFromTask time.</summary>
     public string? RmUsername { get; private set; }
 
-    // ── IBG workflow link fields ──────────────────────────────────────────────
+    // ── Workflow link fields ──────────────────────────────────────────────
     // NOTE: AppraisalId scalar removed in v2. Use Appraisals collection.
     // Retained for existing handlers that still read it via the collection's first element;
     // kept as a computed convenience below.
@@ -77,6 +77,8 @@ public class QuotationRequest : Aggregate<Guid>
     /// WorkflowInstanceId; this one never does.
     /// </summary>
     public bool IsStandalone => WorkflowInstanceId is null;
+
+    /// <summary>Not used by application code (the Segment Set is computed from the appraisals); still mapped by EF; drop in a later PR.</summary>
     public string? BankingSegment { get; private set; }
 
     /// <summary>
@@ -141,7 +143,7 @@ public class QuotationRequest : Aggregate<Guid>
     }
 
     /// <summary>
-    /// IBG factory — creates an RFQ linked to an appraisal-assignment workflow task.
+    /// Creates an RFQ linked to an appraisal-assignment workflow task.
     /// The initial appraisal is registered via AddAppraisal. Status stays Draft until Send() is called.
     /// </summary>
     public static QuotationRequest CreateFromTask(
@@ -151,7 +153,6 @@ public class QuotationRequest : Aggregate<Guid>
         Guid requestId,
         Guid workflowInstanceId,
         Guid? taskExecutionId,
-        string bankingSegment,
         string addedBy,
         DateTime now,
         string? rmUsername = null,
@@ -173,7 +174,6 @@ public class QuotationRequest : Aggregate<Guid>
             RequestId = requestId,
             WorkflowInstanceId = workflowInstanceId,
             TaskExecutionId = taskExecutionId,
-            BankingSegment = bankingSegment,
             RmUsername = rmUsername
         };
 
