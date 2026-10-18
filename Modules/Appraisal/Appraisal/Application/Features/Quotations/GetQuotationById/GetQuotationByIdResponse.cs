@@ -55,7 +55,7 @@ public record GetQuotationByIdResponse(
     // ── Company quotations (filtered by role) ─────────────────────────────────
     IReadOnlyList<CompanyQuotationResult> CompanyQuotations,
 
-    // ── Invited companies (non-Expired invitations, enriched with name) ───────
+    // ── Invited companies (enriched with name) ───────
     IReadOnlyList<InvitedCompanyResult> InvitedCompanies,
     bool CanEdit,
     bool CanPickWinner

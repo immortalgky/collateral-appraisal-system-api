@@ -54,7 +54,7 @@ public record GetQuotationByIdResult(
     // ── Company quotations (filtered by role via QuotationAccessPolicy) ───────
     IReadOnlyList<CompanyQuotationResult> CompanyQuotations,
 
-    // ── Invited companies (non-Expired invitations, enriched with name) ───────
+    // ── Invited companies (enriched with name) ───────
     IReadOnlyList<InvitedCompanyResult> InvitedCompanies,
 
     // ── Two-person rule edit gate ─────────────────────────────────────────────
@@ -141,14 +141,17 @@ public record CompanyQuotationResult(
     string? CompanyName,
     /// <summary>Thai name; null when the company has none. The client picks by its own locale.</summary>
     string? CompanyNameLocal,
-    string QuotationNumber,
+    /// <summary>Null for an Expired row (the stored number is a draft or synthetic "EXPIRED-..." value).</summary>
+    string? QuotationNumber,
+    /// <summary>Read-only "Expired" is derived here for a Declined row whose invitation expired; it is never stored.</summary>
     string Status,
     /// <summary>Maker's "not participate" reason. Set while a decline is PendingCheckerReview (the intent
     /// marker that distinguishes a pending decline from a pending bid) and retained once Declined.</summary>
     string? DeclineReason,
-    /// <summary>Null while the company quotation is Draft or PendingCheckerReview (never actually submitted).</summary>
+    /// <summary>Null for an Expired row, for a row that never left Draft or PendingCheckerReview, and when no submit time was ever set (default). A decline made without a draft carries the decline time.</summary>
     DateTime? SubmittedAt,
-    decimal TotalQuotedPrice,
+    /// <summary>Null for an Expired row.</summary>
+    decimal? TotalQuotedPrice,
     decimal? OriginalQuotedPrice,
     decimal? CurrentNegotiatedPrice,
     int NegotiationRounds,
