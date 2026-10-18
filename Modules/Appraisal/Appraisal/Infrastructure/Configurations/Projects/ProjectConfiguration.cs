@@ -103,6 +103,15 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Project>
         // and CollateralEngagements.ConstructionProgressPercent.
         builder.Property(p => p.ConstructionProgressPercent).HasPrecision(7, 4);
 
+        // Unit price source — stored as its name; existing rows default to Calculated.
+        builder.Property(p => p.UnitPriceSource)
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .HasDefaultValue(UnitPriceSource.Calculated)
+            .IsRequired();
+        builder.Property(p => p.UnitPriceImportFileName).HasMaxLength(500);
+        builder.Property(p => p.UnitPriceImportedBy).HasMaxLength(100);
+
         // Child relationships (child entities are their own tables — NOT owned)
         builder.HasMany(p => p.Towers)
             .WithOne()

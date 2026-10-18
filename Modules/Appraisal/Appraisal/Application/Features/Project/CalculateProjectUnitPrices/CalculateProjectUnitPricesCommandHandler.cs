@@ -19,6 +19,7 @@ public class CalculateProjectUnitPricesCommandHandler(
     AppraisalDbContext dbContext,
     IAppraisalUnitOfWork unitOfWork,
     AppraisalValuationSummaryService valuationSummaryService,
+    ForceSaleRateResolver forceSaleRateResolver,
     ISender mediator
 ) : ICommandHandler<CalculateProjectUnitPricesCommand>
 {
@@ -26,6 +27,8 @@ public class CalculateProjectUnitPricesCommandHandler(
         CalculateProjectUnitPricesCommand command,
         CancellationToken cancellationToken)
     {
+        dbContext.DetachAddedUnitPrices();
+
         var project = await projectRepository.GetWithFullGraphAsync(command.AppraisalId, cancellationToken)
                       ?? throw new InvalidOperationException($"Project not found for appraisal {command.AppraisalId}");
 
@@ -53,8 +56,16 @@ public class CalculateProjectUnitPricesCommandHandler(
             r => r.RatePerSqm,
             StringComparer.Ordinal);
 
+        // Force-sale % for every unit: the loaded assumption's own, else the system default (else 70).
+        // The per-appraisal Decision Summary override is not used: a block's forced sale is the sum of these prices.
+        var forceSalePercentage = project.EffectiveForceSalePercentage(
+            await forceSaleRateResolver.GetSystemDefaultAsync(cancellationToken));
+
         // Domain method performs all type-specific calculations and returns the updated price rows
-        var prices = project.CalculateUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCode);
+        var prices = project.CalculateUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCode, forceSalePercentage);
+
+        // The prices are calculated again; the last import's file/time/user stay on the project as history.
+        project.MarkUnitPricesCalculated();
 
         // Upsert: new rows get Added, existing rows were mutated in-place by the domain method
         foreach (var price in prices)
