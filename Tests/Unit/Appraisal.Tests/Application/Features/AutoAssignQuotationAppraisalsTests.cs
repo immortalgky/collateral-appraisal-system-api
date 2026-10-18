@@ -976,7 +976,7 @@ public class AutoAssignQuotationAppraisalsTests
         config.GetBoolAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(true);
         var now = DateTime.Now;
         var fromTask = QuotationRequest.CreateFromTask(now.AddDays(1), "admin", Guid.NewGuid(), Guid.NewGuid(),
-            Guid.NewGuid(), Guid.NewGuid(), "Retail", "admin", now);
+            Guid.NewGuid(), Guid.NewGuid(), "admin", now);
         Assert.False(fromTask.IsStandalone);
         _repository.GetByIdAsync(fromTask.Id, Arg.Any<CancellationToken>()).Returns(fromTask);
         var handler = new FinalizeQuotationCommandHandler(
