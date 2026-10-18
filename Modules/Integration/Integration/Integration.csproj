@@ -33,6 +33,7 @@
         <ProjectReference Include="../../Appraisal/Appraisal/Appraisal.csproj"/>
         <ProjectReference Include="../../Parameter/Parameter/Parameter.csproj"/>
         <ProjectReference Include="../../Collateral/Collateral.Contracts/Collateral.Contracts.csproj"/>
+        <ProjectReference Include="../../Auth/Auth.Contracts/Auth.Contracts.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

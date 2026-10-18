@@ -23,10 +23,10 @@ public static class ClientValidationRules
     /// matters because OpenIddict ignores a setting it cannot use and silently falls back, so an
     /// unchecked value would look saved while changing nothing.
     /// </summary>
-    public static bool IsValidLifetime(int? minutes, ClientPermissionMapper.TokenLifetimeKind kind) =>
+    public static bool IsValidLifetime(int? minutes, ClientPermissionMapper.ClientLifetimeKind kind) =>
         minutes is not { } value || (value >= kind.MinMinutes && value <= kind.MaxMinutes);
 
-    private static string LifetimeMessage(string label, ClientPermissionMapper.TokenLifetimeKind kind) =>
+    private static string LifetimeMessage(string label, ClientPermissionMapper.ClientLifetimeKind kind) =>
         $"{label} must be between {kind.MinMinutes} and {kind.MaxMinutes} minutes, or empty to use the server default.";
 
     /// <summary>
@@ -36,7 +36,16 @@ public static class ClientValidationRules
     /// </summary>
     public static IRuleBuilderOptions<T, int?> ValidTokenLifetime<T>(
         this IRuleBuilder<T, int?> rule,
-        ClientPermissionMapper.TokenLifetimeKind kind,
+        ClientPermissionMapper.ClientLifetimeKind kind,
         string label) =>
         rule.Must(minutes => IsValidLifetime(minutes, kind)).WithMessage(LifetimeMessage(label, kind));
+
+    public static IRuleBuilderOptions<T, int?> ValidUploadSessionLifetime<T>(
+        this IRuleBuilder<T, int?> rule) =>
+        rule.Must(hours => hours is not { } h
+                           || (h >= ClientPermissionMapper.UploadSessionLifetime.Min.TotalHours
+                               && h <= ClientPermissionMapper.UploadSessionLifetime.Max.TotalHours))
+            .WithMessage(
+                $"Upload session lifetime must be between {ClientPermissionMapper.UploadSessionLifetime.Min.TotalHours} " +
+                $"and {ClientPermissionMapper.UploadSessionLifetime.Max.TotalHours} hours, or empty to use the server default.");
 }

@@ -99,6 +99,26 @@ public static class BffTestSupport
         return request;
     }
 
+    /// <summary>A real client_credentials access token; defaults to the seeded machine client <c>cls</c>.</summary>
+    public static async Task<string> ClientCredentialsTokenAsync(HttpClient client, string scope = "appraisal.read",
+        string? clientId = null, string? clientSecret = null)
+    {
+        if (clientId is null != clientSecret is null)
+            throw new ArgumentException("Pass a client id and its secret together, or neither for the default cls client.");
+
+        using var response = await client.PostAsync("/connect/token", new FormUrlEncodedContent(
+            new Dictionary<string, string>
+            {
+                ["grant_type"] = "client_credentials",
+                ["client_id"] = clientId ?? "cls",
+                ["client_secret"] = clientSecret ?? "CLS_SecretKey_2024!",
+                ["scope"] = scope
+            }), TestContext.Current.CancellationToken);
+        response.EnsureSuccessStatusCode();
+        using var json = await ReadJsonAsync(response);
+        return json.RootElement.GetProperty("access_token").GetString()!;
+    }
+
     public static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response) =>
         JsonDocument.Parse(await response.Content.ReadAsStringAsync());
 

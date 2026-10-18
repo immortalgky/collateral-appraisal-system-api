@@ -20,21 +20,6 @@ public class SchemeSelectionTests(IntegrationTestFixture fixture)
 {
     private HttpClient Browser() => fixture.BffWebApplicationFactory.CreateBrowser(handleCookies: false);
 
-    private static async Task<string> ClientCredentialsTokenAsync(HttpClient client, string scope = "appraisal.read")
-    {
-        using var response = await client.PostAsync("/connect/token", new FormUrlEncodedContent(
-            new Dictionary<string, string>
-            {
-                ["grant_type"] = "client_credentials",
-                ["client_id"] = "cls",
-                ["client_secret"] = "CLS_SecretKey_2024!",
-                ["scope"] = scope
-            }), TestContext.Current.CancellationToken);
-        response.EnsureSuccessStatusCode();
-        using var json = await BffTestSupport.ReadJsonAsync(response);
-        return json.RootElement.GetProperty("access_token").GetString()!;
-    }
-
     private static HttpRequestMessage Send(string? bearer = null, string? cookie = null,
         string path = "/test/whoami", HttpMethod? method = null)
     {
@@ -68,7 +53,7 @@ public class SchemeSelectionTests(IntegrationTestFixture fixture)
     public async Task A_machine_client_token_authenticates_on_its_own()
     {
         using var browser = Browser();
-        var token = await ClientCredentialsTokenAsync(browser);
+        var token = await BffTestSupport.ClientCredentialsTokenAsync(browser);
 
         using var response = await browser.SendAsync(Send(bearer: token, path: "/test/machine/whoami"));
 
@@ -83,7 +68,7 @@ public class SchemeSelectionTests(IntegrationTestFixture fixture)
         using var browser = Browser();
         var user = await BffTestSupport.CreateUserAsync(fixture.BffWebApplicationFactory.Services, "Admin");
         var cookie = await BffTestSupport.SignInAsync(browser, user);
-        var token = await ClientCredentialsTokenAsync(browser);
+        var token = await BffTestSupport.ClientCredentialsTokenAsync(browser);
 
         using var response = await browser.SendAsync(Send(bearer: token, cookie: cookie, path: "/test/machine/whoami"));
 
@@ -99,7 +84,7 @@ public class SchemeSelectionTests(IntegrationTestFixture fixture)
     {
         // /test/whoami names no policy, so the "Spa" fallback applies: authenticated, but not a browser session.
         using var browser = Browser();
-        var token = await ClientCredentialsTokenAsync(browser);
+        var token = await BffTestSupport.ClientCredentialsTokenAsync(browser);
 
         using var response = await browser.SendAsync(Send(bearer: token));
 
@@ -110,7 +95,7 @@ public class SchemeSelectionTests(IntegrationTestFixture fixture)
     public async Task A_machine_client_token_is_refused_on_a_legacy_minimal_api_route_too()
     {
         using var browser = Browser();
-        var token = await ClientCredentialsTokenAsync(browser);
+        var token = await BffTestSupport.ClientCredentialsTokenAsync(browser);
 
         using var response = await browser.SendAsync(Send(bearer: token, path: "/appraisals"));
 
@@ -123,7 +108,7 @@ public class SchemeSelectionTests(IntegrationTestFixture fixture)
         // The seeded cls client is granted `integration` (AuthDataSeed). With no query the checklist route answers
         // 200 with empty lists, whatever the Parameter tables hold.
         using var browser = Browser();
-        var token = await ClientCredentialsTokenAsync(browser, scope: "integration");
+        var token = await BffTestSupport.ClientCredentialsTokenAsync(browser, scope: "integration");
 
         using var allowed = await browser.SendAsync(Send(bearer: token, path: "/api/v1/document-checklist"));
         using var refused = await browser.SendAsync(Send(bearer: token, path: "/appraisals"));
@@ -140,7 +125,7 @@ public class SchemeSelectionTests(IntegrationTestFixture fixture)
         // GET /api/v1/documents/{id} used to be plain RequireAuthorization(); it now names "Integration".
         // A random id is a 404 for a client allowed in.
         using var browser = Browser();
-        var token = await ClientCredentialsTokenAsync(browser, scope);
+        var token = await BffTestSupport.ClientCredentialsTokenAsync(browser, scope);
 
         using var response = await browser.SendAsync(
             Send(bearer: token, path: $"/api/v1/documents/{Guid.NewGuid()}"));
@@ -153,7 +138,7 @@ public class SchemeSelectionTests(IntegrationTestFixture fixture)
     {
         // The hub has no policy of its own, so connecting is authorized by the fallback over plain HTTP.
         using var browser = Browser();
-        var token = await ClientCredentialsTokenAsync(browser);
+        var token = await BffTestSupport.ClientCredentialsTokenAsync(browser);
 
         using var response = await browser.SendAsync(Send(bearer: token,
             path: "/notificationHub/negotiate?negotiateVersion=1", method: HttpMethod.Post));
@@ -181,7 +166,7 @@ public class SchemeSelectionTests(IntegrationTestFixture fixture)
         using var browser = Browser();
         var user = await BffTestSupport.CreateUserAsync(fixture.BffWebApplicationFactory.Services, "Admin");
         var cookie = await BffTestSupport.SignInAsync(browser, user);
-        var token = await ClientCredentialsTokenAsync(browser);
+        var token = await BffTestSupport.ClientCredentialsTokenAsync(browser);
 
         using var response = await browser.SendAsync(Send(bearer: token, cookie: cookie));
 
