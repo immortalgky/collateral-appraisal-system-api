@@ -298,6 +298,156 @@ public class CorrectPropertyDataCommandHandlerTests
         Assert.Equal(2, changes.EnumerateObject().Count());
     }
 
+    // ───────────────────────────── title order ─────────────────────────────
+
+    private static string TitleJson(LandTitle? existing, string number) =>
+        (existing is null ? "{" : $"{{ \"id\": \"{existing.Id}\",")
+        + $" \"titleNumber\": \"{number}\", \"titleType\": \"DEED\", \"rai\": 1, \"ngan\": 0, \"squareWa\": 0 }}";
+
+    [Fact]
+    public async Task A_correction_that_only_reorders_titles_is_accepted_and_logged_once()
+    {
+        var (appraisal, property) = Seed(a => a.AddLandProperty());
+        var a1 = Title(property.LandDetail!, "111", rai: 1m);
+        var b = Title(property.LandDetail!, "222", rai: 1m);
+        var c = Title(property.LandDetail!, "333", rai: 1m);
+
+        var result = await Correct(appraisal, property, "land-detail",
+            $$"""{ "titles": [ {{TitleJson(c, "333")}}, {{TitleJson(a1, "111")}}, {{TitleJson(b, "222")}} ] }""");
+
+        Assert.Equal(["Land.TitleOrder"], result.ChangedFields);
+        var change = LoggedChanges().GetProperty("Land.TitleOrder");
+        Assert.Equal("111, 222, 333", change.GetProperty("from").GetString());
+        Assert.Equal("333, 111, 222", change.GetProperty("to").GetString());
+        Assert.Equal(["333", "111", "222"], property.LandDetail!.Titles.Select(t => t.TitleNumber)); // and it is stored
+    }
+
+    [Fact]
+    public async Task Legacy_titles_re_saved_in_the_same_order_log_nothing_for_order()
+    {
+        var (appraisal, property) = Seed(a => a.AddLandProperty());
+        var land = property.LandDetail!;
+        var ids = new[] { "00000000-0000-0000-0000-00000000000a", "00000000-0000-0000-0000-00000000000b", "00000000-0000-0000-0000-00000000000c" };
+        _ = new[] { "111", "222", "333" }.Select((n, i) =>
+        {
+            var title = Title(land, n, rai: 1m);
+            title.Id = Guid.Parse(ids[i]);
+            title.SetSequenceNumber(0); // as before the column existed: AddTitle numbers unnumbered titles
+            return title;
+        }).ToList();
+        // Sent in the order the screen showed them: Titles order (SequenceNumber, then load order).
+        var sent = land.Titles.ToList();
+        Assert.All(sent, t => Assert.Equal(0, t.SequenceNumber));
+
+        var exception = await Assert.ThrowsAsync<BadRequestException>(() => Correct(appraisal, property, "land-detail",
+            $$"""{ "titles": [ {{string.Join(", ", sent.Select(t => TitleJson(t, t.TitleNumber)))}} ] }"""));
+
+        Assert.Equal("NO_CHANGES", exception.Code);
+        Assert.Equal([1, 2, 3], land.Titles.Select(t => t.SequenceNumber)); // stamped, not audited
+    }
+
+    [Fact]
+    public async Task Swapping_two_titles_that_share_a_number_still_reads_as_a_change()
+    {
+        var (appraisal, property) = Seed(a => a.AddLandProperty());
+        var first = Title(property.LandDetail!, "111", rai: 1m);
+        var second = Title(property.LandDetail!, "111", rai: 1m);
+
+        await Correct(appraisal, property, "land-detail",
+            $$"""{ "titles": [ {{TitleJson(second, "111")}}, {{TitleJson(first, "111")}} ] }""");
+
+        var change = LoggedChanges().GetProperty("Land.TitleOrder");
+        Assert.Equal("111, 111 (2)", change.GetProperty("from").GetString());
+        Assert.Equal("111 (2), 111", change.GetProperty("to").GetString());
+    }
+
+    [Fact]
+    public async Task A_new_title_that_repeats_a_number_takes_the_next_suffix()
+    {
+        var (appraisal, property) = Seed(a => a.AddLandProperty());
+        var existing = Title(property.LandDetail!, "111", rai: 1m);
+
+        await Correct(appraisal, property, "land-detail",
+            $$"""{ "titles": [ {{TitleJson(null, "111")}}, {{TitleJson(existing, "111")}} ] }""");
+
+        var change = LoggedChanges().GetProperty("Land.TitleOrder");
+        Assert.Equal("111", change.GetProperty("from").GetString());
+        Assert.Equal("111 (2), 111", change.GetProperty("to").GetString());
+    }
+
+    [Fact]
+    public async Task A_title_added_at_the_end_is_logged_as_the_added_row_only()
+    {
+        var (appraisal, property) = Seed(a => a.AddLandProperty());
+        var a1 = Title(property.LandDetail!, "111", rai: 1m);
+        var b = Title(property.LandDetail!, "222", rai: 1m);
+
+        var result = await Correct(appraisal, property, "land-detail",
+            $$"""{ "titles": [ {{TitleJson(a1, "111")}}, {{TitleJson(b, "222")}}, {{TitleJson(null, "444")}} ] }""");
+
+        Assert.Equal(["Land.Titles[#444]"], result.ChangedFields);
+    }
+
+    [Fact]
+    public async Task A_title_added_at_the_top_is_logged_as_the_added_row_and_the_new_order()
+    {
+        var (appraisal, property) = Seed(a => a.AddLandProperty());
+        var a1 = Title(property.LandDetail!, "111", rai: 1m);
+        var b = Title(property.LandDetail!, "222", rai: 1m);
+
+        var result = await Correct(appraisal, property, "land-detail",
+            $$"""{ "titles": [ {{TitleJson(null, "444")}}, {{TitleJson(a1, "111")}}, {{TitleJson(b, "222")}} ] }""");
+
+        Assert.Equal(new[] { "Land.TitleOrder", "Land.Titles[#444]" }, result.ChangedFields.Order());
+        var change = LoggedChanges().GetProperty("Land.TitleOrder");
+        Assert.Equal("111, 222", change.GetProperty("from").GetString());
+        Assert.Equal("444, 111, 222", change.GetProperty("to").GetString());
+    }
+
+    [Fact]
+    public async Task A_renumbered_title_that_moves_shows_its_new_number_in_the_new_order()
+    {
+        var (appraisal, property) = Seed(a => a.AddLandProperty());
+        var a1 = Title(property.LandDetail!, "111", rai: 1m);
+        var b = Title(property.LandDetail!, "222", rai: 1m);
+
+        await Correct(appraisal, property, "land-detail",
+            $$"""{ "titles": [ {{TitleJson(b, "222")}}, {{TitleJson(a1, "999")}} ] }""");
+
+        var change = LoggedChanges().GetProperty("Land.TitleOrder");
+        Assert.Equal("111, 222", change.GetProperty("from").GetString());
+        Assert.Equal("222, 999", change.GetProperty("to").GetString());
+    }
+
+    [Fact]
+    public async Task A_removed_number_added_again_on_top_is_not_suffixed()
+    {
+        var (appraisal, property) = Seed(a => a.AddLandProperty());
+        Title(property.LandDetail!, "111", rai: 1m);
+        var b = Title(property.LandDetail!, "222", rai: 1m);
+
+        var result = await Correct(appraisal, property, "land-detail",
+            $$"""{ "titles": [ {{TitleJson(null, "111")}}, {{TitleJson(b, "222")}} ] }""");
+
+        // The numbers read the same before and after, so no TitleOrder: the removed and added rows say it all.
+        Assert.DoesNotContain("Land.TitleOrder", result.ChangedFields);
+        Assert.Contains("Land.Titles[#111]", result.ChangedFields);
+    }
+
+    [Fact]
+    public async Task Removing_a_title_is_not_an_order_change()
+    {
+        var (appraisal, property) = Seed(a => a.AddLandProperty());
+        var a1 = Title(property.LandDetail!, "111", rai: 1m);
+        Title(property.LandDetail!, "222", rai: 1m);
+        var c = Title(property.LandDetail!, "333", rai: 1m);
+
+        var result = await Correct(appraisal, property, "land-detail",
+            $$"""{ "titles": [ {{TitleJson(a1, "111")}}, {{TitleJson(c, "333")}} ] }""");
+
+        Assert.Equal(["Land.Titles[#222]"], result.ChangedFields);
+    }
+
     [Fact]
     public async Task Added_and_removed_rows_are_one_entry_each_with_a_row_summary()
     {
@@ -328,6 +478,7 @@ public class CorrectPropertyDataCommandHandlerTests
         var dep = building.AddDepreciationDetail("Period", "main", 10m, 2020, true, 1m, 1m, 1m, 1m, 1m, 1m, 1m);
         dep.Id = Guid.NewGuid();
         dep.AddPeriod(1, 5, 2m, 10m, 100m).Id = Guid.NewGuid();
+        building.ResolveDerivedValues(); // a building saved since insurance became a stored value
 
         await Correct(appraisal, property, "building-detail", $$"""
             { "isAppraisable": true,
@@ -347,6 +498,25 @@ public class CorrectPropertyDataCommandHandlerTests
     }
 
     [Fact]
+    public async Task A_building_whose_insurance_was_never_stored_gets_the_computed_value_and_it_is_logged()
+    {
+        var (appraisal, property) = Seed(a => a.AddBuildingProperty());
+        var dep = property.BuildingDetail!.AddDepreciationDetail("Gross", "main", 10m, 2020, true, priceAfterDepreciation: 250_400m);
+        dep.Id = Guid.NewGuid();
+
+        await Correct(appraisal, property, "building-detail", $$"""
+            { "isAppraisable": true,
+              "depreciationDetails": [ { "id": "{{dep.Id}}", "depreciationMethod": "Gross", "areaDescription": "main",
+                "area": 10, "year": 2020, "isBuilding": true, "priceAfterDepreciation": 250400 } ] }
+            """);
+
+        Assert.Equal(250_000m, property.BuildingDetail!.BuildingInsurancePrice);
+        var change = LoggedChanges().GetProperty("Building.BuildingInsurancePrice");
+        Assert.Equal(JsonValueKind.Null, change.GetProperty("from").ValueKind);
+        Assert.Equal(250_000m, change.GetProperty("to").GetDecimal());
+    }
+
+    [Fact]
     public async Task Re_saving_identical_child_rows_is_no_changes_even_though_their_ids_are_regenerated()
     {
         var (appraisal, property) = Seed(a => a.AddBuildingProperty());
@@ -356,6 +526,7 @@ public class CorrectPropertyDataCommandHandlerTests
         dep.AddPeriod(1, 5, 2m, 10m, 100m).Id = Guid.NewGuid();
         var surface = building.AddSurface(1, 2, "F");
         surface.Id = Guid.NewGuid();
+        building.ResolveDerivedValues(); // a building saved since insurance became a stored value
 
         var exception = await Assert.ThrowsAsync<BadRequestException>(() => Correct(appraisal, property, "building-detail", $$"""
             { "isAppraisable": true,

@@ -144,7 +144,7 @@ internal static class ExternalBookBuilder
             JOIN appraisal.LandAppraisalDetails lad ON lad.Id = lt.LandAppraisalDetailId
             JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
             WHERE ap.AppraisalId = @AppraisalId
-            ORDER BY ap.SequenceNumber, lad.Id, lt.Id;
+            ORDER BY ap.SequenceNumber, lad.Id, lt.SequenceNumber, lt.Id;
 
             -- RS09: Q8 — Condo rows
             SELECT

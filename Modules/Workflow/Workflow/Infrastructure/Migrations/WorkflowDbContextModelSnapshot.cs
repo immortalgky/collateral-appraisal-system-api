@@ -109,6 +109,9 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<DateTime?>("ProcessedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("ProcessingStartedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("RetryCount")
                         .HasColumnType("int");
 
@@ -1207,6 +1210,9 @@ namespace Workflow.Infrastructure.Migrations
                     b.Property<DateTime?>("CancelledAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("CommitteeId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1508,6 +1514,8 @@ namespace Workflow.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("WorkflowInstanceId");
 
                     b.HasIndex("MeetingId", "AppraisalId")
                         .IsUnique();

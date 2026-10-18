@@ -100,8 +100,6 @@ public record CreateCondoPropertyRequest(
     string? FireInsuranceCode = null,
     // Appraiser-keyed coverage; null means "use the derived figure".
     decimal? BuildingInsurancePriceOverride = null,
-    decimal? SellingPrice = null,
-    decimal? ForcedSalePrice = null,
     // Other
     string? Remark = null,
     ConstructionInspectionData? ConstructionInspection = null

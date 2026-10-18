@@ -520,6 +520,17 @@ public class WorkflowPersistenceService : IWorkflowPersistenceService
                 cancellationToken);
     }
 
+    public async Task<string?> GetOpenMeetingItemActivityIdAsync(
+        Guid workflowInstanceId,
+        CancellationToken cancellationToken = default)
+    {
+        // Same query MeetingActivity re-enters on, so the engine redirects exactly when
+        // MeetingActivity will re-enter — and on the same item.
+        return await _dbContext.OpenMeetingItems(workflowInstanceId)
+            .Select(mi => mi.ActivityId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     /// <summary>
     /// Securely deserializes workflow schema JSON with validation
     /// </summary>

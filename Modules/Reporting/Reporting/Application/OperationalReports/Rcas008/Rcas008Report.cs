@@ -38,7 +38,7 @@ internal static class Rcas008Report
         [
             new("Approved From", f.ApprovedFrom?.ToString("yyyy-MM-dd")),
             new("Approved To", f.ApprovedTo?.ToString("yyyy-MM-dd")),
-            new("Retail/IBG", f.BankingSegment, "BankingSegment"),
+            new("Banking Segment", f.BankingSegment, "BankingSegment"),
             new("Appraisal Company", f.AppraisalCompany),
             new("Evaluation Status", f.EvaluationStatus, "EvaluationStatus"),
             new("Appraisal No.", f.AppraisalNumber),

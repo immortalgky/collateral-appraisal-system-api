@@ -1,4 +1,5 @@
 using Hangfire;
+using Shared.Data.Outbox;
 using Shared.Logging;
 using Shared.Scheduling;
 
@@ -16,6 +17,11 @@ public static class CommonRecurringJobs
         new RecurringJobDefinition("logs-cleanup", "0 3 * * *",
             "Purge dbo.Logs rows older than the retention window (daily at 03:00).",
             (mgr, cron, opt) => mgr.AddOrUpdate<LogsCleanupJob>(
-                "logs-cleanup", j => j.ExecuteAsync(CancellationToken.None), cron, opt))
+                "logs-cleanup", j => j.ExecuteAsync(CancellationToken.None), cron, opt)),
+
+        new RecurringJobDefinition("inbox-cleanup-common", "0 2 * * *",
+            "Purge processed/stale inbox messages for the Common module (daily at 02:00).",
+            (mgr, cron, opt) => mgr.AddOrUpdate<OutboxCleanupJob<CommonDbContext>>(
+                "inbox-cleanup-common", j => j.ExecuteAsync(CancellationToken.None), cron, opt))
     };
 }

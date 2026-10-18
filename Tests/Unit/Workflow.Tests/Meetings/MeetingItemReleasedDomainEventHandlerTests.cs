@@ -40,7 +40,8 @@ public class MeetingItemReleasedDomainEventHandlerTests
             [
                 new MeetingApprover("alice", nameof(CommitteeMemberPosition.Chairman)),
                 new MeetingApprover("bob", nameof(CommitteeMemberPosition.UW))
-            ]);
+            ],
+            CommitteeId: null);
 
         await handler.Handle(notification, CancellationToken.None);
 
@@ -54,6 +55,20 @@ public class MeetingItemReleasedDomainEventHandlerTests
     }
 
     [Fact]
+    public async Task Handle_PassesTheMeetingsCommittee_SoApprovalRunsUnderIt()
+    {
+        var committeeId = Guid.NewGuid();
+        var notification = new MeetingItemReleasedDomainEvent(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "pending-meeting", "secretary",
+            [new MeetingApprover("alice", nameof(CommitteeMemberPosition.Chairman))],
+            committeeId);
+
+        await BuildHandler().Handle(notification, CancellationToken.None);
+
+        CapturedInput()["meetingCommitteeId"].Should().Be(committeeId.ToString());
+    }
+
+    [Fact]
     public async Task Handle_OverridesCarryUserIdAndRole_InTheShapeApprovalActivityDeserializes()
     {
         var handler = BuildHandler();
@@ -62,7 +77,8 @@ public class MeetingItemReleasedDomainEventHandlerTests
             [
                 new MeetingApprover("alice", nameof(CommitteeMemberPosition.Chairman)),
                 new MeetingApprover("bob", nameof(CommitteeMemberPosition.UW))
-            ]);
+            ],
+            CommitteeId: null);
 
         await handler.Handle(notification, CancellationToken.None);
 
@@ -89,7 +105,8 @@ public class MeetingItemReleasedDomainEventHandlerTests
         var workflowInstanceId = Guid.NewGuid();
         var notification = new MeetingItemReleasedDomainEvent(
             Guid.NewGuid(), Guid.NewGuid(), workflowInstanceId, "pending-meeting", "secretary",
-            [new MeetingApprover("alice", nameof(CommitteeMemberPosition.Chairman))]);
+            [new MeetingApprover("alice", nameof(CommitteeMemberPosition.Chairman))],
+            null);
 
         await handler.Handle(notification, CancellationToken.None);
 

@@ -14,14 +14,14 @@ namespace Integration.Collateral.Integration.Tests;
 /// <summary>
 /// PR-7 integration tests: alias-alone graceful behavior.
 ///
-/// The alias-alone validation was moved upstream to the Request module.
-/// The Collateral module is now a trusting consumer: when a property's existing
-/// master row is an alias, the service resolves to the parent IsMaster and
-/// attaches the engagement there without throwing.
+/// The alias-alone validation was moved upstream to the Request module, so the Collateral
+/// module no longer throws. Since the typed-alias model (5b7ae023) a condo alias that is the
+/// appraisal's primary is promoted back to IsMaster (PromotePrimaryIfAlias) rather than
+/// resolved to its parent; the land multi-title path still resolves to the parent (PR4-6).
 ///
 /// Test inventory:
-///   PR7-1  Condo alias alone → service succeeds, engagement anchored on parent IsMaster,
-///          parent IsMaster classification unchanged.
+///   PR7-1  Condo alias alone → service succeeds, the alias is promoted and holds the
+///          engagement, the former parent IsMaster is left untouched.
 /// </summary>
 [Collection("Integration")]
 public class CollateralPR7_AliasGracefulTests(IntegrationTestFixture fixture)
@@ -75,7 +75,7 @@ public class CollateralPR7_AliasGracefulTests(IntegrationTestFixture fixture)
     }
 
     // -----------------------------------------------------------------------
-    // PR7-1: Condo alias alone → graceful re-anchor on parent IsMaster
+    // PR7-1: Condo alias alone → promoted to IsMaster, engagement anchored on it
     //
     // Setup:
     //   - Seed a Condo master (IsMaster=true) via reflection as IsMaster=false with
@@ -84,11 +84,11 @@ public class CollateralPR7_AliasGracefulTests(IntegrationTestFixture fixture)
     //
     // Assert:
     //   - ProcessAppraisalAsync completes without exception.
-    //   - One engagement created, anchored to the parent IsMaster.
+    //   - One engagement created, anchored to the (now promoted) alias row.
     //   - Parent IsMaster classification (IsMaster=true, ParentMasterId=null) unchanged.
     // -----------------------------------------------------------------------
     [Fact]
-    public async Task PR7_1_CondoAliasAlone_GracefullyAttachesEngagementToParentIsMaster()
+    public async Task PR7_1_CondoAliasAlone_IsPromotedToMasterAndHoldsEngagement()
     {
         var regNo = "CONDO-PR7-" + Guid.NewGuid().ToString("N")[..6];
         const string building = "A";
@@ -98,6 +98,9 @@ public class CollateralPR7_AliasGracefulTests(IntegrationTestFixture fixture)
         const string titleNo2 = "PR7-T2";
         const string titleType = "Chanote";
         const string province = "Bangkok";
+        // Must match SeedCondoProperty: District/SubDistrict are part of the condo dedup key.
+        const string district = "Test District";
+        const string subDistrict = "Test Subdistrict";
         const string landOffice = "LO-PR7";
         var ct = TestContext.Current.CancellationToken;
 
@@ -120,8 +123,8 @@ public class CollateralPR7_AliasGracefulTests(IntegrationTestFixture fixture)
                 floorNumber: floor,
                 roomNumber: room1,
                 province: province,
-                district: null,
-                subDistrict: null,
+                district: district,
+                subDistrict: subDistrict,
                 condoName: "Test Condo");
             db.CollateralMasters.Add(parentMaster);
             await db.SaveChangesAsync(ct);
@@ -137,8 +140,8 @@ public class CollateralPR7_AliasGracefulTests(IntegrationTestFixture fixture)
                 floorNumber: floor,
                 roomNumber: room2,
                 province: province,
-                district: null,
-                subDistrict: null,
+                district: district,
+                subDistrict: subDistrict,
                 condoName: "Test Condo");
 
             // Demote to alias: set IsMaster=false and ParentMasterId=parentMasterId
@@ -190,8 +193,12 @@ public class CollateralPR7_AliasGracefulTests(IntegrationTestFixture fixture)
 
         Assert.Single(engagements);
 
-        // Engagement anchored to the parent IsMaster, not the alias
-        Assert.Equal(parentMasterId, engagements.Single().CollateralMasterId);
+        // Engagement anchored to the alias row, which is promoted to a standalone IsMaster
+        Assert.Equal(aliasMasterId, engagements.Single().CollateralMasterId);
+        var aliasAfter = await assertDb.CollateralMasters
+            .FirstAsync(m => m.Id == aliasMasterId, ct);
+        Assert.True(aliasAfter.IsMaster, "Primary condo alias must be promoted to IsMaster");
+        Assert.Null(aliasAfter.ParentMasterId);
 
         // Parent IsMaster classification is unchanged
         var parentAfter = await assertDb.CollateralMasters

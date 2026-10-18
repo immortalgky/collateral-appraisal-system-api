@@ -22,7 +22,7 @@ public class ExclusionFilter : IAssignmentFilter
         if (excludeFrom.Count == 0)
             return Task.FromResult(candidates);
 
-        var excludedUserIds = new HashSet<string>();
+        var excludedUserIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var sourceActivityId in excludeFrom)
         {

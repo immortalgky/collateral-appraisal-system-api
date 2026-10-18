@@ -9,8 +9,10 @@ using Notification.Domain.Notifications.Services;
 using Notification.Infrastructure.Email;
 using Notification.Infrastructure.Email.Attachments;
 using Notification.Infrastructure.Email.Templates;
+using Notification.Scheduling;
 using Shared.Data.Extensions;
 using Shared.Data.Seed;
+using Shared.Scheduling;
 using StackExchange.Redis;
 
 namespace Notification;
@@ -37,6 +39,12 @@ public static class NotificationModule
             options.KeepAliveInterval = TimeSpan.FromSeconds(15);
         });
 
+        // Close connections of ended sessions (logout / idle / revoke / deactivation). Not
+        // CloseOnAuthenticationExpiration: the cookie ticket's expiry is a 12 h sliding horizon that says nothing
+        // about whether the session is alive.
+        services.AddSingleton<ConnectionSessionTracker>();
+        services.AddHostedService<SessionConnectionSweeper>();
+
         if (configuration.GetValue("SignalR:UseRedisBackplane", false))
         {
             signalR.AddStackExchangeRedis(
@@ -53,6 +61,8 @@ public static class NotificationModule
         services.AddScoped<INotificationRepository, NotificationRepository>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IRealtimeNotifier, RealtimeNotifier>();
+
+        services.AddTransient<NotificationCleanupJob>();
 
         // Register data seeder
         services.AddScoped<IDataSeeder<NotificationDbContext>, NotificationDataSeed>();
@@ -78,9 +88,13 @@ public static class NotificationModule
     {
         // Map SignalR hub
         app.UseRouting();
-        app.UseEndpoints(endpoints => { endpoints.MapHub<NotificationHub>("/notificationHub"); });
+        app.UseEndpoints(endpoints =>
+        {
+            endpoints.MapHub<NotificationHub>("/notificationHub");
+        });
 
         app.UseDataSeeding<NotificationDbContext>();
+        app.UseModuleRecurringJobs<NotificationDbContext>(NotificationRecurringJobs.All);
 
         return app;
     }

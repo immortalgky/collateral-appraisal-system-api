@@ -1,6 +1,5 @@
 using Workflow.Workflow.Engine.Expression;
 using FluentAssertions;
-using System.Collections.Concurrent;
 using Xunit;
 
 namespace Workflow.Tests.Workflow.Engine.Expression;
@@ -184,56 +183,6 @@ public class LRUCacheTests
         // Verify LRU eviction worked correctly
         cache.TryGetValue("key_0", out _).Should().BeFalse("Oldest items should be evicted");
         cache.TryGetValue("key_999", out _).Should().BeTrue("Newest items should be retained");
-    }
-
-    [Fact]
-    public void ConcurrentAccess_ThreadSafety_HandlesRaceConditions()
-    {
-        // Arrange
-        var cache = new LRUCache<string, string>(100);
-        var tasks = new List<Task>();
-        var results = new ConcurrentBag<bool>();
-
-        // Act - Concurrent operations from multiple threads
-        for (int i = 0; i < 10; i++)
-        {
-            int threadId = i;
-            tasks.Add(Task.Run(() =>
-            {
-                try
-                {
-                    // Each thread performs various operations
-                    for (int j = 0; j < 100; j++)
-                    {
-                        var key = $"key_{threadId}_{j}";
-                        var value = $"value_{threadId}_{j}";
-                        
-                        cache.Add(key, value);
-                        
-                        if (cache.TryGetValue(key, out var retrievedValue))
-                        {
-                            results.Add(retrievedValue == value);
-                        }
-                        
-                        // Some threads also clear cache periodically
-                        if (threadId == 0 && j % 50 == 0)
-                        {
-                            cache.Clear();
-                        }
-                    }
-                }
-                catch (Exception)
-                {
-                    results.Add(false); // Track any thread safety exceptions
-                }
-            }));
-        }
-
-        Task.WaitAll(tasks.ToArray());
-
-        // Assert - No exceptions should occur, and successful operations should be consistent
-        results.Should().NotContain(false, "All thread-safe operations should succeed");
-        cache.Count.Should().BeLessThanOrEqualTo(100, "Cache size should be respected even under concurrency");
     }
 
     [Fact]

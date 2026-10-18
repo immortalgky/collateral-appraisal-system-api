@@ -38,6 +38,22 @@ public class WorkflowActivityExecution : Entity<Guid>
         // For EF Core
     }
 
+    /// <summary>
+    /// The person who completed the newest Completed execution of <paramref name="activityId"/>
+    /// (not empty, not "system"; newest by CompletedOn, then Id). In-memory counterpart of the query in
+    /// <c>SameAssigneeAsActivitySelector</c>; shared by the exclusion map and the followup-selection activity.
+    /// </summary>
+    public static string? NewestCompletedBy(IEnumerable<WorkflowActivityExecution> executions, string activityId)
+        => executions
+            .Where(e => e.ActivityId == activityId
+                        && e.Status == ActivityExecutionStatus.Completed
+                        && !string.IsNullOrEmpty(e.CompletedBy)
+                        && !string.Equals(e.CompletedBy, "system", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(e => e.CompletedOn)
+            .ThenByDescending(e => e.Id)
+            .Select(e => e.CompletedBy)
+            .FirstOrDefault();
+
     public static WorkflowActivityExecution Create(
         Guid workflowInstanceId,
         string activityId,

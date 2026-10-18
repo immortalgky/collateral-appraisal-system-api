@@ -3,6 +3,7 @@ using Collateral.Application.Features.Reappraisal.DeleteCandidate;
 using Collateral.Application.Features.Reappraisal.GetCandidateById;
 using Collateral.Application.Features.Reappraisal.GetCandidates;
 using Collateral.Application.Features.Reappraisal.InitiateReappraisal;
+using Collateral.Application.Features.Reappraisal.RestoreCandidate;
 using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -18,7 +19,8 @@ namespace Api.Endpoints.Reappraisal;
 /// GET  /reappraisal/candidates        — paginated list with filters
 /// GET  /reappraisal/candidates/{id}   — detail + nearby group candidates
 /// POST /reappraisal/initiate          — initiate batch of reappraisal requests
-/// DELETE /reappraisal/candidates/{id} — soft-delete candidate
+/// DELETE /reappraisal/candidates/{id} — "not reviewing this round"
+/// POST /reappraisal/candidates/{id}/restore — back to the to-do list
 /// </summary>
 public class ReappraisalEndpoints : ICarterModule
 {
@@ -41,7 +43,12 @@ public class ReappraisalEndpoints : ICarterModule
                     int? remainingDayFrom = null,
                     int? remainingDayTo = null,
                     string? sortBy = null,
-                    string? sortDir = null) =>
+                    string? sortDir = null,
+                    string? status = null,
+                    string? search = null,
+                    string? priorSource = null,
+                    bool? inProgress = null,
+                    string? newAppraisalState = null) =>
                 {
                     var query = new GetReappraisalCandidatesQuery(
                         Pagination: new PaginationRequest(pageNumber, pageSize),
@@ -55,7 +62,12 @@ public class ReappraisalEndpoints : ICarterModule
                         RemainingDayFrom: remainingDayFrom,
                         RemainingDayTo: remainingDayTo,
                         SortBy: sortBy,
-                        SortDir: sortDir);
+                        SortDir: sortDir,
+                        Status: status,
+                        Search: search,
+                        PriorSource: priorSource,
+                        InProgress: inProgress,
+                        NewAppraisalState: newAppraisalState);
 
                     var result = await sender.Send(query, cancellationToken);
                     return Results.Ok(result.Items);
@@ -65,8 +77,7 @@ public class ReappraisalEndpoints : ICarterModule
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithTags("Reappraisal")
             .WithSummary("List reappraisal candidates")
-            .WithDescription("Returns a paginated list of AS400 COLLATREV reappraisal candidates with optional filters.")
-            .AllowAnonymous();
+            .WithDescription("Returns a paginated list of AS400 COLLATREV reappraisal candidates with optional filters.");
 
         // ── GET /reappraisal/candidates/{id} ─────────────────────────────
         app.MapGet("/reappraisal/candidates/{id:guid}",
@@ -89,8 +100,7 @@ public class ReappraisalEndpoints : ICarterModule
             .Produces(StatusCodes.Status404NotFound)
             .WithTags("Reappraisal")
             .WithSummary("Get reappraisal candidate detail")
-            .WithDescription("Returns full detail for one candidate plus nearby candidates for group selection.")
-            .AllowAnonymous();
+            .WithDescription("Returns full detail for one candidate plus nearby candidates for group selection.");
 
         // ── POST /reappraisal/initiate ────────────────────────────────────
         app.MapPost("/reappraisal/initiate",
@@ -113,8 +123,7 @@ public class ReappraisalEndpoints : ICarterModule
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithTags("Reappraisal")
             .WithSummary("Initiate reappraisal requests")
-            .WithDescription("Creates one reappraisal request per selected candidate, grouped under a shared group number.")
-            .AllowAnonymous();
+            .WithDescription("Creates one reappraisal request per selected candidate, grouped under a shared group number.");
 
         // ── DELETE /reappraisal/candidates/{id} ──────────────────────────
         app.MapDelete("/reappraisal/candidates/{id:guid}",
@@ -136,8 +145,29 @@ public class ReappraisalEndpoints : ICarterModule
             .Produces(StatusCodes.Status404NotFound)
             .WithTags("Reappraisal")
             .WithSummary("Delete reappraisal candidate")
-            .WithDescription("Soft-deletes a candidate from the list (Status = Deleted). Does not affect any created requests.")
-            .AllowAnonymous();
+            .WithDescription("Marks the book \"not reviewing this round\" (Status = Deleted) — it moves to its own tab until restored. Does not affect any created requests.");
+
+        // ── POST /reappraisal/candidates/{id}/restore ────────────────────
+        app.MapPost("/reappraisal/candidates/{id:guid}/restore",
+                async (
+                    Guid id,
+                    ISender sender,
+                    CancellationToken cancellationToken) =>
+                {
+                    var result = await sender.Send(
+                        new RestoreReappraisalCandidateCommand(id),
+                        cancellationToken);
+
+                    return result.Success
+                        ? Results.NoContent()
+                        : Results.NotFound();
+                })
+            .WithName("RestoreReappraisalCandidate")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces(StatusCodes.Status404NotFound)
+            .WithTags("Reappraisal")
+            .WithSummary("Restore reappraisal candidate")
+            .WithDescription("Puts a book marked \"not reviewing this round\" back on the to-do list (Status = Pending).");
     }
 }
 

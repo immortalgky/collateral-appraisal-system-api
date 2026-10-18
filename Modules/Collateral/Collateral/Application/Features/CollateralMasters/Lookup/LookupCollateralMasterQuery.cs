@@ -9,20 +9,16 @@ public record LookupCollateralMasterQuery(
     string Type,
 
     // Land dedup params
-    string? LandOfficeCode,
     string? Province,
     string? District,
     string? SubDistrict,
-    string? TitleType,
     string? TitleNumber,
-    string? SurveyNumber,
 
-    // Condo dedup params
+    // Condo dedup params (with Province/District/SubDistrict, shared with Land above)
     string? CondoRegistrationNumber,
     string? Building,
     string? Floor,
     string? Unit,
-    // TitleNumber and TitleType are shared with Land dedup params above
 
     // Leasehold dedup params
     string? ContractNo,

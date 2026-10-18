@@ -23,7 +23,7 @@ public sealed record Rcas007Filter(
 
 /// <summary>
 /// Builds the SLA reports. RCAS007 and RCAS012 share the same row, view, and business-day SLA
-/// computation; RCAS012 differs only by title, the Retail/IBG column position, and a hard
+/// computation; RCAS012 differs only by title, the Banking Segment column position, and a hard
 /// "SLA &gt; 2 days" post-filter. The SLA value is enriched in C# (see <see cref="IReportSlaCalculator"/>).
 /// FSD lists no sign-off footer for these. Totals: Appraisal fee + Appraisal Value.
 /// </summary>
@@ -37,7 +37,7 @@ internal static class SlaReport
     };
 
     /// <param name="slaOver2DaysOnly">RCAS012: keep only rows whose SLA exceeds 2 business days.</param>
-    /// <param name="retailIbgEarly">RCAS012 places Retail/IBG at field 4 (before Requestor).</param>
+    /// <param name="retailIbgEarly">RCAS012 places Banking Segment at field 4 (before Requestor).</param>
     public static ReportDefinition<Rcas007Row, Rcas007Filter> Create(
         string baseName, string title, string? assignmentScope, IReportSlaCalculator sla,
         bool slaOver2DaysOnly = false, bool retailIbgEarly = false) => new()
@@ -103,14 +103,14 @@ internal static class SlaReport
         new("Customer Name", r => r.CustomerName),
         new("Purpose", r => r.Purpose),
         .. retailIbgEarly
-            ? new ReportColumn<Rcas007Row>[] { new("Retail/IBG", r => r.BankingSegment) }
+            ? new ReportColumn<Rcas007Row>[] { new("Banking Segment", r => r.BankingSegment) }
             : [],
         new("Requestor", r => r.RequestorName),
         new("Requestor Phone", r => r.RequestorPhone),
         new("Requestor Dept.", r => r.RequestorDepartment),
         .. retailIbgEarly
             ? []
-            : new ReportColumn<Rcas007Row>[] { new("Retail/IBG", r => r.BankingSegment) },
+            : new ReportColumn<Rcas007Row>[] { new("Banking Segment", r => r.BankingSegment) },
         new("Appraisal Company", r => r.AppraisalCompany),
         new("External Staff", r => r.ExternalStaffName),
         new("Company Phone", r => r.AppraisalCompanyPhone),

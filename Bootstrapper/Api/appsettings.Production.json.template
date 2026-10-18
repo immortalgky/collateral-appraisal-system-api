@@ -16,7 +16,14 @@
   "RabbitMQ": {
     "Host": "#{RABBITMQ_HOST}#",
     "Username": "#{RABBITMQ_USERNAME}#",
-    "Password": "#{RABBITMQ_PASSWORD}#"
+    "Password": "#{RABBITMQ_PASSWORD}#",
+    "ManagementUrl": "http://localhost:15672"
+  },
+  "FailedMessages": {
+    "Enabled": true,
+    "Interval": "00:00:15",
+    "BatchPerQueue": 100,
+    "SkippedPendingRetentionDays": 30
   },
   "OAuth2": {
     "SigningCertificate": {
@@ -34,7 +41,34 @@
   },
   "AppBaseUrl": "#{APP_BASE_URL}#",
   "Auth": {
-    "InternalAuthBaseUrl": "#{AUTH_INTERNAL_BASE_URL}#"
+    // Where this API reaches its own OpenIddict for the OIDC back-channel (discovery, JWKS, code
+    // redemption). Behind the load balancer the public URL's certificate does not match the node's own
+    // name, so point it at the node itself, e.g. https://localhost:7111. Browsers are still sent to
+    // AppBaseUrl. After the IdP is split out this is simply the IdP's address.
+    "InternalAuthBaseUrl": "#{AUTH_INTERNAL_BASE_URL}#",
+    "Session": {
+      // The session cookie names carry a suffix so that environments sharing a host (SIT1-4, UAT2-4) do not
+      // overwrite each other's cookies. Leave this commented: the suffix is derived from the AppBaseUrl port
+      // (e.g. -7112). Uncomment only to override it (letters, digits and '-'); once uncommented the token must
+      // be replaced, or the app fails at startup.
+      // "CookieSuffix": "#{SESSION_COOKIE_SUFFIX}#",
+
+      // Minutes without real activity before a session ends. Background polling does not count.
+      "IdleTimeoutMinutes": 30
+    },
+    // Uncomment only when the IdP is split out to its own address (where browsers reach its login and
+    // sign-out pages). Commented = the IdP is this API, i.e. AppBaseUrl.
+    // "Idp": {
+    //   "PublicBaseUrl": "#{AUTH_IDP_PUBLIC_BASE_URL}#"
+    // },
+
+    // The API signs users in against its own OpenIddict through this client. "spa" is the existing public
+    // client (PKCE, no secret): leave ClientSecret empty. When the IdP is split out and the client becomes
+    // confidential, put the secret here as ENC:v1:... (CasSecretTool).
+    "Oidc": {
+      "ClientId": "spa",
+      "ClientSecret": ""
+    }
   },
   // Self-contained: production runs on this file alone, so every Serilog setting lives here, not
   // inherited from appsettings.json. Keys match the base file ("Database", "File"), so if the base

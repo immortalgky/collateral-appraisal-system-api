@@ -13,8 +13,6 @@ public class ReorderPropertiesInGroupCommandHandler(
 
         appraisal.ReorderPropertiesInGroup(command.GroupId, command.OrderedPropertyIds);
 
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
-
         return new ReorderPropertiesInGroupResult(true);
     }
 }

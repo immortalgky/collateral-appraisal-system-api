@@ -53,7 +53,10 @@ public sealed class ShortlistSentToRmEmailHandler(
                 return;
             }
 
-            var adminName = await ResolveNameAsync(msg.AdminUsername, ct);
+            var admin = string.IsNullOrWhiteSpace(msg.AdminUsername)
+                ? null
+                : await userLookupService.GetRequestorAsync(msg.AdminUsername, ct);
+            var adminName = admin?.Name ?? msg.AdminUsername ?? string.Empty;
 
             // Columns, in order, so each row's cells align positionally.
             var columns = msg.Columns
@@ -80,7 +83,8 @@ public sealed class ShortlistSentToRmEmailHandler(
             var channel = string.Join(" / ", channels);
 
             var subject = $"แจ้งค่าธรรมเนียมประเมิน ลูกค้าราย {msg.CustomerName ?? "-"}";
-            var model = new QuotationFeeNoticeModel(rm.Name, msg.CustomerName, columns, rows, adminName, channel);
+            var model = new QuotationFeeNoticeModel(
+                rm.Name, msg.CustomerName, columns, rows, adminName, admin?.ContactNo, channel);
             var html = templateRenderer.QuotationFeeNotice(subject, model);
 
             await emailSender.SendAsync(new EmailMessage(
@@ -90,13 +94,6 @@ public sealed class ShortlistSentToRmEmailHandler(
                 Source: "ShortlistSentToRm",
                 ReferenceId: msg.QuotationRequestId.ToString()), ct);
         }, context.CancellationToken);
-
-    private async Task<string> ResolveNameAsync(string? username, CancellationToken ct)
-    {
-        if (string.IsNullOrWhiteSpace(username)) return string.Empty;
-        var info = await userLookupService.GetRequestorAsync(username, ct);
-        return info?.Name ?? username;
-    }
 
     private async Task<string?> ResolveCompanyNameAsync(Guid companyId, CancellationToken ct)
     {

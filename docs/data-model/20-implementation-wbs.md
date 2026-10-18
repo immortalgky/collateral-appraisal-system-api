@@ -211,8 +211,8 @@ Milestone: Sprint 1 - Foundation
   - **Time**: 4 hours
 
 - [ ] **AUTH-011**: Create API endpoints (Carter)
-  - POST /auth/register - Register user
-  - POST /auth/token - Get access token
+  - ~~POST /auth/register - Register user~~ (removed 2026-10 — security: anonymous account creation; users are created via POST /auth/users)
+  - ~~POST /auth/token - Get access token~~ (removed: browser sign-in is GET /auth/login, session cookie; machines use client_credentials)
   - GET /users - List users
   - GET /users/{id} - Get user by ID
   - POST /users - Create user

@@ -38,13 +38,17 @@ public sealed class DocumentFollowupEmailHandler(
                 return;
             }
 
-            var adminName = await ResolveNameAsync(msg.ActingUsername, ct);
+            var admin = string.IsNullOrWhiteSpace(msg.ActingUsername)
+                ? null
+                : await userLookupService.GetRequestorAsync(msg.ActingUsername, ct);
+            var adminName = admin?.Name ?? msg.ActingUsername ?? string.Empty;
+
             var subject = $"งานติดตามเอกสารของลูกค้าราย {msg.CustomerName ?? "-"}";
             var items = msg.Items
                 .Select(i => new DocumentFollowupNoticeItem(i.DocumentName, i.Notes))
                 .ToList();
             var model = new DocumentFollowupNoticeModel(
-                rm.Name, msg.CustomerName, msg.AppraisalNumber, items, adminName);
+                rm.Name, msg.CustomerName, msg.AppraisalNumber, items, adminName, admin?.ContactNo);
             var html = templateRenderer.DocumentFollowupNotice(subject, model);
 
             await emailSender.SendAsync(new EmailMessage(
@@ -54,11 +58,4 @@ public sealed class DocumentFollowupEmailHandler(
                 Source: "DocumentFollowup",
                 ReferenceId: msg.FollowupId.ToString()), ct);
         }, context.CancellationToken);
-
-    private async Task<string> ResolveNameAsync(string? username, CancellationToken ct)
-    {
-        if (string.IsNullOrWhiteSpace(username)) return string.Empty;
-        var info = await userLookupService.GetRequestorAsync(username, ct);
-        return info?.Name ?? username;
-    }
 }

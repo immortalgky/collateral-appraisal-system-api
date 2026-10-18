@@ -33,6 +33,7 @@ using Auth.Infrastructure.HealthChecks;
 using Notification.Infrastructure.Email.HealthChecks;
 using Integration.Infrastructure.HealthChecks;
 using Microsoft.AspNetCore.HttpLogging;
+using OrderedEndpoints = Integration.FailedMessages.OrderedEndpoints;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -123,13 +124,20 @@ builder.Services.AddScoped<ISqlConnectionFactory>(provider =>
 builder.Services.AddScoped<IOutboxScope, OutboxScope>();
 builder.Services.AddScoped<IIntegrationEventOutbox, IntegrationEventOutbox>();
 builder.Services.AddScoped(typeof(InboxGuard<>));
-builder.Services.AddHostedService<IntegrationEventDeliveryService<RequestDbContext>>();
-builder.Services.AddHostedService<IntegrationEventDeliveryService<AppraisalDbContext>>();
-builder.Services.AddHostedService<IntegrationEventDeliveryService<DocumentDbContext>>();
-builder.Services.AddHostedService<IntegrationEventDeliveryService<WorkflowDbContext>>();
-builder.Services.AddHostedService<IntegrationEventDeliveryService<CollateralDbContext>>();
-builder.Services.AddHostedService<IntegrationEventDeliveryService<Reporting.Data.ReportingDbContext>>();
 
+// Failed Messages collector discover-fallback (design §3 step 1): records every receive endpoint this
+// node opens, for when the RabbitMQ management tag isn't set yet. Registered both as itself (the
+// collector's constructor injection) and via AddReceiveEndpointObserver (so MassTransit's own container
+// wiring connects it to the bus) — same singleton instance either way.
+builder.Services.AddSingleton<ReceiveEndpointDiscoveryObserver>();
+builder.Services.AddReceiveEndpointObserver<ReceiveEndpointDiscoveryObserver>(
+    sp => sp.GetRequiredService<ReceiveEndpointDiscoveryObserver>());
+
+// MUST be registered before the IntegrationEventDeliveryService hosted services below: .NET starts
+// hosted services in registration order and stops them in reverse, so the bus now starts first and
+// stops last — a delivery service can no longer publish into a bus that has already stopped during
+// shutdown. (The delivery services also link IHostApplicationLifetime.ApplicationStopping as
+// defence in depth, in case this ordering is ever disturbed again.)
 builder.Services.AddMassTransit(config =>
 {
     config.SetKebabCaseEndpointNameFormatter();
@@ -191,7 +199,7 @@ builder.Services.AddMassTransit(config =>
         // Partitioned by AppraisalId so per-appraisal ordering holds on the single consuming node.
         // Each app node has its own RabbitMQ broker (no clustering) → no competing consumers, so the
         // in-process partitioner alone is sufficient; no SingleActiveConsumer needed.
-        configurator.ReceiveEndpoint("webhook-dispatch", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.WebhookDispatch, e =>
         {
             var partitioner = e.CreatePartitioner(16);
             e.UseMessageRetry(RetryInsidePartition);
@@ -221,7 +229,7 @@ builder.Services.AddMassTransit(config =>
 
         // #2 External cycle tracking — close-before-open must not silently no-op and
         // corrupt cycle counts / SLA business-minutes.
-        configurator.ReceiveEndpoint("appraisal-ext-cycle", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.AppraisalExtCycle, e =>
         {
             var partitioner = e.CreatePartitioner(16);
             e.UseMessageRetry(RetryInsidePartition);
@@ -241,7 +249,7 @@ builder.Services.AddMassTransit(config =>
         // is staged in the outbox before the transition (earlier OccurredAt), so it is delivered first and,
         // serialized here, sets the assignment to Assigned before the transition handler stamps SLADueDate
         // at the window's start activity (otherwise the Pending guard would skip the stamp).
-        configurator.ReceiveEndpoint("appraisal-sync", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.AppraisalSync, e =>
         {
             var partitioner = e.CreatePartitioner(16);
             e.UseMessageRetry(RetryInsidePartition);
@@ -258,7 +266,7 @@ builder.Services.AddMassTransit(config =>
 
         // #4 Dashboard status counter — the decrement-old/increment-new bucket move is not
         // commutative; serialize per appraisal so out-of-order transitions don't drift counts.
-        configurator.ReceiveEndpoint("appraisal-status-dashboard", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.AppraisalStatusDashboard, e =>
         {
             var partitioner = e.CreatePartitioner(16);
             e.UseMessageRetry(RetryInsidePartition);
@@ -269,7 +277,7 @@ builder.Services.AddMassTransit(config =>
         // #5 Assignment SLA recalculation — unconditionally re-stamps AppraisalAssignment.SLADueDate
         // whenever an appointment-anchored group-window deadline shifts due to a reschedule.
         // Partitioned by AppraisalId so per-appraisal ordering holds.
-        configurator.ReceiveEndpoint("appraisal-sla-recalc", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.AppraisalSlaRecalc, e =>
         {
             var partitioner = e.CreatePartitioner(16);
             e.UseMessageRetry(RetryInsidePartition);
@@ -296,7 +304,7 @@ builder.Services.AddMassTransit(config =>
         //
         // All three consumers are [ExcludeFromConfigureEndpoints] so ConfigureEndpoints does not
         // also create unordered auto-queues for them.
-        configurator.ReceiveEndpoint("workflow-instance-variables", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.WorkflowInstanceVariables, e =>
         {
             var partitioner = e.CreatePartitioner(16);
             e.UseMessageRetry(RetryInsidePartition);
@@ -319,7 +327,7 @@ builder.Services.AddMassTransit(config =>
         // that save's own status event arrives; self-correcting, not a data-loss risk. Consumer is
         // [ExcludeFromConfigureEndpoints] to prevent ConfigureEndpoints from also creating an
         // unordered auto-queue.
-        configurator.ReceiveEndpoint("pma-sync-status", e =>
+        configurator.ReceiveEndpoint(OrderedEndpoints.PmaSyncStatus, e =>
         {
             var partitioner = e.CreatePartitioner(16);
             e.UseMessageRetry(RetryInsidePartition);
@@ -338,19 +346,13 @@ builder.Services.AddMassTransit(config =>
     });
 });
 
-builder.Services.AddHttpClient("CAS", client =>
-{
-    // In-process loopback calls (TokenHandler / RefreshTokenHandler) hit /connect/token via this client.
-    // Behind an LB, AppBaseUrl is the public LB URL — but the TLS cert at that URL may not match the
-    // hostname (RemoteCertificateNameMismatch) when traffic loops back to the local node. Allow ops to
-    // point the loopback HttpClient at http(s)://localhost:<port> via Auth:InternalAuthBaseUrl while
-    // keeping AppBaseUrl = LB URL for the OpenIddict issuer claim.
-    var baseUrl = builder.Configuration["Auth:InternalAuthBaseUrl"]
-                  ?? builder.Configuration["AppBaseUrl"]
-                  ?? throw new InvalidOperationException(
-                      "Neither Auth:InternalAuthBaseUrl nor AppBaseUrl is configured in appsettings.");
-    client.BaseAddress = new Uri(baseUrl);
-});
+// Registered after AddMassTransit (see the comment above it) so these stop before the bus does.
+builder.Services.AddHostedService<IntegrationEventDeliveryService<RequestDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<AppraisalDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<DocumentDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<WorkflowDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<CollateralDbContext>>();
+builder.Services.AddHostedService<IntegrationEventDeliveryService<Reporting.Data.ReportingDbContext>>();
 
 // Module services: request, etc.
 builder.Services
@@ -465,7 +467,8 @@ var app = builder.Build();
 // all environments so other systems can consume the API contract as documentation.
 // NOTE: these endpoints are unauthenticated — restrict the /openapi and /scalar paths at the
 // reverse proxy (F5/IIS) if the API surface should not be publicly reachable.
-// AllowAnonymous bypasses the global fallback authorization policy (RequireAuthenticatedUser).
+// AllowAnonymous bypasses the global fallback authorization policy ("Spa": browser session / dev header only;
+// machine tokens need a named policy such as Integration).
 app.MapOpenApi().AllowAnonymous();
 app.MapScalarApiReference(options => options.WithTitle("Collateral Appraisal System API"))
     .AllowAnonymous();
@@ -620,8 +623,13 @@ app.MapHealthChecks("/health/external", new HealthCheckOptions
 // responses; the dashboard endpoint itself is still mapped by UseHangfire().
 app.UseHangfireDashboardFraming();
 
+// CSRF / cross-site WebSocket check for cookie sessions. Before routing, so a rejected request never
+// reaches an endpoint, and after UseCors, which has already answered the preflights.
+app.UseCsrfProtection();
+
 app.UseRouting();
 app.UseAuthentication();
+app.UseMustChangePasswordGate();
 app.UseAuthorization();
 app.MapRazorPages();
 app.MapControllers();

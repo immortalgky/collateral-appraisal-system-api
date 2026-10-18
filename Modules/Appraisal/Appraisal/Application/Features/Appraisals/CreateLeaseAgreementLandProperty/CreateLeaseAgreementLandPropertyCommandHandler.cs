@@ -93,7 +93,6 @@ public class CreateLeaseAgreementLandPropertyCommandHandler(
             command.RoyalDecree,
             command.IsEncroached,
             command.EncroachmentRemark,
-            command.EncroachmentArea,
             command.IsLandlocked,
             command.LandlockedRemark,
             command.IsForestBoundary,

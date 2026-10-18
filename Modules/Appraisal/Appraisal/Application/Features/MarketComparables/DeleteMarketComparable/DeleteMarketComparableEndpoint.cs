@@ -16,7 +16,6 @@ public class DeleteMarketComparableEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithTags("MarketComparables")
             .WithSummary("Delete market comparable by ID")
-            .WithDescription("Deletes a market comparable by its ID.")
-            .AllowAnonymous();
+            .WithDescription("Deletes a market comparable by its ID.");
     }
 }

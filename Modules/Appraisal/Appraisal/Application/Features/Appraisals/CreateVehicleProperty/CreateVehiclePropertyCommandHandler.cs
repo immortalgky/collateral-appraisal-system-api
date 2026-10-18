@@ -43,6 +43,7 @@ public class CreateVehiclePropertyCommandHandler(
             height: command.Height,
             energyUse: command.EnergyUse,
             energyUseRemark: command.EnergyUseRemark,
+            ownerName: command.OwnerName,
             isOwnerVerified: command.IsOwnerVerified,
             canUse: command.CanUse,
             location: command.Location,

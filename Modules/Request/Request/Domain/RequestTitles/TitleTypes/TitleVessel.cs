@@ -23,6 +23,8 @@ public sealed class TitleVessel : RequestTitle
         VesselInfo = data.VesselInfo;
     }
 
+    protected override bool RequiresTitleAddress => false;
+
     public override void Validate()
     {
         base.Validate();

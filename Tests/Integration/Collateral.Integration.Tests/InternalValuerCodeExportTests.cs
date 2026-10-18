@@ -1,21 +1,21 @@
-using Collateral.Contracts;
+using Appraisal.Domain.Appraisals;
+using Appraisal.Infrastructure;
 using Collateral.Contracts.FileInterface;
-using Collateral.Data;
 using Dapper;
 using Integration.Fixtures;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Data;
-using CollateralMasterEntity = Collateral.CollateralMasters.Models.CollateralMaster;
+using AppraisalAggregate = Appraisal.Domain.Appraisals.Appraisal;
 
 namespace Integration.Collateral.Integration.Tests;
 
 /// <summary>
 /// End-to-end cover for the outbound InternalValuerCode.
 ///
-/// The value crosses a module boundary: the engagement stores the appraiser's USERNAME, and the code
-/// lives on <c>auth.AspNetUsers.EmployeeId</c>, which the Collateral DbContext cannot see. These tests
-/// exercise the Dapper join as well as the 4-character fitting rule — the unit tests only cover the
-/// latter.
+/// The value crosses a module boundary: the appraisal's assignment stores the appraiser's USERNAME,
+/// and the code lives on <c>auth.AspNetUsers.EmployeeId</c>. <c>collateral.vw_CollateralResultExport</c>
+/// joins the two. These tests exercise that join as well as the 4-character fitting rule — the unit
+/// tests only cover the latter.
 /// </summary>
 [Collection("Integration")]
 public class InternalValuerCodeExportTests(IntegrationTestFixture fixture)
@@ -42,43 +42,26 @@ public class InternalValuerCodeExportTests(IntegrationTestFixture fixture)
         return userName;
     }
 
-    /// <summary>Seeds a land master whose single engagement already carries an AS400 collateral id.</summary>
-    private static async Task<Guid> SeedSentReadyEngagementAsync(
-        CollateralDbContext db, string appraiserUserName)
+    /// <summary>
+    /// Seeds a completed reappraisal — the only type the file carries — assigned internally to
+    /// <paramref name="appraiserUserName"/>. Status is set by reflection because the real status flow
+    /// needs a workflow, the same shortcut AppraisalChainResolutionTests takes.
+    /// </summary>
+    private static async Task<Guid> SeedCompletedReviewAsync(AppraisalDbContext db, string appraiserUserName)
     {
-        var master = CollateralMasterEntity.CreateLand(
-            ownerName: "Test Owner",
-            landOfficeCode: "0100",
-            province: "10",
-            district: "1001",
-            subDistrict: "100101",
-            titleType: "DEED",
-            titleNumber: $"IVC-{Guid.NewGuid():N}"[..20],
-            surveyNumber: null, landParcelNumber: null, rawang: null,
-            street: null, village: null, latitude: null, longitude: null);
+        var appraisal = AppraisalAggregate.Create(
+            Guid.CreateVersion7(), AppraisalTypes.ReAppraisal, "Normal", DateTime.Now);
+        appraisal.SetAppraisalNumber($"IVC{Guid.NewGuid():N}"[..10]);
+        typeof(AppraisalAggregate).GetProperty("Status")!.SetValue(appraisal, AppraisalStatus.Completed);
 
-        var appraisalId = Guid.CreateVersion7();
-        master.AppendEngagement(
-            appraisalId: appraisalId,
-            appraisalNumber: $"IVC{Guid.NewGuid():N}"[..10],
-            requestId: Guid.CreateVersion7(),
-            requestNumber: "REQ-IVC",
-            appraisalType: "New",
-            appraisalDate: DateTime.Now,
-            appraiserUserId: appraiserUserName,
-            appraisalCompanyId: null,
-            appraisalCompanyName: null,
-            constructionInspectionFeeAmount: null,
-            snapshot: "{}",
-            createdAt: DateTime.Now,
-            appraisedCollateralType: CollateralTypes.Land);
-
-        // The AS400 id sits on the master, not the engagement — that is the grain AS400 keys.
-        master.ApplyHostDrawdown("25909");
-
-        db.CollateralMasters.Add(master);
+        db.Appraisals.Add(appraisal);
         await db.SaveChangesAsync();
-        return appraisalId;
+
+        db.AppraisalAssignments.Add(AppraisalAssignment.Create(
+            appraisal.Id, "Internal", assigneeUserId: appraiserUserName, assignedBy: "test"));
+        await db.SaveChangesAsync();
+
+        return appraisal.Id;
     }
 
     private static async Task<CollateralResultRow> GetRowAsync(IServiceScope scope, Guid appraisalId)
@@ -92,11 +75,11 @@ public class InternalValuerCodeExportTests(IntegrationTestFixture fixture)
     public async Task ZeroPaddedEmployeeId_IsSentWithoutItsLeadingZero()
     {
         using var scope = CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<CollateralDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
         var factory = scope.ServiceProvider.GetRequiredService<ISqlConnectionFactory>();
 
         var userName = await SeedUserAsync(factory, "06327");
-        var appraisalId = await SeedSentReadyEngagementAsync(db, userName);
+        var appraisalId = await SeedCompletedReviewAsync(db, userName);
 
         var row = await GetRowAsync(scope, appraisalId);
 
@@ -107,12 +90,12 @@ public class InternalValuerCodeExportTests(IntegrationTestFixture fixture)
     public async Task EmployeeIdThatCannotFit_IsSentBlankRatherThanTruncated()
     {
         using var scope = CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<CollateralDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
         var factory = scope.ServiceProvider.GetRequiredService<ISqlConnectionFactory>();
 
         // Five significant digits: truncating would name employee 8101, a different person.
         var userName = await SeedUserAsync(factory, "81018");
-        var appraisalId = await SeedSentReadyEngagementAsync(db, userName);
+        var appraisalId = await SeedCompletedReviewAsync(db, userName);
 
         var row = await GetRowAsync(scope, appraisalId);
 
@@ -123,13 +106,12 @@ public class InternalValuerCodeExportTests(IntegrationTestFixture fixture)
     public async Task AppraiserWithNoEmployeeId_LeavesTheCodeBlank()
     {
         using var scope = CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<CollateralDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
 
-        var appraisalId = await SeedSentReadyEngagementAsync(db, "no.such.user");
+        var appraisalId = await SeedCompletedReviewAsync(db, "no.such.user");
 
         var row = await GetRowAsync(scope, appraisalId);
 
         Assert.Null(row.InternalValuerCode);
-        Assert.Equal("25909", row.CollateralId);
     }
 }

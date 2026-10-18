@@ -199,8 +199,10 @@ public class SubmitDocumentFollowupCommandHandlerTests
         Func<Task> act = () => handler.Handle(
             NoAttachments(followup.Id), CancellationToken.None);
 
+        // The handler pre-checks and reports the missing attachments before the aggregate's
+        // own "Uploaded or Declined" guard is ever reached.
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*Uploaded or Declined*");
+            .WithMessage("*Missing attachments for 1 pending line item*");
     }
 
     // ────────────────────────────────────────────────────────────────────────────

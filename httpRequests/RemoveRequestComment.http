@@ -3,6 +3,7 @@
 @commentId = 76080C67-FCD4-4052-B808-B8F8C72462C3
 
 DELETE {{baseUrl}}/requests/{{requestId}}/comments/{{commentId}}
+X-Dev-Auth: dev-bypass
 Host: localhost:7111
 Content-Type: application/json
 

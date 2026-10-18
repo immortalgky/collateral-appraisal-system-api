@@ -35,7 +35,7 @@
   that service changed in three ways this script does not follow:
 
     1. Completed buildings are valued per building as
-       COALESCE(FinalCostValueOverride, ROUND(SUM(PriceAfterDepreciation), -3)),
+       COALESCE(BuildingCostValue, ROUND(SUM(PriceAfterDepreciation), -3)),
        not as a raw sum of the schedule — an appraiser's own Building Cost Value wins.
     2. Land and completed buildings are scoped to the property groups that hold an
        inspected property, not summed across the whole appraisal.

@@ -16,13 +16,13 @@ internal class GetRequestByIdQueryHandler(
         if (request is null) throw new RequestNotFoundException(query.Id);
 
         // Query titles (separate aggregate)
-        // Order by creation time (not Id alone) since Guid v7 Ids generated within
-        // the same millisecond batch are not guaranteed to sort in insertion order.
+        // SequenceNumber is the requester's list order; rows that predate it are all 0 and fall back to
+        // creation time (not Id alone) since Guid v7 Ids generated within the same millisecond batch
+        // are not guaranteed to sort in insertion order.
         var titles = await dbContext.RequestTitles
             .AsNoTracking()
             .Where(t => t.RequestId == query.Id)
-            .OrderBy(t => t.CreatedAt)
-            .ThenBy(t => t.Id)
+            .InDisplayOrder()
             .ToListAsync(cancellationToken);
 
         // Resolve requestor org detail on read from the stored employee code — not snapshotted.

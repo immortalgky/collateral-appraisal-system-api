@@ -1,3 +1,4 @@
+using Auth.Contracts.Users;
 using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Shared.Data;
@@ -7,6 +8,7 @@ using Workflow.Domain;
 using Workflow.Workflow.Activities.Approval;
 using Workflow.Workflow.Features.GetApprovalList;
 using Workflow.Workflow.Repositories;
+using Workflow.Workflow.Services;
 
 namespace Workflow.Workflow.Features.GetApprovalHistory;
 
@@ -45,7 +47,9 @@ public class GetApprovalHistoryQueryHandler(
     IWorkflowInstanceRepository workflowInstanceRepository,
     WorkflowDbContext dbContext,
     ISqlConnectionFactory connectionFactory,
-    ICurrentUserService currentUser
+    ICurrentUserService currentUser,
+    IUserLookupService userLookupService,
+    ILogger<GetApprovalHistoryQueryHandler> logger
 ) : IQueryHandler<GetApprovalHistoryQuery, GetApprovalListResponse?>
 {
     public async Task<GetApprovalListResponse?> Handle(GetApprovalHistoryQuery query, CancellationToken ct)
@@ -78,8 +82,11 @@ public class GetApprovalHistoryQueryHandler(
         var quorumConfig = ApprovalListProjection.GetVariableAs<QuorumConfig>(instance.Variables, $"{normalizedId}_quorum");
         var majorityConfig = ApprovalListProjection.GetVariableAs<MajorityConfig>(instance.Variables, $"{normalizedId}_majority");
 
+        var names = await UserDisplayName.TryLookupAsync(
+            userLookupService, members.Select(m => m.Username), logger, ct);
+
         var currentUsername = currentUser.Username;
-        var memberStatuses = members.Select(m =>
+        var memberStatuses = ApprovalListProjection.OrderByCommitteeRole(members.Select(m =>
         {
             var memberVote = votes.FirstOrDefault(v =>
                 string.Equals(v.Member, m.Username, StringComparison.OrdinalIgnoreCase));
@@ -92,8 +99,9 @@ public class GetApprovalHistoryQueryHandler(
                 memberVote?.Comments,
                 memberVote?.VotedAt,
                 !string.IsNullOrEmpty(currentUsername)
-                    && string.Equals(currentUsername, m.Username, StringComparison.OrdinalIgnoreCase));
-        }).ToList();
+                    && string.Equals(currentUsername, m.Username, StringComparison.OrdinalIgnoreCase),
+                UserDisplayName.Resolve(names, m.Username) ?? m.Username);
+        }));
 
         var totalVotes = votes.Count;
         var totalMembers = members.Count;
@@ -152,9 +160,11 @@ public class GetApprovalHistoryQueryHandler(
     private async Task<GetApprovalListResponse?> BuildFromPersistedOutcomeAsync(
         GetApprovalHistoryQuery query, List<ApprovalVote> votes, CancellationToken ct)
     {
+        var names = await UserDisplayName.TryLookupAsync(
+            userLookupService, votes.Select(v => v.Member), logger, ct);
+
         var currentUsername = currentUser.Username;
-        var memberStatuses = votes
-            .OrderBy(v => v.VotedAt)
+        var memberStatuses = ApprovalListProjection.OrderByCommitteeRole(votes
             .Select(v => new ApprovalMemberStatus(
                 v.Member,
                 v.MemberRole,
@@ -163,8 +173,8 @@ public class GetApprovalHistoryQueryHandler(
                 v.Comments,
                 v.VotedAt,
                 !string.IsNullOrEmpty(currentUsername)
-                    && string.Equals(currentUsername, v.Member, StringComparison.OrdinalIgnoreCase)))
-            .ToList();
+                    && string.Equals(currentUsername, v.Member, StringComparison.OrdinalIgnoreCase),
+                UserDisplayName.Resolve(names, v.Member) ?? v.Member)));
 
         var connection = connectionFactory.GetOpenConnection();
         var outcome = await connection.QuerySingleOrDefaultAsync<ApprovalOutcomeRow>(

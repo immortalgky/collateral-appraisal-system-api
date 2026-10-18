@@ -3,9 +3,16 @@
 End-to-end guide to test the inbound reappraisal flow locally **without an SFTP server**:
 
 ```
-COLLATREV file (fixed-width: Detail 649 / Header-Trailer 640)  →  ingestion job  →  request.ReappraisalCandidates (staging)
-   →  list / filter  →  open candidate + nearby group  →  initiate (creates Requests + group number)  →  delete
+COLLATREV file (fixed-width: Detail 649 / Header-Trailer 640)  →  ingestion job  →  collateral.ReappraisalCandidates (staging)
+   →  list / filter  →  open candidate + nearby group  →  initiate (creates Requests + group number, NOT submitted)
+   →  staff submit each request from the request list (candidate becomes Consumed)  →  "not reviewing this round" / restore
 ```
+
+**One row per book.** AS400 repeats every book still on its due list in every monthly file — it does not
+know what CAS has reviewed. A book is `(CollateralId, NormalizedSurveyNumber)` (the survey number with
+AS400's block-project `B` prefix dropped). A later file refreshes a Pending / "not reviewing" book, skips
+a Consumed one outright, and moves `LastSeenFileDate` forward; the list shows only books on the latest
+file. A Consumed book whose reappraisal was cancelled comes back as Pending.
 
 | File in this folder | Purpose |
 |------|---------|
@@ -23,17 +30,9 @@ COLLATREV file (fixed-width: Detail 649 / Header-Trailer 640)  →  ingestion jo
 
 ## Step 0 — Apply database changes (one-time)
 
-**0a. Tables** — the Request module auto-applies its EF migrations on API startup
-(`app.UseMigration<RequestDbContext>()`), so just running the API (Step 3) creates
-`request.ReappraisalCandidates` and the `Requests.AppraisalGroupNumber` column. To apply manually instead:
-```bash
-dotnet ef database update --project Modules/Request/Request --startup-project Bootstrapper/Api
-```
-> Two migrations create the feature: `20260528062402_AddReappraisalCandidateAndGroupNumber` (table +
-> `Requests.AppraisalGroupNumber` + unique index) and `20260528062425_AddReappraisalCandidateGeoPoint`
-> (persisted `GeoPoint` computed column + spatial index, raw SQL). Both are unapplied; startup will run them.
-
-**0b. SQL view** — `vw_ReappraisalCandidates` is deployed by the Database tool (DbUp), not EF:
+**0. Tables and views** — the API never migrates on startup. The Database tool applies every module's EF
+migrations (the table lives in the Collateral module, `collateral.ReappraisalCandidates`; the batch group
+number is `request.Requests.GroupTag`) and then the views (`vw_ReappraisalCandidates`) and one-time scripts:
 ```bash
 dotnet run --project Database/Database.csproj migrate
 ```
@@ -80,7 +79,7 @@ Watch the console for `[REAPPRAISAL-AS400]` lines.
 ## Step 5 — Verify staging
 ```sql
 SELECT Status, SourceFileDate, CollateralId, SurveyNumber, ReviewType, ReviewDate, Latitude, Longitude
-FROM request.ReappraisalCandidates ORDER BY ReviewType;
+FROM collateral.ReappraisalCandidates ORDER BY ReviewType;
 ```
 Expect **3 `Pending` rows**. Row 1 has `Latitude`/`Longitude` populated **iff** its `SurveyNumber` matched an
 appraisal; rows 2 & 3 have NULL coords. The file is moved to `Bootstrapper/Api/reappraisal/processed/`.
@@ -95,7 +94,7 @@ curl -k "https://localhost:7111/reappraisal/candidates?remainingDayTo=0"   # ove
 curl -k "https://localhost:7111/reappraisal/candidates?cifNumber=68057984"
 ```
 Each item: `oldAppraisalReportNumber` (= SurveyNumber), `cifNumber`, `customerName`, `reviewType`,
-`appraisalDate` (= ReviewDate), `remainingDay` (row 2 negative = overdue), `channel = "AS400"`.
+`appraisalDate` (last appraisal), `dueDate` (due), `remainingDay` (row 2 negative = overdue), `channel = "AS400"`.
 
 ## Step 7 — Candidate detail + nearby group
 Take an `id` from Step 6 (row 1):
@@ -117,22 +116,40 @@ curl -k -X POST "https://localhost:7111/reappraisal/initiate" \
         "creator":   { "userId": "u1", "username": "tester" }
       }'
 ```
-Response: `{ "groupNumber": "68G000001", "createdRequestIds": ["…","…"] }`. Verify:
+Response: `{ "groupNumber": "68G000001", "createdRequestIds": [], "skipped": [] }`. Requests are created
+asynchronously and are **not submitted**. Verify:
 ```sql
--- one Request per candidate, all sharing the group number, Channel = AS400
-SELECT Id, RequestNumber, Channel, AppraisalGroupNumber, Status
-FROM request.Requests WHERE AppraisalGroupNumber IS NOT NULL;
+-- one Request per book, all sharing the group number, Channel = SIBS, Status Draft — staff complete it
+-- (appointment; for a legacy 99A… book also the property) and submit
+SELECT Id, RequestNumber, Channel, GroupTag, Status, ExternalCaseKey
+FROM request.Requests WHERE GroupTag = '<groupNumber>';
 
--- selected candidates are now Consumed
-SELECT Id, Status FROM request.ReappraisalCandidates WHERE Id IN ('<ID1>','<ID2>');
+-- candidates stay Pending (shown "in progress") until each request is submitted
+SELECT Id, Status FROM collateral.ReappraisalCandidates WHERE Id IN ('<ID1>','<ID2>');
 ```
-Re-trigger Step 4 → Consumed rows are **not** resurrected.
+Initiating the same candidates again returns them under `skipped` (`AlreadyInFlight`). Submit a request from
+the request list → it goes straight to appraisal-assignment (Channel SIBS skips the initiation check) and
+every candidate of that book becomes `Consumed` (a book listed under several collateral is one request). Re-trigger Step 4 → Consumed rows are **not** resurrected or refreshed.
+
+A reappraisal raised by hand from the request page consumes the book too, on submit: purpose `03` (block `09`)
+with a prior appraisal whose number is the book. Without that, the book stayed on the to-do list and showed
+"ready" again once its reappraisal completed. `20261001120000_DataFix_ConsumeBooksReappraisedByHand.sql`
+applies the same rule to books submitted before the change.
+
+The list's third tab, **Processed** (`status=Consumed`), is the whole history of submitted books, on the
+latest file or not: one row per book with the reappraisal it produced (newest non-cancelled first, the same
+rule as RCAS002), how it was raised (Initiate's group or by hand), submitted and completed dates. A book
+whose reappraisal was cancelled stays here, marked cancelled, until the next COLLATREV file reopens it.
 
 ## Step 9 — Delete (soft)
 ```bash
 curl -k -X DELETE "https://localhost:7111/reappraisal/candidates/<ID3>"   # → 204
 ```
-The row becomes `Status = Deleted` and drops out of the list (Step 6).
+The row becomes `Status = Deleted` ("not reviewing this round") and moves to its own tab
+(`GET /reappraisal/candidates?status=Deleted`). Later files still refresh it; it stays until restored:
+```bash
+curl -k -X POST "https://localhost:7111/reappraisal/candidates/<ID3>/restore"   # → 204, back to Pending
+```
 
 ## Step 10 — Negative / robustness tests
 Edit a copy of the sample, drop it in the inbox, trigger, and confirm one bad file doesn't block others:
@@ -150,9 +167,9 @@ Confirm the created requests appear in the normal Request listing with the group
 
 ## Reset between runs
 ```sql
-DELETE FROM request.ReappraisalCandidates;
+DELETE FROM collateral.ReappraisalCandidates;
 -- optionally remove the test requests created by initiate:
--- DELETE FROM request.Requests WHERE Channel = 'AS400' AND AppraisalGroupNumber IS NOT NULL;
+-- DELETE FROM request.Requests WHERE Channel = 'SIBS' AND GroupTag IS NOT NULL;
 ```
 ```bash
 # move the archived file back to re-ingest it
@@ -189,13 +206,41 @@ Positions are **Unicode code-points, not bytes** — the parser indexes by char,
 > `CifNumber`, `TitleNumber`, `ApplicationNumber`) — see the SQL above.
 
 ### Sample rows in `AS400_COLLATREV_20260501.txt`
-- **Row 1** — Review Type 1 (Normal), ASCII, **future** ReviewDate (positive Remaining Days);
+- **Row 1** — Review Type 1 (Normal), ASCII, **future** due date (EffectiveDateAppraisal = ReviewDate, positive Remaining Days);
   `SurveyNo` `68A000001` by default — override with a real appraisal number (Step 1) for geo enrichment.
-- **Row 2** — Review Type 2 (Before Stage 3), **Thai** name/address, **past** ReviewDate (overdue),
+- **Row 2** — Review Type 2 (Before Stage 3), **Thai** name/address, **past** due date (overdue): its
+  EffectiveDateAppraisal (2025) is sooner than its ReviewDate (2027), so the staged date wins;
   `SurveyNo` with no in-system match (lat/lon stays NULL).
-- **Row 3** — Review Type 3 (Stage 3), most optional fields blank (null handling), `SllOver100M = Y`.
+- **Row 3** — Review Type 3 (Stage 3), most optional fields blank (null handling — no EffectiveDateAppraisal, so no due date: Remaining Days blank, listed last), `SllOver100M = Y`.
 
 ### Dates
 - **Filename** date = `YYYYMMDD`; **in-file** dates (EffectiveDate, ReviewDate, ValuationDate) = `DDMMYYYY`.
-- List "Appraisal Date" = the file's `ReviewDate` (AS400-provided; CAS does not compute it).
-  "Remaining Days" = ReviewDate − today. `SurveyNo` = our **Appraisal Number** (FSD "Old Appraisal Report No").
+- Review due date (`DueDate`) = the row's `EffectiveDateAppraisal` (pos 642–649) — AS400 sets it per book,
+  sooner when the book falls into a stage (Stage 2/3: 3 years; normal 5). `ReviewDate` (the normal 5-year
+  cycle) is shown on the detail page but is not the due date; no `EffectiveDateAppraisal` = no due date.
+  CAS does not recompute it. "Remaining Days" = DueDate − today, in the
+  list, the detail page, nearby books and RCAS002. "Appraisal Date" is the last appraisal (CAS, else the
+  bank's listing for a 99A book, else the file's ValuationDate). `SurveyNo` = our **Appraisal Number** (FSD "Old Appraisal Report No").
+
+## Block-project units
+
+A COLLATREV number that names a **block-project appraisal** — with AS400's `B`, without it, or a unit
+ticket CAS issued (8 characters, `U` at position 3) — reviews **one unit** of the project. Each collateral
+listing it is a different unit, so these rows (`ReappraisalCandidate.IsBlockUnit`) are reviewed **per
+AS400 collateral**, not per book: waiting/in-progress checks, Initiate's dedupe, consumption on submit,
+reopening after a cancellation, the processed tab and RCAS002 all match the collateral as well. A ticket
+is stored under its project's appraisal number (the prior appraisal stays the project); the ticket stays
+in `SurveyNumber` to find the unit.
+
+- **Which unit (CAS):** `collateral.vw_ReappraisalCandidateUnits` — the ticket's units outright, else the
+  room/house number read out of the collateral name (`CONDO.<key>`) or the address's leading word, matched
+  against `appraisal.vw_ProjectUnitKeys` ranks 0–2 (same reading as the regulatory export). Exactly one
+  unit = matched; none or several = project-level only.
+- **The request** is filled from CAS only — never the project's request, never AS400 values: collateral
+  type 08 (condo) / 02 (land and building) / 01 (land), project name and address, the unit's tower, floor,
+  room, registration number or house number and areas; prior appraisal = the project, prior value/date =
+  the unit's appraised price and the project's valuation date (kept through saves while the prior appraisal
+  is unchanged). Owner, deed and documents are left to staff.
+- **AS400's collateral id** is kept on the request as `Request.ReappraisalCollateralId` (a key on the AS400
+  side only; not `ExternalCaseKey`, which drives the LOS webhooks). A reappraisal raised by hand from the
+  request page points at the project and cannot say which unit it reviewed: it consumes no unit.

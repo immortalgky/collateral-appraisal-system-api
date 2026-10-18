@@ -73,7 +73,32 @@ public class InboundFileLog
         };
     }
 
+    /// <summary>
+    /// Turns a row left behind by a failed or crashed run into this run's attempt. Retrying on the
+    /// same row, rather than inserting a second one, is what keeps the ledger at one row per file —
+    /// the shape the unique (interface, file name, hash) index assumes.
+    /// </summary>
+    public void Reopen(long sizeBytes, DateOnly? fileDate, DateTime startedAt)
+    {
+        SizeBytes = sizeBytes;
+        FileDate = fileDate;
+        Status = InboundFileStatus.InProgress;
+        ContentHash = null;
+        RowsReceived = RowsUpdated = RowsUnchanged = 0;
+        StartedAt = startedAt;
+        CompletedAt = null;
+        ErrorMessage = null;
+    }
+
     public void SetContentHash(string contentHash) => ContentHash = contentHash;
+
+    /// <summary>
+    /// Statuses the ledger is done with. A finished row keeps its file out of every later run; an
+    /// unfinished one (<see cref="InboundFileStatus.Failed"/>, or <see cref="InboundFileStatus.InProgress"/>
+    /// left behind by a crash) is picked up again. An array, not a method, so EF can translate it.
+    /// </summary>
+    public static readonly InboundFileStatus[] FinishedStatuses =
+        [InboundFileStatus.Succeeded, InboundFileStatus.Quarantined, InboundFileStatus.SkippedStale];
 
     public void MarkSucceeded(int received, int updated, int unchanged, DateTime completedAt)
     {

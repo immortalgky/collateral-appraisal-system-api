@@ -14,11 +14,28 @@ public class DocumentType : Entity<Guid>
     public bool IsActive { get; private set; } = true;
     public int SortOrder { get; private set; }
 
+    /// <summary>
+    /// When a request references a previous appraisal: true = files of this type are carried over
+    /// and used by default, false (the default) = offered but not linked until the maker opts in.
+    /// </summary>
+    public bool CarryForwardByDefault { get; private set; }
+
+    private static readonly string[] CarryForwardLockedCodes = ["D036", "D042", "D043"];
+
+    /// <summary>
+    /// Code reads these by code (the summary report D036 and the D042/D043 originals it is re-typed from),
+    /// so the flag is ignored for them. D036 is never carried directly (a D036 on the prior is the summary of the
+    /// generation before it); only the prior appraisal's current D042/D043 is used by default, as D036, and
+    /// every other D042/D043 file is returned as not used.
+    /// </summary>
+    public bool IsCarryForwardLocked =>
+        CarryForwardLockedCodes.Contains(Code.Trim(), StringComparer.OrdinalIgnoreCase);
+
     private DocumentType()
     {
     }
 
-    private DocumentType(string code, string name, string? nameTh, string? description, string? category, int sortOrder)
+    private DocumentType(string code, string name, string? nameTh, string? description, string? category, int sortOrder, bool carryForwardByDefault)
     {
         Id = Guid.CreateVersion7();
         Code = code;
@@ -27,6 +44,7 @@ public class DocumentType : Entity<Guid>
         Description = description;
         Category = category;
         SortOrder = sortOrder;
+        CarryForwardByDefault = carryForwardByDefault;
         IsActive = true;
     }
 
@@ -36,15 +54,17 @@ public class DocumentType : Entity<Guid>
         string? description = null,
         string? category = null,
         int sortOrder = 0,
-        string? nameTh = null)
+        string? nameTh = null,
+        bool carryForwardByDefault = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(code);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        return new DocumentType(code.ToUpperInvariant(), name, nameTh, description, category, sortOrder);
+        return new DocumentType(code.ToUpperInvariant(), name, nameTh, description, category, sortOrder, carryForwardByDefault);
     }
 
-    public void Update(string name, string? description, string? category, int sortOrder, string? nameTh = null)
+    public void Update(string name, string? description, string? category, int sortOrder, string? nameTh = null,
+        bool? carryForwardByDefault = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
@@ -53,6 +73,7 @@ public class DocumentType : Entity<Guid>
         Description = description;
         Category = category;
         SortOrder = sortOrder;
+        CarryForwardByDefault = carryForwardByDefault ?? CarryForwardByDefault;
     }
 
     public void SetSortOrder(int sortOrder)

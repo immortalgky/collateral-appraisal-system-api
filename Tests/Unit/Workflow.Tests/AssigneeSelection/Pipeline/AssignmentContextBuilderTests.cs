@@ -336,6 +336,39 @@ public class AssignmentContextBuilderTests
         await _teamService.DidNotReceive().GetTeamForUserAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
+    // ── PriorAssignees: bare activity ids resolve from CompletedBy, never AssignedTo ──
+
+    [Fact]
+    public async Task BuildAsync_PriorAssignees_BareActivityId_UsesNewestCompletedByNotAssignedTo()
+    {
+        // Arrange — AssignedTo is a decoy (a stale CurrentAssignee or group label in production); CompletedBy is the person.
+        var context = CreatePipelineContext();
+        var instance = context.ActivityContext.WorkflowInstance;
+
+        var older = WorkflowActivityExecution.Create(
+            instance.Id, "int-pma-input", "PMA Input", "TaskActivity", assignedTo: "decoy.assigned");
+        older.Complete("th.old");
+        await Task.Delay(5);
+        var newer = WorkflowActivityExecution.Create(
+            instance.Id, "int-pma-input", "PMA Input", "TaskActivity", assignedTo: null);
+        newer.Complete("th.new");
+        var system = WorkflowActivityExecution.Create(
+            instance.Id, "int-system-step", "System Step", "TaskActivity", assignedTo: "decoy.assigned");
+        system.Complete("system");
+        // Newer first in the list: ordering must come from CompletedOn, not list position.
+        instance.ActivityExecutions.Add(newer);
+        instance.ActivityExecutions.Add(older);
+        instance.ActivityExecutions.Add(system);
+
+        // Act
+        await _sut.BuildAsync(context);
+
+        // Assert
+        context.PriorAssignees.Should().ContainKey("int-pma-input").WhoseValue.Should().Be("th.new");
+        context.PriorAssignees.Should().NotContainKey("int-system-step");
+        context.PriorAssignees.Values.Should().NotContain("decoy.assigned");
+    }
+
     // --- Helpers ---
 
     private static AssignmentPipelineContext CreatePipelineContext(
@@ -358,9 +391,9 @@ public class AssignmentContextBuilderTests
                 workflowInstance.Id,
                 "int-appraisal-staff",
                 "Internal Appraisal Staff",
-                "TaskActivity",
-                assignedTo: priorAssigneeId);
+                "TaskActivity");
 
+            // AssignedTo would be the instance's CurrentAssignee at creation (often null); CompletedBy identifies the person.
             execution.Complete(priorAssigneeId);
             workflowInstance.ActivityExecutions.Add(execution);
         }

@@ -108,7 +108,6 @@ public class GetLeaseAgreementLandPropertyQueryHandler(
             RoyalDecree = landDetail?.RoyalDecree,
             IsEncroached = landDetail?.IsEncroached,
             EncroachmentRemark = landDetail?.EncroachmentRemark,
-            EncroachmentArea = landDetail?.EncroachmentArea,
             IsLandlocked = landDetail?.IsLandlocked,
             LandlockedRemark = landDetail?.LandlockedRemark,
             IsForestBoundary = landDetail?.IsForestBoundary,

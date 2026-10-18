@@ -2,6 +2,7 @@ using Auth.Application.Configurations;
 using Auth.Application.Services;
 using Auth.Domain.Auditing;
 using Auth.Infrastructure.Configuration;
+using Auth.Infrastructure.Session;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 using Shared.Time;
@@ -9,6 +10,7 @@ using Shared.Time;
 namespace Auth.Pages.Account;
 
 [AllowAnonymous]
+[AllowWhilePasswordChangeRequired]
 public class Login(
     SignInManager<ApplicationUser> signInManager,
     UserManager<ApplicationUser> userManager,
@@ -18,7 +20,8 @@ public class Login(
     IDateTimeProvider dateTimeProvider,
     IPasswordPolicyProvider passwordPolicyProvider,
     IAuthAuditWriter auditWriter,
-    AuthDbContext dbContext)
+    AuthDbContext dbContext,
+    BffUrls urls)
     : PageModel
 {
     private readonly LdapConfiguration _ldapConfig = ldapOptions.Value;
@@ -44,9 +47,18 @@ public class Login(
     /// </summary>
     private const bool IsPersistentSignIn = false;
 
-    public void OnGet(string returnUrl = null)
+    public IActionResult OnGet(string returnUrl = null)
     {
-        ReturnUrl = returnUrl ?? "/";
+        // The only legitimate way here is the OIDC flow, which arrives with the pending /connect/authorize
+        // request as its return URL. A bookmark, a typed address or a stale tab has none; signing in
+        // from it would mint a session nobody asked for, so send the browser back to the SPA to start
+        // over.
+        if (returnUrl is null || !Url.IsLocalUrl(returnUrl)
+            || !returnUrl.StartsWith("/connect/authorize", StringComparison.OrdinalIgnoreCase))
+            return Redirect(urls.SpaHome);
+
+        ReturnUrl = returnUrl;
+        return Page();
     }
 
     [ValidateAntiForgeryToken]
@@ -75,6 +87,17 @@ public class Login(
         {
             await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "Inactive" });
             Error = "This account is deactivated. Contact your administrator.";
+            return Page();
+        }
+
+        // Temporary-access account whose window has run out. The message stays the generic one on
+        // purpose: "that account exists but its window closed" tells an outsider the account is real
+        // and worth attacking, and the admin who opened the window already knows when it ends. The
+        // audit log carries the true reason.
+        if (!user.IsUsable(dateTimeProvider.ApplicationNow))
+        {
+            await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "Expired" });
+            Error = "Invalid login attempt.";
             return Page();
         }
 
@@ -220,7 +243,9 @@ public class Login(
     {
         var redirectUrl = string.IsNullOrEmpty(ReturnUrl) ? "/" : ReturnUrl;
 
-        if (!Url.IsLocalUrl(redirectUrl) && !redirectUrl.StartsWith("https://"))
+        // Local URLs only: an absolute one would let a crafted link bounce a freshly signed-in user to
+        // any site. The legitimate target is always /connect/authorize on this host.
+        if (!Url.IsLocalUrl(redirectUrl))
         {
             logger.LogWarning("Invalid return URL: {ReturnUrl}, redirecting to home", redirectUrl);
             redirectUrl = "/";

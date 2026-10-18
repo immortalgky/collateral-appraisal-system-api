@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Workflow.AssigneeSelection.Core;
 using Workflow.AssigneeSelection.Engine;
 using Workflow.AssigneeSelection.Pipeline;
@@ -581,6 +582,37 @@ public class AssignmentPipelineTests
         var result = await exclusionFilter.FilterAsync(ctx, candidates);
 
         result.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task ExclusionFilter_PriorAssigneeMatchIsCaseInsensitive()
+    {
+        var exclusionFilter = new ExclusionFilter(Substitute.For<ILogger<ExclusionFilter>>());
+        var ctx = new AssignmentPipelineContext
+        {
+            ActivityContext = CreateActivityContext(),
+            Rules = new ActivityAssignmentRules(false, ["int-pma-input"]),
+            PriorAssignees = new Dictionary<string, string> { ["int-pma-input"] = "jdoe" }
+        };
+
+        var result = await exclusionFilter.FilterAsync(ctx, [Member("JDOE", "t1"), Member("other", "t1")]);
+
+        result.Select(c => c.UserId).Should().Equal("other");
+    }
+
+    [Fact]
+    public async Task ExclusionRuleValidator_SelectedAssigneeMatchIsCaseInsensitive()
+    {
+        var validator = new ExclusionRuleValidator(Substitute.For<ILogger<ExclusionRuleValidator>>());
+        var ctx = new AssignmentPipelineContext
+        {
+            ActivityContext = CreateActivityContext(),
+            Rules = new ActivityAssignmentRules(false, ["int-pma-input"]),
+            PriorAssignees = new Dictionary<string, string> { ["int-pma-input"] = "jdoe" },
+            SelectedAssignee = "JDOE"
+        };
+
+        (await validator.ValidateAsync(ctx)).IsValid.Should().BeFalse();
     }
 
     // ActivityRoleFilter removed — group membership filtering is now handled by
@@ -1324,5 +1356,99 @@ public class AssignmentPipelineTests
         result.Metadata.Should().ContainKey("excludeAssigneesFrom");
         result.Metadata.Should().ContainKey("candidatePoolSize").WhoseValue.Should().Be(2);
         result.Metadata.Should().ContainKey("extra").WhoseValue.Should().Be("data");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SAME-ASSIGNEE SOURCE — DB AdditionalConfiguration > JSON properties
+    // ═══════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task AssignAsync_DbAdditionalConfig_OverridesJsonSameAssigneeAsActivity()
+    {
+        var jsonProps = new Dictionary<string, object>
+        {
+            ["sameAssigneeAsActivity"] = "json-activity",
+            ["assigneeGroup"] = "JsonGroup"
+        };
+        var context = CreateActivityContext(properties: jsonProps);
+
+        SetupDefaultContextBuilder(new AssignmentPipelineContext
+        {
+            ActivityContext = context,
+            ExternalConfig = new TaskAssignmentConfigurationDto
+            {
+                ActivityId = context.ActivityId,
+                AdditionalConfiguration = new Dictionary<string, object> { ["sameAssigneeAsActivity"] = "db-activity" }
+            }
+        });
+        SetupEngineSuccess("user-x");
+        SetupFinalizerPassthrough();
+
+        await _pipeline.AssignAsync(context);
+
+        await _engine.Received(1).ExecuteAsync(
+            Arg.Is<AssignmentContext>(c =>
+                (string)c.Properties["sameAssigneeAsActivity"] == "db-activity"
+                && (string)c.Properties["assigneeGroup"] == "JsonGroup"),
+            Arg.Any<CancellationToken>());
+        ((string)jsonProps["sameAssigneeAsActivity"]).Should().Be("json-activity", "the activity's own dictionary must not be mutated");
+    }
+
+    [Fact]
+    public async Task AssignAsync_NoDbAdditionalConfig_UsesJsonSameAssigneeAsActivity()
+    {
+        var context = CreateActivityContext(properties: new Dictionary<string, object>
+        {
+            ["sameAssigneeAsActivity"] = "json-activity"
+        });
+
+        SetupDefaultContextBuilder(new AssignmentPipelineContext
+        {
+            ActivityContext = context,
+            ExternalConfig = new TaskAssignmentConfigurationDto { ActivityId = context.ActivityId }
+        });
+        SetupEngineSuccess("user-x");
+        SetupFinalizerPassthrough();
+
+        await _pipeline.AssignAsync(context);
+
+        await _engine.Received(1).ExecuteAsync(
+            Arg.Is<AssignmentContext>(c => (string)c.Properties["sameAssigneeAsActivity"] == "json-activity"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task AssignAsync_NullDbAdditionalConfigValue_DoesNotEraseJsonProperty()
+    {
+        var context = CreateActivityContext(properties: new Dictionary<string, object>
+        {
+            ["sameAssigneeAsActivity"] = "json-activity"
+        });
+
+        SetupDefaultContextBuilder(new AssignmentPipelineContext
+        {
+            ActivityContext = context,
+            ExternalConfig = new TaskAssignmentConfigurationDto
+            {
+                ActivityId = context.ActivityId,
+                AdditionalConfiguration = new Dictionary<string, object>
+                {
+                    ["sameAssigneeAsActivity"] = null!,
+                    ["other"] = JsonDocument.Parse("null").RootElement,
+                    ["blank"] = "   "
+                }
+            }
+        });
+        SetupEngineSuccess("user-x");
+        SetupFinalizerPassthrough();
+
+        await _pipeline.AssignAsync(context);
+
+        await _engine.Received(1).ExecuteAsync(
+            Arg.Is<AssignmentContext>(c =>
+                (string)c.Properties!["sameAssigneeAsActivity"] == "json-activity"
+                && !c.Properties.ContainsKey("other")
+                && !c.Properties.ContainsKey("blank")),
+            Arg.Any<CancellationToken>());
     }
 }

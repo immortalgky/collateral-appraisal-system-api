@@ -134,8 +134,6 @@ public class GetCondoPropertyQueryHandler(
             FireInsuranceCode: detail.FireInsuranceCode,
             BuildingInsurancePrice: detail.BuildingInsurancePrice,
             BuildingInsurancePriceOverride: detail.BuildingInsurancePriceOverride,
-            SellingPrice: detail.SellingPrice,
-            ForceSellingPrice: detail.ForcedSalePrice,
             Remark: detail.Remark,
             ConstructionInspection: constructionDto);
     }

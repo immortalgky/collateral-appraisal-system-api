@@ -21,7 +21,6 @@ public class UpdateRequestEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithTags("Requests")
             .WithSummary("Update an existing request")
-            .WithDescription("Updates an existing request in the system.")
-            .AllowAnonymous();
+            .WithDescription("Updates an existing request in the system.");
     }
 }
