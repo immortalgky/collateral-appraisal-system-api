@@ -114,7 +114,20 @@ public record QuotationAppraisalResult(
     int? MaxAppraisalDays,
     // Appraisal type (New, ReAppraisal, Progressive, PreAppraisal). FE gates Send-to-RM on ReAppraisal.
     string? AppraisalType,
-    IReadOnlyList<QuotationTitleDetail> Titles
+    IReadOnlyList<QuotationTitleDetail> Titles,
+    // Auto-assign outcome stored at finalize, plus the LIVE workflow/assignment state (an appraisal
+    // assigned by hand later shows its real state). Internal admins on a Finalized quotation only.
+    string? AutoAssignResult = null,
+    string? AutoAssignMessage = null,
+    string? AutoAssignReasonCode = null,
+    DateTime? AutoAssignedAt = null,
+    string? CurrentActivityId = null,
+    string? AssignmentStatus = null,
+    // Pending task id, only while that task is at appraisal-assignment (the Administration page task).
+    Guid? AssignmentTaskId = null,
+    string? FollowupStaffId = null,
+    string? FollowupStaffName = null,
+    string? FollowupMethod = null
 );
 
 public record QuotationTitleDetail(

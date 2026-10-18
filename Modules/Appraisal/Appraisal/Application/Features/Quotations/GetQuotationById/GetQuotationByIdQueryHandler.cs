@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Quotations.AutoAssign;
 using Appraisal.Application.Features.Quotations.Shared;
 using Appraisal.Contracts.Services;
 using Dapper;
@@ -10,7 +11,8 @@ public class GetQuotationByIdQueryHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
     ISqlConnectionFactory connectionFactory,
-    IQuotationTaskOwnershipService taskOwnership)
+    IQuotationTaskOwnershipService taskOwnership,
+    IQuotationAutoAssignStateReader autoAssignStateReader)
     : IQueryHandler<GetQuotationByIdQuery, GetQuotationByIdResult>
 {
     public async Task<GetQuotationByIdResult> Handle(GetQuotationByIdQuery query, CancellationToken cancellationToken)
@@ -127,9 +129,17 @@ public class GetQuotationByIdQueryHandler(
             .ToArray();
         var titlesByRequestId = await ResolveTitlesAsync(requestIdsForTitles);
 
+        // Live assignment state is internal-admin information, and only meaningful once finalize ran.
+        var showAssignState = quotation.Status == "Finalized"
+                              && QuotationAccessPolicy.IsAdmin(currentUser);
+        var assignStates = showAssignState
+            ? (await autoAssignStateReader.GetAsync(appraisalIds, cancellationToken)).ToDictionary(s => s.AppraisalId)
+            : new Dictionary<Guid, AppraisalAssignState>();
+
         var appraisalResults = quotation.Appraisals
             .Select(a =>
             {
+                assignStates.TryGetValue(a.AppraisalId, out var assignState);
                 itemsByAppraisalId.TryGetValue(a.AppraisalId, out var item);
                 appraisalMetaMap.TryGetValue(a.AppraisalId, out var meta);
                 appraisalCustomerNamesMap.TryGetValue(a.AppraisalId, out var customerName);
@@ -158,7 +168,19 @@ public class GetQuotationByIdQueryHandler(
                     CustomerName: customerName,
                     MaxAppraisalDays: item?.MaxAppraisalDays,
                     AppraisalType: meta.AppraisalType,
-                    Titles: (IReadOnlyList<QuotationTitleDetail>?)titles ?? Array.Empty<QuotationTitleDetail>());
+                    Titles: (IReadOnlyList<QuotationTitleDetail>?)titles ?? Array.Empty<QuotationTitleDetail>(),
+                    AutoAssignResult: showAssignState ? a.AutoAssignResult : null,
+                    AutoAssignMessage: showAssignState ? a.AutoAssignMessage : null,
+                    AutoAssignReasonCode: showAssignState ? a.AutoAssignReasonCode : null,
+                    AutoAssignedAt: showAssignState ? a.AutoAssignedAt : null,
+                    CurrentActivityId: assignState?.PendingActivityId,
+                    AssignmentStatus: assignState?.AssignmentStatus,
+                    AssignmentTaskId: assignState?.PendingActivityId == AppraisalAssignState.AssignmentActivityId
+                        ? assignState.PendingTaskId
+                        : null,
+                    FollowupStaffId: assignState?.FollowupStaffId,
+                    FollowupStaffName: assignState?.FollowupStaffName,
+                    FollowupMethod: assignState?.FollowupMethod);
             })
             .ToList();
 

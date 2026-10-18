@@ -13,6 +13,14 @@ public class QuotationRequestAppraisal
     public DateTime AddedAt { get; private set; }
     public string AddedBy { get; private set; } = null!;
 
+    /// <summary>Assigned | Failed | Parked | Skipped. Null until finalize ran with auto-assign.</summary>
+    public string? AutoAssignResult { get; private set; }
+    public string? AutoAssignMessage { get; private set; }
+
+    /// <summary>Stable code for the UI to translate; null for a plain Assigned result.</summary>
+    public string? AutoAssignReasonCode { get; private set; }
+    public DateTime? AutoAssignedAt { get; private set; }
+
     // EF parameterless ctor
     private QuotationRequestAppraisal()
     {
@@ -31,5 +39,13 @@ public class QuotationRequestAppraisal
             AddedAt = addedAt,
             AddedBy = addedBy
         };
+    }
+
+    public void RecordAutoAssign(string result, string? message, string? reasonCode, DateTime at)
+    {
+        AutoAssignResult = result;
+        AutoAssignMessage = message;
+        AutoAssignReasonCode = reasonCode;
+        AutoAssignedAt = at;
     }
 }

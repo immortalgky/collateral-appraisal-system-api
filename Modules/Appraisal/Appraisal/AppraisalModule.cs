@@ -1,5 +1,6 @@
 using Appraisal.Application.Features.Appraisals.Shared;
 using Appraisal.Infrastructure.Search;
+using Appraisal.Application.Features.Quotations.AutoAssign;
 using Appraisal.Application.Features.Quotations.Shared;
 using Appraisal.Application.Services;
 using Appraisal.Domain.ComparativeAnalysis;
@@ -60,6 +61,7 @@ public static class AppraisalModule
 
         // Register quotation activity logger (audit trail for quotation lifecycle)
         services.AddScoped<IQuotationActivityLogger, QuotationActivityLogger>();
+        services.AddScoped<IQuotationAutoAssignStateReader, QuotationAutoAssignStateReader>();
 
         // Generates the quotation-summary PDF and links it to the quotation aggregate.
         services.AddScoped<IQuotationDocumentGenerator, QuotationDocumentGenerator>();
