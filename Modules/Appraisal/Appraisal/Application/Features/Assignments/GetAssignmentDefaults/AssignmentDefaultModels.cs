@@ -14,15 +14,11 @@ public static class AssignmentDefaultValues
     public const string MethodRoundRobin = "RoundRobin";
     public const string MethodQuotation = "Quotation";
 
-    // follow-up staff method - applicable when the type is "External"
-    public const string FollowupManualMethod = "Manual";
-    public const string FollowupRoundRobinMethod = "RoundRobin";
-
     public static readonly IReadOnlyList<string> ValidTypes = [TypeInternal, TypeExternal];
     public static readonly IReadOnlyList<string> ValidMethods = [MethodManual, MethodRoundRobin, MethodQuotation];
-    public static readonly IReadOnlyList<string> ValidFollowupMethod = [FollowupManualMethod, FollowupRoundRobinMethod];
+    public static readonly IReadOnlyList<string> ValidFollowupMethod = [MethodManual, MethodRoundRobin];
 
-    public static readonly ResolvedAssignmentDefaults Baseline = new(TypeExternal, MethodQuotation, FollowupRoundRobinMethod);
+    public static readonly GetAssignmentDefaultsResult Baseline = new(TypeExternal, MethodQuotation, MethodRoundRobin);
 }
 
 // One JSON entry. A field left out of the file is unset (IsActive defaults to true).
@@ -40,9 +36,3 @@ public sealed class AssignmentDefaultsSnapshot(IReadOnlyDictionary<string, Assig
     public IReadOnlyDictionary<string, AssignmentDefaultsEntry> Entries { get; } =
         new Dictionary<string, AssignmentDefaultsEntry>(entries, StringComparer.OrdinalIgnoreCase);
 }
-
-public record ResolvedAssignmentDefaults(
-    string AssignmentType,
-    string AssignmentMethod,
-    string InternalFollowupAssignmentMethod
-);

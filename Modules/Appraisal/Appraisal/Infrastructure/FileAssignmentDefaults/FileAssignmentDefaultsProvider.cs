@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Appraisal.Application.Features.Assignments.GetAssignmentDefaults;
 using Appraisal.Application.Services;
 using Microsoft.Extensions.Hosting;
@@ -6,74 +7,97 @@ using Microsoft.Extensions.Hosting;
 namespace Appraisal.Infrastructure.FileAssignmentDefaults;
 
 /// <summary>
-/// Reads Config/assignment-defaults.json from the content root. The file's last-write time is checked
-/// on every read, so an edit applies on the next request without a restart. A bad edit is logged and
-/// the last good values are kept.
+/// Reads Config/assignment-defaults.json from the content root once; UseAppraisalModule triggers the load at startup. The repo owns the
+/// file: edits ship via deploy and take effect on the next start. A missing or unusable file falls back
+/// to the built-in defaults; nothing escapes <see cref="Current"/>.
 /// </summary>
-public sealed class FileAssignmentDefaultsProvider(
-    IHostEnvironment env,
-    ILogger<FileAssignmentDefaultsProvider> logger) : IAssignmentDefaultsProvider
+public sealed class FileAssignmentDefaultsProvider : IAssignmentDefaultsProvider
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    // Disallow: a misspelled field ("assignmentMehod") fails its entry instead of being ignored silently.
+    private static readonly JsonSerializerOptions EntryOptions = new()
     {
         PropertyNameCaseInsensitive = true,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        // Deserialize re-reads each entry's raw text, so the document's comment/comma leniency must repeat here.
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true
     };
 
-    private readonly string _path = Path.Combine(env.ContentRootPath, "Config", "assignment-defaults.json");
-    private readonly object _lock = new();
-    private AssignmentDefaultsSnapshot _current = AssignmentDefaultsSnapshot.Empty;
-    private DateTime? _loadedWriteTime;
-
-    public AssignmentDefaultsSnapshot Current
+    private static readonly JsonDocumentOptions DocumentOptions = new()
     {
-        get
-        {
-            var file = new FileInfo(_path);
-            DateTime? writeTime = file.Exists ? file.LastWriteTimeUtc : null;
+        CommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true
+    };
 
-            lock (_lock)
-            {
-                if (writeTime != _loadedWriteTime)
-                    Load(writeTime);
-                return _current;
-            }
-        }
+    private readonly string _path;
+    private readonly ILogger<FileAssignmentDefaultsProvider> _logger;
+    private readonly Lazy<AssignmentDefaultsSnapshot> _snapshot;
+
+    public FileAssignmentDefaultsProvider(IHostEnvironment env, ILogger<FileAssignmentDefaultsProvider> logger)
+    {
+        _path = Path.Combine(env.ContentRootPath, "Config", "assignment-defaults.json");
+        _logger = logger;
+        _snapshot = new Lazy<AssignmentDefaultsSnapshot>(Load);
     }
 
-    private void Load(DateTime? writeTime)
-    {
-        if (writeTime is null)
-        {
-            _current = AssignmentDefaultsSnapshot.Empty;
-            _loadedWriteTime = null;
-            logger.LogInformation("Assignment defaults file not found at {Path}; using built-in defaults", _path);
-            return;
-        }
+    public AssignmentDefaultsSnapshot Current => _snapshot.Value;
 
+    private AssignmentDefaultsSnapshot Load()
+    {
         try
         {
-            using var stream = new FileStream(
-                _path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            var raw = JsonSerializer.Deserialize<Dictionary<string, AssignmentDefaultsEntry?>>(stream, JsonOptions);
-            if (raw is not null)
-                _current = DefaultAssignmentValidator.Sanitize(raw, logger);
+            if (!File.Exists(_path))
+            {
+                _logger.LogInformation("Assignment defaults file not found at {Path}; using built-in defaults", _path);
+                return AssignmentDefaultsSnapshot.Empty;
+            }
 
-            logger.LogInformation(
-                "Assignment defaults loaded from {Path}: {Count} appraisal type(s)", _path, _current.Entries.Count);
-        }
-        catch (JsonException ex)
-        {
-            logger.LogError(ex, "Assignment defaults file is not valid JSON; keeping the previous values");
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // Not marked as loaded, so the next request tries again.
-            logger.LogWarning(ex, "Assignment defaults file could not be read; keeping the previous values");
-            return;
-        }
+            using var stream = File.OpenRead(_path);
+            using var document = JsonDocument.Parse(stream, DocumentOptions);
+            var root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.Null)
+            {
+                _logger.LogWarning("Assignment defaults file {Path} is empty (null); using built-in defaults", _path);
+                return AssignmentDefaultsSnapshot.Empty;
+            }
 
-        _loadedWriteTime = writeTime;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                _logger.LogError("Assignment defaults file {Path} must be a JSON object; using built-in defaults", _path);
+                return AssignmentDefaultsSnapshot.Empty;
+            }
+
+            // Document order, one entry at a time: a bad entry is skipped without taking the others down.
+            // It is still passed on as null, so a later casing-duplicate of its key is reported, not promoted.
+            var raw = new List<KeyValuePair<string, AssignmentDefaultsEntry?>>();
+            foreach (var property in root.EnumerateObject())
+            {
+                AssignmentDefaultsEntry? entry = null;
+                try
+                {
+                    entry = property.Value.Deserialize<AssignmentDefaultsEntry>(EntryOptions);
+                    if (entry is null)
+                        _logger.LogWarning("Assignment defaults: entry '{Key}' is null and was skipped", property.Name);
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogWarning(
+                        ex, "Assignment defaults: entry '{Key}' is malformed and was skipped", property.Name);
+                }
+
+                raw.Add(new(property.Name, entry));
+            }
+
+            var snapshot = DefaultAssignmentValidator.Sanitize(raw, _logger);
+            _logger.LogInformation(
+                "Assignment defaults loaded from {Path}: {Active} active of {Total} entries",
+                _path, snapshot.Entries.Count, raw.Count);
+            return snapshot;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Assignment defaults file {Path} could not be loaded; using built-in defaults", _path);
+            return AssignmentDefaultsSnapshot.Empty;
+        }
     }
 }

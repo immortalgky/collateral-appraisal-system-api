@@ -4,7 +4,7 @@ namespace Appraisal.Application.Services;
 
 public static class DefaultAssignmentResolver
 {
-    public static ResolvedAssignmentDefaults Resolve(AssignmentDefaultsSnapshot snapshot, string? appraisalType)
+    public static GetAssignmentDefaultsResult Resolve(AssignmentDefaultsSnapshot snapshot, string? appraisalType)
     {
         var baseline = AssignmentDefaultValues.Baseline;
 
@@ -22,6 +22,6 @@ public static class DefaultAssignmentResolver
         if (method == AssignmentDefaultValues.MethodQuotation && type != AssignmentDefaultValues.TypeExternal)
             method = AssignmentDefaultValues.MethodManual;
 
-        return new ResolvedAssignmentDefaults(type, method, followup);
+        return new GetAssignmentDefaultsResult(type, method, followup);
     }
 }

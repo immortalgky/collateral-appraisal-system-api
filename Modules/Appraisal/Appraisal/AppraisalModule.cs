@@ -136,6 +136,9 @@ public static class AppraisalModule
     {
         app.UseDataSeeding<AppraisalDbContext>();
         app.UseModuleRecurringJobs<AppraisalDbContext>(AppraisalRecurringJobs.All);
+
+        // Read the assignment defaults file now so a bad or missing deploy shows in the startup log.
+        _ = app.ApplicationServices.GetRequiredService<IAssignmentDefaultsProvider>().Current;
         return app;
     }
 }

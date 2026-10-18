@@ -19,11 +19,6 @@ public class GetAssignmentDefaultsQueryHandler(
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new AppraisalNotFoundException(query.AppraisalId);
 
-        var resolved = DefaultAssignmentResolver.Resolve(assignmentDefaultsProvider.Current, appraisalType);
-
-        return new GetAssignmentDefaultsResult(
-            resolved.AssignmentType,
-            resolved.AssignmentMethod,
-            resolved.InternalFollowupAssignmentMethod);
+        return DefaultAssignmentResolver.Resolve(assignmentDefaultsProvider.Current, appraisalType);
     }
 }
