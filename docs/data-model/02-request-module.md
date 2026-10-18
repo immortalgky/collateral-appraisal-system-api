@@ -241,7 +241,7 @@ CREATE TABLE request.RequestDetail
     TotalSellingPrice              DECIMAL(19,4) NULL,
     
     -- Location
-    HouseNo                        NVARCHAR(30) NULL,
+    HouseNo                        NVARCHAR(50) NULL,
     RoomNo                         NVARCHAR(30) NULL,
     FloorNo                        NVARCHAR(10) NULL,
     ProjectName                    NVARCHAR(100) NULL,
@@ -460,7 +460,7 @@ CREATE TABLE request.RequestTitles
     FloorNo                 NVARCHAR(10) NULL,
 
     -- Adress
-    HouseNo                 NVARCHAR(30) NULL,
+    HouseNo                 NVARCHAR(50) NULL,
     RoomNo                  NVARCHAR(30) NULL,
     FloorNo                 NVARCHAR(10) NULL,
     ProjectName             NVARCHAR(100) NULL,
@@ -473,7 +473,7 @@ CREATE TABLE request.RequestTitles
     Postcode                NVARCHAR(10) NULL
         
     -- DOPA Address
-    DOPAHouseNo             NVARCHAR(30) NULL,
+    DOPAHouseNo             NVARCHAR(50) NULL,
     DOPAProjectName         NVARCHAR(100) NULL,
     DOPAMoo                 NVARCHAR(50) NULL,
     DOPASoi                 NVARCHAR(100) NULL,
@@ -490,7 +490,7 @@ CREATE TABLE request.RequestTitles
     AreaSquareWa            DECIMAL(5,2) NULL,                      -- ตารางวา
 
     -- Adress
-    HouseNo                 NVARCHAR(30) NULL,
+    HouseNo                 NVARCHAR(50) NULL,
     RoomNo                  NVARCHAR(30) NULL,
     FloorNo                 NVARCHAR(10) NULL,
     BuildingNo              NVARCHAR(100) NULL,
@@ -504,7 +504,7 @@ CREATE TABLE request.RequestTitles
     Postcode                NVARCHAR(10) NULL
         
     -- DOPA Address
-    DOPAHouseNo             NVARCHAR(30) NULL,
+    DOPAHouseNo             NVARCHAR(50) NULL,
     DOPAProjectName         NVARCHAR(100) NULL,
     DOPAMoo                 NVARCHAR(50) NULL,
     DOPASoi                 NVARCHAR(100) NULL,

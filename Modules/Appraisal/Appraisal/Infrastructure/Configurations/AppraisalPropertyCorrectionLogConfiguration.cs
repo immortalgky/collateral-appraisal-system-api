@@ -12,7 +12,8 @@ public class AppraisalPropertyCorrectionLogConfiguration
         builder.Property(a => a.Id).ValueGeneratedNever();
 
         builder.Property(a => a.AppraisalId).IsRequired();
-        builder.Property(a => a.AppraisalPropertyId).IsRequired();
+        // Null for document-level entries (see AppraisalPropertyCorrectionLog.ForDocuments).
+        builder.Property(a => a.AppraisalPropertyId).IsRequired(false);
         builder.Property(a => a.PropertyType).IsRequired().HasMaxLength(50);
         builder.Property(a => a.ChangedFields).IsRequired().HasColumnType("nvarchar(max)");
         builder.Property(a => a.Reason).IsRequired().HasMaxLength(4000);

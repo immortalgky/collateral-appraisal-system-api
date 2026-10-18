@@ -35,6 +35,13 @@ public class Appraisal : Aggregate<Guid>
     // construction-inspection fee (Progressive bypasses the normal tier/quotation pipeline).
     public Guid? PrevAppraisalId { get; private set; }
 
+    /// <summary>
+    /// The prior book when it is NOT an appraisal in CAS — a legacy AS400 "99A…" book, reappraised
+    /// from the periodical reappraisal feed. Lets the appraisal chain (and the regulatory origination
+    /// value) reach back past CAS. Never set together with <see cref="PrevAppraisalId"/>.
+    /// </summary>
+    public string? PrevAppraisalNumber { get; private set; }
+
     // For Progressive (construction-inspection) appraisals — which inspection round this is
     // (1st, 2nd, ...). System-assigned at creation = (completed Progressive inspections already on
     // the same collateral) + 1. NULL for non-Progressive appraisals.
@@ -125,7 +132,7 @@ public class Appraisal : Aggregate<Guid>
             // now, both ApplicationNow-local) when no due date is supplied (e.g. the manual
             // CreateAppraisal path, which has no workflow/SLA-policy context).
             SLADueDate = slaDueDate ?? (requestedAt ?? now).AddHours(slaHours.Value);
-            SLAStatus = "OnTrack";
+            SLAStatus = AppraisalSla.StatusAt(SLADueDate.Value, now);
         }
     }
 
@@ -197,6 +204,21 @@ public class Appraisal : Aggregate<Guid>
         if (trimmed.Length > 40)
             throw new ArgumentException("GroupTag must not exceed 40 characters.", nameof(tag));
         GroupTag = trimmed;
+    }
+
+    /// <summary>
+    /// Records a prior book that exists only in AS400. System-only — called once at creation, and only
+    /// when there is no <see cref="PrevAppraisalId"/>.
+    /// </summary>
+    public void SetPrevAppraisalNumber(string number)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(number);
+        if (PrevAppraisalId.HasValue)
+            throw new InvalidOperationException("PrevAppraisalNumber is only for a prior book outside CAS.");
+        var trimmed = number.Trim();
+        if (trimmed.Length > 20)
+            throw new ArgumentException("PrevAppraisalNumber must not exceed 20 characters.", nameof(number));
+        PrevAppraisalNumber = trimmed;
     }
 
     /// <summary>
@@ -823,6 +845,7 @@ public class Appraisal : Aggregate<Guid>
 
         ActualHoursToComplete = CreatedAt.HasValue ? (int)(completedAt - CreatedAt.Value).TotalHours : null;
         IsWithinSLA = !SLADueDate.HasValue || completedAt <= SLADueDate.Value;
+        SettleSlaStatus(completedAt);
 
         AddDomainEvent(new AppraisalCompletedEvent(this));
     }
@@ -842,6 +865,7 @@ public class Appraisal : Aggregate<Guid>
 
         ActualHoursToComplete = CreatedAt.HasValue ? (int)(approvedAt - CreatedAt.Value).TotalHours : null;
         IsWithinSLA = !SLADueDate.HasValue || approvedAt <= SLADueDate.Value;
+        SettleSlaStatus(approvedAt);
 
         // Terminal completion of the active engagement. By this point the workflow handler should
         // have transitioned the assignment through int-appraisal-verification → Verified, but
@@ -898,6 +922,7 @@ public class Appraisal : Aggregate<Guid>
         CancelledBy = cancelledBy;
         CancelledAt = cancelledAt;
         CancelReason = reason;
+        SettleSlaStatus(cancelledAt);
 
         UpdateStatus(AppraisalStatus.Cancelled);
 
@@ -908,45 +933,6 @@ public class Appraisal : Aggregate<Guid>
             a.AssignmentStatus != AssignmentStatus.Cancelled);
 
         activeAssignment?.Cancel(reason ?? "Cancelled via workflow");
-    }
-
-    /// <summary>
-    /// Applies admin corrections to one property's descriptive data and raises
-    /// <see cref="AppraisalPropertyCorrectedEvent"/> carrying a field-level diff.
-    ///
-    /// This is the ONLY path that may change property data on a closed appraisal, and it exists so
-    /// such changes are attributable: the caller must supply a reason, and every changed field is
-    /// recorded with its previous and new value.
-    ///
-    /// A <see cref="PropertyCorrectionOutcome.ChangedFieldCount"/> of zero means the payload
-    /// matched what is already stored — no event is raised, and the caller should reject the
-    /// request rather than write an empty audit row.
-    /// </summary>
-    public PropertyCorrectionOutcome CorrectPropertyData(
-        Guid propertyId, PropertyCorrectionData data, string reason, string by)
-    {
-        ArgumentNullException.ThrowIfNull(data);
-        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        ArgumentException.ThrowIfNullOrWhiteSpace(by);
-
-        var property = GetProperty(propertyId) ?? throw new PropertyNotFoundException(propertyId);
-
-        var diff = new Dictionary<string, object?>();
-        property.ApplyCorrection(data, diff);
-
-        if (diff.Count == 0) return new PropertyCorrectionOutcome(0, "{}");
-
-        var changedFields = JsonSerializer.Serialize(diff);
-
-        AddDomainEvent(new AppraisalPropertyCorrectedEvent(
-            Id,
-            propertyId,
-            property.PropertyType.Code,
-            changedFields,
-            reason,
-            by));
-
-        return new PropertyCorrectionOutcome(diff.Count, changedFields);
     }
 
     private void UpdateStatus(AppraisalStatus newStatus)
@@ -1219,19 +1205,24 @@ public class Appraisal : Aggregate<Guid>
     #region SLA Management
 
     /// <summary>
-    /// Update SLA status based on current date
+    /// Update SLA status based on current date (the rule is <see cref="AppraisalSla.StatusAt"/>)
     /// </summary>
     public void UpdateSlaStatus(DateTime now)
     {
         if (!SLADueDate.HasValue) return;
 
-        var daysRemaining = (SLADueDate.Value - now).Days;
-        SLAStatus = daysRemaining switch
-        {
-            < 0 => "Breached",
-            < 2 => "AtRisk",
-            _ => "OnTrack"
-        };
+        SLAStatus = AppraisalSla.StatusAt(SLADueDate.Value, now);
+    }
+
+    /// <summary>
+    /// Fixes the SLA status at the moment the appraisal closes. The hourly refresh skips closed appraisals, so
+    /// without this a job marked AtRisk at 09:00 and completed at 10:30 would stay AtRisk forever.
+    /// </summary>
+    private void SettleSlaStatus(DateTime closedAt)
+    {
+        if (!SLADueDate.HasValue) return;
+
+        SLAStatus = AppraisalSla.ClosedStatusAt(SLADueDate.Value, closedAt);
     }
 
     #endregion

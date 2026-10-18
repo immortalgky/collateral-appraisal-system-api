@@ -140,6 +140,7 @@ public class AuthDataSeed(
                 // PMA property tab — granted here only (kept out of the shared arrays) so it appears
                 // exclusively on the int-pma-input activity, hidden on this role's other activities.
                 "APPRAISAL_PROPERTY_PMA_VIEW", "APPRAISAL_PROPERTY_PMA_EDIT",
+                "REPORT_EVALUATION_VIEW", "REPORT_EVALUATION_EDIT",
                 ..appraisalSectionViews, ..appraisalSectionEdits
             ]);
         await SeedRoleWithPermissionsAsync(IntAppraisalCheckerRoleName,
@@ -498,7 +499,6 @@ public class AuthDataSeed(
                     OpenIddictConstants.Permissions.Endpoints.Authorization,
                     OpenIddictConstants.Permissions.Endpoints.EndSession,
                     OpenIddictConstants.Permissions.Endpoints.Token,
-                    OpenIddictConstants.Permissions.GrantTypes.Password,
                     OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
                     OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
                     OpenIddictConstants.Permissions.ResponseTypes.Code,
@@ -525,6 +525,7 @@ public class AuthDataSeed(
                 }
             };
             AddOriginUris(spa, origins);
+            AddBffUris(spa);
             await manager.CreateAsync(spa);
             logger.LogInformation("Seeded `spa` OAuth client for origin(s) {Origins}", string.Join(", ", origins));
         }
@@ -546,14 +547,14 @@ public class AuthDataSeed(
                     OpenIddictConstants.Permissions.Endpoints.Authorization,
                     OpenIddictConstants.Permissions.Endpoints.EndSession,
                     OpenIddictConstants.Permissions.Endpoints.Token,
-                    OpenIddictConstants.Permissions.GrantTypes.Password,
                     OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
                     OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
                     OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
                     OpenIddictConstants.Permissions.ResponseTypes.Code,
                     OpenIddictConstants.Permissions.Scopes.Email,
                     OpenIddictConstants.Permissions.Scopes.Profile,
-                    OpenIddictConstants.Permissions.Scopes.Roles
+                    OpenIddictConstants.Permissions.Scopes.Roles,
+                    OpenIddictConstants.Permissions.Prefixes.Scope + "integration"
                 },
                 Requirements =
                 {
@@ -587,7 +588,8 @@ public class AuthDataSeed(
                     OpenIddictConstants.Permissions.Prefixes.Scope + "appraisal.read",
                     OpenIddictConstants.Permissions.Prefixes.Scope + "request.write",
                     OpenIddictConstants.Permissions.Prefixes.Scope + "document.read",
-                    OpenIddictConstants.Permissions.Prefixes.Scope + "document.write"
+                    OpenIddictConstants.Permissions.Prefixes.Scope + "document.write",
+                    OpenIddictConstants.Permissions.Prefixes.Scope + "integration"
                 }
             });
     }
@@ -627,6 +629,25 @@ public class AuthDataSeed(
             descriptor.RedirectUris.Add(new Uri($"{origin}/callback"));
             descriptor.PostLogoutRedirectUris.Add(new Uri($"{origin}/"));
         }
+    }
+
+    /// <summary>
+    /// The API's own OIDC callbacks. The API is the OIDC client now, so the browser comes back to
+    /// <c>{AppBaseUrl}/signin-oidc</c> and <c>/signout-callback-oidc</c>. Existing databases get these from
+    /// the migration script 20261010090000_SeedData_SpaBffRedirectUris.sql — the seeder only runs in
+    /// Development, and only creates the client when it is missing.
+    /// </summary>
+    private void AddBffUris(OpenIddictApplicationDescriptor descriptor)
+    {
+        var apiBase = configuration["AppBaseUrl"]?.TrimEnd('/');
+        if (string.IsNullOrEmpty(apiBase))
+        {
+            logger.LogError("AppBaseUrl is empty — the `spa` client gets no API callback URIs, so sign-in will fail.");
+            return;
+        }
+
+        descriptor.RedirectUris.Add(new Uri($"{apiBase}/signin-oidc"));
+        descriptor.PostLogoutRedirectUris.Add(new Uri($"{apiBase}/signout-callback-oidc"));
     }
 
     private async Task SeedCompaniesAsync()
@@ -882,6 +903,9 @@ public class AuthDataSeed(
             // Service Quality Evaluation
             ("REPORT_EVALUATION_VIEW", "View Service Quality Evaluation", "View service quality evaluation reports",
                 "Common"),
+            ("REPORT_EVALUATION_EDIT", "Edit Service Quality Evaluation",
+                "Submit and complete service quality evaluation scores for external appraisal companies",
+                "Common"),
             ("EVALUATION_CONFIG_MANAGE", "Manage Evaluation Criteria Config",
                 "View and edit service-quality evaluation criteria labels, weights, guidance, and thresholds per banking segment",
                 "Common"),
@@ -915,6 +939,13 @@ public class AuthDataSeed(
                 "View paginated webhook delivery list and delivery details", "Integration"),
             ("WEBHOOK_DELIVERIES_RETRY", "Retry Webhook Deliveries",
                 "Manually retry a failed webhook delivery", "Integration"),
+            // Failed Messages / Outbox Monitor admin (docs/failed-messages/design.md)
+            ("FAILED_MESSAGE_VIEW", "View Failed Messages",
+                "View failed/skipped consumer messages, outbox failures, and per-node queue health",
+                "Integration"),
+            ("FAILED_MESSAGE_MANAGE", "Manage Failed Messages",
+                "Retry/discard failed messages and resend failed outbox rows",
+                "Integration"),
             // Webhook Subscriptions admin
             ("WEBHOOK_SUBSCRIPTIONS_MANAGE", "Manage Webhook Subscriptions",
                 "Create, edit, activate/deactivate and delete webhook subscriptions", "Integration"),

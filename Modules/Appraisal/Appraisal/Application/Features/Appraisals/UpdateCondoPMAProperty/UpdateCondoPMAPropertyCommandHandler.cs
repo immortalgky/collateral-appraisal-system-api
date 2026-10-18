@@ -42,9 +42,6 @@ public class UpdateCondoPMAPropertyCommandHandler(
         // row commits in the same transaction as the PMA data (TransactionalBehavior).
         appraisal.MarkPmaUpdated(command.PropertyId);
 
-        // Save aggregate
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
-
         return MediatR.Unit.Value;
     }
 }

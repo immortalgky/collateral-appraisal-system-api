@@ -13,6 +13,9 @@ public record UserListItemDto(
     string AuthSource,
     List<string> Roles,
     bool IsActive,
-    bool IsLocked);
+    bool IsLocked,
+    // Ad-hoc account usable only inside an admin-opened window; AccessExpiresAt is when that window ends.
+    bool IsTemporaryAccess,
+    DateTime? AccessExpiresAt);
 
 public record GetUsersResult(IEnumerable<UserListItemDto> Items, long Count, int PageNumber, int PageSize);

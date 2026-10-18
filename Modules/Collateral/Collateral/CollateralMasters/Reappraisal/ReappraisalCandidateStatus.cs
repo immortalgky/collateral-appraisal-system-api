@@ -8,9 +8,12 @@ public enum ReappraisalCandidateStatus
     /// <summary>Ingested and waiting for staff action.</summary>
     Pending,
 
-    /// <summary>Staff initiated reappraisal requests from this candidate.</summary>
+    /// <summary>The reappraisal request for this book has been submitted.</summary>
     Consumed,
 
-    /// <summary>Staff soft-deleted this candidate from the list.</summary>
+    /// <summary>
+    /// "Not reviewing this round" (UI label). Kept under its original name so no stored value has to
+    /// change; stays until staff restore it, and is still refreshed by later files.
+    /// </summary>
     Deleted
 }

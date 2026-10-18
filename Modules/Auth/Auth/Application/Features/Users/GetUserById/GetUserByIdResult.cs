@@ -28,6 +28,9 @@ public record GetUserByIdResult(
     string AuthSource,
     bool IsActive,
     bool IsLocked,
+    // Ad-hoc account usable only inside an admin-opened window; AccessExpiresAt is when that window ends.
+    bool IsTemporaryAccess,
+    DateTime? AccessExpiresAt,
     DateTime? LastLoginAt,
     List<UserRoleDto> Roles,
     List<UserGroupDto> Groups,

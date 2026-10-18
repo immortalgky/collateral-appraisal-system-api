@@ -258,7 +258,14 @@ public class CollateralBackfillTests(IntegrationTestFixture fixture)
         {
             using var scope = CreateScope();
             var appraisalDb = GetAppraisalDb(scope);
+            // ponytail: AsSplitQuery — this Include chain drags in every owned detail type on
+            // AppraisalProperty (owned navs are always eager-loaded), producing a single ~40KB,
+            // 23-JOIN statement. Compile cost (~350ms in isolation) gets starved for CPU when the
+            // full Collateral suite runs concurrently, tipping this test over the 30s SQL timeout.
+            // Splitting avoids compiling one giant statement. Fix the compile cost properly
+            // (narrower query / fewer owned types) if this test starts flaking again.
             var appraisal = await appraisalDb.Appraisals
+                .AsSplitQuery()
                 .Include(a => a.Properties)
                     .ThenInclude(p => p.LandDetail)
                         .ThenInclude(ld => ld!.Titles)

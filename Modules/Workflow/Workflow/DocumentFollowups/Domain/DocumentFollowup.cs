@@ -71,7 +71,7 @@ public class DocumentFollowup : Aggregate<Guid>
             followup.AppraisalId,
             followup.RaisingWorkflowInstanceId,
             followup.RaisingActivityId,
-            followup.LineItems.Select(li => li.DocumentType).ToList()));
+            followup.LineItems.Select(li => (li.DocumentType, li.Notes)).ToList()));
         return followup;
     }
 

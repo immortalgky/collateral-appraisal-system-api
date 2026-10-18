@@ -52,7 +52,7 @@ internal static class Rcas009Report
             new("Collateral Type", r => r.CollateralType),
             new("Requestor", r => r.RequestorCode),
             new("Requestor Dept.", r => r.RequestorDepartment),
-            new("Retail/IBG", r => r.BankingSegment),
+            new("Banking Segment", r => r.BankingSegment),
             new("Appraisal Company", r => r.AppraisalCompany),
             new("Internal Staff", r => r.InternalAppraisalStaff),
             new("Invoice No.", r => r.InvoiceNumber),

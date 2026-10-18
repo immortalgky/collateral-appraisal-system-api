@@ -24,7 +24,6 @@ public class RemoveRequestCommentEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithTags("Request Comments")
             .WithSummary("Remove a comment from a request")
-            .WithDescription("Removes an existing comment from the specified request.")
-            .AllowAnonymous();
+            .WithDescription("Removes an existing comment from the specified request.");
     }
 }

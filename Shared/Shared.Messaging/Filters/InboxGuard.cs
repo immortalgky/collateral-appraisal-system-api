@@ -13,8 +13,6 @@ public class InboxGuard<TDbContext>(
     IDateTimeProvider dateTimeProvider)
     where TDbContext : DbContext
 {
-    private const int StaleThresholdMinutes = 5;
-
     /// <summary>
     /// Returns true if the message should be SKIPPED (already processed or being processed).
     /// Returns false if the message was claimed and should be processed.
@@ -55,7 +53,7 @@ public class InboxGuard<TDbContext>(
         }
 
         // Status is Processing — check if stale
-        if (existing.StartedAt < dateTimeProvider.ApplicationNow.AddMinutes(-StaleThresholdMinutes))
+        if (existing.StartedAt < dateTimeProvider.ApplicationNow - InboxGuardPolicy.StaleThreshold)
         {
             // Stale Processing — another instance crashed. Delete and re-claim.
             logger.LogWarning("[INBOX] Stale Processing message {MessageId} by {Consumer} (started {StartedAt}), reclaiming",

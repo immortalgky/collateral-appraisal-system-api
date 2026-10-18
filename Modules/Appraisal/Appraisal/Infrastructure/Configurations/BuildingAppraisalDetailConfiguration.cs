@@ -101,11 +101,8 @@ public class
 
         // Area & Pricing
         builder.Property(e => e.TotalBuildingArea).HasPrecision(18, 4);
+        builder.Property(e => e.BuildingCostValue).HasPrecision(18, 2);
         builder.Property(e => e.BuildingInsurancePrice).HasPrecision(18, 2);
-        builder.Property(e => e.FinalCostValueOverride).HasPrecision(18, 2);
-        builder.Property(e => e.BuildingInsurancePriceOverride).HasPrecision(18, 2);
-        builder.Property(e => e.SellingPrice).HasPrecision(18, 2);
-        builder.Property(e => e.ForcedSalePrice).HasPrecision(18, 2);
 
         // Other
         builder.Property(e => e.Remark).HasMaxLength(4000);

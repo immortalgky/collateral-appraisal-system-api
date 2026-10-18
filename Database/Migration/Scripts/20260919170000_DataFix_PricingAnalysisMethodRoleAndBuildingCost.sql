@@ -90,18 +90,20 @@ FROM (
            ISNULL((
                SELECT SUM(x.FinalCostValue)
                FROM (
+                   -- (The column was FinalCostValueOverride until UseBuildingCostValueForStoredFinalCost; EF migrations
+                   -- run before this script, so it is always BuildingCostValue by the time this executes.)
                    -- Same aggregation as PricingPropertyDataService.BuildingCostSql: one row per
                    -- building, appraiser override wins, else the depreciation schedule rounded to
                    -- the nearest 1,000; summed across the group. Mixed-family groups (Condo/MAC
                    -- properties alongside Land/Building ones) are naturally excluded — only
                    -- Land/Building-family properties have a BuildingAppraisalDetails row at all.
-                   SELECT COALESCE(bad.[FinalCostValueOverride], ROUND(SUM(bdd.[PriceAfterDepreciation]), -3)) AS FinalCostValue
+                   SELECT COALESCE(bad.[BuildingCostValue], ROUND(SUM(bdd.[PriceAfterDepreciation]), -3)) AS FinalCostValue
                    FROM [appraisal].[BuildingAppraisalDetails] bad
                    INNER JOIN [appraisal].[AppraisalProperties] ap ON ap.[Id] = bad.[AppraisalPropertyId]
                    INNER JOIN [appraisal].[PropertyGroupItems] pgi ON pgi.[AppraisalPropertyId] = ap.[Id]
                    LEFT JOIN [appraisal].[BuildingDepreciationDetails] bdd ON bdd.[BuildingAppraisalDetailId] = bad.[Id]
                    WHERE pgi.[PropertyGroupId] = pa.[AnchorId]
-                   GROUP BY bad.[Id], bad.[FinalCostValueOverride]
+                   GROUP BY bad.[Id], bad.[BuildingCostValue]
                ) x
            ), 0) AS BuildingCostValue
     FROM [appraisal].[PricingAnalysisMethods] pam

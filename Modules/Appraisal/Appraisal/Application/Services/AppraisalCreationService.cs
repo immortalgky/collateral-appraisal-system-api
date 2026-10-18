@@ -46,6 +46,7 @@ public class AppraisalCreationService(
         string? appraisalType = null,
         Guid? workflowDefinitionId = null,
         string? groupTag = null,
+        string? prevAppraisalNumber = null,
         CancellationToken cancellationToken = default)
     {
         logger.LogInformation("Creating appraisal from request {RequestId} with {TitleCount} titles",
@@ -135,6 +136,9 @@ public class AppraisalCreationService(
         // Stamp the reappraisal batch tag when provided (system-only; no user edit path).
         if (!string.IsNullOrWhiteSpace(groupTag))
             appraisal.SetGroupTag(groupTag);
+
+        if (prevAppraisalId is null && !string.IsNullOrWhiteSpace(prevAppraisalNumber))
+            appraisal.SetPrevAppraisalNumber(prevAppraisalNumber);
 
         // Track prior→new property mapping so we can duplicate PropertyPhotoMapping rows
         // AFTER Phase 1 SaveChanges (which is where DB-generated IDs land on the new properties).
@@ -349,6 +353,11 @@ public class AppraisalCreationService(
                 // (below), so RecomputeAsync's appointment-derived fallback would see no rows here and
                 // stamp DateTime.Now. This mirrors the non-CI path, where ValuationDate is the
                 // appointment date.
+                //
+                // The aggregate was added and saved by this context, and EF does not mark its Properties
+                // as loaded (verified), which RecomputeAsync requires for the insurance sum — so load them
+                // through the repository first (a fix-up onto the tracked instances).
+                await appraisalRepository.GetByIdWithPropertiesAsync(appraisal.Id, cancellationToken);
                 await valuationSummaryService.RecomputeAsync(
                     appraisal.Id, cancellationToken, appointment?.AppointmentDateTime);
             }
@@ -1113,7 +1122,7 @@ public class AppraisalCreationService(
     /// Fallback: if no master is found (first-ever appraisal or no prior completion), log a warning
     /// and leave the new project empty — parity with CI's null-prior handling.
     /// </summary>
-    private async Task SeedProjectUnitsFromPriorAsync(
+    internal async Task SeedProjectUnitsFromPriorAsync(
         Project project,
         Guid prevAppraisalId,
         CancellationToken cancellationToken)
@@ -1139,9 +1148,21 @@ public class AppraisalCreationService(
             return;
         }
 
-        // Determine project type from the master result (authoritative source).
-        // The local project.ProjectType enum and the master's string value use the same names.
-        var isCondo = masterResult.ProjectType.Equals("Condo", StringComparison.OrdinalIgnoreCase);
+        // The master stores the project type code ("U"/"LB"/"L"). Condo vs non-condo is a different
+        // unit shape, so don't seed it into this project -- same fallback as the no-master branch.
+        // LB and L share one shape, so they seed into each other.
+        if (ProjectType.IsCondoCode(masterResult.ProjectType) != (project.ProjectType == ProjectType.Condo))
+        {
+            logger.LogWarning(
+                "Block reappraisal seed: collateral master project type {MasterProjectType} differs from new project " +
+                "{ProjectId} type {ProjectType} (prior appraisal {PrevAppraisalId}). Project will start with an empty unit list.",
+                masterResult.ProjectType, project.Id, project.ProjectType.Code, prevAppraisalId);
+            return;
+        }
+
+        // The unit factory follows the project's type (the discriminator ImportUnits branches on),
+        // so the units built here always match the branch ImportUnits takes.
+        var isCondo = project.ProjectType == ProjectType.Condo;
 
         var seededUnits = new List<ProjectUnit>(masterResult.Units.Count);
 

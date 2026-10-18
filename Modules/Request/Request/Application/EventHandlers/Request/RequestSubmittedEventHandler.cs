@@ -64,6 +64,17 @@ public class RequestSubmittedEventHandler(
             RequestedBy = notification.Request.Requestor.UserId,
             RequestedAt = notification.Request.RequestedAt,
             PrevAppraisalId = notification.Request.Detail?.PrevAppraisalId,
+            // A legacy AS400 prior book carries only its number (XOR with PrevAppraisalId). A CAS
+            // prior book's number is also stored on the request, for display — not forwarded.
+            // Only a book recorded through SetLegacyPriorBook: a request Initiate created, or a 99A number
+            // LOS sent. Older requests can hold a free-text number typed by staff, which must not become a
+            // legacy link on the new appraisal.
+            PrevAppraisalNumber = notification.Request.Detail?.PrevAppraisalId is null
+                                  && (notification.Request.ReappraisalBookNumber is not null
+                                      || Domain.Requests.Request.IsLegacyPriorBook(
+                                          notification.Request.Detail?.PrevAppraisalNumber))
+                ? Domain.Requests.Request.NormalizeBookNumber(notification.Request.Detail?.PrevAppraisalNumber)
+                : null,
             // Purpose "03" = standard reappraisal, "09" = block-project reappraisal — both ReAppraisal.
             AppraisalType = notification.Request.Purpose is "03" or "09" ? "ReAppraisal"
                 : notification.Request.Purpose is "06" or "11" ? "Progressive"
@@ -80,7 +91,7 @@ public class RequestSubmittedEventHandler(
             requestTitleDtos.Count);
     }
 
-    private static RequestTitleDto MapToDto(RequestTitle title)
+    internal static RequestTitleDto MapToDto(RequestTitle title)
     {
         var dto = new RequestTitleDto
         {
@@ -89,17 +100,7 @@ public class RequestSubmittedEventHandler(
             CollateralType = title.CollateralType ?? string.Empty,
             CollateralStatus = title.CollateralStatus ?? false,
             OwnerName = title.OwnerName,
-            TitleAddress = new AddressDto(
-                title.TitleAddress.HouseNumber,
-                title.TitleAddress.ProjectName,
-                title.TitleAddress.Moo,
-                title.TitleAddress.Soi,
-                title.TitleAddress.Road,
-                title.TitleAddress.SubDistrict,
-                title.TitleAddress.District,
-                title.TitleAddress.Province,
-                title.TitleAddress.Postcode
-            ),
+            TitleAddress = title.TitleAddress?.ToDto() ?? new AddressDto(null, null, null, null, null, null, null, null, null),
             DopaAddress = new AddressDto(
                 title.DopaAddress.HouseNumber,
                 title.DopaAddress.ProjectName,

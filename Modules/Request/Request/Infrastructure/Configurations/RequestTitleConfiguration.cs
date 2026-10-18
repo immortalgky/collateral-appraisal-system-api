@@ -27,13 +27,16 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
 
         builder.Property(p => p.CollateralStatus);
 
+        builder.Property(p => p.SequenceNumber)
+            .HasDefaultValue(0);
+
         builder.Property(p => p.OwnerName)
             .HasMaxLength(500);
 
         builder.OwnsOne(p => p.TitleAddress, titleAddress =>
         {
             titleAddress.Property(p => p.HouseNumber)
-                .HasMaxLength(30)
+                .HasMaxLength(50)
                 .HasColumnName("HouseNumber");
 
             titleAddress.Property(p => p.ProjectName)
@@ -78,7 +81,7 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
         builder.OwnsOne(p => p.DopaAddress, dopaAddress =>
         {
             dopaAddress.Property(p => p.HouseNumber)
-                .HasMaxLength(30)
+                .HasMaxLength(50)
                 .HasColumnName("DopaHouseNumber");
 
             dopaAddress.Property(p => p.ProjectName)

@@ -95,18 +95,16 @@ public static class HangfireExtensions
     public static WebApplication UseHangfire(this WebApplication app)
     {
         // The dashboard is a server-rendered page loaded by the browser itself, which cannot carry a
-        // JWT Bearer header — so the SPA's bearer auth can't gate it. Instead:
-        //   - Dev: .AllowAnonymous() opts out of the global RequireAuthenticatedUser fallback policy (same
-        //     pattern as /openapi, /scalar), and HangfireAuthorizationFilter lets every request through
+        // Bearer header — so it authenticates with the app session cookie, like the rest of the SPA:
+        //   - Dev: .AllowAnonymous() opts out of the global "Spa" fallback policy (browser session / dev header
+        //     only; same pattern as /openapi, /scalar), and HangfireAuthorizationFilter lets every request through
         //     — including one arriving over the LAN, since it gates on the environment and not on the
         //     request's host. A dev instance bound to anything but localhost therefore serves an
         //     unauthenticated, fully interactive job dashboard.
         //   - Non-dev: .RequireAuthorization("HangfireDashboard") makes the authorization middleware
-        //     authenticate the Identity.Application cookie (set by the interactive /Account/Login) and
-        //     require the JOB_SCHEDULE_MANAGE permission, read from the database because the cookie
-        //     carries no permission claims (see DatabasePermissionAuthorizationHandler). An
-        //     unauthenticated browser is redirected to the login page; a signed-in user without the
-        //     permission lands on /Account/AccessDenied.
+        //     authenticate the app session cookie and require the JOB_SCHEDULE_MANAGE permission claim
+        //     (added per request from the database). A browser with no session is sent through the OIDC
+        //     sign-in; a signed-in user without the permission lands on /Account/AccessDenied.
         var isDevelopment = app.Environment.IsDevelopment();
         var dashboard = app.MapHangfireDashboard("/hangfire", new DashboardOptions
         {
@@ -141,8 +139,8 @@ public class HangfireAuthorizationFilter(bool isDevelopment) :
             return true;
 
         // Non-development: defense-in-depth. The "HangfireDashboard" endpoint policy
-        // (RequireAuthorization in UseHangfire) has already authenticated the Identity.Application
-        // cookie and enforced the JOB_SCHEDULE_MANAGE permission before this filter runs, so
+        // (RequireAuthorization in UseHangfire) has already authenticated the app session cookie
+        // and enforced the JOB_SCHEDULE_MANAGE permission before this filter runs, so
         // HttpContext.User is the authenticated cookie principal here.
         return httpContext.User.Identity?.IsAuthenticated == true;
     }

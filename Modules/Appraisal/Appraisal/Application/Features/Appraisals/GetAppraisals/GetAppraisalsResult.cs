@@ -114,6 +114,12 @@ public record AppraisalDto
     /// <summary>Requestor's name as the request recorded it.</summary>
     public string? RequestorName { get; init; }
 
+    /// <summary>
+    /// The appraisal (valuation) date: ValuationDate (re-derived from the latest appointment on every
+    /// pricing save), falling back to CompletedAt. Null for an appraisal that is not priced yet.
+    /// </summary>
+    public DateTime? AppraisalDate { get; init; }
+
     // SLA Computed
     public int? ElapsedHours { get; init; }
     public int? RemainingHours { get; init; }

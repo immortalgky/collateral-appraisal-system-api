@@ -123,7 +123,13 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
         builder.Property(e => e.ExpropriationLineRemark).HasMaxLength(4000);
         builder.Property(e => e.RoyalDecree).HasMaxLength(500);
         builder.Property(e => e.EncroachmentRemark).HasMaxLength(4000);
-        builder.Property(e => e.EncroachmentArea).HasPrecision(18, 4);
+        // TODO: the EncroachmentArea column is no longer mapped but still in the table — migration
+        // DropUnusedDetailPriceColumns left it for 20260917130000_Backfill_LandAreaDeductionFromEncroachment.
+        // Once that script has run on every database, drop it with a hand-written migration (the model
+        // snapshot no longer knows the column, so `migrations add` will never generate the drop), and in
+        // the same change wrap that script's INSERT in IF COL_LENGTH(...) IS NOT NULL EXEC(N'...'): DbUp runs
+        // after EF on a fresh database, and the prod bundle still compiles journaled scripts under NOEXEC,
+        // so an unguarded reference to the dropped column would fail every later migrate.
         // Sum of the Deductions rows, kept current by the domain so the read-side SQL can subtract
         // one column instead of aggregating a child table. See LandAppraisalDetail.RecalculateDeductedArea.
         builder.Property(e => e.DeductedAreaInSqWa).HasPrecision(18, 4);
@@ -166,6 +172,7 @@ public class LandAppraisalDetailConfiguration : IOwnedEntityConfiguration<Apprai
             title.WithOwner().HasForeignKey(t => t.LandAppraisalDetailId);
             title.HasKey(t => t.Id);
             title.Property(t => t.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+            title.Property(t => t.SequenceNumber).HasDefaultValue(0);
 
             // Title Deed Info
             title.Property(t => t.TitleNumber).IsRequired().HasMaxLength(200);

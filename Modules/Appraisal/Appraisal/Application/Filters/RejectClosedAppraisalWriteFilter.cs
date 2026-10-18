@@ -4,7 +4,7 @@ using Microsoft.Extensions.Configuration;
 namespace Appraisal.Application.Filters;
 
 /// <summary>
-/// Rejects HTTP writes to property data on a Completed or Cancelled appraisal.
+/// Rejects HTTP writes to property data and valuation documents on a Completed or Cancelled appraisal.
 ///
 /// Why this exists: the "closed appraisals are read-only" rule lived entirely in the frontend —
 /// the API never looked at appraisal.Status before writing, and the property endpoints carry no
@@ -18,7 +18,8 @@ namespace Appraisal.Application.Filters;
 /// today), and a pipeline-level or domain-level guard would have to thread a "system" bypass flag
 /// through every one of those call sites. An endpoint filter cannot see them at all.
 ///
-/// The sanctioned way in — CorrectPropertyDataEndpoint — simply does not add this filter.
+/// The sanctioned ways in — CorrectPropertyDataEndpoint and CorrectAppraisalDocumentsEndpoint — simply do
+/// not add this filter.
 /// </summary>
 public sealed class RejectClosedAppraisalWriteFilter : IEndpointFilter
 {
@@ -66,7 +67,7 @@ public sealed class RejectClosedAppraisalWriteFilter : IEndpointFilter
         return Results.Problem(
             title: "AppraisalClosed",
             statusCode: StatusCodes.Status409Conflict,
-            detail: $"Appraisal is {status}; property data cannot be modified here. " +
+            detail: $"Appraisal is {status}; its data cannot be modified here. " +
                     "Use the appraisal data-correction screen, which records a reason and an audit entry.",
             extensions: new Dictionary<string, object?> { ["errorCode"] = "APPRAISAL_CLOSED" });
     }

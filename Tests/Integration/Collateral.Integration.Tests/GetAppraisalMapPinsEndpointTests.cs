@@ -1,3 +1,4 @@
+using Auth.Infrastructure.Session;
 using System.Net;
 using System.Security.Claims;
 using System.Text;
@@ -58,7 +59,9 @@ public class GetAppraisalMapPinsEndpointTests(IntegrationTestFixture fixture)
     [Fact]
     public async Task GetMapPins_NoAuth_Returns401()
     {
-        var client = fixture.IntegrationTestWebApplicationFactory.CreateClient();
+        await using var factory = new AnonymousWebApplicationFactory(
+            fixture.ConnectionString, fixture.RabbitMq.GetConnectionString());
+        using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/appraisals/{Guid.NewGuid()}/map-pins");
 
@@ -334,9 +337,10 @@ file sealed class ExternalCompanyAuthHandler(
         {
             new Claim(ClaimTypes.Name, "external-test-user"),
             new Claim("permissions", "request:read"),
+            new Claim("permissions", "HISTORY_SEARCH_VIEW"),
             new Claim("company_id", Options.CompanyId.ToString()),
         };
-        var identity = new ClaimsIdentity(claims, Scheme.Name);
+        var identity = new ClaimsIdentity(claims, AuthSchemes.AppCookie);
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, Scheme.Name);
 

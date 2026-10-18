@@ -31,6 +31,12 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
         builder.HasIndex(a => a.PrevAppraisalId)
             .HasFilter("[PrevAppraisalId] IS NOT NULL");
 
+        // Prior book outside CAS (legacy AS400 "99A…"). Same length as RequestDetail.PrevAppraisalNumber.
+        // Indexed for the reappraisal list / regulatory joins that reach it by number.
+        builder.Property(a => a.PrevAppraisalNumber).HasMaxLength(20);
+        builder.HasIndex(a => a.PrevAppraisalNumber)
+            .HasFilter("[PrevAppraisalNumber] IS NOT NULL");
+
         builder.Property(a => a.Priority)
             .HasConversion(
                 v => v.Code,

@@ -228,8 +228,8 @@ public class FeeAppointmentApprovalDomainTests
     [Fact]
     public void Reschedule_SetsPending_AndFlagRequiresApproval()
     {
+        // Create() already yields an effective ("Appointed") appointment — nothing to approve first.
         var appt = Appointment.Create(Guid.NewGuid(), new DateTime(2026, 6, 10, 9, 0, 0), "company");
-        appt.Approve("system"); // start effective
 
         appt.Reschedule("company", new DateTime(2026, 6, 14, 9, 0, 0),"");
         appt.FlagRequiresApproval();
@@ -240,7 +240,7 @@ public class FeeAppointmentApprovalDomainTests
     }
 
     [Fact]
-    public void AppointmentApprove_ClearsApprovalFlags_AndSetsApproved()
+    public void AppointmentApprove_ClearsApprovalFlags_AndSetsAppointed()
     {
         var appt = Appointment.Create(Guid.NewGuid(), new DateTime(2026, 6, 14, 9, 0, 0), "company");
         appt.FlagRequiresApproval();
@@ -250,7 +250,7 @@ public class FeeAppointmentApprovalDomainTests
 
         appt.Approve("system");
 
-        Assert.Equal("Approved", appt.Status);
+        Assert.Equal("Appointed", appt.Status);
         Assert.False(appt.RequiresApproval);
         Assert.Null(appt.ApprovalSubmittedAt);
     }
@@ -261,7 +261,6 @@ public class FeeAppointmentApprovalDomainTests
         var d1 = new DateTime(2026, 6, 10, 9, 0, 0);
         var d2 = new DateTime(2026, 6, 14, 9, 0, 0);
         var appt = Appointment.Create(Guid.NewGuid(), d1, "company");
-        appt.Approve("system");
 
         appt.Reschedule("company", d2, "");
         Assert.Equal(d2, appt.AppointmentDateTime);
@@ -271,6 +270,7 @@ public class FeeAppointmentApprovalDomainTests
 
         Assert.Equal(d1, appt.AppointmentDateTime);
         Assert.Equal(0, appt.RescheduleCount);
+        Assert.Equal("Appointed", appt.Status);
     }
 
     [Fact]

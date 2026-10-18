@@ -35,6 +35,8 @@ public class AssigneeSelectorFactory : IAssigneeSelectorFactory
                 .GetRequiredService<PoolAssigneeSelector>(),
             AssigneeSelectionStrategy.VariableAssignee => _serviceProvider
                 .GetRequiredService<VariableAssigneeSelector>(),
+            AssigneeSelectionStrategy.SameAssigneeAsActivity => _serviceProvider
+                .GetRequiredService<SameAssigneeAsActivitySelector>(),
             _ => throw new ArgumentException($"Unknown assignee selection strategy: {strategy}")
         };
     }

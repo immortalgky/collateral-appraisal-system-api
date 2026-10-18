@@ -41,7 +41,7 @@ public class UpdateForceSaleRateCommandHandler(
             // ValuationDate is derived from the appraisal's appointments, NOT stamped with "now".
             // This is a rate-only edit that happens to be the first writer of the row, and
             // ValuationDate leads every appraisal-date read surface (the printed book, both AS400
-            // feeds, History Search, the +5-year reappraisal anchor) — seeding it with the moment
+            // feeds, History Search, the reappraisal list's last-appraisal date) — seeding it with the moment
             // someone changed a percentage would publish a save timestamp as the appraisal date.
             // ApplicationNow remains only when no appointment exists to derive from.
             var seedDate = await appraisalDateResolver

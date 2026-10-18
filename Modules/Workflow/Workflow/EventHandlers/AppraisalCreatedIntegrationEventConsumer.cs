@@ -42,9 +42,6 @@ public class AppraisalCreatedIntegrationEventConsumer(
     IDateTimeProvider dateTimeProvider,
     InboxGuard<WorkflowDbContext> inboxGuard) : IConsumer<AppraisalCreatedIntegrationEvent>
 {
-    // Matches InboxGuard.StaleThresholdMinutes so the two share the same reclaim window.
-    private const int StaleThresholdMinutes = 5;
-
     private const int MaxConcurrencyAttempts = 3;
 
     public async Task Consume(ConsumeContext<AppraisalCreatedIntegrationEvent> context)
@@ -220,7 +217,7 @@ public class AppraisalCreatedIntegrationEventConsumer(
 
         // Processing but still within the live window — another consumer is handling it.
         if (existing.Status == InboxMessageStatus.Processing
-            && existing.StartedAt >= dateTimeProvider.ApplicationNow.AddMinutes(-StaleThresholdMinutes))
+            && existing.StartedAt >= dateTimeProvider.ApplicationNow - InboxGuardPolicy.StaleThreshold)
             return true;
 
         // Stale Processing row: remove it so our coming INSERT doesn't hit a PK collision.

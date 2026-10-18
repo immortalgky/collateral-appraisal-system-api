@@ -48,11 +48,19 @@ chain**, and only for collateral the bank **currently holds**.
   **Fields 18 (DOPA sub-district), land area, building age and usable area go out blank**: the AS400
   legacy listing carries no title number and no location, and there is no other source. Accepted by
   the business.
-- **Known duplication.** A collateral that has both an AS400 legacy valuation and a newer CAS
-  appraisal produces **two** records, because nothing links the two chains. 242 such collateral on
-  the production-like set. The business accepted this to get the legacy portfolio reported at all;
-  collapsing them would mean rewriting the CAS chain root's `PrevAppraisalId` to point at the legacy
-  appraisal.
+- **CAS chains that began as a legacy book.** A CAS appraisal chain can start from a legacy `99A…`
+  book: the chain's root carries the book's number in `appraisal.Appraisals.PrevAppraisalNumber`
+  (never together with `PrevAppraisalId`). The export follows the chain to that number and reports the
+  legacy listing's date/value as the origination when it is older than the first CAS valuation. The
+  book number is used first (`LegacyByChain`). When a chain names no book — chains that pre-date
+  `PrevAppraisalNumber`, or a legacy collateral that entered CAS through an ordinary request — the
+  export falls back to matching the listing by collateral id (`LegacyByCollateral`), as it always did. The legacy "99"
+  series itself (no CAS appraisal) is still reported per collateral id, unchanged.
+- **A legacy book reappraised in CAS.** While AS400 still reports the old `99A…` number, the collateral
+  is reported from the Completed (and valued) periodical reappraisal of that book (Anchor arm 3 — the
+  request Initiate created for the book, `Request.ReappraisalBookNumber`), not from the legacy listing — so one collateral
+  never produces two records. By book: one request reviews every collateral the book is listed under. A
+  chain root that only carries a backfilled number is never used here.
 - **Block projects are not sent yet.** A block-project appraisal covers a whole development, and the
   bank does not hold the development — it holds the individual units it financed. AS400 issues one
   collateral id per financed unit, so the intended record is **one per unit the bank holds**, valued

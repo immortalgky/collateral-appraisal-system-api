@@ -5,8 +5,10 @@ using Auth.Domain.Groups;
 using Auth.Domain.Menu;
 using Auth.Domain.Organization;
 using Auth.Domain.Preferences;
+using Auth.Domain.Sessions;
 using Auth.Domain.Teams;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
+using Shared.Scheduling;
 
 namespace Auth.Infrastructure;
 
@@ -32,6 +34,7 @@ public class AuthDbContext(DbContextOptions<AuthDbContext> options)
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<Officer> Officers => Set<Officer>();
     public DbSet<CostCenter> CostCenters => Set<CostCenter>();
+    public DbSet<UserSession> UserSessions => Set<UserSession>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -55,5 +58,8 @@ public class AuthDbContext(DbContextOptions<AuthDbContext> options)
 
         // ASP.NET Core Data Protection keys table — shared across LB nodes
         builder.Entity<DataProtectionKey>().ToTable("DataProtectionKeys", "auth");
+
+        // auth.JobSchedules — owns the session purge job's schedule (see AuthRecurringJobs).
+        builder.AddJobSchedules();
     }
 }

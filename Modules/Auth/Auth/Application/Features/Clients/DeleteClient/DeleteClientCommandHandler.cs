@@ -16,7 +16,7 @@ public class DeleteClientCommandHandler(IOpenIddictApplicationManager applicatio
 
         var clientId = await applicationManager.GetClientIdAsync(app, cancellationToken) ?? "";
 
-        // The seeded core clients (spa/los/cls) back live integrations — block hard-delete.
+        // The seeded SPA client (spa) backs the app's own login — block hard-delete.
         if (ClientPermissionMapper.SystemClientIds.Contains(clientId))
             throw new ConflictException(
                 $"Client '{clientId}' is a system client and cannot be deleted.");

@@ -30,6 +30,7 @@ public class MeetingConfiguration : IEntityTypeConfiguration<Meeting>
         builder.Property(m => m.RowVersion).IsRowVersion();
         builder.Property(m => m.EndedAt);
         builder.Property(m => m.CancelledAt);
+        builder.Property(m => m.CommitteeId);
 
         builder.HasMany(m => m.Items)
             .WithOne()
@@ -90,6 +91,8 @@ public class MeetingItemConfiguration : IEntityTypeConfiguration<MeetingItem>
         builder.Property(i => i.DecisionReason).HasMaxLength(1000);
 
         builder.HasIndex(i => new { i.MeetingId, i.AppraisalId }).IsUnique();
+        // Engine redirect + MeetingActivity re-entry both look items up by workflow instance.
+        builder.HasIndex(i => i.WorkflowInstanceId);
     }
 }
 

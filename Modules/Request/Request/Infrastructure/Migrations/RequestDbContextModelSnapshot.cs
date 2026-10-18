@@ -111,6 +111,11 @@ namespace Request.Infrastructure.Migrations
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("SequenceNumber")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("TitleFamily")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -175,6 +180,10 @@ namespace Request.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("GroupTag")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<bool>("IsPma")
                         .HasColumnType("bit");
 
@@ -185,6 +194,14 @@ namespace Request.Infrastructure.Migrations
                     b.Property<string>("Purpose")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("ReappraisalBookNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("ReappraisalCollateralId")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<DateTime?>("RequestedAt")
                         .HasColumnType("datetime2");
@@ -210,6 +227,10 @@ namespace Request.Infrastructure.Migrations
                     b.HasIndex("ExternalCaseKey")
                         .HasDatabaseName("IX_Request_ExternalCaseKey")
                         .HasFilter("[ExternalCaseKey] IS NOT NULL");
+
+                    b.HasIndex("ReappraisalBookNumber")
+                        .HasDatabaseName("IX_Request_ReappraisalBookNumber")
+                        .HasFilter("[ReappraisalBookNumber] IS NOT NULL");
 
                     b.HasIndex("RequestedAt")
                         .IsDescending()
@@ -307,6 +328,9 @@ namespace Request.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ProcessingStartedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<int>("RetryCount")
@@ -463,8 +487,8 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnName("DopaDistrict");
 
                             b1.Property<string>("HouseNumber")
-                                .HasMaxLength(30)
-                                .HasColumnType("nvarchar(30)")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
                                 .HasColumnName("DopaHouseNumber");
 
                             b1.Property<string>("Moo")
@@ -521,8 +545,8 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnName("District");
 
                             b1.Property<string>("HouseNumber")
-                                .HasMaxLength(30)
-                                .HasColumnType("nvarchar(30)")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
                                 .HasColumnName("HouseNumber");
 
                             b1.Property<string>("Moo")
@@ -953,8 +977,8 @@ namespace Request.Infrastructure.Migrations
                                         .HasColumnName("District");
 
                                     b2.Property<string>("HouseNumber")
-                                        .HasMaxLength(30)
-                                        .HasColumnType("nvarchar(30)")
+                                        .HasMaxLength(50)
+                                        .HasColumnType("nvarchar(50)")
                                         .HasColumnName("HouseNumber");
 
                                     b2.Property<string>("Moo")

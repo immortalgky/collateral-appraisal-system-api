@@ -253,28 +253,28 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                  JOIN appraisal.LandAppraisalDetails lad3 ON lad3.AppraisalPropertyId = ap3.Id
                  JOIN appraisal.LandTitles lt ON lt.LandAppraisalDetailId = lad3.Id
                  WHERE gi3.PropertyGroupId = pg.Id
-                 ORDER BY gi3.SequenceInGroup, lt.Id) AS FirstTitleNumber,
+                 ORDER BY gi3.SequenceInGroup, lt.SequenceNumber, lt.Id) AS FirstTitleNumber,
                 (SELECT TOP 1 lt2.AreaRai
                  FROM appraisal.PropertyGroupItems gi4
                  JOIN appraisal.AppraisalProperties ap4 ON ap4.Id = gi4.AppraisalPropertyId
                  JOIN appraisal.LandAppraisalDetails lad4 ON lad4.AppraisalPropertyId = ap4.Id
                  JOIN appraisal.LandTitles lt2 ON lt2.LandAppraisalDetailId = lad4.Id
                  WHERE gi4.PropertyGroupId = pg.Id
-                 ORDER BY gi4.SequenceInGroup, lt2.Id) AS AreaRai,
+                 ORDER BY gi4.SequenceInGroup, lt2.SequenceNumber, lt2.Id) AS AreaRai,
                 (SELECT TOP 1 lt3.AreaNgan
                  FROM appraisal.PropertyGroupItems gi5
                  JOIN appraisal.AppraisalProperties ap5 ON ap5.Id = gi5.AppraisalPropertyId
                  JOIN appraisal.LandAppraisalDetails lad5 ON lad5.AppraisalPropertyId = ap5.Id
                  JOIN appraisal.LandTitles lt3 ON lt3.LandAppraisalDetailId = lad5.Id
                  WHERE gi5.PropertyGroupId = pg.Id
-                 ORDER BY gi5.SequenceInGroup, lt3.Id) AS AreaNgan,
+                 ORDER BY gi5.SequenceInGroup, lt3.SequenceNumber, lt3.Id) AS AreaNgan,
                 (SELECT TOP 1 lt4.AreaSquareWa
                  FROM appraisal.PropertyGroupItems gi6
                  JOIN appraisal.AppraisalProperties ap6 ON ap6.Id = gi6.AppraisalPropertyId
                  JOIN appraisal.LandAppraisalDetails lad6 ON lad6.AppraisalPropertyId = ap6.Id
                  JOIN appraisal.LandTitles lt4 ON lt4.LandAppraisalDetailId = lad6.Id
                  WHERE gi6.PropertyGroupId = pg.Id
-                 ORDER BY gi6.SequenceInGroup, lt4.Id) AS AreaSquareWa
+                 ORDER BY gi6.SequenceInGroup, lt4.SequenceNumber, lt4.Id) AS AreaSquareWa
             FROM appraisal.PropertyGroups pg
             LEFT JOIN appraisal.PricingAnalysis pa
                 ON pa.AnchorId = pg.Id AND pa.SubjectType = 0
@@ -436,7 +436,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = lad.District
             LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = lad.SubDistrict
             WHERE ap.AppraisalId = @AppraisalId
-            ORDER BY pgi.PropertyGroupId, pgi.SequenceInGroup, lt.Id;
+            ORDER BY pgi.PropertyGroupId, pgi.SequenceInGroup, lt.SequenceNumber, lt.Id;
 
             -- RS14: Q16 — Per-group building details (all groups)
             SELECT
@@ -502,7 +502,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 bdd.Area,
                 bdd.[Year],
                 bdd.PriceAfterDepreciation,
-                bad.FinalCostValueOverride
+                bad.BuildingCostValue
             FROM appraisal.BuildingDepreciationDetails bdd
             JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
             JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
@@ -571,7 +571,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             WHERE ap.AppraisalId = @AppraisalId
               AND (lt.GovernmentPricePerSqWa IS NOT NULL
                    OR ISNULL(lt.IsMissingFromSurvey, 0) = 1)
-            ORDER BY lt.GovernmentPricePerSqWa, lt.Id;
+            -- Within one price: property by property (SequenceNumber restarts per land), then each land's own order.
+            ORDER BY lt.GovernmentPricePerSqWa, ap.SequenceNumber, lad.Id, lt.SequenceNumber, lt.Id;
 
             -- RS23: ราคาประเมินเดิม — the prior-appraisal link plus its LIVE appraised value,
             -- resolved through appraisal.Appraisals.PrevAppraisalId. Same field used for the current
@@ -1238,7 +1239,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                     grp => grp.Key,
                     grp =>
                     {
-                        var total = grp.First().FinalCostValueOverride
+                        var total = grp.First().BuildingCostValue
                                     ?? Math.Round(
                                         grp.Sum(d => d.PriceAfterDepreciation ?? 0m) / 1000m,
                                         MidpointRounding.AwayFromZero) * 1000m;
@@ -2024,7 +2025,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         /// The appraiser's keyed Building Cost Value for the owning property, repeated on every row
         /// of that property. Null = use the depreciated sum.
         /// </summary>
-        public decimal? FinalCostValueOverride { get; init; }
+        public decimal? BuildingCostValue { get; init; }
     }
 
     /// <summary>

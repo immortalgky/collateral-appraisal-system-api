@@ -105,6 +105,7 @@ public record QuotationAppraisalResult(
     string? PropertyType,
     string? Address,
     string? LoanType,
+    string? Channel,
     // v7: the appraisal's owning request — FE uses this to call `/requests/{requestId}/documents`
     // when building the "share documents" picker.
     Guid? RequestId,

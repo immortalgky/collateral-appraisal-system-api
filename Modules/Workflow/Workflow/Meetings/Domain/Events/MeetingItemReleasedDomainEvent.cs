@@ -8,7 +8,8 @@ public record MeetingItemReleasedDomainEvent(
     Guid WorkflowInstanceId,
     string ActivityId,
     string ReleasedBy,
-    IReadOnlyList<MeetingApprover> Members) : IDomainEvent;
+    IReadOnlyList<MeetingApprover> Members,
+    Guid? CommitteeId) : IDomainEvent;
 
 /// <summary>
 /// A meeting member as the downstream approval sees them: the user who votes and the

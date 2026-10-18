@@ -32,7 +32,6 @@ public class CreateWorkflowDefinitionEndpoint : ICarterModule
                 var result = await sender.Send(command, cancellationToken);
                 return Results.Created($"/api/workflows/definitions/{result.Id}", result);
             })
-            .AllowAnonymous()
             .WithName("CreateWorkflowDefinition")
             .WithTags("Workflows");
     }

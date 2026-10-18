@@ -149,7 +149,7 @@ public static class MenuSeedData
         new("main.standalone", "Standalone", "puzzle-piece", IconStyle.Solid, "text-teal-500", null, null, null,
             new List<MenuSeedNode>
             {
-                new("main.standalone.service-quality-evaluation", "Service Quality Evaluation", "star", IconStyle.Solid, "text-teal-500", "/standalone/service-quality-evaluation", "REPORT_EVALUATION_VIEW", null),
+                new("main.standalone.service-quality-evaluation", "Service Quality Evaluation", "star", IconStyle.Solid, "text-teal-500", "/standalone/service-quality-evaluation", "REPORT_EVALUATION_VIEW", "REPORT_EVALUATION_EDIT"),
                 new("main.standalone.history-search", "History Search", "map-location-dot", IconStyle.Solid, "text-teal-500", "/standalone/history-search", "HISTORY_SEARCH_VIEW", null),
                 new("main.standalone.block-unit-maintenance", "Block Unit Maintenance", "building-circle-check", IconStyle.Solid, "text-teal-500", "/standalone/block-unit-maintenance", "BLOCK_UNIT_MAINT_VIEW", "BLOCK_UNIT_MAINT_EDIT"),
                 new("main.standalone.supporting-data-maintenance", "Supporting Data Maintenance", "circle-info", IconStyle.Solid, "text-teal-500", "/standalone/supporting-data-maintenance", "SUPPORTING_DATA_MAINT_VIEW", "SUPPORTING_DATA_MAINT_EDIT"),
@@ -242,6 +242,8 @@ public static class MenuSeedData
                 new("main.logs", "Application Logs", "file-lines", IconStyle.Solid, "text-slate-500", "/admin/logs", "LOGS_VIEW", null),
                 new("main.webhook-subscriptions", "Webhook Subscriptions", "plug-circle-bolt", IconStyle.Solid, "text-slate-500", "/admin/webhook-subscriptions", "WEBHOOK_SUBSCRIPTIONS_MANAGE", null),
                 new("main.webhook-deliveries", "Webhook Deliveries", "satellite-dish", IconStyle.Solid, "text-slate-500", "/admin/webhook-deliveries", "WEBHOOK_DELIVERIES_VIEW", null),
+                new("main.failed-messages", "Failed Messages", "triangle-exclamation", IconStyle.Solid, "text-slate-500", "/admin/failed-messages", "FAILED_MESSAGE_VIEW", null,
+                    LabelTh: "ข้อความที่ประมวลผลไม่สำเร็จ"),
                 new("main.job-schedules", "Scheduled Jobs", "clock", IconStyle.Solid, "text-slate-500", "/admin/job-schedules", "JOB_SCHEDULE_MANAGE", "JOB_SCHEDULE_MANAGE"),
                 // The Hangfire dashboard itself, embedded by the SPA page at /admin/hangfire. This
                 // permission does double duty: it reveals the entry AND authorises the dashboard

@@ -41,6 +41,7 @@ public sealed record QuotationFeeNoticeModel(
     IReadOnlyList<QuotationFeeNoticeColumn> Columns,
     IReadOnlyList<QuotationFeeNoticeRow> Rows,
     string AdminName,
+    string? AdminPhone,
     string Channel);
 
 /// <summary>A table column header: report number, then property type + province name on their own lines.</summary>
@@ -55,7 +56,8 @@ public sealed record DocumentFollowupNoticeModel(
     string? CustomerName,
     string? AppraisalNumber,
     IReadOnlyList<DocumentFollowupNoticeItem> Items,
-    string AdminName);
+    string AdminName,
+    string? AdminPhone);
 
 /// <summary>A requested document: name shown as a header, notes as the body below.</summary>
 public sealed record DocumentFollowupNoticeItem(string DocumentName, string? Notes);

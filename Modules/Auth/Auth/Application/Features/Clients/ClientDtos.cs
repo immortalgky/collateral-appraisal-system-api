@@ -14,7 +14,7 @@ public class ClientListItemDto
     public List<string> Scopes { get; set; } = [];
     public bool HasSecret { get; set; }
 
-    /// <summary>Seeded core clients (spa/los/cls) cannot be deleted from the UI.</summary>
+    /// <summary>The seeded SPA client (spa) cannot be deleted from the UI.</summary>
     public bool IsSystem { get; set; }
 }
 

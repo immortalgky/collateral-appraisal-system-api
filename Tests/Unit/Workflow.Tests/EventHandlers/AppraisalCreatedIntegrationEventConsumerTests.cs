@@ -25,7 +25,7 @@ public class AppraisalCreatedIntegrationEventConsumerTests
     {
         await using var db = NewDb();
         var instanceRepository = Substitute.For<IWorkflowInstanceRepository>();
-        var unitOfWork = Substitute.For<IWorkflowUnitOfWork>();
+        var unitOfWork = NewUnitOfWork(db);
         var dateTimeProvider = Substitute.For<Shared.Time.IDateTimeProvider>();
         var inboxGuard = new InboxGuard<WorkflowDbContext>(
             db,
@@ -76,7 +76,7 @@ public class AppraisalCreatedIntegrationEventConsumerTests
     {
         await using var db = NewDb();
         var instanceRepository = Substitute.For<IWorkflowInstanceRepository>();
-        var unitOfWork = Substitute.For<IWorkflowUnitOfWork>();
+        var unitOfWork = NewUnitOfWork(db);
         var dateTimeProvider = Substitute.For<Shared.Time.IDateTimeProvider>();
         var inboxGuard = new InboxGuard<WorkflowDbContext>(
             db,
@@ -118,7 +118,7 @@ public class AppraisalCreatedIntegrationEventConsumerTests
     {
         await using var db = NewDb();
         var instanceRepository = Substitute.For<IWorkflowInstanceRepository>();
-        var unitOfWork = Substitute.For<IWorkflowUnitOfWork>();
+        var unitOfWork = NewUnitOfWork(db);
         var dateTimeProvider = Substitute.For<Shared.Time.IDateTimeProvider>();
         var inboxGuard = new InboxGuard<WorkflowDbContext>(
             db,
@@ -162,7 +162,7 @@ public class AppraisalCreatedIntegrationEventConsumerTests
     {
         await using var db = NewDb();
         var instanceRepository = Substitute.For<IWorkflowInstanceRepository>();
-        var unitOfWork = Substitute.For<IWorkflowUnitOfWork>();
+        var unitOfWork = NewUnitOfWork(db);
         var dateTimeProvider = Substitute.For<Shared.Time.IDateTimeProvider>();
         var inboxGuard = new InboxGuard<WorkflowDbContext>(
             db,
@@ -198,12 +198,23 @@ public class AppraisalCreatedIntegrationEventConsumerTests
 
     // ── Helpers ──
 
+    private static IWorkflowUnitOfWork NewUnitOfWork(WorkflowDbContext db)
+    {
+        var unitOfWork = Substitute.For<IWorkflowUnitOfWork>();
+        // The consumer does all its work inside strategy.ExecuteAsync. An auto-substituted strategy
+        // never invokes that delegate, so hand back the context's real (non-retrying) one.
+        unitOfWork.CreateExecutionStrategy().Returns(db.Database.CreateExecutionStrategy());
+        return unitOfWork;
+    }
+
     private static ConsumeContext<AppraisalCreatedIntegrationEvent> BuildContext(
         AppraisalCreatedIntegrationEvent message)
     {
         var ctx = Substitute.For<ConsumeContext<AppraisalCreatedIntegrationEvent>>();
         ctx.Message.Returns(message);
-        ctx.MessageId.Returns(Guid.NewGuid());
+        // null skips the inbox bookkeeping: MarkAsProcessedAsync is raw SQL, which the InMemory
+        // provider cannot run (same bypass as AppointmentDateChangedConsumerTests).
+        ctx.MessageId.Returns((Guid?)null);
         ctx.CancellationToken.Returns(CancellationToken.None);
         return ctx;
     }

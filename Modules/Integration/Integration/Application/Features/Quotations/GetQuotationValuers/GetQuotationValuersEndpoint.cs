@@ -20,6 +20,7 @@ public class GetQuotationValuersEndpoint : ICarterModule
         })
         .WithName("GetQuotationValuers")
         .WithTags("Integration - Quotations")
+        .RequireAuthorization("Integration")
         .Produces<GetQuotationValuersResult>()
         .ProducesProblem(StatusCodes.Status404NotFound);
     }

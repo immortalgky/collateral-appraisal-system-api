@@ -400,7 +400,7 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
             -- rows at all, and driving from that table dropped exactly the building this COALESCE
             -- exists to honour. Same join direction as PricingPropertyDataService.BuildingFinalCostValuesSql.
             -- ISNULL: no schedule and no override is worth 0, not NULL.
-            SELECT ISNULL(COALESCE(bad.FinalCostValueOverride,
+            SELECT ISNULL(COALESCE(bad.BuildingCostValue,
                                    ROUND(SUM(bdd.PriceAfterDepreciation), -3)), 0) AS BuildingValue
             FROM appraisal.BuildingAppraisalDetails bad
             JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
@@ -415,7 +415,7 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
                       WHERE gi.AppraisalPropertyId = ap.Id
                         AND gi.PropertyGroupId IN ({CiGroupsSql}))
                    OR NOT EXISTS ({CiGroupsSql}))
-            GROUP BY bad.Id, bad.FinalCostValueOverride
+            GROUP BY bad.Id, bad.BuildingCostValue
         ) b
         """;
 

@@ -45,12 +45,15 @@ public class DocumentFollowupRaisedNotificationHandler(
             FollowupWorkflowInstanceId = null,
             Recipient = recipient,
             Title = "Additional Documents Requested",
-            Message = $"A checker has requested {notification.DocumentTypes.Count} additional document(s)."
+            Message = $"A checker has requested {notification.LineItems.Count} additional document(s)."
         }, correlationId: notification.AppraisalId.ToString());
 
         var nameMap = await checklist.GetAllDocumentTypeNamesAsync(cancellationToken);
-        var displayNames = notification.DocumentTypes
-            .Select(code => nameMap.TryGetValue(code.ToUpperInvariant(), out var n) ? n : code)
+        var documents = notification.LineItems
+            .Select(li => new DocumentFollowupRequiredDocument(
+                li.DocumentType,
+                nameMap.TryGetValue(li.DocumentType.ToUpperInvariant(), out var n) ? n : li.DocumentType,
+                string.IsNullOrWhiteSpace(li.Notes) ? "" : li.Notes))
             .ToList();
 
         outbox.Publish(new DocumentFollowupRequiredIntegrationEvent
@@ -58,7 +61,8 @@ public class DocumentFollowupRaisedNotificationHandler(
             AppraisalId = notification.AppraisalId,
             FollowupId = notification.FollowupId,
             ReasonCode = "MISSING_DOCUMENT",
-            Reason = $"Missing documents: {string.Join(", ", displayNames)}"
+            Reason = $"Missing documents: {string.Join(", ", documents.Select(d => d.DocumentTypeName))}",
+            Documents = documents
         }, correlationId: notification.AppraisalId.ToString());
     }
 }

@@ -206,8 +206,46 @@ as files:
 
 Regenerate just the SQL sections (skipping the slow EF step) with:
 ```bash
-pwsh deploy/New-DbDeploymentScripts.ps1 -OutDir ./out/db -SkipEf
+pwsh deploy/New-DbDeploymentScripts.ps1 -OutDir ./out/db -SkipEf -ApiBaseUrl https://host:7111
 ```
+
+### Per-environment value: `-ApiBaseUrl`
+
+The browser now signs in through the API (it is the OIDC client of its own OpenIddict), so the `spa`
+OAuth client must have `{API}/signin-oidc` and `{API}/signout-callback-oidc` registered, where `{API}` is
+the environment's public API URL — the same value as `AppBaseUrl` in `appsettings.Production.json`.
+The one-time script `20261010090000_SeedData_SpaBffRedirectUris.sql` writes them and takes the URL as
+the DbUp variable `$ApiBaseUrl$`:
+
+| How the scripts are applied | Where the value comes from |
+|---|---|
+| `Publish.ps1` / `New-DbDeploymentScripts.ps1` (the `db/` bundle) | `-ApiBaseUrl https://host:7111`. `Publish.ps1` defaults it to `VITE_API_URL` of `.env.<FrontendMode>` (the same public API address), so a normal release needs nothing extra. It is substituted into the generated `03_OneTime_DataScripts.sql`; check the `PRINT` lines of that block in the run log. |
+| `Database.exe migrate <env>` (`Invoke-DbMigrate.ps1`, dev) | `Environments:<env>:Variables:ApiBaseUrl` in `appsettings.Database.json`, or the environment variable `Environments__<env>__Variables__ApiBaseUrl`. Development ships with `https://localhost:7111`. |
+
+> **Host rule.** `VITE_API_URL` (the SPA's build-time API address) should equal `AppBaseUrl` — same host and port.
+> The sign-in callback and the host-scoped session cookie land on `AppBaseUrl`; an SPA calling the API under another
+> host would sign in on one host and never send the cookie on the next. The API cannot judge this from the Host it
+> sees (that depends on how the load balancer forwards it), so it does not block: `GET /auth/login` only logs a
+> `[AUTH-HOST-MISMATCH]` warning once, and a sign-in that cannot complete (state/correlation failure) logs an
+> `[AUTH-OIDC-STATE-FAILURE]` error naming the request host and `AppBaseUrl`, and the final "Sign-in failed"
+> response repeats the hint. Nothing needs the F5 to preserve Host.
+>
+> **Session cookie names** end in a suffix derived from the `AppBaseUrl` port (`-7112`), so environments that share
+> a host (SIT1-4, UAT2-4) do not overwrite each other's cookies. There is nothing to configure: the template carries
+> `Auth:Session:CookieSuffix` commented out with its token `#{SESSION_COOKIE_SUFFIX}#`; uncomment it (and supply the
+> value) only to override.
+>
+> **`Auth:Idp:PublicBaseUrl`** is optional and also commented out in the template, with its token
+> `#{AUTH_IDP_PUBLIC_BASE_URL}#`: leave it commented until the IdP is split out of the API, then uncomment it and
+> supply the address browsers use to reach the IdP's login and sign-out pages.
+>
+> Both tokens are used only if the line is uncommented. If the deployment's token-replacement step fails on unknown
+> tokens even inside comments, define those two variables (empty is fine while the lines stay commented).
+
+If the `spa` client exists and no value was supplied the script **stops with an error** that says what to
+set; it never guesses. A database without a `spa` client (fresh install, CI) needs no value. If a bundle
+was generated without it, either regenerate with `-ApiBaseUrl`, or replace the `$ApiBaseUrl$` token in that
+script block by hand and re-run — the block is skipped once journaled, and a failed run is not journaled.
 
 ## What gets preserved (never overwritten on the server)
 
