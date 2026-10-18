@@ -1,7 +1,8 @@
-// Shared k6 wiring for the read-side load tests (search-tasks.js, search-appraisals.js).
+// Shared k6 wiring for the read-side load tests (search-tasks.js, search-appraisals.js, search-quick.js).
 //
-// Both scripts drive a paginated list endpoint the same way — same two load shapes, same bearer
-// auth, same threshold skeleton — so that part lives here rather than being copied per script.
+// The search scripts drive a paginated list endpoint the same way — same two load shapes, same
+// session-cookie auth (SESSION_COOKIE), same threshold skeleton — so that part lives here rather than
+// being copied per script.
 // Anything specific to an endpoint (its query shapes, its checks) stays in the script.
 
 /**
@@ -54,18 +55,16 @@ export function buildScenarios(cfg) {
 }
 
 /**
- * Request headers for a bearer token, accepting it with or without the "Bearer " prefix.
- * Throws when the token is missing: every one of these endpoints scopes rows by the caller,
+ * Request headers for a signed-in browser session: `cookie` is the "name=value" that get-appraisal-token.sh prints.
+ * These are SPA routes, which refuse Bearer tokens (the "Spa" policy), so a session cookie is the only way in.
+ * Throws when it is missing: every one of these endpoints scopes rows by the caller,
  * so an unauthenticated run would measure an empty result set and look misleadingly fast.
  */
-export function authHeaders(token, why) {
-  if (!token) {
-    throw new Error(`TOKEN is required: pass -e TOKEN="<jwt>". ${why ?? ''}`.trim());
+export function authHeaders(cookie, why) {
+  if (!cookie) {
+    throw new Error(`SESSION_COOKIE is required (the session cookie "name=value", not a token): pass -e SESSION_COOKIE="$(docs/load-test/get-appraisal-token.sh <user> <password>)". ${why ?? ''}`.trim());
   }
-  return {
-    Accept: 'application/json',
-    Authorization: token.toLowerCase().startsWith('bearer ') ? token : `Bearer ${token}`,
-  };
+  return { Accept: 'application/json', Cookie: cookie };
 }
 
 /** The thresholds both scripts assert: no errors, checks passing, and a p95 budget. */

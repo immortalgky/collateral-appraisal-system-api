@@ -40,6 +40,7 @@ public class GetDocumentEndpoint : ICarterModule
                 result.CreatedOn
             ));
         })
+        .RequireAuthorization("Integration")
         .WithName("GetDocumentForIntegration")
         .WithTags("Integration - Documents")
         .Produces<GetDocumentResponse>(StatusCodes.Status200OK)

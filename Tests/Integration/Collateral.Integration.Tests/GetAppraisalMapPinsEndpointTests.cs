@@ -1,3 +1,4 @@
+using Auth.Infrastructure.Session;
 using System.Net;
 using System.Security.Claims;
 using System.Text;
@@ -339,7 +340,7 @@ file sealed class ExternalCompanyAuthHandler(
             new Claim("permissions", "HISTORY_SEARCH_VIEW"),
             new Claim("company_id", Options.CompanyId.ToString()),
         };
-        var identity = new ClaimsIdentity(claims, Scheme.Name);
+        var identity = new ClaimsIdentity(claims, AuthSchemes.AppCookie);
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, Scheme.Name);
 
