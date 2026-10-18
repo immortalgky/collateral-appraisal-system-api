@@ -4,8 +4,8 @@ using Integration.Contracts.FixedWidth;
 namespace Integration.FileInterface.Format.Reappraisal;
 
 /// <summary>
-/// Writes the AS400 COLLATREV inbound interface — the fixed-width (649-char Detail) UTF-8 H/D/T file
-/// that <see cref="CollatrevFileParser"/> reads. Used by the dev test-file generator to produce a
+/// Writes the AS400 COLLATREV inbound interface — the fixed-width (650-char Detail, the V2 layout) UTF-8
+/// H/D/T file that <see cref="CollatrevFileParser"/> reads. Used by the dev test-file generator to produce a
 /// realistic file from real completed appraisals.
 ///
 /// Detail records are built with the shared <see cref="FixedWidthRecordBuilder"/> (same engine as the
@@ -14,8 +14,8 @@ namespace Integration.FileInterface.Format.Reappraisal;
 /// </summary>
 public sealed class CollatrevFileWriter
 {
-    /// <summary>Detail (D) record length per the vendor spec.</summary>
-    public const int DetailRecordLength = 649;
+    /// <summary>Detail (D) record length: the 649-char spec plus AS400's Auto Update flag at position 650.</summary>
+    public const int DetailRecordLength = 650;
 
     /// <summary>Header (H) and Trailer (T) record length per the vendor spec.</summary>
     public const int HeaderTrailerLength = 640;
@@ -62,9 +62,11 @@ public sealed class CollatrevFileWriter
         new("IBGRetail", 10, FixedWidthAlign.Left),
         new("Group", 1, FixedWidthAlign.Left),
         new("EffectiveDateAppraisal", 8, FixedWidthAlign.Left),
+        // Position 650: AS400's own Auto Update flag, 'Y' / 'N' / blank.
+        new("AutoUpdate", 1, FixedWidthAlign.Left),
     ];
 
-    // The builder's constructor validates the widths sum to DetailRecordLength (649).
+    // The builder's constructor validates the widths sum to DetailRecordLength (650).
     private static readonly FixedWidthRecordBuilder DetailBuilder =
         new(DetailFields, DetailRecordLength, FixedWidthOverflow.TruncateAll);
 

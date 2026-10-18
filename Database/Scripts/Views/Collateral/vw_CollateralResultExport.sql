@@ -1,10 +1,16 @@
 -- Outbound AS400 "Collateral Result" — one row per REVIEW result still owed to the host.
 --
 -- ── Scope ──────────────────────────────────────────────────────────────────────────────────────
--- Reappraisals only. This interface is the return leg of COLLATREV: AS400 sends a due-list, we
+-- Ordinary reappraisals only: AppraisalType 'ReAppraisal' AND request Purpose '03', completed on or
+-- after 2026-11-01. This interface is the return leg of COLLATREV: AS400 sends a due-list, we
 -- review, we report what the review concluded. A brand-new appraisal reaches the host through the
--- loan it belongs to, not through here. The filter is on AppraisalType in the Pending CTE below,
--- which explains why type and not provenance.
+-- loan it belongs to, not through here.
+--
+-- Purpose is read from the request, which is the source (appraisal.Appraisals.Purpose is a copy taken
+-- when the appraisal is created, never rewritten, and a submitted request's purpose is locked). Purpose
+-- '09' (block reappraisal) is ALSO stamped 'ReAppraisal' — AppraisalCreationService checks the type
+-- before the block flag — so AppraisalType alone cannot leave it out. The 2026-11-01 date is a go-live cutoff: everything completed before
+-- it is history the host never asked this file to carry. See the Pending CTE below.
 --
 -- ── Why this replaces the old query ────────────────────────────────────────────────────────────
 -- The previous version started from collateral.CollateralEngagements joined to CollateralMasters and
@@ -30,17 +36,31 @@
 -- The walk finds the ID only. Every value in the record — price, dates, valuer, areas — comes from
 -- the appraisal that was actually completed.
 --
--- ── One row, or none ───────────────────────────────────────────────────────────────────────────
--- An appraisal is sent with Auto Update 'Y' only when the walk lands on exactly one collateral. Land
--- more than one and we cannot say which collateral the price belongs to, so the id is left blank and
--- the flag goes out as 'N' for a human at the bank to resolve. A blank id still identifies the work:
--- the appraisal number is in the record.
+-- ── Collateral id and Auto Update ──────────────────────────────────────────────────────────────
+-- One row per pending appraisal. Auto Update is AS400's own decision, never ours: it is 'Y' only for an
+-- appraisal Initiate raised for a COLLATREV book (request.Requests.ReappraisalBookNumber), when the
+-- book's candidate carried 'Y' in COLLATREV position 650 at the moment Initiate ran (frozen on the
+-- request as ReappraisalAutoUpdate). See the Pending CTE below.
 --
--- Block projects are the exception, because there the ambiguity is resolvable. AS400 mints an id per
--- financed unit and names that unit twice — in CollateralName as "CONDO.<key> <deeds>", and as the
--- leading word of Address1. Either key can find the unit in appraisal.ProjectUnits, and the match
--- gives one row per financed collateral, each with its own price and its own land area rather than
--- the development's total repeated.
+--   * Raised by Initiate with a collateral id (ReappraisalCollateralId): the row carries THAT id. A
+--     book listed under several collaterals still reports only the one the request was raised for.
+--     Auto Update is the flag captured on the request at Initiate; none captured is 'N'.
+--   * Raised by Initiate without a collateral id, or raised by hand: the id comes from the chain walk
+--     above, and Auto Update is 'N'. The walk lands on exactly one collateral -> that id; more than
+--     one, or none -> the id is left blank for a human at the bank to resolve. A blank id still
+--     identifies the work: the appraisal number is in the record.
+--
+-- The chain walk never produces 'Y' any more: finding one collateral is a match, not AS400's say-so.
+--
+-- A block project is the exception to the walk, because there the ambiguity is resolvable. AS400 mints
+-- an id per financed unit and names that unit twice — in CollateralName as "CONDO.<key> <deeds>", and
+-- as the leading word of Address1. Either key can find the unit in appraisal.ProjectUnits, and the
+-- match gives one row per financed collateral, each with its own price and its own land area rather
+-- than the development's total repeated. A block is decided by the titles' CollateralType (32/33,
+-- see AppraisalCreationService), whatever the purpose, so a manual '03' of a block book still goes
+-- through ProjectUnitMatch and can emit one row per matched unit. It reports 'N' like every other
+-- walk result. Because Pending skips any appraisal that already has a ledger row, units that only
+-- match after the first send are not sent later — the same accepted trade-off as a blank id.
 --
 -- ── OPTION (MAXRECURSION 0) ────────────────────────────────────────────────────────────────────
 -- Cannot live inside a view; the caller supplies it. The walk is guarded by the visited path rather
@@ -70,12 +90,23 @@ Active AS (
 ),
 
 -- ── The appraisals still owed ──────────────────────────────────────────────────────────────────
--- Completed and not yet acknowledged for the id they would carry. The ledger is keyed on
--- (AppraisalId, CollateralId), so an appraisal sent earlier with a blank id is still owed once AS400
--- mints one — it pairs with a different key and goes out again.
+-- Completed in scope (see Scope above) and with no row at all in the sent ledger. An appraisal is
+-- done once ANY ledger row names it: one that went out with a blank id (Auto Update 'N') is not
+-- sent again when AS400 later mints an id, and a block project is not re-sent as it gains units.
 Pending AS (
-    SELECT a.Id AS AppraisalId, a.AppraisalNumber, a.PrevAppraisalId
+    SELECT a.Id AS AppraisalId, a.AppraisalNumber, a.PrevAppraisalId,
+           -- Raised by Initiate for a specific AS400 collateral: the request holds the id and AS400's
+           -- Auto Update flag as it was when Initiate ran (never read from the candidate, which later
+           -- COLLATREV files keep refreshing). A request with no flag captured is 'N'. NULL here means
+           -- the id comes from the chain walk instead. Requests.Id is the key, so one row per appraisal.
+           -- ReappraisalCollateralId is only ever set together with the book (MarkAsPeriodicalReappraisal).
+           r.ReappraisalCollateralId AS InitiatedCollateralId,
+           CASE WHEN r.ReappraisalCollateralId IS NOT NULL THEN r.ReappraisalAutoUpdate END AS InitiatedAutoUpdate
     FROM appraisal.Appraisals a
+    JOIN request.Requests r ON r.Id = a.RequestId
+                           AND r.IsDeleted = 0
+                           -- '09' is stamped 'ReAppraisal' too, so the type cannot exclude it; only the request can.
+                           AND r.Purpose = '03'
     WHERE a.Status = 'Completed'
       AND a.IsDeleted = 0
       -- This file answers COLLATREV. It reports what a REVIEW concluded, and the host has no use
@@ -83,25 +114,21 @@ Pending AS (
       -- through the loan it belongs to, not through this interface.
       --
       -- 'ReAppraisal' is set from the request's Purpose ('03' ordinary, '09' block) in
-      -- RequestSubmittedEventHandler; the constant lives in AppraisalTypes.cs. It deliberately does
+      -- RequestSubmittedEventHandler, and AppraisalCreationService keeps it ahead of the block check;
+      -- the constant lives in AppraisalTypes.cs. It deliberately does
       -- NOT mean "AS400 asked for it": of 1,606 completed reappraisals on the production-like set
       -- only ONE came through the SIBS channel that COLLATREV initiates, the rest being MANUAL, CLS
       -- and LOS. Scoping by provenance would leave a file of one row. A review is a review whoever
       -- started it.
       AND a.AppraisalType = 'ReAppraisal'
-      -- Narrowed before the walk, not after. The chain walk is recursive and the sent-ledger filter
-      -- sits at the very end, so without this every completed appraisal the system has ever produced
-      -- would be walked on every run to discard almost all of it. Three cases can still owe a row:
-      AND (
-          -- never sent at all
-          NOT EXISTS (SELECT 1 FROM collateral.CollateralResultLogs l WHERE l.AppraisalId = a.Id)
-          -- sent before AS400 had minted an id, so it is owed another turn once one exists
-          OR EXISTS (SELECT 1 FROM collateral.CollateralResultLogs l
-                      WHERE l.AppraisalId = a.Id AND l.CollateralId = '')
-          -- a block project sends one row per unit and can gain units between runs, so "already sent"
-          -- never settles it
-          OR EXISTS (SELECT 1 FROM appraisal.Projects pr WHERE pr.AppraisalId = a.Id)
-      )
+      -- Go-live cutoff, 1 Nov 2026 inclusive. CompletedAt is stored in local time, not UTC, so the
+      -- bare date is the right boundary. 'yyyymmdd' because it reads the same under every session
+      -- DATEFORMAT and language; the dashed form is language-dependent for datetime/smalldatetime.
+      AND a.CompletedAt >= '20261101'
+      -- Narrowed before the walk, not after. The chain walk is recursive, so without this every
+      -- completed appraisal the system has ever produced would be walked on every run to discard
+      -- almost all of it.
+      AND NOT EXISTS (SELECT 1 FROM collateral.CollateralResultLogs l WHERE l.AppraisalId = a.Id)
 ),
 
 Walk AS (
@@ -112,6 +139,8 @@ Walk AS (
         0 AS Depth,
         CAST('|' + CAST(p.AppraisalId AS varchar(36)) + '|' AS varchar(max)) AS Path
     FROM Pending p
+    -- An Initiated appraisal takes its id from the request, so there is nothing to walk for.
+    WHERE p.InitiatedCollateralId IS NULL
 
     UNION ALL
 
@@ -501,26 +530,24 @@ ProjectLandTotal AS (
     GROUP BY pr.AppraisalId
 ),
 
--- Assembled first so the sent-ledger filter below can see the collateral id each row resolved to;
--- that id is part of the key and cannot be known before this point.
+-- One row per pending appraisal (per matched unit for a block). The sent-ledger filter already ran in
+-- Pending, so nothing here has to be filtered again.
 Assembled AS (
 SELECT
     p.AppraisalId,
     p.AppraisalNumber                                        AS AppraisalReportNumber,
 
-    -- Blank whenever the collateral could not be pinned down to one. The appraisal number still
-    -- identifies the work, and Auto Update tells the host to look at it by hand.
+    -- The collateral Initiate raised the request for when there is one; otherwise the walk's, blank
+    -- whenever it could not be pinned down to one. The appraisal number still identifies the work.
     CASE
+        WHEN p.InitiatedCollateralId IS NOT NULL THEN p.InitiatedCollateralId
         WHEN pum.HostCollateralId IS NOT NULL THEN pum.HostCollateralId
         WHEN blk.AppraisalId IS NULL AND hc.Matches = 1 THEN nh.HostCollateralId
         ELSE ''
     END                                                      AS CollateralId,
 
-    CASE
-        WHEN pum.HostCollateralId IS NOT NULL THEN 'Y'
-        WHEN blk.AppraisalId IS NULL AND hc.Matches = 1 THEN 'Y'
-        ELSE 'N'
-    END                                                      AS AutoUpdate,
+    -- AS400's own flag as captured at Initiate (see Pending); every walk result is 'N'.
+    ISNULL(p.InitiatedAutoUpdate, 'N')                       AS AutoUpdate,
 
     -- A unit reports its own appraised value. When it has none the row goes out as zero rather than
     -- falling back to the appraisal total: that total is the whole development, and quoting it
@@ -582,6 +609,7 @@ LEFT JOIN IsBlock blk          ON blk.AppraisalId = p.AppraisalId
 LEFT JOIN NearestHit nh        ON nh.AppraisalId = p.AppraisalId
                               AND blk.AppraisalId IS NULL
                               AND hc.Matches = 1
+-- An Initiated appraisal never matches here: the Walk skips it, and every unit token comes from the Walk.
 LEFT JOIN ProjectUnitMatch pum ON pum.AppraisalId = p.AppraisalId
 LEFT JOIN Val v                ON v.AppraisalId = p.AppraisalId
 LEFT JOIN PropMix pm           ON pm.AppraisalId = p.AppraisalId
@@ -596,14 +624,4 @@ LEFT JOIN SelectedGroupLand sgl ON sgl.AppraisalId = p.AppraisalId
 LEFT JOIN Valuer vl            ON vl.AppraisalId = p.AppraisalId
 )
 
-SELECT r.*
-FROM Assembled r
--- Not yet acknowledged for this exact (appraisal, collateral) pair. Keying on the pair rather than
--- the appraisal alone is what lets a block send one row per unit, and what gives an appraisal sent
--- with a blank id another turn once AS400 mints one.
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM collateral.CollateralResultLogs l
-    WHERE l.AppraisalId = r.AppraisalId
-      AND l.CollateralId = r.CollateralId
-);
+SELECT r.* FROM Assembled r;

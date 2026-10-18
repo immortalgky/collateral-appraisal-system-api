@@ -20,8 +20,7 @@ internal static class PriorAppraisalNumberResolver
         IAppraisalLookupService appraisalLookup,
         string? purpose,
         RequestDetailDto? detail,
-        CancellationToken cancellationToken,
-        string? recordedBookNumber = null)
+        CancellationToken cancellationToken)
     {
         if (purpose == Request.Domain.Requests.Request.NewAppraisalPurpose)
             return detail;
@@ -36,13 +35,6 @@ internal static class PriorAppraisalNumberResolver
         var number = detail.PrevAppraisalNumber.Trim();
 
         if (Request.Domain.Requests.Request.IsLegacyPriorBook(number))
-            return detail with { PrevAppraisalNumber = Request.Domain.Requests.Request.NormalizeBookNumber(number) };
-
-        // A resubmit of a periodical reappraisal draft: the number is the book the system recorded on it (it need
-        // not be a 99A and has no CAS appraisal), so there is nothing to look up. The guard accepts it as that book.
-        if (!string.IsNullOrWhiteSpace(recordedBookNumber)
-            && Request.Domain.Requests.Request.NormalizeBookNumber(number)
-                == Request.Domain.Requests.Request.NormalizeBookNumber(recordedBookNumber))
             return detail with { PrevAppraisalNumber = Request.Domain.Requests.Request.NormalizeBookNumber(number) };
 
         // AS400's spelling (spaces, case, a leading 'B') is read the way the reappraisal flow reads it.

@@ -27,6 +27,10 @@ public class CollateralResultExportQuery(
     private const int InternalValuerCodeWidth = 4;
 
     /// <summary>
+    /// Ordered oldest valuation first, then report number, then by collateral id the way the file zero-fills it:
+    /// a shorter id first (LEN), then text — so numeric order for the digit-only ids ('99000001' before
+    /// '100000001').
+    ///
     /// The chain walk is recursive and the view cannot carry the hint itself — SQL Server rejects
     /// OPTION() inside a view definition, so the caller supplies it. 0 means "no limit": the guard is
     /// the visited path, and a numeric cap would silently truncate long construction-inspection
@@ -41,50 +45,17 @@ public class CollateralResultExportQuery(
             LifeYear, BuildingAge, AreaUtilization,
             LandAreaRai, LandAreaNgan, LandAreaSquareWa, LandAreaTotalSqWa
         FROM collateral.vw_CollateralResultExport
+        ORDER BY CurrentAppraisalDate ASC, AppraisalReportNumber, LEN(CollateralId), CollateralId
         OPTION (MAXRECURSION 0)
-        """;
-
-    /// <summary>
-    /// Rejected appraisals still owed an 'R' record.
-    ///
-    /// The join to appraisal.Appraisals carries the same two conditions as the approved side, and
-    /// both have to stay in step with vw_CollateralResultExport's Pending CTE. AppraisalType is the
-    /// scope — this interface answers COLLATREV, so a rejected appraisal the host never asked about
-    /// is not its business. IsDeleted is correctness: a soft-deleted appraisal is one the system no
-    /// longer reports, and shipping an 'R' for it would tell AS400 about work that was withdrawn.
-    ///
-    /// The join being INNER also drops a spooled row whose appraisal has disappeared entirely.
-    /// There is nothing sensible to send for one, and it would previously have gone out.
-    /// AppraisalRejectedConsumer spools EVERY rejection — it has no reason to know the file's scope —
-    /// so the narrowing happens on read. A row left out today is still in the table and would be
-    /// picked up unchanged if the scope ever widens, which spooling selectively would have prevented.
-    /// The cost is that rejections outside the scope keep SentAt NULL for good; that is a row nobody
-    /// is waiting on, not a backlog.
-    /// </summary>
-    private const string RejectedSql = """
-        SELECT p.AppraisalId, p.AppraisalNumber, p.HostCollateralId
-        FROM collateral.PendingCollateralResults p
-        JOIN appraisal.Appraisals a ON a.Id = p.AppraisalId
-        WHERE p.SentAt IS NULL
-          AND a.IsDeleted = 0
-          AND a.AppraisalType = 'ReAppraisal'
         """;
 
     public async Task<IReadOnlyList<CollateralResultRow>> GetUnsentRowsAsync(
         CancellationToken cancellationToken = default)
     {
-        var approved = await GetApprovedRowsAsync(cancellationToken);
-        var rejected = await GetRejectedRowsAsync(cancellationToken);
-
-        return [.. approved, .. rejected];
-    }
-
-    private async Task<List<CollateralResultRow>> GetApprovedRowsAsync(CancellationToken ct)
-    {
         var connection = connectionFactory.GetOpenConnection();
 
         var raw = (await connection.QueryAsync<ApprovedRow>(
-            new CommandDefinition(ApprovedSql, cancellationToken: ct, commandTimeout: 600))).ToList();
+            new CommandDefinition(ApprovedSql, cancellationToken: cancellationToken, commandTimeout: 600))).ToList();
 
         var rows = raw.Select(Map).ToList();
 
@@ -105,45 +76,14 @@ public class CollateralResultExportQuery(
                 + "those rows go out with a blank code rather than a truncated one. {Offenders}",
                 tooLong.Count, InternalValuerCodeWidth, string.Join(", ", tooLong.Take(50)));
 
-        var unmatched = rows.Count(r => r.AutoUpdate != "Y");
-        if (unmatched > 0)
+        var blankId = rows.Count(r => r.CollateralId.Length == 0);
+        if (blankId > 0)
             logger.LogInformation(
-                "[CollateralResultExportQuery] {Unmatched} of {Total} row(s) could not be tied to a single "
+                "[CollateralResultExportQuery] {Blank} of {Total} row(s) could not be tied to a single "
                 + "AS400 collateral; sent with a blank id and AutoUpdate 'N'",
-                unmatched, rows.Count);
+                blankId, rows.Count);
 
         return rows;
-    }
-
-    private async Task<List<CollateralResultRow>> GetRejectedRowsAsync(CancellationToken ct)
-    {
-        var connection = connectionFactory.GetOpenConnection();
-
-        var raw = await connection.QueryAsync<RejectedRow>(
-            new CommandDefinition(RejectedSql, cancellationToken: ct));
-
-        // A rejected appraisal never reached drawdown, so AS400 never minted an id for it. The row
-        // goes out with a blank CCDCID and the appraisal number carries the identification.
-        return raw.Select(r => new CollateralResultRow(
-                AppraisalId: r.AppraisalId,
-                CollateralId: r.HostCollateralId ?? string.Empty,
-                AppraisalReportNumber: r.AppraisalNumber,
-                AppraisalValue: null,
-                LandValue: null,
-                BuildingValue: null,
-                ForceSaleValue: null,
-                CurrentAppraisalDate: null,
-                NextAppraisalDate: null,
-                InternalValuerCode: null,
-                InternalValuerName: null,
-                ExternalValuerCode: null,
-                ExternalValuerName: null,
-                LifeYear: null,
-                AppraisalStatus: "R",
-                BuildingAge: null,
-                AreaUtilization: null,
-                AutoUpdate: "N"))
-            .ToList();
     }
 
     private static CollateralResultRow Map(ApprovedRow r)
@@ -172,7 +112,7 @@ public class CollateralResultExportQuery(
             AppraisalStatus: "A",
             BuildingAge: r.BuildingAge,
             AreaUtilization: r.AreaUtilization,
-            AutoUpdate: r.AutoUpdate == "Y" ? "Y" : "N",
+            AutoUpdate: r.AutoUpdate,
             LandAreaRai: r.LandAreaRai,
             LandAreaNgan: r.LandAreaNgan,
             LandAreaSquareWa: r.LandAreaSquareWa,
@@ -210,7 +150,7 @@ public class CollateralResultExportQuery(
         public Guid AppraisalId { get; init; }
         public string? CollateralId { get; init; }
         public string AppraisalReportNumber { get; init; } = null!;
-        public string? AutoUpdate { get; init; }
+        public string AutoUpdate { get; init; } = null!;
         public bool IsExternal { get; init; }
         public decimal? AppraisalValue { get; init; }
         public decimal? LandValue { get; init; }
@@ -229,12 +169,5 @@ public class CollateralResultExportQuery(
         public int? LandAreaNgan { get; init; }
         public decimal? LandAreaSquareWa { get; init; }
         public decimal? LandAreaTotalSqWa { get; init; }
-    }
-
-    private sealed class RejectedRow
-    {
-        public Guid AppraisalId { get; init; }
-        public string AppraisalNumber { get; init; } = null!;
-        public string? HostCollateralId { get; init; }
     }
 }

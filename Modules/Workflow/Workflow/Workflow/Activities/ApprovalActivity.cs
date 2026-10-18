@@ -660,8 +660,8 @@ public class ApprovalActivity : WorkflowActivityBase
                 }
 
                 // Emit committee rejection event when decision == "reject".
-                // Consumer: Collateral module spools a PendingCollateralResult so the next
-                // export run emits a status-R record to the AS400 Collateral Result interface.
+                // Consumer: Collateral module spools a PendingCollateralResult (the Collateral Result
+                // export no longer sends rejected appraisals, so the row stays unsent).
                 if (successOutput["decision"] is string rejDecision &&
                     string.Equals(rejDecision, "reject", StringComparison.OrdinalIgnoreCase))
                 {

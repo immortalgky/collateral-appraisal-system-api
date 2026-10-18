@@ -41,8 +41,6 @@ internal class UpdateRequestCommandHandler(
         if (requestorInfo is null)
             throw new NotFoundException("Requestor", command.RequestorEmployeeId);
 
-        request.EnsurePurposeUnchanged(command.Purpose);
-
         // Store only the requestor identity (employee code + name); org detail is resolved on read.
         request.Save(new RequestData(
             command.Purpose,
@@ -54,27 +52,11 @@ internal class UpdateRequestCommandHandler(
             command.IsPma
         ));
 
-        var prevAppraisalId = PriorAppraisalFields.NormalizeId(command.Detail?.PrevAppraisalId);
-
-        // A submitted request keeps its stored prior as is, so there is nothing to resolve: the id (or legacy
-        // number) is only checked against the stored one. Resolving anyway would cost a cross-module lookup per
-        // save, and a lookup that comes back empty (the prior was deleted since) must not wipe what the request
-        // was submitted with.
-        (string? Number, decimal? Value, DateTime? Date) prior;
-        if (request.HasBeenSubmitted())
-        {
-            request.EnsurePriorUnchanged(prevAppraisalId, command.Detail?.PrevAppraisalNumber);
-            prevAppraisalId = request.Detail?.PrevAppraisalId;
-            prior = (request.Detail?.PrevAppraisalNumber, request.Detail?.PrevAppraisalValue,
-                request.Detail?.PrevAppraisalDate);
-        }
-        else
-        {
-            var resolved = await PriorAppraisalFields.ResolveAsync(
-                mediator, request, prevAppraisalId,
-                LegacyPriorBook.ForUpdate(request.Purpose, command.Detail, request.Detail), cancellationToken);
-            prior = (resolved.Number, resolved.Value, resolved.Date);
-        }
+        // The purpose is guarded inside Request.Save (locked once submitted, or for an Initiate draft). The prior
+        // is resolved, or kept as stored, by the one shared rule.
+        var (prevAppraisalId, prior) = await PriorAppraisalFields.ResolveForSaveAsync(
+            mediator, request, command.Detail,
+            () => LegacyPriorBook.ForUpdate(request.Purpose, command.Detail, request.Detail), cancellationToken);
 
         var detail = RequestDetail.Create(new RequestDetailData(
             command.Detail?.HasAppraisalBook ?? false,

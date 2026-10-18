@@ -1,9 +1,8 @@
 namespace Collateral.Contracts.FileInterface;
 
 /// <summary>
-/// Returns one outbound row per unsent appraisal:
-/// - Status "A": completed appraisals not yet acknowledged for the collateral id they resolve to.
-/// - Status "R": spooled rejected appraisals in PendingCollateralResults where SentAt is NULL.
+/// Returns one outbound row per unsent appraisal (status "A"), or one per matched unit for a block
+/// project: completed reappraisals with no row in the sent ledger. Rejected appraisals ("R") are not sent.
 /// </summary>
 public interface ICollateralResultQuery
 {
@@ -39,11 +38,12 @@ public sealed record CollateralResultRow(
     /// path, off-system (Offline) engagements included.
     ///
     /// The two pairs are mutually exclusive: an appraisal ran on one path or the other, so exactly one
-    /// pair carries data and the other goes out blank. <c>R</c> rows blank both.
+    /// pair carries data and the other goes out blank.
     /// </summary>
     string? ExternalValuerCode,
     string? ExternalValuerName,
     int? LifeYear,
+    /// <summary>Always "A": rejected appraisals ("R") are no longer sent.</summary>
     string AppraisalStatus,
     /// <summary>
     /// Building age in years (CCEBIL, positions 199-201). Building types take the OLDEST building on
@@ -59,11 +59,10 @@ public sealed record CollateralResultRow(
     /// <summary>
     /// Whether AS400 may apply this result without a human looking at it (position 209).
     ///
-    /// 'Y' only when the appraisal resolved to exactly one AS400 collateral. Where it resolved to
-    /// several — or to none — the collateral id goes out blank and this goes out 'N', because we
-    /// cannot say which collateral the price belongs to and guessing would update the wrong one.
-    /// Every other field is still populated: they describe our appraisal and do not depend on the
-    /// match succeeding.
+    /// 'Y' only for a reappraisal Initiate raised for a COLLATREV book whose candidate carried AS400's
+    /// own 'Y' (position 650). Everything else goes out 'N'. A collateral id that could not be tied to
+    /// one collateral goes out blank. Every other field is still populated: they describe our
+    /// appraisal and do not depend on the match succeeding.
     /// </summary>
     string AutoUpdate = "N",
     /// <summary>

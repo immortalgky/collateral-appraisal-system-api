@@ -72,6 +72,29 @@ public class CollatrevWriterRoundTripTests
         Assert.Equal(new DateOnly(2019, 11, 28), d.EffectiveDateAppraisal);
     }
 
+    [Theory]
+    [InlineData("Y", "Y")]
+    [InlineData("N", "N")]
+    [InlineData(null, null)]
+    public void WriterOutput_Is650Chars_AndCarriesTheAutoUpdateFlagAtPosition650(string? flag, string? expected)
+    {
+        var writer = new CollatrevFileWriter();
+        var row = new Dictionary<string, string?>
+        {
+            ["ReviewType"] = "1",
+            ["ReviewDate"] = "01122026",
+            ["CollateralId"] = "60000001",
+            ["SurveyNo"] = "68A000001",
+            ["AutoUpdate"] = flag,
+        };
+
+        var detail = writer.BuildDetail(row);
+
+        Assert.Equal(650, detail.Length);
+        using var ms = new MemoryStream(Encoding.UTF8.GetBytes(BuildFile(writer, new DateOnly(2026, 6, 1), row)));
+        Assert.Equal(expected, Assert.Single(new CollatrevFileParser().ParseStream(ms).Details).AutoUpdate);
+    }
+
     [Fact]
     public void WriterOutput_PreservesThaiText_AsCharacters()
     {

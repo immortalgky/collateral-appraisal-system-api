@@ -27,6 +27,7 @@ WITH cand AS (
         JOIN appraisal.Projects p ON p.AppraisalId = a.Id
         WHERE a.AppraisalNumber = c.NormalizedSurveyNumber
           AND a.IsDeleted = 0
+          AND a.Status <> 'Cancelled'   -- a deleted or cancelled appraisal is not "in CAS" (same as Initiate)
         ORDER BY a.Id
     ) pj
     WHERE c.IsBlockUnit = 1
