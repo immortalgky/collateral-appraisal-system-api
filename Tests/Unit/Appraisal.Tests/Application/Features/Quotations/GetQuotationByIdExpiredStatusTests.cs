@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.Common;
+using Appraisal.Application.Features.Quotations.AutoAssign;
 using Appraisal.Application.Features.Quotations.GetQuotationById;
 using Appraisal.Contracts.Services;
 using Appraisal.Domain.Quotations;
@@ -131,7 +132,8 @@ public class GetQuotationByIdExpiredStatusTests
         var factory = Substitute.For<ISqlConnectionFactory>();
         factory.GetOpenConnection().Returns(new EmptyConnection());
         return new GetQuotationByIdQueryHandler(
-            repository, user, factory, Substitute.For<IQuotationTaskOwnershipService>());
+            repository, user, factory, Substitute.For<IQuotationTaskOwnershipService>(),
+            Substitute.For<IQuotationAutoAssignStateReader>());
     }
 
     // Dapper needs a DbConnection for its async calls; every lookup (company names, etc.) returns no rows.
