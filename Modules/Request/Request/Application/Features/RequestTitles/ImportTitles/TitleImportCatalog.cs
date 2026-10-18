@@ -156,6 +156,8 @@ public static class TitleImportCatalog
     [
         new("vehicleType", "Vehicle Type", ["ประเภทยานพาหนะ"], ParameterGroup: "VehicleType",
             MaxLength: 10, ForceTextFormat: true),
+        new("vehicleRegistrationNumber", "Vehicle Registration Number", ["เลขเล่มทะเบียนรถ"],
+            MaxLength: 50, ForceTextFormat: true),
         new("vin", "Chassis Number", ["VIN", "หมายเลขตัวถัง"], MaxLength: 50, ForceTextFormat: true),
         new("licensePlateNumber", "License Plate Number", ["ทะเบียนรถ"], MaxLength: 20, ForceTextFormat: true),
         new("vehicleLocation", "Appointment Location", ["สถานที่นัดหมาย"], MaxLength: 200)
@@ -199,13 +201,19 @@ public static class TitleImportCatalog
         string key, string name, string[] aliases, string[] families,
         params (string AppliesTo, IEnumerable<TitleImportColumn> Columns)[] typeBlocks)
     {
+        // The movables (vehicle, vessel, machine) have no title-document address, so their sheets get
+        // no such columns; the validator skips whatever address block a sheet does not declare.
+        var movableOnly = families.Any() && families.All(f => f is "VEH" or "MAC" or "VES");
+        (string AppliesTo, IEnumerable<TitleImportColumn> Columns)[] titleAddressBlock =
+            movableOnly ? [] : [("All", TitleAddress())];
+
         (string AppliesTo, IEnumerable<TitleImportColumn> Columns)[] blocks =
         [
             ("All", [CollateralTypeColumn]),
             ..typeBlocks,
             ("All", [OwnerNameColumn]),
             ("All", [NotesColumn]),
-            ("All", TitleAddress()),
+            ..titleAddressBlock,
             ("All", DopaAddress()),
             ("All", [CollateralStatusColumn])
         ];
