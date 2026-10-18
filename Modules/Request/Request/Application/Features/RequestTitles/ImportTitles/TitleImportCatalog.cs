@@ -63,7 +63,7 @@ public static class TitleImportCatalog
         string prefix, string labelPrefix, string thaiPrefix) =>
     [
         new($"{prefix}.houseNumber", $"{labelPrefix} House No",
-            [$"{thaiPrefix}บ้านเลขที่"], MaxLength: 10, ForceTextFormat: true),
+            [$"{thaiPrefix}บ้านเลขที่"], MaxLength: 50, ForceTextFormat: true),
         new($"{prefix}.projectName", $"{labelPrefix} Village/Building",
             [$"{thaiPrefix}หมู่บ้าน/อาคาร"], MaxLength: 100),
         new($"{prefix}.moo", $"{labelPrefix} Moo",
