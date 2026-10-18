@@ -140,6 +140,7 @@ public class Request : Aggregate<Guid>
         if (properties is not null && Properties.SequenceEqual(properties)) return;
 
         properties?
+            .Where(p => !RequestProperty.HasNoBuilding(p.PropertyType)) // several land rows are allowed
             .GroupBy(p => new { p.PropertyType, p.BuildingType })
             .Where(g => g.Count() > 1)
             .ToList()
