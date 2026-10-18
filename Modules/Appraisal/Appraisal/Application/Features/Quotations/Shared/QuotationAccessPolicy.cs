@@ -14,13 +14,17 @@ public static class QuotationAccessPolicy
     // Role checks
     // ─────────────────────────────────────────────────────────────────────────
 
+    /// <summary>True when the caller is an internal admin (role "Admin" or "IntAdmin").</summary>
+    public static bool IsAdmin(ICurrentUserService user) =>
+        user.IsInRole("Admin") || user.IsInRole("IntAdmin");
+
     /// <summary>
     /// Ensures the caller is an internal admin (role "Admin" or "IntAdmin").
     /// Throws UnauthorizedAccessException if not.
     /// </summary>
     public static void EnsureAdmin(ICurrentUserService user)
     {
-        if (!user.IsInRole("Admin") && !user.IsInRole("IntAdmin"))
+        if (!IsAdmin(user))
             throw new UnauthorizedAccessException("Only Admin users can perform this operation");
     }
 
@@ -41,7 +45,7 @@ public static class QuotationAccessPolicy
     /// </summary>
     public static void EnsureRmOrAdmin(QuotationRequest quotation, ICurrentUserService user)
     {
-        if (user.IsInRole("Admin") || user.IsInRole("IntAdmin"))
+        if (IsAdmin(user))
             return;
 
         if (!user.IsInRole("RequestMaker"))
@@ -63,7 +67,7 @@ public static class QuotationAccessPolicy
         QuotationRequest quotation,
         ICurrentUserService user)
     {
-        if (user.IsInRole("Admin") || user.IsInRole("IntAdmin"))
+        if (IsAdmin(user))
             return;
 
         if (user.IsInRole("RequestMaker"))
@@ -180,7 +184,7 @@ public static class QuotationAccessPolicy
         IEnumerable<CompanyQuotation> quotations,
         ICurrentUserService user)
     {
-        if (user.IsInRole("Admin") || user.IsInRole("IntAdmin"))
+        if (IsAdmin(user))
             return quotations;
 
         if (user.IsInRole("RequestMaker"))

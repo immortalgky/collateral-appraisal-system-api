@@ -34,6 +34,9 @@ public record ReappraisalInitiatedIntegrationEvent : IntegrationEvent
     public string? CifName { get; set; }
     public string? CollateralId { get; set; }
 
+    /// <summary>AS400's Auto Update flag ("Y"/"N") on the candidate at the moment Initiate ran; NULL when none was stored.</summary>
+    public string? AutoUpdate { get; set; }
+
     // ── Resolved appraisal link ──────────────────────────────────────────────
     /// <summary>
     /// The in-system Appraisal.Id this reappraisal is based on (resolved from SurveyNumber

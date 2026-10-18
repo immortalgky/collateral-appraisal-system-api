@@ -37,11 +37,13 @@ public interface IPartySlaEvaluator
 {
     /// <summary>
     /// Evaluates vendor and bank elapsed business time for <paramref name="correlationId"/>
-    /// (= Appraisal.RequestId) against the configured Stage-scope SLA budgets.
+    /// (= Appraisal.RequestId) against the configured Stage-scope SLA budgets. Vendor visits are
+    /// taken from <paramref name="appraisalId"/> only.
     /// Returns null when no completed tasks exist for this correlation.
     /// </summary>
     Task<PartySlaResult?> EvaluateAsync(
         Guid correlationId,
+        Guid appraisalId,
         Guid? workflowDefinitionId,
         Guid? companyId,
         string? loanType,
@@ -85,6 +87,7 @@ internal sealed class PartySlaEvaluator(
 
     public async Task<PartySlaResult?> EvaluateAsync(
         Guid correlationId,
+        Guid appraisalId,
         Guid? workflowDefinitionId,
         Guid? companyId,
         string? loanType,
@@ -140,15 +143,21 @@ internal sealed class PartySlaEvaluator(
         }
 
         // H1: Vendor window is appointment-anchored (appointment date → ext-appraisal-verification).
-        // Clip each vendor cycle's start to max(AssignedAt, appointmentDate) so time spent waiting
-        // before the visit date is excluded from the vendor SLA measurement.
-        var appointmentDate = await GetLatestNonCancelledAppointmentDateAsync(correlationId, ct);
-        if (appointmentDate.HasValue && vendorCycleBuckets.Count > 0)
+        // Clip each vendor cycle's start to its own visit — the latest non-cancelled appointment dated
+        // inside the cycle (start < date <= end) — so time spent waiting before the visit date is
+        // excluded. A visit belongs to one cycle: a rework round never inherits another round's date,
+        // and a cycle with no visit inside it stays unclipped.
+        if (vendorCycleBuckets.Count > 0)
         {
+            var appointmentDates = await GetLiveAppointmentDatesAsync(appraisalId, ct);
             foreach (var bucket in vendorCycleBuckets)
             {
-                if (bucket.Count > 0 && bucket[0].AssignedAt < appointmentDate.Value)
-                    bucket[0] = (appointmentDate.Value, bucket[0].CompletedAt);
+                if (bucket.Count == 0) continue;
+                var start = bucket[0].AssignedAt;
+                var end = bucket[^1].CompletedAt;
+                var visit = appointmentDates.Where(d => d > start && d <= end).Select(d => (DateTime?)d).Max();
+                if (visit is { } v)
+                    bucket[0] = (v, bucket[0].CompletedAt);
             }
         }
 
@@ -174,25 +183,27 @@ internal sealed class PartySlaEvaluator(
     }
 
     /// <summary>
-    /// Returns the most-recently-scheduled non-cancelled appointment date for this appraisal.
-    /// Returns null when no confirmed appointment exists (e.g. in-house workflow).
+    /// Returns the dates of this appraisal's appointments that still stand: not cancelled themselves
+    /// and not under a cancelled or rejected assignment — cancelling an assignment leaves its
+    /// appointments 'Appointed', and a replaced vendor's visit must not clip the new vendor's cycle.
+    /// AppraisalDateResolver does not exclude cancelled or rejected assignments; this differs on purpose.
+    /// Empty when none exists (e.g. in-house workflow).
     /// </summary>
-    private async Task<DateTime?> GetLatestNonCancelledAppointmentDateAsync(
-        Guid correlationId, CancellationToken ct)
+    private async Task<IReadOnlyList<DateTime>> GetLiveAppointmentDatesAsync(
+        Guid appraisalId, CancellationToken ct)
     {
-        var rows = await connectionFactory.QueryAsync<DateTime?>(
+        var rows = await connectionFactory.QueryAsync<DateTime>(
             """
-            SELECT TOP 1 a.AppointmentDateTime
+            SELECT a.AppointmentDateTime
             FROM appraisal.Appointments a
             INNER JOIN appraisal.AppraisalAssignments aa ON aa.Id = a.AssignmentId
-            INNER JOIN appraisal.Appraisals ap ON ap.Id = aa.AppraisalId
-            WHERE ap.RequestId = @CorrelationId
+            WHERE aa.AppraisalId = @AppraisalId
+              AND aa.AssignmentStatus NOT IN ('Cancelled', 'Rejected')
               AND a.Status <> 'Cancelled'
-            ORDER BY a.CreatedOn DESC
             """,
-            new DynamicParameters(new { CorrelationId = correlationId }));
+            new DynamicParameters(new { AppraisalId = appraisalId }));
 
-        return rows.FirstOrDefault();
+        return rows.ToList();
     }
 
     private async Task<PartySlaParty> BuildPartyAsync(

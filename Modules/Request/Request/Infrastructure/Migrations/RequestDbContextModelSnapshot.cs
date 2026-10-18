@@ -195,6 +195,10 @@ namespace Request.Infrastructure.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
+                    b.Property<string>("ReappraisalAutoUpdate")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
                     b.Property<string>("ReappraisalBookNumber")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");

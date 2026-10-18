@@ -90,9 +90,36 @@ public class CompanySelectionActivity : WorkflowActivityBase
         // This does NOT loop, because the admin screen stops offering "Route to External" while the
         // switch is off — see AdministrationPage. The guard here is the backing enforcement for any
         // caller that bypasses the UI.
-        var alreadyAssignedCompanyId = GetVariable<string>(context, "assignedCompanyId", "");
+        //
+        // The exemption only covers REUSING the engagement the case already holds, judged on the company this
+        // pass resolves to (below): the forced (construction inspection) company, else on Manual/Quotation the
+        // fresh selectedCompanyId (which wins over assignedCompanyId) or the assigned one, else on round robin the
+        // assigned one only when the replay guard fires. A different company, or a fresh round-robin pick, is a
+        // NEW engagement and the switch applies to it.
+        // Known gap (accepted): assignedCompanyId survives an ext cancel / return, so an admin re-picking that
+        // same company is treated as reuse and stays exempt.
+        var assignedCompanyId = GetVariable<string>(context, "assignedCompanyId", "");
+        var assignedCompanyName = GetVariable<string>(context, "assignedCompanyName", "");
+        var forceCompanyId = GetVariable<string>(context, "forceCompanyId", "");
+        var isForced = Guid.TryParse(forceCompanyId, out _);
+        var isManual = string.Equals(selectionMethod, "manual", StringComparison.OrdinalIgnoreCase);
+        var isQuotation = string.Equals(selectionMethod, "Quotation", StringComparison.OrdinalIgnoreCase);
+        var selectedCompanyId = isManual || isQuotation ? GetVariable<string>(context, "selectedCompanyId", "") : "";
+        // Replay guard: reuse the previously selected company if the selection condition (loanType) has not changed.
+        var replaysAssignedCompany = !isForced && !isManual && !isQuotation
+                                     && !string.IsNullOrEmpty(assignedCompanyId)
+                                     && GetVariable<string>(context, "assignedCompanyLoanType", "") == loanType;
 
-        if (string.IsNullOrEmpty(alreadyAssignedCompanyId)
+        // The effective company, resolved once. Id and name are taken as a pair so a name never comes from
+        // a different company. Empty means round robin picks a new one.
+        var (companyId, companyName) =
+            isForced ? (forceCompanyId, GetVariable<string>(context, "forceCompanyName", ""))
+            : !string.IsNullOrEmpty(selectedCompanyId) ? (selectedCompanyId, GetVariable<string>(context, "selectedCompanyName", ""))
+            : isManual || isQuotation || replaysAssignedCompany ? (assignedCompanyId, assignedCompanyName)
+            : ("", "");
+        var keepsAssignedCompany = !string.IsNullOrEmpty(assignedCompanyId) && SameCompany(companyId, assignedCompanyId);
+
+        if (!keepsAssignedCompany
             && !await _configReader.GetBoolAsync(CompanyAssignmentEnabledKey, defaultValue: true, cancellationToken))
         {
             SetNoMatch(outputData,
@@ -110,38 +137,35 @@ public class CompanySelectionActivity : WorkflowActivityBase
 
         // Construction Inspection: company is forced from the prior appraisal engagement.
         // Short-circuit selection entirely — no round-robin, no exclusion check.
-        var forceCompanyId = GetVariable<string>(context, "forceCompanyId", "");
-        var forceCompanyName = GetVariable<string>(context, "forceCompanyName", "");
-
-        if (!string.IsNullOrEmpty(forceCompanyId) && Guid.TryParse(forceCompanyId, out _))
+        if (isForced)
         {
-            if (!await IsAssignableAsync(forceCompanyId, cancellationToken))
-                return EscalateNotAssignable(context, outputData, forceCompanyId, "Forced");
+            var company = await GetAssignableCompanyAsync(companyId, cancellationToken);
+            if (company is null)
+                return EscalateNotAssignable(context, outputData, companyId, "Forced");
 
-            outputData["assignedCompanyId"] = forceCompanyId;
-            outputData["assignedCompanyName"] = forceCompanyName;
+            // A missing name is filled from the forced company itself.
+            if (string.IsNullOrEmpty(companyName))
+                companyName = company.Name;
+
+            outputData["assignedCompanyId"] = companyId;
+            outputData["assignedCompanyName"] = companyName;
             outputData["assignmentMethod"] = "Forced";
             outputData["decision"] = "company_selected";
 
             _logger.LogInformation(
                 "CompanySelectionActivity {ActivityId}: forced company {CompanyName} ({CompanyId}) for Construction Inspection",
-                context.ActivityId, forceCompanyName, forceCompanyId);
+                context.ActivityId, companyName, companyId);
 
-            PublishCompanyAssignedEvent(context, forceCompanyId, forceCompanyName, "Forced");
+            PublishCompanyAssignedEvent(context, companyId, companyName, "Forced");
             return ActivityResult.Success(outputData);
         }
 
-        var isManual = string.Equals(selectionMethod, "manual", StringComparison.OrdinalIgnoreCase);
-        var isQuotation = string.Equals(selectionMethod, "Quotation", StringComparison.OrdinalIgnoreCase);
         if (isManual || isQuotation)
         {
-            var companyId = GetVariable<string>(context, "assignedCompanyId", "");
-            if (string.IsNullOrEmpty(companyId))
-                companyId = GetVariable<string>(context, "selectedCompanyId", "");
-            var companyName = GetVariable<string>(context, "assignedCompanyName", "");
-            if (string.IsNullOrEmpty(companyName))
-                companyName = GetVariable<string>(context, "selectedCompanyName", "");
-
+            // companyId is the admin's fresh pick (selectedCompanyId, written by the Assign command on every
+            // resume), else the assigned one. assignedCompanyId is this activity's own output from an earlier
+            // pass, so on re-entry (route back, cancel, earlier round robin) it is stale and must not override
+            // a new pick.
             if (string.IsNullOrEmpty(companyId))
             {
                 _logger.LogWarning("CompanySelectionActivity {ActivityId}: {Method} selection but no company selected",
@@ -161,8 +185,13 @@ public class CompanySelectionActivity : WorkflowActivityBase
 
             // Block a manually/quotation-selected company that is outside its MOU approval window (e.g.
             // an MOU that lapsed between sending the quotation and finalising it). Escalate to admin.
-            if (!await IsAssignableAsync(companyId, cancellationToken))
+            var company = await GetAssignableCompanyAsync(companyId, cancellationToken);
+            if (company is null)
                 return EscalateNotAssignable(context, outputData, companyId, selectionMethod);
+
+            // A missing name is filled from the chosen company itself, never from another one.
+            if (string.IsNullOrEmpty(companyName))
+                companyName = company.Name;
 
             var normalizedMethod = isQuotation ? "Quotation" : "Manual";
 
@@ -183,22 +212,17 @@ public class CompanySelectionActivity : WorkflowActivityBase
             return ActivityResult.Success(outputData);
         }
 
-        // Replay guard: reuse previously selected company if the selection condition (loanType) has not changed
-        var existingCompanyId = GetVariable<string>(context, "assignedCompanyId", "");
-        var existingCompanyName = GetVariable<string>(context, "assignedCompanyName", "");
-        var existingLoanType = GetVariable<string>(context, "assignedCompanyLoanType", "");
-
-        if (!string.IsNullOrEmpty(existingCompanyId) && existingLoanType == loanType)
+        if (replaysAssignedCompany)
         {
-            outputData["assignedCompanyId"] = existingCompanyId;
-            outputData["assignedCompanyName"] = existingCompanyName;
+            outputData["assignedCompanyId"] = companyId;
+            outputData["assignedCompanyName"] = companyName;
             outputData["assignmentMethod"] = selectionMethod;
             outputData["assignedCompanyLoanType"] = loanType;
             outputData["decision"] = "company_selected";
 
             _logger.LogInformation(
                 "CompanySelectionActivity {ActivityId}: replaying — reusing previously selected company {CompanyName} ({CompanyId})",
-                context.ActivityId, existingCompanyName, existingCompanyId);
+                context.ActivityId, companyName, companyId);
 
             return ActivityResult.Success(outputData);
         }
@@ -250,14 +274,20 @@ public class CompanySelectionActivity : WorkflowActivityBase
         outputData["assignedCompanyName"] = "";
     }
 
-    // True only if the company exists and is within its MOU approval window — the same rule the
-    // round-robin path applies, so manual/quotation/forced selections can't route to an expired company.
-    private async Task<bool> IsAssignableAsync(string companyIdRaw, CancellationToken cancellationToken)
+    // The company when it exists and is within its MOU window — the same rule the round-robin path applies,
+    // so manual/quotation/forced selections can't route to an expired company — else null.
+    private async Task<Company?> GetAssignableCompanyAsync(string companyIdRaw, CancellationToken cancellationToken)
     {
-        if (!Guid.TryParse(companyIdRaw, out var id)) return false;
+        if (!Guid.TryParse(companyIdRaw, out var id)) return null;
         var company = await _companyRepository.GetByIdAsync(id, cancellationToken);
-        return company is not null && company.IsAssignable(_dateTimeProvider.ApplicationNow);
+        return company is not null && company.IsAssignable(_dateTimeProvider.ApplicationNow) ? company : null;
     }
+
+    // Guid text compared as Guids (case/format-insensitive); anything unparsable falls back to ordinal-ignore-case.
+    private static bool SameCompany(string a, string b) =>
+        Guid.TryParse(a, out var ga) && Guid.TryParse(b, out var gb)
+            ? ga == gb
+            : string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
     // Selected company can't take the assignment (outside its MOU window) — escalate to admin review
     // via the activity's no_match transition rather than publishing an assignment.

@@ -10,15 +10,14 @@ namespace Collateral.CollateralMasters.Consumers;
 
 /// <summary>
 /// Listens for <see cref="AppraisalRejectedIntegrationEvent"/> and spools a
-/// <see cref="PendingCollateralResult"/> row so the next <c>CollateralResultExportJob</c>
-/// run emits a status-R record to the AS400 Collateral Result interface.
+/// <see cref="PendingCollateralResult"/> row. The Collateral Result export does not read the spool
+/// (rejected appraisals are not sent to AS400), so the rows are kept with SentAt NULL.
 ///
 /// Idempotency: InboxGuard deduplicates retried/concurrent delivery; the unique index on
 /// <c>PendingCollateralResults.AppraisalId</c> is a second-line guard.
 ///
 /// HostCollateralId is NULL at this point — no CollateralEngagement exists before approval,
-/// so the AS400 collateral key cannot be resolved. The R row will be exported with a blank
-/// CCDCID field. See PendingCollateralResult for the full TODO note.
+/// so the AS400 collateral key cannot be resolved.
 /// </summary>
 public class AppraisalRejectedConsumer(
     CollateralDbContext dbContext,
@@ -58,7 +57,7 @@ public class AppraisalRejectedConsumer(
             : msg.RejectedAt;
 
         // TODO: resolve HostCollateralId from a pre-approval master-link when available.
-        // For now, stored as null; the export emits a blank CCDCID field for R rows.
+        // For now, stored as null.
         var pending = PendingCollateralResult.Create(
             appraisalId: msg.AppraisalId,
             appraisalNumber: msg.AppraisalNo ?? string.Empty,

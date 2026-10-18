@@ -15,8 +15,8 @@ namespace Request.Application.Services;
 ///     <see cref="Domain.Requests.Request.SetLegacyPriorBook"/>) — nothing in CAS to check, so it is accepted,
 ///     except for 06, 11 and 12: Progressive/CI and Appeal take copy/fee from the CAS appraisal, so those
 ///     need the id. A periodical reappraisal draft's own book (<c>Request.ReappraisalBookNumber</c>, set by the
-///     system; it need not be a 99A) counts too, but only while the request still carries that number - if staff
-///     cleared the prior, the required-prior check fails. Any other number alone is free text: it does not
+///     system; it need not be a 99A) counts too: it is the draft's stored prior, which staff cannot change or
+///     clear (the request is locked from creation). Any other number alone is free text: it does not
 ///     satisfy a purpose that requires a prior (same 400 as none), and on an optional purpose it is allowed
 ///     as is, with no lookup.
 ///

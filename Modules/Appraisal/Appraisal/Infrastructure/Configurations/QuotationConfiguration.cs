@@ -125,6 +125,9 @@ public class QuotationRequestAppraisalConfiguration : IEntityTypeConfiguration<Q
         builder.Property(a => a.AppraisalId).IsRequired();
         builder.Property(a => a.AddedAt).IsRequired();
         builder.Property(a => a.AddedBy).IsRequired().HasMaxLength(450);
+        builder.Property(a => a.AutoAssignResult).HasMaxLength(20);
+        builder.Property(a => a.AutoAssignMessage).HasMaxLength(500);
+        builder.Property(a => a.AutoAssignReasonCode).HasMaxLength(50);
 
         // ── FK: AppraisalId → Appraisals.Id (Restrict on delete) ─────────────
         // M5: FK added in follow-up migration AddFkQuotationRequestAppraisalToAppraisal.

@@ -1,14 +1,13 @@
 namespace Collateral.CollateralMasters.Models;
 
 /// <summary>
-/// Spool row for outbound "R" (rejected) records in the Collateral Result interface.
-/// Written by <c>AppraisalRejectedConsumer</c> when an appraisal is rejected by committee;
-/// read and marked sent by <c>CollateralResultExportJob</c> on the next run.
+/// Spool row recording that an appraisal was rejected by committee, written by
+/// <c>AppraisalRejectedConsumer</c>. The Collateral Result export no longer reads or marks it:
+/// rejections are still spooled, but they are not exported ("R" rows are not sent), so
+/// <see cref="SentAt"/> stays NULL for new rows (rows the old export marked keep their value).
 ///
-/// <see cref="HostCollateralId"/> (CCDCID) is always NULL, and that is correct: AS400 mints a
-/// collateral id at drawdown, which a rejected appraisal never reaches, so there is never an id to
-/// receive. R rows therefore go out with a blank CCDCID, which AS400 accepts because AppraisalNumber
-/// is the join key.
+/// <see cref="HostCollateralId"/> is always NULL, and that is correct: AS400 mints a collateral id at
+/// drawdown, which a rejected appraisal never reaches.
 ///
 /// Idempotency: <see cref="AppraisalId"/> has a unique index; duplicate delivery is suppressed
 /// by the InboxGuard on the consumer (first-write wins).
@@ -21,20 +20,22 @@ public class PendingCollateralResult
 
     /// <summary>
     /// Always NULL — a rejected appraisal never reaches drawdown, so AS400 never issues an id.
-    /// The column is kept only so the outbound file layout stays complete per the contract.
+    /// Nothing reads it now that the export does not send rejected appraisals.
     /// </summary>
     public string? HostCollateralId { get; private set; }
 
     public DateTime RejectedAt { get; private set; }
 
     /// <summary>
-    /// NULL until the export job writes and marks this row sent.
-    /// Non-null = already included in a file (at-least-once; AS400 upserts by AppraisalNumber).
+    /// NULL for every row spooled since the Collateral Result export stopped sending rejected appraisals: nothing
+    /// reads or marks this spool any more. Rows the old export had already marked keep their value. The column is
+    /// kept, with its index, only to avoid a migration.
     /// </summary>
     public DateTime? SentAt { get; private set; }
 
     /// <summary>
-    /// Name of the file this row was included in. Set alongside <see cref="SentAt"/>.
+    /// NULL for rows spooled since the export stopped sending them, like <see cref="SentAt"/>; rows the old export
+    /// had already marked keep the file name.
     /// </summary>
     public string? SentFileName { get; private set; }
 
@@ -56,14 +57,5 @@ public class PendingCollateralResult
             SentAt = null,
             SentFileName = null
         };
-    }
-
-    /// <summary>
-    /// Stamps this spool row as sent. Called by the export job after successfully writing the file.
-    /// </summary>
-    public void MarkSent(DateTime sentAt, string fileName)
-    {
-        SentAt = sentAt;
-        SentFileName = fileName;
     }
 }

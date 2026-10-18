@@ -29,7 +29,7 @@
 <body>
 <header>
   <h1>CAS ↔ AS400 fixed-width interfaces</h1>
-  <p>Shared engine · reappraisal move to Collateral · Regulatory (308) export · Collateral Result (202)</p>
+  <p>Shared engine · reappraisal move to Collateral · Regulatory (308) export · Collateral Result (231)</p>
 </header>
 <main>
 
@@ -40,9 +40,9 @@
     <div class="mermaid">
 flowchart LR
   subgraph AS400["AS400 / Host (SFTP)"]
-    IN[("COLLATREV inbound · 649")]
+    IN[("COLLATREV inbound · 650 (649 still accepted)")]
     OUTR[("Regulatory · 308")]
-    OUTC[("Collateral Result · 202")]
+    OUTC[("Collateral Result · 231")]
   end
   subgraph INTEG["Integration — Contracts = shared seam"]
     ISRC["IInboundFileSource"]
@@ -101,7 +101,7 @@ flowchart TB
     V1[("vw_RegulatoryExport<br/>one row per active master")] --> W1["RegulatoryFileWriter · 308"] --> S1["IOutboundFileSink.WriteAsync"]
   end
   subgraph res["Collateral Result - incremental sent-ledger"]
-    Q2["CollateralResultQuery<br/>unsent completed appraisals"] --> W2["CollateralResultFileWriter · 202"] --> S2["IOutboundFileSink.WriteAsync"]
+    Q2["vw_CollateralResultExport<br/>unsent completed reappraisals"] --> W2["CollateralResultFileWriter · 231"] --> S2["IOutboundFileSink.WriteAsync"]
     S2 --> L2[("CollateralResultLogs<br/>at-least-once ledger")]
   end
     </div>
@@ -114,7 +114,7 @@ flowchart TB
       <tr><td>A</td><td>Extract one <code>FixedWidthRecordBuilder/Reader</code> into Integration.Contracts; refactor the two duplicated writers</td><td><span class="tag new">new</span></td></tr>
       <tr><td>B</td><td>Move reappraisal vertical Request→Collateral; inbound transport → Integration; initiate via outbox event</td><td><span class="tag risk">touches working feature</span></td></tr>
       <tr><td>C</td><td>Regulatory 308 export in Collateral (mirror CollateralResult; full monthly snapshot from Master/Engagement)</td><td><span class="tag new">new</span></td></tr>
-      <tr><td>D</td><td>AS400 Collateral Result 202 — built &amp; registered; only the rejected-<code>R</code> case remains</td><td><span class="tag exists">mostly done</span></td></tr>
+      <tr><td>D</td><td>AS400 Collateral Result 231 — built &amp; registered; rejected (<code>R</code>) rows are not sent</td><td><span class="tag exists">done</span></td></tr>
     </table>
   </section>
 
