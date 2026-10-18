@@ -1,10 +1,18 @@
 ### OAuth2 Flow Testing for Collateral Appraisal System
+###
+### NOTE (BFF migration): the browser SPA no longer uses these flows. It signs in through the API
+### (GET /auth/login -> IdP -> /signin-oidc) and holds only a session cookie; POST /auth/token, POST /auth/refresh
+### and the password grant are gone. What is still useful here:
+###   - client_credentials for machine clients (LOS / CLS) — section 4 uses the `cls` client
+###   - poking OpenIddict directly with the `spa` client's auth-code + PKCE flow (the legacy
+###     https://localhost:3000/callback redirect URI stays registered for now)
+### The password-grant example below is expected to be rejected (unsupported_grant_type).
 ### Use with REST Client extension in VS Code or similar HTTP client
 
 @baseUrl = https://localhost:7111
 @clientId = spa
-@backgroundServiceClientId = background-service
-@backgroundServiceSecret = BackgroundService-P@ssw0rd-2024!
+@machineClientId = cls
+@machineClientSecret = YOUR_CLS_CLIENT_SECRET
 @redirectUri = https://localhost:3000/callback
 
 ### ============================================
@@ -63,17 +71,26 @@ POST {{baseUrl}}/connect/token
 Content-Type: application/x-www-form-urlencoded
 
 grant_type=client_credentials
-&client_id={{backgroundServiceClientId}}
-&client_secret={{backgroundServiceSecret}}
-&scope=api:process
+&client_id={{machineClientId}}
+&client_secret={{machineClientSecret}}
+&scope=integration
 
 ### Expected Response:
 ### {
 ###   "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
 ###   "token_type": "Bearer", 
 ###   "expires_in": 3600,
-###   "scope": "api:process"
+###   "scope": "integration"
 ### }
+
+### Same client WITHOUT the integration scope: the token is valid, but Integration routes answer 403 (section 10)
+POST {{baseUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials
+&client_id={{machineClientId}}
+&client_secret={{machineClientSecret}}
+&scope=appraisal.read
 
 ### ============================================
 ### 5. REFRESH TOKEN FLOW - Renew Access Token
@@ -99,13 +116,14 @@ grant_type=refresh_token
 ### 6. TEST PROTECTED API ENDPOINTS
 ### ============================================
 
-### Test with SPA access token (replace YOUR_SPA_ACCESS_TOKEN)
+### Test a SPA route (non-Production dev header)
+### NOTE: /requests is a SPA route: since the "Spa" policy a valid Bearer gets 403 here and a bad one 401.
 GET {{baseUrl}}/requests
-Authorization: Bearer YOUR_SPA_ACCESS_TOKEN
+X-Dev-Auth: dev-bypass
 Accept: application/json
 
-### Test with background service token (replace YOUR_SERVICE_ACCESS_TOKEN)
-GET {{baseUrl}}/api/processing/status
+### Test with machine token (replace YOUR_SERVICE_ACCESS_TOKEN; client_credentials with scope=integration, e.g. los/cls)
+GET {{baseUrl}}/api/v1/parameters
 Authorization: Bearer YOUR_SERVICE_ACCESS_TOKEN
 Accept: application/json
 
@@ -124,7 +142,7 @@ Content-Type: application/x-www-form-urlencoded
 grant_type=client_credentials
 &client_id=invalid-client
 &client_secret=wrong-secret
-&scope=api:process
+&scope=integration
 
 ### Expected: 400 Bad Request with invalid_client error
 
@@ -205,8 +223,10 @@ grant_type=authorization_code
 ### 9. TOKEN INTROSPECTION & VALIDATION TESTING
 ### ============================================
 
-### Test token with wrong audience (should fail API validation)
-### You'll need to create a token with different audience for this test
+### Test token with a different audience (expect 403, NOT 401)
+### Token validation does not check the audience (no AddAudiences): any unexpired access token issued by this
+### server authenticates, whatever its aud (type, issuer and lifetime are still validated).
+### /requests is a SPA route, so the Spa policy refuses it with 403; only a bad or expired token is 401.
 GET {{baseUrl}}/requests
 Authorization: Bearer TOKEN_WITH_WRONG_AUDIENCE
 Accept: application/json
@@ -225,19 +245,19 @@ Accept: application/json
 ### 10. SCOPE TESTING - Different Permission Levels
 ### ============================================
 
-### Access with insufficient scope (use SPA token on processing endpoint)
-GET {{baseUrl}}/api/processing/status
-Authorization: Bearer SPA_TOKEN_WITHOUT_API_PROCESS_SCOPE
+### Access with insufficient scope (use the section 4 token requested WITHOUT scope=integration, on an Integration endpoint)
+GET {{baseUrl}}/api/v1/parameters
+Authorization: Bearer TOKEN_WITHOUT_INTEGRATION_SCOPE
 Accept: application/json
 
 ### Expected: 403 Forbidden (insufficient scope)
 
-### Access with correct scope (use background service token)
-GET {{baseUrl}}/api/processing/status
-Authorization: Bearer BACKGROUND_SERVICE_TOKEN_WITH_API_PROCESS_SCOPE
+### Access with correct scope (use the section 4 token requested with scope=integration)
+GET {{baseUrl}}/api/v1/parameters
+Authorization: Bearer TOKEN_WITH_INTEGRATION_SCOPE
 Accept: application/json
 
-### Expected: 200 OK with processing status
+### Expected: 200 OK with the parameter list
 
 ### ============================================
 ### 11. LOGOUT FLOW TESTING
@@ -259,13 +279,16 @@ id_token_hint=YOUR_ID_TOKEN
 ### - [ ] Login with valid credentials works
 ### - [ ] Authorization code is returned in callback
 ### - [ ] Code can be exchanged for tokens
-### - [ ] Access token allows API access
+### - [ ] Access token carries the user's permissions: it passes user-permission policy endpoints (e.g.
+###       CanManageUsers), gets 403 on Spa (default) routes, and cannot reach Integration routes without
+###       scp:integration. The same holds for the section 5 refreshed token.
 ### - [ ] ID token contains user information
 
 ### ✅ Client Credentials Flow  
 ### - [ ] Valid client credentials return access token
 ### - [ ] Invalid credentials return error
-### - [ ] Access token allows API access
+### - [ ] Access token reaches the Integration (/api/v1) routes only, and only with scope=integration; the
+###       appraisal.read token reaches no route
 ### - [ ] Token contains correct scopes
 
 ### ✅ Refresh Token Flow
@@ -283,7 +306,7 @@ id_token_hint=YOUR_ID_TOKEN
 ### - [ ] Invalid tokens return 401  
 ### - [ ] Expired tokens return 401
 ### - [ ] Insufficient scopes return 403
-### - [ ] Valid tokens with correct scopes return 200
+### - [ ] Valid tokens with correct scopes return 200 (the section 4 client_credentials + integration token)
 
 ### ✅ Error Handling
 ### - [ ] All error responses include proper OAuth2 error codes

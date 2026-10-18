@@ -41,7 +41,7 @@ public class UpdateForceSaleRateCommandHandler(
             // ValuationDate is derived from the appraisal's appointments, NOT stamped with "now".
             // This is a rate-only edit that happens to be the first writer of the row, and
             // ValuationDate leads every appraisal-date read surface (the printed book, both AS400
-            // feeds, History Search, the +5-year reappraisal anchor) — seeding it with the moment
+            // feeds, History Search, the reappraisal list's last-appraisal date) — seeding it with the moment
             // someone changed a percentage would publish a save timestamp as the appraisal date.
             // ApplicationNow remains only when no appointment exists to derive from.
             var seedDate = await appraisalDateResolver
@@ -55,6 +55,11 @@ public class UpdateForceSaleRateCommandHandler(
         }
 
         valuation.SetForceSaleRate(command.ForceSellingRateOverride);
+
+        // A block's forced sale is the sum of its units' ForceSellingPrice, not appraised value x rate: the
+        // override is kept, but no value derived from it is written.
+        if (await db.Projects.AnyAsync(p => p.AppraisalId == command.AppraisalId, cancellationToken))
+            return Unit.Value;
 
         // FSP is always DERIVED, never hand-entered — the appraised total and insurance value do
         // NOT depend on the rate, so they pass through unchanged. Recomputing ForcedSaleValue from

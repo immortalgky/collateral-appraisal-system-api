@@ -174,8 +174,6 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
         builder.Property(e => e.FireInsuranceCode).HasMaxLength(200);
         builder.Property(e => e.BuildingInsurancePrice).HasPrecision(18, 2);
         builder.Property(e => e.BuildingInsurancePriceOverride).HasPrecision(18, 2);
-        builder.Property(e => e.SellingPrice).HasPrecision(18, 2);
-        builder.Property(e => e.ForcedSalePrice).HasPrecision(18, 2);
 
         // Other
         builder.Property(e => e.Remark).HasMaxLength(4000);

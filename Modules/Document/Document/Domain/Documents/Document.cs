@@ -1,4 +1,5 @@
 using Document.Domain.UploadSessions.Model;
+using Shared.Exceptions;
 
 namespace Document.Domain.Documents.Models;
 
@@ -187,11 +188,21 @@ public class Document : Aggregate<Guid>
         }
     }
 
-    public void Delete(string deletedBy)
+    /// <summary>
+    /// Soft delete only; the file stays on the share and ReferenceCount is untouched. Refused while
+    /// anything still links the file, since several records can share one DocumentId. The caller checks for
+    /// live links (IDocumentLinkChecker) — ReferenceCount is not trusted, it drifts. Deleting an already
+    /// deleted document does nothing, so who deleted it and when is never overwritten.
+    /// </summary>
+    public void Delete(string deletedBy, bool isLinked, DateTime deletedAt)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deletedBy);
+        if (IsDeleted)
+            return;
+        if (isLinked)
+            throw new ConflictException($"Document {Id} is still linked to a record and cannot be deleted.");
         IsDeleted = true;
-        DeletedAt = DateTime.Now;
+        DeletedAt = deletedAt;
         DeletedBy = deletedBy;
         IsActive = false;
     }

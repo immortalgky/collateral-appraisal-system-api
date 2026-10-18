@@ -101,7 +101,7 @@
 -- correct it.
 --
 -- ⚠ ValuationDate IS NEVER OVERWRITTEN. It leads the printed book, both AS400 result feeds, the
--- 360 view, Decision Summary and History Search, and anchors the +5-year reappraisal clock in
+-- 360 view, Decision Summary and History Search, and is the last-appraisal date in
 -- vw_ReappraisalCandidates. An existing row keeps the date it has. If there is NO row yet, one is
 -- created only when a non-cancelled appointment can supply a real date; otherwise the summary is
 -- skipped with a message rather than stamping today's date on the appraisal.

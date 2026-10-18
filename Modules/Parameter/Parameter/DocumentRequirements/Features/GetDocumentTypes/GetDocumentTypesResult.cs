@@ -12,6 +12,9 @@ public record DocumentTypeDto
     public string? Category { get; init; }
     public bool IsActive { get; init; }
     public int SortOrder { get; init; }
+    public bool CarryForwardByDefault { get; init; }
+    // Server-computed: these types are always carried forward, so the setting cannot be changed.
+    public bool IsCarryForwardLocked { get; init; }
     public DateTime? CreatedOn { get; init; }
     public DateTime? UpdatedOn { get; init; }
 }

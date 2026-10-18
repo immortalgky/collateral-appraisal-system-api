@@ -101,8 +101,6 @@ public static class LeaseAgreementCondoPropertyApplier
             environmentTypeOther: command.EnvironmentTypeOther,
             buildingInsurancePrice: buildingInsurancePrice,
             buildingInsurancePriceOverride: command.BuildingInsurancePriceOverride,
-            sellingPrice: command.SellingPrice,
-            forcedSalePrice: command.ForcedSalePrice,
             remark: command.Remark,
             landOffice: command.LandOffice,
             dopaAddress: dopaAddress,

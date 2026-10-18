@@ -93,7 +93,9 @@ public class GetUsersQueryHandler(
             u.Email, u.AvatarUrl, u.Position, u.Department, u.CompanyId, u.AuthSource,
             rolesByUser.TryGetValue(u.Id, out var roles) ? roles : [],
             u.IsActive,
-            u.LockoutEnd.HasValue && u.LockoutEnd.Value.UtcDateTime > nowUtc));
+            u.LockoutEnd.HasValue && u.LockoutEnd.Value.UtcDateTime > nowUtc,
+            u.IsTemporaryAccess,
+            u.AccessExpiresAt));
 
         return new GetUsersResult(items, total, pageNumber, pageSize);
     }

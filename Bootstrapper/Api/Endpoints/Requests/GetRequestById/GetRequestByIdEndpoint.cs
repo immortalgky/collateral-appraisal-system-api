@@ -20,7 +20,6 @@ public class GetRequestByIdEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithTags("Requests")
             .WithSummary("Get request by ID")
-            .WithDescription("Retrieves a specific request by its unique identifier.")
-            .AllowAnonymous();
+            .WithDescription("Retrieves a specific request by its unique identifier.");
     }
 }

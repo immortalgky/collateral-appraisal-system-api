@@ -159,7 +159,7 @@ public class GetAppraisalBriefQueryHandler(
                                     OUTER APPLY (SELECT TOP 1 t.TitleNumber
                                                  FROM appraisal.LandTitles t
                                                  WHERE t.LandAppraisalDetailId = ld.Id
-                                                 ORDER BY t.Id) lt
+                                                 ORDER BY t.SequenceNumber, t.Id) lt
                                     -- Area is SUMMED over every title, not taken from the first.
                                     -- One land property can hold several deeds — 16 of them do on
                                     -- the dev database — and TOP 1 silently reported one parcel's

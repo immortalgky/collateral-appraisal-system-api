@@ -2,6 +2,7 @@ using Appraisal.Application.Features.Quotations.Shared;
 using Appraisal.Contracts.Services;
 using Dapper;
 using Shared.Data;
+using Shared.Extensions;
 using Shared.Identity;
 
 namespace Appraisal.Application.Features.Quotations.GetQuotationById;
@@ -105,8 +106,9 @@ public class GetQuotationByIdQueryHandler(
             .ToList();
 
         // C2: build a lookup from the denormalized Items collection so we can enrich
-        // each appraisal join row with AppraisalNumber, PropertyType, Address, and LoanType.
-        // LoanType maps to BankingSegment (stored on the quotation at creation time).
+        // each appraisal join row with AppraisalNumber, PropertyType, Address, and BankingSegment.
+        // BankingSegment is the appraisal's own segment (live from the Appraisals table): a quotation
+        // has no single segment, only a Segment Set derived from its appraisals.
         var itemsByAppraisalId = quotation.Items
             .GroupBy(i => i.AppraisalId)
             .ToDictionary(g => g.Key, g => g.First());
@@ -133,7 +135,8 @@ public class GetQuotationByIdQueryHandler(
             .Select(a =>
             {
                 itemsByAppraisalId.TryGetValue(a.AppraisalId, out var item);
-                appraisalMetaMap.TryGetValue(a.AppraisalId, out var meta);
+                // A missing row (hard-deleted appraisal) reads as an empty one, as the default tuple used to.
+                var meta = appraisalMetaMap.GetValueOrDefault(a.AppraisalId) ?? new AppraisalMetaRow();
                 appraisalCustomerNamesMap.TryGetValue(a.AppraisalId, out var customerName);
                 // Prefer the live AppraisalNumber; fall back to the denormalized item value.
                 var appraisalNumber = !string.IsNullOrWhiteSpace(meta.AppraisalNumber)
@@ -154,8 +157,10 @@ public class GetQuotationByIdQueryHandler(
                     AppraisalNumber: appraisalNumber,
                     PropertyType: propertyType,
                     Address: item?.PropertyLocation,
-                    LoanType: quotation.BankingSegment,
                     Channel: channel,
+                    // Null for a soft-deleted appraisal: the FE builds its Segment Set from these rows, and it
+                    // must match the set computed below and in the Send guard.
+                    BankingSegment: meta.IsDeleted ? null : meta.BankingSegment,
                     RequestId: meta.RequestId == Guid.Empty ? null : meta.RequestId,
                     CustomerName: customerName,
                     MaxAppraisalDays: item?.MaxAppraisalDays,
@@ -166,6 +171,11 @@ public class GetQuotationByIdQueryHandler(
 
         // v7: enrich SharedDocuments with display metadata pulled from request documents.
         var sharedDocumentsEnriched = await EnrichSharedDocumentsAsync(quotation.SharedDocuments);
+
+        // Segment Set from the appraisals already loaded above, computed the same way as the Send guard
+        // (soft-deleted appraisals add nothing to it).
+        var segmentSet = SegmentCoverage.BuildSegmentSet(
+            appraisalMetaMap.Values.Where(m => !m.IsDeleted).Select(m => m.BankingSegment));
 
         // Resolve invited companies — include every invitation regardless of status so the
         // UI can render Expired (auto-declined at cutoff) rows alongside Pending/Submitted/Declined.
@@ -178,9 +188,24 @@ public class GetQuotationByIdQueryHandler(
                 .Select(i => i.CompanyId)
                 .ToArray();
             var companyInfoMap = await ResolveCompanyInfoAsync(invitationCompanyIds);
+            // Coverage only matters before Send, so only a Draft computes MissingSegments. There, a company
+            // row that no longer exists is still listed (id as the name, like the Send guard) with no loan
+            // types, so it reads as missing everything. Any other status skips such invitations.
+            var checkCoverage = quotation.Status == "Draft";
             invitedCompanies = invitationCompanyIds
-                .Where(id => companyInfoMap.ContainsKey(id))
-                .Select(id => new InvitedCompanyResult(id, companyInfoMap[id].Name, companyInfoMap[id].NameLocal, companyInfoMap[id].Email))
+                .Where(id => checkCoverage || companyInfoMap.ContainsKey(id))
+                .Select(id =>
+                {
+                    companyInfoMap.TryGetValue(id, out var info);
+                    var loanTypes = info.LoanTypes ?? [];
+                    return new InvitedCompanyResult(
+                        id,
+                        info.Name ?? id.ToString(),
+                        info.NameLocal,
+                        info.Email,
+                        loanTypes,
+                        checkCoverage ? SegmentCoverage.MissingSegments(segmentSet, loanTypes) : []);
+                })
                 .OrderBy(r => r.CompanyName)
                 .ToList();
         }
@@ -233,7 +258,7 @@ public class GetQuotationByIdQueryHandler(
             RequestId: quotation.RequestId,
             WorkflowInstanceId: quotation.WorkflowInstanceId,
             TaskExecutionId: quotation.TaskExecutionId,
-            BankingSegment: quotation.BankingSegment,
+            BankingSegment: segmentSet,
             RmUserName: quotation.RmUsername,
             RmUserFullName: rmUserFullName,
             SubmissionsClosedAt: quotation.SubmissionsClosedAt,
@@ -292,13 +317,13 @@ public class GetQuotationByIdQueryHandler(
         _ => code,
     };
 
-    private async Task<Dictionary<Guid, (Guid RequestId, string? AppraisalNumber, string? CollateralType, string? AppraisalType, string? Channel)>> ResolveAppraisalMetaAsync(Guid[] appraisalIds)
+    private async Task<Dictionary<Guid, AppraisalMetaRow>> ResolveAppraisalMetaAsync(Guid[] appraisalIds)
     {
         if (appraisalIds.Length == 0)
-            return new Dictionary<Guid, (Guid, string?, string?, string?, string?)>();
+            return new Dictionary<Guid, AppraisalMetaRow>();
 
         var connection = connectionFactory.GetOpenConnection();
-        var rows = await connection.QueryAsync<(Guid AppraisalId, Guid RequestId, string? AppraisalNumber, string? CollateralType, string? AppraisalType, string? Channel)>(
+        var rows = await connection.QueryAsync<AppraisalMetaRow>(
             """
             SELECT a.Id AS AppraisalId,
                    a.RequestId,
@@ -308,15 +333,28 @@ public class GetQuotationByIdQueryHandler(
                     WHERE rp.RequestId = a.RequestId
                     ORDER BY rp.Id) AS CollateralType,
                    a.AppraisalType,
-                   a.Channel
+                   a.Channel,
+                   a.BankingSegment,
+                   a.IsDeleted
             FROM [appraisal].[Appraisals] a
             WHERE a.Id IN @AppraisalIds
             """,
             new { AppraisalIds = appraisalIds });
 
-        return rows.ToDictionary(
-            r => r.AppraisalId,
-            r => (r.RequestId, r.AppraisalNumber, r.CollateralType, r.AppraisalType, r.Channel));
+        return rows.ToDictionary(r => r.AppraisalId);
+    }
+
+    // Plain properties so Dapper maps by column name, not position.
+    private sealed class AppraisalMetaRow
+    {
+        public Guid AppraisalId { get; set; }
+        public Guid RequestId { get; set; }
+        public string? AppraisalNumber { get; set; }
+        public string? CollateralType { get; set; }
+        public string? AppraisalType { get; set; }
+        public string? Channel { get; set; }
+        public string? BankingSegment { get; set; }
+        public bool IsDeleted { get; set; }
     }
 
     private async Task<Dictionary<Guid, string?>> ResolveAppraisalCustomerNamesAsync(Guid[] appraisalIds)
@@ -368,6 +406,7 @@ public class GetQuotationByIdQueryHandler(
             LEFT JOIN [parameter].[DopaDistricts] dd ON dd.Code = dsd.DistrictCode
             LEFT JOIN [parameter].[DopaProvinces] dp ON dp.Code = dd.ProvinceCode
             WHERE rt.RequestId IN @RequestIds
+            ORDER BY rt.SequenceNumber, rt.CreatedAt, rt.Id
             """,
             new { RequestIds = requestIds });
 
@@ -467,21 +506,21 @@ public class GetQuotationByIdQueryHandler(
         return rows.ToDictionary(r => r.Id, r => (r.Name, r.NameLocal));
     }
 
-    private async Task<Dictionary<Guid, (string Name, string? NameLocal, string? Email)>> ResolveCompanyInfoAsync(Guid[] companyIds)
+    private async Task<Dictionary<Guid, (string? Name, string? NameLocal, string? Email, List<string>? LoanTypes)>> ResolveCompanyInfoAsync(Guid[] companyIds)
     {
         if (companyIds.Length == 0)
-            return new Dictionary<Guid, (string, string?, string?)>();
+            return new Dictionary<Guid, (string?, string?, string?, List<string>?)>();
 
         var connection = connectionFactory.GetOpenConnection();
-        var rows = await connection.QueryAsync<(Guid Id, string Name, string? NameLocal, string? Email)>(
+        var rows = await connection.QueryAsync<(Guid Id, string Name, string? NameLocal, string? Email, string? LoanTypes)>(
             """
-            SELECT c.Id, c.Name, NULLIF(c.NameLocal, N'') AS NameLocal, c.Email
+            SELECT c.Id, c.Name, NULLIF(c.NameLocal, N'') AS NameLocal, c.Email, c.LoanTypes
             FROM [auth].[Companies] c
             WHERE c.Id IN @CompanyIds
             """,
             new { CompanyIds = companyIds });
 
-        return rows.ToDictionary(r => r.Id, r => (r.Name, r.NameLocal, r.Email));
+        return rows.ToDictionary(r => r.Id, r => (r.Name, r.NameLocal, r.Email, r.LoanTypes.ParseJsonStringArray()));
     }
 
     private async Task<IReadOnlyList<QuotationSharedDocumentResult>> EnrichSharedDocumentsAsync(

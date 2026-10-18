@@ -7,6 +7,9 @@ public class LandTitle : Entity<Guid>
 {
     public Guid LandAppraisalDetailId { get; private set; }
 
+    /// <summary>1-based position in the list the appraiser entered; 0 for rows that predate the column.</summary>
+    public int SequenceNumber { get; private set; }
+
     // Title Deed Info
     public string TitleNumber { get; private set; } = default!;
     public string TitleType { get; private set; } = default!;
@@ -90,6 +93,8 @@ public class LandTitle : Entity<Guid>
         GovernmentPrice = governmentPrice;
         Remark = remark;
     }
+
+    public void SetSequenceNumber(int sequenceNumber) => SequenceNumber = sequenceNumber;
 
     /// <summary>
     /// Changes the deed number / type of an existing title — <see cref="Update"/> never touches them.

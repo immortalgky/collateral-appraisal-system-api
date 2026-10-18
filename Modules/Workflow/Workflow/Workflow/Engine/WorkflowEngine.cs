@@ -555,6 +555,10 @@ public class WorkflowEngine : IWorkflowEngine
                 throw new InvalidOperationException(errorMessage);
             }
 
+            nextActivity = await RedirectToRoutedBackMeetingAsync(
+                context, currentActivity.Id, nextActivity, cancellationToken);
+            nextActivityId = nextActivity.Id;
+
             // Advance workflow to the next activity
             await _lifecycleManager.AdvanceWorkflowAsync(context.WorkflowInstance, nextActivityId,
                 completedBy: completedBy, cancellationToken: cancellationToken);
@@ -569,6 +573,60 @@ public class WorkflowEngine : IWorkflowEngine
 
             throw;
         }
+    }
+
+    /// <summary>
+    /// An appraisal routed back from a meeting must return to that same meeting, whatever its
+    /// reworked value. The tier switch picks by value, so a rework that drops below the meeting
+    /// threshold would route straight to approval and orphan the meeting item as RoutedBack —
+    /// the meeting could then never end. When the next step is an approval and this instance still
+    /// has an open item on a live meeting, steer to the meeting activity instead; MeetingActivity re-enters on
+    /// the item and the secretary releases it with that meeting's roster and committee.
+    /// Only follows an edge the schema already has, so the graph is never jumped.
+    /// </summary>
+    private async Task<ActivityDefinition> RedirectToRoutedBackMeetingAsync(
+        WorkflowExecutionContext context,
+        string currentActivityId,
+        ActivityDefinition next,
+        CancellationToken cancellationToken)
+    {
+        if (next.Type != ActivityTypes.ApprovalActivity)
+            return next;
+
+        // Meeting activities this step can reach. None (every non-meeting workflow, and every
+        // approval entered straight from its meeting) → no DB lookup at all.
+        // Several conditional edges may lead to the same meeting, so match on activity ids
+        // (unique) rather than keying a dictionary by transition target.
+        var targets = context.Schema.Transitions
+            .Where(t => t.From == currentActivityId)
+            .Select(t => t.To)
+            .ToHashSet();
+        var reachableMeetings = context.Schema.Activities
+            .Where(a => a.Type == ActivityTypes.MeetingActivity && targets.Contains(a.Id))
+            .ToList();
+        if (reachableMeetings.Count == 0)
+            return next;
+
+        var meetingActivityId = await _persistenceService.GetOpenMeetingItemActivityIdAsync(
+            context.WorkflowInstance.Id, cancellationToken);
+        if (meetingActivityId is null)
+            return next;
+
+        var meeting = reachableMeetings.FirstOrDefault(a => a.Id == meetingActivityId);
+        if (meeting is null)
+        {
+            _logger.LogWarning(
+                "ENGINE: Instance {InstanceId} has an open meeting item at {MeetingActivityId} but " +
+                "{CurrentActivityId} has no transition to it; continuing to {NextActivityId}",
+                context.WorkflowInstance.Id, meetingActivityId, currentActivityId, next.Id);
+            return next;
+        }
+
+        _logger.LogInformation(
+            "ENGINE: Instance {InstanceId} redirected from {NextActivityId} to {MeetingActivityId} — " +
+            "returning to the meeting it was routed back from",
+            context.WorkflowInstance.Id, next.Id, meetingActivityId);
+        return meeting;
     }
 
     /// <summary>

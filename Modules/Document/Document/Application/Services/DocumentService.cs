@@ -20,7 +20,8 @@ public class DocumentService(
     IImageResizeService imageResizeService,
     IChunkedUploadStore chunkedUploadStore,
     ILogger<DocumentService> logger,
-    IDateTimeProvider dateTimeProvider)
+    IDateTimeProvider dateTimeProvider,
+    IDocumentLinkChecker linkChecker)
     : IDocumentService, IDocumentCreatorService
 {
     private readonly FileStorageConfiguration _fileStorageConfiguration = fileStorageOptions.Value;
@@ -357,23 +358,19 @@ public class DocumentService(
         if (document is null)
             throw new NotFoundException($"Document {id} not found");
 
+        // A repeated delete is a no-op success: nothing to check, nothing to overwrite.
+        if (document.IsDeleted)
+            return true;
+
         var username = currentUserService.Username ?? "anonymous";
-        document.Delete(username);
+        // ponytail: check-then-act — a link made between this check and the commit is not seen. Soft delete is
+        // reversible and the file stays on the share, so no lock; take one if that window ever matters.
+        document.Delete(
+            username, await linkChecker.HasLiveLinksAsync(id, cancellationToken), dateTimeProvider.ApplicationNow);
 
         await _documentRepository.UpdateAsync(document, cancellationToken);
 
-        if (File.Exists(document.StoragePath))
-        {
-            File.Delete(document.StoragePath);
-            logger.LogInformation("Physical file deleted at {StoragePath}", document.StoragePath);
-        }
-        else
-        {
-            logger.LogWarning("Physical file not found at {StoragePath} for document {DocumentId}",
-                document.StoragePath, id);
-        }
-
-        logger.LogInformation("Document {DocumentId} deleted by {Username}", id, username);
+        logger.LogInformation("Document {DocumentId} soft-deleted by {Username}", id, username);
 
         return true;
     }

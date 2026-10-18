@@ -133,7 +133,7 @@ internal static class BuildingSectionLoader
                 bdd.TotalDepreciationPct,
                 bdd.PriceDepreciation          AS DepreciationAmount,
                 bdd.PriceAfterDepreciation,
-                bad.FinalCostValueOverride
+                bad.BuildingCostValue
             FROM appraisal.BuildingDepreciationDetails bdd
             JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
             JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
@@ -266,7 +266,7 @@ internal static class BuildingSectionLoader
             // KEEP IN SYNC with AppraisalSummaryLandBuildingDataProvider's buildingValueById.
             decimal? totalValueAfterDepr = deps.Count == 0
                 ? null
-                : deps[0].FinalCostValueOverride
+                : deps[0].BuildingCostValue
                   ?? Math.Round(
                       deps.Sum(r => r.PriceAfterDepreciation) / 1000m,
                       MidpointRounding.AwayFromZero) * 1000m;
@@ -434,7 +434,7 @@ internal static class BuildingSectionLoader
         /// The appraiser's keyed Building Cost Value for the owning property, repeated on every row
         /// of that property. Null = use the depreciated sum.
         /// </summary>
-        public decimal? FinalCostValueOverride { get; init; }
+        public decimal? BuildingCostValue { get; init; }
     }
 
     private sealed class ParamRow

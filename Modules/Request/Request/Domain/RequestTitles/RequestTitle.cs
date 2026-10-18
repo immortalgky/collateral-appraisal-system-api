@@ -15,6 +15,9 @@ public abstract class RequestTitle : Aggregate<Guid>
     public Address DopaAddress { get; protected set; } = default!;
     public string? Notes { get; protected set; }
 
+    /// <summary>1-based position in the list the requester entered; 0 for rows that predate the column.</summary>
+    public int SequenceNumber { get; protected set; }
+
     private readonly List<TitleDocument> _documents = [];
     public IReadOnlyList<TitleDocument> Documents => _documents.AsReadOnly();
 
@@ -58,15 +61,24 @@ public abstract class RequestTitle : Aggregate<Guid>
         Notes = requestTitleData.Notes;
     }
 
+    public void SetSequenceNumber(int sequenceNumber) => SequenceNumber = sequenceNumber;
+
     public virtual void Validate()
     {
         ArgumentNullException.ThrowIfNull(CollateralType);
-        ArgumentNullException.ThrowIfNull(TitleAddress);
         ArgumentNullException.ThrowIfNull(DopaAddress);
 
-        TitleAddress.Validate();
+        if (RequiresTitleAddress)
+        {
+            ArgumentNullException.ThrowIfNull(TitleAddress);
+            TitleAddress.Validate();
+        }
+
         DopaAddress.Validate();
     }
+
+    /// <summary>Movables (vehicle, machine, vessel) have no title-document address; immovables do.</summary>
+    protected virtual bool RequiresTitleAddress => true;
 
     #region Document Management
 

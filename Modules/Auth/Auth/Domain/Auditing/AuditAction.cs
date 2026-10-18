@@ -8,5 +8,7 @@ public enum AuditAction
     AssignmentChanged,
     LoggedIn,
     LoginFailed,
-    LoggedOut
+    LoggedOut,
+    SessionStarted,
+    SessionEnded
 }

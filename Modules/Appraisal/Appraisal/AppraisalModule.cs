@@ -12,6 +12,8 @@ using Shared.Data.Seed;
 using Appraisal.Contracts.Services;
 using Appraisal.Scheduling;
 using Shared.Scheduling;
+using Appraisal.Application.Features.Assignments.GetAssignmentDefaults;
+using Appraisal.Infrastructure.FileAssignmentDefaults;
 
 namespace Appraisal;
 
@@ -92,6 +94,9 @@ public static class AppraisalModule
         // and the outbound regulatory file cannot drift apart.
         services.AddScoped<IConstructionCurrentValueService, ConstructionCurrentValueService>();
 
+        // Per-Appraisal-Type defaults for the Administration page (Config/assignment-defaults.json).
+        services.AddSingleton<IAssignmentDefaultsProvider, FileAssignmentDefaultsProvider>();
+
         // Register Application Services (pricing)
         services.AddScoped<PricingPropertyDataService>();
         services.AddScoped<PricingReferenceCleanupService>();
@@ -120,6 +125,9 @@ public static class AppraisalModule
         // the admin regenerate endpoint.
         services.AddTransient<AppraisalSummaryAutoAttachJob>();
 
+        // Hangfire hourly job: refreshes Appraisals.SLAStatus (see AppraisalRecurringJobs).
+        services.AddTransient<AppraisalSlaStatusRefreshJob>();
+
         // Register supporting data repository
         services.AddScoped<ISupportingDataRepository, SupportingDataRepository>();
         services.AddScoped<IRepository<SupportingData, Guid>, SupportingDataRepository>();
@@ -131,6 +139,9 @@ public static class AppraisalModule
     {
         app.UseDataSeeding<AppraisalDbContext>();
         app.UseModuleRecurringJobs<AppraisalDbContext>(AppraisalRecurringJobs.All);
+
+        // Read the assignment defaults file now so a bad or missing deploy shows in the startup log.
+        _ = app.ApplicationServices.GetRequiredService<IAssignmentDefaultsProvider>().Current;
         return app;
     }
 }

@@ -27,9 +27,6 @@ public class UpdateLeaseAgreementLandAndBuildingPropertyCommandHandler(
 
         LeaseAgreementLandAndBuildingPropertyApplier.Apply(property, command);
 
-        // 11. Save aggregate
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
-
         await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
 
         return Unit.Value;

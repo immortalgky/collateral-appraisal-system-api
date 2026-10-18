@@ -43,5 +43,7 @@ public record ProjectUnitPriceDto(
     // Condo-only calculated
     decimal? PriceIncrementPerFloor,
     // LB-only calculated
-    decimal? LandIncreaseDecreaseAmount
+    decimal? LandIncreaseDecreaseAmount,
+    // Sale status — sold units are listed too and priced like any other
+    bool IsSold
 );

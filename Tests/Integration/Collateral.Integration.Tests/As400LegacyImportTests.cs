@@ -282,10 +282,9 @@ public class As400LegacyImportTests(IntegrationTestFixture fixture)
     /// <summary>
     /// A legacy engagement must never reach the outbound COLLATERAL_RESULT file.
     ///
-    /// Its value came FROM AS400; sending it back would report an appraisal we never performed. And
-    /// it qualifies on every other count the query tests — the master carries an id, it is IsMaster,
-    /// it is not deleted, the engagement is the master's latest, and nothing has been logged against
-    /// its synthetic AppraisalId. Only the AppraisalType filter stops it.
+    /// Its value came FROM AS400; sending it back would report an appraisal we never performed. The
+    /// file is now built from appraisal.Appraisals (vw_CollateralResultExport), which a legacy
+    /// engagement never has a row in — this pins that it stays that way.
     /// </summary>
     [Fact]
     public async Task LegacyEngagement_IsNeverSentBackToAs400()
@@ -313,49 +312,5 @@ public class As400LegacyImportTests(IntegrationTestFixture fixture)
 
         Assert.DoesNotContain(rows, r => r.CollateralId == hostId);
         Assert.DoesNotContain(rows, r => r.AppraisalReportNumber == appId);
-    }
-
-    /// <summary>
-    /// The other half of that filter, and the one that actually bit.
-    ///
-    /// When a legacy valuation shares its date with the master's newest CAS appraisal it sorts ahead
-    /// of it (it was inserted later, so it wins the CreatedAt tiebreak). If the query picks the
-    /// master's representative first and rejects legacy rows second, that master emits NOTHING — the
-    /// real appraisal is not the latest, and the latest is filtered out. Collateral the bank holds
-    /// then vanishes from the file with no error. It happened to 135 masters on a production-like
-    /// import before the filter was moved inside the subquery.
-    /// </summary>
-    [Fact]
-    public async Task LegacyEngagementSharingTheLatestDate_DoesNotHideTheRealAppraisal()
-    {
-        using var scope = CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<CollateralDbContext>();
-        var factory = scope.ServiceProvider.GetRequiredService<ISqlConnectionFactory>();
-        await EnsureListingTableAsync(factory);
-        await ClearListingAsync(factory);
-
-        var hostId = $"97{Random.Shared.Next(100000, 999999)}";
-        var appId = $"99A{Random.Shared.Next(10000, 99999)}";
-        var sharedDate = new DateTime(2024, 6, 1);
-
-        var masterId = await SeedMasterWithIdAsync(db, hostId, sharedDate);
-        // Same date as the real appraisal — passes the importer's "strictly newer" guard.
-        await SeedListingAsync(factory, appId, hostId, sharedDate, 1_500_000m);
-
-        var result = await ImportAsync(scope, appId);
-        Assert.Equal(1, result.Attached);
-
-        var rows = await scope.ServiceProvider.GetRequiredService<ICollateralResultQuery>()
-            .GetUnsentRowsAsync();
-
-        // The real appraisal must still be sent, carrying the master's id...
-        var row = Assert.Single(rows, r => r.CollateralId == hostId);
-        // ...and it must be the CAS one, never the legacy valuation.
-        Assert.NotEqual(appId, row.AppraisalReportNumber);
-
-        var realAppraisalId = await db.CollateralEngagements.AsNoTracking()
-            .Where(e => e.CollateralMasterId == masterId && e.AppraisalType != "AS400Legacy")
-            .Select(e => e.AppraisalId).SingleAsync();
-        Assert.Equal(realAppraisalId, row.AppraisalId);
     }
 }

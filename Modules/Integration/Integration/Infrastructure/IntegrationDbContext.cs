@@ -1,3 +1,4 @@
+using Integration.Domain.FailedMessages;
 using Integration.Domain.IdempotencyRecords;
 using Integration.Domain.WebhookDeliveries;
 using Integration.Domain.WebhookSubscriptions;
@@ -17,6 +18,9 @@ public class IntegrationDbContext(DbContextOptions<IntegrationDbContext> options
     public DbSet<WebhookSecretRevealLog> WebhookSecretRevealLogs => Set<WebhookSecretRevealLog>();
     public DbSet<FileInterfaceConfigEntity> FileInterfaceConfigs => Set<FileInterfaceConfigEntity>();
     public DbSet<InboundFileLog> InboundFileLogs => Set<InboundFileLog>();
+    public DbSet<FailedMessage> FailedMessages => Set<FailedMessage>();
+    public DbSet<BrokerSnapshot> BrokerSnapshots => Set<BrokerSnapshot>();
+    public DbSet<FailedMessageAuditLog> FailedMessageAuditLogs => Set<FailedMessageAuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

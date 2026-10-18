@@ -32,7 +32,6 @@ public class GetRequestsEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithTags("Requests")
             .WithSummary("Get all requests")
-            .WithDescription("Retrieves all requests from the system with pagination support.")
-            .AllowAnonymous();
+            .WithDescription("Retrieves all requests from the system with pagination support.");
     }
 }

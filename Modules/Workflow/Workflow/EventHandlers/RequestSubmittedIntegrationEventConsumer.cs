@@ -271,6 +271,7 @@ public class RequestSubmittedIntegrationEventConsumer(
             RequestedBy = message.RequestedBy,
             RequestedAt = message.RequestedAt,
             PrevAppraisalId = resolvedPrevAppraisalId,
+            PrevAppraisalNumber = message.PrevAppraisalNumber,
             AppraisalType = message.AppraisalType,
             GroupTag = message.GroupTag
         };

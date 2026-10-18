@@ -59,9 +59,6 @@ public class SaveDecisionSummaryCommandHandler(
                         ?? await db.ValuationAnalyses
                             .FirstOrDefaultAsync(v => v.AppraisalId == command.AppraisalId, cancellationToken);
 
-        var forceSaleRate = await forceSaleRateResolver.ResolveAsync(
-            command.AppraisalId, valuation?.ForceSaleRate, cancellationToken);
-
         // Book Verification override: persist the 3 review values into ValuationAnalyses.
         // When IsPriceVerified != true, zero out all 3 fields.
         // When verified, null TotalAppraisalPriceReview is persisted as 0m (not skipped).
@@ -80,8 +77,24 @@ public class SaveDecisionSummaryCommandHandler(
         if (command.IsPriceVerified == true)
         {
             appraisedReview = command.TotalAppraisalPriceReview ?? 0m;
-            forcedReview = Math.Round(appraisedReview * forceSaleRate / 100m / 1000, MidpointRounding.AwayFromZero) * 1000;
-            insuranceReview = await ComputeBuildingInsuranceAsync(command.AppraisalId, cancellationToken);
+            var (insurance, block) = await ComputeInsuranceAndBlockSumsAsync(
+                command.AppraisalId, cancellationToken);
+            insuranceReview = insurance;
+            // A block's forced sale scales with the typed total by the units' own ratio (see
+            // BlockForcedSaleReview); the override rate only applies to a normal appraisal.
+            forcedReview = block is not null
+                ? BlockForcedSaleReview(
+                    appraisedReview, block.UnitTotal, block.ForcedSale,
+                    block.UnitTotal > 0
+                        ? 0m   // unused: the units' own ratio applies
+                        : await forceSaleRateResolver.ResolveBlockEffectivePercentAsync(
+                            command.AppraisalId, cancellationToken))
+                : Math.Round(
+                    appraisedReview
+                    * await forceSaleRateResolver.ResolveAsync(
+                        command.AppraisalId, valuation?.ForceSaleRate, cancellationToken)
+                    / 100m / 1000,
+                    MidpointRounding.AwayFromZero) * 1000;
         }
         else
         {
@@ -95,8 +108,8 @@ public class SaveDecisionSummaryCommandHandler(
             // ValuationDate is derived from the appraisal's appointments, NOT stamped with "now".
             // Saving the decision summary is not an appraisal event, but this is the first writer of
             // the row when no pricing has been entered — and ValuationDate leads every appraisal-date
-            // read surface (the printed book, both AS400 feeds, History Search, the +5-year
-            // reappraisal anchor), so "now" would publish a save timestamp as the appraisal date.
+            // read surface (the printed book, both AS400 feeds, History Search, the reappraisal list's
+            // last-appraisal date), so "now" would publish a save timestamp as the appraisal date.
             // ApplicationNow remains only when no appointment exists to derive from.
             var seedDate = await appraisalDateResolver
                                .ResolveFromAppointmentsAsync(command.AppraisalId, cancellationToken)
@@ -134,9 +147,32 @@ public class SaveDecisionSummaryCommandHandler(
             decision.HasConstructionPhotoDoc);
     }
 
-    private async Task<decimal> ComputeBuildingInsuranceAsync(Guid appraisalId, CancellationToken ct)
+    /// <summary>
+    /// Block Book Verification forced sale for a typed appraised total: the typed total times the units' own
+    /// forced-sale-to-appraisal ratio, rounded to the nearest 1,000. With no unit total, the project's effective
+    /// % stands in for the ratio. When the typed total equals the unit total the result is exactly the unit sum
+    /// (not rounded, so an imported price list reaches the review as stored).
+    /// </summary>
+    internal static decimal BlockForcedSaleReview(
+        decimal appraisedReview, decimal unitTotal, decimal unitForcedSale, decimal effectivePercent)
     {
-        // Block appraisal: insurance = SUM(ProjectUnitPrices.CoverageAmount)
+        if (unitTotal > 0 && appraisedReview == unitTotal) return unitForcedSale;
+
+        // Multiply first, divide last: a repeating ratio (4.1M / 6M) truncated in decimal would push an exact
+        // x,500 result below the half and round it the wrong way.
+        var scaled = unitTotal > 0
+            ? appraisedReview * unitForcedSale / unitTotal
+            : appraisedReview * effectivePercent / 100m;
+        return Math.Round(scaled / 1000, MidpointRounding.AwayFromZero) * 1000;
+    }
+
+    /// <summary>
+    /// Insurance for the review, plus the unit sums when the appraisal is a block (null otherwise).
+    /// Block: plain sums over every unit's stored prices, matching ValuationAnalyses.
+    /// </summary>
+    private async Task<(decimal Insurance, BlockSums? Block)> ComputeInsuranceAndBlockSumsAsync(
+        Guid appraisalId, CancellationToken ct)
+    {
         var blockParam = new DynamicParameters();
         blockParam.Add("AppraisalId", appraisalId);
 
@@ -148,20 +184,25 @@ public class SaveDecisionSummaryCommandHandler(
 
         if (projectId.HasValue)
         {
-            // Exclude sold units — block building insurance covers remaining unsold inventory only,
-            // consistent with the unit-price appraisal and the Decision Summary block totals.
-            const string blockInsuranceSql = """
-                SELECT ROUND(ISNULL(SUM(pup.CoverageAmount), 0), -3)
+            // Every unit counts, sold or not — consistent with the unit-price appraisal and the
+            // Decision Summary block totals. Plain sums, not rounded: they must equal
+            // ValuationAnalyses (an imported price list is kept verbatim).
+            const string blockSumsSql = """
+                SELECT ISNULL(SUM(pup.CoverageAmount), 0) AS Insurance,
+                       ISNULL(SUM(pup.ForceSellingPrice), 0) AS ForcedSale,
+                       ISNULL(SUM(pup.TotalAppraisalValueRounded), 0) AS UnitTotal
                 FROM appraisal.ProjectUnitPrices pup
                 JOIN appraisal.ProjectUnits pu ON pu.Id = pup.ProjectUnitId
                 JOIN appraisal.Projects p ON p.Id = pu.ProjectId
-                WHERE p.AppraisalId = @AppraisalId AND pu.IsSold = 0
+                WHERE p.AppraisalId = @AppraisalId
                 """;
-
-            return await connectionFactory.QueryFirstOrDefaultAsync<decimal>(blockInsuranceSql, blockParam);
+            var sums = await connectionFactory.QueryFirstOrDefaultAsync<BlockSums>(blockSumsSql, blockParam)
+                       ?? new BlockSums(0m, 0m, 0m);
+            return (sums.Insurance, sums);
         }
 
-        return await BuildingInsuranceCalculator.ComputeAsync(connectionFactory, appraisalId);
+        return (await BuildingInsuranceCalculator.ComputeAsync(connectionFactory, appraisalId), null);
     }
 
+    private sealed record BlockSums(decimal Insurance, decimal ForcedSale, decimal UnitTotal);
 }

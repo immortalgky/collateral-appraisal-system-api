@@ -278,6 +278,61 @@ public class UpdatePropertyHandlerCharacterisationTests
     private UpdateBuildingPropertyCommandHandler BuildingHandler() => new(_repository, _valuationSummary);
 
     [Fact]
+    public async Task Building_insurance_follows_the_depreciation_rows_until_the_appraiser_types_a_value()
+    {
+        var (appraisal, property) = Seed(a => a.AddBuildingProperty());
+        var building = property.BuildingDetail!;
+        var dep = building.AddDepreciationDetail("Gross", "main", 10m, 2020, true, priceAfterDepreciation: 250_400m);
+        dep.Id = NewId();
+
+        // Nothing typed: the stored value is computed from the IsBuilding rows.
+        await BuildingHandler().Handle(new UpdateBuildingPropertyCommand(appraisal.Id, property.Id), Ct);
+        Assert.Equal(250_000m, building.BuildingInsurancePrice);
+
+        // The row changes and the screen sends null again: the stored value follows the row.
+        await BuildingHandler().Handle(new UpdateBuildingPropertyCommand(
+            appraisal.Id, property.Id,
+            DepreciationDetails: [new DepreciationItemData(dep.Id, "Gross", "main", 10m, 2020, PriceAfterDepreciation: 312_600m)]), Ct);
+        Assert.Equal(313_000m, building.BuildingInsurancePrice);
+
+        // A typed value wins over the rows.
+        await BuildingHandler().Handle(new UpdateBuildingPropertyCommand(
+            appraisal.Id, property.Id, BuildingInsurancePrice: 400_000m), Ct);
+        Assert.Equal(400_000m, building.BuildingInsurancePrice);
+    }
+
+    [Fact]
+    public async Task Building_cost_value_follows_every_depreciation_row_until_the_appraiser_types_a_value()
+    {
+        var (appraisal, property) = Seed(a => a.AddBuildingProperty());
+        var building = property.BuildingDetail!;
+        var dep = building.AddDepreciationDetail("Gross", "main", 10m, 2020, true, priceAfterDepreciation: 250_400m);
+        dep.Id = NewId();
+        var fence = building.AddDepreciationDetail("Gross", "fence", 1m, 2020, false, priceAfterDepreciation: 100_000m);
+        fence.Id = NewId();
+
+        // Nothing typed: computed from ALL rows (the Non-Building fence included); insurance from IsBuilding rows.
+        await BuildingHandler().Handle(new UpdateBuildingPropertyCommand(appraisal.Id, property.Id), Ct);
+        Assert.Equal(350_000m, building.BuildingCostValue);
+        Assert.Equal(250_000m, building.BuildingInsurancePrice);
+
+        // A row changes and the screen sends null again: the stored value follows it.
+        await BuildingHandler().Handle(new UpdateBuildingPropertyCommand(
+            appraisal.Id, property.Id,
+            DepreciationDetails:
+            [
+                new DepreciationItemData(dep.Id, "Gross", "main", 10m, 2020, PriceAfterDepreciation: 312_600m),
+                new DepreciationItemData(fence.Id, "Gross", "fence", 1m, 2020, IsBuilding: false, PriceAfterDepreciation: 100_000m),
+            ]), Ct);
+        Assert.Equal(413_000m, building.BuildingCostValue);
+
+        // A typed value wins.
+        await BuildingHandler().Handle(new UpdateBuildingPropertyCommand(
+            appraisal.Id, property.Id, BuildingCostValue: 500_000m), Ct);
+        Assert.Equal(500_000m, building.BuildingCostValue);
+    }
+
+    [Fact]
     public async Task Building_writes_fields_syncs_children_clears_construction_and_recomputes()
     {
         var (appraisal, property) = Seed(a => a.AddBuildingProperty());
@@ -295,7 +350,7 @@ public class UpdatePropertyHandlerCharacterisationTests
             appraisal.Id, property.Id,
             OwnerNameBuilding: "Owner",
             TotalBuildingArea: 250m,
-            SellingPrice: 900m,
+            BuildingInsurancePrice: 420_000m,
             DepreciationDetails:
             [
                 new DepreciationItemData(dep.Id, "Period", "edited", 12m, 2021,
@@ -310,7 +365,7 @@ public class UpdatePropertyHandlerCharacterisationTests
 
         Assert.Equal("Owner", building.OwnerName);
         Assert.Equal(250m, building.TotalBuildingArea);
-        Assert.Equal(900m, building.SellingPrice);
+        Assert.Equal(420_000m, building.BuildingInsurancePrice); // the appraiser's own coverage
 
         Assert.Equal(2, building.DepreciationDetails.Count);
         Assert.DoesNotContain(building.DepreciationDetails, d => d.Id == gone.Id);

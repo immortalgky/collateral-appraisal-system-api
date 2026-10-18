@@ -1,11 +1,10 @@
 namespace Workflow.Meetings.Domain;
 
 /// <summary>
-/// The committee that governs meetings. Only the top appraisal tier routes through a meeting
-/// (<c>approval-tier-switch</c> → <c>pending-meeting</c> in appraisal-workflow.json), so a
-/// meeting is always snapshotted from — and its released items always approved by — this one
-/// committee. Shared by <c>CreateMeeting</c>, <c>BulkCreateMeetings</c> and the release gate so
-/// the roster is checked against the same committee it was copied from.
+/// The default committee a meeting is snapshotted from. <c>CreateMeeting</c> always uses it;
+/// <c>BulkCreateMeetings</c> uses it unless the request names another committee. Whichever one is
+/// used is recorded on <see cref="Meeting.CommitteeId"/>, and that — not this constant — is what the
+/// release gate checks the roster against and what released items are approved under.
 /// </summary>
 public static class MeetingCommittee
 {

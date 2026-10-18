@@ -84,6 +84,7 @@ public class LookupCollateralMasterQueryHandler(
                 FROM collateral.CollateralMasters m
                 INNER JOIN collateral.LandDetails ld ON ld.CollateralMasterId = m.Id
                 WHERE m.IsDeleted = 0
+                  AND ld.IsDeleted = 0
                   AND m.IsMaster = 0
                   AND m.ParentMasterId = @MasterId
                 """;
@@ -103,62 +104,77 @@ public class LookupCollateralMasterQueryHandler(
 
     private async Task<Guid?> FindLandMasterIdAsync(LookupCollateralMasterQuery q)
     {
-        // NULL params act as wildcards so request-time partial lookup works.
+        // Mirrors the upsert dedup key (UX_LandDetails_DedupKey_Active): province + district +
+        // subDistrict + titleNumber. A partial key matches nothing.
         // Searches ALL rows (master + aliases) so any title in a multi-title group matches.
-        // When the hit is an alias, navigates to its ParentMasterId and returns that as the result.
+        // When the hit is an alias, navigates to its ParentMasterId and returns that as the result
+        // (an alias whose parent master is deleted is ignored).
+        if (AnyBlank(q.Province, q.District, q.SubDistrict, q.TitleNumber))
+            return null;
+
         var sql = """
             SELECT TOP 1
                 CASE WHEN m.IsMaster = 1 THEN m.Id ELSE m.ParentMasterId END AS Id
             FROM collateral.CollateralMasters m
             INNER JOIN collateral.LandDetails ld ON ld.CollateralMasterId = m.Id
+            LEFT JOIN collateral.CollateralMasters pm ON pm.Id = m.ParentMasterId
             WHERE m.IsDeleted = 0
-              AND (@LandOfficeCode  IS NULL OR ld.LandOfficeCode  = @LandOfficeCode)
-              AND (@Province        IS NULL OR ld.Province        = @Province)
-              AND (@District        IS NULL OR ld.District        = @District)
-              AND (@SubDistrict     IS NULL OR ld.SubDistrict     = @SubDistrict)
-              AND (@TitleType       IS NULL OR ld.TitleType       = @TitleType)
-              AND (@TitleNumber     IS NULL OR ld.TitleNumber     = @TitleNumber)
-              AND (@SurveyNumber    IS NULL OR ld.SurveyNumber    = @SurveyNumber)
+              AND ld.IsDeleted = 0
+              AND (m.IsMaster = 1 OR pm.IsDeleted = 0)
+              AND ld.Province    = @Province
+              AND ld.District    = @District
+              AND ld.SubDistrict = @SubDistrict
+              AND ld.TitleNumber = @TitleNumber
+            ORDER BY m.IsMaster DESC, m.Id
             """;
 
         var p = new DynamicParameters();
-        p.Add("LandOfficeCode", q.LandOfficeCode);
-        p.Add("Province",       q.Province);
-        p.Add("District",       q.District);
-        p.Add("SubDistrict",    q.SubDistrict);
-        p.Add("TitleType",      q.TitleType);
-        p.Add("TitleNumber",    q.TitleNumber);
-        p.Add("SurveyNumber",   q.SurveyNumber);
+        p.Add("Province",    q.Province);
+        p.Add("District",    q.District);
+        p.Add("SubDistrict", q.SubDistrict);
+        p.Add("TitleNumber", q.TitleNumber);
 
         return await connectionFactory.QueryFirstOrDefaultAsync<Guid?>(sql, p);
     }
 
+    private static bool AnyBlank(params string?[] values) => values.Any(string.IsNullOrWhiteSpace);
+
     private async Task<Guid?> FindCondoMasterIdAsync(LookupCollateralMasterQuery q)
     {
-        // NULL params act as wildcards so request-time partial lookup works.
-        // At appraisal completion the full key is enforced via the filtered unique index.
+        // Mirrors the upsert dedup key (UX_CondoDetails_DedupKey_Active): registration + building +
+        // floor + room + province + district + subDistrict. LandOfficeCode is descriptive only.
+        // A partial key matches nothing.
+        if (AnyBlank(q.CondoRegistrationNumber, q.Building, q.Floor, q.Unit, q.Province, q.District, q.SubDistrict))
+            return null;
+
+        // Condo aliases are intentionally NOT resolved: unlike a land alias (extra title of the same
+        // parcel), a condo alias's ParentMasterId is a DIFFERENT collateral (the appraisal's land
+        // primary or another unit), so following it would return the wrong type, detail and value.
         var sql = """
             SELECT TOP 1 m.Id
             FROM collateral.CollateralMasters m
             INNER JOIN collateral.CondoDetails cd ON cd.CollateralMasterId = m.Id
             WHERE m.IsDeleted = 0
-              AND (@LandOfficeCode          IS NULL OR cd.LandOfficeCode          = @LandOfficeCode)
-              AND (@CondoRegistrationNumber IS NULL OR cd.CondoRegistrationNumber = @CondoRegistrationNumber)
-              AND (@Building                IS NULL OR cd.BuildingNumber          = @Building)
-              AND (@Floor                   IS NULL OR cd.FloorNumber             = @Floor)
-              AND (@Unit                    IS NULL OR cd.RoomNumber              = @Unit)
-              AND (@TitleNumber             IS NULL OR cd.TitleNumber             = @TitleNumber)
-              AND (@TitleType               IS NULL OR cd.TitleType               = @TitleType)
+              AND m.IsMaster = 1
+              AND cd.IsDeleted = 0
+              AND cd.CondoRegistrationNumber = @CondoRegistrationNumber
+              AND cd.BuildingNumber          = @Building
+              AND cd.FloorNumber             = @Floor
+              AND cd.RoomNumber              = @Unit
+              AND cd.Province                = @Province
+              AND cd.District                = @District
+              AND cd.SubDistrict             = @SubDistrict
+            ORDER BY m.Id
             """;
 
         var p = new DynamicParameters();
-        p.Add("LandOfficeCode",          q.LandOfficeCode);
         p.Add("CondoRegistrationNumber", q.CondoRegistrationNumber);
         p.Add("Building",                q.Building);
         p.Add("Floor",                   q.Floor);
         p.Add("Unit",                    q.Unit);
-        p.Add("TitleNumber",             q.TitleNumber);
-        p.Add("TitleType",               q.TitleType);
+        p.Add("Province",                q.Province);
+        p.Add("District",                q.District);
+        p.Add("SubDistrict",             q.SubDistrict);
 
         return await connectionFactory.QueryFirstOrDefaultAsync<Guid?>(sql, p);
     }

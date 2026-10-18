@@ -4,24 +4,44 @@ using Auth.Infrastructure.Configuration;
 using Auth.Infrastructure.Identity;
 using Auth.Infrastructure.Repository;
 using Auth.Infrastructure.Seed;
+using Auth.Infrastructure.Session;
 using Auth.Application.Services;
 using Auth.Contracts.Companies;
 using Auth.Contracts.Users;
+using Auth.Scheduling;
 using Auth.Services;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using OpenIddict.Validation.AspNetCore;
 using Shared.Identity;
+using Shared.Scheduling;
 using Shared.Security;
 
 namespace Auth;
 
 public static class AuthModule
 {
+    /// <summary>
+    /// Whether the X-Dev-Auth bypass is accepted: every environment except Production. An unset/empty
+    /// ASPNETCORE_ENVIRONMENT counts as Production so a misconfigured server fails closed.
+    /// </summary>
+    private static bool AllowDevBypass
+    {
+        get
+        {
+            var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            return !string.IsNullOrEmpty(environment)
+                   && !environment.Equals("Production", StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
     public static IServiceCollection AddAuthModule(
         this IServiceCollection services,
         IConfiguration configuration
@@ -83,15 +103,43 @@ public static class AuthModule
             .AddPasswordValidator<DbPasswordValidator>()
             .AddDefaultTokenProviders();
 
-        // Point the Identity application cookie at pages that actually exist. The default
-        // AccessDeniedPath (/Account/AccessDenied) had no page, so any cookie-auth forbid
-        // (e.g. a signed-in non-Admin hitting /hangfire) returned a bare 404 instead of a
-        // clear "access denied" page. LoginPath is set explicitly for the same reason.
+        // Browser sessions (BFF). The SPA holds only the app cookie; the IdP keeps its own SSO cookie.
+        var oidcClient = configuration.GetSection(OidcClientOptions.SectionName).Get<OidcClientOptions>()
+                         ?? new OidcClientOptions();
+        var urls = new BffUrls(
+            configuration["AppBaseUrl"] ?? "",
+            configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [],
+            configuration["Auth:Idp:PublicBaseUrl"]);
+        services.AddSingleton(urls);
+
+        // The cookie names carry a suffix derived from the AppBaseUrl port unless one is configured; resolving here
+        // also fails the start on an invalid one. Runtime consumers get the same resolved options.
+        var sessionOptions = (configuration.GetSection(BrowserSessionOptions.SectionName).Get<BrowserSessionOptions>()
+                              ?? new BrowserSessionOptions()).Resolve(urls.PublicBase);
+        services.Configure<BrowserSessionOptions>(configuration.GetSection(BrowserSessionOptions.SectionName));
+        services.PostConfigure<BrowserSessionOptions>(options => options.Resolve(urls.PublicBase));
+
+        // The IdP (SSO) cookie guards only the auth pages and /connect/*; no API endpoint accepts it.
+        // Renamed so it cannot collide with the app cookie, with a per-environment suffix (see
+        // BrowserSessionOptions.CookieSuffix). Point it at pages that actually exist: the default
+        // AccessDeniedPath had no page, so any cookie-auth forbid returned a bare 404.
         services.ConfigureApplicationCookie(options =>
         {
             options.LoginPath = "/Account/Login";
             options.AccessDeniedPath = "/Account/AccessDenied";
+            options.Cookie.Name = sessionOptions.IdpCookieName;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
         });
+
+        // Validate the security stamp on every cookie-authenticated request instead of the 30-minute
+        // default. Rotating a password (an admin reset, or opening a new access window on a shared
+        // temporary account) changes that stamp, and until it is re-checked the previous holder's
+        // cookie still mints authorization codes — for up to half an hour after the credential they
+        // knew was taken away. The cookie only guards the auth pages and /connect/authorize, so the
+        // extra lookup is a keyed read on a handful of requests, not on the SPA's API traffic (which
+        // authenticates with the app session cookie).
+        services.Configure<SecurityStampValidatorOptions>(options =>
+            options.ValidationInterval = TimeSpan.Zero);
 
         // DB-maintained password policy: cached reader + history recorder. Lockout settings are
         // applied imperatively after migration/seeding in UseAuthModule (NOT via IConfigureOptions —
@@ -124,7 +172,6 @@ public static class AuthModule
 
                 options.AllowAuthorizationCodeFlow().RequireProofKeyForCodeExchange();
                 options.AllowClientCredentialsFlow();
-                options.AllowPasswordFlow();
                 options.AllowRefreshTokenFlow();
 
                 options.UseReferenceRefreshTokens();
@@ -187,43 +234,106 @@ public static class AuthModule
                 options.UseAspNetCore();
             });
 
-        // Authentication scheme
-        // Dev-auth bypass is allowed in all non-production environments
-        // (Development, SIT, UAT). An unset/empty env var is treated as Production
-        // so a misconfigured server fails closed.
-        var allowDevBypass =
-            !string.IsNullOrEmpty(environment) &&
-            !environment.Equals("Production", StringComparison.OrdinalIgnoreCase);
+        // Authentication schemes. One policy scheme picks the real one per request:
+        //   dev header (non-production) -> DevBypass
+        //   Authorization: Bearer       -> OpenIddict validation (machine clients: LOS/CLS)
+        //   anything else               -> the app session cookie (the SPA)
+        // Dev-auth bypass is allowed in all non-production environments (Development, SIT, UAT). An
+        // unset/empty env var is treated as Production so a misconfigured server fails closed.
+        var allowDevBypass = AllowDevBypass;
+
+        // Back-channel calls (discovery, JWKS, code redemption) go to the internal base URL when one is
+        // configured: behind the load balancer the public URL's certificate does not match the node's
+        // own name (RemoteCertificateNameMismatch). Without one they go to the identity provider's public
+        // address — the API's own until the IdP is split out, then the IdP's.
+        var authority = (configuration["Auth:InternalAuthBaseUrl"] is { Length: > 0 } internalBase
+            ? internalBase
+            : urls.IdpPublicBase).TrimEnd('/');
+
+        var authentication = services.AddAuthentication(options =>
+        {
+            options.DefaultAuthenticateScheme = AuthSchemes.Selector;
+            options.DefaultChallengeScheme = AuthSchemes.Selector;
+        });
         if (allowDevBypass)
-        {
-            services.AddAuthentication(options =>
-                {
-                    options.DefaultAuthenticateScheme = "DevOrOpenIddict";
-                    options.DefaultChallengeScheme =
-                        OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
-                })
-                .AddScheme<AuthenticationSchemeOptions, DevAuthenticationHandler>(
-                    DevAuthenticationHandler.SchemeName, _ => { })
-                .AddPolicyScheme("DevOrOpenIddict", "Dev or OpenIddict", options =>
-                {
-                    options.ForwardDefaultSelector = context =>
-                    {
-                        if (context.Request.Headers.ContainsKey(DevAuthenticationHandler.DevHeaderName))
-                            return DevAuthenticationHandler.SchemeName;
-                        return OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
-                    };
-                });
-        }
-        else
-        {
-            services.AddAuthentication(options =>
+            authentication.AddScheme<AuthenticationSchemeOptions, DevAuthenticationHandler>(
+                DevAuthenticationHandler.SchemeName, _ => { });
+
+        authentication
+            .AddPolicyScheme(AuthSchemes.Selector, "Dev, Bearer or app session", options =>
             {
-                options.DefaultAuthenticateScheme =
-                    OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
-                options.DefaultChallengeScheme =
-                    OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
+                options.ForwardDefaultSelector = context => SchemeSelector.Select(context.Request, allowDevBypass);
+            })
+            .AddCookie(AuthSchemes.AppCookie, options =>
+            {
+                options.Cookie.Name = sessionOptions.AppCookieName;
+                options.Cookie.HttpOnly = true;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                // Lax, not Strict: email links open API download URLs by top-level navigation.
+                options.Cookie.SameSite = SameSiteMode.Lax;
+                // The idle timeout is enforced from auth.UserSessions.LastActivityAt (background polling
+                // excluded), not from this expiry. The ticket expiry is only a horizon, set far beyond
+                // any idle gap so it never decides anything: a request after more than half of it renews it.
+                // Not persistent -> a session cookie that dies with the browser.
+                options.ExpireTimeSpan = TimeSpan.FromHours(12);
+                options.SlidingExpiration = true;
+                options.LoginPath = "/Account/Login";
+                options.AccessDeniedPath = "/Account/AccessDenied";
+                options.Events.OnValidatePrincipal = AppSessionEvents.ValidatePrincipalAsync;
+                options.Events.OnRedirectToLogin = AppSessionEvents.RedirectToLogin;
+                options.Events.OnRedirectToAccessDenied = AppSessionEvents.RedirectToAccessDenied;
+            })
+            .AddOpenIdConnect(AuthSchemes.Oidc, options =>
+            {
+                options.SignInScheme = AuthSchemes.AppCookie;
+                options.Authority = authority;
+                options.RequireHttpsMetadata = authority.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+                options.ClientId = oidcClient.ClientId;
+                // Public client for now (PKCE, no secret). Never assign an empty string: OpenIddict
+                // rejects a public client that sends a secret.
+                if (!string.IsNullOrEmpty(oidcClient.ClientSecret))
+                    options.ClientSecret = oidcClient.ClientSecret;
+                options.ResponseType = OpenIdConnectResponseType.Code;
+                // query keeps the callback a plain GET, which the WAF/F5 rules treat more simply than form_post.
+                options.ResponseMode = OpenIdConnectResponseMode.Query;
+                options.UsePkce = true;
+                // Every sign-in is interactive: the IdP SSO cookie alone must never mint a session.
+                options.Prompt = "login";
+                options.Scope.Clear();
+                options.Scope.Add(OpenIdConnectScope.OpenId);
+                options.Scope.Add("profile");
+                // No tokens are kept: the app principal is built from the id_token (see TokenValidatedAsync).
+                options.SaveTokens = false;
+                options.GetClaimsFromUserInfoEndpoint = false; // OpenIddict exposes no userinfo endpoint
+                options.MapInboundClaims = false; // keep raw `sub` / `name`, like the access token
+                options.UseTokenLifetime = false; // the session length is ours, not the 15-minute id_token's
+                options.CallbackPath = "/signin-oidc";
+                options.SignedOutCallbackPath = "/signout-callback-oidc";
+                options.SignedOutRedirectUri = urls.SpaHome;
+                options.BackchannelTimeout = TimeSpan.FromSeconds(10);
+                // The correlation/nonce cookies and the state live this long. The default 15 minutes is shorter
+                // than a person may sit on the login page, and "Correlation failed" would cost them a second
+                // password prompt. The authorization code itself is minted after the login and stays short-lived.
+                options.RemoteAuthenticationTimeout = TimeSpan.FromMinutes(60);
+                options.ProtocolValidator.NonceLifetime = TimeSpan.FromMinutes(60);
+                // The callback is a same-site top-level redirect (response_mode=query), so Lax is enough
+                // and survives where the default SameSite=None would be dropped behind a plain-http hop.
+                options.NonceCookie.SameSite = SameSiteMode.Lax;
+                options.CorrelationCookie.SameSite = SameSiteMode.Lax;
+                options.TokenValidationParameters.NameClaimType = "name";
+                options.TokenValidationParameters.RoleClaimType = "roles";
+                options.Events.OnTokenValidated = AppSessionEvents.TokenValidatedAsync;
+                options.Events.OnTicketReceived = AppSessionEvents.TicketReceivedAsync;
+                options.Events.OnRedirectToIdentityProvider = AppSessionEvents.RedirectToIdentityProvider;
+                options.Events.OnRedirectToIdentityProviderForSignOut =
+                    AppSessionEvents.RedirectToIdentityProviderForSignOut;
+                options.Events.OnRemoteFailure = AppSessionEvents.RemoteFailureAsync;
             });
-        }
+
+        // The cookie handler reads its ticket from auth.UserSessions through this store.
+        services.AddSingleton<SessionTicketStore>();
+        services.AddOptions<CookieAuthenticationOptions>(AuthSchemes.AppCookie)
+            .Configure<SessionTicketStore>((options, store) => options.SessionStore = store);
 
         // Authorization policies
         services.AddAuthorizationBuilder().AddPolicies(allowDevBypass);
@@ -247,9 +357,11 @@ public static class AuthModule
         services.AddScoped<ICompanyLookupService, CompanyLookupService>();
         services.AddScoped<PermissionResolver>();
 
-        // Resolves permissions from the database for cookie principals (see the handler's remarks);
-        // used by the HangfireDashboard policy.
-        services.AddScoped<IAuthorizationHandler, DatabasePermissionAuthorizationHandler>();
+        // Browser sessions: server-side store, per-request claims, revoke/end operations.
+        services.AddScoped<AuthorizationClaimsBuilder>();
+        services.AddScoped<IUserSessionService, UserSessionService>();
+        services.AddScoped<ISessionStatusReader>(sp => sp.GetRequiredService<IUserSessionService>());
+        services.AddTransient<UserSessionCleanupJob>();
 
         // Menu tree cache (single-instance in-memory)
         services.AddMemoryCache();
@@ -268,6 +380,7 @@ public static class AuthModule
     public static IApplicationBuilder UseAuthModule(this IApplicationBuilder app)
     {
         app.UseDataSeeding<AuthDbContext>();
+        app.UseModuleRecurringJobs<AuthDbContext>(AuthRecurringJobs.All);
 
         // Apply the DB-maintained lockout settings to the IdentityOptions snapshot once, after the
         // policy row has been migrated + seeded. Done here (not via IConfigureOptions) because reading
@@ -277,6 +390,19 @@ public static class AuthModule
 
         return app;
     }
+
+    /// <summary>
+    /// CSRF / cross-site WebSocket check for cookie-authenticated requests. Place it before routing so a
+    /// rejected request never reaches an endpoint (and never touches the database).
+    /// </summary>
+    public static IApplicationBuilder UseCsrfProtection(this IApplicationBuilder app) =>
+        app.UseMiddleware<CsrfProtectionMiddleware>(AllowDevBypass);
+
+    /// <summary>
+    /// Server-side forced password change. Place it between UseAuthentication and UseAuthorization.
+    /// </summary>
+    public static IApplicationBuilder UseMustChangePasswordGate(this IApplicationBuilder app) =>
+        app.UseMiddleware<MustChangePasswordMiddleware>();
 
     private static void ApplyLockoutPolicy(IServiceProvider serviceProvider)
     {
@@ -332,6 +458,12 @@ public static class AuthModule
             .AddUserPermissionPolicy("workflow.admin", "WORKFLOW_ADMIN")
             .AddUserPermissionPolicy("WebhookDeliveriesView", "WEBHOOK_DELIVERIES_VIEW")
             .AddUserPermissionPolicy("WebhookDeliveriesRetry", "WEBHOOK_DELIVERIES_RETRY")
+            // Service Quality Evaluation policies
+            .AddUserPermissionPolicy("ServiceQualityEvaluationView", "REPORT_EVALUATION_VIEW")
+            .AddUserPermissionPolicy("ServiceQualityEvaluationEdit", "REPORT_EVALUATION_EDIT")
+            // Failed message view / manage
+            .AddUserPermissionPolicy("FailedMessageView", "FAILED_MESSAGE_VIEW")
+            .AddUserPermissionPolicy("FailedMessageManage", "FAILED_MESSAGE_MANAGE")
             // OAuth client / scope registration + webhook subscription admin
             .AddUserPermissionPolicy("OAuthClientsManage", "OAUTH_CLIENTS_MANAGE")
             .AddUserPermissionPolicy("OAuthScopesManage", "OAUTH_SCOPES_MANAGE")
@@ -372,60 +504,42 @@ public static class AuthModule
             // Top-breaches: visible to anyone with any OLA monitoring permission
             .AddMonitoringTopBreachesPolicy()
             // Hangfire dashboard: a server-rendered page opened by browser navigation, so it cannot carry a
-            // JWT Bearer header. Gate on the interactive-login cookie (Identity.Application, set by
-            // /Account/Login). Pinning the scheme is essential — without it the policy would authenticate
-            // the default (Bearer) scheme and always fail for a browser navigation.
+            // Bearer header. It authenticates with the app session cookie like the rest of the SPA, pinned
+            // here because the default scheme would pick DevBypass/Bearer first. A browser with no session is
+            // sent through the OIDC sign-in (see AppSessionEvents.RedirectToLogin).
             //
             // Access follows the permission, not a hardcoded role: whoever is granted
             // JOB_SCHEDULE_MANAGE gets in, so the admin screens stay the single place where this is
-            // decided. RequireClaim is not usable here because the cookie carries no "permissions"
-            // claim; the handler reads them from the database instead. Admin still qualifies, holding
-            // every permission.
+            // decided. Admin still qualifies, holding every permission.
             //
             // The matching sidebar entry is gated on JOB_SCHEDULE_MANAGE too; its "System" group
             // has no gate of its own and shows whenever any child is visible.
             .AddPolicy("HangfireDashboard", policy =>
-                policy.AddAuthenticationSchemes(IdentityConstants.ApplicationScheme)
+                policy.AddAuthenticationSchemes(AuthSchemes.AppCookie)
                     .RequireAuthenticatedUser()
-                    .AddRequirements(new DatabasePermissionRequirement("JOB_SCHEDULE_MANAGE")));
+                    .RequireClaim("permissions", "JOB_SCHEDULE_MANAGE"));
 
-        // When the dev-auth bypass is enabled (any non-production environment),
-        // don't pin policies to the OpenIddict scheme so the PolicyScheme can
-        // route to either DevBypass or OpenIddict.
-        if (allowDevBypass)
-        {
-            authorizationBuilder
-                .SetDefaultPolicy(
-                    new AuthorizationPolicyBuilder()
-                        .RequireAuthenticatedUser()
-                        .Build()
-                )
-                .SetFallbackPolicy(
-                    new AuthorizationPolicyBuilder()
-                        .RequireAuthenticatedUser()
-                        .Build()
-                );
-        }
-        else
-        {
-            authorizationBuilder
-                .SetDefaultPolicy(
-                    new AuthorizationPolicyBuilder()
-                        .RequireAuthenticatedUser()
-                        .AddAuthenticationSchemes(
-                            OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme
-                        )
-                        .Build()
-                )
-                .SetFallbackPolicy(
-                    new AuthorizationPolicyBuilder()
-                        .RequireAuthenticatedUser()
-                        .AddAuthenticationSchemes(
-                            OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme
-                        )
-                        .Build()
-                );
-        }
+        // Default and fallback policies are deliberately NOT pinned to a scheme: the Selector policy
+        // scheme routes each request (dev header, Bearer, app cookie). Pinning them to OpenIddict, as
+        // production used to, would make every cookie request fail there and only there.
+        //
+        // They accept browser sessions only (allowlist: the cookie-session identity type, plus the dev header
+        // where allowDevBypass is on; see SpaSessionPolicy). allowDevBypass is the single read in AddAuthModule.
+        // A machine client (client_credentials Bearer token) is authenticated by OpenIddict but is refused (403) on
+        // every endpoint that does not name its own policy, and so is any scheme added later. A Bearer token (machine
+        // or user) gets past it only on endpoints that name their own policy: "Integration" / Cls* (scope), or a
+        // permission policy that checks the `permissions` claim. That claim carries a client's OpenIddict permissions
+        // (client_credentials) or the user's permissions and roles (auth-code/refresh tokens; retiring those grants
+        // is a known follow-up). Refusals are logged.
+        var spaSession = new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .RequireAssertion(ctx => SpaSessionPolicy.IsBrowserSession(ctx, allowDevBypass))
+            .Build();
+
+        authorizationBuilder
+            .AddPolicy("Spa", spaSession)
+            .SetDefaultPolicy(spaSession)
+            .SetFallbackPolicy(spaSession);
 
         return authorizationBuilder;
     }

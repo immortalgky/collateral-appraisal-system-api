@@ -37,6 +37,7 @@ public class GetEligibleCompaniesQueryHandler(
                 AverageRating:    ov?.AverageRating    ?? 0m,
                 EvaluationCount:  ov?.EvaluationCount  ?? 0,
                 ActiveAssignments: ov?.ActiveAssignments ?? 0,
+                LoanTypes:        c.LoanTypes,
                 IsAssignable:     c.IsAssignable(now));
         }).ToList();
 

@@ -26,7 +26,6 @@ public class SubmitRequestEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithTags("Requests")
             .WithSummary("Submit a request")
-            .WithDescription("Submits a request for processing.")
-            .AllowAnonymous();
+            .WithDescription("Submits a request for processing.");
     }
 }

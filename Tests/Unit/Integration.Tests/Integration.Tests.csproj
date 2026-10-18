@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- The module assembly is also named "Integration" (AssemblyName Integration.Module, root
+         namespace Integration) — pick distinct names here so the two never collide. -->
+    <AssemblyName>Integration.Tests</AssemblyName>
+    <RootNamespace>Integration.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <!-- UnparseableEntityDedupTests (S2 follow-up): substitute collector dependencies + an EF Core
+         InMemory IntegrationDbContext, no broker or Testcontainers database. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="NSubstitute" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../Modules/Integration/Integration/Integration.csproj" />
+  </ItemGroup>
+
+</Project>

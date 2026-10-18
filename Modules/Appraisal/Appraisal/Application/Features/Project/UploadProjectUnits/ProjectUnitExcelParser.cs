@@ -135,7 +135,7 @@ public static class ProjectUnitExcelParser
     /// Reads row 1 as headers and returns a normalized-name → 1-based column-index map.
     /// First occurrence wins on duplicate headers; empty header cells are skipped.
     /// </summary>
-    private static Dictionary<string, int> BuildHeaderMap(IXLWorksheet ws)
+    internal static Dictionary<string, int> BuildHeaderMap(IXLWorksheet ws)
     {
         var map = new Dictionary<string, int>(StringComparer.Ordinal);
         var lastCol = ws.LastColumnUsed()?.ColumnNumber() ?? 0;
@@ -146,6 +146,10 @@ public static class ProjectUnitExcelParser
         }
         return map;
     }
+
+    /// <summary>Like <see cref="Resolve"/> but returns null instead of throwing when the header is absent.</summary>
+    internal static int? TryResolve(Dictionary<string, int> headers, string header) =>
+        headers.TryGetValue(NormalizeHeader(header), out var idx) ? idx : null;
 
     /// <summary>
     /// Returns the column index for the first matching alias (compared after normalization).

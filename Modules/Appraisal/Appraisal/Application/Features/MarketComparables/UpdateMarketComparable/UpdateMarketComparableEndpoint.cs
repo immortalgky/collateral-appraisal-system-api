@@ -16,7 +16,6 @@ public class UpdateMarketComparableEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithTags("MarketComparables")
             .WithSummary("Update an existing Market Comparable")
-            .WithDescription("Updates an existing Market Comparable in the system.")
-            .AllowAnonymous();
+            .WithDescription("Updates an existing Market Comparable in the system.");
     }
 }

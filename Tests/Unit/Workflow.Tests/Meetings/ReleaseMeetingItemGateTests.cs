@@ -131,6 +131,20 @@ public class ReleaseMeetingItemGateTests
     }
 
     [Fact]
+    public async Task Handle_MeetingWithNoCommitteeRecorded_RefusesToRelease()
+    {
+        // Missed by the backfill: releasing would let approval re-pick a tier from the value.
+        var meeting = Meeting.Create("Legacy Meeting", null, "2/2568", 2, 2568);
+        _meetingRepository.GetByIdForDecisionAsync(meeting.Id, Arg.Any<CancellationToken>())
+            .Returns(meeting);
+
+        var act = () => BuildHandler().Handle(
+            new ReleaseMeetingItemCommand(meeting.Id, Guid.NewGuid()), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ConflictException>().WithMessage("*no committee recorded*");
+    }
+
+    [Fact]
     public async Task Handle_UnknownMeeting_ThrowsNotFound()
     {
         _meetingRepository.GetByIdForDecisionAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
@@ -148,7 +162,8 @@ public class ReleaseMeetingItemGateTests
     {
         _meetingRepository.GetByIdForDecisionAsync(meeting.Id, Arg.Any<CancellationToken>())
             .Returns(meeting);
-        _committeeRepository.GetByCodeAsync(MeetingCommittee.WithMeetingCode, Arg.Any<CancellationToken>())
+        // The gate checks the committee the meeting was snapshotted from.
+        _committeeRepository.GetByIdWithMembersAsync(committee.Id, Arg.Any<CancellationToken>())
             .Returns(committee);
     }
 

@@ -24,9 +24,13 @@ public static class LandDetailSync
         foreach (var id in titlesToRemove)
             landDetail.RemoveTitle(id);
 
-        // Add or update
+        // Add or update; the incoming list order wins, so every title is stamped with its 1-based position
+        var sequence = 0;
+        // Looked up once: Titles sorts and copies on every read.
+        var existingById = landDetail.Titles.Where(t => t.Id != Guid.Empty).ToDictionary(t => t.Id);
         foreach (var titleData in incomingTitles)
         {
+            sequence++;
             LandArea? area = null;
             if (titleData.Rai.HasValue || titleData.Ngan.HasValue || titleData.SquareWa.HasValue)
                 area = LandArea.Create(titleData.Rai, titleData.Ngan, titleData.SquareWa);
@@ -34,8 +38,9 @@ public static class LandDetailSync
             if (titleData.Id.HasValue)
             {
                 // Update existing
-                var existing = landDetail.Titles.FirstOrDefault(t => t.Id == titleData.Id.Value);
+                var existing = existingById.GetValueOrDefault(titleData.Id.Value);
                 existing?.ChangeTitle(titleData.TitleNumber, titleData.TitleType);
+                existing?.SetSequenceNumber(sequence);
                 existing?.Update(
                     titleData.BookNumber, titleData.PageNumber,
                     titleData.LandParcelNumber, titleData.SurveyNumber,
@@ -50,6 +55,7 @@ public static class LandDetailSync
             {
                 // Create new
                 var title = LandTitle.Create(landDetail.Id, titleData.TitleNumber, titleData.TitleType);
+                title.SetSequenceNumber(sequence);
                 title.Update(
                     titleData.BookNumber, titleData.PageNumber,
                     titleData.LandParcelNumber, titleData.SurveyNumber,

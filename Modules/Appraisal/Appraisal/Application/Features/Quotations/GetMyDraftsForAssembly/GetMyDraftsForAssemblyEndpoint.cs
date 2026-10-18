@@ -7,12 +7,11 @@ public class GetMyDraftsForAssemblyEndpoint : ICarterModule
         app.MapGet(
                 "/quotations/drafts",
                 async (
-                    string? bankingSegment,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
                 {
-                    var query = new GetMyDraftsForAssemblyQuery(bankingSegment);
+                    var query = new GetMyDraftsForAssemblyQuery();
                     var result = await sender.Send(query, cancellationToken);
                     return Results.Ok(result);
                 })

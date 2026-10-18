@@ -11,5 +11,4 @@ public interface INotificationRepository
     Task MarkNotificationAsReadAsync(Guid id);
     Task MarkAllNotificationsAsReadAsync(string username);
     Task<int> GetUnreadCountAsync(string username);
-    Task DeleteOldNotificationsAsync(DateTime cutoffDate);
 }

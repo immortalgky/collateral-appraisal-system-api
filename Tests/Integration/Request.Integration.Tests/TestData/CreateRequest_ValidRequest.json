@@ -1,52 +1,39 @@
 {
-  "appraisalNo": "string",
-  "status": "string",
-  "purpose": "string",
-  "hasAppraisalBook": true,
-  "priority": "string",
-  "reference": {
-    "prevAppraisalNo": "string",
-    "prevAppraisalValue": 0,
-    "prevAppraisalDate": "2025-06-20T08:39:32.515Z"
+  "purpose": "01",
+  "channel": "MANUAL",
+  "requestorEmployeeId": "admin",
+  "creator": {
+    "userId": "admin",
+    "username": "admin"
   },
-  "channel": "string",
-  "loanApplicationNo": "string",
-  "limitAmt": 0,
-  "occurConstInspec": 0,
-  "totalSellingPrice": 0,
-  "address": {
-    "houseNo": "string",
-    "roomNo": "string",
-    "floorNo": "string",
-    "locationIdentifier": "string",
-    "moo": "string",
-    "soi": "string",
-    "road": "string",
-    "subDistrict": "string",
-    "district": "string",
-    "province": "string",
-    "postcode": "string"
-  },
-  "contact": {
-    "contactPersonName": "string",
-    "contactPersonContactNo": "string",
-    "projectCode": "string"
-  },
-  "fee": {
-    "feeType": "string",
-    "feeRemark": "string"
-  },
-  "requestor": {
-    "requestorEmpId": "string",
-    "requestorName": "string",
-    "requestorEmail": "string",
-    "requestorContactNo": "string",
-    "requestorAo": "string",
-    "requestorBranch": "string",
-    "requestorBusinessUnit": "string",
-    "requestorDepartment": "string",
-    "requestorSection": "string",
-    "requestorCostCenter": "string"
+  "priority": "Normal",
+  "isPma": false,
+  "detail": {
+    "hasAppraisalBook": true,
+    "loanDetail": {
+      "bankingSegment": "RETAIL",
+      "loanApplicationNumber": "LA-0001",
+      "facilityLimit": 1000000,
+      "totalSellingPrice": 1500000
+    },
+    "address": {
+      "houseNumber": "1",
+      "subDistrict": "100101",
+      "district": "1001",
+      "province": "10",
+      "postcode": "10200"
+    },
+    "contact": {
+      "contactPersonName": "Contact Person",
+      "contactPersonPhone": "0812345678"
+    },
+    "appointment": {
+      "appointmentDateTime": "2025-06-20T08:39:32.515Z",
+      "appointmentLocation": "Site"
+    },
+    "fee": {
+      "feePaymentType": "01"
+    }
   },
   "customers": [
     {
@@ -56,7 +43,7 @@
   ],
   "properties": [
     {
-      "propertyType": "abc",
+      "propertyType": "L",
       "buildingType": "abc",
       "sellingPrice": 1
     }

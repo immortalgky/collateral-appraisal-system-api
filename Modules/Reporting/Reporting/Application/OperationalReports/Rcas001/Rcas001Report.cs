@@ -47,7 +47,7 @@ internal static class Rcas001Report
             new("Created To", f.CreatedTo?.ToString("yyyy-MM-dd")),
             new("Status", f.Status),
             new("Requestor Dept.", f.DepartmentCode),
-            new("Retail/IBG", f.BankingSegment, "BankingSegment"),
+            new("Banking Segment", f.BankingSegment, "BankingSegment"),
             new("Appraisal No.", f.AppraisalNumber),
         ],
         Columns =
@@ -64,7 +64,7 @@ internal static class Rcas001Report
             new("Status", r => r.AppraisalStatus),
             new("Requestor", r => r.RequestorCode),
             new("Requestor Dept.", r => r.RequestorDepartment),
-            new("Retail/IBG", r => r.BankingSegment),
+            new("Banking Segment", r => r.BankingSegment),
             new("Internal Staff", r => r.InternalAppraisalStaff),
             new("Appraisal Company", r => r.AppraisalCompany),
             new("Approve Date", r => r.ApproveDate, ColumnFormat.DateTime),

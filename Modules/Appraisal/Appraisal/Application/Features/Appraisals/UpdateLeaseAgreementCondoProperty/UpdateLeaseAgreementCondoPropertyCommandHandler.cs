@@ -33,9 +33,6 @@ public class UpdateLeaseAgreementCondoPropertyCommandHandler(
 
         LeaseAgreementCondoPropertyApplier.Apply(property, command, buildingInsurancePrice);
 
-        // 10. Save aggregate
-        await appraisalRepository.UpdateAsync(appraisal, cancellationToken);
-
         await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
 
         return Unit.Value;

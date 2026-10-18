@@ -1158,70 +1158,6 @@
         }
       }
     },
-    "/auth/token": {
-      "post": {
-        "tags": [
-          "Api"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TokenRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/auth/register": {
-      "post": {
-        "tags": [
-          "Auth"
-        ],
-        "summary": "Register new user account",
-        "description": "Register a new user account.",
-        "operationId": "RegisterUser",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RegisterUserRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RegisterUserResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/auth/clients": {
       "post": {
         "tags": [
@@ -2975,68 +2911,6 @@
           }
         }
       },
-      "RegisterUserPermissionDto": {
-        "required": [
-          "permissionId",
-          "isGranted"
-        ],
-        "type": "object",
-        "properties": {
-          "permissionId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "isGranted": {
-            "type": "boolean"
-          }
-        }
-      },
-      "RegisterUserRequest": {
-        "required": [
-          "username",
-          "password",
-          "email",
-          "permissions",
-          "roles"
-        ],
-        "type": "object",
-        "properties": {
-          "username": {
-            "type": "string"
-          },
-          "password": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
-          },
-          "permissions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RegisterUserPermissionDto"
-            }
-          },
-          "roles": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        }
-      },
-      "RegisterUserResponse": {
-        "required": [
-          "id"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          }
-        }
-      },
       "RemoveRequestCommentResponse": {
         "required": [
           "isSuccess"
@@ -3764,33 +3638,6 @@
         "properties": {
           "isSuccess": {
             "type": "boolean"
-          }
-        }
-      },
-      "TokenRequest": {
-        "required": [
-          "grantType",
-          "clientId",
-          "code",
-          "codeVerifier",
-          "redirectUri"
-        ],
-        "type": "object",
-        "properties": {
-          "grantType": {
-            "type": "string"
-          },
-          "clientId": {
-            "type": "string"
-          },
-          "code": {
-            "type": "string"
-          },
-          "codeVerifier": {
-            "type": "string"
-          },
-          "redirectUri": {
-            "type": "string"
           }
         }
       },

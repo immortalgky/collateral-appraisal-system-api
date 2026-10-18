@@ -3,6 +3,7 @@
 @commentId = 10924CBD-0251-4E60-81D5-AB443FA3C15C
 
 PATCH {{baseUrl}}/requests/{{requestId}}/comments/{{commentId}}
+X-Dev-Auth: dev-bypass
 Host: localhost:7111
 Content-Type: application/json
 

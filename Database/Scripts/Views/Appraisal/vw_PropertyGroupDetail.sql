@@ -86,7 +86,7 @@ FROM appraisal.PropertyGroups PG
     OUTER APPLY (SELECT SUM(ISNULL(AreaRai, 0) * 400 + ISNULL(AreaNgan, 0) * 100 + ISNULL(AreaSquareWa, 0)) AS TotalSquareWa
                       FROM appraisal.LandTitles
                       WHERE LandAppraisalDetailId = L.Id) LT
-         OUTER APPLY (SELECT STRING_AGG(TitleNumber, ', ') WITHIN GROUP (ORDER BY TitleNumber) AS TitleNumbers
+         OUTER APPLY (SELECT STRING_AGG(TitleNumber, ', ') WITHIN GROUP (ORDER BY SequenceNumber, Id) AS TitleNumbers
                       FROM appraisal.LandTitles
                       WHERE LandAppraisalDetailId = L.Id) LTN
          LEFT JOIN appraisal.BuildingAppraisalDetails B

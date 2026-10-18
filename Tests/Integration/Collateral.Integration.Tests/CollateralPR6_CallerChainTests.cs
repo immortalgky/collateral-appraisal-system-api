@@ -236,15 +236,14 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
     // -----------------------------------------------------------------------
     // PR6-3: AssignmentFeeService CI fee read-back
     //
-    // AssignmentFeeService.ResolveSourceForAppraisalAsync (line ~191) sends
-    // GetConstructionInspectionFeeForAppraisalQuery(prevId) to retrieve the
-    // CI fee amount captured on the prior appraisal's engagement.
+    // GetConstructionInspectionFeeForAppraisalQuery returns the CI fee captured on
+    // the prior appraisal's engagement.
     //
-    // Setup: create a prior appraisal, run ProcessAppraisalAsync, patch the
-    // engagement's ConstructionInspectionFeeAmount, then call the service.
+    // AssignmentFeeService.ResolveSourceForAppraisalAsync no longer reads the
+    // engagement (d7670a5a): it reads the prior appraisal's latest assignment's
+    // AppraisalFee.ConstructionInspectionFeeAmount, so the fee is seeded there too.
     //
-    // Assert: the service returns AssignmentFeeSource.ConstructionInspection
-    // with the exact amount seeded on the engagement.
+    // Assert: both return the seeded amount.
     // -----------------------------------------------------------------------
     [Fact]
     public async Task PR6_3_AssignmentFeeService_CIFeeReadBack_ReturnsSeedFeeAmount()
@@ -263,6 +262,16 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
             appraisalDb.Appraisals.Add(a);
             await appraisalDb.SaveChangesAsync(ct);
             priorAppraisalId = a.Id;
+
+            // The fee source AssignmentFeeService reads: the prior appraisal's assignment fee.
+            var assignment = AppraisalAssignment.Create(
+                a.Id, "External", assigneeCompanyId: Guid.NewGuid().ToString(), assignedBy: "test");
+            appraisalDb.AppraisalAssignments.Add(assignment);
+            await appraisalDb.SaveChangesAsync(ct);
+            var appraisalFee = AppraisalFee.Create(assignment.Id);
+            appraisalFee.SetConstructionInspectionFee(seededCIFee);
+            appraisalDb.AppraisalFees.Add(appraisalFee);
+            await appraisalDb.SaveChangesAsync(ct);
         }
 
         await ProcessAppraisalInNewScopeAsync(priorAppraisalId);
@@ -407,14 +416,16 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
 
         var engagement = engagements.Single();
 
-        // Snapshot must contain two groups (one per group on the appraisal)
+        // Both groups are land, and land titles across ALL groups collapse into one snapshot
+        // group (one IsMaster + alias, 5b7ae023) — so one group carrying both titles.
         Assert.NotNull(engagement.Snapshot);
         using var doc = JsonDocument.Parse(engagement.Snapshot);
         var root = doc.RootElement;
 
         Assert.True(root.TryGetProperty("groups", out var groupsEl));
         var groupList = groupsEl.EnumerateArray().ToList();
-        Assert.Equal(2, groupList.Count);
+        Assert.Single(groupList);
+        Assert.Equal(2, groupList[0].GetProperty("properties").GetArrayLength());
 
         // Exactly one group is marked isPrimary
         var primaryGroups = groupList.Count(g =>

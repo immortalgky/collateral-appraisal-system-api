@@ -75,7 +75,11 @@ public class MeQueryHandler(
             permissions,
             groups,
             teams,
-            user.MustChangePassword
+            user.MustChangePassword,
+            // Whole seconds, like the old token claim's "s" format.
+            user.AccessExpiresAt is { } windowEnd
+                ? windowEnd.AddTicks(-(windowEnd.Ticks % TimeSpan.TicksPerSecond))
+                : null
         );
     }
 }

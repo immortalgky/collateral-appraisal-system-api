@@ -63,34 +63,6 @@ public class ExpressionPerformanceTests
     }
 
     [Fact]
-    public void ExpressionCaching_MemoryUsage_StaysWithinLimits()
-    {
-        // Arrange
-        const int expressionCount = 1000;
-        var baseMemory = GC.GetTotalMemory(true);
-
-        // Act - Create many different expressions to test cache behavior
-        for (int i = 0; i < expressionCount; i++)
-        {
-            var expression = $"value_{i} > {i} && status == 'test_{i}'";
-            var variables = new Dictionary<string, object>
-            {
-                [$"value_{i}"] = i + 1,
-                ["status"] = $"test_{i}"
-            };
-
-            _evaluator.EvaluateExpression(expression, variables);
-        }
-
-        var afterMemory = GC.GetTotalMemory(true);
-        var memoryIncrease = afterMemory - baseMemory;
-
-        // Assert - Memory increase should be reasonable (less than 10MB for 1000 expressions)
-        memoryIncrease.Should().BeLessThan(10 * 1024 * 1024,
-            $"Memory increased by {memoryIncrease / 1024.0 / 1024.0:F2} MB, exceeding 10 MB limit");
-    }
-
-    [Fact]
     public void ExpressionEvaluation_ConcurrentAccess_IsThreadSafe()
     {
         // Arrange

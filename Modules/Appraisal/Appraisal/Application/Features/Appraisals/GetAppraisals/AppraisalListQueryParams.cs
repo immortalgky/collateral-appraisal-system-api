@@ -62,6 +62,8 @@ public sealed record AppraisalListQueryParams
     [FromQuery(Name = "appointmentDateTo")] public DateTime? AppointmentDateTo { get; init; }
     [FromQuery(Name = "requestedAtFrom")] public DateTime? RequestedAtFrom { get; init; }
     [FromQuery(Name = "requestedAtTo")] public DateTime? RequestedAtTo { get; init; }
+    [FromQuery(Name = "appraisalDateFrom")] public DateTime? AppraisalDateFrom { get; init; }
+    [FromQuery(Name = "appraisalDateTo")] public DateTime? AppraisalDateTo { get; init; }
 
     // Sorting
     [FromQuery(Name = "sortBy")] public string? SortBy { get; init; }
@@ -103,5 +105,7 @@ public sealed record AppraisalListQueryParams
             Requestor = Requestor,
             RequestedAtFrom = RequestedAtFrom,
             RequestedAtTo = RequestedAtTo,
+            AppraisalDateFrom = AppraisalDateFrom,
+            AppraisalDateTo = AppraisalDateTo,
         };
 }

@@ -3,6 +3,7 @@
 @commentId = F80AC754-18C6-45CF-BABA-B396E116B69D
 
 GET {{baseUrl}}/requests/{{requestId}}/comments/{{commentId}}
+X-Dev-Auth: dev-bypass
 Host: localhost:7111
 Content-Type: application/json
 

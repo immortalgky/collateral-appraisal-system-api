@@ -112,4 +112,35 @@ public class ProjectUnitPrice : Entity<Guid>
         CoverageAmount = coverageAmount;
         PriceIncrementPerFloor = null;
     }
+
+    /// <summary>
+    /// Stores a price list prepared outside CAS. The file value goes in as is (no rounding, no
+    /// recompute); every calculator input that no longer applies is cleared, so a row never mixes
+    /// imported figures with stale flags or adjustments from an earlier Calculate.
+    /// </summary>
+    public void ApplyImportedValues(
+        decimal? standardPrice,
+        decimal? totalAppraisalValue,
+        decimal? forceSellingPrice,
+        decimal? coverageAmount)
+    {
+        IsCorner = false;
+        IsEdge = false;
+        IsOther = false;
+        IsPoolView = false;
+        IsSouth = false;
+        IsNearGarden = false;
+        AdjustPriceLocation = null;
+        PriceIncrementPerFloor = null;
+        LandIncreaseDecreaseAmount = null;
+
+        StandardPrice = standardPrice;
+        TotalAppraisalValue = totalAppraisalValue;
+        TotalAppraisalValueRounded = totalAppraisalValue;
+        ForceSellingPrice = forceSellingPrice;
+        CoverageAmount = coverageAmount;
+    }
+
+    /// <summary>Clears the four imported price values (unit absent from the imported file).</summary>
+    public void ClearImportedValues() => ApplyImportedValues(null, null, null, null);
 }

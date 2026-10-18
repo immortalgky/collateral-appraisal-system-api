@@ -82,6 +82,8 @@ public class GetUserByIdQueryHandler(
             user.AuthSource,
             user.IsActive,
             isLocked,
+            user.IsTemporaryAccess,
+            user.AccessExpiresAt,
             user.LastLoginAt,
             roles,
             groups,

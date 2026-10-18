@@ -14,7 +14,7 @@ namespace Appraisal.Domain.Appraisals;
 /// <item><see cref="IndicatedValue"/> — what the appraiser typed over the total; null means they did not.</item>
 /// </list>
 /// The price to use is therefore <c>IndicatedValue ?? FinalValue</c>, the same shape as the
-/// property form's Building Cost Value (<c>FinalCostValueOverride ?? computed</c>).
+/// property form's Building Cost Value (<c>BuildingCostValue ?? computed</c>).
 /// <para>
 /// There used to be a second column holding the figure before rounding. Nothing downstream read
 /// it — not the book, not the collateral master, not the AS400 exports — and carrying both made it

@@ -19,9 +19,9 @@ public class As400ReappraisalJob(
     IReappraisalIngestor ingestor)
 {
     /// <summary>
-    /// Candidates are keyed by (file date, collateral id, survey number); two runs importing the same
-    /// file at once would race on that unique index. The second run waits, then gives up rather than
-    /// piling on.
+    /// Candidates are one row per book across every file, and a run refreshes, stamps and reopens those
+    /// rows; two runs at once would race on the same books (and on the file ledger's rows). The second
+    /// run waits, then gives up rather than piling on.
     /// </summary>
     [DisableConcurrentExecution(timeoutInSeconds: 300)]
     public Task ExecuteAsync(CancellationToken cancellationToken = default) =>
