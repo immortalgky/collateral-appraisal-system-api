@@ -13,11 +13,11 @@ namespace Integration.Appraisal.Integration.Tests;
 /// ("current") value, shared by the Decision Summary construction card and the regulatory export's
 /// Appraisal-Value-as-Completed field.
 ///
-/// The rule under test that is easy to get wrong: <b>summary mode derives the value from the stored
-/// percent, NOT from the stored value.</b> The CI screen computes the figure in a useMemo and displays
-/// it but never writes it back into the form, so <c>SummaryCurrentValue</c> in the database holds the
-/// default 0 while the screen showed something else. Reading that column would silently drop the whole
-/// part-built building from the regulatory file.
+/// What is under test is that progress and value come from the stored Summary* figures — which the
+/// aggregate writes in BOTH modes (summary: keyed percent, money derived from it; full detail: summed from
+/// the work rows) — through appraisal.vw_AppraisalConstructionProgress, with no branching on the mode here.
+/// A figure the client sends for the two money columns is ignored by the aggregate, so a payload carrying a
+/// stale 0 (what the CI screen sent) cannot drop the part-built building from the regulatory file.
 ///
 /// Land and completed-building components are deliberately left unseeded (no pricing rows, no
 /// depreciation rows) so they contribute 0 and each assertion isolates the inspection arithmetic.
@@ -77,9 +77,7 @@ public class ConstructionCurrentValueServiceTests(IntegrationTestFixture fixture
             Guid.Empty, totalValue: 10_000_000m,
             summaryDetail: "Overall progress",
             summaryPreviousProgressPct: 0m,
-            summaryPreviousValue: 0m,
             summaryCurrentProgressPct: 50m,
-            summaryCurrentValue: 0m,
             remark: null);
 
         var result = await SeedAndGetAsync(inspection);
@@ -100,9 +98,7 @@ public class ConstructionCurrentValueServiceTests(IntegrationTestFixture fixture
             Guid.Empty, totalValue: 10_000_000m,
             summaryDetail: null,
             summaryPreviousProgressPct: null,
-            summaryPreviousValue: null,
             summaryCurrentProgressPct: 25m,
-            summaryCurrentValue: 9_999_999m,
             remark: null);
 
         var result = await SeedAndGetAsync(inspection);
@@ -119,9 +115,7 @@ public class ConstructionCurrentValueServiceTests(IntegrationTestFixture fixture
             Guid.Empty, totalValue: 10_000_000m,
             summaryDetail: null,
             summaryPreviousProgressPct: null,
-            summaryPreviousValue: null,
             summaryCurrentProgressPct: 0m,
-            summaryCurrentValue: null,
             remark: null);
 
         var result = await SeedAndGetAsync(inspection);
@@ -139,9 +133,7 @@ public class ConstructionCurrentValueServiceTests(IntegrationTestFixture fixture
             Guid.Empty, totalValue: 8_000_000m,
             summaryDetail: null,
             summaryPreviousProgressPct: null,
-            summaryPreviousValue: null,
             summaryCurrentProgressPct: null,
-            summaryCurrentValue: null,
             remark: null);
 
         var result = await SeedAndGetAsync(inspection);
@@ -157,9 +149,7 @@ public class ConstructionCurrentValueServiceTests(IntegrationTestFixture fixture
             Guid.Empty, totalValue: 7_500_000m,
             summaryDetail: null,
             summaryPreviousProgressPct: 50m,
-            summaryPreviousValue: 0m,
             summaryCurrentProgressPct: 100m,
-            summaryCurrentValue: 0m,
             remark: null);
 
         var result = await SeedAndGetAsync(inspection);
@@ -169,6 +159,27 @@ public class ConstructionCurrentValueServiceTests(IntegrationTestFixture fixture
         Assert.Equal(result.InspectedTotalValue, result.InspectedCurrentValue);
         // Previous round: 7,500,000 × 50%.
         Assert.Equal(3_750_000m, result.InspectedPreviousValue);
+    }
+
+    // ── Full-detail mode reads the same stored figures ────────────────────────
+
+    [Fact]
+    public async Task FullDetailMode_ReportsTheSummedWorkRowsThroughTheStoredFigures()
+    {
+        var group = Guid.NewGuid();
+        var inspection = ConstructionInspection.CreateFullDetail(Guid.Empty, 8_000_000m, remark: null);
+        inspection.AddWorkDetail(group, "structure", 1, 50m, previousProgressPct: 20m, currentProgressPct: 100m);
+        inspection.AddWorkDetail(group, "finishing", 2, 50m, previousProgressPct: 0m, currentProgressPct: 50m);
+        inspection.ComputeAllValues();
+
+        var result = await SeedAndGetAsync(inspection);
+
+        Assert.NotNull(result);
+        Assert.Equal(6_000_000m, result.InspectedCurrentValue);   // 4M x 100% + 4M x 50%
+        Assert.Equal(800_000m, result.InspectedPreviousValue);    // 4M x 20%
+        Assert.Equal(75m, result.ConstructionProgressPercent);
+        Assert.Equal(10m, result.PreviousProgressPercent);
+        Assert.True(result.IsUnderConstruction);
     }
 
     // ── No inspection at all ──────────────────────────────────────────────────
@@ -208,9 +219,7 @@ public class ConstructionCurrentValueServiceTests(IntegrationTestFixture fixture
             Guid.Empty, totalValue: 0m,
             summaryDetail: null,
             summaryPreviousProgressPct: null,
-            summaryPreviousValue: null,
             summaryCurrentProgressPct: 50m,
-            summaryCurrentValue: null,
             remark: null);
 
         var result = await SeedAndGetAsync(inspection);

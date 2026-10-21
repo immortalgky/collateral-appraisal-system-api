@@ -232,4 +232,115 @@ public class PriorAppraisalSubmissionGuardTests
             () => Run("02", PriorId, "69000009", MediatorReturning(null, exists: false)));
         Assert.Contains("69000009", ex.Message);
     }
+
+    // ── construction inspection (06 / 11): the chain must have room for another round ─────────────────────
+
+    private static ISender MediatorWithChain(ConstructionChainStatusResult? chain)
+    {
+        var mediator = MediatorReturning("Completed");
+        mediator.Send(Arg.Any<GetConstructionChainStatusQuery>(), Arg.Any<CancellationToken>()).Returns(chain);
+        return mediator;
+    }
+
+    private static ConstructionChainStatusResult Chain(
+        string? blockReason,
+        ConstructionChainProgress? construction = null,
+        LaterInspectionRef? later = null,
+        OpenInspectionRequestRef? open = null) =>
+        new(PriorId,
+            construction ?? new ConstructionChainProgress(ConstructionChainStatuses.InProgress, 40m, null, null, null, null),
+            later, open, null, blockReason);
+
+    [Theory]
+    [InlineData("06")]
+    [InlineData("11")]
+    public async Task Construction_inspection_on_a_chain_with_room_passes(string purpose) =>
+        await Run(purpose, PriorId, null, MediatorWithChain(Chain(null)));
+
+    [Theory]
+    [InlineData("06")]
+    [InlineData("11")]
+    public async Task A_chain_whose_construction_is_complete_is_rejected_with_the_inspection_that_finished_it(string purpose)
+    {
+        var done = new ConstructionChainProgress(
+            ConstructionChainStatuses.Complete, 100m, Guid.NewGuid(), "69000012", 3, new DateTime(2026, 10, 21, 9, 30, 0));
+
+        var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+            Run(purpose, PriorId, null, MediatorWithChain(Chain(ConstructionChainBlockReasons.ConstructionComplete, done))));
+
+        Assert.Equal("Prior appraisal 69000001 is already 100% complete (appraisal 69000012, inspection #3, 21/10/2026).", ex.Message);
+        Assert.Equal(ConstructionChainBlockReasons.ConstructionComplete, ex.Code);
+    }
+
+    [Fact]
+    public async Task When_the_pick_itself_finished_the_building_its_number_is_not_repeated()
+    {
+        var done = new ConstructionChainProgress(
+            ConstructionChainStatuses.Complete, 100m, PriorId, "69000001", 3, new DateTime(2026, 10, 21));
+
+        var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+            Run("06", PriorId, null, MediatorWithChain(Chain(ConstructionChainBlockReasons.ConstructionComplete, done))));
+
+        Assert.Equal("Prior appraisal 69000001 is already 100% complete (inspection #3, 21/10/2026).", ex.Message);
+    }
+
+    [Fact]
+    public async Task A_pick_with_a_later_inspection_is_rejected_naming_it()
+    {
+        var later = new LaterInspectionRef(Guid.NewGuid(), "69000020", 4, new DateTime(2026, 8, 10));
+
+        var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+            Run("06", PriorId, null, MediatorWithChain(Chain(ConstructionChainBlockReasons.LaterInspectionExists, later: later))));
+
+        Assert.Equal("Prior appraisal 69000001 already has a later inspection (69000020).", ex.Message);
+        Assert.Equal(ConstructionChainBlockReasons.LaterInspectionExists, ex.Code);
+    }
+
+    [Fact]
+    public async Task A_chain_with_another_open_inspection_request_is_rejected_naming_it()
+    {
+        var open = new OpenInspectionRequestRef(Guid.NewGuid(), "REQ-000123-2569");
+
+        var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+            Run("11", PriorId, null, MediatorWithChain(Chain(ConstructionChainBlockReasons.OpenInspectionRequest, open: open))));
+
+        Assert.Equal("Request REQ-000123-2569 is already inspecting this appraisal chain.", ex.Message);
+        Assert.Equal(ConstructionChainBlockReasons.OpenInspectionRequest, ex.Code);
+    }
+
+    [Fact]
+    public async Task The_chain_check_asks_about_the_picked_appraisal()
+    {
+        var mediator = MediatorWithChain(Chain(null));
+
+        await Run("06", PriorId, null, mediator);
+
+        await mediator.Received(1).Send(
+            Arg.Is<GetConstructionChainStatusQuery>(q => q.AppraisalId == PriorId), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("02")]
+    [InlineData("03")]
+    [InlineData("09")]
+    [InlineData("12")]
+    [InlineData("01")]
+    public async Task Other_purposes_never_consult_the_construction_chain(string purpose)
+    {
+        var mediator = MediatorWithChain(Chain(ConstructionChainBlockReasons.ConstructionComplete));
+
+        await Run(purpose, PriorId, null, mediator);
+
+        await mediator.DidNotReceive().Send(Arg.Any<GetConstructionChainStatusQuery>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_prior_that_is_not_completed_is_rejected_before_the_chain_is_consulted()
+    {
+        var mediator = MediatorReturning("InProgress");
+
+        await Assert.ThrowsAsync<BadRequestException>(() => Run("06", PriorId, null, mediator));
+
+        await mediator.DidNotReceive().Send(Arg.Any<GetConstructionChainStatusQuery>(), Arg.Any<CancellationToken>());
+    }
 }

@@ -396,6 +396,16 @@ public class BuildingAppraisalDetail : Entity<Guid>
     /// </summary>
     public decimal? ComputeBuildingCostValue() => RoundedDepreciatedValue(_depreciationDetails);
 
+    /// <summary>
+    /// The 100% base a construction inspection of this building is measured against, in whole baht:
+    /// the keyed <see cref="BuildingCostValue"/> where there is one (a keyed 0 is a decision, not a gap),
+    /// otherwise the depreciation schedule rounded to the nearest 1,000, otherwise 0. The server derives
+    /// it so the inspection no longer trusts a client-sent total. Mirrors the front end's
+    /// buildingFinalCostValue and <c>COALESCE(BuildingCostValue, ROUND(SUM(PriceAfterDepreciation), -3))</c>.
+    /// </summary>
+    public decimal ConstructionBaseValue =>
+        ConstructionMoney.ToBaht(BuildingCostValue ?? ComputeBuildingCostValue() ?? 0m);
+
     private static decimal? RoundedDepreciatedValue(IEnumerable<BuildingDepreciationDetail> source)
     {
         var rows = source.ToList();

@@ -364,9 +364,7 @@ public class CollateralUpsertServiceTests(IntegrationTestFixture fixture)
             Guid.Empty, 5_000_000m,
             summaryDetail: "Overall progress",
             summaryPreviousProgressPct: 0m,
-            summaryPreviousValue: 0m,
             summaryCurrentProgressPct: 65m,
-            summaryCurrentValue: 3_250_000m,
             remark: null);
 
         var p = SeedLandProperty(a, "LO-001", "BKK", "D1", "S1", titleNo, "Chanote", inspection);

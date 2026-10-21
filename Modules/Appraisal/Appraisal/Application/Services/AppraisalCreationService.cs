@@ -157,8 +157,8 @@ public class AppraisalCreationService(
                 cancellationToken);
             appraisal.SetInspectionNumber((chain?.ProgressiveCount ?? 0) + 1);
 
-            // Step 4 (Progressive path): Deep-copy properties from the prior appraisal.
-            // ConstructionInspection (per-property) detail is intentionally excluded — it stays empty for fresh tracking.
+            // Step 4 (Progressive path): Deep-copy properties from the prior appraisal, including each
+            // property's ConstructionInspection (CopyForNextInspection: prior current % becomes the new previous %).
             priorToNewProperties = await CopyPropertiesFromPriorAppraisalAsync(
                 appraisal, prevAppraisalId!.Value, cancellationToken);
         }
@@ -693,7 +693,9 @@ public class AppraisalCreationService(
     /// <summary>
     /// Loads properties from the prior appraisal and deep-copies them into the new CI appraisal.
     /// Uses the same CopyFrom static factories as Appraisal.CopyProperty().
-    /// ConstructionInspection detail is excluded — it starts empty for fresh CI tracking.
+    /// A property's ConstructionInspection is carried over via ConstructionInspection.CopyForNextInspection: the
+    /// prior round's current progress becomes the new round's previous progress and current is reset for the
+    /// inspector to fill.
     /// </summary>
     private async Task<List<(Guid PriorPropertyId, AppraisalProperty NewProperty)>>
         CopyPropertiesFromPriorAppraisalAsync(

@@ -230,6 +230,55 @@ public class AppraisalChainResolutionTests(IntegrationTestFixture fixture)
     private static void SetAssignedAt(AppraisalAssignment assignment, DateTime when)
         => typeof(AppraisalAssignment).GetProperty("AssignedAt")!.SetValue(assignment, when);
 
+    /// <summary>
+    /// Progressive forces the company of the PICKED appraisal, which is not the tip's when the tip was done by
+    /// someone else. Same election as for the tip: newest assignment first, then its company.
+    /// </summary>
+    [Fact]
+    public async Task PickedCompany_IsThePicksOwn_NotTheTips()
+    {
+        using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        var (original, _, second) = await SeedTwoInspectionChainAsync(db);
+
+        var pickCompany = Guid.NewGuid();
+        var tipCompany = Guid.NewGuid();
+        db.AppraisalAssignments.AddRange(
+            AppraisalAssignment.Create(original, "External", assigneeCompanyId: pickCompany.ToString(), assignedBy: "test"),
+            AppraisalAssignment.Create(second, "External", assigneeCompanyId: tipCompany.ToString(), assignedBy: "test"));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var result = await sender.Send(
+            new ResolveLatestInAppraisalChainQuery(original), TestContext.Current.CancellationToken);
+
+        Assert.Equal(second, result!.AppraisalId);
+        Assert.Equal(tipCompany, result.CompanyId);
+        Assert.Equal(pickCompany, result.PickedCompanyId);
+    }
+
+    [Fact]
+    public async Task PickedCompany_IsNull_WhenThePickWasInternal_EvenIfTheTipWasExternal()
+    {
+        using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        var (original, _, second) = await SeedTwoInspectionChainAsync(db);
+
+        var tipCompany = Guid.NewGuid();
+        db.AppraisalAssignments.AddRange(
+            AppraisalAssignment.Create(original, "Internal", assigneeUserId: "P0001", assignedBy: "test"),
+            AppraisalAssignment.Create(second, "External", assigneeCompanyId: tipCompany.ToString(), assignedBy: "test"));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var result = await sender.Send(
+            new ResolveLatestInAppraisalChainQuery(original), TestContext.Current.CancellationToken);
+
+        Assert.Equal(tipCompany, result!.CompanyId);
+        Assert.Null(result.PickedCompanyId);
+        Assert.Equal(string.Empty, result.PickedCompanyName);
+    }
+
     [Fact]
     public async Task UnknownAppraisal_ResolvesToNull()
     {

@@ -1,8 +1,10 @@
 -- RCAS004 — รายงานการตรวจงวดงานที่ยังไม่ครบ 100 %
 -- Appraisals whose progressive construction inspection is below 100%.
--- Per-appraisal progress = MIN across its properties' inspections; per inspection:
---   full-detail  -> SUM(ConstructionWorkDetails.CurrentProportionPct)
---   summary mode -> SummaryCurrentProgressPct
+-- Per-appraisal progress is read from appraisal.vw_AppraisalConstructionProgress: the properties'
+-- inspections weighted by TotalValue (plain average when there is no value base), clamped to 0-100 and
+-- rounded to 2 places - the same figure the application and the regulatory export report. This used
+-- to be the MIN across the properties; the change is deliberate. An appraisal is listed while the
+-- unrounded figure is below 100, so 99.996% still appears (as 100.00).
 --
 -- CODE -> DESCRIPTION RESOLUTION (FSD shows human-readable text, not stored codes):
 --   * Purpose        : a.Purpose code      -> parameter.Parameters group 'AppraisalPurpose'
@@ -28,27 +30,12 @@ SELECT v.Id,
        prev.AppraisalNumber     AS PreviousAppraisalNumber,
        v.AppointmentDateTime    AS AppointmentDate,
        v.Status                 AS AppraisalStatus,
-       ci.ProgressPct           AS ProgressiveInspectionPct
+       ci.CurrentProgressPct    AS ProgressiveInspectionPct
 FROM appraisal.vw_AppraisalList v
          LEFT JOIN auth.AspNetUsers su ON su.NormalizedUserName = UPPER(v.AssigneeUserId)
          OUTER APPLY (SELECT TOP 1 Description FROM parameter.Parameters
                       WHERE [Group] = 'AppraisalPurpose' AND [Language] = 'EN' AND Code = v.Purpose) pp
-         INNER JOIN (
-    SELECT ap.AppraisalId,
-           MIN(insp.ProgressPct) AS ProgressPct
-    FROM appraisal.ConstructionInspections c
-             INNER JOIN appraisal.AppraisalProperties ap ON ap.Id = c.AppraisalPropertyId
-             CROSS APPLY (
-        SELECT CASE
-                   WHEN c.IsFullDetail = 1
-                       THEN ISNULL((SELECT SUM(wd.CurrentProportionPct)
-                                    FROM appraisal.ConstructionWorkDetails wd
-                                    WHERE wd.ConstructionInspectionId = c.Id), 0)
-                   ELSE ISNULL(c.SummaryCurrentProgressPct, 0)
-               END AS ProgressPct
-    ) insp
-    GROUP BY ap.AppraisalId
-    ) ci ON ci.AppraisalId = v.Id
+         INNER JOIN appraisal.vw_AppraisalConstructionProgress ci ON ci.AppraisalId = v.Id
          LEFT JOIN appraisal.Appraisals cur ON cur.Id = v.Id
          LEFT JOIN appraisal.Appraisals prev ON prev.Id = cur.PrevAppraisalId
          OUTER APPLY (
@@ -60,4 +47,4 @@ FROM appraisal.vw_AppraisalList v
              OUTER APPLY (SELECT TOP 1 Description FROM parameter.Parameters
                           WHERE [Group] = 'PropertyType' AND [Language] = 'EN' AND Code = x.PropertyType) cpt
     ) ct
-WHERE ci.ProgressPct < 100;
+WHERE ci.IsUnderConstruction = 1;

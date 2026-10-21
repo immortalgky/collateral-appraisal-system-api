@@ -63,9 +63,7 @@ public class CollateralPR5_ConstructionInspectionsTests(IntegrationTestFixture f
             totalValue: 1_000_000m,
             summaryDetail: "Test CI",
             summaryPreviousProgressPct: 0m,
-            summaryPreviousValue: 0m,
             summaryCurrentProgressPct: progressPct,
-            summaryCurrentValue: progressPct / 100m * 1_000_000m,
             remark: null);
         // Fix AppraisalPropertyId via reflection (it defaults to propertyId already)
         return ci;

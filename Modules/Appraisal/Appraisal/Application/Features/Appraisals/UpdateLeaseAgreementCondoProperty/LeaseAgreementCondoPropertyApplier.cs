@@ -230,8 +230,8 @@ public static class LeaseAgreementCondoPropertyApplier
             else
             {
                 inspection.UpdateSummary(ci.TotalValue, ci.SummaryDetail,
-                    ci.SummaryPreviousProgressPct, ci.SummaryPreviousValue,
-                    ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.Remark);
+                    ci.SummaryPreviousProgressPct,
+                    ci.SummaryCurrentProgressPct, ci.Remark);
                 if (ci.DocumentId.HasValue)
                     inspection.SetDocument(ci.DocumentId.Value, ci.FileName, ci.FilePath, ci.FileExtension, ci.MimeType, ci.FileSizeBytes);
                 else
@@ -257,8 +257,8 @@ public static class LeaseAgreementCondoPropertyApplier
             else
             {
                 inspection = ConstructionInspection.CreateSummary(property.Id, ci.TotalValue,
-                    ci.SummaryDetail, ci.SummaryPreviousProgressPct, ci.SummaryPreviousValue,
-                    ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.Remark);
+                    ci.SummaryDetail, ci.SummaryPreviousProgressPct,
+                    ci.SummaryCurrentProgressPct, ci.Remark);
                 if (ci.DocumentId.HasValue)
                     inspection.SetDocument(ci.DocumentId.Value, ci.FileName, ci.FilePath, ci.FileExtension, ci.MimeType, ci.FileSizeBytes);
             }

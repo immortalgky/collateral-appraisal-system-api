@@ -11,11 +11,27 @@ public class ConstructionInspection : Entity<Guid>
     public bool IsFullDetail { get; private set; }
     public decimal TotalValue { get; private set; }
 
-    // Summary Mode fields (used when IsFullDetail = false)
+    // Summary mode only
     public string? SummaryDetail { get; private set; }
+
+    // The four Summary* figures below are the inspection-level result in BOTH modes, so every reader
+    // takes progress and value from them without branching on IsFullDetail. Despite the name they are
+    // not summary-mode-only any more.
+    //   Summary mode:     the two percentages are keyed by the inspector; the two values are computed
+    //                     here as TotalValue x pct / 100 (a value sent by the client is ignored).
+    //   Full-detail mode: all four are computed here from the work rows and overwritten on every save.
+    //                     A work row's contribution is ProportionPct x ProgressPct / 100.
+
+    /// <summary>Previous round's progress of this inspection, 0-100. Keyed in summary mode, computed in full-detail mode.</summary>
     public decimal? SummaryPreviousProgressPct { get; private set; }
+
+    /// <summary>Previous round's value in whole baht. Always computed here, never taken from the client.</summary>
     public decimal? SummaryPreviousValue { get; private set; }
+
+    /// <summary>Current round's progress of this inspection, 0-100. Keyed in summary mode, computed in full-detail mode.</summary>
     public decimal? SummaryCurrentProgressPct { get; private set; }
+
+    /// <summary>Current round's value in whole baht. Always computed here, never taken from the client.</summary>
     public decimal? SummaryCurrentValue { get; private set; }
 
     /// <summary>
@@ -67,13 +83,15 @@ public class ConstructionInspection : Entity<Guid>
         decimal totalValue,
         string? remark)
     {
-        return new ConstructionInspection
+        var inspection = new ConstructionInspection
         {
             AppraisalPropertyId = appraisalPropertyId,
             IsFullDetail = true,
             TotalValue = ConstructionMoney.ToBaht(totalValue),
             Remark = EnsureFits(remark, RemarkMaxLength, nameof(Remark))
         };
+        inspection.RecomputeSummary();
+        return inspection;
     }
 
     /// <summary>
@@ -84,23 +102,21 @@ public class ConstructionInspection : Entity<Guid>
         decimal totalValue,
         string? summaryDetail,
         decimal? summaryPreviousProgressPct,
-        decimal? summaryPreviousValue,
         decimal? summaryCurrentProgressPct,
-        decimal? summaryCurrentValue,
         string? remark)
     {
-        return new ConstructionInspection
+        var inspection = new ConstructionInspection
         {
             AppraisalPropertyId = appraisalPropertyId,
             IsFullDetail = false,
             TotalValue = ConstructionMoney.ToBaht(totalValue),
             SummaryDetail = EnsureFits(summaryDetail, SummaryDetailMaxLength, nameof(SummaryDetail)),
             SummaryPreviousProgressPct = summaryPreviousProgressPct,
-            SummaryPreviousValue = ConstructionMoney.ToBaht(summaryPreviousValue),
             SummaryCurrentProgressPct = summaryCurrentProgressPct,
-            SummaryCurrentValue = ConstructionMoney.ToBaht(summaryCurrentValue),
             Remark = EnsureFits(remark, RemarkMaxLength, nameof(Remark))
         };
+        inspection.RecomputeSummary();
+        return inspection;
     }
 
     /// <summary>
@@ -110,9 +126,7 @@ public class ConstructionInspection : Entity<Guid>
         decimal totalValue,
         string? summaryDetail,
         decimal? summaryPreviousProgressPct,
-        decimal? summaryPreviousValue,
         decimal? summaryCurrentProgressPct,
-        decimal? summaryCurrentValue,
         string? remark)
     {
         // Clear work details when switching to summary mode
@@ -123,10 +137,9 @@ public class ConstructionInspection : Entity<Guid>
         TotalValue = ConstructionMoney.ToBaht(totalValue);
         SummaryDetail = EnsureFits(summaryDetail, SummaryDetailMaxLength, nameof(SummaryDetail));
         SummaryPreviousProgressPct = summaryPreviousProgressPct;
-        SummaryPreviousValue = ConstructionMoney.ToBaht(summaryPreviousValue);
         SummaryCurrentProgressPct = summaryCurrentProgressPct;
-        SummaryCurrentValue = ConstructionMoney.ToBaht(summaryCurrentValue);
         Remark = EnsureFits(remark, RemarkMaxLength, nameof(Remark));
+        RecomputeSummary();
     }
 
     /// <summary>
@@ -141,20 +154,18 @@ public class ConstructionInspection : Entity<Guid>
     /// </summary>
     public void UpdateFullDetail(decimal totalValue, string? remark)
     {
-        // Clear summary fields when switching to full detail mode
+        // Clear summary-only fields when switching to full detail mode. The four figures are
+        // recomputed from the work rows below, so the keyed percentages do not survive the switch.
         if (!IsFullDetail)
         {
             SummaryDetail = null;
-            SummaryPreviousProgressPct = null;
-            SummaryPreviousValue = null;
-            SummaryCurrentProgressPct = null;
-            SummaryCurrentValue = null;
             ClearDocument();
         }
 
         IsFullDetail = true;
         TotalValue = ConstructionMoney.ToBaht(totalValue);
         Remark = EnsureFits(remark, RemarkMaxLength, nameof(Remark));
+        RecomputeSummary();
     }
 
     public void SetDocument(
@@ -212,10 +223,11 @@ public class ConstructionInspection : Entity<Guid>
     public void ClearWorkDetails()
     {
         _workDetails.Clear();
+        RecomputeSummary();
     }
 
     /// <summary>
-    /// Compute all derived values for work details.
+    /// Compute all derived values for work details, then the inspection-level summary figures.
     /// </summary>
     public void ComputeAllValues()
     {
@@ -223,7 +235,38 @@ public class ConstructionInspection : Entity<Guid>
         {
             detail.ComputeValues(TotalValue);
         }
+
+        RecomputeSummary();
     }
+
+    /// <summary>
+    /// Brings the four Summary* figures in line with the current mode (see the property remarks).
+    /// Summary mode keeps the keyed percentages and derives the money; full-detail mode derives all
+    /// four from the work rows.
+    /// </summary>
+    private void RecomputeSummary()
+    {
+        if (!IsFullDetail)
+        {
+            SummaryPreviousValue = ValueAt(SummaryPreviousProgressPct);
+            SummaryCurrentValue = ValueAt(SummaryCurrentProgressPct);
+            return;
+        }
+
+        // The percentage columns are decimal(7,4). Current rounds each row first because the stored
+        // CurrentProportionPct already is rounded that way and the readers this replaced summed the
+        // stored rows; previous had no stored row figure, so it is summed whole and rounded once.
+        SummaryCurrentProgressPct = _workDetails.Sum(d =>
+            Math.Round(d.CurrentProportionPct, 4, MidpointRounding.AwayFromZero));
+        SummaryPreviousProgressPct = Math.Round(
+            _workDetails.Sum(d => d.ProportionPct * d.PreviousProgressPct / 100m),
+            4, MidpointRounding.AwayFromZero);
+        SummaryPreviousValue = ConstructionMoney.ToBaht(_workDetails.Sum(d => d.PreviousPropertyValue));
+        SummaryCurrentValue = ConstructionMoney.ToBaht(_workDetails.Sum(d => d.CurrentPropertyValue));
+    }
+
+    private decimal? ValueAt(decimal? progressPct) =>
+        progressPct is null ? null : ConstructionMoney.ToBaht(TotalValue * progressPct.Value / 100m);
 
     /// <summary>
     /// Creates a new CI shell for the next inspection round from a prior inspection.
@@ -240,9 +283,7 @@ public class ConstructionInspection : Entity<Guid>
                 totalValue: prior.TotalValue,
                 summaryDetail: prior.SummaryDetail,
                 summaryPreviousProgressPct: prior.SummaryCurrentProgressPct,
-                summaryPreviousValue: prior.SummaryCurrentValue,
                 summaryCurrentProgressPct: null,
-                summaryCurrentValue: null,
                 remark: null);
         }
 
