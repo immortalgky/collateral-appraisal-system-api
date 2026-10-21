@@ -680,8 +680,7 @@ public class TitleMachineConfiguration : IEntityTypeConfiguration<TitleMachine>
         builder.OwnsOne(p => p.MachineInfo, machinery =>
         {
             machinery.Property(p => p.RegistrationStatus)
-                .HasColumnName("RegistrationStatus")
-                .HasDefaultValue(false);
+                .HasColumnName("RegistrationStatus");
 
             machinery.Property(p => p.RegistrationNumber)
                 .HasMaxLength(50)

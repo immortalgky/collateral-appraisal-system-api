@@ -33,7 +33,11 @@ public sealed class TitleMachine : RequestTitle
         base.Validate();
 
         var ruleCheck = new RuleCheck();
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(MachineInfo.RegistrationNumber), "registrationNo is required.");
+        ruleCheck.AddErrorIf(
+            MachineInfo.RegistrationStatus
+            && MachineInfo.InstallationStatus == "1"
+            && string.IsNullOrWhiteSpace(MachineInfo.RegistrationNumber),
+            "registrationNo is required.");
         ruleCheck.ThrowIfInvalid();
 
         MachineInfo.Validate();
