@@ -19,6 +19,8 @@ public record BlockReappraisalDetailResult(
     DateTime? LastAppraisedDate,
     DateTime? DueDate,
     int SoldUnits,
+    string? Status,
+    string? NotRequiredRemark,
     BlockReappraisalStructureDto Structure);
 
 // ─── Snapshot DTOs (must match PascalCase produced by default JsonSerializer.Serialize) ───

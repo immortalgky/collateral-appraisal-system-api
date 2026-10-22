@@ -26,11 +26,11 @@ public class MarkBlockReappraisalNotRequiredCommandHandler(
         var by = currentUser.Username ?? currentUser.UserId?.ToString() ?? "unknown";
         master.MarkExcludedFromReappraisal(by, dateTimeProvider.UtcNow);
 
-        // Consume the pending due row so it immediately leaves the list.
+        // Move the pending due row to Deleted so it leaves the Pending list for the not-required tab.
         var dueRow = await dbContext.BlockReappraisalDue
             .FirstOrDefaultAsync(r => r.CollateralMasterId == command.CollateralMasterId, cancellationToken);
 
-        dueRow?.MarkConsumed(command.Remark);
+        dueRow?.MarkNotRequired(command.Remark);
 
         await repository.SaveChangesAsync(cancellationToken);
 
