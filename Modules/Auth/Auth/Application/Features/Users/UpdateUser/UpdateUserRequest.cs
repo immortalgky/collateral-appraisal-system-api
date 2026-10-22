@@ -4,6 +4,7 @@ public record UpdateUserRequest(
     string FirstName,
     string LastName,
     string Email,
+    string? PhoneNumber,
     string? Position,
     string? Department,
     Guid? CompanyId,

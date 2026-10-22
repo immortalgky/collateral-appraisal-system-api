@@ -29,6 +29,7 @@ public class UpdateProfileEndpoint : ICarterModule
                     userId,
                     request.FirstName,
                     request.LastName,
+                    request.PhoneNumber,
                     request.AvatarUrl,
                     request.Position,
                     request.Department
