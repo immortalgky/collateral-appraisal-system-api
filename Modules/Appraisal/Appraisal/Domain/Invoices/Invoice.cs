@@ -100,8 +100,8 @@ public class Invoice : Entity<Guid>
             throw new InvalidOperationException("Only Sent invoices can be marked as paid.");
         if (string.IsNullOrWhiteSpace(paymentOrderNo))
             throw new ArgumentException("Payment order number cannot be empty.");
-        if (paymentOrderNo.Length > 10)
-            throw new ArgumentException("Payment order number cannot exceed 10 characters.");
+        if (paymentOrderNo.Length > 15)
+            throw new ArgumentException("Payment order number cannot exceed 15 characters.");
 
         Status = "Paid";
         ApprovedBy = approvedBy;
