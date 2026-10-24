@@ -178,7 +178,7 @@ public class GetAppraisalsQueryHandler(
             {armsSql}
             ) m
             WHERE m.AppraisalId IN @Ids
-            ORDER BY m.Rnk, m.Fld
+            ORDER BY m.Rnk, m.Fld, m.Val
             """,
             parameters, cancellationToken: cancellationToken));
         return rows.ToLookup(m => m.AppraisalId, m => m.ToMatch());

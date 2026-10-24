@@ -133,10 +133,13 @@ public record AppraisalDto
     public string? PreviouslyQuotedNumber { get; init; }
 
     /// <summary>
-    /// Why this row answers the all-fields <c>search</c>: every field that matched, best rank first.
-    /// The search reaches columns the list never shows (a previous appraisal number, a title deed),
-    /// so without this a row can be in the result with no visible reason. Null when there is no
-    /// <c>search</c>; the pinned single-field filters need no explanation.
+    /// Why this row answers the all-fields <c>search</c>: every field that matched, ordered by rank
+    /// band (document, customer, property), then field name, then value. That is a stable order,
+    /// not a measure of how exact each match is. The search reaches columns the list never shows (a
+    /// previous appraisal number, a title deed), so without this a row can be in the result with no
+    /// visible reason. Null when there is no <c>search</c> (the pinned single-field filters need no
+    /// explanation) and on every endpoint other than GET /appraisals. Empty in the rare case the row
+    /// changed between the page query and the match query.
     /// </summary>
     public IReadOnlyList<SearchMatch>? MatchedOn { get; init; }
 }

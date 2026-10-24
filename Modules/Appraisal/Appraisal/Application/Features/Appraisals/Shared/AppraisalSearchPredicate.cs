@@ -12,8 +12,9 @@ namespace Appraisal.Application.Features.Appraisals.Shared;
 ///
 /// Shape: one arm per searchable column, unioned, each producing
 /// <c>(AppraisalId, Rnk, Fld, Val)</c>. Grouping to one row per appraisal and ranking happens in
-/// the caller — the list only needs the ids, while the dropdown also needs to say *why* each row
-/// matched.
+/// the caller. The list pages on the ids alone, then runs the arms again over the page's ids so
+/// each row can say *why* it matched (<c>AppraisalDto.MatchedOn</c>); the dropdown does both at once.
+/// Fld and Val are therefore read by both screens, and the client labels rows by Fld.
 ///
 /// Why it reads base tables and never <c>vw_AppraisalList</c>: the view resolves the latest
 /// assignment, first land location, customer and latest appointment per row. Filtering it by a text
