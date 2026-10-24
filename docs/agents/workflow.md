@@ -24,14 +24,15 @@ GitHub issues come only from `/to-spec` and `/to-tickets`, which means only from
 3. /to-tickets        spec → vertical-slice ticket issues with blocked-by links, labelled ready-for-agent
    (keep 1–3 in ONE context window: no /clear, no /compact)
 4. per ticket, frontier first (every blocker closed):
-   orca worktree → subagent implements test-first (tdd) → /code-review loop → test-automator gates
+   orca worktree → /implement (session codes test-first with tdd, Matt's code-review) → /code-review loop → test-automator gates
 5. before the PR: /mattpocock-skills:code-review main   (Standards + Spec vs the issue)
 6. /retro             in the same session, before /clear
 ```
 
 Adjustments for this repo:
-- **`/implement` and `/implement-spec` both work, under the team-lead rule.** The main session orchestrates and
-  subagents write the code (see "After the tickets exist"). When either skill calls `code-review`, that means
+- **`/implement` and `/implement-spec` are exempt from the team-lead rule.** `tdd` only reaches whoever runs the
+  skill, and our specialist agents can't load skills. So the `/implement` session writes the code itself, and
+  `/implement-spec` uses its own implementer subagents. When either skill calls `code-review`, that means
   **Matt's** `code-review`. The built-in `/code-review` loop still runs before the PR.
 - **Two reviews, different jobs.** The built-in `/code-review` hunts bugs. Round 1 runs on the whole branch with
   `high --max-findings all`, later rounds review only the fix diff, and the loop stops when no new critical/high/medium
@@ -48,29 +49,29 @@ One ticket per round, each in a fresh session:
 3. **Create an orca worktree from fresh `origin/main`**, with a branch named after the ticket.
    If a blocker is still unmerged, wait for it to merge. Don't stack on its branch: merging a parent with
    `--delete-branch` closes the stacked PR.
-4. **Delegate** to `dotnet-backend` / `react-expert` / `ddd-expert` with the worktree path and the issue number.
-   Tell the subagent to fetch the issue, work test-first and commit on the branch.
-5. **QA**, all through subagents and skills: `test-automator` runs the gates, then the `/code-review` loop, then Matt's
-   `code-review` once against the issue.
+4. **Implement.** Start Claude inside the worktree and run `/implement #<ticket>`. That session works test-first
+   with `tdd`, runs Matt's `code-review` and commits on the branch.
+5. **QA**, all through subagents and skills. Matt's `code-review` already ran inside `/implement`, so now the built-in
+   `/code-review` loop runs, then `test-automator` runs the gates.
 6. **The user tests, then the PR.** Put `Closes #<ticket>` in the body, so the merge closes the ticket and
    unblocks the next ones.
 
 - Tickets with no edge between them, such as a BE slice and an FE slice, can run in parallel worktrees.
 - Don't edit the spec issue by hand mid-build. A change of scope is a new ticket, or a comment on the spec.
-- **Option: `/implement-spec #<spec>`** works the whole ticket graph for you, and it fits the team-lead rule.
+- **Option: `/implement-spec #<spec>`** works the whole ticket graph for you.
   Neither skill creates the branch you work on, so create that first:
   1. Create an orca worktree, `feat/<spec#>-<slug>` from `origin/main`, and start a Claude session inside it.
   2. Run `/implement-spec #<spec>` and say "the integration branch is the current branch". Its step 7
      `code-review` is Matt's. Run the built-in `/code-review` loop on the branch afterwards.
-  3. It runs implementer subagents in parallel on the frontier. Each gets its own **temporary** worktree, which the
-     skill makes and deletes, and a merger subagent merges it into the integration branch.
+  3. It runs implementer subagents in parallel on the frontier. Implementers are the skill's own subagents, not our
+     specialist agents. Each gets its own **temporary** worktree, which the skill makes and deletes, and a merger
+     subagent merges it into the integration branch.
   4. You test on the orca worktree, then mark the draft PR ready.
 
   It is not tested here yet, so watch the first run. It covers one repo, so a BE+FE feature needs one run per repo.
 - **Option: `/implement #<ticket>`** for one ticket. It works on the **current branch**, so create the orca worktree
-  first and start Claude inside it. Under the team-lead rule (global CLAUDE.md), the main session follows the
-  skill's steps: fetch the ticket, run the review, commit. A subagent does the TDD coding and the gates in the
-  same worktree. Its inner `code-review` is **Matt's** (Standards + Spec against the ticket). The built-in
+  first and start Claude inside it. The session itself does the TDD coding with `tdd`, then runs the skill's
+  `code-review`, which is **Matt's** (Standards + Spec against the ticket), then commits. The built-in
   `/code-review` bug-hunt loop runs afterwards, before the PR.
 
 ## Other entry points
@@ -93,3 +94,6 @@ One ticket per round, each in a fresh session:
   `/retro` may propose creating the file.
 - Keep steps 1–3 under about 150k tokens. If the window gets close, `/compact` at a step boundary.
 - The FE repo has its own setup. Run `/setup-matt-pocock-skills` there before creating FE tickets.
+- **Models.** Matt's skills pin no model, so subagents inherit the session's. First `/implement-spec` pilot: all
+  opus. After that, tell it "implementer subagents use sonnet" and compare review findings, fix rounds and
+  follow-up test fixes against the pilot. Reviews stay on opus.
