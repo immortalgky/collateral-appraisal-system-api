@@ -1,4 +1,4 @@
-using Appraisal.Application.Features.Appraisals.QuickSearch;
+using Appraisal.Application.Features.Appraisals.Shared;
 using Shared.Pagination;
 
 namespace Appraisal.Application.Features.Appraisals.GetAppraisals;

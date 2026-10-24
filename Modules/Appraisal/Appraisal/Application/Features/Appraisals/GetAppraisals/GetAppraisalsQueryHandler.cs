@@ -1,4 +1,3 @@
-using Appraisal.Application.Features.Appraisals.QuickSearch;
 using Appraisal.Application.Features.Appraisals.Shared;
 using Appraisal.Application.Features.Shared;
 using Dapper;
@@ -172,7 +171,7 @@ public class GetAppraisalsQueryHandler(
         // No RECOMPILE, unlike the page: the ids drive every arm's seek, so the pattern cannot turn
         // it into a scan. Measured on 105k appraisals, a 26-id page: ~4 ms with a cached plan, even
         // for '%Sukanya%'; recompiling the 17 arms every time added ~110 ms for nothing.
-        var rows = await connection.QueryAsync<MatchRow>(new CommandDefinition(
+        var rows = await connection.QueryAsync<SearchMatchRow>(new CommandDefinition(
             $"""
             SELECT DISTINCT m.AppraisalId, m.Rnk, m.Fld, m.Val
             FROM (
@@ -182,15 +181,7 @@ public class GetAppraisalsQueryHandler(
             ORDER BY m.Rnk, m.Fld
             """,
             parameters, cancellationToken: cancellationToken));
-        return rows.ToLookup(m => m.AppraisalId, m => new SearchMatch(m.Fld, m.Val ?? ""));
-    }
-
-    private sealed class MatchRow
-    {
-        public Guid AppraisalId { get; set; }
-        public int Rnk { get; set; }
-        public string Fld { get; set; } = "";
-        public string? Val { get; set; }
+        return rows.ToLookup(m => m.AppraisalId, m => m.ToMatch());
     }
 
     /// <summary>
