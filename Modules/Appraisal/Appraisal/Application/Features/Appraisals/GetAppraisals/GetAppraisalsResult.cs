@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Appraisals.QuickSearch;
 using Shared.Pagination;
 
 namespace Appraisal.Application.Features.Appraisals.GetAppraisals;
@@ -130,6 +131,14 @@ public record AppraisalDto
     /// Populated only by GET /appraisals/eligible-for-quotation; null on every other endpoint.
     /// </summary>
     public string? PreviouslyQuotedNumber { get; init; }
+
+    /// <summary>
+    /// Why this row answers the all-fields <c>search</c>: every field that matched, best rank first.
+    /// The search reaches columns the list never shows (a previous appraisal number, a title deed),
+    /// so without this a row can be in the result with no visible reason. Null when there is no
+    /// <c>search</c>; the pinned single-field filters need no explanation.
+    /// </summary>
+    public IReadOnlyList<SearchMatch>? MatchedOn { get; init; }
 }
 
 /// <summary>
