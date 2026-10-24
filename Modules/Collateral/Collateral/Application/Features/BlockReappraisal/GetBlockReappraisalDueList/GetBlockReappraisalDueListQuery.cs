@@ -1,10 +1,12 @@
 namespace Collateral.Application.Features.BlockReappraisal.GetBlockReappraisalDueList;
 
 /// <summary>
-/// Returns a paginated list of block-project CollateralMasters that are pending reappraisal.
-/// Backed by collateral.vw_BlockReappraisalDueList (Status = 'Pending').
+/// Returns a paginated list of block-project CollateralMasters on the reappraisal due list.
+/// Backed by collateral.vw_BlockReappraisalDueList; <paramref name="Status"/> picks the tab:
+/// Pending (default) or Deleted (marked not required).
 /// </summary>
 public record GetBlockReappraisalDueListQuery(
+    string? Status,
     string? Search,
     DateTime? LastAppraisedDateFrom,
     DateTime? LastAppraisedDateTo,
@@ -26,4 +28,6 @@ public record BlockReappraisalDueListItem(
     int RemainingUnits,
     DateTime? LastAppraisedDate,
     DateTime DueDate,
-    int RemainingDay);
+    string Status,
+    int RemainingDay,
+    string? NotRequiredRemark);
