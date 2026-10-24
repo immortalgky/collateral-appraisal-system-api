@@ -282,6 +282,49 @@ public partial class LoginFlowTests(IntegrationTestFixture fixture)
     }
 
     [Fact]
+    public async Task The_login_page_and_its_errors_follow_the_browsers_language()
+    {
+        using var browser = Browser();
+        var user = await BffTestSupport.CreateUserAsync(Services, "RequestMaker");
+        var (_, loginPage) = await StartAsync(browser, BffTestSupport.Spa + "/");
+        var returnUrl = Query(loginPage, "ReturnUrl");
+
+        async Task<string> Send(HttpRequestMessage request, string language, string? cookie = null)
+        {
+            request.Headers.Add("Accept-Language", language);
+            if (cookie is not null) request.Headers.Add("Cookie", cookie);
+            using var response = await browser.SendAsync(request, TestContext.Current.CancellationToken);
+            return WebUtility.HtmlDecode(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        }
+
+        var thai = await Send(new HttpRequestMessage(HttpMethod.Get, loginPage), "th-TH,th;q=0.9");
+        thai.Should().MatchRegex("/Assets/index\\.css\\?v=[0-9a-f]{8}\"");
+        thai.Should().Contain("<html lang=\"th\">").And.Contain("กรอกชื่อผู้ใช้และรหัสผ่าน").And.Contain("เลือกวิธีเข้าสู่ระบบอื่น");
+
+        // The cas-lang cookie wins over Accept-Language; an unsupported value falls back to it.
+        (await Send(new HttpRequestMessage(HttpMethod.Get, loginPage), "th", "cas-lang=zh"))
+            .Should().Contain("<html lang=\"zh\">").And.Contain("请输入用户名和密码");
+        (await Send(new HttpRequestMessage(HttpMethod.Get, loginPage), "th", "cas-lang=xx"))
+            .Should().Contain("<html lang=\"th\">");
+        (await Send(new HttpRequestMessage(HttpMethod.Get, loginPage), "fr"))
+            .Should().Contain("<html lang=\"en\">").And.Contain("Enter your username and password");
+
+        var token = await AntiforgeryTokenAsync(browser, loginPage);
+        var post = new HttpRequestMessage(HttpMethod.Post, "/Account/Login")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["Username"] = user.UserName,
+                ["Password"] = "wrong-password",
+                ["ReturnUrl"] = returnUrl,
+                ["__RequestVerificationToken"] = token
+            })
+        };
+        post.Headers.Add("Origin", PublicBase);
+        (await Send(post, "th")).Should().Contain("ข้อมูลการเข้าสู่ระบบไม่ถูกต้อง");
+    }
+
+    [Fact]
     public async Task The_login_form_never_redirects_to_an_absolute_url()
     {
         using var browser = Browser();

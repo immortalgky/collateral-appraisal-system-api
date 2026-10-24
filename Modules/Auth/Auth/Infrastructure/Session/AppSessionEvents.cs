@@ -20,6 +20,9 @@ public static class AppSessionEvents
 {
     private const string LoggerCategory = "Auth.Session";
 
+    /// <summary>Response header on a 401: <c>idle</c> or <c>ended</c>. Exposed through CORS so the SPA can read it.</summary>
+    public const string SessionEndHeader = "X-Session-End";
+
     // ── App cookie ───────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -84,6 +87,7 @@ public static class AppSessionEvents
     {
         context.RejectPrincipal();
         context.HttpContext.Items[AuthSchemes.EndReasonItem] = reason;
+        context.HttpContext.Items[AuthSchemes.EndHintItem] = reason;
         await context.HttpContext.SignOutAsync(AuthSchemes.AppCookie);
     }
 
@@ -102,6 +106,12 @@ public static class AppSessionEvents
                 new AuthenticationProperties { RedirectUri = request.PathBase + request.Path + request.QueryString });
 
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        // Only when a session cookie was presented and its session is gone; the SPA tells "timed out" from "ended".
+        // Nothing when the user ended it themselves (signed out in another tab, signed in again): telling them
+        // their session "was ended" would be wrong.
+        if (context.HttpContext.Items[AuthSchemes.EndHintItem] is SessionEndReason ended
+            and not (SessionEndReason.Logout or SessionEndReason.Replaced))
+            context.Response.Headers[SessionEndHeader] = ended == SessionEndReason.Idle ? "idle" : "ended";
         // Debug: a forgotten Hangfire tab polls every 2 s after its session ends, which at Information is tens of thousands of rows a day.
         Logger(context.HttpContext).LogDebug(
             "[AUTH-401] {Method} {Path} has no valid session", request.Method, request.Path.Value);

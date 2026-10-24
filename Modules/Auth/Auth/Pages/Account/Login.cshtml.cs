@@ -35,6 +35,27 @@ public class Login(
     [BindProperty] public string Password { get; set; } = string.Empty;
 
     /// <summary>
+    /// Cache-buster for /Assets/index.css. <c>asp-append-version</c> cannot be used: /Assets is served by its own
+    /// file provider, not the web root it looks in. The CSS ships with the assembly, so its module id changes
+    /// whenever the CSS can.
+    /// </summary>
+    public static readonly string AssetVersion =
+        typeof(Login).Assembly.ManifestModule.ModuleVersionId.ToString("N")[..8];
+
+    private string? _lang;
+
+    public string Lang => _lang ??= LoginText.Resolve(
+        Request.Cookies[LoginText.CookieName], Request.Headers.AcceptLanguage.ToString());
+
+    public LoginText T => LoginText.For(Lang);
+
+    /// <summary>"Choose another way" target: the SPA's sign-in page (its interstitial restores the return URL itself).</summary>
+    public string SpaLoginUrl => urls.SpaHome + "login";
+
+    /// <summary>False when no SPA origin is configured (SpaHome is then "/"): the link would point at a 404.</summary>
+    public bool HasSpaLogin => urls.SpaHome != "/";
+
+    /// <summary>
     /// Sign-ins are always non-persistent, so the Identity cookie is a session cookie that dies with
     /// the browser. That is load-bearing: a persistent one would let /connect/authorize mint a fresh
     /// authorization code after a browser restart and sign the user straight back in without a
@@ -68,7 +89,7 @@ public class Login(
 
         if (string.IsNullOrEmpty(Username) || string.IsNullOrEmpty(Password))
         {
-            Error = "Username and password are required.";
+            Error = T.RequiredError;
             return Page();
         }
 
@@ -79,14 +100,14 @@ public class Login(
         {
             logger.LogWarning("Login attempt for non-existent user: {Username}", Username);
             await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, null, Username, new { reason = "UserNotFound" });
-            Error = "Invalid login attempt.";
+            Error = T.InvalidAttemptError;
             return Page();
         }
 
         if (!user.IsActive)
         {
             await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "Inactive" });
-            Error = "This account is deactivated. Contact your administrator.";
+            Error = T.DeactivatedError;
             return Page();
         }
 
@@ -97,7 +118,7 @@ public class Login(
         if (!user.IsUsable(dateTimeProvider.ApplicationNow))
         {
             await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "Expired" });
-            Error = "Invalid login attempt.";
+            Error = T.InvalidAttemptError;
             return Page();
         }
 
@@ -114,7 +135,7 @@ public class Login(
         {
             logger.LogWarning("LDAP user {Username} attempted login but LDAP is disabled", Username);
             await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "LdapDisabled" });
-            Error = "Invalid login attempt.";
+            Error = T.InvalidAttemptError;
             return Page();
         }
 
@@ -123,7 +144,7 @@ public class Login(
         if (await userManager.IsLockedOutAsync(user))
         {
             await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "LockedOut" });
-            Error = "Account locked out.";
+            Error = T.LockedOutError;
             return Page();
         }
 
@@ -133,7 +154,7 @@ public class Login(
             await userManager.AccessFailedAsync(user);
             logger.LogWarning("LDAP auth failed for {Username}: {Error}", Username, ldapResult.ErrorMessage);
             await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "InvalidCredentials" });
-            Error = "Invalid login attempt.";
+            Error = T.InvalidAttemptError;
             return Page();
         }
 
@@ -161,12 +182,12 @@ public class Login(
         if (result.IsLockedOut)
         {
             await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "LockedOut" });
-            Error = "Account locked out.";
+            Error = T.LockedOutError;
             return Page();
         }
 
         await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, Username, new { reason = "InvalidCredentials" });
-        Error = "Invalid login attempt.";
+        Error = T.InvalidAttemptError;
         return Page();
     }
 

@@ -43,6 +43,12 @@ public class UserSessionService(
             .Select(s => new SessionSnapshot(s.UserId, s.Ticket, s.LastActivityAt))
             .FirstOrDefaultAsync(cancellationToken);
 
+    public Task<SessionEndReason?> GetEndReasonAsync(Guid id, CancellationToken cancellationToken = default) =>
+        dbContext.UserSessions.AsNoTracking()
+            .Where(s => s.Id == id)
+            .Select(s => s.EndReason)
+            .FirstOrDefaultAsync(cancellationToken);
+
     public async Task<bool> TouchAsync(Guid id, DateTime now, CancellationToken cancellationToken = default) =>
         await dbContext.UserSessions
             .Where(s => s.Id == id && s.EndedAt == null)

@@ -51,6 +51,8 @@ public class AccountStateTests(IntegrationTestFixture fixture)
 
         using var response = await BffTestSupport.GetAsync(browser, "/test/whoami", cookie);
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        // The rejection comes from ValidatePrincipal, not the ticket store: its 401 must still carry the hint.
+        response.Headers.GetValues("X-Session-End").Should().Equal("ended");
         (await BffTestSupport.GetSessionAsync(Services, user.Id)).EndReason.Should().Be(SessionEndReason.Deactivated);
     }
 
