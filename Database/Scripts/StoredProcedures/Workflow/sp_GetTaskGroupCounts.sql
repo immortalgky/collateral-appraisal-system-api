@@ -5,12 +5,12 @@ CREATE OR ALTER PROCEDURE [workflow].[sp_GetTaskGroupCounts]
     @CompanyGate      TINYINT      = 0,       -- 0 = no gate, 1 = (NULL OR = @CallerCompanyId), 2 = (NULL only)
     @CallerCompanyId  UNIQUEIDENTIFIER = NULL,
     -- Filters (all optional; NULL = ignore) -- SAME surface/semantics as sp_GetTaskList
-    @Status               NVARCHAR(50)  = NULL,
+    @Status               NVARCHAR(MAX) = NULL,  -- CSV list
     @Priority             NVARCHAR(50)  = NULL,
     @TaskName             NVARCHAR(100) = NULL,
     @Search               NVARCHAR(200) = NULL,  -- already LIKE-escaped by caller; matched with ESCAPE '\'
     @AppraisalNumber      NVARCHAR(50)  = NULL,
-    @Channel              NVARCHAR(10)  = NULL,
+    @Channel              NVARCHAR(MAX) = NULL,  -- CSV list
     @CustomerName         NVARCHAR(200) = NULL,
     @TaskStatus           NVARCHAR(50)  = NULL,
     @TaskType             NVARCHAR(100) = NULL,
@@ -20,15 +20,39 @@ CREATE OR ALTER PROCEDURE [workflow].[sp_GetTaskGroupCounts]
     @AppointmentDateTo    DATETIME2     = NULL,
     @RequestedAtFrom      DATETIME2     = NULL,
     @RequestedAtTo        DATETIME2     = NULL,
-    @SlaStatus            NVARCHAR(50)  = NULL,  -- 'NoSla' sentinel = IS NULL; else equality
-    @ActivityId           NVARCHAR(100) = NULL,
-    @Purpose              NVARCHAR(200) = NULL,
+    @SlaStatus            NVARCHAR(MAX) = NULL,  -- CSV list; 'NoSla' item = SlaStatus IS NULL
+    @ActivityId           NVARCHAR(MAX) = NULL,  -- CSV list
+    @Purpose              NVARCHAR(MAX) = NULL,  -- CSV list
     @TaskStatusBucket     NVARCHAR(20)  = NULL,  -- 'NotStarted' | 'InProgress' | 'Overdue' (mutually exclusive)
     -- Grouping
     @GroupBy              NVARCHAR(20)           -- required: 'status' | 'priority' | 'purpose' | 'activity' | 'slaStatus'
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    ----------------------------------------------------------------------------
+    -- Multi-value filters arrive as CSV (caller trims and drops empty items). Split ONCE into
+    -- small table variables; the predicates below probe them with `IN (SELECT v ...)`. 'NoSla'
+    -- in @SlaStatus is a sentinel for SlaStatus IS NULL and is carried by @SlaNoSla.
+    ----------------------------------------------------------------------------
+    DECLARE @StatusIds   TABLE (v NVARCHAR(4000));
+    DECLARE @ChannelIds  TABLE (v NVARCHAR(4000));
+    DECLARE @PurposeIds  TABLE (v NVARCHAR(4000));
+    DECLARE @ActivityIds TABLE (v NVARCHAR(4000));
+    DECLARE @SlaIds      TABLE (v NVARCHAR(4000));
+
+    IF @Status IS NOT NULL
+        INSERT INTO @StatusIds (v) SELECT DISTINCT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@Status, ',') WHERE LTRIM(RTRIM(value)) <> '';
+    IF @Channel IS NOT NULL
+        INSERT INTO @ChannelIds (v) SELECT DISTINCT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@Channel, ',') WHERE LTRIM(RTRIM(value)) <> '';
+    IF @Purpose IS NOT NULL
+        INSERT INTO @PurposeIds (v) SELECT DISTINCT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@Purpose, ',') WHERE LTRIM(RTRIM(value)) <> '';
+    IF @ActivityId IS NOT NULL
+        INSERT INTO @ActivityIds (v) SELECT DISTINCT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@ActivityId, ',') WHERE LTRIM(RTRIM(value)) <> '';
+    IF @SlaStatus IS NOT NULL
+        INSERT INTO @SlaIds (v) SELECT DISTINCT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@SlaStatus, ',') WHERE LTRIM(RTRIM(value)) <> '';
+
+    DECLARE @SlaNoSla BIT = CASE WHEN EXISTS (SELECT 1 FROM @SlaIds WHERE v = 'NoSla') THEN 1 ELSE 0 END;
 
     ----------------------------------------------------------------------------
     -- Same enrichment/heavy-join gating as sp_GetTaskList's @NeedEnrich/@NeedHeavy,
@@ -103,11 +127,11 @@ BEGIN
                      OR (@CompanyGate = 2 AND AssigneeCompanyId IS NULL) )
               AND (@TaskName   IS NULL OR TaskName   = @TaskName)
               AND (@TaskType   IS NULL OR TaskName   = @TaskType)
-              AND (@ActivityId IS NULL OR ActivityId = @ActivityId)
+              AND (@ActivityId IS NULL OR ActivityId IN (SELECT v FROM @ActivityIds))
               AND (@TaskStatus IS NULL OR TaskStatus = @TaskStatus)
               AND (@SlaStatus IS NULL
-                     OR (@SlaStatus = 'NoSla' AND SlaStatus IS NULL)
-                     OR (@SlaStatus <> 'NoSla' AND SlaStatus = @SlaStatus))
+                     OR SlaStatus IN (SELECT v FROM @SlaIds)
+                     OR (@SlaNoSla = 1 AND SlaStatus IS NULL))
               AND (@TaskStatusBucket IS NULL
                      OR (@TaskStatusBucket = 'NotStarted' AND TaskStatus = 'Assigned' AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
                      OR (@TaskStatusBucket = 'InProgress' AND TaskStatus IN ('InProgress', 'Completing') AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
@@ -140,11 +164,11 @@ BEGIN
                      OR (@CompanyGate = 2 AND AssigneeCompanyId IS NULL) )
               AND  (@TaskName   IS NULL OR TaskName   = @TaskName)
               AND  (@TaskType   IS NULL OR TaskName   = @TaskType)
-              AND  (@ActivityId IS NULL OR ActivityId = @ActivityId)
+              AND  (@ActivityId IS NULL OR ActivityId IN (SELECT v FROM @ActivityIds))
               AND  (@TaskStatus IS NULL OR TaskStatus = @TaskStatus)
               AND  (@SlaStatus IS NULL
-                     OR (@SlaStatus = 'NoSla' AND SlaStatus IS NULL)
-                     OR (@SlaStatus <> 'NoSla' AND SlaStatus = @SlaStatus))
+                     OR SlaStatus IN (SELECT v FROM @SlaIds)
+                     OR (@SlaNoSla = 1 AND SlaStatus IS NULL))
               AND  (@TaskStatusBucket IS NULL
                      OR (@TaskStatusBucket = 'NotStarted' AND TaskStatus = 'Assigned' AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
                      OR (@TaskStatusBucket = 'InProgress' AND TaskStatus IN ('InProgress', 'Completing') AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
@@ -227,9 +251,10 @@ BEGIN
                                                 ELSE 'NoSla' END
                 END AS GroupValue
             FROM gc_enriched
-            WHERE (@Status   IS NULL OR AStatus = @Status)
+            WHERE (@Status   IS NULL OR AStatus IN (SELECT v FROM @StatusIds))
               AND (@Priority IS NULL OR Priority = @Priority)
-              AND (@Channel  IS NULL OR Channel = @Channel)
+              AND (@Purpose  IS NULL OR Purpose IN (SELECT v FROM @PurposeIds))
+              AND (@Channel  IS NULL OR Channel IN (SELECT v FROM @ChannelIds))
               -- @AppraisalNumber / @CustomerName / @Search are applied per-branch in gc_resolved (#f_cust/#f_appr/#f_search pushdown).
               AND (@AppointmentDateFrom IS NULL OR AppointmentDateTime >= @AppointmentDateFrom)
               AND (@AppointmentDateTo   IS NULL OR AppointmentDateTime <  DATEADD(day, 1, @AppointmentDateTo))
@@ -258,11 +283,11 @@ BEGIN
                      OR (@CompanyGate = 2 AND AssigneeCompanyId IS NULL) )
               AND  (@TaskName   IS NULL OR TaskName   = @TaskName)
               AND  (@TaskType   IS NULL OR TaskName   = @TaskType)
-              AND  (@ActivityId IS NULL OR ActivityId = @ActivityId)
+              AND  (@ActivityId IS NULL OR ActivityId IN (SELECT v FROM @ActivityIds))
               AND  (@TaskStatus IS NULL OR TaskStatus = @TaskStatus)
               AND  (@SlaStatus IS NULL
-                     OR (@SlaStatus = 'NoSla' AND SlaStatus IS NULL)
-                     OR (@SlaStatus <> 'NoSla' AND SlaStatus = @SlaStatus))
+                     OR SlaStatus IN (SELECT v FROM @SlaIds)
+                     OR (@SlaNoSla = 1 AND SlaStatus IS NULL))
               AND  (@TaskStatusBucket IS NULL
                      OR (@TaskStatusBucket = 'NotStarted' AND TaskStatus = 'Assigned' AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
                      OR (@TaskStatusBucket = 'InProgress' AND TaskStatus IN ('InProgress', 'Completing') AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
@@ -340,9 +365,10 @@ BEGIN
                                                 ELSE 'NoSla' END
                 END AS GroupValue
             FROM gc_light
-            WHERE (@Status   IS NULL OR AStatus = @Status)
+            WHERE (@Status   IS NULL OR AStatus IN (SELECT v FROM @StatusIds))
               AND (@Priority IS NULL OR Priority = @Priority)
-              AND (@Channel  IS NULL OR Channel = @Channel)
+              AND (@Purpose  IS NULL OR Purpose IN (SELECT v FROM @PurposeIds))
+              AND (@Channel  IS NULL OR Channel IN (SELECT v FROM @ChannelIds))
               -- @AppraisalNumber / @CustomerName / @Search are applied per-branch in gc_resolved (#f_cust/#f_appr/#f_search pushdown).
               AND (@RequestedAtFrom IS NULL OR RequestReceivedDate >= @RequestedAtFrom)
               AND (@RequestedAtTo   IS NULL OR RequestReceivedDate <  DATEADD(day, 1, @RequestedAtTo))
