@@ -377,9 +377,12 @@ public class TitleImportValidator(
                 ctx.Require(values, "hin");
                 break;
             case "MAC":
-                ctx.Require(values, "registrationNumber");
                 ctx.Require(values, "machineType");
                 ctx.Require(values, "installationStatus");
+
+                if (values.GetValueOrDefault("registrationStatus") as bool? == true
+                    && Str(values, "installationStatus") == "1")
+                    ctx.Require(values, "registrationNumber");
 
                 // Status "2" is "being purchased", where the invoice is what stands in for the
                 // machine — the form makes it required in exactly that case.

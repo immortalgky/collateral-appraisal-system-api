@@ -48,6 +48,20 @@ public class WorkflowNotificationService(
         return realtimeNotifier.SendToGroupAsync($"pool-{poolGroup}", "PoolTaskUpdate", notification);
     }
 
+    public Task NotifyPoolTaskCompleted(string poolGroup, Guid taskId, string completedBy)
+    {
+        var notification = new
+        {
+            Type = "PoolTaskCompleted",
+            TaskId = taskId,
+            CompletedBy = completedBy,
+            PoolGroup = poolGroup,
+            Timestamp = dateTimeProvider.ApplicationNow
+        };
+
+        return realtimeNotifier.SendToGroupAsync($"pool-{poolGroup}", "PoolTaskUpdate", notification);
+    }
+
     public Task NotifyPoolTaskLocked(string poolGroup, Guid taskId, string lockedBy)
     {
         var notification = new

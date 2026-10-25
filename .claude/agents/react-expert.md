@@ -5,12 +5,10 @@ description: >
   UI patterns for any TypeScript frontend project. Invoke for component building,
   React Query hooks, Zustand stores, Zod schemas, form implementation, and
   real-time UI work.
-tools: Read, Write, Edit, Glob, Grep
+tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 memory: user
 skills:
-  - vercel-react-best-practices
-  - vercel-composition-patterns
   - web-design-guidelines
   - typescript-advanced-types
   - tailwind-design-system
@@ -26,8 +24,6 @@ conventions, and existing hook/store structure before implementing anything.
 ## How to Use Skills
 
 ### Component and architecture patterns
-→ `vercel-react-best-practices` for hooks, performance, and React patterns
-→ `vercel-composition-patterns` for component composition and abstraction
 → `web-design-guidelines` for layout, spacing, and design consistency
 
 ### TypeScript and styling

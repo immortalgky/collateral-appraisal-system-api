@@ -2133,9 +2133,7 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnName("RegistrationNumber");
 
                             b1.Property<bool>("RegistrationStatus")
-                                .ValueGeneratedOnAdd()
                                 .HasColumnType("bit")
-                                .HasDefaultValue(false)
                                 .HasColumnName("RegistrationStatus");
 
                             b1.HasKey("TitleMachineId");

@@ -6,6 +6,7 @@ public interface IWorkflowNotificationService
     Task NotifyPoolTaskAssigned(string poolGroup, Guid taskId, string taskName);
     Task NotifyPoolTaskStarted(string poolGroup, Guid taskId, string startedBy);
     Task NotifyPoolTaskClaimed(string poolGroup, Guid taskId, string claimedBy);
+    Task NotifyPoolTaskCompleted(string poolGroup, Guid taskId, string completedBy);
     Task NotifyPoolTaskLocked(string poolGroup, Guid taskId, string lockedBy);
     Task NotifyPoolTaskUnlocked(string poolGroup, Guid taskId, string releasedBy);
 }

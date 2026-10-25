@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Integration.Application.Services;
+using Integration.Domain.WebhookSubscriptions;
 using MassTransit;
 using Microsoft.Extensions.Logging;
 using Shared.Messaging.Events;
@@ -63,7 +64,7 @@ public class QuotationFinalizedWebhookConsumer(
         await webhookService.SendAsync(
             eventId: msg.EventId,
             systemCode: keys.ExternalSystem!,
-            eventType: "QUOTATION_FINALIZED",
+            eventType: WebhookEventTypes.QuotationFinalized,
             externalCaseKey: keys.ExternalCaseKey!,
             occurredAt: msg.OccurredOn,
             data: new

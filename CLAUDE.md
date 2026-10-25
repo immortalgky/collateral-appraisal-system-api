@@ -467,3 +467,20 @@ another row's children, and nothing fails to tell you.
 8. Finally, add a review section to the todo file with a summary of the changes you made and any other relevant information.
 9. Please explain the functionality and code you just built out in detail. Walk me through what you changed and how it works. Act like you’re a senior engineer teaching me code.
 10. Ask, don't assume. don't hide confusion. surface tradeoffs.
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in GitHub Issues for `immortalgky/collateral-appraisal-system-api`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default triage roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root, created lazily. See `docs/agents/domain.md`.
+
+### Workflow
+
+When to grill, when to open issues, and how the skills fit our subagent/worktree flow. See `docs/agents/workflow.md`.

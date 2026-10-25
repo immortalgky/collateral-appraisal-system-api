@@ -11,8 +11,10 @@ public class GetWebhookDeliveriesQueryHandler(ISqlConnectionFactory sqlConnectio
         GetWebhookDeliveriesQuery request,
         CancellationToken cancellationToken)
     {
-        var conditions = new List<string>();
         var parameters = new DynamicParameters();
+
+        var conditions = WebhookDeliveryFilter.Conditions(
+            parameters, request.SubscriptionId, request.SystemCode, request.EventType, request.Search, request.FromDate, request.ToDate);
 
         if (!string.IsNullOrWhiteSpace(request.Status))
         {
@@ -20,33 +22,7 @@ public class GetWebhookDeliveriesQueryHandler(ISqlConnectionFactory sqlConnectio
             parameters.Add("Status", request.Status);
         }
 
-        if (request.SubscriptionId.HasValue)
-        {
-            conditions.Add("d.SubscriptionId = @SubscriptionId");
-            parameters.Add("SubscriptionId", request.SubscriptionId.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.EventType))
-        {
-            conditions.Add("d.EventType = @EventType");
-            parameters.Add("EventType", request.EventType);
-        }
-
-        if (request.FromDate.HasValue)
-        {
-            conditions.Add("d.CreatedAt >= @FromDate");
-            parameters.Add("FromDate", request.FromDate.Value);
-        }
-
-        if (request.ToDate.HasValue)
-        {
-            conditions.Add("d.CreatedAt <= @ToDate");
-            parameters.Add("ToDate", request.ToDate.Value);
-        }
-
-        var where = conditions.Count > 0
-            ? "WHERE " + string.Join(" AND ", conditions)
-            : "";
+        var where = WebhookDeliveryFilter.Where(conditions);
 
         var sql = $"""
             SELECT
@@ -69,7 +45,7 @@ public class GetWebhookDeliveriesQueryHandler(ISqlConnectionFactory sqlConnectio
 
         return await sqlConnectionFactory.QueryPaginatedAsync<WebhookDeliveryListDto>(
             sql,
-            "d.CreatedAt DESC",
+            "d.CreatedAt DESC, d.Id DESC",
             paginationRequest,
             parameters);
     }
