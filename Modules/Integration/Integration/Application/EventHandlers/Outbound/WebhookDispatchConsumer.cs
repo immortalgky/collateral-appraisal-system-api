@@ -1,4 +1,5 @@
 using Integration.Application.Services;
+using Integration.Domain.WebhookSubscriptions;
 using MassTransit;
 using Microsoft.Extensions.Logging;
 using Shared.Messaging.Events;
@@ -43,7 +44,7 @@ public class WebhookDispatchConsumer(
         await webhookService.SendAsync(
             eventId: msg.EventId,
             systemCode: keys.ExternalSystem!,
-            eventType: "APPRAISAL_CREATED",
+            eventType: WebhookEventTypes.AppraisalCreated,
             externalCaseKey: keys.ExternalCaseKey!,
             occurredAt: msg.OccurredOn,
             data: new { appraisalNumber = keys.AppraisalNumber, requestId = msg.RequestId },
@@ -89,7 +90,7 @@ public class WebhookDispatchConsumer(
         await webhookService.SendAsync(
             eventId: msg.EventId,
             systemCode: keys.ExternalSystem!,
-            eventType: "APPRAISAL_STATUS_CHANGED",
+            eventType: WebhookEventTypes.AppraisalStatusChanged,
             externalCaseKey: keys.ExternalCaseKey!,
             occurredAt: msg.OccurredOn,
             data: new
@@ -202,7 +203,7 @@ public class WebhookDispatchConsumer(
                 var outcome = await webhookService.SendAsync(
                     eventId: Guid.CreateVersion7(),
                     systemCode: data.ExternalSystem!, // verified non-empty above
-                    eventType: "APPRAISAL_PMA_UPDATED",
+                    eventType: WebhookEventTypes.AppraisalPmaUpdated,
                     externalCaseKey: data.AppraisalNumber,
                     occurredAt: msg.OccurredOn,
                     data: payload,

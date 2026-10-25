@@ -19,5 +19,7 @@ public class GetWebhookDeliveriesQueryValidator : AbstractValidator<GetWebhookDe
             .WithMessage("Status must be one of: Pending, Delivered, Failed.");
 
         RuleFor(x => x.EventType).MaximumLength(100);
+        RuleFor(x => x.SystemCode).MaximumLength(50);
+        RuleFor(x => x.Search).MaximumLength(100);
     }
 }

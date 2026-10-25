@@ -1,4 +1,5 @@
 using Integration.Application.Services;
+using Integration.Domain.WebhookSubscriptions;
 using MassTransit;
 using Microsoft.Extensions.Logging;
 using Shared.Messaging.Events;
@@ -43,7 +44,7 @@ public class DocumentFollowupRequiredWebhookConsumer(
         await webhookService.SendAsync(
             eventId: msg.EventId,
             systemCode: keys.ExternalSystem,
-            eventType: "DOCUMENT_FOLLOWUP_REQUIRED",
+            eventType: WebhookEventTypes.DocumentFollowupRequired,
             externalCaseKey: keys.ExternalCaseKey,
             occurredAt: msg.OccurredOn,
             data: new

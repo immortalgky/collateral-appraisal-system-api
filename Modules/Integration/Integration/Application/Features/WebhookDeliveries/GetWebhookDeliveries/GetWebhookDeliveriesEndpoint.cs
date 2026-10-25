@@ -19,6 +19,8 @@ public class GetWebhookDeliveriesEndpoint : ICarterModule
                 string? eventType,
                 DateTime? fromDate,
                 DateTime? toDate,
+                string? systemCode,
+                string? search,
                 ISender sender,
                 CancellationToken cancellationToken) =>
             {
@@ -29,7 +31,9 @@ public class GetWebhookDeliveriesEndpoint : ICarterModule
                     subscriptionId,
                     eventType,
                     fromDate,
-                    toDate);
+                    toDate,
+                    systemCode,
+                    search);
 
                 var result = await sender.Send(query, cancellationToken);
                 return Results.Ok(result);
