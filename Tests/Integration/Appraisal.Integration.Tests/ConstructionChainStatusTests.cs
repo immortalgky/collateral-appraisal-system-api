@@ -78,8 +78,8 @@ public class ConstructionChainStatusTests(IntegrationTestFixture fixture)
         return a;
     }
 
-    private static Task<ConstructionChainStatusResult?> StatusOf(IServiceScope scope, Guid id) =>
-        scope.ServiceProvider.GetRequiredService<ISender>().Send(new GetConstructionChainStatusQuery(id), Ct);
+    private static Task<ConstructionChainStatusResult?> StatusOf(IServiceScope scope, Guid id, Guid? excludeRequestId = null) =>
+        scope.ServiceProvider.GetRequiredService<ISender>().Send(new GetConstructionChainStatusQuery(id, excludeRequestId), Ct);
 
     private async Task InsertRequestAsync(Guid requestId, Guid prevAppraisalId, string purpose, DateTime? requestedAt, string status, string number)
     {
@@ -129,6 +129,44 @@ public class ConstructionChainStatusTests(IntegrationTestFixture fixture)
         Assert.Equal(T0.AddDays(30), result.Construction.SourceCompletedAt);
         Assert.Equal(ConstructionChainBlockReasons.LaterInspectionExists, result.BlockReason);
         Assert.Equal(ci.Id, result.LaterInspection!.AppraisalId);
+    }
+
+    [Fact]
+    public async Task The_selected_figure_is_the_picks_own_and_NoData_for_a_reappraisal_of_an_inspected_chain()
+    {
+        using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+        var ci = await SeedAsync(db, AppraisalTypes.Progressive, "06", null, T0, summaryCurrentPct: 6.75m, inspectionNumber: 1);
+        var reappraisal = await SeedAsync(db, AppraisalTypes.ReAppraisal, "03", ci.Id, T0.AddDays(20));
+
+        var pickedReappraisal = await StatusOf(scope, reappraisal.Id);
+
+        Assert.Equal(ConstructionChainStatuses.NoData, pickedReappraisal!.Selected.Status);
+        Assert.Null(pickedReappraisal.Selected.ProgressPct);
+        Assert.Equal(6.75m, pickedReappraisal.Construction.ProgressPct);   // chain figure unchanged
+
+        var pickedCi = await StatusOf(scope, ci.Id);
+
+        Assert.Equal(ConstructionChainStatuses.InProgress, pickedCi!.Selected.Status);
+        Assert.Equal(6.75m, pickedCi.Selected.ProgressPct);
+        Assert.Equal(ci.Id, pickedCi.Construction.SourceAppraisalId);
+        Assert.Null(pickedCi.LatestAppraisal!.ProgressPct);                // the reappraisal holds none
+    }
+
+    [Fact]
+    public async Task A_finished_pick_is_Complete_and_the_latest_appraisal_carries_its_own_progress()
+    {
+        using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+        var ci = await SeedAsync(db, AppraisalTypes.Progressive, "06", null, T0, summaryCurrentPct: 100m, inspectionNumber: 1);
+        var reappraisal = await SeedAsync(db, AppraisalTypes.ReAppraisal, "03", ci.Id, T0.AddDays(20), summaryCurrentPct: 40m);
+
+        var result = await StatusOf(scope, ci.Id);
+
+        Assert.Equal(ConstructionChainStatuses.Complete, result!.Selected.Status);
+        Assert.Equal(100m, result.Selected.ProgressPct);
+        Assert.Equal(reappraisal.Id, result.LatestAppraisal!.AppraisalId);
+        Assert.Equal(40m, result.LatestAppraisal.ProgressPct);
     }
 
     [Fact]
@@ -235,6 +273,27 @@ public class ConstructionChainStatusTests(IntegrationTestFixture fixture)
         Assert.Equal(requestId, result!.OpenInspectionRequest!.RequestId);
     }
 
+    [Fact]
+    public async Task The_request_being_validated_is_not_its_own_open_request_but_another_one_still_is()
+    {
+        using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+        var ci1 = await SeedAsync(db, AppraisalTypes.Progressive, "06", null, T0, summaryCurrentPct: 30m);
+        var self = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        await InsertRequestAsync(self, ci1.Id, "06", T0.AddDays(1), "Submitted", "REQ-SELF");
+
+        // A replayed submit validates a request that is already submitted: alone on the chain, it must pass.
+        Assert.Equal(self, (await StatusOf(scope, ci1.Id))!.OpenInspectionRequest!.RequestId);
+        var replay = await StatusOf(scope, ci1.Id, excludeRequestId: self);
+        Assert.Null(replay!.OpenInspectionRequest);
+        Assert.Null(replay.BlockReason);
+
+        // A different open request is still found.
+        await InsertRequestAsync(other, ci1.Id, "11", T0.AddDays(2), "Submitted", "REQ-OTHER");
+        Assert.Equal(other, (await StatusOf(scope, ci1.Id, excludeRequestId: self))!.OpenInspectionRequest!.RequestId);
+    }
+
     // ── the HTTP contract the front end is built against ───────────────────────
 
     [Fact]
@@ -265,6 +324,9 @@ public class ConstructionChainStatusTests(IntegrationTestFixture fixture)
         Assert.Equal(ci4Id, construction.GetProperty("sourceAppraisalId").GetGuid());
         Assert.Equal(4, construction.GetProperty("sourceInspectionNumber").GetInt32());
         Assert.Equal("2026-08-10T14:30:00", construction.GetProperty("sourceCompletedAt").GetString()); // no zone suffix
+        var selected = json.GetProperty("selected");
+        Assert.Equal("InProgress", selected.GetProperty("status").GetString());
+        Assert.Equal(60m, selected.GetProperty("progressPct").GetDecimal());   // CI#3's own, not CI#4's 72.69
         Assert.Equal(ci4Id, json.GetProperty("laterInspection").GetProperty("appraisalId").GetGuid());
         Assert.Equal(JsonValueKind.Null, json.GetProperty("openInspectionRequest").ValueKind);
         Assert.Equal(JsonValueKind.Null, json.GetProperty("latestAppraisal").ValueKind);
@@ -284,6 +346,21 @@ public class ConstructionChainStatusTests(IntegrationTestFixture fixture)
             Assert.Equal(JsonValueKind.Null, bare.GetProperty("construction").GetProperty(key).ValueKind);
         foreach (var key in new[] { "laterInspection", "openInspectionRequest", "latestAppraisal", "blockReason" })
             Assert.Equal(JsonValueKind.Null, bare.GetProperty(key).ValueKind);
+        Assert.Equal("NoData", bare.GetProperty("selected").GetProperty("status").GetString());
+        Assert.Equal(JsonValueKind.Null, bare.GetProperty("selected").GetProperty("progressPct").ValueKind);
+
+        // latestAppraisal.progressPct is pinned too: a latest appraisal with no inspection still writes the key.
+        Guid originalId;
+        using (var scope = CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+            var original = await SeedAsync(db, AppraisalTypes.New, "01", null, T0);
+            await SeedAsync(db, AppraisalTypes.ReAppraisal, "03", original.Id, T0.AddDays(5));
+            originalId = original.Id;
+        }
+        var offer = await (await client.GetAsync($"/appraisals/{originalId}/construction-chain-status", Ct))
+            .Content.ReadFromJsonAsync<JsonElement>(Ct);
+        Assert.Equal(JsonValueKind.Null, offer.GetProperty("latestAppraisal").GetProperty("progressPct").ValueKind);
 
         var unknown = await client.GetAsync($"/appraisals/{Guid.NewGuid()}/construction-chain-status", Ct);
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);

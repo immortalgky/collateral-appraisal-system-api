@@ -177,13 +177,16 @@ public static class CondoPropertyApplier
         AppraisalProperty property,
         ConstructionInspectionData ci)
     {
+        // A condo unit has no server-derived 100% base — pinned to 0; the payload's TotalValue is not trusted.
+        const decimal totalValue = 0m;
+
         if (property.ConstructionInspection is not null)
         {
             // Update existing
             var inspection = property.ConstructionInspection;
             if (ci.IsFullDetail)
             {
-                inspection.UpdateFullDetail(ci.TotalValue, ci.Remark);
+                inspection.UpdateFullDetail(totalValue, ci.Remark);
                 inspection.ClearWorkDetails();
                 if (ci.WorkDetails is { Count: > 0 })
                 {
@@ -196,7 +199,7 @@ public static class CondoPropertyApplier
             }
             else
             {
-                inspection.UpdateSummary(ci.TotalValue, ci.SummaryDetail,
+                inspection.UpdateSummary(totalValue, ci.SummaryDetail,
                     ci.SummaryPreviousProgressPct,
                     ci.SummaryCurrentProgressPct, ci.Remark);
                 if (ci.DocumentId.HasValue)
@@ -211,7 +214,7 @@ public static class CondoPropertyApplier
             ConstructionInspection inspection;
             if (ci.IsFullDetail)
             {
-                inspection = ConstructionInspection.CreateFullDetail(property.Id, ci.TotalValue, ci.Remark);
+                inspection = ConstructionInspection.CreateFullDetail(property.Id, totalValue, ci.Remark);
                 if (ci.WorkDetails is { Count: > 0 })
                 {
                     foreach (var wd in ci.WorkDetails)
@@ -223,7 +226,7 @@ public static class CondoPropertyApplier
             }
             else
             {
-                inspection = ConstructionInspection.CreateSummary(property.Id, ci.TotalValue,
+                inspection = ConstructionInspection.CreateSummary(property.Id, totalValue,
                     ci.SummaryDetail, ci.SummaryPreviousProgressPct,
                     ci.SummaryCurrentProgressPct, ci.Remark);
                 if (ci.DocumentId.HasValue)

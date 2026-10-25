@@ -419,4 +419,31 @@ public class AffectedHandlersGroupAssignmentTests(IntegrationTestFixture fixture
         Assert.Equal(apptDate, row.ValuationDate);                     // explicit appointment date, not Now
         Assert.Equal(priorId, loaded.PrevAppraisalId);
     }
+
+    [Fact]
+    public async Task AppraisalCreationService_progressive_copy_starts_current_at_previous_and_pins_a_condo_base_to_zero()
+    {
+        // Prior condo with a legacy non-zero base, and a prior building: both summary rounds at 40% current.
+        var (priorId, _, _) = await SeedGroupedAsync(a =>
+        {
+            var condo = a.AddCondoProperty();
+            condo.CondoDetail!.Update(ownerName: "owner");
+            condo.SetConstructionInspection(ConstructionInspection.CreateSummary(Guid.Empty, 500_000m, null, 10m, 40m, null));
+            var building = AddBuilding(a);
+            building.SetConstructionInspection(ConstructionInspection.CreateSummary(Guid.Empty, 800_000m, null, 10m, 40m, null));
+            return [condo, building];
+        }, groups: 0); // different collateral families cannot share a group
+
+        var id = await CreateFromRequestAsync(Guid.NewGuid(), [], new AppointmentDto(new DateTime(2026, 5, 5, 9, 0, 0), "site"),
+            prevAppraisalId: priorId, appraisalType: AppraisalTypes.Progressive);
+
+        var loaded = await LoadAsync(id);
+        var condoCi = loaded.Properties.Single(p => p.CondoDetail is not null).ConstructionInspection!;
+        var buildingCi = loaded.Properties.Single(p => p.BuildingDetail is not null).ConstructionInspection!;
+        Assert.Equal(0m, condoCi.TotalValue);                 // pinned, not the prior's 500,000
+        Assert.Equal(40m, condoCi.SummaryPreviousProgressPct);
+        Assert.Equal(40m, condoCi.SummaryCurrentProgressPct); // current starts equal to previous
+        Assert.Equal(800_000m, buildingCi.TotalValue);        // a building keeps its base
+        Assert.Equal(40m, buildingCi.SummaryCurrentProgressPct);
+    }
 }

@@ -270,24 +270,33 @@ public class ConstructionInspection : Entity<Guid>
 
     /// <summary>
     /// Creates a new CI shell for the next inspection round from a prior inspection.
-    /// Prior's current % becomes the new previous %; current % resets to null/0 for the inspector to fill.
+    /// Prior's current % becomes the new previous %, and the new round's current % starts equal to it in both
+    /// modes (no progress yet this round; the inspector raises it) — what the request form already shows, so a
+    /// property card never reads 0% for a round that has merely not been keyed yet.
     /// </summary>
+    /// <param name="totalValueOverride">
+    /// The 100% base for the new round when it must not be the prior's — a condo unit pins its base to 0, so a legacy
+    /// non-zero base on the prior round is not inherited. Null keeps the prior's.
+    /// </param>
     public static ConstructionInspection CopyForNextInspection(
         ConstructionInspection prior,
-        Guid newPropertyId)
+        Guid newPropertyId,
+        decimal? totalValueOverride = null)
     {
+        var totalValue = totalValueOverride ?? prior.TotalValue;
+
         if (!prior.IsFullDetail)
         {
             return CreateSummary(
                 newPropertyId,
-                totalValue: prior.TotalValue,
+                totalValue: totalValue,
                 summaryDetail: prior.SummaryDetail,
                 summaryPreviousProgressPct: prior.SummaryCurrentProgressPct,
-                summaryCurrentProgressPct: null,
+                summaryCurrentProgressPct: prior.SummaryCurrentProgressPct,
                 remark: null);
         }
 
-        var newCi = CreateFullDetail(newPropertyId, prior.TotalValue, remark: null);
+        var newCi = CreateFullDetail(newPropertyId, totalValue, remark: null);
         foreach (var wd in prior.WorkDetails)
         {
             newCi.AddWorkDetail(
@@ -296,7 +305,7 @@ public class ConstructionInspection : Entity<Guid>
                 wd.DisplayOrder,
                 wd.ProportionPct,
                 previousProgressPct: wd.CurrentProgressPct,
-                currentProgressPct: 0m,
+                currentProgressPct: wd.CurrentProgressPct,
                 wd.ConstructionWorkItemId);
         }
 

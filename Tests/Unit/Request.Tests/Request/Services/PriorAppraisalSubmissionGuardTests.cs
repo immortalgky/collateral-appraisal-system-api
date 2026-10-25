@@ -249,6 +249,7 @@ public class PriorAppraisalSubmissionGuardTests
         OpenInspectionRequestRef? open = null) =>
         new(PriorId,
             construction ?? new ConstructionChainProgress(ConstructionChainStatuses.InProgress, 40m, null, null, null, null),
+            new ConstructionSelectedProgress(ConstructionChainStatuses.NoData, null),
             later, open, null, blockReason);
 
     [Theory]
@@ -285,6 +286,19 @@ public class PriorAppraisalSubmissionGuardTests
     }
 
     [Fact]
+    public async Task A_finishing_appraisal_without_an_inspection_number_does_not_render_an_empty_inspection()
+    {
+        var done = new ConstructionChainProgress(
+            ConstructionChainStatuses.Complete, 100m, Guid.NewGuid(), "69000012", null, new DateTime(2026, 10, 21));
+
+        var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+            Run("06", PriorId, null, MediatorWithChain(Chain(ConstructionChainBlockReasons.ConstructionComplete, done))));
+
+        Assert.Equal("Prior appraisal 69000001 is already 100% complete (appraisal 69000012, 21/10/2026).", ex.Message);
+        Assert.DoesNotContain("inspection", ex.Message);
+    }
+
+    [Fact]
     public async Task A_pick_with_a_later_inspection_is_rejected_naming_it()
     {
         var later = new LaterInspectionRef(Guid.NewGuid(), "69000020", 4, new DateTime(2026, 8, 10));
@@ -317,6 +331,20 @@ public class PriorAppraisalSubmissionGuardTests
 
         await mediator.Received(1).Send(
             Arg.Is<GetConstructionChainStatusQuery>(q => q.AppraisalId == PriorId), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task The_request_being_validated_is_passed_so_it_is_not_its_own_open_inspection()
+    {
+        var mediator = MediatorWithChain(Chain(null));
+        var requestId = Guid.NewGuid();
+
+        await PriorAppraisalSubmissionGuard.EnsureValidAsync(
+            "06", PriorId, null, mediator, TestContext.Current.CancellationToken, requestId: requestId);
+
+        await mediator.Received(1).Send(
+            Arg.Is<GetConstructionChainStatusQuery>(q => q.AppraisalId == PriorId && q.ExcludeRequestId == requestId),
+            Arg.Any<CancellationToken>());
     }
 
     [Theory]

@@ -155,7 +155,9 @@ public class GetPropertyGroupByIdQueryHandler(
                                           (SELECT SUM(wd.CurrentProportionPct)
                                            FROM appraisal.ConstructionWorkDetails wd
                                            WHERE wd.ConstructionInspectionId = ci.Id), 0)
-                                      ELSE ISNULL(ci.SummaryCurrentProgressPct, 0)
+                                      -- Summary mode: the round's own figure, or NULL while it has not been keyed
+                                      -- (the card then shows "under construction" with no %, never a made-up 0%).
+                                      ELSE ci.SummaryCurrentProgressPct
                                   END AS ConstructionProgressPct,
                                   cad.CondoName,
                                   cad.FloorNumber,

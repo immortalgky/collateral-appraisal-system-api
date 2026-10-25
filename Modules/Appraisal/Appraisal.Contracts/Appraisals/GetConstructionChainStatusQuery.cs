@@ -13,10 +13,19 @@ namespace Appraisal.Contracts.Appraisals;
 /// the tree that holds any inspection.
 ///
 /// Returns null when the picked appraisal does not exist or is soft-deleted.
+///
+/// <paramref name="ExcludeRequestId"/> is the request being validated: it is never its own "open inspection
+/// request", so a submit replay is not blocked by itself.
 /// </summary>
-public record GetConstructionChainStatusQuery(Guid AppraisalId) : IRequest<ConstructionChainStatusResult?>;
+public record GetConstructionChainStatusQuery(Guid AppraisalId, Guid? ExcludeRequestId = null)
+    : IRequest<ConstructionChainStatusResult?>;
 
 /// <param name="Construction">Progress of the tree's most recently completed appraisal that has inspections.</param>
+/// <param name="Selected">
+/// The picked appraisal's OWN construction figure, read for that appraisal only (no chain walk). NoData when it
+/// holds no inspection of its own, even if the chain does. Display only: the block rules read
+/// <paramref name="Construction"/>.
+/// </param>
 /// <param name="LaterInspection">
 /// A Progressive appraisal in the tree completed after the picked one (sibling branches count); null if none.
 /// </param>
@@ -37,6 +46,7 @@ public record GetConstructionChainStatusQuery(Guid AppraisalId) : IRequest<Const
 public record ConstructionChainStatusResult(
     Guid AppraisalId,
     ConstructionChainProgress Construction,
+    ConstructionSelectedProgress Selected,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] LaterInspectionRef? LaterInspection,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] OpenInspectionRequestRef? OpenInspectionRequest,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] LatestAppraisalRef? LatestAppraisal,
@@ -52,11 +62,23 @@ public record ConstructionChainProgress(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] int? SourceInspectionNumber,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] DateTime? SourceCompletedAt);
 
+/// <param name="Status">One of <see cref="ConstructionChainStatuses"/>.</param>
+/// <param name="ProgressPct">The appraisal's own reported progress, 0-100 with two decimals; null for NoData.</param>
+public record ConstructionSelectedProgress(
+    string Status,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] decimal? ProgressPct);
+
 public record LaterInspectionRef(Guid AppraisalId, string? AppraisalNumber, int? InspectionNumber, DateTime CompletedAt);
 
 public record OpenInspectionRequestRef(Guid RequestId, string? RequestNumber);
 
-public record LatestAppraisalRef(Guid AppraisalId, string? AppraisalNumber, string? PurposeCode, DateTime CompletedAt);
+/// <param name="ProgressPct">The latest appraisal's own reported progress; null when it holds no inspection.</param>
+public record LatestAppraisalRef(
+    Guid AppraisalId,
+    string? AppraisalNumber,
+    string? PurposeCode,
+    DateTime CompletedAt,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] decimal? ProgressPct);
 
 public static class ConstructionChainStatuses
 {

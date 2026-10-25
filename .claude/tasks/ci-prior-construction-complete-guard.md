@@ -152,5 +152,24 @@
 - [ ] QA ผ่าน subagent: build / tests / probe หน้าจริง (บล็อก write) · /code-review จน clean
 - [x] ~~ใบทบทวน copy construction detail~~ — ไม่ทำ (ผู้ใช้ 2026-10-21)
 
-## Review
-(เติมหลังทำเสร็จ)
+## Review (2026-10-21)
+- Local commits (ยังไม่ push): BE 502e095d · FE 5ae42c2c — branch `feat/appraisal/ci-prior-construction-guard`
+- BE: build 0 error · unit ผ่านทุกชุด · integration 604/605 (ClosedAppraisalWriteGuardTests timeout 30s ขึ้นกับลำดับรัน ผ่านเมื่อรันเดี่ยว/บน main/ที่ path อื่น)
+- FE: tsc 0 · vitest 2947 ผ่าน · eslint ไม่มีใหม่ · prettier clean
+- เทียบ MIS บน dev: 105,513 แถว md5 ตรงกัน · Regulatory ระดับแถวพิสูจน์ไม่ได้ (dev ไม่มี HostCollateralLinks) ตรงกันระดับ aggregate
+- ⚠ เปลี่ยนพฤติกรรม: เงินโหมดสรุปใน MIS/Regulatory อาจขยับ 1 บาท (สูตรเก่าปัด 2 ชั้น ผิดจากแอป) · previous % ต่างหลักที่ 5 — **ผู้ใช้ยอมรับแล้ว 2026-10-22**
+- guard ทำงานที่ submit + LOS create/resubmit(ก่อน submit) — save draft ไม่เช็ค (เดิม)
+- DBA: script 20261021120000_Backfill_ConstructionInspectionSummaryFigures → vw_AppraisalConstructionProgress → vw_MisCasReport, vw_RegulatoryExport, sp_RegulatoryExport, vw_RCAS004
+- ยังไม่ได้: probe หน้าจริง (ต้องให้ผู้ใช้ migrate + รัน 7111/3000 จาก branch นี้) · /code-review · แจ้ง LOS
+
+### แก้หลังผู้ใช้เทส (2026-10-22)
+- แถบเล่มเดิมแสดง % ของเล่มที่เลือกเท่านั้น ไม่มี → "เล่มนี้ไม่มีข้อมูล %" (เดิมเอา % จากเล่มอื่นในสายมาโดยไม่บอก) · บล็อกยังดูทั้งสาย
+- [x] BE selected + latestAppraisal.progressPct (be-own-pct) — unit 1036 + guard 119 + integration 15
+- [x] FE ใช้ selected, ลบ source line, dialog % ของแต่ละเล่ม, ข้อความบล็อกไม่มีเลขครั้ง (fe-own-pct) — vitest 2951 · vitest.config pin VITE_API_DELAY=0 (.env ของผู้ใช้ทำเทสช้า)
+- [x] gates + copy ไฟล์ไป worktree ci-company-and-fee — FE 2980 · BE Appraisal 1093 / Request 413 / Workflow 1155 / integration 610/611 (Puppeteer dispose NRE = infra)
+
+### หลัง submit: ครั้งที่ + % เล่มเดิมหาย (ผู้ใช้ 2026-10-24)
+- [x] BE: `GET /requests/{id}` มี `inspectionNumber` (pinned) = `Appraisals.InspectionNumber` ของเล่มคำขอนี้ (ไม่นับยกเลิก, ล่าสุด) — ดึงเฉพาะ 06/11 ที่ submit แล้ว ผ่าน `GetInspectionNumberByRequestQuery` (Appraisal.Contracts). ส่งถึง LOS route ด้วย (เพิ่มฟิลด์อย่างเดียว)
+- [x] FE: หลัง submit/อ่านอย่างเดียว แถบเล่มเดิมโชว์ % ของเล่มเดิมเอง + ครั้งที่จาก `inspectionNumber` (null = ไม่โชว์) · ตัด blockReason/latestAppraisal ทิ้ง (คำขอนี้เองนับเป็นคำขอค้าง)
+- [x] gate: BE build 0 · Request 420 · Appraisal 1036 · integration 612/613 (ClosedAppraisalWriteGuard flake, รันซ้ำผ่าน) · FE tsc 0 · vitest 2953 · copy ไป ci-company-and-fee แล้ว (vitest 2986, Appraisal 1093)
+- [x] probe หน้าจริง (บล็อก non-GET): REQ-105517 ครั้งที่ 3 · 50% / REQ-105515 ครั้งที่ 11 · 10% / REQ-105622 ครั้งที่ 1 · ไม่มีข้อมูล % — ตรง DB + view · draft ที่ไม่ถูกบล็อกไม่มีใน dev data

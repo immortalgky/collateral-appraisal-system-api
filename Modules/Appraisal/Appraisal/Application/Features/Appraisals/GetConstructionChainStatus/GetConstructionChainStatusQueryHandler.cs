@@ -26,6 +26,9 @@ public class GetConstructionChainStatusQueryHandler(
     // appraisal has not been created yet (the window between submit and the workflow creating it) counts
     // as open.
     //
+    // The request being validated is excluded (@ExcludeRequestId; Guid.Empty = none): a submit replay would
+    // otherwise find itself as "already inspecting this chain".
+    //
     // Purposes 06 and 11 are both AppraisalType Progressive, so they form one group.
     private const string OpenRequestSql = """
         SELECT TOP 1 r.Id AS RequestId, r.RequestNumber
@@ -37,6 +40,7 @@ public class GetConstructionChainStatusQueryHandler(
           AND r.Status NOT IN ('Completed', 'Cancelled')
           AND r.Purpose IN ('06', '11')
           AND d.PrevAppraisalId IN @TreeIds
+          AND r.Id <> @ExcludeRequestId
           AND (a.Id IS NULL OR (a.IsDeleted = 0 AND a.Status NOT IN ('Completed', 'Cancelled')))
         ORDER BY r.RequestedAt DESC, r.Id DESC
         """;
@@ -74,16 +78,16 @@ public class GetConstructionChainStatusQueryHandler(
                 a.Id, a.AppraisalNumber, a.AppraisalType, a.Purpose, a.InspectionNumber, a.CompletedAt!.Value))
             .ToListAsync(cancellationToken);
 
-        var progress = completed.Count == 0
-            ? []
-            : (await connection.QueryAsync<ProgressRow>(new CommandDefinition(
-                ProgressSql, new { AppraisalIds = completed.Select(c => c.Id).ToArray() },
+        // One read for the completed appraisals and the pick (which may not be completed itself).
+        var progress = (await connection.QueryAsync<ProgressRow>(new CommandDefinition(
+                ProgressSql,
+                new { AppraisalIds = completed.Select(c => c.Id).Append(query.AppraisalId).Distinct().ToArray() },
                 cancellationToken: cancellationToken)))
-                .ToDictionary(p => p.AppraisalId, p => new ChainProgress(p.CurrentProgressPct, p.IsUnderConstruction));
+            .ToDictionary(p => p.AppraisalId, p => new ChainProgress(p.CurrentProgressPct, p.IsUnderConstruction));
 
         var openRequest = await connection.QueryFirstOrDefaultAsync<OpenInspectionRequestRef>(new CommandDefinition(
             OpenRequestSql,
-            new { TreeIds = treeIds.ToArray() },
+            new { TreeIds = treeIds.ToArray(), ExcludeRequestId = query.ExcludeRequestId ?? Guid.Empty },
             cancellationToken: cancellationToken));
 
         return ConstructionChainStatusRules.Evaluate(query.AppraisalId, completed, progress, openRequest);

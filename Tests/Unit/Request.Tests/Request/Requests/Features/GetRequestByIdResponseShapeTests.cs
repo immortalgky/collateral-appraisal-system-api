@@ -17,4 +17,18 @@ public class GetRequestByIdResponseShapeTests
         Assert.Contains(nameof(GetRequestByIdResponse.IsPeriodicalReappraisal), names);
         Assert.DoesNotContain(names, n => n.Contains("BookNumber") || n.Contains("CollateralId"));
     }
+
+    [Fact]
+    public void InspectionNumber_IsAlwaysWritten_EvenWhenNull()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            new GetRequestByIdResponse { InspectionNumber = null },
+            new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            });
+
+        Assert.Contains("\"inspectionNumber\":null", json);
+    }
 }

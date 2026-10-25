@@ -124,6 +124,79 @@ public class ConstructionChainStatusRulesTests
         Assert.Null(result.BlockReason);
     }
 
+    // ── the pick's own figure (display only) ────────────────────────────────────
+
+    [Fact]
+    public void A_reappraisal_without_inspections_of_its_own_is_NoData_while_the_chain_reports_the_earlier_figure()
+    {
+        // The 69105522 case: the 6.75% belongs to the earlier appraisal, not to the pick.
+        var original = Original("A-0", D);
+        var ci1 = Ci("A-1", 1, D.AddDays(10));
+        var reappraisal = Re("A-R", D.AddDays(20));
+
+        var result = Evaluate(reappraisal.Id, [original, ci1, reappraisal], new() { [ci1.Id] = Under(6.75m) });
+
+        Assert.Equal(ConstructionChainStatuses.NoData, result.Selected.Status);
+        Assert.Null(result.Selected.ProgressPct);
+        Assert.Equal(6.75m, result.Construction.ProgressPct);
+        Assert.Equal(ci1.Id, result.Construction.SourceAppraisalId);
+    }
+
+    [Fact]
+    public void The_selected_figure_is_the_picks_own_even_when_the_chain_is_further_along()
+    {
+        var ci1 = Ci("A-1", 1, D);
+        var ci2 = Ci("A-2", 2, D.AddDays(30));
+
+        var result = Evaluate(ci1.Id, [ci1, ci2], new() { [ci1.Id] = Under(30m), [ci2.Id] = Under(72.69m) });
+
+        Assert.Equal(ConstructionChainStatuses.InProgress, result.Selected.Status);
+        Assert.Equal(30m, result.Selected.ProgressPct);
+        Assert.Equal(72.69m, result.Construction.ProgressPct);
+    }
+
+    [Fact]
+    public void A_pick_that_finished_the_building_is_Complete_and_one_that_only_rounds_to_100_is_not()
+    {
+        var ci1 = Ci("A-1", 1, D);
+        var ci2 = Ci("A-2", 2, D.AddDays(30));
+
+        var done = Evaluate(ci1.Id, [ci1], new() { [ci1.Id] = Done });
+        var almost = Evaluate(ci2.Id, [ci2], new() { [ci2.Id] = new ChainProgress(100m, true) });
+
+        Assert.Equal(ConstructionChainStatuses.Complete, done.Selected.Status);
+        Assert.Equal(100m, done.Selected.ProgressPct);
+        Assert.Equal(ConstructionChainStatuses.InProgress, almost.Selected.Status);
+    }
+
+    [Fact]
+    public void The_selected_figure_is_read_even_when_the_pick_is_not_a_completed_appraisal()
+    {
+        var ci1 = Ci("A-1", 1, D);
+        var pickedId = Guid.NewGuid();
+
+        var result = Evaluate(pickedId, [ci1], new() { [ci1.Id] = Under(40m), [pickedId] = Under(5m) });
+
+        Assert.Equal(5m, result.Selected.ProgressPct);
+        Assert.Equal(ci1.Id, result.Construction.SourceAppraisalId); // the pick never becomes the chain source
+    }
+
+    [Fact]
+    public void The_latest_appraisal_carries_its_own_figure_or_null_when_it_holds_none()
+    {
+        var ci1 = Ci("A-1", 1, D);
+        var ci2 = Ci("A-2", 2, D.AddDays(30));
+        var reappraisal = Re("A-R", D.AddDays(60));
+
+        var withFigure = Evaluate(ci2.Id, [ci1, ci2, reappraisal],
+            new() { [ci2.Id] = Under(50m), [reappraisal.Id] = Under(55m) });
+        var without = Evaluate(ci2.Id, [ci1, ci2, reappraisal], new() { [ci2.Id] = Under(50m) });
+
+        Assert.Equal(55m, withFigure.LatestAppraisal!.ProgressPct);
+        Assert.Equal(reappraisal.Id, without.LatestAppraisal!.AppraisalId);
+        Assert.Null(without.LatestAppraisal.ProgressPct);
+    }
+
     // ── later inspection (sibling branches count) ───────────────────────────────
 
     [Fact]

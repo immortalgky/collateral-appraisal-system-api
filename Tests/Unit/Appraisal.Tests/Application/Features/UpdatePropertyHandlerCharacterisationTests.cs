@@ -511,20 +511,6 @@ public class UpdatePropertyHandlerCharacterisationTests
     }
 
     [Fact]
-    public async Task Condo_construction_total_has_no_server_source_and_stays_what_the_payload_carries()
-    {
-        var (appraisal, property) = Seed(a => a.AddCondoProperty());
-
-        await CondoHandler().Handle(new UpdateCondoPropertyCommand(
-            appraisal.Id, property.Id,
-            IsUnderConstruction: true,
-            ConstructionInspection: new ConstructionInspectionData(IsFullDetail: false, TotalValue: 0m)), Ct);
-
-        // A condo unit has no depreciation table and no keyed figure: the 0 means "no value base".
-        Assert.Equal(0m, property.ConstructionInspection!.TotalValue);
-    }
-
-    [Fact]
     public async Task Building_construction_inspection_is_cleared_when_not_under_construction()
     {
         var (appraisal, property) = Seed(a => a.AddBuildingProperty());

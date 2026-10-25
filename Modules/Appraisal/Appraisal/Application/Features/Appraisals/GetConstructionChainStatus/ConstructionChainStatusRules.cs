@@ -23,9 +23,13 @@ internal sealed record ChainProgress(decimal CurrentProgressPct, bool IsUnderCon
 /// The decision rules of <see cref="GetConstructionChainStatusQuery"/>, free of any data access.
 ///
 /// <paramref name="completed"/> must be the tree's completed appraisals, newest completion first.
+/// <paramref name="progress"/> holds the completed appraisals' figures plus the pick's own, if it has any.
 /// </summary>
 internal static class ConstructionChainStatusRules
 {
+    private static string StatusOf(ChainProgress p) =>
+        p.IsUnderConstruction ? ConstructionChainStatuses.InProgress : ConstructionChainStatuses.Complete;
+
     public static ConstructionChainStatusResult Evaluate(
         Guid pickedId,
         IReadOnlyList<ChainAppraisal> completed,
@@ -40,9 +44,7 @@ internal static class ConstructionChainStatusRules
         var construction = source is null
             ? new ConstructionChainProgress(ConstructionChainStatuses.NoData, null, null, null, null, null)
             : new ConstructionChainProgress(
-                progress[source.Id].IsUnderConstruction
-                    ? ConstructionChainStatuses.InProgress
-                    : ConstructionChainStatuses.Complete,
+                StatusOf(progress[source.Id]),
                 progress[source.Id].CurrentProgressPct,
                 source.Id,
                 source.AppraisalNumber,
@@ -64,8 +66,15 @@ internal static class ConstructionChainStatusRules
         // (a re-appraisal, an appeal) lets the user carry on, with the newer book on offer.
         var latest = completed.Count > 0 ? completed[0] : null;
         var latestRef = laterRef is null && latest is not null && latest.Id != pickedId
-            ? new LatestAppraisalRef(latest.Id, latest.AppraisalNumber, latest.Purpose, latest.CompletedAt)
+            ? new LatestAppraisalRef(
+                latest.Id, latest.AppraisalNumber, latest.Purpose, latest.CompletedAt,
+                progress.TryGetValue(latest.Id, out var latestProgress) ? latestProgress.CurrentProgressPct : null)
             : null;
+
+        // The pick's own figure only: the banner must not show a number that belongs to another appraisal.
+        var selected = progress.TryGetValue(pickedId, out var own)
+            ? new ConstructionSelectedProgress(StatusOf(own), own.CurrentProgressPct)
+            : new ConstructionSelectedProgress(ConstructionChainStatuses.NoData, null);
 
         var blockReason =
             construction.Status == ConstructionChainStatuses.Complete ? ConstructionChainBlockReasons.ConstructionComplete
@@ -73,6 +82,6 @@ internal static class ConstructionChainStatusRules
             : openRequest is not null ? ConstructionChainBlockReasons.OpenInspectionRequest
             : null;
 
-        return new ConstructionChainStatusResult(pickedId, construction, laterRef, openRequest, latestRef, blockReason);
+        return new ConstructionChainStatusResult(pickedId, construction, selected, laterRef, openRequest, latestRef, blockReason);
     }
 }

@@ -77,7 +77,7 @@ public class RequestSubmittedEventHandler(
                 : null,
             // Purpose "03" = standard reappraisal, "09" = block-project reappraisal — both ReAppraisal.
             AppraisalType = notification.Request.Purpose is "03" or "09" ? "ReAppraisal"
-                : notification.Request.Purpose is "06" or "11" ? "Progressive"
+                : RequestPurposes.IsConstructionInspection(notification.Request.Purpose) ? "Progressive"
                 : null,
             GroupTag = notification.GroupTag,
             EntrySource = notification.EntrySource

@@ -38,10 +38,6 @@ internal static class PriorAppraisalSubmissionGuard
     private static readonly HashSet<string> PriorAppraisalIdRequiredPurposes =
         new(StringComparer.Ordinal) { "06", "11", "12" };
 
-    // Construction inspection: Progressive appraisals, whichever of the two purposes asked for them.
-    private static readonly HashSet<string> ConstructionInspectionPurposes =
-        new(StringComparer.Ordinal) { "06", "11" };
-
     // Cross-module string contract for AppraisalStatus.Completed (Appraisal.Domain is not referenced here).
     private const string CompletedStatus = "Completed";
 
@@ -52,7 +48,8 @@ internal static class PriorAppraisalSubmissionGuard
         ISender mediator,
         CancellationToken cancellationToken,
         AppraisalReferenceResult? resolvedReference = null,
-        string? reappraisalBookNumber = null)
+        string? reappraisalBookNumber = null,
+        Guid? requestId = null)
     {
         if (purpose is null)
             return;
@@ -101,18 +98,20 @@ internal static class PriorAppraisalSubmissionGuard
                 $"The referenced prior appraisal {prior.AppraisalNumber ?? prevAppraisalId.ToString()} " +
                 "must be completed before this request can be submitted.");
 
-        if (ConstructionInspectionPurposes.Contains(purpose))
+        if (RequestPurposes.IsConstructionInspection(purpose))
             await EnsureChainAllowsInspectionAsync(
-                prevAppraisalId.Value, prior.AppraisalNumber ?? prevAppraisalNumber, mediator, cancellationToken);
+                prevAppraisalId.Value, prior.AppraisalNumber ?? prevAppraisalNumber, mediator, cancellationToken, requestId);
     }
 
     private static async Task EnsureChainAllowsInspectionAsync(
         Guid prevAppraisalId,
         string? pickedNumber,
         ISender mediator,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? requestId)
     {
-        var status = await mediator.Send(new GetConstructionChainStatusQuery(prevAppraisalId), cancellationToken);
+        // requestId: the request being validated, so a re-submit does not count itself as the open inspection.
+        var status = await mediator.Send(new GetConstructionChainStatusQuery(prevAppraisalId, requestId), cancellationToken);
         if (status?.BlockReason is not { } reason)
             return;
 

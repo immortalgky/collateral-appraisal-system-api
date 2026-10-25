@@ -172,26 +172,63 @@ public class ConstructionInspectionSummaryTests
     // ── next round ──────────────────────────────────────────────────────────────
 
     [Fact]
-    public void Next_round_of_a_summary_inspection_carries_current_into_previous_with_a_matching_value()
+    public void Next_round_of_a_summary_inspection_starts_with_current_equal_to_previous()
     {
         var next = ConstructionInspection.CopyForNextInspection(Summary(2_000m, 10m, 60m), Guid.NewGuid());
 
         Assert.Equal(60m, next.SummaryPreviousProgressPct);
         Assert.Equal(1_200m, next.SummaryPreviousValue);
+        Assert.Equal(60m, next.SummaryCurrentProgressPct); // no progress yet this round, as the form shows
+        Assert.Equal(1_200m, next.SummaryCurrentValue);
+    }
+
+    [Fact]
+    public void Next_round_of_a_summary_inspection_that_never_keyed_a_current_stays_unkeyed()
+    {
+        var prior = ConstructionInspection.CreateSummary(
+            Guid.NewGuid(), 2_000m, null, summaryPreviousProgressPct: 10m, summaryCurrentProgressPct: null, remark: null);
+
+        var next = ConstructionInspection.CopyForNextInspection(prior, Guid.NewGuid());
+
         Assert.Null(next.SummaryCurrentProgressPct);
         Assert.Null(next.SummaryCurrentValue);
     }
 
     [Fact]
-    public void Next_round_of_a_full_detail_inspection_is_consistent_from_the_start()
+    public void Next_round_of_a_full_detail_inspection_starts_with_each_rows_current_equal_to_previous()
     {
         var prior = Detail(1_000_000m, (40m, 50m, 100m), (60m, 0m, 50m));
 
         var next = ConstructionInspection.CopyForNextInspection(prior, Guid.NewGuid());
 
+        Assert.Equal([100m, 50m], next.WorkDetails.OrderBy(d => d.DisplayOrder).Select(d => d.CurrentProgressPct));
         Assert.Equal(70m, next.SummaryPreviousProgressPct);   // last round's current
         Assert.Equal(700_000m, next.SummaryPreviousValue);
-        Assert.Equal(0m, next.SummaryCurrentProgressPct);     // not yet inspected
+        Assert.Equal(70m, next.SummaryCurrentProgressPct);    // unchanged until the inspector raises a row
+        Assert.Equal(700_000m, next.SummaryCurrentValue);
+    }
+
+    [Fact]
+    public void Next_round_can_pin_the_base_to_zero_instead_of_inheriting_a_legacy_one_in_summary_mode()
+    {
+        var next = ConstructionInspection.CopyForNextInspection(Summary(2_000m, 10m, 60m), Guid.NewGuid(), totalValueOverride: 0m);
+
+        Assert.Equal(0m, next.TotalValue);
+        Assert.Equal(60m, next.SummaryCurrentProgressPct);   // the figures still carry
+        Assert.Equal(0m, next.SummaryPreviousValue);          // values recomputed on the new base
+        Assert.Equal(0m, next.SummaryCurrentValue);
+    }
+
+    [Fact]
+    public void Next_round_can_pin_the_base_to_zero_instead_of_inheriting_a_legacy_one_in_full_detail_mode()
+    {
+        var prior = Detail(1_000_000m, (40m, 50m, 100m), (60m, 0m, 50m));
+
+        var next = ConstructionInspection.CopyForNextInspection(prior, Guid.NewGuid(), totalValueOverride: 0m);
+
+        Assert.Equal(0m, next.TotalValue);
+        Assert.Equal(70m, next.SummaryCurrentProgressPct);
+        Assert.All(next.WorkDetails, d => Assert.Equal(0m, d.CurrentPropertyValue));
         Assert.Equal(0m, next.SummaryCurrentValue);
     }
 
