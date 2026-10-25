@@ -25,6 +25,8 @@ public class BypassAuthenticationHandler(
             new Claim("permissions", "FAILED_MESSAGE_VIEW"),
             new Claim("permissions", "FAILED_MESSAGE_MANAGE"),
             new Claim("permissions", "HISTORY_SEARCH_VIEW"),
+            new Claim("permissions", "WEBHOOK_DELIVERIES_VIEW"),
+            new Claim("permissions", "WEBHOOK_SUBSCRIPTIONS_MANAGE"),
         };
         // Plays a signed-in browser user, so it carries the cookie-session identity type the "Spa" policy accepts.
         var identity = new ClaimsIdentity(claims, AuthSchemes.AppCookie);

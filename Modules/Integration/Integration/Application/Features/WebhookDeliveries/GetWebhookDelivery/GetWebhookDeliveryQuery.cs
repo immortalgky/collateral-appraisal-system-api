@@ -15,5 +15,9 @@ public record WebhookDeliveryDetailDto(
     int? LastStatusCode,
     string? LastError,
     DateTime? DeliveredAt,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    string CallbackUrl,
+    string HttpMethod,
+    string AuthType,
+    string? SubscriptionEventType
 );
