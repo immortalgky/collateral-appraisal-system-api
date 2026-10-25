@@ -9,17 +9,17 @@ namespace Appraisal.Domain.Appraisals;
 /// Rounding per display site instead lets the two disagree — two work items ending in .50 round up
 /// individually (+1 each) but cancel exactly when summed first.
 ///
-/// A summary-mode inspection stores no computed value — its figure is derived at read time as
-/// TotalValue * progressPct / 100 — so the same rule is mirrored as ROUND(..., 0) in the four
-/// places that repeat that formula:
-///   Appraisal  — ConstructionCurrentValueService.CiAggregateSql
-///   Appraisal  — GetDecisionSummaryQueryHandler.ciDetailSql, the card's per-building rows
-///   Reporting  — AppraisalSummaryConstructionDataProvider, which keeps its own copy of the
-///                aggregate so it can batch the whole report into one round-trip
-///   Collateral — Database/Scripts/Views/Collateral/vw_RegulatoryExport.sql
-/// SQL Server's ROUND rounds halves away from zero, matching MidpointRounding.AwayFromZero here.
-/// Change one and the other three have to follow, or the same appraisal prints different totals
-/// on the summary report, the appraisal book, the Decision Summary card and the regulatory export.
+/// Both modes now store their inspection-level money in ConstructionInspection.SummaryPreviousValue /
+/// SummaryCurrentValue (summary mode: TotalValue * pct / 100, rounded here on every write; full detail:
+/// the sum of the already-rounded work rows), and every reader takes it from there —
+/// appraisal.vw_AppraisalConstructionProgress, which ConstructionCurrentValueService, collateral.vw_RegulatoryExport,
+/// sp_RegulatoryExport and RCAS004 read, and a base-table copy of it in reporting.vw_MisCasReport. Readers that
+/// still derive summary-mode money from the percentage themselves round it the same way, as ROUND(..., 0) —
+/// GetDecisionSummaryQueryHandler.ciDetailSql and AppraisalSummaryConstructionDataProvider (the Reporting module's
+/// own copy of the aggregate, kept so it can batch the report into one round-trip). SQL Server's ROUND rounds halves
+/// away from zero, matching MidpointRounding.AwayFromZero here. Change the rule and those have to follow, or the same
+/// appraisal prints different totals on the summary report, the appraisal book, the Decision Summary card and the
+/// regulatory export.
 ///
 /// Percentages are NOT rounded to baht by this rule — they are stored as decimal(7,4) and reported to two
 /// decimal places, which is what the business asked for. That separation is what makes the rounding

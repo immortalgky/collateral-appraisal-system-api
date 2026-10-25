@@ -343,10 +343,13 @@ public class CreateLeaseAgreementLandAndBuildingPropertyCommandHandler(
         AppraisalProperty property,
         ConstructionInspectionData ci)
     {
+        // Server-derived 100% base — the payload's TotalValue is not trusted.
+        var totalValue = property.BuildingDetail!.ConstructionBaseValue;
+
         ConstructionInspection inspection;
         if (ci.IsFullDetail)
         {
-            inspection = ConstructionInspection.CreateFullDetail(property.Id, ci.TotalValue, ci.Remark);
+            inspection = ConstructionInspection.CreateFullDetail(property.Id, totalValue, ci.Remark);
             if (ci.WorkDetails is { Count: > 0 })
             {
                 foreach (var wd in ci.WorkDetails)
@@ -358,9 +361,9 @@ public class CreateLeaseAgreementLandAndBuildingPropertyCommandHandler(
         }
         else
         {
-            inspection = ConstructionInspection.CreateSummary(property.Id, ci.TotalValue,
-                ci.SummaryDetail, ci.SummaryPreviousProgressPct, ci.SummaryPreviousValue,
-                ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.Remark);
+            inspection = ConstructionInspection.CreateSummary(property.Id, totalValue,
+                ci.SummaryDetail, ci.SummaryPreviousProgressPct,
+                ci.SummaryCurrentProgressPct, ci.Remark);
             if (ci.DocumentId.HasValue)
                 inspection.SetDocument(ci.DocumentId.Value, ci.FileName, ci.FilePath, ci.FileExtension, ci.MimeType, ci.FileSizeBytes);
         }

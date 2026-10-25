@@ -157,8 +157,8 @@ public class AppraisalCreationService(
                 cancellationToken);
             appraisal.SetInspectionNumber((chain?.ProgressiveCount ?? 0) + 1);
 
-            // Step 4 (Progressive path): Deep-copy properties from the prior appraisal.
-            // ConstructionInspection (per-property) detail is intentionally excluded — it stays empty for fresh tracking.
+            // Step 4 (Progressive path): Deep-copy properties from the prior appraisal, including each
+            // property's ConstructionInspection (CopyForNextInspection: prior current % becomes the new previous %, and current starts equal to it).
             priorToNewProperties = await CopyPropertiesFromPriorAppraisalAsync(
                 appraisal, prevAppraisalId!.Value, cancellationToken);
         }
@@ -693,7 +693,9 @@ public class AppraisalCreationService(
     /// <summary>
     /// Loads properties from the prior appraisal and deep-copies them into the new CI appraisal.
     /// Uses the same CopyFrom static factories as Appraisal.CopyProperty().
-    /// ConstructionInspection detail is excluded — it starts empty for fresh CI tracking.
+    /// A property's ConstructionInspection is carried over via ConstructionInspection.CopyForNextInspection: the
+    /// prior round's current progress becomes the new round's previous progress, and the new round's current starts
+    /// equal to it (no progress yet; the inspector raises it). A condo's 100% base is pinned to 0, not inherited.
     /// </summary>
     private async Task<List<(Guid PriorPropertyId, AppraisalProperty NewProperty)>>
         CopyPropertiesFromPriorAppraisalAsync(
@@ -829,10 +831,12 @@ public class AppraisalCreationService(
                 continue;
             }
 
-            // Shift prior current progress → new previous progress; reset current for inspector to fill.
+            // Prior current progress → new previous progress; the new current starts equal to it. A condo unit has no
+            // server-derived base (pinned to 0 on every write), so a legacy non-zero one is not carried over.
             if (prior.ConstructionInspection is not null)
                 newProp.SetConstructionInspection(
-                    ConstructionInspection.CopyForNextInspection(prior.ConstructionInspection, newProp.Id));
+                    ConstructionInspection.CopyForNextInspection(
+                        prior.ConstructionInspection, newProp.Id, pt.HasCondoDetail ? 0m : null));
 
             priorToNew.Add((prior.Id, newProp));
 

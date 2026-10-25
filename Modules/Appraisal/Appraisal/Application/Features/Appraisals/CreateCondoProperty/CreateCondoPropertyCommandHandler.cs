@@ -154,10 +154,13 @@ public class CreateCondoPropertyCommandHandler(
         AppraisalProperty property,
         ConstructionInspectionData ci)
     {
+        // A condo unit has no server-derived 100% base — pinned to 0; the payload's TotalValue is not trusted.
+        const decimal totalValue = 0m;
+
         ConstructionInspection inspection;
         if (ci.IsFullDetail)
         {
-            inspection = ConstructionInspection.CreateFullDetail(property.Id, ci.TotalValue, ci.Remark);
+            inspection = ConstructionInspection.CreateFullDetail(property.Id, totalValue, ci.Remark);
             if (ci.WorkDetails is { Count: > 0 })
             {
                 foreach (var wd in ci.WorkDetails)
@@ -169,9 +172,9 @@ public class CreateCondoPropertyCommandHandler(
         }
         else
         {
-            inspection = ConstructionInspection.CreateSummary(property.Id, ci.TotalValue,
-                ci.SummaryDetail, ci.SummaryPreviousProgressPct, ci.SummaryPreviousValue,
-                ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.Remark);
+            inspection = ConstructionInspection.CreateSummary(property.Id, totalValue,
+                ci.SummaryDetail, ci.SummaryPreviousProgressPct,
+                ci.SummaryCurrentProgressPct, ci.Remark);
             if (ci.DocumentId.HasValue)
                 inspection.SetDocument(ci.DocumentId.Value, ci.FileName, ci.FilePath, ci.FileExtension, ci.MimeType, ci.FileSizeBytes);
         }

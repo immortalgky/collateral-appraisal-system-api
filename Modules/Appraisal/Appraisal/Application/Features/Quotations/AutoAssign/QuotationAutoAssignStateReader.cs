@@ -28,7 +28,8 @@ internal sealed class QuotationAutoAssignStateReader(ISqlConnectionFactory conne
                asg.InternalAppraiserId AS FollowupStaffId,
                NULLIF(LTRIM(RTRIM(CONCAT(NULLIF(u.FirstName, N''), N' ', NULLIF(u.LastName, N'')))), N'')
                    AS FollowupStaffName,
-               asg.InternalFollowupAssignmentMethod AS FollowupMethod
+               asg.InternalFollowupAssignmentMethod AS FollowupMethod,
+               asg.HasAdminBaseFee
         FROM appraisal.Appraisals a
         -- One main-workflow instance per appraisal: a live one if any, else the newest.
         OUTER APPLY (SELECT TOP 1 w.Id, w.Status
@@ -44,7 +45,15 @@ internal sealed class QuotationAutoAssignStateReader(ISqlConnectionFactory conne
                      FROM workflow.PendingTasks t
                      WHERE t.WorkflowInstanceId = wi.Id
                      ORDER BY t.AssignedAt DESC, t.Id DESC) pt
-        OUTER APPLY (SELECT TOP 1 x.AssignmentStatus, x.InternalAppraiserId, x.InternalFollowupAssignmentMethod
+        OUTER APPLY (SELECT TOP 1 x.AssignmentStatus, x.InternalAppraiserId, x.InternalFollowupAssignmentMethod,
+                            -- The admin's own base fee (above 0) outranks the quotation, so an unpriced winner is fine then.
+                            CASE WHEN EXISTS (SELECT 1
+                                              FROM appraisal.AppraisalFees f
+                                              JOIN appraisal.AppraisalFeeItems i ON i.AppraisalFeeId = f.Id
+                                              WHERE f.AssignmentId = x.Id
+                                                AND i.FeeCode = @BaseFeeCode AND i.Source = @AdminSource
+                                                AND i.FeeAmount > 0)
+                                 THEN 1 ELSE 0 END AS HasAdminBaseFee
                      FROM appraisal.AppraisalAssignments x
                      WHERE x.AppraisalId = a.Id
                      -- A Pending row first: it is the one AssignAppraisalCommand will act on.
@@ -63,7 +72,14 @@ internal sealed class QuotationAutoAssignStateReader(ISqlConnectionFactory conne
         var rows = await connectionFactory.GetOpenConnection().QueryAsync<AppraisalAssignState>(
             new CommandDefinition(
                 StateSql,
-                new { AppraisalIds = appraisalIds, WorkflowName = MainWorkflowName, PendingStatus = AssignmentStatus.Pending.Code },
+                new
+                {
+                    AppraisalIds = appraisalIds,
+                    WorkflowName = MainWorkflowName,
+                    PendingStatus = AssignmentStatus.Pending.Code,
+                    BaseFeeCode = AppraisalFee.BaseFeeCode,
+                    AdminSource = FeeItemSource.Admin
+                },
                 cancellationToken: cancellationToken));
         return rows.ToList();
     }
@@ -127,12 +143,16 @@ internal sealed class QuotationAutoAssignStateReader(ISqlConnectionFactory conne
             new CommandDefinition(
                 """
                 SELECT AppraisalId
-                FROM appraisal.CompanyQuotationItems
-                WHERE CompanyQuotationId = @CompanyQuotationId
-                GROUP BY AppraisalId
-                -- ResolveFeeSourceAsync takes the first item for an appraisal, so ALL of them must be priced.
-                HAVING MIN(CASE WHEN FeeAmount > 0 THEN FeeAmount - Discount - ISNULL(NegotiatedDiscount, 0)
-                                ELSE QuotedPrice END) > 0
+                FROM (
+                    SELECT AppraisalId,
+                           ROW_NUMBER() OVER (PARTITION BY AppraisalId ORDER BY ItemNumber, Id) AS Rn,
+                           CASE WHEN FeeAmount > 0 THEN FeeAmount - Discount - ISNULL(NegotiatedDiscount, 0)
+                                ELSE QuotedPrice END AS Price
+                    FROM appraisal.CompanyQuotationItems
+                    WHERE CompanyQuotationId = @CompanyQuotationId
+                ) items
+                -- The fee consumer (QuotationFeePrice.Resolve) bills the FIRST item of an appraisal by ItemNumber, then Id.
+                WHERE Rn = 1 AND Price > 0
                 """,
                 new { CompanyQuotationId = companyQuotationId },
                 cancellationToken: cancellationToken))).ToList();

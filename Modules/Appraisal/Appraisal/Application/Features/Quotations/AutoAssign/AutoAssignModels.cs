@@ -23,7 +23,6 @@ public static class AutoAssignReason
     public const string NoAssignment = "noAssignment";
     public const string AssignmentNotReset = "assignmentNotReset";
     public const string NotPending = "notPending";
-    public const string ConstructionInspection = "constructionInspection";
     public const string NotAtAssignment = "notAtAssignment";
     public const string TaskHeld = "taskHeld";
     public const string DocumentFollowupOpen = "documentFollowupOpen";
@@ -37,6 +36,7 @@ public static class AutoAssignReason
     public const string StaffIneligible = "staffIneligible";
     public const string StaffValidationFailed = "staffValidationFailed";
     public const string AssignRejected = "assignRejected";
+    public const string FeeBaseMissing = "feeBaseMissing";
     public const string AssignFailed = "assignFailed";
     public const string NoMatch = "noMatch";
     public const string WorkflowElsewhere = "workflowElsewhere";

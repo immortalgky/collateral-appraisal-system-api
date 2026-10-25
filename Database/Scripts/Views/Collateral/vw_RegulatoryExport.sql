@@ -247,49 +247,24 @@ Earliest AS (
 ),
 
 -- ── Construction status ────────────────────────────────────────────────────────────────────────
--- Mirrors IConstructionCurrentValueService.CiAggregateSql exactly, so the screen and this file
--- cannot disagree. A summary inspection carries its own percentage; a full-detail one is the sum of
--- its work rows. Each inspection's contribution is rounded to whole baht (CA-614), the same rule
--- Appraisal.Domain.Appraisals.ConstructionMoney applies when full-detail values are persisted;
--- ROUND rounds halves away from zero, as MidpointRounding.AwayFromZero does there.
+-- Read from appraisal.vw_AppraisalConstructionProgress, the same view IConstructionCurrentValueService
+-- reads, so the screen and this file cannot disagree. Each inspection's Summary* columns hold its
+-- result in both modes (no IsFullDetail branching here); money is whole baht (CA-614), written that
+-- way by Appraisal.Domain.Appraisals.ConstructionMoney.
+--   EnteredCurrentPercent   plain average, all there is to report when there is no value to weight by:
+--                           a condo unit has no building depreciation table for the CI screen to
+--                           total, so its TotalValue is 0.
+--   WeightedCurrentPercent  per-building progress weighted across buildings by what each is worth.
+--                           This is what decides "finished" and what this file reports - deliberately
+--                           NOT CurrentValue / TotalValue: rounded money no longer sums to the rounded
+--                           whole, so a finished building came out a baht short of its own 100%.
 Ci AS (
-    SELECT
-        ap.AppraisalId,
-        ISNULL(SUM(v.TotalValue), 0)              AS TotalValue,
-        ISNULL(SUM(ROUND(v.CurrentValue, 0)), 0)  AS CurrentValue,
-        -- Plain average, all there is to report when there is no value to weight by: a condo unit
-        -- has no building depreciation table for the CI screen to total, so its TotalValue is 0.
-        ISNULL(AVG(v.CurrentPct), 0)              AS EnteredCurrentPercent,
-        -- Per-building progress weighted across buildings by what each is worth. This is what
-        -- decides "finished" and what this file reports — deliberately NOT CurrentValue /
-        -- TotalValue: money is rounded to whole baht (CA-614), so the rounded parts no longer sum
-        -- to the rounded whole and a finished building came out a baht short of its own 100%
-        -- figure. Percentages are decimal(7,4) and nothing rounds them; TotalValue is only a
-        -- weight here. Mirrors ConstructionValueBreakdown.WeightedCurrentPercent.
-        CASE WHEN SUM(v.TotalValue) > 0
-             THEN SUM(v.TotalValue * v.CurrentPct) / SUM(v.TotalValue)
-             ELSE 0 END                           AS WeightedCurrentPercent
-    FROM appraisal.ConstructionInspections ci
-    JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
-    LEFT JOIN (
-        SELECT ConstructionInspectionId,
-               SUM(CurrentPropertyValue) AS CurrentSum,
-               SUM(CurrentProportionPct) AS CurrentPctSum
-        FROM appraisal.ConstructionWorkDetails
-        GROUP BY ConstructionInspectionId
-    ) wd ON wd.ConstructionInspectionId = ci.Id
-    -- One row per inspection, read per the mode flag: a summary inspection carries its own
-    -- percentage, a full-detail one is the sum of its work rows.
-    CROSS APPLY (
-        SELECT
-            ci.TotalValue,
-            CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
-                 ELSE ISNULL(wd.CurrentPctSum, 0) END  AS CurrentPct,
-            CASE WHEN ci.IsFullDetail = 0
-                 THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
-                 ELSE ISNULL(wd.CurrentSum, 0) END     AS CurrentValue
-    ) v
-    GROUP BY ap.AppraisalId
+    SELECT AppraisalId,
+           TotalValue,
+           CurrentValue,
+           UnweightedCurrentPercent AS EnteredCurrentPercent,
+           WeightedCurrentPercent
+    FROM appraisal.vw_AppraisalConstructionProgress
 ),
 
 -- A condo unit has no building depreciation table, so the CI screen has nothing to total and every

@@ -134,7 +134,6 @@ public class AutoAssignQuotationAppraisalsTests
         Assert.All(results, r => Assert.Equal("Assigned", r.Result));
         await _sender.Received(1).Send(
             Arg.Is<AssignAppraisalCommand>(c => c.AppraisalId == a
-                && c.AssignedBy == "P0001"
                 && c.DecisionTaken == "EXT"
                 && c.AssignmentMethod == "Quotation"
                 && c.AssigneeCompanyId == WinnerId.ToString()
@@ -201,6 +200,32 @@ public class AutoAssignQuotationAppraisalsTests
         Assert.Equal("assignFailed", results[b].ReasonCode);
         Assert.Null(results[c].ReasonCode);
         Assert.Equal("Assigned", results[c].Result);
+    }
+
+    [Fact]
+    public async Task An_appraisal_with_no_base_fee_is_left_for_the_admin_with_its_own_reason()
+    {
+        // AssignAppraisalCommandHandler refuses an assignment that would bill no base fee (01); auto-assign must not
+        // assign it, and must say why with a code the UI can translate (the other appraisals still go through).
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+        var quotation = Quotation(a, b);
+        foreach (var id in new[] { a, b })
+        {
+            _before[id] = State(id);
+            _after[id] = State(id, "ext-appraisal-assignment");
+        }
+
+        _sender.Send(Arg.Is<AssignAppraisalCommand>(x => x.AppraisalId == a), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new BadRequestException("Cannot assign: no base appraisal fee (01) would be billed.", null,
+                AssignAppraisalCommandHandler.FeeBaseMissingCode));
+
+        var results = (await RunAsync(quotation)).ToDictionary(r => r.AppraisalId);
+
+        Assert.Equal("Failed", results[a].Result);
+        Assert.Equal("feeBaseMissing", results[a].ReasonCode);
+        Assert.Contains("no base appraisal fee (01)", results[a].Message);
+        Assert.Equal("Assigned", results[b].Result);
     }
 
     [Fact]
@@ -316,22 +341,22 @@ public class AutoAssignQuotationAppraisalsTests
     }
 
     [Fact]
-    public async Task Construction_inspection_is_Failed_for_manual_assign_and_never_ready()
+    public async Task Construction_inspection_is_assigned_to_the_quotation_winner_like_any_other_appraisal()
     {
+        // The explicit winner beats the company forced from the prior appraisal (CompanySelectionActivity).
         var a = Guid.NewGuid();
         var quotation = Quotation(a);
         _before[a] = State(a, appraisalType: "Progressive");
+        _after[a] = State(a, "ext-appraisal-assignment", assignment: "Assigned", appraisalType: "Progressive");
 
         var result = Assert.Single(await RunAsync(quotation));
 
-        Assert.Equal("Failed", result.Result);
-        Assert.Equal("Construction inspection keeps the previous company. Assign it on the Administration page.",
-            result.Message);
-        Assert.NotNull(AutoAssignClassifier.Classify(_before[a], true, true, "P0001").Outcome);
-        await _sender.DidNotReceiveWithAnyArgs().Send(default(AssignAppraisalCommand)!, default);
-        _outbox.Received(1).Publish(
-            Arg.Any<QuotationAutoAssignNotificationIntegrationEvent>(),
-            Arg.Any<string?>(), Arg.Any<Dictionary<string, string>?>());
+        Assert.Equal("Assigned", result.Result);
+        Assert.Equal(AutoAssignClassification.Ready, AutoAssignClassifier.Classify(_before[a], true, true, "P0001"));
+        await _sender.Received(1).Send(
+            Arg.Is<AssignAppraisalCommand>(c => c.AppraisalId == a && c.AssigneeCompanyId == WinnerId.ToString()
+                                                && c.AssignmentMethod == "Quotation"),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -727,8 +752,8 @@ public class AutoAssignQuotationAppraisalsTests
         Assert.Equal("noAssignment", Reason(State(id, assignment: null)));
         Assert.Equal("notPending", Reason(State(id, "ext-appraisal-assignment", assignment: "Assigned")));
         Assert.Equal("assignmentNotReset", Reason(State(id, "appraisal-assignment", assignment: "Assigned")));
-        // Construction inspection wins over "not at assignment" and over an unavailable winner.
-        Assert.Equal("constructionInspection",
+        // Construction inspection has no ladder step of its own: it is judged like any other appraisal.
+        Assert.Equal("notAtAssignment",
             Reason(State(id, "appraisal-initiation", appraisalType: "Progressive"), winner: false));
         // An unavailable winner or missing price never hides that the appraisal is simply not there yet.
         Assert.Equal("notAtAssignment", Reason(State(id, "appraisal-initiation"), winner: false, priced: false));
@@ -749,7 +774,7 @@ public class AutoAssignQuotationAppraisalsTests
             AutoAssignClassifier.Classify(s, winner, true, "P0001").Outcome;
 
         Assert.Equal("Skipped", Outcome(null));
-        Assert.Equal("Failed", Outcome(State(id, appraisalType: "Progressive")));
+        Assert.Null(Outcome(State(id, appraisalType: "Progressive")));
         Assert.Equal("Parked", Outcome(State(id, "appraisal-initiation"), winner: false));
         Assert.Equal("Failed", Outcome(State(id, taskAssignedTo: "P0888", taskAssignedType: "1")));
         Assert.Null(Outcome(State(id)));
@@ -945,13 +970,28 @@ public class AutoAssignQuotationAppraisalsTests
         Assert.Equal("noAssignment", Code(State(id, assignment: null)));
         Assert.Equal("assignmentNotReset", Code(State(id, assignment: "Assigned")));
         Assert.Equal("notPending", Code(State(id, "ext-appraisal-assignment", assignment: "Assigned")));
-        Assert.Equal("constructionInspection", Code(State(id, appraisalType: "Progressive")));
+        Assert.Null(Code(State(id, appraisalType: "Progressive")));
         Assert.Equal("notAtAssignment", Code(State(id, "appraisal-initiation")));
         Assert.Equal("taskHeld", Code(State(id, workingBy: "P0999")));
         Assert.Equal("documentFollowupOpen", Code(State(id, hasOpenFollowup: true)));
         Assert.Equal("winnerUnavailable", Code(State(id), assignable: false));
         Assert.Equal("unpriced", Code(State(id), priced: false));
         Assert.Null(Code(State(id)));
+    }
+
+    [Fact]
+    public void Unpriced_winner_is_accepted_when_the_admin_already_keyed_the_base_fee()
+    {
+        // The admin's own 01 outranks the quotation at assignment, as in CompanyAssignedIntegrationEventHandler.
+        var id = Guid.NewGuid();
+
+        Assert.Equal(AutoAssignClassification.Ready,
+            AutoAssignClassifier.Classify(State(id) with { HasAdminBaseFee = true }, true, priced: false, "P0001"));
+        Assert.Equal("unpriced",
+            AutoAssignClassifier.Classify(State(id), true, priced: false, "P0001").Reason);
+        // It excuses the missing price only, not an unavailable winner.
+        Assert.Equal("winnerUnavailable",
+            AutoAssignClassifier.Classify(State(id) with { HasAdminBaseFee = true }, false, priced: false, "P0001").Reason);
     }
 
     [Fact]
