@@ -70,6 +70,34 @@ public class UnitPriceTemplateRoundTripTests
     }
 
     [Fact]
+    public void Land_HasNoFireInsuranceColumn_AndDownloadedTemplateUploadsBackWithoutErrorsOrDifferences()
+    {
+        var units = new[]
+        {
+            PriceSheet.LbUnit(1, "12", "99/12", null, 50.25m, null, 3_000_000m),
+            PriceSheet.LbUnit(2, "13", null, null, 60m, null, 3_500_000m)
+        };
+        var prices = units.Select(u => Priced(u, 25_000m, 2_900_000m, 1_800_000m, 0m))
+            .ToDictionary(p => p.ProjectUnitId);
+
+        var layout = UnitPriceImportLayout.For(ProjectType.Land);
+        Assert.Same(UnitPriceImportLayout.Land, layout);
+        Assert.DoesNotContain("มูลค่าประกันอัคคีภัย", layout.AllHeaders);
+        Assert.Equal(["เนื้อที่ดิน (ตร.วา)", "ราคาขาย"], layout.CompareColumns.Select(c => c.Header));
+
+        var bytes = PriceSheet.Template(layout, units, prices);
+        using var file = new MemoryStream(bytes);
+        var sheet = UnitPriceExcelParser.Parse(file, layout);
+        var result = PriceSheet.AnalyzeWith("t.xlsx", sheet, layout, units, new Dictionary<Guid, decimal?>());
+
+        Assert.Empty(result.Response.Errors);
+        Assert.Empty(result.Response.AttributeDiffs);
+        Assert.Equal(2, result.Response.MatchedCount);
+        Assert.Equal("Land", result.Response.ProjectType);
+        Assert.All(sheet.Rows, r => Assert.Null(r.CoverageAmount));
+    }
+
+    [Fact]
     public void SameRoomNumberInTwoTowers_WithoutRegistrationNumbers_RoundTripsThroughTheTemplate()
     {
         var a = PriceSheet.CondoUnit(1, "101", null, 1, "Tower A");

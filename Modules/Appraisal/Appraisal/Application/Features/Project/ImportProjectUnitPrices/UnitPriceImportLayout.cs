@@ -61,7 +61,7 @@ public sealed record UnitPriceImportLayout(
     string StandardPriceHeader,
     string AppraisalValueHeader,
     string ForceSellingPriceHeader,
-    string CoverageHeader,
+    string? CoverageHeader,   // null when the type has no fire-insurance column (Land)
     string? TowerHeader = null,
     Func<UnitSnapshot, string?>? Tower = null)
 {
@@ -98,20 +98,36 @@ public sealed record UnitPriceImportLayout(
         "ราคาบังคับขาย (บาท)",
         "มูลค่าประกันอัคคีภัย");
 
+    /// <summary>A bare plot has no building to insure, so no fire-insurance column.</summary>
+    public static readonly UnitPriceImportLayout Land = new(
+        "Land",
+        "เลขแปลง", u => u.PlotNumber,
+        "เลขที่บ้าน", u => u.HouseNumber,
+        [
+            new("เนื้อที่ดิน (ตร.วา)", u => u.LandArea, true),
+            new("ราคาขาย", u => u.SellingPrice, true)
+        ],
+        "ราคามาตรฐาน (บาท)",
+        "มูลค่าประเมิน",
+        "ราคาบังคับขาย (บาท)",
+        null);
+
     /// <summary>The unit's keys as the matcher sees them: trimmed, and a blank or dash-only value is no key.</summary>
     public string? Key1Of(UnitSnapshot u) => UnitPriceExcelParser.CleanKey(Key1(u));
 
     public string? Key2Of(UnitSnapshot u) => UnitPriceExcelParser.CleanKey(Key2(u));
 
-    // TODO(Land): Land shares the LandAndBuilding layout in v1
     public static UnitPriceImportLayout For(ProjectType projectType) =>
-        projectType == ProjectType.Condo ? Condo : LandAndBuilding;
+        projectType == ProjectType.Condo ? Condo
+        : projectType.HasStructures() ? LandAndBuilding
+        : Land;
 
     /// <summary>Every header, in template column order: keys, compare-only columns, prices.</summary>
     public IReadOnlyList<string> AllHeaders =>
     [
         Key1Header, Key2Header,
         .. CompareColumns.Select(c => c.Header),
-        StandardPriceHeader, AppraisalValueHeader, ForceSellingPriceHeader, CoverageHeader
+        StandardPriceHeader, AppraisalValueHeader, ForceSellingPriceHeader,
+        .. CoverageHeader is null ? [] : new[] { CoverageHeader }
     ];
 }

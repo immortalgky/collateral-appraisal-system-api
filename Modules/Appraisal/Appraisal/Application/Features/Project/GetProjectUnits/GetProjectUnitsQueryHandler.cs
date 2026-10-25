@@ -32,7 +32,8 @@ public class GetProjectUnitsQueryHandler(
                 u.Id, u.ProjectId, u.UploadBatchId, u.SequenceNumber,
                 u.ModelType, u.UsableArea, u.SellingPrice,
                 u.Floor, u.TowerName, u.CondoRegistrationNumber, u.RoomNumber,
-                u.PlotNumber, u.HouseNumber, u.NumberOfFloors, u.LandArea, u.IsSold))
+                u.PlotNumber, u.HouseNumber, u.NumberOfFloors, u.LandArea, u.IsSold,
+                u.ProjectTowerId, u.ProjectModelId))
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 

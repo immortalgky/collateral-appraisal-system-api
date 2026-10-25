@@ -1328,6 +1328,18 @@ WHERE NOT EXISTS (SELECT 1 FROM appraisal.ProjectUnitPrices p WHERE p.ProjectUni
 
 DECLARE @Inserted int = @@ROWCOUNT;
 
+-- Mark the project's prices as an imported list, the way Project.MarkUnitPricesImported does. Without
+-- this the project stays 'Calculated' and the Unit Price tab recomputes the loaded prices to 0.
+-- Idempotent: a re-run only refreshes the stamp.
+UPDATE appraisal.Projects
+SET UnitPriceSource         = 'Imported',
+    UnitPriceImportFileName = N'PatchProjectUnitPrices_69002123.sql',
+    UnitPriceImportedAt     = SYSDATETIME(),
+    UnitPriceImportedBy     = 'SYSTEM',
+    UpdatedAt               = SYSDATETIME(),
+    UpdatedBy               = 'SYSTEM'
+WHERE Id = @ProjectId;
+
 -- Re-read the rollup from the tables. It must equal what the report printed, or everything rolls back.
 DECLARE @PostValue     decimal(18,2);
 DECLARE @PostInsurance decimal(18,2);
@@ -1427,6 +1439,7 @@ BEGIN
 END
 ELSE
     PRINT 'Workflow was NOT touched (@PatchWorkflow = 0).';
+PRINT 'Project.UnitPriceSource set to Imported.';
 PRINT 'Reminder: do NOT press Calculate on the Unit Price tab, and do NOT re-upload the units Excel.';
 
 -- What actually landed. RawFragment must read "appraisalValue":<number> with NO quotes.

@@ -39,11 +39,9 @@ public static class UnitPriceTemplateBuilder
                 ws.Cell(row, col++).Value = ToCellValue(compare.Read(unit));
 
             pricesByUnitId.TryGetValue(unit.Id, out var price);
-            foreach (var value in new[]
-                     {
-                         price?.StandardPrice, price?.AppraisalValue,
-                         price?.ForceSellingPrice, price?.CoverageAmount
-                     })
+            var priceValues = new List<decimal?> { price?.StandardPrice, price?.AppraisalValue, price?.ForceSellingPrice };
+            if (layout.CoverageHeader is not null) priceValues.Add(price?.CoverageAmount);
+            foreach (var value in priceValues)
             {
                 var cell = ws.Cell(row, col++);
                 cell.Value = ToCellValue(value);

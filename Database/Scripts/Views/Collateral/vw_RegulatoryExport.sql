@@ -771,8 +771,9 @@ SELECT
     -- HasRealEstate test alone blanked all 1,608 of them. Its request is the developer's, whose
     -- Location IS the project's site, and every unit sits inside that project: on 1,591 of the 1,592
     -- rows this recovers, the code matches the project's own SubDistrict exactly and none disagree.
-    -- ProjectType is the same signal CollateralType uses above, so the two fields cover the same rows.
-    CASE WHEN pm.HasRealEstate = 1 OR an.ProjectType IN ('U', 'LB')
+    -- CollateralType above lists only U and LB; this list also takes L, so a Land-only project gets
+    -- a DOPA code although its CollateralType is not set by that CASE.
+    CASE WHEN pm.HasRealEstate = 1 OR an.ProjectType IN ('U', 'LB', 'L')
          THEN (SELECT dsd.Code FROM parameter.DopaSubDistricts dsd
                WHERE dsd.Code = LTRIM(RTRIM(rd.SubDistrict)))
          ELSE NULL END                                           AS DopaCode,

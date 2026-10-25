@@ -31,6 +31,12 @@ public interface IProjectRepository
     /// </summary>
     Task<ProjectTower?> GetTowerByIdWithImagesAsync(Guid towerId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Gets the projects (tracked) with a tower or model image showing the gallery photo,
+    /// with their towers, models and images loaded.
+    /// </summary>
+    Task<List<Project>> GetByGalleryPhotoAsync(Guid galleryPhotoId, CancellationToken ct = default);
+
     /// <summary>Stages a new project for insertion.</summary>
     void Add(Project project);
 

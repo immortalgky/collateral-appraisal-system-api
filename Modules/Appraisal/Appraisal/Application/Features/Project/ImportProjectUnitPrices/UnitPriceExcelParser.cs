@@ -87,7 +87,7 @@ public static class UnitPriceExcelParser
             var standardCol = ProjectUnitExcelParser.TryResolve(headers, layout.StandardPriceHeader);
             var appraisalCol = ProjectUnitExcelParser.TryResolve(headers, layout.AppraisalValueHeader);
             var forceCol = ProjectUnitExcelParser.TryResolve(headers, layout.ForceSellingPriceHeader);
-            var coverageCol = ProjectUnitExcelParser.TryResolve(headers, layout.CoverageHeader);
+            var coverageCol = layout.CoverageHeader is null ? null : ProjectUnitExcelParser.TryResolve(headers, layout.CoverageHeader);
 
             var errors = new List<UnitPriceImportError>();
             if (key1Col is null && key2Col is null)
@@ -101,7 +101,7 @@ public static class UnitPriceExcelParser
                          (coverageCol, layout.CoverageHeader)
                      })
             {
-                if (col is null)
+                if (col is null && header is not null)
                     errors.Add(new(1, null, UnitPriceImportErrorCodes.MissingHeader,
                         $"Required column '{header}' is missing."));
             }
@@ -220,7 +220,7 @@ public static class UnitPriceExcelParser
     }
 
     private static decimal? ReadPrice(
-        IXLWorksheet ws, int row, int? col, string header, string? key,
+        IXLWorksheet ws, int row, int? col, string? header, string? key,
         List<UnitPriceImportError> errors, out bool hasContent)
     {
         hasContent = false;

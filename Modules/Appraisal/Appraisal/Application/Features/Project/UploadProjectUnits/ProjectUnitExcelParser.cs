@@ -9,6 +9,12 @@ namespace Appraisal.Application.Features.Project.UploadProjectUnits;
 /// </summary>
 public static class ProjectUnitExcelParser
 {
+    /// <summary>Picks the parser that matches the project type (Condo, LandAndBuilding or Land).</summary>
+    public static List<ProjectUnit> Parse(Stream stream, ProjectType projectType, Guid projectId) =>
+        projectType == ProjectType.Condo ? ParseCondoExcel(stream, projectId)
+        : projectType.HasStructures() ? ParseLandAndBuildingExcel(stream, projectId)
+        : ParseLandAndBuildingExcel(stream, projectId, landOnly: true);
+
     /// <summary>
     /// Parses a Condo units Excel stream. Row 1 is headers; data starts at row 2.
     /// Headers are resolved case- and whitespace-insensitively.
@@ -67,21 +73,26 @@ public static class ProjectUnitExcelParser
 
     /// <summary>
     /// Parses a LandAndBuilding units Excel stream. Row 1 is headers; data starts at row 2.
-    /// Rows where both PlotNumber and HouseNumber are blank are skipped.
+    /// Rows where both PlotNumber and HouseNumber are blank are skipped (this also drops a sheet's totals row).
+    /// <paramref name="landOnly"/> parses a bare-plot (Land) file: Plot Number, Land Area and Selling Price
+    /// are required, House Number is optional, and Model, Floors and Usable Area are never read. Every kept
+    /// row needs a plot and a land area and selling price above 0, else the whole file is rejected with the row number.
     /// </summary>
-    public static List<ProjectUnit> ParseLandAndBuildingExcel(Stream stream, Guid projectId)
+    public static List<ProjectUnit> ParseLandAndBuildingExcel(Stream stream, Guid projectId, bool landOnly = false)
     {
         using var workbook = new XLWorkbook(stream);
         var worksheet = workbook.Worksheets.First();
         var headers = BuildHeaderMap(worksheet);
 
         var plotCol = Resolve(headers, "Plot Number", "Plot No", "PlotNumber");
-        var houseCol = Resolve(headers, "House Number", "House No", "HouseNumber");
-        var modelCol = Resolve(headers, "Model Name", "ModelName", "Model");
-        var floorsCol = Resolve(headers,
+        var houseCol = landOnly
+            ? TryResolve(headers, "House Number") ?? TryResolve(headers, "House No")
+            : Resolve(headers, "House Number", "House No", "HouseNumber");
+        var modelCol = landOnly ? (int?)null : Resolve(headers, "Model Name", "ModelName", "Model");
+        var floorsCol = landOnly ? (int?)null : Resolve(headers,
             "Number of Floors", "No. of Floors", "No of Floors", "NumberOfFloors");
         var landAreaCol = Resolve(headers, "Land Area", "Land Area (sq.wa)", "LandArea");
-        var usableAreaCol = Resolve(headers, "Usable Area", "Usable Area (sq.m.)", "UsableArea");
+        var usableAreaCol = landOnly ? (int?)null : Resolve(headers, "Usable Area", "Usable Area (sq.m.)", "UsableArea");
         var sellingPriceCol = Resolve(headers, "Selling Price", "Selling Price (Baht)", "SellingPrice");
 
         var units = new List<ProjectUnit>();
@@ -90,20 +101,31 @@ public static class ProjectUnitExcelParser
         for (var row = 2; row <= lastRow; row++)
         {
             var plotNumber = worksheet.Cell(row, plotCol).GetString().Trim();
-            var houseNumber = worksheet.Cell(row, houseCol).GetString().Trim();
-            var modelName = worksheet.Cell(row, modelCol).GetString().Trim();
-            var floorsText = worksheet.Cell(row, floorsCol).GetString().Trim();
+            var houseNumber = Text(worksheet, row, houseCol);
+            var modelName = Text(worksheet, row, modelCol);
+            var floorsText = Text(worksheet, row, floorsCol);
             var landAreaText = worksheet.Cell(row, landAreaCol).GetString().Trim();
-            var usableAreaText = worksheet.Cell(row, usableAreaCol).GetString().Trim();
+            var usableAreaText = Text(worksheet, row, usableAreaCol);
             var sellingPriceText = worksheet.Cell(row, sellingPriceCol).GetString().Trim();
 
             if (string.IsNullOrWhiteSpace(plotNumber) && string.IsNullOrWhiteSpace(houseNumber))
                 continue;
 
             int.TryParse(floorsText, out var floors);
-            decimal.TryParse(landAreaText, out var landArea);
+            var landAreaOk = decimal.TryParse(landAreaText, out var landArea);
             decimal.TryParse(usableAreaText, out var usableArea);
-            decimal.TryParse(sellingPriceText, out var sellingPrice);
+            var sellingPriceOk = decimal.TryParse(sellingPriceText, out var sellingPrice);
+
+            // A bare plot is nothing without its plot, land area and price, so a Land row missing any is rejected.
+            if (landOnly)
+            {
+                var bad = new List<string>();
+                if (plotNumber.Length == 0) bad.Add("Plot Number is required");
+                if (!landAreaOk || landArea <= 0) bad.Add("Land Area must be a number greater than 0");
+                if (!sellingPriceOk || sellingPrice <= 0) bad.Add("Selling Price must be a number greater than 0");
+                if (bad.Count > 0)
+                    throw new BadRequestException($"Row {row}: {string.Join("; ", bad)}.");
+            }
 
             units.Add(ProjectUnit.CreateLandAndBuilding(
                 projectId: projectId,
@@ -122,6 +144,10 @@ public static class ProjectUnitExcelParser
     }
 
     // ── Header resolution helpers ─────────────────────────────────────────────
+
+    /// <summary>Trimmed cell text, or empty when the column is not read.</summary>
+    private static string Text(IXLWorksheet ws, int row, int? col) =>
+        col is { } c ? ws.Cell(row, c).GetString().Trim() : string.Empty;
 
     /// <summary>
     /// Normalize a header cell for case- and whitespace-insensitive matching.
