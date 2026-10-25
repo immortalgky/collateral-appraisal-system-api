@@ -24,8 +24,11 @@ public class GetProjectPricingAssumptionsQueryHandler(
         var project = await projectRepository.GetWithFullGraphAsync(query.AppraisalId, cancellationToken)
                       ?? throw new InvalidOperationException($"Project not found for appraisal {query.AppraisalId}");
 
+        // Land has no models: any left over from before the type had none are never listed, saved assumption or not.
+        var models = project.ProjectType.HasStructures() ? project.Models : [];
+
         // Batch-load PricingAnalysis summaries for all models (replaces the removed nav property).
-        var modelIds = project.Models.Select(m => m.Id);
+        var modelIds = models.Select(m => m.Id);
         var paSummaries = await pricingAnalysisRepository
             .GetProjectModelPricingSummariesAsync(modelIds, cancellationToken);
 
@@ -49,10 +52,11 @@ public class GetProjectPricingAssumptionsQueryHandler(
 
         // No assumption row yet — return a shell DTO derived from the project's models
         // so the FE Pricing Assumption tab can populate the model rows on first load.
-        // If there are no models either, return null (nothing to show).
+        // If there are no models either, return null (nothing to show) -- except Land, which never
+        // has models and still needs the shell for its location-method / land-rate fields.
         if (assumption is null)
         {
-            if (project.Models.Count == 0)
+            if (project.Models.Count == 0 && project.ProjectType.HasStructures())
                 return new GetProjectPricingAssumptionsResult(null);
 
             var shellDto = new ProjectPricingAssumptionDto(
@@ -70,7 +74,7 @@ public class GetProjectPricingAssumptionsQueryHandler(
                 FloorIncrementAmount: null,
                 NearGardenAdjustment: null,
                 LandIncreaseDecreaseRate: null,
-                ModelAssumptions: DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCode, towerNameById),
+                ModelAssumptions: DeriveFromModels(models, isCondo, paSummaries, ratesByCode, towerNameById),
                 EffectiveForceSalePercentage: effectiveForceSalePercentage,
                 SystemDefaultForceSalePercentage: systemDefaultForceSalePercentage);
 
@@ -84,7 +88,7 @@ public class GetProjectPricingAssumptionsQueryHandler(
         // navigation and the Tower (ModelAssumption itself carries no Tower reference).
         var modelById = project.Models.ToDictionary(m => m.Id);
 
-        var modelAssumptions = assumption.ModelAssumptions.Count > 0
+        var modelAssumptions = project.ProjectType.HasStructures() && assumption.ModelAssumptions.Count > 0
             ? assumption.ModelAssumptions
                 .Select(ma =>
                 {
@@ -109,7 +113,7 @@ public class GetProjectPricingAssumptionsQueryHandler(
                         TowerName: towerName);
                 })
                 .ToList()
-            : DeriveFromModels(project.Models, isCondo, paSummaries, ratesByCode, towerNameById);
+            : DeriveFromModels(models, isCondo, paSummaries, ratesByCode, towerNameById);
 
         var dto = new ProjectPricingAssumptionDto(
             assumption.Id,

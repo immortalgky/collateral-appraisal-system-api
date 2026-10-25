@@ -94,26 +94,57 @@ public class ProjectTypeTests
     }
 
     [Fact]
-    public void Land_AddModel_WithNullTowerId_Succeeds()
+    public void Land_AddModel_Throws()
     {
-        // Land projects follow LB rules: no tower required
+        // A bare plot has no building, so no model -- whatever the tower argument is.
         var project = CreateLandProject();
-        var model = project.AddModel(projectTowerId: null, modelName: "Plot-A");
-        Assert.Null(model.ProjectTowerId);
-        Assert.Single(project.Models);
+
+        var ex = Assert.Throws<InvalidProjectStateException>(
+            () => project.AddModel(projectTowerId: null, modelName: "Plot-A"));
+
+        Assert.Contains("AddModel", ex.Message);
+        Assert.Empty(project.Models);
     }
 
     [Fact]
-    public void Land_AddModel_WithNonNullTowerId_ThrowsInvalidProjectStateException()
+    public void Land_AddModel_WithTowerId_Throws()
     {
-        // Land projects follow LB rules: tower must be null
         var project = CreateLandProject();
-        var fakeTowerId = Guid.NewGuid();
 
-        var ex = Assert.Throws<InvalidProjectStateException>(
-            () => project.AddModel(projectTowerId: fakeTowerId, modelName: "Plot-A"));
+        Assert.Throws<InvalidProjectStateException>(
+            () => project.AddModel(projectTowerId: Guid.NewGuid(), modelName: "Plot-A"));
+    }
 
-        Assert.Contains("must not be linked to a tower", ex.Message, StringComparison.OrdinalIgnoreCase);
+    [Fact]
+    public void Land_UpdateModel_Throws()
+    {
+        var project = CreateLandProject();
+
+        Assert.Throws<InvalidProjectStateException>(
+            () => project.UpdateModel(Guid.NewGuid(), projectTowerId: null, modelName: "Plot-A"));
+    }
+
+    [Fact]
+    public void LandAndBuilding_AddModel_StillSucceeds()
+    {
+        var project = Project.Create(Guid.NewGuid(), ProjectType.LandAndBuilding);
+
+        var model = project.AddModel(projectTowerId: null, modelName: "House-A");
+
+        Assert.Single(project.Models);
+        Assert.Equal("House-A", model.ModelName);
+    }
+
+    [Fact]
+    public void Land_ImportUnits_CreatesNoModels()
+    {
+        var project = CreateLandProject();
+        var unit = ProjectUnit.CreateLandAndBuilding(project.Id, Guid.Empty, 1, "P1", null, null, null, 50m, null, 1_000_000m);
+
+        project.ImportUnits("units.xlsx", null, [unit]);
+
+        Assert.Empty(project.Models);
+        Assert.Null(unit.ProjectModelId);
     }
 
     [Fact]

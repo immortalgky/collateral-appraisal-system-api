@@ -1163,6 +1163,7 @@ public class AppraisalCreationService(
         // The unit factory follows the project's type (the discriminator ImportUnits branches on),
         // so the units built here always match the branch ImportUnits takes.
         var isCondo = project.ProjectType == ProjectType.Condo;
+        var hasStructures = project.ProjectType.HasStructures();
 
         var seededUnits = new List<ProjectUnit>(masterResult.Units.Count);
 
@@ -1192,10 +1193,11 @@ public class AppraisalCreationService(
                     sequenceNumber: idx + 1,
                     plotNumber: src.PlotNumber,
                     houseNumber: src.HouseNumber,
-                    modelType: src.ModelType,
-                    numberOfFloors: src.NumberOfFloors,
+                    // Land has no models or buildings: a LB master must not leak them into an L project.
+                    modelType: hasStructures ? src.ModelType : null,
+                    numberOfFloors: hasStructures ? src.NumberOfFloors : null,
                     landArea: src.LandArea,
-                    usableArea: src.UsableArea,
+                    usableArea: hasStructures ? src.UsableArea : null,
                     sellingPrice: src.SellingPrice);
             }
 

@@ -187,6 +187,14 @@ public class ProjectUnit : Entity<Guid>
     /// </summary>
     internal void UpdateAttributesFrom(ProjectUnit incoming, ProjectType projectType)
     {
+        // Land: only price and land area are compared, so only those are written.
+        if (!projectType.HasStructures())
+        {
+            SellingPrice = incoming.SellingPrice;
+            LandArea = incoming.LandArea;
+            return;
+        }
+
         ModelType = incoming.ModelType;
         UsableArea = incoming.UsableArea;
         SellingPrice = incoming.SellingPrice;

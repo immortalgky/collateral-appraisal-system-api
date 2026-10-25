@@ -1,4 +1,5 @@
 using Appraisal.Domain.Appraisals;
+using Appraisal.Domain.Projects;
 using Shared.CQRS;
 using Shared.Data.Outbox;
 using Shared.Messaging.Events;
@@ -7,6 +8,7 @@ namespace Appraisal.Application.Features.Appraisals.RemoveGalleryPhoto;
 
 public class RemoveGalleryPhotoCommandHandler(
     IAppraisalGalleryRepository galleryRepository,
+    IProjectRepository projectRepository,
     IIntegrationEventOutbox outbox
 ) : ICommandHandler<RemoveGalleryPhotoCommand, RemoveGalleryPhotoResult>
 {
@@ -47,6 +49,11 @@ public class RemoveGalleryPhotoCommandHandler(
         // And any law & regulation image showing it — the law editor would otherwise keep a tile
         // for a photo that no longer exists.
         await galleryRepository.DeleteLawImagesByPhotoIdAsync(command.PhotoId, cancellationToken);
+
+        // Block tower / model photos hold the gallery photo id with no foreign key, so unlink them here;
+        // a dangling cover row would stop the next photo added from becoming the cover.
+        foreach (var project in await projectRepository.GetByGalleryPhotoAsync(command.PhotoId, cancellationToken))
+            project.RemoveImagesOfPhoto(command.PhotoId);
 
         var documentId = photo.DocumentId;
 

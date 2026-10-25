@@ -386,6 +386,7 @@ public class Project : Aggregate<Guid>
     /// </summary>
     public ProjectModel AddModel(Guid? projectTowerId = null, string? modelName = null)
     {
+        RequireStructures(nameof(AddModel));
         ValidateModelTowerInvariant(projectTowerId, modelName, excludeModelId: null);
 
         // Use the name factory so ModelName is set immediately for future uniqueness checks
@@ -404,6 +405,7 @@ public class Project : Aggregate<Guid>
     /// <param name="modelName">The new model name (used for uniqueness check).</param>
     public ProjectModel UpdateModel(Guid modelId, Guid? projectTowerId = null, string? modelName = null)
     {
+        RequireStructures(nameof(UpdateModel));
         var model = _models.FirstOrDefault(m => m.Id == modelId)
                     ?? throw new InvalidProjectStateException($"Project model {modelId} not found");
 
@@ -418,6 +420,15 @@ public class Project : Aggregate<Guid>
         var model = _models.FirstOrDefault(m => m.Id == modelId)
                     ?? throw new InvalidProjectStateException($"Project model {modelId} not found");
         _models.Remove(model);
+    }
+
+    /// <summary>Drops every tower and model image showing a deleted gallery photo (see the tower / model).</summary>
+    public void RemoveImagesOfPhoto(Guid galleryPhotoId)
+    {
+        foreach (var tower in _towers)
+            tower.RemoveImagesOfPhoto(galleryPhotoId);
+        foreach (var model in _models)
+            model.RemoveImagesOfPhoto(galleryPhotoId);
     }
 
     // =========================================================================
@@ -458,7 +469,7 @@ public class Project : Aggregate<Guid>
             AutoCreateCondoTowersAndModels();
             LinkCondoUnitsToTowersAndModels();
         }
-        else // TODO(Land): LandAndBuildingLike path — both LB and Land share this logic in v1
+        else if (ProjectType.HasStructures()) // Land has no models: its units carry no ModelType
         {
             AutoCreateLandAndBuildingModels();
             LinkLandAndBuildingUnitsToModels();
@@ -501,7 +512,7 @@ public class Project : Aggregate<Guid>
             AutoCreateCondoTowersAndModels();
             LinkCondoUnitsToTowersAndModels();
         }
-        else // TODO(Land): LandAndBuildingLike path — both LB and Land share this logic in v1
+        else if (ProjectType.HasStructures()) // Land has no models: its units carry no ModelType
         {
             AutoCreateLandAndBuildingModels();
             LinkLandAndBuildingUnitsToModels();
@@ -821,15 +832,23 @@ public class Project : Aggregate<Guid>
     {
         var assumption = PricingAssumption!;
 
-        var modelAssumptionMap = assumption.ModelAssumptions
-            .Where(ma => ma.ModelType != null)
-            .GroupBy(ma => ma.ModelType!)
-            .ToDictionary(g => g.Key, g => g.First());
+        // Land-only has no models: ignore any left over from before the type had none, so their
+        // standard price, standard land area and fire code cannot reach a unit.
+        var hasModels = ProjectType.HasStructures();
 
-        var projectModelMap = _models
-            .Where(m => m.ModelName != null)
-            .GroupBy(m => m.ModelName!)
-            .ToDictionary(g => g.Key, g => g.First());
+        var modelAssumptionMap = hasModels
+            ? assumption.ModelAssumptions
+                .Where(ma => ma.ModelType != null)
+                .GroupBy(ma => ma.ModelType!)
+                .ToDictionary(g => g.Key, g => g.First())
+            : [];
+
+        var projectModelMap = hasModels
+            ? _models
+                .Where(m => m.ModelName != null)
+                .GroupBy(m => m.ModelName!)
+                .ToDictionary(g => g.Key, g => g.First())
+            : [];
 
         var results = new List<ProjectUnitPrice>();
 
@@ -871,10 +890,12 @@ public class Project : Aggregate<Guid>
             // The configured LocationMethod only kicks in when folding it into totalAppraisalValue.
             // LB scales by LandArea (sq.wa) — not UsableArea (sq.m).
             var adjustPriceLocation = SumLBLocationAdjustments(assumption, unitPrice);
+            // Land has no model standard price: the percentage applies to the land value instead.
+            var percentageBase = hasModels ? standardPrice : landArea * landIncreaseDecreaseRate;
             var locationContribution = ApplyLocationMethod(
                 adjustPriceLocation,
                 assumption.LocationMethod,
-                standardPrice,
+                percentageBase,
                 landArea);
 
             var totalAppraisalValue = standardPrice + landIncreaseDecreaseAmount + locationContribution;
@@ -935,6 +956,13 @@ public class Project : Aggregate<Guid>
         if (ProjectType != ProjectType.Condo)
             throw new InvalidProjectStateException(
                 $"Operation '{operationName}' is only valid for Condo projects. Current type: {ProjectType}.");
+    }
+
+    private void RequireStructures(string operationName)
+    {
+        if (!ProjectType.HasStructures())
+            throw new InvalidProjectStateException(
+                $"Operation '{operationName}' is only valid for projects with structures (Condo or LandAndBuilding). Current type: {ProjectType}.");
     }
 
     private void RequireLandAndBuildingLike(string operationName)
@@ -1039,7 +1067,7 @@ public class Project : Aggregate<Guid>
                 towerIdForUnit = tower.Id;
             }
 
-            if (string.IsNullOrWhiteSpace(unit.ModelType))
+            if (!ProjectType.HasStructures() || string.IsNullOrWhiteSpace(unit.ModelType))
                 continue;
 
             // Condo models are per-tower; LandAndBuilding models are per-project (tower id null).
