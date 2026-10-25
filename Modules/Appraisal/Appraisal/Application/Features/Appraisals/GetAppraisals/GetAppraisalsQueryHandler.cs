@@ -99,6 +99,10 @@ public class GetAppraisalsQueryHandler(
                 new { Ids = ids },
                 cancellationToken: cancellationToken))).ToList();
 
+        var matches = sqlFilter.HasFreeTextSearch && ids.Count > 0
+            ? await LoadMatchesAsync(connection, filter!.Search, addressMatch, ids, cancellationToken)
+            : null;
+
         // Business-time Elapsed/Remaining: exclude weekends, holidays and lunch via the shared
         // calculator. Only the returned page is recomputed; the calculator caches config/holidays.
         // Elapsed runs from CreatedAt; Remaining runs to SLADueDate.
@@ -108,7 +112,12 @@ public class GetAppraisalsQueryHandler(
         {
             var (elapsed, remaining) =
                 await businessTime.ComputeElapsedRemainingHoursAsync(now, a.CreatedAt, a.SLADueDate, ct: cancellationToken);
-            items.Add(a with { ElapsedHours = elapsed, RemainingHours = remaining });
+            items.Add(a with
+            {
+                ElapsedHours = elapsed,
+                RemainingHours = remaining,
+                MatchedOn = matches?[a.Id].ToList()
+            });
         }
 
         // Blank the columns a credit-side caller must not receive. Applied here rather than in the
@@ -139,6 +148,40 @@ public class GetAppraisalsQueryHandler(
         //   this first degrades quietly (the chips disappear; the status dropdown still filters)
         //   rather than breaking. Land app#357 first to avoid even that.
         return new GetAppraisalsResult(pagedResult);
+    }
+
+    /// <summary>
+    /// The fields each row on this page matched the search on, for <see cref="AppraisalDto.MatchedOn"/>.
+    /// Runs the same arms as the page, narrowed to the page's ids, so only these rows pay for the
+    /// (field, value) pairs the page query discards with its DISTINCT.
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarQube", "S2077:Formatting SQL queries is security-sensitive",
+        Justification =
+            "The only interpolated fragment is AppraisalSearchPredicate's UNION, assembled from string " +
+            "literals with the term bound as @SearchPattern/@NumberPattern; the ids are bound as @Ids.")]
+    private static async Task<ILookup<Guid, SearchMatch>?> LoadMatchesAsync(
+        System.Data.IDbConnection connection, string? search, AddressNameMatch addressMatch,
+        List<Guid> ids, CancellationToken cancellationToken)
+    {
+        var built = AppraisalSearchPredicate.Build(search, address: addressMatch);
+        if (built is null) return null;
+
+        var (armsSql, parameters) = built.Value;
+        parameters.Add("Ids", ids);
+        // No RECOMPILE, unlike the page: the ids drive every arm's seek, so the pattern cannot turn
+        // it into a scan. Measured on 105k appraisals, a 26-id page: ~4 ms with a cached plan, even
+        // for '%Sukanya%'; recompiling the 17 arms every time added ~110 ms for nothing.
+        var rows = await connection.QueryAsync<SearchMatchRow>(new CommandDefinition(
+            $"""
+            SELECT DISTINCT m.AppraisalId, m.Rnk, m.Fld, m.Val
+            FROM (
+            {armsSql}
+            ) m
+            WHERE m.AppraisalId IN @Ids
+            ORDER BY m.Rnk, m.Fld, m.Val
+            """,
+            parameters, cancellationToken: cancellationToken));
+        return rows.ToLookup(m => m.AppraisalId, m => m.ToMatch());
     }
 
     /// <summary>

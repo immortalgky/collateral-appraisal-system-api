@@ -123,7 +123,7 @@ public class QuickSearchQueryHandler(
 
         var matched = await grid.ReadSingleAsync<int>();
         var heads = (await grid.ReadAsync<HeadRow>()).ToList();
-        var matches = (await grid.ReadAsync<MatchRow>()).ToList();
+        var matches = (await grid.ReadAsync<SearchMatchRow>()).ToList();
 
         if (heads.Count == 0) return Empty;
 
@@ -161,7 +161,7 @@ public class QuickSearchQueryHandler(
     /// in the group of its own best match so it appears exactly once, while every match it has still
     /// rides along in <see cref="SearchAppraisal.MatchedOn"/> for the badges.
     /// </summary>
-    private static List<SearchGroup> BuildGroups(List<HeadRow> heads, List<MatchRow> matches, string detailRoute)
+    private static List<SearchGroup> BuildGroups(List<HeadRow> heads, List<SearchMatchRow> matches, string detailRoute)
     {
         var byAppraisal = matches
             .GroupBy(m => m.AppraisalId)
@@ -186,7 +186,7 @@ public class QuickSearchQueryHandler(
                 head.PropertyTypes,
                 head.Province,
                 string.Format(detailRoute, head.AppraisalId),
-                rows.Select(r => new SearchMatch(r.Fld, r.Val ?? "")).ToList());
+                rows.Select(r => r.ToMatch()).ToList());
 
             var key = (best.Fld, best.Val ?? "");
             if (!index.TryGetValue(key, out var bucket))
@@ -223,13 +223,5 @@ public class QuickSearchQueryHandler(
         public string? PropertyTypes { get; set; }
         public string? Province { get; set; }
         public int Rnk { get; set; }
-    }
-
-    private sealed class MatchRow
-    {
-        public Guid AppraisalId { get; set; }
-        public int Rnk { get; set; }
-        public string Fld { get; set; } = "";
-        public string? Val { get; set; }
     }
 }
