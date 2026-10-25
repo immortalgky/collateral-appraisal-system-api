@@ -197,7 +197,6 @@ public class AutoAssignQuotationAppraisalsCommandHandler(
                     AssignmentMethod: "Quotation",
                     InternalAppraiserId: staffId,
                     InternalFollowupAssignmentMethod: staffId is null ? "roundrobin" : "manual",
-                    AssignedBy: assignedBy,
                     DecisionTaken: "EXT"),
                 cancellationToken);
         }
@@ -206,6 +205,10 @@ public class AutoAssignQuotationAppraisalsCommandHandler(
             logger.LogWarning(ex, "Auto-assign failed for appraisal {AppraisalId}", appraisalId);
             // Only the project's domain exceptions are shown; WorkflowService wraps raw activity text in
             // InvalidOperationException, so that and everything else stays in the log.
+            // No base fee to bill (AssignAppraisalCommandHandler): nothing was assigned, the admin has to fix the fee.
+            if (ex is BadRequestException { Code: AssignAppraisalCommandHandler.FeeBaseMissingCode })
+                return (AutoAssignOutcome.Failed, Truncate(ex.Message), AutoAssignReason.FeeBaseMissing);
+
             return ex is BadRequestException or NotFoundException or ConflictException
                 ? (AutoAssignOutcome.Failed, Truncate(ex.Message), AutoAssignReason.AssignRejected)
                 : (AutoAssignOutcome.Failed, GenericFailureMessage, AutoAssignReason.AssignFailed);

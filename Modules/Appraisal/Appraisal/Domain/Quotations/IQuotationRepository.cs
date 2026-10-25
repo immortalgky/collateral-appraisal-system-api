@@ -43,10 +43,10 @@ public interface IQuotationRepository
 
     /// <summary>
     /// Cheap existence form of <see cref="GetFinalizedByAppraisalIdAsync"/>: both judge the same latest finalized
-    /// RFQ of the appraisal (and only if the company won it). This one additionally requires the winner to have a
-    /// usable price for the appraisal (the fee consumer would otherwise fail).
+    /// RFQ of the appraisal (and only if the company won it). Price is not judged here.
     /// </summary>
-    Task<bool> HasFinalizedWonByAsync(Guid appraisalId, Guid winnerCompanyId, CancellationToken cancellationToken = default);
+    Task<bool> HasFinalizedWonByAsync(
+        Guid appraisalId, Guid winnerCompanyId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Returns true if the given appraisal is already part of a non-terminal QuotationRequest

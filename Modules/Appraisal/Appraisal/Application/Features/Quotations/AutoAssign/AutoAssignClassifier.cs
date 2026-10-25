@@ -39,10 +39,6 @@ public static class AutoAssignClassifier
             return new(AutoAssignOutcome.Skipped, AutoAssignReason.NotPending,
                 $"Assignment is not pending (status '{state.AssignmentStatus}')");
 
-        if (state.IsConstructionInspection)
-            return new(AutoAssignOutcome.Failed, AutoAssignReason.ConstructionInspection,
-                "Construction inspection keeps the previous company. Assign it on the Administration page.");
-
         if (state.PendingActivityId != AppraisalAssignState.AssignmentActivityId)
             return new(AutoAssignOutcome.Parked, AutoAssignReason.NotAtAssignment,
                 $"Not at appraisal-assignment, currently at '{state.PendingActivityId ?? "no active task"}'");
@@ -63,8 +59,9 @@ public static class AutoAssignClassifier
         if (!winnerAssignable)
             return new(AutoAssignOutcome.Failed, AutoAssignReason.WinnerUnavailable, "Winning company is not available for assignment");
 
-        // Without the winner's own item the fee resolver would fall back to the whole quotation's total.
-        if (!priced)
+        // Without the winner's own item the fee resolver would fall back to the whole quotation's total. Unless the
+        // admin already keyed the base fee: that outranks the quotation at assignment, so no price is needed.
+        if (!priced && !state.HasAdminBaseFee)
             return new(AutoAssignOutcome.Failed, AutoAssignReason.Unpriced, "Winning company has no price for this appraisal");
 
         return AutoAssignClassification.Ready;

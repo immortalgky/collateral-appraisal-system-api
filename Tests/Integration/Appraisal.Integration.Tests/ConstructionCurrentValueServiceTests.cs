@@ -128,7 +128,7 @@ public class ConstructionCurrentValueServiceTests(IntegrationTestFixture fixture
     [Fact]
     public async Task SummaryMode_NullPercent_IsTreatedAsZero()
     {
-        // A freshly carried-forward round has no percent yet (CopyForNextInspection nulls it).
+        // A summary round whose percent was never keyed (null).
         var inspection = ConstructionInspection.CreateSummary(
             Guid.Empty, totalValue: 8_000_000m,
             summaryDetail: null,

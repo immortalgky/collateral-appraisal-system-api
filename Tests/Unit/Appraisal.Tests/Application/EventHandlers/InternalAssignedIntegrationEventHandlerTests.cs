@@ -57,6 +57,25 @@ public class InternalAssignedIntegrationEventHandlerTests
     }
 
     [Fact]
+    public async Task Consume_KeepsTheAdminWhoAssigned_InsteadOfStampingSystem()
+    {
+        var appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "Initial", "Normal", DateTime.Now);
+        appraisal.AssignAdmin();
+        var assignment = appraisal.Assignments.Single();
+        assignment.SetAssigner("P5229"); // recorded by AssignAppraisalCommandHandler before the workflow resumed
+
+        await BuildHandler(appraisal).Consume(BuildContext(new InternalAssignedIntegrationEvent
+        {
+            AppraisalId = appraisal.Id,
+            AssigneeUserId = "P0001",
+            AssignmentMethod = "Manual",
+            CompletedBy = "P5229"
+        }));
+
+        Assert.Equal("P5229", assignment.AssignedBy);
+    }
+
+    [Fact]
     public async Task Consume_RoutebackRefire_DoesNotForceInProgress()
     {
         // Arrange: assignment already on the bank-review side (UnderReview), i.e. a routeback re-fire

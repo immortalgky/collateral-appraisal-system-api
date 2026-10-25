@@ -55,6 +55,19 @@ public class CompanyQuotationItem : Entity<Guid>
     [NotMapped]
     public decimal FeeAfterDiscount => FeeAmount - Discount - (NegotiatedDiscount ?? 0);
 
+    /// <summary>
+    /// The ex-VAT fee this item bills: FeeAfterDiscount for a modern row; legacy rows without a fee breakdown only
+    /// carry a single QuotedPrice, which is used instead. THE price rule, as an expression so queries (the fee
+    /// preview, the assign guard) translate the same formula the in-memory callers evaluate.
+    /// </summary>
+    public static readonly System.Linq.Expressions.Expression<Func<CompanyQuotationItem, decimal>> ExVatFeeExpression =
+        i => i.FeeAmount > 0m ? i.FeeAmount - i.Discount - (i.NegotiatedDiscount ?? 0m) : i.QuotedPrice;
+
+    private static readonly Func<CompanyQuotationItem, decimal> ExVatFeeFunc = ExVatFeeExpression.Compile();
+
+    [NotMapped]
+    public decimal ExVatFee => ExVatFeeFunc(this);
+
     [NotMapped]
     public decimal VatAmount => Math.Round(FeeAfterDiscount * VatPercent / 100m, 2, MidpointRounding.AwayFromZero);
 

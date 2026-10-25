@@ -92,19 +92,22 @@ public class CompanySelectionActivity : WorkflowActivityBase
         // caller that bypasses the UI.
         //
         // The exemption only covers REUSING the engagement the case already holds, judged on the company this
-        // pass resolves to (below): the forced (construction inspection) company, else on Manual/Quotation the
-        // fresh selectedCompanyId (which wins over assignedCompanyId) or the assigned one, else on round robin the
-        // assigned one only when the replay guard fires. A different company, or a fresh round-robin pick, is a
+        // pass resolves to (below): the fresh selectedCompanyId on Manual/Quotation (which wins over assignedCompanyId),
+        // else the forced (construction inspection) company when nobody chose, else on Manual/Quotation the assigned
+        // one, else on round robin the assigned one only when the replay guard fires. A different company, or a fresh round-robin pick, is a
         // NEW engagement and the switch applies to it.
         // Known gap (accepted): assignedCompanyId survives an ext cancel / return, so an admin re-picking that
         // same company is treated as reuse and stays exempt.
         var assignedCompanyId = GetVariable<string>(context, "assignedCompanyId", "");
         var assignedCompanyName = GetVariable<string>(context, "assignedCompanyName", "");
         var forceCompanyId = GetVariable<string>(context, "forceCompanyId", "");
-        var isForced = Guid.TryParse(forceCompanyId, out _);
         var isManual = string.Equals(selectionMethod, "manual", StringComparison.OrdinalIgnoreCase);
         var isQuotation = string.Equals(selectionMethod, "Quotation", StringComparison.OrdinalIgnoreCase);
         var selectedCompanyId = isManual || isQuotation ? GetVariable<string>(context, "selectedCompanyId", "") : "";
+        // Priority: an explicit selectedCompanyId (the admin's manual pick, or the quotation winner) wins; only when
+        // none was written (round robin / auto routing, or Manual/Quotation with an empty selection) is the company
+        // forced from the prior appraisal. selectedCompanyId is already "" outside Manual/Quotation.
+        var isForced = Guid.TryParse(forceCompanyId, out _) && string.IsNullOrEmpty(selectedCompanyId);
         // Replay guard: reuse the previously selected company if the selection condition (loanType) has not changed.
         var replaysAssignedCompany = !isForced && !isManual && !isQuotation
                                      && !string.IsNullOrEmpty(assignedCompanyId)
@@ -135,13 +138,22 @@ public class CompanySelectionActivity : WorkflowActivityBase
             return ActivityResult.Success(outputData);
         }
 
-        // Construction Inspection: company is forced from the prior appraisal engagement.
+        // Construction Inspection: nobody chose, so the company is forced from the picked prior appraisal.
         // Short-circuit selection entirely — no round-robin, no exclusion check.
         if (isForced)
         {
             var company = await GetAssignableCompanyAsync(companyId, cancellationToken);
             if (company is null)
+            {
+                // The forced company cannot take it (e.g. its MOU expired), so the case goes to the admin — who must
+                // then be free to pick anyone. forceCompanyId lives in the instance variables for good, so without
+                // this the admin's next EXT + RoundRobin (no selectedCompanyId) would be forced to the same company
+                // and escalate again, forever. Spending the force here lets the admin's choice (RoundRobin, or a
+                // manual pick) proceed on the normal rules.
+                outputData["forceCompanyId"] = "";
+                outputData["forceCompanyName"] = "";
                 return EscalateNotAssignable(context, outputData, companyId, "Forced");
+            }
 
             // A missing name is filled from the forced company itself.
             if (string.IsNullOrEmpty(companyName))

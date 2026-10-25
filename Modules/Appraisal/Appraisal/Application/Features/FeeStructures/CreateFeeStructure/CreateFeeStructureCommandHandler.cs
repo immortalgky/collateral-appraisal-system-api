@@ -8,9 +8,6 @@ public class CreateFeeStructureCommandHandler(
     IParameterLookupService parameterLookup)
     : ICommandHandler<CreateFeeStructureCommand, FeeStructureDto>
 {
-    // Fee codes are maintained in the TypeOfFee parameter group.
-    private const string FeeTypeParameterGroup = "TypeOfFee";
-
     public async Task<FeeStructureDto> Handle(CreateFeeStructureCommand cmd, CancellationToken ct)
     {
         var feeCode = cmd.FeeCode.Trim();
@@ -21,9 +18,9 @@ public class CreateFeeStructureCommandHandler(
         // The fee code must exist in the TypeOfFee parameter group — otherwise it has no
         // resolvable display name and tier matching keys off a meaningless code.
         var validCodes = await parameterLookup.GetValidCodesAsync(
-            new ParameterDto(null, FeeTypeParameterGroup, null, null, feeCode, null, true, null), ct);
+            new ParameterDto(null, AppraisalFee.FeeTypeParameterGroup, null, null, feeCode, null, true, null), ct);
         if (!validCodes.Contains(feeCode))
-            throw new BadRequestException($"Fee code '{feeCode}' is not a valid {FeeTypeParameterGroup} code.");
+            throw new BadRequestException($"Fee code '{feeCode}' is not a valid {AppraisalFee.FeeTypeParameterGroup} code.");
 
         await FeeStructureMapping.EnsureNoActiveOverlapAsync(
             db, feeCode, appraisalType, cmd.MinSellingPrice, cmd.MaxSellingPrice, cmd.IsActive, excludeId: null, ct);

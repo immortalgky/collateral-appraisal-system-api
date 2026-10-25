@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Shared;
+using Appraisal.Domain.Appraisals;
 using Shared.Identity;
 using Workflow.Contracts.FeeAppointmentApprovals;
 
@@ -16,12 +17,23 @@ public class UpdateFeeItemCommandHandler(AppraisalDbContext dbContext, ISender s
         if (fee is null)
             throw new NotFoundException("AppraisalFee", command.FeeId);
 
-        // Edit lock: reject if any item is awaiting approval (submitted but not resolved)
-        if (fee.Items.Any(i => i.ApprovalSubmittedAt.HasValue && i.ApprovalStatus == "Pending"))
-            throw new InvalidOperationException(
-                "Cannot update a fee item: an approval is currently awaiting review. Wait for the approval to be resolved before making further changes.");
+        var existing = fee.Items.FirstOrDefault(i => i.Id == command.FeeItemId)
+            ?? throw new NotFoundException($"Fee item {command.FeeItemId} not found");
+        var isAdminStage = await FeeAdminStage.IsAdminStageAsync(dbContext, fee.AssignmentId, cancellationToken);
+        FeeAdminStage.EnsureNoApprovalAwaitingReview(fee, isAdminStage, "update");
 
+        FeeAdminStage.EnsureCanUpdate(fee, existing, command.FeeCode, isAdminStage);
+
+        var requestedAbsorb = fee.BankAbsorbAmount;
         var item = fee.UpdateItem(command.FeeItemId, command.FeeCode, command.FeeDescription, command.FeeAmount);
+
+        // An admin's edit before handover makes the item the admin's own: billable at once, no approval.
+        if (isAdminStage)
+        {
+            item.MarkAsAdminSet();
+            fee.RestoreRequestedBankAbsorb(requestedAbsorb);
+            return new UpdateFeeItemResult(item.Id, item.FeeCode, item.FeeDescription, item.FeeAmount);
+        }
 
         // Compute cumulative total of active USER-entered items (draft/pending; excludes
         // finalised Approved/Rejected) — mirrors ReevaluateAddedFees predicate.
