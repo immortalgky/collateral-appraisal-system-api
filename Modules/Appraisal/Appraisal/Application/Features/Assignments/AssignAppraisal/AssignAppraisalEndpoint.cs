@@ -22,7 +22,6 @@ public class AssignAppraisalEndpoint : ICarterModule
                         request.AssignmentMethod ?? "Manual",
                         request.InternalAppraiserId,
                         request.InternalFollowupAssignmentMethod,
-                        request.AssignedBy ?? string.Empty,
                         request.DecisionTaken,
                         request.Remark);
 

@@ -93,31 +93,16 @@ public class ResolveLatestInAppraisalChainQueryHandler(
         Guid appraisalId,
         CancellationToken cancellationToken)
     {
-        // Elect the newest assignment FIRST, then read whatever company it carries — never pick the
-        // newest assignment that happens to have one. A case re-assigned from an external company to
-        // an internal appraiser leaves a company-less latest assignment, and that means "no external
-        // company performed this", not "fall back to the one before"; skipping it would hard-route
-        // the next inspection to a company that did not do the prior work. This is the same election
-        // GetAppraisalForCollateralQueryHandler used to stamp the value onto the engagement.
-        //
-        // Rejected and Cancelled assignments never arrive here — AppraisalAssignment carries a global
-        // query filter for them, which is also why no status predicate appears below (AssignmentStatus
-        // is value-converted, so `.Code` would not translate anyway).
-        var rawCompanyId = await dbContext.AppraisalAssignments
-            .AsNoTracking()
-            .Where(a => a.AppraisalId == appraisalId)
-            .OrderByDescending(a => a.AssignedAt)
-            .ThenByDescending(a => a.CreatedAt)
-            .ThenByDescending(a => a.Id)
-            .Select(a => a.AssigneeCompanyId)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        // Internal work carries no company — there is nothing to force or exclude downstream.
-        if (!Guid.TryParse(rawCompanyId, out var companyId))
+        // The election itself is shared (AppraisalCompanyElection); only the name lookup is this handler's.
+        if (await AppraisalCompanyElection.ElectCompanyIdAsync(dbContext, appraisalId, cancellationToken)
+            is not { } companyId)
             return (null, string.Empty);
 
         // auth.Companies is outside this DbContext, and the name must come from there rather than
         // AppraisalAssignment.ExternalAppraiserName — that column holds a person, not a company.
+        // A soft-deleted company keeps its id here (with no name) on purpose: Progressive then still forces it and
+        // company selection escalates to the admin once (CompanySelectionActivity), instead of the case silently
+        // going round-robin to a different company.
         const string nameSql = """
             SELECT TOP 1 c.Name
             FROM auth.Companies c

@@ -18,10 +18,11 @@ namespace Appraisal.Tests.Application.EventHandlers;
 public class CompanyAssignedIntegrationEventHandlerTests
 {
     [Fact]
-    public async Task Consume_QuotationMethod_WinnerHasItemOnlyForAnotherAppraisal_Throws_AndCreatesNoFee()
+    public async Task Consume_QuotationMethod_WinnerHasItemOnlyForAnotherAppraisal_PassesNoPriceOn_NotThatItemsTotal()
     {
         // Arrange: multi-appraisal RFQ; the winner priced appraisal B only. Its TotalQuotedPrice (> 0) must
-        // NOT be used as the fee for appraisal A.
+        // NOT be used as the fee for appraisal A. Whether a missing price matters is the fee service's call (it fails
+        // the assignment unless an admin base outranks the quotation), so the handler hands it on as null + reason.
         var appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "Initial", "Normal", DateTime.Now);
         appraisal.AssignAdmin();
         var companyId = Guid.NewGuid();
@@ -34,49 +35,38 @@ public class CompanyAssignedIntegrationEventHandlerTests
         rfq.AddQuotation(winner);
         Assert.True(winner.TotalQuotedPrice > 0m);
 
-        var quotationRepo = Substitute.For<IQuotationRepository>();
-        quotationRepo.GetFinalizedByAppraisalIdAsync(appraisal.Id, companyId, Arg.Any<CancellationToken>())
-            .Returns(rfq);
-        var feeService = Substitute.For<IAssignmentFeeService>();
-        var handler = BuildHandler(appraisal, quotationRepo, feeService);
+        var feeService = PassThroughFeeService();
 
-        var ctx = BuildContext(appraisal.Id, companyId);
+        await BuildHandler(appraisal, RepoReturning(appraisal, companyId, rfq), feeService)
+            .Consume(BuildContext(appraisal.Id, companyId));
 
-        // Act + Assert
-        var ex = await Assert.ThrowsAsync<BadRequestException>(() => handler.Consume(ctx));
-        Assert.Contains("has no price for appraisal", ex.Message);
-        await feeService.DidNotReceiveWithAnyArgs()
-            .EnsureAssignmentFeeItemsAsync(default, default, default!, default);
+        var source = SourceGiven(feeService);
+        Assert.Null(source.Amount);
+        Assert.Contains("has no price for appraisal", source.PriceError);
     }
 
     [Fact]
-    public async Task Consume_QuotationMethod_RfqWinnerIsAnotherCompany_Throws_AndCreatesNoFee()
+    public async Task Consume_QuotationMethod_RfqWinnerIsAnotherCompany_PassesNoPriceOn()
     {
         // The repository hands back an RFQ whose winning (IsWinner) quotation belongs to a DIFFERENT company, priced
         // for this appraisal. The event's company must never be billed from someone else's winning quotation.
         var appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "Initial", "Normal", DateTime.Now);
         appraisal.AssignAdmin();
         var eventCompanyId = Guid.NewGuid();
-        var otherCompanyId = Guid.NewGuid();
 
         var rfq = QuotationRequest.Create(DateTime.Now.AddDays(1), "admin", DateTime.Now);
-        var otherWinner = CompanyQuotation.Create(rfq.Id, Guid.NewGuid(), otherCompanyId, "QT-002", DateTime.Now);
+        var otherWinner = CompanyQuotation.Create(rfq.Id, Guid.NewGuid(), Guid.NewGuid(), "QT-002", DateTime.Now);
         otherWinner.AddItem(Guid.NewGuid(), appraisal.Id, 1, 50_000m, 3);
         otherWinner.MarkAsWinner();
         rfq.AddQuotation(otherWinner);
+        var feeService = PassThroughFeeService();
 
-        var quotationRepo = Substitute.For<IQuotationRepository>();
-        quotationRepo.GetFinalizedByAppraisalIdAsync(appraisal.Id, eventCompanyId, Arg.Any<CancellationToken>())
-            .Returns(rfq);
-        var feeService = Substitute.For<IAssignmentFeeService>();
-        var handler = BuildHandler(appraisal, quotationRepo, feeService);
+        await BuildHandler(appraisal, RepoReturning(appraisal, eventCompanyId, rfq), feeService)
+            .Consume(BuildContext(appraisal.Id, eventCompanyId));
 
-        var ex = await Assert.ThrowsAsync<BadRequestException>(
-            () => handler.Consume(BuildContext(appraisal.Id, eventCompanyId)));
-
-        Assert.Contains("has no winning company quotation", ex.Message);
-        await feeService.DidNotReceiveWithAnyArgs()
-            .EnsureAssignmentFeeItemsAsync(default, default, default!, default);
+        var source = SourceGiven(feeService);
+        Assert.Null(source.Amount);
+        Assert.Contains("has no winning company quotation", source.PriceError);
     }
 
     [Fact]
@@ -126,7 +116,7 @@ public class CompanyAssignedIntegrationEventHandlerTests
         await feeService.Received(1).EnsureAssignmentFeeItemsAsync(
             appraisal.Id, assignment.Id,
             new AssignmentFeeSource.Quotation(900m, rfq.Id, "RFQ-001"),
-            Arg.Any<CancellationToken>());
+            repriceSystemBase: true, Arg.Any<CancellationToken>());
         Assert.Equal(rfq.Id, assignment.QuotationRequestId);
     }
 
@@ -142,23 +132,42 @@ public class CompanyAssignedIntegrationEventHandlerTests
         await feeService.Received(1).EnsureAssignmentFeeItemsAsync(
             appraisal.Id, assignment.Id,
             new AssignmentFeeSource.Quotation(800m, rfq.Id, "RFQ-001"),
-            Arg.Any<CancellationToken>());
+            repriceSystemBase: true, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Consume_QuotationMethod_ItemPricedAtZero_Throws_AndCreatesNoFee()
+    public async Task Consume_QuotationMethod_ItemPricedAtZero_PassesNoPriceOn()
     {
         var (appraisal, _, companyId, rfq) = QuotedRfq(quotedPrice: 0m);
         var feeService = PassThroughFeeService();
-        var handler = BuildHandler(appraisal, RepoReturning(appraisal, companyId, rfq), feeService);
 
-        var ex = await Assert.ThrowsAsync<BadRequestException>(
-            () => handler.Consume(BuildContext(appraisal.Id, companyId)));
+        await BuildHandler(appraisal, RepoReturning(appraisal, companyId, rfq), feeService)
+            .Consume(BuildContext(appraisal.Id, companyId));
 
-        Assert.Contains("no usable price", ex.Message);
-        await feeService.DidNotReceiveWithAnyArgs()
-            .EnsureAssignmentFeeItemsAsync(default, default, default!, default);
+        var source = SourceGiven(feeService);
+        Assert.Null(source.Amount);
+        Assert.Contains("no usable price", source.PriceError);
     }
+
+    [Fact]
+    public async Task Consume_RecordsTheAdminWhoAssigned_InsteadOfSystem()
+    {
+        // AssignAppraisalCommandHandler wrote the admin onto the Pending row; Assign() must keep them.
+        var (appraisal, assignment, companyId, rfq) = QuotedRfq(quotedPrice: 800m);
+        assignment.SetAssigner("P5229");
+
+        await BuildHandler(appraisal, RepoReturning(appraisal, companyId, rfq), PassThroughFeeService())
+            .Consume(BuildContext(appraisal.Id, companyId));
+
+        Assert.Equal("P5229", assignment.AssignedBy);
+        Assert.Equal(AssignmentStatus.Assigned, assignment.AssignmentStatus);
+    }
+
+    private static AssignmentFeeSource.Quotation SourceGiven(IAssignmentFeeService feeService) =>
+        Assert.IsType<AssignmentFeeSource.Quotation>(
+            Assert.Single(feeService.ReceivedCalls(),
+                    c => c.GetMethodInfo().Name == nameof(IAssignmentFeeService.EnsureAssignmentFeeItemsAsync))
+                .GetArguments()[2]);
 
     // Winner item for this appraisal with only a QuotedPrice (legacy row: FeeAmount 0, no SetFeeBreakdown).
     private static (AppraisalAggregate Appraisal, AppraisalAssignment Assignment, Guid CompanyId, QuotationRequest Rfq)

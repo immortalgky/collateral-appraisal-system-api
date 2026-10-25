@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Appraisal.Application.Features.Assignments.GetAssignments;
 
 public record GetAssignmentsResult(List<AssignmentDto> Assignments);
@@ -34,7 +36,13 @@ public record AssignmentDto(
     /// this to show what was already recorded; without it a keyer returning to correct the company
     /// sees an empty date field and re-keys today's date over the real one.
     /// </summary>
-    DateTime? OfflineBookDate);
+    DateTime? OfflineBookDate,
+    // Display names of the employee codes this DTO carries (AssignedBy, AssigneeUserId, InternalAppraiserId — the
+    // follow-up staff), resolved in one IUserLookupService call; null when the code is empty or unknown. The API drops
+    // null properties app-wide; pinned so the front end always receives the keys.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? AssignedByName = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? AssigneeUserName = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? InternalAppraiserName = null);
 
 public record EngagementCycleDto(
     Guid Id,

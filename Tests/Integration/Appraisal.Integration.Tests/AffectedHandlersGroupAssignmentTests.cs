@@ -249,7 +249,10 @@ public class AffectedHandlersGroupAssignmentTests(IntegrationTestFixture fixture
     public async Task SetOfflineExternalEngagement_persists_company_status_book_date_and_external_appraiser()
     {
         var (aid, _) = await SeedAssignmentAsync(a =>
-            a.SaveDraft("Internal", "keyer-1", null, AppraisalAssignment.OfflineAssignmentMethod, null, null, null));
+        {
+            a.SaveDraft("Internal", "keyer-1", null, AppraisalAssignment.OfflineAssignmentMethod, null, null, null);
+            a.SetAssigner("P5229");
+        });
         var stamp = await AppraisalUpdatedAtAsync(aid);
         Guid companyId;
         using (var scope = CreateScope())
@@ -262,13 +265,14 @@ public class AffectedHandlersGroupAssignmentTests(IntegrationTestFixture fixture
         }
         var bookDate = new DateTime(2026, 3, 4);
 
-        var result = await SendAsync(new SetOfflineExternalEngagementCommand(aid, companyId, bookDate, "Ext Appraiser", "qa"));
+        var result = await SendAsync(new SetOfflineExternalEngagementCommand(aid, companyId, bookDate, "Ext Appraiser"));
 
         var assignment = await AssignmentAsync(aid);
         Assert.Equal(result.AssignmentId, assignment.Id);
         Assert.Equal("External", assignment.AssignmentType.Code);
         Assert.Equal(companyId.ToString(), assignment.AssigneeCompanyId);
         Assert.Equal("keyer-1", assignment.AssigneeUserId);
+        Assert.Equal("P5229", assignment.AssignedBy); // the admin SetAssigner recorded, not the keyer
         Assert.Equal(AppraisalAssignment.OfflineAssignmentMethod, assignment.AssignmentMethod);
         Assert.Equal(AssignmentStatus.InProgress.Code, assignment.AssignmentStatus.Code);
         Assert.Equal("Ext Appraiser", assignment.ExternalAppraiserName);

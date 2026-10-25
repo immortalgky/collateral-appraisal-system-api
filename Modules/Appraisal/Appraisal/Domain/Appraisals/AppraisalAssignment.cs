@@ -258,6 +258,17 @@ public class AppraisalAssignment : Entity<Guid>
     }
 
     /// <summary>
+    /// Records the admin who is assigning this Pending row. The workflow consumers that later call
+    /// <see cref="Assign"/> pass this value back, so the real assigner survives instead of "System".
+    /// </summary>
+    public void SetAssigner(string assignedBy)
+    {
+        ValidateStatus("record the assigner", AssignmentStatus.Pending);
+        // AssignedBy is a 100-char audit column; a longer body value must not turn the save into a 500.
+        AssignedBy = assignedBy.Length > 100 ? assignedBy[..100] : assignedBy;
+    }
+
+    /// <summary>
     /// Assign the appraisal to an internal user or external company
     /// </summary>
     public void Assign(

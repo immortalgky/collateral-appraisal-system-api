@@ -2,7 +2,6 @@ using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
 using Collateral.CollateralMasters.Models;
 using Collateral.CollateralMasters.Services;
-using Collateral.Contracts.ConstructionInspection;
 using Collateral.Contracts.Engagements;
 using Collateral.Data;
 using Integration.Fixtures;
@@ -21,7 +20,6 @@ namespace Integration.Collateral.Integration.Tests;
 ///   2. Multi-building case — 3 buildings/CIs: snapshot contains all 3 entries.
 ///   3. Schema — LandDetail no longer has LastConstructionInspectionId (via reflection).
 ///   4. GetMostRecentEngagementByPriorAppraisalQuery — returns engagement company via master link.
-///   5. GetConstructionInspectionFeeForAppraisalQuery — returns fee from engagement.
 /// </summary>
 [Collection("Integration")]
 public class CollateralPR5_ConstructionInspectionsTests(IntegrationTestFixture fixture)
@@ -317,53 +315,5 @@ public class CollateralPR5_ConstructionInspectionsTests(IntegrationTestFixture f
         Assert.Equal(appraisalId, result!.AppraisalId);
         Assert.Equal(expectedCompanyId, result.CompanyId);
         Assert.Equal(expectedCompanyName, result.CompanyName);
-    }
-
-    // -----------------------------------------------------------------------
-    // Test PR5-5: GetConstructionInspectionFeeForAppraisalQuery — returns fee from engagement
-    // -----------------------------------------------------------------------
-    [Fact]
-    public async Task PR5_5_GetConstructionInspectionFeeForAppraisal_ReturnsFeeFromEngagement()
-    {
-        var titleNo = "PR5-FEE-" + Guid.NewGuid().ToString("N")[..6];
-        Guid appraisalId;
-        const decimal expectedFee = 15_000m;
-
-        // Seed appraisal
-        using (var seedScope = CreateScope())
-        {
-            var appraisalDb = GetAppraisalDbContext(seedScope);
-            var a = CreateAppraisalSeed(Guid.NewGuid());
-            SeedLandProperty(a, "LO-PR5", "Bangkok", "D1", "S1", titleNo, "Chanote");
-            appraisalDb.Appraisals.Add(a);
-            await appraisalDb.SaveChangesAsync(TestContext.Current.CancellationToken);
-            appraisalId = a.Id;
-        }
-
-        await ProcessAppraisalInNewScopeAsync(appraisalId);
-
-        // Manually patch the engagement's CI fee (simulating the fee seeded from AppraisalFee)
-        using (var patchScope = CreateScope())
-        {
-            var db = GetCollateralDbContext(patchScope);
-            var engagement = await db.CollateralEngagements
-                .FirstAsync(e => e.AppraisalId == appraisalId, TestContext.Current.CancellationToken);
-
-            typeof(CollateralEngagement)
-                .GetProperty("ConstructionInspectionFeeAmount")!
-                .SetValue(engagement, expectedFee);
-
-            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        }
-
-        // Query via the handler
-        using var queryScope = CreateScope();
-        var mediator = queryScope.ServiceProvider.GetRequiredService<IMediator>();
-        var fee = await mediator.Send(
-            new GetConstructionInspectionFeeForAppraisalQuery(appraisalId),
-            TestContext.Current.CancellationToken);
-
-        Assert.NotNull(fee);
-        Assert.Equal(expectedFee, fee.Value);
     }
 }

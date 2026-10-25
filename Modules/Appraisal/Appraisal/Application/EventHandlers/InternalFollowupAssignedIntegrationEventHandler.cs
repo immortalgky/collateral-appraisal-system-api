@@ -37,12 +37,8 @@ public class InternalFollowupAssignedIntegrationEventHandler(
             return;
         }
 
-        var assignment = appraisal.Assignments
-            .Where(a => a.AssignmentStatus.Code != "Rejected" && a.AssignmentStatus.Code != "Cancelled")
-            .OrderByDescending(a => a.AssignedAt)
-            .ThenByDescending(a => a.CreatedAt)
-            .ThenByDescending(a => a.Id)
-            .FirstOrDefault();
+        // The same current-row election as the other assignment consumers (AppraisalAssignmentElection).
+        var assignment = appraisal.Assignments.Current();
 
         if (assignment is null)
         {

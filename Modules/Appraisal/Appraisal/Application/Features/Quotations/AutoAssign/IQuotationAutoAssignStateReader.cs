@@ -61,6 +61,9 @@ public sealed record AppraisalAssignState
     public string? FollowupStaffName { get; init; }
     public string? FollowupMethod { get; init; }
 
+    /// <summary>The current assignment's fee already holds the admin's own base (01) above 0: it outranks the quotation price.</summary>
+    public bool HasAdminBaseFee { get; init; }
+
     /// <summary>User who has the pending appraisal-assignment task open (lock), if not <paramref name="user"/>.</summary>
     public string? LockedByOther(string? user) =>
         PendingActivityId == AssignmentActivityId && !string.IsNullOrEmpty(WorkingBy)
@@ -74,12 +77,6 @@ public sealed record AppraisalAssignState
                                                   && !string.Equals(TaskAssignedTo, user, StringComparison.OrdinalIgnoreCase)
             ? TaskAssignedTo
             : null;
-
-    /// <summary>
-    /// Construction inspection: CompanySelectionActivity forces the prior engagement's company ahead of the
-    /// quotation winner, so these are never auto-assigned.
-    /// </summary>
-    public bool IsConstructionInspection => AppraisalType == AppraisalTypes.Progressive;
 
     public bool WorkflowActive => WorkflowInstanceId is not null && WorkflowStatus is not ("Cancelled" or "Completed" or "Failed");
 

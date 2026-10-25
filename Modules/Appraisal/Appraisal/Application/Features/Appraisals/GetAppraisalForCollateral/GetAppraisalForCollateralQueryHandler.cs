@@ -53,12 +53,7 @@ public class GetAppraisalForCollateralQueryHandler(
         // We don't require Completed status — the appraisal aggregate can complete via
         // committee approval before the assignment row is independently marked Completed,
         // and we still want to record who did the work.
-        var latestAssignment = appraisal.Assignments
-            .Where(a => a.AssignmentStatus.Code != "Rejected" && a.AssignmentStatus.Code != "Cancelled")
-            .OrderByDescending(a => a.AssignedAt)
-            .ThenByDescending(a => a.CreatedAt)
-            .ThenByDescending(a => a.Id)
-            .FirstOrDefault();
+        var latestAssignment = appraisal.Assignments.Current();
 
         // AppraiserUserId fallback chain: prefer the directly-assigned user; fall back to the
         // internal appraiser (followup) or the external appraiser (the human at the company).
@@ -161,30 +156,20 @@ public class GetAppraisalForCollateralQueryHandler(
         decimal? appraisalTotal = valuation?.AppraisedValue;
         decimal? forcedSaleValue = valuation?.ForcedSaleValue;
 
-        // Stamp onto the engagement "the inspection fee the NEXT Progressive appraisal should charge",
-        // so the fee chains uniformly: original → 1st inspection → 2nd inspection → …
-        //   - Original (non-Progressive): the quoted future-inspection fee
-        //     (AppraisalFee.ConstructionInspectionFeeAmount, set via UpdateConstructionInspectionFeeCommand).
-        //   - Progressive (this appraisal IS an inspection): it charges its fee as the appraisal-fee
-        //     line (FeeCode "01") and leaves ConstructionInspectionFeeAmount null — so carry forward
-        //     that line's amount (ex-VAT) for the next inspection. We sum only FeeCode "01" so ad-hoc
-        //     surcharges (travel "02"/urgent "03") on this visit don't propagate to the next.
+        // Stamp onto the engagement "the inspection fee the NEXT Progressive appraisal should charge": the figure keyed
+        // on this appraisal's own fee page (AppraisalFee.ConstructionInspectionFeeAmount, set via
+        // UpdateConstructionInspectionFeeCommand), whatever this appraisal's type. Nothing else stands in for it — not
+        // the appraisal-fee line (FeeCode "01") of a Progressive appraisal either — which is exactly the rule
+        // AssignmentFeeService.ResolveChainedInspectionFeeAsync applies when the next inspection is assigned, so the
+        // engagement and the fee screens cannot disagree.
         decimal? constructionInspectionFee = null;
         if (latestAssignment is not null)
         {
-            constructionInspectionFee = appraisal.AppraisalType == AppraisalTypes.Progressive
-                ? await dbContext.AppraisalFees
-                    .AsNoTracking()
-                    .Where(f => f.AssignmentId == latestAssignment.Id)
-                    .Select(f => (decimal?)f.Items
-                        .Where(i => i.FeeCode == "01")
-                        .Sum(i => i.FeeAmount))
-                    .FirstOrDefaultAsync(cancellationToken)
-                : await dbContext.AppraisalFees
-                    .AsNoTracking()
-                    .Where(f => f.AssignmentId == latestAssignment.Id)
-                    .Select(f => f.ConstructionInspectionFeeAmount)
-                    .FirstOrDefaultAsync(cancellationToken);
+            constructionInspectionFee = await dbContext.AppraisalFees
+                .AsNoTracking()
+                .Where(f => f.AssignmentId == latestAssignment.Id)
+                .Select(f => f.ConstructionInspectionFeeAmount)
+                .FirstOrDefaultAsync(cancellationToken);
         }
 
         // RequestNumber lives on request.Requests (cross-module), not on the Appraisal aggregate.

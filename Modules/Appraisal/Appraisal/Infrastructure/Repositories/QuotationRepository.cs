@@ -111,31 +111,17 @@ public class QuotationRepository(AppraisalDbContext dbContext) : IQuotationRepos
         CancellationToken cancellationToken = default)
     {
         // Judges the SAME quotation the fee consumer will use (the latest finalized one, only if this company won
-        // it), and also requires the winner to have a usable price for THIS appraisal by the consumer's rule
-        // (CompanyAssignedIntegrationEventHandler.ResolveFeeSourceAsync): the consumer fails after the workflow has
-        // moved on, so an unpriced winner must be refused here. Every item for the appraisal must be priced, as in
-        // QuotationAutoAssignStateReader.GetPricedAppraisalIdsAsync (the consumer takes an arbitrary first item).
+        // it). Whether the winner's price is usable is not asked here: that is the base-fee rule of
+        // AssignAppraisalCommandHandler (the fee preview), which an admin's own 01 can also satisfy.
         return await LatestFinalized(appraisalId)
             .Select(q => q.SelectedCompanyId == winnerCompanyId &&
-                         q.Quotations.Any(c =>
-                             c.IsWinner && c.CompanyId == winnerCompanyId &&
-                             c.Items.Any(i => i.AppraisalId == appraisalId) &&
-                             !c.Items.Any(i => i.AppraisalId == appraisalId &&
-                                               (i.FeeAmount > 0m
-                                                   ? i.FeeAmount - i.Discount - (i.NegotiatedDiscount ?? 0m)
-                                                   : i.QuotedPrice) <= 0m)))
+                         q.Quotations.Any(c => c.IsWinner && c.CompanyId == winnerCompanyId))
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    // The latest finalized quotation of the appraisal, newest FINALIZED first (SelectedAt), not the newest draft.
-    // Deliberately NOT filtered by company: the current round decides who is billed. Shared by the fee lookup and
-    // the assign guard so they cannot pick different quotations. The ordering ends in Id, so it is unique.
+    // See QuotationQueries.LatestFinalized — shared with the fee preview so both pick the same quotation.
     private IOrderedQueryable<QuotationRequest> LatestFinalized(Guid appraisalId) =>
-        _dbContext.QuotationRequests
-            .Where(q => q.Status == "Finalized" && q.Appraisals.Any(a => a.AppraisalId == appraisalId))
-            .OrderByDescending(q => q.SelectedAt)
-            .ThenByDescending(q => q.RequestDate)
-            .ThenBy(q => q.Id);
+        _dbContext.QuotationRequests.LatestFinalized(appraisalId);
 
     /// <summary>
     /// Checks whether the given appraisal is already part of any non-terminal QuotationRequest.
