@@ -2,6 +2,7 @@ using Reporting.Application.Formatting;
 using Reporting.Application.Models;
 using Reporting.Application.Services;
 using Shared.Configuration;
+using Shared.DDD;
 
 namespace Reporting.Application.Providers;
 
@@ -588,7 +589,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             -- RS24: Construction-inspection progress, one row per property under construction.
             -- ProgressPct mirrors Appraisal.Domain ConstructionInspection.OverallCurrentProgressPercent
             -- (full-detail = Σ of the work details' already-weighted CurrentProportionPct; summary
-            -- mode = SummaryCurrentProgressPct). KEEP IN SYNC with ConstructionInspection.cs.
+            -- mode = SummaryCurrentProgressPct). KEEP IN SYNC with ConstructionInspection.cs and with
+            -- the progress query in GetAppraisalBriefQueryHandler (Appraisal module).
             -- TotalValue is the 100%-complete building value and equals the sum of that property's
             -- BuildingDepreciationDetails.PriceAfterDepreciation, so the grid's existing figures
             -- already are the "เมื่อแล้วเสร็จ 100%" side; only the current side is derived.
@@ -1069,10 +1071,10 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 .GroupBy(d => d.BuildingAppraisalDetailId)
                 .ToDictionary(grp => grp.Key, grp => grp.ToList());
 
+            // The rule itself lives in Shared so the appraisal brief applies the same one.
             bool IsDevelopmentOnly(GroupBuildingRow b) =>
-                !HasHouseNumber(b.HouseNumber)
-                && depRowsByBuilding.TryGetValue(b.BuildingId, out var rows)
-                && rows.TrueForAll(r => !r.IsBuilding);
+                depRowsByBuilding.TryGetValue(b.BuildingId, out var rows)
+                && DevelopmentOnlyBuilding.IsDevelopmentOnly(b.HouseNumber, rows.Select(r => r.IsBuilding));
 
             // Rows moved out of the สิ่งปลูกสร้าง list lose the only place their type was printed, so
             // they lead with it under ส่วนพัฒนา — "รั้วตาข่ายเหล็ก …" instead of a bare "พื้นที่ใช้สอย …".
@@ -1795,15 +1797,6 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-
-    /// <summary>
-    /// Whether a Building Detail actually carries a house number. Appraisers type "-" for "none"
-    /// (35 of the 232 rows on the dev database), so a dash-only value must read as absent — it is
-    /// used as proof that a mis-flagged building is a real สิ่งปลูกสร้าง, and a placeholder is not
-    /// proof of anything.
-    /// </summary>
-    private static bool HasHouseNumber(string? houseNumber) =>
-        !string.IsNullOrWhiteSpace(houseNumber) && houseNumber.Trim().Trim('-', '–', '—').Length > 0;
 
     /// <summary>A square-wa total in the same "R-N-W ไร่" shorthand as the title lines, carried
     /// by <see cref="ThaiLandAreaFormatter.NormalizeTotal"/>.</summary>

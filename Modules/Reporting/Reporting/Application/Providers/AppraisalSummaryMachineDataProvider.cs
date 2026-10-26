@@ -367,6 +367,9 @@ public sealed class AppraisalSummaryMachineDataProvider(
     /// <summary>ConditionUse parameter code for "not found" on the survey.</summary>
     private const string NotFoundCondition = "03";
 
+    // KEEP IN SYNC with GetAppraisalBriefQueryHandler.BuildMachines / MachineRow (Appraisal module, the
+    // credit-side brief): the three sections, their order, and the "nothing to describe" test in
+    // DescribeMachine are copied there.
     /// <summary>
     /// Splits a group's machines into the sets the form prints, one section per set, in report
     /// order. A set with no machines produces nothing, so a group of one kind still reads as one
