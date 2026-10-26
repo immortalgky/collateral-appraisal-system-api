@@ -147,7 +147,10 @@ Walk AS (
     SELECT w.AppraisalId, anc.Id, anc.PrevAppraisalId, w.Depth + 1,
            CAST(w.Path + CAST(anc.Id AS varchar(36)) + '|' AS varchar(max))
     FROM Walk w
-    JOIN appraisal.Appraisals anc ON anc.Id = w.PrevAppraisalId AND anc.IsDeleted = 0
+    -- FORCESEEK: the eager-index-spool risk that hit vw_RegulatoryExport on PRD in Sept 2026 (a full
+    -- Appraisals scan rebuilt every recursion step). A table hint, so unlike a join hint it does not
+    -- fix this statement's join order.
+    JOIN appraisal.Appraisals anc WITH (FORCESEEK) ON anc.Id = w.PrevAppraisalId AND anc.IsDeleted = 0
     WHERE CHARINDEX('|' + CAST(anc.Id AS varchar(36)) + '|', w.Path) = 0
 ),
 
