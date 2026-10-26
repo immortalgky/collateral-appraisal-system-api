@@ -1,0 +1,76 @@
+@page
+@model Auth.Pages.Account.TwoFactor
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+<!DOCTYPE html>
+<html lang="@Model.Lang">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1, width=device-width">
+
+    <link rel="stylesheet" href="/Assets/index.css?v=@IdpPageModel.AssetVersion"/>
+
+    <title>@(Model.Recovery ? Model.T2.RecoveryHeading : Model.T2.CodeHeading)</title>
+</head>
+
+<body>
+<div class="login login--signin">
+    <div class="login-image">
+        <img src="/Assets/Bangkok skyline view.png" alt="Bangkok skyline">
+    </div>
+    <div class="login-panel">
+        <form method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="ReturnUrl" value="@Model.ReturnUrl"/>
+
+            <partial name="_IdpHeader" model="Model" />
+
+            <div class="login-heading">
+                <div class="login-step">@Model.T2.Step</div>
+                <h1 class="login-title">@(Model.Recovery ? Model.T2.RecoveryHeading : Model.T2.CodeHeading)</h1>
+                <p class="login-intro">@(Model.Recovery ? Model.T2.RecoveryIntro : Model.T2.CodeIntro)</p>
+            </div>
+
+            @if (!string.IsNullOrEmpty(Model.Error))
+            {
+                <div class="error-message" role="alert">@Model.Error</div>
+            }
+
+            <div class="input-container">
+                <label class="input-label" for="code">@(Model.Recovery ? Model.T2.RecoveryLabel : Model.T2.CodeLabel)</label>
+                @if (Model.Recovery)
+                {
+                    <input class="text-input otp-input otp-input--recovery" type="text" id="code" name="Code"
+                           autocomplete="off" autocapitalize="none" spellcheck="false" autofocus required>
+                }
+                else
+                {
+                    <input class="text-input otp-input" type="text" id="code" name="Code" inputmode="numeric"
+                           autocomplete="one-time-code" placeholder="000000" autofocus required>
+                }
+            </div>
+
+            <div class="login-button-container">
+                <button type="submit" class="login-button">@Model.T2.Verify</button>
+            </div>
+
+            <div class="login-aside">
+                @if (Model.Recovery)
+                {
+                    <a class="login-back" asp-page="TwoFactor" asp-route-returnUrl="@Model.ReturnUrl">@Model.T2.BackToCode</a>
+                }
+                else
+                {
+                    <a class="login-back" asp-page="TwoFactor" asp-route-returnUrl="@Model.ReturnUrl"
+                       asp-route-recovery="true">@Model.T2.UseRecoveryCode</a>
+                    <div class="login-note">@Model.T2.LostPhone</div>
+                }
+            </div>
+        </form>
+    </div>
+</div>
+<partial name="_IdpScripts" model="Model" />
+</body>
+
+</html>

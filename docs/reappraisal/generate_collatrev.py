@@ -6,7 +6,7 @@ SUPERSEDED (dev): prefer the in-app generator that builds a file from REAL compl
 ingestion job's SurveyNumber -> appraisal.Appraisals.AppraisalNumber join (lat/lon enrichment + prior-
 appraisal linkage) actually fires:
 
-    POST https://localhost:7111/reappraisal/generate-test-file?count=20[&date=YYYYMMDD]
+    POST https://localhost:7111/reappraisal/generate-test-file?count=20[&date=YYYYMMDD][&autoUpdate=Y|N]
     (requires the REAPPRAISAL_GENERATE_TEST_FILE permission; also available as a menu item for QA)
 
 Keep this script only for offline / no-database scenarios where synthetic rows are good enough.

@@ -1,3 +1,4 @@
+using Auth.Infrastructure.Session;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
@@ -19,7 +20,7 @@ public class NoPermissionAuthenticationHandler(
 {
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        var identity = new ClaimsIdentity([new Claim(ClaimTypes.Name, "no-permission-user")], Scheme.Name);
+        var identity = new ClaimsIdentity([new Claim(ClaimTypes.Name, "no-permission-user")], AuthSchemes.AppCookie);
         var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name);
         return Task.FromResult(AuthenticateResult.Success(ticket));
     }

@@ -16,7 +16,7 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(i => i.Status).IsRequired().HasMaxLength(20).HasDefaultValue("Pending");
         builder.Property(i => i.TotalAmount).HasPrecision(18, 2).HasDefaultValue(0m);
         builder.Property(i => i.Notes).HasMaxLength(4000);
-        builder.Property(i => i.PaymentOrderNo).HasMaxLength(10);
+        builder.Property(i => i.PaymentOrderNo).HasMaxLength(15);
         builder.Property(i => i.ApprovedBy).HasMaxLength(100);
 
         builder.HasMany(i => i.Items)

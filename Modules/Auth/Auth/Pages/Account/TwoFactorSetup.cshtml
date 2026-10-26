@@ -1,0 +1,157 @@
+@page
+@model Auth.Pages.Account.TwoFactorSetup
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+<!DOCTYPE html>
+<html lang="@Model.Lang">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1, width=device-width">
+
+    <link rel="stylesheet" href="/Assets/index.css?v=@IdpPageModel.AssetVersion"/>
+
+    <title>@(Model.RecoveryCodes is null ? Model.T2.EnrolHeading : Model.T2.CodesHeading)</title>
+</head>
+
+<body>
+<div class="login login--signin">
+    <div class="login-image">
+        <img src="/Assets/Bangkok skyline view.png" alt="Bangkok skyline">
+    </div>
+    <div class="login-panel">
+        @if (Model.RecoveryCodes is { } codes)
+        {
+            @* A reload would show the setup page again, so the language menu is left out here. *@
+            ViewData["NoLanguage"] = true;
+            <form>
+                <partial name="_IdpHeader" model="Model" />
+
+                <div class="login-heading">
+                    <h1 class="login-title">@Model.T2.CodesHeading</h1>
+                    <p class="login-intro">@Model.T2.CodesIntro</p>
+                </div>
+
+                <ul class="recovery-codes" id="recovery-codes" aria-label="@Model.T2.CodesListLabel">
+                    @foreach (var recoveryCode in codes)
+                    {
+                        <li>@recoveryCode</li>
+                    }
+                </ul>
+
+                @* Hidden until the script below shows them: without JS there is nothing to click. The codes are read from the
+                   list above, in the browser; they never go back to the server, into a URL or into a log. *@
+                <div class="recovery-actions" id="recovery-actions" hidden>
+                    <button type="button" class="recovery-action" id="recovery-copy">@Model.T2.CopyAll</button>
+                    <button type="button" class="recovery-action" id="recovery-download">@Model.T2.Download</button>
+                </div>
+                <div class="recovery-status" id="recovery-status" role="status" aria-live="polite"></div>
+
+                <div class="login-button-container">
+                    <a class="login-button" href="@Model.ContinueUrl">@Model.T2.Continue</a>
+                </div>
+            </form>
+        }
+        else
+        {
+            <form method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="ReturnUrl" value="@Model.ReturnUrl"/>
+
+                <partial name="_IdpHeader" model="Model" />
+
+                <div class="login-heading">
+                    <div class="login-step">@Model.T2.EnrolStep</div>
+                    <h1 class="login-title">@Model.T2.EnrolHeading</h1>
+                    <p class="login-intro">@Model.T2.EnrolIntro</p>
+                </div>
+
+                @if (!string.IsNullOrEmpty(Model.Error))
+                {
+                    <div class="error-message" role="alert">@Model.Error</div>
+                }
+
+                @if (!string.IsNullOrEmpty(Model.QrSvg))
+                {
+                    <ol class="enrol-steps">
+                        <li>@Model.T2.InstallApp</li>
+                        <li>
+                            @Model.T2.ScanQr
+                            <div class="enrol-scan">
+                                <div class="enrol-qr">@Html.Raw(Model.QrSvg)</div>
+                                <div class="enrol-key">
+                                    <span>@Model.T2.CannotScan</span>
+                                    @* One span per group of four, joined by single spaces: lines break between groups only, and a copy still reads "abcd efgh ...". *@
+                                    <code>@Html.Raw(string.Join(" ", Model.SharedKey.Split(' ').Select(group => $"<span class=\"enrol-key-group\">{System.Net.WebUtility.HtmlEncode(group)}</span>")))</code>
+                                </div>
+                            </div>
+                        </li>
+                        <li>
+                            <label for="code">@Model.T2.EnterCode</label>
+                            <input class="text-input otp-input" type="text" id="code" name="Code" inputmode="numeric"
+                                   autocomplete="one-time-code" placeholder="000000" required>
+                        </li>
+                    </ol>
+
+                    <div class="login-button-container">
+                        <button type="submit" class="login-button">@Model.T2.VerifyAndContinue</button>
+                    </div>
+                    <div class="login-note">@Model.T2.EnrolNote</div>
+                }
+            </form>
+        }
+    </div>
+</div>
+@if (Model.RecoveryCodes is not null)
+{
+    <script>
+        (function () {
+            var list = document.getElementById('recovery-codes');
+            var status = document.getElementById('recovery-status');
+            // One line per code. Copy gets this as it is; the file gets a trailing newline too (as the profile modal does).
+            var text = Array.prototype.map.call(list.querySelectorAll('li'), function (li) { return li.textContent.trim(); }).join('\n');
+
+            function say(message) {
+                // Emptied first so a repeat of the same message is announced again.
+                status.textContent = '';
+                setTimeout(function () { status.textContent = message; }, 50);
+            }
+
+            function selectCodes() {
+                var range = document.createRange();
+                range.selectNodeContents(list);
+                var selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+
+            document.getElementById('recovery-copy').addEventListener('click', function () {
+                var failed = function () { selectCodes(); say(@Json.Serialize(Model.T2.CopyFailed)); };
+                if (!navigator.clipboard) { failed(); return; }
+                navigator.clipboard.writeText(text).then(
+                    function () { say(@Json.Serialize(Model.T2.Copied)); }, failed);
+            });
+
+            document.getElementById('recovery-download').addEventListener('click', function () {
+                status.textContent = ''; // an earlier "copied" or "could not copy" must not linger
+                var url = URL.createObjectURL(new Blob([text + '\n'], { type: 'text/plain' }));
+                var link = document.createElement('a');
+                link.href = url;
+                link.download = 'recovery-codes.txt';
+                link.style.display = 'none';
+                // In the document before the click (Firefox ignores a detached anchor); revoked on a later tick, with a
+                // generous margin because the codes are shown only once.
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+            });
+
+            document.getElementById('recovery-actions').hidden = false;
+        })();
+    </script>
+}
+<partial name="_IdpScripts" model="Model" />
+</body>
+
+</html>

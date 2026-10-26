@@ -16,6 +16,9 @@ public class UpdatePasswordPolicyConfigCommandValidator : AbstractValidator<Upda
         RuleFor(x => x.MaxAccessWindowHours!.Value)
             .InclusiveBetween(1, PasswordPolicy.MaxAccessWindowHoursCeiling)
             .When(x => x.MaxAccessWindowHours.HasValue);
+        RuleFor(x => x.TwoFactorRememberHours!.Value)
+            .InclusiveBetween(0, PasswordPolicy.TwoFactorRememberHoursCeiling)
+            .When(x => x.TwoFactorRememberHours.HasValue);
         RuleFor(x => x.Blocklist).MaximumLength(8000).When(x => x.Blocklist is not null);
     }
 }

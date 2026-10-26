@@ -10,8 +10,13 @@ public class GetBlockReappraisalDueListQueryHandler(
         GetBlockReappraisalDueListQuery query,
         CancellationToken cancellationToken)
     {
-        var conditions = new List<string>();
+        var status = string.Equals(query.Status, "Deleted", StringComparison.OrdinalIgnoreCase)
+            ? "Deleted"
+            : "Pending";
+
+        var conditions = new List<string> { "Status = @Status" };
         var parameters = new DynamicParameters();
+        parameters.Add("Status", status);
 
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -43,9 +48,7 @@ public class GetBlockReappraisalDueListQueryHandler(
             parameters.Add("RemainingDayMax", query.RemainingDayMax.Value);
         }
 
-        var where = conditions.Count > 0
-            ? "WHERE " + string.Join(" AND ", conditions)
-            : "";
+        var where = "WHERE " + string.Join(" AND ", conditions);
 
         // Whitelist sortable columns to defeat SQL injection. DueDate is the stable
         // tiebreaker (and the default order), so it is intentionally not selectable here.

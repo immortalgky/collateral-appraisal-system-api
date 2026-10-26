@@ -29,12 +29,12 @@ public static class TaskGroupCountsProcParams
         p.Add("CompanyGate", companyGate);
         p.Add("CallerCompanyId", callerCompanyId);
 
-        p.Add("Status", N(filter?.Status));
+        p.Add("Status", TaskListFilterBuilder.NormalizeList(filter?.Status));
         p.Add("Priority", N(filter?.Priority));
         p.Add("TaskName", N(filter?.TaskName));
         p.Add("Search", Pattern(filter?.Search));
         p.Add("AppraisalNumber", Pattern(filter?.AppraisalNumber));
-        p.Add("Channel", N(filter?.Channel));
+        p.Add("Channel", TaskListFilterBuilder.NormalizeList(filter?.Channel));
         p.Add("CustomerName", Pattern(filter?.CustomerName));
         p.Add("TaskStatus", N(filter?.TaskStatus));
         p.Add("TaskType", N(filter?.TaskType));
@@ -44,10 +44,10 @@ public static class TaskGroupCountsProcParams
         p.Add("AppointmentDateTo", filter?.AppointmentDateTo);
         p.Add("RequestedAtFrom", filter?.RequestedAtFrom);
         p.Add("RequestedAtTo", filter?.RequestedAtTo);
-        p.Add("SlaStatus", N(filter?.SlaStatus));
-        p.Add("ActivityId", N(filter?.ActivityId));
-        p.Add("Purpose", N(filter?.Purpose));
-        p.Add("TaskStatusBucket", N(filter?.TaskStatusBucket));
+        p.Add("SlaStatus", TaskListFilterBuilder.NormalizeSlaStatus(filter?.SlaStatus));
+        p.Add("ActivityId", TaskListFilterBuilder.NormalizeList(filter?.ActivityId));
+        p.Add("Purpose", TaskListFilterBuilder.NormalizeList(filter?.Purpose));
+        p.Add("TaskStatusBucket", TaskListFilterBuilder.NormalizeBucket(filter?.TaskStatusBucket));
 
         p.Add("GroupBy", groupBy);
         return p;

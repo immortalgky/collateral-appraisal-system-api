@@ -99,8 +99,8 @@ public class PartySlaEvaluatorTests
     }
 
     /// <summary>
-    /// Build the appointment DataTable returned by GetLatestNonCancelledAppointmentDateAsync.
-    /// Pass null to simulate "no appointment confirmed yet" (empty result → null in C#).
+    /// Build the appointment DataTable returned by GetLiveAppointmentDatesAsync.
+    /// Pass null to simulate "no appointment confirmed yet" (empty result → no clip).
     /// </summary>
     private static DataTable BuildAppointmentTable(DateTime? appointmentDateTime)
     {
@@ -156,6 +156,7 @@ public class PartySlaEvaluatorTests
 
         var result = await _evaluator.EvaluateAsync(
             correlationId: Guid.NewGuid(),
+            appraisalId: Guid.NewGuid(),
             workflowDefinitionId: null,
             companyId: null,
             loanType: null,
@@ -187,7 +188,7 @@ public class PartySlaEvaluatorTests
         EnqueueAll(BuildLegsTable(legs));
 
         var result = await _evaluator.EvaluateAsync(
-            Guid.NewGuid(), null, null, null, null);
+            Guid.NewGuid(), Guid.NewGuid(), null, null, null, null);
 
         result!.Vendor.Cycles[0].IsRework.Should().BeFalse("index 0 is the original vendor pass");
         result!.Vendor.Cycles[1].IsRework.Should().BeTrue("index 1 is a vendor rework cycle");
@@ -215,7 +216,7 @@ public class PartySlaEvaluatorTests
         EnqueueAll(BuildLegsTable(legs));
 
         var result = await _evaluator.EvaluateAsync(
-            Guid.NewGuid(), null, null, null, null);
+            Guid.NewGuid(), Guid.NewGuid(), null, null, null, null);
 
         result.Should().NotBeNull();
         result!.Vendor.Cycles.Should().HaveCount(1, "all legs are consecutive vendor legs → single cycle");
@@ -237,7 +238,7 @@ public class PartySlaEvaluatorTests
         _factory.EnqueueResult(BuildLegsTable([]));
 
         var result = await _evaluator.EvaluateAsync(
-            Guid.NewGuid(), null, null, null, null);
+            Guid.NewGuid(), Guid.NewGuid(), null, null, null, null);
 
         result.Should().BeNull("no completed tasks means no SLA data to evaluate");
     }
@@ -266,7 +267,7 @@ public class PartySlaEvaluatorTests
         EnqueueAll(BuildLegsTable(legs));
 
         var result = await _evaluator.EvaluateAsync(
-            Guid.NewGuid(), null, null, null, null);
+            Guid.NewGuid(), Guid.NewGuid(), null, null, null, null);
 
         result.Should().NotBeNull();
 
@@ -309,7 +310,7 @@ public class PartySlaEvaluatorTests
         EnqueueAll(BuildLegsTable(legs), vendorHours: 8, bankHours: null);
 
         var result = await _evaluator.EvaluateAsync(
-            Guid.NewGuid(), null, null, null, null);
+            Guid.NewGuid(), Guid.NewGuid(), null, null, null, null);
 
         result.Should().NotBeNull();
 
@@ -335,8 +336,9 @@ public class PartySlaEvaluatorTests
     // ── Test 7 (H1): Vendor cycle start is clipped to appointment date ──────────────────────────
 
     /// <summary>
-    /// H1 fix: when an appointment date exists, the first leg's AssignedAt in each vendor cycle
-    /// is clipped to max(AssignedAt, appointmentDate).
+    /// H1 fix: when an appointment falls inside a vendor cycle, that cycle's first leg AssignedAt
+    /// is clipped to the latest visit dated inside the cycle, i.e. within (start, end]. A cycle with
+    /// no visit inside it stays unclipped.
     ///
     /// Scenario: vendor leg starts at T+0 and ends at T+4h (240 calendar minutes).
     /// Appointment date = T+1h.  After clipping, cycleStart = T+1h, so the measured business
@@ -359,7 +361,7 @@ public class PartySlaEvaluatorTests
         EnqueueAll(BuildLegsTable(legs), appointmentDate: appointmentDate);
 
         var result = await _evaluator.EvaluateAsync(
-            Guid.NewGuid(), null, null, null, null);
+            Guid.NewGuid(), Guid.NewGuid(), null, null, null, null);
 
         result.Should().NotBeNull();
         result!.Vendor.Cycles.Should().HaveCount(1);
@@ -387,7 +389,7 @@ public class PartySlaEvaluatorTests
         EnqueueAll(BuildLegsTable(legs), appointmentDate: null);
 
         var result = await _evaluator.EvaluateAsync(
-            Guid.NewGuid(), null, null, null, null);
+            Guid.NewGuid(), Guid.NewGuid(), null, null, null, null);
 
         result.Should().NotBeNull();
         result!.Vendor.Cycles.Should().HaveCount(1);

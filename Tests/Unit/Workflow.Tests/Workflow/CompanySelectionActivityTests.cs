@@ -92,6 +92,53 @@ public class CompanySelectionActivityTests
         result.OutputData["decision"].Should().Be("company_selected");
     }
 
+    [Theory]
+    [InlineData("manual", "Manual")]
+    [InlineData("Quotation", "Quotation")]
+    public async Task ExecuteAsync_StaleAssignedCompany_DoesNotOverrideTheFreshSelection(string method, string normalized)
+    {
+        // Re-entry after a route back / earlier round robin: assignedCompanyId still holds company X.
+        var stale = Guid.NewGuid().ToString();
+        var fresh = Guid.NewGuid();
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["assignmentMethod"] = method,
+            ["assignedCompanyId"] = stale,
+            ["assignedCompanyName"] = "Stale Co",
+            ["selectedCompanyId"] = fresh.ToString(),
+            ["selectedCompanyName"] = "Fresh Co"
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["assignedCompanyId"].Should().Be(fresh.ToString());
+        result.OutputData["assignedCompanyName"].Should().Be("Fresh Co");
+        result.OutputData["assignmentMethod"].Should().Be(normalized);
+        _outbox.Received(1).Publish(
+            Arg.Is<CompanyAssignedIntegrationEvent>(e => e.CompanyId == fresh && e.CompanyName == "Fresh Co"),
+            Arg.Any<string?>(), Arg.Any<Dictionary<string, string>?>());
+    }
+
+    [Theory]
+    [InlineData("manual")]
+    [InlineData("Quotation")]
+    public async Task ExecuteAsync_EmptySelectedCompany_FallsBackToAssignedCompany(string method)
+    {
+        var assigned = Guid.NewGuid().ToString();
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["assignmentMethod"] = method,
+            ["assignedCompanyId"] = assigned,
+            ["assignedCompanyName"] = "Assigned Co",
+            ["selectedCompanyId"] = ""
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["assignedCompanyId"].Should().Be(assigned);
+        result.OutputData["assignedCompanyName"].Should().Be("Assigned Co");
+    }
+
     [Fact]
     public async Task ExecuteAsync_ManualSelectionNoCompanyId_ReturnsFailed()
     {
@@ -309,6 +356,37 @@ public class CompanySelectionActivityTests
         _outbox.DidNotReceiveWithAnyArgs().Publish<CompanyAssignedIntegrationEvent>(default!);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_ForcedCompanyThatEscalated_ReleasesTheForce_SoTheAdminCanEscapeWithRoundRobin()
+    {
+        var forced = Guid.NewGuid();
+        _companyRepository.GetByIdAsync(forced, Arg.Any<CancellationToken>())
+            .Returns(Company.Create("Forced Co", expireDate: new DateTime(2026, 4, 18, 0, 0, 0)));
+        var first = await _sut.ExecuteAsync(CreateContext(new Dictionary<string, object>
+        {
+            ["forceCompanyId"] = forced.ToString(),
+            ["forceCompanyName"] = "Forced Co"
+        }));
+        first.OutputData["decision"].Should().Be("no_match");
+        // The engine merges the activity's output into the instance variables.
+        first.OutputData["forceCompanyId"].Should().Be("");
+
+        var rr = Guid.NewGuid();
+        _roundRobinService.SelectCompanyAsync(Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(CompanySelectionResult.Success(rr, "RR Co"));
+        var reRouted = await _sut.ExecuteAsync(CreateContext(new Dictionary<string, object>
+        {
+            ["assignmentMethod"] = "RoundRobin",
+            ["selectedCompanyId"] = "",
+            ["forceCompanyId"] = first.OutputData["forceCompanyId"],
+            ["forceCompanyName"] = first.OutputData["forceCompanyName"]
+        }));
+
+        reRouted.OutputData["decision"].Should().Be("company_selected");
+        reRouted.OutputData["assignedCompanyId"].Should().Be(rr.ToString());
+        reRouted.OutputData["assignmentMethod"].Should().Be("RoundRobin");
+    }
+
     // ── Global "no auto-assign" switch (ExternalCompanyAssignmentEnabled) ────────────────────
 
     private void GivenAutoAssignDisabled() =>
@@ -398,6 +476,311 @@ public class CompanySelectionActivityTests
 
         result.OutputData["decision"].Should().Be("company_selected");
         result.OutputData["assignedCompanyId"].Should().Be(companyId.ToString());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Disabled_RoundRobinWithChangedSegment_IsNoMatchNotANewCompany()
+    {
+        // The replay guard does not fire (the segment changed), so round robin would pick a NEW company.
+        // That is a new in-system engagement, so the switch applies even though the case holds a company.
+        GivenAutoAssignDisabled();
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["bankingSegment"] = "IBG",
+            ["assignedCompanyId"] = Guid.NewGuid().ToString(),
+            ["assignedCompanyName"] = "Prior Corp",
+            ["assignedCompanyLoanType"] = "Retail"
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["decision"].Should().Be("no_match");
+        result.OutputData["assignedCompanyId"].Should().Be("");
+        await _roundRobinService.DidNotReceiveWithAnyArgs().SelectCompanyAsync(default, default, default);
+        _outbox.DidNotReceiveWithAnyArgs().Publish<CompanyAssignedIntegrationEvent>(default!);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Disabled_ReplayGuardReuse_StaysExempt()
+    {
+        GivenAutoAssignDisabled();
+        var companyId = Guid.NewGuid().ToString();
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["bankingSegment"] = "IBG",
+            ["assignedCompanyId"] = companyId,
+            ["assignedCompanyName"] = "Prior Corp",
+            ["assignedCompanyLoanType"] = "IBG"
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["decision"].Should().Be("company_selected");
+        result.OutputData["assignedCompanyId"].Should().Be(companyId);
+        await _roundRobinService.DidNotReceiveWithAnyArgs().SelectCompanyAsync(default, default, default);
+        _outbox.DidNotReceiveWithAnyArgs().Publish<CompanyAssignedIntegrationEvent>(default!);
+    }
+
+    [Theory]
+    [InlineData("manual")]
+    [InlineData("Quotation")]
+    public async Task ExecuteAsync_Disabled_StaleAssignedCompanyDoesNotExemptADifferentFreshPick(string method)
+    {
+        // assignedCompanyId=X is stale; the admin now picks Y. Y is a NEW engagement, so the switch applies.
+        GivenAutoAssignDisabled();
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["assignmentMethod"] = method,
+            ["assignedCompanyId"] = Guid.NewGuid().ToString(),
+            ["selectedCompanyId"] = Guid.NewGuid().ToString(),
+            ["selectedCompanyName"] = "Fresh Co"
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["decision"].Should().Be("no_match");
+        result.OutputData["assignedCompanyId"].Should().Be("");
+        _outbox.DidNotReceiveWithAnyArgs().Publish<CompanyAssignedIntegrationEvent>(default!);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Disabled_SameCompanyAssignedAndSelected_IsStillExempt()
+    {
+        GivenAutoAssignDisabled();
+        var companyId = Guid.NewGuid();
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["assignmentMethod"] = "manual",
+            ["assignedCompanyId"] = companyId.ToString().ToUpperInvariant(),
+            ["selectedCompanyId"] = companyId.ToString(),
+            ["selectedCompanyName"] = "Same Co"
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["decision"].Should().Be("company_selected");
+        result.OutputData["assignedCompanyId"].Should().Be(companyId.ToString());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Disabled_AssignedCompanyWithEmptySelection_StaysExempt()
+    {
+        GivenAutoAssignDisabled();
+        var companyId = Guid.NewGuid().ToString();
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["assignmentMethod"] = "manual",
+            ["assignedCompanyId"] = companyId,
+            ["assignedCompanyName"] = "Already Co",
+            ["selectedCompanyId"] = ""
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["decision"].Should().Be("company_selected");
+        result.OutputData["assignedCompanyId"].Should().Be(companyId);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Disabled_ForcedCompanyEqualToAssigned_NobodyChose_StaysExempt()
+    {
+        // Construction inspection with no admin pick: the forced company A is what will be used.
+        GivenAutoAssignDisabled();
+        var forced = Guid.NewGuid();
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["assignmentMethod"] = "manual",
+            ["forceCompanyId"] = forced.ToString(),
+            ["forceCompanyName"] = "Forced Co",
+            ["assignedCompanyId"] = forced.ToString(),
+            ["selectedCompanyId"] = ""
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["decision"].Should().Be("company_selected");
+        result.OutputData["assignedCompanyId"].Should().Be(forced.ToString());
+        result.OutputData["assignmentMethod"].Should().Be("Forced");
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Disabled_AdminPicksCompanyDifferentFromAssignedAndForced_IsNoMatch()
+    {
+        // The admin's pick wins over the forced company, and a different company is a NEW engagement.
+        GivenAutoAssignDisabled();
+        var forced = Guid.NewGuid();
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["assignmentMethod"] = "manual",
+            ["forceCompanyId"] = forced.ToString(),
+            ["forceCompanyName"] = "Forced Co",
+            ["assignedCompanyId"] = forced.ToString(),
+            ["selectedCompanyId"] = Guid.NewGuid().ToString()
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["decision"].Should().Be("no_match");
+        _outbox.DidNotReceiveWithAnyArgs().Publish<CompanyAssignedIntegrationEvent>(default!);
+    }
+
+    // ── Priority: admin pick > quotation winner > forced prior company ───────────────────────
+
+    [Fact]
+    public async Task ExecuteAsync_ManualPickWithForcedCompany_AdminWinsAndIsRecordedAsManual()
+    {
+        var forced = Guid.NewGuid();
+        var admin = Guid.NewGuid();
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["assignmentMethod"] = "manual",
+            ["forceCompanyId"] = forced.ToString(),
+            ["forceCompanyName"] = "Forced Co",
+            ["selectedCompanyId"] = admin.ToString(),
+            ["selectedCompanyName"] = "Admin Co"
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["decision"].Should().Be("company_selected");
+        result.OutputData["assignedCompanyId"].Should().Be(admin.ToString());
+        result.OutputData["assignedCompanyName"].Should().Be("Admin Co");
+        result.OutputData["assignmentMethod"].Should().Be("Manual");
+        _outbox.Received(1).Publish(
+            Arg.Is<CompanyAssignedIntegrationEvent>(e =>
+                e.CompanyId == admin && e.CompanyName == "Admin Co" && e.AssignmentMethod == "Manual"),
+            Arg.Any<string?>(), Arg.Any<Dictionary<string, string>?>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_QuotationWinnerWithForcedCompany_WinnerWins()
+    {
+        var forced = Guid.NewGuid();
+        var winner = Guid.NewGuid();
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["assignmentMethod"] = "Quotation",
+            ["forceCompanyId"] = forced.ToString(),
+            ["forceCompanyName"] = "Forced Co",
+            ["selectedCompanyId"] = winner.ToString(),
+            ["selectedCompanyName"] = "Winner Co"
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["assignedCompanyId"].Should().Be(winner.ToString());
+        result.OutputData["assignmentMethod"].Should().Be("Quotation");
+        _outbox.Received(1).Publish(
+            Arg.Is<CompanyAssignedIntegrationEvent>(e => e.CompanyId == winner && e.AssignmentMethod == "Quotation"),
+            Arg.Any<string?>(), Arg.Any<Dictionary<string, string>?>());
+    }
+
+    [Theory]
+    [InlineData("manual")]
+    [InlineData("Quotation")]
+    [InlineData("round_robin")]
+    [InlineData("RoundRobin")]
+    public async Task ExecuteAsync_NobodyChose_ForcedCompanyIsUsed(string method)
+    {
+        var forced = Guid.NewGuid();
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["assignmentMethod"] = method,
+            ["forceCompanyId"] = forced.ToString(),
+            ["forceCompanyName"] = "Forced Co",
+            ["selectedCompanyId"] = ""
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["assignedCompanyId"].Should().Be(forced.ToString());
+        result.OutputData["assignmentMethod"].Should().Be("Forced");
+        _outbox.Received(1).Publish(
+            Arg.Is<CompanyAssignedIntegrationEvent>(e => e.CompanyId == forced && e.AssignmentMethod == "Forced"),
+            Arg.Any<string?>(), Arg.Any<Dictionary<string, string>?>());
+        await _roundRobinService.DidNotReceiveWithAnyArgs().SelectCompanyAsync(default, default, default);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ManualPickOfExpiredCompanyWithForcedCompany_EscalatesInsteadOfFallingBackToForced()
+    {
+        var admin = Guid.NewGuid();
+        _companyRepository.GetByIdAsync(admin, Arg.Any<CancellationToken>())
+            .Returns(Company.Create("Admin Co", expireDate: new DateTime(2026, 4, 18, 0, 0, 0)));
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["assignmentMethod"] = "manual",
+            ["forceCompanyId"] = Guid.NewGuid().ToString(),
+            ["selectedCompanyId"] = admin.ToString()
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["decision"].Should().Be("no_match");
+        _outbox.DidNotReceiveWithAnyArgs().Publish<CompanyAssignedIntegrationEvent>(default!);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Disabled_ForcedCompanyDifferentFromAssigned_IsNoMatch()
+    {
+        GivenAutoAssignDisabled();
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["assignmentMethod"] = "manual",
+            ["forceCompanyId"] = Guid.NewGuid().ToString(),
+            ["forceCompanyName"] = "Forced Co",
+            ["assignedCompanyId"] = Guid.NewGuid().ToString()
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["decision"].Should().Be("no_match");
+        _outbox.DidNotReceiveWithAnyArgs().Publish<CompanyAssignedIntegrationEvent>(default!);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_FreshSelectionWithoutName_TakesTheNameFromThatCompanyNotTheStaleOne()
+    {
+        var fresh = Guid.NewGuid();
+        var company = Company.Create("Fresh Co From Lookup");
+        _companyRepository.GetByIdAsync(fresh, Arg.Any<CancellationToken>()).Returns(company);
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["assignmentMethod"] = "manual",
+            ["assignedCompanyId"] = Guid.NewGuid().ToString(),
+            ["assignedCompanyName"] = "Stale Co",
+            ["selectedCompanyId"] = fresh.ToString(),
+            ["selectedCompanyName"] = ""
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["assignedCompanyId"].Should().Be(fresh.ToString());
+        result.OutputData["assignedCompanyName"].Should().Be("Fresh Co From Lookup");
+        _outbox.Received(1).Publish(
+            Arg.Is<CompanyAssignedIntegrationEvent>(e => e.CompanyName == "Fresh Co From Lookup"),
+            Arg.Any<string?>(), Arg.Any<Dictionary<string, string>?>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ForcedWithoutName_TakesTheNameFromTheForcedCompany()
+    {
+        var forced = Guid.NewGuid();
+        _companyRepository.GetByIdAsync(forced, Arg.Any<CancellationToken>())
+            .Returns(Company.Create("Forced Co From Lookup"));
+        var context = CreateContext(new Dictionary<string, object>
+        {
+            ["forceCompanyId"] = forced.ToString(),
+            ["forceCompanyName"] = ""
+        });
+
+        var result = await _sut.ExecuteAsync(context);
+
+        result.OutputData["assignedCompanyId"].Should().Be(forced.ToString());
+        result.OutputData["assignedCompanyName"].Should().Be("Forced Co From Lookup");
+        _outbox.Received(1).Publish(
+            Arg.Is<CompanyAssignedIntegrationEvent>(e => e.CompanyName == "Forced Co From Lookup"),
+            Arg.Any<string?>(), Arg.Any<Dictionary<string, string>?>());
     }
 
     [Fact]

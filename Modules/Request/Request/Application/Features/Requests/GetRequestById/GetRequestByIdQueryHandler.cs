@@ -1,10 +1,12 @@
 using Auth.Contracts.Users;
+using Request.Application.Services;
 
 namespace Request.Application.Features.Requests.GetRequestById;
 
 internal class GetRequestByIdQueryHandler(
     RequestDbContext dbContext,
-    IUserLookupService userLookupService)
+    IUserLookupService userLookupService,
+    ISender sender)
     : IQueryHandler<GetRequestByIdQuery, GetRequestByIdResult>
 {
     public async Task<GetRequestByIdResult> Handle(GetRequestByIdQuery query, CancellationToken cancellationToken)
@@ -29,6 +31,9 @@ internal class GetRequestByIdQueryHandler(
         // Falls back to the stored identity if the user can no longer be resolved.
         var requestorInfo = await userLookupService.GetRequestorAsync(request.Requestor.UserId, cancellationToken);
 
+        // Only a submitted construction-inspection request can have a round; skip the cross-module read otherwise.
+        var inspectionNumber = await RequestInspectionNumber.ResolveAsync(request, sender, cancellationToken);
+
         return new GetRequestByIdResult
         {
             Id = request.Id,
@@ -49,6 +54,8 @@ internal class GetRequestByIdQueryHandler(
             Creator = new UserInfoDto(request.Creator.UserId, request.Creator.Username),
             Priority = request.Priority?.Code,
             IsPma = request.IsPma,
+            IsPeriodicalReappraisal = request.IsPeriodicalReappraisal(),
+            InspectionNumber = inspectionNumber,
             Detail = request.Detail?.ToDto(),
             Customers = request.Customers.Select(c => c.ToDto()).ToList(),
             Properties = request.Properties.Select(p => p.ToDto()).ToList(),

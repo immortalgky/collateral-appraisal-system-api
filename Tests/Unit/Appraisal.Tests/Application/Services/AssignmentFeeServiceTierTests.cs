@@ -19,6 +19,26 @@ public class AssignmentFeeServiceTierTests
 {
     private const decimal PreAppraisalFlatFee = 10_000m;
 
+    [Fact]
+    public async Task ATierConfiguredAtZero_ResolvesNoBase_AndAssignmentAddsNoZeroItem()
+    {
+        await using var db = NewDb();
+        db.FeeStructures.Add(FeeStructure.Create("01", 0m, 0m, null));
+        var assignmentId = SeedFeeShell(db, 1_000_000m);
+        await db.SaveChangesAsync();
+        var service = BuildService(db);
+
+        var resolved = await service.ResolveBaseFeeAsync(
+            new AssignmentFeeSource.TierBased(AppraisalTypes.New), 1_000_000m, CancellationToken.None);
+        await service.EnsureAssignmentFeeItemsAsync(
+            Guid.NewGuid(), assignmentId, new AssignmentFeeSource.TierBased(AppraisalTypes.New),
+            repriceSystemBase: true, CancellationToken.None);
+
+        Assert.Null(resolved.Amount);
+        Assert.Equal(FeeBaseKinds.None, resolved.Kind);
+        Assert.Empty(db.AppraisalFees.Include(f => f.Items).Single().Items); // never a 01 at 0
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(1_000_000)]
@@ -35,7 +55,7 @@ public class AssignmentFeeServiceTierTests
         await BuildService(db).EnsureAssignmentFeeItemsAsync(
             Guid.NewGuid(), assignmentId,
             new AssignmentFeeSource.TierBased(AppraisalTypes.PreAppraisal),
-            CancellationToken.None);
+            repriceSystemBase: false, CancellationToken.None);
 
         var fee = db.AppraisalFees.Include(f => f.Items).Single();
         var item = Assert.Single(fee.Items);
@@ -66,7 +86,7 @@ public class AssignmentFeeServiceTierTests
         await BuildService(db).EnsureAssignmentFeeItemsAsync(
             Guid.NewGuid(), assignmentId,
             new AssignmentFeeSource.TierBased(appraisalType),
-            CancellationToken.None);
+            repriceSystemBase: false, CancellationToken.None);
 
         var fee = db.AppraisalFees.Include(f => f.Items).Single();
         Assert.Equal(expectedAmount, Assert.Single(fee.Items).FeeAmount);
@@ -84,7 +104,7 @@ public class AssignmentFeeServiceTierTests
         await BuildService(db).EnsureAssignmentFeeItemsAsync(
             Guid.NewGuid(), assignmentId,
             new AssignmentFeeSource.TierBased(AppraisalTypes.New),
-            CancellationToken.None);
+            repriceSystemBase: false, CancellationToken.None);
 
         var fee = db.AppraisalFees.Include(f => f.Items).Single();
         Assert.Empty(fee.Items);
@@ -104,7 +124,7 @@ public class AssignmentFeeServiceTierTests
         await BuildService(db).EnsureAssignmentFeeItemsAsync(
             Guid.NewGuid(), assignmentId,
             new AssignmentFeeSource.TierBased(AppraisalTypes.New),
-            CancellationToken.None);
+            repriceSystemBase: false, CancellationToken.None);
 
         var fee = db.AppraisalFees.Include(f => f.Items).Single();
         Assert.Equal(3_500m, Assert.Single(fee.Items).FeeAmount);

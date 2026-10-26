@@ -41,12 +41,7 @@ public class InternalAssignedIntegrationEventHandler(
         }
 
         // Find the current active assignment (latest non-cancelled, non-rejected)
-        var assignment = appraisal.Assignments
-            .Where(a => a.AssignmentStatus.Code != "Rejected" && a.AssignmentStatus.Code != "Cancelled")
-            .OrderByDescending(a => a.AssignedAt)
-            .ThenByDescending(a => a.CreatedAt)
-            .ThenByDescending(a => a.Id)
-            .FirstOrDefault();
+        var assignment = appraisal.Assignments.Current();
 
         if (assignment is null)
         {
@@ -58,6 +53,9 @@ public class InternalAssignedIntegrationEventHandler(
         // Capture before Assign() (which unconditionally sets Assigned) so we can tell an initial
         // assignment apart from a routeback re-fire of this event. Pending/Assigned/InProgress are all
         // the initial-assignment lifecycle; UnderReview/Verified/Completed mean a routeback re-fire.
+        // Only a Pending row is a genuine (re)assignment whose system base may be re-priced to the current source; a
+        // re-fire on an assigned row (route-back checker -> keyin) must leave a possibly billed base alone.
+        var wasPending = assignment.AssignmentStatus == AssignmentStatus.Pending;
         var isInitialAssignment = assignment.AssignmentStatus == AssignmentStatus.Pending
             || assignment.AssignmentStatus == AssignmentStatus.Assigned
             || assignment.AssignmentStatus == AssignmentStatus.InProgress;
@@ -86,7 +84,9 @@ public class InternalAssignedIntegrationEventHandler(
             assignmentMethod: message.AssignmentMethod,
             internalFollowupMethod: message.InternalFollowupAssignmentMethod,
             reassignmentNumber: assignment.ReassignmentNumber,
-            assignedBy: "System");
+            // Keep the admin who assigned (recorded on the row by AssignAppraisalCommandHandler); a route-back
+            // re-fire of this event must not turn them into "System" either.
+            assignedBy: assignment.AssignedBy);
 
         // Internal path: the assignee IS the int-appraisal-execution executor, and this event is
         // published only while the workflow is already on int-appraisal-execution, so "assigned" and
@@ -109,6 +109,7 @@ public class InternalAssignedIntegrationEventHandler(
             appraisalId: message.AppraisalId,
             assignmentId: assignment.Id,
             source: feeSource,
+            repriceSystemBase: wasPending,
             ct: ct);
 
         // Kept on purpose: assignment events only touch AppraisalAssignment rows, so this stamps Appraisals.UpdatedAt

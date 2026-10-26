@@ -28,7 +28,7 @@ public class AddressDtoValidator : AbstractValidator<AddressDto>
 {
     public AddressDtoValidator()
     {
-        RuleFor(x => x.HouseNumber).MaximumLength(30);
+        RuleFor(x => x.HouseNumber).MaximumLength(50);
         RuleFor(x => x.ProjectName).MaximumLength(100);
         RuleFor(x => x.Moo).MaximumLength(50);
         RuleFor(x => x.Soi).MaximumLength(50);

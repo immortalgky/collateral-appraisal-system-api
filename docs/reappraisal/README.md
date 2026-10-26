@@ -155,7 +155,7 @@ curl -k -X POST "https://localhost:7111/reappraisal/candidates/<ID3>/restore"   
 Edit a copy of the sample, drop it in the inbox, trigger, and confirm one bad file doesn't block others:
 - Trailer count ≠ number of `D` rows, or non-numeric → file fails, error logged, **left in inbox** (not archived).
 - Remove the `T` line entirely → `FormatException` (completeness check).
-- Truncate a Detail line below 649 chars → `FormatException`.
+- Truncate a Detail line below 649 chars, or make it any length other than 649 / 650 → `FormatException`.
 
 ## Step 11 — Frontend
 Log in as **Admin / IntAdmin / RequestMaker** → **Standalone → "Reappraisal (AS400)"** →
@@ -185,12 +185,12 @@ mv Bootstrapper/Api/reappraisal/processed/AS400_COLLATREV_20260501.txt Bootstrap
 - **All Latitude/Longitude NULL** — row 1's `SurveyNumber` didn't match any `appraisal.Appraisals.AppraisalNumber`
   (Step 1); enrichment is skipped, which is expected for unmatched rows.
 
-## Record format reference (fixed-width: Detail 649 / Header-Trailer 640 chars)
+## Record format reference (fixed-width: Detail 649 or 650 / Header-Trailer 640 chars)
 Positions are **Unicode code-points, not bytes** — the parser indexes by char, so Thai text counts as
 1 per character. Alpha fields are space-padded left-aligned; numeric fields are space-padded right-aligned.
 - **Header (640 chars):** pos 1 = `H`, pos 2–9 = EffectiveDate (`DDMMYYYY`), pos 10–640 = filler.
 - **Trailer (640 chars):** pos 1 = `T`, pos 2–10 = detail row count (9 chars), pos 11–640 = filler.
-- **Detail (649 chars):** 1-based positions →
+- **Detail (649 chars, or 650 with the flag below):** 1-based positions →
   `1` RecordType `D` · `2` ReviewType · `3–10` ReviewDate(DDMMYYYY) · `11–29` CollateralId · `30–39` SurveyNo ·
   `40–42` CollateralCode · `43–47` CollateralCategory · `48–87` CollateralName · `88–207` CollateralAddress ·
   `208–226` CifNo · `227–246` CifName · `247–256` AoCode · `257–276` AoName · `277–296` TitleNo ·
@@ -200,7 +200,9 @@ Positions are **Unicode code-points, not bytes** — the parser indexes by char,
   `422–436` FacilityLimit · `437` FlagLessAge4Y · `438` FlagGreaterAge4Y · `439–448` CountAgeingDate ·
   `449–498` CollateralDescription · `499–538` ExternalValuerName · `539–578` InternalValuerName ·
   `579` SllOver100M · `580–629` SllDescription · `630` Stage · `631–640` IBGRetail · `641` Group ·
-  `642–649` EffectiveDateAppraisal(DDMMYYYY).
+  `642–649` EffectiveDateAppraisal(DDMMYYYY) · `650` AutoUpdate (`Y` / `N` / blank — AS400's own Auto Update
+  flag, present only in the 650-char layout).
+  A file may mix 649 and 650 rows: a 649 row simply has no flag (null). Any other row length is rejected.
 
 > These are the **vendor** field names. Our DB columns use the `*Number` convention (`SurveyNumber`,
 > `CifNumber`, `TitleNumber`, `ApplicationNumber`) — see the SQL above.

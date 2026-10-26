@@ -344,7 +344,7 @@ public class UpdatePropertyHandlerCharacterisationTests
         gone.Id = NewId();
         var surface = building.AddSurface(1, 2, "F", null, null, null, null);
         surface.Id = NewId();
-        property.SetConstructionInspection(ConstructionInspection.CreateSummary(property.Id, 100m, null, null, null, null, null, null));
+        property.SetConstructionInspection(ConstructionInspection.CreateSummary(property.Id, 100m, null, null, null, null));
 
         await BuildingHandler().Handle(new UpdateBuildingPropertyCommand(
             appraisal.Id, property.Id,
@@ -405,17 +405,116 @@ public class UpdatePropertyHandlerCharacterisationTests
         await BuildingHandler().Handle(new UpdateBuildingPropertyCommand(
             appraisal.Id, property.Id,
             IsUnderConstruction: true,
+            BuildingCostValue: 500m,
             ConstructionInspection: new ConstructionInspectionData(
-                IsFullDetail: false, TotalValue: 500m, SummaryDetail: "half built")), Ct);
+                IsFullDetail: false, TotalValue: 1m, SummaryDetail: "half built")), Ct);
 
+        // The 100% base is the building's own cost value, not the total the payload carried.
         Assert.Equal(500m, property.ConstructionInspection!.TotalValue);
+    }
+
+    [Fact]
+    public async Task Building_construction_total_is_the_typed_cost_value_whatever_the_payload_says()
+    {
+        var (appraisal, property) = Seed(a => a.AddBuildingProperty());
+        property.BuildingDetail!.AddDepreciationDetail("Gross", priceAfterDepreciation: 700_000m);
+
+        await BuildingHandler().Handle(new UpdateBuildingPropertyCommand(
+            appraisal.Id, property.Id,
+            IsUnderConstruction: true,
+            BuildingCostValue: 650_400.6m,
+            ConstructionInspection: new ConstructionInspectionData(IsFullDetail: false, TotalValue: 99_999_999m)), Ct);
+
+        Assert.Equal(650_401m, property.ConstructionInspection!.TotalValue); // typed figure, whole baht
+    }
+
+    [Fact]
+    public async Task Building_construction_total_falls_back_to_the_schedule_rounded_to_a_thousand()
+    {
+        var (appraisal, property) = Seed(a => a.AddBuildingProperty());
+
+        await BuildingHandler().Handle(new UpdateBuildingPropertyCommand(
+            appraisal.Id, property.Id,
+            IsUnderConstruction: true,
+            BuildingCostValue: null,
+            DepreciationDetails: [new DepreciationItemData(null, "Gross", "main", 10m, 2020, PriceAfterDepreciation: 250_500m)],
+            ConstructionInspection: new ConstructionInspectionData(IsFullDetail: true, TotalValue: 7m)), Ct);
+
+        Assert.Equal(251_000m, property.ConstructionInspection!.TotalValue);
+    }
+
+    [Fact]
+    public async Task Building_construction_total_keeps_a_typed_zero_and_is_zero_without_any_source()
+    {
+        var (appraisal, property) = Seed(a => a.AddBuildingProperty());
+        property.BuildingDetail!.AddDepreciationDetail("Gross", priceAfterDepreciation: 700_000m);
+
+        // A keyed 0 is the appraiser's decision, not a gap: the schedule is not consulted.
+        await BuildingHandler().Handle(new UpdateBuildingPropertyCommand(
+            appraisal.Id, property.Id,
+            IsUnderConstruction: true,
+            BuildingCostValue: 0m,
+            ConstructionInspection: new ConstructionInspectionData(IsFullDetail: false, TotalValue: 5m)), Ct);
+        Assert.Equal(0m, property.ConstructionInspection!.TotalValue);
+
+        var (appraisal2, bare) = Seed(a => a.AddBuildingProperty());
+        await BuildingHandler().Handle(new UpdateBuildingPropertyCommand(
+            appraisal2.Id, bare.Id,
+            IsUnderConstruction: true,
+            ConstructionInspection: new ConstructionInspectionData(IsFullDetail: false, TotalValue: 5m)), Ct);
+        Assert.Equal(0m, bare.ConstructionInspection!.TotalValue);
+    }
+
+    [Fact]
+    public async Task Building_summary_mode_ignores_client_values_and_computes_them_from_the_percentages()
+    {
+        var (appraisal, property) = Seed(a => a.AddBuildingProperty());
+
+        await BuildingHandler().Handle(new UpdateBuildingPropertyCommand(
+            appraisal.Id, property.Id,
+            IsUnderConstruction: true,
+            BuildingCostValue: 1_001m,
+            ConstructionInspection: new ConstructionInspectionData(
+                IsFullDetail: false, TotalValue: 0m,
+                SummaryPreviousProgressPct: 10m, SummaryPreviousValue: 123m,
+                SummaryCurrentProgressPct: 50m, SummaryCurrentValue: 456m)), Ct);
+
+        var ci = property.ConstructionInspection!;
+        Assert.Equal(100m, ci.SummaryPreviousValue);  // 1,001 x 10% = 100.1
+        Assert.Equal(501m, ci.SummaryCurrentValue);   // 1,001 x 50% = 500.5, half away from zero
+    }
+
+    [Fact]
+    public async Task Building_full_detail_mode_writes_the_inspection_level_summary_from_the_work_rows()
+    {
+        var (appraisal, property) = Seed(a => a.AddBuildingProperty());
+        var groupId = NewId();
+
+        await BuildingHandler().Handle(new UpdateBuildingPropertyCommand(
+            appraisal.Id, property.Id,
+            IsUnderConstruction: true,
+            BuildingCostValue: 1_000_000m,
+            ConstructionInspection: new ConstructionInspectionData(
+                IsFullDetail: true, TotalValue: 0m,
+                WorkDetails:
+                [
+                    new ConstructionWorkDetailData(null, groupId, null, "Foundation", 1, 40m, 50m, 100m),
+                    new ConstructionWorkDetailData(null, groupId, null, "Structure", 2, 60m, 0m, 50m),
+                ])), Ct);
+
+        var ci = property.ConstructionInspection!;
+        Assert.Equal(1_000_000m, ci.TotalValue);
+        Assert.Equal(70m, ci.SummaryCurrentProgressPct);   // 40 x 100% + 60 x 50%
+        Assert.Equal(20m, ci.SummaryPreviousProgressPct);  // 40 x 50% + 60 x 0%
+        Assert.Equal(700_000m, ci.SummaryCurrentValue);
+        Assert.Equal(200_000m, ci.SummaryPreviousValue);
     }
 
     [Fact]
     public async Task Building_construction_inspection_is_cleared_when_not_under_construction()
     {
         var (appraisal, property) = Seed(a => a.AddBuildingProperty());
-        property.SetConstructionInspection(ConstructionInspection.CreateSummary(property.Id, 100m, null, null, null, null, null, null));
+        property.SetConstructionInspection(ConstructionInspection.CreateSummary(property.Id, 100m, null, null, null, null));
 
         await BuildingHandler().Handle(new UpdateBuildingPropertyCommand(
             appraisal.Id, property.Id,
@@ -516,7 +615,7 @@ public class UpdatePropertyHandlerCharacterisationTests
     public async Task Condo_clears_the_construction_inspection_when_none_is_sent()
     {
         var (appraisal, property) = Seed(a => a.AddCondoProperty());
-        property.SetConstructionInspection(ConstructionInspection.CreateSummary(property.Id, 100m, null, null, null, null, null, null));
+        property.SetConstructionInspection(ConstructionInspection.CreateSummary(property.Id, 100m, null, null, null, null));
 
         await CondoHandler().Handle(new UpdateCondoPropertyCommand(appraisal.Id, property.Id), Ct);
 

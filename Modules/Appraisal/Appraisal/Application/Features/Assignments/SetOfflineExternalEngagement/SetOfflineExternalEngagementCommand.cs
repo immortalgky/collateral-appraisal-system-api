@@ -18,6 +18,5 @@ public record SetOfflineExternalEngagementCommand(
     Guid AppraisalId,
     Guid CompanyId,
     DateTime BookDate,
-    string? ExternalAppraiserName = null,
-    string AssignedBy = ""
+    string? ExternalAppraiserName = null
 ) : ICommand<SetOfflineExternalEngagementResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

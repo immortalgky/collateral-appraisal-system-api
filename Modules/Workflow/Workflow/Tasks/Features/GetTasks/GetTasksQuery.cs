@@ -1,4 +1,5 @@
 using Shared.Pagination;
+using Workflow.Tasks.Features.Shared;
 
 namespace Workflow.Tasks.Features.GetTasks;
 
@@ -18,8 +19,14 @@ public record GetTasksFilterRequest(
     DateTime? DateTo = null,
     string? SortBy = null,
     string? SortDir = null,
-    string? SlaStatus = null
-);
+    string? SlaStatus = null,
+    string? Search = null,
+    DateTime? AppointmentDateFrom = null,
+    DateTime? AppointmentDateTo = null,
+    DateTime? RequestedAtFrom = null,
+    DateTime? RequestedAtTo = null,
+    string? TaskStatusBucket = null
+) : ITaskListFilter;
 
 public record GetTasksQuery(
     PaginationRequest PaginationRequest,

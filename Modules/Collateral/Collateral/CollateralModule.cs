@@ -47,9 +47,8 @@ public static class CollateralModule
         // Collateral data impls exposed via Collateral.Contracts interfaces.
         // Query implementations: IInboundFileSource is registered by IntegrationModule (config-switched).
         services.AddScoped<IRegulatoryExportQuery, RegulatoryExportQuery>();
-        // ICollateralResultQuery is now implemented in Integration by CollateralResultExportQuery,
-        // which reads the appraisal schema instead of CollateralMasters. The old implementation is
-        // kept for reference until the new file has been compared against it on real data.
+        // ICollateralResultQuery is implemented in Integration by CollateralResultExportQuery,
+        // which reads the appraisal schema (vw_CollateralResultExport) instead of CollateralMasters.
         services.AddScoped<ICollateralResultLedger, CollateralResultLedger>();
         services.AddScoped<IReappraisalIngestor, ReappraisalIngestor>();
         services.AddScoped<IHostCollateralLinkIngestor, HostCollateralLinkIngestor>();

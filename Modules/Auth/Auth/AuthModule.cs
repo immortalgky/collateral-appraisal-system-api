@@ -6,9 +6,11 @@ using Auth.Infrastructure.Repository;
 using Auth.Infrastructure.Seed;
 using Auth.Infrastructure.Session;
 using Auth.Application.Services;
+using Auth.Contracts.Clients;
 using Auth.Contracts.Companies;
 using Auth.Contracts.Users;
 using Auth.Scheduling;
+using Fido2NetLib;
 using Auth.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -23,6 +25,7 @@ using OpenIddict.Validation.AspNetCore;
 using Shared.Identity;
 using Shared.Scheduling;
 using Shared.Security;
+using Shared.Time;
 
 namespace Auth;
 
@@ -131,6 +134,39 @@ public static class AuthModule
             options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
         });
 
+        // Identity's two-factor cookies ship with fixed names ("Identity.TwoFactorUserId" / "...RememberMe"), which would
+        // collide between environments sharing a host just like the IdP cookie would, so they get the same treatment.
+        // Neither slides: the remember cookie's expiry is set per sign-in from the policy (a device that keeps signing in
+        // would otherwise never be asked for a code again), and the parked user's five minutes are not extended by activity.
+        services.Configure<CookieAuthenticationOptions>(IdentityConstants.TwoFactorUserIdScheme, options =>
+            HardenTwoFactorCookie(options, sessionOptions.TwoFactorUserCookieName));
+        services.Configure<CookieAuthenticationOptions>(IdentityConstants.TwoFactorRememberMeScheme, options =>
+        {
+            HardenTwoFactorCookie(options, sessionOptions.TwoFactorRememberCookieName);
+
+            // The ticket carries the expiry of the day it was issued, which the policy may have shortened since. A
+            // client can keep sending a cookie the server asked it to delete, and Identity would go on treating the
+            // device as remembered, clearing the failed-code count on every correct password: unlimited code guesses.
+            // So the policy's hours are enforced where the cookie is validated, in front of Identity's own security-stamp
+            // check (kept, not replaced), and every reader of the cookie sees the same answer.
+            var checkStamp = options.Events.OnValidatePrincipal;
+            options.Events.OnValidatePrincipal = async context =>
+            {
+                var scoped = context.HttpContext.RequestServices;
+                var hours = (await scoped.GetRequiredService<IPasswordPolicyProvider>().GetAsync()).TwoFactorRememberHours;
+                var issued = context.Properties.IssuedUtc;
+                if (hours <= 0 || issued is null
+                    || issued.Value.UtcDateTime.AddHours(hours) <= scoped.GetRequiredService<IDateTimeProvider>().UtcNow)
+                {
+                    context.RejectPrincipal();
+                    await context.HttpContext.SignOutAsync(IdentityConstants.TwoFactorRememberMeScheme);
+                    return;
+                }
+
+                await checkStamp(context);
+            };
+        });
+
         // Validate the security stamp on every cookie-authenticated request instead of the 30-minute
         // default. Rotating a password (an admin reset, or opening a new access window on a shared
         // temporary account) changes that stamp, and until it is re-checked the previous holder's
@@ -146,6 +182,22 @@ public static class AuthModule
         // reading the DB during options-configuration at container startup deadlocks).
         services.AddScoped<IPasswordPolicyProvider, PasswordPolicyProvider>();
         services.AddScoped<IPasswordHistoryRecorder, PasswordHistoryRecorder>();
+        services.AddScoped<TwoFactorService>();
+        // Passkeys (WebAuthn). The relying-party id and origins come from the public URLs above; Fido2 itself holds no state.
+        services.AddSingleton<PasskeySettings>();
+        services.AddSingleton<PasskeyStateSealer>();
+        services.AddSingleton<IFido2>(sp =>
+        {
+            var passkey = sp.GetRequiredService<PasskeySettings>();
+            return new Fido2(new Fido2Configuration
+            {
+                RPID = passkey.RpId,
+                RPName = PasskeySettings.RpName,
+                Origins = passkey.Origins
+            }, metadataService: null!);
+        });
+        services.AddScoped<PasskeyService>();
+        services.AddScoped<LoginCompletion>();
 
         // Unit of Work for the Auth module — enables ITransactionalCommand<IAuthUnitOfWork> so
         // multi-step writes (e.g. user creation + group/team links) are atomic.
@@ -336,7 +388,7 @@ public static class AuthModule
             .Configure<SessionTicketStore>((options, store) => options.SessionStore = store);
 
         // Authorization policies
-        services.AddAuthorizationBuilder().AddPolicies();
+        services.AddAuthorizationBuilder().AddPolicies(allowDevBypass);
 
         // Data seeding
         services.AddScoped<IDataSeeder<AuthDbContext>, AuthDataSeed>();
@@ -355,6 +407,7 @@ public static class AuthModule
         services.AddScoped<IAuthAuditWriter, AuthAuditWriter>();
         services.AddScoped<IUserLookupService, UserLookupService>();
         services.AddScoped<ICompanyLookupService, CompanyLookupService>();
+        services.AddScoped<IClientLookupService, ClientLookupService>();
         services.AddScoped<PermissionResolver>();
 
         // Browser sessions: server-side store, per-request claims, revoke/end operations.
@@ -388,6 +441,8 @@ public static class AuthModule
         // effect on the next restart — the admin screen states this.
         ApplyLockoutPolicy(app.ApplicationServices);
 
+        WarnAboutPasskeySettings(app.ApplicationServices);
+
         return app;
     }
 
@@ -403,6 +458,37 @@ public static class AuthModule
     /// </summary>
     public static IApplicationBuilder UseMustChangePasswordGate(this IApplicationBuilder app) =>
         app.UseMiddleware<MustChangePasswordMiddleware>();
+
+    // A passkey is bound to the identity provider's host (the relying-party id) for good. That host cannot be an IP address,
+    // and an SPA origin that is neither that host nor a subdomain of it can never register one: the browser refuses. Say so at
+    // startup, not at the first user.
+    private static void WarnAboutPasskeySettings(IServiceProvider services)
+    {
+        var settings = services.GetRequiredService<PasskeySettings>();
+        var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("Auth.Passkeys");
+        if (settings.RpIdIsIpAddress)
+            logger.LogWarning(
+                "[PASSKEY-IP-RPID] The identity provider's public address is the IP address {RpId}. WebAuthn does not accept an IP "
+                + "address as a relying-party id, so passkeys will not work until the IdP is reached by a host name.", settings.RpId);
+        if (settings.MismatchedOrigins.Count == 0) return;
+
+        logger.LogWarning(
+            "[PASSKEY-ORIGIN-MISMATCH] Passkeys are bound to {RpId} (the host of the identity provider's public address), but "
+            + "these allowed origins are not that host or a subdomain of it, so passkeys cannot be registered from them: {Origins}. "
+            + "Serve the SPA under the IdP's host or domain, or set Auth:Idp:PublicBaseUrl accordingly.",
+            settings.RpId, string.Join(", ", settings.MismatchedOrigins));
+    }
+
+    private static void HardenTwoFactorCookie(CookieAuthenticationOptions options, string name)
+    {
+        options.Cookie.Name = name;
+        options.Cookie.Path = "/"; // __Host- requires it
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        // The parked user gets five minutes from the password, however busy the pages after it are.
+        options.SlidingExpiration = false;
+    }
 
     private static void ApplyLockoutPolicy(IServiceProvider serviceProvider)
     {
@@ -420,7 +506,7 @@ public static class AuthModule
             : TimeSpan.FromMinutes(policy.LockoutMinutes);
     }
 
-    private static AuthorizationBuilder AddPolicies(this AuthorizationBuilder authorizationBuilder)
+    private static AuthorizationBuilder AddPolicies(this AuthorizationBuilder authorizationBuilder, bool allowDevBypass)
     {
         authorizationBuilder
             .AddClientPermissionPolicy("CanReadAuth", ["auth:read"])
@@ -458,6 +544,10 @@ public static class AuthModule
             .AddUserPermissionPolicy("workflow.admin", "WORKFLOW_ADMIN")
             .AddUserPermissionPolicy("WebhookDeliveriesView", "WEBHOOK_DELIVERIES_VIEW")
             .AddUserPermissionPolicy("WebhookDeliveriesRetry", "WEBHOOK_DELIVERIES_RETRY")
+            // Service Quality Evaluation policies
+            .AddUserPermissionPolicy("ServiceQualityEvaluationView", "REPORT_EVALUATION_VIEW")
+            .AddUserPermissionPolicy("ServiceQualityEvaluationEdit", "REPORT_EVALUATION_EDIT")
+            // Failed message view / manage
             .AddUserPermissionPolicy("FailedMessageView", "FAILED_MESSAGE_VIEW")
             .AddUserPermissionPolicy("FailedMessageManage", "FAILED_MESSAGE_MANAGE")
             // OAuth client / scope registration + webhook subscription admin
@@ -518,9 +608,24 @@ public static class AuthModule
         // Default and fallback policies are deliberately NOT pinned to a scheme: the Selector policy
         // scheme routes each request (dev header, Bearer, app cookie). Pinning them to OpenIddict, as
         // production used to, would make every cookie request fail there and only there.
+        //
+        // They accept browser sessions only (allowlist: the cookie-session identity type, plus the dev header
+        // where allowDevBypass is on; see SpaSessionPolicy). allowDevBypass is the single read in AddAuthModule.
+        // A machine client (client_credentials Bearer token) is authenticated by OpenIddict but is refused (403) on
+        // every endpoint that does not name its own policy, and so is any scheme added later. A Bearer token (machine
+        // or user) gets past it only on endpoints that name their own policy: "Integration" / Cls* (scope), or a
+        // permission policy that checks the `permissions` claim. That claim carries a client's OpenIddict permissions
+        // (client_credentials) or the user's permissions and roles (auth-code/refresh tokens; retiring those grants
+        // is a known follow-up). Refusals are logged.
+        var spaSession = new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .RequireAssertion(ctx => SpaSessionPolicy.IsBrowserSession(ctx, allowDevBypass))
+            .Build();
+
         authorizationBuilder
-            .SetDefaultPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
-            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+            .AddPolicy("Spa", spaSession)
+            .SetDefaultPolicy(spaSession)
+            .SetFallbackPolicy(spaSession);
 
         return authorizationBuilder;
     }

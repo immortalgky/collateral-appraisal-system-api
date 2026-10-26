@@ -9,14 +9,9 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 memory: user
 skills:
-  - clean-ddd-hexagonal
   - ddd-strategic-design
   - ddd-tactical-patterns
   - ddd-context-mapping
-  - dotnet-best-practices
-  - dotnet-design-pattern-review
-  - systematic-debugging
-  - test-driven-development
   - verification-before-completion
 ---
 
@@ -33,15 +28,9 @@ bounded contexts, and conventions before implementing anything.
 
 ### Aggregate and domain model design
 → `ddd-tactical-patterns` for aggregate roots, invariants, factory methods, domain events
-→ `clean-ddd-hexagonal` for layer dependency rules and ports/adapters structure
 
-### Code quality and .NET standards
-→ `dotnet-best-practices` for async/await, DI, configuration, general .NET standards
-→ `dotnet-design-pattern-review` for SOLID, GoF patterns, testability review
-
-### Debugging and delivery
-→ `systematic-debugging` when tracing unexpected behavior
-→ `test-driven-development` — always write failing test before implementation
+### Delivery
+Always write a failing test before implementation.
 → `verification-before-completion` — confirm tests pass before reporting done
 
 ## Universal Architecture Rules

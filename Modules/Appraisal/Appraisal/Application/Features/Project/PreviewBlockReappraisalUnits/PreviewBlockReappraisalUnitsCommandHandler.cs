@@ -24,9 +24,7 @@ public class PreviewBlockReappraisalUnitsCommandHandler(
                           $"Project not found for appraisal {command.AppraisalId}.");
 
         // Parse the incoming Excel (same parser as the apply handler).
-        var incomingUnits = project.ProjectType == ProjectType.Condo
-            ? ProjectUnitExcelParser.ParseCondoExcel(command.FileStream, project.Id)
-            : ProjectUnitExcelParser.ParseLandAndBuildingExcel(command.FileStream, project.Id);
+        var incomingUnits = ProjectUnitExcelParser.Parse(command.FileStream, project.ProjectType, project.Id);
 
         if (incomingUnits.Count > MaxUnits)
             throw new BadRequestException(

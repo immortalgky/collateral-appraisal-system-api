@@ -2,10 +2,10 @@ namespace Appraisal.Application.Features.Assignments.AssignAppraisal;
 
 /// <summary>
 /// Relay command: forwards the admin's appraisal-assignment task input into the workflow.
-/// Does NOT mutate AppraisalAssignment or create AppraisalFee rows — that's done downstream
-/// by the workflow's CompanySelectionActivity / int-appraisal-execution publishers and their
-/// respective integration-event handlers. Therefore no transactional marker — the workflow
-/// service manages its own transaction internally.
+/// Before resuming it records the assigner (and the remark) on the Pending AppraisalAssignment and commits that save;
+/// the rest — the assignment itself and AppraisalFee rows — is done downstream by the workflow's
+/// CompanySelectionActivity / int-appraisal-execution publishers and their respective integration-event handlers.
+/// Therefore no transactional marker — the workflow service manages its own transaction internally.
 /// </summary>
 public record AssignAppraisalCommand(
     Guid AppraisalId,
@@ -16,7 +16,6 @@ public record AssignAppraisalCommand(
     string AssignmentMethod = "Manual",
     string? InternalAppraiserId = null,
     string? InternalFollowupAssignmentMethod = null,
-    string AssignedBy = default,
     /// <summary>
     /// Workflow routing decision: "EXT" routes to company-selection (external company),
     /// "INT" routes to int-appraisal-execution (internal assignment), "EXTO" routes to

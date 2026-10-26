@@ -17,6 +17,7 @@ public class SetOfflineExternalEngagementCommandHandler(
     ICompanyLookupService companyLookup,
     IAssignmentFeeService feeService,
     AppraisalDbContext db,
+    ICurrentUserService currentUser,
     ILogger<SetOfflineExternalEngagementCommandHandler> logger)
     : ICommandHandler<SetOfflineExternalEngagementCommand, SetOfflineExternalEngagementResult>
 {
@@ -27,16 +28,9 @@ public class SetOfflineExternalEngagementCommandHandler(
         var appraisal = await appraisalRepository.GetByIdWithAllDataAsync(command.AppraisalId, cancellationToken)
                         ?? throw new NotFoundException("Appraisal", command.AppraisalId);
 
-        // Same selection rule as CompanyAssignedIntegrationEventHandler — latest assignment that is
-        // neither Rejected nor Cancelled. Keep the two in sync; a second rule here would let the
+        // Same selection rule as CompanyAssignedIntegrationEventHandler — AppraisalAssignmentElection. Keep the two in sync; a second rule here would let the
         // offline path write to a different row than the in-system path.
-        var assignment = appraisal.Assignments
-            .Where(a => a.AssignmentStatus != AssignmentStatus.Rejected
-                        && a.AssignmentStatus != AssignmentStatus.Cancelled)
-            .OrderByDescending(a => a.AssignedAt)
-            .ThenByDescending(a => a.CreatedAt)
-            .ThenByDescending(a => a.Id)
-            .FirstOrDefault()
+        var assignment = appraisal.Assignments.Current()
             ?? throw new BadRequestException(
                 $"No active assignment found for appraisal '{command.AppraisalId}'.");
 
@@ -61,6 +55,16 @@ public class SetOfflineExternalEngagementCommandHandler(
                 $"Appraisal '{command.AppraisalId}' is not on the off-system external path " +
                 $"(assignment is '{assignment.AssignmentStatus.Code}' via '{assignment.AssignmentMethod}'). " +
                 "Only an appraisal routed with the EXTO decision can record an offline engagement.");
+
+        // A Pending row that was assigned before (AssignedAt is stamped only by Assign()) is a routed-back one:
+        // ReturnToAssignmentQueue keeps the selections, including method "Offline", but the workflow is at
+        // appraisal-assignment — there is no keyer, and Assign() below would hand the case on (and re-price it)
+        // behind the admin's back. A Pending row never assigned (an admin's EXTO draft, or the instant before
+        // InternalAssignedIntegrationEventHandler has consumed the event) is still a legitimate first key-in.
+        if (assignment.AssignmentStatus == AssignmentStatus.Pending && assignment.AssignedAt is not null)
+            throw new BadRequestException(
+                $"Appraisal '{command.AppraisalId}' is back at appraisal assignment awaiting the admin's decision. " +
+                "The off-system engagement can be recorded once it is on the key-in task again.");
 
         // Assign() below unconditionally rewinds the row to Assigned. That is correct while the
         // keyer still owns the work, but silently demoting an assignment the bank has already
@@ -89,6 +93,7 @@ public class SetOfflineExternalEngagementCommandHandler(
         // int-offline-book-keyin (InternalAssignedIntegrationEventHandler), and omitting it here
         // would erase the very person doing this save. ReassignmentNumber is preserved for the same
         // reason — resetting it to 1 would discard the rework count on a routed-back case.
+        var wasPending = assignment.AssignmentStatus == AssignmentStatus.Pending;
         assignment.Assign(
             assignmentType: "External",
             assigneeUserId: assignment.AssigneeUserId,
@@ -97,7 +102,9 @@ public class SetOfflineExternalEngagementCommandHandler(
             internalAppraiserId: assignment.InternalAppraiserId,
             internalFollowupMethod: assignment.InternalFollowupAssignmentMethod,
             reassignmentNumber: assignment.ReassignmentNumber,
-            assignedBy: string.IsNullOrEmpty(command.AssignedBy) ? "System" : command.AssignedBy);
+            // Keep the admin SetAssigner recorded; a row nobody stamped (empty, or the "System" a fresh queue row
+            // carries) falls back to the caller. Never from the body.
+            assignedBy: IsUnstamped(assignment.AssignedBy) ? currentUser.UserCode ?? "System" : assignment.AssignedBy);
 
         if (!string.IsNullOrWhiteSpace(command.ExternalAppraiserName))
             assignment.SetExternalAppraiser(
@@ -120,6 +127,7 @@ public class SetOfflineExternalEngagementCommandHandler(
             appraisalId: command.AppraisalId,
             assignmentId: assignment.Id,
             source: feeSource,
+            repriceSystemBase: wasPending,
             ct: cancellationToken);
 
         // Kept on purpose: assignment events only touch AppraisalAssignment rows, so this stamps Appraisals.UpdatedAt
@@ -132,6 +140,9 @@ public class SetOfflineExternalEngagementCommandHandler(
 
         return new SetOfflineExternalEngagementResult(assignment.Id);
     }
+
+    private static bool IsUnstamped(string? assignedBy) =>
+        string.IsNullOrWhiteSpace(assignedBy) || string.Equals(assignedBy, "System", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Stamps the book's appraisal date onto ValuationAnalyses.ValuationDate — the field every

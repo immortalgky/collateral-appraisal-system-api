@@ -33,5 +33,10 @@ public class PasswordPolicyConfiguration : IEntityTypeConfiguration<PasswordPoli
         builder.Property(p => p.MaxAccessWindowHours)
             .IsRequired()
             .HasDefaultValue(8);
+
+        // No HasDefaultValue on these: EF would treat the CLR default (false, 0) as "not set" and leave it to the column
+        // default, so an admin's 0 hours could be stored as 12 on an insert. The migration gives the existing row 12.
+        builder.Property(p => p.RequireTwoFactorForExternal).IsRequired();
+        builder.Property(p => p.TwoFactorRememberHours).IsRequired();
     }
 }

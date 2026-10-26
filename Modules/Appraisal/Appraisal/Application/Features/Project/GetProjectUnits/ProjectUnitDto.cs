@@ -25,5 +25,8 @@ public record ProjectUnitDto(
     int? NumberOfFloors,
     decimal? LandArea,
     // Sold units are listed alongside the rest, so the caller needs this to tell them apart.
-    bool IsSold
+    bool IsSold,
+    // Master rows, so callers can group units by tower/model without matching on names (which can be renamed or repeat).
+    Guid? ProjectTowerId,
+    Guid? ProjectModelId
 );

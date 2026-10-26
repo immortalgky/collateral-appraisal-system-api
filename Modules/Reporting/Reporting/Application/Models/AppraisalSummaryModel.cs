@@ -668,7 +668,7 @@ public sealed class SummaryGroupRow
     /// "พร้อม…" clause of their own.</summary>
     public List<string> DevelopmentDescriptions { get; init; } = [];
 
-    /// <summary>Per-item detail lines (e.g. each machine) — rendered as a numbered list.</summary>
+    /// <summary>Per-item detail lines (each machine; each unit of a multi-unit condo group, printed with a "- " marker).</summary>
     public List<string> DetailItems { get; init; } = [];
 
     /// <summary>Total land area in square-wa (rai×400 + ngan×100 + sqwa). Cost approach only.</summary>
@@ -778,7 +778,7 @@ public sealed class SummaryItemRow
     /// and null when the work has not started (renders as "-"). Only read when the report shows the
     /// เมื่อแล้วเสร็จ 100% / ตามสภาพปัจจุบัน split.
     /// </summary>
-    public decimal? CurrentValue { get; init; }
+    public decimal? CurrentValue { get; set; }
 }
 
 /// <summary>One committee approver row (fields 45–50).</summary>

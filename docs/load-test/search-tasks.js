@@ -7,27 +7,27 @@
 // one because it scans the whole group/team pool; /tasks/me pre-filters to one user and stays
 // fast. Point ENDPOINT at /tasks/me to compare.
 //
-// AUTH: unlike the create-submit phases, this needs a REAL bearer token — the pool query
+// AUTH: unlike the create-submit phases, this needs a REAL session cookie — the pool query
 // scopes rows by the caller's group/team/company, so dev-bypass wouldn't exercise the right
-// candidate set. Pass it via TOKEN (no "Bearer " prefix needed; added if missing).
+// candidate set. Pass it via SESSION_COOKIE (the "name=value" that get-appraisal-token.sh prints).
 //
 //   # 1) Baseline — single request latency (run this FIRST, get p50/p95):
-//   k6 run -e BASE_URL=https://localhost:7111 -e TOKEN="$TOKEN" \
+//   k6 run -e BASE_URL=https://localhost:7111 -e SESSION_COOKIE="$SESSION_COOKIE" \
 //          -e MODE=count -e VUS=1 -e ITERATIONS=100 \
 //          --insecure-skip-tls-verify docs/load-test/search-tasks.js
 //
 //   # 2) Concurrency — fixed VUs, exact iteration count (reproduces the report's contention):
-//   k6 run -e BASE_URL=https://localhost:7111 -e TOKEN="$TOKEN" \
+//   k6 run -e BASE_URL=https://localhost:7111 -e SESSION_COOKIE="$SESSION_COOKIE" \
 //          -e MODE=count -e VUS=20 -e ITERATIONS=500 \
 //          --insecure-skip-tls-verify docs/load-test/search-tasks.js
 //
 //   # 3) Capacity / stress — ramp the request rate to find the knee:
-//   k6 run -e BASE_URL=https://localhost:7111 -e TOKEN="$TOKEN" \
+//   k6 run -e BASE_URL=https://localhost:7111 -e SESSION_COOKIE="$SESSION_COOKIE" \
 //          -e MODE=rate -e PEAK_RPS=20 \
 //          --insecure-skip-tls-verify docs/load-test/search-tasks.js
 //
 //   # 4) Typing simulation — mimic the FE firing one search per keystroke (P, Pe, Per, ...):
-//   k6 run -e BASE_URL=https://localhost:7111 -e TOKEN="$TOKEN" \
+//   k6 run -e BASE_URL=https://localhost:7111 -e SESSION_COOKIE="$SESSION_COOKIE" \
 //          -e MODE=count -e VUS=10 -e ITERATIONS=200 -e TYPE=true -e SEARCH=Performance \
 //          --insecure-skip-tls-verify docs/load-test/search-tasks.js
 
@@ -76,10 +76,10 @@ const TYPE = (__ENV.TYPE || "false").toLowerCase() === "true";
 const THINK_MS = Number.parseInt(__ENV.THINK_MS || "150", 10);
 const VARY = (__ENV.VARY || "false").toLowerCase() === "true";
 
-// AUTH — bearer token is required (the pool query is scoped to the caller's groups/team).
+// AUTH — a session cookie is required (the pool query is scoped to the caller's groups/team).
 const HEADERS = authHeaders(
-  __ENV.TOKEN,
-  "The /tasks/pool query scopes rows by the caller's groups/team, so a real token is needed."
+  __ENV.SESSION_COOKIE,
+  "The /tasks/pool query scopes rows by the caller's groups/team, so a real session is needed."
 );
 
 const searched = new Counter("task_searches");

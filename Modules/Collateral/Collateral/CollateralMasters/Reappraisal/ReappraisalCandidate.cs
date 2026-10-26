@@ -3,7 +3,7 @@ namespace Collateral.CollateralMasters.Reappraisal;
 /// <summary>
 /// Staged reappraisal candidate ingested from the AS400 COLLATREV extract.
 ///
-/// Each row corresponds to one 649-char Detail record in the monthly
+/// Each row corresponds to one Detail record (650 chars, or 649 from the older layout) in the monthly
 /// AS400_COLLATREV_YYYYMMDD.txt file (Collateral Review Interface).
 ///
 /// One row per BOOK — (<see cref="CollateralId"/>, <see cref="NormalizedSurveyNumber"/>) — across every
@@ -43,7 +43,7 @@ public class ReappraisalCandidate
     /// <summary>When this row was written to the DB.</summary>
     public DateTime IngestedAt { get; private set; }
 
-    /// <summary>SHA-256 hex of the raw 649-char line. Used to skip unchanged rows on re-ingest.</summary>
+    /// <summary>SHA-256 hex of the whole raw line (649 or 650 chars), position 650 (the Auto Update flag) included. Used to skip unchanged rows on re-ingest.</summary>
     public string RowHash { get; private set; } = default!;
 
     public ReappraisalCandidateStatus Status { get; private set; }
@@ -187,6 +187,13 @@ public class ReappraisalCandidate
     /// falls into a stage (Stage 2/3: 3 years). The due date the list counts down to; none when not sent.</summary>
     public DateOnly? EffectiveDateAppraisal { get; private set; }
 
+    /// <summary>
+    /// AS400's own Auto Update flag, "Y" or "N" (pos 650 of the 650-char layout). NULL when the file
+    /// was the 649-char layout, the flag was blank, or the row predates this column. The result file does
+    /// not read it: Initiate copies it to <c>Request.ReappraisalAutoUpdate</c>, and that copy is what is sent.
+    /// </summary>
+    public string? AutoUpdate { get; private set; }
+
     // ── Enrichment (populated post-ingest via SurveyNumber→AppraisalNumber join) ─
 
     /// <summary>Latitude from in-system appraisal detail coords. NULL when no match.</summary>
@@ -244,7 +251,8 @@ public class ReappraisalCandidate
         string? stage,
         string? ibgRetail,
         string? @group,
-        DateOnly? effectiveDateAppraisal)
+        DateOnly? effectiveDateAppraisal,
+        string? autoUpdate)
     {
         return new ReappraisalCandidate
         {
@@ -294,7 +302,8 @@ public class ReappraisalCandidate
             Stage = stage,
             IBGRetail = ibgRetail,
             Group = @group,
-            EffectiveDateAppraisal = effectiveDateAppraisal
+            EffectiveDateAppraisal = effectiveDateAppraisal,
+            AutoUpdate = autoUpdate
         };
     }
 
@@ -391,7 +400,8 @@ public class ReappraisalCandidate
         string? stage,
         string? ibgRetail,
         string? @group,
-        DateOnly? effectiveDateAppraisal)
+        DateOnly? effectiveDateAppraisal,
+        string? autoUpdate)
     {
         RowHash = rowHash;
         EffectiveDate = effectiveDate;
@@ -430,6 +440,7 @@ public class ReappraisalCandidate
         IBGRetail = ibgRetail;
         Group = @group;
         EffectiveDateAppraisal = effectiveDateAppraisal;
+        AutoUpdate = autoUpdate;
         NormalizedSurveyNumber ??= As400AppraisalNumber.Normalize(SurveyNumber);
     }
 }

@@ -38,6 +38,62 @@ public class CollateralResultFileWriterTests
         LandAreaSquareWa: 45.50m,
         LandAreaTotalSqWa: 1145.50m);
 
+    // ── The written line: position 209 and the two mutually exclusive valuer pairs ──────────────────
+
+    [Fact]
+    public void AYRowWritesYAtPosition209()
+    {
+        var line = new CollateralResultFileWriter().BuildDetail(SampleRow() with { AutoUpdate = "Y" });
+
+        Assert.Equal(231, line.Length);
+        Assert.Equal("Y", line[208..209]);
+    }
+
+    // Anything but an exact 'Y' goes out as 'N' ("a person should look at this").
+    [Theory]
+    [InlineData("y")]
+    [InlineData(" ")]
+    [InlineData("X")]
+    public void AnAutoUpdateThatIsNotAnExactYWritesNAtPosition209(string autoUpdate)
+    {
+        var line = new CollateralResultFileWriter().BuildDetail(SampleRow() with { AutoUpdate = autoUpdate });
+
+        Assert.Equal("N", line[208..209]);
+    }
+
+    [Fact]
+    public void AnExternalRecordFillsPositions151To194AndLeaves107To150Blank()
+    {
+        const string thaiCompany = "บริษัท เคแทค แอพเพรซัล แอนด์ เซอร์วิส";
+        var row = SampleRow() with
+        {
+            InternalValuerCode = null, InternalValuerName = null,
+            ExternalValuerCode = "KTAC", ExternalValuerName = thaiCompany,
+        };
+
+        var line = new CollateralResultFileWriter().BuildDetail(row);
+
+        Assert.Equal(new string(' ', 44), line[106..150]);            // internal pair blank
+        Assert.Equal("KTAC", line[150..154]);                         // external code
+        Assert.Equal(thaiCompany.PadRight(40), line[154..194]);       // Thai name, padded to 40
+    }
+
+    [Fact]
+    public void AnInternalRecordFillsPositions107To150AndLeaves151To194Blank()
+    {
+        var row = SampleRow() with
+        {
+            InternalValuerCode = "6327", InternalValuerName = "Somchai Jaidee",
+            ExternalValuerCode = null, ExternalValuerName = null,
+        };
+
+        var line = new CollateralResultFileWriter().BuildDetail(row);
+
+        Assert.Equal("6327", line[106..110]);
+        Assert.Equal("Somchai Jaidee".PadRight(40), line[110..150]);
+        Assert.Equal(new string(' ', 44), line[150..194]);            // external pair blank
+    }
+
     [Fact]
     public void Header_IsRecordLength_AndStartsWithHAndDate()
     {

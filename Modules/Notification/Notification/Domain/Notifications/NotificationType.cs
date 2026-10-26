@@ -11,5 +11,6 @@ public enum NotificationType
     DocumentFollowupCancelled,
     DocumentLineItemDeclined,
     ReportReady,
-    ReportFailed
+    ReportFailed,
+    QuotationAutoAssignIncomplete
 }

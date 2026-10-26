@@ -400,6 +400,18 @@ public class ProjectModel : Entity<Guid>
         _images.Remove(image);
     }
 
+    /// <summary>
+    /// Drops every image showing a gallery photo that was deleted. If the cover went with it, the
+    /// remaining image with the lowest DisplaySequence becomes the cover.
+    /// </summary>
+    public void RemoveImagesOfPhoto(Guid galleryPhotoId)
+    {
+        var coverRemoved = _images.Any(i => i.GalleryPhotoId == galleryPhotoId && i.IsThumbnail);
+        _images.RemoveAll(i => i.GalleryPhotoId == galleryPhotoId);
+        if (coverRemoved)
+            _images.OrderBy(i => i.DisplaySequence).ThenBy(i => i.Id).FirstOrDefault()?.SetAsThumbnail();
+    }
+
     public void ReorderImages(IEnumerable<(Guid ImageId, int NewSequence)> reorder)
     {
         foreach (var (imageId, newSequence) in reorder)

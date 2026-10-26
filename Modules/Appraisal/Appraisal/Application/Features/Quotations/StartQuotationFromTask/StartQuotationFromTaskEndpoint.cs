@@ -22,7 +22,7 @@ public class StartQuotationFromTaskEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .WithSummary("Start quotation from workflow task")
             .WithDescription(
-                "Creates a QuotationRequest linked to an appraisal-assignment admin task (IBG segment). " +
+                "Creates a QuotationRequest linked to an appraisal-assignment admin task. " +
                 "The admin task remains InProgress for ongoing monitoring.")
             .WithTags("Quotation")
             .RequireAuthorization();

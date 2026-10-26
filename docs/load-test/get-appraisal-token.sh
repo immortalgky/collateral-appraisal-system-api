@@ -5,8 +5,9 @@
 # the SPA origin or the API origin).
 #
 # The appraisal list is company-scoped: AppraisalAccessScope forces a company filter for any
-# caller carrying a company_id claim. `X-Dev-Auth: dev-bypass` stamps no company_id on purpose,
-# so it matches no rows and is useless for load testing — hence this real login.
+# caller carrying a company_id claim. `X-Dev-Auth: dev-bypass` stamps no company_id (that is what makes the dev
+# user internal), but it has no groups/team, so it sees a near-empty scope and gives misleadingly fast numbers —
+# hence this real login.
 #
 # The SPA holds no tokens any more: the API is the OIDC client and keeps a server-side session behind an
 # HttpOnly cookie. The script walks the same interactive flow a browser does:

@@ -9,20 +9,17 @@ public class SetOfflineExternalEngagementEndpoint : ICarterModule
                 async (
                     Guid appraisalId,
                     SetOfflineExternalEngagementRequest request,
-                    ICurrentUserService currentUser,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
                 {
-                    // The actor is taken from the token, never from the body. AssignedBy is an audit
-                    // field on a row that drives fee materialisation and the AS400 feed; accepting a
-                    // client-supplied value let any caller attribute an engagement to someone else.
+                    // No actor in the command: AssignedBy is an audit field (fee materialisation, AS400 feed), so the
+                    // handler keeps the admin already on the row and otherwise takes the caller from the token.
                     var command = new SetOfflineExternalEngagementCommand(
                         appraisalId,
                         request.CompanyId,
                         request.BookDate,
-                        request.ExternalAppraiserName,
-                        currentUser.UserCode ?? string.Empty);
+                        request.ExternalAppraiserName);
 
                     var result = await sender.Send(command, cancellationToken);
 
