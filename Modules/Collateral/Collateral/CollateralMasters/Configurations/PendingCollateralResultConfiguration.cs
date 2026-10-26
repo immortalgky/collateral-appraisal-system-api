@@ -23,7 +23,8 @@ public class PendingCollateralResultConfiguration : IEntityTypeConfiguration<Pen
             .IsUnique()
             .HasDatabaseName("UX_PendingCollateralResults_Appraisal");
 
-        // Export query filters on SentAt IS NULL; partial index keeps it narrow.
+        // Nothing reads or marks the spool now (the export does not send rejected appraisals); the index is kept
+        // only to avoid a migration.
         builder.HasIndex(r => r.SentAt)
             .HasDatabaseName("IX_PendingCollateralResults_SentAt")
             .HasFilter("[SentAt] IS NULL");

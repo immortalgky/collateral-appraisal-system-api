@@ -1,6 +1,3 @@
-using Microsoft.Extensions.Options;
-using Shared.Configurations;
-
 namespace Document.Domain.UploadSessions.Features.CreateUploadSession;
 
 public class CreateUploadSessionEndpoint : ICarterModule
@@ -10,7 +7,6 @@ public class CreateUploadSessionEndpoint : ICarterModule
         app.MapPost("/documents/session", async (
             HttpRequest httpRequest,
             ISender sender,
-            IOptions<FileStorageConfiguration> fileStorageOptions,
             CancellationToken cancellationToken) =>
         {
             var result = await sender.Send(
@@ -19,9 +15,7 @@ public class CreateUploadSessionEndpoint : ICarterModule
                     httpRequest.HttpContext.Connection.RemoteIpAddress?.ToString()),
                 cancellationToken);
 
-            var expiresAt = DateTime.Now.AddHours(fileStorageOptions.Value.Cleanup.TempSessionExpirationHours);
-
-            return Results.Ok(new CreateUploadSessionResponse(result.Id, expiresAt));
+            return Results.Ok(new CreateUploadSessionResponse(result.Id, result.ExpiresAt));
         })
         .WithName("CreateUploadSession")
         .WithTags("Documents")

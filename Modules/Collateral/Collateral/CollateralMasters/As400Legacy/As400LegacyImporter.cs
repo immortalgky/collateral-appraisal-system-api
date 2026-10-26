@@ -86,10 +86,10 @@ public class As400LegacyImporter(
 
             if (reachable.TryGetValue(row.CollateralId, out var target))
             {
-                // Guarded on the date. This is a data-sanity check, not the export safeguard:
-                // CollateralResultQuery picks its representative from non-legacy engagements only,
-                // so a legacy row can never speak for the master no matter how it is dated. What
-                // this rejects is a legacy valuation claiming to be NEWER than our own most recent
+                // Guarded on the date. This is a data-sanity check, not the export safeguard: the
+                // outbound file is built from appraisal.Appraisals (vw_CollateralResultExport), which a
+                // legacy engagement never has a row in, so a legacy row can never reach it however it is
+                // dated. What this rejects is a legacy valuation claiming to be NEWER than our own most recent
                 // appraisal — that contradiction deserves a human, not an automatic import.
                 // Equal dates are fine and common: AS400 and CAS valuing on the same day.
                 if (target.Latest is not null && row.ValuationDate > target.Latest)

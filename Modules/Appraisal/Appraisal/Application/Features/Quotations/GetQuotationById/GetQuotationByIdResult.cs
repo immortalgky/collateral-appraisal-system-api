@@ -32,7 +32,7 @@ public record GetQuotationByIdResult(
     Guid? RequestId,
     Guid? WorkflowInstanceId,
     Guid? TaskExecutionId,
-    string? BankingSegment,
+    IReadOnlyList<string> BankingSegment,
     string? RmUserName,
     string? RmUserFullName,
     DateTime? SubmissionsClosedAt,
@@ -54,7 +54,7 @@ public record GetQuotationByIdResult(
     // ── Company quotations (filtered by role via QuotationAccessPolicy) ───────
     IReadOnlyList<CompanyQuotationResult> CompanyQuotations,
 
-    // ── Invited companies (non-Expired invitations, enriched with name) ───────
+    // ── Invited companies (enriched with name) ───────
     IReadOnlyList<InvitedCompanyResult> InvitedCompanies,
 
     // ── Two-person rule edit gate ─────────────────────────────────────────────
@@ -104,8 +104,9 @@ public record QuotationAppraisalResult(
     string? AppraisalNumber,
     string? PropertyType,
     string? Address,
-    string? LoanType,
     string? Channel,
+    // The appraisal's own Banking Segment.
+    string? BankingSegment,
     // v7: the appraisal's owning request — FE uses this to call `/requests/{requestId}/documents`
     // when building the "share documents" picker.
     Guid? RequestId,
@@ -114,7 +115,20 @@ public record QuotationAppraisalResult(
     int? MaxAppraisalDays,
     // Appraisal type (New, ReAppraisal, Progressive, PreAppraisal). FE gates Send-to-RM on ReAppraisal.
     string? AppraisalType,
-    IReadOnlyList<QuotationTitleDetail> Titles
+    IReadOnlyList<QuotationTitleDetail> Titles,
+    // Auto-assign outcome stored at finalize, plus the LIVE workflow/assignment state (an appraisal
+    // assigned by hand later shows its real state). Internal admins on a Finalized quotation only.
+    string? AutoAssignResult = null,
+    string? AutoAssignMessage = null,
+    string? AutoAssignReasonCode = null,
+    DateTime? AutoAssignedAt = null,
+    string? CurrentActivityId = null,
+    string? AssignmentStatus = null,
+    // Pending task id, only while that task is at appraisal-assignment (the Administration page task).
+    Guid? AssignmentTaskId = null,
+    string? FollowupStaffId = null,
+    string? FollowupStaffName = null,
+    string? FollowupMethod = null
 );
 
 public record QuotationTitleDetail(
@@ -140,14 +154,17 @@ public record CompanyQuotationResult(
     string? CompanyName,
     /// <summary>Thai name; null when the company has none. The client picks by its own locale.</summary>
     string? CompanyNameLocal,
-    string QuotationNumber,
+    /// <summary>Null for an Expired row (the stored number is a draft or synthetic "EXPIRED-..." value).</summary>
+    string? QuotationNumber,
+    /// <summary>Read-only "Expired" is derived here for a Declined row whose invitation expired; it is never stored.</summary>
     string Status,
     /// <summary>Maker's "not participate" reason. Set while a decline is PendingCheckerReview (the intent
     /// marker that distinguishes a pending decline from a pending bid) and retained once Declined.</summary>
     string? DeclineReason,
-    /// <summary>Null while the company quotation is Draft or PendingCheckerReview (never actually submitted).</summary>
+    /// <summary>Null for an Expired row, for a row that never left Draft or PendingCheckerReview, and when no submit time was ever set (default). A decline made without a draft carries the decline time.</summary>
     DateTime? SubmittedAt,
-    decimal TotalQuotedPrice,
+    /// <summary>Null for an Expired row.</summary>
+    decimal? TotalQuotedPrice,
     decimal? OriginalQuotedPrice,
     decimal? CurrentNegotiatedPrice,
     int NegotiationRounds,
@@ -191,4 +208,14 @@ public record CompanyQuotationNegotiationResult(
     DateTime? RespondedAt
 );
 
-public sealed record InvitedCompanyResult(Guid CompanyId, string CompanyName, string? CompanyNameLocal, string? Email);
+/// <summary>
+/// LoanTypes = the company's Banking Segments; MissingSegments = Segment Set entries it cannot appraise
+/// (empty = covers the quotation). Advisory here; the Send guard enforces it.
+/// </summary>
+public sealed record InvitedCompanyResult(
+    Guid CompanyId,
+    string CompanyName,
+    string? CompanyNameLocal,
+    string? Email,
+    IReadOnlyList<string> LoanTypes,
+    IReadOnlyList<string> MissingSegments);

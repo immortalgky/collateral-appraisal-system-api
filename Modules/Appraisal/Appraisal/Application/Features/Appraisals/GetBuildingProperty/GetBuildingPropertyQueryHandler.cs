@@ -61,7 +61,7 @@ public class GetBuildingPropertyQueryHandler(
             ? new ConstructionInspectionDto(
                 ci.Id, ci.AppraisalPropertyId, ci.IsFullDetail, ci.TotalValue,
                 ci.SummaryDetail, ci.SummaryPreviousProgressPct, ci.SummaryPreviousValue,
-                ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.Remark,
+                ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.IsCurrentValueOverridden, ci.Remark,
                 ci.DocumentId, ci.FileName, ci.FilePath,
                 ci.FileExtension, ci.MimeType, ci.FileSizeBytes,
                 ci.WorkDetails.OrderBy(w => w.DisplayOrder).Select(w => new ConstructionWorkDetailDto(

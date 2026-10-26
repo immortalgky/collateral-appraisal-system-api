@@ -14,4 +14,5 @@ public record QuotationDto(
     int TotalQuotationsReceived,
     string? CustomerName,
     int CustomerCount,
-    string? CustomerNames);
+    string? CustomerNames,
+    DateTime? SelectedAt);

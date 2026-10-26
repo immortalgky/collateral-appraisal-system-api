@@ -50,8 +50,9 @@ public static class TitleImportCatalog
     private static readonly TitleImportColumn NotesColumn = new(
         // The form calls this "Title Detail", which reads oddly on the Vehicle/Vessel/Machine sheets;
         // the neutral label carries better and the form's own wording stays accepted as an alias.
-        "notes", "Notes", ["Title Detail", "รายละเอียด/หมายเหตุ", "รายละเอียดโฉนด", "หมายเหตุ"],
-        MaxLength: 200);
+        "notes", "Notes", ["Title Detail", "Title Detail (Additional)", "รายละเอียด/หมายเหตุ", "รายละเอียดโฉนด", "รายละเอียดโฉนด (เพิ่มเติม)", "หมายเหตุ"],
+        // 4000 as on the form and the integration API; RequestTitles.Notes is nvarchar(max).
+        MaxLength: 4000);
 
     private static readonly TitleImportColumn CollateralStatusColumn = new(
         "collateralStatus", "Previous Appraisal / CAS Status",
@@ -62,7 +63,7 @@ public static class TitleImportCatalog
         string prefix, string labelPrefix, string thaiPrefix) =>
     [
         new($"{prefix}.houseNumber", $"{labelPrefix} House No",
-            [$"{thaiPrefix}บ้านเลขที่"], MaxLength: 10, ForceTextFormat: true),
+            [$"{thaiPrefix}บ้านเลขที่"], MaxLength: 50, ForceTextFormat: true),
         new($"{prefix}.projectName", $"{labelPrefix} Village/Building",
             [$"{thaiPrefix}หมู่บ้าน/อาคาร"], MaxLength: 100),
         new($"{prefix}.moo", $"{labelPrefix} Moo",
@@ -155,6 +156,8 @@ public static class TitleImportCatalog
     [
         new("vehicleType", "Vehicle Type", ["ประเภทยานพาหนะ"], ParameterGroup: "VehicleType",
             MaxLength: 10, ForceTextFormat: true),
+        new("vehicleRegistrationNumber", "Vehicle Registration Number", ["เลขเล่มทะเบียนรถ"],
+            MaxLength: 50, ForceTextFormat: true),
         new("vin", "Chassis Number", ["VIN", "หมายเลขตัวถัง"], MaxLength: 50, ForceTextFormat: true),
         new("licensePlateNumber", "License Plate Number", ["ทะเบียนรถ"], MaxLength: 20, ForceTextFormat: true),
         new("vehicleLocation", "Appointment Location", ["สถานที่นัดหมาย"], MaxLength: 200)
@@ -198,13 +201,19 @@ public static class TitleImportCatalog
         string key, string name, string[] aliases, string[] families,
         params (string AppliesTo, IEnumerable<TitleImportColumn> Columns)[] typeBlocks)
     {
+        // The movables (vehicle, vessel, machine) have no title-document address, so their sheets get
+        // no such columns; the validator skips whatever address block a sheet does not declare.
+        var movableOnly = families.Any() && families.All(f => f is "VEH" or "MAC" or "VES");
+        (string AppliesTo, IEnumerable<TitleImportColumn> Columns)[] titleAddressBlock =
+            movableOnly ? [] : [("All", TitleAddress())];
+
         (string AppliesTo, IEnumerable<TitleImportColumn> Columns)[] blocks =
         [
             ("All", [CollateralTypeColumn]),
             ..typeBlocks,
             ("All", [OwnerNameColumn]),
             ("All", [NotesColumn]),
-            ("All", TitleAddress()),
+            ..titleAddressBlock,
             ("All", DopaAddress()),
             ("All", [CollateralStatusColumn])
         ];

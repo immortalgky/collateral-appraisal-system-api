@@ -42,9 +42,11 @@ public partial class LoginFlowTests(IntegrationTestFixture fixture)
         Services.GetRequiredService<IOptionsMonitor<OpenIdConnectOptions>>().Get("oidc");
 
     /// <summary>Runs /auth/login and the authorize hop, ending on the Razor login page's URL.</summary>
-    private static async Task<(string AuthorizeUrl, string LoginPageUrl)> StartAsync(HttpClient browser, string returnUrl)
+    private static async Task<(string AuthorizeUrl, string LoginPageUrl)> StartAsync(HttpClient browser, string returnUrl,
+        string? loginHint = null)
     {
-        using var login = await browser.GetAsync("/auth/login?returnUrl=" + Uri.EscapeDataString(returnUrl),
+        var hint = loginHint is null ? "" : "&login_hint=" + Uri.EscapeDataString(loginHint);
+        using var login = await browser.GetAsync("/auth/login?returnUrl=" + Uri.EscapeDataString(returnUrl) + hint,
             TestContext.Current.CancellationToken);
         login.StatusCode.Should().Be(HttpStatusCode.Found, await login.Content.ReadAsStringAsync());
         var authorize = login.Headers.Location!;
@@ -78,6 +80,77 @@ public partial class LoginFlowTests(IntegrationTestFixture fixture)
         };
         request.Headers.Add("Origin", PublicBase);
         return browser.SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Login_hint_reaches_the_authorize_request_and_prefills_the_username()
+    {
+        using var browser = Browser();
+        var (authorize, loginPage) = await StartAsync(browser, $"{BffTestSupport.Spa}/", "int.staff1");
+
+        Query(Pending(new Uri(authorize)), "login_hint").Should().Be("int.staff1");
+        using var page = await browser.GetAsync(loginPage, TestContext.Current.CancellationToken);
+        var html = await page.Content.ReadAsStringAsync();
+        html.Should().Contain("name=\"Username\" value=\"int.staff1\"");
+        // The language switch must remember an emptied field too, or the prefill comes back after it.
+        html.Should().Contain("sessionStorage.setItem('login-username'").And.NotContain("if (username)");
+    }
+
+    /// <summary>Starts sign-in with a hint, signs in as <paramref name="signInAs"/> and returns where the callback sends the browser.</summary>
+    private async Task<string> SignInWithHintAsync(string hint, TestUser signInAs, string returnUrl)
+    {
+        using var browser = Browser();
+        var (_, loginPage) = await StartAsync(browser, returnUrl, hint);
+        var token = await AntiforgeryTokenAsync(browser, loginPage);
+        using var posted = await PostLoginAsync(browser, token, signInAs, Query(loginPage, "ReturnUrl"));
+        using var code = await browser.GetAsync(Pending(posted.Headers.Location!), TestContext.Current.CancellationToken);
+        using var signedIn = await browser.GetAsync(Pending(code.Headers.Location!), TestContext.Current.CancellationToken);
+        signedIn.StatusCode.Should().Be(HttpStatusCode.Found);
+        return signedIn.Headers.Location!.ToString();
+    }
+
+    [Fact]
+    public async Task Signing_in_as_the_hinted_user_lands_on_the_return_url_whatever_the_hints_case()
+    {
+        var user = await BffTestSupport.CreateUserAsync(Services, "RequestMaker");
+        var returnUrl = $"{BffTestSupport.Spa}/appraisal/5?tab=2";
+
+        (await SignInWithHintAsync(user.UserName.ToUpperInvariant(), user, returnUrl)).Should().Be(returnUrl);
+    }
+
+    [Fact]
+    public async Task Signing_in_as_someone_else_than_the_hinted_user_lands_on_the_spa_home()
+    {
+        var hinted = await BffTestSupport.CreateUserAsync(Services, "RequestMaker");
+        var other = await BffTestSupport.CreateUserAsync(Services, "RequestMaker");
+
+        (await SignInWithHintAsync(hinted.UserName, other, $"{BffTestSupport.Spa}/appraisal/5?tab=2"))
+            .Should().Be($"{BffTestSupport.Spa}/");
+    }
+
+    [Fact]
+    public async Task The_retry_after_a_stale_state_drops_the_login_hint()
+    {
+        using var browser = Browser();
+        using var response = await browser.GetAsync(
+            "/auth/login?retry=1&login_hint=int.staff1&returnUrl=" + Uri.EscapeDataString($"{BffTestSupport.Spa}/"),
+            TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Found);
+        response.Headers.Location!.ToString().Should().Contain("/connect/authorize").And.NotContain("login_hint");
+    }
+
+    [Theory]
+    [InlineData("<script>")]
+    [InlineData("a b")]
+    public async Task An_invalid_login_hint_is_ignored(string hint)
+    {
+        using var browser = Browser();
+        var (authorize, loginPage) = await StartAsync(browser, $"{BffTestSupport.Spa}/", hint);
+
+        authorize.Should().NotContain("login_hint");
+        using var page = await browser.GetAsync(loginPage, TestContext.Current.CancellationToken);
+        (await page.Content.ReadAsStringAsync()).Should().Contain("name=\"Username\" value=\"\"");
     }
 
     [Fact]

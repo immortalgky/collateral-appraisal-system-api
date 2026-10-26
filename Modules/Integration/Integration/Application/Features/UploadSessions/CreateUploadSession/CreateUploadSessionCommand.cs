@@ -4,8 +4,7 @@ using Shared.CQRS;
 namespace Integration.Application.Features.UploadSessions.CreateUploadSession;
 
 public record CreateUploadSessionCommand(
-    string ClientReference,
-    string ExternalCaseKey,
+    string? ClientId,
     string? UserAgent,
     string? IpAddress
 ) : ICommand<CreateUploadSessionResult>, ITransactionalCommand<IDocumentUnitOfWork>;

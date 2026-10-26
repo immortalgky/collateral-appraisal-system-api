@@ -1,4 +1,5 @@
 using Integration.Application.Services;
+using Integration.Domain.WebhookSubscriptions;
 using MassTransit;
 using Microsoft.Extensions.Logging;
 using Shared.Messaging.Events;
@@ -44,7 +45,7 @@ public class QuotationReadyWebhookConsumer(
         await webhookService.SendAsync(
             eventId: msg.EventId,
             systemCode: keys.ExternalSystem!,
-            eventType: "QUOTATION_READY",
+            eventType: WebhookEventTypes.QuotationReady,
             externalCaseKey: keys.ExternalCaseKey!,
             occurredAt: msg.OccurredOn,
             data: new { quotationId = msg.QuotationRequestId, rmUsername = msg.RmUsername },

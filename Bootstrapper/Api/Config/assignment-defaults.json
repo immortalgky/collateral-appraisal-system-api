@@ -1,0 +1,26 @@
+{
+  "New": {
+    "isActive": false,
+    "assignmentType": "",
+    "assignmentMethod": "",
+    "internalFollowupAssignmentMethod": ""
+  },
+  "ReAppraisal": {
+    "isActive": true,
+    "assignmentType": "External",
+    "assignmentMethod": "RoundRobin",
+    "internalFollowupAssignmentMethod": "RoundRobin"
+  },
+  "Progressive": {
+    "isActive": false,
+    "assignmentType": "",
+    "assignmentMethod": "",
+    "internalFollowupAssignmentMethod": ""
+  },
+  "PreAppraisal": {
+    "isActive": true,
+    "assignmentType": "External",
+    "assignmentMethod": "RoundRobin",
+    "internalFollowupAssignmentMethod": "RoundRobin"
+  }
+}

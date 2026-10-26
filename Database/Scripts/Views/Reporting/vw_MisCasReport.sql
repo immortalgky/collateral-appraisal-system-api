@@ -135,46 +135,27 @@ CompletedBuilding AS (
     GROUP BY b.AppraisalId
 ),
 
--- Part-built buildings at 100% / previous / current. Summary-mode money is derived from the
--- percentage (SummaryPreviousValue / SummaryCurrentValue are always saved as 0); money is rounded to
--- whole baht per inspection (CA-614); progress is weighted by TotalValue, never money / money.
+-- Part-built buildings at 100% / previous / current, one row per appraisal. Each inspection's
+-- Summary* columns hold its result in both modes (the server writes them on every save - see
+-- ConstructionInspection.RecomputeSummary), so there is no IsFullDetail branching or work-row join
+-- here. Money is whole baht per inspection (CA-614); progress is weighted by TotalValue, never
+-- money / money. Copied, not referenced, from appraisal.vw_AppraisalConstructionProgress (this view
+-- stays on base tables): KEEP IN SYNC with it and with ConstructionCurrentValueService.
 Ci AS (
     SELECT
         ap.AppraisalId,
-        SUM(v.TotalValue)                      AS TotalValue,
-        SUM(ROUND(v.PreviousValue, 0))         AS PreviousValue,
-        SUM(ROUND(v.CurrentValue, 0))          AS CurrentValue,
-        AVG(v.PreviousPct)                     AS UnweightedPreviousPct,
-        AVG(v.CurrentPct)                      AS UnweightedCurrentPct,
-        CASE WHEN SUM(v.TotalValue) > 0
-             THEN SUM(v.TotalValue * v.PreviousPct) / SUM(v.TotalValue) END AS WeightedPreviousPct,
-        CASE WHEN SUM(v.TotalValue) > 0
-             THEN SUM(v.TotalValue * v.CurrentPct) / SUM(v.TotalValue) END  AS WeightedCurrentPct
+        SUM(ci.TotalValue)                                          AS TotalValue,
+        SUM(ROUND(ISNULL(ci.SummaryPreviousValue, 0), 0))           AS PreviousValue,
+        SUM(ROUND(ISNULL(ci.SummaryCurrentValue, 0), 0))            AS CurrentValue,
+        -- Cast first: AVG of a decimal(7,4) keeps scale 4 and would round the average there.
+        AVG(CAST(ISNULL(ci.SummaryPreviousProgressPct, 0) AS decimal(19, 8))) AS UnweightedPreviousPct,
+        AVG(CAST(ISNULL(ci.SummaryCurrentProgressPct, 0)  AS decimal(19, 8))) AS UnweightedCurrentPct,
+        CASE WHEN SUM(ci.TotalValue) > 0
+             THEN SUM(ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0)) / SUM(ci.TotalValue) END AS WeightedPreviousPct,
+        CASE WHEN SUM(ci.TotalValue) > 0
+             THEN SUM(ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0)) / SUM(ci.TotalValue) END  AS WeightedCurrentPct
     FROM appraisal.ConstructionInspections ci
     JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
-    LEFT JOIN (
-        SELECT ConstructionInspectionId,
-               SUM(PreviousPropertyValue)                       AS PreviousPropertyValueSum,
-               SUM(CurrentPropertyValue)                        AS CurrentPropertyValueSum,
-               SUM(ProportionPct * PreviousProgressPct / 100.0) AS PreviousProportionPctSum,
-               SUM(CurrentProportionPct)                        AS CurrentProportionPctSum
-        FROM appraisal.ConstructionWorkDetails
-        GROUP BY ConstructionInspectionId
-    ) wd ON wd.ConstructionInspectionId = ci.Id
-    CROSS APPLY (
-        SELECT
-            ci.TotalValue,
-            CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryPreviousProgressPct, 0)
-                 ELSE ISNULL(wd.PreviousProportionPctSum, 0) END AS PreviousPct,
-            CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
-                 ELSE ISNULL(wd.CurrentProportionPctSum, 0) END  AS CurrentPct,
-            CASE WHEN ci.IsFullDetail = 0
-                 THEN ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0) / 100.0
-                 ELSE ISNULL(wd.PreviousPropertyValueSum, 0) END AS PreviousValue,
-            CASE WHEN ci.IsFullDetail = 0
-                 THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
-                 ELSE ISNULL(wd.CurrentPropertyValueSum, 0) END  AS CurrentValue
-    ) v
     GROUP BY ap.AppraisalId
 ),
 

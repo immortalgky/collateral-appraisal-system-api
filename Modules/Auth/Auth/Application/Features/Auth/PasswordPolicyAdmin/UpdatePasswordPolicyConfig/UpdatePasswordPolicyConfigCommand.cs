@@ -16,4 +16,7 @@ public record UpdatePasswordPolicyConfigCommand(
     // Optional: the command binds straight from the request body, and a client that predates this
     // field must not save a 0 over the stored cap (nor be rejected for omitting it). Null = leave
     // whatever the admin set last time alone.
-    int? MaxAccessWindowHours = null) : ICommand;
+    int? MaxAccessWindowHours = null,
+    // Optional for the same reason: a client that predates two-factor must not switch it off or zero the remember window.
+    bool? RequireTwoFactorForExternal = null,
+    int? TwoFactorRememberHours = null) : ICommand;

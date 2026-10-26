@@ -30,6 +30,12 @@ public record ResolveLatestInAppraisalChainQuery(Guid PickedPrevAppraisalId)
 /// The external company that performed <paramref name="AppraisalId"/>, from its latest live
 /// assignment. Null for internally-appraised work — there is no company to force or exclude then.
 /// </param>
+/// <param name="PickedCompanyId">
+/// The external company of the PICKED appraisal (same election as <paramref name="CompanyId"/>, on the pick
+/// instead of the tip). Null for internally-appraised work. Progressive forces this company, so the copy base,
+/// fee source and forced company are one appraisal.
+/// </param>
+/// <param name="PickedCompanyName">Name of <paramref name="PickedCompanyId"/>; empty when null.</param>
 /// <param name="ProgressiveCount">
 /// How many Construction-Inspection (Progressive) appraisals the chain already holds, excluding
 /// cancelled ones. Callers derive the next inspection round as <c>ProgressiveCount + 1</c>.
@@ -38,4 +44,6 @@ public record AppraisalChainRef(
     Guid AppraisalId,
     Guid? CompanyId,
     string CompanyName,
-    int ProgressiveCount);
+    int ProgressiveCount,
+    Guid? PickedCompanyId = null,
+    string PickedCompanyName = "");

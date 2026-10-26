@@ -210,13 +210,16 @@ public static class LeaseAgreementCondoPropertyApplier
         AppraisalProperty property,
         ConstructionInspectionData ci)
     {
+        // A condo unit has no server-derived 100% base — pinned to 0; the payload's TotalValue is not trusted.
+        const decimal totalValue = 0m;
+
         if (property.ConstructionInspection is not null)
         {
             // Update existing
             var inspection = property.ConstructionInspection;
             if (ci.IsFullDetail)
             {
-                inspection.UpdateFullDetail(ci.TotalValue, ci.Remark);
+                inspection.UpdateFullDetail(totalValue, ci.Remark, ci.CurrentValueOverride);
                 inspection.ClearWorkDetails();
                 if (ci.WorkDetails is { Count: > 0 })
                 {
@@ -229,9 +232,9 @@ public static class LeaseAgreementCondoPropertyApplier
             }
             else
             {
-                inspection.UpdateSummary(ci.TotalValue, ci.SummaryDetail,
-                    ci.SummaryPreviousProgressPct, ci.SummaryPreviousValue,
-                    ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.Remark);
+                inspection.UpdateSummary(totalValue, ci.SummaryDetail,
+                    ci.SummaryPreviousProgressPct,
+                    ci.SummaryCurrentProgressPct, ci.Remark, ci.CurrentValueOverride);
                 if (ci.DocumentId.HasValue)
                     inspection.SetDocument(ci.DocumentId.Value, ci.FileName, ci.FilePath, ci.FileExtension, ci.MimeType, ci.FileSizeBytes);
                 else
@@ -244,7 +247,7 @@ public static class LeaseAgreementCondoPropertyApplier
             ConstructionInspection inspection;
             if (ci.IsFullDetail)
             {
-                inspection = ConstructionInspection.CreateFullDetail(property.Id, ci.TotalValue, ci.Remark);
+                inspection = ConstructionInspection.CreateFullDetail(property.Id, totalValue, ci.Remark, ci.CurrentValueOverride);
                 if (ci.WorkDetails is { Count: > 0 })
                 {
                     foreach (var wd in ci.WorkDetails)
@@ -256,9 +259,9 @@ public static class LeaseAgreementCondoPropertyApplier
             }
             else
             {
-                inspection = ConstructionInspection.CreateSummary(property.Id, ci.TotalValue,
-                    ci.SummaryDetail, ci.SummaryPreviousProgressPct, ci.SummaryPreviousValue,
-                    ci.SummaryCurrentProgressPct, ci.SummaryCurrentValue, ci.Remark);
+                inspection = ConstructionInspection.CreateSummary(property.Id, totalValue,
+                    ci.SummaryDetail, ci.SummaryPreviousProgressPct,
+                    ci.SummaryCurrentProgressPct, ci.Remark, ci.CurrentValueOverride);
                 if (ci.DocumentId.HasValue)
                     inspection.SetDocument(ci.DocumentId.Value, ci.FileName, ci.FilePath, ci.FileExtension, ci.MimeType, ci.FileSizeBytes);
             }

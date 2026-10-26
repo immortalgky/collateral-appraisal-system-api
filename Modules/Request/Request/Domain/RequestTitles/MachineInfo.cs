@@ -42,7 +42,7 @@ public class MachineInfo : ValueObject
     {
         return new MachineInfo(
             registrationStatus,
-            registrationNumber,
+            registrationStatus ? registrationNumber : null,
             machineryType,
             installationStatus,
             invoiceNumber,

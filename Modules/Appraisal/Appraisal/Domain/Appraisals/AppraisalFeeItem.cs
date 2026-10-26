@@ -6,6 +6,8 @@ namespace Appraisal.Domain.Appraisals;
 ///            quotation fees). Never subject to the approval flow.
 /// "User"   — entered by a human via an inline edit (currently external company; future
 ///            internal staff). Subject to the fee-approval policy.
+/// "Admin"  — entered by the bank admin on the assignment screen before the case is handed over.
+///            Billable immediately (no approval) and read-only for whoever receives the case.
 /// Distinct from RequestSource (Ext/Int), which is the channel that raises the approval —
 /// this is who authored the line item.
 /// </summary>
@@ -13,6 +15,7 @@ public static class FeeItemSource
 {
     public const string System = "System";
     public const string User = "User";
+    public const string Admin = "Admin";
 }
 
 /// <summary>
@@ -42,13 +45,23 @@ public class AppraisalFeeItem : Entity<Guid>
     public DateTime? ApprovalSubmittedAt { get; private set; }
 
     /// <summary>
-    /// Who created this fee line — <see cref="FeeItemSource"/> ("System" | "User").
+    /// Who created this fee line — <see cref="FeeItemSource"/> ("System" | "User" | "Admin").
     /// "User" only for items entered via the inline-edit path (AddFeeItemCommandHandler);
     /// "System" (default) for the base appraisal fee, construction-inspection fee, and any
     /// other system-created items. This is the authoritative filter for ReevaluateAddedFees
     /// and the cumulative-total computation — only "User" items are subject to approval.
     /// </summary>
     public string Source { get; private set; } = FeeItemSource.System;
+
+    /// <summary>
+    /// Counts toward the billable totals: it needs no approval, or it has been approved (Pending and Rejected items
+    /// are excluded — the consumption-point gate of the fee approval design). THE rule, shared by
+    /// <see cref="AppraisalFee.RecalculateFromItems"/> and the fee preview.
+    /// </summary>
+    public static bool IsBillableState(bool requiresApproval, string? approvalStatus) =>
+        !requiresApproval || approvalStatus == "Approved";
+
+    public bool IsBillable => IsBillableState(RequiresApproval, ApprovalStatus);
 
     /// <summary>
     /// A user-entered fee in a non-final approval state (draft or pending). These are the only
@@ -102,6 +115,16 @@ public class AppraisalFeeItem : Entity<Guid>
     public void MarkAsUserAdded()
     {
         Source = FeeItemSource.User;
+    }
+
+    /// <summary>
+    /// Marks this item as set by the bank admin before assignment (Source = "Admin") and makes it billable
+    /// right away: an admin's figure never goes through the fee-approval flow.
+    /// </summary>
+    public void MarkAsAdminSet()
+    {
+        Source = FeeItemSource.Admin;
+        MakeBillable();
     }
 
     /// <summary>

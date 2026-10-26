@@ -32,7 +32,7 @@ public sealed record LoginText(
     internal static readonly Dictionary<string, LoginText> Texts = new()
     {
         ["en"] = new LoginText(
-            Label: "EN",
+            Label: "English",
             Title: "Login",
             Subtitle: "Collateral appraisal",
             Heading: "Enter your username and password",

@@ -14,7 +14,6 @@ internal class UpdateDraftRequestCommandHandler(
         CancellationToken cancellationToken)
     {
         var request = await UpdateDraftRequestAsync(command, cancellationToken);
-        request.MarkAsDraft();
 
         if (command.Documents is not null)
             await syncService.SyncDocumentsAsync(request, command.Documents, cancellationToken);
@@ -32,13 +31,24 @@ internal class UpdateDraftRequestCommandHandler(
         var request = await requestRepository.GetByIdWithDocumentsAsync(command.Id, cancellationToken);
         if (request is null) throw new RequestNotFoundException(command.Id);
 
+        // Rejects a submitted request up front, before anything is changed (a draft save skips validation and
+        // must never be applied to a request already in the workflow).
+        request.MarkAsDraft();
+
         var requestorInfo = await userLookupService.GetRequestorAsync(command.RequestorEmployeeId, cancellationToken);
         if (requestorInfo is null)
             throw new NotFoundException("Requestor", command.RequestorEmployeeId);
 
+        // A draft save may omit the purpose (null, empty or blank); on a locked request (an Initiate draft) that
+        // means "unchanged".
+        // A different non-empty purpose still throws in Save.
+        var purpose = string.IsNullOrWhiteSpace(command.Purpose) && request.ArePurposeAndPriorLocked()
+            ? request.Purpose
+            : command.Purpose;
+
         // Store only the requestor identity (employee code + name); org detail is resolved on read.
         request.Save(new RequestData(
-            command.Purpose,
+            purpose,
             command.Channel,
             new UserInfo(requestorInfo.EmployeeId, requestorInfo.Name),
             new UserInfo(command.Creator.UserId, command.Creator.Username),
@@ -47,10 +57,11 @@ internal class UpdateDraftRequestCommandHandler(
             command.IsPma
         ));
 
-        var prevAppraisalId = PriorAppraisalFields.NormalizeId(command.Detail?.PrevAppraisalId);
-        var prior = await PriorAppraisalFields.ResolveAsync(
-            mediator, request, prevAppraisalId,
-            LegacyPriorBook.ForUpdate(request.Purpose, command.Detail, request.Detail), cancellationToken);
+        // The purpose is guarded inside Request.Save; the prior is resolved, or kept as stored, by the one shared
+        // rule (a submitted request never gets here: MarkAsDraft rejected it).
+        var (prevAppraisalId, prior) = await PriorAppraisalFields.ResolveForSaveAsync(
+            mediator, request, command.Detail,
+            () => LegacyPriorBook.ForUpdate(request.Purpose, command.Detail, request.Detail), cancellationToken);
 
         request.SetDetail(RequestDetail.Create(new RequestDetailData(
             command.Detail?.HasAppraisalBook ?? false,

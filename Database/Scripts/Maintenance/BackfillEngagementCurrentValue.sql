@@ -59,19 +59,14 @@
     nonCiBuilding = SUM(BuildingDepreciationDetails.PriceAfterDepreciation) for
                     building properties with NO ConstructionInspection — no
                     inspection means the building was already finished
-    ciCurrent     = per inspected property:
-                      IsFullDetail = 1 -> SUM(ConstructionWorkDetails.CurrentPropertyValue)
-                                          (server-computed on save)
-                      IsFullDetail = 0 -> ci.TotalValue * SummaryCurrentProgressPct / 100
+    ciCurrent     = per inspected property, the stored ci.SummaryCurrentValue
+                    (server-derived on every save, in both modes)
 
     CurrentValue  = landValue + nonCiBuilding + ciCurrent
 
-  IMPORTANT — summary mode multiplies by the stored PERCENT, and deliberately does
-  NOT read ci.SummaryCurrentValue. The CI screen computes that figure in a useMemo
-  and displays it but never writes it back into the form, so the persisted column
-  holds the default 0 while the screen showed something else. The percent is bound
-  to a real input and does persist. Reading the value column would silently drop
-  the whole part-built building from the regulatory file.
+  IMPORTANT — the construction money is the stored ci.SummaryCurrentValue, never TotalValue x
+  percent or the work-row sum: the inspector may have overridden it, and recomputing from the
+  percent on a re-run would silently undo that override.
 
   SCOPE / GUARDS (all required):
     - e.CurrentValue IS NULL     -> idempotent; never overwrites a value written by
@@ -102,18 +97,9 @@ SET NOCOUNT ON;
 WITH CiAgg AS (
     SELECT      ap.AppraisalId,
                 SUM(ci.TotalValue) AS InspectedTotalValue,
-                SUM(CASE WHEN ci.IsFullDetail = 0
-                         THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
-                         ELSE ISNULL(wd.CurrentPropertyValueSum, 0)
-                    END) AS InspectedCurrentValue
+                SUM(ISNULL(ci.SummaryCurrentValue, 0)) AS InspectedCurrentValue
     FROM        appraisal.ConstructionInspections ci
     INNER JOIN  appraisal.AppraisalProperties     ap ON ap.Id = ci.AppraisalPropertyId
-    LEFT JOIN   (
-                    SELECT      ConstructionInspectionId,
-                                SUM(CurrentPropertyValue) AS CurrentPropertyValueSum
-                    FROM        appraisal.ConstructionWorkDetails
-                    GROUP BY    ConstructionInspectionId
-                ) wd ON wd.ConstructionInspectionId = ci.Id
     GROUP BY    ap.AppraisalId
 ),
 LandAgg AS (
@@ -161,18 +147,9 @@ BEGIN TRANSACTION;
 WITH CiAgg AS (
     SELECT      ap.AppraisalId,
                 SUM(ci.TotalValue) AS InspectedTotalValue,
-                SUM(CASE WHEN ci.IsFullDetail = 0
-                         THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
-                         ELSE ISNULL(wd.CurrentPropertyValueSum, 0)
-                    END) AS InspectedCurrentValue
+                SUM(ISNULL(ci.SummaryCurrentValue, 0)) AS InspectedCurrentValue
     FROM        appraisal.ConstructionInspections ci
     INNER JOIN  appraisal.AppraisalProperties     ap ON ap.Id = ci.AppraisalPropertyId
-    LEFT JOIN   (
-                    SELECT      ConstructionInspectionId,
-                                SUM(CurrentPropertyValue) AS CurrentPropertyValueSum
-                    FROM        appraisal.ConstructionWorkDetails
-                    GROUP BY    ConstructionInspectionId
-                ) wd ON wd.ConstructionInspectionId = ci.Id
     GROUP BY    ap.AppraisalId
 ),
 LandAgg AS (

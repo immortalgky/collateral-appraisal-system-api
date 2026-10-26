@@ -1,4 +1,5 @@
 using Integration.Application.Services;
+using Integration.Domain.WebhookSubscriptions;
 using MassTransit;
 using Microsoft.Extensions.Logging;
 using Shared.Messaging.Events;
@@ -54,7 +55,7 @@ public class RequestRouteBackWebhookConsumer(
         await webhookService.SendAsync(
             eventId: context.Message.EventId,
             systemCode: keys.ExternalSystem,
-            eventType: "REQUEST_ROUTE_BACK",
+            eventType: WebhookEventTypes.RequestRouteBack,
             externalCaseKey: keys.ExternalCaseKey,
             occurredAt: msg.AssignedAt,
             data: new

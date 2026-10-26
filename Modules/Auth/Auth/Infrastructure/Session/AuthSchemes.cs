@@ -35,4 +35,8 @@ public static class AuthSchemes
     // AuthenticationProperties.Items key: set on the second login attempt so a failing callback
     // cannot bounce between /auth/login and the IdP forever.
     internal const string RetryItem = "cas.retry";
+
+    // AuthenticationProperties.Items key: the username "Continue as ..." asked for. Whoever actually signs in must
+    // be that user, or they do not get sent on to the page the hint's user left.
+    internal const string LoginHintItem = "cas.login-hint";
 }

@@ -1,4 +1,5 @@
 using System.Reflection;
+using Auth.Application.Services;
 using Auth.Infrastructure.Session;
 using Integration.Auth.Integration.Tests.Bff;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -49,11 +50,14 @@ public sealed class BffWebApplicationFactory(
         // does not exist, so the warm-up fails fast and quietly and nothing is left to leak or throw on dispose.
         const string NoBrowser = "/nonexistent/chromium-for-tests";
         builder.UseSetting("Auth:InternalAuthBaseUrl", InternalAuthority);
+        // LDAP accounts sign in against FakeLdapAuthenticationService below; the flag only lets the login page try.
+        builder.UseSetting("Ldap:Enabled", "true");
         builder.UseSetting("Reporting:ChromiumExecutablePath", NoBrowser);
         builder.ConfigureAppConfiguration((_, config) =>
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Auth:InternalAuthBaseUrl"] = InternalAuthority,
+                ["Ldap:Enabled"] = "true",
                 ["Reporting:ChromiumExecutablePath"] = NoBrowser
             }));
 
@@ -65,6 +69,9 @@ public sealed class BffWebApplicationFactory(
                 options.BackchannelHttpHandler = new LazyHandler(() => Server.CreateHandler()));
 
             services.AddControllers().AddApplicationPart(typeof(BffTestController).Assembly);
+
+            // No directory in a test run: the bind succeeds for BffTestSupport.Password and for nothing else.
+            services.AddSingleton<ILdapAuthenticationService, FakeLdapAuthenticationService>();
 
             // Development keeps OpenIddict's keys as certificates in the OS key store. On macOS reading the
             // private key back (decrypting an authorization code) raises a keychain prompt nobody can
@@ -105,5 +112,21 @@ public sealed class BffWebApplicationFactory(
             var invoker = new HttpMessageInvoker(_inner.Value, disposeHandler: false);
             return invoker.SendAsync(request, cancellationToken);
         }
+    }
+
+    private sealed class FakeLdapAuthenticationService : ILdapAuthenticationService
+    {
+        public Task<LdapAuthResult> AuthenticateAsync(string username, string password) =>
+            Task.FromResult(password == BffTestSupport.Password
+                ? new LdapAuthResult(true, new LdapUserInfo(username, null, null, null, null, null, null))
+                : new LdapAuthResult(false, ErrorMessage: "bad password"));
+
+        // The service bind: what the directory says about the account, as FakeDirectory has it (null = unreachable).
+        public Task<LdapUserInfo?> GetUserInfoAsync(string username) =>
+            Task.FromResult(FakeDirectory.Lookup(username) is { } account
+                ? new LdapUserInfo(username, null, null, null, null, null, null, account.UserAccountControl, account.AccountExpires, account.Computed)
+                : null);
+
+        public Task CheckConnectionAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

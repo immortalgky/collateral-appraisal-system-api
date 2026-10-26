@@ -32,7 +32,9 @@ public class UpdatePasswordPolicyConfigCommandHandler(
             command.LockoutEnabled,
             command.MaxFailedAccessAttempts,
             command.LockoutMinutes,
-            command.MaxAccessWindowHours ?? policy.MaxAccessWindowHours);
+            command.MaxAccessWindowHours ?? policy.MaxAccessWindowHours,
+            command.RequireTwoFactorForExternal ?? policy.RequireTwoFactorForExternal,
+            command.TwoFactorRememberHours ?? policy.TwoFactorRememberHours);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 

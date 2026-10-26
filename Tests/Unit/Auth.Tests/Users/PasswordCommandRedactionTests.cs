@@ -16,7 +16,7 @@ public class PasswordCommandRedactionTests
         [
             new ChangePasswordCommand(Guid.NewGuid(), Secret, Secret, Secret),
             new ResetPasswordCommand(Guid.NewGuid(), Secret, Secret),
-            new CreateUserCommand("u1", Secret, "u1@x.test", "U", "One", null, null, null, [])
+            new CreateUserCommand("u1", Secret, "u1@x.test", "U", "One", null, null, null, null, [])
         ];
 
         foreach (var command in commands)

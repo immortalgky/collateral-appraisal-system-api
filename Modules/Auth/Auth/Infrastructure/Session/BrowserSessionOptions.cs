@@ -23,6 +23,12 @@ public sealed partial class BrowserSessionOptions
     public string AppCookieName => $"__Host-cas-session{CookieSuffix}";
     public string IdpCookieName => $"__Host-cas-idp{CookieSuffix}";
 
+    /// <summary>Carries the user between the password step and the authenticator-code step of a sign-in.</summary>
+    public string TwoFactorUserCookieName => $"__Host-cas-2fa{CookieSuffix}";
+
+    /// <summary>Marks a device that passed the code check recently (see <c>PasswordPolicy.TwoFactorRememberHours</c>).</summary>
+    public string TwoFactorRememberCookieName => $"__Host-cas-2fa-remember{CookieSuffix}";
+
     /// <summary>Short-lived marker that a sign-in just failed once (see <see cref="AppSessionEvents.RemoteFailureAsync"/>).</summary>
     public string RetryCookieName => $"cas-oidc-retry{CookieSuffix}";
 

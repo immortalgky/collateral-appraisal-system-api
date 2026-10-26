@@ -151,9 +151,9 @@ public sealed class AppraisalSummaryBlockDataProvider(
                 WHERE p2.AppraisalId = @AppraisalId)
             ORDER BY pm.ModelName;
 
-            -- RS03: QB3 — Per-unit rows with prices (unsold only)
+            -- RS03: QB3 — Per-unit rows with prices (every unit, sold or not)
             -- LEFT JOIN so units without a price row still appear (price columns null).
-            -- Filter IsSold = 0 to match the unit-price listing convention.
+            -- No IsSold filter: the book's unit list must add up to the block totals, which count every unit.
             SELECT
                 u.SequenceNumber,
                 u.PlotNumber,
@@ -175,7 +175,6 @@ public sealed class AppraisalSummaryBlockDataProvider(
             WHERE u.ProjectId = (
                 SELECT p3.Id FROM appraisal.Projects p3
                 WHERE p3.AppraisalId = @AppraisalId)
-              AND u.IsSold = 0
             ORDER BY u.SequenceNumber;
 
             -- RS04: request property types (ประเภททรัพย์สิน — same as land-building), in the order

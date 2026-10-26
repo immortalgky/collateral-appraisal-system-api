@@ -195,6 +195,10 @@ namespace Request.Infrastructure.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
+                    b.Property<string>("ReappraisalAutoUpdate")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
                     b.Property<string>("ReappraisalBookNumber")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
@@ -487,8 +491,8 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnName("DopaDistrict");
 
                             b1.Property<string>("HouseNumber")
-                                .HasMaxLength(30)
-                                .HasColumnType("nvarchar(30)")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
                                 .HasColumnName("DopaHouseNumber");
 
                             b1.Property<string>("Moo")
@@ -545,8 +549,8 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnName("District");
 
                             b1.Property<string>("HouseNumber")
-                                .HasMaxLength(30)
-                                .HasColumnType("nvarchar(30)")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)")
                                 .HasColumnName("HouseNumber");
 
                             b1.Property<string>("Moo")
@@ -977,8 +981,8 @@ namespace Request.Infrastructure.Migrations
                                         .HasColumnName("District");
 
                                     b2.Property<string>("HouseNumber")
-                                        .HasMaxLength(30)
-                                        .HasColumnType("nvarchar(30)")
+                                        .HasMaxLength(50)
+                                        .HasColumnType("nvarchar(50)")
                                         .HasColumnName("HouseNumber");
 
                                     b2.Property<string>("Moo")
@@ -2129,9 +2133,7 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnName("RegistrationNumber");
 
                             b1.Property<bool>("RegistrationStatus")
-                                .ValueGeneratedOnAdd()
                                 .HasColumnType("bit")
-                                .HasDefaultValue(false)
                                 .HasColumnName("RegistrationStatus");
 
                             b1.HasKey("TitleMachineId");

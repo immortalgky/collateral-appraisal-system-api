@@ -23,7 +23,10 @@ public record ConstructionInspectionData(
     string? MimeType = null,
     long? FileSizeBytes = null,
     // Full detail work items
-    List<ConstructionWorkDetailData>? WorkDetails = null
+    List<ConstructionWorkDetailData>? WorkDetails = null,
+    // Inspector's override of the current value (both modes); null = use the computed one.
+    // The Summary*Value fields above are never trusted.
+    decimal? CurrentValueOverride = null
 );
 
 public record ConstructionWorkDetailData(

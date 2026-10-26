@@ -15,4 +15,8 @@ public record PasswordPolicyConfigDto(
     int MaxFailedAccessAttempts,
     int LockoutMinutes,
     /// <summary>Longest access window an admin may open on a temporary-access account, in hours.</summary>
-    int MaxAccessWindowHours);
+    int MaxAccessWindowHours,
+    /// <summary>External users (company accounts) must use an authenticator code to sign in.</summary>
+    bool RequireTwoFactorForExternal,
+    /// <summary>Hours a device that passed the code check skips it. 0 = ask every time.</summary>
+    int TwoFactorRememberHours);

@@ -7,7 +7,8 @@ namespace Appraisal.Application.Features.Quotations.GetMyDraftsForAssembly;
 
 /// <summary>
 /// Returns the calling admin's Draft quotations for the entry-modal picker.
-/// Uses Dapper for the main query and a second query for appraisal number previews.
+/// Uses Dapper for the main query, a second query for appraisal number previews and a third for each
+/// draft's Segment Set (grouped, one round trip for all drafts).
 /// </summary>
 public class GetMyDraftsForAssemblyQueryHandler(
     ISqlConnectionFactory connectionFactory,
@@ -32,26 +33,15 @@ public class GetMyDraftsForAssemblyQueryHandler(
                 q.QuotationNumber,
                 q.RequestDate,
                 q.CutOffTime,
-                q.BankingSegment,
                 q.TotalAppraisals,
                 q.TotalCompaniesInvited
             FROM appraisal.QuotationRequests q
             WHERE q.Status = 'Draft'
               AND q.RequestedBy = @AdminUsername
+            ORDER BY q.RequestDate DESC
             """;
 
-        var parameters = new DynamicParameters();
-        parameters.Add("AdminUsername", adminUsername);
-
-        if (!string.IsNullOrWhiteSpace(query.BankingSegment))
-        {
-            sql += " AND q.BankingSegment = @BankingSegment";
-            parameters.Add("BankingSegment", query.BankingSegment);
-        }
-
-        sql += " ORDER BY q.RequestDate DESC";
-
-        var rows = (await connection.QueryAsync<DraftRow>(sql, parameters)).ToList();
+        var rows = (await connection.QueryAsync<DraftRow>(sql, new { AdminUsername = adminUsername })).ToList();
 
         if (rows.Count == 0)
             return new GetMyDraftsForAssemblyResult([]);
@@ -77,12 +67,26 @@ public class GetMyDraftsForAssemblyQueryHandler(
                 g => g.Key,
                 g => g.Select(p => p.AppraisalNumber).Take(5).ToList());
 
+        // ── Segment Set per quotation: one grouped read, built the same way as the Send guard ──
+        var segmentRows = await connection.QueryAsync<(Guid QuotationRequestId, string? BankingSegment)>(
+            """
+            SELECT qra.QuotationRequestId, a.BankingSegment
+            FROM [appraisal].[QuotationRequestAppraisals] qra
+            JOIN [appraisal].[Appraisals] a ON a.Id = qra.AppraisalId
+            WHERE qra.QuotationRequestId IN @QuotationIds AND a.IsDeleted = 0
+            """,
+            new { QuotationIds = quotationIds });
+
+        var segmentLookup = segmentRows
+            .GroupBy(r => r.QuotationRequestId)
+            .ToDictionary(g => g.Key, g => SegmentCoverage.BuildSegmentSet(g.Select(r => r.BankingSegment)));
+
         var drafts = rows.Select(r => new QuotationDraftSummaryDto(
             Id: r.Id,
             QuotationNumber: r.QuotationNumber,
             RequestDate: r.RequestDate,
             CutOffTime: r.CutOffTime,
-            BankingSegment: r.BankingSegment,
+            BankingSegment: segmentLookup.GetValueOrDefault(r.Id) ?? [],
             TotalAppraisals: r.TotalAppraisals,
             TotalCompaniesInvited: r.TotalCompaniesInvited,
             AppraisalNumberPreview: previewLookup.TryGetValue(r.Id, out var preview)
@@ -98,7 +102,6 @@ public class GetMyDraftsForAssemblyQueryHandler(
         string? QuotationNumber,
         DateTime RequestDate,
         DateTime CutOffTime,
-        string? BankingSegment,
         int TotalAppraisals,
         int TotalCompaniesInvited);
 

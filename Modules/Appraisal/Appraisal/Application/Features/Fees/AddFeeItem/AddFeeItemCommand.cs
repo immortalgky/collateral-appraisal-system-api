@@ -4,7 +4,7 @@ namespace Appraisal.Application.Features.Fees.AddFeeItem;
 
 public record AddFeeItemCommand(
     Guid AppraisalId,
-    Guid FeeId,
+    Guid? FeeId,
     string FeeCode,
     string FeeDescription,
     decimal FeeAmount

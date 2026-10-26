@@ -66,12 +66,19 @@ public abstract class RequestTitle : Aggregate<Guid>
     public virtual void Validate()
     {
         ArgumentNullException.ThrowIfNull(CollateralType);
-        ArgumentNullException.ThrowIfNull(TitleAddress);
         ArgumentNullException.ThrowIfNull(DopaAddress);
 
-        TitleAddress.Validate();
+        if (RequiresTitleAddress)
+        {
+            ArgumentNullException.ThrowIfNull(TitleAddress);
+            TitleAddress.Validate();
+        }
+
         DopaAddress.Validate();
     }
+
+    /// <summary>Movables (vehicle, machine, vessel) have no title-document address; immovables do.</summary>
+    protected virtual bool RequiresTitleAddress => true;
 
     #region Document Management
 

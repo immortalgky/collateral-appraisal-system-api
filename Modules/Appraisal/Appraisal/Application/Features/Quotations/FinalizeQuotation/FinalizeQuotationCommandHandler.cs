@@ -1,4 +1,6 @@
+using Appraisal.Application.Features.Quotations.AutoAssign;
 using Appraisal.Application.Features.Quotations.Shared;
+using Shared.Configuration;
 using Shared.Data.Outbox;
 using Shared.Identity;
 using Shared.Messaging.Events;
@@ -11,7 +13,8 @@ public class FinalizeQuotationCommandHandler(
     ICurrentUserService currentUser,
     IIntegrationEventOutbox outbox,
     IQuotationActivityLogger activityLogger,
-    IDateTimeProvider dateTimeProvider)
+    IDateTimeProvider dateTimeProvider,
+    ISystemConfigurationReader configReader)
     : ICommandHandler<FinalizeQuotationCommand, FinalizeQuotationResult>
 {
     public async Task<FinalizeQuotationResult> Handle(
@@ -20,8 +23,18 @@ public class FinalizeQuotationCommandHandler(
     {
         QuotationAccessPolicy.EnsureAdmin(currentUser);
 
+        // Checked before anything is finalized: the go-live switch makes every assignment bounce back.
+        if (command.AutoAssignRequested
+            && !await configReader.GetBoolAsync(AutoAssignOutcome.ExternalAssignmentEnabledKey, true, cancellationToken))
+            throw new BadRequestException(
+                "Auto-assign is unavailable while assigning appraisals to external companies is disabled");
+
         var quotation = await quotationRepository.GetByIdAsync(command.QuotationRequestId, cancellationToken)
                         ?? throw new NotFoundException($"Quotation '{command.QuotationRequestId}' not found");
+
+        // Auto-assign is for standalone quotations; a task-started one is completed through its own workflow.
+        if (command.AutoAssignRequested && !quotation.IsStandalone)
+            throw new BadRequestException("Auto-assign is only available for standalone quotations");
 
         quotation.Finalize(command.CompanyQuotationId, dateTimeProvider.ApplicationNow, command.Reason);
 
@@ -77,6 +90,7 @@ public class FinalizeQuotationCommandHandler(
             command.CompanyQuotationId,
             winningQuotation.CompanyId,
             finalFeeAmount,
-            quotation.Status);
+            quotation.Status,
+            appraisalIds);
     }
 }

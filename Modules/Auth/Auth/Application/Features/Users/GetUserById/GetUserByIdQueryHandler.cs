@@ -1,3 +1,4 @@
+using Auth.Application.Features.Auth.Passkeys;
 using Auth.Domain.Groups;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -41,6 +42,12 @@ public class GetUserByIdQueryHandler(
             select new UserTeamDto(t.Id, t.Name, t.Scope)
         ).ToListAsync(cancellationToken);
 
+        var passkeys = await dbContext.UserPasskeys.AsNoTracking()
+            .Where(p => p.UserId == query.Id)
+            .OrderBy(p => p.CreatedAt).ThenBy(p => p.Id)
+            .Select(PasskeyDto.Projection)
+            .ToListAsync(cancellationToken);
+
         var permissions = user.Permissions
             .Where(up => up.Permission != null)
             .Select(up => new UserPermissionDto(up.Permission.Id, up.Permission.PermissionCode, up.IsGranted))
@@ -71,6 +78,7 @@ public class GetUserByIdQueryHandler(
             user.FirstName,
             user.LastName,
             user.Email,
+            user.PhoneNumber,
             user.AvatarUrl,
             user.Position,
             user.Department,
@@ -85,6 +93,8 @@ public class GetUserByIdQueryHandler(
             user.IsTemporaryAccess,
             user.AccessExpiresAt,
             user.LastLoginAt,
+            user.TwoFactorEnabled,
+            passkeys,
             roles,
             groups,
             teams,

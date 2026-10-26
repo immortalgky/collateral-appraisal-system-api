@@ -7,6 +7,7 @@ namespace Appraisal.Application.Features.Project.UploadProjectUnits;
 /// Branches on ProjectType for the expected header set:
 ///   Condo:           Floor | TowerName | CondoRegNumber | RoomNumber | ModelType | UsableArea | SellingPrice
 ///   LandAndBuilding: PlotNumber | HouseNumber | ModelName | NumberOfFloors | LandArea | UsableArea | SellingPrice
+///   Land:            PlotNumber | LandArea | SellingPrice  (HouseNumber optional; no model/floors/usable area)
 /// The aggregate's ImportUnits method handles auto-creating towers/models and linking.
 /// Excel parsing is delegated to <see cref="ProjectUnitExcelParser"/>.
 /// </summary>
@@ -24,10 +25,7 @@ public class UploadProjectUnitsCommandHandler(
         var project = await projectRepository.GetWithFullGraphAsync(command.AppraisalId, cancellationToken)
                       ?? throw new InvalidOperationException($"Project not found for appraisal {command.AppraisalId}");
 
-        // TODO(Land): Land follows LandAndBuilding Excel format (plot/house columns) in v1
-        var units = project.ProjectType == ProjectType.Condo
-            ? ProjectUnitExcelParser.ParseCondoExcel(command.FileStream, project.Id)
-            : ProjectUnitExcelParser.ParseLandAndBuildingExcel(command.FileStream, project.Id);
+        var units = ProjectUnitExcelParser.Parse(command.FileStream, project.ProjectType, project.Id);
 
         if (units.Count > MaxUnits)
             throw new BadRequestException(

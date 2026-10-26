@@ -25,7 +25,11 @@ public record ProjectPricingAssumptionDto(
     decimal? NearGardenAdjustment,
     decimal? LandIncreaseDecreaseRate,
     // Per-model assumptions
-    List<ProjectModelAssumptionDto> ModelAssumptions
+    List<ProjectModelAssumptionDto> ModelAssumptions,
+    // The % Calculate really applies: ForceSalePercentage, else the system default (else 70)
+    decimal EffectiveForceSalePercentage,
+    // The system default alone (within 0..100, else 70): what a blank ForceSalePercentage falls back to
+    decimal SystemDefaultForceSalePercentage
 );
 
 /// <summary>

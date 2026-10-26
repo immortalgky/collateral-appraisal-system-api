@@ -51,7 +51,7 @@
           <span class="chk on"></span>
           <strong>{{ g.property_type }}</strong>
         </td>
-        <td>{{ g.collateral_details }}</td>
+        <td>{{ if g.detail_items.size > 1 }}{{ for d in g.detail_items }}<div>- {{ d }}</div>{{ end }}{{ else }}{{ g.collateral_details }}{{ end }}</td>
         <td>{{ g.area_or_unit }}</td>
         <td class="num">{{ if g.price_per_area_or_unit; g.price_per_area_or_unit | math.format "N2"; end }}</td>
         <td class="num">{{ if g.appraisal_value; g.appraisal_value | math.format "N2"; end }}</td>

@@ -216,7 +216,12 @@ public class AppraisalChainResolutionTests(IntegrationTestFixture fixture)
             appraisal.Id, "Internal", assigneeUserId: "P0001", assignedBy: "test");
         SetAssignedAt(internalAssignment, DateTime.Now.AddMonths(-4));
 
-        db.AppraisalAssignments.AddRange(external, internalAssignment);
+        // Two saves: the current assignment is the newest CREATED live row (AppraisalAssignmentElection), and the
+        // audit interceptor stamps CreatedAt per save — a reassignment is always a later row.
+        db.AppraisalAssignments.Add(external);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        db.AppraisalAssignments.Add(internalAssignment);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var result = await sender.Send(
@@ -229,6 +234,88 @@ public class AppraisalChainResolutionTests(IntegrationTestFixture fixture)
 
     private static void SetAssignedAt(AppraisalAssignment assignment, DateTime when)
         => typeof(AppraisalAssignment).GetProperty("AssignedAt")!.SetValue(assignment, when);
+
+    /// <summary>
+    /// Progressive forces the company of the PICKED appraisal, which is not the tip's when the tip was done by
+    /// someone else. Same election as for the tip: newest assignment first, then its company.
+    /// </summary>
+    [Fact]
+    public async Task PickedCompany_IsThePicksOwn_NotTheTips()
+    {
+        using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        var (original, _, second) = await SeedTwoInspectionChainAsync(db);
+
+        var pickCompany = Guid.NewGuid();
+        var tipCompany = Guid.NewGuid();
+        db.AppraisalAssignments.AddRange(
+            AppraisalAssignment.Create(original, "External", assigneeCompanyId: pickCompany.ToString(), assignedBy: "test"),
+            AppraisalAssignment.Create(second, "External", assigneeCompanyId: tipCompany.ToString(), assignedBy: "test"));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var result = await sender.Send(
+            new ResolveLatestInAppraisalChainQuery(original), TestContext.Current.CancellationToken);
+
+        Assert.Equal(second, result!.AppraisalId);
+        Assert.Equal(tipCompany, result.CompanyId);
+        Assert.Equal(pickCompany, result.PickedCompanyId);
+    }
+
+    /// <summary>
+    /// A soft-deleted prior company is still the forced one (id kept, no name): company selection then escalates to the
+    /// admin once instead of the case silently going round-robin to a different company. A live company has its name.
+    /// </summary>
+    [Fact]
+    public async Task SoftDeletedPriorCompany_IsStillReturned_WithoutAName()
+    {
+        using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+        var auth = scope.ServiceProvider.GetRequiredService<global::Auth.Infrastructure.AuthDbContext>();
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        var (original, _, second) = await SeedTwoInspectionChainAsync(db);
+
+        var deleted = global::Auth.Domain.Companies.Company.Create($"Gone {Guid.NewGuid():N}"[..20]);
+        var live = global::Auth.Domain.Companies.Company.Create($"Live {Guid.NewGuid():N}"[..20]);
+        deleted.Delete(null);
+        auth.Companies.AddRange(deleted, live);
+        await auth.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        db.AppraisalAssignments.AddRange(
+            AppraisalAssignment.Create(original, "External", assigneeCompanyId: deleted.Id.ToString(), assignedBy: "test"),
+            AppraisalAssignment.Create(second, "External", assigneeCompanyId: live.Id.ToString(), assignedBy: "test"));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var result = await sender.Send(
+            new ResolveLatestInAppraisalChainQuery(original), TestContext.Current.CancellationToken);
+
+        Assert.Equal(live.Id, result!.CompanyId);
+        Assert.Equal(live.Name, result.CompanyName);
+        Assert.Equal(deleted.Id, result.PickedCompanyId);   // still forced, so the admin is asked once
+        Assert.Equal(string.Empty, result.PickedCompanyName);
+    }
+
+    [Fact]
+    public async Task PickedCompany_IsNull_WhenThePickWasInternal_EvenIfTheTipWasExternal()
+    {
+        using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        var (original, _, second) = await SeedTwoInspectionChainAsync(db);
+
+        var tipCompany = Guid.NewGuid();
+        db.AppraisalAssignments.AddRange(
+            AppraisalAssignment.Create(original, "Internal", assigneeUserId: "P0001", assignedBy: "test"),
+            AppraisalAssignment.Create(second, "External", assigneeCompanyId: tipCompany.ToString(), assignedBy: "test"));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var result = await sender.Send(
+            new ResolveLatestInAppraisalChainQuery(original), TestContext.Current.CancellationToken);
+
+        Assert.Equal(tipCompany, result!.CompanyId);
+        Assert.Null(result.PickedCompanyId);
+        Assert.Equal(string.Empty, result.PickedCompanyName);
+    }
 
     [Fact]
     public async Task UnknownAppraisal_ResolvesToNull()

@@ -58,6 +58,7 @@ public static class BlockReappraisalMatcher
     ///   - usableArea  (decimal within <see cref="DecimalTolerance"/>)
     ///   - Condo only: floor (int exact)
     ///   - L&amp;B only: numberOfFloors (int exact), landArea (decimal within tolerance)
+    ///   - Land: only sellingPrice and landArea (a bare plot has no model, floors or usable area)
     ///
     /// Identity/key fields (CondoRegistrationNumber, TowerName, RoomNumber, PlotNumber,
     /// HouseNumber) are intentionally NOT compared here — they are part of the key.
@@ -69,6 +70,15 @@ public static class BlockReappraisalMatcher
         out List<string> diffFields)
     {
         diffFields = [];
+
+        if (!projectType.HasStructures())
+        {
+            if (!DecimalsEqual(existing.SellingPrice, incoming.SellingPrice))
+                diffFields.Add("sellingPrice");
+            if (!DecimalsEqual(existing.LandArea, incoming.LandArea))
+                diffFields.Add("landArea");
+            return diffFields.Count > 0;
+        }
 
         // modelType — case-insensitive, trimmed
         var existingModel = existing.ModelType?.Trim() ?? string.Empty;

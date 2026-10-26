@@ -49,11 +49,12 @@ public class EvaluationEndpoints : ICarterModule
             .WithName("GetAppraisalEvaluationList")
             .Produces<PaginatedResult<AppraisalEvaluationListItem>>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
             .WithSummary("Get appraisal evaluation list")
             .WithDescription("Returns a paginated list of appraisals that have an External assignment, " +
                              "together with their evaluation status and composite score.")
             .WithTags("AppraisalEvaluation")
-            .RequireAuthorization();
+            .RequireAuthorization("ServiceQualityEvaluationView");
 
         // ── GET by appraisal ────────────────────────────────────────────────
         app.MapGet(
@@ -72,10 +73,11 @@ public class EvaluationEndpoints : ICarterModule
             .WithName("GetAppraisalEvaluationByAppraisal")
             .Produces<AppraisalEvaluationDetail?>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
             .WithSummary("Get evaluation by appraisal")
             .WithDescription("Returns the full evaluation detail for a given appraisal, or null if none has been saved yet.")
             .WithTags("AppraisalEvaluation")
-            .RequireAuthorization();
+            .RequireAuthorization("ServiceQualityEvaluationView");
 
         // ── GET evaluation header (for detail page info section) ────────────
         app.MapGet(
@@ -96,11 +98,12 @@ public class EvaluationEndpoints : ICarterModule
             .Produces<AppraisalEvaluationHeader>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
             .WithSummary("Get evaluation header info for an appraisal")
             .WithDescription("Returns the appraisal header fields displayed on the Service Quality Evaluation detail page " +
                              "(customer, report received date, appraiser company, collateral types, inspection dates).")
             .WithTags("AppraisalEvaluation")
-            .RequireAuthorization();
+            .RequireAuthorization("ServiceQualityEvaluationView");
 
         // ── GET detect delivery time ────────────────────────────────────────
         app.MapGet(
@@ -121,13 +124,14 @@ public class EvaluationEndpoints : ICarterModule
             .Produces<DetectDeliveryTimeResult>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
             .WithSummary("Auto-detects delivery time as business days between assigned and submitted; suggests a rating (1–5).")
             .WithDescription("Computes first-submission turnaround (SubmittedAt − AssignedAt) of the current External " +
                              "assignment in business hours (excluding weekends, holidays, and lunch), converts to " +
                              "8-hour business days, and returns a suggested rating (1–5). Returns 404 when no " +
                              "qualifying External assignment exists or either timestamp is absent.")
             .WithTags("AppraisalEvaluation")
-            .RequireAuthorization();
+            .RequireAuthorization("ServiceQualityEvaluationView");
 
         // ── POST create ─────────────────────────────────────────────────────
         app.MapPost(
@@ -158,11 +162,12 @@ public class EvaluationEndpoints : ICarterModule
             .Produces(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
             .WithSummary("Create a service quality evaluation")
             .WithDescription("Creates a new Draft evaluation for an appraisal. " +
                              "One evaluation per appraisal is enforced.")
             .WithTags("AppraisalEvaluation")
-            .RequireAuthorization();
+            .RequireAuthorization("ServiceQualityEvaluationEdit");
 
         // ── PUT update ──────────────────────────────────────────────────────
         app.MapPut(
@@ -195,11 +200,12 @@ public class EvaluationEndpoints : ICarterModule
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
             .WithSummary("Update a service quality evaluation")
             .WithDescription("Updates all criteria ratings. " +
                              "Setting EvaluationStatus to 'Completed' stamps EvaluatedAt/EvaluatedBy.")
             .WithTags("AppraisalEvaluation")
-            .RequireAuthorization();
+            .RequireAuthorization("ServiceQualityEvaluationEdit");
     }
 }
 

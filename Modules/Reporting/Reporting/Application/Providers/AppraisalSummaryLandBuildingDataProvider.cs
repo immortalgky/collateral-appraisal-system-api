@@ -2,6 +2,7 @@ using Reporting.Application.Formatting;
 using Reporting.Application.Models;
 using Reporting.Application.Services;
 using Shared.Configuration;
+using Shared.DDD;
 
 namespace Reporting.Application.Providers;
 
@@ -588,25 +589,23 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             -- RS24: Construction-inspection progress, one row per property under construction.
             -- ProgressPct mirrors Appraisal.Domain ConstructionInspection.OverallCurrentProgressPercent
             -- (full-detail = Σ of the work details' already-weighted CurrentProportionPct; summary
-            -- mode = SummaryCurrentProgressPct). KEEP IN SYNC with ConstructionInspection.cs.
+            -- mode = SummaryCurrentProgressPct). KEEP IN SYNC with ConstructionInspection.cs and with
+            -- the progress query in GetAppraisalBriefQueryHandler (Appraisal module).
             -- TotalValue is the 100%-complete building value and equals the sum of that property's
             -- BuildingDepreciationDetails.PriceAfterDepreciation, so the grid's existing figures
-            -- already are the "เมื่อแล้วเสร็จ 100%" side; only the current side is derived.
+            -- already are the "เมื่อแล้วเสร็จ 100%" side; only the current side is derived (stored, so an override shows).
             SELECT
                 ci.AppraisalPropertyId,
                 ci.TotalValue,
                 CASE WHEN ci.IsFullDetail = 1
                      THEN ISNULL(wd_agg.CurrentProportionPctSum, 0)
                      ELSE ISNULL(ci.SummaryCurrentProgressPct, 0) END AS ProgressPct,
-                CASE WHEN ci.IsFullDetail = 1
-                     THEN ISNULL(wd_agg.CurrentPropertyValueSum, 0)
-                     ELSE ISNULL(ci.SummaryCurrentValue, 0) END      AS CurrentValue
+                ci.SummaryCurrentValue                               AS CurrentValue
             FROM appraisal.ConstructionInspections ci
             JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
             LEFT JOIN (
                 SELECT wd.ConstructionInspectionId,
-                       SUM(wd.CurrentProportionPct) AS CurrentProportionPctSum,
-                       SUM(wd.CurrentPropertyValue) AS CurrentPropertyValueSum
+                       SUM(wd.CurrentProportionPct) AS CurrentProportionPctSum
                 FROM appraisal.ConstructionWorkDetails wd
                 GROUP BY wd.ConstructionInspectionId
             ) wd_agg ON wd_agg.ConstructionInspectionId = ci.Id
@@ -773,9 +772,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             ? string.Join(" และ ", customerNames)
             : null;
 
-        // ที่ตั้งทรัพย์สิน from the first land/building property (RS25, CollateralLocationSql). The
+        // ที่ตั้งทรัพย์สิน from the land/building properties (RS25, CollateralLocationSql). The
         // internal book renders every Standard appraisal through this provider, so one with no
-        // printable land anchor falls back to the first condo anchor (LandOrCondo).
+        // printable land unit falls back to the condo units (LandOrCondo).
         var location = locations.LandOrCondo;
         var collateralAddress = location?.Address;
 
@@ -983,8 +982,14 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         // ── Construction progress (RS24) ──────────────────────────────────────────
         // One inspection per property; a property with no row is complete. The percent applies to
         // every cost line of that property — its building line AND its ส่วนพัฒนา lines — which is
-        // exact rather than approximate: ConstructionInspections.TotalValue equals the sum of the
-        // property's PriceAfterDepreciation, and CurrentValue equals TotalValue × the percent.
+        // approximately: ConstructionInspections.TotalValue equals the sum of the property's
+        // PriceAfterDepreciation, and the stored CurrentValue is TotalValue × the percent — unless the
+        // inspector overrode it, which the percent cannot reproduce. So the property's lines are made to
+        // add up to the stored CurrentValue (see ReconcileToStored).
+        var storedCurrentByProperty = constructionProgressRows
+            .GroupBy(r => r.AppraisalPropertyId)
+            .Where(g => g.First().CurrentValue is not null)
+            .ToDictionary(g => g.Key, g => g.First().CurrentValue!.Value);
         var progressByProperty = constructionProgressRows
             .GroupBy(r => r.AppraisalPropertyId)
             .ToDictionary(g => g.Key, g => g.First());
@@ -1045,6 +1050,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         }
 
         // ── Build per-group summary rows ──────────────────────────────────────────
+        var constructionShortfallSum = 0m;
         var summaryGroups = groupRows.Select(g =>
         {
             titlesByGroup.TryGetValue(g.GroupId, out var titles);
@@ -1069,10 +1075,10 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 .GroupBy(d => d.BuildingAppraisalDetailId)
                 .ToDictionary(grp => grp.Key, grp => grp.ToList());
 
+            // The rule itself lives in Shared so the appraisal brief applies the same one.
             bool IsDevelopmentOnly(GroupBuildingRow b) =>
-                !HasHouseNumber(b.HouseNumber)
-                && depRowsByBuilding.TryGetValue(b.BuildingId, out var rows)
-                && rows.TrueForAll(r => !r.IsBuilding);
+                depRowsByBuilding.TryGetValue(b.BuildingId, out var rows)
+                && DevelopmentOnlyBuilding.IsDevelopmentOnly(b.HouseNumber, rows.Select(r => r.IsBuilding));
 
             // Rows moved out of the สิ่งปลูกสร้าง list lose the only place their type was printed, so
             // they lead with it under ส่วนพัฒนา — "รั้วตาข่ายเหล็ก …" instead of a bare "พื้นที่ใช้สอย …".
@@ -1256,6 +1262,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                     var value = buildingValueById.TryGetValue(b.BuildingId, out var v) ? v : (decimal?)null;
                     var pct = ProgressPctOf(b.AppraisalPropertyId);
                     return (
+                        b.AppraisalPropertyId,
                         IsUnderConstruction: IsUnderConstructionProperty(b.AppraisalPropertyId),
                         Row: new SummaryItemRow
                         {
@@ -1284,6 +1291,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                     var pct = ProgressPctOf(d.AppraisalPropertyId);
                     var isMoved = movedNameByBuilding.TryGetValue(d.BuildingAppraisalDetailId, out var namePrefix);
                     return (
+                        d.AppraisalPropertyId,
                         IsMoved: isMoved,
                         IsUnderConstruction: IsUnderConstructionProperty(d.AppraisalPropertyId),
                         Row: new SummaryItemRow
@@ -1296,6 +1304,11 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 .ToList();
 
             var developmentItems = developmentRows.ConvertAll(x => x.Row);
+
+            ReconcileToStored(
+                [.. buildingRows.Select(x => (x.AppraisalPropertyId, x.Row, IsBuilding: true)),
+                 .. developmentRows.Select(x => (x.AppraisalPropertyId, x.Row, IsBuilding: false))],
+                ProgressPctOf, storedCurrentByProperty);
 
             // The combined/market row carries ONE blended figure and has no valued ส่วนพัฒนา block,
             // so it lists only the rows whose property just lost its "พร้อม…" clause — as plain text
@@ -1419,7 +1432,13 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
             // The not-yet-built portion of this group, subtracted from the group and appraisal
             // totals to get the ตามสภาพปัจจุบัน figures.
-            var groupShortfall = buildingSubtotal - buildingSubtotalCurrent;
+            // Floored per PROPERTY: an override at or above a property's 100% sum would make its shortfall
+            // negative and cancel another property's real one, in this group or another.
+            // A group that prints its saved building total instead of the rows contributes none.
+            if (splitLandAndBuilding && !useSavedBuildingValue)
+                constructionShortfallSum += ShortfallPerProperty(
+                    [.. buildingRows.Select(x => (x.AppraisalPropertyId, x.Row)),
+                     .. developmentRows.Select(x => (x.AppraisalPropertyId, x.Row))]);
 
             // Market/combined row only: show พื้นที่ + ราคาต่อหน่วย for a LAND-ONLY group priced at a
             // per-unit rate, where the rate genuinely prices the land. A Land+Building market group
@@ -1686,9 +1705,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         // entirely in market groups therefore yields a zero shortfall, and showing the split would
         // print two identical columns asserting the current condition equals the completed value.
         // Suppress it instead.
-        var constructionShortfall = summaryGroups
-            .Where(g => g.SplitLandAndBuilding)
-            .Sum(g => (g.BuildingSubtotal ?? 0m) - (g.BuildingSubtotalCurrent ?? 0m));
+        var constructionShortfall = constructionShortfallSum;
 
         bool hasUnderConstruction = anyProgressBelow100 && constructionShortfall > 0m;
 
@@ -1795,15 +1812,6 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-
-    /// <summary>
-    /// Whether a Building Detail actually carries a house number. Appraisers type "-" for "none"
-    /// (35 of the 232 rows on the dev database), so a dash-only value must read as absent — it is
-    /// used as proof that a mis-flagged building is a real สิ่งปลูกสร้าง, and a placeholder is not
-    /// proof of anything.
-    /// </summary>
-    private static bool HasHouseNumber(string? houseNumber) =>
-        !string.IsNullOrWhiteSpace(houseNumber) && houseNumber.Trim().Trim('-', '–', '—').Length > 0;
 
     /// <summary>A square-wa total in the same "R-N-W ไร่" shorthand as the title lines, carried
     /// by <see cref="ThaiLandAreaFormatter.NormalizeTotal"/>.</summary>
@@ -1925,6 +1933,61 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
     // ── Private flat DTOs for Dapper mapping ─────────────────────────────────────
 
+    /// <summary>
+    /// While the work is under way (0 &lt; percent &lt; 100) a property with an inspection must print lines that add
+    /// up to the inspection's stored current value, which is not value x percent when the inspector overrode it.
+    /// Each of the property's lines (buildings and ส่วนพัฒนา) is scaled by stored / Σ(value x percent), rounded to
+    /// satang, and the line with the largest value takes the rounding so the lines sum exactly to the stored value
+    /// (a zero-value line can then never print a stray satang). With no override the ratio is about 1, and that
+    /// holds because the building line absorbs the base rounding (the keyed Building Cost Value, or the schedule
+    /// rounded to 1,000) that the ส่วนพัฒนา lines, on raw depreciation, do not — which is why a property without a
+    /// valued building line is skipped and stays pct-scaled. So are properties with no inspection or no stored
+    /// value, not started, finished, or with a negative line.
+    /// </summary>
+    internal static void ReconcileToStored(
+        IReadOnlyList<(Guid PropertyId, SummaryItemRow Row, bool IsBuilding)> lines,
+        Func<Guid, decimal?> progressPctOf,
+        IReadOnlyDictionary<Guid, decimal> storedByProperty)
+    {
+        foreach (var property in lines.GroupBy(l => l.PropertyId))
+        {
+            if (progressPctOf(property.Key) is not (> 0m and < 100m)
+                || !storedByProperty.TryGetValue(property.Key, out var stored))
+                continue;
+
+            // The building line is what makes the ratio about 1: it absorbs the base rounding (the keyed Building
+            // Cost Value, or the schedule rounded to 1,000) that the ส่วนพัฒนา lines, on raw depreciation, do not.
+            // Without a valued building line the lines are not on the inspection's base and the ratio distorts them,
+            // so such a property stays pct-scaled; a negative line breaks the proportions the same way.
+            if (!property.Any(l => l.IsBuilding && l.Row.Value > 0m) || property.Any(l => l.Row.Value < 0m))
+                continue;
+
+            var pct = progressPctOf(property.Key)!.Value;
+            var valued = property.Where(l => l.Row.Value is not null).Select(l => l.Row).ToList();
+            var scaledTotal = valued.Sum(r => r.Value!.Value * pct / 100m);
+            if (scaledTotal <= 0m)
+                continue;
+
+            var ratio = stored / scaledTotal;
+            var largest = valued.IndexOf(valued.MaxBy(r => r.Value)!);
+            var assigned = 0m;
+            for (var i = 0; i < valued.Count; i++)
+            {
+                if (i == largest) continue;
+                valued[i].CurrentValue =
+                    Math.Round(valued[i].Value!.Value * pct / 100m * ratio, 2, MidpointRounding.AwayFromZero);
+                assigned += valued[i].CurrentValue!.Value;
+            }
+
+            valued[largest].CurrentValue = stored - assigned;
+        }
+    }
+
+    /// <summary>Σ over properties of max(0, 100% lines − current lines): the part still to be built.</summary>
+    internal static decimal ShortfallPerProperty(IEnumerable<(Guid PropertyId, SummaryItemRow Row)> lines) =>
+        lines.GroupBy(l => l.PropertyId)
+             .Sum(p => Math.Max(0m, p.Sum(l => l.Row.Value ?? 0m) - p.Sum(l => l.Row.CurrentValue ?? 0m)));
+
     private sealed class HeaderRow
     {
         public string? AppraisalNumber { get; init; }
@@ -2040,7 +2103,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         /// <summary>Overall current progress, 0–100.</summary>
         public decimal ProgressPct { get; init; }
         /// <summary>Building value at the current progress.</summary>
-        public decimal CurrentValue { get; init; }
+        public decimal? CurrentValue { get; init; }
     }
 
     private sealed class GroupLandFillRow

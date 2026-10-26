@@ -1,5 +1,5 @@
-using System.Globalization;
 using System.Text;
+using Shared.DDD;
 
 namespace Reporting.Application.Formatting;
 
@@ -80,29 +80,19 @@ public static class ThaiAddressFormatter
         return sb.ToString().Trim();
     }
 
-    // Hyphen-minus, en/em dash, and the minus sign / hyphens / fullwidth forms that pasted or IME
-    // text brings in.
-    private static readonly char[] Dashes = ['-', '–', '—', '−', '‐', '‑', '‒', '－', '﹣'];
-
     /// <summary>
     /// The trimmed value, or null when it is blank or only dashes (the placeholders for "no value")
-    /// — so a segment and its label drop out instead of printing "ซอย -".
+    /// — so a segment and its label drop out instead of printing "ซอย -". The rule lives in Shared
+    /// because the appraisal brief must agree with it.
     /// </summary>
-    public static string? Stated(string? value)
-    {
-        var trimmed = value?.Trim();
-        return string.IsNullOrEmpty(trimmed) || trimmed.All(c => char.IsWhiteSpace(c) || Dashes.Contains(c)) ? null : trimmed;
-    }
+    public static string? Stated(string? value) => PlaceholderText.Stated(value);
 
     /// <summary>
     /// Whether a free-text numeric field (e.g. a condo floor) was actually filled in. Blank or dashes
     /// mean not stated; so does a numeric zero, which the form cannot tell apart from "not stated" and
     /// which would otherwise print as a fact ("ชั้นที่ 0"). Non-numeric text (e.g. "G") counts as stated.
     /// </summary>
-    public static bool IsStated(string? value) =>
-        // Strip the dash placeholders before parsing, so "–0" or "0 -" still read as zero.
-        Stated(value)?.Trim(Dashes).Trim() is { } core
-        && (!decimal.TryParse(core, NumberStyles.Any, CultureInfo.InvariantCulture, out var n) || n != 0m);
+    public static bool IsStated(string? value) => PlaceholderText.StatedUnlessZero(value) is not null;
 
     private static void Append(StringBuilder sb, string? label, string? value, bool spaceAfterLabel = true)
     {

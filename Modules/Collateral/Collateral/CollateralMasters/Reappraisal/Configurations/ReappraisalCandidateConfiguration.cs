@@ -71,6 +71,7 @@ public class ReappraisalCandidateConfiguration : IEntityTypeConfiguration<Reappr
         builder.Property(p => p.IBGRetail).HasMaxLength(10);
         builder.Property(p => p.Group).HasMaxLength(1);
         builder.Property(p => p.EffectiveDateAppraisal);
+        builder.Property(p => p.AutoUpdate).HasMaxLength(1);
 
         // Geo coordinates (enriched post-ingest; NULL when no SurveyNumber match)
         builder.Property(p => p.Latitude).HasPrecision(10, 7);

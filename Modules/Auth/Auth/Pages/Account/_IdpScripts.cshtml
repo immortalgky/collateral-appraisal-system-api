@@ -1,0 +1,34 @@
+@model Auth.Pages.Account.IdpPageModel
+@* Language switch and submit state for the two-factor pages (the sign-in page has its own, which also keeps the typed username). *@
+<script>
+    // The cookie is shared with the SPA (same host, any port), so it is not HttpOnly. Navigate with an explicit GET
+    // to the same URL (keeps ReturnUrl): reload() would re-POST a code.
+    function setLanguage(lang) {
+        // Secure: every environment is served over https (the SPA reads the cookie from its own https origin).
+        document.cookie = 'cas-lang=' + lang + '; Path=/; SameSite=Lax; Secure; Max-Age=31536000';
+        location.replace(location.pathname + location.search);
+    }
+
+    // Close the language menu on Escape (focus returns to its summary) and on a click outside it.
+    var langMenu = document.querySelector('.login-lang');
+    if (langMenu) {
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && langMenu.open) {
+                langMenu.open = false;
+                langMenu.querySelector('summary').focus();
+            }
+        });
+        document.addEventListener('click', function (e) {
+            if (!langMenu.contains(e.target)) langMenu.open = false;
+        });
+    }
+
+    var form = document.querySelector('form[method=post]');
+    if (form) form.addEventListener('submit', function () {
+        var btn = form.querySelector('.login-button');
+        if (!btn) return;
+        btn.disabled = true;
+        btn.textContent = @Json.Serialize(Model.T2.Verifying);
+        btn.classList.add('loading');
+    });
+</script>

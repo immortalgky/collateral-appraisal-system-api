@@ -4,7 +4,6 @@ using Appraisal.Infrastructure;
 using Collateral.CollateralMasters.Consumers;
 using Collateral.CollateralMasters.Models;
 using Collateral.CollateralMasters.Services;
-using Collateral.Contracts.ConstructionInspection;
 using Collateral.Contracts.Engagements;
 using Collateral.Data;
 using Integration.Fixtures;
@@ -236,14 +235,10 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
     // -----------------------------------------------------------------------
     // PR6-3: AssignmentFeeService CI fee read-back
     //
-    // GetConstructionInspectionFeeForAppraisalQuery returns the CI fee captured on
-    // the prior appraisal's engagement.
+    // AssignmentFeeService.ResolveSourceForAppraisalAsync reads the prior appraisal's latest assignment's
+    // AppraisalFee.ConstructionInspectionFeeAmount (not the collateral engagement).
     //
-    // AssignmentFeeService.ResolveSourceForAppraisalAsync no longer reads the
-    // engagement (d7670a5a): it reads the prior appraisal's latest assignment's
-    // AppraisalFee.ConstructionInspectionFeeAmount, so the fee is seeded there too.
-    //
-    // Assert: both return the seeded amount.
+    // Assert: it resolves to the ConstructionInspection source with the seeded amount.
     // -----------------------------------------------------------------------
     [Fact]
     public async Task PR6_3_AssignmentFeeService_CIFeeReadBack_ReturnsSeedFeeAmount()
@@ -276,20 +271,6 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
 
         await ProcessAppraisalInNewScopeAsync(priorAppraisalId);
 
-        // Patch engagement with CI fee amount
-        using (var patch = CreateScope())
-        {
-            var db = GetCollateralDbContext(patch);
-            var engagement = await db.CollateralEngagements
-                .FirstAsync(e => e.AppraisalId == priorAppraisalId, ct);
-
-            typeof(CollateralEngagement)
-                .GetProperty("ConstructionInspectionFeeAmount")!
-                .SetValue(engagement, seededCIFee);
-
-            await db.SaveChangesAsync(ct);
-        }
-
         // Create a new CI appraisal that references the prior appraisal
         Guid ciAppraisalId;
         using (var seed = CreateScope())
@@ -312,18 +293,9 @@ public class CollateralPR6_CallerChainTests(IntegrationTestFixture fixture)
             ciAppraisalId = ciAppraisal.Id;
         }
 
-        // Act: call the MediatR query directly (same query the service sends)
         using var assert = CreateScope();
-        var mediator = assert.ServiceProvider.GetRequiredService<ISender>();
 
-        var fee = await mediator.Send(
-            new GetConstructionInspectionFeeForAppraisalQuery(priorAppraisalId), ct);
-
-        // Assert: handler returns the seeded CI fee amount
-        Assert.Equal(seededCIFee, fee);
-
-        // Also verify that AssignmentFeeService itself resolves to
-        // ConstructionInspection source with the correct amount.
+        // AssignmentFeeService resolves to the ConstructionInspection source with the correct amount.
         var appraisalDb2 = assert.ServiceProvider.GetRequiredService<AppraisalDbContext>();
         var ciAppraisal2 = await appraisalDb2.Appraisals
             .FirstAsync(a => a.Id == ciAppraisalId, ct);

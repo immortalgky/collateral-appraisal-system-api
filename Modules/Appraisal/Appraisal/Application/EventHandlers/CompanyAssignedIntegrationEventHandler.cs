@@ -43,12 +43,7 @@ public class CompanyAssignedIntegrationEventHandler(
             return;
         }
 
-        var assignment = appraisal.Assignments
-            .Where(a => a.AssignmentStatus.Code != "Rejected" && a.AssignmentStatus.Code != "Cancelled")
-            .OrderByDescending(a => a.AssignedAt)
-            .ThenByDescending(a => a.CreatedAt)
-            .ThenByDescending(a => a.Id)
-            .FirstOrDefault();
+        var assignment = appraisal.Assignments.Current();
 
         if (assignment is null)
         {
@@ -56,6 +51,10 @@ public class CompanyAssignedIntegrationEventHandler(
                 "No active assignment found for Appraisal {AppraisalId}", message.AppraisalId);
             return;
         }
+
+        // Read before Assign() flips it: a row that was Pending is a genuine (re)assignment, so a system base left by
+        // an earlier source is re-priced; any other re-fire must not rewrite a base that may already be billed.
+        var wasPending = assignment.AssignmentStatus == AssignmentStatus.Pending;
 
         // Promote the assignment to Assigned for all external paths (Manual, RoundRobin, Forced, Quotation).
         // Preserve internal-followup fields: Assign() defaults them to null, so without
@@ -67,9 +66,11 @@ public class CompanyAssignedIntegrationEventHandler(
             assignmentMethod: message.AssignmentMethod,
             internalAppraiserId: assignment.InternalAppraiserId,
             internalFollowupMethod: assignment.InternalFollowupAssignmentMethod,
-            assignedBy: "System");
+            // The admin who pressed Assign, recorded on the row by AssignAppraisalCommandHandler before the workflow
+            // resumed (Assign() would otherwise stamp "System" over them).
+            assignedBy: assignment.AssignedBy);
 
-        var baseFeeSource = await ResolveFeeSourceAsync(message.AppraisalId, message.AssignmentMethod, assignment, ct);
+        var baseFeeSource = await ResolveFeeSourceAsync(message.AppraisalId, message.CompanyId, message.AssignmentMethod, assignment, ct);
 
         // Construction Inspection appraisals carry over the prior engagement's fee; the fee service
         // substitutes AssignmentFeeSource.ConstructionInspection when that applies. Mirrors what
@@ -80,6 +81,7 @@ public class CompanyAssignedIntegrationEventHandler(
             appraisalId: message.AppraisalId,
             assignmentId: assignment.Id,
             source: feeSource,
+            repriceSystemBase: wasPending,
             ct: ct);
 
         // Kept on purpose: assignment events only touch AppraisalAssignment rows, so this stamps Appraisals.UpdatedAt
@@ -99,6 +101,7 @@ public class CompanyAssignedIntegrationEventHandler(
     /// </summary>
     private async Task<AssignmentFeeSource> ResolveFeeSourceAsync(
         Guid appraisalId,
+        Guid companyId,
         string assignmentMethod,
         AppraisalAssignment assignment,
         CancellationToken ct)
@@ -109,39 +112,23 @@ public class CompanyAssignedIntegrationEventHandler(
         // Resolve the Finalized RFQ for this appraisal. Look up by appraisal id — this is
         // authoritative regardless of whether QuotationRequestId was previously backfilled
         // on the assignment. (The backfill below is a defensive cache for legacy callers.)
-        var quotationRequest = await quotationRepository.GetFinalizedByAppraisalIdAsync(appraisalId, ct);
+        var quotationRequest = await quotationRepository.GetFinalizedByAppraisalIdAsync(appraisalId, companyId, ct);
 
         if (quotationRequest is null)
             throw new BadRequestException(
-                $"Cannot use Quotation fee source: no Finalized RFQ contains appraisal '{appraisalId}'. " +
-                "Make sure the quotation is finalized with a winner before assigning.");
+                $"Cannot use Quotation fee source: the latest finalized RFQ for appraisal '{appraisalId}' was not won by company '{companyId}' (or none exists). " +
+                "Make sure the quotation is finalized with this company as the winner before assigning.");
 
-        var winningQuotation = quotationRequest.Quotations.FirstOrDefault(q => q.IsWinner)
-            ?? throw new BadRequestException(
-                $"Cannot use Quotation fee source: RFQ '{quotationRequest.QuotationNumber ?? quotationRequest.Id.ToString()}' has no winning company quotation.");
-
-        var item = winningQuotation.Items.FirstOrDefault(i => i.AppraisalId == appraisalId);
-
-        // The fee service expects the ex-VAT amount — VAT is recomputed on top of the AppraisalFeeItem
-        // when RecalculateFromItems runs. Modern submissions populate FeeAmount/Discount/VatPercent →
-        // use FeeAfterDiscount (ex-VAT). Legacy rows without a fee breakdown only have a single
-        // QuotedPrice number; fall back to that or the aggregate total as a last resort.
-        decimal amount;
-        if (item is not null && item.FeeAmount > 0m)
-            amount = item.FeeAfterDiscount;
-        else if (item is not null)
-            amount = item.QuotedPrice;
-        else
-            amount = winningQuotation.TotalQuotedPrice;
-
-        if (amount <= 0m)
-            throw new BadRequestException(
-                $"Cannot use Quotation fee source: winning quotation has no usable price for appraisal '{appraisalId}'.");
+        // Whether the winner's price is usable is judged by the fee service, in the assignment's own transaction: an
+        // admin's own base (01) outranks the quotation and needs no price, otherwise an unusable one is logged and
+        // no base fee is created (never a 01 at 0, never a throw after the workflow has moved on). So an unusable
+        // price is passed on as null (with the reason), never decided here.
+        var price = QuotationFeePrice.Resolve(quotationRequest, appraisalId, companyId);
 
         // Backfill the linkage so future reads don't need the appraisal-id fallback path.
         if (assignment.QuotationRequestId != quotationRequest.Id)
             assignment.SetQuotationRequestId(quotationRequest.Id);
 
-        return new AssignmentFeeSource.Quotation(amount, quotationRequest.Id, quotationRequest.QuotationNumber);
+        return new AssignmentFeeSource.Quotation(price.Amount, quotationRequest.Id, quotationRequest.QuotationNumber, price.Error);
     }
 }

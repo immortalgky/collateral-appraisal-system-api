@@ -22,7 +22,7 @@ public class BlockReappraisalDue
     public DateTime? LastAppraisedDate { get; private set; }
     public DateTime DueDate { get; private set; }
 
-    /// <summary>"Pending" or "Consumed". Default: "Pending".</summary>
+    /// <summary>"Pending", "Consumed" (request raised) or "Deleted" (marked not required). Default: "Pending".</summary>
     public string Status { get; private set; } = "Pending";
     public string? NotRequiredRemark { get; private set; }
 
@@ -97,12 +97,24 @@ public class BlockReappraisalDue
     }
 
     /// <summary>
+    /// Marks this row "reappraisal not required" — the screen's opt-out. Kept apart from Consumed
+    /// (a raised request) so the list can show it on its own tab and the remark on the detail page.
+    /// </summary>
+    public void MarkNotRequired(string? remark)
+    {
+        Status = "Deleted";
+        UpdatedAt = DateTime.UtcNow;
+        NotRequiredRemark = remark;
+    }
+
+    /// <summary>
     /// Re-opens a previously Consumed row when the project becomes due again on a later scan cycle.
     /// Called after UpdateSnapshot so both snapshot fields and Status are refreshed atomically.
     /// </summary>
     public void Reactivate()
     {
         Status = "Pending";
+        NotRequiredRemark = null;
         UpdatedAt = DateTime.UtcNow;
     }
 }
