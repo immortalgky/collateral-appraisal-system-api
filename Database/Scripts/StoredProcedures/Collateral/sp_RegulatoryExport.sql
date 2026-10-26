@@ -37,9 +37,10 @@
 -- ran past ten minutes on a set 467 rows larger than UAT3's. Every #temp step here is planned
 -- against a row count that is already known, which is why the procedure's cost barely moves.
 --
--- ⚠ This has NOT been shown to fix production. The reason production overran is still unexplained,
--- and the argument above is a shape, not a measurement of that box. Run the procedure there and
--- compare before believing it.
+-- Production's Query Store (2026-09-24/25) put the overrun in the view's plan: the Eager Index Spool
+-- described under "Why the hints", and ProjectUnitValue/ProjectUnitRow recomputed per row on the inner
+-- side of Nested Loops, which this procedure avoids by materialising #PUV/#PUR. Hand-applied hints took
+-- the view from 600 s+ to 6 s there. ⚠ This procedure itself has NOT yet run on production.
 --
 -- The same lesson, from the same codebase: QuickSearchQueryHandler already notes that "a CTE
 -- referenced twice is re-evaluated, which would run all 17 arms again".
@@ -51,6 +52,17 @@
 --
 -- OPTION (MAXRECURSION 0) now lives with the two recursive steps that need it. In the view it could
 -- not, so it had to be appended by the caller and applied to the whole statement.
+--
+-- ── Why the hints ─────────────────────────────────────────────────────────────────────────────
+-- In September 2026 the VIEW ran past 600 s on production: its Walk/ProjectWalk recursion joined
+-- appraisal.Appraisals through an Eager Index Spool over a full scan of Appraisals, rebuilt on every
+-- recursion step. FORCESEEK forbids the scan (and so the spool built from it) and keeps each of the two
+-- recursive joins an index seek by Id. PK_Appraisals always exists, so the hint can always be satisfied
+-- and cannot raise Msg 8622. No index is named on purpose: a rename cannot break the procedure.
+-- Evidence: on a copy of U3 (SQL 2022 CU20, PRD's 4 CPUs simulated) with PrevAppraisalNumber populated,
+-- the unhinted procedure chose that spool in 11 of 19 runs and the hinted one in 0 of 19; same ~4.2 s,
+-- same 24,418 rows. Not measured on PRD, and on the copy the spool was built once per run, so the
+-- per-step rebuild was not reproduced there.
 CREATE OR ALTER PROCEDURE [collateral].[sp_RegulatoryExport]
 AS
 BEGIN
@@ -167,7 +179,8 @@ BEGIN
             w.Depth + 1,
             CAST(w.Path + CAST(p.Id AS varchar(36)) + '|' AS varchar(max))
         FROM Walk w
-        JOIN appraisal.Appraisals p
+        -- FORCESEEK: see "Why the hints" in the header.
+        JOIN appraisal.Appraisals p WITH (FORCESEEK)
             ON  p.Id        = w.PrevAppraisalId
             AND p.IsDeleted = 0
         WHERE CHARINDEX('|' + CAST(p.Id AS varchar(36)) + '|', w.Path) = 0
@@ -216,7 +229,7 @@ BEGIN
                w.Depth + 1,
                CAST(w.Path + CAST(p.Id AS varchar(36)) + '|' AS varchar(max))
         FROM ProjectWalk w
-        JOIN appraisal.Appraisals p ON p.Id = w.PrevAppraisalId AND p.IsDeleted = 0
+        JOIN appraisal.Appraisals p WITH (FORCESEEK) ON p.Id = w.PrevAppraisalId AND p.IsDeleted = 0
         WHERE CHARINDEX('|' + CAST(p.Id AS varchar(36)) + '|', w.Path) = 0
     )
     SELECT * INTO #PW FROM ProjectWalk
