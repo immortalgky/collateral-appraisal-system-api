@@ -37,12 +37,10 @@
                                   AND InspectedCurrentValue < InspectedTotalValue
     ConstructionProgressPercent = clamp(InspectedCurrentValue / InspectedTotalValue * 100, 0, 100)
 
-  IMPORTANT — summary mode multiplies by the stored PERCENT, and deliberately does
-  NOT read ci.SummaryCurrentValue. The CI screen computes that figure in a useMemo
-  and displays it but never writes it back into the form, so the persisted column
-  holds the default 0 while the screen showed something else. The percent is bound
-  to a real input and does persist. This matches BackfillEngagementCurrentValue.sql
-  and IConstructionCurrentValueService — all three must stay in step.
+  NOTE — this script writes only IsUnderConstruction and ConstructionProgressPercent, so it keeps
+  deriving progress from the entered percent (and the work rows). The inspector's current-value
+  override moves money, not progress; BackfillEngagementCurrentValue.sql, which writes money,
+  reads the stored ci.SummaryCurrentValue instead.
 
   SCOPE / GUARDS (all required):
     - e.IsUnderConstruction IS NULL -> idempotent; never overwrites a value written
