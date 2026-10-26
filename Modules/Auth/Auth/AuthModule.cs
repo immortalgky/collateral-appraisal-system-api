@@ -6,6 +6,7 @@ using Auth.Infrastructure.Repository;
 using Auth.Infrastructure.Seed;
 using Auth.Infrastructure.Session;
 using Auth.Application.Services;
+using Auth.Contracts.Clients;
 using Auth.Contracts.Companies;
 using Auth.Contracts.Users;
 using Auth.Scheduling;
@@ -387,7 +388,7 @@ public static class AuthModule
             .Configure<SessionTicketStore>((options, store) => options.SessionStore = store);
 
         // Authorization policies
-        services.AddAuthorizationBuilder().AddPolicies();
+        services.AddAuthorizationBuilder().AddPolicies(allowDevBypass);
 
         // Data seeding
         services.AddScoped<IDataSeeder<AuthDbContext>, AuthDataSeed>();
@@ -406,6 +407,7 @@ public static class AuthModule
         services.AddScoped<IAuthAuditWriter, AuthAuditWriter>();
         services.AddScoped<IUserLookupService, UserLookupService>();
         services.AddScoped<ICompanyLookupService, CompanyLookupService>();
+        services.AddScoped<IClientLookupService, ClientLookupService>();
         services.AddScoped<PermissionResolver>();
 
         // Browser sessions: server-side store, per-request claims, revoke/end operations.
@@ -504,7 +506,7 @@ public static class AuthModule
             : TimeSpan.FromMinutes(policy.LockoutMinutes);
     }
 
-    private static AuthorizationBuilder AddPolicies(this AuthorizationBuilder authorizationBuilder)
+    private static AuthorizationBuilder AddPolicies(this AuthorizationBuilder authorizationBuilder, bool allowDevBypass)
     {
         authorizationBuilder
             .AddClientPermissionPolicy("CanReadAuth", ["auth:read"])
@@ -542,6 +544,10 @@ public static class AuthModule
             .AddUserPermissionPolicy("workflow.admin", "WORKFLOW_ADMIN")
             .AddUserPermissionPolicy("WebhookDeliveriesView", "WEBHOOK_DELIVERIES_VIEW")
             .AddUserPermissionPolicy("WebhookDeliveriesRetry", "WEBHOOK_DELIVERIES_RETRY")
+            // Service Quality Evaluation policies
+            .AddUserPermissionPolicy("ServiceQualityEvaluationView", "REPORT_EVALUATION_VIEW")
+            .AddUserPermissionPolicy("ServiceQualityEvaluationEdit", "REPORT_EVALUATION_EDIT")
+            // Failed message view / manage
             .AddUserPermissionPolicy("FailedMessageView", "FAILED_MESSAGE_VIEW")
             .AddUserPermissionPolicy("FailedMessageManage", "FAILED_MESSAGE_MANAGE")
             // OAuth client / scope registration + webhook subscription admin
@@ -602,9 +608,24 @@ public static class AuthModule
         // Default and fallback policies are deliberately NOT pinned to a scheme: the Selector policy
         // scheme routes each request (dev header, Bearer, app cookie). Pinning them to OpenIddict, as
         // production used to, would make every cookie request fail there and only there.
+        //
+        // They accept browser sessions only (allowlist: the cookie-session identity type, plus the dev header
+        // where allowDevBypass is on; see SpaSessionPolicy). allowDevBypass is the single read in AddAuthModule.
+        // A machine client (client_credentials Bearer token) is authenticated by OpenIddict but is refused (403) on
+        // every endpoint that does not name its own policy, and so is any scheme added later. A Bearer token (machine
+        // or user) gets past it only on endpoints that name their own policy: "Integration" / Cls* (scope), or a
+        // permission policy that checks the `permissions` claim. That claim carries a client's OpenIddict permissions
+        // (client_credentials) or the user's permissions and roles (auth-code/refresh tokens; retiring those grants
+        // is a known follow-up). Refusals are logged.
+        var spaSession = new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .RequireAssertion(ctx => SpaSessionPolicy.IsBrowserSession(ctx, allowDevBypass))
+            .Build();
+
         authorizationBuilder
-            .SetDefaultPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
-            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+            .AddPolicy("Spa", spaSession)
+            .SetDefaultPolicy(spaSession)
+            .SetFallbackPolicy(spaSession);
 
         return authorizationBuilder;
     }

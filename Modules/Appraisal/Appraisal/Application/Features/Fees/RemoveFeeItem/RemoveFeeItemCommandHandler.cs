@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Shared;
+using Appraisal.Domain.Appraisals;
 using Shared.Identity;
 using Workflow.Contracts.FeeAppointmentApprovals;
 
@@ -14,10 +15,22 @@ public class RemoveFeeItemCommandHandler(AppraisalDbContext dbContext, ISender s
         if (fee is null)
             throw new NotFoundException("Fee", command.FeeId);
 
-        // Edit lock: reject if any item is awaiting approval (submitted but not resolved)
-        if (fee.Items.Any(i => i.ApprovalSubmittedAt.HasValue && i.ApprovalStatus == "Pending"))
-            throw new InvalidOperationException(
-                "Cannot remove a fee item: an approval is currently awaiting review. Wait for the approval to be resolved before making further changes.");
+        var existing = fee.Items.FirstOrDefault(i => i.Id == command.FeeItemId)
+            ?? throw new NotFoundException($"Fee item {command.FeeItemId} not found");
+
+        var isAdminStage = await FeeAdminStage.IsAdminStageAsync(dbContext, fee.AssignmentId, cancellationToken);
+        FeeAdminStage.EnsureNoApprovalAwaitingReview(fee, isAdminStage, "remove");
+        FeeAdminStage.EnsureCanRemove(existing, isAdminStage);
+
+        if (isAdminStage)
+        {
+            // Only admin items (or the system base, refused above) get here, and those never entered the approval
+            // policy, so there is nothing to re-evaluate.
+            var requestedAbsorb = fee.BankAbsorbAmount;
+            fee.RemoveItem(command.FeeItemId);
+            fee.RestoreRequestedBankAbsorb(requestedAbsorb);
+            return Unit.Value;
+        }
 
         fee.RemoveItem(command.FeeItemId);
 

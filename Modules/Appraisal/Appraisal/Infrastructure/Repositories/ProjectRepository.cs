@@ -66,6 +66,20 @@ public class ProjectRepository(AppraisalDbContext dbContext) : IProjectRepositor
     }
 
     /// <inheritdoc />
+    public Task<List<Project>> GetByGalleryPhotoAsync(Guid galleryPhotoId, CancellationToken ct = default)
+    {
+        return _dbContext.Projects
+            .Include(p => p.Towers)
+                .ThenInclude(t => t.Images)
+            .Include(p => p.Models)
+                .ThenInclude(m => m.Images)
+            .Where(p => p.Towers.Any(t => t.Images.Any(i => i.GalleryPhotoId == galleryPhotoId))
+                     || p.Models.Any(m => m.Images.Any(i => i.GalleryPhotoId == galleryPhotoId)))
+            .AsSplitQuery()
+            .ToListAsync(ct);
+    }
+
+    /// <inheritdoc />
     public void Add(Project project)
     {
         _dbContext.Projects.Add(project);

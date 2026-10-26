@@ -21,6 +21,7 @@ public class CollateralResultExportQueryTests
     [InlineData("00042", "42")]
     [InlineData(" 06327 ", "6327")]
     [InlineData("1234", "1234")]
+    [InlineData("123", "123")]
     public void StripsLeadingZerosToFitTheFourCharacterField(string employeeId, string expected)
     {
         Assert.Equal(expected, CollateralResultExportQuery.ToInternalValuerCode(employeeId));
@@ -34,6 +35,7 @@ public class CollateralResultExportQueryTests
     [Theory]
     [InlineData("81018")]
     [InlineData("90378")]
+    [InlineData("123456")]
     public void SendsBlankRatherThanTruncatingAnIdThatDoesNotFit(string employeeId)
     {
         Assert.Null(CollateralResultExportQuery.ToInternalValuerCode(employeeId));

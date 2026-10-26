@@ -2399,6 +2399,18 @@ WHERE NOT EXISTS (SELECT 1 FROM appraisal.ProjectUnitPrices p WHERE p.ProjectUni
 
 DECLARE @Inserted int = @@ROWCOUNT;
 
+-- Mark the project's prices as an imported list, the way Project.MarkUnitPricesImported does. Without
+-- this the project stays 'Calculated' and the Unit Price tab recomputes the loaded prices to 0.
+-- Idempotent: a re-run only refreshes the stamp.
+UPDATE appraisal.Projects
+SET UnitPriceSource         = 'Imported',
+    UnitPriceImportFileName = CONCAT(N'PatchProjectUnitPricesFromApprovedList.sql (', @AppraisalNumber, N')'),
+    UnitPriceImportedAt     = SYSDATETIME(),
+    UnitPriceImportedBy     = 'SYSTEM',
+    UpdatedAt               = SYSDATETIME(),
+    UpdatedBy               = 'SYSTEM'
+WHERE Id = @ProjectId;
+
 -- Re-read the rollup from the tables now that the prices have landed. It must equal the projection
 -- the report printed; if it does not, the projection logic is wrong and this run should not be
 -- allowed to store a number nobody was shown. XACT_ABORT rolls the whole thing back.
@@ -2462,6 +2474,7 @@ PRINT CONCAT('ValuationAnalyses: ', @SummaryWritten,
                   '  insurance=', @NewInsurance) END);
 PRINT 'Workflow was NOT notified — appraisalValue in WorkflowInstance.Variables and any live'
     + ' MeetingQueueItem still hold the old figure. See the report above.';
+PRINT 'Project.UnitPriceSource set to Imported.';
 PRINT 'Reminder: do NOT press Calculate on the Unit Price tab, and do NOT re-upload the units Excel.';
 
 DROP TABLE #Post;

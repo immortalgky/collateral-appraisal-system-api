@@ -38,6 +38,12 @@ public class ClientDetailDto : ClientListItemDto
     /// without refreshing before the user must sign in again.
     /// </summary>
     public int? RefreshTokenLifetimeMinutes { get; set; }
+
+    /// <summary>
+    /// How long an upload session created by this client stays open, in whole hours. null means the
+    /// client has no setting of its own and gets the server default (FileStorage:Cleanup).
+    /// </summary>
+    public int? UploadSessionLifetimeHours { get; set; }
 }
 
 /// <summary>

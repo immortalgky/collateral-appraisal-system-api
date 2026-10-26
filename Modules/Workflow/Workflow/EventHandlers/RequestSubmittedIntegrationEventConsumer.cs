@@ -70,9 +70,13 @@ public class RequestSubmittedIntegrationEventConsumer(
             // Appeal and Progressive (construction inspection) both reference a prior appraisal and
             // require PrevAppraisalId. Resolve the latest appraisal in the chain the prior appraisal
             // belongs to, walked over appraisal.Appraisals.PrevAppraisalId. Appeal EXCLUDES that
-            // company; Progressive FORCES it and copies/chains fee from the resolved appraisal (which
-            // may be newer than PrevAppraisalId — e.g. a 2nd inspection resolves to the 1st
-            // inspection, not the original, even when the user picked the original).
+            // company (of the tip); Progressive FORCES the company of the PICKED appraisal.
+            //
+            // The appraisal to copy from is always the one the user PICKED, for every purpose — the same
+            // PrevAppraisalId the deferred path (EmitAppraisalCreationRequestedStep) sends. Progressive no
+            // longer swaps in the chain tip: the submit guard already rejects a pick that has a later
+            // inspection, so what is picked is what the next inspection continues from — and the
+            // copy base, the fee source and the forced company are all that one appraisal.
             var resolvedSourceAppraisalId = message.PrevAppraisalId;
 
             var isAppeal = message.Purpose == AppealPurposeCode;
@@ -103,21 +107,19 @@ public class RequestSubmittedIntegrationEventConsumer(
                     }
                     else if (isProgressive)
                     {
-                        resolvedSourceAppraisalId = prior.AppraisalId;
-
-                        // A company-less chain tip is an internally-appraised case: there is no
-                        // external company to carry over, so selection follows the normal rules.
-                        if (prior.CompanyId is { } progressiveCompanyId)
+                        // A company-less pick is an internally-appraised case: there is no external
+                        // company to carry over, so selection follows the normal rules.
+                        if (prior.PickedCompanyId is { } progressiveCompanyId)
                         {
                             initialVariables["forceCompanyId"] = progressiveCompanyId.ToString();
-                            initialVariables["forceCompanyName"] = prior.CompanyName;
+                            initialVariables["forceCompanyName"] = prior.PickedCompanyName;
                         }
                         else
                         {
                             logger.LogInformation(
-                                "Progressive request {RequestId}: chain tip {AppraisalId} has no external company; "
+                                "Progressive request {RequestId}: picked appraisal {AppraisalId} has no external company; "
                                 + "not forcing a company.",
-                                message.RequestId, prior.AppraisalId);
+                                message.RequestId, message.PrevAppraisalId);
                         }
                     }
                     else if (prior.CompanyId is { } appealCompanyId) // appeal
@@ -198,9 +200,9 @@ public class RequestSubmittedIntegrationEventConsumer(
             return;
         }
 
-        var resolvedSourceAppraisalId = await ResolveProgressiveSourceAsync(message, ct);
+        // The picked appraisal, as on the first run (see HandleAsync) — no chain resolution to redo.
         outbox.Publish(
-            BuildCreationRequestedEvent(message, resolvedSourceAppraisalId, existing.WorkflowDefinitionId),
+            BuildCreationRequestedEvent(message, message.PrevAppraisalId, existing.WorkflowDefinitionId),
             message.RequestId.ToString());
         existing.UpdateVariables(new Dictionary<string, object>
         {
@@ -211,23 +213,6 @@ public class RequestSubmittedIntegrationEventConsumer(
         logger.LogInformation(
             "Re-published AppraisalCreationRequestedIntegrationEvent for existing workflow {WorkflowInstanceId}, RequestId: {RequestId}",
             existing.Id, message.RequestId);
-    }
-
-    /// <summary>
-    /// Resolves the source appraisal a Progressive (construction inspection) request should copy and
-    /// chain its fee from: the latest appraisal in the prior appraisal's chain, falling back to the
-    /// raw PrevAppraisalId when the chain does not resolve. Used by the crash-retry republish path —
-    /// re-running the query is deterministic.
-    /// </summary>
-    private async Task<Guid?> ResolveProgressiveSourceAsync(
-        RequestSubmittedIntegrationEvent message, CancellationToken ct)
-    {
-        if (message.AppraisalType != ProgressiveAppraisalType || !message.PrevAppraisalId.HasValue)
-            return message.PrevAppraisalId;
-
-        var prior = await mediator.Send(
-            new ResolveLatestInAppraisalChainQuery(message.PrevAppraisalId.Value), ct);
-        return prior?.AppraisalId ?? message.PrevAppraisalId;
     }
 
     private static Dictionary<string, object> BuildInitialVariables(RequestSubmittedIntegrationEvent message)

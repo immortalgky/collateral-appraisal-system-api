@@ -13,6 +13,7 @@ public class UpdateUserCommandValidator : AbstractValidator<UpdateUserCommand>
         RuleFor(x => x.FirstName).NotEmpty().MaximumLength(100);
         RuleFor(x => x.LastName).NotEmpty().MaximumLength(100);
         RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(256);
+        RuleFor(x => x.PhoneNumber).MaximumLength(40);
         RuleFor(x => x.Position).MaximumLength(100);
         RuleFor(x => x.Department).MaximumLength(100);
         RuleFor(x => x.AoCode).MaximumLength(10);

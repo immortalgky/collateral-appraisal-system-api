@@ -25,8 +25,8 @@ public class AppraisalLookupService(
             r.ExternalSystem AS ExternalSystem
         FROM appraisal.Appraisals a
         JOIN request.Requests r ON r.Id = a.RequestId
-        WHERE r.Id = @RequestId
-        ORDER BY a.CreatedOn
+        WHERE r.Id = @RequestId AND a.IsDeleted = 0
+        ORDER BY a.CreatedAt, a.Id
         """;
 
     public async Task<AppraisalKeys?> GetKeysAsync(Guid appraisalId, CancellationToken ct = default)

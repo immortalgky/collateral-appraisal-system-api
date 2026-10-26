@@ -16,6 +16,7 @@ public record GetUserByIdResult(
     string FirstName,
     string LastName,
     string? Email,
+    string? PhoneNumber,
     string? AvatarUrl,
     string? Position,
     string? Department,

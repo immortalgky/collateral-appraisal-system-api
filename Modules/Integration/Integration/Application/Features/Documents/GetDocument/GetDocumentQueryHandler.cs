@@ -1,5 +1,6 @@
 using Document.Domain.Documents;
 using Shared.CQRS;
+using Shared.Exceptions;
 
 namespace Integration.Application.Features.Documents.GetDocument;
 
@@ -15,10 +16,10 @@ public class GetDocumentQueryHandler(
 
         if (document is null)
         {
-            throw new KeyNotFoundException($"Document {query.DocumentId} not found");
+            throw new NotFoundException($"Document {query.DocumentId} not found");
         }
 
-        var downloadUrl = $"/documents/{document.Id}/download";
+        var downloadUrl = $"/documents/{document.Id}/download?download=false";
 
         return new GetDocumentResult(
             document.Id,

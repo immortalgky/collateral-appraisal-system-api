@@ -42,6 +42,22 @@ public class InitiateReappraisalCommandHandler(
     ILogger<InitiateReappraisalCommandHandler> logger
 ) : ICommandHandler<InitiateReappraisalCommand, InitiateReappraisalResult>
 {
+    // Skip reasons (see SkippedReappraisalItem).
+    private const string ReasonAlreadyInFlight = "AlreadyInFlight";
+    private const string ReasonAlreadyReviewed = "AlreadyReviewed";
+    private const string ReasonNoBookNumber = "NoBookNumber";
+    private const string ReasonNotDue = "NotDue";
+    private const string ReasonPriorNotCompleted = "PriorNotCompleted";
+
+    // Precedence of a skip reason when one book collects several (a higher rank replaces a lower one).
+    private static int ReasonRank(string reason) => reason switch
+    {
+        ReasonNoBookNumber => 4,
+        ReasonAlreadyInFlight or ReasonAlreadyReviewed => 3,
+        ReasonPriorNotCompleted => 2,
+        _ => 1,   // NotDue
+    };
+
     public async Task<InitiateReappraisalResult> Handle(
         InitiateReappraisalCommand command,
         CancellationToken cancellationToken)
@@ -63,29 +79,126 @@ public class InitiateReappraisalCommandHandler(
             ? await dbContext.ReappraisalCandidates
                 .Where(c => command.CandidateIds.Contains(c.Id)
                             && c.Status == ReappraisalCandidateStatus.Pending)
+                // One book can be selected under several collaterals; a fixed order (CollateralId as text,
+                // then Id — not numeric) makes the pick below, and the order requests are created in, the
+                // same on every run.
+                .OrderBy(c => c.CollateralId).ThenBy(c => c.Id)
                 .ToListAsync(cancellationToken)
             : new List<ReappraisalCandidate>();
         if (pending.Count == 0 && !hasNearby)
             throw new InvalidOperationException("No Pending candidates found for the provided CandidateIds.");
 
-        // ── Step 2: Resolve the book number → PrevAppraisalId (for the NotDue skips too) ─
+        // ── Step 2: Resolve the book number → PrevAppraisalId (for the skips too) ─
         var surveyNumbers       = pending.Select(BookNumber).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        var appraisalIdBySurvey = await ResolvePrevAppraisalIdsAsync(surveyNumbers, cancellationToken);
+        var (appraisalIdBySurvey, unusableBySurvey) = await ResolvePrevAppraisalIdsAsync(surveyNumbers, cancellationToken);
+        // The completed prior's id, or null (no completed appraisal: legacy, or one that cannot be a prior).
         Guid? PrevId(string book) => appraisalIdBySurvey.TryGetValue(book, out var id) ? id : null;
+        // What a skip reports: that id, else the live appraisal that cannot be one, else null (not in CAS).
+        Guid? ReportedId(string book) =>
+            PrevId(book) ?? (unusableBySurvey.TryGetValue(book, out var liveId) ? liveId : null);
 
         var dueIds = await FindDueCandidateIdsAsync(pending.Select(c => c.Id).ToList(), cancellationToken);
-        var candidates = pending.Where(c => dueIds.Contains(c.Id)).ToList();
-        skipped.AddRange(pending
-            .Where(c => !dueIds.Contains(c.Id))
-            .Select(c => new SkippedReappraisalItem(PrevId(BookNumber(c)), BookNumber(c), "NotDue")));
 
-        if (hasCandidates && candidates.Count != command.CandidateIds.Count)
+        if (hasCandidates)
         {
-            var found   = candidates.Select(c => c.Id).ToHashSet();
+            var found   = pending.Where(c => dueIds.Contains(c.Id)).Select(c => c.Id).ToHashSet();
             var missing = command.CandidateIds.Where(id => !found.Contains(id)).ToList();
-            logger.LogWarning(
-                "[REAPPRAISAL-INITIATE] {Count} candidates not found, not Pending, or not on the latest file: {Ids}",
-                missing.Count, string.Join(", ", missing));
+            if (missing.Count > 0)
+                logger.LogWarning(
+                    "[REAPPRAISAL-INITIATE] {Count} candidates not found, not Pending, or not on the latest file: {Ids}",
+                    missing.Count, string.Join(", ", missing));
+        }
+
+        // The nearby appraisals are read up front: their books count in the under-review check below.
+        var nearbyRows = hasNearby
+            ? (await FetchAppraisalNumbersAsync(command.NearbyAppraisalIds, cancellationToken))
+                .DistinctBy(r => r.AppraisalId).ToList()
+            : [];
+        if (hasNearby)
+        {
+            var foundNearby = nearbyRows.Select(r => r.AppraisalId).ToHashSet();
+            var missingNearby = command.NearbyAppraisalIds.Where(id => !foundNearby.Contains(id)).Distinct().ToList();
+            if (missingNearby.Count > 0)
+                logger.LogWarning(
+                    "[REAPPRAISAL-INITIATE] {Count} nearby appraisals not found: {Ids}",
+                    missingNearby.Count, string.Join(", ", missingNearby));
+        }
+
+        // Under review = an open reappraisal of the book, or a request for it still waiting. A book is reviewed once,
+        // whichever collateral it is listed under: the request copies the prior request's titles, so it covers every
+        // collateral of the book — the same grain as consumption on submit. A nearby book is also refused once any
+        // reappraisal of it has completed — the nearby grid hides those (a completed reappraisal supersedes the
+        // book), so only a stale tab or a direct call can send one, and initiating it would fork the chain from the
+        // superseded book. A block-project unit is the exception to "once per book": each collateral is a different
+        // unit, so its checks and the in-batch dedupe are per collateral, against reappraisals raised for it.
+        var reviewRows = await FindBooksUnderReviewAsync(
+            surveyNumbers.Concat(nearbyRows.Select(r => r.AppraisalNumber).OfType<string>())
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            cancellationToken);
+        bool Matches(BookReviewRow r, string book, ReappraisalCandidate? candidate) =>
+            string.Equals(r.BookNumber, book, StringComparison.OrdinalIgnoreCase)
+            && (candidate is not { IsBlockUnit: true } || r.CollateralId == candidate.CollateralId);
+        bool UnderReview(string book, ReappraisalCandidate? candidate) =>
+            reviewRows.Any(r => r.IsOpen && Matches(r, book, candidate));
+
+        // One skip row per BOOK across all reasons (however many candidates, collaterals or block units were selected
+        // for it); every skip is logged. reportedBooks maps each reported book to its reason and its row in
+        // `skipped`; when a later candidate of the same book has a HIGHER-precedence reason (AlreadyInFlight >
+        // PriorNotCompleted > NotDue) the row is upgraded, so the outcome does not depend on the order. A row without
+        // a book number is keyed by `key` (its candidate or appraisal id).
+        var reportedBooks = new Dictionary<string, (string Reason, int Row)>(StringComparer.OrdinalIgnoreCase);
+        void Skip(Guid? appraisalId, string? number, string reason, string? key = null)
+        {
+            var bookKey = key ?? number ?? appraisalId?.ToString() ?? string.Empty;
+            var item = new SkippedReappraisalItem(appraisalId, number, reason);
+            if (!reportedBooks.TryGetValue(bookKey, out var reported))
+            {
+                reportedBooks[bookKey] = (reason, skipped.Count);
+                skipped.Add(item);
+            }
+            else if (ReasonRank(reason) > ReasonRank(reported.Reason))
+            {
+                skipped[reported.Row] = item;
+                reportedBooks[bookKey] = (reason, reported.Row);
+            }
+            logger.LogInformation(
+                "[REAPPRAISAL-INITIATE] Skipped {Number} (AppraisalId {AppraisalId}) — {Reason}",
+                number, appraisalId, reason);
+        }
+
+        // Precedence for a candidate: AlreadyInFlight, then PriorNotCompleted (a book with a live appraisal that is
+        // not completed is not unknown to CAS, and a legacy request would carry its number as a prior with nothing
+        // behind it), then NotDue (not on AS400's latest file: an old copy, or no longer due). A book with a
+        // candidate that is accepted shows no NotDue row for its other copies: it was initiated.
+        var classified = pending.Select(c =>
+        {
+            var book = BookNumber(c);
+            // Every request must carry its book (the key for waiting / in-progress checks and for consumption on
+            // submit); the consumer refuses a message without one.
+            var (reason, id) =
+                string.IsNullOrWhiteSpace(book) ? (ReasonNoBookNumber, (Guid?)null)
+                : UnderReview(book, c) ? (ReasonAlreadyInFlight, ReportedId(book))
+                : unusableBySurvey.TryGetValue(book, out var liveId) ? (ReasonPriorNotCompleted, liveId)
+                : !dueIds.Contains(c.Id) ? (ReasonNotDue, ReportedId(book))
+                : (null, null);
+            return (Candidate: c, Book: book, Reason: reason, Id: id);
+        }).ToList();
+        var initiatedBooks = classified.Where(x => x.Reason is null).Select(x => x.Book)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var candidates = new List<ReappraisalCandidate>();
+        foreach (var (c, book, reason, id) in classified)
+        {
+            if (reason is null)
+                candidates.Add(c);
+            else if (reason == ReasonNotDue && initiatedBooks.Contains(book))
+                logger.LogInformation(
+                    "[REAPPRAISAL-INITIATE] {Number}: collateral {CollateralId} is not due, but the book is initiated through another copy",
+                    book, c.CollateralId);
+            else if (reason == ReasonNoBookNumber)
+                Skip(null, null, reason, key: c.Id.ToString());
+            else
+                Skip(id, book, reason);
         }
 
         // ── Step 3: Build working list ─────────────────────────────────────────
@@ -93,21 +206,26 @@ public class InitiateReappraisalCommandHandler(
             .Select(c => new WorkingItem(PrevId(BookNumber(c)), BookNumber(c), c, FromNearby: false))
             .ToList();
 
-        // NearbyAppraisalIds path: fetch appraisal numbers, find any matching Pending candidate
+        // NearbyAppraisalIds path: find any matching Pending candidate for each picked appraisal
         if (hasNearby)
         {
-            var nearbyRows = await FetchAppraisalNumbersAsync(command.NearbyAppraisalIds, cancellationToken);
+            // A book has exactly one outcome per batch. acceptedBooks and the reported books (but not a NotDue one,
+            // which is a different outcome) are decided: a nearby row for one is ignored, neither accepted nor
+            // reported again.
+            var acceptedBooks = new HashSet<string>(
+                workingItems.Select(w => w.AppraisalNumber).OfType<string>(), StringComparer.OrdinalIgnoreCase);
+            bool Decided(string book) =>
+                acceptedBooks.Contains(book)
+                || (reportedBooks.TryGetValue(book, out var reported) && reported.Reason != ReasonNotDue);
 
-            var candidateBySurvey = candidates
-                .GroupBy(BookNumber, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-
-            // Pending candidates for the other nearby books: only copies on AS400's latest file (the
-            // same rule as the CandidateIds path), the most recently listed one per book.
+            // Pending candidates for the nearby books that are not decided yet: only copies on AS400's latest file
+            // (the same rule as the CandidateIds path), the lowest CollateralId as text per book.
+            var candidateBySurvey = new Dictionary<string, ReappraisalCandidate>(StringComparer.OrdinalIgnoreCase);
             var otherNumbers = nearbyRows
+                .Where(r => r.IsUsablePrior)
                 .Select(r => r.AppraisalNumber)
                 .OfType<string>()
-                .Where(n => !candidateBySurvey.ContainsKey(n))
+                .Where(n => !Decided(n))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
             if (otherNumbers.Count > 0)
@@ -120,76 +238,77 @@ public class InitiateReappraisalCommandHandler(
                 var othersDue = await FindDueCandidateIdsAsync(others.Select(c => c.Id).ToList(), cancellationToken);
                 others.RemoveAll(c => !othersDue.Contains(c.Id));
                 foreach (var g in others.GroupBy(c => c.NormalizedSurveyNumber!, StringComparer.OrdinalIgnoreCase))
-                    candidateBySurvey[g.Key] = g.OrderByDescending(c => c.LastSeenFileDate ?? c.SourceFileDate).First();
+                    // Ordinal: the same order as the SQL side (ORDER BY CollateralId), because collateral ids
+                    // are digits only, where the collation and ordinal agree.
+                    candidateBySurvey[g.Key] = g
+                        .OrderBy(c => c.CollateralId, StringComparer.Ordinal).ThenBy(c => c.Id)
+                        .First();
             }
 
             foreach (var row in nearbyRows)
             {
-                if (workingItems.Any(w => w.AppraisalId == row.AppraisalId))
+                // Every request must carry its book (the key for waiting / in-progress checks and for consumption on
+                // submit); the consumer refuses a message without one, whatever the appraisal's status.
+                if (string.IsNullOrWhiteSpace(row.AppraisalNumber))
+                {
+                    Skip(row.AppraisalId, null, ReasonNoBookNumber);
+                    continue;
+                }
+
+                if (Decided(row.AppraisalNumber))
                     continue;
 
-                ReappraisalCandidate? matchedCandidate = null;
-                if (!string.IsNullOrWhiteSpace(row.AppraisalNumber))
-                    candidateBySurvey.TryGetValue(row.AppraisalNumber, out matchedCandidate);
+                // Same rule as the candidate path: an existing review wins, then only a completed prior can be bound.
+                if (!row.IsUsablePrior)
+                {
+                    Skip(row.AppraisalId, row.AppraisalNumber,
+                        UnderReview(row.AppraisalNumber, null) ? ReasonAlreadyInFlight : ReasonPriorNotCompleted);
+                    continue;
+                }
 
+                candidateBySurvey.TryGetValue(row.AppraisalNumber, out var matchedCandidate);
+                acceptedBooks.Add(row.AppraisalNumber);
                 workingItems.Add(new WorkingItem(row.AppraisalId, row.AppraisalNumber, matchedCandidate, FromNearby: true));
             }
         }
 
         // ── Step 4: Layer 1 dedupe ─────────────────────────────────────────────
-        // A book is reviewed once, whichever collateral it is listed under: the request copies the prior
-        // request's titles, so it covers every collateral of the book — the same grain as consumption on
-        // submit. Under review = an open reappraisal of the book, or a request for it still waiting.
-        // A nearby book is also refused once any reappraisal of it has completed — the nearby grid hides
-        // those (a completed reappraisal supersedes the book), so only a stale tab or a direct call can
-        // send one, and initiating it would fork the chain from the superseded book.
-        // A block-project unit is the exception to "once per book": each collateral is a different unit,
-        // so its checks and the in-batch dedupe are per collateral, against reappraisals raised for it.
-        var bookNumbers = workingItems
-            .Select(w => w.AppraisalNumber)
-            .OfType<string>()
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        var reviewRows = await FindBooksUnderReviewAsync(bookNumbers, cancellationToken);
-        bool Matches(BookReviewRow r, WorkingItem item) =>
-            string.Equals(r.BookNumber, item.AppraisalNumber, StringComparison.OrdinalIgnoreCase)
-            && (item.Candidate is not { IsBlockUnit: true } || r.CollateralId == item.Candidate.CollateralId);
+        // The candidates were checked against existing reviews above; a nearby row is checked here (under review, or
+        // its reappraisal already completed). Then the same book selected twice in this batch (listed under two
+        // collaterals) is ONE request, silently — unless it is a block-project unit, where each collateral is its own.
         var batchBooks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
         var toProcess = new List<WorkingItem>();
 
         foreach (var item in workingItems)
         {
-            // Every request must carry its book (the key for waiting / in-progress checks and for
-            // consumption on submit); the consumer refuses a message without one. Say so here instead
-            // of reporting a request that will never be created.
-            if (string.IsNullOrWhiteSpace(item.AppraisalNumber))
+            var book = item.AppraisalNumber!;
+            if (item.FromNearby)
             {
-                skipped.Add(new SkippedReappraisalItem(item.AppraisalId, item.AppraisalNumber, "NoBookNumber"));
-                continue;
+                var reviewReason = UnderReview(book, item.Candidate) ? ReasonAlreadyInFlight
+                    : reviewRows.Any(r => !r.IsOpen && Matches(r, book, item.Candidate)) ? ReasonAlreadyReviewed
+                    : null;
+                if (reviewReason is not null)
+                {
+                    Skip(item.AppraisalId, book, reviewReason);
+                    continue;
+                }
             }
 
-            // The same book selected twice in this batch (listed under two collateral): one request —
-            // unless it is a block-project unit, where each collateral is its own.
             var batchKey = item.Candidate is { IsBlockUnit: true } c
-                ? $"{item.AppraisalNumber}|{c.CollateralId}"
-                : item.AppraisalNumber;
-            var reason = reviewRows.Any(r => r.IsOpen && Matches(r, item)) ? "AlreadyInFlight"
-                : item.FromNearby && reviewRows.Any(r => !r.IsOpen && Matches(r, item)) ? "AlreadyReviewed"
-                : !batchBooks.Add(batchKey) ? "AlreadyInFlight"
-                : null;
-
-            if (reason is null)
-            {
+                ? $"{book}|{c.CollateralId}"
+                : book;
+            if (batchBooks.Add(batchKey))
                 toProcess.Add(item);
-                continue;
-            }
-
-            skipped.Add(new SkippedReappraisalItem(item.AppraisalId, item.AppraisalNumber, reason));
-            logger.LogInformation(
-                "[REAPPRAISAL-INITIATE] Skipped {Number} (AppraisalId {AppraisalId}) — {Reason}",
-                item.AppraisalNumber, item.AppraisalId, reason);
+            else
+                logger.LogInformation(
+                    "[REAPPRAISAL-INITIATE] {Number}: already accepted once in this batch; collateral {CollateralId} not initiated again",
+                    book, item.Candidate?.CollateralId);
         }
+
+        // One outcome per book: a NotDue copy skipped earlier is dropped when the book is accepted (here, through a
+        // nearby pick; a NotDue copy next to an accepted candidate was never reported).
+        skipped.RemoveAll(s => s.Reason == ReasonNotDue
+            && toProcess.Any(i => string.Equals(i.AppraisalNumber, s.OldAppraisalReportNumber, StringComparison.OrdinalIgnoreCase)));
 
         if (toProcess.Count == 0)
         {
@@ -231,6 +350,7 @@ public class InitiateReappraisalCommandHandler(
                 CifNumber      = item.Candidate?.CifNumber,
                 CifName        = item.Candidate?.CifName,
                 CollateralId   = item.Candidate?.CollateralId,
+                AutoUpdate     = item.Candidate?.AutoUpdate,
                 PrevAppraisalId = item.AppraisalId,
                 PrevAppraisalNumber = legacy ? item.AppraisalNumber : null,
                 PrevAppraisalValue  = legacyPrior?.Value,
@@ -291,28 +411,38 @@ public class InitiateReappraisalCommandHandler(
 
     // ── Dapper helpers ─────────────────────────────────────────────────────────
 
-    private async Task<Dictionary<string, Guid>> ResolvePrevAppraisalIdsAsync(
+    /// <summary>
+    /// The prior appraisal per book number: only a COMPLETED, undeleted appraisal can be bound as the prior
+    /// (the request's purpose and prior are locked at Initiate). <c>Unusable</c> maps a number whose appraisal is live
+    /// but not completed (in progress...) to that appraisal's id, so the caller can tell "in CAS but not usable" from
+    /// "not in CAS" (legacy); a deleted or cancelled appraisal counts as not in CAS.
+    /// </summary>
+    private async Task<(Dictionary<string, Guid> Completed, Dictionary<string, Guid> Unusable)> ResolvePrevAppraisalIdsAsync(
         IReadOnlyList<string> surveyNumbers,
         CancellationToken _)
     {
+        // IX_Appraisals_AppraisalNumber is unique on every non-null number (deleted rows included), so a number is
+        // exactly one appraisal; the grouping below only guards against rows that differ by case alone.
         const string sql = """
-            -- MIN(Id) in SQL: one appraisal per number even if two live ones share it, picked by the
-            -- same ordering as the detail page and the candidate view (SQL's, not .NET's Guid order).
-            SELECT MIN(a.Id) AS Id, a.AppraisalNumber AS SurveyNumber
+            SELECT a.Id AS AppraisalId, a.AppraisalNumber, a.Status, a.IsDeleted
             FROM appraisal.Appraisals a
             WHERE a.AppraisalNumber IN @SurveyNumbers
-              AND a.IsDeleted = 0
-            GROUP BY a.AppraisalNumber
             """;
 
-        var rows = await QueryChunkedAsync<PrevAppraisalRow, string>(
+        var rows = await QueryChunkedAsync<NearbyAppraisalRow, string>(
             sql, surveyNumbers, chunk => new { SurveyNumbers = chunk });
 
-        // Case-insensitive like the SQL match and every other book map here; one id per number even if
-        // two live appraisals share it (deterministic, and no duplicate-key failure).
-        return rows
-            .GroupBy(r => r.SurveyNumber, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First().Id, StringComparer.OrdinalIgnoreCase);
+        // Case-insensitive like the SQL match and every other book map here; grouped so that two rows whose numbers
+        // differ only by case (a collation quirk) cannot turn into a duplicate-key failure. A soft-deleted or
+        // cancelled appraisal is in neither map: it does not count as "in CAS", so a book with only that takes the
+        // legacy path again.
+        Dictionary<string, Guid> ByNumber(IEnumerable<NearbyAppraisalRow> source) => source
+            .GroupBy(r => r.AppraisalNumber!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.OrderBy(r => r.AppraisalId).First().AppraisalId,
+                StringComparer.OrdinalIgnoreCase);
+        var completed = ByNumber(rows.Where(r => r.IsUsablePrior));
+        var unusable = ByNumber(rows.Where(r => r.IsLiveNotCompleted));
+        return (completed, unusable);
     }
 
     private async Task<IReadOnlyList<NearbyAppraisalRow>> FetchAppraisalNumbersAsync(
@@ -320,7 +450,7 @@ public class InitiateReappraisalCommandHandler(
         CancellationToken _)
     {
         const string sql = """
-            SELECT a.Id AS AppraisalId, a.AppraisalNumber
+            SELECT a.Id AS AppraisalId, a.AppraisalNumber, a.Status, a.IsDeleted
             FROM appraisal.Appraisals a
             WHERE a.Id IN @AppraisalIds
             """;
@@ -386,8 +516,17 @@ public class InitiateReappraisalCommandHandler(
 
     // ── Private record types ───────────────────────────────────────────────────
 
-    private sealed record PrevAppraisalRow(Guid Id, string SurveyNumber);
-    private sealed record NearbyAppraisalRow(Guid AppraisalId, string? AppraisalNumber);
+    private sealed record NearbyAppraisalRow(Guid AppraisalId, string? AppraisalNumber, string Status, bool IsDeleted)
+    {
+        /// <summary>Only a completed, undeleted appraisal can be a request's prior.</summary>
+        public bool IsUsablePrior => Status == "Completed" && !IsDeleted;
+
+        /// <summary>
+        /// Undeleted and not cancelled, but not completed (in progress...): known to CAS and not usable. A cancelled
+        /// appraisal counts like a deleted one — not known to CAS.
+        /// </summary>
+        public bool IsLiveNotCompleted => !IsDeleted && Status is not ("Completed" or "Cancelled");
+    }
     private sealed record BookReviewRow(string BookNumber, string? CollateralId, bool IsOpen);
     private sealed record UnitRow(Guid CandidateId, Guid? ProjectUnitId);
     private sealed record LegacyPriorRow(string Book, decimal? Value, DateTime? Date);

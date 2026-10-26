@@ -11,4 +11,9 @@
         <ProjectReference Include="../../../Shared/Shared.Messaging/Shared.Messaging.csproj"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <!-- JobScheduleEndpoints.List/Update are internal so Common.Tests can drive them directly. -->
+        <InternalsVisibleTo Include="Common.Tests"/>
+    </ItemGroup>
+
 </Project>

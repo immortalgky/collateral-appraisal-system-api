@@ -87,7 +87,9 @@ public class GetEligibleAppraisalsForQuotationEndpoint : ICarterModule
                 "Returns appraisals that have no active assignment and are not in any non-terminal quotation. " +
                 "Search-By criteria: customerName, appraisalNumber (report no.), purpose, requestedAtFrom/To, " +
                 "channel, status (multi-value, comma-separated), bankingSegment, subDistrict, district, province. " +
-                "Supports pagination (pageNumber, pageSize) and sorting (sortBy, sortDir).")
+                "Supports pagination (pageNumber, pageSize) and sorting (sortBy, sortDir). " +
+                "Each row also carries PreviouslyQuotedNumber: the number of the most recent Finalized " +
+                "quotation request that has a number and that the appraisal was on, or null.")
             .WithTags("Quotation");
     }
 }

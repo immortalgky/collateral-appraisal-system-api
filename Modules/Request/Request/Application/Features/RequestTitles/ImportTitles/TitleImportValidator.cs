@@ -32,15 +32,16 @@ public class TitleImportValidator(
     ///
     /// Deleting columns you do not use is supported — matching is by header name, not position — so
     /// this list is deliberately short: the type discriminator, and the two address blocks that
-    /// Address.Validate() demands on both TitleAddress and DopaAddress for every collateral type.
+    /// Address.Validate() demands on DopaAddress for every collateral type and on TitleAddress for
+    /// everything except the movables. Only keys the sheet definition declares are checked, so the
+    /// movable sheets, which declare no title-address columns, are not asked for them. House number
+    /// is left out: land needs none, so ValidateRequiredForFamily reports it per row instead.
     /// </summary>
     private static readonly string[] StructurallyRequiredColumns =
     [
         "collateralType",
-        "titleAddress.houseNumber", "titleAddress.subDistrict",
-        "titleAddress.district", "titleAddress.province",
-        "dopaAddress.houseNumber", "dopaAddress.subDistrict",
-        "dopaAddress.district", "dopaAddress.province"
+        "titleAddress.subDistrict", "titleAddress.district", "titleAddress.province",
+        "dopaAddress.subDistrict", "dopaAddress.district", "dopaAddress.province"
     ];
 
     // Cell VALUES, not messages: users type these into the spreadsheet, and the Thai forms are the
@@ -139,6 +140,10 @@ public class TitleImportValidator(
         RawSheet sheet, TitleImportSheet definition, IReadOnlyDictionary<string, int> headerMap)
     {
         var missing = StructurallyRequiredColumns
+            // Only the title address can be left out of a sheet (the movables have none); every other
+            // structural key, DOPA included, is always required.
+            .Where(key => !key.StartsWith("titleAddress.", StringComparison.Ordinal)
+                          || definition.Columns.Any(c => c.Key == key))
             .Where(key => !headerMap.ContainsKey(key))
             .Select(key => definition.Columns.FirstOrDefault(c => c.Key == key)?.Label ?? key)
             .ToList();
@@ -199,6 +204,8 @@ public class TitleImportValidator(
         if (family is not null) ValidateRequiredForFamily(ctx, family, values);
 
         // ── Addresses: names in, geocodes out ───────────────────────────────
+        // An address block the sheet does not declare (the movable sheets have no title address) is
+        // skipped, so whatever an old template left in such cells is never read.
         var titleAddress = await ResolveAddressAsync(ctx, "titleAddress", isDopa: false, cancellationToken);
         var dopaAddress = await ResolveAddressAsync(ctx, "dopaAddress", isDopa: true, cancellationToken);
 
@@ -229,6 +236,7 @@ public class TitleImportValidator(
             OwnerName = Str(values, "ownerName"),
 
             VehicleType = Str(values, "vehicleType"),
+            VehicleRegistrationNumber = Str(values, "vehicleRegistrationNumber"),
             VehicleLocation = Str(values, "vehicleLocation"),
             VIN = Str(values, "vin"),
             LicensePlateNumber = Str(values, "licensePlateNumber"),
@@ -286,18 +294,18 @@ public class TitleImportValidator(
         var isBuilding = family is "B" or "LB" or "LS" or "LSB";
         var isCondo = family is "U" or "LSU";
 
-        // Both addresses need a house number: the form marks it required on every collateral type,
-        // movables included.
-        ctx.Require(values, "titleAddress.houseNumber");
-        ctx.Require(values, "dopaAddress.houseNumber");
+        // House number follows the form (fields.ts): not required on either address for plain land
+        // (family L) and lease land (LSL); required otherwise. The domain never checks it. Require
+        // ignores a key the sheet does not declare, which is how the movables skip the title address.
+        if (family is not ("L" or "LSL"))
+        {
+            ctx.Require(values, "titleAddress.houseNumber");
+            ctx.Require(values, "dopaAddress.houseNumber");
+        }
 
         // OwnerName is required by every land/building/condo/lease variant, but not by the movables.
         if (isLand || isBuilding || isCondo)
             ctx.Require(values, "ownerName");
-
-        // The form requires the title-detail note for land and condo (not for buildings or movables).
-        if (isLand || isCondo)
-            ctx.Require(values, "notes");
 
         if (isLand || isCondo)
         {
@@ -363,15 +371,18 @@ public class TitleImportValidator(
             case "VEH":
                 ctx.Require(values, "vin");
                 ctx.Require(values, "vehicleType");
-                ctx.Require(values, "licensePlateNumber");
+                ctx.Require(values, "vehicleRegistrationNumber");
                 break;
             case "VES":
                 ctx.Require(values, "hin");
                 break;
             case "MAC":
-                ctx.Require(values, "registrationNumber");
                 ctx.Require(values, "machineType");
                 ctx.Require(values, "installationStatus");
+
+                if (values.GetValueOrDefault("registrationStatus") as bool? == true
+                    && Str(values, "installationStatus") == "1")
+                    ctx.Require(values, "registrationNumber");
 
                 // Status "2" is "being purchased", where the invoice is what stands in for the
                 // machine — the form makes it required in exactly that case.
@@ -391,6 +402,9 @@ public class TitleImportValidator(
     private async Task<ResolvedAddress> ResolveAddressAsync(
         RowContext ctx, string prefix, bool isDopa, CancellationToken cancellationToken)
     {
+        if (prefix == "titleAddress" && !ctx.Declares("titleAddress.subDistrict"))
+            return new ResolvedAddress(new AddressDto(null, null, null, null, null, null, null, null, null), null, null, null);
+
         var province = ctx.Text($"{prefix}.province");
         var district = ctx.Text($"{prefix}.district");
         var subDistrict = ctx.Text($"{prefix}.subDistrict");
@@ -401,8 +415,10 @@ public class TitleImportValidator(
 
         var label = isDopa ? "DOPA address" : "title address";
 
-        // Address.Validate() demands sub-district, district, province and postcode on BOTH addresses
-        // for every collateral type, so a blank block is an error rather than an omission.
+        // Address.Validate() demands sub-district, district, province and postcode on the DOPA address
+        // for every collateral type, and on the title address for everything but the movables (whose
+        // sheets declare no title address, so the method returns early), so a blank block is an error
+        // rather than an omission.
         switch (resolution.Status)
         {
             case AddressResolutionStatus.Empty:
@@ -510,7 +526,7 @@ public class TitleImportValidator(
     }
 
     /// <summary>Everything one row needs: its sheet definition, its cells, and where to put complaints.</summary>
-    private sealed class RowContext(
+    internal sealed class RowContext(
         TitleImportSheet sheet,
         IReadOnlyDictionary<string, int> headerMap,
         IReadOnlyList<string> cells,
@@ -532,6 +548,9 @@ public class TitleImportValidator(
 
         /// <summary>Did the user put anything in this cell, regardless of whether it parsed?</summary>
         public bool HasText(string key) => !string.IsNullOrWhiteSpace(Text(key));
+
+        /// <summary>Does the sheet definition declare this field at all (as opposed to the user's file lacking its column)?</summary>
+        public bool Declares(string key) => sheet.Columns.Any(c => c.Key == key);
 
         /// <summary>Does the sheet even have a column for this field?</summary>
         public bool HasColumn(string key) => headerMap.ContainsKey(key);
@@ -565,6 +584,10 @@ public class TitleImportValidator(
         /// </summary>
         public void Require(Dictionary<string, object?> values, string key)
         {
+            // Only the title address block, when the sheet leaves it out (the movables), is skipped; any
+            // other undeclared key, DOPA included, falls through to MissingValue and stays loud.
+            if (key.StartsWith("titleAddress.", StringComparison.Ordinal) && !Declares("titleAddress.subDistrict"))
+                return;
             if (values.GetValueOrDefault(key) is string s && !string.IsNullOrWhiteSpace(s)) return;
             if (values.GetValueOrDefault(key) is not null and not string) return;
             if (HasText(key)) return;

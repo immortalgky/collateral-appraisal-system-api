@@ -4877,8 +4877,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("date");
 
                     b.Property<string>("PaymentOrderNo")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
+                        .HasMaxLength(15)
+                        .HasColumnType("nvarchar(15)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -5492,6 +5492,24 @@ namespace Appraisal.Infrastructure.Migrations
 
                     b.Property<int?>("UnitForSaleCount")
                         .HasColumnType("int");
+
+                    b.Property<string>("UnitPriceImportFileName")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("UnitPriceImportedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UnitPriceImportedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("UnitPriceSource")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Calculated");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -7440,6 +7458,21 @@ namespace Appraisal.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("AutoAssignMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("AutoAssignReasonCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("AutoAssignResult")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("AutoAssignedAt")
+                        .HasColumnType("datetime2");
 
                     b.HasKey("QuotationRequestId", "AppraisalId");
 

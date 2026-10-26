@@ -1,7 +1,9 @@
+using Appraisal.Application.Features.Quotations.AutoAssign;
 using Appraisal.Application.Features.Quotations.Shared;
 using Appraisal.Contracts.Services;
 using Dapper;
 using Shared.Data;
+using Shared.Extensions;
 using Shared.Identity;
 
 namespace Appraisal.Application.Features.Quotations.GetQuotationById;
@@ -10,7 +12,8 @@ public class GetQuotationByIdQueryHandler(
     IQuotationRepository quotationRepository,
     ICurrentUserService currentUser,
     ISqlConnectionFactory connectionFactory,
-    IQuotationTaskOwnershipService taskOwnership)
+    IQuotationTaskOwnershipService taskOwnership,
+    IQuotationAutoAssignStateReader autoAssignStateReader)
     : IQueryHandler<GetQuotationByIdQuery, GetQuotationByIdResult>
 {
     public async Task<GetQuotationByIdResult> Handle(GetQuotationByIdQuery query, CancellationToken cancellationToken)
@@ -46,65 +49,75 @@ public class GetQuotationByIdQueryHandler(
             ? await ResolveUserFullNameByUsernameAsync(quotation.RmUsername!)
             : null;
 
+        var expiredInvitationIds = quotation.Invitations.Where(i => i.Status == "Expired").Select(i => i.Id).ToHashSet();
+
         var visibleQuotations = filteredQuotations
-            .Select(cq => new CompanyQuotationResult(
-                Id: cq.Id,
-                CompanyId: cq.CompanyId,
-                CompanyName: visibleCompanyNames.GetValueOrDefault(cq.CompanyId).Name,
-                CompanyNameLocal: visibleCompanyNames.GetValueOrDefault(cq.CompanyId).NameLocal,
-                QuotationNumber: cq.QuotationNumber,
-                Status: cq.Status,
-                DeclineReason: cq.DeclineReason,
-                // CompanyQuotation.CreateDraft initialises SubmittedAt = default(DateTime), which serialises
-                // as "0001-01-01T00:00:00" and renders as junk in the UI. Only emit a real value once the
-                // company has actually submitted (or progressed past Draft/PendingCheckerReview).
-                SubmittedAt: cq.Status is "Draft" or "PendingCheckerReview" ? null : cq.SubmittedAt,
-                TotalQuotedPrice: cq.TotalQuotedPrice,
-                OriginalQuotedPrice: cq.OriginalQuotedPrice,
-                CurrentNegotiatedPrice: cq.CurrentNegotiatedPrice,
-                NegotiationRounds: cq.NegotiationRounds,
-                IsShortlisted: cq.IsShortlisted,
-                IsWinner: cq.IsWinner,
-                EstimatedDays: cq.EstimatedDays,
-                ValidUntil: cq.ValidUntil,
-                ProposedStartDate: cq.ProposedStartDate,
-                ProposedCompletionDate: cq.ProposedCompletionDate,
-                Remarks: cq.Remarks,
-                Items: cq.Items.Select(i => new CompanyQuotationItemResult(
-                    Id: i.Id,
-                    AppraisalId: i.AppraisalId,
-                    ItemNumber: i.ItemNumber,
-                    QuotedPrice: i.QuotedPrice,
-                    OriginalQuotedPrice: i.OriginalQuotedPrice,
-                    CurrentNegotiatedPrice: i.CurrentNegotiatedPrice,
-                    EstimatedDays: i.EstimatedDays,
-                    FeeAmount: i.FeeAmount,
-                    Discount: i.Discount,
-                    NegotiatedDiscount: i.NegotiatedDiscount,
-                    VatPercent: i.VatPercent,
-                    ItemNotes: i.ItemNotes,
-                    ItemNegotiationReason: i.ItemNegotiationReason
-                )).ToList(),
-                Negotiations: cq.Negotiations.Select(n => new CompanyQuotationNegotiationResult(
-                    Id: n.Id,
-                    NegotiationRound: n.NegotiationRound,
-                    InitiatedBy: n.InitiatedBy,
-                    InitiatedByUserName: n.InitiatedByUserId.HasValue
-                        ? negotiationUserNames.GetValueOrDefault(n.InitiatedByUserId.Value)
-                        : null,
-                    InitiatedAt: n.InitiatedAt,
-                    CounterPrice: n.CounterPrice,
-                    Message: n.Message,
-                    Status: n.Status,
-                    ResponseMessage: n.ResponseMessage,
-                    RespondedAt: n.RespondedAt
-                )).ToList()
-            ))
+            .Select(cq =>
+            {
+                // An expired invitation's Declined row was auto-declined at cutoff: it never submitted, so
+                // its submittedAt, number, prices, items, dates and remarks are blanked (a Draft would leak unsent figures).
+                var isExpired = cq.Status == "Declined" && expiredInvitationIds.Contains(cq.InvitationId);
+                return new CompanyQuotationResult(
+                    Id: cq.Id,
+                    CompanyId: cq.CompanyId,
+                    CompanyName: visibleCompanyNames.GetValueOrDefault(cq.CompanyId).Name,
+                    CompanyNameLocal: visibleCompanyNames.GetValueOrDefault(cq.CompanyId).NameLocal,
+                    QuotationNumber: isExpired ? null : cq.QuotationNumber,
+                    Status: isExpired ? "Expired" : cq.Status,
+                    DeclineReason: cq.DeclineReason,
+                    // CompanyQuotation.CreateDraft initialises SubmittedAt = default(DateTime), which serialises
+                    // as "0001-01-01T00:00:00" and renders as junk in the UI. Emit null for an Expired row, for a
+                    // row still in Draft/PendingCheckerReview, and for any row whose time is still default; otherwise
+                    // the real submit (or decline) time.
+                    SubmittedAt: isExpired || cq.Status is "Draft" or "PendingCheckerReview" || cq.SubmittedAt == default ? null : cq.SubmittedAt,
+                    TotalQuotedPrice: isExpired ? null : cq.TotalQuotedPrice,
+                    OriginalQuotedPrice: isExpired ? null : cq.OriginalQuotedPrice,
+                    CurrentNegotiatedPrice: isExpired ? null : cq.CurrentNegotiatedPrice,
+                    NegotiationRounds: cq.NegotiationRounds,
+                    IsShortlisted: cq.IsShortlisted,
+                    IsWinner: cq.IsWinner,
+                    EstimatedDays: isExpired ? 0 : cq.EstimatedDays,
+                    ValidUntil: isExpired ? null : cq.ValidUntil,
+                    ProposedStartDate: isExpired ? null : cq.ProposedStartDate,
+                    ProposedCompletionDate: isExpired ? null : cq.ProposedCompletionDate,
+                    Remarks: isExpired ? null : cq.Remarks,
+                    Items: isExpired ? [] : cq.Items.Select(i => new CompanyQuotationItemResult(
+                        Id: i.Id,
+                        AppraisalId: i.AppraisalId,
+                        ItemNumber: i.ItemNumber,
+                        QuotedPrice: i.QuotedPrice,
+                        OriginalQuotedPrice: i.OriginalQuotedPrice,
+                        CurrentNegotiatedPrice: i.CurrentNegotiatedPrice,
+                        EstimatedDays: i.EstimatedDays,
+                        FeeAmount: i.FeeAmount,
+                        Discount: i.Discount,
+                        NegotiatedDiscount: i.NegotiatedDiscount,
+                        VatPercent: i.VatPercent,
+                        ItemNotes: i.ItemNotes,
+                        ItemNegotiationReason: i.ItemNegotiationReason
+                    )).ToList(),
+                    Negotiations: cq.Negotiations.Select(n => new CompanyQuotationNegotiationResult(
+                        Id: n.Id,
+                        NegotiationRound: n.NegotiationRound,
+                        InitiatedBy: n.InitiatedBy,
+                        InitiatedByUserName: n.InitiatedByUserId.HasValue
+                            ? negotiationUserNames.GetValueOrDefault(n.InitiatedByUserId.Value)
+                            : null,
+                        InitiatedAt: n.InitiatedAt,
+                        CounterPrice: n.CounterPrice,
+                        Message: n.Message,
+                        Status: n.Status,
+                        ResponseMessage: n.ResponseMessage,
+                        RespondedAt: n.RespondedAt
+                    )).ToList()
+                );
+            })
             .ToList();
 
         // C2: build a lookup from the denormalized Items collection so we can enrich
-        // each appraisal join row with AppraisalNumber, PropertyType, Address, and LoanType.
-        // LoanType maps to BankingSegment (stored on the quotation at creation time).
+        // each appraisal join row with AppraisalNumber, PropertyType, Address, and BankingSegment.
+        // BankingSegment is the appraisal's own segment (live from the Appraisals table): a quotation
+        // has no single segment, only a Segment Set derived from its appraisals.
         var itemsByAppraisalId = quotation.Items
             .GroupBy(i => i.AppraisalId)
             .ToDictionary(g => g.Key, g => g.First());
@@ -127,11 +140,20 @@ public class GetQuotationByIdQueryHandler(
             .ToArray();
         var titlesByRequestId = await ResolveTitlesAsync(requestIdsForTitles);
 
+        // Live assignment state is internal-admin information, and only meaningful once finalize ran.
+        var showAssignState = quotation.Status == "Finalized"
+                              && QuotationAccessPolicy.IsAdmin(currentUser);
+        var assignStates = showAssignState
+            ? (await autoAssignStateReader.GetAsync(appraisalIds, cancellationToken)).ToDictionary(s => s.AppraisalId)
+            : new Dictionary<Guid, AppraisalAssignState>();
+
         var appraisalResults = quotation.Appraisals
             .Select(a =>
             {
+                assignStates.TryGetValue(a.AppraisalId, out var assignState);
                 itemsByAppraisalId.TryGetValue(a.AppraisalId, out var item);
-                appraisalMetaMap.TryGetValue(a.AppraisalId, out var meta);
+                // A missing row (hard-deleted appraisal) reads as an empty one, as the default tuple used to.
+                var meta = appraisalMetaMap.GetValueOrDefault(a.AppraisalId) ?? new AppraisalMetaRow();
                 appraisalCustomerNamesMap.TryGetValue(a.AppraisalId, out var customerName);
                 // Prefer the live AppraisalNumber; fall back to the denormalized item value.
                 var appraisalNumber = !string.IsNullOrWhiteSpace(meta.AppraisalNumber)
@@ -152,22 +174,40 @@ public class GetQuotationByIdQueryHandler(
                     AppraisalNumber: appraisalNumber,
                     PropertyType: propertyType,
                     Address: item?.PropertyLocation,
-                    LoanType: quotation.BankingSegment,
                     Channel: channel,
+                    // Null for a soft-deleted appraisal: the FE builds its Segment Set from these rows, and it
+                    // must match the set computed below and in the Send guard.
+                    BankingSegment: meta.IsDeleted ? null : meta.BankingSegment,
                     RequestId: meta.RequestId == Guid.Empty ? null : meta.RequestId,
                     CustomerName: customerName,
                     MaxAppraisalDays: item?.MaxAppraisalDays,
                     AppraisalType: meta.AppraisalType,
-                    Titles: (IReadOnlyList<QuotationTitleDetail>?)titles ?? Array.Empty<QuotationTitleDetail>());
+                    Titles: (IReadOnlyList<QuotationTitleDetail>?)titles ?? Array.Empty<QuotationTitleDetail>(),
+                    AutoAssignResult: showAssignState ? a.AutoAssignResult : null,
+                    AutoAssignMessage: showAssignState ? a.AutoAssignMessage : null,
+                    AutoAssignReasonCode: showAssignState ? a.AutoAssignReasonCode : null,
+                    AutoAssignedAt: showAssignState ? a.AutoAssignedAt : null,
+                    CurrentActivityId: assignState?.PendingActivityId,
+                    AssignmentStatus: assignState?.AssignmentStatus,
+                    AssignmentTaskId: assignState?.PendingActivityId == AppraisalAssignState.AssignmentActivityId
+                        ? assignState.PendingTaskId
+                        : null,
+                    FollowupStaffId: assignState?.FollowupStaffId,
+                    FollowupStaffName: assignState?.FollowupStaffName,
+                    FollowupMethod: assignState?.FollowupMethod);
             })
             .ToList();
 
         // v7: enrich SharedDocuments with display metadata pulled from request documents.
         var sharedDocumentsEnriched = await EnrichSharedDocumentsAsync(quotation.SharedDocuments);
 
-        // Resolve invited companies — include every invitation regardless of status so the
-        // UI can render Expired (auto-declined at cutoff) rows alongside Pending/Submitted/Declined.
-        // Per-row status is surfaced on the FE via the matching CompanyQuotation entry.
+        // Segment Set from the appraisals already loaded above, computed the same way as the Send guard
+        // (soft-deleted appraisals add nothing to it).
+        var segmentSet = SegmentCoverage.BuildSegmentSet(
+            appraisalMetaMap.Values.Where(m => !m.IsDeleted).Select(m => m.BankingSegment));
+
+        // Resolve invited companies — include every invitation regardless of status, Expired
+        // (auto-declined at cutoff) included. The FE shows no per-row status for this list.
         // External company users do not see the list of rival invitees; they get an empty list.
         List<InvitedCompanyResult> invitedCompanies;
         if (QuotationAccessPolicy.CanViewInvitedCompanies(currentUser))
@@ -176,9 +216,24 @@ public class GetQuotationByIdQueryHandler(
                 .Select(i => i.CompanyId)
                 .ToArray();
             var companyInfoMap = await ResolveCompanyInfoAsync(invitationCompanyIds);
+            // Coverage only matters before Send, so only a Draft computes MissingSegments. There, a company
+            // row that no longer exists is still listed (id as the name, like the Send guard) with no loan
+            // types, so it reads as missing everything. Any other status skips such invitations.
+            var checkCoverage = quotation.Status == "Draft";
             invitedCompanies = invitationCompanyIds
-                .Where(id => companyInfoMap.ContainsKey(id))
-                .Select(id => new InvitedCompanyResult(id, companyInfoMap[id].Name, companyInfoMap[id].NameLocal, companyInfoMap[id].Email))
+                .Where(id => checkCoverage || companyInfoMap.ContainsKey(id))
+                .Select(id =>
+                {
+                    companyInfoMap.TryGetValue(id, out var info);
+                    var loanTypes = info.LoanTypes ?? [];
+                    return new InvitedCompanyResult(
+                        id,
+                        info.Name ?? id.ToString(),
+                        info.NameLocal,
+                        info.Email,
+                        loanTypes,
+                        checkCoverage ? SegmentCoverage.MissingSegments(segmentSet, loanTypes) : []);
+                })
                 .OrderBy(r => r.CompanyName)
                 .ToList();
         }
@@ -231,7 +286,7 @@ public class GetQuotationByIdQueryHandler(
             RequestId: quotation.RequestId,
             WorkflowInstanceId: quotation.WorkflowInstanceId,
             TaskExecutionId: quotation.TaskExecutionId,
-            BankingSegment: quotation.BankingSegment,
+            BankingSegment: segmentSet,
             RmUserName: quotation.RmUsername,
             RmUserFullName: rmUserFullName,
             SubmissionsClosedAt: quotation.SubmissionsClosedAt,
@@ -290,13 +345,13 @@ public class GetQuotationByIdQueryHandler(
         _ => code,
     };
 
-    private async Task<Dictionary<Guid, (Guid RequestId, string? AppraisalNumber, string? CollateralType, string? AppraisalType, string? Channel)>> ResolveAppraisalMetaAsync(Guid[] appraisalIds)
+    private async Task<Dictionary<Guid, AppraisalMetaRow>> ResolveAppraisalMetaAsync(Guid[] appraisalIds)
     {
         if (appraisalIds.Length == 0)
-            return new Dictionary<Guid, (Guid, string?, string?, string?, string?)>();
+            return new Dictionary<Guid, AppraisalMetaRow>();
 
         var connection = connectionFactory.GetOpenConnection();
-        var rows = await connection.QueryAsync<(Guid AppraisalId, Guid RequestId, string? AppraisalNumber, string? CollateralType, string? AppraisalType, string? Channel)>(
+        var rows = await connection.QueryAsync<AppraisalMetaRow>(
             """
             SELECT a.Id AS AppraisalId,
                    a.RequestId,
@@ -306,15 +361,28 @@ public class GetQuotationByIdQueryHandler(
                     WHERE rp.RequestId = a.RequestId
                     ORDER BY rp.Id) AS CollateralType,
                    a.AppraisalType,
-                   a.Channel
+                   a.Channel,
+                   a.BankingSegment,
+                   a.IsDeleted
             FROM [appraisal].[Appraisals] a
             WHERE a.Id IN @AppraisalIds
             """,
             new { AppraisalIds = appraisalIds });
 
-        return rows.ToDictionary(
-            r => r.AppraisalId,
-            r => (r.RequestId, r.AppraisalNumber, r.CollateralType, r.AppraisalType, r.Channel));
+        return rows.ToDictionary(r => r.AppraisalId);
+    }
+
+    // Plain properties so Dapper maps by column name, not position.
+    private sealed class AppraisalMetaRow
+    {
+        public Guid AppraisalId { get; set; }
+        public Guid RequestId { get; set; }
+        public string? AppraisalNumber { get; set; }
+        public string? CollateralType { get; set; }
+        public string? AppraisalType { get; set; }
+        public string? Channel { get; set; }
+        public string? BankingSegment { get; set; }
+        public bool IsDeleted { get; set; }
     }
 
     private async Task<Dictionary<Guid, string?>> ResolveAppraisalCustomerNamesAsync(Guid[] appraisalIds)
@@ -466,21 +534,21 @@ public class GetQuotationByIdQueryHandler(
         return rows.ToDictionary(r => r.Id, r => (r.Name, r.NameLocal));
     }
 
-    private async Task<Dictionary<Guid, (string Name, string? NameLocal, string? Email)>> ResolveCompanyInfoAsync(Guid[] companyIds)
+    private async Task<Dictionary<Guid, (string? Name, string? NameLocal, string? Email, List<string>? LoanTypes)>> ResolveCompanyInfoAsync(Guid[] companyIds)
     {
         if (companyIds.Length == 0)
-            return new Dictionary<Guid, (string, string?, string?)>();
+            return new Dictionary<Guid, (string?, string?, string?, List<string>?)>();
 
         var connection = connectionFactory.GetOpenConnection();
-        var rows = await connection.QueryAsync<(Guid Id, string Name, string? NameLocal, string? Email)>(
+        var rows = await connection.QueryAsync<(Guid Id, string Name, string? NameLocal, string? Email, string? LoanTypes)>(
             """
-            SELECT c.Id, c.Name, NULLIF(c.NameLocal, N'') AS NameLocal, c.Email
+            SELECT c.Id, c.Name, NULLIF(c.NameLocal, N'') AS NameLocal, c.Email, c.LoanTypes
             FROM [auth].[Companies] c
             WHERE c.Id IN @CompanyIds
             """,
             new { CompanyIds = companyIds });
 
-        return rows.ToDictionary(r => r.Id, r => (r.Name, r.NameLocal, r.Email));
+        return rows.ToDictionary(r => r.Id, r => (r.Name, r.NameLocal, r.Email, r.LoanTypes.ParseJsonStringArray()));
     }
 
     private async Task<IReadOnlyList<QuotationSharedDocumentResult>> EnrichSharedDocumentsAsync(

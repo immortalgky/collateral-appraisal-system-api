@@ -69,6 +69,14 @@ public class QuotationRepository(AppraisalDbContext dbContext) : IQuotationRepos
     }
 
     /// <inheritdoc />
+    public async Task<QuotationRequest?> GetWithAppraisalsAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.QuotationRequests
+            .Include(q => q.Appraisals)
+            .FirstOrDefaultAsync(q => q.Id == id, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<QuotationRequest?> GetByNumberAsync(string quotationNumber,
         CancellationToken cancellationToken = default)
     {
@@ -84,17 +92,36 @@ public class QuotationRepository(AppraisalDbContext dbContext) : IQuotationRepos
     /// v2: searches via the QuotationRequestAppraisals join table, not the dropped AppraisalId column.
     /// </remarks>
     public async Task<QuotationRequest?> GetFinalizedByAppraisalIdAsync(Guid appraisalId,
-        CancellationToken cancellationToken = default)
+        Guid winnerCompanyId, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.QuotationRequests
+        var latest = await LatestFinalized(appraisalId)
             .Include(q => q.Appraisals)
             .Include(q => q.Quotations)
             .ThenInclude(cq => cq.Items)
-            .Where(q => q.Status == "Finalized" &&
-                        q.Appraisals.Any(a => a.AppraisalId == appraisalId))
-            .OrderByDescending(q => q.RequestDate)
+            .AsSplitQuery() // sibling collections would otherwise multiply into a cartesian product
+            .FirstOrDefaultAsync(cancellationToken);
+
+        // The current round decides: if the latest finalized RFQ was won by someone else, an older one this
+        // company won must not be billed.
+        return latest?.SelectedCompanyId == winnerCompanyId ? latest : null;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> HasFinalizedWonByAsync(Guid appraisalId, Guid winnerCompanyId,
+        CancellationToken cancellationToken = default)
+    {
+        // Judges the SAME quotation the fee consumer will use (the latest finalized one, only if this company won
+        // it). Whether the winner's price is usable is not asked here: that is the base-fee rule of
+        // AssignAppraisalCommandHandler (the fee preview), which an admin's own 01 can also satisfy.
+        return await LatestFinalized(appraisalId)
+            .Select(q => q.SelectedCompanyId == winnerCompanyId &&
+                         q.Quotations.Any(c => c.IsWinner && c.CompanyId == winnerCompanyId))
             .FirstOrDefaultAsync(cancellationToken);
     }
+
+    // See QuotationQueries.LatestFinalized — shared with the fee preview so both pick the same quotation.
+    private IOrderedQueryable<QuotationRequest> LatestFinalized(Guid appraisalId) =>
+        _dbContext.QuotationRequests.LatestFinalized(appraisalId);
 
     /// <summary>
     /// Checks whether the given appraisal is already part of any non-terminal QuotationRequest.

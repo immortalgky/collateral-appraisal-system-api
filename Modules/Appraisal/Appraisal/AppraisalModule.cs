@@ -1,5 +1,6 @@
 using Appraisal.Application.Features.Appraisals.Shared;
 using Appraisal.Infrastructure.Search;
+using Appraisal.Application.Features.Quotations.AutoAssign;
 using Appraisal.Application.Features.Quotations.Shared;
 using Appraisal.Application.Services;
 using Appraisal.Domain.ComparativeAnalysis;
@@ -12,6 +13,8 @@ using Shared.Data.Seed;
 using Appraisal.Contracts.Services;
 using Appraisal.Scheduling;
 using Shared.Scheduling;
+using Appraisal.Application.Features.Assignments.GetAssignmentDefaults;
+using Appraisal.Infrastructure.FileAssignmentDefaults;
 
 namespace Appraisal;
 
@@ -60,6 +63,7 @@ public static class AppraisalModule
 
         // Register quotation activity logger (audit trail for quotation lifecycle)
         services.AddScoped<IQuotationActivityLogger, QuotationActivityLogger>();
+        services.AddScoped<IQuotationAutoAssignStateReader, QuotationAutoAssignStateReader>();
 
         // Generates the quotation-summary PDF and links it to the quotation aggregate.
         services.AddScoped<IQuotationDocumentGenerator, QuotationDocumentGenerator>();
@@ -91,6 +95,9 @@ public static class AppraisalModule
         // Summary construction card and the AppraisalForCollateralResult contract, so the screen
         // and the outbound regulatory file cannot drift apart.
         services.AddScoped<IConstructionCurrentValueService, ConstructionCurrentValueService>();
+
+        // Per-Appraisal-Type defaults for the Administration page (Config/assignment-defaults.json).
+        services.AddSingleton<IAssignmentDefaultsProvider, FileAssignmentDefaultsProvider>();
 
         // Register Application Services (pricing)
         services.AddScoped<PricingPropertyDataService>();
@@ -134,6 +141,9 @@ public static class AppraisalModule
     {
         app.UseDataSeeding<AppraisalDbContext>();
         app.UseModuleRecurringJobs<AppraisalDbContext>(AppraisalRecurringJobs.All);
+
+        // Read the assignment defaults file now so a bad or missing deploy shows in the startup log.
+        _ = app.ApplicationServices.GetRequiredService<IAssignmentDefaultsProvider>().Current;
         return app;
     }
 }

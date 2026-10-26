@@ -35,19 +35,28 @@ public class Request : Aggregate<Guid>
 
     /// <summary>
     /// The AS400 book (normalised survey number) this periodical reappraisal request reviews. System
-    /// field, set by Initiate with <see cref="GroupTag"/> and never edited: the prior-appraisal fields
-    /// on the form are staff-editable, and "is this book already waiting?" / "which book did this
-    /// submit review?" must not change when staff clear them. NULL on every other request.
+    /// field, set by Initiate with <see cref="GroupTag"/> and never edited. Its presence also locks the
+    /// request (<see cref="ArePurposeAndPriorLocked"/>): staff cannot change the purpose or repoint or clear
+    /// the prior appraisal, and every save keeps the stored prior (id, number, value and date) as it is, so
+    /// "is this book already waiting?" / "which book did this submit review?" cannot change. NULL on every
+    /// other request.
     /// </summary>
     public string? ReappraisalBookNumber { get; private set; }
 
     /// <summary>
     /// AS400's collateral id of the COLLATREV row this request reviews — a key on the AS400 side only
     /// (CAS has no link to it). It tells the units of one block project apart: each is a different
-    /// collateral under the same book. System field, set by Initiate; never sent anywhere (it is NOT the
-    /// ExternalCaseKey, which drives the LOS webhooks).
+    /// collateral under the same book. System field, set by Initiate; it goes out in the AS400 Collateral
+    /// Result file (it is NOT the ExternalCaseKey, which drives the LOS webhooks).
     /// </summary>
     public string? ReappraisalCollateralId { get; private set; }
+
+    /// <summary>
+    /// AS400's own Auto Update flag ("Y"/"N") for the COLLATREV row, as it was when Initiate ran — later
+    /// COLLATREV files keep refreshing a Pending candidate, but the Collateral Result file reports this
+    /// frozen value. System field, set by Initiate; NULL when none was stored.
+    /// </summary>
+    public string? ReappraisalAutoUpdate { get; private set; }
 
     private readonly List<RequestCustomer> _customers = [];
     public IReadOnlyList<RequestCustomer> Customers => _customers.AsReadOnly();
@@ -100,6 +109,10 @@ public class Request : Aggregate<Guid>
 
     public void Save(RequestData data)
     {
+        // Locked once submitted, or for a request Initiate created for a COLLATREV book: every caller is covered,
+        // not just the ones that remember. Resending the stored value passes. A new request is never locked.
+        EnsurePurposeUnchanged(data.Purpose);
+
         Purpose = data.Purpose;
         Channel = data.Channel;
         Requestor = data.Requestor;
@@ -140,6 +153,7 @@ public class Request : Aggregate<Guid>
         if (properties is not null && Properties.SequenceEqual(properties)) return;
 
         properties?
+            .Where(p => !RequestProperty.HasNoBuilding(p.PropertyType)) // several land rows are allowed
             .GroupBy(p => new { p.PropertyType, p.BuildingType })
             .Where(g => g.Count() > 1)
             .ToList()
@@ -177,27 +191,43 @@ public class Request : Aggregate<Guid>
     }
 
     /// <summary>
-    /// A submitted request's purpose is locked: the appraisal is built from it at first submit and
-    /// nothing re-bases it afterwards. Resending the stored value passes. Compared exactly (ordinal),
-    /// because <see cref="Save"/> stores the value as given. Call before <see cref="Save"/>.
+    /// The purpose and the prior appraisal are locked once the request is submitted (the appraisal is built
+    /// from them), and from the start for a request Initiate created for a COLLATREV book
+    /// (<see cref="ReappraisalBookNumber"/>): it exists to review that book, so staff cannot repoint it.
+    /// Callers use this to keep the stored prior instead of re-resolving it.
     /// </summary>
-    public void EnsurePurposeUnchanged(string? purpose)
+    public bool ArePurposeAndPriorLocked() => HasBeenSubmitted() || IsPeriodicalReappraisal();
+
+    /// <summary>Created by Initiate for a COLLATREV book (<see cref="ReappraisalBookNumber"/> is set).</summary>
+    public bool IsPeriodicalReappraisal() => ReappraisalBookNumber is not null;
+
+    /// <summary>
+    /// A locked request's purpose (see <see cref="ArePurposeAndPriorLocked"/>): the appraisal is built from
+    /// it at first submit and nothing re-bases it afterwards. Resending the stored value passes. Compared
+    /// exactly (ordinal), because <see cref="Save"/> stores the value as given. <see cref="Save"/> calls it itself.
+    /// </summary>
+    private void EnsurePurposeUnchanged(string? purpose)
     {
+        var changed = !string.Equals(purpose, Purpose, StringComparison.Ordinal);
         RuleCheck.Valid()
-            .AddErrorIf(HasBeenSubmitted() && !string.Equals(purpose, Purpose, StringComparison.Ordinal),
-                "The purpose of a request that has already been submitted cannot be changed.")
+            .AddErrorIf(ArePurposeAndPriorLocked() && changed,
+                HasBeenSubmitted()
+                    ? "The purpose of a request that has already been submitted cannot be changed."
+                    : "The purpose of a request created for a COLLATREV reappraisal book cannot be changed.")
             .ThrowIfInvalid();
     }
 
     /// <summary>
-    /// A submitted request's prior appraisal is locked for the same reason as its purpose. A prior in CAS
+    /// A locked request's prior appraisal (see <see cref="ArePurposeAndPriorLocked"/>) is locked for the same
+    /// reason as its purpose. A prior in CAS
     /// is identified by its id; a caller that sends only the book number (LOS does) matches it against the
     /// stored number instead, since the number is all it has. A legacy book (no stored id) is identified by
     /// its number alone. Numbers are compared normalised (<see cref="NormalizeBookNumber"/>); an omitted
     /// number on a legacy book is not a change, because the form never sends it back. The caller keeps the
     /// stored prior fields, so nothing here can rewrite them. Call before <see cref="SetDetail"/>.
     /// </summary>
-    public void EnsurePriorUnchanged(Guid? incomingPrevAppraisalId, string? incomingPrevAppraisalNumber)
+    public void EnsurePriorUnchanged(
+        Guid? incomingPrevAppraisalId, string? incomingPrevAppraisalNumber, bool legacyPriorCleared = false)
     {
         var storedId = Detail?.PrevAppraisalId;
         var incomingNumber = NormalizeBookNumber(incomingPrevAppraisalNumber);
@@ -208,9 +238,13 @@ public class Request : Aggregate<Guid>
             : incomingPrevAppraisalId.HasValue
               || (incomingNumber is not null && incomingNumber != NormalizeBookNumber(Detail?.PrevAppraisalNumber));
 
+        // legacyPriorCleared: the form signals clearing a legacy book by sending back no value and date
+        // (it never sends the number), which "changed" cannot see. On an Initiate draft that is a change too.
         RuleCheck.Valid()
-            .AddErrorIf(HasBeenSubmitted() && changed,
-                "The prior appraisal of a request that has already been submitted cannot be changed.")
+            .AddErrorIf(ArePurposeAndPriorLocked() && (changed || (legacyPriorCleared && !HasBeenSubmitted())),
+                HasBeenSubmitted()
+                    ? "The prior appraisal of a request that has already been submitted cannot be changed."
+                    : "The prior appraisal of a request created for a COLLATREV reappraisal book cannot be changed.")
             .ThrowIfInvalid();
     }
 
@@ -261,12 +295,14 @@ public class Request : Aggregate<Guid>
 
     /// <summary>Marks this request as created by Initiate for an AS400 book, in a reappraisal batch.</summary>
     public void MarkAsPeriodicalReappraisal(
-        string groupTag, string? bookNumber, string? collateralId = null)
+        string groupTag, string? bookNumber, string? collateralId, string? autoUpdate)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(groupTag);
         GroupTag = groupTag;
         ReappraisalBookNumber = string.IsNullOrWhiteSpace(bookNumber) ? null : bookNumber.Trim();
         ReappraisalCollateralId = string.IsNullOrWhiteSpace(collateralId) ? null : collateralId.Trim();
+        var flag = autoUpdate?.Trim().ToUpperInvariant();
+        ReappraisalAutoUpdate = flag is "Y" or "N" ? flag : null;
     }
 
     /// <summary>

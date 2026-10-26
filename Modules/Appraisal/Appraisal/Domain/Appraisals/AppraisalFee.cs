@@ -6,7 +6,27 @@ namespace Appraisal.Domain.Appraisals;
 /// </summary>
 public class AppraisalFee : Entity<Guid>
 {
+    /// <summary>The appraisal-fee line (FeeCode "01"): the one base fee the case is billed on.</summary>
+    public const string BaseFeeCode = "01";
+
+    /// <summary>The parameter group that maintains the valid fee codes and their names.</summary>
+    public const string FeeTypeParameterGroup = "TypeOfFee";
+
+    /// <summary>VAT % a fee starts with; the one definition for the aggregate and for read paths with no fee row yet.</summary>
+    public const decimal DefaultVatRate = 7.00m;
+
     public Guid AssignmentId { get; private set; }
+
+    /// <summary>
+    /// A shell that carries nothing from the request (no payment type, notes or selling price): the row an admin's
+    /// first fee edit creates when the request had no fee data. Assignment treats it as "no fee row": before
+    /// admin fee editing existed such an appraisal got no base fee at all, and the preview agrees. A request's own
+    /// row always has a payment type (Fee.Validate), so an IBG row with a null selling price is not blank.
+    /// </summary>
+    public static bool IsBlankShell(string? feePaymentType, string? feeNotes, decimal? totalSellingPrice) =>
+        feePaymentType is null && feeNotes is null && totalSellingPrice is null;
+
+    public bool IsBlank => IsBlankShell(FeePaymentType, FeeNotes, TotalSellingPrice);
 
     // Fee Metadata (from Request)
     public string? FeePaymentType { get; private set; }
@@ -15,7 +35,7 @@ public class AppraisalFee : Entity<Guid>
 
     // Fee Totals (calculated from FeeItems)
     public decimal TotalFeeBeforeVAT { get; private set; }
-    public decimal VATRate { get; private set; } = 7.00m;
+    public decimal VATRate { get; private set; } = DefaultVatRate;
     public decimal VATAmount { get; private set; }
     public decimal TotalFeeAfterVAT { get; private set; }
 
@@ -59,7 +79,7 @@ public class AppraisalFee : Entity<Guid>
             FeeNotes = feeNotes,
             TotalSellingPrice = totalSellingPrice,
             TotalFeeBeforeVAT = 0,
-            VATRate = 7.00m,
+            VATRate = DefaultVatRate,
             VATAmount = 0,
             TotalFeeAfterVAT = 0,
             BankAbsorbAmount = 0,
@@ -69,6 +89,10 @@ public class AppraisalFee : Entity<Guid>
             PaymentStatus = "NotPaid"
         };
     }
+
+    /// <summary>VAT on an ex-VAT amount, rounded the way the decimal(18,2) column stores it. Shared with the fee preview.</summary>
+    public static decimal CalculateVat(decimal exVatAmount, decimal vatRate) =>
+        Math.Round(exVatAmount * vatRate / 100, 2, MidpointRounding.AwayFromZero);
 
     public AppraisalFeeItem AddItem(string feeCode, string feeDescription, decimal feeAmount,
         bool requiresApproval = false)
@@ -110,9 +134,9 @@ public class AppraisalFee : Entity<Guid>
         // Items with ApprovalStatus == "Pending" or "Rejected" are excluded from billable totals
         // (consumption-point gate per the FeeAppointmentApproval feature design).
         TotalFeeBeforeVAT = _items
-            .Where(i => !i.RequiresApproval || i.ApprovalStatus == "Approved")
+            .Where(i => i.IsBillable)
             .Sum(i => i.FeeAmount);
-        VATAmount = TotalFeeBeforeVAT * VATRate / 100;
+        VATAmount = CalculateVat(TotalFeeBeforeVAT, VATRate);
         TotalFeeAfterVAT = TotalFeeBeforeVAT + VATAmount;
         // Re-clamp the bank absorb so it can never exceed the (possibly reduced) total. Without
         // this, removing/editing a fee item below a prior full absorb would leave a stale
@@ -157,9 +181,13 @@ public class AppraisalFee : Entity<Guid>
         RecalculateFromItems();
     }
 
-    public void SetFeePaymentType(string feePaymentType)
+    /// <summary>
+    /// Null, empty and whitespace all mean "no payment type" and are stored as null: the screen sends '' for a stored
+    /// null, and an empty string would turn a blank shell (<see cref="IsBlank"/>) into a priced one.
+    /// </summary>
+    public void SetFeePaymentType(string? feePaymentType)
     {
-        FeePaymentType = feePaymentType;
+        FeePaymentType = string.IsNullOrWhiteSpace(feePaymentType) ? null : feePaymentType;
     }
 
     public void SetBankAbsorb(decimal amount)
@@ -183,6 +211,18 @@ public class AppraisalFee : Entity<Guid>
         // holds absorb > total (0). Corrected on the next RecalculateFromItems once items exist.
         CustomerPayableAmount = Math.Max(0m, TotalFeeAfterVAT - BankAbsorbAmount);
         OutstandingAmount = TotalFeeAfterVAT - TotalPaidAmount;
+        UpdatePaymentStatus();
+    }
+
+    /// <summary>
+    /// Admin stage only: puts back the absorb the request asked for after an item change re-clamped it to the
+    /// partial total. Nothing is billed yet, and assignment re-applies it (capped at the final total), so a
+    /// half-built fee must not shrink it for good. <see cref="CustomerPayableAmount"/> stays floored at 0 meanwhile.
+    /// </summary>
+    public void RestoreRequestedBankAbsorb(decimal requested)
+    {
+        BankAbsorbAmount = requested;
+        CustomerPayableAmount = Math.Max(0m, TotalFeeAfterVAT - requested);
         UpdatePaymentStatus();
     }
 

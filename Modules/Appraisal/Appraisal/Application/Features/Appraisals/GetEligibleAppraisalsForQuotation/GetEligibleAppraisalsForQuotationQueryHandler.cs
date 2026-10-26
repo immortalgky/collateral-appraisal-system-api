@@ -11,6 +11,8 @@ namespace Appraisal.Application.Features.Appraisals.GetEligibleAppraisalsForQuot
 /// Reuses AppraisalFilterBuilder and appends two hard eligibility predicates:
 ///   1. AssignmentStatus IS NULL — no active (non-rejected/cancelled) assignment.
 ///   2. NOT EXISTS against QuotationRequestAppraisals where the quotation is non-terminal.
+/// Then fills PreviouslyQuotedNumber for the returned page with a second query — informational only,
+/// does not affect eligibility.
 /// </summary>
 public class GetEligibleAppraisalsForQuotationQueryHandler(
     ISqlConnectionFactory connectionFactory,
@@ -34,6 +36,32 @@ public class GetEligibleAppraisalsForQuotationQueryHandler(
         )
         """;
 
+    // Second query, to keep the paginated view query free of a per-row lookup or window function.
+    // It only touches the returned ids (at most PageSize), passed as one comma-separated parameter
+    // so `IN @Ids` can't hit SQL Server's 2,100-parameter limit.
+    // Most recent = latest SelectedAt (set by QuotationRequest.Finalize); qr.Id only makes the pick
+    // deterministic when SelectedAt ties (uniqueidentifier sort order is not creation order).
+    // Rows without a number are skipped, so an unnumbered Finalized quotation never hides an older numbered one.
+    private const string PreviouslyQuotedSql = """
+        SELECT x.AppraisalId, x.QuotationNumber
+        FROM (
+            SELECT qa.AppraisalId, qr.QuotationNumber,
+                   ROW_NUMBER() OVER (PARTITION BY qa.AppraisalId ORDER BY qr.SelectedAt DESC, qr.Id DESC) AS rn
+            FROM appraisal.QuotationRequestAppraisals qa
+            JOIN appraisal.QuotationRequests qr ON qr.Id = qa.QuotationRequestId
+            WHERE qa.AppraisalId IN (SELECT CAST([value] AS uniqueidentifier) FROM STRING_SPLIT(@Ids, ','))
+              AND qr.Status = 'Finalized'
+              AND qr.QuotationNumber IS NOT NULL
+        ) x
+        WHERE x.rn = 1
+        """;
+
+    private sealed record PreviouslyQuotedRow
+    {
+        public Guid AppraisalId { get; init; }
+        public string? QuotationNumber { get; init; }
+    }
+
     public async Task<PaginatedResult<AppraisalDto>> Handle(
         GetEligibleAppraisalsForQuotationQuery query,
         CancellationToken cancellationToken)
@@ -55,12 +83,23 @@ public class GetEligibleAppraisalsForQuotationQueryHandler(
         // search in front of the view where FORCE ORDER can hold it.
         var baseSql = $"SELECT v.* FROM {filter.ViewFrom}{combinedWhere}";
 
-        return await connectionFactory.QueryPaginatedAsync<AppraisalDto>(
+        var page = await connectionFactory.QueryPaginatedAsync<AppraisalDto>(
             baseSql,
             null,
             orderBy,
             query.PaginationRequest,
             filter.Parameters,
             freeTextSearch: filter.HasFreeTextSearch);
+
+        var ids = page.Items.Select(i => i.Id).ToArray();
+        if (ids.Length == 0)
+            return page;
+
+        var rows = await connectionFactory.QueryAsync<PreviouslyQuotedRow>(
+            PreviouslyQuotedSql,
+            new { Ids = string.Join(',', ids) });
+        var numbers = rows.ToDictionary(r => r.AppraisalId, r => r.QuotationNumber);
+
+        return page.Select(i => i with { PreviouslyQuotedNumber = numbers.GetValueOrDefault(i.Id) });
     }
 }

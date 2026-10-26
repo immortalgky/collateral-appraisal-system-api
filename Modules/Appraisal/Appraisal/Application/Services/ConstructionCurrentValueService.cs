@@ -27,13 +27,10 @@ namespace Appraisal.Application.Services;
 /// the inspection carries the depreciation total — and when they disagree the priced figure wins, so
 /// this card, the construction summary book and the pricing screen cannot print three answers.
 ///
-/// <b>Summary-mode values are derived from the percent, not read from the stored value.</b>
-/// <c>ConstructionInspections.SummaryCurrentValue</c> is unusable: the CI screen computes the figure
-/// in a <c>useMemo</c> and displays it, but never writes it back into the form, so the payload sends
-/// the default (0) — the screen shows one number and the database stores another. The percent
-/// (<c>SummaryCurrentProgressPct</c>) is bound to a real form input and does persist, so it is the
-/// trustworthy input. Full-detail mode is unaffected: the server already computes
-/// <c>ConstructionWorkDetail.CurrentPropertyValue</c> from the percentages on save.
+/// <b>Progress and value come from one place.</b> <c>ConstructionInspections.Summary*</c> hold the
+/// inspection-level result in both modes — the server derives the two values on every save (summary
+/// mode: <c>TotalValue x pct / 100</c>; full detail: the work rows), so this reads them through
+/// <c>appraisal.vw_AppraisalConstructionProgress</c> and never branches on <c>IsFullDetail</c>.
 /// </summary>
 public interface IConstructionCurrentValueService
 {
@@ -192,9 +189,8 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
         var ci = await connection.QueryFirstOrDefaultAsync<CiAggregate>(
             new CommandDefinition(CiAggregateSql, p, cancellationToken: cancellationToken));
 
-        // No inspection anywhere on this appraisal → nothing is part-built. Test the row count,
-        // not the value: CiAggregateSql is an ungrouped aggregate, so an appraisal with no inspection
-        // still returns one all-zero row. Keying "nothing here" off TotalValue = 0 also swallowed the
+        // No inspection anywhere on this appraisal → nothing is part-built: the view has no row for it.
+        // Test the row (and its count), not the value: keying "nothing here" off TotalValue = 0 swallowed the
         // inspections that legitimately carry no value base — a condo unit has no building
         // depreciation table for the CI screen to total, so its TotalValue is always 0.
         if (ci is null || ci.InspectionCount == 0)
@@ -422,69 +418,27 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
     /// <summary>
     /// Part-built buildings, at 100% / previous progress / current progress.
     ///
-    /// Each inspection's money contribution is rounded to whole baht (CA-614). ROUND rounds halves
-    /// away from zero, matching Appraisal.Domain.Appraisals.ConstructionMoney, which applies the
-    /// same rule when full-detail values are persisted.
+    /// Read from appraisal.vw_AppraisalConstructionProgress, which sums each inspection's Summary*
+    /// columns (the inspection-level result in both modes) and weights the percentages by TotalValue.
+    /// Money is whole baht (CA-614), rounded when it is written; progress is answered separately by the
+    /// Weighted*Percent columns, which never touch money. Two other places repeat the formula and have
+    /// to stay in step with the view: AppraisalSummaryConstructionDataProvider in the Reporting module,
+    /// and collateral.vw_RegulatoryExport.
     ///
-    /// The money columns answer "how much". Progress is answered separately by the Weighted*Percent
-    /// columns, which never touch money. Two other places repeat this aggregate and have to keep
-    /// both rules — the rounding and the percentage source — in step:
-    /// AppraisalSummaryConstructionDataProvider in the Reporting module, and
-    /// collateral.vw_RegulatoryExport.
+    /// The view returns no row for an appraisal without inspections, which GetAsync reads as "nothing
+    /// is part-built".
     /// </summary>
     private const string CiAggregateSql = """
-        SELECT
-            ISNULL(SUM(v.TotalValue), 0)                 AS TotalValue,
-            ISNULL(SUM(ROUND(v.PreviousValue, 0)), 0)    AS PreviousValue,
-            ISNULL(SUM(ROUND(v.CurrentValue, 0)), 0)     AS CurrentValue,
-            COUNT(*)                                     AS InspectionCount,
-            -- Plain averages, consulted only when there is no value to weight by.
-            ISNULL(AVG(v.PreviousPct), 0)                AS UnweightedPreviousPercent,
-            ISNULL(AVG(v.CurrentPct), 0)                 AS UnweightedCurrentPercent,
-            -- Per-building progress weighted across buildings by what each is worth. This is what
-            -- decides "finished" and what the reports print — deliberately NOT CurrentValue /
-            -- TotalValue. Money is rounded to whole baht (CA-614), so the rounded parts no longer
-            -- sum to the rounded whole and a finished building came out a baht short of its own
-            -- 100% figure. These percentages are decimal(7,4) and nothing rounds them; TotalValue
-            -- is only a weight here, and a weight is a ratio.
-            CASE WHEN SUM(v.TotalValue) > 0
-                 THEN SUM(v.TotalValue * v.PreviousPct) / SUM(v.TotalValue)
-                 ELSE 0 END                              AS WeightedPreviousPercent,
-            CASE WHEN SUM(v.TotalValue) > 0
-                 THEN SUM(v.TotalValue * v.CurrentPct) / SUM(v.TotalValue)
-                 ELSE 0 END                              AS WeightedCurrentPercent
-        FROM appraisal.ConstructionInspections ci
-        JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
-        LEFT JOIN (
-            SELECT ConstructionInspectionId,
-                   SUM(PreviousPropertyValue) AS PreviousPropertyValueSum,
-                   SUM(CurrentPropertyValue)  AS CurrentPropertyValueSum,
-                   -- No PreviousProportionPct column exists; it is the same product the server
-                   -- computes into CurrentProportionPct, taken against the previous round.
-                   SUM(ProportionPct * PreviousProgressPct / 100.0) AS PreviousProportionPctSum,
-                   SUM(CurrentProportionPct)                        AS CurrentProportionPctSum
-            FROM appraisal.ConstructionWorkDetails
-            GROUP BY ConstructionInspectionId
-        ) wd ON wd.ConstructionInspectionId = ci.Id
-        -- One row per inspection, read per the mode flag: summary mode keeps its own percentage,
-        -- full detail sums the weighted work rows. Money for summary mode is derived from the
-        -- percentage rather than read from SummaryPreviousValue / SummaryCurrentValue — see the
-        -- interface remarks for why those columns cannot be trusted.
-        CROSS APPLY (
-            SELECT
-                ci.TotalValue,
-                CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryPreviousProgressPct, 0)
-                     ELSE ISNULL(wd.PreviousProportionPctSum, 0) END AS PreviousPct,
-                CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
-                     ELSE ISNULL(wd.CurrentProportionPctSum, 0) END  AS CurrentPct,
-                CASE WHEN ci.IsFullDetail = 0
-                     THEN ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0) / 100.0
-                     ELSE ISNULL(wd.PreviousPropertyValueSum, 0) END AS PreviousValue,
-                CASE WHEN ci.IsFullDetail = 0
-                     THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
-                     ELSE ISNULL(wd.CurrentPropertyValueSum, 0) END  AS CurrentValue
-        ) v
-        WHERE ap.AppraisalId = @AppraisalId
+        SELECT TotalValue,
+               PreviousValue,
+               CurrentValue,
+               InspectionCount,
+               UnweightedPreviousPercent,
+               UnweightedCurrentPercent,
+               WeightedPreviousPercent,
+               WeightedCurrentPercent
+        FROM appraisal.vw_AppraisalConstructionProgress
+        WHERE AppraisalId = @AppraisalId
         """;
 
     private sealed record CiAggregate(

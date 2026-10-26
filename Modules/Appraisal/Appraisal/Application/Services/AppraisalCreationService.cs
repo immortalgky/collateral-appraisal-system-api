@@ -157,8 +157,8 @@ public class AppraisalCreationService(
                 cancellationToken);
             appraisal.SetInspectionNumber((chain?.ProgressiveCount ?? 0) + 1);
 
-            // Step 4 (Progressive path): Deep-copy properties from the prior appraisal.
-            // ConstructionInspection (per-property) detail is intentionally excluded — it stays empty for fresh tracking.
+            // Step 4 (Progressive path): Deep-copy properties from the prior appraisal, including each
+            // property's ConstructionInspection (CopyForNextInspection: prior current % becomes the new previous %, and current starts equal to it).
             priorToNewProperties = await CopyPropertiesFromPriorAppraisalAsync(
                 appraisal, prevAppraisalId!.Value, cancellationToken);
         }
@@ -693,7 +693,9 @@ public class AppraisalCreationService(
     /// <summary>
     /// Loads properties from the prior appraisal and deep-copies them into the new CI appraisal.
     /// Uses the same CopyFrom static factories as Appraisal.CopyProperty().
-    /// ConstructionInspection detail is excluded — it starts empty for fresh CI tracking.
+    /// A property's ConstructionInspection is carried over via ConstructionInspection.CopyForNextInspection: the
+    /// prior round's current progress becomes the new round's previous progress, and the new round's current starts
+    /// equal to it (no progress yet; the inspector raises it). A condo's 100% base is pinned to 0, not inherited.
     /// </summary>
     private async Task<List<(Guid PriorPropertyId, AppraisalProperty NewProperty)>>
         CopyPropertiesFromPriorAppraisalAsync(
@@ -829,10 +831,12 @@ public class AppraisalCreationService(
                 continue;
             }
 
-            // Shift prior current progress → new previous progress; reset current for inspector to fill.
+            // Prior current progress → new previous progress; the new current starts equal to it. A condo unit has no
+            // server-derived base (pinned to 0 on every write), so a legacy non-zero one is not carried over.
             if (prior.ConstructionInspection is not null)
                 newProp.SetConstructionInspection(
-                    ConstructionInspection.CopyForNextInspection(prior.ConstructionInspection, newProp.Id));
+                    ConstructionInspection.CopyForNextInspection(
+                        prior.ConstructionInspection, newProp.Id, pt.HasCondoDetail ? 0m : null));
 
             priorToNew.Add((prior.Id, newProp));
 
@@ -1122,7 +1126,7 @@ public class AppraisalCreationService(
     /// Fallback: if no master is found (first-ever appraisal or no prior completion), log a warning
     /// and leave the new project empty — parity with CI's null-prior handling.
     /// </summary>
-    private async Task SeedProjectUnitsFromPriorAsync(
+    internal async Task SeedProjectUnitsFromPriorAsync(
         Project project,
         Guid prevAppraisalId,
         CancellationToken cancellationToken)
@@ -1148,9 +1152,22 @@ public class AppraisalCreationService(
             return;
         }
 
-        // Determine project type from the master result (authoritative source).
-        // The local project.ProjectType enum and the master's string value use the same names.
-        var isCondo = masterResult.ProjectType.Equals("Condo", StringComparison.OrdinalIgnoreCase);
+        // The master stores the project type code ("U"/"LB"/"L"). Condo vs non-condo is a different
+        // unit shape, so don't seed it into this project -- same fallback as the no-master branch.
+        // LB and L share one shape, so they seed into each other.
+        if (ProjectType.IsCondoCode(masterResult.ProjectType) != (project.ProjectType == ProjectType.Condo))
+        {
+            logger.LogWarning(
+                "Block reappraisal seed: collateral master project type {MasterProjectType} differs from new project " +
+                "{ProjectId} type {ProjectType} (prior appraisal {PrevAppraisalId}). Project will start with an empty unit list.",
+                masterResult.ProjectType, project.Id, project.ProjectType.Code, prevAppraisalId);
+            return;
+        }
+
+        // The unit factory follows the project's type (the discriminator ImportUnits branches on),
+        // so the units built here always match the branch ImportUnits takes.
+        var isCondo = project.ProjectType == ProjectType.Condo;
+        var hasStructures = project.ProjectType.HasStructures();
 
         var seededUnits = new List<ProjectUnit>(masterResult.Units.Count);
 
@@ -1180,10 +1197,11 @@ public class AppraisalCreationService(
                     sequenceNumber: idx + 1,
                     plotNumber: src.PlotNumber,
                     houseNumber: src.HouseNumber,
-                    modelType: src.ModelType,
-                    numberOfFloors: src.NumberOfFloors,
+                    // Land has no models or buildings: a LB master must not leak them into an L project.
+                    modelType: hasStructures ? src.ModelType : null,
+                    numberOfFloors: hasStructures ? src.NumberOfFloors : null,
                     landArea: src.LandArea,
-                    usableArea: src.UsableArea,
+                    usableArea: hasStructures ? src.UsableArea : null,
                     sellingPrice: src.SellingPrice);
             }
 

@@ -8,8 +8,8 @@ namespace Appraisal.Application.Services;
 /// Recomputes the appraisal-level ValuationAnalyses summary (AppraisedValue / ForcedSaleValue /
 /// InsuranceValue / ValuationApproach), upserts the row, and stages
 /// <see cref="AppraisalValueChangedIntegrationEvent"/> on the outbox. The total comes from the
-/// PropertyGroup PricingAnalyses for a normal appraisal, or from the unsold ProjectUnitPrices for a
-/// block/project appraisal (detected by a Project row) — see the branch in RecomputeAsync.
+/// PropertyGroup PricingAnalyses for a normal appraisal, or from the ProjectUnitPrices of EVERY unit (sold or
+/// not) for a block/project appraisal (detected by a Project row) — see the branch in RecomputeAsync.
 /// <para>
 /// Never calls SaveChangesAsync — the tracked mutations and the outbox message are flushed by the
 /// caller's save, which is what keeps the upsert and the publish atomic.
@@ -73,6 +73,7 @@ public class AppraisalValuationSummaryService(
 
         decimal total;
         decimal insuranceTotal;
+        decimal blockForcedSale = 0m;
         string approach;
 
         // A block/project appraisal prices per ProjectModel (SubjectType = ProjectModel), fanned out
@@ -83,21 +84,25 @@ public class AppraisalValuationSummaryService(
 
         if (block)
         {
-            // Unsold-unit rollup — mirrors GetDecisionSummary's block totals (KEEP IN SYNC with
-            // Features/DecisionSummary/GetDecisionSummary/GetDecisionSummaryQueryHandler.cs block SQL).
-            // Read via THIS DbContext so ProjectUnitPrices just saved by CalculateProjectUnitPrices are
-            // visible inside its transaction; a separate Dapper connection would not see them.
+            // Every-unit rollup, sold or not — mirrors GetDecisionSummary's block totals (KEEP IN SYNC
+            // with Features/DecisionSummary/GetDecisionSummary/GetDecisionSummaryQueryHandler.cs block SQL).
+            // Joined through ProjectUnits.ProjectId, NOT ProjectModels: a unit with no model
+            // (ProjectModelId NULL) still counts, and an inner join on the model silently dropped it.
+            // Read via THIS DbContext so ProjectUnitPrices just saved by CalculateProjectUnitPrices or the
+            // price-list import are visible inside its transaction; a separate Dapper connection would not.
             var unitPrices = await (
                 from pu in db.ProjectUnits
                 join pup in db.ProjectUnitPrices on pu.Id equals pup.ProjectUnitId
-                join pm in db.ProjectModels on pu.ProjectModelId equals pm.Id
-                join p in db.Projects on pm.ProjectId equals p.Id
-                where p.AppraisalId == appraisalId && !pu.IsSold
-                select new { pup.TotalAppraisalValueRounded, pup.CoverageAmount })
+                join p in db.Projects on pu.ProjectId equals p.Id
+                where p.AppraisalId == appraisalId
+                select new { pup.TotalAppraisalValueRounded, pup.CoverageAmount, pup.ForceSellingPrice })
                 .ToListAsync(ct);
 
             total = unitPrices.Sum(x => x.TotalAppraisalValueRounded ?? 0m);
             insuranceTotal = unitPrices.Sum(x => x.CoverageAmount ?? 0m);
+            // The force-sale % already went into each unit's price (calculated) or is the file's own
+            // figure (imported), so the block's forced-sale value is the plain sum — never total × rate.
+            blockForcedSale = unitPrices.Sum(x => x.ForceSellingPrice ?? 0m);
 
             // Approach label from the ProjectModel PAs' selected approaches (single distinct → that,
             // else "Combined"), matching the PropertyGroup path's rule.
@@ -247,11 +252,21 @@ public class AppraisalValuationSummaryService(
             db.ValuationAnalyses.Add(row);
         }
 
-        // Force-sale rate resolution via the shared resolver (override -> block project assumption
-        // -> system default -> 70m). The project-assumption lookup is a plain Dapper read via
-        // ISqlConnectionFactory, not a tracked-entity query, so it's safe to call here.
-        var rate = await forceSaleRateResolver.ResolveAsync(appraisalId, row.ForceSaleRate, ct);
-        var forced = total * rate / 100m;
+        // Non-block only: force-sale rate resolution via the shared resolver (override -> block project
+        // assumption -> system default -> 70m). The project-assumption lookup is a plain Dapper read via
+        // ISqlConnectionFactory, not a tracked-entity query, so it's safe to call here. A block takes the
+        // sum of its units' ForceSellingPrice instead, exactly as stored (no rounding to 1,000: an
+        // imported price list is kept verbatim).
+        decimal forced;
+        if (block)
+        {
+            forced = blockForcedSale;
+        }
+        else
+        {
+            var rate = await forceSaleRateResolver.ResolveAsync(appraisalId, row.ForceSaleRate, ct);
+            forced = Math.Round(total * rate / 100m / 1000, MidpointRounding.AwayFromZero) * 1000;
+        }
 
         // Every pricing change rewrites these three columns, Book Verification or not (user
         // decision 2026-09-23). A verified price is the reviewer's answer to "do we accept the
@@ -277,7 +292,7 @@ public class AppraisalValuationSummaryService(
             approach,
             date,
             appraisedValue,
-            Math.Round(forced / 1000, MidpointRounding.AwayFromZero) * 1000,
+            forced,
             // insuranceTotal is NOT rounded here: each property already rounded its derived figure to
             // the nearest 1,000, so an all-derived appraisal still totals to a multiple of 1,000,
             // while a coverage the appraiser keyed by hand reaches the book exactly as typed.

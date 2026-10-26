@@ -78,6 +78,21 @@ public class Project : Aggregate<Guid>
     /// </summary>
     public decimal? ConstructionProgressPercent { get; private set; }
 
+    // ----- Unit Price Source -----
+
+    /// <summary>Whether the unit prices were calculated or imported from an Excel price list.</summary>
+    public UnitPriceSource UnitPriceSource { get; private set; } = UnitPriceSource.Calculated;
+
+    /// <summary>
+    /// Last price-list import. Kept (not cleared) when the source goes back to Calculated, so the
+    /// UI can still say what was imported before.
+    /// </summary>
+    public string? UnitPriceImportFileName { get; private set; }
+    public DateTime? UnitPriceImportedAt { get; private set; }
+
+    /// <summary>Username (code) of whoever ran the last import — not a user Guid.</summary>
+    public string? UnitPriceImportedBy { get; private set; }
+
     // ----- Type-Specific Nullable Fields -----
 
     /// <summary>Condo only — built-on title deed number.</summary>
@@ -371,6 +386,7 @@ public class Project : Aggregate<Guid>
     /// </summary>
     public ProjectModel AddModel(Guid? projectTowerId = null, string? modelName = null)
     {
+        RequireStructures(nameof(AddModel));
         ValidateModelTowerInvariant(projectTowerId, modelName, excludeModelId: null);
 
         // Use the name factory so ModelName is set immediately for future uniqueness checks
@@ -389,6 +405,7 @@ public class Project : Aggregate<Guid>
     /// <param name="modelName">The new model name (used for uniqueness check).</param>
     public ProjectModel UpdateModel(Guid modelId, Guid? projectTowerId = null, string? modelName = null)
     {
+        RequireStructures(nameof(UpdateModel));
         var model = _models.FirstOrDefault(m => m.Id == modelId)
                     ?? throw new InvalidProjectStateException($"Project model {modelId} not found");
 
@@ -403,6 +420,15 @@ public class Project : Aggregate<Guid>
         var model = _models.FirstOrDefault(m => m.Id == modelId)
                     ?? throw new InvalidProjectStateException($"Project model {modelId} not found");
         _models.Remove(model);
+    }
+
+    /// <summary>Drops every tower and model image showing a deleted gallery photo (see the tower / model).</summary>
+    public void RemoveImagesOfPhoto(Guid galleryPhotoId)
+    {
+        foreach (var tower in _towers)
+            tower.RemoveImagesOfPhoto(galleryPhotoId);
+        foreach (var model in _models)
+            model.RemoveImagesOfPhoto(galleryPhotoId);
     }
 
     // =========================================================================
@@ -443,7 +469,7 @@ public class Project : Aggregate<Guid>
             AutoCreateCondoTowersAndModels();
             LinkCondoUnitsToTowersAndModels();
         }
-        else // TODO(Land): LandAndBuildingLike path — both LB and Land share this logic in v1
+        else if (ProjectType.HasStructures()) // Land has no models: its units carry no ModelType
         {
             AutoCreateLandAndBuildingModels();
             LinkLandAndBuildingUnitsToModels();
@@ -453,8 +479,8 @@ public class Project : Aggregate<Guid>
     }
 
     /// <summary>
-    /// Replaces ALL existing units with the new batch, clearing any previously-calculated unit prices
-    /// (cascade via FK). Use this only for an explicit "reset units" action.
+    /// Replaces ALL existing units with the new batch, clearing any previously-calculated or imported unit
+    /// prices (cascade via FK) and the last price-import metadata. Use this only for an explicit "reset units" action.
     /// </summary>
     public ProjectUnitUpload ReplaceUnits(string fileName, Guid? documentId, List<ProjectUnit> units)
     {
@@ -470,6 +496,11 @@ public class Project : Aggregate<Guid>
         // Destructive clear — cascade FK will remove associated ProjectUnitPrice rows
         _units.Clear();
 
+        // The imported price list went with those rows; the source flag itself is left as it is.
+        UnitPriceImportFileName = null;
+        UnitPriceImportedAt = null;
+        UnitPriceImportedBy = null;
+
         foreach (var unit in units)
         {
             unit.SetUploadBatchId(upload.Id);
@@ -481,7 +512,7 @@ public class Project : Aggregate<Guid>
             AutoCreateCondoTowersAndModels();
             LinkCondoUnitsToTowersAndModels();
         }
-        else // TODO(Land): LandAndBuildingLike path — both LB and Land share this logic in v1
+        else if (ProjectType.HasStructures()) // Land has no models: its units carry no ModelType
         {
             AutoCreateLandAndBuildingModels();
             LinkLandAndBuildingUnitsToModels();
@@ -636,10 +667,17 @@ public class Project : Aggregate<Guid>
     ///   handler from <c>Appraisal.Application.Features.FireInsuranceRates.GetFireInsuranceRates.GetFireInsuranceRatesQuery</c>. Coverage
     ///   rates are Parameter-module reference data; the domain must not navigate to it directly.
     /// </param>
+    /// <param name="forceSalePercentage">
+    ///   Force-sale % applied to every unit, resolved by the handler (project assumption, else the system
+    ///   default, else 70). Always supplied so a block's forced-sale total (the sum of the units' prices)
+    ///   is never zero just because the assumption left the % blank. The per-appraisal Decision Summary
+    ///   override is deliberately not part of it.
+    /// </param>
     public IReadOnlyList<ProjectUnitPrice> CalculateUnitPrices(
         IReadOnlyDictionary<Guid, ProjectUnitPrice> existingPriceMap,
         IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId,
-        IReadOnlyDictionary<string, decimal> ratesByCode)
+        IReadOnlyDictionary<string, decimal> ratesByCode,
+        decimal forceSalePercentage)
     {
         if (PricingAssumption is null)
             throw new InvalidProjectStateException(
@@ -647,9 +685,39 @@ public class Project : Aggregate<Guid>
 
         // TODO(Land): LandAndBuildingLike path — both LB and Land use the same calculation in v1
         return ProjectType == ProjectType.Condo
-            ? CalculateCondoUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCode)
-            : CalculateLandAndBuildingUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCode);
+            ? CalculateCondoUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCode, forceSalePercentage)
+            : CalculateLandAndBuildingUnitPrices(existingPriceMap, standardPriceByModelId, ratesByCode, forceSalePercentage);
     }
+
+    private const decimal FallbackForceSalePercentage = 70m;
+
+    private static bool IsValidForceSalePercentage(decimal? percent) => percent is >= 0 and <= 100;
+
+    /// <summary>The system default if it is within 0..100, else 70.</summary>
+    public static decimal SystemDefaultOrFallback(decimal? systemDefault) =>
+        IsValidForceSalePercentage(systemDefault) ? systemDefault!.Value : FallbackForceSalePercentage;
+
+    /// <summary>
+    /// Force-sale % every calculated unit price uses: the assumption's own when within 0..100 (0% is a real
+    /// value), else the system default, else 70. Ignores the per-appraisal Decision Summary override.
+    /// </summary>
+    public static decimal ResolveForceSalePercentage(decimal? own, decimal? systemDefault) =>
+        IsValidForceSalePercentage(own) ? own!.Value : SystemDefaultOrFallback(systemDefault);
+
+    public decimal EffectiveForceSalePercentage(decimal? systemDefault) =>
+        ResolveForceSalePercentage(PricingAssumption?.ForceSalePercentage, systemDefault);
+
+    /// <summary>Records that the unit prices now come from an imported price list.</summary>
+    public void MarkUnitPricesImported(string fileName, DateTime importedAt, string? importedBy)
+    {
+        UnitPriceSource = UnitPriceSource.Imported;
+        UnitPriceImportFileName = fileName;
+        UnitPriceImportedAt = importedAt;
+        UnitPriceImportedBy = importedBy;
+    }
+
+    /// <summary>Records that the unit prices were (re)calculated. Import metadata is kept.</summary>
+    public void MarkUnitPricesCalculated() => UnitPriceSource = UnitPriceSource.Calculated;
 
     /// <summary>
     /// Returns the coverage rate for a fire-insurance condition, or null if the condition is
@@ -665,7 +733,8 @@ public class Project : Aggregate<Guid>
     private IReadOnlyList<ProjectUnitPrice> CalculateCondoUnitPrices(
         IReadOnlyDictionary<Guid, ProjectUnitPrice> existingPriceMap,
         IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId,
-        IReadOnlyDictionary<string, decimal> ratesByCode)
+        IReadOnlyDictionary<string, decimal> ratesByCode,
+        decimal forceSalePercentage)
     {
         var assumption = PricingAssumption!;
         var hasPersistedAssumptions = assumption.ModelAssumptions.Count > 0;
@@ -742,9 +811,8 @@ public class Project : Aggregate<Guid>
 
             var totalAppraisalValue = standardPriceTotal + locationContribution + priceIncrementPerFloor;
             var totalAppraisalValueRounded = Math.Round(totalAppraisalValue, 0, MidpointRounding.AwayFromZero);
-            var forceSellingPrice = assumption.ForceSalePercentage.HasValue
-                ? Math.Round(totalAppraisalValueRounded * assumption.ForceSalePercentage.Value / 100m / 1000, 0, MidpointRounding.AwayFromZero) * 1000
-                : (decimal?)null;
+            var forceSellingPrice =
+                Math.Round(totalAppraisalValueRounded * forceSalePercentage / 100m / 1000, 0, MidpointRounding.AwayFromZero) * 1000;
 
             unitPrice.UpdateCondoCalculatedValues(
                 adjustPriceLocation, standardPrice, priceIncrementPerFloor,
@@ -759,19 +827,28 @@ public class Project : Aggregate<Guid>
     private IReadOnlyList<ProjectUnitPrice> CalculateLandAndBuildingUnitPrices(
         IReadOnlyDictionary<Guid, ProjectUnitPrice> existingPriceMap,
         IReadOnlyDictionary<Guid, decimal?> standardPriceByModelId,
-        IReadOnlyDictionary<string, decimal> ratesByCode)
+        IReadOnlyDictionary<string, decimal> ratesByCode,
+        decimal forceSalePercentage)
     {
         var assumption = PricingAssumption!;
 
-        var modelAssumptionMap = assumption.ModelAssumptions
-            .Where(ma => ma.ModelType != null)
-            .GroupBy(ma => ma.ModelType!)
-            .ToDictionary(g => g.Key, g => g.First());
+        // Land-only has no models: ignore any left over from before the type had none, so their
+        // standard price, standard land area and fire code cannot reach a unit.
+        var hasModels = ProjectType.HasStructures();
 
-        var projectModelMap = _models
-            .Where(m => m.ModelName != null)
-            .GroupBy(m => m.ModelName!)
-            .ToDictionary(g => g.Key, g => g.First());
+        var modelAssumptionMap = hasModels
+            ? assumption.ModelAssumptions
+                .Where(ma => ma.ModelType != null)
+                .GroupBy(ma => ma.ModelType!)
+                .ToDictionary(g => g.Key, g => g.First())
+            : [];
+
+        var projectModelMap = hasModels
+            ? _models
+                .Where(m => m.ModelName != null)
+                .GroupBy(m => m.ModelName!)
+                .ToDictionary(g => g.Key, g => g.First())
+            : [];
 
         var results = new List<ProjectUnitPrice>();
 
@@ -813,17 +890,18 @@ public class Project : Aggregate<Guid>
             // The configured LocationMethod only kicks in when folding it into totalAppraisalValue.
             // LB scales by LandArea (sq.wa) — not UsableArea (sq.m).
             var adjustPriceLocation = SumLBLocationAdjustments(assumption, unitPrice);
+            // Land has no model standard price: the percentage applies to the land value instead.
+            var percentageBase = hasModels ? standardPrice : landArea * landIncreaseDecreaseRate;
             var locationContribution = ApplyLocationMethod(
                 adjustPriceLocation,
                 assumption.LocationMethod,
-                standardPrice,
+                percentageBase,
                 landArea);
 
             var totalAppraisalValue = standardPrice + landIncreaseDecreaseAmount + locationContribution;
             var totalAppraisalValueRounded = RoundToNearest10000(totalAppraisalValue);
-            var forceSellingPrice = assumption.ForceSalePercentage.HasValue
-                ? Math.Round(totalAppraisalValueRounded * assumption.ForceSalePercentage.Value / 100m / 1000, 0, MidpointRounding.AwayFromZero) * 1000
-                : (decimal?)null;
+            var forceSellingPrice =
+                Math.Round(totalAppraisalValueRounded * forceSalePercentage / 100m / 1000, 0, MidpointRounding.AwayFromZero) * 1000;
 
             unitPrice.UpdateLandAndBuildingCalculatedValues(
                 landIncreaseDecreaseAmount, adjustPriceLocation, standardPrice,
@@ -878,6 +956,13 @@ public class Project : Aggregate<Guid>
         if (ProjectType != ProjectType.Condo)
             throw new InvalidProjectStateException(
                 $"Operation '{operationName}' is only valid for Condo projects. Current type: {ProjectType}.");
+    }
+
+    private void RequireStructures(string operationName)
+    {
+        if (!ProjectType.HasStructures())
+            throw new InvalidProjectStateException(
+                $"Operation '{operationName}' is only valid for projects with structures (Condo or LandAndBuilding). Current type: {ProjectType}.");
     }
 
     private void RequireLandAndBuildingLike(string operationName)
@@ -982,7 +1067,7 @@ public class Project : Aggregate<Guid>
                 towerIdForUnit = tower.Id;
             }
 
-            if (string.IsNullOrWhiteSpace(unit.ModelType))
+            if (!ProjectType.HasStructures() || string.IsNullOrWhiteSpace(unit.ModelType))
                 continue;
 
             // Condo models are per-tower; LandAndBuilding models are per-project (tower id null).
@@ -1101,10 +1186,11 @@ public class Project : Aggregate<Guid>
             if (!string.IsNullOrWhiteSpace(unit.ModelType))
             {
                 // Match by (TowerId, ModelName) — models are now per-tower for Condo.
-                var model = _models.First(m =>
+                var model = _models.FirstOrDefault(m =>
                     m.ProjectTowerId == towerIdForUnit &&
                     string.Equals(m.ModelName, unit.ModelType, StringComparison.OrdinalIgnoreCase));
-                unit.SetProjectModelId(model.Id);
+                if (model is not null)
+                    unit.SetProjectModelId(model.Id);
             }
         }
     }

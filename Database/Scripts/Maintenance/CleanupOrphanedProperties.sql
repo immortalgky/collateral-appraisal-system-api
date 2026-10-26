@@ -55,7 +55,7 @@ SELECT  p.Id                 AS AppraisalPropertyId,
         p.SequenceNumber,
         p.PropertyType,
         a.IsDeleted          AS AppraisalIsDeleted,   -- orphans under a deleted appraisal are usually moot
-        p.CreatedOn,
+        p.CreatedAt,
         p.CreatedBy,
         CASE WHEN EXISTS (SELECT 1 FROM appraisal.AppraisalGallery gal
                           WHERE gal.AppraisalPropertyId = p.Id)

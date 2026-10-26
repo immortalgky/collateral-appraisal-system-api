@@ -16,7 +16,7 @@ internal class SubmitRequestCommandHandler(
         // Purpose-dependent prior appraisal rule (required / forbidden / Completed) — reject before submitting.
         await PriorAppraisalSubmissionGuard.EnsureValidAsync(
             request.Purpose, request.Detail?.PrevAppraisalId, request.Detail?.PrevAppraisalNumber, mediator,
-            cancellationToken, reappraisalBookNumber: request.ReappraisalBookNumber);
+            cancellationToken, reappraisalBookNumber: request.ReappraisalBookNumber, requestId: request.Id);
 
         var titles = (await requestTitleRepository
             .GetByRequestIdWithDocumentsAsync(request.Id, cancellationToken)).ToList();

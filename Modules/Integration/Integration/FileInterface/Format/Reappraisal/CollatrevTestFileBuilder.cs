@@ -9,6 +9,10 @@ namespace Integration.FileInterface.Format.Reappraisal;
 /// <summary>
 /// DEV-ONLY generator that builds a realistic AS400 COLLATREV file from real completed appraisals
 /// and writes it into the inbox directory resolved from <see cref="IFileInterfaceConfigProvider"/>.
+///
+/// With <c>autoUpdate</c> = Y the file's collateral ids are synthetic (60000000 + n), so a run against
+/// an AS400 that applies 'Y' could overwrite a real collateral that has a colliding id. Use it only
+/// where the AS400 side is a test system.
 /// </summary>
 public sealed class CollatrevTestFileBuilder(
     ISqlConnectionFactory connectionFactory,
@@ -19,6 +23,7 @@ public sealed class CollatrevTestFileBuilder(
     public async Task<GenerateReappraisalTestFileResult> GenerateAsync(
         int count,
         DateOnly fileDate,
+        string? autoUpdate = null,
         CancellationToken cancellationToken = default)
     {
         var cfg = await configProvider.GetAsync(FileInterfaceCodes.Reappraisal, cancellationToken);
@@ -31,7 +36,7 @@ public sealed class CollatrevTestFileBuilder(
 
         for (var i = 0; i < appraisals.Count; i++)
         {
-            rows.Add(BuildRow(appraisals[i], i, fileDate));
+            rows.Add(BuildRow(appraisals[i], i, fileDate, autoUpdate));
             surveyNumbers.Add(appraisals[i].AppraisalNumber);
         }
 
@@ -50,7 +55,8 @@ public sealed class CollatrevTestFileBuilder(
 
     private static readonly int[] DaysToDue = [-45, 30, 75, 200, 800];
 
-    private static Dictionary<string, string?> BuildRow(CompletedAppraisalRow a, int index, DateOnly fileDate)
+    private static Dictionary<string, string?> BuildRow(
+        CompletedAppraisalRow a, int index, DateOnly fileDate, string? autoUpdate)
     {
         var stage = (index % 3) + 1;
         var stageStr = stage.ToString();
@@ -108,6 +114,8 @@ public sealed class CollatrevTestFileBuilder(
             ["IBGRetail"] = a.BankingSegment,
             ["Group"] = stageStr,
             ["EffectiveDateAppraisal"] = Ddmmyyyy(due),
+            // Position 650, the same flag on every row: "Y", "N", or blank when not asked for.
+            ["AutoUpdate"] = autoUpdate,
         };
     }
 
@@ -127,13 +135,10 @@ public sealed class CollatrevTestFileBuilder(
         return joined.Length == 0 ? null : joined;
     }
 
-    private static (string Code, string Category) MapPropertyType(string? propertyType)
-    {
-        if (propertyType is null) return ("11A", "RE");
-        if (propertyType.Contains("Condo", StringComparison.OrdinalIgnoreCase)) return ("12B", "RE");
-        if (propertyType.Contains("Land", StringComparison.OrdinalIgnoreCase)) return ("11A", "RE");
-        return ("11A", "RE");
-    }
+    private static (string Code, string Category) MapPropertyType(string? propertyType) =>
+        propertyType?.Trim() is "U" or "LSU"
+            ? ("12B", "RE")
+            : ("11A", "RE");
 
     private async Task<IReadOnlyList<CompletedAppraisalRow>> QueryCompletedAppraisalsAsync(
         int count,

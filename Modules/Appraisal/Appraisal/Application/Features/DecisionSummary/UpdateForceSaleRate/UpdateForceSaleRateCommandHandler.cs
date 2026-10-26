@@ -56,6 +56,11 @@ public class UpdateForceSaleRateCommandHandler(
 
         valuation.SetForceSaleRate(command.ForceSellingRateOverride);
 
+        // A block's forced sale is the sum of its units' ForceSellingPrice, not appraised value x rate: the
+        // override is kept, but no value derived from it is written.
+        if (await db.Projects.AnyAsync(p => p.AppraisalId == command.AppraisalId, cancellationToken))
+            return Unit.Value;
+
         // FSP is always DERIVED, never hand-entered — the appraised total and insurance value do
         // NOT depend on the rate, so they pass through unchanged. Recomputing ForcedSaleValue from
         // the CURRENTLY STORED AppraisedValue keeps the triple coherent by construction, whether

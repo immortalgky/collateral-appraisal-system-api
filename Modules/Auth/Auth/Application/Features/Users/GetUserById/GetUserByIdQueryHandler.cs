@@ -78,6 +78,7 @@ public class GetUserByIdQueryHandler(
             user.FirstName,
             user.LastName,
             user.Email,
+            user.PhoneNumber,
             user.AvatarUrl,
             user.Position,
             user.Department,
