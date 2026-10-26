@@ -100,12 +100,13 @@ public sealed class CollateralResultFileWriter
                 .ToString(CultureInfo.InvariantCulture),
             // AreaUtilization dec(7,2): the field holds at most 99999.99. Anything larger is clamped to
             // zero here rather than left to overflow — FixedWidthOverflow.ThrowOnNumeric would abort the
-            // whole nightly run over one bad row. CollateralResultQuery already filters these out, so
-            // reaching this branch means a value slipped past it.
+            // whole nightly run over one bad row. This clamp is the only guard: nothing upstream filters
+            // an oversized AreaUtilization or BuildingAge.
             ["AreaUtilization"] = Money(
                 row.AreaUtilization is { } area && area >= 0m && area <= MaxAreaUtilization ? area : 0m),
-            // 'Y' only where the appraisal tied to exactly one AS400 collateral. Anything unexpected
-            // becomes 'N': the safe reading is "a person should look at this".
+            // 'Y' only for an appraisal Initiate raised for a COLLATREV book whose AS400 flag (position
+            // 650) was 'Y' when Initiate ran — the view decides. Every chain-walk or block result is 'N'.
+            // Anything unexpected becomes 'N' here too: the safe reading is "a person should look at this".
             ["AutoUpdate"] = row.AutoUpdate == "Y" ? "Y" : "N",
             // Land area, this row's collateral. Same clamp-to-zero rule as the fields above: one
             // implausible area must not abort the run, and a zero reads as "not stated" to the host.

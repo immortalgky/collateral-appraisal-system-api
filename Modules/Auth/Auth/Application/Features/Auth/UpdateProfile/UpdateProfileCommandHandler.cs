@@ -17,6 +17,7 @@ public class UpdateProfileCommandHandler(
 
         user.FirstName = command.FirstName;
         user.LastName = command.LastName;
+        user.PhoneNumber = command.PhoneNumber;
         user.AvatarUrl = command.AvatarUrl;
         user.Position = command.Position;
         user.Department = command.Department;
@@ -33,6 +34,7 @@ public class UpdateProfileCommandHandler(
             user.Email,
             user.FirstName,
             user.LastName,
+            user.PhoneNumber,
             user.AvatarUrl,
             user.Position,
             user.Department

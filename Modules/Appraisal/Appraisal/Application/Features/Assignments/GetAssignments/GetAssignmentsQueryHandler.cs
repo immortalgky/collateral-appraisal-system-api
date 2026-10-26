@@ -1,10 +1,17 @@
+using Auth.Contracts.Users;
 using Microsoft.EntityFrameworkCore;
 
 namespace Appraisal.Application.Features.Assignments.GetAssignments;
 
-public class GetAssignmentsQueryHandler(AppraisalDbContext dbContext)
+public class GetAssignmentsQueryHandler(
+    AppraisalDbContext dbContext,
+    IUserLookupService userLookup,
+    ILogger<GetAssignmentsQueryHandler> logger)
     : IQueryHandler<GetAssignmentsQuery, GetAssignmentsResult>
 {
+    /// <summary>Time budget of the best-effort name lookup; past it the names come back null.</summary>
+    internal TimeSpan LookupTimeout { get; init; } = TimeSpan.FromSeconds(3);
+
     public async Task<GetAssignmentsResult> Handle(
         GetAssignmentsQuery query,
         CancellationToken cancellationToken)
@@ -34,6 +41,31 @@ public class GetAssignmentsQueryHandler(AppraisalDbContext dbContext)
                 .Where(v => v.AppraisalId == query.AppraisalId)
                 .Select(v => (DateTime?)v.ValuationDate)
                 .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        // One batched lookup for every employee code the rows carry (assigner, executor, follow-up staff). Best effort:
+        // a display name must never fail the endpoint, so a lookup failure logs and the names come back null (the
+        // codes are still in the DTO). A caller abort is not a lookup failure and still stops the request.
+        var codes = assignments
+            .SelectMany(a => new[] { a.AssignedBy, a.AssigneeUserId, a.InternalAppraiserId })
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Select(code => code!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        IReadOnlyDictionary<string, UserLookupDto> people = new Dictionary<string, UserLookupDto>();
+        using var lookupBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        lookupBudget.CancelAfter(LookupTimeout);
+        try
+        {
+            people = await userLookup.GetByUsernamesAsync(codes, lookupBudget.Token);
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Includes the budget running out (the linked token cancels the lookup, the caller's does not).
+            logger.LogWarning(ex,
+                "Display-name lookup failed or timed out for the assignments of appraisal {AppraisalId}; returning codes without names",
+                query.AppraisalId);
         }
 
         var dtos = assignments.Select(a => new AssignmentDto(
@@ -67,9 +99,19 @@ public class GetAssignmentsQueryHandler(AppraisalDbContext dbContext)
                 c.Status)).ToList(),
             a.TotalExternalBusinessMinutes,
             a.SubmissionCount,
-            a.IsOfflineEngagement ? offlineBookDate : null
+            a.IsOfflineEngagement ? offlineBookDate : null,
+            PersonName(people, a.AssignedBy),
+            PersonName(people, a.AssigneeUserId),
+            PersonName(people, a.InternalAppraiserId)
         )).ToList();
 
         return new GetAssignmentsResult(dtos);
+    }
+
+    private static string? PersonName(IReadOnlyDictionary<string, UserLookupDto> users, string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code) || !users.TryGetValue(code, out var u)) return null;
+        var name = $"{u.FirstName} {u.LastName}".Trim();
+        return name.Length == 0 ? null : name;
     }
 }

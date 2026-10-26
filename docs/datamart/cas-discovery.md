@@ -3858,7 +3858,7 @@ erDiagram
 | TotalSellingPrice | `decimal(19,4)` | NULL |  | owned: LoanDetail |
 | Address_RequestDetailRequestId | `uniqueidentifier` | NOT NULL |  | owned: Address |
 | District | `nvarchar(10)` | NULL |  | owned: Address |
-| HouseNumber | `nvarchar(30)` | NULL |  | owned: Address |
+| HouseNumber | `nvarchar(50)` | NULL |  | owned: Address |
 | Moo | `nvarchar(50)` | NULL |  | owned: Address |
 | Postcode | `nvarchar(10)` | NULL |  | owned: Address |
 | ProjectName | `nvarchar(100)` | NULL |  | owned: Address |
@@ -3966,7 +3966,7 @@ erDiagram
 | UpdatedWorkstation | `nvarchar(max)` | NULL |  |  |
 | DopaAddress_RequestTitleId | `uniqueidentifier` | NOT NULL |  | owned: DopaAddress |
 | DopaDistrict | `nvarchar(10)` | NULL |  | owned: DopaAddress |
-| DopaHouseNumber | `nvarchar(30)` | NULL |  | owned: DopaAddress |
+| DopaHouseNumber | `nvarchar(50)` | NULL |  | owned: DopaAddress |
 | DopaMoo | `nvarchar(50)` | NULL |  | owned: DopaAddress |
 | DopaPostcode | `nvarchar(10)` | NULL |  | owned: DopaAddress |
 | DopaProjectName | `nvarchar(100)` | NULL |  | owned: DopaAddress |
@@ -3976,7 +3976,7 @@ erDiagram
 | DopaSubDistrict | `nvarchar(10)` | NULL |  | owned: DopaAddress |
 | TitleAddress_RequestTitleId | `uniqueidentifier` | NOT NULL |  | owned: TitleAddress |
 | District | `nvarchar(10)` | NULL |  | owned: TitleAddress |
-| HouseNumber | `nvarchar(30)` | NULL |  | owned: TitleAddress |
+| HouseNumber | `nvarchar(50)` | NULL |  | owned: TitleAddress |
 | Moo | `nvarchar(50)` | NULL |  | owned: TitleAddress |
 | Postcode | `nvarchar(10)` | NULL |  | owned: TitleAddress |
 | ProjectName | `nvarchar(100)` | NULL |  | owned: TitleAddress |

@@ -352,22 +352,42 @@ public class GetDecisionSummaryQueryHandler(
             ORDER BY pm.Id, paa.ApproachType
             """;
 
-        // Block query 2: per-model unit counts, total appraised prices, and building insurance
+        // Block query 2: per-model unit counts, total appraised prices, forced-sale prices and building
+        // insurance. EVERY unit counts, sold or not. KEEP IN SYNC with AppraisalValuationSummaryService's
+        // block branch, which must produce the same totals.
+        // First SELECT: one row per model (a model with no units still appears, all zeros).
+        // Second SELECT: units with no model (ProjectModelId NULL) get a row of their own, keyed
+        // Guid.Empty with a NULL model name, so they are not silently dropped from the totals.
         const string blockModelTotalsSql = """
+            SELECT t.*
+            FROM (
             SELECT pm.Id AS ProjectModelId,
                    pm.ModelName,
                    COUNT(pu.Id) AS UnitCount,
                    ISNULL(SUM(pup.TotalAppraisalValueRounded), 0) AS TotalAppraisalPrice,
+                   ISNULL(SUM(pup.ForceSellingPrice), 0) AS ForceSellingPrice,
                    ISNULL(SUM(pup.CoverageAmount), 0) AS BuildingInsurance
             FROM appraisal.ProjectModels pm
             JOIN appraisal.Projects p ON p.Id = pm.ProjectId
-            -- Exclude sold units from the block appraisal totals (count / appraised value / insurance);
-            -- the appraisal covers remaining unsold inventory only, mirroring the Unit Price listing.
-            LEFT JOIN appraisal.ProjectUnits pu ON pu.ProjectModelId = pm.Id AND pu.IsSold = 0
+            LEFT JOIN appraisal.ProjectUnits pu ON pu.ProjectModelId = pm.Id
             LEFT JOIN appraisal.ProjectUnitPrices pup ON pup.ProjectUnitId = pu.Id
             WHERE p.AppraisalId = @AppraisalId
             GROUP BY pm.Id, pm.ModelName
-            ORDER BY pm.Id
+            UNION ALL
+            SELECT CAST('00000000-0000-0000-0000-000000000000' AS uniqueidentifier),
+                   CAST(NULL AS nvarchar(200)),
+                   COUNT(pu.Id),
+                   ISNULL(SUM(pup.TotalAppraisalValueRounded), 0),
+                   ISNULL(SUM(pup.ForceSellingPrice), 0),
+                   ISNULL(SUM(pup.CoverageAmount), 0)
+            FROM appraisal.Projects p
+            JOIN appraisal.ProjectUnits pu ON pu.ProjectId = p.Id AND pu.ProjectModelId IS NULL
+            LEFT JOIN appraisal.ProjectUnitPrices pup ON pup.ProjectUnitId = pu.Id
+            WHERE p.AppraisalId = @AppraisalId
+            HAVING COUNT(pu.Id) > 0
+            ) t
+            ORDER BY CASE WHEN t.ProjectModelId = '00000000-0000-0000-0000-000000000000' THEN 1 ELSE 0 END,
+                     t.ProjectModelId
             """;
 
         var blockApproachRows = (await connectionFactory.QueryAsync<FlatBlockApproachRow>(blockApproachSql, blockParam)).ToList();
@@ -401,22 +421,34 @@ public class GetDecisionSummaryQueryHandler(
             })
             .ToList();
 
-        var forceSaleRate = await forceSaleRateResolver.ResolveAsync(appraisalId, forceSaleRateOverride, cancellationToken);
+        // Units with no model have a price row but no approaches: keep the matrix the same length as
+        // BlockModelPrices with a model-less row (no approach values).
+        if (modelTotalLookup.TryGetValue(Guid.Empty, out var noModelTotal))
+            blockApproachMatrix.Add(new BlockApproachMatrixRow(
+                Guid.Empty, null, null, null, null, null, null, noModelTotal));
 
-        // Build per-model price rows. FSP per model = TotalAppraisalPrice × resolved rate.
+        // Build per-model price rows. FSP per model = the SUM of its units' ForceSellingPrice (the force-sale
+        // % already went into each unit's price, or is the imported file's own figure), so the rate override
+        // no longer moves a block's total. Insurance is summed as stored, like the service's block branch.
         var blockModelPrices = blockModelTotals
             .Select(r => new BlockModelPriceRow(
                 r.ProjectModelId,
                 r.ModelName,
                 r.UnitCount,
                 r.TotalAppraisalPrice,
-                Math.Round(r.TotalAppraisalPrice * forceSaleRate / 100m / 1000, MidpointRounding.AwayFromZero) * 1000,
-                Math.Round(r.BuildingInsurance / 1000, MidpointRounding.AwayFromZero) * 1000))
+                r.ForceSellingPrice,
+                r.BuildingInsurance))
             .ToList();
 
         var totalAppraisalPrice = blockModelPrices.Sum(r => r.TotalAppraisalPrice);
         var forceSellingPrice = blockModelPrices.Sum(r => r.ForceSellingPrice);
         var blockInsurance = blockModelPrices.Sum(r => r.BuildingInsurance);
+        // The rate shown must match the amounts: the block's forced sale is the sum of its units' prices (calculated
+        // or imported), so the rate is that sum over the total. Only with no total does the project's effective %
+        // stand in. The Decision Summary override no longer moves a block's forced-sale total.
+        var forceSaleRate = totalAppraisalPrice > 0
+            ? Math.Round(forceSellingPrice / totalAppraisalPrice * 100m, 2, MidpointRounding.AwayFromZero)
+            : await forceSaleRateResolver.ResolveBlockEffectivePercentAsync(appraisalId, cancellationToken);
 
         return new GetDecisionSummaryResult(
             ApproachMatrix: [],
@@ -521,10 +553,9 @@ public class GetDecisionSummaryQueryHandler(
         // รายละเอียดรายอาคาร — must use the SAME derivations as IConstructionCurrentValueService,
         // or these rows will not add up to the card above them: whole-baht money, and progress read
         // off the entered percentages rather than divided out of the money.
-        // Summary mode multiplies TotalValue by the stored percent instead of reading
-        // SummaryPreviousValue / SummaryCurrentValue: the CI screen computes those two figures for
-        // display but never writes them back into the form, so the persisted columns hold the default
-        // 0. The percent is bound to a real input and does persist.
+        // Money is the stored SummaryPreviousValue / SummaryCurrentValue in both modes: the server derives
+        // them on every save, and the current one may be the inspector's override, which no percent can
+        // reproduce. Percentages stay on the entered ones.
         const string ciDetailSql = """
             SELECT
                 ap.Id                             AS AppraisalPropertyId,
@@ -533,14 +564,8 @@ public class GetDecisionSummaryQueryHandler(
                 COALESCE(NULLIF(LTRIM(RTRIM(bad.ModelName)), ''),
                          NULLIF(LTRIM(RTRIM(bad.PropertyName)), '')) AS ModelName,
                 ci.TotalValue                     AS TotalValue,
-                ROUND(CASE WHEN ci.IsFullDetail = 0
-                     THEN ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0) / 100.0
-                     ELSE ISNULL(wd_agg.PreviousPropertyValueSum, 0)
-                END, 0) AS PreviousValue,
-                ROUND(CASE WHEN ci.IsFullDetail = 0
-                     THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
-                     ELSE ISNULL(wd_agg.CurrentPropertyValueSum, 0)
-                END, 0) AS CurrentValue,
+                ROUND(ISNULL(ci.SummaryPreviousValue, 0), 0) AS PreviousValue,
+                ROUND(ISNULL(ci.SummaryCurrentValue, 0), 0)  AS CurrentValue,
                 CASE WHEN ci.IsFullDetail = 0
                      THEN ISNULL(ci.SummaryPreviousProgressPct, 0)
                      ELSE ISNULL(wd_agg.PreviousProportionPctSum, 0)
@@ -554,8 +579,6 @@ public class GetDecisionSummaryQueryHandler(
             LEFT JOIN appraisal.BuildingAppraisalDetails bad ON bad.AppraisalPropertyId = ap.Id
             LEFT JOIN (
                 SELECT ConstructionInspectionId,
-                       SUM(PreviousPropertyValue) AS PreviousPropertyValueSum,
-                       SUM(CurrentPropertyValue)  AS CurrentPropertyValueSum,
                        SUM(ProportionPct * PreviousProgressPct / 100.0) AS PreviousProportionPctSum,
                        SUM(CurrentProportionPct)                        AS CurrentProportionPctSum
                 FROM appraisal.ConstructionWorkDetails
@@ -848,6 +871,7 @@ public class GetDecisionSummaryQueryHandler(
         string? ModelName,
         int UnitCount,
         decimal TotalAppraisalPrice,
+        decimal ForceSellingPrice,
         decimal BuildingInsurance
     );
 

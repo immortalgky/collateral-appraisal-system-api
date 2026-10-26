@@ -468,7 +468,8 @@ var app = builder.Build();
 // all environments so other systems can consume the API contract as documentation.
 // NOTE: these endpoints are unauthenticated — restrict the /openapi and /scalar paths at the
 // reverse proxy (F5/IIS) if the API surface should not be publicly reachable.
-// AllowAnonymous bypasses the global fallback authorization policy (RequireAuthenticatedUser).
+// AllowAnonymous bypasses the global fallback authorization policy ("Spa": browser session / dev header only;
+// machine tokens need a named policy such as Integration).
 app.MapOpenApi().AllowAnonymous();
 app.MapScalarApiReference(options => options.WithTitle("Collateral Appraisal System API"))
     .AllowAnonymous();

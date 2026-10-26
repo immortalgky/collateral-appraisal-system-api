@@ -1,0 +1,144 @@
+@page
+@model Auth.Pages.Account.Passkey
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+<!DOCTYPE html>
+<html lang="@Model.Lang">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1, width=device-width">
+
+    <link rel="stylesheet" href="/Assets/index.css?v=@IdpPageModel.AssetVersion"/>
+
+    <title>@Model.TP.Heading</title>
+</head>
+
+<body>
+<div class="login login--signin">
+    <div class="login-image">
+        <img src="/Assets/Bangkok skyline view.png" alt="Bangkok skyline">
+    </div>
+    <div class="login-panel">
+        <form method="post" id="passkey-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl"/>
+            <input type="hidden" name="State" value="@Model.State"/>
+            <input type="hidden" name="Credential" id="passkey-credential" value=""/>
+
+            <partial name="_IdpHeader" model="Model" />
+
+            @* data-failed marks a page rendered after a refused attempt: the script then waits for "Try again" instead of prompting
+               at once. data-unknown-credential exists only for that one failure. Razor would render an empty attribute for a null. *@
+            <div class="passkey-body" id="passkey" data-options="@Model.OptionsJson"@(string.IsNullOrEmpty(Model.Error) ? null : Html.Raw(" data-failed"))@(Model.UnknownCredentialId is { } unknown
+                ? Html.Raw($" data-unknown-credential=\"{System.Text.Encodings.Web.HtmlEncoder.Default.Encode(unknown)}\"")
+                : null)>
+                <div class="passkey-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/>
+                        <path d="M14 13.12c0 2.38 0 6.38-1 8.88"/>
+                        <path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/>
+                        <path d="M2 12a10 10 0 0 1 18-6"/>
+                        <path d="M2 16h.01"/>
+                        <path d="M21.8 16c.2-2 .131-5.354 0-6"/>
+                        <path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/>
+                        <path d="M8.65 22c.21-.66.45-1.32.57-2"/>
+                        <path d="M9 6.8a6 6 0 0 1 9 5.2v2"/>
+                    </svg>
+                </div>
+                <h1 class="login-title">@Model.TP.Heading</h1>
+                @if (!string.IsNullOrEmpty(Model.Error))
+                {
+                    <div class="error-message" role="alert">@Model.Error</div>
+                }
+                @* After a refused attempt no prompt is open, so the line says to press Try again; the script waits for that click. *@
+                <p class="passkey-status" id="passkey-status" role="status">@(string.IsNullOrEmpty(Model.Error) ? Model.TP.Status : Model.TP.RetryPrompt)</p>
+            </div>
+
+            <button type="button" class="passkey-retry" id="passkey-retry" hidden>@Model.TP.Retry</button>
+            <div class="login-aside">
+                <a class="login-back" href="@Model.PasswordUrl">@Model.TP.UsePassword</a>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+    (function () {
+        var root = document.getElementById('passkey');
+        var status = document.getElementById('passkey-status');
+        var retry = document.getElementById('passkey-retry');
+        var form = document.getElementById('passkey-form');
+        var credentialInput = document.getElementById('passkey-credential');
+        // The sealed challenge on this page lives five minutes from when it was rendered, which is when this script started.
+        var renderedAt = Date.now();
+        var FRESH_FOR_MS = 4 * 60 * 1000; // a minute's margin for the prompt itself and the round trip
+        var text = {
+            status: @Json.Serialize(Model.TP.Status),
+            verifying: @Json.Serialize(Model.TP.Verifying),
+            cancelled: @Json.Serialize(Model.TP.CancelledMessage),
+            unsupported: @Json.Serialize(Model.TP.UnsupportedMessage)
+        };
+
+        function stop(message) {
+            status.textContent = message;
+            retry.hidden = false;
+            root.classList.add('passkey-idle');
+        }
+
+        function run() {
+            retry.hidden = true;
+            root.classList.remove('passkey-idle');
+            status.textContent = text.status;
+            if (!window.PublicKeyCredential || !PublicKeyCredential.parseRequestOptionsFromJSON || !navigator.credentials) {
+                stop(text.unsupported);
+                retry.hidden = true;
+                return;
+            }
+            var options;
+            try {
+                options = PublicKeyCredential.parseRequestOptionsFromJSON(JSON.parse(root.dataset.options));
+            } catch (e) {
+                stop(text.unsupported);
+                return;
+            }
+            navigator.credentials.get({ publicKey: options }).then(function (credential) {
+                status.textContent = text.verifying;
+                // The assertion goes back to this page in the form body, and nowhere else.
+                credentialInput.value = JSON.stringify(credential.toJSON());
+                form.submit();
+            }, function () {
+                stop(text.cancelled);
+            });
+        }
+
+        // A passkey this server no longer has (deleted in the profile, or removed by an admin) would be offered again at every
+        // sign-in. Tell the browser to forget it, where it can listen; a best effort, so nothing here may get in the way.
+        if (root.dataset.unknownCredential && window.PublicKeyCredential && PublicKeyCredential.signalUnknownCredential) {
+            try {
+                Promise.resolve(PublicKeyCredential.signalUnknownCredential({
+                    rpId: JSON.parse(root.dataset.options).rpId,
+                    credentialId: root.dataset.unknownCredential
+                })).catch(function () { });
+            } catch (e) { }
+        }
+
+        retry.addEventListener('click', function () {
+            if (Date.now() - renderedAt < FRESH_FOR_MS) { run(); return; }
+            // Too old to be accepted: get a new page, and so new options. An explicit GET to the same URL (keeps returnUrl):
+            // reload() would re-POST after a failed attempt.
+            location.replace(location.pathname + location.search);
+        });
+        if (root.hasAttribute('data-failed')) {
+            // A refused attempt: wait for "Try again". Prompting again at once would offer the same passkey, again. The status
+            // line was rendered by the server (it says to press Try again), so it is left as it is.
+            retry.hidden = false;
+            root.classList.add('passkey-idle');
+        } else {
+            run();
+        }
+    })();
+</script>
+<partial name="_IdpScripts" model="Model" />
+</body>
+
+</html>

@@ -5,7 +5,6 @@ using Dapper;
 using Integration.Fixtures;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Data;
-using AppraisalAggregate = Appraisal.Domain.Appraisals.Appraisal;
 
 namespace Integration.Collateral.Integration.Tests;
 
@@ -43,16 +42,14 @@ public class InternalValuerCodeExportTests(IntegrationTestFixture fixture)
     }
 
     /// <summary>
-    /// Seeds a completed reappraisal — the only type the file carries — assigned internally to
-    /// <paramref name="appraiserUserName"/>. Status is set by reflection because the real status flow
-    /// needs a workflow, the same shortcut AppraisalChainResolutionTests takes.
+    /// Seeds a completed reappraisal in the file's scope (Purpose '03', completed after the cutoff — see
+    /// <see cref="CollateralResultSeed"/>), assigned internally to <paramref name="appraiserUserName"/>.
     /// </summary>
-    private static async Task<Guid> SeedCompletedReviewAsync(AppraisalDbContext db, string appraiserUserName)
+    private static async Task<Guid> SeedCompletedReviewAsync(
+        AppraisalDbContext db, ISqlConnectionFactory factory, string appraiserUserName)
     {
-        var appraisal = AppraisalAggregate.Create(
-            Guid.CreateVersion7(), AppraisalTypes.ReAppraisal, "Normal", DateTime.Now);
-        appraisal.SetAppraisalNumber($"IVC{Guid.NewGuid():N}"[..10]);
-        typeof(AppraisalAggregate).GetProperty("Status")!.SetValue(appraisal, AppraisalStatus.Completed);
+        var requestId = await CollateralResultSeed.InsertRequestAsync(factory);
+        var appraisal = CollateralResultSeed.NewCompleted(requestId, CollateralResultSeed.InScope);
 
         db.Appraisals.Add(appraisal);
         await db.SaveChangesAsync();
@@ -79,7 +76,7 @@ public class InternalValuerCodeExportTests(IntegrationTestFixture fixture)
         var factory = scope.ServiceProvider.GetRequiredService<ISqlConnectionFactory>();
 
         var userName = await SeedUserAsync(factory, "06327");
-        var appraisalId = await SeedCompletedReviewAsync(db, userName);
+        var appraisalId = await SeedCompletedReviewAsync(db, factory, userName);
 
         var row = await GetRowAsync(scope, appraisalId);
 
@@ -95,7 +92,7 @@ public class InternalValuerCodeExportTests(IntegrationTestFixture fixture)
 
         // Five significant digits: truncating would name employee 8101, a different person.
         var userName = await SeedUserAsync(factory, "81018");
-        var appraisalId = await SeedCompletedReviewAsync(db, userName);
+        var appraisalId = await SeedCompletedReviewAsync(db, factory, userName);
 
         var row = await GetRowAsync(scope, appraisalId);
 
@@ -108,10 +105,45 @@ public class InternalValuerCodeExportTests(IntegrationTestFixture fixture)
         using var scope = CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
 
-        var appraisalId = await SeedCompletedReviewAsync(db, "no.such.user");
+        var factory = scope.ServiceProvider.GetRequiredService<ISqlConnectionFactory>();
+
+        var appraisalId = await SeedCompletedReviewAsync(db, factory, "no.such.user");
 
         var row = await GetRowAsync(scope, appraisalId);
 
         Assert.Null(row.InternalValuerCode);
+    }
+
+    [Fact]
+    public async Task ExternalAppraisal_SendsTheCompanyPairAndBlanksTheInternalOne()
+    {
+        using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+        var factory = scope.ServiceProvider.GetRequiredService<ISqlConnectionFactory>();
+
+        // The assignee also resolves to an employee id: the internal pair must still go out blank.
+        var userName = await SeedUserAsync(factory, "06327");
+        var companyId = Guid.NewGuid();
+        await factory.GetOpenConnection().ExecuteAsync(
+            """
+            INSERT INTO auth.Companies (Id, Name, HostCompanyCode, IsActive, IsDeleted, LoanTypes)
+            VALUES (@companyId, N'K-TAC Appraisal', N'KTAC', 1, 0, N'[]')
+            """,
+            new { companyId });
+
+        var requestId = await CollateralResultSeed.InsertRequestAsync(factory);
+        var appraisal = CollateralResultSeed.NewCompleted(requestId, CollateralResultSeed.InScope);
+        db.Appraisals.Add(appraisal);
+        await db.SaveChangesAsync();
+        db.AppraisalAssignments.Add(AppraisalAssignment.Create(
+            appraisal.Id, "External", assigneeUserId: userName, assigneeCompanyId: companyId.ToString(), assignedBy: "test"));
+        await db.SaveChangesAsync();
+
+        var row = await GetRowAsync(scope, appraisal.Id);
+
+        Assert.Null(row.InternalValuerCode);
+        Assert.Null(row.InternalValuerName);
+        Assert.Equal("KTAC", row.ExternalValuerCode);
+        Assert.Equal("K-TAC Appraisal", row.ExternalValuerName);
     }
 }

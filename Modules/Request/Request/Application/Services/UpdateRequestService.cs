@@ -24,11 +24,6 @@ public class UpdateRequestService(
         var request = await requestRepository.GetByIdWithDocumentsAsync(command.RequestId, cancellationToken);
         if (request is null) throw new RequestNotFoundException(command.RequestId);
 
-        // Once submitted the appraisal has been built from the purpose and prior, and nothing re-bases it, so
-        // LOS may resend them but not change them (the same rule as the screen's update). Rejected before
-        // anything is written.
-        request.EnsurePurposeUnchanged(command.Purpose);
-
         request.Save(new RequestData(
             command.Purpose,
             command.Channel,
@@ -39,27 +34,17 @@ public class UpdateRequestService(
             command.IsPma
         ));
 
-        var prevAppraisalId = PriorAppraisalFields.NormalizeId(command.Detail.PrevAppraisalId);
-
-        // A submitted request keeps its stored prior as is: the id or number LOS sent is only checked against it.
-        // Re-resolving would cost a lookup per resubmit, and one that comes back empty (the prior was deleted
-        // since) must not wipe what the request was submitted with. The submit-time guard is skipped for the same
-        // reason: purpose and prior are unchanged, so the combination it checked at submit still stands.
-        var locked = request.HasBeenSubmitted();
-        PriorAppraisalFields? prior = null;
-        if (locked)
-        {
-            request.EnsurePriorUnchanged(prevAppraisalId, command.Detail.PrevAppraisalNumber);
-            // LOS may identify a CAS prior by number only; the stored id stays.
-            prevAppraisalId = request.Detail?.PrevAppraisalId;
-        }
-        else
-            // Resubmit replaces the request data, so the prior appraisal is whatever LOS sent now: an id is
-            // re-resolved from CAS, a 99A number becomes the legacy book, nothing means no prior (the guard
-            // below decides whether the purpose can do without one).
-            prior = await PriorAppraisalFields.ResolveAsync(
-                mediator, request, prevAppraisalId, LegacyPriorBook.ForResubmit(command.Detail, request.ReappraisalBookNumber),
-                cancellationToken);
+        // Once submitted the appraisal has been built from the purpose and prior, and nothing re-bases it, so
+        // LOS may resend them but not change them (the same rule as the screen's update); a request Initiate
+        // created for a COLLATREV book is locked the same way from the start. The purpose is guarded inside
+        // Request.Save, the prior by the one shared rule below. A submitted request keeps its stored prior as is
+        // (no lookup, so a prior deleted since cannot wipe it) and skips the submit-time guard: purpose and prior
+        // are unchanged, so the combination it checked at submit still stands. Any other draft takes what LOS sent
+        // now: an id re-resolved from CAS, a 99A number as the legacy book, nothing as no prior (the guard below
+        // decides whether the purpose can do without one).
+        var (prevAppraisalId, prior) = await PriorAppraisalFields.ResolveForSaveAsync(
+            mediator, request, command.Detail,
+            () => LegacyPriorBook.ForResubmit(command.Detail), cancellationToken);   // unlocked: the request has no book of its own
 
         request.SetDetail(RequestDetail.Create(new RequestDetailData(
             command.Detail.HasAppraisalBook,
@@ -94,16 +79,16 @@ public class UpdateRequestService(
                 command.Detail.Fee?.FeePaymentType,
                 command.Detail.Fee?.FeeNotes,
                 command.Detail.Fee?.AbsorbedAmount),
-            locked ? request.Detail?.PrevAppraisalNumber : prior!.Number,
-            locked ? request.Detail?.PrevAppraisalValue : prior!.Value,
-            locked ? request.Detail?.PrevAppraisalDate : prior!.Date
+            prior.Number,
+            prior.Value,
+            prior.Date
         )));
 
-        if (!locked)
+        if (!request.HasBeenSubmitted())
             await PriorAppraisalSubmissionGuard.EnsureValidAsync(
                 request.Purpose, request.Detail?.PrevAppraisalId,
                 request.Detail?.PrevAppraisalNumber ?? command.Detail.PrevAppraisalNumber, mediator,
-                cancellationToken, prior!.Reference, request.ReappraisalBookNumber);
+                cancellationToken, prior.Reference, request.ReappraisalBookNumber);
 
         var customers = command.Customers
             .Select(c => RequestCustomer.Create(c.Name, c.ContactNumber))

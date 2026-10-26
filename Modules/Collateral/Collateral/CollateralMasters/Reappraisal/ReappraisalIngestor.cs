@@ -56,14 +56,30 @@ public class ReappraisalIngestor(
         dbContext.ChangeTracker.Clear();
 
         // Collapse duplicate books within a single file before upsert — a COLLATREV file occasionally
-        // repeats a row. Keep the last occurrence (latest wins).
-        var details = parsed.Details
-            .GroupBy(KeyOf)
-            .Select(g => g.Last())
-            .ToList();
+        // repeats a row. Keep the last occurrence (latest wins). Only when that copy is a 649 row (no
+        // position 650 at all) does the flag come from the latest copy that HAS a position 650 — even if
+        // that flag is null: a 650 row with a blank or unrecognised flag is AS400's word, and its null
+        // stands. A 649 row cannot erase a 650 row's 'Y'.
+        var flagsDiffer = 0;
+        var details = new List<ParsedDetailRecord>();
+        foreach (var g in parsed.Details.GroupBy(KeyOf))
+        {
+            var last = g.Last();
+            var withPosition = g.Where(d => d.HasAutoUpdatePosition).ToList();
+            // Conflict = 650 copies that disagree; a 649 copy has no flag to disagree with.
+            if (withPosition.Select(d => d.AutoUpdate).Distinct().Count() > 1) flagsDiffer++;
+            details.Add(!last.HasAutoUpdatePosition && withPosition.Count > 0
+                ? last with { AutoUpdate = withPosition[^1].AutoUpdate }
+                : last);
+        }
         if (details.Count != parsed.Details.Count)
-            logger.LogWarning("[ReappraisalIngestor] Collapsed {Dup} duplicate book row(s) in {File}",
-                parsed.Details.Count - details.Count, fileName);
+            logger.LogWarning(
+                "[ReappraisalIngestor] Collapsed {Dup} duplicate book row(s) in {File}; {Differ} book(s) had copies with different Auto Update flags",
+                parsed.Details.Count - details.Count, fileName, flagsDiffer);
+        if (parsed.UnrecognisedAutoUpdateRows > 0)
+            logger.LogWarning(
+                "[ReappraisalIngestor] {Count} row(s) in {File} have an Auto Update flag (position 650) that is not Y, N or blank; read as no flag",
+                parsed.UnrecognisedAutoUpdateRows, fileName);
 
         var (existing, spellings) = await LoadBooksAsync(details.Select(d => d.CollateralId), cancellationToken);
         var keys = details.ToDictionary(d => d, KeyOf);
@@ -126,7 +142,8 @@ public class ReappraisalIngestor(
                     detail.Stage,
                     detail.IBGRetail,
                     detail.Group,
-                    detail.EffectiveDateAppraisal);
+                    detail.EffectiveDateAppraisal,
+                    detail.AutoUpdate);
                 candidate.SetBook(key.Number, isBlockUnit, detail.SurveyNumber);
 
                 // A book already reviewed under another collateral is the same book — one request
@@ -169,7 +186,10 @@ public class ReappraisalIngestor(
                 : detail.SurveyNumber;
             book.SetBook(key.Number, isBlockUnit, spelling);
 
-            if (book.RowHash == detail.RowHash)
+            // The flag is compared too, because the hash alone cannot tell the cases apart: a row ingested before
+            // the column existed has the same hash but no flag, and would never pick it up; and after the in-file
+            // collapse a 649 row's hash can carry the flag of a 650 copy of the same book.
+            if (book.RowHash == detail.RowHash && book.AutoUpdate == detail.AutoUpdate)
             {
                 // Rows from before projects had a coordinate source would otherwise stay blank (and
                 // out of nearby results) until AS400 changed something on the row.
@@ -215,7 +235,8 @@ public class ReappraisalIngestor(
                 detail.Stage,
                 detail.IBGRetail,
                 detail.Group,
-                detail.EffectiveDateAppraisal);
+                detail.EffectiveDateAppraisal,
+                detail.AutoUpdate);
 
             needsEnrichment.Add(book);
             refreshed++;

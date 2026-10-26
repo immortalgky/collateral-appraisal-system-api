@@ -1,9 +1,12 @@
 using Carter;
 using Hangfire;
+using Hangfire.States;
+using Hangfire.Storage;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Shared.Scheduling;
 using Shared.Time;
 
@@ -44,30 +47,36 @@ public class JobScheduleEndpoints : ICarterModule
             .WithSummary("Update a recurring job's cron, timezone, or enabled state");
     }
 
-    private static async Task<IResult> List(
+    internal static async Task<IResult> List(
         IJobScheduleRegistry registry,
         IServiceProvider services,
+        JobStorage storage,
         IDateTimeProvider clock,
+        ILogger<JobScheduleEndpoints> logger,
         CancellationToken ct)
     {
+        var registrations = registry.All;
+        var runs = TryLoadRuns(storage, registrations.Select(r => r.JobId), clock, logger);
         var result = new List<JobScheduleDto>();
 
-        foreach (var registration in registry.All)
+        foreach (var registration in registrations)
         {
             var row = await registration.LoadAsync(services, ct);
-            result.Add(ToDto(registration, row, clock));
+            result.Add(ToDto(registration, row, clock, runs));
         }
 
         return Results.Ok(result);
     }
 
-    private static async Task<IResult> Update(
+    internal static async Task<IResult> Update(
         string jobId,
         UpdateJobScheduleRequest request,
         IJobScheduleRegistry registry,
         IRecurringJobManager manager,
         IServiceProvider services,
+        JobStorage storage,
         IDateTimeProvider clock,
+        ILogger<JobScheduleEndpoints> logger,
         CancellationToken ct)
     {
         var registration = registry.Find(jobId);
@@ -117,8 +126,78 @@ public class JobScheduleEndpoints : ICarterModule
         if (updated is null)
             return Results.NotFound();
 
-        return Results.Ok(ToDto(registration, updated, clock));
+        return Results.Ok(ToDto(registration, updated, clock, TryLoadRuns(storage, [jobId], clock, logger)));
     }
+
+    /// <summary>
+    /// Run info is decoration on a schedule list/update: a Hangfire storage failure must not fail the
+    /// request (least of all a PUT that has already saved), so log it and send the DTOs with null run fields
+    /// and RunInfoAvailable = false. Returns null on failure.
+    /// </summary>
+    private static Dictionary<string, JobRun>? TryLoadRuns(
+        JobStorage storage, IEnumerable<string> jobIds, IDateTimeProvider clock, ILogger logger)
+    {
+        try
+        {
+            return LoadRuns(storage, jobIds, clock, logger);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not read recurring-job run info from Hangfire; returning schedules without it");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Last/next run of each recurring job, read from Hangfire in one connection. Hangfire stores UTC;
+    /// converted to application time like every other timestamp. A job Hangfire does not hold (disabled,
+    /// never registered) is simply absent from the result.
+    /// </summary>
+    private static Dictionary<string, JobRun> LoadRuns(
+        JobStorage storage, IEnumerable<string> jobIds, IDateTimeProvider clock, ILogger logger)
+    {
+        var runs = new Dictionary<string, JobRun>();
+
+        using var connection = storage.GetConnection();
+        foreach (var job in connection.GetRecurringJobs(jobIds.ToList()))
+        {
+            if (job.Removed) continue;
+
+            // Only a Succeeded state carries PerformanceDuration, and Hangfire drops the job (and so
+            // LastJobState) once it expires, so either may be null.
+            var durationMs = job.LastJobState == SucceededState.StateName && job.LastJobId is not null
+                ? ReadDurationMs(connection, job.LastJobId, logger)
+                : null;
+
+            runs[job.Id] = new JobRun(
+                job.LastExecution is { } last ? clock.ToApplicationTime(last) : null,
+                job.NextExecution is { } next ? clock.ToApplicationTime(next) : null,
+                job.LastJobState,
+                durationMs);
+        }
+
+        return runs;
+    }
+
+    // Its own try/catch: one corrupt state record costs that job its duration, not every job its run info.
+    private static long? ReadDurationMs(IStorageConnection connection, string jobId, ILogger logger)
+    {
+        try
+        {
+            return connection.GetStateData(jobId)?.Data is { } data
+                && data.TryGetValue("PerformanceDuration", out var duration)
+                && long.TryParse(duration, out var ms)
+                    ? ms
+                    : null;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not read the duration of recurring job run {JobId}", jobId);
+            return null;
+        }
+    }
+
+    private sealed record JobRun(DateTime? Last, DateTime? Next, string? LastState, long? DurationMs);
 
     private static IResult Problem(string detail) =>
         Results.Problem(detail: detail, statusCode: StatusCodes.Status400BadRequest);
@@ -126,10 +205,13 @@ public class JobScheduleEndpoints : ICarterModule
     private static JobScheduleDto ToDto(
         JobScheduleRegistration registration,
         JobSchedule? row,
-        IDateTimeProvider clock)
+        IDateTimeProvider clock,
+        Dictionary<string, JobRun>? runs)
     {
         // Mirrors the resolution in UseModuleRecurringJobs: the row wins, the code default is the
         // fallback for a missing row.
+        JobRun? run = null;
+        runs?.TryGetValue(registration.JobId, out run);
         var effectiveCron = row?.CronExpression ?? registration.Definition.DefaultCron;
 
         return new JobScheduleDto(
@@ -143,7 +225,12 @@ public class JobScheduleEndpoints : ICarterModule
             EffectiveTimeZoneId: row?.TimeZoneId ?? clock.ApplicationTimeZone.Id,
             IsEnabled: row?.IsEnabled ?? true,
             Description: row?.Description ?? registration.Definition.Description,
-            HasRow: row is not null);
+            HasRow: row is not null,
+            LastExecution: run?.Last,
+            NextExecution: run?.Next,
+            LastJobState: run?.LastState,
+            LastDurationMs: run?.DurationMs,
+            RunInfoAvailable: runs is not null);
     }
 }
 
@@ -153,6 +240,11 @@ public class JobScheduleEndpoints : ICarterModule
 /// <param name="IsOverridden">True when the stored cron differs from the code default.</param>
 /// <param name="TimeZoneId">The stored override; null means "use the application timezone".</param>
 /// <param name="HasRow">False when no override row exists yet (startup seeds one per known job).</param>
+/// <param name="LastExecution">From Hangfire's recurring-job record; null when never run or the job is disabled/absent.</param>
+/// <param name="NextExecution">Likewise null when disabled/absent.</param>
+/// <param name="LastJobState">Null once Hangfire has expired the last job (succeeded jobs expire after about a day).</param>
+/// <param name="LastDurationMs">Succeeded state's PerformanceDuration; null when unknown.</param>
+/// <param name="RunInfoAvailable">False when Hangfire could not be read, so the four run fields are unknown rather than empty.</param>
 public record JobScheduleDto(
     string JobId,
     string Module,
@@ -163,7 +255,12 @@ public record JobScheduleDto(
     string EffectiveTimeZoneId,
     bool IsEnabled,
     string? Description,
-    bool HasRow);
+    bool HasRow,
+    DateTime? LastExecution,
+    DateTime? NextExecution,
+    string? LastJobState,
+    long? LastDurationMs,
+    bool RunInfoAvailable);
 
 public record UpdateJobScheduleRequest(
     string CronExpression,

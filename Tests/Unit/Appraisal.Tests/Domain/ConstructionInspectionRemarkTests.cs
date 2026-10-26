@@ -21,9 +21,7 @@ public class ConstructionInspectionRemarkTests
             totalValue: 1_000_000m,
             summaryDetail: "งานโครงสร้าง",
             summaryPreviousProgressPct: 10m,
-            summaryPreviousValue: 100_000m,
             summaryCurrentProgressPct: 40m,
-            summaryCurrentValue: 400_000m,
             remark: remark);
 
     // ── mode independence ───────────────────────────────────────────────────────
@@ -46,10 +44,11 @@ public class ConstructionInspectionRemarkTests
 
         Assert.True(ci.IsFullDetail);
         Assert.Equal("ยังเหลืองานระบบไฟฟ้า", ci.Remark);
-        // Summary-only state is still cleared by the switch — only the remark survives it.
+        // Summary-only state is still cleared by the switch — only the remark survives it. The keyed 40%
+        // does not: in full-detail mode the four figures are derived from the work rows, and there are none.
         Assert.Null(ci.SummaryDetail);
-        Assert.Null(ci.SummaryCurrentProgressPct);
-        Assert.Null(ci.SummaryCurrentValue);
+        Assert.Equal(0m, ci.SummaryCurrentProgressPct);
+        Assert.Equal(0m, ci.SummaryCurrentValue);
     }
 
     [Fact]
@@ -61,9 +60,7 @@ public class ConstructionInspectionRemarkTests
             totalValue: 1_000_000m,
             summaryDetail: null,
             summaryPreviousProgressPct: null,
-            summaryPreviousValue: null,
             summaryCurrentProgressPct: null,
-            summaryCurrentValue: null,
             remark: "หมายเหตุรอบนี้");
 
         Assert.False(ci.IsFullDetail);
@@ -128,9 +125,7 @@ public class ConstructionInspectionRemarkTests
             totalValue: 1_000_000m,
             summaryDetail: tooLong,
             summaryPreviousProgressPct: null,
-            summaryPreviousValue: null,
             summaryCurrentProgressPct: null,
-            summaryCurrentValue: null,
             remark: null));
     }
 }

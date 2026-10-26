@@ -1094,6 +1094,10 @@ namespace Collateral.Migrations
                         .HasMaxLength(19)
                         .HasColumnType("nvarchar(19)");
 
+                    b.Property<string>("AutoUpdate")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
                     b.Property<string>("BusinessSize")
                         .HasMaxLength(1)
                         .HasColumnType("nvarchar(1)");

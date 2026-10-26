@@ -5,12 +5,12 @@ CREATE OR ALTER PROCEDURE [workflow].[sp_GetTaskList]
     @CompanyGate      TINYINT      = 0,       -- 0 = no gate, 1 = (NULL OR = @CallerCompanyId), 2 = (NULL only)
     @CallerCompanyId  UNIQUEIDENTIFIER = NULL,
     -- Filters (all optional; NULL = ignore)
-    @Status               NVARCHAR(50)  = NULL,
+    @Status               NVARCHAR(MAX) = NULL,  -- CSV list
     @Priority             NVARCHAR(50)  = NULL,
     @TaskName             NVARCHAR(100) = NULL,
     @Search               NVARCHAR(200) = NULL,  -- already LIKE-escaped by caller; matched with ESCAPE '\'
     @AppraisalNumber      NVARCHAR(50)  = NULL,
-    @Channel              NVARCHAR(10)  = NULL,
+    @Channel              NVARCHAR(MAX) = NULL,  -- CSV list
     @CustomerName         NVARCHAR(200) = NULL,
     @TaskStatus           NVARCHAR(50)  = NULL,
     @TaskType             NVARCHAR(100) = NULL,
@@ -20,9 +20,9 @@ CREATE OR ALTER PROCEDURE [workflow].[sp_GetTaskList]
     @AppointmentDateTo    DATETIME2     = NULL,
     @RequestedAtFrom      DATETIME2     = NULL,
     @RequestedAtTo        DATETIME2     = NULL,
-    @SlaStatus            NVARCHAR(50)  = NULL,  -- 'NoSla' sentinel = IS NULL; else equality
-    @ActivityId           NVARCHAR(100) = NULL,
-    @Purpose              NVARCHAR(200) = NULL,
+    @SlaStatus            NVARCHAR(MAX) = NULL,  -- CSV list; 'NoSla' item = SlaStatus IS NULL
+    @ActivityId           NVARCHAR(MAX) = NULL,  -- CSV list
+    @Purpose              NVARCHAR(MAX) = NULL,  -- CSV list
     @TaskStatusBucket     NVARCHAR(20)  = NULL,  -- 'NotStarted' | 'InProgress' | 'Overdue' (mutually exclusive)
     -- Sort + paging
     @SortBy       SYSNAME    = NULL,
@@ -32,6 +32,30 @@ CREATE OR ALTER PROCEDURE [workflow].[sp_GetTaskList]
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    ----------------------------------------------------------------------------
+    -- Multi-value filters arrive as CSV (caller trims and drops empty items). Split ONCE into
+    -- small table variables; the predicates below probe them with `IN (SELECT v ...)`. 'NoSla'
+    -- in @SlaStatus is a sentinel for SlaStatus IS NULL and is carried by @SlaNoSla.
+    ----------------------------------------------------------------------------
+    DECLARE @StatusIds   TABLE (v NVARCHAR(4000));
+    DECLARE @ChannelIds  TABLE (v NVARCHAR(4000));
+    DECLARE @PurposeIds  TABLE (v NVARCHAR(4000));
+    DECLARE @ActivityIds TABLE (v NVARCHAR(4000));
+    DECLARE @SlaIds      TABLE (v NVARCHAR(4000));
+
+    IF @Status IS NOT NULL
+        INSERT INTO @StatusIds (v) SELECT DISTINCT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@Status, ',') WHERE LTRIM(RTRIM(value)) <> '';
+    IF @Channel IS NOT NULL
+        INSERT INTO @ChannelIds (v) SELECT DISTINCT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@Channel, ',') WHERE LTRIM(RTRIM(value)) <> '';
+    IF @Purpose IS NOT NULL
+        INSERT INTO @PurposeIds (v) SELECT DISTINCT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@Purpose, ',') WHERE LTRIM(RTRIM(value)) <> '';
+    IF @ActivityId IS NOT NULL
+        INSERT INTO @ActivityIds (v) SELECT DISTINCT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@ActivityId, ',') WHERE LTRIM(RTRIM(value)) <> '';
+    IF @SlaStatus IS NOT NULL
+        INSERT INTO @SlaIds (v) SELECT DISTINCT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@SlaStatus, ',') WHERE LTRIM(RTRIM(value)) <> '';
+
+    DECLARE @SlaNoSla BIT = CASE WHEN EXISTS (SELECT 1 FROM @SlaIds WHERE v = 'NoSla') THEN 1 ELSE 0 END;
 
     ----------------------------------------------------------------------------
     -- Normalise sort: whitelist + translate the C#-side ResolveOrderBy aliases.
@@ -55,7 +79,7 @@ BEGIN
     IF @SortBy IS NULL OR @SortBy NOT IN (
         'AppraisalNumber','RequestNumber','Channel','CustomerName','TaskType','Purpose','PropertyType',
         'Status','AppointmentDateTime','RequestedBy','RequestReceivedDate','AssignedDate',
-        'Movement','InternalFollowupStaff','Appraiser','Priority','DueAt','SlaStatus')
+        'Movement','InternalFollowupStaff','Appraiser','Priority','DueAt','SlaStatus','ReportReceivedAt')
         SET @SortBy = 'AssignedDate';
 
     DECLARE @Offset INT = @PageNumber * @PageSize;
@@ -76,7 +100,7 @@ BEGIN
         OR @RequestedAtFrom IS NOT NULL OR @RequestedAtTo IS NOT NULL
         OR @SortBy IN ('AppraisalNumber','RequestNumber','Channel','CustomerName','Purpose','PropertyType',
                        'Status','RequestedBy','AppointmentDateTime','RequestReceivedDate',
-                       'InternalFollowupStaff','Appraiser','Priority')
+                       'InternalFollowupStaff','Appraiser','Priority','ReportReceivedAt')
       THEN 1 ELSE 0 END;
 
     ----------------------------------------------------------------------------
@@ -89,7 +113,7 @@ BEGIN
     ----------------------------------------------------------------------------
     DECLARE @NeedHeavy BIT = CASE WHEN
            @AppointmentDateFrom IS NOT NULL OR @AppointmentDateTo IS NOT NULL
-        OR @SortBy IN ('PropertyType','AppointmentDateTime','InternalFollowupStaff','Appraiser','CustomerName')
+        OR @SortBy IN ('PropertyType','AppointmentDateTime','InternalFollowupStaff','Appraiser','CustomerName','ReportReceivedAt')
       THEN 1 ELSE 0 END;
 
     ----------------------------------------------------------------------------
@@ -132,15 +156,16 @@ BEGIN
         --------------------------------------------------------------------------
         -- CHEAP BROWSE PATH: no enriched filter, base-only sort. Page directly off
         -- workflow.PendingTasks; stage 2 enriches just the page. Counting/paging
-        -- straight off PendingTasks is correct under the SAME invariant as
-        -- TaskListFilterBuilder.BaseCountSource: every CorrelationId maps to exactly
-        -- one of the 4 owning tables, so pending rows are 1:1 with vw_TaskList rows.
+        -- straight off PendingTasks is correct under the invariant that
+        -- every CorrelationId maps to exactly one of the 4 owning tables, so pending rows are 1:1 with vw_TaskList rows.
         -- If orphan-tolerance is ever introduced, add the matching
         -- WHERE EXISTS(...4 owning tables...) guard here too.
         --------------------------------------------------------------------------
         INSERT INTO #page (Id, Rn, Total)
         SELECT Id,
                ROW_NUMBER() OVER (ORDER BY
+                   -- tasks without a due date sort last in either direction when ordering by DueAt
+                   CASE WHEN @SortBy = 'DueAt' AND DueAt IS NULL THEN 1 ELSE 0 END ASC,
                    CASE WHEN @SortDir = 'ASC' THEN
                        CASE @SortBy
                            WHEN 'TaskType'  THEN TaskName
@@ -173,11 +198,11 @@ BEGIN
                  OR (@CompanyGate = 2 AND AssigneeCompanyId IS NULL) )
           AND (@TaskName   IS NULL OR TaskName   = @TaskName)
           AND (@TaskType   IS NULL OR TaskName   = @TaskType)
-          AND (@ActivityId IS NULL OR ActivityId = @ActivityId)
+          AND (@ActivityId IS NULL OR ActivityId IN (SELECT v FROM @ActivityIds))
           AND (@TaskStatus IS NULL OR TaskStatus = @TaskStatus)
           AND (@SlaStatus IS NULL
-                 OR (@SlaStatus = 'NoSla' AND SlaStatus IS NULL)
-                 OR (@SlaStatus <> 'NoSla' AND SlaStatus = @SlaStatus))
+                 OR SlaStatus IN (SELECT v FROM @SlaIds)
+                 OR (@SlaNoSla = 1 AND SlaStatus IS NULL))
           AND (@TaskStatusBucket IS NULL
                  OR (@TaskStatusBucket = 'NotStarted' AND TaskStatus = 'Assigned' AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
                  OR (@TaskStatusBucket = 'InProgress' AND TaskStatus IN ('InProgress','Completing') AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
@@ -207,11 +232,11 @@ BEGIN
                  OR (@CompanyGate = 2 AND AssigneeCompanyId IS NULL) )
           AND  (@TaskName   IS NULL OR TaskName   = @TaskName)
           AND  (@TaskType   IS NULL OR TaskName   = @TaskType)
-          AND  (@ActivityId IS NULL OR ActivityId = @ActivityId)
+          AND  (@ActivityId IS NULL OR ActivityId IN (SELECT v FROM @ActivityIds))
           AND  (@TaskStatus IS NULL OR TaskStatus = @TaskStatus)
           AND  (@SlaStatus IS NULL
-                 OR (@SlaStatus = 'NoSla' AND SlaStatus IS NULL)
-                 OR (@SlaStatus <> 'NoSla' AND SlaStatus = @SlaStatus))
+                 OR SlaStatus IN (SELECT v FROM @SlaIds)
+                 OR (@SlaNoSla = 1 AND SlaStatus IS NULL))
           AND  (@TaskStatusBucket IS NULL
                  OR (@TaskStatusBucket = 'NotStarted' AND TaskStatus = 'Assigned' AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
                  OR (@TaskStatusBucket = 'InProgress' AND TaskStatus IN ('InProgress','Completing') AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
@@ -280,6 +305,7 @@ BEGIN
             c.Name                                     AS CustomerName,
             p.PropertyType,
             ap.AppointmentDateTime,
+            rr.SubmittedAt                             AS ReportReceivedAt,
             AA.InternalAppraiserId,
             -- Resolve to the same display names vw_TaskList shows, so sorting by these
             -- columns matches the returned values (fallback to the raw code).
@@ -303,6 +329,11 @@ BEGIN
                          ORDER BY AssignedAt DESC, CreatedAt DESC, Id DESC) AA
             OUTER APPLY (SELECT TOP 1 AppointmentDateTime FROM appraisal.Appointments
                          WHERE AssignmentId = AA.Id AND Status != 'Cancelled') ap
+            -- same source as vw_TaskList.ReportReceivedAt (latest external assignment's SubmittedAt)
+            OUTER APPLY (SELECT TOP 1 SubmittedAt FROM appraisal.AppraisalAssignments
+                         WHERE AppraisalId = a.Id AND AssignmentType = 'External'
+                           AND AssignmentStatus NOT IN ('Rejected','Cancelled')
+                         ORDER BY AssignedAt DESC, CreatedAt DESC, Id DESC) rr
             LEFT JOIN auth.Companies comp ON comp.Id = TRY_CAST(AA.AssigneeCompanyId AS uniqueidentifier)
             LEFT JOIN auth.AspNetUsers ifs ON ifs.UserName = AA.InternalAppraiserId
             LEFT JOIN auth.AspNetUsers au  ON au.UserName  = AA.AssigneeUserId
@@ -310,6 +341,9 @@ BEGIN
     INSERT INTO #page (Id, Rn, Total)
     SELECT Id,
            ROW_NUMBER() OVER (ORDER BY
+               -- tasks without a due date / report sort last in either direction
+               CASE WHEN (@SortBy = 'DueAt' AND DueAt IS NULL)
+                      OR (@SortBy = 'ReportReceivedAt' AND ReportReceivedAt IS NULL) THEN 1 ELSE 0 END ASC,
                CASE WHEN @SortDir = 'ASC' THEN
                    CASE @SortBy
                        WHEN 'CustomerName'          THEN CustomerName
@@ -348,6 +382,7 @@ BEGIN
                    CASE @SortBy
                        WHEN 'AppointmentDateTime'   THEN AppointmentDateTime
                        WHEN 'RequestReceivedDate'   THEN RequestReceivedDate
+                       WHEN 'ReportReceivedAt'      THEN ReportReceivedAt
                        WHEN 'DueAt'                 THEN DueAt
                        WHEN 'AssignedDate'          THEN AssignedAt
                    END END ASC,
@@ -355,16 +390,17 @@ BEGIN
                    CASE @SortBy
                        WHEN 'AppointmentDateTime'   THEN AppointmentDateTime
                        WHEN 'RequestReceivedDate'   THEN RequestReceivedDate
+                       WHEN 'ReportReceivedAt'      THEN ReportReceivedAt
                        WHEN 'DueAt'                 THEN DueAt
                        WHEN 'AssignedDate'          THEN AssignedAt
                    END END DESC,
                AssignedAt DESC, Id DESC) AS Rn,
            COUNT(*) OVER () AS Total
     FROM enriched
-    WHERE (@Status          IS NULL OR AStatus = @Status)
+    WHERE (@Status          IS NULL OR AStatus IN (SELECT v FROM @StatusIds))
       AND (@Priority        IS NULL OR Priority = @Priority)
-      AND (@Purpose         IS NULL OR Purpose = @Purpose)
-      AND (@Channel         IS NULL OR Channel = @Channel)
+      AND (@Purpose         IS NULL OR Purpose IN (SELECT v FROM @PurposeIds))
+      AND (@Channel         IS NULL OR Channel IN (SELECT v FROM @ChannelIds))
       -- @AppraisalNumber / @CustomerName / @Search are applied per-branch in `resolved` (#f_cust/#f_appr/#f_search pushdown).
       AND (@AppointmentDateFrom IS NULL OR AppointmentDateTime >= @AppointmentDateFrom)
       AND (@AppointmentDateTo   IS NULL OR AppointmentDateTime <  DATEADD(day, 1, @AppointmentDateTo))
@@ -397,11 +433,11 @@ BEGIN
                  OR (@CompanyGate = 2 AND AssigneeCompanyId IS NULL) )
           AND  (@TaskName   IS NULL OR TaskName   = @TaskName)
           AND  (@TaskType   IS NULL OR TaskName   = @TaskType)
-          AND  (@ActivityId IS NULL OR ActivityId = @ActivityId)
+          AND  (@ActivityId IS NULL OR ActivityId IN (SELECT v FROM @ActivityIds))
           AND  (@TaskStatus IS NULL OR TaskStatus = @TaskStatus)
           AND  (@SlaStatus IS NULL
-                 OR (@SlaStatus = 'NoSla' AND SlaStatus IS NULL)
-                 OR (@SlaStatus <> 'NoSla' AND SlaStatus = @SlaStatus))
+                 OR SlaStatus IN (SELECT v FROM @SlaIds)
+                 OR (@SlaNoSla = 1 AND SlaStatus IS NULL))
           AND  (@TaskStatusBucket IS NULL
                  OR (@TaskStatusBucket = 'NotStarted' AND TaskStatus = 'Assigned' AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
                  OR (@TaskStatusBucket = 'InProgress' AND TaskStatus IN ('InProgress','Completing') AND (SlaStatus IS NULL OR SlaStatus <> 'Breached'))
@@ -476,6 +512,8 @@ BEGIN
     INSERT INTO #page (Id, Rn, Total)
     SELECT Id,
            ROW_NUMBER() OVER (ORDER BY
+               -- tasks without a due date sort last in either direction when ordering by DueAt
+               CASE WHEN @SortBy = 'DueAt' AND DueAt IS NULL THEN 1 ELSE 0 END ASC,
                CASE WHEN @SortDir = 'ASC' THEN
                    CASE @SortBy
                        WHEN 'AppraisalNumber' THEN AppraisalNumber
@@ -517,10 +555,10 @@ BEGIN
                AssignedAt DESC, Id DESC) AS Rn,
            COUNT(*) OVER () AS Total
     FROM light
-    WHERE (@Status          IS NULL OR AStatus  = @Status)
+    WHERE (@Status          IS NULL OR AStatus IN (SELECT v FROM @StatusIds))
       AND (@Priority        IS NULL OR Priority = @Priority)
-      AND (@Purpose         IS NULL OR Purpose = @Purpose)
-      AND (@Channel         IS NULL OR Channel = @Channel)
+      AND (@Purpose         IS NULL OR Purpose IN (SELECT v FROM @PurposeIds))
+      AND (@Channel         IS NULL OR Channel IN (SELECT v FROM @ChannelIds))
       -- @AppraisalNumber / @CustomerName / @Search are applied per-branch in `resolved` (#f_cust/#f_appr/#f_search pushdown).
       AND (@RequestedAtFrom IS NULL OR RequestReceivedDate >= @RequestedAtFrom)
       AND (@RequestedAtTo   IS NULL OR RequestReceivedDate <  DATEADD(day, 1, @RequestedAtTo))

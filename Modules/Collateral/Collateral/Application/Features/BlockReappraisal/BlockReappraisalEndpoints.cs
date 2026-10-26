@@ -1,6 +1,7 @@
 using Collateral.Application.Features.BlockReappraisal.GetBlockReappraisalDetail;
 using Collateral.Application.Features.BlockReappraisal.GetBlockReappraisalDueList;
 using Collateral.Application.Features.BlockReappraisal.MarkBlockReappraisalNotRequired;
+using Collateral.Application.Features.BlockReappraisal.RestoreBlockReappraisal;
 
 namespace Collateral.Application.Features.BlockReappraisal;
 
@@ -15,6 +16,7 @@ public class BlockReappraisalEndpoints : ICarterModule
         app.MapGet(
                 "/block-reappraisal",
                 async (
+                    string? status,
                     string? search,
                     DateTime? lastAppraisedDateFrom,
                     DateTime? lastAppraisedDateTo,
@@ -30,6 +32,7 @@ public class BlockReappraisalEndpoints : ICarterModule
                     // PaginationRequest.PageNumber is 0-based (offset = PageNumber * PageSize);
                     // the FE sends a 0-based `pageNumber`, matching the AS400 reappraisal endpoint.
                     var query = new GetBlockReappraisalDueListQuery(
+                        Status: status,
                         Search: search,
                         LastAppraisedDateFrom: lastAppraisedDateFrom,
                         LastAppraisedDateTo: lastAppraisedDateTo,
@@ -46,7 +49,7 @@ public class BlockReappraisalEndpoints : ICarterModule
             .Produces<PaginatedResult<BlockReappraisalDueListItem>>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .WithSummary("Get block reappraisal due list")
-            .WithDescription("Paginated list of block-project collateral masters pending reappraisal.")
+            .WithDescription("Paginated list of block-project collateral masters on the reappraisal due list. status = Pending (default) | Deleted (marked not required).")
             .WithTags("BlockReappraisal")
             .RequireAuthorization();
 
@@ -93,6 +96,27 @@ public class BlockReappraisalEndpoints : ICarterModule
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .WithSummary("Mark block reappraisal not required")
             .WithDescription("Excludes this project from the next reappraisal cycle and removes it from the pending due list.")
+            .WithTags("BlockReappraisal")
+            .RequireAuthorization();
+
+        // POST /block-reappraisal/{collateralMasterId}/restore — put a Consumed row back to Pending
+        app.MapPost(
+                "/block-reappraisal/{collateralMasterId:guid}/restore",
+                async (
+                    Guid collateralMasterId,
+                    ISender sender,
+                    CancellationToken cancellationToken) =>
+                {
+                    var command = new RestoreBlockReappraisalCommand(collateralMasterId);
+                    var result = await sender.Send(command, cancellationToken);
+                    return Results.Ok(result);
+                })
+            .WithName("RestoreBlockReappraisal")
+            .Produces<RestoreBlockReappraisalResult>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .WithSummary("Restore block reappraisal to Pending")
+            .WithDescription("Puts a Deleted (not required) due-list row back to Pending and clears the project's not-required exclusion.")
             .WithTags("BlockReappraisal")
             .RequireAuthorization();
     }

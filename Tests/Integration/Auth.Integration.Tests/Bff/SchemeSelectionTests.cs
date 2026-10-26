@@ -20,24 +20,10 @@ public class SchemeSelectionTests(IntegrationTestFixture fixture)
 {
     private HttpClient Browser() => fixture.BffWebApplicationFactory.CreateBrowser(handleCookies: false);
 
-    private static async Task<string> ClientCredentialsTokenAsync(HttpClient client)
+    private static HttpRequestMessage Send(string? bearer = null, string? cookie = null,
+        string path = "/test/whoami", HttpMethod? method = null)
     {
-        using var response = await client.PostAsync("/connect/token", new FormUrlEncodedContent(
-            new Dictionary<string, string>
-            {
-                ["grant_type"] = "client_credentials",
-                ["client_id"] = "cls",
-                ["client_secret"] = "CLS_SecretKey_2024!",
-                ["scope"] = "appraisal.read"
-            }), TestContext.Current.CancellationToken);
-        response.EnsureSuccessStatusCode();
-        using var json = await BffTestSupport.ReadJsonAsync(response);
-        return json.RootElement.GetProperty("access_token").GetString()!;
-    }
-
-    private static HttpRequestMessage WhoAmI(string? bearer = null, string? cookie = null)
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/test/whoami");
+        var request = new HttpRequestMessage(method ?? HttpMethod.Get, path);
         if (bearer is not null) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
         if (cookie is not null) request.Headers.Add("Cookie", cookie);
         return request;
@@ -47,7 +33,7 @@ public class SchemeSelectionTests(IntegrationTestFixture fixture)
     public async Task No_credentials_is_a_401_not_a_redirect_to_login()
     {
         using var browser = Browser();
-        using var response = await browser.SendAsync(WhoAmI());
+        using var response = await browser.SendAsync(Send());
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         response.Headers.Location.Should().BeNull();
@@ -57,7 +43,7 @@ public class SchemeSelectionTests(IntegrationTestFixture fixture)
     public async Task A_cookie_the_server_cannot_read_is_a_401()
     {
         using var browser = Browser();
-        using var response = await browser.SendAsync(WhoAmI(cookie: "__Host-cas-session-7111=not-a-real-ticket"));
+        using var response = await browser.SendAsync(Send(cookie: "__Host-cas-session-7111=not-a-real-ticket"));
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         response.Headers.Location.Should().BeNull();
@@ -67,9 +53,9 @@ public class SchemeSelectionTests(IntegrationTestFixture fixture)
     public async Task A_machine_client_token_authenticates_on_its_own()
     {
         using var browser = Browser();
-        var token = await ClientCredentialsTokenAsync(browser);
+        var token = await BffTestSupport.ClientCredentialsTokenAsync(browser);
 
-        using var response = await browser.SendAsync(WhoAmI(bearer: token));
+        using var response = await browser.SendAsync(Send(bearer: token, path: "/test/machine/whoami"));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using var json = await BffTestSupport.ReadJsonAsync(response);
@@ -82,9 +68,9 @@ public class SchemeSelectionTests(IntegrationTestFixture fixture)
         using var browser = Browser();
         var user = await BffTestSupport.CreateUserAsync(fixture.BffWebApplicationFactory.Services, "Admin");
         var cookie = await BffTestSupport.SignInAsync(browser, user);
-        var token = await ClientCredentialsTokenAsync(browser);
+        var token = await BffTestSupport.ClientCredentialsTokenAsync(browser);
 
-        using var response = await browser.SendAsync(WhoAmI(bearer: token, cookie: cookie));
+        using var response = await browser.SendAsync(Send(bearer: token, cookie: cookie, path: "/test/machine/whoami"));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using var json = await BffTestSupport.ReadJsonAsync(response);
@@ -94,13 +80,107 @@ public class SchemeSelectionTests(IntegrationTestFixture fixture)
     }
 
     [Fact]
+    public async Task A_machine_client_token_is_refused_on_an_endpoint_with_no_policy_of_its_own()
+    {
+        // /test/whoami names no policy, so the "Spa" fallback applies: authenticated, but not a browser session.
+        using var browser = Browser();
+        var token = await BffTestSupport.ClientCredentialsTokenAsync(browser);
+
+        using var response = await browser.SendAsync(Send(bearer: token));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task A_machine_client_token_is_refused_on_a_legacy_minimal_api_route_too()
+    {
+        using var browser = Browser();
+        var token = await BffTestSupport.ClientCredentialsTokenAsync(browser);
+
+        using var response = await browser.SendAsync(Send(bearer: token, path: "/appraisals"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task A_client_with_the_integration_scope_reaches_an_integration_route_but_not_a_legacy_one()
+    {
+        // The seeded cls client is granted `integration` (AuthDataSeed). With no query the checklist route answers
+        // 200 with empty lists, whatever the Parameter tables hold.
+        using var browser = Browser();
+        var token = await BffTestSupport.ClientCredentialsTokenAsync(browser, scope: "integration");
+
+        using var allowed = await browser.SendAsync(Send(bearer: token, path: "/api/v1/document-checklist"));
+        using var refused = await browser.SendAsync(Send(bearer: token, path: "/appraisals"));
+
+        allowed.StatusCode.Should().Be(HttpStatusCode.OK);
+        refused.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Theory]
+    [InlineData("appraisal.read", HttpStatusCode.Forbidden)]
+    [InlineData("integration", HttpStatusCode.NotFound)]
+    public async Task The_integration_document_route_needs_the_integration_scope(string scope, HttpStatusCode expected)
+    {
+        // GET /api/v1/documents/{id} used to be plain RequireAuthorization(); it now names "Integration".
+        // A random id is a 404 for a client allowed in.
+        using var browser = Browser();
+        var token = await BffTestSupport.ClientCredentialsTokenAsync(browser, scope);
+
+        using var response = await browser.SendAsync(
+            Send(bearer: token, path: $"/api/v1/documents/{Guid.NewGuid()}"));
+
+        response.StatusCode.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task A_machine_client_token_is_refused_at_the_signalr_hub()
+    {
+        // The hub has no policy of its own, so connecting is authorized by the fallback over plain HTTP.
+        using var browser = Browser();
+        var token = await BffTestSupport.ClientCredentialsTokenAsync(browser);
+
+        using var response = await browser.SendAsync(Send(bearer: token,
+            path: "/notificationHub/negotiate?negotiateVersion=1", method: HttpMethod.Post));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task A_session_cookie_passes_the_spa_fallback()
+    {
+        using var browser = Browser();
+        var user = await BffTestSupport.CreateUserAsync(fixture.BffWebApplicationFactory.Services, "Admin");
+        var cookie = await BffTestSupport.SignInAsync(browser, user);
+
+        using var response = await browser.SendAsync(Send(cookie: cookie));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task A_stray_cookie_does_not_rescue_a_bearer()
+    {
+        // The selector picks OpenIddict whenever a Bearer is present, so the cookie is never authenticated: the
+        // caller is the machine client, and the Spa fallback refuses it.
+        using var browser = Browser();
+        var user = await BffTestSupport.CreateUserAsync(fixture.BffWebApplicationFactory.Services, "Admin");
+        var cookie = await BffTestSupport.SignInAsync(browser, user);
+        var token = await BffTestSupport.ClientCredentialsTokenAsync(browser);
+
+        using var response = await browser.SendAsync(Send(bearer: token, cookie: cookie));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task A_bad_bearer_is_not_rescued_by_a_valid_cookie()
     {
         using var browser = Browser();
         var user = await BffTestSupport.CreateUserAsync(fixture.BffWebApplicationFactory.Services, "Admin");
         var cookie = await BffTestSupport.SignInAsync(browser, user);
 
-        using var response = await browser.SendAsync(WhoAmI(bearer: "not-a-token", cookie: cookie));
+        using var response = await browser.SendAsync(Send(bearer: "not-a-token", cookie: cookie));
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -109,7 +189,7 @@ public class SchemeSelectionTests(IntegrationTestFixture fixture)
     public async Task The_dev_header_still_works_outside_production()
     {
         using var browser = Browser();
-        var request = WhoAmI();
+        var request = Send();
         request.Headers.Add("X-Dev-Auth", "dev-bypass");
 
         using var response = await browser.SendAsync(request);
@@ -145,6 +225,19 @@ public class SchemeSelectionTests(IntegrationTestFixture fixture)
 
         (await policies.GetDefaultPolicyAsync()).AuthenticationSchemes.Should().BeEmpty();
         (await policies.GetFallbackPolicyAsync())!.AuthenticationSchemes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task The_named_Spa_policy_is_the_default_and_the_fallback()
+    {
+        await using var scope = fixture.BffWebApplicationFactory.Services.CreateAsyncScope();
+        var policies = scope.ServiceProvider.GetRequiredService<IAuthorizationPolicyProvider>();
+
+        var spa = await policies.GetPolicyAsync("Spa");
+
+        spa.Should().NotBeNull();
+        (await policies.GetDefaultPolicyAsync()).Should().BeSameAs(spa);
+        (await policies.GetFallbackPolicyAsync()).Should().BeSameAs(spa);
     }
 
     [Fact]

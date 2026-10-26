@@ -1,7 +1,6 @@
-namespace Appraisal.Application.Features.Appraisals.QuickSearch;
+using Appraisal.Application.Features.Appraisals.Shared;
 
-/// <summary>One field that matched, so the UI can say why a row is in the list.</summary>
-public record SearchMatch(string Field, string Value);
+namespace Appraisal.Application.Features.Appraisals.QuickSearch;
 
 /// <summary>
 /// A matched appraisal. <see cref="NavigateTo"/> is built here rather than in the client because

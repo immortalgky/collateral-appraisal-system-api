@@ -10,7 +10,9 @@ public record GetWebhookDeliveriesQuery(
     Guid? SubscriptionId,
     string? EventType,
     DateTime? FromDate,
-    DateTime? ToDate
+    DateTime? ToDate,
+    string? SystemCode = null,
+    string? Search = null
 ) : IQuery<PaginatedResult<WebhookDeliveryListDto>>;
 
 public record WebhookDeliveryListDto(

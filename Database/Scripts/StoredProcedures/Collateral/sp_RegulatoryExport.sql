@@ -366,44 +366,18 @@ BEGIN
         ) z
         WHERE rn = 1
     ),
+    -- Construction status, read from appraisal.vw_AppraisalConstructionProgress (same view the app and
+    -- vw_RegulatoryExport read): each inspection's Summary* columns hold its result in both modes.
+    -- EnteredCurrentPercent is the plain average (no value to weight by); WeightedCurrentPercent
+    -- weights buildings by what each is worth - deliberately NOT CurrentValue / TotalValue, because
+    -- rounded money no longer sums to the rounded whole (CA-614).
     Ci AS (
-        SELECT
-            ap.AppraisalId,
-            ISNULL(SUM(v.TotalValue), 0)              AS TotalValue,
-            ISNULL(SUM(ROUND(v.CurrentValue, 0)), 0)  AS CurrentValue,
-            -- Plain average, all there is to report when there is no value to weight by: a condo unit
-            -- has no building depreciation table for the CI screen to total, so its TotalValue is 0.
-            ISNULL(AVG(v.CurrentPct), 0)              AS EnteredCurrentPercent,
-            -- Per-building progress weighted across buildings by what each is worth. This is what
-            -- decides "finished" and what this file reports — deliberately NOT CurrentValue /
-            -- TotalValue: money is rounded to whole baht (CA-614), so the rounded parts no longer sum
-            -- to the rounded whole and a finished building came out a baht short of its own 100%
-            -- figure. Percentages are decimal(7,4) and nothing rounds them; TotalValue is only a
-            -- weight here. Mirrors ConstructionValueBreakdown.WeightedCurrentPercent.
-            CASE WHEN SUM(v.TotalValue) > 0
-                 THEN SUM(v.TotalValue * v.CurrentPct) / SUM(v.TotalValue)
-                 ELSE 0 END                           AS WeightedCurrentPercent
-        FROM appraisal.ConstructionInspections ci
-        JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
-        LEFT JOIN (
-            SELECT ConstructionInspectionId,
-                   SUM(CurrentPropertyValue) AS CurrentSum,
-                   SUM(CurrentProportionPct) AS CurrentPctSum
-            FROM appraisal.ConstructionWorkDetails
-            GROUP BY ConstructionInspectionId
-        ) wd ON wd.ConstructionInspectionId = ci.Id
-        -- One row per inspection, read per the mode flag: a summary inspection carries its own
-        -- percentage, a full-detail one is the sum of its work rows.
-        CROSS APPLY (
-            SELECT
-                ci.TotalValue,
-                CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
-                     ELSE ISNULL(wd.CurrentPctSum, 0) END  AS CurrentPct,
-                CASE WHEN ci.IsFullDetail = 0
-                     THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
-                     ELSE ISNULL(wd.CurrentSum, 0) END     AS CurrentValue
-        ) v
-        GROUP BY ap.AppraisalId
+        SELECT AppraisalId,
+               TotalValue,
+               CurrentValue,
+               UnweightedCurrentPercent AS EnteredCurrentPercent,
+               WeightedCurrentPercent
+        FROM appraisal.vw_AppraisalConstructionProgress
     ),
     CiEffective AS (
         SELECT
@@ -630,8 +604,9 @@ BEGIN
         -- HasRealEstate test alone blanked all 1,608 of them. Its request is the developer's, whose
         -- Location IS the project's site, and every unit sits inside that project: on 1,591 of the 1,592
         -- rows this recovers, the code matches the project's own SubDistrict exactly and none disagree.
-        -- ProjectType is the same signal CollateralType uses above, so the two fields cover the same rows.
-        CASE WHEN pm.HasRealEstate = 1 OR an.ProjectType IN ('U', 'LB')
+        -- CollateralType above lists only U and LB; this list also takes L, so a Land-only project gets
+        -- a DOPA code although its CollateralType is not set by that CASE.
+        CASE WHEN pm.HasRealEstate = 1 OR an.ProjectType IN ('U', 'LB', 'L')
              THEN (SELECT dsd.Code FROM parameter.DopaSubDistricts dsd
                    WHERE dsd.Code = LTRIM(RTRIM(rd.SubDistrict)))
              ELSE NULL END                                           AS DopaCode,

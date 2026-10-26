@@ -14,7 +14,8 @@ public record UpdateClientCommand(
     List<string> Scopes,
     int? AccessTokenLifetimeMinutes,
     int? IdentityTokenLifetimeMinutes,
-    int? RefreshTokenLifetimeMinutes
+    int? RefreshTokenLifetimeMinutes,
+    int? UploadSessionLifetimeHours
 ) : ICommand;
 
 public class UpdateClientCommandValidator : AbstractValidator<UpdateClientCommand>
@@ -46,6 +47,7 @@ public class UpdateClientCommandValidator : AbstractValidator<UpdateClientComman
             .ValidTokenLifetime(ClientPermissionMapper.IdentityTokenLifetime, "Identity token lifetime");
         RuleFor(x => x.RefreshTokenLifetimeMinutes)
             .ValidTokenLifetime(ClientPermissionMapper.RefreshTokenLifetime, "Refresh token lifetime");
+        RuleFor(x => x.UploadSessionLifetimeHours).ValidUploadSessionLifetime();
     }
 }
 
@@ -71,7 +73,8 @@ public class UpdateClientCommandHandler(IOpenIddictApplicationManager applicatio
             new ClientTokenLifetimes(
                 command.AccessTokenLifetimeMinutes,
                 command.IdentityTokenLifetimeMinutes,
-                command.RefreshTokenLifetimeMinutes));
+                command.RefreshTokenLifetimeMinutes),
+            command.UploadSessionLifetimeHours);
 
         await applicationManager.UpdateAsync(app, descriptor, cancellationToken);
         return Unit.Value;

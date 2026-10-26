@@ -102,9 +102,7 @@ public class AttachOnlyEngagementTests(IntegrationTestFixture fixture)
                 totalValue: inspectedTotal.Value,
                 summaryDetail: null,
                 summaryPreviousProgressPct: 0m,
-                summaryPreviousValue: 0m,
                 summaryCurrentProgressPct: inspectedCurrent / inspectedTotal * 100m,
-                summaryCurrentValue: inspectedCurrent,
                 remark: null));
 
         return ProcessAsync(a);

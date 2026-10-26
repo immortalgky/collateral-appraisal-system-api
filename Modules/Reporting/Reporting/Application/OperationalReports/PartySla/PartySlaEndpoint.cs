@@ -51,6 +51,7 @@ public sealed class PartySlaEndpoint : ICarterModule
 
                     var result = await evaluator.EvaluateAsync(
                         appraisal.CorrelationId,
+                        appraisalId,
                         appraisal.WorkflowDefinitionId,
                         companyId: null,       // stage budgets are company-agnostic (seeded without CompanyId)
                         appraisal.LoanType,

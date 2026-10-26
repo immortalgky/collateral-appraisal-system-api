@@ -21,12 +21,13 @@ public static class ClientPermissionMapper
         new(StringComparer.OrdinalIgnoreCase) { "spa" };
 
     /// <summary>
-    /// A token lifetime an admin may override for a single client. OpenIddict reads these settings
-    /// straight off the application row and parses them with TimeSpan.Parse; the value it cannot
-    /// parse is ignored silently in favour of the server-wide default, which is why
-    /// <see cref="Min"/>/<see cref="Max"/> are enforced before anything is stored.
+    /// A lifetime an admin may override for a single client (a token lifetime, or the upload-session
+    /// lifetime). OpenIddict reads the token settings straight off the application row and parses
+    /// them with TimeSpan.Parse; the value it cannot parse is ignored silently in favour of the
+    /// server-wide default, which is why <see cref="Min"/>/<see cref="Max"/> are enforced before
+    /// anything is stored.
     /// </summary>
-    public sealed record TokenLifetimeKind(string SettingKey, TimeSpan Min, TimeSpan Max)
+    public sealed record ClientLifetimeKind(string SettingKey, TimeSpan Min, TimeSpan Max)
     {
         public int MinMinutes => (int)Min.TotalMinutes;
         public int MaxMinutes => (int)Max.TotalMinutes;
@@ -40,14 +41,23 @@ public static class ClientPermissionMapper
     /// so they get a much tighter ceiling than the refresh token — which is a reference token, is
     /// rotated on every use, and is checked against the database each time.
     /// </summary>
-    public static readonly TokenLifetimeKind AccessTokenLifetime =
+    public static readonly ClientLifetimeKind AccessTokenLifetime =
         new(Consts.Settings.TokenLifetimes.AccessToken, MinLifetime, TimeSpan.FromHours(24));
 
-    public static readonly TokenLifetimeKind IdentityTokenLifetime =
+    public static readonly ClientLifetimeKind IdentityTokenLifetime =
         new(Consts.Settings.TokenLifetimes.IdentityToken, MinLifetime, TimeSpan.FromHours(24));
 
-    public static readonly TokenLifetimeKind RefreshTokenLifetime =
+    public static readonly ClientLifetimeKind RefreshTokenLifetime =
         new(Consts.Settings.TokenLifetimes.RefreshToken, MinLifetime, TimeSpan.FromDays(30));
+
+    /// <summary>
+    /// How long an upload session created by this client (POST /api/v1/upload-sessions) stays open.
+    /// Not an OpenIddict setting: the key is our own and OpenIddict stores it without interpreting it.
+    /// The admin screen and API work in whole hours; the stored value is a TimeSpan string like the
+    /// token lifetimes above.
+    /// </summary>
+    public static readonly ClientLifetimeKind UploadSessionLifetime =
+        new("cas:upload_session_lifetime", TimeSpan.FromHours(1), TimeSpan.FromDays(30));
 
     /// <summary>Normalises "public"/"confidential" (any case) to the OpenIddict constant.</summary>
     public static string NormalizeClientType(string clientType) =>
@@ -123,11 +133,13 @@ public static class ClientPermissionMapper
         IEnumerable<string> scopes,
         IReadOnlyCollection<Uri> redirectUris,
         IReadOnlyCollection<Uri> postLogoutRedirectUris,
-        ClientTokenLifetimes tokenLifetimes)
+        ClientTokenLifetimes tokenLifetimes,
+        int? uploadSessionLifetimeHours)
     {
         ApplyLifetime(descriptor, AccessTokenLifetime, tokenLifetimes.AccessTokenLifetimeMinutes);
         ApplyLifetime(descriptor, IdentityTokenLifetime, tokenLifetimes.IdentityTokenLifetimeMinutes);
         ApplyLifetime(descriptor, RefreshTokenLifetime, tokenLifetimes.RefreshTokenLifetimeMinutes);
+        ApplyLifetime(descriptor, UploadSessionLifetime, uploadSessionLifetimeHours * 60L);
 
         descriptor.RedirectUris.Clear();
         descriptor.RedirectUris.UnionWith(redirectUris);
@@ -153,7 +165,7 @@ public static class ClientPermissionMapper
     /// does nothing.
     /// </summary>
     private static void ApplyLifetime(
-        OpenIddictApplicationDescriptor descriptor, TokenLifetimeKind kind, int? minutes)
+        OpenIddictApplicationDescriptor descriptor, ClientLifetimeKind kind, long? minutes)
     {
         if (minutes is null)
             descriptor.Settings.Remove(kind.SettingKey);
@@ -177,6 +189,7 @@ public static class ClientPermissionMapper
             AccessTokenLifetimeMinutes = ReadLifetimeMinutes(settings, AccessTokenLifetime),
             IdentityTokenLifetimeMinutes = ReadLifetimeMinutes(settings, IdentityTokenLifetime),
             RefreshTokenLifetimeMinutes = ReadLifetimeMinutes(settings, RefreshTokenLifetime),
+            UploadSessionLifetimeHours = (int?)ReadUploadSessionLifetime(settings)?.TotalHours,
             Id = await manager.GetIdAsync(application, cancellationToken) ?? "",
             ClientId = clientId,
             DisplayName = await manager.GetDisplayNameAsync(application, cancellationToken) ?? "",
@@ -206,7 +219,7 @@ public static class ClientPermissionMapper
     /// </para>
     /// </summary>
     private static int? ReadLifetimeMinutes(
-        IReadOnlyDictionary<string, string> settings, TokenLifetimeKind kind)
+        IReadOnlyDictionary<string, string> settings, ClientLifetimeKind kind)
     {
         if (!settings.TryGetValue(kind.SettingKey, out var setting)
             || !TimeSpan.TryParse(setting, CultureInfo.InvariantCulture, out var lifetime)
@@ -215,4 +228,33 @@ public static class ClientPermissionMapper
 
         return (int)Math.Round(lifetime.TotalMinutes, MidpointRounding.AwayFromZero);
     }
+
+    /// <summary>
+    /// The upload-session lifetime in force, or null for "use the server default". Anything the admin
+    /// API would not have accepted — outside the kind's bounds or not a whole number of hours — reads
+    /// as null, so a value written straight into the row can neither be echoed back to the screen
+    /// (where re-saving would 400 or silently re-round it) nor stretch a session past the ceiling.
+    /// Shared with the cross-module lookup so the screen and the consumer cannot disagree.
+    /// <para>
+    /// Only the invariant "c" form with a time part is read: TimeSpan.Parse takes a bare "24" as 24
+    /// days, which no admin screen write can produce but a hand-edited row could.
+    /// </para>
+    /// </summary>
+    public static TimeSpan? ReadUploadSessionLifetime(IReadOnlyDictionary<string, string> settings) =>
+        settings.TryGetValue(UploadSessionLifetime.SettingKey, out var setting)
+        && setting.Contains(':')
+        && TimeSpan.TryParseExact(setting, "c", CultureInfo.InvariantCulture, out var lifetime)
+        && IsValidUploadSessionLifetime(lifetime)
+            ? lifetime
+            : null;
+
+    /// <summary>
+    /// Both this reader and the admin validator derive their bounds from
+    /// <see cref="UploadSessionLifetime"/> Min/Max; the reader additionally rejects stored strings
+    /// that are not a whole number of hours, which the int-hours API cannot produce.
+    /// </summary>
+    private static bool IsValidUploadSessionLifetime(TimeSpan lifetime) =>
+        lifetime >= UploadSessionLifetime.Min
+        && lifetime <= UploadSessionLifetime.Max
+        && lifetime.Ticks % TimeSpan.TicksPerHour == 0;
 }

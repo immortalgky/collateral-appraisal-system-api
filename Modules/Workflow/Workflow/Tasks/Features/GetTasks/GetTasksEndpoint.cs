@@ -27,6 +27,12 @@ public class GetTasksEndpoint : ICarterModule
                     [FromQuery] string? sortBy,
                     [FromQuery] string? sortDir,
                     [FromQuery] string? slaStatus,
+                    [FromQuery] string? search,
+                    [FromQuery] DateTime? appointmentDateFrom,
+                    [FromQuery] DateTime? appointmentDateTo,
+                    [FromQuery] DateTime? requestedAtFrom,
+                    [FromQuery] DateTime? requestedAtTo,
+                    [FromQuery] string? taskStatusBucket,
                     ISender sender,
                     CancellationToken cancellationToken
                 ) =>
@@ -47,7 +53,13 @@ public class GetTasksEndpoint : ICarterModule
                         dateTo,
                         sortBy,
                         sortDir,
-                        slaStatus
+                        slaStatus,
+                        search,
+                        appointmentDateFrom,
+                        appointmentDateTo,
+                        requestedAtFrom,
+                        requestedAtTo,
+                        taskStatusBucket
                     );
 
                     var query = new GetTasksQuery(pagination, filter);

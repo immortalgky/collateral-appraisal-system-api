@@ -4,6 +4,7 @@ using Appraisal.Infrastructure;
 using Dapper;
 using Shared.Data;
 using Shared.Data.Outbox;
+using Shared.Extensions;
 using Shared.Identity;
 using Shared.Messaging.Events;
 
@@ -35,6 +36,10 @@ public class SendQuotationCommandHandler(
         if (quotation.Status != "Draft")
             throw new BadRequestException(
                 $"Cannot send quotation in status '{quotation.Status}'. Only Draft quotations can be sent.");
+
+        // Segment Coverage: every invited company must be able to appraise every Banking Segment in the
+        // quotation. All-or-nothing — one non-covering company blocks the whole send.
+        await EnsureSegmentCoverageAsync(quotation);
 
         // v7: every appraisal that has any uploadable documents must have at least one shared document picked.
         // Appraisals whose request has no documents at all are excluded — nothing to pick.
@@ -127,6 +132,52 @@ public class SendQuotationCommandHandler(
             quotation.Status,
             quotation.TotalAppraisals,
             quotation.TotalCompaniesInvited);
+    }
+
+    private async Task EnsureSegmentCoverageAsync(QuotationRequest quotation)
+    {
+        var appraisalIds = quotation.Appraisals.Select(a => a.AppraisalId).ToArray();
+        var companyIds = quotation.Invitations.Select(i => i.CompanyId).ToArray();
+        if (appraisalIds.Length == 0 || companyIds.Length == 0)
+            return; // Send() reports the missing appraisal / invitation itself.
+
+        var connection = connectionFactory.GetOpenConnection();
+
+        var segmentSet = await SegmentCoverage.LoadAppraisalSegmentSetAsync(connection, appraisalIds);
+
+        if (segmentSet.Count == 0)
+            return;
+
+        var companies = (await connection.QueryAsync<(Guid Id, string? Name, string? LoanTypes)>(
+                "SELECT c.Id, c.Name, c.LoanTypes FROM [auth].[Companies] c WHERE c.Id IN @CompanyIds",
+                new { CompanyIds = companyIds }))
+            .ToDictionary(r => r.Id);
+
+        var gaps = companyIds
+            .Select(id =>
+            {
+                var company = companies.GetValueOrDefault(id);
+                var loanTypes = company.LoanTypes.ParseJsonStringArray();
+                return new
+                {
+                    companyName = company.Name ?? id.ToString(),
+                    missingSegments = SegmentCoverage.MissingSegments(segmentSet, loanTypes)
+                };
+            })
+            .Where(g => g.missingSegments.Count > 0)
+            .OrderBy(g => g.companyName)
+            .ToList();
+
+        if (gaps.Count == 0)
+            return;
+
+        var detail = string.Join("; ", gaps.Select(g => $"{g.companyName} (missing {string.Join(", ", g.missingSegments)})"));
+        throw new BadRequestException(
+            "Cannot send quotation: some invited companies do not cover every banking segment in this quotation "
+            + $"({string.Join(", ", segmentSet)}). Remove those companies or the appraisals outside their segments. "
+            + detail,
+            null,
+            SegmentCoverage.MismatchCode);
     }
 
     /// <summary>

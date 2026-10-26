@@ -22,6 +22,7 @@ public record AppraisalEvaluationListItem(
     Guid      AppraisalId,
     string?   AppraisalNumber,
     string?   CustomerName,
+    string?   InternalFollowupStaffName,
     DateTime? ReportReceivedDate,
     string?   AppraisalStatus,
     string?   ExternalAppraiserName,
@@ -40,7 +41,7 @@ public class GetEvaluationListQueryHandler(ISqlConnectionFactory connectionFacto
 {
     private static readonly HashSet<string> AllowedSortFields = new(StringComparer.OrdinalIgnoreCase)
     {
-        "AppraisalNumber", "CustomerName", "ReportReceivedDate", "AppraisalStatus",
+        "AppraisalNumber", "CustomerName", "InternalFollowupStaffName", "ReportReceivedDate", "AppraisalStatus",
         "AppraiserCompanyName", "AppraisalValue", "EvaluationStatus"
     };
 
@@ -49,7 +50,7 @@ public class GetEvaluationListQueryHandler(ISqlConnectionFactory connectionFacto
         input.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_").Replace("[", "\\[");
 
     private const string BaseQuery =
-        "SELECT AppraisalId, AppraisalNumber, CustomerName, ReportReceivedDate, " +
+        "SELECT AppraisalId, AppraisalNumber, CustomerName, InternalFollowupStaffName, ReportReceivedDate, " +
         "AppraisalStatus, ExternalAppraiserName, AssigneeCompanyId, AppraiserCompanyName, " +
         "AppraiserCompanyNameLocal, " +
         "AppraisalValue, EvaluationId, EvaluationStatus, TotalScore " +

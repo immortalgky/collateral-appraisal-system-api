@@ -143,7 +143,7 @@ public class ReappraisalInitiatedIntegrationEventHandler(
         // Kept on the request: staff submit later, and Submit hands it to Appraisal.GroupTag. The book and
         // AS400's collateral id are system fields — not ExternalCaseKey/ExternalSystem, which name a case
         // in an external system and drive the LOS webhooks.
-        request.MarkAsPeriodicalReappraisal(msg.GroupNumber, book, msg.CollateralId);
+        request.MarkAsPeriodicalReappraisal(msg.GroupNumber, book, msg.CollateralId, msg.AutoUpdate);
 
         // A unit's prior value is its own price in the project appraisal, not the whole project's.
         if (unit is not null)

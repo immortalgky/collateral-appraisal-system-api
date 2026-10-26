@@ -14,7 +14,8 @@ public record UpdateClientRequest(
     List<string> Scopes,
     int? AccessTokenLifetimeMinutes,
     int? IdentityTokenLifetimeMinutes,
-    int? RefreshTokenLifetimeMinutes
+    int? RefreshTokenLifetimeMinutes,
+    int? UploadSessionLifetimeHours
 );
 
 public class UpdateClientEndpoint : ICarterModule
@@ -36,7 +37,8 @@ public class UpdateClientEndpoint : ICarterModule
                     request.Scopes ?? [],
                     request.AccessTokenLifetimeMinutes,
                     request.IdentityTokenLifetimeMinutes,
-                    request.RefreshTokenLifetimeMinutes);
+                    request.RefreshTokenLifetimeMinutes,
+                    request.UploadSessionLifetimeHours);
 
                 await sender.Send(command, cancellationToken);
                 return Results.NoContent();

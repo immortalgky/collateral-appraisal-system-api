@@ -208,7 +208,8 @@ public class DocumentService(
 
         // Create a real UploadSession row first — Document.UploadSessionId is a NON-nullable FK
         // to UploadSessions with DeleteBehavior.Restrict, so the session must exist before the
-        // Document row is inserted. Mirror the same expiry logic as CreateUploadSessionCommandHandler.
+        // Document row is inserted. Expires after the config default hours,
+        // with no per-client override.
         var expiresAt = dateTimeProvider.ApplicationNow
             .AddHours(_fileStorageConfiguration.Cleanup.TempSessionExpirationHours);
         var session = UploadSession.Create(expiresAt, userAgent: null, ipAddress: null);

@@ -13,9 +13,9 @@ public class DownloadDocumentIntegrationEndpoint : ICarterModule
     {
         app.MapGet("/api/v1/documents/{id:guid}/download", async (
             Guid id,
-            [Microsoft.AspNetCore.Mvc.FromQuery] bool download,
             ISender sender,
-            CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken,
+            [Microsoft.AspNetCore.Mvc.FromQuery] bool download = false) =>
         {
             var result = await sender.Send(new DownloadDocumentQuery(id, download), cancellationToken);
 

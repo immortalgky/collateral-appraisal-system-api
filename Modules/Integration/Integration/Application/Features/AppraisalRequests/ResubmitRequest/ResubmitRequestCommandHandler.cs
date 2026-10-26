@@ -79,8 +79,8 @@ public class ResubmitRequestCommandHandler(
         if (command.Properties is null)
             throw new BadRequestException("Properties is required.");
 
-        // The request being resubmitted may be a periodical reappraisal draft: its recorded book number is a prior
-        // that needs no CAS lookup. (Create has no such request.)
+        // The request being resubmitted may be locked (submitted, or an Initiate draft): it keeps its stored prior, and
+        // the number LOS sends is only compared with it, so no CAS lookup. (Create has no such request.)
         var stored = await updateRequestService.GetByIdWithDocumentsAsync(command.RequestId, ct);
 
         var resubmitData = new ResubmitRequestData(
@@ -91,12 +91,13 @@ public class ResubmitRequestCommandHandler(
             command.Creator,
             command.Priority,
             command.IsPma.Value,
-            // A submitted request's prior is locked and only compared (see UpdateRequestService), so the number is
-            // left as LOS sent it: resolving it would look it up in CAS and reject a prior that has since been deleted.
-            stored?.HasBeenSubmitted() == true
+            // A locked request's prior (submitted, or created by Initiate) is only compared (see UpdateRequestService),
+            // so the number is left as LOS sent it: resolving it would look it up in CAS and reject a prior that has
+            // since been deleted.
+            stored?.ArePurposeAndPriorLocked() == true
                 ? command.Detail
                 : await PriorAppraisalNumberResolver.ResolveAsync(
-                    appraisalLookup, command.Purpose, command.Detail, ct, stored?.ReappraisalBookNumber),
+                    appraisalLookup, command.Purpose, command.Detail, ct),   // not locked: the request has no book of its own
             command.Customers,
             command.Properties,
             command.Titles,

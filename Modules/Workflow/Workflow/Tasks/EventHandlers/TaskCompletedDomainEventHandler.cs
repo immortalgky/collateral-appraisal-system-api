@@ -70,6 +70,19 @@ public class TaskCompletedDomainEventHandler(
             "Moved PendingTask {TaskId} to CompletedTask for CorrelationId {CorrelationId}",
             pendingTask.Id, notification.CorrelationId);
 
+        // Other members of the pool still show this task until they refetch. This handler runs inside the
+        // CompleteActivity transaction (TransactionalBehavior), so go through the outbox: it is delivered
+        // only after commit, when the PendingTask removal is visible to the refetch.
+        if (originalAssignedType == "2")
+        {
+            outbox.Publish(new PoolTaskCompletedIntegrationEvent
+            {
+                PoolGroup = originalAssignedTo,
+                TaskId = pendingTask.Id,
+                CompletedBy = completedBy ?? "system"
+            }, notification.CorrelationId.ToString());
+        }
+
         await publishEndpoint.Publish(new TaskCompletedIntegrationEvent
         {
             CorrelationId = notification.CorrelationId,

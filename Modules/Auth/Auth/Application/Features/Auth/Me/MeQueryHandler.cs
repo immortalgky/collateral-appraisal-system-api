@@ -61,6 +61,7 @@ public class MeQueryHandler(
             user.Email,
             user.FirstName,
             user.LastName,
+            user.PhoneNumber,
             user.AvatarUrl,
             user.Position,
             user.Department,

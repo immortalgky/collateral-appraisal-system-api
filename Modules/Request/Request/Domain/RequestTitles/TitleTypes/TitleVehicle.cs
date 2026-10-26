@@ -23,6 +23,8 @@ public sealed class TitleVehicle : RequestTitle
         VehicleInfo = data.VehicleInfo;
     }
 
+    protected override bool RequiresTitleAddress => false;
+
     public override void Validate()
     {
         base.Validate();

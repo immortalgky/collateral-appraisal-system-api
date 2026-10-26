@@ -36,7 +36,7 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
         builder.OwnsOne(p => p.TitleAddress, titleAddress =>
         {
             titleAddress.Property(p => p.HouseNumber)
-                .HasMaxLength(30)
+                .HasMaxLength(50)
                 .HasColumnName("HouseNumber");
 
             titleAddress.Property(p => p.ProjectName)
@@ -81,7 +81,7 @@ public class RequestTitleConfiguration : IEntityTypeConfiguration<RequestTitle>
         builder.OwnsOne(p => p.DopaAddress, dopaAddress =>
         {
             dopaAddress.Property(p => p.HouseNumber)
-                .HasMaxLength(30)
+                .HasMaxLength(50)
                 .HasColumnName("DopaHouseNumber");
 
             dopaAddress.Property(p => p.ProjectName)
@@ -680,8 +680,7 @@ public class TitleMachineConfiguration : IEntityTypeConfiguration<TitleMachine>
         builder.OwnsOne(p => p.MachineInfo, machinery =>
         {
             machinery.Property(p => p.RegistrationStatus)
-                .HasColumnName("RegistrationStatus")
-                .HasDefaultValue(false);
+                .HasColumnName("RegistrationStatus");
 
             machinery.Property(p => p.RegistrationNumber)
                 .HasMaxLength(50)

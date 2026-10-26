@@ -50,6 +50,8 @@ internal static class ConstructionSectionLoader
             SELECT
                 ci.Id            AS ConstructionInspectionId,
                 ci.TotalValue    AS TotalValue,
+                ci.SummaryPreviousValue,
+                ci.SummaryCurrentValue,
                 ap.SequenceNumber,
                 bad.PropertyName AS BuildingName
             FROM appraisal.ConstructionInspections ci
@@ -175,8 +177,9 @@ internal static class ConstructionSectionLoader
                 TotalCurrentPct   = items.Count > 0
                     ? groups.Sum(g => g.CurrentPct)
                     : null,
-                TotalPreviousValue = items.Count > 0 ? items.Sum(d => d.PreviousPropertyValue) : null,
-                TotalCurrentValue  = items.Count > 0 ? items.Sum(d => d.CurrentPropertyValue)  : null,
+                // The inspection's stored figures, not the row sums: the current one may be the inspector's override.
+                TotalPreviousValue = items.Count > 0 ? ci.SummaryPreviousValue : null,
+                TotalCurrentValue  = items.Count > 0 ? ci.SummaryCurrentValue  : null,
             };
         }).ToList();
 
@@ -189,6 +192,8 @@ internal static class ConstructionSectionLoader
     {
         public Guid ConstructionInspectionId { get; init; }
         public decimal TotalValue { get; init; }
+        public decimal? SummaryPreviousValue { get; init; }
+        public decimal? SummaryCurrentValue { get; init; }
         public int SequenceNumber { get; init; }
         public string? BuildingName { get; init; }
     }

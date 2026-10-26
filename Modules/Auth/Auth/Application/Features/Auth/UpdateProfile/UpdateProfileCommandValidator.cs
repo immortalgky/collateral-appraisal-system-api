@@ -13,6 +13,9 @@ public class UpdateProfileCommandValidator : AbstractValidator<UpdateProfileComm
         RuleFor(x => x.LastName)
             .NotEmpty().WithMessage("Last name is required.")
             .MaximumLength(100).WithMessage("Last name cannot exceed 100 characters.");
+        RuleFor(x => x.PhoneNumber)
+            .MaximumLength(40).WithMessage("Phone number cannot exceed 40 characters.")
+            .When(x => x.PhoneNumber != null);
         RuleFor(x => x.AvatarUrl)
             .MaximumLength(500).WithMessage("Avatar URL cannot exceed 500 characters.")
             .When(x => x.AvatarUrl != null);

@@ -23,7 +23,11 @@ public class GetWebhookDeliveryQueryHandler(ISqlConnectionFactory sqlConnectionF
                 d.LastStatusCode,
                 d.LastError,
                 d.DeliveredAt,
-                d.CreatedAt
+                d.CreatedAt,
+                s.CallbackUrl,
+                s.HttpMethod,
+                s.AuthType,
+                s.EventType AS SubscriptionEventType
             FROM integration.WebhookDeliveries d
             INNER JOIN integration.WebhookSubscriptions s ON s.Id = d.SubscriptionId
             WHERE d.Id = @Id
@@ -32,6 +36,10 @@ public class GetWebhookDeliveryQueryHandler(ISqlConnectionFactory sqlConnectionF
         var parameters = new DynamicParameters();
         parameters.Add("Id", request.Id);
 
-        return await sqlConnectionFactory.QueryFirstOrDefaultAsync<WebhookDeliveryDetailDto>(sql, parameters);
+        var detail = await sqlConnectionFactory.QueryFirstOrDefaultAsync<WebhookDeliveryDetailDto>(sql, parameters);
+
+        return detail is null
+            ? null
+            : detail with { CallbackUrl = WebhookCallbackUrl.ToDisplay(detail.CallbackUrl) };
     }
 }

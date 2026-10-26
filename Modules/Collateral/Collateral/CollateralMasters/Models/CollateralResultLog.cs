@@ -1,10 +1,11 @@
 namespace Collateral.CollateralMasters.Models;
 
 /// <summary>
-/// Sent-ledger for the outbound Collateral Result interface. One row per appraisal that has been
-/// shipped to the host (AS400). The export job selects completed appraisals NOT present here, so a
-/// collateral completing AFTER a run is picked up by the next run (late-completion safety). The
-/// unique index on AppraisalId is the idempotency guard against double-sends.
+/// Sent-ledger for the outbound Collateral Result interface. One row per row shipped to the host (AS400):
+/// usually one per appraisal, one per matched unit for a block project. The export view selects completed
+/// appraisals with NO row here (a NOT EXISTS on AppraisalId), so a collateral completing AFTER a run is picked
+/// up by the next run, and that NOT EXISTS is what stops a resend. The unique index on (AppraisalId,
+/// CollateralId) is only the row key that lets a block hold one row per unit.
 /// </summary>
 public class CollateralResultLog
 {

@@ -1,9 +1,10 @@
+using System.Security.Claims;
 using Auth.Application.Services;
 using Auth.Domain.Auditing;
 using Auth.Infrastructure.Session;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
-using IdentitySignInResult = Microsoft.AspNetCore.Identity.SignInResult;
+using Microsoft.AspNetCore.Identity;
 
 namespace Auth.Pages.Account;
 
@@ -17,6 +18,7 @@ public class TwoFactor(
     SignInManager<ApplicationUser> signInManager,
     UserManager<ApplicationUser> userManager,
     LoginCompletion completion,
+    TwoFactorService twoFactor,
     IAuthAuditWriter auditWriter,
     BffUrls urls,
     ILogger<TwoFactor> logger)
@@ -50,46 +52,58 @@ public class TwoFactor(
         if (await RefuseIfBlockedAsync(user, completion, auditWriter) is { } blocked) return blocked;
         if (await ToEnrolmentIfNoKeyAsync(user) is { } enrol) return enrol;
 
-        var result = Recovery ? await SignInWithRecoveryCodeAsync(user) : await SignInWithAuthenticatorCodeAsync();
-        if (result.Succeeded)
+        // A good authenticator code is "Accepted" here too: the one outcome type serves both second factors.
+        var outcome = Recovery ? await SignInWithRecoveryCodeAsync(user) : await SignInWithAuthenticatorCodeAsync();
+        switch (outcome)
         {
-            if (Recovery)
-                await auditWriter.RecordAuthEventAsync(AuditAction.RecoveryCodeUsed, user.Id, user.UserName,
-                    new { left = await userManager.CountRecoveryCodesAsync(user) });
-            else
-                await completion.RememberDeviceAsync(user);
+            case SecondFactorOutcome.Accepted:
+                if (Recovery)
+                    await auditWriter.RecordAuthEventAsync(AuditAction.RecoveryCodeUsed, user.Id, user.UserName,
+                        new { left = await userManager.CountRecoveryCodesAsync(user) });
+                else
+                    await completion.RememberDeviceAsync(user);
 
-            await completion.CompleteAsync(user, Recovery ? "recovery" : "totp");
-            return Redirect(GetSafeRedirectUrl(logger, user));
+                await completion.CompleteAsync(user, Recovery ? "recovery" : "totp");
+                return Redirect(GetSafeRedirectUrl(logger, user));
+            case SecondFactorOutcome.SaveFailed:
+                await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, user.UserName, new { reason = "SaveFailed" });
+                Error = T2.CodeSaveFailedError;
+                return Page();
+            default:
+                // Deliberate: when Identity refused to save a wrong authenticator code's failed-attempt count, this audit
+                // row's save flushes it, which is what keeps wrong codes counted (and the lockout working) on such
+                // accounts. Discarding it here would allow unlimited guesses.
+                var lockedOut = outcome == SecondFactorOutcome.LockedOut;
+                await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, user.UserName,
+                    new { reason = lockedOut ? "LockedOut" : "InvalidTwoFactorCode" });
+                Error = lockedOut ? T.LockedOutError : T2.InvalidCodeError;
+                return Page();
         }
-
-        await auditWriter.RecordAuthEventAsync(AuditAction.LoginFailed, user.Id, user.UserName,
-            new { reason = result.IsLockedOut ? "LockedOut" : "InvalidTwoFactorCode" });
-        Error = result.IsLockedOut ? T.LockedOutError : T2.InvalidCodeError;
-        return Page();
     }
 
     // Wrong codes count toward the same lockout as wrong passwords; Identity does that itself here.
-    private Task<IdentitySignInResult> SignInWithAuthenticatorCodeAsync() =>
-        signInManager.TwoFactorAuthenticatorSignInAsync(
-            TwoFactorService.NormalizeCode(Code), isPersistent: false, rememberClient: false);
-
-    // Identity's recovery sign-in neither checks nor feeds the lockout, so both are done here.
-    private async Task<IdentitySignInResult> SignInWithRecoveryCodeAsync(ApplicationUser user)
+    private async Task<SecondFactorOutcome> SignInWithAuthenticatorCodeAsync()
     {
-        if (await userManager.IsLockedOutAsync(user))
-            return IdentitySignInResult.LockedOut;
+        var result = await signInManager.TwoFactorAuthenticatorSignInAsync(
+            TwoFactorService.NormalizeCode(Code), isPersistent: false, rememberClient: false);
+        return result.Succeeded ? SecondFactorOutcome.Accepted
+            : result.IsLockedOut ? SecondFactorOutcome.LockedOut
+            : SecondFactorOutcome.Invalid;
+    }
 
-        // Identity throws on an empty code instead of refusing it.
-        var typed = TwoFactorService.NormalizeRecoveryCode(Code);
-        var result = typed.Length == 0
-            ? IdentitySignInResult.Failed
-            : await signInManager.TwoFactorRecoveryCodeSignInAsync(typed);
-        if (result.Succeeded) return result;
+    // The redeem and the lockout accounting are TwoFactorService's (shared with the profile's new-device endpoint); what
+    // is left here is the lockout refusal and what Identity's own recovery sign-in does after a good code: end the
+    // parked-user cookie and sign in.
+    private async Task<SecondFactorOutcome> SignInWithRecoveryCodeAsync(ApplicationUser user)
+    {
+        if (await userManager.IsLockedOutAsync(user)) return SecondFactorOutcome.LockedOut;
 
-        // This attempt may be the one that locks the account: say so now, as the next attempt would.
-        await userManager.AccessFailedAsync(user);
-        return await userManager.IsLockedOutAsync(user) ? IdentitySignInResult.LockedOut : result;
+        var outcome = await twoFactor.TryRedeemRecoveryCodeAsync(user, Code);
+        if (outcome != SecondFactorOutcome.Accepted) return outcome;
+
+        await ClearParkedAsync();
+        await signInManager.SignInWithClaimsAsync(user, isPersistent: false, [new Claim("amr", "mfa")]);
+        return outcome;
     }
 
     // A user with no two-factor has no key to check a code against. If the policy makes them enrol, that is the page for

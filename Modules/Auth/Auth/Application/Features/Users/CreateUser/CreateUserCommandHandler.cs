@@ -35,6 +35,7 @@ public class CreateUserCommandHandler(
             Email: command.Email,
             FirstName: command.FirstName,
             LastName: command.LastName,
+            PhoneNumber: command.PhoneNumber,
             AvatarUrl: null,
             Position: command.Position,
             Department: command.Department,

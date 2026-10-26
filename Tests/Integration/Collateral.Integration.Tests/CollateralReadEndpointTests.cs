@@ -12,6 +12,7 @@ using Integration.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using AppraisalAggregate = Appraisal.Domain.Appraisals.Appraisal;
+using CollateralMasterEntity = Collateral.CollateralMasters.Models.CollateralMaster;
 
 namespace Integration.Collateral.Integration.Tests;
 
@@ -340,5 +341,76 @@ public class CollateralReadEndpointTests(IntegrationTestFixture fixture)
         Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
         // Should not be 401 (we are authenticated via bypass handler)
         Assert.NotEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // ------------------------------------------------------------------
+    // Lookup — condo stored as an ALIAS of another collateral (not resolved)
+    // ------------------------------------------------------------------
+    private async Task<(Guid ParentId, string Reg)> SeedCondoAliasAsync()
+    {
+        var parentId = await SeedLandMasterAsync(
+            "LO-CAL", "Bangkok", "Bangrak", "Silom", $"READ-CA-{Guid.NewGuid():N}".Substring(0, 25));
+        var reg = $"CA-{Guid.NewGuid():N}".Substring(0, 20);
+
+        using var scope = CreateScope();
+        var db = GetCollateralDbContext(scope);
+        db.CollateralMasters.Add(CollateralMasterEntity.CreateCondoAlias(
+            parentMasterId: parentId, ownerName: "Owner", landOfficeCode: null,
+            condoRegistrationNumber: reg, buildingNumber: "A", floorNumber: "7", roomNumber: "701",
+            province: "Bangkok", district: "Bangrak", subDistrict: "Silom", condoName: null));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        return (parentId, reg);
+    }
+
+    private static string CondoUrl(string reg) =>
+        $"/collateral-masters/lookup?type=U&condoRegistrationNumber={reg}&building=A&floor=7&unit=701"
+        + "&province=Bangkok&district=Bangrak&subDistrict=Silom";
+
+    // A condo alias's parent is a different collateral, so the lookup deliberately does not follow it.
+    [Fact]
+    public async Task Lookup_CondoAlias_IsNotResolved_Returns404()
+    {
+        var (_, reg) = await SeedCondoAliasAsync();
+
+        var response = await _client.GetAsync(CondoUrl(reg), TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    // ------------------------------------------------------------------
+    // Lookup — soft-deleted alias title detail is not listed in AliasTitles
+    // ------------------------------------------------------------------
+    [Fact]
+    public async Task Lookup_Land_AliasTitlesExcludeSoftDeletedLandDetails()
+    {
+        var titleNo = $"READ-AL-{Guid.NewGuid():N}".Substring(0, 25);
+        var masterId = await SeedLandMasterAsync("LO-AL", "Bangkok", "Bangrak", "Silom", titleNo);
+        var liveAlias = $"AL-LIVE-{Guid.NewGuid():N}".Substring(0, 20);
+        var deadAlias = $"AL-DEAD-{Guid.NewGuid():N}".Substring(0, 20);
+
+        using (var scope = CreateScope())
+        {
+            var db = GetCollateralDbContext(scope);
+            foreach (var t in new[] { liveAlias, deadAlias })
+                db.CollateralMasters.Add(CollateralMasterEntity.CreateLandAlias(
+                    parentMasterId: masterId, landOfficeCode: "LO-AL",
+                    province: "Bangkok", district: "Bangrak", subDistrict: "Silom",
+                    titleType: "Chanote", titleNumber: t,
+                    surveyNumber: null, landParcelNumber: null, rawang: null));
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE collateral.LandDetails SET IsDeleted = 1 WHERE TitleNumber = {deadAlias}",
+                TestContext.Current.CancellationToken);
+        }
+
+        var response = await _client.GetAsync(
+            $"/collateral-masters/lookup?type=L&province=Bangkok&district=Bangrak&subDistrict=Silom&titleNumber={titleNo}",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var root = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).RootElement;
+        var titles = root.GetProperty("landDetail").GetProperty("aliasTitles").EnumerateArray()
+            .Select(a => a.GetProperty("titleNumber").GetString()).ToList();
+        Assert.Equal([liveAlias], titles);
     }
 }

@@ -134,28 +134,4 @@ public class PriorAppraisalNumberResolverTests
         resolved!.PrevAppraisalId.Should().Be(priorId);
         await lookup.Received(1).ResolvePriorAppraisalByNumberAsync("62A00645", Arg.Any<CancellationToken>());
     }
-
-    [Theory]
-    [InlineData("62A00645")]
-    [InlineData(" b62a00645 ")]
-    public async Task The_recorded_book_of_a_reappraisal_draft_is_kept_as_a_number_without_a_lookup(string sent)
-    {
-        var lookup = Lookup(null);
-
-        var resolved = await PriorAppraisalNumberResolver.ResolveAsync(
-            lookup, "03", Detail(number: sent), TestContext.Current.CancellationToken, recordedBookNumber: "62A00645");
-
-        resolved!.PrevAppraisalId.Should().BeNull();
-        resolved.PrevAppraisalNumber.Should().Be("62A00645");
-        await lookup.DidNotReceive().ResolvePriorAppraisalByNumberAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task A_number_that_is_not_the_recorded_book_is_still_looked_up()
-    {
-        var act = () => PriorAppraisalNumberResolver.ResolveAsync(
-            Lookup(null), "03", Detail(number: "62A99999"), TestContext.Current.CancellationToken, recordedBookNumber: "62A00645");
-
-        (await act.Should().ThrowAsync<BadRequestException>()).WithMessage("*62A99999*");
-    }
 }

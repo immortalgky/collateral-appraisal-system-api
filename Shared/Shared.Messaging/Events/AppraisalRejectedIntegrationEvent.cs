@@ -4,8 +4,8 @@ namespace Shared.Messaging.Events;
 /// Published by the Workflow module when <c>ApprovalActivity</c> resolves with decision == "reject"
 /// (after any <c>decisionConditions</c> remap). Symmetric to <see cref="AppraisalApprovedIntegrationEvent"/>.
 /// Consumers:
-/// - Collateral module: spools a <c>PendingCollateralResult</c> row so the next export run emits
-///   a status-R record to the AS400 Collateral Result interface.
+/// - Collateral module: spools a <c>PendingCollateralResult</c> row. The Collateral Result export no
+///   longer sends rejected appraisals (R records), so the row is kept with SentAt NULL.
 /// </summary>
 public record AppraisalRejectedIntegrationEvent : IntegrationEvent
 {

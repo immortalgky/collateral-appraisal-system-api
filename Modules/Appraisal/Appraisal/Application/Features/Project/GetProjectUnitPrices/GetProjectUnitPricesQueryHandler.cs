@@ -27,9 +27,9 @@ public class GetProjectUnitPricesQueryHandler(
             from unit in dbContext.ProjectUnits
             join price in dbContext.ProjectUnitPrices on unit.Id equals price.ProjectUnitId into pricesGroup
             from price in pricesGroup.DefaultIfEmpty()
-            // Exclude sold units — the unit-price appraisal covers remaining (unsold) inventory
-            // only, mirroring the Unit Listing. Sold units stay editable in Block Unit Maintenance.
-            where unit.ProjectId == projectId.Value && !unit.IsSold
+            // Every unit is listed, sold or not (IsSold is returned so the grid can flag it): the
+            // block totals count all units, and this grid's total row has to match the book.
+            where unit.ProjectId == projectId.Value
             orderby unit.SequenceNumber
             select new ProjectUnitPriceDto(
                 price != null ? (Guid?)price.Id : null,
@@ -69,7 +69,8 @@ public class GetProjectUnitPricesQueryHandler(
                 // Condo-only calculated
                 price != null ? price.PriceIncrementPerFloor : null,
                 // LB-only calculated
-                price != null ? price.LandIncreaseDecreaseAmount : null)
+                price != null ? price.LandIncreaseDecreaseAmount : null,
+                unit.IsSold)
         ).AsNoTracking().ToListAsync(cancellationToken);
 
         return new GetProjectUnitPricesResult(unitPrices);

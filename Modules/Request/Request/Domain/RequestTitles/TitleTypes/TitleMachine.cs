@@ -26,12 +26,18 @@ public sealed class TitleMachine : RequestTitle
         MachineInfo = data.MachineInfo;
     }
 
+    protected override bool RequiresTitleAddress => false;
+
     public override void Validate()
     {
         base.Validate();
 
         var ruleCheck = new RuleCheck();
-        ruleCheck.AddErrorIf(string.IsNullOrWhiteSpace(MachineInfo.RegistrationNumber), "registrationNo is required.");
+        ruleCheck.AddErrorIf(
+            MachineInfo.RegistrationStatus
+            && MachineInfo.InstallationStatus == "1"
+            && string.IsNullOrWhiteSpace(MachineInfo.RegistrationNumber),
+            "registrationNo is required.");
         ruleCheck.ThrowIfInvalid();
 
         MachineInfo.Validate();

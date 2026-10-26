@@ -1,4 +1,5 @@
 using Integration.Application.Services;
+using Integration.Domain.WebhookSubscriptions;
 using MassTransit;
 using Microsoft.Extensions.Logging;
 using Shared.Messaging.Events;
@@ -75,7 +76,7 @@ public class AppraisalCompletedWebhookConsumer(
         await webhookService.SendAsync(
             eventId: msg.EventId,
             systemCode: keys.ExternalSystem,
-            eventType: "APPRAISAL_COMPLETED",
+            eventType: WebhookEventTypes.AppraisalCompleted,
             externalCaseKey: keys.ExternalCaseKey,
             occurredAt: msg.OccurredOn,
             data: new { appraisalNumber = keys.AppraisalNumber },

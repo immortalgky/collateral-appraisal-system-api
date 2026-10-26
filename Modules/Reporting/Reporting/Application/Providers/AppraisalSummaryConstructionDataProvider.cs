@@ -146,14 +146,11 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         // ── Batch: 10 construction-specific result sets, single round-trip ────────
         const string batchSql = $"""
             -- RS01: QCI1 — Construction inspection aggregate (building under construction only).
-            -- Current building value: TotalValue x the entered percentage when IsFullDetail=0,
-            -- else the aggregated work-detail values — the same derivation as
-            -- IConstructionCurrentValueService and vw_RegulatoryExport. There is no previous-value
-            -- column: nothing on this report reads one. SummaryCurrentValue /
-            -- SummaryPreviousValue are NOT read either: the CI screen computes those two figures in a
-            -- useMemo for display and never writes them back into the form, so the persisted
-            -- columns hold 0 and this report printed a blank building value for every
-            -- summary-mode inspection. The percentage is bound to a real input and does persist.
+            -- Current building value: the stored SummaryCurrentValue in both modes, the same figure
+            -- as IConstructionCurrentValueService and vw_RegulatoryExport (via
+            -- vw_AppraisalConstructionProgress). The server derives it on every save, and it may be
+            -- the inspector's override, which no percentage reproduces. There is no previous-value
+            -- column: nothing on this report prints a previous value, only percentages.
             -- Each inspection's contribution is rounded to whole baht (CA-614): ROUND matches
             -- MidpointRounding.AwayFromZero, the rule Appraisal.Domain.Appraisals.ConstructionMoney
             -- applies when full-detail values are persisted. IConstructionCurrentValueService and
@@ -188,17 +185,12 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             JOIN appraisal.AppraisalProperties ap ON ap.Id = ci.AppraisalPropertyId
             LEFT JOIN (
                 SELECT wd.ConstructionInspectionId,
-                       SUM(wd.CurrentPropertyValue)  AS CurrentPropertyValueSum,
                        SUM(wd.ProportionPct * wd.PreviousProgressPct / 100.0) AS PreviousProportionPctSum,
                        SUM(wd.CurrentProportionPct)                           AS CurrentProportionPctSum
                 FROM appraisal.ConstructionWorkDetails wd
                 GROUP BY wd.ConstructionInspectionId
             ) wd_agg ON wd_agg.ConstructionInspectionId = ci.Id
-            -- One row per inspection, read per the mode flag. SummaryCurrentValue /
-            -- SummaryPreviousValue are NOT read: the CI screen computes those two figures in a
-            -- useMemo for display and never writes them back into the form, so the persisted
-            -- columns hold 0 and this report printed a blank building value for every summary-mode
-            -- inspection. The percentage is bound to a real input and does persist.
+            -- One row per inspection: percentages read per the mode flag, money from the stored column.
             CROSS APPLY (
                 SELECT
                     ci.TotalValue,
@@ -206,9 +198,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
                          ELSE ISNULL(wd_agg.PreviousProportionPctSum, 0) END AS PreviousPct,
                     CASE WHEN ci.IsFullDetail = 0 THEN ISNULL(ci.SummaryCurrentProgressPct, 0)
                          ELSE ISNULL(wd_agg.CurrentProportionPctSum, 0) END  AS CurrentPct,
-                    CASE WHEN ci.IsFullDetail = 0
-                         THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
-                         ELSE ISNULL(wd_agg.CurrentPropertyValueSum, 0) END  AS CurrentValue
+                    ISNULL(ci.SummaryCurrentValue, 0)                    AS CurrentValue
             ) v
             WHERE ap.AppraisalId = @AppraisalId;
 
@@ -793,9 +783,8 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         public decimal CITotalValue { get; init; }
 
         /// <summary>
-        /// SUM of each inspection's current-round value: TotalValue x the entered percentage in
-        /// summary mode, the work-detail sum in full detail — never SummaryCurrentValue, which the
-        /// CI screen leaves at 0 (see RS01). This is ciCurrent in BuildConstructionSummaryAsync.
+        /// SUM of each inspection's stored SummaryCurrentValue (the inspector's override when there is one,
+        /// see RS01). This is ciCurrent in BuildConstructionSummaryAsync.
         /// </summary>
         public decimal CICurrentValue { get; init; }
 

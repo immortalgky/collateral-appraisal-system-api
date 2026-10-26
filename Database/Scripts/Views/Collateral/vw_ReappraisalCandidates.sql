@@ -113,13 +113,15 @@ CROSS JOIN latest
 -- The book's number as CAS stores it ('B' prefix dropped). Written at ingest, and on older rows by
 -- 20260928120000_DataFix_BackfillReappraisalCandidateBookKey.sql before any view is created.
 CROSS APPLY (SELECT c.NormalizedSurveyNumber AS Number) bk
--- The prior book, when it is an appraisal in this system.
+-- The prior book, when it is an appraisal in this system. A deleted or cancelled appraisal does not count
+-- as "in CAS" (the same rule Initiate and the detail page use): such a book is a legacy one again.
 OUTER APPLY (
     SELECT TOP 1 prev.Id
     FROM appraisal.Appraisals prev
     WHERE prev.AppraisalNumber = bk.Number
       AND prev.IsDeleted = 0
-    ORDER BY prev.Id  -- same pick as Initiate (MIN(Id)) and the detail page
+      AND prev.Status <> 'Cancelled'
+    ORDER BY prev.Id  -- a number is one appraisal (unique index); the order only keeps the pick deterministic
 ) prev_cas
 -- An open reappraisal of the book (appraisal.vw_ReappraisalsByBook is the one definition of "a
 -- reappraisal of this book"). OUTER APPLY collapses history to the most recent.
@@ -160,6 +162,7 @@ OUTER APPLY (
     LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = a.Id
     WHERE a.AppraisalNumber = bk.Number
       AND a.IsDeleted = 0
+      AND a.Status <> 'Cancelled'   -- like a deleted one, a cancelled appraisal is not "in CAS" (same as Initiate)
     ORDER BY COALESCE(va.ValuationDate, al.AppointmentDateTime, a.CompletedAt) DESC
 ) last_appr
 -- The bank's legacy listing for a 99A… book that never existed in CAS: the book's LATEST valuation there

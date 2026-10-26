@@ -19,7 +19,7 @@ namespace Collateral.CollateralMasters.Services;
 ///      excluded/deleted masters, require LastAppraisedDate to be non-null and past due,
 ///      and require no active in-flight reappraisal (checked via appraisal.Appraisals).
 ///   3. Upsert via EF (all-status dict keyed by CollateralMasterId):
-///      - Existing row (any status) → UpdateSnapshot; if Status=Consumed also Reactivate().
+///      - Existing row (any status) → UpdateSnapshot; if Status is Consumed or Deleted also Reactivate().
 ///      - No existing row → Create + Add.
 ///   4. Prune stale Pending rows whose CollateralMasterId is NOT in the current due set.
 ///      Consumed rows are never deleted (historical record).
@@ -101,7 +101,7 @@ public class BlockReappraisalJob(
 
                 // A previously Consumed row that is due again must be reopened so Phase C
                 // surfaces it. Without this, the unique index would reject a new Create().
-                if (row.Status == "Consumed")
+                if (row.Status != "Pending")
                     row.Reactivate();
             }
             else
