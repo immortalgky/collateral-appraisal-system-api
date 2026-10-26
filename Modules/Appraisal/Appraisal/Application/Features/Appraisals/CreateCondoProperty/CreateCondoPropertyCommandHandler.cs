@@ -160,7 +160,7 @@ public class CreateCondoPropertyCommandHandler(
         ConstructionInspection inspection;
         if (ci.IsFullDetail)
         {
-            inspection = ConstructionInspection.CreateFullDetail(property.Id, totalValue, ci.Remark);
+            inspection = ConstructionInspection.CreateFullDetail(property.Id, totalValue, ci.Remark, ci.CurrentValueOverride);
             if (ci.WorkDetails is { Count: > 0 })
             {
                 foreach (var wd in ci.WorkDetails)
@@ -174,7 +174,7 @@ public class CreateCondoPropertyCommandHandler(
         {
             inspection = ConstructionInspection.CreateSummary(property.Id, totalValue,
                 ci.SummaryDetail, ci.SummaryPreviousProgressPct,
-                ci.SummaryCurrentProgressPct, ci.Remark);
+                ci.SummaryCurrentProgressPct, ci.Remark, ci.CurrentValueOverride);
             if (ci.DocumentId.HasValue)
                 inspection.SetDocument(ci.DocumentId.Value, ci.FileName, ci.FilePath, ci.FileExtension, ci.MimeType, ci.FileSizeBytes);
         }

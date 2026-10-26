@@ -778,7 +778,7 @@ public sealed class SummaryItemRow
     /// and null when the work has not started (renders as "-"). Only read when the report shows the
     /// เมื่อแล้วเสร็จ 100% / ตามสภาพปัจจุบัน split.
     /// </summary>
-    public decimal? CurrentValue { get; init; }
+    public decimal? CurrentValue { get; set; }
 }
 
 /// <summary>One committee approver row (fields 45–50).</summary>
