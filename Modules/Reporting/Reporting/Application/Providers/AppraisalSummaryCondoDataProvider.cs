@@ -347,6 +347,9 @@ public sealed class AppraisalSummaryCondoDataProvider(
                 GroupName = g.GroupName,
                 PropertyType = "ห้องชุด",
                 CollateralDetails = collateralDetails,
+                // One entry per unit; the template prints them as "- " lines only when there are 2+,
+                // otherwise it keeps CollateralDetails.
+                DetailItems = detailParts,
                 AreaOrUnit = areaOrUnit,
                 PricePerAreaOrUnit = null,
                 AppraisalValue = g.GroupAppraisalValue,
@@ -371,7 +374,7 @@ public sealed class AppraisalSummaryCondoDataProvider(
             // Condo form: property type is fixed (header + appraiser opinion).
             PropertyType = "ห้องชุด",
             SummaryPropertyType = "ห้องชุด",
-            // ที่ตั้งทรัพย์สิน from the first condo property, in the condo format (ห้องชุดเลขที่ …).
+            // ที่ตั้งทรัพย์สิน from all the condo properties, in the condo format (ห้องชุดเลขที่ …).
             CollateralAddress = common.CondoLocation?.Address,
             AdministrativeDistrict = common.CondoLocation?.SubDistrict,
             LandOffice = firstCondo?.LandOffice,
