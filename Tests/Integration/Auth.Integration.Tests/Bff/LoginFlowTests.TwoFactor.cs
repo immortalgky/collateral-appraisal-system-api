@@ -71,14 +71,8 @@ public partial class LoginFlowTests
         me.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    private async Task<List<(AuditAction Action, string? Changes)>> AuditAsync(Guid userId)
-    {
-        await using var scope = Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-        var rows = await db.AuthAuditLogs.AsNoTracking().Where(a => a.EntityId == userId)
-            .OrderBy(a => a.OccurredAt).Select(a => new { a.Action, a.ChangesJson }).ToListAsync();
-        return rows.Select(r => (r.Action, r.ChangesJson)).ToList();
-    }
+    private Task<List<(AuditAction Action, string? Changes)>> AuditAsync(Guid userId) =>
+        BffTestSupport.AuditAsync(Services, userId);
 
     private async Task<TestUser> TwoFactorUserAsync(string role = "RequestMaker", Guid? companyId = null,
         Action<ApplicationUser>? configure = null)
@@ -1001,6 +995,34 @@ public partial class LoginFlowTests
         (await fifth.Content.ReadAsStringAsync()).Should().Contain("Account locked out");
         (await AuditAsync(user.Id)).Should().Contain(a => a.Action == AuditAction.LoginFailed && a.Changes!.Contains("LockedOut"));
         await AssertNotSignedInAsync(browser);
+    }
+
+    [Fact]
+    public async Task A_recovery_code_Identity_cannot_save_is_not_taken_as_a_wrong_code_and_is_not_spent()
+    {
+        using var browser = Browser();
+        var user = await BffTestSupport.CreateUserAsync(Services, "RequestMaker");
+        var codes = await TotpTestSupport.EnableAsync(Services, user);
+        // An old account Identity's validators refuse to update (an invalid e-mail), so the spent code cannot be saved.
+        await BffTestSupport.UpdateUserAsync(Services, user.Id, u => u.Email = "not-an-email");
+        var (_, next) = await PasswordStepAsync(browser, user);
+
+        using var posted = await PostCodeAsync(browser, next + "&recovery=true", codes[0]);
+
+        posted.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await posted.Content.ReadAsStringAsync()).Should().Contain("could not be processed").And.NotContain("not valid");
+        await AssertNotSignedInAsync(browser);
+        (await AuditAsync(user.Id)).Should().Contain(a => a.Action == AuditAction.LoginFailed && a.Changes!.Contains("SaveFailed"));
+
+        // A wrong code cannot be counted on such an account either, so it must not look different from a right one.
+        using var wrong = await PostCodeAsync(browser, next + "&recovery=true", "AAAAA-BBBBB");
+        (await wrong.Content.ReadAsStringAsync()).Should().Contain("could not be processed").And.NotContain("not valid");
+
+        // Neither counted against the account nor spent: the refused change did not ride along with the audit row.
+        var (failed, left) = await BffTestSupport.ReadUserAsync(Services, user.Id,
+            async (users, u) => (u.AccessFailedCount, await users.CountRecoveryCodesAsync(u)));
+        failed.Should().Be(0);
+        left.Should().Be(10);
     }
 
     /// <summary>

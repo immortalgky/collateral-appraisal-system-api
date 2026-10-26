@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Security.Cryptography;
 using Auth.Application.Services;
 using Auth.Domain.Auditing;
 using Microsoft.AspNetCore.Authentication;
@@ -10,11 +11,43 @@ public abstract class IdpPageModel : PageModel
 {
     [BindProperty] public string ReturnUrl { get; set; } = "/";
 
-    /// <summary>Cache-buster for /Assets/index.css. <c>asp-append-version</c> cannot be used: /Assets is served by its own
-    /// file provider, not the web root it looks in. The CSS ships with the assembly, so its module id changes
-    /// whenever the CSS can.</summary>
-    public static readonly string AssetVersion =
-        typeof(IdpPageModel).Assembly.ManifestModule.ModuleVersionId.ToString("N")[..8];
+    /// <summary>Cache-buster for /Assets/index.css and /Assets/flags (the fonts are loaded from the CSS without it). <c>asp-append-version</c> cannot be used:
+    /// /Assets is served by its own file provider, not the web root it looks in. A short hash of those files' content,
+    /// computed once, lazily, on first IdP page use, so it changes exactly when they do.</summary>
+    public static readonly string AssetVersion = HashAssets();
+
+    private static string HashAssets()
+    {
+        try
+        {
+            // A missing folder just hashes nothing.
+            var root = Path.Combine(AppContext.BaseDirectory, "Assets");
+            var files = new[] { ("", "index.css"), ("flags", "*") }
+                .Select(d => (Dir: Path.Combine(root, d.Item1), Pattern: d.Item2))
+                .Where(d => Directory.Exists(d.Dir))
+                .SelectMany(d => Directory.GetFiles(d.Dir, d.Pattern))
+                .Select(f => Path.GetRelativePath(root, f).Replace('\\', '/'))
+                .Order(StringComparer.Ordinal);
+
+            // Relative names and ordinal order, so every node and culture gets the same hash for the same files.
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            foreach (var file in files)
+            {
+                hash.AppendData(System.Text.Encoding.UTF8.GetBytes(file));
+                hash.AppendData(System.IO.File.ReadAllBytes(Path.Combine(root, file)));
+            }
+
+            return Convert.ToHexStringLower(hash.GetHashAndReset())[..8];
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"IdP asset hash failed, falling back to the build id: {ex.Message}");
+            // An exception must never escape a static initializer: an unreadable file must not take down every IdP page.
+            // A last resort: the build id does not change for a CSS or flag-only change (deterministic builds), so
+            // browsers may keep the old files.
+            return typeof(IdpPageModel).Assembly.ManifestModule.ModuleVersionId.ToString("N")[..8];
+        }
+    }
 
     private string? _lang;
 

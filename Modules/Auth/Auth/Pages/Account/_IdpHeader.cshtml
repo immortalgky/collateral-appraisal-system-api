@@ -34,12 +34,23 @@
     @if (ViewData["NoLanguage"] is not true)
     {
         <details class="login-lang">
-            <summary aria-label="@Model.T.LanguageLabel: @Model.T.Label">@Model.T.Label</summary>
+            <summary aria-label="@Model.Lang.ToUpperInvariant() – @Model.T.LanguageLabel: @Model.T.Label">
+                <img class="login-flag" src="/Assets/flags/@(Model.Lang).svg?v=@IdpPageModel.AssetVersion" alt="">
+                <span>@Model.Lang.ToUpperInvariant()</span>
+                <svg class="login-lang-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+            </summary>
             <div class="login-lang-menu">
-                @foreach (var (code, label) in LoginText.Languages)
+                @foreach (var (langCode, label) in LoginText.Languages)
                 {
-                    <button type="button" lang="@code" aria-current="@(code == Model.Lang ? "true" : null)"
-                            onclick="setLanguage('@code')">@label</button>
+                    <button type="button" lang="@langCode" aria-current="@(langCode == Model.Lang ? "true" : null)"
+                            onclick="setLanguage('@langCode')">
+                        <img class="login-flag" src="/Assets/flags/@(langCode).svg?v=@IdpPageModel.AssetVersion" alt="">
+                        <span>@label</span>
+                        @if (langCode == Model.Lang)
+                        {
+                            <svg class="login-lang-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+                        }
+                    </button>
                 }
             </div>
         </details>

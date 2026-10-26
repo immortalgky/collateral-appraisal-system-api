@@ -3,8 +3,12 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using Auth.Domain.Auditing;
+using Auth.Domain.Identity;
+using Auth.Infrastructure;
 using FluentAssertions;
 using Integration.Fixtures;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -127,6 +131,8 @@ public class TwoFactorEndpointTests(IntegrationTestFixture fixture)
         me = await MeAsync(browser, cookie);
         me.GetProperty("twoFactorEnabled").GetBoolean().Should().BeFalse();
         me.GetProperty("recoveryCodesLeft").GetInt32().Should().Be(0);
+        (await TwoFactorStateAsync(user.Id)).Key.Should().BeNull();
+        (await BffTestSupport.AuditAsync(Services, user.Id)).Select(a => a.Action).Should().Contain(AuditAction.TwoFactorDisabled);
 
         // Turning it off while it is off is a state error, not a crash.
         using (var offAgain = await PostAsync(browser, cookie, "/auth/me/two-factor/disable", new { code = "123456" }))
@@ -251,13 +257,8 @@ public class TwoFactorEndpointTests(IntegrationTestFixture fixture)
         var key = await SetupAsync(browser, cookie);
         await EnableAsync(browser, cookie, key);
 
-        async Task<(int Failed, DateTimeOffset? LockoutEnd)> StateAsync()
-        {
-            await using var scope = Services.CreateAsyncScope();
-            var users = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<global::Auth.Domain.Identity.ApplicationUser>>();
-            var stored = (await users.FindByIdAsync(user.Id.ToString()))!;
-            return (stored.AccessFailedCount, stored.LockoutEnd);
-        }
+        Task<(int Failed, DateTimeOffset? LockoutEnd)> StateAsync() =>
+            BffTestSupport.ReadUserAsync(Services, user.Id, (_, u) => Task.FromResult((u.AccessFailedCount, u.LockoutEnd)));
 
         // A right code clears what wrong ones added.
         for (var i = 0; i < 2; i++)
@@ -270,11 +271,11 @@ public class TwoFactorEndpointTests(IntegrationTestFixture fixture)
             ok.StatusCode.Should().Be(HttpStatusCode.OK);
         (await StateAsync()).Failed.Should().Be(0);
 
-        // The default policy locks at five failures.
+        // The default policy locks at five failures, and the fifth already says so.
         for (var i = 0; i < 5; i++)
         {
             using var bad = await PostAsync(browser, cookie, "/auth/me/two-factor/recovery-codes", new { code = TotpTestSupport.WrongCode(key) });
-            await AssertBadRequestAsync(bad, Invalid);
+            await AssertBadRequestAsync(bad, i < 4 ? Invalid : "TwoFactorLockedOut");
         }
         (await StateAsync()).LockoutEnd.Should().NotBeNull().And.BeAfter(DateTimeOffset.UtcNow);
 
@@ -285,6 +286,129 @@ public class TwoFactorEndpointTests(IntegrationTestFixture fixture)
             await AssertBadRequestAsync(refused, "TwoFactorLockedOut");
         }
         (await MeAsync(browser, cookie)).GetProperty("twoFactorEnabled").GetBoolean().Should().BeTrue();
+    }
+
+    private record TwoFactorState(bool Enabled, string? Key, int RecoveryCodesLeft, int AccessFailed);
+
+    private Task<TwoFactorState> TwoFactorStateAsync(Guid userId) =>
+        BffTestSupport.ReadUserAsync(Services, userId, async (users, u) => new TwoFactorState(
+            u.TwoFactorEnabled, await users.GetAuthenticatorKeyAsync(u), await users.CountRecoveryCodesAsync(u), u.AccessFailedCount));
+
+    [Fact]
+    public async Task A_new_device_can_be_set_up_with_a_recovery_code_even_when_the_policy_requires_two_factor()
+    {
+        await using var _ = await TotpTestSupport.SetPolicyAsync(
+            Services, "RequireTwoFactorForExternal = 1", "RequireTwoFactorForExternal = 0");
+        var (browser, user, cookie) = await SignedInAsync("ExtAppraisalStaff", Guid.NewGuid());
+        using var __ = browser;
+        var key = await SetupAsync(browser, cookie);
+        var codes = await EnableAsync(browser, cookie, key);
+
+        // A wrong code is a 400 that counts toward the lockout and changes nothing.
+        using (var bad = await PostAsync(browser, cookie, "/auth/me/two-factor/new-device", new { code = "ABCDE-99999" }))
+            await AssertBadRequestAsync(bad, Invalid);
+        var afterWrong = await TwoFactorStateAsync(user.Id);
+        afterWrong.Enabled.Should().BeTrue();
+        afterWrong.AccessFailed.Should().Be(1);
+
+        // The disable endpoint refuses this user, which is why the new-device one exists. A recovery code typed
+        // lower case and without its hyphen is accepted.
+        using (var disable = await PostAsync(browser, cookie, "/auth/me/two-factor/disable", new { code = TotpTestSupport.Code(key) }))
+            await AssertBadRequestAsync(disable, "TwoFactorRequiredByPolicy");
+        using (var reset = await PostAsync(browser, cookie, "/auth/me/two-factor/new-device", new { code = codes[0].Replace("-", "").ToLowerInvariant() }))
+            reset.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        // Off, no key, no recovery codes, and signed out everywhere: the next sign-in is forced into enrolment by the policy.
+        (await TwoFactorStateAsync(user.Id)).Should().BeEquivalentTo(new { Enabled = false, Key = (string?)null, RecoveryCodesLeft = 0, AccessFailed = 0 });
+        (await BffTestSupport.GetSessionsAsync(Services, user.Id)).Should().OnlyContain(s => s.EndedAt != null);
+        using var me = await BffTestSupport.GetAsync(browser, "/auth/me", cookie);
+        me.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        (await BffTestSupport.AuditAsync(Services, user.Id)).Select(a => a.Action).Should()
+            .Contain([AuditAction.RecoveryCodeUsed, AuditAction.TwoFactorReset]);
+    }
+
+    [Fact]
+    public async Task A_wrong_new_device_code_counts_and_a_save_Identity_refuses_neither_counts_nor_spends_the_code()
+    {
+        var (browser, user, cookie) = await SignedInAsync();
+        using var _ = browser;
+        var key = await SetupAsync(browser, cookie);
+        var codes = await EnableAsync(browser, cookie, key);
+
+        using (var wrong = await PostAsync(browser, cookie, "/auth/me/two-factor/new-device", new { code = "ABCDE-99999" }))
+            await AssertBadRequestAsync(wrong, Invalid);
+        (await TwoFactorStateAsync(user.Id)).AccessFailed.Should().Be(1);
+
+        // An old account Identity's validators refuse to update (an invalid e-mail): the spent code cannot be saved, and a
+        // wrong code cannot be counted either, so a right and a wrong code get the same answer on every guarded endpoint.
+        await BffTestSupport.UpdateUserAsync(Services, user.Id, u => u.Email = "not-an-email");
+        using (var refused = await PostAsync(browser, cookie, "/auth/me/two-factor/new-device", new { code = codes[0] }))
+            await AssertBadRequestAsync(refused, "TwoFactorSaveFailed");
+        using (var wrongNewDevice = await PostAsync(browser, cookie, "/auth/me/two-factor/new-device", new { code = "ABCDE-99999" }))
+            await AssertBadRequestAsync(wrongNewDevice, "TwoFactorSaveFailed");
+        using (var wrongGuarded = await PostAsync(browser, cookie, "/auth/me/two-factor/recovery-codes", new { code = TotpTestSupport.WrongCode(key) }))
+            await AssertBadRequestAsync(wrongGuarded, "TwoFactorSaveFailed");
+        using (var wrongDisable = await PostAsync(browser, cookie, "/auth/me/two-factor/disable", new { code = TotpTestSupport.WrongCode(key) }))
+            await AssertBadRequestAsync(wrongDisable, "TwoFactorSaveFailed");
+        // A right authenticator code gets the same answer, so none of this tells a right code from a wrong one.
+        using (var rightGuarded = await PostAsync(browser, cookie, "/auth/me/two-factor/recovery-codes", new { code = TotpTestSupport.Code(key) }))
+            await AssertBadRequestAsync(rightGuarded, "TwoFactorSaveFailed");
+        using (var rightNewDevice = await PostAsync(browser, cookie, "/auth/me/two-factor/new-device", new { code = TotpTestSupport.Code(key) }))
+            await AssertBadRequestAsync(rightNewDevice, "TwoFactorSaveFailed");
+
+        var state = await TwoFactorStateAsync(user.Id);
+        state.AccessFailed.Should().Be(1);
+        state.Enabled.Should().BeTrue();
+        state.RecoveryCodesLeft.Should().Be(10);
+    }
+
+    [Fact]
+    public async Task A_new_device_can_be_set_up_with_an_authenticator_code_and_only_while_two_factor_is_on()
+    {
+        var (browser, user, cookie) = await SignedInAsync();
+        using var _ = browser;
+
+        using (var off = await PostAsync(browser, cookie, "/auth/me/two-factor/new-device", new { code = "123456" }))
+            await AssertBadRequestAsync(off, "TwoFactorNotEnabled");
+
+        var key = await SetupAsync(browser, cookie);
+        await EnableAsync(browser, cookie, key);
+        using (var wrong = await PostAsync(browser, cookie, "/auth/me/two-factor/new-device", new { code = TotpTestSupport.WrongCode(key) }))
+            await AssertBadRequestAsync(wrong, Invalid);
+        (await TwoFactorStateAsync(user.Id)).AccessFailed.Should().Be(1);
+        using (var reset = await PostAsync(browser, cookie, "/auth/me/two-factor/new-device", new { code = TotpTestSupport.Code(key) }))
+            reset.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        (await TwoFactorStateAsync(user.Id)).Should().BeEquivalentTo(new { Enabled = false, Key = (string?)null, RecoveryCodesLeft = 0, AccessFailed = 0 });
+        (await BffTestSupport.GetSessionsAsync(Services, user.Id)).Should().OnlyContain(s => s.EndedAt != null);
+    }
+
+    [Fact]
+    public async Task Logging_out_still_works_from_the_session_a_new_device_set_up_just_ended()
+    {
+        var (browser, user, cookie) = await SignedInAsync();
+        using var _ = browser;
+        var key = await SetupAsync(browser, cookie);
+        await EnableAsync(browser, cookie, key);
+        using (var reset = await PostAsync(browser, cookie, "/auth/me/two-factor/new-device", new { code = TotpTestSupport.Code(key) }))
+            reset.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        // The SPA's logout() runs next, with the cookie of the session that was just ended.
+        using var logout = await PostAsync(browser, cookie, "/auth/logout");
+        logout.StatusCode.Should().Be(HttpStatusCode.OK);
+        var url = (await JsonOf(logout)).GetProperty("url").GetString()!;
+        url.Should().NotBeNullOrWhiteSpace();
+
+        // And the URL it returns is accepted: the IdP sends the browser back through /signout-callback-oidc to the SPA.
+        var next = new Uri(new Uri(BffTestSupport.Idp), url);
+        using var idp = await browser.GetAsync(next.PathAndQuery, TestContext.Current.CancellationToken);
+        idp.StatusCode.Should().Be(HttpStatusCode.Found, url);
+        using var spa = await browser.GetAsync(idp.Headers.Location!.PathAndQuery, TestContext.Current.CancellationToken);
+        spa.StatusCode.Should().Be(HttpStatusCode.Found);
+        // Back at the SPA's home, which has no session and so sends the user to /login.
+        spa.Headers.Location!.ToString().Should().StartWith(BffTestSupport.Spa);
+        (await BffTestSupport.GetSessionsAsync(Services, user.Id)).Should().OnlyContain(s => s.EndedAt != null);
     }
 
     [Fact]
@@ -325,7 +449,7 @@ public class TwoFactorEndpointTests(IntegrationTestFixture fixture)
 
         // All or nothing: the failed reset left two-factor on.
         await using var scope = Services.CreateAsyncScope();
-        (await scope.ServiceProvider.GetRequiredService<global::Auth.Infrastructure.AuthDbContext>().Users.AsNoTracking()
+        (await scope.ServiceProvider.GetRequiredService<AuthDbContext>().Users.AsNoTracking()
             .SingleAsync(u => u.Id == enabled.Id)).TwoFactorEnabled.Should().BeTrue();
     }
 }

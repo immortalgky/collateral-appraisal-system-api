@@ -52,6 +52,22 @@ public class TwoFactorEndpoints : ICarterModule
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithSummary("Replace the recovery codes")
             .WithDescription("Needs a current code. The old codes stop working.");
+
+        group.MapPost("/new-device",
+                async (TwoFactorCodeRequest request, ClaimsPrincipal user, ISender sender, IUserSessionService sessions,
+                    CancellationToken ct) =>
+                {
+                    var result = await sender.Send(new NewTwoFactorDeviceCommand(UserId(user), request.Code), ct);
+
+                    // Dropped only now that the reset's transaction has committed (see ResetTwoFactorEndpoint).
+                    sessions.Evict(result.EndedSessionIds);
+                    return Results.NoContent();
+                })
+            .WithName("NewTwoFactorDevice")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .WithSummary("Set up two-factor on a new device")
+            .WithDescription("Needs a current authenticator code or an unused recovery code. Resets two-factor like an admin reset (key and recovery codes removed, every session ended, this one included) and is not refused by the policy: a user it requires to have two-factor sets it up again at the next sign-in.");
     }
 
     private static Guid UserId(ClaimsPrincipal user) =>

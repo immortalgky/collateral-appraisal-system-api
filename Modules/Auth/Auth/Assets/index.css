@@ -60,20 +60,18 @@ body {
     display: flex;
 }
 
-/* Dark right panel */
+/* Dark right panel: content is pinned to the top at a fixed offset, so the logo sits at the same y on every IdP page
+   and on the SPA's /login. The offset centres a 520px "stage" (the sign-in form, in Thai, without an error) in the
+   viewport; taller pages grow downward and the panel scrolls, so on desktop the document itself never does (at 600px
+   and below the sign-in pages, .login--signin, scroll as a whole instead, see the media query; AccessDenied keeps the
+   panel scrolling). */
 .login-panel {
     width: 40%;
     min-width: 380px;
     height: 100%;
+    padding-top: max(0px, calc((100dvh - 520px) / 2));
     background: rgb(10, 20, 40);
     display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Sign-in page only (AccessDenied shares this file): the panel scrolls on short screens, and the form's
-   auto margins centre it without clipping its top the way align-items would. */
-.login--signin .login-panel {
     align-items: flex-start;
     justify-content: flex-start;
     overflow-y: auto;
@@ -92,10 +90,10 @@ body {
     object-fit: cover;
 }
 
-form {
+form, .login-column {
     width: 100%;
     max-width: 380px;
-    margin: auto; /* centres the form but, unlike align-items, never clips its top when the panel scrolls */
+    margin: 0 auto;
     padding: 32px;
     display: flex;
     flex-direction: column;
@@ -126,21 +124,21 @@ form {
 .login-lang summary {
     display: flex;
     align-items: center;
+    gap: 6px;
     height: 36px;
-    padding: 0 28px 0 32px;
+    padding: 0 10px;
     list-style: none;
-    background-color: transparent;
-    background-repeat: no-repeat;
-    background-position: left 10px center, right 10px center;
-    background-size: 16px 16px, 12px 12px;
-    background-image:
-        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-opacity='0.7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z'/%3E%3C/svg%3E"),
-        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-opacity='0.7' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
     border: 1px solid rgba(255, 255, 255, 0.25);
     border-radius: 9999px;
     color: #ffffff;
-    font-size: 13px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 20px;
     cursor: pointer;
+}
+
+.login-lang summary:hover {
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .login-lang summary::-webkit-details-marker {
@@ -153,38 +151,67 @@ form {
     outline-offset: 2px;
 }
 
+.login-flag {
+    width: 20px;
+    height: 14px;
+    border-radius: 2px;
+    object-fit: cover;
+}
+
+.login-lang-chevron {
+    width: 12px;
+    height: 12px;
+    color: #99a1af;
+}
+
 /* The dropdown is a light panel with dark text */
 .login-lang-menu {
     position: absolute;
     right: 0;
-    top: 40px;
+    top: calc(100% + 6px);
     z-index: 1;
-    min-width: 100%;
-    padding: 4px 0;
+    width: 140px;
+    padding: 4px;
     background: #ffffff;
-    border-radius: 8px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    border-radius: 12px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
 }
 
 .login-lang-menu button {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     width: 100%;
-    padding: 8px 14px;
+    height: 36px;
+    padding: 8px 10px;
     background: none;
     border: none;
-    color: #111827;
+    border-radius: 8px;
+    color: #4a5565;
     font-size: 13px;
+    line-height: 20px;
     font-family: inherit;
     text-align: left;
     cursor: pointer;
 }
 
-.login-lang-menu button:hover {
-    background: #eff6ff;
+.login-lang-menu button:hover,
+.login-lang-menu button:focus-visible {
+    background: #f9fafb;
+    color: #101828;
 }
 
 .login-lang-menu button[aria-current] {
-    font-weight: 600;
+    background: #f9fafb;
+    color: #101828;
+    font-weight: 500;
+}
+
+.login-lang-check {
+    width: 13px;
+    height: 13px;
+    margin-left: auto;
+    color: #0d9488;
 }
 
 /* Product name + subtitle, then a divider */
@@ -636,6 +663,7 @@ a.login-button {
     .login-panel {
         width: 100%;
         min-width: unset;
+        padding-top: 0;
     }
 
     .login-image {
@@ -660,7 +688,7 @@ a.login-button {
         height: 160px;
     }
 
-    form {
+    form, .login-column {
         max-width: 100%;
         padding: 24px;
     }

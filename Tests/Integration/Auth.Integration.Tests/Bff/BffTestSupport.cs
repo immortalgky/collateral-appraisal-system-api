@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using FluentAssertions;
+using Auth.Domain.Auditing;
 using Auth.Domain.Identity;
 using Auth.Domain.Sessions;
 using Auth.Infrastructure;
@@ -18,6 +19,7 @@ public sealed record TestUser(Guid Id, string UserName, string Password, Guid? C
 public static class BffTestSupport
 {
     public const string Spa = "https://localhost:3000";
+    public const string Idp = "https://localhost:7111";
     public const string Password = "Str0ng!Passw0rd#42";
 
     /// <param name="role">A role the seeder creates: Admin, RequestMaker, ExtAppraisalStaff, ...</param>
@@ -152,6 +154,25 @@ public static class BffTestSupport
         var session = await db.UserSessions.FirstAsync(s => s.Id == sessionId);
         change(session);
         await db.SaveChangesAsync();
+    }
+
+    /// <summary>Reads an account back through Identity, in a scope of its own.</summary>
+    public static async Task<T> ReadUserAsync<T>(IServiceProvider services, Guid userId,
+        Func<UserManager<ApplicationUser>, ApplicationUser, Task<T>> read)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        return await read(users, (await users.FindByIdAsync(userId.ToString()))!);
+    }
+
+    /// <summary>The audit rows about one account, oldest first.</summary>
+    public static async Task<List<(AuditAction Action, string? Changes)>> AuditAsync(IServiceProvider services, Guid userId)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var rows = await db.AuthAuditLogs.AsNoTracking().Where(a => a.EntityId == userId)
+            .OrderBy(a => a.OccurredAt).Select(a => new { a.Action, a.ChangesJson }).ToListAsync();
+        return rows.Select(r => (r.Action, r.ChangesJson)).ToList();
     }
 
     public static async Task UpdateUserAsync(IServiceProvider services, Guid userId, Action<ApplicationUser> change)
