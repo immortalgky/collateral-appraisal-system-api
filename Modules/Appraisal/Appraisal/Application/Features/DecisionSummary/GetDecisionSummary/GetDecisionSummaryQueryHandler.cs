@@ -553,10 +553,9 @@ public class GetDecisionSummaryQueryHandler(
         // รายละเอียดรายอาคาร — must use the SAME derivations as IConstructionCurrentValueService,
         // or these rows will not add up to the card above them: whole-baht money, and progress read
         // off the entered percentages rather than divided out of the money.
-        // Summary mode multiplies TotalValue by the stored percent instead of reading
-        // SummaryPreviousValue / SummaryCurrentValue: the CI screen computes those two figures for
-        // display but never writes them back into the form, so the persisted columns hold the default
-        // 0. The percent is bound to a real input and does persist.
+        // Money is the stored SummaryPreviousValue / SummaryCurrentValue in both modes: the server derives
+        // them on every save, and the current one may be the inspector's override, which no percent can
+        // reproduce. Percentages stay on the entered ones.
         const string ciDetailSql = """
             SELECT
                 ap.Id                             AS AppraisalPropertyId,
@@ -565,14 +564,8 @@ public class GetDecisionSummaryQueryHandler(
                 COALESCE(NULLIF(LTRIM(RTRIM(bad.ModelName)), ''),
                          NULLIF(LTRIM(RTRIM(bad.PropertyName)), '')) AS ModelName,
                 ci.TotalValue                     AS TotalValue,
-                ROUND(CASE WHEN ci.IsFullDetail = 0
-                     THEN ci.TotalValue * ISNULL(ci.SummaryPreviousProgressPct, 0) / 100.0
-                     ELSE ISNULL(wd_agg.PreviousPropertyValueSum, 0)
-                END, 0) AS PreviousValue,
-                ROUND(CASE WHEN ci.IsFullDetail = 0
-                     THEN ci.TotalValue * ISNULL(ci.SummaryCurrentProgressPct, 0) / 100.0
-                     ELSE ISNULL(wd_agg.CurrentPropertyValueSum, 0)
-                END, 0) AS CurrentValue,
+                ROUND(ISNULL(ci.SummaryPreviousValue, 0), 0) AS PreviousValue,
+                ROUND(ISNULL(ci.SummaryCurrentValue, 0), 0)  AS CurrentValue,
                 CASE WHEN ci.IsFullDetail = 0
                      THEN ISNULL(ci.SummaryPreviousProgressPct, 0)
                      ELSE ISNULL(wd_agg.PreviousProportionPctSum, 0)
@@ -586,8 +579,6 @@ public class GetDecisionSummaryQueryHandler(
             LEFT JOIN appraisal.BuildingAppraisalDetails bad ON bad.AppraisalPropertyId = ap.Id
             LEFT JOIN (
                 SELECT ConstructionInspectionId,
-                       SUM(PreviousPropertyValue) AS PreviousPropertyValueSum,
-                       SUM(CurrentPropertyValue)  AS CurrentPropertyValueSum,
                        SUM(ProportionPct * PreviousProgressPct / 100.0) AS PreviousProportionPctSum,
                        SUM(CurrentProportionPct)                        AS CurrentProportionPctSum
                 FROM appraisal.ConstructionWorkDetails

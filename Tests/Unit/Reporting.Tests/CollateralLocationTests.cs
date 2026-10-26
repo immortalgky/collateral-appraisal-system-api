@@ -112,4 +112,160 @@ public class CollateralLocationTests
 
         result.Land.Should().Be(new CollateralLocation("เลขที่ 3/48 ถนน ศรีนครินทร์", null));
     }
+
+    private static AppraisalSummaryCommonLoader.CollateralLocationRow Unit(string room, string floor, string building = "อาคารชุดโนเบิล", string? tower = null) => new()
+    {
+        Kind = "U", RoomNumber = room, FloorNumber = floor, CondoName = building, BuildingNumber = tower,
+        SubDistrict = "บางพลัด", District = "บางพลัด", Province = "กรุงเทพมหานคร"
+    };
+
+    private static AppraisalSummaryCommonLoader.CollateralLocationRow House(string? number) => new()
+    {
+        Kind = "L", HouseNumber = number, Village = "หมู่บ้านสุขสันต์",
+        SubDistrict = "หนองบอน", District = "ประเวศ", Province = "กรุงเทพมหานคร"
+    };
+
+    private const string CondoTail = "อาคารชุดโนเบิล ตำบล/แขวง บางพลัด อำเภอ/เขต บางพลัด จังหวัดกรุงเทพมหานคร";
+    private const string LandTail = "หมู่บ้านสุขสันต์ ตำบล/แขวง หนองบอน อำเภอ/เขต ประเวศ จังหวัดกรุงเทพมหานคร";
+
+    [Fact]
+    public void Condo_units_on_the_same_floor_list_rooms_once_with_one_tail()
+    {
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations(
+            [Unit("312/429", "31"), Unit("312/430", "31")]);
+
+        result.Condo!.Address.Should().Be($"ห้องชุดเลขที่ 312/429, 312/430 ชั้นที่ 31 {CondoTail}");
+        result.Condo.SubDistrict.Should().Be("บางพลัด");
+    }
+
+    [Fact]
+    public void Condo_units_on_different_floors_each_carry_their_floor()
+    {
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations(
+            [Unit("312/429", "31"), Unit("315/12", "35")]);
+
+        result.Condo!.Address.Should().Be($"ห้องชุดเลขที่ 312/429 ชั้นที่ 31, 315/12 ชั้นที่ 35 {CondoTail}");
+    }
+
+    [Fact]
+    public void Condo_floor_not_stated_is_left_off_a_unit()
+    {
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations(
+            [Unit("312/429", "31"), Unit("315/12", "0")]);
+
+        result.Condo!.Address.Should().Be($"ห้องชุดเลขที่ 312/429 ชั้นที่ 31, 315/12 {CondoTail}");
+    }
+
+    [Fact]
+    public void Condo_units_in_different_buildings_print_each_full_address()
+    {
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations(
+            [Unit("312/429", "31"), Unit("9", "2", building: "อาคารชุดเอ")]);
+
+        result.Condo!.Address.Should().Be(
+            $"ห้องชุดเลขที่ 312/429 ชั้นที่ 31 {CondoTail}, " +
+            "ห้องชุดเลขที่ 9 ชั้นที่ 2 อาคารชุดเอ ตำบล/แขวง บางพลัด อำเภอ/เขต บางพลัด จังหวัดกรุงเทพมหานคร");
+    }
+
+    [Fact]
+    public void Land_units_list_their_house_numbers_once_with_one_tail()
+    {
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations([House("99/1"), House("99/2")]);
+
+        result.Land!.Address.Should().Be($"เลขที่ 99/1, 99/2 {LandTail}");
+        result.Land.SubDistrict.Should().Be("หนองบอน");
+    }
+
+    [Fact]
+    public void Land_blank_house_numbers_are_skipped_and_duplicates_collapse()
+    {
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations(
+            [House("99/1"), House(null), House("-"), House("99/1")]);
+
+        result.Land!.Address.Should().Be($"เลขที่ 99/1 {LandTail}");
+    }
+
+    [Fact]
+    public void Land_units_all_without_a_number_print_just_the_tail()
+    {
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations([House(null), House("")]);
+
+        result.Land!.Address.Should().Be(LandTail);
+    }
+
+    [Fact]
+    public void Land_plots_group_by_tail_so_one_odd_plot_does_not_repeat_the_rest()
+    {
+        var other = new AppraisalSummaryCommonLoader.CollateralLocationRow
+        {
+            Kind = "L", HouseNumber = "99/3", Village = "หมู่บ้านอื่น",
+            SubDistrict = "หนองบอน", District = "ประเวศ", Province = "กรุงเทพมหานคร"
+        };
+
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations([House("99/1"), House("99/2"), other]);
+
+        result.Land!.Address.Should().Be(
+            $"เลขที่ 99/1, 99/2 {LandTail}, " +
+            "เลขที่ 99/3 หมู่บ้านอื่น ตำบล/แขวง หนองบอน อำเภอ/เขต ประเวศ จังหวัดกรุงเทพมหานคร");
+    }
+
+    [Fact]
+    public void Identical_bare_plots_collapse_next_to_a_different_one()
+    {
+        var other = new AppraisalSummaryCommonLoader.CollateralLocationRow
+        {
+            Kind = "L", HouseNumber = "5", Village = "หมู่บ้านอื่น", Province = "กรุงเทพมหานคร"
+        };
+
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations([House(null), House(null), other]);
+
+        result.Land!.Address.Should().Be(
+            $"{LandTail}, เลขที่ 5 หมู่บ้านอื่น จังหวัดกรุงเทพมหานคร");
+    }
+
+    [Fact]
+    public void Condo_units_without_room_numbers_list_their_floors_after_the_room_label()
+    {
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations(
+            [Unit("-", "1"), Unit("-", "13"), Unit("-", "0")]);
+
+        result.Condo!.Address.Should().Be($"ห้องชุดเลขที่ ชั้นที่ 1, ชั้นที่ 13 {CondoTail}");
+    }
+
+    [Fact]
+    public void Condo_unit_without_a_room_number_still_contributes_its_floor_next_to_a_named_one()
+    {
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations(
+            [Unit("312/429", "31"), Unit("-", "13")]);
+
+        result.Condo!.Address.Should().Be($"ห้องชุดเลขที่ 312/429 ชั้นที่ 31, ชั้นที่ 13 {CondoTail}");
+    }
+
+    [Fact]
+    public void Same_room_in_different_towers_prints_twice_but_the_same_tower_dedupes()
+    {
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations(
+            [Unit("101", "1", tower: "A"), Unit("101", "1", tower: "B"), Unit("101", "1", tower: "A")]);
+
+        result.Condo!.Address.Should().Be($"ห้องชุดเลขที่ 101, 101 ชั้นที่ 1 {CondoTail}");
+    }
+
+    [Fact]
+    public void One_land_expanded_into_one_row_per_house_lists_every_house_number()
+    {
+        // The SQL yields a row per house for a land property: own 99/1, B 99/2, B with no number.
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations(
+            [House("99/1"), House("99/2"), House(null)]);
+
+        result.Land!.Address.Should().Be($"เลขที่ 99/1, 99/2 {LandTail}");
+    }
+
+    [Fact]
+    public void Roomless_units_in_different_towers_print_their_floor_once()
+    {
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations(
+            [Unit("101", "1", tower: "A"), Unit("-", "13", tower: "A"), Unit("-", "13", tower: "B")]);
+
+        result.Condo!.Address.Should().Be($"ห้องชุดเลขที่ 101 ชั้นที่ 1, ชั้นที่ 13 {CondoTail}");
+    }
 }

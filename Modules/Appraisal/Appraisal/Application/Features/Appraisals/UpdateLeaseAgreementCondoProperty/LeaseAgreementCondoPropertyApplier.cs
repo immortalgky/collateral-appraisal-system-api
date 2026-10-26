@@ -219,7 +219,7 @@ public static class LeaseAgreementCondoPropertyApplier
             var inspection = property.ConstructionInspection;
             if (ci.IsFullDetail)
             {
-                inspection.UpdateFullDetail(totalValue, ci.Remark);
+                inspection.UpdateFullDetail(totalValue, ci.Remark, ci.CurrentValueOverride);
                 inspection.ClearWorkDetails();
                 if (ci.WorkDetails is { Count: > 0 })
                 {
@@ -234,7 +234,7 @@ public static class LeaseAgreementCondoPropertyApplier
             {
                 inspection.UpdateSummary(totalValue, ci.SummaryDetail,
                     ci.SummaryPreviousProgressPct,
-                    ci.SummaryCurrentProgressPct, ci.Remark);
+                    ci.SummaryCurrentProgressPct, ci.Remark, ci.CurrentValueOverride);
                 if (ci.DocumentId.HasValue)
                     inspection.SetDocument(ci.DocumentId.Value, ci.FileName, ci.FilePath, ci.FileExtension, ci.MimeType, ci.FileSizeBytes);
                 else
@@ -247,7 +247,7 @@ public static class LeaseAgreementCondoPropertyApplier
             ConstructionInspection inspection;
             if (ci.IsFullDetail)
             {
-                inspection = ConstructionInspection.CreateFullDetail(property.Id, totalValue, ci.Remark);
+                inspection = ConstructionInspection.CreateFullDetail(property.Id, totalValue, ci.Remark, ci.CurrentValueOverride);
                 if (ci.WorkDetails is { Count: > 0 })
                 {
                     foreach (var wd in ci.WorkDetails)
@@ -261,7 +261,7 @@ public static class LeaseAgreementCondoPropertyApplier
             {
                 inspection = ConstructionInspection.CreateSummary(property.Id, totalValue,
                     ci.SummaryDetail, ci.SummaryPreviousProgressPct,
-                    ci.SummaryCurrentProgressPct, ci.Remark);
+                    ci.SummaryCurrentProgressPct, ci.Remark, ci.CurrentValueOverride);
                 if (ci.DocumentId.HasValue)
                     inspection.SetDocument(ci.DocumentId.Value, ci.FileName, ci.FilePath, ci.FileExtension, ci.MimeType, ci.FileSizeBytes);
             }

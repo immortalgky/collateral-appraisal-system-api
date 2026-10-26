@@ -11,15 +11,12 @@ namespace Appraisal.Domain.Appraisals;
 ///
 /// Both modes now store their inspection-level money in ConstructionInspection.SummaryPreviousValue /
 /// SummaryCurrentValue (summary mode: TotalValue * pct / 100, rounded here on every write; full detail:
-/// the sum of the already-rounded work rows), and every reader takes it from there —
-/// appraisal.vw_AppraisalConstructionProgress, which ConstructionCurrentValueService, collateral.vw_RegulatoryExport,
-/// sp_RegulatoryExport and RCAS004 read, and a base-table copy of it in reporting.vw_MisCasReport. Readers that
-/// still derive summary-mode money from the percentage themselves round it the same way, as ROUND(..., 0) —
-/// GetDecisionSummaryQueryHandler.ciDetailSql and AppraisalSummaryConstructionDataProvider (the Reporting module's
-/// own copy of the aggregate, kept so it can batch the report into one round-trip). SQL Server's ROUND rounds halves
-/// away from zero, matching MidpointRounding.AwayFromZero here. Change the rule and those have to follow, or the same
-/// appraisal prints different totals on the summary report, the appraisal book, the Decision Summary card and the
-/// regulatory export.
+/// the sum of the already-rounded work rows, or the inspector's own figure when they overrode the current value),
+/// and every reader takes it from there — appraisal.vw_AppraisalConstructionProgress, which
+/// ConstructionCurrentValueService, collateral.vw_RegulatoryExport, sp_RegulatoryExport and RCAS004 read, a
+/// base-table copy of it in reporting.vw_MisCasReport, and the Decision Summary rows and the construction summary
+/// reports, which read the columns directly. A reader that derives money from the percentage instead would print
+/// a different total than the others as soon as a value is overridden.
 ///
 /// Percentages are NOT rounded to baht by this rule — they are stored as decimal(7,4) and reported to two
 /// decimal places, which is what the business asked for. That separation is what makes the rounding

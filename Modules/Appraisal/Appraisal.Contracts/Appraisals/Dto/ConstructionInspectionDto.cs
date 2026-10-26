@@ -12,6 +12,7 @@ public record ConstructionInspectionDto(
     decimal? SummaryPreviousValue,
     decimal? SummaryCurrentProgressPct,
     decimal? SummaryCurrentValue,
+    bool IsCurrentValueOverridden,
     string? Remark,
 
     // Document reference

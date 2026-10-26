@@ -50,10 +50,10 @@ public sealed class ConstructionBuilding
     /// <summary>SUM(CurrentProgressPct × ProportionPct / 100) across all items.</summary>
     public decimal? TotalCurrentPct { get; init; }
 
-    /// <summary>SUM(PreviousPropertyValue) across all items.</summary>
+    /// <summary>The inspection's stored SummaryPreviousValue (the sum of the items unless carried over from the last round).</summary>
     public decimal? TotalPreviousValue { get; init; }
 
-    /// <summary>SUM(CurrentPropertyValue) across all items.</summary>
+    /// <summary>The inspection's stored SummaryCurrentValue (the sum of the items unless the inspector overrode it).</summary>
     public decimal? TotalCurrentValue { get; init; }
 }
 
