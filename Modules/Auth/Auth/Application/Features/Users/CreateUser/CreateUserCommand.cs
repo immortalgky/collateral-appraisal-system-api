@@ -8,6 +8,7 @@ public record CreateUserCommand(
     string Email,
     string FirstName,
     string LastName,
+    string? PhoneNumber,
     string? Position,
     string? Department,
     Guid? CompanyId,

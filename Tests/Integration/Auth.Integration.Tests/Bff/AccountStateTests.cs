@@ -83,7 +83,7 @@ public class AccountStateTests(IntegrationTestFixture fixture)
             var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
             var current = await db.Users.AsNoTracking().FirstAsync(u => u.Id == user.Id);
             await scope.ServiceProvider.GetRequiredService<ISender>().Send(
-                new UpdateUserCommand(user.Id, current.FirstName!, current.LastName!, current.Email!, null, null, null,
+                new UpdateUserCommand(user.Id, current.FirstName!, current.LastName!, current.Email!, null, null, null, null,
                     IsTemporaryAccess: true));
         }
 
@@ -110,7 +110,7 @@ public class AccountStateTests(IntegrationTestFixture fixture)
             var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
             var current = await db.Users.AsNoTracking().FirstAsync(u => u.Id == user.Id);
             await scope.ServiceProvider.GetRequiredService<ISender>().Send(
-                new UpdateUserCommand(user.Id, current.FirstName!, current.LastName!, current.Email!, null, null,
+                new UpdateUserCommand(user.Id, current.FirstName!, current.LastName!, current.Email!, null, null, null,
                     companyId));
         }
 

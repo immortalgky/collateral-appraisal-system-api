@@ -13,6 +13,7 @@ public class UpdateUserEndpoint : ICarterModule
                         request.FirstName,
                         request.LastName,
                         request.Email,
+                        request.PhoneNumber,
                         request.Position,
                         request.Department,
                         request.CompanyId,

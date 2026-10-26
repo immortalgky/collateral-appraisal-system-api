@@ -33,6 +33,7 @@ public class RegistrationService(
             Email = registerUserDto.Email,
             FirstName = registerUserDto.FirstName,
             LastName = registerUserDto.LastName,
+            PhoneNumber = registerUserDto.PhoneNumber,
             AvatarUrl = registerUserDto.AvatarUrl,
             Position = registerUserDto.Position,
             Department = registerUserDto.Department,

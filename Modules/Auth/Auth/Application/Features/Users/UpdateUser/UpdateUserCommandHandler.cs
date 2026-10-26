@@ -104,6 +104,7 @@ public class UpdateUserCommandHandler(
         // Set email + its normalized form; UpdateAsync runs the Identity UserValidator which rejects
         // a duplicate email because RequireUniqueEmail is enabled (see AuthModule).
         user.Email = command.Email;
+        user.PhoneNumber = command.PhoneNumber;
         user.NormalizedEmail = userManager.NormalizeEmail(command.Email);
 
         var result = await userManager.UpdateAsync(user);
