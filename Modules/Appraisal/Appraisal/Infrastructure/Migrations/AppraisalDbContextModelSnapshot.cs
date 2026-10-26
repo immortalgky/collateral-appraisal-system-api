@@ -4877,8 +4877,8 @@ namespace Appraisal.Infrastructure.Migrations
                         .HasColumnType("date");
 
                     b.Property<string>("PaymentOrderNo")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
+                        .HasMaxLength(15)
+                        .HasColumnType("nvarchar(15)");
 
                     b.Property<string>("Status")
                         .IsRequired()
