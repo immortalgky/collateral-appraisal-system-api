@@ -39,7 +39,9 @@ public class GetBlockReappraisalDetailQueryHandler(
                 brd.DueDate,
                 brd.ProjectSellingPrice AS BrdProjectSellingPrice,
                 brd.TotalUnits        AS BrdTotalUnits,
-                brd.RemainingUnits    AS BrdRemainingUnits
+                brd.RemainingUnits    AS BrdRemainingUnits,
+                brd.Status,
+                brd.NotRequiredRemark
             FROM collateral.ProjectDetails pd
             LEFT JOIN collateral.BlockReappraisalDue brd
                 ON brd.CollateralMasterId = pd.CollateralMasterId
@@ -126,6 +128,8 @@ public class GetBlockReappraisalDetailQueryHandler(
             LastAppraisedDate: headerRow.LastAppraisedDate,
             DueDate: headerRow.DueDate,
             SoldUnits: soldUnits,
+            Status: headerRow.Status,
+            NotRequiredRemark: headerRow.NotRequiredRemark,
             Structure: structure);
     }
 
@@ -150,5 +154,7 @@ public class GetBlockReappraisalDetailQueryHandler(
         public decimal? BrdProjectSellingPrice { get; init; }
         public int? BrdTotalUnits { get; init; }
         public int? BrdRemainingUnits { get; init; }
+        public string? Status { get; init; }
+        public string? NotRequiredRemark { get; init; }
     }
 }
