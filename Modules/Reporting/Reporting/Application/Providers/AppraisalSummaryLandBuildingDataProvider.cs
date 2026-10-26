@@ -775,9 +775,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             ? string.Join(" และ ", customerNames)
             : null;
 
-        // ที่ตั้งทรัพย์สิน from the first land/building property (RS25, CollateralLocationSql). The
+        // ที่ตั้งทรัพย์สิน from the land/building properties (RS25, CollateralLocationSql). The
         // internal book renders every Standard appraisal through this provider, so one with no
-        // printable land anchor falls back to the first condo anchor (LandOrCondo).
+        // printable land unit falls back to the condo units (LandOrCondo).
         var location = locations.LandOrCondo;
         var collateralAddress = location?.Address;
 
