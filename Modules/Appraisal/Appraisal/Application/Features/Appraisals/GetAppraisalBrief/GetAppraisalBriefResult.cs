@@ -70,6 +70,16 @@ public record GetAppraisalBriefResult
     /// </summary>
     public bool DocumentsReleased { get; init; }
 
+    /// <summary>
+    /// The code the appraisal summary is filed under: D042 for a construction progress inspection,
+    /// D043 otherwise. Sent whatever the release state: it is a label, not a figure.
+    /// </summary>
+    public string SummaryTypeCode { get; init; } = "";
+
+    public string? SummaryTypeName { get; init; }
+
+    public string? SummaryTypeNameTh { get; init; }
+
     public decimal? AppraisalValue { get; init; }
     public decimal? ForcedSaleValue { get; init; }
     public decimal? InsuranceValue { get; init; }
@@ -631,8 +641,8 @@ public record BriefContact(
 
 /// <summary>
 /// A file in the appraisal folder. <see cref="IsPrimary"/> marks the two the credit officer
-/// actually files — D043 Appraisal Summary and D001 Appraisal Report — so the client can lead
-/// with them and keep the rest at a quieter weight.
+/// actually files — the Appraisal Summary (D043, or D042 for a construction progress inspection) and
+/// D001 Appraisal Report — so the client can lead with them and keep the rest at a quieter weight.
 /// </summary>
 public record BriefDocument(
     Guid DocumentId,

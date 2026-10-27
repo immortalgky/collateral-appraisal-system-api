@@ -15,7 +15,7 @@ using AppraisalAggregate = Appraisal.Domain.Appraisals.Appraisal;
 namespace Integration.Appraisal.Integration.Tests;
 
 /// <summary>
-/// The brief is one hand-written Dapper batch of 19 result sets, and no unit test executes it. The two
+/// The brief is one hand-written Dapper batch of 20 result sets, and no unit test executes it. The two
 /// big rows (AssetRow, ProjectRow) bind BY NAME: a SELECT alias that no longer matches a property does
 /// not throw, it just leaves that property null, so a renamed alias would silently blank a field. This
 /// runs the whole batch against the real migrated schema (views and masters included), with one
@@ -106,6 +106,30 @@ public class GetAppraisalBriefQueryTests(IntegrationTestFixture fixture) : Integ
         Assert.Equal("Room", area.GetProperty("description").GetString());
         Assert.Equal(33m, area.GetProperty("size").GetDecimal());
         Assert.Contains(assets, a => a.GetProperty("buildingDisplayName").GetString() == "Test Building Type");
+
+        // Standard body: D043, named from the DocumentTypes master by the last result set.
+        Assert.Equal("D043", brief.GetProperty("summaryTypeCode").GetString());
+        Assert.False(string.IsNullOrEmpty(brief.GetProperty("summaryTypeName").GetString()));
+    }
+
+    [Fact]
+    public async Task A_progressive_appraisal_files_its_summary_as_D042()
+    {
+        Guid appraisalId;
+        using (var scope = Fixture.IntegrationTestWebApplicationFactory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+            var appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "Progressive", "Normal", DateTime.Now);
+            appraisal.SetAppraisalNumber($"BRG-{Guid.NewGuid():N}"[..18]);
+            db.Appraisals.Add(appraisal);
+            await db.SaveChangesAsync(Ct);
+            appraisalId = appraisal.Id;
+        }
+
+        var brief = await GetBriefAsync(appraisalId);
+
+        Assert.Equal("D042", brief.GetProperty("summaryTypeCode").GetString());
+        Assert.False(string.IsNullOrEmpty(brief.GetProperty("summaryTypeName").GetString()));
     }
 
     [Theory]
@@ -118,7 +142,7 @@ public class GetAppraisalBriefQueryTests(IntegrationTestFixture fixture) : Integ
         using (var scope = Fixture.IntegrationTestWebApplicationFactory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
-            var appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "New", "Normal", DateTime.Now);
+            var appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "Progressive", "Normal", DateTime.Now);
             appraisal.SetAppraisalNumber($"BRP-{Guid.NewGuid():N}"[..18]);
             db.Appraisals.Add(appraisal);
             await db.SaveChangesAsync(Ct);
@@ -147,6 +171,8 @@ public class GetAppraisalBriefQueryTests(IntegrationTestFixture fixture) : Integ
         var brief = await GetBriefAsync(appraisalId);
 
         var p = brief.GetProperty("project");
+        // Block wins over the appraisal type.
+        Assert.Equal("D043", brief.GetProperty("summaryTypeCode").GetString());
         Assert.Equal("Brief Test", p.GetProperty("projectName").GetString());
         Assert.Equal("Dev", p.GetProperty("developer").GetString());   // ProjectRow, bound by name
         Assert.Equal(1, p.GetProperty("unitCount").GetInt32());
