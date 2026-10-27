@@ -1,0 +1,10920 @@
+/*
+=============================================================================
+ CreateMaintenanceAgentJobs.sql
+-----------------------------------------------------------------------------
+ ONE script, run ONCE by the DBA on the database server, that
+   (a) installs Ola Hallengren's Maintenance Solution into [master]
+       (embedded below, no backup jobs, no Ola jobs), and
+   (b) creates the four SQL Server Agent jobs that keep the application
+       database healthy (statistics, index upkeep, integrity check,
+       housekeeping). Design and rationale: deploy/DB-MAINTENANCE.md.
+
+ MAINTENANCE ONLY - this script is NOT run by DbUp, the migrate tool or the
+ deploy scripts (it lives under Scripts\Maintenance\, not Scripts\Views|
+ StoredProcedures|Functions\). Run it by hand from SSMS. Run it again only to
+ change a setting below.
+
+ EMBEDDED THIRD-PARTY CODE
+   Ola Hallengren's SQL Server Maintenance Solution, version
+   2026-09-12 15:02:38, downloaded from
+   https://ola.hallengren.com/scripts/MaintenanceSolution.sql
+   (GitHub: https://github.com/olahallengren/sql-server-maintenance-solution),
+   MIT licence: https://ola.hallengren.com/license.html. The licence/copyright
+   header of the original is kept intact.
+   Changes to the original, all marked "CAS:" or listed here: UTF-8 BOM removed,
+   CRLF line endings converted to LF, @CreateJobs set to 'N' (the jobs below
+   replace Ola's), and one marker comment line added before its USE statement.
+   Ola's DatabaseBackup procedure is installed with the rest but is never called.
+
+ WHAT THE JOBS DO (<db> = @DatabaseName)
+   CAS - Statistics (nightly) - <db>       daily        22:00  stats only
+   CAS - Cleanup (weekly) - <db>           Sunday       21:30  CommandLog + job history > 30 days
+   CAS - Index optimize (weekly) - <db>    Sunday       22:30  reorganize / rebuild, 2 h limit
+   CAS - Integrity check (weekly) - <db>   Saturday     22:00  DBCC CHECKDB
+ Schedules use the SERVER'S LOCAL TIME and sit outside the application's own
+ 01:00-05:00 window - so the server clock/time zone must be Thai (+07:00).
+ NO backup job is created: backups are the bank's own. No e-mail is configured;
+ check failures in the job history, dbo.CommandLog and LastGoodCheckDbTime
+ (see deploy/DB-MAINTENANCE.md section 6).
+
+ PREREQUISITES
+   * Run as a member of sysadmin, on SQL Server 2017 or later.
+   * SQL Server Agent is running, startup type Automatic (a warning is printed
+     if it does not look like it is running).
+   * Run the WHOLE file in one go (it is a series of batches that share a
+     session). In SSMS use Execute with nothing selected; SQLCMD mode is not needed.
+
+ HOW TO USE
+   1. Set the three variables in the first batch below, then run the whole file.
+   2. The last result set lists the jobs, schedules and next run times.
+   3. Optional: CheckMaintenanceSolution.sql (read-only) shows whether Ola or
+      other maintenance jobs already exist on a server you did not set up.
+
+ RE-RUNNABLE / ALREADY-INSTALLED OLA
+   * Ola missing from @OlaDatabase           -> installed.
+   * Ola there, SAME version as embedded     -> left untouched, only the jobs are (re)created.
+   * Ola there, any OTHER version (or half-installed) -> the script stops before
+     changing anything and says so. It never upgrades or downgrades an install
+     other jobs may depend on. Install/upgrade Ola yourself, or run a script
+     that embeds the same version.
+   How the stop works: the Ola section is many GO batches, so a THROW in one
+   would not stop the next. The first batch raises the error and turns
+   SET NOEXEC ON, so every following batch is only compiled, not run; the
+   last batch raises the same error again. Nothing is created or altered.
+   Jobs are found by their exact names; a re-run drops and recreates only those
+   jobs and schedules (one transaction), never other jobs.
+
+ INSTALLING OLA IN A DEDICATED DATABASE INSTEAD OF [master]
+   The database must already exist. Change BOTH places, they must agree:
+     1. @OlaDatabase in the first batch below, e.g. N'DBA'
+     2. the line  USE [master]  in Ola's section (search for "CAS: OLA INSTALL TARGET")
+   If they disagree, Ola lands in the wrong database and the last batch stops with
+   "not found in ..." without creating jobs.
+
+ CAUTIONS
+   * Job history of these four jobs older than 30 days is purged by the Cleanup
+     job (sp_purge_jobhistory, per job name - other jobs' history is not touched).
+   * Ola matches @Databases with LIKE: '_' in a database name matches any single
+     character. Names containing , % [ ] or starting with '-' are rejected.
+=============================================================================
+*/
+
+SET NOEXEC OFF;   -- in case an earlier, aborted run left it on
+SET NOCOUNT ON;
+
+------------------------------------------------------------------------------
+-- SETTINGS - the only values to edit (plus USE [master] in Ola's section if
+-- you move Ola out of [master]; see the header)
+------------------------------------------------------------------------------
+DECLARE @DatabaseName sysname = N'CollateralAppraisal'; -- database to maintain
+DECLARE @OlaDatabase  sysname = N'master';              -- database that holds (or will hold) Ola's procedures and dbo.CommandLog
+DECLARE @JobOwner     sysname = N'sa';                  -- login that owns the jobs
+DECLARE @OlaVersion   char(19) = '2026-09-12 15:02:38'; -- version embedded below; do not edit
+
+------------------------------------------------------------------------------
+-- Pre-flight: every check that does not need Ola. Result goes into #CasControl
+-- for the later batches. On any problem: raise the error, then SET NOEXEC ON so
+-- nothing else (including Ola's install) runs.
+------------------------------------------------------------------------------
+IF OBJECT_ID(N'tempdb..#CasControl') IS NOT NULL DROP TABLE #CasControl;
+CREATE TABLE #CasControl (
+    DatabaseName sysname       NOT NULL,
+    OlaDatabase  sysname       NOT NULL,
+    JobOwner     sysname       NOT NULL,
+    OlaVersion   char(19)      NOT NULL,
+    Action       varchar(10)   NOT NULL,   -- install | skip | abort
+    Message      nvarchar(2000) NULL
+);
+
+DECLARE @msg    nvarchar(2000) = NULL;
+DECLARE @action varchar(10)    = 'install';
+
+IF IS_SRVROLEMEMBER('sysadmin') <> 1
+    SET @msg = N'You must be a member of the sysadmin server role to run this script.';
+
+IF @msg IS NULL AND CAST(PARSENAME(CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(32)), 4) AS int) < 14
+    SET @msg = N'This Ola Hallengren version needs SQL Server 2017 or later.';
+
+IF @msg IS NULL AND (DB_ID(@DatabaseName) IS NULL OR @DatabaseName IN (N'master', N'msdb', N'model', N'tempdb')
+    OR CHARINDEX(N',', @DatabaseName) > 0 OR CHARINDEX(N'%', @DatabaseName) > 0
+    OR CHARINDEX(N'[', @DatabaseName) > 0 OR CHARINDEX(N']', @DatabaseName) > 0
+    OR LEFT(@DatabaseName, 1) = N'-')
+    SET @msg = N'@DatabaseName ' + QUOTENAME(ISNULL(@DatabaseName, N'NULL')) + N' is not a user database on this instance (or its name cannot be passed to Ola safely).';
+
+-- Longest job name = 'CAS - Integrity check (weekly) - ' (33 chars) + database name; Agent allows 128
+IF @msg IS NULL AND LEN(@DatabaseName) + 33 > 128
+    SET @msg = N'@DatabaseName is too long to build an Agent job name (128 character limit).';
+
+IF @msg IS NULL AND (DB_ID(@OlaDatabase) IS NULL OR DATABASEPROPERTYEX(@OlaDatabase, 'Status') <> N'ONLINE')
+    SET @msg = N'@OlaDatabase ' + QUOTENAME(ISNULL(@OlaDatabase, N'NULL')) + N' does not exist or is not ONLINE. Create it first.';
+
+IF @msg IS NULL AND SUSER_SID(@JobOwner) IS NULL
+    SET @msg = N'@JobOwner ' + QUOTENAME(ISNULL(@JobOwner, N'NULL')) + N' is not a login on this instance.';
+
+-- Is Ola already in @OlaDatabase, and which version? (stamp: "--// Version: yyyy-mm-dd hh:mi:ss" in the proc source)
+IF @msg IS NULL
+BEGIN
+    CREATE TABLE #CasOlaVer (ProcName sysname NOT NULL, Version nvarchar(30) NULL);
+    DECLARE @sql nvarchar(max) =
+        N'SELECT o.name, CASE WHEN CHARINDEX(N''--// Version: '', m.definition) > 0 '
+      + N'THEN SUBSTRING(m.definition, CHARINDEX(N''--// Version: '', m.definition) + 14, 19) END '
+      + N'FROM ' + QUOTENAME(@OlaDatabase) + N'.sys.objects o '
+      + N'JOIN ' + QUOTENAME(@OlaDatabase) + N'.sys.sql_modules m ON m.object_id = o.object_id '
+      + N'WHERE o.type = N''P'' AND o.schema_id = 1 '     -- schema_id 1 = dbo in every database
+      + N'AND o.name IN (N''CommandExecute'', N''IndexOptimize'', N''DatabaseIntegrityCheck'', N''DatabaseBackup'')';
+    INSERT INTO #CasOlaVer EXECUTE (@sql);
+
+    DECLARE @found     int = (SELECT COUNT(*) FROM #CasOlaVer);
+    DECLARE @mismatch  int = (SELECT COUNT(*) FROM #CasOlaVer WHERE ISNULL(Version, N'') <> @OlaVersion);
+    DECLARE @required  int = (SELECT COUNT(*) FROM #CasOlaVer WHERE ProcName IN (N'CommandExecute', N'IndexOptimize', N'DatabaseIntegrityCheck'));
+    DECLARE @hasLog    bit = CASE WHEN OBJECT_ID(QUOTENAME(@OlaDatabase) + N'.dbo.CommandLog', N'U') IS NOT NULL THEN 1 ELSE 0 END;
+
+    IF @found = 0
+        SET @action = 'install';
+    ELSE IF @mismatch = 0 AND @required = 3 AND @hasLog = 1
+        SET @action = 'skip';
+    ELSE
+    BEGIN
+        DECLARE @list nvarchar(1000) = N'';
+        SELECT @list = @list + CASE WHEN @list = N'' THEN N'' ELSE N', ' END + ProcName + N' ' + ISNULL(Version, N'unknown') FROM #CasOlaVer;
+        SET @msg = N'Ola Hallengren''s procedures already exist in ' + QUOTENAME(@OlaDatabase) + N' but are not the embedded version '
+                 + @OlaVersion + N' (found: ' + @list + CASE WHEN @hasLog = 0 THEN N'; dbo.CommandLog is missing' ELSE N'' END
+                 + N'). This script does not upgrade, downgrade or repair an existing install.';
+    END
+    DROP TABLE #CasOlaVer;
+END
+
+IF @msg IS NOT NULL
+BEGIN
+    SET @action = 'abort';
+    SET @msg = @msg + N' Nothing was created or changed.';
+END
+
+INSERT INTO #CasControl (DatabaseName, OlaDatabase, JobOwner, OlaVersion, Action, Message)
+VALUES (@DatabaseName, @OlaDatabase, @JobOwner, @OlaVersion, @action, @msg);
+
+IF @action = 'abort'
+    RAISERROR('%s', 16, 1, @msg) WITH NOWAIT;
+ELSE IF @action = 'skip'
+    RAISERROR('Ola Hallengren version %s is already installed - leaving it untouched.', 10, 1, @OlaVersion) WITH NOWAIT;
+ELSE
+    RAISERROR('Installing Ola Hallengren version %s.', 10, 1, @OlaVersion) WITH NOWAIT;
+
+-- abort or skip: compile (but do not run) everything up to the "SET NOEXEC OFF" batch, i.e. all of Ola's install
+IF @action IN ('abort', 'skip') SET NOEXEC ON;
+GO
+
+-- =====================================================================
+-- BEGIN Ola Hallengren Maintenance Solution 2026-09-12 15:02:38 (third-party, MIT)
+-- =====================================================================
+/*
+
+SQL Server Maintenance Solution - SQL Server 2017, SQL Server 2019, SQL Server 2022, SQL Server 2025, and Azure SQL Managed Instance
+
+Backup: https://ola.hallengren.com/sql-server-backup.html
+Integrity Check: https://ola.hallengren.com/sql-server-integrity-check.html
+Index and Statistics Maintenance: https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html
+
+License: https://ola.hallengren.com/license.html
+
+GitHub: https://github.com/olahallengren/sql-server-maintenance-solution
+
+Version: 2026-09-12 15:02:38
+
+You can contact me by e-mail at ola@hallengren.com.
+
+Ola Hallengren
+https://ola.hallengren.com
+
+*/
+
+-- CAS: OLA INSTALL TARGET - this USE line must name the same database as @OlaDatabase at the top of this file.
+USE [master] -- Specify the database in which the objects will be created.
+
+SET NOCOUNT ON
+
+DECLARE @CreateJobs nvarchar(max)          = 'N'         -- CAS: was 'Y'. Our own jobs are created below.
+DECLARE @BackupDirectory nvarchar(max)     = NULL        -- Specify the backup root directory. If no directory is specified, the default backup directory is used.
+DECLARE @BackupURL nvarchar(max)           = NULL        -- Specify the backup root URL.
+DECLARE @CleanupTime int                   = NULL        -- Time in hours, after which backup files are deleted. If no time is specified, then no backup files are deleted.
+DECLARE @OutputFileDirectory nvarchar(max) = NULL        -- Specify the output file directory. If no directory is specified, then the SQL Server error log directory is used.
+DECLARE @LogToTable nvarchar(max)          = 'Y'         -- Log commands to a table.
+
+DECLARE @ErrorMessage nvarchar(max)
+
+IF IS_SRVROLEMEMBER('sysadmin') = 0 AND NOT (EXISTS (SELECT * FROM sys.databases WHERE [name] = 'rdsadmin') AND SUSER_SNAME(0x01) = 'rdsa')
+BEGIN
+  SET @ErrorMessage = 'You need to be a member of the SysAdmin server role to install the SQL Server Maintenance Solution.'
+  RAISERROR(@ErrorMessage,16,1) WITH NOWAIT
+END
+
+IF @BackupDirectory IS NOT NULL AND @BackupURL IS NOT NULL
+BEGIN
+  SET @ErrorMessage = 'Only one of the variables @BackupDirectory and @BackupURL can be set.'
+  RAISERROR(@ErrorMessage,16,1) WITH NOWAIT
+END
+
+IF @BackupURL IS NOT NULL AND @CleanupTime IS NOT NULL
+BEGIN
+  SET @ErrorMessage = 'The variable @CleanupTime is not supported with backup to URL.'
+  RAISERROR(@ErrorMessage,16,1) WITH NOWAIT
+END
+
+IF OBJECT_ID('tempdb..#Config') IS NOT NULL DROP TABLE #Config
+
+CREATE TABLE #Config ([Name] nvarchar(max),
+                      [Value] nvarchar(max))
+
+INSERT INTO #Config ([Name], [Value]) VALUES('CreateJobs', @CreateJobs)
+INSERT INTO #Config ([Name], [Value]) VALUES('BackupDirectory', @BackupDirectory)
+INSERT INTO #Config ([Name], [Value]) VALUES('BackupURL', @BackupURL)
+INSERT INTO #Config ([Name], [Value]) VALUES('CleanupTime', @CleanupTime)
+INSERT INTO #Config ([Name], [Value]) VALUES('OutputFileDirectory', @OutputFileDirectory)
+INSERT INTO #Config ([Name], [Value]) VALUES('LogToTable', @LogToTable)
+INSERT INTO #Config ([Name], [Value]) VALUES('DatabaseName', DB_NAME())
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[CommandLog]') AND type in (N'U'))
+BEGIN
+CREATE TABLE [dbo].[CommandLog](
+  [ID] [int] IDENTITY(1,1) NOT NULL,
+  [DatabaseName] [sysname] NULL,
+  [SchemaName] [sysname] NULL,
+  [ObjectName] [sysname] NULL,
+  [ObjectType] [char](2) NULL,
+  [IndexName] [sysname] NULL,
+  [IndexType] [tinyint] NULL,
+  [StatisticsName] [sysname] NULL,
+  [PartitionNumber] [int] NULL,
+  [ExtendedInfo] [xml] NULL,
+  [Command] [nvarchar](max) NOT NULL,
+  [CommandType] [nvarchar](60) NOT NULL,
+  [StartTime] [datetime2](7) NOT NULL,
+  [EndTime] [datetime2](7) NULL,
+  [ErrorNumber] [int] NULL,
+  [ErrorMessage] [nvarchar](max) NULL,
+ CONSTRAINT [PK_CommandLog] PRIMARY KEY CLUSTERED
+(
+  [ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON)
+)
+END
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[CommandExecute]') AND type in (N'P', N'PC'))
+BEGIN
+EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [dbo].[CommandExecute] AS'
+END
+GO
+ALTER PROCEDURE [dbo].[CommandExecute]
+
+@DatabaseContext nvarchar(max),
+@Command nvarchar(max),
+@CommandType nvarchar(max),
+@Mode int,
+@Comment nvarchar(max) = NULL,
+@DatabaseName nvarchar(max) = NULL,
+@SchemaName nvarchar(max) = NULL,
+@ObjectName nvarchar(max) = NULL,
+@ObjectType nvarchar(max) = NULL,
+@IndexName nvarchar(max) = NULL,
+@IndexType int = NULL,
+@StatisticsName nvarchar(max) = NULL,
+@PartitionNumber int = NULL,
+@EncryptionKey nvarchar(max) = NULL,
+@EncryptionKeyPlaceholder nvarchar(max) = NULL,
+@ExtendedInfo xml = NULL,
+@LockMessageSeverity int = 16,
+@ExecuteAsUser nvarchar(max) = NULL,
+@LogToTable nvarchar(max),
+@Execute nvarchar(max)
+
+AS
+
+BEGIN
+
+  ----------------------------------------------------------------------------------------------------
+  --// Source:  https://ola.hallengren.com                                                        //--
+  --// License: https://ola.hallengren.com/license.html                                           //--
+  --// GitHub:  https://github.com/olahallengren/sql-server-maintenance-solution                  //--
+  --// Version: 2026-09-12 15:02:38                                                               //--
+  ----------------------------------------------------------------------------------------------------
+
+  SET NOCOUNT ON
+
+  DECLARE @StartMessage nvarchar(max)
+  DECLARE @EndMessage nvarchar(max)
+  DECLARE @ErrorMessage nvarchar(max)
+  DECLARE @ErrorMessageOriginal nvarchar(max)
+  DECLARE @Severity int
+
+  DECLARE @Errors TABLE (ID int IDENTITY PRIMARY KEY,
+                         [Message] nvarchar(max) NOT NULL,
+                         Severity int NOT NULL,
+                         [State] int NOT NULL)
+
+  DECLARE @CurrentMessage nvarchar(max)
+  DECLARE @CurrentSeverity int
+  DECLARE @CurrentState int
+
+  DECLARE @sp_executesql nvarchar(max) = QUOTENAME(@DatabaseContext) + '.sys.sp_executesql'
+
+  DECLARE @StartTime datetime2
+  DECLARE @EndTime datetime2
+
+  DECLARE @ID int
+
+  DECLARE @Error int = 0
+  DECLARE @ReturnCode int = 0
+
+  DECLARE @EmptyLine nvarchar(max) = CHAR(9)
+
+  DECLARE @RevertCommand nvarchar(max)
+
+  DECLARE @CommandMasked nvarchar(max)
+
+  ----------------------------------------------------------------------------------------------------
+  --// Check core requirements                                                                    //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF NOT (SELECT uses_ansi_nulls FROM sys.sql_modules WHERE [object_id] = @@PROCID) = 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('ANSI_NULLS has to be set to ON for the stored procedure.', 16, 1)
+  END
+
+  IF NOT (SELECT uses_quoted_identifier FROM sys.sql_modules WHERE [object_id] = @@PROCID) = 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('QUOTED_IDENTIFIER has to be set to ON for the stored procedure.', 16, 1)
+  END
+
+  IF @LogToTable = 'Y' AND NOT EXISTS (SELECT * FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] = 'U' AND schemas.[name] = 'dbo' AND objects.[name] = 'CommandLog')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The table CommandLog is missing. Download https://ola.hallengren.com/scripts/CommandLog.sql.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Check input parameters                                                                     //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DatabaseContext IS NULL OR NOT EXISTS (SELECT * FROM sys.databases WHERE name = @DatabaseContext)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DatabaseContext is not supported. Specify the name of an existing database.', 16, 1)
+  END
+
+  IF @Command IS NULL OR @Command = ''
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Command is not supported. The value cannot be NULL or empty.', 16, 1)
+  END
+
+  IF @CommandType IS NULL OR @CommandType = '' OR LEN(@CommandType) > 60
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CommandType is not supported. The value cannot be NULL or empty, and the maximum length is 60 characters.', 16, 1)
+  END
+
+  IF @Mode NOT IN(1,2) OR @Mode IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Mode is not supported. Supported values are 1 and 2.', 16, 1)
+  END
+
+  IF (@EncryptionKey IS NULL AND @EncryptionKeyPlaceholder IS NOT NULL) OR (@EncryptionKey IS NOT NULL AND @EncryptionKeyPlaceholder IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameters @EncryptionKey and @EncryptionKeyPlaceholder must be specified together.', 16, 1)
+  END
+
+  IF @LockMessageSeverity NOT IN(10,16) OR @LockMessageSeverity IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @LockMessageSeverity is not supported. Supported values are 10 and 16.', 16, 1)
+  END
+
+  IF LEN(@ExecuteAsUser) > 128
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @ExecuteAsUser is not supported. The maximum length is 128 characters.', 16, 1)
+  END
+
+  IF @LogToTable NOT IN('Y','N') OR @LogToTable IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @LogToTable is not supported. Supported values are ''Y'' and ''N''.', 16, 1)
+  END
+
+  IF @Execute NOT IN('Y','N') OR @Execute IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Execute is not supported. Supported values are ''Y'' and ''N''.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Raise errors                                                                               //--
+  ----------------------------------------------------------------------------------------------------
+
+  DECLARE ErrorCursor CURSOR LOCAL FAST_FORWARD FOR SELECT [Message], Severity, [State] FROM @Errors ORDER BY [ID] ASC
+
+  OPEN ErrorCursor
+
+  FETCH ErrorCursor INTO @CurrentMessage, @CurrentSeverity, @CurrentState
+
+  WHILE @@FETCH_STATUS = 0
+  BEGIN
+    RAISERROR('%s', @CurrentSeverity, @CurrentState, @CurrentMessage) WITH NOWAIT
+    RAISERROR(@EmptyLine, 10, 1) WITH NOWAIT
+
+    FETCH NEXT FROM ErrorCursor INTO @CurrentMessage, @CurrentSeverity, @CurrentState
+  END
+
+  CLOSE ErrorCursor
+
+  DEALLOCATE ErrorCursor
+
+  IF EXISTS (SELECT * FROM @Errors WHERE Severity >= 16)
+  BEGIN
+    SET @ReturnCode = 50000
+    GOTO ReturnCode
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Execute as user                                                                            //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @ExecuteAsUser IS NOT NULL
+  BEGIN
+    SET @Command = 'EXECUTE AS USER = ''' + REPLACE(@ExecuteAsUser,'''','''''') + '''; ' + @Command + '; REVERT;'
+
+    SET @RevertCommand = 'REVERT'
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Mask encryption key                                                                        //--
+  ----------------------------------------------------------------------------------------------------
+
+  SET @CommandMasked = CASE WHEN @EncryptionKeyPlaceholder IS NULL THEN @Command ELSE REPLACE(@Command,@EncryptionKeyPlaceholder,'********') END
+
+  SET @Command = CASE WHEN @EncryptionKeyPlaceholder IS NULL THEN @Command ELSE REPLACE(@Command,@EncryptionKeyPlaceholder,REPLACE(ISNULL(@EncryptionKey,''),'''','''''')) END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Log initial information                                                                    //--
+  ----------------------------------------------------------------------------------------------------
+
+  SET @StartTime = SYSDATETIME()
+
+  SET @StartMessage = 'Date and time: ' + CONVERT(nvarchar(max),@StartTime,120)
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Database context: ' + QUOTENAME(@DatabaseContext)
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Command: ' + @CommandMasked
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  IF @Comment IS NOT NULL
+  BEGIN
+    SET @StartMessage = 'Comment: ' + @Comment
+    RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+  END
+
+  IF @LogToTable = 'Y'
+  BEGIN
+    INSERT INTO dbo.CommandLog (DatabaseName, SchemaName, ObjectName, ObjectType, IndexName, IndexType, StatisticsName, PartitionNumber, ExtendedInfo, CommandType, Command, StartTime)
+    VALUES (@DatabaseName, @SchemaName, @ObjectName, @ObjectType, @IndexName, @IndexType, @StatisticsName, @PartitionNumber, @ExtendedInfo, @CommandType, @CommandMasked, @StartTime)
+
+    SET @ID = SCOPE_IDENTITY()
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Execute command                                                                            //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Mode = 1 AND @Execute = 'Y'
+  BEGIN
+    EXECUTE @sp_executesql @stmt = @Command
+    SET @Error = @@ERROR
+    SET @ReturnCode = @Error
+  END
+
+  IF @Mode = 2 AND @Execute = 'Y'
+  BEGIN
+    BEGIN TRY
+      EXECUTE @sp_executesql @stmt = @Command
+    END TRY
+    BEGIN CATCH
+      SET @Error = ERROR_NUMBER()
+      SET @ErrorMessageOriginal = ERROR_MESSAGE()
+
+      SET @ErrorMessage = 'Msg ' + CAST(ERROR_NUMBER() AS nvarchar(max)) + ', ' + ISNULL(ERROR_MESSAGE(),'')
+      SET @Severity = CASE WHEN ERROR_NUMBER() IN(1205, 1222, 5245) THEN @LockMessageSeverity ELSE ERROR_SEVERITY() END
+      RAISERROR('%s',@Severity,1,@ErrorMessage) WITH NOWAIT
+
+      IF NOT (ERROR_NUMBER() IN(1205, 1222, 5245) AND @LockMessageSeverity = 10)
+      BEGIN
+        SET @ReturnCode = ERROR_NUMBER()
+      END
+
+      IF @ExecuteAsUser IS NOT NULL
+      BEGIN
+        EXECUTE @sp_executesql @RevertCommand
+      END
+    END CATCH
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Log completing information                                                                 //--
+  ----------------------------------------------------------------------------------------------------
+
+  SET @EndTime = SYSDATETIME()
+
+  SET @EndMessage = 'Outcome: ' + CASE WHEN @Execute = 'N' THEN 'Not Executed' WHEN @Error = 0 THEN 'Succeeded' ELSE 'Failed' END
+  RAISERROR('%s',10,1,@EndMessage) WITH NOWAIT
+
+  SET @EndMessage = 'Duration: ' + CASE WHEN (DATEDIFF(SECOND,@StartTime,@EndTime) / (24 * 3600)) > 0 THEN CAST((DATEDIFF(SECOND,@StartTime,@EndTime) / (24 * 3600)) AS nvarchar(max)) + '.' ELSE '' END + CONVERT(nvarchar(max),DATEADD(SECOND,DATEDIFF(SECOND,@StartTime,@EndTime),'1900-01-01'),108)
+  RAISERROR('%s',10,1,@EndMessage) WITH NOWAIT
+
+  SET @EndMessage = 'Date and time: ' + CONVERT(nvarchar(max),@EndTime,120)
+  RAISERROR('%s',10,1,@EndMessage) WITH NOWAIT
+
+  RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+  IF @LogToTable = 'Y'
+  BEGIN
+    UPDATE dbo.CommandLog
+    SET EndTime = @EndTime,
+        ErrorNumber = CASE WHEN @Execute = 'N' THEN NULL ELSE @Error END,
+        ErrorMessage = @ErrorMessageOriginal
+    WHERE ID = @ID
+  END
+
+  ReturnCode:
+  IF @ReturnCode <> 0
+  BEGIN
+    RETURN @ReturnCode
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+END
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[DatabaseBackup]') AND type in (N'P', N'PC'))
+BEGIN
+EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [dbo].[DatabaseBackup] AS'
+END
+GO
+ALTER PROCEDURE [dbo].[DatabaseBackup]
+
+@Databases nvarchar(max) = NULL,
+@Directory nvarchar(max) = NULL,
+@BackupType nvarchar(max),
+@Verify nvarchar(max) = 'N',
+@CleanupTime int = NULL,
+@CleanupMode nvarchar(max) = 'AFTER_BACKUP',
+@Compress nvarchar(max) = NULL,
+@CompressionAlgorithm nvarchar(max) = NULL,
+@CompressionLevel nvarchar(max) = NULL,
+@CopyOnly nvarchar(max) = 'N',
+@ChangeBackupType nvarchar(max) = 'N',
+@BackupSoftware nvarchar(max) = NULL,
+@Checksum nvarchar(max) = NULL,
+@BlockSize int = NULL,
+@BufferCount int = NULL,
+@MaxTransferSize int = NULL,
+@NumberOfFiles int = NULL,
+@MinBackupSizeForMultipleFiles int = NULL,
+@MaxFileSize int = NULL,
+@CompressionLevelNumeric int = NULL,
+@Description nvarchar(max) = NULL,
+@BackupSetName nvarchar(max) = NULL,
+@Threads int = NULL,
+@Throttle int = NULL,
+@Encrypt nvarchar(max) = 'N',
+@EncryptionAlgorithm nvarchar(max) = NULL,
+@ServerCertificate nvarchar(max) = NULL,
+@ServerAsymmetricKey nvarchar(max) = NULL,
+@EncryptionKey nvarchar(max) = NULL,
+@ReadWriteFileGroups nvarchar(max) = 'N',
+@OverrideBackupPreference nvarchar(max) = 'N',
+@NoRecovery nvarchar(max) = 'N',
+@URL nvarchar(max) = NULL,
+@Credential nvarchar(max) = NULL,
+@MirrorDirectory nvarchar(max) = NULL,
+@MirrorCleanupTime int = NULL,
+@MirrorCleanupMode nvarchar(max) = 'AFTER_BACKUP',
+@MirrorURL nvarchar(max) = NULL,
+@AvailabilityGroups nvarchar(max) = NULL,
+@Updateability nvarchar(max) = 'ALL',
+@AdaptiveCompression nvarchar(max) = NULL,
+@MinModificationLevel int = NULL,
+@MinDatabaseSizeForDifferentialBackup int = NULL,
+@MinLogSizeSinceLastLogBackup int = NULL,
+@MinTimeSinceLastLogBackup int = NULL,
+@DataDomainBoostHost nvarchar(max) = NULL,
+@DataDomainBoostUser nvarchar(max) = NULL,
+@DataDomainBoostDevicePath nvarchar(max) = NULL,
+@DataDomainBoostLockboxPath nvarchar(max) = NULL,
+@DataDomainBoostNoOutputTable nvarchar(max) = 'N',
+@DirectoryStructure nvarchar(max) = '{ServerName}${InstanceName}{DirectorySeparator}{DatabaseName}{DirectorySeparator}{BackupType}_{Partial}_{CopyOnly}',
+@AvailabilityGroupDirectoryStructure nvarchar(max) = '{ClusterName}${AvailabilityGroupName}{DirectorySeparator}{DatabaseName}{DirectorySeparator}{BackupType}_{Partial}_{CopyOnly}',
+@DirectoryStructureCase nvarchar(max) = NULL,
+@FileName nvarchar(max) = '{ServerName}${InstanceName}_{DatabaseName}_{BackupType}_{Partial}_{CopyOnly}_{Year}{Month}{Day}_{Hour}{Minute}{Second}_{FileNumber}.{FileExtension}',
+@AvailabilityGroupFileName nvarchar(max) = '{ClusterName}${AvailabilityGroupName}_{DatabaseName}_{BackupType}_{Partial}_{CopyOnly}_{Year}{Month}{Day}_{Hour}{Minute}{Second}_{FileNumber}.{FileExtension}',
+@FileNameCase nvarchar(max) = NULL,
+@TokenTimezone nvarchar(max) = 'LOCAL',
+@FileExtensionFull nvarchar(max) = NULL,
+@FileExtensionDiff nvarchar(max) = NULL,
+@FileExtensionLog nvarchar(max) = NULL,
+@Init nvarchar(max) = 'N',
+@Format nvarchar(max) = 'N',
+@ObjectLevelRecoveryMap nvarchar(max) = 'N',
+@ExcludeLogShippedFromLogBackup nvarchar(max) = 'Y',
+@ExcludeSeedingFromLogBackup nvarchar(max) = 'N',
+@DirectoryCheck nvarchar(max) = 'Y',
+@BackupOptions nvarchar(max) = NULL,
+@Stats int = NULL,
+@ExpireDate datetime = NULL,
+@RetainDays int = NULL,
+@AllowNonCopyOnlyBackupsOnForwarder nvarchar(max) = 'N',
+@StringDelimiter nvarchar(max) = ',',
+@DatabaseOrder nvarchar(max) = NULL,
+@DatabasesInParallel nvarchar(max) = 'N',
+@LogToTable nvarchar(max) = 'N',
+@Execute nvarchar(max) = 'Y'
+
+AS
+
+BEGIN
+
+  ----------------------------------------------------------------------------------------------------
+  --// Source:  https://ola.hallengren.com                                                        //--
+  --// License: https://ola.hallengren.com/license.html                                           //--
+  --// GitHub:  https://github.com/olahallengren/sql-server-maintenance-solution                  //--
+  --// Version: 2026-09-12 15:02:38                                                               //--
+  ----------------------------------------------------------------------------------------------------
+
+  SET NOCOUNT ON
+
+  DECLARE @StartMessage nvarchar(max)
+  DECLARE @EndMessage nvarchar(max)
+  DECLARE @DatabaseMessage nvarchar(max)
+  DECLARE @ErrorMessage nvarchar(max)
+
+  DECLARE @StartTime datetime2 = SYSDATETIME()
+  DECLARE @SchemaName nvarchar(max) = OBJECT_SCHEMA_NAME(@@PROCID)
+  DECLARE @ObjectName nvarchar(max) = OBJECT_NAME(@@PROCID)
+  DECLARE @VersionTimestamp nvarchar(max) = SUBSTRING(OBJECT_DEFINITION(@@PROCID),CHARINDEX('--// Version: ',OBJECT_DEFINITION(@@PROCID)) + LEN('--// Version: ') + 1, 19)
+
+  DECLARE @Parameters TABLE (ID int IDENTITY PRIMARY KEY,
+                             [Name] nvarchar(max) NOT NULL,
+                             ValueNvarchar nvarchar(max),
+                             ValueInt int,
+                             ValueDatetime datetime2)
+
+  DECLARE @ParametersString nvarchar(max)
+  DECLARE @CurrentParameterName nvarchar(max)
+  DECLARE @CurrentParameterValueNvarchar nvarchar(max)
+  DECLARE @CurrentParameterValueInt int
+  DECLARE @CurrentParameterValueDatetime datetime2
+  DECLARE @CurrentParameterDelimiter nvarchar(max)
+  DECLARE @CurrentParameterMessage nvarchar(max)
+
+  DECLARE @HostPlatform nvarchar(max)
+  DECLARE @ContainedAvailabilityGroupID uniqueidentifier
+  DECLARE @ContainedAvailabilityGroupListenerConnection bit
+  DECLARE @IsSysadmin bit = IS_SRVROLEMEMBER('sysadmin')
+  DECLARE @DirectorySeparator nvarchar(max)
+
+  DECLARE @Updated bit
+
+  DECLARE @Cluster nvarchar(max)
+
+  DECLARE @DefaultDirectory nvarchar(4000)
+
+  DECLARE @QueueID int
+  DECLARE @QueueStartTime datetime2
+
+  DECLARE @CurrentRootDirectoryID int
+  DECLARE @CurrentRootDirectoryPath nvarchar(4000)
+
+  DECLARE @CurrentDBID int
+  DECLARE @CurrentDatabaseName nvarchar(max)
+
+  DECLARE @CurrentDatabase_sp_executesql nvarchar(max)
+
+  DECLARE @CurrentUserAccess nvarchar(max)
+  DECLARE @CurrentIsReadOnly bit
+  DECLARE @CurrentDatabaseState nvarchar(max)
+  DECLARE @CurrentInStandby bit
+  DECLARE @CurrentRecoveryModel nvarchar(max)
+  DECLARE @CurrentDatabaseSize bigint
+
+  DECLARE @CurrentIsEncrypted bit
+
+  DECLARE @CurrentBackupType nvarchar(max)
+  DECLARE @CurrentMaxTransferSize int
+  DECLARE @CurrentNumberOfFiles int
+  DECLARE @CurrentFileExtension nvarchar(max)
+  DECLARE @CurrentFileNumber int
+  DECLARE @CurrentDifferentialBaseLSN numeric(25,0)
+  DECLARE @CurrentDifferentialBaseIsSnapshot bit
+  DECLARE @CurrentLogLSN numeric(25,0)
+  DECLARE @BackupInProgress bit
+  DECLARE @CurrentLatestBackup datetime2
+  DECLARE @CurrentDatabaseNameFS nvarchar(max)
+  DECLARE @CurrentDirectoryStructure nvarchar(max)
+  DECLARE @CurrentDatabaseFileName nvarchar(max)
+  DECLARE @CurrentMaxFilePathLength int
+  DECLARE @CurrentFileName nvarchar(max)
+  DECLARE @CurrentDirectoryID int
+  DECLARE @CurrentDirectoryPath nvarchar(4000)
+  DECLARE @CurrentFilePath nvarchar(max)
+  DECLARE @CurrentDate datetime2
+  DECLARE @CurrentDateUTC datetime2
+  DECLARE @CurrentCleanupDate datetime2
+  DECLARE @CurrentAvailabilityGroupReplicaID uniqueidentifier
+  DECLARE @CurrentAvailabilityGroupID uniqueidentifier
+  DECLARE @CurrentAvailabilityGroup nvarchar(max)
+  DECLARE @CurrentAvailabilityGroupRole nvarchar(max)
+  DECLARE @CurrentAvailabilityGroupDatabaseReplicaSynchronizationState nvarchar(max)
+  DECLARE @CurrentAvailabilityGroupDatabaseReplicaSynchronizationHealth nvarchar(max)
+  DECLARE @CurrentAvailabilityGroupBackupPreference nvarchar(max)
+  DECLARE @CurrentSecondaryRoleAllowConnections nvarchar(max)
+  DECLARE @CurrentDistributedAvailabilityGroup nvarchar(max)
+  DECLARE @CurrentDistributedAvailabilityGroupReplicaID uniqueidentifier
+  DECLARE @CurrentDistributedAvailabilityGroupRole nvarchar(max)
+  DECLARE @CurrentIsPreferredBackupReplica bit
+  DECLARE @CurrentDatabaseMirroringRole nvarchar(max)
+  DECLARE @CurrentLogShippingRole nvarchar(max)
+  DECLARE @CurrentIsSeeding bit
+  DECLARE @CurrentBackupOperationSupportedOnSecondaryReplicas bit
+
+  DECLARE @CurrentBackupSetID int
+  DECLARE @CurrentIsMirror bit
+  DECLARE @CurrentLastLogBackup datetime2
+  DECLARE @CurrentLogSizeSinceLastLogBackup float
+  DECLARE @CurrentAllocatedExtentPageCount bigint
+  DECLARE @CurrentModifiedExtentPageCount bigint
+
+  DECLARE @CurrentDatabaseContext nvarchar(max)
+  DECLARE @CurrentCommand nvarchar(max)
+  DECLARE @CurrentCommandOutput int
+  DECLARE @CurrentCommandType nvarchar(max)
+
+  DECLARE @Errors TABLE (ID int IDENTITY PRIMARY KEY,
+                         [Message] nvarchar(max) NOT NULL,
+                         Severity int NOT NULL,
+                         [State] int NOT NULL)
+
+  DECLARE @CurrentMessage nvarchar(max)
+  DECLARE @CurrentSeverity int
+  DECLARE @CurrentState int
+
+  DECLARE @Directories TABLE (ID int PRIMARY KEY,
+                              DirectoryPath nvarchar(max),
+                              Mirror bit,
+                              Completed bit)
+
+  DECLARE @URLs TABLE (ID int PRIMARY KEY,
+                       DirectoryPath nvarchar(max),
+                       Mirror bit)
+
+  DECLARE @DirectoryInfo TABLE (FileExists bit,
+                                FileIsADirectory bit,
+                                ParentDirectoryExists bit)
+
+  DECLARE @tmpDatabases TABLE (ID int IDENTITY,
+                               DatabaseName nvarchar(128),
+                               DatabaseNameFS nvarchar(128),
+                               DatabaseType nvarchar(1),
+                               AvailabilityGroup bit,
+                               StartPosition int,
+                               DatabaseSize bigint,
+                               LogSizeSinceLastLogBackup float,
+                               [Order] int DEFAULT 0,
+                               Selected bit DEFAULT 0,
+                               Completed bit DEFAULT 0,
+                               PRIMARY KEY (Selected, Completed, [Order], ID))
+
+  DECLARE @tmpAvailabilityGroups TABLE (ID int IDENTITY PRIMARY KEY,
+                                        AvailabilityGroupName nvarchar(128),
+                                        StartPosition int,
+                                        Selected bit DEFAULT 0)
+
+  DECLARE @tmpDatabasesAvailabilityGroups TABLE (DatabaseName nvarchar(128),
+                                                 AvailabilityGroupName nvarchar(128))
+
+  DECLARE @SelectedDatabases TABLE (DatabaseName nvarchar(max),
+                                    DatabaseType nvarchar(1),
+                                    AvailabilityGroup bit,
+                                    StartPosition int,
+                                    Selected bit)
+
+  DECLARE @SelectedAvailabilityGroups TABLE (AvailabilityGroupName nvarchar(max),
+                                             StartPosition int,
+                                             Selected bit)
+
+  DECLARE @CurrentBackupOutput bit
+
+  DECLARE @CurrentBackupSet TABLE (ID int IDENTITY PRIMARY KEY,
+                                   Mirror bit,
+                                   VerifyCompleted bit,
+                                   VerifyOutput int)
+
+  DECLARE @CurrentDirectories TABLE (ID int PRIMARY KEY,
+                                     DirectoryPath nvarchar(max),
+                                     Mirror bit,
+                                     DirectoryNumber int,
+                                     CleanupDate datetime2,
+                                     CleanupMode nvarchar(max),
+                                     CreateCompleted bit,
+                                     CleanupCompleted bit,
+                                     CreateOutput int,
+                                     CleanupOutput int)
+
+  DECLARE @CurrentURLs TABLE (ID int PRIMARY KEY,
+                              DirectoryPath nvarchar(max),
+                              Mirror bit,
+                              DirectoryNumber int)
+
+  DECLARE @CurrentFiles TABLE ([Type] nvarchar(4),
+                               FilePath nvarchar(max),
+                               Mirror bit)
+
+  DECLARE @CurrentCleanupDates TABLE ([Type] nvarchar(max),
+                                      CleanupDate datetime2,
+                                      Mirror bit)
+
+  DECLARE @EncryptionKeyMasked nvarchar(max) = CASE WHEN @EncryptionKey IS NULL THEN NULL ELSE '********' END
+
+  DECLARE @EncryptionKeyPlaceholder nvarchar(max) = CASE WHEN @EncryptionKey IS NULL THEN NULL ELSE CAST(NEWID() AS nvarchar(max)) END
+
+  DECLARE @Error int = 0
+  DECLARE @ReturnCode int = 0
+
+  DECLARE @EmptyLine nvarchar(max) = CHAR(9)
+
+  DECLARE @ProductVersion nvarchar(max) = CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(max))
+  DECLARE @ProductMajorVersion nvarchar(max) = CAST(SERVERPROPERTY('ProductMajorVersion') AS nvarchar(max))
+  DECLARE @ProductMinorVersion nvarchar(max) = CAST(SERVERPROPERTY('ProductMinorVersion') AS nvarchar(max))
+  DECLARE @ProductUpdateType nvarchar(max) = CAST(SERVERPROPERTY('ProductUpdateType') AS nvarchar(max))
+  DECLARE @EngineEdition int = CAST(SERVERPROPERTY('EngineEdition') AS int)
+  DECLARE @EditionID bigint = CAST(SERVERPROPERTY('EditionID') AS bigint)
+  DECLARE @Edition nvarchar(max) = CAST(SERVERPROPERTY('Edition') AS nvarchar(max))
+  DECLARE @IsHadrEnabled bit = CAST(SERVERPROPERTY('IsHadrEnabled') AS bit)
+  DECLARE @IsClustered bit = CAST(SERVERPROPERTY('IsClustered') AS bit)
+  DECLARE @ServerName nvarchar(max) = CAST(SERVERPROPERTY('ServerName') AS nvarchar(max))
+  DECLARE @InstanceName nvarchar(max) = CAST(SERVERPROPERTY('InstanceName') AS nvarchar(max))
+  DECLARE @MachineName nvarchar(max) = CAST(SERVERPROPERTY('MachineName') AS nvarchar(max))
+  DECLARE @InstanceDefaultBackupPath nvarchar(max) = CAST(SERVERPROPERTY('InstanceDefaultBackupPath') AS nvarchar(max))
+
+  DECLARE @Version numeric(18,10) = CAST(PARSENAME(@ProductVersion,4) + '.' + PARSENAME(@ProductVersion,3) + PARSENAME(@ProductVersion,2) AS numeric(18,10))
+
+  IF @EngineEdition = 8 AND @ProductVersion = '12.0.2000.8' AND @ProductUpdateType = 'CU'
+  BEGIN
+    SET @Version = 16.01000
+  END
+
+  SELECT @HostPlatform = host_platform
+  FROM sys.dm_os_host_info
+
+  IF @Version >= 16 AND @EngineEdition NOT IN(5, 8)
+  BEGIN
+    SET @CurrentCommand = 'SELECT @ParamContainedAvailabilityGroupID = contained_availability_group_id FROM sys.dm_exec_sessions WHERE session_id = @@SPID'
+
+    EXECUTE sp_executesql @stmt = @CurrentCommand, @params = N'@ParamContainedAvailabilityGroupID uniqueidentifier OUTPUT', @ParamContainedAvailabilityGroupID = @ContainedAvailabilityGroupID OUTPUT
+  END
+
+  SET @ContainedAvailabilityGroupListenerConnection = CASE WHEN @ContainedAvailabilityGroupID IS NOT NULL THEN 1 ELSE 0 END
+
+  DECLARE @AmazonRDS bit = CASE WHEN @EngineEdition IN (5, 8) THEN 0 WHEN EXISTS (SELECT * FROM sys.databases WHERE [name] = 'rdsadmin') AND SUSER_SNAME(0x01) = 'rdsa' THEN 1 ELSE 0 END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Log initial information                                                                    //--
+  ----------------------------------------------------------------------------------------------------
+
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Databases', @Databases)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Directory', @Directory)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@BackupType', @BackupType)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Verify', @Verify)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@CleanupTime', @CleanupTime)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@CleanupMode', @CleanupMode)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Compress', @Compress)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@CompressionAlgorithm', @CompressionAlgorithm)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@CompressionLevel', @CompressionLevel)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@CopyOnly', @CopyOnly)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@ChangeBackupType', @ChangeBackupType)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@BackupSoftware', @BackupSoftware)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Checksum', @Checksum)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@BlockSize', @BlockSize)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@BufferCount', @BufferCount)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@MaxTransferSize', @MaxTransferSize)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@NumberOfFiles', @NumberOfFiles)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@MinBackupSizeForMultipleFiles', @MinBackupSizeForMultipleFiles)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@MaxFileSize', @MaxFileSize)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@CompressionLevelNumeric', @CompressionLevelNumeric)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Description', @Description)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@BackupSetName', @BackupSetName)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@Threads', @Threads)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@Throttle', @Throttle)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Encrypt', @Encrypt)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@EncryptionAlgorithm', @EncryptionAlgorithm)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@ServerCertificate', @ServerCertificate)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@ServerAsymmetricKey', @ServerAsymmetricKey)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@EncryptionKey', @EncryptionKeyMasked)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@ReadWriteFileGroups', @ReadWriteFileGroups)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@OverrideBackupPreference', @OverrideBackupPreference)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@NoRecovery', @NoRecovery)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@URL', @URL)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Credential', @Credential)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@MirrorDirectory', @MirrorDirectory)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@MirrorCleanupTime', @MirrorCleanupTime)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@MirrorCleanupMode', @MirrorCleanupMode)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@MirrorURL', @MirrorURL)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@AvailabilityGroups', @AvailabilityGroups)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Updateability', @Updateability)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@AdaptiveCompression', @AdaptiveCompression)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@MinModificationLevel', @MinModificationLevel)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@MinDatabaseSizeForDifferentialBackup', @MinDatabaseSizeForDifferentialBackup)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@MinLogSizeSinceLastLogBackup', @MinLogSizeSinceLastLogBackup)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@MinTimeSinceLastLogBackup', @MinTimeSinceLastLogBackup)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@DataDomainBoostHost', @DataDomainBoostHost)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@DataDomainBoostUser', @DataDomainBoostUser)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@DataDomainBoostDevicePath', @DataDomainBoostDevicePath)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@DataDomainBoostLockboxPath', @DataDomainBoostLockboxPath)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@DataDomainBoostNoOutputTable', @DataDomainBoostNoOutputTable)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@DirectoryStructure', @DirectoryStructure)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@AvailabilityGroupDirectoryStructure', @AvailabilityGroupDirectoryStructure)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@DirectoryStructureCase', @DirectoryStructureCase)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@FileName', @FileName)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@AvailabilityGroupFileName', @AvailabilityGroupFileName)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@FileNameCase', @FileNameCase)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@TokenTimezone', @TokenTimezone)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@FileExtensionFull', @FileExtensionFull)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@FileExtensionDiff', @FileExtensionDiff)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@FileExtensionLog', @FileExtensionLog)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Init', @Init)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Format', @Format)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@ObjectLevelRecoveryMap', @ObjectLevelRecoveryMap)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@ExcludeLogShippedFromLogBackup', @ExcludeLogShippedFromLogBackup)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@ExcludeSeedingFromLogBackup', @ExcludeSeedingFromLogBackup)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@DirectoryCheck', @DirectoryCheck)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@BackupOptions', @BackupOptions)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@Stats', @Stats)
+  INSERT INTO @Parameters ([Name], ValueDatetime) VALUES('@ExpireDate', @ExpireDate)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@RetainDays', @RetainDays)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@AllowNonCopyOnlyBackupsOnForwarder', @AllowNonCopyOnlyBackupsOnForwarder)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@StringDelimiter', @StringDelimiter)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@DatabaseOrder', @DatabaseOrder)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@DatabasesInParallel', @DatabasesInParallel)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@LogToTable', @LogToTable)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Execute', @Execute)
+
+  SELECT @ParametersString = STRING_AGG(CAST([Name] + ' = ' + CASE WHEN ValueNvarchar IS NOT NULL THEN '''' + REPLACE(ValueNvarchar,'''','''''') + '''' WHEN ValueInt IS NOT NULL THEN CAST(ValueInt AS nvarchar(max)) WHEN ValueDatetime IS NOT NULL THEN '''' + CONVERT(nvarchar(max), ValueDatetime, 21) + '''' ELSE 'NULL' END AS nvarchar(max)), ', ') WITHIN GROUP (ORDER BY [ID] ASC)
+  FROM @Parameters
+
+  SET @StartMessage = 'Date and time: ' + CONVERT(nvarchar(max),@StartTime,120)
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Server: ' + @ServerName
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Version: ' + @ProductVersion
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Edition: ' + @Edition
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  IF @EngineEdition = 8
+  BEGIN
+    SET @StartMessage = 'Update type: ' + @ProductUpdateType
+    RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+  END
+
+  SET @StartMessage = 'Platform: ' + ISNULL(@HostPlatform, 'N/A')
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  IF @Version >= 16 AND @EngineEdition NOT IN(5, 8)
+  BEGIN
+    SET @StartMessage = 'Contained availability group connection: ' + CASE WHEN @ContainedAvailabilityGroupListenerConnection = 1 THEN 'Yes' WHEN @ContainedAvailabilityGroupListenerConnection = 0 THEN 'No' ELSE 'N/A' END
+    RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+  END
+
+  SET @StartMessage = 'Is sysadmin: ' + CASE WHEN @IsSysadmin = 1 THEN 'Yes' WHEN @IsSysadmin = 0 THEN 'No' ELSE 'N/A' END
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Database: ' + QUOTENAME(DB_NAME())
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Procedure: ' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@ObjectName)
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Version: ' + @VersionTimestamp
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Source: https://ola.hallengren.com'
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+  RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+  SET @StartMessage = 'Command:'
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'EXECUTE ' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@ObjectName)
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  DECLARE ParameterCursor CURSOR LOCAL FAST_FORWARD FOR SELECT [Name], ValueNvarchar, ValueInt, ValueDatetime, CASE WHEN [ID] = MAX([ID]) OVER() THEN '' ELSE ',' END FROM @Parameters ORDER BY [ID] ASC
+
+  OPEN ParameterCursor
+
+  FETCH ParameterCursor INTO @CurrentParameterName, @CurrentParameterValueNvarchar, @CurrentParameterValueInt, @CurrentParameterValueDatetime, @CurrentParameterDelimiter
+
+  WHILE @@FETCH_STATUS = 0
+  BEGIN
+    SET @CurrentParameterMessage = @CurrentParameterName + ' = ' + CASE WHEN @CurrentParameterValueNvarchar IS NOT NULL THEN '''' + REPLACE(@CurrentParameterValueNvarchar,'''','''''') + '''' WHEN @CurrentParameterValueInt IS NOT NULL THEN CAST(@CurrentParameterValueInt AS nvarchar(max)) WHEN @CurrentParameterValueDatetime IS NOT NULL THEN '''' + CONVERT(nvarchar(max), @CurrentParameterValueDatetime, 21) + '''' ELSE 'NULL' END + @CurrentParameterDelimiter
+
+    RAISERROR('%s',10,1,@CurrentParameterMessage) WITH NOWAIT
+
+    FETCH NEXT FROM ParameterCursor INTO @CurrentParameterName, @CurrentParameterValueNvarchar, @CurrentParameterValueInt, @CurrentParameterValueDatetime, @CurrentParameterDelimiter
+  END
+
+  CLOSE ParameterCursor
+
+  DEALLOCATE ParameterCursor
+
+  RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+  ----------------------------------------------------------------------------------------------------
+  --// Check core requirements                                                                    //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF NOT (SELECT uses_ansi_nulls FROM sys.sql_modules WHERE [object_id] = @@PROCID) = 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('ANSI_NULLS has to be set to ON for the stored procedure. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  IF NOT (SELECT uses_quoted_identifier FROM sys.sql_modules WHERE [object_id] = @@PROCID) = 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('QUOTED_IDENTIFIER has to be set to ON for the stored procedure. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  IF NOT EXISTS (SELECT * FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] = 'P' AND schemas.[name] = 'dbo' AND objects.[name] = 'CommandExecute')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The stored procedure CommandExecute is missing. Download https://ola.hallengren.com/scripts/CommandExecute.sql.', 16, 1)
+  END
+
+  IF EXISTS (SELECT * FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] = 'P' AND schemas.[name] = 'dbo' AND objects.[name] = 'CommandExecute' AND OBJECT_DEFINITION(objects.[object_id]) NOT LIKE '%@EncryptionKeyPlaceholder%')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The stored procedure CommandExecute needs to be updated. Download https://ola.hallengren.com/scripts/CommandExecute.sql.', 16, 1)
+  END
+
+  IF @LogToTable = 'Y' AND NOT EXISTS (SELECT * FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] = 'U' AND schemas.[name] = 'dbo' AND objects.[name] = 'CommandLog')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The table CommandLog is missing. Download https://ola.hallengren.com/scripts/CommandLog.sql.', 16, 1)
+  END
+
+  IF @DatabasesInParallel = 'Y' AND NOT EXISTS (SELECT * FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] = 'U' AND schemas.[name] = 'dbo' AND objects.[name] = 'Queue')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The table Queue is missing. It is required when @DatabasesInParallel = ''Y''. Download https://ola.hallengren.com/scripts/Queue.sql.', 16, 1)
+  END
+
+  IF @DatabasesInParallel = 'Y' AND NOT EXISTS (SELECT * FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] = 'U' AND schemas.[name] = 'dbo' AND objects.[name] = 'QueueDatabase')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The table QueueDatabase is missing. It is required when @DatabasesInParallel = ''Y''. Download https://ola.hallengren.com/scripts/QueueDatabase.sql.', 16, 1)
+  END
+
+  IF @@TRANCOUNT <> 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The stored procedure cannot be executed inside a transaction. The transaction count (@@TRANCOUNT) has to be 0. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  IF @AmazonRDS = 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The stored procedure DatabaseBackup is not supported on Amazon RDS. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Select databases                                                                           //--
+  ----------------------------------------------------------------------------------------------------
+
+  SET @Databases = REPLACE(@Databases, CHAR(10), '')
+  SET @Databases = REPLACE(@Databases, CHAR(13), '')
+
+  WHILE CHARINDEX(@StringDelimiter + ' ', @Databases) > 0 SET @Databases = REPLACE(@Databases, @StringDelimiter + ' ', @StringDelimiter)
+  WHILE CHARINDEX(' ' + @StringDelimiter, @Databases) > 0 SET @Databases = REPLACE(@Databases, ' ' + @StringDelimiter, @StringDelimiter)
+
+  SET @Databases = LTRIM(RTRIM(@Databases));
+
+  WITH Databases1 (StartPosition, EndPosition, DatabaseItem) AS
+  (
+  SELECT 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Databases, 1), 0), LEN(@Databases) + 1) AS EndPosition,
+         SUBSTRING(@Databases, 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Databases, 1), 0), LEN(@Databases) + 1) - 1) AS DatabaseItem
+  WHERE @Databases IS NOT NULL
+  UNION ALL
+  SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Databases, EndPosition + 1), 0), LEN(@Databases) + 1) AS EndPosition,
+         SUBSTRING(@Databases, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Databases, EndPosition + 1), 0), LEN(@Databases) + 1) - EndPosition - 1) AS DatabaseItem
+  FROM Databases1
+  WHERE EndPosition < LEN(@Databases) + 1
+  ),
+  Databases2 (DatabaseItem, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN DatabaseItem LIKE '-%' THEN RIGHT(DatabaseItem,LEN(DatabaseItem) - 1) ELSE DatabaseItem END AS DatabaseItem,
+         StartPosition,
+         CASE WHEN DatabaseItem LIKE '-%' THEN 0 ELSE 1 END AS Selected
+  FROM Databases1
+  ),
+  Databases3 (DatabaseItem, DatabaseType, AvailabilityGroup, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN DatabaseItem IN('ALL_DATABASES','SYSTEM_DATABASES','USER_DATABASES','AVAILABILITY_GROUP_DATABASES') THEN '%' ELSE DatabaseItem END AS DatabaseItem,
+         CASE WHEN DatabaseItem = 'SYSTEM_DATABASES' THEN 'S' WHEN DatabaseItem = 'USER_DATABASES' THEN 'U' ELSE NULL END AS DatabaseType,
+         CASE WHEN DatabaseItem = 'AVAILABILITY_GROUP_DATABASES' THEN 1 ELSE NULL END AvailabilityGroup,
+         StartPosition,
+         Selected
+  FROM Databases2
+  ),
+  Databases4 (DatabaseName, DatabaseType, AvailabilityGroup, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN LEFT(DatabaseItem,1) = '[' AND RIGHT(DatabaseItem,1) = ']' THEN PARSENAME(DatabaseItem,1) ELSE DatabaseItem END AS DatabaseItem,
+         DatabaseType,
+         AvailabilityGroup,
+         StartPosition,
+         Selected
+  FROM Databases3
+  )
+  INSERT INTO @SelectedDatabases (DatabaseName, DatabaseType, AvailabilityGroup, StartPosition, Selected)
+  SELECT DatabaseName,
+         DatabaseType,
+         AvailabilityGroup,
+         StartPosition,
+         Selected
+  FROM Databases4
+  OPTION (MAXRECURSION 0)
+
+  IF @IsHadrEnabled = 1
+  BEGIN
+    INSERT INTO @tmpAvailabilityGroups (AvailabilityGroupName)
+    SELECT name AS AvailabilityGroupName
+    FROM sys.availability_groups
+
+    INSERT INTO @tmpDatabasesAvailabilityGroups (DatabaseName, AvailabilityGroupName)
+    SELECT databases.name,
+           availability_groups.name
+    FROM sys.databases databases
+    INNER JOIN sys.availability_replicas availability_replicas ON databases.replica_id = availability_replicas.replica_id
+    INNER JOIN sys.availability_groups availability_groups ON availability_replicas.group_id = availability_groups.group_id
+  END
+
+  INSERT INTO @tmpDatabases (DatabaseName, DatabaseNameFS, DatabaseType, AvailabilityGroup)
+  SELECT [name] AS DatabaseName,
+         RTRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE([name],'\',''),'/',''),':',''),'*',''),'?',''),'"',''),'<',''),'>',''),'|','')) AS DatabaseNameFS,
+         CASE WHEN name IN('master','msdb','model') OR is_distributor = 1 THEN 'S' ELSE 'U' END AS DatabaseType,
+         NULL AS AvailabilityGroup
+  FROM sys.databases
+  WHERE [name] <> 'tempdb'
+  AND source_database_id IS NULL
+  ORDER BY [name] ASC
+
+  UPDATE tmpDatabases
+  SET AvailabilityGroup = CASE WHEN EXISTS (SELECT * FROM @tmpDatabasesAvailabilityGroups WHERE DatabaseName = tmpDatabases.DatabaseName) THEN 1 ELSE 0 END
+  FROM @tmpDatabases tmpDatabases
+
+  UPDATE tmpDatabases
+  SET tmpDatabases.Selected = SelectedDatabases.Selected
+  FROM @tmpDatabases tmpDatabases
+  INNER JOIN @SelectedDatabases SelectedDatabases
+  ON tmpDatabases.DatabaseName LIKE REPLACE(REPLACE(SelectedDatabases.DatabaseName,'[','[[]'),'_','[_]')
+  AND (tmpDatabases.DatabaseType = SelectedDatabases.DatabaseType OR SelectedDatabases.DatabaseType IS NULL)
+  AND (tmpDatabases.AvailabilityGroup = SelectedDatabases.AvailabilityGroup OR SelectedDatabases.AvailabilityGroup IS NULL)
+  WHERE SelectedDatabases.Selected = 1
+
+  UPDATE tmpDatabases
+  SET tmpDatabases.Selected = SelectedDatabases.Selected
+  FROM @tmpDatabases tmpDatabases
+  INNER JOIN @SelectedDatabases SelectedDatabases
+  ON tmpDatabases.DatabaseName LIKE REPLACE(REPLACE(SelectedDatabases.DatabaseName,'[','[[]'),'_','[_]')
+  AND (tmpDatabases.DatabaseType = SelectedDatabases.DatabaseType OR SelectedDatabases.DatabaseType IS NULL)
+  AND (tmpDatabases.AvailabilityGroup = SelectedDatabases.AvailabilityGroup OR SelectedDatabases.AvailabilityGroup IS NULL)
+  WHERE SelectedDatabases.Selected = 0
+
+  UPDATE tmpDatabases
+  SET tmpDatabases.StartPosition = SelectedDatabases2.StartPosition
+  FROM @tmpDatabases tmpDatabases
+  INNER JOIN (SELECT tmpDatabases.DatabaseName, MIN(SelectedDatabases.StartPosition) AS StartPosition
+              FROM @tmpDatabases tmpDatabases
+              INNER JOIN @SelectedDatabases SelectedDatabases
+              ON tmpDatabases.DatabaseName LIKE REPLACE(REPLACE(SelectedDatabases.DatabaseName,'[','[[]'),'_','[_]')
+              AND (tmpDatabases.DatabaseType = SelectedDatabases.DatabaseType OR SelectedDatabases.DatabaseType IS NULL)
+              AND (tmpDatabases.AvailabilityGroup = SelectedDatabases.AvailabilityGroup OR SelectedDatabases.AvailabilityGroup IS NULL)
+              WHERE SelectedDatabases.Selected = 1
+              GROUP BY tmpDatabases.DatabaseName) SelectedDatabases2
+  ON tmpDatabases.DatabaseName = SelectedDatabases2.DatabaseName
+
+  IF @Databases IS NOT NULL AND (NOT EXISTS(SELECT * FROM @SelectedDatabases) OR EXISTS(SELECT * FROM @SelectedDatabases WHERE DatabaseName IS NULL OR DATALENGTH(DatabaseName) = 0))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Databases is not supported. The value could not be parsed into a list of databases. See https://ola.hallengren.com/sql-server-backup.html#Databases.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Select availability groups                                                                 //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @AvailabilityGroups IS NOT NULL AND @IsHadrEnabled = 1
+  BEGIN
+
+    SET @AvailabilityGroups = REPLACE(@AvailabilityGroups, CHAR(10), '')
+    SET @AvailabilityGroups = REPLACE(@AvailabilityGroups, CHAR(13), '')
+
+    WHILE CHARINDEX(@StringDelimiter + ' ', @AvailabilityGroups) > 0 SET @AvailabilityGroups = REPLACE(@AvailabilityGroups, @StringDelimiter + ' ', @StringDelimiter)
+    WHILE CHARINDEX(' ' + @StringDelimiter, @AvailabilityGroups) > 0 SET @AvailabilityGroups = REPLACE(@AvailabilityGroups, ' ' + @StringDelimiter, @StringDelimiter)
+
+    SET @AvailabilityGroups = LTRIM(RTRIM(@AvailabilityGroups));
+
+    WITH AvailabilityGroups1 (StartPosition, EndPosition, AvailabilityGroupItem) AS
+    (
+    SELECT 1 AS StartPosition,
+           ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @AvailabilityGroups, 1), 0), LEN(@AvailabilityGroups) + 1) AS EndPosition,
+           SUBSTRING(@AvailabilityGroups, 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @AvailabilityGroups, 1), 0), LEN(@AvailabilityGroups) + 1) - 1) AS AvailabilityGroupItem
+    WHERE @AvailabilityGroups IS NOT NULL
+    UNION ALL
+    SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+           ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @AvailabilityGroups, EndPosition + 1), 0), LEN(@AvailabilityGroups) + 1) AS EndPosition,
+           SUBSTRING(@AvailabilityGroups, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @AvailabilityGroups, EndPosition + 1), 0), LEN(@AvailabilityGroups) + 1) - EndPosition - 1) AS AvailabilityGroupItem
+    FROM AvailabilityGroups1
+    WHERE EndPosition < LEN(@AvailabilityGroups) + 1
+    ),
+    AvailabilityGroups2 (AvailabilityGroupItem, StartPosition, Selected) AS
+    (
+    SELECT CASE WHEN AvailabilityGroupItem LIKE '-%' THEN RIGHT(AvailabilityGroupItem,LEN(AvailabilityGroupItem) - 1) ELSE AvailabilityGroupItem END AS AvailabilityGroupItem,
+           StartPosition,
+           CASE WHEN AvailabilityGroupItem LIKE '-%' THEN 0 ELSE 1 END AS Selected
+    FROM AvailabilityGroups1
+    ),
+    AvailabilityGroups3 (AvailabilityGroupItem, StartPosition, Selected) AS
+    (
+    SELECT CASE WHEN AvailabilityGroupItem = 'ALL_AVAILABILITY_GROUPS' THEN '%' ELSE AvailabilityGroupItem END AS AvailabilityGroupItem,
+           StartPosition,
+           Selected
+    FROM AvailabilityGroups2
+    ),
+    AvailabilityGroups4 (AvailabilityGroupName, StartPosition, Selected) AS
+    (
+    SELECT CASE WHEN LEFT(AvailabilityGroupItem,1) = '[' AND RIGHT(AvailabilityGroupItem,1) = ']' THEN PARSENAME(AvailabilityGroupItem,1) ELSE AvailabilityGroupItem END AS AvailabilityGroupItem,
+           StartPosition,
+           Selected
+    FROM AvailabilityGroups3
+    )
+    INSERT INTO @SelectedAvailabilityGroups (AvailabilityGroupName, StartPosition, Selected)
+    SELECT AvailabilityGroupName, StartPosition, Selected
+    FROM AvailabilityGroups4
+    OPTION (MAXRECURSION 0)
+
+    UPDATE tmpAvailabilityGroups
+    SET tmpAvailabilityGroups.Selected = SelectedAvailabilityGroups.Selected
+    FROM @tmpAvailabilityGroups tmpAvailabilityGroups
+    INNER JOIN @SelectedAvailabilityGroups SelectedAvailabilityGroups
+    ON tmpAvailabilityGroups.AvailabilityGroupName LIKE REPLACE(REPLACE(SelectedAvailabilityGroups.AvailabilityGroupName,'[','[[]'),'_','[_]')
+    WHERE SelectedAvailabilityGroups.Selected = 1
+
+    UPDATE tmpAvailabilityGroups
+    SET tmpAvailabilityGroups.Selected = SelectedAvailabilityGroups.Selected
+    FROM @tmpAvailabilityGroups tmpAvailabilityGroups
+    INNER JOIN @SelectedAvailabilityGroups SelectedAvailabilityGroups
+    ON tmpAvailabilityGroups.AvailabilityGroupName LIKE REPLACE(REPLACE(SelectedAvailabilityGroups.AvailabilityGroupName,'[','[[]'),'_','[_]')
+    WHERE SelectedAvailabilityGroups.Selected = 0
+
+    UPDATE tmpAvailabilityGroups
+    SET tmpAvailabilityGroups.StartPosition = SelectedAvailabilityGroups2.StartPosition
+    FROM @tmpAvailabilityGroups tmpAvailabilityGroups
+    INNER JOIN (SELECT tmpAvailabilityGroups.AvailabilityGroupName, MIN(SelectedAvailabilityGroups.StartPosition) AS StartPosition
+                FROM @tmpAvailabilityGroups tmpAvailabilityGroups
+                INNER JOIN @SelectedAvailabilityGroups SelectedAvailabilityGroups
+                ON tmpAvailabilityGroups.AvailabilityGroupName LIKE REPLACE(REPLACE(SelectedAvailabilityGroups.AvailabilityGroupName,'[','[[]'),'_','[_]')
+                WHERE SelectedAvailabilityGroups.Selected = 1
+                GROUP BY tmpAvailabilityGroups.AvailabilityGroupName) SelectedAvailabilityGroups2
+    ON tmpAvailabilityGroups.AvailabilityGroupName = SelectedAvailabilityGroups2.AvailabilityGroupName
+
+    UPDATE tmpDatabases
+    SET tmpDatabases.StartPosition = tmpAvailabilityGroups.StartPosition,
+        tmpDatabases.Selected = 1
+    FROM @tmpDatabases tmpDatabases
+    INNER JOIN @tmpDatabasesAvailabilityGroups tmpDatabasesAvailabilityGroups ON tmpDatabases.DatabaseName = tmpDatabasesAvailabilityGroups.DatabaseName
+    INNER JOIN @tmpAvailabilityGroups tmpAvailabilityGroups ON tmpDatabasesAvailabilityGroups.AvailabilityGroupName = tmpAvailabilityGroups.AvailabilityGroupName
+    WHERE tmpAvailabilityGroups.Selected = 1
+
+  END
+
+  IF @AvailabilityGroups IS NOT NULL AND (NOT EXISTS(SELECT * FROM @SelectedAvailabilityGroups) OR EXISTS(SELECT * FROM @SelectedAvailabilityGroups WHERE AvailabilityGroupName IS NULL OR AvailabilityGroupName = ''))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @AvailabilityGroups is not supported. The value could not be parsed into a list of availability groups. See https://ola.hallengren.com/sql-server-backup.html#AvailabilityGroups.', 16, 1)
+  END
+
+  IF @AvailabilityGroups IS NOT NULL AND @IsHadrEnabled = 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @AvailabilityGroups can only be used when availability groups are enabled on the instance. See https://ola.hallengren.com/sql-server-backup.html#AvailabilityGroups.', 16, 1)
+  END
+
+  IF (@Databases IS NULL AND @AvailabilityGroups IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('You need to specify one of the parameters @Databases and @AvailabilityGroups. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  IF (@Databases IS NOT NULL AND @AvailabilityGroups IS NOT NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('You can only specify one of the parameters @Databases and @AvailabilityGroups. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Check database names                                                                       //--
+  ----------------------------------------------------------------------------------------------------
+
+  SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(DatabaseName) AS nvarchar(max)), ', ')
+                         WITHIN GROUP (ORDER BY DatabaseName ASC)
+  FROM @tmpDatabases
+  WHERE Selected = 1
+  AND DATALENGTH(DatabaseNameFS) = 0
+
+  IF @ErrorMessage IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The names of the following databases are not supported: ' + @ErrorMessage + '. A database name has to contain at least one character that can be used in file names. See https://ola.hallengren.com/sql-server-backup.html#Databases.', 16, 1)
+  END
+
+  SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(DatabaseName) AS nvarchar(max)), ', ')
+                         WITHIN GROUP (ORDER BY DatabaseName ASC)
+  FROM @tmpDatabases
+  WHERE UPPER(DatabaseNameFS) IN(SELECT UPPER(DatabaseNameFS) FROM @tmpDatabases GROUP BY UPPER(DatabaseNameFS) HAVING COUNT(*) > 1 AND MAX(CAST(Selected AS int)) = 1)
+  AND DATALENGTH(DatabaseNameFS) > 0
+  OPTION (RECOMPILE)
+
+  IF @ErrorMessage IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The names of the following databases are not unique in the file system: ' + @ErrorMessage + '. See https://ola.hallengren.com/sql-server-backup.html#Databases.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Select default directory                                                                      //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Directory IS NULL AND @URL IS NULL AND (@BackupSoftware <> 'DATA_DOMAIN_BOOST' OR @BackupSoftware IS NULL)
+  BEGIN
+    IF @Version >= 15 OR (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous')
+    BEGIN
+      SET @DefaultDirectory = @InstanceDefaultBackupPath
+    END
+    ELSE
+    BEGIN
+      EXECUTE [master].dbo.xp_instance_regread N'HKEY_LOCAL_MACHINE', N'SOFTWARE\Microsoft\MSSQLServer\MSSQLServer', N'BackupDirectory', @DefaultDirectory OUTPUT
+    END
+
+    IF @DefaultDirectory LIKE 'http://%' OR @DefaultDirectory LIKE 'https://%'
+    BEGIN
+      SET @URL = @DefaultDirectory
+    END
+    ELSE
+    BEGIN
+      INSERT INTO @Directories (ID, DirectoryPath, Mirror, Completed)
+      VALUES(1, @DefaultDirectory, 0, 0)
+    END
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Select directories                                                                         //--
+  ----------------------------------------------------------------------------------------------------
+
+  SET @Directory = REPLACE(@Directory, CHAR(10), '')
+  SET @Directory = REPLACE(@Directory, CHAR(13), '')
+
+  WHILE CHARINDEX(@StringDelimiter + ' ', @Directory) > 0 SET @Directory = REPLACE(@Directory, @StringDelimiter + ' ', @StringDelimiter)
+  WHILE CHARINDEX(' ' + @StringDelimiter, @Directory) > 0 SET @Directory = REPLACE(@Directory, ' ' + @StringDelimiter, @StringDelimiter)
+
+  SET @Directory = LTRIM(RTRIM(@Directory));
+
+  WITH Directories (StartPosition, EndPosition, Directory) AS
+  (
+  SELECT 1 AS StartPosition,
+          ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Directory, 1), 0), LEN(@Directory) + 1) AS EndPosition,
+          SUBSTRING(@Directory, 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Directory, 1), 0), LEN(@Directory) + 1) - 1) AS Directory
+  WHERE @Directory IS NOT NULL
+  UNION ALL
+  SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+          ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Directory, EndPosition + 1), 0), LEN(@Directory) + 1) AS EndPosition,
+          SUBSTRING(@Directory, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Directory, EndPosition + 1), 0), LEN(@Directory) + 1) - EndPosition - 1) AS Directory
+  FROM Directories
+  WHERE EndPosition < LEN(@Directory) + 1
+  )
+  INSERT INTO @Directories (ID, DirectoryPath, Mirror, Completed)
+  SELECT ROW_NUMBER() OVER(ORDER BY StartPosition ASC) AS ID,
+          Directory,
+          0,
+          0
+  FROM Directories
+  OPTION (MAXRECURSION 0)
+
+  SET @MirrorDirectory = REPLACE(@MirrorDirectory, CHAR(10), '')
+  SET @MirrorDirectory = REPLACE(@MirrorDirectory, CHAR(13), '')
+
+  WHILE CHARINDEX(@StringDelimiter + ' ', @MirrorDirectory) > 0 SET @MirrorDirectory = REPLACE(@MirrorDirectory, @StringDelimiter + ' ', @StringDelimiter)
+  WHILE CHARINDEX(' ' + @StringDelimiter, @MirrorDirectory) > 0 SET @MirrorDirectory = REPLACE(@MirrorDirectory, ' ' + @StringDelimiter, @StringDelimiter)
+
+  SET @MirrorDirectory = LTRIM(RTRIM(@MirrorDirectory));
+
+  WITH Directories (StartPosition, EndPosition, Directory) AS
+  (
+  SELECT 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @MirrorDirectory, 1), 0), LEN(@MirrorDirectory) + 1) AS EndPosition,
+         SUBSTRING(@MirrorDirectory, 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @MirrorDirectory, 1), 0), LEN(@MirrorDirectory) + 1) - 1) AS Directory
+  WHERE @MirrorDirectory IS NOT NULL
+  UNION ALL
+  SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @MirrorDirectory, EndPosition + 1), 0), LEN(@MirrorDirectory) + 1) AS EndPosition,
+         SUBSTRING(@MirrorDirectory, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @MirrorDirectory, EndPosition + 1), 0), LEN(@MirrorDirectory) + 1) - EndPosition - 1) AS Directory
+  FROM Directories
+  WHERE EndPosition < LEN(@MirrorDirectory) + 1
+  )
+  INSERT INTO @Directories (ID, DirectoryPath, Mirror, Completed)
+  SELECT (SELECT COUNT(*) FROM @Directories) + ROW_NUMBER() OVER(ORDER BY StartPosition ASC) AS ID,
+         Directory,
+         1,
+         0
+  FROM Directories
+  OPTION (MAXRECURSION 0)
+
+  ----------------------------------------------------------------------------------------------------
+  --// Check directories                                                                          //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF EXISTS (SELECT * FROM @Directories WHERE Mirror = 0 AND (NOT (DirectoryPath LIKE '_:' OR DirectoryPath LIKE '_:\%' OR DirectoryPath LIKE '\\%\%' OR (DirectoryPath LIKE '/%' AND @HostPlatform = 'Linux') OR DirectoryPath = 'NUL') OR DirectoryPath IS NULL OR LEFT(DirectoryPath,1) = ' ' OR RIGHT(DirectoryPath,1) = ' '))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Directory is not supported. Specify a local path (e.g. D:\Backup), a UNC path (e.g. \\Server\Share), a path starting with / on Linux, or NUL, without leading or trailing spaces. See https://ola.hallengren.com/sql-server-backup.html#Directory.', 16, 1)
+  END
+
+  IF EXISTS (SELECT * FROM @Directories GROUP BY DirectoryPath HAVING COUNT(*) <> 1)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The same directory has been specified multiple times in the parameters @Directory and @MirrorDirectory. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  IF (SELECT COUNT(*) FROM @Directories WHERE Mirror = 0) <> (SELECT COUNT(*) FROM @Directories WHERE Mirror = 1) AND (SELECT COUNT(*) FROM @Directories WHERE Mirror = 1) > 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The number of directories for the parameters @Directory and @MirrorDirectory has to be the same. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  IF @Directory IS NOT NULL AND @EngineEdition = 8
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @Directory is not supported on Azure SQL Managed Instance. See https://ola.hallengren.com/sql-server-backup.html#Directory.', 16, 1)
+  END
+
+  IF @Directory IS NOT NULL AND @BackupSoftware = 'DATA_DOMAIN_BOOST'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @Directory is not supported with Data Domain Boost. See https://ola.hallengren.com/sql-server-backup.html#Directory.', 16, 1)
+  END
+
+  IF EXISTS (SELECT * FROM @Directories WHERE Mirror = 0 AND DirectoryPath = 'NUL') AND EXISTS(SELECT * FROM @Directories WHERE Mirror = 0 AND DirectoryPath <> 'NUL')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Directory is not supported. Backup to NUL cannot be combined with other directories. See https://ola.hallengren.com/sql-server-backup.html#Directory.', 16, 1)
+  END
+
+  IF EXISTS (SELECT * FROM @Directories WHERE Mirror = 0 AND DirectoryPath = 'NUL') AND EXISTS(SELECT * FROM @Directories WHERE Mirror = 1)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Mirrored backup is not supported when backing up to NUL. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  IF EXISTS (SELECT * FROM @Directories WHERE Mirror = 0 AND DirectoryPath = 'NUL') AND @BackupSoftware IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Backup to NUL is only supported with SQL Server native backups. See https://ola.hallengren.com/sql-server-backup.html#Directory.', 16, 1)
+  END
+
+  IF (SELECT COUNT(*) FROM @Directories WHERE Mirror = 0) > 64
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Directory is not supported. The maximum number of directories is 64. See https://ola.hallengren.com/sql-server-backup.html#Directory.', 16, 1)
+  END
+
+  IF (SELECT COUNT(*) FROM @Directories WHERE Mirror = 0) > 32 AND @BackupSoftware = 'SQLBACKUP'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Directory is not supported. The maximum number of directories with Redgate SQL Backup Pro is 32. See https://ola.hallengren.com/sql-server-backup.html#Directory.', 16, 1)
+  END
+
+  IF (SELECT COUNT(*) FROM @Directories WHERE Mirror = 0) > 32 AND EXISTS(SELECT * FROM @Directories WHERE Mirror = 1) AND @BackupSoftware IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Directory is not supported. The maximum number of directories when performing mirrored SQL Server native backups is 32. See https://ola.hallengren.com/sql-server-backup.html#Directory.', 16, 1)
+  END
+
+  IF (SELECT COUNT(*) FROM @Directories WHERE Mirror = 0) > 32 AND EXISTS(SELECT * FROM @Directories WHERE Mirror = 1) AND @BackupSoftware = 'LITESPEED'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Directory is not supported. The maximum number of directories when performing mirrored backups with LiteSpeed for SQL Server is 32. See https://ola.hallengren.com/sql-server-backup.html#Directory.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF EXISTS(SELECT * FROM @Directories WHERE Mirror = 1 AND (NOT (DirectoryPath LIKE '_:' OR DirectoryPath LIKE '_:\%' OR DirectoryPath LIKE '\\%\%' OR (DirectoryPath LIKE '/%' AND @HostPlatform = 'Linux')) OR DirectoryPath IS NULL OR LEFT(DirectoryPath,1) = ' ' OR RIGHT(DirectoryPath,1) = ' '))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MirrorDirectory is not supported. Specify a local path (e.g. D:\Backup), a UNC path (e.g. \\Server\Share), or a path starting with / on Linux, without leading or trailing spaces. See https://ola.hallengren.com/sql-server-backup.html#MirrorDirectory.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'SQLBACKUP' AND (SELECT COUNT(*) FROM @Directories WHERE Mirror = 1) > 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MirrorDirectory is not supported. Redgate SQL Backup Pro supports only one mirror directory. See https://ola.hallengren.com/sql-server-backup.html#MirrorDirectory.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'SQLSAFE' AND (SELECT COUNT(*) FROM @Directories WHERE Mirror = 1) > 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MirrorDirectory is not supported. Idera SQL Safe Backup supports only one mirror directory. See https://ola.hallengren.com/sql-server-backup.html#MirrorDirectory.', 16, 1)
+  END
+
+  IF @MirrorDirectory IS NOT NULL AND @EngineEdition = 8
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @MirrorDirectory is not supported on Azure SQL Managed Instance. See https://ola.hallengren.com/sql-server-backup.html#MirrorDirectory.', 16, 1)
+  END
+
+  IF @MirrorDirectory IS NOT NULL AND @BackupSoftware = 'DATA_DOMAIN_BOOST'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MirrorDirectory is not supported. Mirrored backup is not supported with Data Domain Boost. See https://ola.hallengren.com/sql-server-backup.html#MirrorDirectory.', 16, 1)
+  END
+
+  IF (@BackupSoftware IS NULL AND EXISTS(SELECT * FROM @Directories WHERE Mirror = 1) AND @EngineEdition <> 3)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MirrorDirectory is not supported. Mirrored backup to disk is not supported in this edition of SQL Server. See https://ola.hallengren.com/sql-server-backup.html#MirrorDirectory.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF NOT EXISTS (SELECT * FROM @Errors WHERE Severity >= 16) AND @DirectoryCheck = 'Y'
+  BEGIN
+    WHILE (1 = 1)
+    BEGIN
+      SELECT TOP 1 @CurrentRootDirectoryID = ID,
+                   @CurrentRootDirectoryPath = DirectoryPath
+      FROM @Directories
+      WHERE Completed = 0
+      AND DirectoryPath <> 'NUL'
+      ORDER BY ID ASC
+
+      IF @@ROWCOUNT = 0
+      BEGIN
+        BREAK
+      END
+
+      INSERT INTO @DirectoryInfo (FileExists, FileIsADirectory, ParentDirectoryExists)
+      SELECT file_exists,
+              file_is_a_directory,
+              parent_directory_exists
+      FROM sys.dm_os_file_exists (@CurrentRootDirectoryPath)
+
+      IF NOT EXISTS (SELECT * FROM @DirectoryInfo WHERE FileExists = 0 AND FileIsADirectory = 1 AND ParentDirectoryExists = 1)
+      BEGIN
+        INSERT INTO @Errors ([Message], Severity, [State])
+        VALUES('The directory ' + @CurrentRootDirectoryPath + ' does not exist. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+      END
+
+      UPDATE @Directories
+      SET Completed = 1
+      WHERE ID = @CurrentRootDirectoryID
+
+      SET @CurrentRootDirectoryID = NULL
+      SET @CurrentRootDirectoryPath = NULL
+
+      DELETE FROM @DirectoryInfo
+    END
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Select URLs                                                                                //--
+  ----------------------------------------------------------------------------------------------------
+
+  SET @URL = REPLACE(@URL, CHAR(10), '')
+  SET @URL = REPLACE(@URL, CHAR(13), '')
+
+  WHILE CHARINDEX(@StringDelimiter + ' ', @URL) > 0 SET @URL = REPLACE(@URL, @StringDelimiter + ' ', @StringDelimiter)
+  WHILE CHARINDEX(' ' + @StringDelimiter, @URL) > 0 SET @URL = REPLACE(@URL, ' ' + @StringDelimiter, @StringDelimiter)
+
+  SET @URL = LTRIM(RTRIM(@URL));
+
+  WITH URLs (StartPosition, EndPosition, [URL]) AS
+  (
+  SELECT 1 AS StartPosition,
+          ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @URL, 1), 0), LEN(@URL) + 1) AS EndPosition,
+          SUBSTRING(@URL, 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @URL, 1), 0), LEN(@URL) + 1) - 1) AS [URL]
+  WHERE @URL IS NOT NULL
+  UNION ALL
+  SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+          ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @URL, EndPosition + 1), 0), LEN(@URL) + 1) AS EndPosition,
+          SUBSTRING(@URL, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @URL, EndPosition + 1), 0), LEN(@URL) + 1) - EndPosition - 1) AS [URL]
+  FROM URLs
+  WHERE EndPosition < LEN(@URL) + 1
+  )
+  INSERT INTO @URLs (ID, DirectoryPath, Mirror)
+  SELECT ROW_NUMBER() OVER(ORDER BY StartPosition ASC) AS ID,
+          [URL],
+          0
+  FROM URLs
+  OPTION (MAXRECURSION 0)
+
+  SET @MirrorURL = REPLACE(@MirrorURL, CHAR(10), '')
+  SET @MirrorURL = REPLACE(@MirrorURL, CHAR(13), '')
+
+  WHILE CHARINDEX(@StringDelimiter + ' ', @MirrorURL) > 0 SET @MirrorURL = REPLACE(@MirrorURL, @StringDelimiter + ' ', @StringDelimiter)
+  WHILE CHARINDEX(' ' + @StringDelimiter ,@MirrorURL) > 0 SET @MirrorURL = REPLACE(@MirrorURL, ' ' + @StringDelimiter, @StringDelimiter)
+
+  SET @MirrorURL = LTRIM(RTRIM(@MirrorURL));
+
+  WITH URLs (StartPosition, EndPosition, [URL]) AS
+  (
+  SELECT 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @MirrorURL, 1), 0), LEN(@MirrorURL) + 1) AS EndPosition,
+         SUBSTRING(@MirrorURL, 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @MirrorURL, 1), 0), LEN(@MirrorURL) + 1) - 1) AS [URL]
+  WHERE @MirrorURL IS NOT NULL
+  UNION ALL
+  SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @MirrorURL, EndPosition + 1), 0), LEN(@MirrorURL) + 1) AS EndPosition,
+         SUBSTRING(@MirrorURL, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @MirrorURL, EndPosition + 1), 0), LEN(@MirrorURL) + 1) - EndPosition - 1) AS [URL]
+  FROM URLs
+  WHERE EndPosition < LEN(@MirrorURL) + 1
+  )
+  INSERT INTO @URLs (ID, DirectoryPath, Mirror)
+  SELECT (SELECT COUNT(*) FROM @URLs) + ROW_NUMBER() OVER(ORDER BY StartPosition ASC) AS ID,
+         [URL],
+         1
+  FROM URLs
+  OPTION (MAXRECURSION 0)
+
+  ----------------------------------------------------------------------------------------------------
+  --// Check URLs                                                                          //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF EXISTS(SELECT * FROM @URLs WHERE Mirror = 0 AND NOT (DirectoryPath LIKE 'https://%/%' OR DirectoryPath LIKE 's3://%/%'))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @URL is not supported. The URL has to start with https:// (Azure Blob Storage) or s3:// (S3-compatible storage). See https://ola.hallengren.com/sql-server-backup.html#URL.', 16, 1)
+  END
+
+  IF EXISTS (SELECT * FROM @URLs GROUP BY DirectoryPath HAVING COUNT(*) <> 1)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The same URL has been specified multiple times in the parameters @URL and @MirrorURL. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  IF (SELECT COUNT(*) FROM @URLs WHERE Mirror = 0) <> (SELECT COUNT(*) FROM @URLs WHERE Mirror = 1) AND (SELECT COUNT(*) FROM @URLs WHERE Mirror = 1) > 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The number of URLs for the parameters @URL and @MirrorURL has to be the same. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  IF EXISTS(SELECT * FROM @URLs WHERE DirectoryPath LIKE 's3://%/%') AND NOT (@Version >= 16 AND @EngineEdition IN(2, 3))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Backup to S3-compatible storage is not supported in this version and edition of SQL Server. See https://ola.hallengren.com/sql-server-backup.html#URL.', 16, 1)
+  END
+
+  IF EXISTS(SELECT * FROM @URLs WHERE Mirror = 0 AND DirectoryPath LIKE 's3://%/%')
+  AND EXISTS(SELECT * FROM @URLs WHERE Mirror = 0 AND DirectoryPath LIKE 'https://%/%')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Striped backups across S3-compatible storage and Azure Blob Storage are not supported. See https://ola.hallengren.com/sql-server-backup.html#URL.', 16, 1)
+  END
+
+  IF (SELECT COUNT(*) FROM @URLs WHERE Mirror = 0) > 64
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @URL is not supported. The maximum number of URLs is 64. See https://ola.hallengren.com/sql-server-backup.html#URL.', 16, 1)
+  END
+
+  IF (SELECT COUNT(*) FROM @URLs WHERE Mirror = 0) > 32 AND EXISTS(SELECT * FROM @URLs WHERE Mirror = 1)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @URL is not supported. The maximum number of URLs when performing mirrored backups is 32. See https://ola.hallengren.com/sql-server-backup.html#URL.', 16, 1)
+  END
+
+  IF @URL IS NOT NULL AND @Credential IS NOT NULL AND (SELECT COUNT(*) FROM @URLs WHERE Mirror = 0) > 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @URL is not supported. Backup striping to URL with page blobs is not supported. See https://ola.hallengren.com/sql-server-backup.html#URL.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF EXISTS(SELECT * FROM @URLs WHERE Mirror = 1 AND NOT (DirectoryPath LIKE 'https://%/%' OR DirectoryPath LIKE 's3://%/%'))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MirrorURL is not supported. The URL has to start with https:// (Azure Blob Storage) or s3:// (S3-compatible storage). See https://ola.hallengren.com/sql-server-backup.html#MirrorURL.', 16, 1)
+  END
+
+  IF (EXISTS(SELECT * FROM @URLs WHERE Mirror = 0 AND DirectoryPath LIKE 'https://%/%') AND EXISTS(SELECT * FROM @URLs WHERE Mirror = 1 AND DirectoryPath LIKE 's3://%/%'))
+  OR (EXISTS(SELECT * FROM @URLs WHERE Mirror = 0 AND DirectoryPath LIKE 's3://%/%') AND EXISTS(SELECT * FROM @URLs WHERE Mirror = 1 AND DirectoryPath LIKE 'https://%/%'))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Mirrored backups across S3-compatible storage and Azure Blob Storage are not supported. See https://ola.hallengren.com/sql-server-backup.html#MirrorURL.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Get directory separator                                                                   //--
+  ----------------------------------------------------------------------------------------------------
+
+  SELECT @DirectorySeparator = CASE
+  WHEN @URL IS NOT NULL THEN '/'
+  WHEN @HostPlatform = 'Windows' THEN '\'
+  WHEN @HostPlatform = 'Linux' THEN '/'
+  END
+
+  UPDATE @Directories
+  SET DirectoryPath = LEFT(DirectoryPath,LEN(DirectoryPath) - 1)
+  WHERE RIGHT(DirectoryPath,1) = @DirectorySeparator
+
+  UPDATE @URLs
+  SET DirectoryPath = LEFT(DirectoryPath,LEN(DirectoryPath) - 1)
+  WHERE RIGHT(DirectoryPath,1) = @DirectorySeparator
+
+  ----------------------------------------------------------------------------------------------------
+  --// Get file extension                                                                         //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @FileExtensionFull IS NULL
+  BEGIN
+    SELECT @FileExtensionFull = CASE
+    WHEN @BackupSoftware IS NULL THEN 'bak'
+    WHEN @BackupSoftware = 'LITESPEED' THEN 'bak'
+    WHEN @BackupSoftware = 'SQLBACKUP' THEN 'sqb'
+    WHEN @BackupSoftware = 'SQLSAFE' THEN 'safe'
+    END
+  END
+
+  IF @FileExtensionDiff IS NULL
+  BEGIN
+    SELECT @FileExtensionDiff = CASE
+    WHEN @BackupSoftware IS NULL THEN 'bak'
+    WHEN @BackupSoftware = 'LITESPEED' THEN 'bak'
+    WHEN @BackupSoftware = 'SQLBACKUP' THEN 'sqb'
+    WHEN @BackupSoftware = 'SQLSAFE' THEN 'safe'
+    END
+  END
+
+  IF @FileExtensionLog IS NULL
+  BEGIN
+    SELECT @FileExtensionLog = CASE
+    WHEN @BackupSoftware IS NULL THEN 'trn'
+    WHEN @BackupSoftware = 'LITESPEED' THEN 'trn'
+    WHEN @BackupSoftware = 'SQLBACKUP' THEN 'sqb'
+    WHEN @BackupSoftware = 'SQLSAFE' THEN 'safe'
+    END
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Get default checksum                                                                       //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Checksum IS NULL
+  BEGIN
+    SELECT @Checksum = CASE WHEN EXISTS(SELECT * FROM sys.configurations WHERE name = 'backup checksum default' AND value_in_use = 1) THEN 'Y'
+                            WHEN NOT EXISTS(SELECT * FROM sys.configurations WHERE name = 'backup checksum default' AND value_in_use = 1) THEN 'N' END
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Get default compression                                                                    //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Compress IS NULL
+  BEGIN
+    SELECT @Compress = CASE WHEN @BackupSoftware IS NULL AND EXISTS(SELECT * FROM sys.configurations WHERE name = 'backup compression default' AND value_in_use = 1) THEN 'Y'
+                            WHEN @BackupSoftware IS NULL AND NOT EXISTS(SELECT * FROM sys.configurations WHERE name = 'backup compression default' AND value_in_use = 1) THEN 'N'
+                            WHEN @BackupSoftware IS NOT NULL AND (@CompressionLevelNumeric IS NULL OR @CompressionLevelNumeric > 0)  THEN 'Y'
+                            WHEN @BackupSoftware IS NOT NULL AND @CompressionLevelNumeric = 0  THEN 'N' END
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Get default compression algorithm                                                          //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @CompressionAlgorithm IS NULL AND @BackupSoftware IS NULL AND (@Version >= 16 OR (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous'))
+  BEGIN
+    SELECT @CompressionAlgorithm = CASE WHEN @BackupSoftware IS NULL AND EXISTS(SELECT * FROM sys.configurations WHERE name = 'backup compression algorithm' AND value_in_use IN (0, 1)) THEN 'MS_XPRESS'
+                                        WHEN @BackupSoftware IS NULL AND EXISTS(SELECT * FROM sys.configurations WHERE name = 'backup compression algorithm' AND value_in_use = 2) THEN 'QAT_DEFLATE'
+                                        WHEN @BackupSoftware IS NULL AND EXISTS(SELECT * FROM sys.configurations WHERE name = 'backup compression algorithm' AND value_in_use = 3) THEN 'ZSTD' END
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Get default compression level                                                              //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @CompressionLevel IS NULL AND @BackupSoftware IS NULL AND (@Version >= 17 OR (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous'))
+  BEGIN
+    SET @CompressionLevel = 'LOW'
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Check input parameters                                                                     //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @BackupType NOT IN ('FULL','DIFF','LOG') OR @BackupType IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @BackupType is not supported. Supported values are FULL, DIFF and LOG. See https://ola.hallengren.com/sql-server-backup.html#BackupType.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @EngineEdition = 8 AND NOT (@BackupType = 'FULL' AND @CopyOnly = 'Y')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Azure SQL Managed Instance only supports COPY_ONLY full backups. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Verify NOT IN ('Y','N') OR @Verify IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Verify is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#Verify.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'SQLSAFE' AND @Encrypt = 'Y' AND @Verify = 'Y'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Verify is not supported for encrypted backups with Idera SQL Safe Backup. See https://ola.hallengren.com/sql-server-backup.html#Verify.', 16, 1)
+  END
+
+  IF @Verify = 'Y' AND @BackupSoftware = 'DATA_DOMAIN_BOOST'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Verify is not supported with Data Domain Boost. See https://ola.hallengren.com/sql-server-backup.html#Verify.', 16, 1)
+  END
+
+  IF @Verify = 'Y' AND EXISTS(SELECT * FROM @Directories WHERE DirectoryPath = 'NUL')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Verify is not supported when backing up to NUL. See https://ola.hallengren.com/sql-server-backup.html#Verify.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @CleanupTime < 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CleanupTime is not supported. The value has to be greater than or equal to 0. See https://ola.hallengren.com/sql-server-backup.html#CleanupTime.', 16, 1)
+  END
+
+  IF @CleanupTime IS NOT NULL AND @URL IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CleanupTime is not supported. Cleanup is not supported when backing up to URL. See https://ola.hallengren.com/sql-server-backup.html#CleanupTime.', 16, 1)
+  END
+
+  IF @CleanupTime IS NOT NULL AND EXISTS(SELECT * FROM @Directories WHERE DirectoryPath = 'NUL')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CleanupTime is not supported. Cleanup is not supported when backing up to NUL. See https://ola.hallengren.com/sql-server-backup.html#CleanupTime.', 16, 1)
+  END
+
+  IF @CleanupTime IS NOT NULL AND ((@DirectoryStructure NOT LIKE '%{DatabaseName}%' OR @DirectoryStructure IS NULL) OR (@IsHadrEnabled = 1 AND (@AvailabilityGroupDirectoryStructure NOT LIKE '%{DatabaseName}%' OR @AvailabilityGroupDirectoryStructure IS NULL)))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CleanupTime is not supported. Cleanup is not supported if the token {DatabaseName} is not part of the directory structure. See https://ola.hallengren.com/sql-server-backup.html#CleanupTime.', 16, 1)
+  END
+
+  IF @CleanupTime IS NOT NULL AND ((@DirectoryStructure NOT LIKE '%{BackupType}%' OR @DirectoryStructure IS NULL) OR (@IsHadrEnabled = 1 AND (@AvailabilityGroupDirectoryStructure NOT LIKE '%{BackupType}%' OR @AvailabilityGroupDirectoryStructure IS NULL))) AND (SELECT COUNT(*) FROM (SELECT @FileExtensionFull AS FileExtension UNION SELECT @FileExtensionDiff UNION SELECT @FileExtensionLog) FileExtension) <> 3
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CleanupTime is not supported. Cleanup is not supported if the token {BackupType} is not part of the directory structure and the file extensions are not unique. See https://ola.hallengren.com/sql-server-backup.html#CleanupTime.', 16, 1)
+  END
+
+  IF @CleanupTime IS NOT NULL AND @CopyOnly = 'Y' AND ((@DirectoryStructure NOT LIKE '%{CopyOnly}%' OR @DirectoryStructure IS NULL) OR (@IsHadrEnabled = 1 AND (@AvailabilityGroupDirectoryStructure NOT LIKE '%{CopyOnly}%' OR @AvailabilityGroupDirectoryStructure IS NULL)))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CleanupTime is not supported. Cleanup is not supported if the token {CopyOnly} is not part of the directory structure. See https://ola.hallengren.com/sql-server-backup.html#CleanupTime.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @CleanupMode NOT IN('BEFORE_BACKUP','AFTER_BACKUP') OR @CleanupMode IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CleanupMode is not supported. Supported values are BEFORE_BACKUP and AFTER_BACKUP. See https://ola.hallengren.com/sql-server-backup.html#CleanupMode.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Compress NOT IN ('Y','N') OR @Compress IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Compress is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#Compress.', 16, 1)
+  END
+
+  IF @Compress = 'Y' AND @BackupSoftware IS NULL
+  AND NOT (@EngineEdition IN (3, 8) OR @EditionID IN (-1534726760, -1785266663))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Backup compression is not supported in this edition of SQL Server. See https://ola.hallengren.com/sql-server-backup.html#Compress.', 16, 1)
+  END
+
+  IF @Compress = 'N' AND @BackupSoftware = 'LITESPEED' AND (@CompressionLevelNumeric IS NULL OR @CompressionLevelNumeric >= 1)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @Compress to ''N'' with LiteSpeed for SQL Server requires @CompressionLevelNumeric = 0. See https://ola.hallengren.com/sql-server-backup.html#Compress.', 16, 1)
+  END
+
+  IF @Compress = 'N' AND @BackupSoftware = 'SQLBACKUP' AND (@CompressionLevelNumeric IS NULL OR @CompressionLevelNumeric >= 1)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @Compress to ''N'' with Redgate SQL Backup Pro requires @CompressionLevelNumeric = 0. See https://ola.hallengren.com/sql-server-backup.html#Compress.', 16, 1)
+  END
+
+  IF @Compress = 'N' AND @BackupSoftware = 'SQLSAFE' AND (@CompressionLevelNumeric IS NULL OR @CompressionLevelNumeric >= 1)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @Compress to ''N'' with Idera SQL Safe Backup requires @CompressionLevelNumeric = 0. See https://ola.hallengren.com/sql-server-backup.html#Compress.', 16, 1)
+  END
+
+  IF @Compress = 'Y' AND @BackupSoftware IN ('LITESPEED','SQLBACKUP','SQLSAFE') AND @CompressionLevelNumeric = 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @Compress to ''Y'' cannot be combined with @CompressionLevelNumeric = 0. See https://ola.hallengren.com/sql-server-backup.html#Compress.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @CompressionAlgorithm NOT IN ('MS_XPRESS','QAT_DEFLATE','ZSTD')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CompressionAlgorithm is not supported. Supported values are MS_XPRESS, QAT_DEFLATE and ZSTD. See https://ola.hallengren.com/sql-server-backup.html#CompressionAlgorithm.', 16, 1)
+  END
+
+  IF @CompressionAlgorithm IS NOT NULL AND NOT (@Version >= 16 OR (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous'))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @CompressionAlgorithm is not supported in this version and edition of SQL Server. See https://ola.hallengren.com/sql-server-backup.html#CompressionAlgorithm.', 16, 1)
+  END
+
+  IF @CompressionAlgorithm = 'QAT_DEFLATE' AND NOT (@EngineEdition IN(2, 3))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @CompressionAlgorithm to QAT_DEFLATE is not supported in this edition of SQL Server. See https://ola.hallengren.com/sql-server-backup.html#CompressionAlgorithm.', 16, 1)
+  END
+
+  IF @CompressionAlgorithm = 'ZSTD' AND NOT (@Version >= 17 OR (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous'))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @CompressionAlgorithm to ZSTD is not supported in this version and edition of SQL Server. See https://ola.hallengren.com/sql-server-backup.html#CompressionAlgorithm.', 16, 1)
+  END
+
+  IF @CompressionAlgorithm IS NOT NULL AND @BackupSoftware IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @CompressionAlgorithm is only supported with SQL Server native backups. See https://ola.hallengren.com/sql-server-backup.html#CompressionAlgorithm.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @CompressionLevel IS NOT NULL AND @BackupSoftware IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @CompressionLevel is only supported with SQL Server native backups. For third-party backup software, use the parameter @CompressionLevelNumeric. See https://ola.hallengren.com/sql-server-backup.html#CompressionLevel.', 16, 1)
+  END
+
+  IF @CompressionLevel NOT IN ('LOW','MEDIUM','HIGH')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CompressionLevel is not supported. Supported values are LOW, MEDIUM and HIGH. See https://ola.hallengren.com/sql-server-backup.html#CompressionLevel.', 16, 1)
+  END
+
+  IF @CompressionLevel IS NOT NULL AND NOT (@Version >= 17 OR (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous'))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @CompressionLevel is not supported in this version and edition of SQL Server. See https://ola.hallengren.com/sql-server-backup.html#CompressionLevel.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @CopyOnly NOT IN ('Y','N') OR @CopyOnly IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CopyOnly is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#CopyOnly.', 16, 1)
+  END
+
+  IF @CopyOnly = 'Y' AND @BackupType = 'DIFF'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Differential copy-only backups are not supported. See https://ola.hallengren.com/sql-server-backup.html#CopyOnly.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @ChangeBackupType NOT IN ('Y','N') OR @ChangeBackupType IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @ChangeBackupType is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#ChangeBackupType.', 16, 1)
+  END
+
+  IF @ChangeBackupType = 'Y' AND NOT @BackupType IN ('DIFF', 'LOG')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @ChangeBackupType to ''Y'' is only supported with differential and log backups. See https://ola.hallengren.com/sql-server-backup.html#ChangeBackupType.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @BackupSoftware NOT IN ('LITESPEED','SQLBACKUP','SQLSAFE','DATA_DOMAIN_BOOST')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @BackupSoftware is not supported. Supported values are LITESPEED, SQLBACKUP, SQLSAFE and DATA_DOMAIN_BOOST. See https://ola.hallengren.com/sql-server-backup.html#BackupSoftware.', 16, 1)
+  END
+
+  IF @BackupSoftware IS NOT NULL AND @HostPlatform = 'Linux'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @BackupSoftware is not supported. Only native backups are supported on Linux. See https://ola.hallengren.com/sql-server-backup.html#BackupSoftware.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'LITESPEED' AND NOT EXISTS (SELECT * FROM [master].sys.objects WHERE [type] = 'X' AND [name] = 'xp_backup_database')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('LiteSpeed for SQL Server is not installed. Download https://www.quest.com/products/litespeed-for-sql-server/.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'SQLBACKUP' AND NOT EXISTS (SELECT * FROM [master].sys.objects WHERE [type] = 'X' AND [name] = 'sqlbackup')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Redgate SQL Backup Pro is not installed. Download https://www.red-gate.com/products/sql-backup/.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'SQLSAFE' AND NOT EXISTS (SELECT * FROM [master].sys.objects WHERE [type] = 'X' AND [name] = 'xp_ss_backup')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Idera SQL Safe Backup is not installed. Download https://www.idera.com/products/sql-safe-backup/.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'DATA_DOMAIN_BOOST' AND NOT EXISTS (SELECT * FROM [master].sys.objects WHERE [type] = 'PC' AND [name] = 'emc_run_backup')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Data Domain Boost is not installed. Download https://www.dell.com/en-us/shop/storage-servers-and-networking-for-business/sf/powerprotect-data-domain.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Checksum NOT IN ('Y','N') OR @Checksum IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Checksum is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#Checksum.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @BlockSize NOT IN (512,1024,2048,4096,8192,16384,32768,65536)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @BlockSize is not supported. Supported values are 512, 1024, 2048, 4096, 8192, 16384, 32768 and 65536. See https://ola.hallengren.com/sql-server-backup.html#BlockSize.', 16, 1)
+  END
+
+  IF @BlockSize IS NOT NULL AND @BackupSoftware = 'SQLBACKUP'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @BlockSize is not supported with Redgate SQL Backup Pro. See https://ola.hallengren.com/sql-server-backup.html#BlockSize.', 16, 1)
+  END
+
+  IF @BlockSize IS NOT NULL AND @BackupSoftware = 'SQLSAFE'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @BlockSize is not supported with Idera SQL Safe Backup. See https://ola.hallengren.com/sql-server-backup.html#BlockSize.', 16, 1)
+  END
+
+  IF @BlockSize IS NOT NULL AND @URL IS NOT NULL AND @Credential IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('BLOCKSIZE is not supported when backing up to URL with page blobs. See https://learn.microsoft.com/en-us/sql/relational-databases/backup-restore/sql-server-backup-to-url.', 16, 1)
+  END
+
+  IF @BlockSize IS NOT NULL AND @BackupSoftware = 'DATA_DOMAIN_BOOST'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @BlockSize is not supported with Data Domain Boost. See https://ola.hallengren.com/sql-server-backup.html#BlockSize.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @BufferCount <= 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @BufferCount is not supported. The value has to be greater than 0. See https://ola.hallengren.com/sql-server-backup.html#BufferCount.', 16, 1)
+  END
+
+  IF @BufferCount IS NOT NULL AND @BackupSoftware = 'SQLBACKUP'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @BufferCount is not supported with Redgate SQL Backup Pro. See https://ola.hallengren.com/sql-server-backup.html#BufferCount.', 16, 1)
+  END
+
+  IF @BufferCount IS NOT NULL AND @BackupSoftware = 'SQLSAFE'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @BufferCount is not supported with Idera SQL Safe Backup. See https://ola.hallengren.com/sql-server-backup.html#BufferCount.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @BackupSoftware IS NULL AND @URL IS NULL AND (@MaxTransferSize < 65536 OR @MaxTransferSize > 4194304)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MaxTransferSize is not supported. The value has to be between 65536 and 4194304 when performing SQL Server native backups to disk. See https://ola.hallengren.com/sql-server-backup.html#MaxTransferSize.', 16, 1)
+  END
+
+  IF @BackupSoftware IS NULL AND @URL IS NOT NULL AND @Credential IS NULL AND NOT EXISTS(SELECT * FROM @URLs WHERE Mirror = 0 AND DirectoryPath LIKE 's3://%/%') AND (@Version >= 16 OR (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous')) AND (@MaxTransferSize < 65536 OR @MaxTransferSize > 20971520)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MaxTransferSize is not supported. The value has to be between 65536 and 20971520 when backing up to URL with block blobs on this version of SQL Server. See https://ola.hallengren.com/sql-server-backup.html#MaxTransferSize.', 16, 1)
+  END
+
+  IF @BackupSoftware IS NULL AND @URL IS NOT NULL AND @Credential IS NULL AND NOT EXISTS(SELECT * FROM @URLs WHERE Mirror = 0 AND DirectoryPath LIKE 's3://%/%') AND NOT (@Version >= 16 OR (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous')) AND (@MaxTransferSize < 65536 OR @MaxTransferSize > 4194304)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MaxTransferSize is not supported. The value has to be between 65536 and 4194304 when backing up to URL with block blobs on this version of SQL Server. See https://ola.hallengren.com/sql-server-backup.html#MaxTransferSize.', 16, 1)
+  END
+
+  IF @BackupSoftware IS NULL AND @URL IS NOT NULL AND @Credential IS NULL AND EXISTS(SELECT * FROM @URLs WHERE Mirror = 0 AND DirectoryPath LIKE 's3://%/%') AND (@MaxTransferSize < 5242880 OR @MaxTransferSize > 20971520)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MaxTransferSize is not supported. The value has to be between 5242880 and 20971520 when backing up to S3-compatible storage. See https://ola.hallengren.com/sql-server-backup.html#MaxTransferSize.', 16, 1)
+  END
+
+  IF @URL IS NOT NULL AND @Credential IS NOT NULL AND @MaxTransferSize IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('MAXTRANSFERSIZE is not supported when backing up to URL with page blobs. See https://learn.microsoft.com/en-us/sql/relational-databases/backup-restore/sql-server-backup-to-url.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'SQLBACKUP' AND (@MaxTransferSize < 65536 OR @MaxTransferSize > 1048576)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MaxTransferSize is not supported. The value has to be between 65536 and 1048576 when backing up using Redgate SQL Backup Pro. See https://ola.hallengren.com/sql-server-backup.html#MaxTransferSize.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'LITESPEED' AND (@MaxTransferSize < 65536 OR @MaxTransferSize > 4194304)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MaxTransferSize is not supported. The value has to be between 65536 and 4194304 when backing up using LiteSpeed for SQL Server. See https://ola.hallengren.com/sql-server-backup.html#MaxTransferSize.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'SQLSAFE' AND @MaxTransferSize IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @MaxTransferSize is not supported with Idera SQL Safe Backup. See https://ola.hallengren.com/sql-server-backup.html#MaxTransferSize.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'DATA_DOMAIN_BOOST' AND @MaxTransferSize IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @MaxTransferSize is not supported with Data Domain Boost. See https://ola.hallengren.com/sql-server-backup.html#MaxTransferSize.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @NumberOfFiles < 1 OR @NumberOfFiles > 64
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @NumberOfFiles is not supported. The value has to be between 1 and 64. See https://ola.hallengren.com/sql-server-backup.html#NumberOfFiles.', 16, 1)
+  END
+
+  IF @NumberOfFiles > 32 AND @BackupSoftware = 'SQLBACKUP'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @NumberOfFiles is not supported. The maximum number of files with Redgate SQL Backup Pro is 32. See https://ola.hallengren.com/sql-server-backup.html#NumberOfFiles.', 16, 1)
+  END
+
+  IF @NumberOfFiles < (SELECT COUNT(*) FROM @Directories WHERE Mirror = 0)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @NumberOfFiles is not supported. The number of files has to be greater than or equal to the number of directories. See https://ola.hallengren.com/sql-server-backup.html#NumberOfFiles.', 16, 1)
+  END
+
+  IF @NumberOfFiles % (SELECT NULLIF(COUNT(*),0) FROM @Directories WHERE Mirror = 0) > 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @NumberOfFiles is not supported. The number of files has to be evenly divisible by the number of directories. See https://ola.hallengren.com/sql-server-backup.html#NumberOfFiles.', 16, 1)
+  END
+
+  IF @URL IS NOT NULL AND @Credential IS NOT NULL AND @NumberOfFiles <> 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Backup striping to URL with page blobs is not supported. See https://learn.microsoft.com/en-us/sql/relational-databases/backup-restore/sql-server-backup-to-url.', 16, 1)
+  END
+
+  IF @NumberOfFiles > 1 AND @BackupSoftware = 'SQLBACKUP' AND EXISTS(SELECT * FROM @Directories WHERE Mirror = 1)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @NumberOfFiles is not supported. Mirrored backups with multiple files are not supported with Redgate SQL Backup Pro. See https://ola.hallengren.com/sql-server-backup.html#NumberOfFiles.', 16, 1)
+  END
+
+  IF @NumberOfFiles > 1 AND @BackupSoftware = 'SQLSAFE' AND EXISTS(SELECT * FROM @Directories WHERE Mirror = 1)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @NumberOfFiles is not supported. Mirrored backups with multiple files are not supported with Idera SQL Safe Backup. See https://ola.hallengren.com/sql-server-backup.html#NumberOfFiles.', 16, 1)
+  END
+
+  IF @NumberOfFiles > 32 AND @BackupSoftware = 'DATA_DOMAIN_BOOST'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @NumberOfFiles is not supported. The maximum number of files with Data Domain Boost is 32. See https://ola.hallengren.com/sql-server-backup.html#NumberOfFiles.', 16, 1)
+  END
+
+  IF @NumberOfFiles < (SELECT COUNT(*) FROM @URLs WHERE Mirror = 0)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @NumberOfFiles is not supported. The number of files has to be greater than or equal to the number of URLs. See https://ola.hallengren.com/sql-server-backup.html#NumberOfFiles.', 16, 1)
+  END
+
+  IF @NumberOfFiles % (SELECT NULLIF(COUNT(*),0) FROM @URLs WHERE Mirror = 0) > 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @NumberOfFiles is not supported. The number of files has to be evenly divisible by the number of URLs. See https://ola.hallengren.com/sql-server-backup.html#NumberOfFiles.', 16, 1)
+  END
+
+  IF @BackupSoftware IS NULL AND @NumberOfFiles > 32 AND EXISTS(SELECT * FROM @Directories WHERE Mirror = 1)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @NumberOfFiles is not supported. The maximum number of files when performing mirrored SQL Server native backups to disk is 32. See https://ola.hallengren.com/sql-server-backup.html#NumberOfFiles.', 16, 1)
+  END
+
+  IF @NumberOfFiles > 32 AND EXISTS(SELECT * FROM @URLs WHERE Mirror = 1)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @NumberOfFiles is not supported. The maximum number of files when performing mirrored backups to URL is 32. See https://ola.hallengren.com/sql-server-backup.html#NumberOfFiles.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'LITESPEED' AND @NumberOfFiles > 32 AND EXISTS(SELECT * FROM @Directories WHERE Mirror = 1)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @NumberOfFiles is not supported. The maximum number of files when performing mirrored backups with LiteSpeed for SQL Server is 32. See https://ola.hallengren.com/sql-server-backup.html#NumberOfFiles.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @MinBackupSizeForMultipleFiles <= 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MinBackupSizeForMultipleFiles is not supported. The value has to be greater than 0. See https://ola.hallengren.com/sql-server-backup.html#MinBackupSizeForMultipleFiles.', 16, 1)
+  END
+
+  IF @MinBackupSizeForMultipleFiles IS NOT NULL AND @NumberOfFiles IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @MinBackupSizeForMultipleFiles can only be used together with @NumberOfFiles. See https://ola.hallengren.com/sql-server-backup.html#MinBackupSizeForMultipleFiles.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @MaxFileSize <= 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MaxFileSize is not supported. The value has to be greater than 0. See https://ola.hallengren.com/sql-server-backup.html#MaxFileSize.', 16, 1)
+  END
+
+  IF @MaxFileSize IS NOT NULL AND @NumberOfFiles IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameters @MaxFileSize and @NumberOfFiles cannot be used together. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF (@BackupSoftware IS NULL AND @CompressionLevelNumeric IS NOT NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @CompressionLevelNumeric is only supported with third-party backup software. For SQL Server native backups, use the parameter @CompressionLevel. See https://ola.hallengren.com/sql-server-backup.html#CompressionLevelNumeric.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'LITESPEED' AND (@CompressionLevelNumeric < 0  OR @CompressionLevelNumeric > 8)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CompressionLevelNumeric is not supported. With LiteSpeed for SQL Server, the value has to be between 0 and 8. See https://ola.hallengren.com/sql-server-backup.html#CompressionLevelNumeric.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'SQLBACKUP' AND (@CompressionLevelNumeric < 0 OR @CompressionLevelNumeric > 4)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CompressionLevelNumeric is not supported. With Redgate SQL Backup Pro, the value has to be between 0 and 4. See https://ola.hallengren.com/sql-server-backup.html#CompressionLevelNumeric.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'SQLSAFE' AND (@CompressionLevelNumeric < 1 OR @CompressionLevelNumeric > 4)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CompressionLevelNumeric is not supported. With Idera SQL Safe Backup, the value has to be between 1 and 4. See https://ola.hallengren.com/sql-server-backup.html#CompressionLevelNumeric.', 16, 1)
+  END
+
+  IF @CompressionLevelNumeric IS NOT NULL AND @BackupSoftware = 'DATA_DOMAIN_BOOST'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @CompressionLevelNumeric is not supported with Data Domain Boost. See https://ola.hallengren.com/sql-server-backup.html#CompressionLevelNumeric.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF LEN(@Description) > 255
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Description is not supported. The maximum length is 255 characters. See https://ola.hallengren.com/sql-server-backup.html#Description.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'LITESPEED' AND LEN(@Description) > 128
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Description is not supported. The maximum length with LiteSpeed for SQL Server is 128 characters. See https://ola.hallengren.com/sql-server-backup.html#Description.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'DATA_DOMAIN_BOOST' AND LEN(@Description) > 254
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Description is not supported. The maximum length with Data Domain Boost is 254 characters. See https://ola.hallengren.com/sql-server-backup.html#Description.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'DATA_DOMAIN_BOOST' AND @Description LIKE '%"%'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Description is not supported. Double quotes (") are not supported with Data Domain Boost. See https://ola.hallengren.com/sql-server-backup.html#Description.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF LEN(@BackupSetName) > 128
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @BackupSetName is not supported. The maximum length is 128 characters. See https://ola.hallengren.com/sql-server-backup.html#BackupSetName.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'DATA_DOMAIN_BOOST' AND @BackupSetName LIKE '%"%'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @BackupSetName is not supported. Double quotes (") are not supported with Data Domain Boost. See https://ola.hallengren.com/sql-server-backup.html#BackupSetName.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Threads IS NOT NULL AND (@BackupSoftware NOT IN('LITESPEED','SQLBACKUP','SQLSAFE') OR @BackupSoftware IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @Threads is only supported with LiteSpeed for SQL Server, Redgate SQL Backup Pro and Idera SQL Safe Backup. See https://ola.hallengren.com/sql-server-backup.html#Threads.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'LITESPEED' AND (@Threads < 1 OR @Threads > 32)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Threads is not supported. With LiteSpeed for SQL Server, the value has to be between 1 and 32. See https://ola.hallengren.com/sql-server-backup.html#Threads.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'SQLBACKUP' AND (@Threads < 2 OR @Threads > 32)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Threads is not supported. With Redgate SQL Backup Pro, the value has to be between 2 and 32. See https://ola.hallengren.com/sql-server-backup.html#Threads.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'SQLSAFE' AND (@Threads < 1 OR @Threads > 64)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Threads is not supported. With Idera SQL Safe Backup, the value has to be between 1 and 64. See https://ola.hallengren.com/sql-server-backup.html#Threads.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Throttle < 1 OR @Throttle > 100
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Throttle is not supported. The value has to be between 1 and 100. See https://ola.hallengren.com/sql-server-backup.html#Throttle.', 16, 1)
+  END
+
+  IF @Throttle IS NOT NULL AND (@BackupSoftware NOT IN('LITESPEED') OR @BackupSoftware IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @Throttle is only supported with LiteSpeed for SQL Server. See https://ola.hallengren.com/sql-server-backup.html#Throttle.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Encrypt NOT IN('Y','N') OR @Encrypt IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Encrypt is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#Encrypt.', 16, 1)
+  END
+
+  IF @Encrypt = 'Y' AND @BackupSoftware IS NULL AND NOT (@EngineEdition IN(3, 8) OR @EditionID IN(-1534726760, -1785266663))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Backup encryption is not supported in this edition of SQL Server. See https://ola.hallengren.com/sql-server-backup.html#Encrypt.', 16, 1)
+  END
+
+  IF @Encrypt = 'Y' AND @BackupSoftware = 'DATA_DOMAIN_BOOST'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Encrypt is not supported. Encrypted backups are not supported with Data Domain Boost. See https://ola.hallengren.com/sql-server-backup.html#Encrypt.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @BackupSoftware IS NULL AND @Encrypt = 'Y' AND (@EncryptionAlgorithm NOT IN('AES_128','AES_192','AES_256','TRIPLE_DES_3KEY') OR @EncryptionAlgorithm IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @EncryptionAlgorithm is not supported. Supported values for SQL Server native backups are AES_128, AES_192, AES_256 and TRIPLE_DES_3KEY. See https://ola.hallengren.com/sql-server-backup.html#EncryptionAlgorithm.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'LITESPEED' AND @Encrypt = 'Y' AND (@EncryptionAlgorithm NOT IN('RC2_40','RC2_56','RC2_112','RC2_128','TRIPLE_DES_3KEY','RC4_128','AES_128','AES_192','AES_256') OR @EncryptionAlgorithm IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @EncryptionAlgorithm is not supported. Supported values with LiteSpeed for SQL Server are RC2_40, RC2_56, RC2_112, RC2_128, TRIPLE_DES_3KEY, RC4_128, AES_128, AES_192 and AES_256. See https://ola.hallengren.com/sql-server-backup.html#EncryptionAlgorithm.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'SQLBACKUP' AND @Encrypt = 'Y' AND (@EncryptionAlgorithm NOT IN('AES_128','AES_256') OR @EncryptionAlgorithm IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @EncryptionAlgorithm is not supported. Supported values with Redgate SQL Backup Pro are AES_128 and AES_256. See https://ola.hallengren.com/sql-server-backup.html#EncryptionAlgorithm.', 16, 1)
+  END
+
+  IF @BackupSoftware = 'SQLSAFE' AND @Encrypt = 'Y' AND (@EncryptionAlgorithm NOT IN('AES_128','AES_256') OR @EncryptionAlgorithm IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @EncryptionAlgorithm is not supported. Supported values with Idera SQL Safe Backup are AES_128 and AES_256. See https://ola.hallengren.com/sql-server-backup.html#EncryptionAlgorithm.', 16, 1)
+  END
+
+  IF @EncryptionAlgorithm IS NOT NULL AND @BackupSoftware = 'DATA_DOMAIN_BOOST'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @EncryptionAlgorithm is not supported with Data Domain Boost. See https://ola.hallengren.com/sql-server-backup.html#EncryptionAlgorithm.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF (NOT (@BackupSoftware IS NULL AND @Encrypt = 'Y') AND @ServerCertificate IS NOT NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @ServerCertificate can only be used together with @Encrypt = ''Y'' and SQL Server native backups. See https://ola.hallengren.com/sql-server-backup.html#ServerCertificate.', 16, 1)
+  END
+
+  IF @BackupSoftware IS NULL AND @Encrypt = 'Y' AND @ServerCertificate IS NULL AND @ServerAsymmetricKey IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('You need to specify one of the parameters @ServerCertificate and @ServerAsymmetricKey when performing encrypted SQL Server native backups. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  IF @BackupSoftware IS NULL AND @Encrypt = 'Y' AND @ServerCertificate IS NOT NULL AND @ServerAsymmetricKey IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('You can only specify one of the parameters @ServerCertificate and @ServerAsymmetricKey. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  IF @ServerCertificate IS NOT NULL AND NOT EXISTS(SELECT * FROM master.sys.certificates WHERE name = @ServerCertificate)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @ServerCertificate is not supported. The certificate does not exist in the master database. See https://ola.hallengren.com/sql-server-backup.html#ServerCertificate.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF NOT (@BackupSoftware IS NULL AND @Encrypt = 'Y') AND @ServerAsymmetricKey IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @ServerAsymmetricKey can only be used together with @Encrypt = ''Y'' and SQL Server native backups. See https://ola.hallengren.com/sql-server-backup.html#ServerAsymmetricKey.', 16, 1)
+  END
+
+  IF @ServerAsymmetricKey IS NOT NULL AND NOT EXISTS(SELECT * FROM master.sys.asymmetric_keys WHERE name = @ServerAsymmetricKey)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @ServerAsymmetricKey is not supported. The asymmetric key does not exist in the master database. See https://ola.hallengren.com/sql-server-backup.html#ServerAsymmetricKey.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @EncryptionKey IS NOT NULL AND @BackupSoftware IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @EncryptionKey is only supported with third-party backup software. For SQL Server native backups, use @ServerCertificate or @ServerAsymmetricKey. See https://ola.hallengren.com/sql-server-backup.html#EncryptionKey.', 16, 1)
+  END
+
+  IF @EncryptionKey IS NOT NULL AND @Encrypt = 'N'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @EncryptionKey can only be used together with @Encrypt = ''Y''. See https://ola.hallengren.com/sql-server-backup.html#EncryptionKey.', 16, 1)
+  END
+
+  IF @EncryptionKey IS NULL AND @Encrypt = 'Y' AND @BackupSoftware = 'LITESPEED'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('You need to specify @EncryptionKey when performing encrypted backups with LiteSpeed for SQL Server. See https://ola.hallengren.com/sql-server-backup.html#EncryptionKey.', 16, 1)
+  END
+
+  IF @EncryptionKey IS NULL AND @Encrypt = 'Y' AND @BackupSoftware = 'SQLBACKUP'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('You need to specify @EncryptionKey when performing encrypted backups with Redgate SQL Backup Pro. See https://ola.hallengren.com/sql-server-backup.html#EncryptionKey.', 16, 1)
+  END
+
+  IF @EncryptionKey IS NULL AND @Encrypt = 'Y' AND @BackupSoftware = 'SQLSAFE'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('You need to specify @EncryptionKey when performing encrypted backups with Idera SQL Safe Backup. See https://ola.hallengren.com/sql-server-backup.html#EncryptionKey.', 16, 1)
+  END
+
+  IF @EncryptionKey IS NOT NULL AND @BackupSoftware = 'DATA_DOMAIN_BOOST'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @EncryptionKey is not supported with Data Domain Boost. See https://ola.hallengren.com/sql-server-backup.html#EncryptionKey.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @ReadWriteFileGroups NOT IN('Y','N') OR @ReadWriteFileGroups IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @ReadWriteFileGroups is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#ReadWriteFileGroups.', 16, 1)
+  END
+
+  IF @ReadWriteFileGroups = 'Y' AND @BackupType = 'LOG'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @ReadWriteFileGroups to ''Y'' is not supported for transaction log backups. See https://ola.hallengren.com/sql-server-backup.html#ReadWriteFileGroups.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @OverrideBackupPreference NOT IN('Y','N') OR @OverrideBackupPreference IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @OverrideBackupPreference is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#OverrideBackupPreference.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @NoRecovery NOT IN('Y','N') OR @NoRecovery IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @NoRecovery is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#NoRecovery.', 16, 1)
+  END
+
+  IF @NoRecovery = 'Y' AND @BackupType <> 'LOG'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @NoRecovery to ''Y'' is only supported for transaction log backups. See https://ola.hallengren.com/sql-server-backup.html#NoRecovery.', 16, 1)
+  END
+
+  IF @NoRecovery = 'Y' AND @BackupSoftware = 'SQLSAFE'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @NoRecovery to ''Y'' is not supported with Idera SQL Safe Backup. See https://ola.hallengren.com/sql-server-backup.html#NoRecovery.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @URL IS NOT NULL AND @Directory IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameters @URL and @Directory cannot be used together. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  IF @URL IS NOT NULL AND @MirrorDirectory IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameters @URL and @MirrorDirectory cannot be used together. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  IF @URL IS NOT NULL AND @BackupSoftware IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Backup to URL is only supported with SQL Server native backups. See https://ola.hallengren.com/sql-server-backup.html#URL.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Credential IS NOT NULL AND @URL IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @Credential can only be used together with @URL. See https://ola.hallengren.com/sql-server-backup.html#Credential.', 16, 1)
+  END
+
+  IF @URL IS NOT NULL AND @Credential IS NULL AND NOT EXISTS(SELECT * FROM sys.credentials WHERE UPPER(credential_identity) IN('SHARED ACCESS SIGNATURE','MANAGED IDENTITY','S3 ACCESS KEY'))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('When backing up to URL, you need to specify @Credential or create a credential with the identity SHARED ACCESS SIGNATURE, MANAGED IDENTITY or S3 ACCESS KEY. See https://ola.hallengren.com/sql-server-backup.html#Credential.', 16, 1)
+  END
+
+  IF @Credential IS NOT NULL AND NOT EXISTS(SELECT * FROM sys.credentials WHERE name = @Credential)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Credential is not supported. The credential does not exist. See https://ola.hallengren.com/sql-server-backup.html#Credential.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @MirrorCleanupTime < 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MirrorCleanupTime is not supported. The value has to be greater than or equal to 0. See https://ola.hallengren.com/sql-server-backup.html#MirrorCleanupTime.', 16, 1)
+  END
+
+  IF @MirrorCleanupTime IS NOT NULL AND @MirrorDirectory IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @MirrorCleanupTime can only be used together with @MirrorDirectory. See https://ola.hallengren.com/sql-server-backup.html#MirrorCleanupTime.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @MirrorCleanupMode NOT IN('BEFORE_BACKUP','AFTER_BACKUP') OR @MirrorCleanupMode IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MirrorCleanupMode is not supported. Supported values are BEFORE_BACKUP and AFTER_BACKUP. See https://ola.hallengren.com/sql-server-backup.html#MirrorCleanupMode.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @MirrorURL IS NOT NULL AND @Directory IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameters @MirrorURL and @Directory cannot be used together. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  IF @MirrorURL IS NOT NULL AND @MirrorDirectory IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameters @MirrorURL and @MirrorDirectory cannot be used together. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  IF @MirrorURL IS NOT NULL AND @BackupSoftware IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Mirrored backup to URL is only supported with SQL Server native backups. See https://ola.hallengren.com/sql-server-backup.html#MirrorURL.', 16, 1)
+  END
+
+  IF @MirrorURL IS NOT NULL AND @URL IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @MirrorURL can only be used together with @URL. See https://ola.hallengren.com/sql-server-backup.html#MirrorURL.', 16, 1)
+  END
+
+  IF @MirrorURL IS NOT NULL AND @Credential IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MirrorURL is not supported. Mirrored backup to URL with page blobs is not supported. See https://ola.hallengren.com/sql-server-backup.html#MirrorURL.', 16, 1)
+  END
+
+  IF @MirrorURL IS NOT NULL AND @BackupSoftware IS NULL AND @EngineEdition NOT IN (3, 8)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MirrorURL is not supported. Mirrored backup to URL is not supported in this edition of SQL Server. See https://ola.hallengren.com/sql-server-backup.html#MirrorURL.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Updateability NOT IN('READ_ONLY','READ_WRITE','ALL') OR @Updateability IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Updateability is not supported. Supported values are ALL, READ_ONLY and READ_WRITE. See https://ola.hallengren.com/sql-server-backup.html#Updateability.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @AdaptiveCompression NOT IN('SIZE','SPEED')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @AdaptiveCompression is not supported. Supported values are SIZE and SPEED. See https://ola.hallengren.com/sql-server-backup.html#AdaptiveCompression.', 16, 1)
+  END
+
+  IF @AdaptiveCompression IS NOT NULL AND (@BackupSoftware NOT IN('LITESPEED') OR @BackupSoftware IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @AdaptiveCompression is only supported with LiteSpeed for SQL Server. See https://ola.hallengren.com/sql-server-backup.html#AdaptiveCompression.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @MinModificationLevel <= 0 OR @MinModificationLevel > 100
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MinModificationLevel is not supported. The value has to be greater than 0 and less than or equal to 100. See https://ola.hallengren.com/sql-server-backup.html#MinModificationLevel.', 16, 1)
+  END
+
+  IF @MinModificationLevel IS NOT NULL AND @ChangeBackupType = 'N'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @MinModificationLevel can only be used together with @ChangeBackupType = ''Y''. See https://ola.hallengren.com/sql-server-backup.html#MinModificationLevel.', 16, 1)
+  END
+
+  IF @MinModificationLevel IS NOT NULL AND @BackupType NOT IN('DIFF','LOG')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @MinModificationLevel can only be used for differential and transaction log backups. See https://ola.hallengren.com/sql-server-backup.html#MinModificationLevel.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @MinDatabaseSizeForDifferentialBackup <= 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MinDatabaseSizeForDifferentialBackup is not supported. The value has to be greater than 0. See https://ola.hallengren.com/sql-server-backup.html#MinDatabaseSizeForDifferentialBackup.', 16, 1)
+  END
+
+  IF @MinDatabaseSizeForDifferentialBackup IS NOT NULL AND @BackupType <> 'DIFF'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @MinDatabaseSizeForDifferentialBackup can only be used for differential backups. See https://ola.hallengren.com/sql-server-backup.html#MinDatabaseSizeForDifferentialBackup.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @MinLogSizeSinceLastLogBackup IS NOT NULL AND @BackupType <> 'LOG'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @MinLogSizeSinceLastLogBackup can only be used for transaction log backups. See https://ola.hallengren.com/sql-server-backup.html#MinLogSizeSinceLastLogBackup.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @MinTimeSinceLastLogBackup IS NOT NULL AND @BackupType <> 'LOG'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @MinTimeSinceLastLogBackup can only be used for transaction log backups. See https://ola.hallengren.com/sql-server-backup.html#MinTimeSinceLastLogBackup.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF (@MinTimeSinceLastLogBackup IS NOT NULL AND @MinLogSizeSinceLastLogBackup IS NULL) OR (@MinTimeSinceLastLogBackup IS NULL AND @MinLogSizeSinceLastLogBackup IS NOT NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameters @MinTimeSinceLastLogBackup and @MinLogSizeSinceLastLogBackup can only be used together. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DataDomainBoostHost IS NOT NULL AND (@BackupSoftware <> 'DATA_DOMAIN_BOOST' OR @BackupSoftware IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @DataDomainBoostHost can only be used together with @BackupSoftware = ''DATA_DOMAIN_BOOST''. See https://ola.hallengren.com/sql-server-backup.html#DataDomainBoostHost.', 16, 1)
+  END
+
+  IF @DataDomainBoostHost IS NULL AND @BackupSoftware = 'DATA_DOMAIN_BOOST'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('You need to specify @DataDomainBoostHost when @BackupSoftware = ''DATA_DOMAIN_BOOST''. See https://ola.hallengren.com/sql-server-backup.html#DataDomainBoostHost.', 16, 1)
+  END
+
+  IF @DataDomainBoostHost LIKE '%"%'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DataDomainBoostHost is not supported. Double quotes (") are not supported. See https://ola.hallengren.com/sql-server-backup.html#DataDomainBoostHost.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DataDomainBoostUser IS NOT NULL AND (@BackupSoftware <> 'DATA_DOMAIN_BOOST' OR @BackupSoftware IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @DataDomainBoostUser can only be used together with @BackupSoftware = ''DATA_DOMAIN_BOOST''. See https://ola.hallengren.com/sql-server-backup.html#DataDomainBoostUser.', 16, 1)
+  END
+
+  IF @DataDomainBoostUser IS NULL AND @BackupSoftware = 'DATA_DOMAIN_BOOST'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('You need to specify @DataDomainBoostUser when @BackupSoftware = ''DATA_DOMAIN_BOOST''. See https://ola.hallengren.com/sql-server-backup.html#DataDomainBoostUser.', 16, 1)
+  END
+
+  IF @DataDomainBoostUser LIKE '%"%'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DataDomainBoostUser is not supported. Double quotes (") are not supported. See https://ola.hallengren.com/sql-server-backup.html#DataDomainBoostUser.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DataDomainBoostDevicePath IS NOT NULL AND (@BackupSoftware <> 'DATA_DOMAIN_BOOST' OR @BackupSoftware IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @DataDomainBoostDevicePath can only be used together with @BackupSoftware = ''DATA_DOMAIN_BOOST''. See https://ola.hallengren.com/sql-server-backup.html#DataDomainBoostDevicePath.', 16, 1)
+  END
+
+  IF @DataDomainBoostDevicePath IS NULL AND @BackupSoftware = 'DATA_DOMAIN_BOOST'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('You need to specify @DataDomainBoostDevicePath when @BackupSoftware = ''DATA_DOMAIN_BOOST''. See https://ola.hallengren.com/sql-server-backup.html#DataDomainBoostDevicePath.', 16, 1)
+  END
+
+  IF @DataDomainBoostDevicePath LIKE '%"%'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DataDomainBoostDevicePath is not supported. Double quotes (") are not supported. See https://ola.hallengren.com/sql-server-backup.html#DataDomainBoostDevicePath.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DataDomainBoostLockboxPath IS NOT NULL AND (@BackupSoftware <> 'DATA_DOMAIN_BOOST' OR @BackupSoftware IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @DataDomainBoostLockboxPath can only be used together with @BackupSoftware = ''DATA_DOMAIN_BOOST''. See https://ola.hallengren.com/sql-server-backup.html#DataDomainBoostLockboxPath.', 16, 1)
+  END
+
+  IF @DataDomainBoostLockboxPath LIKE '%"%'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DataDomainBoostLockboxPath is not supported. Double quotes (") are not supported. See https://ola.hallengren.com/sql-server-backup.html#DataDomainBoostLockboxPath.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DataDomainBoostNoOutputTable NOT IN('Y','N') OR @DataDomainBoostNoOutputTable IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DataDomainBoostNoOutputTable is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#DataDomainBoostNoOutputTable.', 16, 1)
+  END
+
+  IF @DataDomainBoostNoOutputTable = 'Y' AND (@BackupSoftware <> 'DATA_DOMAIN_BOOST' OR @BackupSoftware IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @DataDomainBoostNoOutputTable can only be used together with @BackupSoftware = ''DATA_DOMAIN_BOOST''. See https://ola.hallengren.com/sql-server-backup.html#DataDomainBoostNoOutputTable.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DirectoryStructure = ''
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DirectoryStructure is not supported. The value cannot be an empty string. See https://ola.hallengren.com/sql-server-backup.html#DirectoryStructure.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @AvailabilityGroupDirectoryStructure = ''
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @AvailabilityGroupDirectoryStructure is not supported. The value cannot be an empty string. See https://ola.hallengren.com/sql-server-backup.html#AvailabilityGroupDirectoryStructure.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DirectoryStructureCase NOT IN('LOWER','UPPER')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DirectoryStructureCase is not supported. Supported values are LOWER and UPPER. See https://ola.hallengren.com/sql-server-backup.html#DirectoryStructureCase.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @FileName IS NULL OR @FileName = ''
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FileName is not supported. The value cannot be NULL or empty. See https://ola.hallengren.com/sql-server-backup.html#FileName.', 16, 1)
+  END
+
+  IF @FileName NOT LIKE '%.{FileExtension}'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FileName is not supported. The file name has to end with .{FileExtension}. See https://ola.hallengren.com/sql-server-backup.html#FileName.', 16, 1)
+  END
+
+  IF (@NumberOfFiles > 1 AND @FileName NOT LIKE '%{FileNumber}%')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FileName is not supported. The token {FileNumber} is required when @NumberOfFiles is greater than 1. See https://ola.hallengren.com/sql-server-backup.html#FileName.', 16, 1)
+  END
+
+  IF @FileName LIKE '%{DirectorySeparator}%'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FileName is not supported. The token {DirectorySeparator} cannot be used in the file name. See https://ola.hallengren.com/sql-server-backup.html#FileName.', 16, 1)
+  END
+
+  IF @FileName LIKE '%/%'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FileName is not supported. The character / cannot be used in the file name. See https://ola.hallengren.com/sql-server-backup.html#FileName.', 16, 1)
+  END
+
+  IF @FileName LIKE '%\%'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FileName is not supported. The character \ cannot be used in the file name. See https://ola.hallengren.com/sql-server-backup.html#FileName.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF (@IsHadrEnabled = 1 AND @AvailabilityGroupFileName IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @AvailabilityGroupFileName is not supported. The value cannot be NULL when the server is part of an availability group. See https://ola.hallengren.com/sql-server-backup.html#AvailabilityGroupFileName.', 16, 1)
+  END
+
+  IF @AvailabilityGroupFileName = ''
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @AvailabilityGroupFileName is not supported. The value cannot be an empty string. See https://ola.hallengren.com/sql-server-backup.html#AvailabilityGroupFileName.', 16, 1)
+  END
+
+  IF @AvailabilityGroupFileName NOT LIKE '%.{FileExtension}'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @AvailabilityGroupFileName is not supported. The file name has to end with .{FileExtension}. See https://ola.hallengren.com/sql-server-backup.html#AvailabilityGroupFileName.', 16, 1)
+  END
+
+  IF (@NumberOfFiles > 1 AND @AvailabilityGroupFileName NOT LIKE '%{FileNumber}%')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @AvailabilityGroupFileName is not supported. The token {FileNumber} is required when @NumberOfFiles is greater than 1. See https://ola.hallengren.com/sql-server-backup.html#AvailabilityGroupFileName.', 16, 1)
+  END
+
+  IF @AvailabilityGroupFileName LIKE '%{DirectorySeparator}%'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @AvailabilityGroupFileName is not supported. The token {DirectorySeparator} cannot be used in the file name. See https://ola.hallengren.com/sql-server-backup.html#AvailabilityGroupFileName.', 16, 1)
+  END
+
+  IF @AvailabilityGroupFileName LIKE '%/%'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @AvailabilityGroupFileName is not supported. The character / cannot be used in the file name. See https://ola.hallengren.com/sql-server-backup.html#AvailabilityGroupFileName.', 16, 1)
+  END
+
+  IF @AvailabilityGroupFileName LIKE '%\%'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @AvailabilityGroupFileName is not supported. The character \ cannot be used in the file name. See https://ola.hallengren.com/sql-server-backup.html#AvailabilityGroupFileName.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @FileNameCase NOT IN('LOWER','UPPER')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FileNameCase is not supported. Supported values are LOWER and UPPER. See https://ola.hallengren.com/sql-server-backup.html#FileNameCase.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF EXISTS (SELECT * FROM (SELECT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(@DirectoryStructure,'{DirectorySeparator}',''),'{ServerName}',''),'{InstanceName}',''),'{ServiceName}',''),'{DatabaseName}',''),'{BackupType}',''),'{Partial}',''),'{CopyOnly}',''),'{Description}',''),'{BackupSetName}',''),'{Year}',''),'{Month}',''),'{Day}',''),'{Week}',''),'{Weekday}',''),'{Hour}',''),'{Minute}',''),'{Second}',''),'{Millisecond}',''),'{Microsecond}',''),'{MajorVersion}',''),'{MinorVersion}','') AS DirectoryStructure) Temp WHERE DirectoryStructure LIKE '%{%' OR DirectoryStructure LIKE '%}%')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @DirectoryStructure contains one or more tokens that are not supported. See https://ola.hallengren.com/sql-server-backup.html#DirectoryStructure.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF EXISTS (SELECT * FROM (SELECT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(@AvailabilityGroupDirectoryStructure,'{DirectorySeparator}',''),'{ServerName}',''),'{InstanceName}',''),'{ServiceName}',''),'{ClusterName}',''),'{AvailabilityGroupName}',''),'{DatabaseName}',''),'{BackupType}',''),'{Partial}',''),'{CopyOnly}',''),'{Description}',''),'{BackupSetName}',''),'{Year}',''),'{Month}',''),'{Day}',''),'{Week}',''),'{Weekday}',''),'{Hour}',''),'{Minute}',''),'{Second}',''),'{Millisecond}',''),'{Microsecond}',''),'{MajorVersion}',''),'{MinorVersion}','') AS AvailabilityGroupDirectoryStructure) Temp WHERE AvailabilityGroupDirectoryStructure LIKE '%{%' OR AvailabilityGroupDirectoryStructure LIKE '%}%')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @AvailabilityGroupDirectoryStructure contains one or more tokens that are not supported. See https://ola.hallengren.com/sql-server-backup.html#AvailabilityGroupDirectoryStructure.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF EXISTS (SELECT * FROM (SELECT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(@FileName,'{ServerName}',''),'{InstanceName}',''),'{ServiceName}',''),'{DatabaseName}',''),'{BackupType}',''),'{Partial}',''),'{CopyOnly}',''),'{Description}',''),'{BackupSetName}',''),'{Year}',''),'{Month}',''),'{Day}',''),'{Week}',''),'{Weekday}',''),'{Hour}',''),'{Minute}',''),'{Second}',''),'{Millisecond}',''),'{Microsecond}',''),'{FileNumber}',''),'{NumberOfFiles}',''),'{FileExtension}',''),'{MajorVersion}',''),'{MinorVersion}','') AS [FileName]) Temp WHERE [FileName] LIKE '%{%' OR [FileName] LIKE '%}%')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @FileName contains one or more tokens that are not supported. See https://ola.hallengren.com/sql-server-backup.html#FileName.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF EXISTS (SELECT * FROM (SELECT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(@AvailabilityGroupFileName,'{ServerName}',''),'{InstanceName}',''),'{ServiceName}',''),'{ClusterName}',''),'{AvailabilityGroupName}',''),'{DatabaseName}',''),'{BackupType}',''),'{Partial}',''),'{CopyOnly}',''),'{Description}',''),'{BackupSetName}',''),'{Year}',''),'{Month}',''),'{Day}',''),'{Week}',''),'{Weekday}',''),'{Hour}',''),'{Minute}',''),'{Second}',''),'{Millisecond}',''),'{Microsecond}',''),'{FileNumber}',''),'{NumberOfFiles}',''),'{FileExtension}',''),'{MajorVersion}',''),'{MinorVersion}','') AS AvailabilityGroupFileName) Temp WHERE AvailabilityGroupFileName LIKE '%{%' OR AvailabilityGroupFileName LIKE '%}%')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @AvailabilityGroupFileName contains one or more tokens that are not supported. See https://ola.hallengren.com/sql-server-backup.html#AvailabilityGroupFileName.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @TokenTimezone NOT IN('LOCAL','UTC') OR @TokenTimezone IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @TokenTimezone is not supported. Supported values are LOCAL and UTC. See https://ola.hallengren.com/sql-server-backup.html#TokenTimezone.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @FileExtensionFull LIKE '%.%'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FileExtensionFull is not supported. Specify the file extension without a leading period. See https://ola.hallengren.com/sql-server-backup.html#FileExtensionFull.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @FileExtensionDiff LIKE '%.%'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FileExtensionDiff is not supported. Specify the file extension without a leading period. See https://ola.hallengren.com/sql-server-backup.html#FileExtensionDiff.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @FileExtensionLog LIKE '%.%'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FileExtensionLog is not supported. Specify the file extension without a leading period. See https://ola.hallengren.com/sql-server-backup.html#FileExtensionLog.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Init NOT IN('Y','N') OR @Init IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Init is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#Init.', 16, 1)
+  END
+
+  IF @Init = 'Y' AND @BackupType = 'LOG'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @Init to ''Y'' is not supported for transaction log backups. See https://ola.hallengren.com/sql-server-backup.html#Init.', 16, 1)
+  END
+
+  IF @Init = 'Y' AND @BackupSoftware = 'DATA_DOMAIN_BOOST'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @Init to ''Y'' is not supported with Data Domain Boost. See https://ola.hallengren.com/sql-server-backup.html#Init.', 16, 1)
+  END
+
+  IF @Init = 'Y' AND @URL IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @Init to ''Y'' is not supported with backup to URL. See https://ola.hallengren.com/sql-server-backup.html#Init.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Format NOT IN('Y','N') OR @Format IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Format is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#Format.', 16, 1)
+  END
+
+  IF @Format = 'Y' AND @BackupType = 'LOG'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @Format to ''Y'' is not supported for transaction log backups. See https://ola.hallengren.com/sql-server-backup.html#Format.', 16, 1)
+  END
+
+  IF @Format = 'Y' AND @BackupSoftware = 'DATA_DOMAIN_BOOST'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @Format to ''Y'' is not supported with Data Domain Boost. See https://ola.hallengren.com/sql-server-backup.html#Format.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @ObjectLevelRecoveryMap NOT IN('Y','N') OR @ObjectLevelRecoveryMap IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @ObjectLevelRecoveryMap is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#ObjectLevelRecoveryMap.', 16, 1)
+  END
+
+  IF @ObjectLevelRecoveryMap = 'Y' AND (@BackupSoftware NOT IN('LITESPEED') OR @BackupSoftware IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @ObjectLevelRecoveryMap to ''Y'' is only supported with LiteSpeed for SQL Server. See https://ola.hallengren.com/sql-server-backup.html#ObjectLevelRecoveryMap.', 16, 1)
+  END
+
+  IF @ObjectLevelRecoveryMap = 'Y' AND @BackupType = 'LOG'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @ObjectLevelRecoveryMap to ''Y'' is not supported for transaction log backups. See https://ola.hallengren.com/sql-server-backup.html#ObjectLevelRecoveryMap.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @ExcludeLogShippedFromLogBackup NOT IN('Y','N') OR @ExcludeLogShippedFromLogBackup IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @ExcludeLogShippedFromLogBackup is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#ExcludeLogShippedFromLogBackup.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @ExcludeSeedingFromLogBackup NOT IN('Y','N') OR @ExcludeSeedingFromLogBackup IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @ExcludeSeedingFromLogBackup is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#ExcludeSeedingFromLogBackup.', 16, 1)
+  END
+
+  IF @ExcludeSeedingFromLogBackup = 'Y' AND @BackupType <> 'LOG'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @ExcludeSeedingFromLogBackup can only be used for log backups. See https://ola.hallengren.com/sql-server-backup.html#ExcludeSeedingFromLogBackup.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DirectoryCheck NOT IN('Y','N') OR @DirectoryCheck IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DirectoryCheck is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#DirectoryCheck.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @BackupOptions IS NOT NULL AND NOT EXISTS(SELECT * FROM @URLs WHERE DirectoryPath LIKE 's3://%/%')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @BackupOptions can only be used when backing up to S3-compatible storage. See https://ola.hallengren.com/sql-server-backup.html#BackupOptions.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Stats <= 0 OR @Stats > 100
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Stats is not supported. The value has to be between 1 and 100. See https://ola.hallengren.com/sql-server-backup.html#Stats.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @ExpireDate IS NOT NULL AND @BackupSoftware <> 'LITESPEED'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @ExpireDate is only supported with SQL Server native backups and LiteSpeed for SQL Server. See https://ola.hallengren.com/sql-server-backup.html#ExpireDate.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @RetainDays < 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @RetainDays is not supported. The value has to be greater than or equal to 0. See https://ola.hallengren.com/sql-server-backup.html#RetainDays.', 16, 1)
+  END
+
+  IF @RetainDays IS NOT NULL AND @BackupSoftware <> 'LITESPEED'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @RetainDays is only supported with SQL Server native backups and LiteSpeed for SQL Server. See https://ola.hallengren.com/sql-server-backup.html#RetainDays.', 16, 1)
+  END
+
+  IF @ExpireDate IS NOT NULL AND @RetainDays IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameters @ExpireDate and @RetainDays cannot be used together. See https://ola.hallengren.com/sql-server-backup.html.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @AllowNonCopyOnlyBackupsOnForwarder NOT IN('Y','N') OR @AllowNonCopyOnlyBackupsOnForwarder IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @AllowNonCopyOnlyBackupsOnForwarder is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#AllowNonCopyOnlyBackupsOnForwarder.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @StringDelimiter IS NULL OR LEN(@StringDelimiter) <> 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @StringDelimiter is not supported. The value has to be exactly one character. See https://ola.hallengren.com/sql-server-backup.html#StringDelimiter.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DatabaseOrder NOT IN('DATABASE_NAME_ASC','DATABASE_NAME_DESC','DATABASE_SIZE_ASC','DATABASE_SIZE_DESC','LOG_SIZE_SINCE_LAST_LOG_BACKUP_ASC','LOG_SIZE_SINCE_LAST_LOG_BACKUP_DESC')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DatabaseOrder is not supported. Supported values are DATABASE_NAME_ASC, DATABASE_NAME_DESC, DATABASE_SIZE_ASC, DATABASE_SIZE_DESC, LOG_SIZE_SINCE_LAST_LOG_BACKUP_ASC and LOG_SIZE_SINCE_LAST_LOG_BACKUP_DESC. See https://ola.hallengren.com/sql-server-backup.html#DatabaseOrder.', 16, 1)
+  END
+
+  IF @DatabaseOrder IS NOT NULL AND @EngineEdition = 5
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @DatabaseOrder is not supported in Azure SQL Database. See https://ola.hallengren.com/sql-server-backup.html#DatabaseOrder.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DatabasesInParallel NOT IN('Y','N') OR @DatabasesInParallel IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DatabasesInParallel is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#DatabasesInParallel.', 16, 1)
+  END
+
+  IF @DatabasesInParallel = 'Y' AND @EngineEdition = 5
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @DatabasesInParallel is not supported in Azure SQL Database. See https://ola.hallengren.com/sql-server-backup.html#DatabasesInParallel.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @LogToTable NOT IN('Y','N') OR @LogToTable IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @LogToTable is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#LogToTable.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Execute NOT IN('Y','N') OR @Execute IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Execute is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-backup.html#Execute.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Check that selected databases and availability groups exist                                //--
+  ----------------------------------------------------------------------------------------------------
+
+  SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(DatabaseName) AS nvarchar(max)), ', ')
+                         WITHIN GROUP (ORDER BY DatabaseName ASC)
+  FROM @SelectedDatabases
+  WHERE DatabaseName NOT LIKE '%[%]%'
+  AND DatabaseName NOT IN (SELECT DatabaseName FROM @tmpDatabases)
+
+  IF @ErrorMessage IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The following databases in the @Databases parameter do not exist: ' + @ErrorMessage + '. See https://ola.hallengren.com/sql-server-backup.html#Databases.', 10, 1)
+  END
+
+  SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(AvailabilityGroupName) AS nvarchar(max)), ', ')
+                         WITHIN GROUP (ORDER BY AvailabilityGroupName ASC)
+  FROM @SelectedAvailabilityGroups
+  WHERE AvailabilityGroupName NOT LIKE '%[%]%'
+  AND AvailabilityGroupName NOT IN (SELECT AvailabilityGroupName FROM @tmpAvailabilityGroups)
+
+  IF @ErrorMessage IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The following availability groups do not exist: ' + @ErrorMessage + '. See https://ola.hallengren.com/sql-server-backup.html#AvailabilityGroups.', 10, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Check @@SERVERNAME                                                                         //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF UPPER(@@SERVERNAME) <> UPPER(@ServerName) AND @IsHadrEnabled = 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The @@SERVERNAME does not match SERVERPROPERTY(''ServerName''). See ' + CASE WHEN @IsClustered = 0 THEN 'https://learn.microsoft.com/en-us/sql/database-engine/install-windows/rename-a-computer-that-hosts-a-stand-alone-instance-of-sql-server' WHEN @IsClustered = 1 THEN 'https://learn.microsoft.com/en-us/sql/sql-server/failover-clusters/install/rename-a-sql-server-failover-cluster-instance' END + '.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Raise errors                                                                               //--
+  ----------------------------------------------------------------------------------------------------
+
+  DECLARE ErrorCursor CURSOR LOCAL FAST_FORWARD FOR SELECT [Message], Severity, [State] FROM @Errors ORDER BY [ID] ASC
+
+  OPEN ErrorCursor
+
+  FETCH ErrorCursor INTO @CurrentMessage, @CurrentSeverity, @CurrentState
+
+  WHILE @@FETCH_STATUS = 0
+  BEGIN
+    RAISERROR('%s', @CurrentSeverity, @CurrentState, @CurrentMessage) WITH NOWAIT
+    RAISERROR(@EmptyLine, 10, 1) WITH NOWAIT
+
+    FETCH NEXT FROM ErrorCursor INTO @CurrentMessage, @CurrentSeverity, @CurrentState
+  END
+
+  CLOSE ErrorCursor
+
+  DEALLOCATE ErrorCursor
+
+  IF EXISTS (SELECT * FROM @Errors WHERE Severity >= 16)
+  BEGIN
+    SET @ReturnCode = 50000
+    GOTO Logging
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Check Availability Group cluster name                                                      //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @IsHadrEnabled = 1
+  BEGIN
+    SELECT @Cluster = NULLIF(cluster_name,'')
+    FROM sys.dm_hadr_cluster
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Update database order                                                                      //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DatabaseOrder IN('DATABASE_SIZE_ASC','DATABASE_SIZE_DESC')
+  BEGIN
+    UPDATE tmpDatabases
+    SET DatabaseSize = (SELECT SUM(CAST(size AS bigint)) FROM sys.master_files WHERE [type] = 0 AND database_id = DB_ID(tmpDatabases.DatabaseName))
+    FROM @tmpDatabases tmpDatabases
+  END
+
+  IF @DatabaseOrder IN('LOG_SIZE_SINCE_LAST_LOG_BACKUP_ASC','LOG_SIZE_SINCE_LAST_LOG_BACKUP_DESC')
+  BEGIN
+    UPDATE tmpDatabases
+    SET LogSizeSinceLastLogBackup = (SELECT log_since_last_log_backup_mb FROM sys.dm_db_log_stats(DB_ID(tmpDatabases.DatabaseName)))
+    FROM @tmpDatabases tmpDatabases
+  END
+
+  IF @DatabaseOrder IS NULL
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY StartPosition ASC, DatabaseName ASC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'DATABASE_NAME_ASC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY DatabaseName ASC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'DATABASE_NAME_DESC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY DatabaseName DESC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'DATABASE_SIZE_ASC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY DatabaseSize ASC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'DATABASE_SIZE_DESC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY DatabaseSize DESC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'LOG_SIZE_SINCE_LAST_LOG_BACKUP_ASC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY LogSizeSinceLastLogBackup ASC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'LOG_SIZE_SINCE_LAST_LOG_BACKUP_DESC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY LogSizeSinceLastLogBackup DESC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Update the queue                                                                           //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DatabasesInParallel = 'Y'
+  BEGIN
+
+    BEGIN TRY
+
+      SELECT @QueueID = QueueID
+      FROM dbo.[Queue]
+      WHERE SchemaName = @SchemaName
+      AND ObjectName = @ObjectName
+      AND [Parameters] = @ParametersString
+
+      IF @QueueID IS NULL
+      BEGIN
+        BEGIN TRANSACTION
+
+        SELECT @QueueID = QueueID
+        FROM dbo.[Queue] WITH (UPDLOCK, HOLDLOCK)
+        WHERE SchemaName = @SchemaName
+        AND ObjectName = @ObjectName
+        AND [Parameters] = @ParametersString
+
+        IF @QueueID IS NULL
+        BEGIN
+          INSERT INTO dbo.[Queue] (SchemaName, ObjectName, [Parameters])
+          VALUES(@SchemaName, @ObjectName, @ParametersString)
+
+          SET @QueueID = SCOPE_IDENTITY()
+        END
+
+        COMMIT TRANSACTION
+      END
+
+      BEGIN TRANSACTION
+
+      UPDATE [Queue]
+      SET QueueStartTime = SYSDATETIME(),
+          SessionID = @@SPID,
+          RequestID = (SELECT request_id FROM sys.dm_exec_requests WHERE session_id = @@SPID),
+          RequestStartTime = (SELECT start_time FROM sys.dm_exec_requests WHERE session_id = @@SPID)
+      FROM dbo.[Queue] [Queue]
+      WHERE QueueID = @QueueID
+      AND NOT EXISTS (SELECT *
+                      FROM sys.dm_exec_requests
+                      WHERE session_id = [Queue].SessionID
+                      AND request_id = [Queue].RequestID
+                      AND start_time = [Queue].RequestStartTime)
+      AND NOT EXISTS (SELECT *
+                      FROM dbo.QueueDatabase QueueDatabase
+                      INNER JOIN sys.dm_exec_requests ON QueueDatabase.SessionID = session_id AND QueueDatabase.RequestID = request_id AND QueueDatabase.RequestStartTime = start_time
+                      WHERE QueueDatabase.QueueID = @QueueID)
+
+      IF @@ROWCOUNT = 1
+      BEGIN
+        INSERT INTO dbo.QueueDatabase (QueueID, DatabaseName)
+        SELECT @QueueID AS QueueID,
+               DatabaseName
+        FROM @tmpDatabases tmpDatabases
+        WHERE Selected = 1
+        AND NOT EXISTS (SELECT * FROM dbo.QueueDatabase WHERE DatabaseName COLLATE DATABASE_DEFAULT = tmpDatabases.DatabaseName AND QueueID = @QueueID)
+
+        DELETE QueueDatabase
+        FROM dbo.QueueDatabase QueueDatabase
+        WHERE QueueID = @QueueID
+        AND NOT EXISTS (SELECT * FROM @tmpDatabases tmpDatabases WHERE DatabaseName = QueueDatabase.DatabaseName COLLATE DATABASE_DEFAULT AND Selected = 1)
+
+        UPDATE QueueDatabase
+        SET DatabaseOrder = tmpDatabases.[Order]
+        FROM dbo.QueueDatabase QueueDatabase
+        INNER JOIN @tmpDatabases tmpDatabases ON QueueDatabase.DatabaseName COLLATE DATABASE_DEFAULT = tmpDatabases.DatabaseName
+        WHERE QueueID = @QueueID
+      END
+
+      COMMIT TRANSACTION
+
+      SELECT @QueueStartTime = QueueStartTime
+      FROM dbo.[Queue]
+      WHERE QueueID = @QueueID
+
+    END TRY
+
+    BEGIN CATCH
+      IF XACT_STATE() <> 0
+      BEGIN
+        ROLLBACK TRANSACTION
+      END
+      SET @ErrorMessage = 'Msg ' + CAST(ERROR_NUMBER() AS nvarchar(max)) + ', ' + ISNULL(ERROR_MESSAGE(),'')
+      RAISERROR('%s',16,1,@ErrorMessage) WITH NOWAIT
+      RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+      SET @ReturnCode = ERROR_NUMBER()
+      GOTO Logging
+    END CATCH
+
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Execute backup commands                                                                    //--
+  ----------------------------------------------------------------------------------------------------
+
+  WHILE (1 = 1)
+  BEGIN -- Start of database loop
+
+    IF @DatabasesInParallel = 'Y'
+    BEGIN
+      UPDATE QueueDatabase
+      SET DatabaseStartTime = NULL,
+          SessionID = NULL,
+          RequestID = NULL,
+          RequestStartTime = NULL
+      FROM dbo.QueueDatabase QueueDatabase
+      WHERE QueueID = @QueueID
+      AND DatabaseStartTime IS NOT NULL
+      AND DatabaseEndTime IS NULL
+      AND NOT EXISTS (SELECT * FROM sys.dm_exec_requests WHERE session_id = QueueDatabase.SessionID AND request_id = QueueDatabase.RequestID AND start_time = QueueDatabase.RequestStartTime)
+
+      UPDATE QueueDatabase
+      SET DatabaseStartTime = SYSDATETIME(),
+          DatabaseEndTime = NULL,
+          SessionID = @@SPID,
+          RequestID = (SELECT request_id FROM sys.dm_exec_requests WHERE session_id = @@SPID),
+          RequestStartTime = (SELECT start_time FROM sys.dm_exec_requests WHERE session_id = @@SPID),
+          @CurrentDatabaseName = DatabaseName,
+          @CurrentDatabaseNameFS = (SELECT DatabaseNameFS FROM @tmpDatabases WHERE DatabaseName = QueueDatabase.DatabaseName COLLATE DATABASE_DEFAULT)
+      FROM (SELECT TOP 1 DatabaseStartTime,
+                         DatabaseEndTime,
+                         SessionID,
+                         RequestID,
+                         RequestStartTime,
+                         DatabaseName
+            FROM dbo.QueueDatabase
+            WHERE QueueID = @QueueID
+            AND (DatabaseStartTime < @QueueStartTime OR DatabaseStartTime IS NULL)
+            AND NOT (DatabaseStartTime IS NOT NULL AND DatabaseEndTime IS NULL)
+            ORDER BY DatabaseOrder ASC
+            ) QueueDatabase
+    END
+    ELSE
+    BEGIN
+      SELECT TOP 1 @CurrentDBID = ID,
+                   @CurrentDatabaseName = DatabaseName,
+                   @CurrentDatabaseNameFS = DatabaseNameFS
+      FROM @tmpDatabases
+      WHERE Selected = 1
+      AND Completed = 0
+      ORDER BY [Order] ASC
+    END
+
+    IF @@ROWCOUNT = 0
+    BEGIN
+      BREAK
+    END
+
+    SET @CurrentDatabase_sp_executesql = QUOTENAME(@CurrentDatabaseName) + '.sys.sp_executesql'
+
+    BEGIN
+      SET @DatabaseMessage = 'Date and time: ' + CONVERT(nvarchar(max),SYSDATETIME(),120)
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Database: ' + QUOTENAME(@CurrentDatabaseName)
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    SELECT @CurrentUserAccess = user_access_desc,
+           @CurrentIsReadOnly = is_read_only,
+           @CurrentDatabaseState = state_desc,
+           @CurrentInStandby = is_in_standby,
+           @CurrentRecoveryModel = recovery_model_desc,
+           @CurrentIsEncrypted = is_encrypted,
+           @CurrentDatabaseSize = (SELECT SUM(CAST(size AS bigint)) FROM sys.master_files WHERE [type] = 0 AND database_id = sys.databases.database_id)
+    FROM sys.databases
+    WHERE [name] = @CurrentDatabaseName
+
+    BEGIN
+      SET @DatabaseMessage = 'State: ' + @CurrentDatabaseState
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Standby: ' + CASE WHEN @CurrentInStandby = 1 THEN 'Yes' ELSE 'No' END
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage =  'Updateability: ' + CASE WHEN @CurrentIsReadOnly = 1 THEN 'READ_ONLY' WHEN  @CurrentIsReadOnly = 0 THEN 'READ_WRITE' END
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage =  'User access: ' + @CurrentUserAccess
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Recovery model: ' + @CurrentRecoveryModel
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Encrypted: ' + CASE WHEN @CurrentIsEncrypted = 1 THEN 'Yes' WHEN @CurrentIsEncrypted = 0 THEN 'No' ELSE 'N/A' END
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    SELECT @CurrentMaxTransferSize = CASE
+    WHEN @MaxTransferSize IS NOT NULL THEN @MaxTransferSize
+    WHEN @MaxTransferSize IS NULL AND @Compress = 'Y' AND @CurrentIsEncrypted = 1 AND @BackupSoftware IS NULL AND (@Version < 15.04043 AND NOT (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous')) AND @Credential IS NULL THEN 65537
+    END
+
+    IF @IsHadrEnabled = 1
+    BEGIN
+      SELECT @CurrentAvailabilityGroupReplicaID = databases.replica_id
+      FROM sys.databases databases
+      INNER JOIN sys.availability_replicas availability_replicas ON databases.replica_id = availability_replicas.replica_id
+      WHERE databases.[name] = @CurrentDatabaseName
+
+      SELECT @CurrentAvailabilityGroupID = group_id
+      FROM sys.availability_replicas
+      WHERE replica_id = @CurrentAvailabilityGroupReplicaID
+
+      IF @CurrentAvailabilityGroupReplicaID IS NULL AND @CurrentAvailabilityGroupID IS NULL AND @Version >= 16
+      BEGIN
+        SET @CurrentAvailabilityGroupID = @ContainedAvailabilityGroupID
+
+        SELECT @CurrentAvailabilityGroupReplicaID = replica_id
+        FROM sys.dm_hadr_availability_replica_states
+        WHERE group_id = @CurrentAvailabilityGroupID
+        AND is_local = 1
+      END
+
+      SELECT @CurrentSecondaryRoleAllowConnections = secondary_role_allow_connections_desc
+      FROM sys.availability_replicas
+      WHERE replica_id = @CurrentAvailabilityGroupReplicaID
+
+      SELECT @CurrentAvailabilityGroupRole = role_desc
+      FROM sys.dm_hadr_availability_replica_states
+      WHERE replica_id = @CurrentAvailabilityGroupReplicaID
+
+      SELECT @CurrentAvailabilityGroupDatabaseReplicaSynchronizationState = synchronization_state_desc,
+             @CurrentAvailabilityGroupDatabaseReplicaSynchronizationHealth = synchronization_health_desc
+      FROM sys.dm_hadr_database_replica_states
+      WHERE replica_id = @CurrentAvailabilityGroupReplicaID
+      AND database_id = DB_ID(@CurrentDatabaseName)
+
+      IF @CurrentAvailabilityGroupDatabaseReplicaSynchronizationState IS NULL AND @ContainedAvailabilityGroupListenerConnection = 1
+      BEGIN
+        SELECT @CurrentAvailabilityGroupDatabaseReplicaSynchronizationState = synchronization_state_desc,
+               @CurrentAvailabilityGroupDatabaseReplicaSynchronizationHealth = synchronization_health_desc
+        FROM sys.dm_hadr_database_replica_states
+        WHERE replica_id = @CurrentAvailabilityGroupReplicaID
+        AND DB_NAME(database_id) = @CurrentDatabaseName
+      END
+
+      SELECT @CurrentAvailabilityGroup = [name],
+             @CurrentAvailabilityGroupBackupPreference = UPPER(automated_backup_preference_desc)
+      FROM sys.availability_groups
+      WHERE group_id = @CurrentAvailabilityGroupID
+    END
+
+    IF @IsHadrEnabled = 1 AND @CurrentAvailabilityGroup IS NOT NULL AND @EngineEdition = 3
+    BEGIN
+      SELECT @CurrentIsPreferredBackupReplica = sys.fn_hadr_backup_is_preferred_replica(@CurrentDatabaseName)
+    END
+
+    IF @IsHadrEnabled = 1 AND @CurrentAvailabilityGroup IS NOT NULL
+    BEGIN
+      SELECT @CurrentIsSeeding = CASE WHEN EXISTS (SELECT * FROM sys.dm_hadr_physical_seeding_stats dm_hadr_physical_seeding_stats WHERE dm_hadr_physical_seeding_stats.local_database_name = @CurrentDatabaseName AND dm_hadr_physical_seeding_stats.role_desc IN('Source','Forwarder') AND dm_hadr_physical_seeding_stats.end_time_utc IS NULL) THEN 1 ELSE 0 END
+    END
+
+    IF @IsHadrEnabled = 1 AND @CurrentAvailabilityGroup IS NOT NULL
+    BEGIN
+      SELECT @CurrentDistributedAvailabilityGroup = availability_groups.[name],
+             @CurrentDistributedAvailabilityGroupReplicaID = availability_replicas.replica_id
+      FROM sys.availability_groups availability_groups
+      INNER JOIN sys.availability_replicas availability_replicas ON availability_groups.group_id = availability_replicas.group_id
+      INNER JOIN sys.availability_groups availability_groups_local ON availability_replicas.replica_server_name = availability_groups_local.[name]
+      WHERE availability_groups.is_distributed = 1
+      AND availability_groups_local.group_id = @CurrentAvailabilityGroupID
+
+      SELECT @CurrentDistributedAvailabilityGroupRole = dm_hadr_availability_replica_states.role_desc
+      FROM sys.dm_hadr_availability_replica_states dm_hadr_availability_replica_states
+      WHERE dm_hadr_availability_replica_states.replica_id = @CurrentDistributedAvailabilityGroupReplicaID
+    END
+
+    SELECT @CurrentDifferentialBaseLSN = differential_base_lsn
+    FROM sys.master_files
+    WHERE database_id = DB_ID(@CurrentDatabaseName)
+    AND [type] = 0
+    AND [file_id] = 1
+
+    IF @CurrentDatabaseState = 'ONLINE' AND NOT (@CurrentInStandby = 1)
+    BEGIN
+      SELECT @CurrentLogLSN = last_log_backup_lsn
+      FROM sys.database_recovery_status
+      WHERE database_id = DB_ID(@CurrentDatabaseName)
+    END
+
+    SET @CurrentBackupType = @BackupType
+
+    IF (@Version >= 16.04265 AND @Version < 17) OR @Version >= 17.04065 OR (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous')
+    BEGIN
+      SET @BackupInProgress = CASE WHEN EXISTS(SELECT * FROM sys.dm_exec_requests WHERE database_id = DB_ID(@CurrentDatabaseName) AND command = 'BACKUP DATABASE') THEN 1 ELSE 0 END
+    END
+
+    IF @CurrentDatabaseState = 'ONLINE'
+    AND NOT @CurrentUserAccess = 'SINGLE_USER'
+    AND NOT @CurrentInStandby = 1
+    AND NOT (@CurrentAvailabilityGroup IS NOT NULL AND (@CurrentAvailabilityGroupRole NOT IN('PRIMARY','SECONDARY') OR @CurrentAvailabilityGroupRole IS NULL))
+    AND (@CurrentAvailabilityGroupRole = 'PRIMARY' OR @CurrentAvailabilityGroupRole IS NULL)
+    AND (@CurrentDistributedAvailabilityGroupRole = 'PRIMARY' OR @CurrentDistributedAvailabilityGroupRole IS NULL)
+    AND (@BackupType IN('DIFF','FULL') OR (@ChangeBackupType = 'Y' AND @CurrentBackupType = 'LOG' AND @CurrentRecoveryModel IN('FULL','BULK_LOGGED') AND @CurrentLogLSN IS NULL AND NOT (@CurrentDatabaseName = 'master' AND @ContainedAvailabilityGroupListenerConnection = 0))) AND (@BackupInProgress = 0 OR @BackupInProgress IS NULL)
+    BEGIN
+      SET @CurrentCommand = 'SELECT @ParamAllocatedExtentPageCount = SUM(allocated_extent_page_count), @ParamModifiedExtentPageCount = SUM(modified_extent_page_count) FROM sys.dm_db_file_space_usage'
+
+      EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand, @params = N'@ParamAllocatedExtentPageCount bigint OUTPUT, @ParamModifiedExtentPageCount bigint OUTPUT', @ParamAllocatedExtentPageCount = @CurrentAllocatedExtentPageCount OUTPUT, @ParamModifiedExtentPageCount = @CurrentModifiedExtentPageCount OUTPUT
+    END
+
+    IF @ChangeBackupType = 'Y'
+    BEGIN
+      IF @CurrentBackupType = 'LOG' AND @CurrentRecoveryModel IN('FULL','BULK_LOGGED') AND @CurrentLogLSN IS NULL AND NOT (@CurrentDatabaseName = 'master' AND @ContainedAvailabilityGroupListenerConnection = 0) AND (@BackupInProgress = 0 OR @BackupInProgress IS NULL)
+      BEGIN
+        SET @CurrentBackupType = 'DIFF'
+      END
+      IF @CurrentBackupType = 'DIFF' AND ((@CurrentDatabaseName = 'master' AND @ContainedAvailabilityGroupListenerConnection = 0) OR @CurrentDifferentialBaseLSN IS NULL OR (@CurrentModifiedExtentPageCount * 1. / NULLIF(@CurrentAllocatedExtentPageCount, 0) * 100 >= @MinModificationLevel) OR (COALESCE(CAST(@CurrentAllocatedExtentPageCount AS bigint) * 8192, CAST(@CurrentDatabaseSize AS bigint) * 8192) < CAST(@MinDatabaseSizeForDifferentialBackup AS bigint) * 1024 * 1024))
+      BEGIN
+        SET @CurrentBackupType = 'FULL'
+      END
+    END
+
+    IF @CurrentDatabaseState = 'ONLINE' AND NOT (@CurrentInStandby = 1)
+    BEGIN
+      SELECT @CurrentLastLogBackup = NULLIF(log_backup_time,'1900-01-01'),
+             @CurrentLogSizeSinceLastLogBackup = log_since_last_log_backup_mb
+      FROM sys.dm_db_log_stats (DB_ID(@CurrentDatabaseName))
+    END
+
+    IF @CurrentBackupType = 'DIFF'
+    BEGIN
+      SELECT @CurrentDifferentialBaseIsSnapshot = is_snapshot
+      FROM msdb.dbo.backupset
+      WHERE [database_name] = @CurrentDatabaseName
+      AND [type] = 'D'
+      AND checkpoint_lsn = @CurrentDifferentialBaseLSN
+    END
+
+    IF @ChangeBackupType = 'Y'
+    BEGIN
+      IF @CurrentBackupType = 'DIFF' AND @CurrentDifferentialBaseIsSnapshot = 1
+      BEGIN
+        SET @CurrentBackupType = 'FULL'
+      END
+    END;
+
+    WITH CurrentDatabase AS
+    (
+    SELECT BackupSize = CASE WHEN @CurrentBackupType = 'FULL' THEN COALESCE(CAST(@CurrentAllocatedExtentPageCount AS bigint) * 8192, CAST(@CurrentDatabaseSize AS bigint) * 8192)
+                             WHEN @CurrentBackupType = 'DIFF' THEN CAST(@CurrentModifiedExtentPageCount AS bigint) * 8192
+                             WHEN @CurrentBackupType = 'LOG' THEN CAST(@CurrentLogSizeSinceLastLogBackup * 1024 * 1024 AS bigint)
+                             END,
+           MaxNumberOfFiles = CASE WHEN @BackupSoftware IN('SQLBACKUP','SQLSAFE') AND EXISTS(SELECT * FROM @Directories WHERE Mirror = 1) THEN 1
+                                   WHEN @BackupSoftware = 'LITESPEED' AND EXISTS(SELECT * FROM @Directories WHERE Mirror = 1) THEN 32
+                                   WHEN @BackupSoftware IN('SQLBACKUP','DATA_DOMAIN_BOOST') THEN 32
+                                   WHEN @BackupSoftware IS NULL AND (EXISTS(SELECT * FROM @Directories WHERE Mirror = 1) OR EXISTS(SELECT * FROM @URLs WHERE Mirror = 1)) THEN 32
+                                   ELSE 64
+                              END,
+           CASE WHEN (SELECT COUNT(*) FROM @Directories WHERE Mirror = 0) > 0 THEN (SELECT COUNT(*) FROM @Directories WHERE Mirror = 0) ELSE (SELECT COUNT(*) FROM @URLs WHERE Mirror = 0) END AS NumberOfDirectories,
+           CAST(@MinBackupSizeForMultipleFiles AS bigint) * 1024 * 1024 AS MinBackupSizeForMultipleFiles,
+           CAST(@MaxFileSize AS bigint) * 1024 * 1024 AS MaxFileSize
+    )
+    SELECT @CurrentNumberOfFiles = CASE WHEN @NumberOfFiles IS NULL AND @BackupSoftware = 'DATA_DOMAIN_BOOST' THEN 1
+                                        WHEN @NumberOfFiles IS NULL AND @MaxFileSize IS NULL THEN NumberOfDirectories
+                                        WHEN @NumberOfFiles = 1 THEN @NumberOfFiles
+                                        WHEN @NumberOfFiles > 1 AND (BackupSize >= MinBackupSizeForMultipleFiles OR MinBackupSizeForMultipleFiles IS NULL OR BackupSize IS NULL) THEN @NumberOfFiles
+                                        WHEN @NumberOfFiles > 1 AND (BackupSize < MinBackupSizeForMultipleFiles) THEN NumberOfDirectories
+                                        WHEN @NumberOfFiles IS NULL AND @MaxFileSize IS NOT NULL AND (BackupSize IS NULL OR BackupSize = 0) THEN NumberOfDirectories
+                                        WHEN @NumberOfFiles IS NULL AND @MaxFileSize IS NOT NULL THEN (SELECT MIN(NumberOfFilesInEachDirectory)
+                                                                                                       FROM (SELECT ((BackupSize / NumberOfDirectories) / MaxFileSize + CASE WHEN (BackupSize / NumberOfDirectories) % MaxFileSize = 0 THEN 0 ELSE 1 END) AS NumberOfFilesInEachDirectory
+                                                                                                             UNION
+                                                                                                             SELECT MaxNumberOfFiles / NumberOfDirectories) Files) * NumberOfDirectories
+                                        END
+
+    FROM CurrentDatabase
+
+    SELECT @CurrentDatabaseMirroringRole = UPPER(mirroring_role_desc)
+    FROM sys.database_mirroring database_mirroring
+    INNER JOIN sys.databases databases ON database_mirroring.database_id = databases.database_id
+    WHERE databases.[name] = @CurrentDatabaseName
+
+    IF EXISTS (SELECT * FROM msdb.dbo.log_shipping_primary_databases WHERE primary_database = @CurrentDatabaseName)
+    BEGIN
+      SET @CurrentLogShippingRole = 'PRIMARY'
+    END
+    ELSE
+    IF EXISTS (SELECT * FROM msdb.dbo.log_shipping_secondary_databases WHERE secondary_database = @CurrentDatabaseName)
+    BEGIN
+      SET @CurrentLogShippingRole = 'SECONDARY'
+    END
+
+    IF @CurrentAvailabilityGroup IS NOT NULL
+    BEGIN
+      IF ((@CurrentBackupType = 'FULL' AND @CopyOnly = 'N' AND @Version >= 17)
+      OR (@CurrentBackupType = 'DIFF' AND @CopyOnly = 'N' AND @Version >= 17)
+      OR (@CurrentBackupType = 'FULL' AND @CopyOnly = 'Y')
+      OR (@CurrentBackupType = 'LOG' AND @CopyOnly = 'N'))
+      AND @EngineEdition = 3
+      BEGIN
+        SET @CurrentBackupOperationSupportedOnSecondaryReplicas = 1
+      END
+      ELSE
+      BEGIN
+        SET @CurrentBackupOperationSupportedOnSecondaryReplicas = 0
+      END
+    END
+
+    IF @CurrentAvailabilityGroup IS NOT NULL
+    BEGIN
+      SET @DatabaseMessage = 'Availability group: ' + ISNULL(@CurrentAvailabilityGroup,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Availability group role: ' + ISNULL(@CurrentAvailabilityGroupRole,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Availability group database replica synchronization state: ' + ISNULL(@CurrentAvailabilityGroupDatabaseReplicaSynchronizationState,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Availability group database replica synchronization health: ' + ISNULL(@CurrentAvailabilityGroupDatabaseReplicaSynchronizationHealth,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      IF @CurrentAvailabilityGroupRole = 'SECONDARY'
+      BEGIN
+        SET @DatabaseMessage =  'Readable Secondary: ' + ISNULL(@CurrentSecondaryRoleAllowConnections,'N/A')
+        RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+      END
+
+      SET @DatabaseMessage = 'Availability group backup preference: ' + ISNULL(@CurrentAvailabilityGroupBackupPreference,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Is preferred backup replica: ' + CASE WHEN @CurrentIsPreferredBackupReplica = 1 THEN 'Yes' WHEN @CurrentIsPreferredBackupReplica = 0 THEN 'No' ELSE 'N/A' END
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      IF @CurrentAvailabilityGroupBackupPreference IN('SECONDARY', 'SECONDARY_ONLY')
+      BEGIN
+        SET @DatabaseMessage = 'Is backup operation supported on secondary replicas: ' + CASE WHEN @CurrentBackupOperationSupportedOnSecondaryReplicas = 1 THEN 'Yes' WHEN @CurrentBackupOperationSupportedOnSecondaryReplicas = 0 THEN 'No' ELSE 'N/A' END
+        RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+      END
+
+      SET @DatabaseMessage = 'Is seeding: ' + CASE WHEN @CurrentIsSeeding = 1 THEN 'Yes' WHEN @CurrentIsSeeding = 0 THEN 'No' ELSE 'N/A' END
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    IF @CurrentDistributedAvailabilityGroup IS NOT NULL
+    BEGIN
+      SET @DatabaseMessage = 'Distributed availability group: ' + ISNULL(@CurrentDistributedAvailabilityGroup,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Distributed availability group role: ' + ISNULL(@CurrentDistributedAvailabilityGroupRole,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Replica role in distributed availability group: ' + CASE WHEN @CurrentDistributedAvailabilityGroupRole = 'PRIMARY' AND @CurrentAvailabilityGroupRole = 'PRIMARY' THEN 'Global primary'
+                                                                                       WHEN @CurrentDistributedAvailabilityGroupRole = 'SECONDARY' AND @CurrentAvailabilityGroupRole = 'PRIMARY' THEN 'Forwarder'
+                                                                                       WHEN @CurrentDistributedAvailabilityGroupRole = 'SECONDARY' AND @CurrentAvailabilityGroupRole = 'SECONDARY' THEN 'Secondary replica in secondary availability group'
+                                                                                       WHEN @CurrentDistributedAvailabilityGroupRole = 'PRIMARY' AND @CurrentAvailabilityGroupRole = 'SECONDARY' THEN 'Secondary replica in primary availability group' ELSE 'N/A' END
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    IF @CurrentDatabaseMirroringRole IS NOT NULL
+    BEGIN
+      SET @DatabaseMessage = 'Database mirroring role: ' + @CurrentDatabaseMirroringRole
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    IF @CurrentLogShippingRole IS NOT NULL
+    BEGIN
+      SET @DatabaseMessage = 'Log shipping role: ' + @CurrentLogShippingRole
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    SET @DatabaseMessage = 'Differential base LSN: ' + ISNULL(CAST(@CurrentDifferentialBaseLSN AS nvarchar(max)),'N/A')
+    RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+    IF @CurrentBackupType = 'DIFF' OR @CurrentDifferentialBaseIsSnapshot IS NOT NULL
+    BEGIN
+      SET @DatabaseMessage = 'Differential base is snapshot: ' + CASE WHEN @CurrentDifferentialBaseIsSnapshot = 1 THEN 'Yes' WHEN @CurrentDifferentialBaseIsSnapshot = 0 THEN 'No' ELSE 'N/A' END
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    SET @DatabaseMessage = 'Last log backup LSN: ' + ISNULL(CAST(@CurrentLogLSN AS nvarchar(max)),'N/A')
+    RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+    SET @DatabaseMessage = 'Full or differential backup in progress: ' + CASE WHEN @BackupInProgress = 1 THEN 'Yes' WHEN @BackupInProgress = 0 THEN 'No' ELSE 'N/A' END
+    RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+    IF @CurrentBackupType IN('DIFF','FULL')
+    BEGIN
+      SET @DatabaseMessage = 'Allocated extent page count: ' + ISNULL(CAST(@CurrentAllocatedExtentPageCount AS nvarchar(max)) + ' (' + CAST(@CurrentAllocatedExtentPageCount * 1. * 8 / 1024 AS nvarchar(max)) + ' MB)','N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Modified extent page count: ' + ISNULL(CAST(@CurrentModifiedExtentPageCount AS nvarchar(max)) + ' (' + CAST(@CurrentModifiedExtentPageCount * 1. * 8 / 1024 AS nvarchar(max)) + ' MB)','N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    IF @CurrentBackupType = 'LOG'
+    BEGIN
+      SET @DatabaseMessage = 'Last log backup: ' + ISNULL(CONVERT(nvarchar(19),@CurrentLastLogBackup,120),'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Log size since last log backup (MB): ' + ISNULL(CAST(@CurrentLogSizeSinceLastLogBackup AS nvarchar(max)),'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+    IF @CurrentDatabaseState = 'ONLINE'
+    AND NOT (@CurrentUserAccess = 'SINGLE_USER')
+    AND NOT (@CurrentInStandby = 1)
+    AND NOT (@CurrentBackupType = 'LOG' AND @CurrentRecoveryModel = 'SIMPLE')
+    AND NOT (@CurrentBackupType = 'LOG' AND @CurrentRecoveryModel IN('FULL','BULK_LOGGED') AND @CurrentLogLSN IS NULL)
+    AND NOT (@CurrentBackupType = 'DIFF' AND @CurrentDifferentialBaseLSN IS NULL)
+    AND NOT (@CurrentBackupType IN('DIFF','LOG') AND (@CurrentDatabaseName = 'master' AND @ContainedAvailabilityGroupListenerConnection = 0))
+    AND NOT (@CurrentAvailabilityGroup IS NOT NULL AND (@CurrentAvailabilityGroupRole NOT IN('PRIMARY','SECONDARY') OR @CurrentAvailabilityGroupRole IS NULL))
+    AND NOT (@CurrentAvailabilityGroup IS NOT NULL AND @CurrentBackupOperationSupportedOnSecondaryReplicas = 0 AND (@CurrentAvailabilityGroupRole <> 'PRIMARY' OR @CurrentAvailabilityGroupRole IS NULL))
+    AND NOT (@CurrentAvailabilityGroup IS NOT NULL AND @CurrentBackupOperationSupportedOnSecondaryReplicas = 1 AND (@CurrentIsPreferredBackupReplica <> 1 OR @CurrentIsPreferredBackupReplica IS NULL) AND @OverrideBackupPreference = 'N')
+    AND NOT (@CurrentDistributedAvailabilityGroup IS NOT NULL AND @CurrentBackupOperationSupportedOnSecondaryReplicas = 0 AND (@CurrentDistributedAvailabilityGroupRole <> 'PRIMARY' OR @CurrentDistributedAvailabilityGroupRole IS NULL))
+    AND NOT (@CurrentDistributedAvailabilityGroup IS NOT NULL AND (@CurrentDistributedAvailabilityGroupRole <> 'PRIMARY' OR @CurrentDistributedAvailabilityGroupRole IS NULL) AND @AllowNonCopyOnlyBackupsOnForwarder = 'N' AND NOT (@CurrentBackupType = 'FULL' AND @CopyOnly = 'Y'))
+    AND NOT ((@CurrentLogShippingRole = 'PRIMARY' AND @CurrentLogShippingRole IS NOT NULL) AND @CurrentBackupType = 'LOG' AND @ExcludeLogShippedFromLogBackup = 'Y')
+    AND NOT (@CurrentAvailabilityGroup IS NOT NULL AND @CurrentBackupType = 'LOG' AND @ExcludeSeedingFromLogBackup = 'Y' AND @CurrentIsSeeding = 1)
+    AND NOT (@CurrentIsReadOnly = 1 AND @Updateability = 'READ_WRITE')
+    AND NOT (@CurrentIsReadOnly = 0 AND @Updateability = 'READ_ONLY')
+    AND NOT (@CurrentBackupType = 'LOG' AND @MinLogSizeSinceLastLogBackup IS NOT NULL AND @MinTimeSinceLastLogBackup IS NOT NULL AND NOT(@CurrentLogSizeSinceLastLogBackup >= @MinLogSizeSinceLastLogBackup OR @CurrentLogSizeSinceLastLogBackup IS NULL OR DATEDIFF(SECOND,@CurrentLastLogBackup,SYSDATETIME()) >= @MinTimeSinceLastLogBackup OR @CurrentLastLogBackup IS NULL))
+    AND NOT (@CurrentBackupType = 'LOG' AND @Updateability = 'READ_ONLY' AND @BackupSoftware = 'DATA_DOMAIN_BOOST')
+    AND NOT (@CurrentBackupType = 'DIFF' AND @MinDatabaseSizeForDifferentialBackup IS NOT NULL AND (COALESCE(CAST(@CurrentAllocatedExtentPageCount AS bigint) * 8192, CAST(@CurrentDatabaseSize AS bigint) * 8192) < CAST(@MinDatabaseSizeForDifferentialBackup AS bigint) * 1024 * 1024))
+    BEGIN -- Start of database backup check
+
+      IF @CurrentBackupType = 'LOG' AND (@CleanupTime IS NOT NULL OR @MirrorCleanupTime IS NOT NULL)
+      BEGIN
+        SELECT @CurrentLatestBackup = MAX(backup_start_date)
+        FROM msdb.dbo.backupset
+        WHERE ([type] IN('D','I')
+        OR ([type] = 'L' AND last_lsn < @CurrentDifferentialBaseLSN))
+        AND is_damaged = 0
+        AND [database_name] = @CurrentDatabaseName
+      END
+
+      SET @CurrentDate = SYSDATETIME()
+      SET @CurrentDateUTC = SYSUTCDATETIME()
+
+      INSERT INTO @CurrentCleanupDates ([Type], CleanupDate)
+      VALUES('CurrentTime', @CurrentDate)
+
+      IF @CurrentBackupType = 'LOG'
+      BEGIN
+        INSERT INTO @CurrentCleanupDates ([Type], CleanupDate)
+        VALUES('LatestBackupTime', @CurrentLatestBackup)
+      END
+
+      SELECT @CurrentDirectoryStructure = CASE
+      WHEN @CurrentAvailabilityGroup IS NOT NULL THEN @AvailabilityGroupDirectoryStructure
+      ELSE @DirectoryStructure
+      END
+
+      IF @CurrentDirectoryStructure IS NOT NULL
+      BEGIN
+      -- Directory structure - remove tokens that are not needed
+        IF @ReadWriteFileGroups = 'N' SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{Partial}','')
+        IF @CopyOnly = 'N' SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{CopyOnly}','')
+        IF @Cluster IS NULL SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{ClusterName}','')
+        IF @InstanceName IS NULL SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{InstanceName}','')
+        IF @@SERVICENAME IS NULL SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{ServiceName}','')
+        IF @Description IS NULL OR LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(@Description,'\',''),'/',''),':',''),'*',''),'?',''),'"',''),'<',''),'>',''),'|',''))) = '' SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{Description}','')
+        IF @BackupSetName IS NULL OR LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(@BackupSetName,'\',''),'/',''),':',''),'*',''),'?',''),'"',''),'<',''),'>',''),'|',''))) = '' SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{BackupSetName}','')
+
+        IF @Directory IS NULL AND @MirrorDirectory IS NULL AND @URL IS NULL AND @DefaultDirectory LIKE '%' + '.' + REPLACE(@@SERVICENAME,'_','[_]') + @DirectorySeparator + 'MSSQL' + @DirectorySeparator + 'Backup'
+        BEGIN
+          SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{ServerName}','')
+          SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{InstanceName}','')
+          SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{ClusterName}','')
+          SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{AvailabilityGroupName}','')
+        END
+
+        WHILE (@Updated = 1 OR @Updated IS NULL)
+        BEGIN
+          SET @Updated = 0
+
+          IF CHARINDEX('\',@CurrentDirectoryStructure) > 0
+          BEGIN
+            SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'\','{DirectorySeparator}')
+            SET @Updated = 1
+          END
+
+          IF CHARINDEX('/',@CurrentDirectoryStructure) > 0
+          BEGIN
+            SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'/','{DirectorySeparator}')
+            SET @Updated = 1
+          END
+
+          IF CHARINDEX('__',@CurrentDirectoryStructure) > 0
+          BEGIN
+            SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'__','_')
+            SET @Updated = 1
+          END
+
+          IF CHARINDEX('--',@CurrentDirectoryStructure) > 0
+          BEGIN
+            SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'--','-')
+            SET @Updated = 1
+          END
+
+          IF CHARINDEX('{DirectorySeparator}{DirectorySeparator}',@CurrentDirectoryStructure) > 0
+          BEGIN
+            SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{DirectorySeparator}{DirectorySeparator}','{DirectorySeparator}')
+            SET @Updated = 1
+          END
+
+          IF CHARINDEX('{DirectorySeparator}$',@CurrentDirectoryStructure) > 0
+          BEGIN
+            SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{DirectorySeparator}$','{DirectorySeparator}')
+            SET @Updated = 1
+          END
+          IF CHARINDEX('${DirectorySeparator}',@CurrentDirectoryStructure) > 0
+          BEGIN
+            SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'${DirectorySeparator}','{DirectorySeparator}')
+            SET @Updated = 1
+          END
+
+          IF CHARINDEX('{DirectorySeparator}_',@CurrentDirectoryStructure) > 0
+          BEGIN
+            SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{DirectorySeparator}_','{DirectorySeparator}')
+            SET @Updated = 1
+          END
+          IF CHARINDEX('_{DirectorySeparator}',@CurrentDirectoryStructure) > 0
+          BEGIN
+            SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'_{DirectorySeparator}','{DirectorySeparator}')
+            SET @Updated = 1
+          END
+
+          IF CHARINDEX('{DirectorySeparator}-',@CurrentDirectoryStructure) > 0
+          BEGIN
+            SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{DirectorySeparator}-','{DirectorySeparator}')
+            SET @Updated = 1
+          END
+          IF CHARINDEX('-{DirectorySeparator}',@CurrentDirectoryStructure) > 0
+          BEGIN
+            SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'-{DirectorySeparator}','{DirectorySeparator}')
+            SET @Updated = 1
+          END
+
+          IF CHARINDEX('_$',@CurrentDirectoryStructure) > 0
+          BEGIN
+            SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'_$','_')
+            SET @Updated = 1
+          END
+          IF CHARINDEX('$_',@CurrentDirectoryStructure) > 0
+          BEGIN
+            SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'$_','_')
+            SET @Updated = 1
+          END
+
+          IF CHARINDEX('-$',@CurrentDirectoryStructure) > 0
+          BEGIN
+            SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'-$','-')
+            SET @Updated = 1
+          END
+          IF CHARINDEX('$-',@CurrentDirectoryStructure) > 0
+          BEGIN
+            SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'$-','-')
+            SET @Updated = 1
+          END
+
+          IF LEFT(@CurrentDirectoryStructure,1) = '_'
+          BEGIN
+            SET @CurrentDirectoryStructure = RIGHT(@CurrentDirectoryStructure,LEN(@CurrentDirectoryStructure) - 1)
+            SET @Updated = 1
+          END
+          IF RIGHT(@CurrentDirectoryStructure,1) = '_'
+          BEGIN
+            SET @CurrentDirectoryStructure = LEFT(@CurrentDirectoryStructure,LEN(@CurrentDirectoryStructure) - 1)
+            SET @Updated = 1
+          END
+
+          IF LEFT(@CurrentDirectoryStructure,1) = '-'
+          BEGIN
+            SET @CurrentDirectoryStructure = RIGHT(@CurrentDirectoryStructure,LEN(@CurrentDirectoryStructure) - 1)
+            SET @Updated = 1
+          END
+          IF RIGHT(@CurrentDirectoryStructure,1) = '-'
+          BEGIN
+            SET @CurrentDirectoryStructure = LEFT(@CurrentDirectoryStructure,LEN(@CurrentDirectoryStructure) - 1)
+            SET @Updated = 1
+          END
+
+          IF LEFT(@CurrentDirectoryStructure,1) = '$'
+          BEGIN
+            SET @CurrentDirectoryStructure = RIGHT(@CurrentDirectoryStructure,LEN(@CurrentDirectoryStructure) - 1)
+            SET @Updated = 1
+          END
+          IF RIGHT(@CurrentDirectoryStructure,1) = '$'
+          BEGIN
+            SET @CurrentDirectoryStructure = LEFT(@CurrentDirectoryStructure,LEN(@CurrentDirectoryStructure) - 1)
+            SET @Updated = 1
+          END
+
+          IF LEFT(@CurrentDirectoryStructure,20) = '{DirectorySeparator}'
+          BEGIN
+            SET @CurrentDirectoryStructure = RIGHT(@CurrentDirectoryStructure,LEN(@CurrentDirectoryStructure) - 20)
+            SET @Updated = 1
+          END
+          IF RIGHT(@CurrentDirectoryStructure,20) = '{DirectorySeparator}'
+          BEGIN
+            SET @CurrentDirectoryStructure = LEFT(@CurrentDirectoryStructure,LEN(@CurrentDirectoryStructure) - 20)
+            SET @Updated = 1
+          END
+        END
+
+        SET @Updated = NULL
+
+        -- Directory structure - replace tokens with real values
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{DirectorySeparator}',@DirectorySeparator)
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{ServerName}',CASE WHEN @EngineEdition = 8 AND CHARINDEX('.',@ServerName) > 0 THEN LEFT(@ServerName,CHARINDEX('.',@ServerName) - 1) WHEN @EngineEdition = 8 AND CHARINDEX('.',@ServerName) = 0 THEN @ServerName ELSE @MachineName END)
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{InstanceName}',ISNULL(@InstanceName,''))
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{ServiceName}',ISNULL(@@SERVICENAME,''))
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{ClusterName}',ISNULL(@Cluster,''))
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{AvailabilityGroupName}',ISNULL(@CurrentAvailabilityGroup,''))
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{DatabaseName}',@CurrentDatabaseNameFS)
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{BackupType}',@CurrentBackupType)
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{Partial}','PARTIAL')
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{CopyOnly}','COPY_ONLY')
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{Description}',LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(@Description,''),'\',''),'/',''),':',''),'*',''),'?',''),'"',''),'<',''),'>',''),'|',''))))
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{BackupSetName}',LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(@BackupSetName,''),'\',''),'/',''),':',''),'*',''),'?',''),'"',''),'<',''),'>',''),'|',''))))
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{Year}',CAST(DATEPART(YEAR,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)))
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{Month}',RIGHT('0' + CAST(DATEPART(MONTH,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)),2))
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{Day}',RIGHT('0' + CAST(DATEPART(DAY,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)),2))
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{Week}',RIGHT('0' + CAST(DATEPART(WEEK,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)),2))
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{Weekday}',FORMAT(CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END,'dddd','en-US'))
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{Hour}',RIGHT('0' + CAST(DATEPART(HOUR,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)),2))
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{Minute}',RIGHT('0' + CAST(DATEPART(MINUTE,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)),2))
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{Second}',RIGHT('0' + CAST(DATEPART(SECOND,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)),2))
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{Millisecond}',RIGHT('00' + CAST(DATEPART(MILLISECOND,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)),3))
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{Microsecond}',RIGHT('00000' + CAST(DATEPART(MICROSECOND,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)),6))
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{MajorVersion}',@ProductMajorVersion)
+        SET @CurrentDirectoryStructure = REPLACE(@CurrentDirectoryStructure,'{MinorVersion}',@ProductMinorVersion)
+      END
+
+      IF @DirectoryStructureCase IS NOT NULL
+      BEGIN
+        SET @CurrentDirectoryStructure = CASE WHEN @DirectoryStructureCase = 'LOWER' THEN LOWER(@CurrentDirectoryStructure)
+                                              WHEN @DirectoryStructureCase = 'UPPER' THEN UPPER(@CurrentDirectoryStructure) END
+      END
+
+      INSERT INTO @CurrentDirectories (ID, DirectoryPath, Mirror, DirectoryNumber, CreateCompleted, CleanupCompleted)
+      SELECT ROW_NUMBER() OVER (ORDER BY ID),
+             DirectoryPath + CASE WHEN DirectoryPath = 'NUL' THEN '' WHEN @CurrentDirectoryStructure IS NOT NULL THEN @DirectorySeparator + @CurrentDirectoryStructure ELSE '' END,
+             Mirror,
+             ROW_NUMBER() OVER (PARTITION BY Mirror ORDER BY ID ASC),
+             0,
+             0
+      FROM @Directories
+      ORDER BY ID ASC
+
+      INSERT INTO @CurrentURLs (ID, DirectoryPath, Mirror, DirectoryNumber)
+      SELECT ROW_NUMBER() OVER (ORDER BY ID),
+             DirectoryPath + CASE WHEN @CurrentDirectoryStructure IS NOT NULL THEN @DirectorySeparator + @CurrentDirectoryStructure ELSE '' END,
+             Mirror,
+             ROW_NUMBER() OVER (PARTITION BY Mirror ORDER BY ID ASC)
+      FROM @URLs
+      ORDER BY ID ASC
+
+      SELECT @CurrentDatabaseFileName = CASE
+      WHEN @CurrentAvailabilityGroup IS NOT NULL THEN @AvailabilityGroupFileName
+      ELSE @FileName
+      END
+
+      -- File name - remove tokens that are not needed
+      IF @ReadWriteFileGroups = 'N' SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{Partial}','')
+      IF @CopyOnly = 'N' SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{CopyOnly}','')
+      IF @Cluster IS NULL SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{ClusterName}','')
+      IF @InstanceName IS NULL SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{InstanceName}','')
+      IF @@SERVICENAME IS NULL SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{ServiceName}','')
+      IF @Description IS NULL OR LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(@Description,'\',''),'/',''),':',''),'*',''),'?',''),'"',''),'<',''),'>',''),'|',''))) = '' SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{Description}','')
+      IF @BackupSetName IS NULL OR LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(@BackupSetName,'\',''),'/',''),':',''),'*',''),'?',''),'"',''),'<',''),'>',''),'|',''))) = '' SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{BackupSetName}','')
+      IF @CurrentNumberOfFiles = 1 SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{FileNumber}','')
+      IF @CurrentNumberOfFiles = 1 SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{NumberOfFiles}','')
+
+      WHILE (@Updated = 1 OR @Updated IS NULL)
+      BEGIN
+        SET @Updated = 0
+
+        IF CHARINDEX('__',@CurrentDatabaseFileName) > 0
+        BEGIN
+          SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'__','_')
+          SET @Updated = 1
+        END
+
+        IF CHARINDEX('--',@CurrentDatabaseFileName) > 0
+        BEGIN
+          SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'--','-')
+          SET @Updated = 1
+        END
+
+        IF CHARINDEX('_$',@CurrentDatabaseFileName) > 0
+        BEGIN
+          SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'_$','_')
+          SET @Updated = 1
+        END
+        IF CHARINDEX('$_',@CurrentDatabaseFileName) > 0
+        BEGIN
+          SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'$_','_')
+          SET @Updated = 1
+        END
+
+        IF CHARINDEX('-$',@CurrentDatabaseFileName) > 0
+        BEGIN
+          SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'-$','-')
+          SET @Updated = 1
+        END
+        IF CHARINDEX('$-',@CurrentDatabaseFileName) > 0
+        BEGIN
+          SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'$-','-')
+          SET @Updated = 1
+        END
+
+        IF CHARINDEX('_.',@CurrentDatabaseFileName) > 0
+        BEGIN
+          SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'_.','.')
+          SET @Updated = 1
+        END
+
+        IF CHARINDEX('-.',@CurrentDatabaseFileName) > 0
+        BEGIN
+          SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'-.','.')
+          SET @Updated = 1
+        END
+
+        IF CHARINDEX('of.',@CurrentDatabaseFileName) > 0
+        BEGIN
+          SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'of.','.')
+          SET @Updated = 1
+        END
+
+        IF LEFT(@CurrentDatabaseFileName,1) = '_'
+        BEGIN
+          SET @CurrentDatabaseFileName = RIGHT(@CurrentDatabaseFileName,LEN(@CurrentDatabaseFileName) - 1)
+          SET @Updated = 1
+        END
+        IF RIGHT(@CurrentDatabaseFileName,1) = '_'
+        BEGIN
+          SET @CurrentDatabaseFileName = LEFT(@CurrentDatabaseFileName,LEN(@CurrentDatabaseFileName) - 1)
+          SET @Updated = 1
+        END
+
+        IF LEFT(@CurrentDatabaseFileName,1) = '-'
+        BEGIN
+          SET @CurrentDatabaseFileName = RIGHT(@CurrentDatabaseFileName,LEN(@CurrentDatabaseFileName) - 1)
+          SET @Updated = 1
+        END
+        IF RIGHT(@CurrentDatabaseFileName,1) = '-'
+        BEGIN
+          SET @CurrentDatabaseFileName = LEFT(@CurrentDatabaseFileName,LEN(@CurrentDatabaseFileName) - 1)
+          SET @Updated = 1
+        END
+
+        IF LEFT(@CurrentDatabaseFileName,1) = '$'
+        BEGIN
+          SET @CurrentDatabaseFileName = RIGHT(@CurrentDatabaseFileName,LEN(@CurrentDatabaseFileName) - 1)
+          SET @Updated = 1
+        END
+        IF RIGHT(@CurrentDatabaseFileName,1) = '$'
+        BEGIN
+          SET @CurrentDatabaseFileName = LEFT(@CurrentDatabaseFileName,LEN(@CurrentDatabaseFileName) - 1)
+          SET @Updated = 1
+        END
+      END
+
+      SET @Updated = NULL
+
+      SELECT @CurrentFileExtension = CASE
+      WHEN @CurrentBackupType = 'FULL' THEN @FileExtensionFull
+      WHEN @CurrentBackupType = 'DIFF' THEN @FileExtensionDiff
+      WHEN @CurrentBackupType = 'LOG' THEN @FileExtensionLog
+      END
+
+      -- File name - replace tokens with real values
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{ServerName}',CASE WHEN @EngineEdition = 8 AND CHARINDEX('.',@ServerName) > 0 THEN LEFT(@ServerName,CHARINDEX('.',@ServerName) - 1) WHEN @EngineEdition = 8 AND CHARINDEX('.',@ServerName) = 0 THEN @ServerName ELSE @MachineName END)
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{InstanceName}',ISNULL(@InstanceName,''))
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{ServiceName}',ISNULL(@@SERVICENAME,''))
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{ClusterName}',ISNULL(@Cluster,''))
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{AvailabilityGroupName}',ISNULL(@CurrentAvailabilityGroup,''))
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{BackupType}',@CurrentBackupType)
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{Partial}','PARTIAL')
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{CopyOnly}','COPY_ONLY')
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{Description}',LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(@Description,''),'\',''),'/',''),':',''),'*',''),'?',''),'"',''),'<',''),'>',''),'|',''))))
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{BackupSetName}',LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(@BackupSetName,''),'\',''),'/',''),':',''),'*',''),'?',''),'"',''),'<',''),'>',''),'|',''))))
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{Year}',CAST(DATEPART(YEAR,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)))
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{Month}',RIGHT('0' + CAST(DATEPART(MONTH,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)),2))
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{Day}',RIGHT('0' + CAST(DATEPART(DAY,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)),2))
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{Week}',RIGHT('0' + CAST(DATEPART(WEEK,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)),2))
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{Weekday}',FORMAT(CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END,'dddd','en-US'))
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{Hour}',RIGHT('0' + CAST(DATEPART(HOUR,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)),2))
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{Minute}',RIGHT('0' + CAST(DATEPART(MINUTE,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)),2))
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{Second}',RIGHT('0' + CAST(DATEPART(SECOND,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)),2))
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{Millisecond}',RIGHT('00' + CAST(DATEPART(MILLISECOND,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)),3))
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{Microsecond}',RIGHT('00000' + CAST(DATEPART(MICROSECOND,CASE WHEN @TokenTimezone = 'UTC' THEN @CurrentDateUTC ELSE @CurrentDate END) AS nvarchar(max)),6))
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{NumberOfFiles}',CAST(@CurrentNumberOfFiles AS nvarchar(max)))
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{FileExtension}',@CurrentFileExtension)
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{MajorVersion}',@ProductMajorVersion)
+      SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{MinorVersion}',@ProductMinorVersion)
+
+      SELECT @CurrentMaxFilePathLength = CASE
+      WHEN EXISTS (SELECT * FROM @CurrentDirectories) THEN (SELECT MAX(LEN(DirectoryPath + @DirectorySeparator)) FROM @CurrentDirectories)
+      WHEN EXISTS (SELECT * FROM @CurrentURLs) THEN (SELECT MAX(LEN(DirectoryPath + @DirectorySeparator)) FROM @CurrentURLs)
+      END
+      + LEN(REPLACE(REPLACE(@CurrentDatabaseFileName,'{DatabaseName}',@CurrentDatabaseNameFS), '{FileNumber}', CASE WHEN @CurrentNumberOfFiles >= 1 AND @CurrentNumberOfFiles <= 9 THEN '1' WHEN @CurrentNumberOfFiles >= 10 THEN '01' ELSE '' END))
+
+      -- The maximum length of a backup device is 259 characters
+      IF @CurrentMaxFilePathLength > 259
+      BEGIN
+        SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{DatabaseName}',LEFT(@CurrentDatabaseNameFS,CASE WHEN (LEN(@CurrentDatabaseNameFS) + 259 - @CurrentMaxFilePathLength - 3) < 20 THEN 20 ELSE (LEN(@CurrentDatabaseNameFS) + 259 - @CurrentMaxFilePathLength - 3) END) + '...')
+      END
+      ELSE
+      BEGIN
+        SET @CurrentDatabaseFileName = REPLACE(@CurrentDatabaseFileName,'{DatabaseName}',@CurrentDatabaseNameFS)
+      END
+
+      IF @FileNameCase IS NOT NULL
+      BEGIN
+        SET @CurrentDatabaseFileName = CASE WHEN @FileNameCase = 'LOWER' THEN LOWER(@CurrentDatabaseFileName)
+                                            WHEN @FileNameCase = 'UPPER' THEN UPPER(@CurrentDatabaseFileName) END
+      END
+
+      IF EXISTS (SELECT * FROM @CurrentDirectories WHERE Mirror = 0)
+      BEGIN
+        SET @CurrentFileNumber = 0
+
+        WHILE @CurrentFileNumber < @CurrentNumberOfFiles
+        BEGIN
+          SET @CurrentFileNumber = @CurrentFileNumber + 1
+
+          SELECT @CurrentDirectoryPath = DirectoryPath
+          FROM @CurrentDirectories
+          WHERE @CurrentFileNumber >= (DirectoryNumber - 1) * (SELECT @CurrentNumberOfFiles / COUNT(*) FROM @CurrentDirectories WHERE Mirror = 0) + 1
+          AND @CurrentFileNumber <= DirectoryNumber * (SELECT @CurrentNumberOfFiles / COUNT(*) FROM @CurrentDirectories WHERE Mirror = 0)
+          AND Mirror = 0
+
+          SET @CurrentFileName = REPLACE(@CurrentDatabaseFileName, '{FileNumber}', CASE WHEN @CurrentNumberOfFiles >= 1 AND @CurrentNumberOfFiles <= 9 THEN CAST(@CurrentFileNumber AS nvarchar(max)) WHEN @CurrentNumberOfFiles >= 10 THEN RIGHT('0' + CAST(@CurrentFileNumber AS nvarchar(max)),2) ELSE '' END)
+
+          IF @CurrentDirectoryPath = 'NUL'
+          BEGIN
+            SET @CurrentFilePath = 'NUL'
+          END
+          ELSE
+          BEGIN
+            SET @CurrentFilePath = @CurrentDirectoryPath + @DirectorySeparator + @CurrentFileName
+          END
+
+          INSERT INTO @CurrentFiles ([Type], FilePath, Mirror)
+          VALUES('DISK', @CurrentFilePath, 0)
+
+          SET @CurrentDirectoryPath = NULL
+          SET @CurrentFileName = NULL
+          SET @CurrentFilePath = NULL
+        END
+
+        INSERT INTO @CurrentBackupSet (Mirror, VerifyCompleted)
+        VALUES(0, 0)
+      END
+
+      IF EXISTS (SELECT * FROM @CurrentDirectories WHERE Mirror = 1)
+      BEGIN
+        SET @CurrentFileNumber = 0
+
+        WHILE @CurrentFileNumber < @CurrentNumberOfFiles
+        BEGIN
+          SET @CurrentFileNumber = @CurrentFileNumber + 1
+
+          SELECT @CurrentDirectoryPath = DirectoryPath
+          FROM @CurrentDirectories
+          WHERE @CurrentFileNumber >= (DirectoryNumber - 1) * (SELECT @CurrentNumberOfFiles / COUNT(*) FROM @CurrentDirectories WHERE Mirror = 1) + 1
+          AND @CurrentFileNumber <= DirectoryNumber * (SELECT @CurrentNumberOfFiles / COUNT(*) FROM @CurrentDirectories WHERE Mirror = 1)
+          AND Mirror = 1
+
+          SET @CurrentFileName = REPLACE(@CurrentDatabaseFileName, '{FileNumber}', CASE WHEN @CurrentNumberOfFiles >= 1 AND @CurrentNumberOfFiles <= 9 THEN CAST(@CurrentFileNumber AS nvarchar(max)) WHEN @CurrentNumberOfFiles >= 10 THEN RIGHT('0' + CAST(@CurrentFileNumber AS nvarchar(max)),2) ELSE '' END)
+
+          SET @CurrentFilePath = @CurrentDirectoryPath + @DirectorySeparator + @CurrentFileName
+
+          INSERT INTO @CurrentFiles ([Type], FilePath, Mirror)
+          VALUES('DISK', @CurrentFilePath, 1)
+
+          SET @CurrentDirectoryPath = NULL
+          SET @CurrentFileName = NULL
+          SET @CurrentFilePath = NULL
+        END
+
+        INSERT INTO @CurrentBackupSet (Mirror, VerifyCompleted)
+        VALUES(1, 0)
+      END
+
+      IF EXISTS (SELECT * FROM @CurrentURLs WHERE Mirror = 0)
+      BEGIN
+        SET @CurrentFileNumber = 0
+
+        WHILE @CurrentFileNumber < @CurrentNumberOfFiles
+        BEGIN
+          SET @CurrentFileNumber = @CurrentFileNumber + 1
+
+          SELECT @CurrentDirectoryPath = DirectoryPath
+          FROM @CurrentURLs
+          WHERE @CurrentFileNumber >= (DirectoryNumber - 1) * (SELECT @CurrentNumberOfFiles / COUNT(*) FROM @CurrentURLs WHERE Mirror = 0) + 1
+          AND @CurrentFileNumber <= DirectoryNumber * (SELECT @CurrentNumberOfFiles / COUNT(*) FROM @CurrentURLs WHERE Mirror = 0)
+          AND Mirror = 0
+
+          SET @CurrentFileName = REPLACE(@CurrentDatabaseFileName, '{FileNumber}', CASE WHEN @CurrentNumberOfFiles >= 1 AND @CurrentNumberOfFiles <= 9 THEN CAST(@CurrentFileNumber AS nvarchar(max)) WHEN @CurrentNumberOfFiles >= 10 THEN RIGHT('0' + CAST(@CurrentFileNumber AS nvarchar(max)),2) ELSE '' END)
+
+          SET @CurrentFilePath = @CurrentDirectoryPath + @DirectorySeparator + @CurrentFileName
+
+          INSERT INTO @CurrentFiles ([Type], FilePath, Mirror)
+          VALUES('URL', @CurrentFilePath, 0)
+
+          SET @CurrentDirectoryPath = NULL
+          SET @CurrentFileName = NULL
+          SET @CurrentFilePath = NULL
+        END
+
+        INSERT INTO @CurrentBackupSet (Mirror, VerifyCompleted)
+        VALUES(0, 0)
+      END
+
+      IF EXISTS (SELECT * FROM @CurrentURLs WHERE Mirror = 1)
+      BEGIN
+        SET @CurrentFileNumber = 0
+
+        WHILE @CurrentFileNumber < @CurrentNumberOfFiles
+        BEGIN
+          SET @CurrentFileNumber = @CurrentFileNumber + 1
+
+          SELECT @CurrentDirectoryPath = DirectoryPath
+          FROM @CurrentURLs
+          WHERE @CurrentFileNumber >= (DirectoryNumber - 1) * (SELECT @CurrentNumberOfFiles / COUNT(*) FROM @CurrentURLs WHERE Mirror = 1) + 1
+          AND @CurrentFileNumber <= DirectoryNumber * (SELECT @CurrentNumberOfFiles / COUNT(*) FROM @CurrentURLs WHERE Mirror = 1)
+          AND Mirror = 1
+
+          SET @CurrentFileName = REPLACE(@CurrentDatabaseFileName, '{FileNumber}', CASE WHEN @CurrentNumberOfFiles >= 1 AND @CurrentNumberOfFiles <= 9 THEN CAST(@CurrentFileNumber AS nvarchar(max)) WHEN @CurrentNumberOfFiles >= 10 THEN RIGHT('0' + CAST(@CurrentFileNumber AS nvarchar(max)),2) ELSE '' END)
+
+          SET @CurrentFilePath = @CurrentDirectoryPath + @DirectorySeparator + @CurrentFileName
+
+          INSERT INTO @CurrentFiles ([Type], FilePath, Mirror)
+          VALUES('URL', @CurrentFilePath, 1)
+
+          SET @CurrentDirectoryPath = NULL
+          SET @CurrentFileName = NULL
+          SET @CurrentFilePath = NULL
+        END
+
+        INSERT INTO @CurrentBackupSet (Mirror, VerifyCompleted)
+        VALUES(1, 0)
+      END
+
+      -- Create directory
+      IF @HostPlatform = 'Windows'
+      AND (@BackupSoftware <> 'DATA_DOMAIN_BOOST' OR @BackupSoftware IS NULL)
+      AND NOT EXISTS(SELECT * FROM @CurrentDirectories WHERE DirectoryPath = 'NUL' OR DirectoryPath IN(SELECT DirectoryPath FROM @Directories))
+      BEGIN
+        WHILE (1 = 1)
+        BEGIN
+          SELECT TOP 1 @CurrentDirectoryID = ID,
+                       @CurrentDirectoryPath = DirectoryPath
+          FROM @CurrentDirectories
+          WHERE CreateCompleted = 0
+          ORDER BY ID ASC
+
+          IF @@ROWCOUNT = 0
+          BEGIN
+            BREAK
+          END
+
+          IF @DirectoryCheck = 'Y'
+          BEGIN
+            INSERT INTO @DirectoryInfo (FileExists, FileIsADirectory, ParentDirectoryExists)
+            SELECT file_exists,
+                    file_is_a_directory,
+                    parent_directory_exists
+            FROM sys.dm_os_file_exists (@CurrentDirectoryPath)
+          END
+
+          IF NOT EXISTS (SELECT * FROM @DirectoryInfo WHERE FileExists = 0 AND FileIsADirectory = 1 AND ParentDirectoryExists = 1)
+          BEGIN
+            SET @CurrentDatabaseContext = 'master'
+
+            SET @CurrentCommandType = 'xp_create_subdir'
+
+            SET @CurrentCommand = 'DECLARE @ReturnCode int EXECUTE @ReturnCode = dbo.xp_create_subdir N''' + REPLACE(@CurrentDirectoryPath,'''','''''') + ''' IF @ReturnCode <> 0 OR @ReturnCode IS NULL RAISERROR(''Error creating directory.'', 16, 1)'
+
+            EXECUTE @CurrentCommandOutput = dbo.CommandExecute @DatabaseContext = @CurrentDatabaseContext, @Command = @CurrentCommand, @CommandType = @CurrentCommandType, @Mode = 1, @DatabaseName = @CurrentDatabaseName, @LogToTable = @LogToTable, @Execute = @Execute
+            SET @Error = @@ERROR
+            IF @Error <> 0 SET @CurrentCommandOutput = @Error
+            IF @CurrentCommandOutput <> 0 SET @ReturnCode = @CurrentCommandOutput
+
+            UPDATE @CurrentDirectories
+            SET CreateCompleted = 1,
+                CreateOutput = @CurrentCommandOutput
+            WHERE ID = @CurrentDirectoryID
+          END
+          ELSE
+          BEGIN
+            UPDATE @CurrentDirectories
+            SET CreateCompleted = 1,
+                CreateOutput = 0
+            WHERE ID = @CurrentDirectoryID
+          END
+
+          SET @CurrentDirectoryID = NULL
+          SET @CurrentDirectoryPath = NULL
+
+          SET @CurrentDatabaseContext = NULL
+          SET @CurrentCommand = NULL
+          SET @CurrentCommandOutput = NULL
+          SET @CurrentCommandType = NULL
+
+          DELETE FROM @DirectoryInfo
+        END
+      END
+
+      IF @CleanupMode = 'BEFORE_BACKUP'
+      BEGIN
+        INSERT INTO @CurrentCleanupDates ([Type], CleanupDate, Mirror)
+        VALUES('CleanupTime', DATEADD(hh,-(@CleanupTime),SYSDATETIME()), 0)
+
+        IF NOT EXISTS(SELECT * FROM @CurrentCleanupDates WHERE (Mirror = 0 OR Mirror IS NULL) AND CleanupDate IS NULL)
+        BEGIN
+          UPDATE @CurrentDirectories
+          SET CleanupDate = (SELECT MIN(CleanupDate)
+                             FROM @CurrentCleanupDates
+                             WHERE (Mirror = 0 OR Mirror IS NULL)),
+              CleanupMode = 'BEFORE_BACKUP'
+          WHERE Mirror = 0
+        END
+      END
+
+      IF @MirrorCleanupMode = 'BEFORE_BACKUP'
+      BEGIN
+        INSERT INTO @CurrentCleanupDates ([Type], CleanupDate, Mirror)
+        VALUES('MirrorCleanupTime', DATEADD(hh,-(@MirrorCleanupTime),SYSDATETIME()), 1)
+
+        IF NOT EXISTS(SELECT * FROM @CurrentCleanupDates WHERE (Mirror = 1 OR Mirror IS NULL) AND CleanupDate IS NULL)
+        BEGIN
+          UPDATE @CurrentDirectories
+          SET CleanupDate = (SELECT MIN(CleanupDate)
+                             FROM @CurrentCleanupDates
+                             WHERE (Mirror = 1 OR Mirror IS NULL)),
+              CleanupMode = 'BEFORE_BACKUP'
+          WHERE Mirror = 1
+        END
+      END
+
+      -- Delete old backup files, before backup
+      IF (NOT EXISTS (SELECT * FROM @CurrentDirectories WHERE CreateOutput <> 0 OR CreateOutput IS NULL) OR @HostPlatform = 'Linux')
+      AND (@BackupSoftware <> 'DATA_DOMAIN_BOOST' OR @BackupSoftware IS NULL)
+      AND @CurrentBackupType = @BackupType
+      BEGIN
+        WHILE (1 = 1)
+        BEGIN
+          SELECT TOP 1 @CurrentDirectoryID = ID,
+                       @CurrentDirectoryPath = DirectoryPath,
+                       @CurrentCleanupDate = CleanupDate
+          FROM @CurrentDirectories
+          WHERE CleanupDate IS NOT NULL
+          AND CleanupMode = 'BEFORE_BACKUP'
+          AND CleanupCompleted = 0
+          ORDER BY ID ASC
+
+          IF @@ROWCOUNT = 0
+          BEGIN
+            BREAK
+          END
+
+          IF @BackupSoftware IS NULL
+          BEGIN
+            SET @CurrentDatabaseContext = 'master'
+
+            SET @CurrentCommandType = 'xp_delete_file'
+
+            SET @CurrentCommand = 'DECLARE @ReturnCode int EXECUTE @ReturnCode = dbo.xp_delete_file 0, N''' + REPLACE(@CurrentDirectoryPath,'''','''''') + ''', ''' + REPLACE(@CurrentFileExtension,'''','''''') + ''', ''' + CONVERT(nvarchar(19),@CurrentCleanupDate,126) + ''' IF @ReturnCode <> 0 OR @ReturnCode IS NULL RAISERROR(''Error deleting files.'', 16, 1)'
+          END
+
+          IF @BackupSoftware = 'LITESPEED'
+          BEGIN
+            SET @CurrentDatabaseContext = 'master'
+
+            SET @CurrentCommandType = 'xp_slssqlmaint'
+
+            SET @CurrentCommand = 'DECLARE @ReturnCode int EXECUTE @ReturnCode = dbo.xp_slssqlmaint N''-MAINTDEL -DELFOLDER "' + REPLACE(@CurrentDirectoryPath,'''','''''') + '" -DELEXTENSION "' + REPLACE(@CurrentFileExtension,'''','''''') + '" -DELUNIT "' + CAST(DATEDIFF(mi,@CurrentCleanupDate,SYSDATETIME()) + 1 AS nvarchar(max)) + '" -DELUNITTYPE "minutes" -DELUSEAGE'' IF @ReturnCode <> 0 OR @ReturnCode IS NULL RAISERROR(''Error deleting LiteSpeed backup files.'', 16, 1)'
+          END
+
+          IF @BackupSoftware = 'SQLBACKUP'
+          BEGIN
+            SET @CurrentDatabaseContext = 'master'
+
+            SET @CurrentCommandType = 'sqbutility'
+
+            SET @CurrentCommand = 'DECLARE @ReturnCode int EXECUTE @ReturnCode = dbo.sqbutility 1032, N''' + REPLACE(@CurrentDatabaseName,'''','''''') + ''', N''' + REPLACE(@CurrentDirectoryPath,'''','''''') + ''', ''' + CASE WHEN @CurrentBackupType = 'FULL' THEN 'D' WHEN @CurrentBackupType = 'DIFF' THEN 'I' WHEN @CurrentBackupType = 'LOG' THEN 'L' END + ''', ''' + CAST(DATEDIFF(hh,@CurrentCleanupDate,SYSDATETIME()) + 1 AS nvarchar(max)) + 'h'', ' + ISNULL('''' + @EncryptionKeyPlaceholder + '''','NULL') + ' IF @ReturnCode <> 0 OR @ReturnCode IS NULL RAISERROR(''Error deleting SQLBackup backup files.'', 16, 1)'
+          END
+
+          IF @BackupSoftware = 'SQLSAFE'
+          BEGIN
+            SET @CurrentDatabaseContext = 'master'
+
+            SET @CurrentCommandType = 'xp_ss_delete'
+
+            SET @CurrentCommand = 'DECLARE @ReturnCode int EXECUTE @ReturnCode = dbo.xp_ss_delete @filename = N''' + REPLACE(@CurrentDirectoryPath,'''','''''') + '\*.' + REPLACE(@CurrentFileExtension,'''','''''') + ''', @age = ''' + CAST(DATEDIFF(mi,@CurrentCleanupDate,SYSDATETIME()) + 1 AS nvarchar(max)) + 'Minutes'' IF @ReturnCode <> 0 OR @ReturnCode IS NULL RAISERROR(''Error deleting SQLsafe backup files.'', 16, 1)'
+          END
+
+          EXECUTE @CurrentCommandOutput = dbo.CommandExecute @DatabaseContext = @CurrentDatabaseContext, @Command = @CurrentCommand, @CommandType = @CurrentCommandType, @Mode = 1, @DatabaseName = @CurrentDatabaseName, @EncryptionKey = @EncryptionKey, @EncryptionKeyPlaceholder = @EncryptionKeyPlaceholder, @LogToTable = @LogToTable, @Execute = @Execute
+          SET @Error = @@ERROR
+          IF @Error <> 0 SET @CurrentCommandOutput = @Error
+          IF @CurrentCommandOutput <> 0 SET @ReturnCode = @CurrentCommandOutput
+
+          UPDATE @CurrentDirectories
+          SET CleanupCompleted = 1,
+              CleanupOutput = @CurrentCommandOutput
+          WHERE ID = @CurrentDirectoryID
+
+          SET @CurrentDirectoryID = NULL
+          SET @CurrentDirectoryPath = NULL
+          SET @CurrentCleanupDate = NULL
+
+          SET @CurrentDatabaseContext = NULL
+          SET @CurrentCommand = NULL
+          SET @CurrentCommandOutput = NULL
+          SET @CurrentCommandType = NULL
+        END
+      END
+
+      -- Perform a backup
+      IF @BackupSoftware = 'DATA_DOMAIN_BOOST' AND @CurrentDatabaseName LIKE '%"%'
+      BEGIN
+        SET @ErrorMessage = 'The name of the database ' + QUOTENAME(@CurrentDatabaseName) + ' is not supported. Double quotes (") are not supported with Data Domain Boost.'
+        RAISERROR('%s',16,1,@ErrorMessage) WITH NOWAIT
+        SET @Error = @@ERROR
+        SET @ReturnCode = @Error
+        RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+      END
+      ELSE IF NOT EXISTS (SELECT * FROM @CurrentDirectories WHERE DirectoryPath <> 'NUL' AND DirectoryPath NOT IN(SELECT DirectoryPath FROM @Directories) AND (CreateOutput <> 0 OR CreateOutput IS NULL))
+      OR @HostPlatform = 'Linux'
+      BEGIN
+        IF @BackupSoftware IS NULL
+        BEGIN
+          SET @CurrentDatabaseContext = 'master'
+
+          SELECT @CurrentCommandType = CASE
+          WHEN @CurrentBackupType IN('DIFF','FULL') THEN 'BACKUP_DATABASE'
+          WHEN @CurrentBackupType = 'LOG' THEN 'BACKUP_LOG'
+          END
+
+          SELECT @CurrentCommand = CASE
+          WHEN @CurrentBackupType IN('DIFF','FULL') THEN 'BACKUP DATABASE ' + QUOTENAME(@CurrentDatabaseName)
+          WHEN @CurrentBackupType = 'LOG' THEN 'BACKUP LOG ' + QUOTENAME(@CurrentDatabaseName)
+          END
+
+          IF @ReadWriteFileGroups = 'Y' AND @CurrentDatabaseName <> 'master' SET @CurrentCommand += ' READ_WRITE_FILEGROUPS'
+
+          SET @CurrentCommand += ' TO'
+
+          SELECT @CurrentCommand += ' ' + STRING_AGG([Type] + ' = N''' + REPLACE(FilePath, '''', '''''') + '''', ', ')
+                                          WITHIN GROUP (ORDER BY FilePath ASC)
+          FROM @CurrentFiles
+          WHERE Mirror = 0
+
+          IF EXISTS(SELECT * FROM @CurrentFiles WHERE Mirror = 1)
+          BEGIN
+            SET @CurrentCommand += ' MIRROR TO'
+
+            SELECT @CurrentCommand += ' ' + STRING_AGG([Type] + ' = N''' + REPLACE(FilePath, '''', '''''') + '''', ', ')
+                                            WITHIN GROUP (ORDER BY FilePath ASC)
+            FROM @CurrentFiles
+            WHERE Mirror = 1
+          END
+
+          SET @CurrentCommand += ' WITH '
+          IF @Checksum = 'Y' SET @CurrentCommand += 'CHECKSUM'
+          IF @Checksum = 'N' SET @CurrentCommand += 'NO_CHECKSUM'
+
+          SET @CurrentCommand += CASE WHEN @Compress = 'Y' AND (@CurrentIsEncrypted = 0 OR (@CurrentIsEncrypted = 1 AND (@CurrentMaxTransferSize >= 65537 OR (@Version >= 15.04043 OR (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous'))))) THEN ', COMPRESSION' ELSE ', NO_COMPRESSION' END
+
+          IF @Compress = 'Y' AND @CompressionAlgorithm IS NOT NULL
+          BEGIN
+            SET @CurrentCommand += ' (ALGORITHM = ' + @CompressionAlgorithm + CASE WHEN @CompressionLevel IS NOT NULL THEN ', LEVEL = ' + @CompressionLevel ELSE '' END + ')'
+          END
+
+          IF @CurrentBackupType = 'DIFF' SET @CurrentCommand += ', DIFFERENTIAL'
+
+          IF EXISTS(SELECT * FROM @CurrentFiles WHERE Mirror = 1)
+          BEGIN
+            SET @CurrentCommand += ', FORMAT'
+          END
+
+          IF @CopyOnly = 'Y' SET @CurrentCommand += ', COPY_ONLY'
+          IF @NoRecovery = 'Y' AND @CurrentBackupType = 'LOG' SET @CurrentCommand += ', NORECOVERY'
+          IF @Init = 'Y' SET @CurrentCommand += ', INIT'
+          IF @Format = 'Y' SET @CurrentCommand += ', FORMAT'
+          IF @BlockSize IS NOT NULL SET @CurrentCommand += ', BLOCKSIZE = ' + CAST(@BlockSize AS nvarchar(max))
+          IF @BufferCount IS NOT NULL SET @CurrentCommand += ', BUFFERCOUNT = ' + CAST(@BufferCount AS nvarchar(max))
+          IF @CurrentMaxTransferSize IS NOT NULL SET @CurrentCommand += ', MAXTRANSFERSIZE = ' + CAST(@CurrentMaxTransferSize AS nvarchar(max))
+          IF @Description IS NOT NULL SET @CurrentCommand += ', DESCRIPTION = N''' + REPLACE(@Description,'''','''''') + ''''
+          IF @BackupSetName IS NOT NULL SET @CurrentCommand += ', NAME = N''' + REPLACE(@BackupSetName,'''','''''') + ''''
+          IF @Stats IS NOT NULL SET @CurrentCommand += ', STATS = ' + CAST(@Stats AS nvarchar(max))
+          IF @BackupOptions IS NOT NULL SET @CurrentCommand += ', BACKUP_OPTIONS = N''' + REPLACE(@BackupOptions,'''','''''') + ''''
+          IF @Encrypt = 'Y' SET @CurrentCommand += ', ENCRYPTION (ALGORITHM = ' + UPPER(@EncryptionAlgorithm) + ', '
+          IF @Encrypt = 'Y' AND @ServerCertificate IS NOT NULL SET @CurrentCommand += 'SERVER CERTIFICATE = ' + QUOTENAME(@ServerCertificate)
+          IF @Encrypt = 'Y' AND @ServerAsymmetricKey IS NOT NULL SET @CurrentCommand += 'SERVER ASYMMETRIC KEY = ' + QUOTENAME(@ServerAsymmetricKey)
+          IF @Encrypt = 'Y' SET @CurrentCommand += ')'
+          IF @URL IS NOT NULL AND @Credential IS NOT NULL SET @CurrentCommand += ', CREDENTIAL = N''' + REPLACE(@Credential,'''','''''') + ''''
+          IF @ExpireDate IS NOT NULL SET @CurrentCommand += ', EXPIREDATE = ''' + CONVERT(nvarchar(max), @ExpireDate, 21) + ''''
+          IF @RetainDays IS NOT NULL SET @CurrentCommand += ', RETAINDAYS = ' + CAST(@RetainDays AS nvarchar(max))
+        END
+
+        IF @BackupSoftware = 'LITESPEED'
+        BEGIN
+          SET @CurrentDatabaseContext = 'master'
+
+          SELECT @CurrentCommandType = CASE
+          WHEN @CurrentBackupType IN('DIFF','FULL') THEN 'xp_backup_database'
+          WHEN @CurrentBackupType = 'LOG' THEN 'xp_backup_log'
+          END
+
+          SELECT @CurrentCommand = CASE
+          WHEN @CurrentBackupType IN('DIFF','FULL') THEN 'DECLARE @ReturnCode int EXECUTE @ReturnCode = dbo.xp_backup_database @database = N''' + REPLACE(@CurrentDatabaseName,'''','''''') + ''''
+          WHEN @CurrentBackupType = 'LOG' THEN 'DECLARE @ReturnCode int EXECUTE @ReturnCode = dbo.xp_backup_log @database = N''' + REPLACE(@CurrentDatabaseName,'''','''''') + ''''
+          END
+
+          SELECT @CurrentCommand += ', ' + STRING_AGG('@filename = N''' + REPLACE(FilePath, '''', '''''') + '''', ', ')
+                                           WITHIN GROUP (ORDER BY FilePath ASC)
+          FROM @CurrentFiles
+          WHERE Mirror = 0
+
+          IF EXISTS(SELECT * FROM @CurrentFiles WHERE Mirror = 1)
+          BEGIN
+            SELECT @CurrentCommand += ', ' + STRING_AGG('@mirror = N''' + REPLACE(FilePath, '''', '''''') + '''', ', ')
+                                             WITHIN GROUP (ORDER BY FilePath ASC)
+            FROM @CurrentFiles
+            WHERE Mirror = 1
+          END
+
+          SET @CurrentCommand += ', @with = '''
+          IF @Checksum = 'Y' SET @CurrentCommand += 'CHECKSUM'
+          IF @Checksum = 'N' SET @CurrentCommand += 'NO_CHECKSUM'
+          IF @CurrentBackupType = 'DIFF' SET @CurrentCommand += ', DIFFERENTIAL'
+          IF @CopyOnly = 'Y' SET @CurrentCommand += ', COPY_ONLY'
+          IF @NoRecovery = 'Y' AND @CurrentBackupType = 'LOG' SET @CurrentCommand += ', NORECOVERY'
+          IF @BlockSize IS NOT NULL SET @CurrentCommand += ', BLOCKSIZE = ' + CAST(@BlockSize AS nvarchar(max))
+          SET @CurrentCommand += ''''
+          IF @ReadWriteFileGroups = 'Y' AND @CurrentDatabaseName <> 'master' SET @CurrentCommand += ', @read_write_filegroups = 1'
+          IF @CompressionLevelNumeric IS NOT NULL SET @CurrentCommand += ', @compressionlevel = ' + CAST(@CompressionLevelNumeric AS nvarchar(max))
+          IF @AdaptiveCompression IS NOT NULL SET @CurrentCommand += ', @adaptivecompression = ''' + CASE WHEN @AdaptiveCompression = 'SIZE' THEN 'Size' WHEN @AdaptiveCompression = 'SPEED' THEN 'Speed' END + ''''
+          IF @BufferCount IS NOT NULL SET @CurrentCommand += ', @buffercount = ' + CAST(@BufferCount AS nvarchar(max))
+          IF @CurrentMaxTransferSize IS NOT NULL SET @CurrentCommand += ', @maxtransfersize = ' + CAST(@CurrentMaxTransferSize AS nvarchar(max))
+          IF @Threads IS NOT NULL SET @CurrentCommand += ', @threads = ' + CAST(@Threads AS nvarchar(max))
+          IF @Init = 'Y' SET @CurrentCommand += ', @init = 1'
+          IF @Format = 'Y' SET @CurrentCommand += ', @format = 1'
+          IF @Throttle IS NOT NULL SET @CurrentCommand += ', @throttle = ' + CAST(@Throttle AS nvarchar(max))
+          IF @Description IS NOT NULL SET @CurrentCommand += ', @desc = N''' + REPLACE(@Description,'''','''''') + ''''
+          IF @ObjectLevelRecoveryMap = 'Y' SET @CurrentCommand += ', @olrmap = 1'
+          IF @ExpireDate IS NOT NULL SET @CurrentCommand += ', @expiration = ''' + CONVERT(nvarchar(max), @ExpireDate, 21) + ''''
+          IF @RetainDays IS NOT NULL SET @CurrentCommand += ', @retaindays = ' + CAST(@RetainDays AS nvarchar(max))
+
+          IF @EncryptionAlgorithm IS NOT NULL SET @CurrentCommand += ', @cryptlevel = ' + CASE
+          WHEN @EncryptionAlgorithm = 'RC2_40' THEN '0'
+          WHEN @EncryptionAlgorithm = 'RC2_56' THEN '1'
+          WHEN @EncryptionAlgorithm = 'RC2_112' THEN '2'
+          WHEN @EncryptionAlgorithm = 'RC2_128' THEN '3'
+          WHEN @EncryptionAlgorithm = 'TRIPLE_DES_3KEY' THEN '4'
+          WHEN @EncryptionAlgorithm = 'RC4_128' THEN '5'
+          WHEN @EncryptionAlgorithm = 'AES_128' THEN '6'
+          WHEN @EncryptionAlgorithm = 'AES_192' THEN '7'
+          WHEN @EncryptionAlgorithm = 'AES_256' THEN '8'
+          END
+
+          IF @EncryptionKey IS NOT NULL SET @CurrentCommand += ', @encryptionkey = N''' + @EncryptionKeyPlaceholder + ''''
+          SET @CurrentCommand += ' IF @ReturnCode <> 0 OR @ReturnCode IS NULL RAISERROR(''Error performing LiteSpeed backup.'', 16, 1)'
+        END
+
+        IF @BackupSoftware = 'SQLBACKUP'
+        BEGIN
+          SET @CurrentDatabaseContext = 'master'
+
+          SET @CurrentCommandType = 'sqlbackup'
+
+          SELECT @CurrentCommand = CASE
+          WHEN @CurrentBackupType IN('DIFF','FULL') THEN 'BACKUP DATABASE ' + QUOTENAME(@CurrentDatabaseName)
+          WHEN @CurrentBackupType = 'LOG' THEN 'BACKUP LOG ' + QUOTENAME(@CurrentDatabaseName)
+          END
+
+          IF @ReadWriteFileGroups = 'Y' AND @CurrentDatabaseName <> 'master' SET @CurrentCommand += ' READ_WRITE_FILEGROUPS'
+
+          SET @CurrentCommand += ' TO'
+
+          SELECT @CurrentCommand += ' ' + STRING_AGG('DISK = N''' + REPLACE(FilePath, '''', '''''') + '''', ', ')
+                                          WITHIN GROUP (ORDER BY FilePath ASC)
+          FROM @CurrentFiles
+          WHERE Mirror = 0
+
+          SET @CurrentCommand += ' WITH '
+
+          IF EXISTS(SELECT * FROM @CurrentFiles WHERE Mirror = 1)
+          BEGIN
+            SET @CurrentCommand += ' MIRRORFILE' + ' = N''' + REPLACE((SELECT FilePath FROM @CurrentFiles WHERE Mirror = 1),'''','''''') + ''', '
+          END
+
+          IF @Checksum = 'Y' SET @CurrentCommand += 'CHECKSUM'
+          IF @Checksum = 'N' SET @CurrentCommand += 'NO_CHECKSUM'
+          IF @CurrentBackupType = 'DIFF' SET @CurrentCommand += ', DIFFERENTIAL'
+          IF @CopyOnly = 'Y' SET @CurrentCommand += ', COPY_ONLY'
+          IF @NoRecovery = 'Y' AND @CurrentBackupType = 'LOG' SET @CurrentCommand += ', NORECOVERY'
+          IF @Init = 'Y' SET @CurrentCommand += ', INIT'
+          IF @Format = 'Y' SET @CurrentCommand += ', FORMAT'
+          IF @CompressionLevelNumeric IS NOT NULL SET @CurrentCommand += ', COMPRESSION = ' + CAST(@CompressionLevelNumeric AS nvarchar(max))
+          IF @Threads IS NOT NULL SET @CurrentCommand += ', THREADCOUNT = ' + CAST(@Threads AS nvarchar(max))
+          IF @CurrentMaxTransferSize IS NOT NULL SET @CurrentCommand += ', MAXTRANSFERSIZE = ' + CAST(@CurrentMaxTransferSize AS nvarchar(max))
+          IF @Description IS NOT NULL SET @CurrentCommand += ', DESCRIPTION = N''' + REPLACE(@Description,'''','''''') + ''''
+
+          IF @EncryptionAlgorithm IS NOT NULL SET @CurrentCommand += ', KEYSIZE = ' + CASE
+          WHEN @EncryptionAlgorithm = 'AES_128' THEN '128'
+          WHEN @EncryptionAlgorithm = 'AES_256' THEN '256'
+          END
+
+          IF @EncryptionKey IS NOT NULL SET @CurrentCommand += ', PASSWORD = N''' + @EncryptionKeyPlaceholder + ''''
+          SET @CurrentCommand = 'DECLARE @ReturnCode int EXECUTE @ReturnCode = dbo.sqlbackup N''-SQL "' + REPLACE(@CurrentCommand,'''','''''') + '"''' + ' IF @ReturnCode <> 0 OR @ReturnCode IS NULL RAISERROR(''Error performing SQLBackup backup.'', 16, 1)'
+        END
+
+        IF @BackupSoftware = 'SQLSAFE'
+        BEGIN
+          SET @CurrentDatabaseContext = 'master'
+
+          SET @CurrentCommandType = 'xp_ss_backup'
+
+          SET @CurrentCommand = 'DECLARE @ReturnCode int EXECUTE @ReturnCode = dbo.xp_ss_backup @database = N''' + REPLACE(@CurrentDatabaseName,'''','''''') + '''';
+
+          WITH CurrentFiles AS
+          (
+          SELECT FilePath, ROW_NUMBER() OVER (ORDER BY FilePath ASC) AS RowNumber
+                                FROM @CurrentFiles
+                                WHERE Mirror = 0
+          )
+          SELECT @CurrentCommand += ', ' + STRING_AGG(CASE WHEN RowNumber = 1 THEN '@filename' ELSE '@backupfile' END + ' = N''' + REPLACE(FilePath, '''', '''''') + '''', ', ')
+                                           WITHIN GROUP (ORDER BY RowNumber ASC)
+          FROM CurrentFiles
+
+          IF EXISTS(SELECT * FROM @CurrentFiles WHERE Mirror = 1)
+          BEGIN
+            SELECT @CurrentCommand += ', ' + STRING_AGG('@mirrorfile = N''' + REPLACE(FilePath, '''', '''''') + '''', ', ')
+                                             WITHIN GROUP (ORDER BY FilePath ASC)
+            FROM @CurrentFiles
+            WHERE Mirror = 1
+          END
+
+          SET @CurrentCommand += ', @backuptype = ' + CASE WHEN @CurrentBackupType = 'FULL' THEN '''Full''' WHEN @CurrentBackupType = 'DIFF' THEN '''Differential''' WHEN @CurrentBackupType = 'LOG' THEN '''Log''' END
+          IF @ReadWriteFileGroups = 'Y' AND @CurrentDatabaseName <> 'master' SET @CurrentCommand += ', @readwritefilegroups = 1'
+          SET @CurrentCommand += ', @checksum = ' + CASE WHEN @Checksum = 'Y' THEN '1' WHEN @Checksum = 'N' THEN '0' END
+          SET @CurrentCommand += ', @copyonly = ' + CASE WHEN @CopyOnly = 'Y' THEN '1' WHEN @CopyOnly = 'N' THEN '0' END
+          IF @CompressionLevelNumeric IS NOT NULL SET @CurrentCommand += ', @compressionlevel = ' + CAST(@CompressionLevelNumeric AS nvarchar(max))
+          IF @Threads IS NOT NULL SET @CurrentCommand += ', @threads = ' + CAST(@Threads AS nvarchar(max))
+          IF @Init = 'Y' SET @CurrentCommand += ', @overwrite = 1'
+          IF @Description IS NOT NULL SET @CurrentCommand += ', @desc = N''' + REPLACE(@Description,'''','''''') + ''''
+
+          IF @EncryptionAlgorithm IS NOT NULL SET @CurrentCommand += ', @encryptiontype = N''' + CASE
+          WHEN @EncryptionAlgorithm = 'AES_128' THEN 'AES128'
+          WHEN @EncryptionAlgorithm = 'AES_256' THEN 'AES256'
+          END + ''''
+
+          IF @EncryptionKey IS NOT NULL SET @CurrentCommand += ', @encryptedbackuppassword = N''' + @EncryptionKeyPlaceholder + ''''
+          SET @CurrentCommand += ' IF @ReturnCode <> 0 OR @ReturnCode IS NULL RAISERROR(''Error performing SQLsafe backup.'', 16, 1)'
+        END
+
+        IF @BackupSoftware = 'DATA_DOMAIN_BOOST'
+        BEGIN
+          SET @CurrentDatabaseContext = 'master'
+
+          SET @CurrentCommandType = 'emc_run_backup'
+
+          SET @CurrentCommand = ''
+          IF @DataDomainBoostNoOutputTable = 'Y' SET @CurrentCommand += 'DECLARE @DataDomainBoostOutput TABLE ([Message] nvarchar(MAX)); '
+          SET @CurrentCommand += 'DECLARE @ReturnCode int; '
+          IF @DataDomainBoostNoOutputTable = 'Y' SET @CurrentCommand += 'INSERT INTO @DataDomainBoostOutput ([Message]) '
+          SET @CurrentCommand += 'EXECUTE @ReturnCode = dbo.emc_run_backup '''
+
+          SET @CurrentCommand += ' -c ' + CASE WHEN @Cluster IS NOT NULL AND @CurrentAvailabilityGroup IS NOT NULL THEN REPLACE(@Cluster,'''','''''') ELSE REPLACE(@MachineName,'''','''''') END
+
+          SET @CurrentCommand += ' -l ' + CASE
+          WHEN @CurrentBackupType = 'FULL' THEN 'full'
+          WHEN @CurrentBackupType = 'DIFF' THEN 'diff'
+          WHEN @CurrentBackupType = 'LOG' THEN 'incr'
+          END
+
+          IF @NoRecovery = 'Y' SET @CurrentCommand += ' -H'
+
+          IF @CleanupTime IS NOT NULL SET @CurrentCommand += ' -y +' + CAST(@CleanupTime/24 + CASE WHEN @CleanupTime%24 > 0 THEN 1 ELSE 0 END AS nvarchar(max)) + 'd'
+
+          IF @Checksum = 'Y' SET @CurrentCommand += ' -k'
+
+          SET @CurrentCommand += ' -S ' + CAST(@CurrentNumberOfFiles AS nvarchar(max))
+
+          IF @Description IS NOT NULL SET @CurrentCommand += ' -b "' + REPLACE(@Description,'''','''''') + '"'
+
+          IF @BufferCount IS NOT NULL SET @CurrentCommand += ' -O "BUFFERCOUNT=' + CAST(@BufferCount AS nvarchar(max)) + '"'
+
+          IF @ReadWriteFileGroups = 'Y' AND @CurrentDatabaseName <> 'master' SET @CurrentCommand += ' -O "READ_WRITE_FILEGROUPS"'
+
+          IF @DataDomainBoostHost IS NOT NULL SET @CurrentCommand += ' -a "NSR_DFA_SI_DD_HOST=' + REPLACE(@DataDomainBoostHost,'''','''''') + '"'
+          IF @DataDomainBoostUser IS NOT NULL SET @CurrentCommand += ' -a "NSR_DFA_SI_DD_USER=' + REPLACE(@DataDomainBoostUser,'''','''''') + '"'
+          IF @DataDomainBoostDevicePath IS NOT NULL SET @CurrentCommand += ' -a "NSR_DFA_SI_DEVICE_PATH=' + REPLACE(@DataDomainBoostDevicePath,'''','''''') + '"'
+          IF @DataDomainBoostLockboxPath IS NOT NULL SET @CurrentCommand += ' -a "NSR_DFA_SI_DD_LOCKBOX_PATH=' + REPLACE(@DataDomainBoostLockboxPath,'''','''''') + '"'
+          SET @CurrentCommand += ' -a "NSR_SKIP_NON_BACKUPABLE_STATE_DB=TRUE"'
+          SET @CurrentCommand += ' -a "BACKUP_PROMOTION=NONE"'
+          IF @CopyOnly = 'Y' SET @CurrentCommand += ' -a "NSR_COPY_ONLY=TRUE"'
+          IF @BackupSetName IS NOT NULL SET @CurrentCommand += ' -N "' + REPLACE(@BackupSetName,'''','''''') + '"'
+
+          IF @InstanceName IS NULL SET @CurrentCommand += ' "MSSQL'
+          IF @InstanceName IS NOT NULL SET @CurrentCommand += ' "MSSQL$' + @InstanceName
+          SET @CurrentCommand += ':' + REPLACE(REPLACE(@CurrentDatabaseName,'''',''''''),'.','\.') + '"'
+
+          SET @CurrentCommand += ''''
+
+          SET @CurrentCommand += ' IF @ReturnCode <> 0 OR @ReturnCode IS NULL RAISERROR(''Error performing Data Domain Boost backup.'', 16, 1)'
+        END
+
+        EXECUTE @CurrentCommandOutput = dbo.CommandExecute @DatabaseContext = @CurrentDatabaseContext, @Command = @CurrentCommand, @CommandType = @CurrentCommandType, @Mode = 1, @DatabaseName = @CurrentDatabaseName, @EncryptionKey = @EncryptionKey, @EncryptionKeyPlaceholder = @EncryptionKeyPlaceholder, @LogToTable = @LogToTable, @Execute = @Execute
+        SET @Error = @@ERROR
+        IF @Error <> 0 SET @CurrentCommandOutput = @Error
+        IF @CurrentCommandOutput <> 0 SET @ReturnCode = @CurrentCommandOutput
+        SET @CurrentBackupOutput = @CurrentCommandOutput
+      END
+
+      -- Verify the backup
+      IF @CurrentBackupOutput = 0 AND @Verify = 'Y'
+      BEGIN
+        WHILE (1 = 1)
+        BEGIN
+          SELECT TOP 1 @CurrentBackupSetID = ID,
+                       @CurrentIsMirror = Mirror
+          FROM @CurrentBackupSet
+          WHERE VerifyCompleted = 0
+          ORDER BY ID ASC
+
+          IF @@ROWCOUNT = 0
+          BEGIN
+            BREAK
+          END
+
+          IF @BackupSoftware IS NULL
+          BEGIN
+            SET @CurrentDatabaseContext = 'master'
+
+            SET @CurrentCommandType = 'RESTORE_VERIFYONLY'
+
+            SET @CurrentCommand = 'RESTORE VERIFYONLY FROM'
+
+            SELECT @CurrentCommand += ' ' + STRING_AGG([Type] + ' = N''' + REPLACE(FilePath, '''', '''''') + '''', ', ')
+                                            WITHIN GROUP (ORDER BY FilePath ASC)
+            FROM @CurrentFiles
+            WHERE Mirror = @CurrentIsMirror
+
+            SET @CurrentCommand += ' WITH '
+            IF @Checksum = 'Y' SET @CurrentCommand += 'CHECKSUM'
+            IF @Checksum = 'N' SET @CurrentCommand += 'NO_CHECKSUM'
+            IF @Stats IS NOT NULL SET @CurrentCommand += ', STATS = ' + CAST(@Stats AS nvarchar(max))
+            IF @BackupOptions IS NOT NULL SET @CurrentCommand += ', RESTORE_OPTIONS = N''' + REPLACE(@BackupOptions,'''','''''') + ''''
+            IF @URL IS NOT NULL AND @Credential IS NOT NULL SET @CurrentCommand += ', CREDENTIAL = N''' + REPLACE(@Credential,'''','''''') + ''''
+          END
+
+          IF @BackupSoftware = 'LITESPEED'
+          BEGIN
+            SET @CurrentDatabaseContext = 'master'
+
+            SET @CurrentCommandType = 'xp_restore_verifyonly'
+
+            SET @CurrentCommand = 'DECLARE @ReturnCode int EXECUTE @ReturnCode = dbo.xp_restore_verifyonly'
+
+            SELECT @CurrentCommand += ' ' + STRING_AGG('@filename = N''' + REPLACE(FilePath, '''', '''''') + '''', ', ')
+                                            WITHIN GROUP (ORDER BY FilePath ASC)
+            FROM @CurrentFiles
+            WHERE Mirror = @CurrentIsMirror
+
+            SET @CurrentCommand += ', @with = '''
+            IF @Checksum = 'Y' SET @CurrentCommand += 'CHECKSUM'
+            IF @Checksum = 'N' SET @CurrentCommand += 'NO_CHECKSUM'
+            SET @CurrentCommand += ''''
+            IF @EncryptionKey IS NOT NULL SET @CurrentCommand += ', @encryptionkey = N''' + @EncryptionKeyPlaceholder + ''''
+
+            SET @CurrentCommand += ' IF @ReturnCode <> 0 OR @ReturnCode IS NULL RAISERROR(''Error verifying LiteSpeed backup.'', 16, 1)'
+          END
+
+          IF @BackupSoftware = 'SQLBACKUP'
+          BEGIN
+            SET @CurrentDatabaseContext = 'master'
+
+            SET @CurrentCommandType = 'sqlbackup'
+
+            SET @CurrentCommand = 'RESTORE VERIFYONLY FROM'
+
+            SELECT @CurrentCommand += ' ' + STRING_AGG('DISK = N''' + REPLACE(FilePath, '''', '''''') + '''', ', ')
+                                            WITHIN GROUP (ORDER BY FilePath ASC)
+            FROM @CurrentFiles
+            WHERE Mirror = @CurrentIsMirror
+
+            SET @CurrentCommand += ' WITH '
+            IF @Checksum = 'Y' SET @CurrentCommand += 'CHECKSUM'
+            IF @Checksum = 'N' SET @CurrentCommand += 'NO_CHECKSUM'
+            IF @EncryptionKey IS NOT NULL SET @CurrentCommand += ', PASSWORD = N''' + @EncryptionKeyPlaceholder + ''''
+
+            SET @CurrentCommand = 'DECLARE @ReturnCode int EXECUTE @ReturnCode = dbo.sqlbackup N''-SQL "' + REPLACE(@CurrentCommand,'''','''''') + '"''' + ' IF @ReturnCode <> 0 OR @ReturnCode IS NULL RAISERROR(''Error verifying SQLBackup backup.'', 16, 1)'
+          END
+
+          IF @BackupSoftware = 'SQLSAFE'
+          BEGIN
+            SET @CurrentDatabaseContext = 'master'
+
+            SET @CurrentCommandType = 'xp_ss_verify'
+
+            SET @CurrentCommand = 'DECLARE @ReturnCode int EXECUTE @ReturnCode = dbo.xp_ss_verify @database = N''' + REPLACE(@CurrentDatabaseName,'''','''''') + '''';
+
+            WITH CurrentFiles AS
+            (
+            SELECT FilePath, ROW_NUMBER() OVER (ORDER BY FilePath ASC) AS RowNumber
+            FROM @CurrentFiles
+            WHERE Mirror = @CurrentIsMirror
+            )
+            SELECT @CurrentCommand += ', ' + STRING_AGG(CASE WHEN RowNumber = 1 THEN '@filename' ELSE '@backupfile' END + ' = N''' + REPLACE(FilePath, '''', '''''') + '''', ', ')
+                                             WITHIN GROUP (ORDER BY RowNumber ASC)
+            FROM CurrentFiles
+
+            SET @CurrentCommand += ' IF @ReturnCode <> 0 OR @ReturnCode IS NULL RAISERROR(''Error verifying SQLsafe backup.'', 16, 1)'
+          END
+
+          EXECUTE @CurrentCommandOutput = dbo.CommandExecute @DatabaseContext = @CurrentDatabaseContext, @Command = @CurrentCommand, @CommandType = @CurrentCommandType, @Mode = 1, @DatabaseName = @CurrentDatabaseName, @EncryptionKey = @EncryptionKey, @EncryptionKeyPlaceholder = @EncryptionKeyPlaceholder, @LogToTable = @LogToTable, @Execute = @Execute
+          SET @Error = @@ERROR
+          IF @Error <> 0 SET @CurrentCommandOutput = @Error
+          IF @CurrentCommandOutput <> 0 SET @ReturnCode = @CurrentCommandOutput
+
+          UPDATE @CurrentBackupSet
+          SET VerifyCompleted = 1,
+              VerifyOutput = @CurrentCommandOutput
+          WHERE ID = @CurrentBackupSetID
+
+          SET @CurrentBackupSetID = NULL
+          SET @CurrentIsMirror = NULL
+
+          SET @CurrentDatabaseContext = NULL
+          SET @CurrentCommand = NULL
+          SET @CurrentCommandOutput = NULL
+          SET @CurrentCommandType = NULL
+        END
+      END
+
+      IF @CleanupMode = 'AFTER_BACKUP'
+      BEGIN
+        INSERT INTO @CurrentCleanupDates ([Type], CleanupDate, Mirror)
+        VALUES('CleanupTime', DATEADD(hh,-(@CleanupTime),SYSDATETIME()), 0)
+
+        IF NOT EXISTS(SELECT * FROM @CurrentCleanupDates WHERE (Mirror = 0 OR Mirror IS NULL) AND CleanupDate IS NULL)
+        BEGIN
+          UPDATE @CurrentDirectories
+          SET CleanupDate = (SELECT MIN(CleanupDate)
+                             FROM @CurrentCleanupDates
+                             WHERE (Mirror = 0 OR Mirror IS NULL)),
+              CleanupMode = 'AFTER_BACKUP'
+          WHERE Mirror = 0
+        END
+      END
+
+      IF @MirrorCleanupMode = 'AFTER_BACKUP'
+      BEGIN
+        INSERT INTO @CurrentCleanupDates ([Type], CleanupDate, Mirror)
+        VALUES('MirrorCleanupTime', DATEADD(hh,-(@MirrorCleanupTime),SYSDATETIME()), 1)
+
+        IF NOT EXISTS(SELECT * FROM @CurrentCleanupDates WHERE (Mirror = 1 OR Mirror IS NULL) AND CleanupDate IS NULL)
+        BEGIN
+          UPDATE @CurrentDirectories
+          SET CleanupDate = (SELECT MIN(CleanupDate)
+                             FROM @CurrentCleanupDates
+                             WHERE (Mirror = 1 OR Mirror IS NULL)),
+              CleanupMode = 'AFTER_BACKUP'
+          WHERE Mirror = 1
+        END
+      END
+
+      -- Delete old backup files, after backup
+      IF ((@CurrentBackupOutput = 0 AND @Verify = 'N')
+      OR (@CurrentBackupOutput = 0 AND @Verify = 'Y' AND NOT EXISTS (SELECT * FROM @CurrentBackupSet WHERE VerifyOutput <> 0 OR VerifyOutput IS NULL)))
+      AND (@BackupSoftware <> 'DATA_DOMAIN_BOOST' OR @BackupSoftware IS NULL)
+      AND @CurrentBackupType = @BackupType
+      BEGIN
+        WHILE (1 = 1)
+        BEGIN
+          SELECT TOP 1 @CurrentDirectoryID = ID,
+                       @CurrentDirectoryPath = DirectoryPath,
+                       @CurrentCleanupDate = CleanupDate
+          FROM @CurrentDirectories
+          WHERE CleanupDate IS NOT NULL
+          AND CleanupMode = 'AFTER_BACKUP'
+          AND CleanupCompleted = 0
+          ORDER BY ID ASC
+
+          IF @@ROWCOUNT = 0
+          BEGIN
+            BREAK
+          END
+
+          IF @BackupSoftware IS NULL
+          BEGIN
+            SET @CurrentDatabaseContext = 'master'
+
+            SET @CurrentCommandType = 'xp_delete_file'
+
+            SET @CurrentCommand = 'DECLARE @ReturnCode int EXECUTE @ReturnCode = dbo.xp_delete_file 0, N''' + REPLACE(@CurrentDirectoryPath,'''','''''') + ''', ''' + REPLACE(@CurrentFileExtension,'''','''''') + ''', ''' + CONVERT(nvarchar(19),@CurrentCleanupDate,126) + ''' IF @ReturnCode <> 0 OR @ReturnCode IS NULL RAISERROR(''Error deleting files.'', 16, 1)'
+          END
+
+          IF @BackupSoftware = 'LITESPEED'
+          BEGIN
+            SET @CurrentDatabaseContext = 'master'
+
+            SET @CurrentCommandType = 'xp_slssqlmaint'
+
+            SET @CurrentCommand = 'DECLARE @ReturnCode int EXECUTE @ReturnCode = dbo.xp_slssqlmaint N''-MAINTDEL -DELFOLDER "' + REPLACE(@CurrentDirectoryPath,'''','''''') + '" -DELEXTENSION "' + REPLACE(@CurrentFileExtension,'''','''''') + '" -DELUNIT "' + CAST(DATEDIFF(mi,@CurrentCleanupDate,SYSDATETIME()) + 1 AS nvarchar(max)) + '" -DELUNITTYPE "minutes" -DELUSEAGE'' IF @ReturnCode <> 0 OR @ReturnCode IS NULL RAISERROR(''Error deleting LiteSpeed backup files.'', 16, 1)'
+          END
+
+          IF @BackupSoftware = 'SQLBACKUP'
+          BEGIN
+            SET @CurrentDatabaseContext = 'master'
+
+            SET @CurrentCommandType = 'sqbutility'
+
+            SET @CurrentCommand = 'DECLARE @ReturnCode int EXECUTE @ReturnCode = dbo.sqbutility 1032, N''' + REPLACE(@CurrentDatabaseName,'''','''''') + ''', N''' + REPLACE(@CurrentDirectoryPath,'''','''''') + ''', ''' + CASE WHEN @CurrentBackupType = 'FULL' THEN 'D' WHEN @CurrentBackupType = 'DIFF' THEN 'I' WHEN @CurrentBackupType = 'LOG' THEN 'L' END + ''', ''' + CAST(DATEDIFF(hh,@CurrentCleanupDate,SYSDATETIME()) + 1 AS nvarchar(max)) + 'h'', ' + ISNULL('''' + @EncryptionKeyPlaceholder + '''','NULL') + ' IF @ReturnCode <> 0 OR @ReturnCode IS NULL RAISERROR(''Error deleting SQLBackup backup files.'', 16, 1)'
+          END
+
+          IF @BackupSoftware = 'SQLSAFE'
+          BEGIN
+            SET @CurrentDatabaseContext = 'master'
+
+            SET @CurrentCommandType = 'xp_ss_delete'
+
+            SET @CurrentCommand = 'DECLARE @ReturnCode int EXECUTE @ReturnCode = dbo.xp_ss_delete @filename = N''' + REPLACE(@CurrentDirectoryPath,'''','''''') + '\*.' + REPLACE(@CurrentFileExtension,'''','''''') + ''', @age = ''' + CAST(DATEDIFF(mi,@CurrentCleanupDate,SYSDATETIME()) + 1 AS nvarchar(max)) + 'Minutes'' IF @ReturnCode <> 0 OR @ReturnCode IS NULL RAISERROR(''Error deleting SQLsafe backup files.'', 16, 1)'
+          END
+
+          EXECUTE @CurrentCommandOutput = dbo.CommandExecute @DatabaseContext = @CurrentDatabaseContext, @Command = @CurrentCommand, @CommandType = @CurrentCommandType, @Mode = 1, @DatabaseName = @CurrentDatabaseName, @EncryptionKey = @EncryptionKey, @EncryptionKeyPlaceholder = @EncryptionKeyPlaceholder, @LogToTable = @LogToTable, @Execute = @Execute
+          SET @Error = @@ERROR
+          IF @Error <> 0 SET @CurrentCommandOutput = @Error
+          IF @CurrentCommandOutput <> 0 SET @ReturnCode = @CurrentCommandOutput
+
+          UPDATE @CurrentDirectories
+          SET CleanupCompleted = 1,
+              CleanupOutput = @CurrentCommandOutput
+          WHERE ID = @CurrentDirectoryID
+
+          SET @CurrentDirectoryID = NULL
+          SET @CurrentDirectoryPath = NULL
+          SET @CurrentCleanupDate = NULL
+
+          SET @CurrentDatabaseContext = NULL
+          SET @CurrentCommand = NULL
+          SET @CurrentCommandOutput = NULL
+          SET @CurrentCommandType = NULL
+        END
+      END
+    END -- End of database backup check
+
+    IF @CurrentDatabaseState = 'SUSPECT'
+    BEGIN
+      SET @ErrorMessage = 'The database ' + QUOTENAME(@CurrentDatabaseName) + ' is in a SUSPECT state.'
+      RAISERROR('%s',16,1,@ErrorMessage) WITH NOWAIT
+      SET @Error = @@ERROR
+      SET @ReturnCode = @Error
+      RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+    END
+
+    -- Update that the database is completed
+    IF @DatabasesInParallel = 'Y'
+    BEGIN
+      UPDATE dbo.QueueDatabase
+      SET DatabaseEndTime = SYSDATETIME()
+      WHERE QueueID = @QueueID
+      AND DatabaseName = @CurrentDatabaseName
+    END
+    ELSE
+    BEGIN
+      UPDATE @tmpDatabases
+      SET Completed = 1
+      WHERE Selected = 1
+      AND Completed = 0
+      AND ID = @CurrentDBID
+    END
+
+    -- Clear variables
+    SET @CurrentDBID = NULL
+    SET @CurrentDatabaseName = NULL
+
+    SET @CurrentDatabase_sp_executesql = NULL
+
+    SET @CurrentUserAccess = NULL
+    SET @CurrentIsReadOnly = NULL
+    SET @CurrentDatabaseState = NULL
+    SET @CurrentInStandby = NULL
+    SET @CurrentRecoveryModel = NULL
+    SET @CurrentIsEncrypted = NULL
+    SET @CurrentDatabaseSize = NULL
+
+    SET @CurrentBackupType = NULL
+    SET @CurrentMaxTransferSize = NULL
+    SET @CurrentNumberOfFiles = NULL
+    SET @CurrentFileExtension = NULL
+    SET @CurrentFileNumber = NULL
+    SET @CurrentDifferentialBaseLSN = NULL
+    SET @CurrentDifferentialBaseIsSnapshot = NULL
+    SET @CurrentLogLSN = NULL
+    SET @BackupInProgress = NULL
+    SET @CurrentLatestBackup = NULL
+    SET @CurrentDatabaseNameFS = NULL
+    SET @CurrentDirectoryStructure = NULL
+    SET @CurrentDatabaseFileName = NULL
+    SET @CurrentMaxFilePathLength = NULL
+    SET @CurrentDate = NULL
+    SET @CurrentDateUTC = NULL
+    SET @CurrentCleanupDate = NULL
+    SET @CurrentAvailabilityGroupReplicaID = NULL
+    SET @CurrentAvailabilityGroupID = NULL
+    SET @CurrentAvailabilityGroup = NULL
+    SET @CurrentAvailabilityGroupRole = NULL
+    SET @CurrentAvailabilityGroupDatabaseReplicaSynchronizationState = NULL
+    SET @CurrentAvailabilityGroupDatabaseReplicaSynchronizationHealth = NULL
+    SET @CurrentAvailabilityGroupBackupPreference = NULL
+    SET @CurrentSecondaryRoleAllowConnections = NULL
+    SET @CurrentIsPreferredBackupReplica = NULL
+    SET @CurrentDistributedAvailabilityGroup = NULL
+    SET @CurrentDistributedAvailabilityGroupReplicaID = NULL
+    SET @CurrentDistributedAvailabilityGroupRole = NULL
+    SET @CurrentDatabaseMirroringRole = NULL
+    SET @CurrentLogShippingRole = NULL
+    SET @CurrentIsSeeding = NULL
+    SET @CurrentBackupOperationSupportedOnSecondaryReplicas = NULL
+    SET @CurrentLastLogBackup = NULL
+    SET @CurrentLogSizeSinceLastLogBackup = NULL
+    SET @CurrentAllocatedExtentPageCount = NULL
+    SET @CurrentModifiedExtentPageCount = NULL
+
+    SET @CurrentDatabaseContext = NULL
+    SET @CurrentCommand = NULL
+    SET @CurrentCommandOutput = NULL
+    SET @CurrentCommandType = NULL
+
+    SET @CurrentBackupOutput = NULL
+
+    DELETE FROM @CurrentDirectories
+    DELETE FROM @CurrentURLs
+    DELETE FROM @CurrentFiles
+    DELETE FROM @CurrentCleanupDates
+    DELETE FROM @CurrentBackupSet
+
+  END -- End of database loop
+
+  ----------------------------------------------------------------------------------------------------
+  --// Log completing information                                                                 //--
+  ----------------------------------------------------------------------------------------------------
+
+  Logging:
+  SET @EndMessage = 'Date and time: ' + CONVERT(nvarchar(max),SYSDATETIME(),120)
+  RAISERROR('%s',10,1,@EndMessage) WITH NOWAIT
+
+  RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+  IF @ReturnCode <> 0
+  BEGIN
+    RETURN @ReturnCode
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+END
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[DatabaseIntegrityCheck]') AND type in (N'P', N'PC'))
+BEGIN
+EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [dbo].[DatabaseIntegrityCheck] AS'
+END
+GO
+ALTER PROCEDURE [dbo].[DatabaseIntegrityCheck]
+
+@Databases nvarchar(max) = NULL,
+@CheckCommands nvarchar(max) = 'CHECKDB',
+@PhysicalOnly nvarchar(max) = 'N',
+@DataPurity nvarchar(max) = 'N',
+@NoIndex nvarchar(max) = 'N',
+@ExtendedLogicalChecks nvarchar(max) = 'N',
+@NoInformationalMessages nvarchar(max) = 'N',
+@TabLock nvarchar(max) = 'N',
+@FileGroups nvarchar(max) = NULL,
+@Objects nvarchar(max) = NULL,
+@MaxDOP int = NULL,
+@AvailabilityGroups nvarchar(max) = NULL,
+@AvailabilityGroupReplicas nvarchar(max) = 'ALL',
+@Updateability nvarchar(max) = 'ALL',
+@TimeLimit int = NULL,
+@LockTimeout int = NULL,
+@LockMessageSeverity int = 16,
+@StringDelimiter nvarchar(max) = ',',
+@DatabaseOrder nvarchar(max) = NULL,
+@DatabasesInParallel nvarchar(max) = 'N',
+@LogToTable nvarchar(max) = 'N',
+@Execute nvarchar(max) = 'Y'
+
+AS
+
+BEGIN
+
+  ----------------------------------------------------------------------------------------------------
+  --// Source:  https://ola.hallengren.com                                                        //--
+  --// License: https://ola.hallengren.com/license.html                                           //--
+  --// GitHub:  https://github.com/olahallengren/sql-server-maintenance-solution                  //--
+  --// Version: 2026-09-12 15:02:38                                                               //--
+  ----------------------------------------------------------------------------------------------------
+
+  SET NOCOUNT ON
+
+  DECLARE @StartMessage nvarchar(max)
+  DECLARE @EndMessage nvarchar(max)
+  DECLARE @DatabaseMessage nvarchar(max)
+  DECLARE @ErrorMessage nvarchar(max)
+  DECLARE @Severity int
+
+  DECLARE @StartTime datetime2 = SYSDATETIME()
+  DECLARE @SchemaName nvarchar(max) = OBJECT_SCHEMA_NAME(@@PROCID)
+  DECLARE @ObjectName nvarchar(max) = OBJECT_NAME(@@PROCID)
+  DECLARE @VersionTimestamp nvarchar(max) = SUBSTRING(OBJECT_DEFINITION(@@PROCID),CHARINDEX('--// Version: ',OBJECT_DEFINITION(@@PROCID)) + LEN('--// Version: ') + 1, 19)
+
+  DECLARE @Parameters TABLE (ID int IDENTITY PRIMARY KEY,
+                             [Name] nvarchar(max) NOT NULL,
+                             ValueNvarchar nvarchar(max),
+                             ValueInt int,
+                             ValueDatetime datetime2)
+
+  DECLARE @ParametersString nvarchar(max)
+  DECLARE @CurrentParameterName nvarchar(max)
+  DECLARE @CurrentParameterValueNvarchar nvarchar(max)
+  DECLARE @CurrentParameterValueInt int
+  DECLARE @CurrentParameterValueDatetime datetime2
+  DECLARE @CurrentParameterDelimiter nvarchar(max)
+  DECLARE @CurrentParameterMessage nvarchar(max)
+
+  DECLARE @HostPlatform nvarchar(max)
+  DECLARE @ContainedAvailabilityGroupID uniqueidentifier
+  DECLARE @ContainedAvailabilityGroupListenerConnection bit
+  DECLARE @IsSysadmin bit = IS_SRVROLEMEMBER('sysadmin')
+
+  DECLARE @QueueID int
+  DECLARE @QueueStartTime datetime2
+
+  DECLARE @CurrentDBID int
+  DECLARE @CurrentDatabaseName nvarchar(max)
+
+  DECLARE @CurrentDatabase_sp_executesql nvarchar(max)
+
+  DECLARE @CurrentUserAccess nvarchar(max)
+  DECLARE @CurrentIsReadOnly bit
+  DECLARE @CurrentDatabaseState nvarchar(max)
+  DECLARE @CurrentInStandby bit
+  DECLARE @CurrentRecoveryModel nvarchar(max)
+  DECLARE @CurrentAvailabilityGroupReplicaID uniqueidentifier
+  DECLARE @CurrentAvailabilityGroupID uniqueidentifier
+  DECLARE @CurrentAvailabilityGroup nvarchar(max)
+  DECLARE @CurrentAvailabilityGroupRole nvarchar(max)
+  DECLARE @CurrentAvailabilityGroupDatabaseReplicaSynchronizationState nvarchar(max)
+  DECLARE @CurrentAvailabilityGroupDatabaseReplicaSynchronizationHealth nvarchar(max)
+  DECLARE @CurrentAvailabilityGroupBackupPreference nvarchar(max)
+  DECLARE @CurrentSecondaryRoleAllowConnections nvarchar(max)
+  DECLARE @CurrentIsPreferredBackupReplica bit
+  DECLARE @CurrentDistributedAvailabilityGroup nvarchar(max)
+  DECLARE @CurrentDistributedAvailabilityGroupReplicaID uniqueidentifier
+  DECLARE @CurrentDistributedAvailabilityGroupRole nvarchar(max)
+  DECLARE @CurrentDatabaseMirroringRole nvarchar(max)
+
+  DECLARE @CurrentFGID int
+  DECLARE @CurrentFileGroupID int
+  DECLARE @CurrentFileGroupName nvarchar(max)
+  DECLARE @CurrentFileGroupExists bit
+
+  DECLARE @CurrentOID int
+  DECLARE @CurrentSchemaID int
+  DECLARE @CurrentSchemaName nvarchar(max)
+  DECLARE @CurrentObjectID int
+  DECLARE @CurrentObjectName nvarchar(max)
+  DECLARE @CurrentObjectType nvarchar(max)
+  DECLARE @CurrentObjectExists bit
+
+  DECLARE @CurrentDatabaseContext nvarchar(max)
+  DECLARE @CurrentCommand nvarchar(max)
+  DECLARE @CurrentCommandOutput int
+  DECLARE @CurrentCommandType nvarchar(max)
+
+  DECLARE @Errors TABLE (ID int IDENTITY PRIMARY KEY,
+                         [Message] nvarchar(max) NOT NULL,
+                         Severity int NOT NULL,
+                         [State] int NOT NULL)
+
+  DECLARE @CurrentMessage nvarchar(max)
+  DECLARE @CurrentSeverity int
+  DECLARE @CurrentState int
+
+  DECLARE @tmpDatabases TABLE (ID int IDENTITY,
+                               DatabaseName nvarchar(128),
+                               DatabaseType nvarchar(1),
+                               AvailabilityGroup bit,
+                               [Snapshot] bit,
+                               StartPosition int,
+                               LastCommandTime datetime2,
+                               DatabaseSize bigint,
+                               LastGoodCheckDbTime datetime2,
+                               [Order] int DEFAULT 0,
+                               Selected bit DEFAULT 0,
+                               Completed bit DEFAULT 0,
+                               PRIMARY KEY (Selected, Completed, [Order], ID))
+
+  DECLARE @tmpAvailabilityGroups TABLE (ID int IDENTITY PRIMARY KEY,
+                                        AvailabilityGroupName nvarchar(128),
+                                        StartPosition int,
+                                        Selected bit DEFAULT 0)
+
+  DECLARE @tmpDatabasesAvailabilityGroups TABLE (DatabaseName nvarchar(128),
+                                                 AvailabilityGroupName nvarchar(128))
+
+  DECLARE @tmpFileGroups TABLE (ID int IDENTITY,
+                                FileGroupID int,
+                                FileGroupName nvarchar(128),
+                                StartPosition int,
+                                [Order] int DEFAULT 0,
+                                Selected bit DEFAULT 0,
+                                Completed bit DEFAULT 0,
+                                PRIMARY KEY (Selected, Completed, [Order], ID))
+
+  DECLARE @tmpObjects TABLE (ID int IDENTITY,
+                             SchemaID int,
+                             SchemaName nvarchar(128),
+                             ObjectID int,
+                             ObjectName nvarchar(128),
+                             ObjectType nvarchar(2),
+                             StartPosition int,
+                             [Order] int DEFAULT 0,
+                             Selected bit DEFAULT 0,
+                             Completed bit DEFAULT 0,
+                             PRIMARY KEY (Selected, Completed, [Order], ID))
+
+  DECLARE @SelectedDatabases TABLE (DatabaseName nvarchar(max),
+                                    DatabaseType nvarchar(1),
+                                    AvailabilityGroup bit,
+                                    StartPosition int,
+                                    Selected bit)
+
+  DECLARE @SelectedAvailabilityGroups TABLE (AvailabilityGroupName nvarchar(max),
+                                             StartPosition int,
+                                             Selected bit)
+
+  DECLARE @SelectedFileGroups TABLE (DatabaseName nvarchar(max),
+                                     FileGroupName nvarchar(max),
+                                     StartPosition int,
+                                     Selected bit)
+
+  DECLARE @SelectedObjects TABLE (DatabaseName nvarchar(max),
+                                  SchemaName nvarchar(max),
+                                  ObjectName nvarchar(max),
+                                  StartPosition int,
+                                  Selected bit)
+
+  DECLARE @SelectedCheckCommands TABLE (CheckCommand nvarchar(max))
+
+  DECLARE @Error int = 0
+  DECLARE @ReturnCode int = 0
+
+  DECLARE @EmptyLine nvarchar(max) = CHAR(9)
+
+  DECLARE @ProductVersion nvarchar(max) = CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(max))
+  DECLARE @ProductUpdateType nvarchar(max) = CAST(SERVERPROPERTY('ProductUpdateType') AS nvarchar(max))
+  DECLARE @EngineEdition int = CAST(SERVERPROPERTY('EngineEdition') AS int)
+  DECLARE @Edition nvarchar(max) = CAST(SERVERPROPERTY('Edition') AS nvarchar(max))
+  DECLARE @IsHadrEnabled bit = CAST(SERVERPROPERTY('IsHadrEnabled') AS bit)
+  DECLARE @IsClustered bit = CAST(SERVERPROPERTY('IsClustered') AS bit)
+  DECLARE @ServerName nvarchar(max) = CAST(SERVERPROPERTY('ServerName') AS nvarchar(max))
+
+  DECLARE @Version numeric(18,10) = CAST(PARSENAME(@ProductVersion,4) + '.' + PARSENAME(@ProductVersion,3) + PARSENAME(@ProductVersion,2) AS numeric(18,10))
+
+  IF @EngineEdition = 8 AND @ProductVersion = '12.0.2000.8' AND @ProductUpdateType = 'CU'
+  BEGIN
+    SET @Version = 16.01000
+  END
+
+  IF @EngineEdition <> 5
+  BEGIN
+    SELECT @HostPlatform = host_platform
+    FROM sys.dm_os_host_info
+  END
+
+  IF @Version >= 16 AND @EngineEdition NOT IN(5, 8)
+  BEGIN
+    SET @CurrentCommand = 'SELECT @ParamContainedAvailabilityGroupID = contained_availability_group_id FROM sys.dm_exec_sessions WHERE session_id = @@SPID'
+
+    EXECUTE sp_executesql @stmt = @CurrentCommand, @params = N'@ParamContainedAvailabilityGroupID uniqueidentifier OUTPUT', @ParamContainedAvailabilityGroupID = @ContainedAvailabilityGroupID OUTPUT
+  END
+
+  SET @ContainedAvailabilityGroupListenerConnection = CASE WHEN @ContainedAvailabilityGroupID IS NOT NULL THEN 1 ELSE 0 END
+
+  DECLARE @AmazonRDS bit = CASE WHEN @EngineEdition IN (5, 8) THEN 0 WHEN EXISTS (SELECT * FROM sys.databases WHERE [name] = 'rdsadmin') AND SUSER_SNAME(0x01) = 'rdsa' THEN 1 ELSE 0 END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Log initial information                                                                    //--
+  ----------------------------------------------------------------------------------------------------
+
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Databases', @Databases)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@CheckCommands', @CheckCommands)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@PhysicalOnly', @PhysicalOnly)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@DataPurity', @DataPurity)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@NoIndex', @NoIndex)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@ExtendedLogicalChecks', @ExtendedLogicalChecks)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@NoInformationalMessages', @NoInformationalMessages)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@TabLock', @TabLock)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@FileGroups', @FileGroups)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Objects', @Objects)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@MaxDOP', @MaxDOP)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@AvailabilityGroups', @AvailabilityGroups)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@AvailabilityGroupReplicas', @AvailabilityGroupReplicas)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Updateability', @Updateability)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@TimeLimit', @TimeLimit)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@LockTimeout', @LockTimeout)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@LockMessageSeverity', @LockMessageSeverity)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@StringDelimiter', @StringDelimiter)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@DatabaseOrder', @DatabaseOrder)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@DatabasesInParallel', @DatabasesInParallel)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@LogToTable', @LogToTable)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Execute', @Execute)
+
+  SELECT @ParametersString = STRING_AGG(CAST([Name] + ' = ' + CASE WHEN ValueNvarchar IS NOT NULL THEN '''' + REPLACE(ValueNvarchar,'''','''''') + '''' WHEN ValueInt IS NOT NULL THEN CAST(ValueInt AS nvarchar(max)) WHEN ValueDatetime IS NOT NULL THEN '''' + CONVERT(nvarchar(max), ValueDatetime, 21) + '''' ELSE 'NULL' END AS nvarchar(max)), ', ') WITHIN GROUP (ORDER BY [ID] ASC)
+  FROM @Parameters
+
+  SET @StartMessage = 'Date and time: ' + CONVERT(nvarchar(max),@StartTime,120)
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Server: ' + @ServerName
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Version: ' + @ProductVersion
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Edition: ' + @Edition
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  IF @EngineEdition = 8
+  BEGIN
+    SET @StartMessage = 'Update type: ' + @ProductUpdateType
+    RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+  END
+
+  IF @EngineEdition <> 5
+  BEGIN
+    SET @StartMessage = 'Platform: ' + ISNULL(@HostPlatform, 'N/A')
+    RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+  END
+
+  IF @Version >= 16 AND @EngineEdition NOT IN(5, 8)
+  BEGIN
+    SET @StartMessage = 'Contained availability group connection: ' + CASE WHEN @ContainedAvailabilityGroupListenerConnection = 1 THEN 'Yes' WHEN @ContainedAvailabilityGroupListenerConnection = 0 THEN 'No' ELSE 'N/A' END
+    RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+  END
+
+  IF @EngineEdition <> 5
+  BEGIN
+    SET @StartMessage = 'Is sysadmin: ' + CASE WHEN @IsSysadmin = 1 THEN 'Yes' WHEN @IsSysadmin = 0 THEN 'No' ELSE 'N/A' END
+    RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+  END
+
+  SET @StartMessage = 'Database: ' + QUOTENAME(DB_NAME())
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Procedure: ' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@ObjectName)
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Version: ' + @VersionTimestamp
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Source: https://ola.hallengren.com'
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+  RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+  SET @StartMessage = 'Command:'
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'EXECUTE ' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@ObjectName)
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  DECLARE ParameterCursor CURSOR LOCAL FAST_FORWARD FOR SELECT [Name], ValueNvarchar, ValueInt, ValueDatetime, CASE WHEN [ID] = MAX([ID]) OVER() THEN '' ELSE ',' END FROM @Parameters ORDER BY [ID] ASC
+
+  OPEN ParameterCursor
+
+  FETCH ParameterCursor INTO @CurrentParameterName, @CurrentParameterValueNvarchar, @CurrentParameterValueInt, @CurrentParameterValueDatetime, @CurrentParameterDelimiter
+
+  WHILE @@FETCH_STATUS = 0
+  BEGIN
+    SET @CurrentParameterMessage = @CurrentParameterName + ' = ' + CASE WHEN @CurrentParameterValueNvarchar IS NOT NULL THEN '''' + REPLACE(@CurrentParameterValueNvarchar,'''','''''') + '''' WHEN @CurrentParameterValueInt IS NOT NULL THEN CAST(@CurrentParameterValueInt AS nvarchar(max)) WHEN @CurrentParameterValueDatetime IS NOT NULL THEN '''' + CONVERT(nvarchar(max), @CurrentParameterValueDatetime, 21) + '''' ELSE 'NULL' END + @CurrentParameterDelimiter
+
+    RAISERROR('%s',10,1,@CurrentParameterMessage) WITH NOWAIT
+
+    FETCH NEXT FROM ParameterCursor INTO @CurrentParameterName, @CurrentParameterValueNvarchar, @CurrentParameterValueInt, @CurrentParameterValueDatetime, @CurrentParameterDelimiter
+  END
+
+  CLOSE ParameterCursor
+
+  DEALLOCATE ParameterCursor
+
+  RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+  ----------------------------------------------------------------------------------------------------
+  --// Check core requirements                                                                    //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF NOT (SELECT uses_ansi_nulls FROM sys.sql_modules WHERE [object_id] = @@PROCID) = 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('ANSI_NULLS has to be set to ON for the stored procedure. See https://ola.hallengren.com/sql-server-integrity-check.html.', 16, 1)
+  END
+
+  IF NOT (SELECT uses_quoted_identifier FROM sys.sql_modules WHERE [object_id] = @@PROCID) = 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('QUOTED_IDENTIFIER has to be set to ON for the stored procedure. See https://ola.hallengren.com/sql-server-integrity-check.html.', 16, 1)
+  END
+
+  IF NOT EXISTS (SELECT * FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] = 'P' AND schemas.[name] = 'dbo' AND objects.[name] = 'CommandExecute')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The stored procedure CommandExecute is missing. Download https://ola.hallengren.com/scripts/CommandExecute.sql.', 16, 1)
+  END
+
+  IF EXISTS (SELECT * FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] = 'P' AND schemas.[name] = 'dbo' AND objects.[name] = 'CommandExecute' AND OBJECT_DEFINITION(objects.[object_id]) NOT LIKE '%@DatabaseContext%')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The stored procedure CommandExecute needs to be updated. Download https://ola.hallengren.com/scripts/CommandExecute.sql.', 16, 1)
+  END
+
+  IF @LogToTable = 'Y' AND NOT EXISTS (SELECT * FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] = 'U' AND schemas.[name] = 'dbo' AND objects.[name] = 'CommandLog')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The table CommandLog is missing. Download https://ola.hallengren.com/scripts/CommandLog.sql.', 16, 1)
+  END
+
+  IF @DatabasesInParallel = 'Y' AND NOT EXISTS (SELECT * FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] = 'U' AND schemas.[name] = 'dbo' AND objects.[name] = 'Queue')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The table Queue is missing. It is required when @DatabasesInParallel = ''Y''. Download https://ola.hallengren.com/scripts/Queue.sql.', 16, 1)
+  END
+
+  IF @DatabasesInParallel = 'Y' AND NOT EXISTS (SELECT * FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] = 'U' AND schemas.[name] = 'dbo' AND objects.[name] = 'QueueDatabase')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The table QueueDatabase is missing. It is required when @DatabasesInParallel = ''Y''. Download https://ola.hallengren.com/scripts/QueueDatabase.sql.', 16, 1)
+  END
+
+  IF @@TRANCOUNT <> 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The stored procedure cannot be executed inside a transaction. The transaction count (@@TRANCOUNT) has to be 0. See https://ola.hallengren.com/sql-server-integrity-check.html.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Select databases                                                                           //--
+  ----------------------------------------------------------------------------------------------------
+
+  SET @Databases = REPLACE(@Databases, CHAR(10), '')
+  SET @Databases = REPLACE(@Databases, CHAR(13), '')
+
+  WHILE CHARINDEX(@StringDelimiter + ' ', @Databases) > 0 SET @Databases = REPLACE(@Databases, @StringDelimiter + ' ', @StringDelimiter)
+  WHILE CHARINDEX(' ' + @StringDelimiter, @Databases) > 0 SET @Databases = REPLACE(@Databases, ' ' + @StringDelimiter, @StringDelimiter)
+
+  SET @Databases = LTRIM(RTRIM(@Databases));
+
+  WITH Databases1 (StartPosition, EndPosition, DatabaseItem) AS
+  (
+  SELECT 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Databases, 1), 0), LEN(@Databases) + 1) AS EndPosition,
+         SUBSTRING(@Databases, 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Databases, 1), 0), LEN(@Databases) + 1) - 1) AS DatabaseItem
+  WHERE @Databases IS NOT NULL
+  UNION ALL
+  SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Databases, EndPosition + 1), 0), LEN(@Databases) + 1) AS EndPosition,
+         SUBSTRING(@Databases, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Databases, EndPosition + 1), 0), LEN(@Databases) + 1) - EndPosition - 1) AS DatabaseItem
+  FROM Databases1
+  WHERE EndPosition < LEN(@Databases) + 1
+  ),
+  Databases2 (DatabaseItem, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN DatabaseItem LIKE '-%' THEN RIGHT(DatabaseItem,LEN(DatabaseItem) - 1) ELSE DatabaseItem END AS DatabaseItem,
+         StartPosition,
+         CASE WHEN DatabaseItem LIKE '-%' THEN 0 ELSE 1 END AS Selected
+  FROM Databases1
+  ),
+  Databases3 (DatabaseItem, DatabaseType, AvailabilityGroup, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN DatabaseItem IN('ALL_DATABASES','SYSTEM_DATABASES','USER_DATABASES','AVAILABILITY_GROUP_DATABASES') THEN '%' ELSE DatabaseItem END AS DatabaseItem,
+         CASE WHEN DatabaseItem = 'SYSTEM_DATABASES' THEN 'S' WHEN DatabaseItem = 'USER_DATABASES' THEN 'U' ELSE NULL END AS DatabaseType,
+         CASE WHEN DatabaseItem = 'AVAILABILITY_GROUP_DATABASES' THEN 1 ELSE NULL END AvailabilityGroup,
+         StartPosition,
+         Selected
+  FROM Databases2
+  ),
+  Databases4 (DatabaseName, DatabaseType, AvailabilityGroup, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN LEFT(DatabaseItem,1) = '[' AND RIGHT(DatabaseItem,1) = ']' THEN PARSENAME(DatabaseItem,1) ELSE DatabaseItem END AS DatabaseItem,
+         DatabaseType,
+         AvailabilityGroup,
+         StartPosition,
+         Selected
+  FROM Databases3
+  )
+  INSERT INTO @SelectedDatabases (DatabaseName, DatabaseType, AvailabilityGroup, StartPosition, Selected)
+  SELECT DatabaseName,
+         DatabaseType,
+         AvailabilityGroup,
+         StartPosition,
+         Selected
+  FROM Databases4
+  OPTION (MAXRECURSION 0)
+
+  IF @IsHadrEnabled = 1
+  BEGIN
+    INSERT INTO @tmpAvailabilityGroups (AvailabilityGroupName)
+    SELECT name AS AvailabilityGroupName
+    FROM sys.availability_groups
+
+    INSERT INTO @tmpDatabasesAvailabilityGroups (DatabaseName, AvailabilityGroupName)
+    SELECT databases.name,
+           availability_groups.name
+    FROM sys.databases databases
+    INNER JOIN sys.availability_replicas availability_replicas ON databases.replica_id = availability_replicas.replica_id
+    INNER JOIN sys.availability_groups availability_groups ON availability_replicas.group_id = availability_groups.group_id
+  END
+
+  INSERT INTO @tmpDatabases (DatabaseName, DatabaseType, AvailabilityGroup, [Snapshot])
+  SELECT [name] AS DatabaseName,
+         CASE WHEN name IN('master','msdb','model') OR is_distributor = 1 THEN 'S' ELSE 'U' END AS DatabaseType,
+         NULL AS AvailabilityGroup,
+         CASE WHEN source_database_id IS NOT NULL THEN 1 ELSE 0 END AS [Snapshot]
+  FROM sys.databases
+  ORDER BY [name] ASC
+
+  UPDATE tmpDatabases
+  SET AvailabilityGroup = CASE WHEN EXISTS (SELECT * FROM @tmpDatabasesAvailabilityGroups WHERE DatabaseName = tmpDatabases.DatabaseName) THEN 1 ELSE 0 END
+  FROM @tmpDatabases tmpDatabases
+
+  UPDATE tmpDatabases
+  SET tmpDatabases.Selected = SelectedDatabases.Selected
+  FROM @tmpDatabases tmpDatabases
+  INNER JOIN @SelectedDatabases SelectedDatabases
+  ON tmpDatabases.DatabaseName LIKE REPLACE(REPLACE(SelectedDatabases.DatabaseName,'[','[[]'),'_','[_]')
+  AND (tmpDatabases.DatabaseType = SelectedDatabases.DatabaseType OR SelectedDatabases.DatabaseType IS NULL)
+  AND (tmpDatabases.AvailabilityGroup = SelectedDatabases.AvailabilityGroup OR SelectedDatabases.AvailabilityGroup IS NULL)
+  AND NOT ((tmpDatabases.DatabaseName = 'tempdb' OR tmpDatabases.[Snapshot] = 1) AND tmpDatabases.DatabaseName <> SelectedDatabases.DatabaseName)
+  WHERE SelectedDatabases.Selected = 1
+
+  UPDATE tmpDatabases
+  SET tmpDatabases.Selected = SelectedDatabases.Selected
+  FROM @tmpDatabases tmpDatabases
+  INNER JOIN @SelectedDatabases SelectedDatabases
+  ON tmpDatabases.DatabaseName LIKE REPLACE(REPLACE(SelectedDatabases.DatabaseName,'[','[[]'),'_','[_]')
+  AND (tmpDatabases.DatabaseType = SelectedDatabases.DatabaseType OR SelectedDatabases.DatabaseType IS NULL)
+  AND (tmpDatabases.AvailabilityGroup = SelectedDatabases.AvailabilityGroup OR SelectedDatabases.AvailabilityGroup IS NULL)
+  AND NOT ((tmpDatabases.DatabaseName = 'tempdb' OR tmpDatabases.[Snapshot] = 1) AND tmpDatabases.DatabaseName <> SelectedDatabases.DatabaseName)
+  WHERE SelectedDatabases.Selected = 0
+
+  UPDATE tmpDatabases
+  SET tmpDatabases.StartPosition = SelectedDatabases2.StartPosition
+  FROM @tmpDatabases tmpDatabases
+  INNER JOIN (SELECT tmpDatabases.DatabaseName, MIN(SelectedDatabases.StartPosition) AS StartPosition
+              FROM @tmpDatabases tmpDatabases
+              INNER JOIN @SelectedDatabases SelectedDatabases
+              ON tmpDatabases.DatabaseName LIKE REPLACE(REPLACE(SelectedDatabases.DatabaseName,'[','[[]'),'_','[_]')
+              AND (tmpDatabases.DatabaseType = SelectedDatabases.DatabaseType OR SelectedDatabases.DatabaseType IS NULL)
+              AND (tmpDatabases.AvailabilityGroup = SelectedDatabases.AvailabilityGroup OR SelectedDatabases.AvailabilityGroup IS NULL)
+              WHERE SelectedDatabases.Selected = 1
+              GROUP BY tmpDatabases.DatabaseName) SelectedDatabases2
+  ON tmpDatabases.DatabaseName = SelectedDatabases2.DatabaseName
+
+  IF @Databases IS NOT NULL AND (NOT EXISTS(SELECT * FROM @SelectedDatabases) OR EXISTS(SELECT * FROM @SelectedDatabases WHERE DatabaseName IS NULL OR DATALENGTH(DatabaseName) = 0))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Databases is not supported. The value could not be parsed into a list of databases. See https://ola.hallengren.com/sql-server-integrity-check.html#Databases.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Select availability groups                                                                 //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @AvailabilityGroups IS NOT NULL AND @IsHadrEnabled = 1
+  BEGIN
+
+    SET @AvailabilityGroups = REPLACE(@AvailabilityGroups, CHAR(10), '')
+    SET @AvailabilityGroups = REPLACE(@AvailabilityGroups, CHAR(13), '')
+
+    WHILE CHARINDEX(@StringDelimiter + ' ', @AvailabilityGroups) > 0 SET @AvailabilityGroups = REPLACE(@AvailabilityGroups, @StringDelimiter + ' ', @StringDelimiter)
+    WHILE CHARINDEX(' ' + @StringDelimiter, @AvailabilityGroups) > 0 SET @AvailabilityGroups = REPLACE(@AvailabilityGroups, ' ' + @StringDelimiter, @StringDelimiter)
+
+    SET @AvailabilityGroups = LTRIM(RTRIM(@AvailabilityGroups));
+
+    WITH AvailabilityGroups1 (StartPosition, EndPosition, AvailabilityGroupItem) AS
+    (
+    SELECT 1 AS StartPosition,
+           ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @AvailabilityGroups, 1), 0), LEN(@AvailabilityGroups) + 1) AS EndPosition,
+           SUBSTRING(@AvailabilityGroups, 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @AvailabilityGroups, 1), 0), LEN(@AvailabilityGroups) + 1) - 1) AS AvailabilityGroupItem
+    WHERE @AvailabilityGroups IS NOT NULL
+    UNION ALL
+    SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+           ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @AvailabilityGroups, EndPosition + 1), 0), LEN(@AvailabilityGroups) + 1) AS EndPosition,
+           SUBSTRING(@AvailabilityGroups, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @AvailabilityGroups, EndPosition + 1), 0), LEN(@AvailabilityGroups) + 1) - EndPosition - 1) AS AvailabilityGroupItem
+    FROM AvailabilityGroups1
+    WHERE EndPosition < LEN(@AvailabilityGroups) + 1
+    ),
+    AvailabilityGroups2 (AvailabilityGroupItem, StartPosition, Selected) AS
+    (
+    SELECT CASE WHEN AvailabilityGroupItem LIKE '-%' THEN RIGHT(AvailabilityGroupItem,LEN(AvailabilityGroupItem) - 1) ELSE AvailabilityGroupItem END AS AvailabilityGroupItem,
+           StartPosition,
+           CASE WHEN AvailabilityGroupItem LIKE '-%' THEN 0 ELSE 1 END AS Selected
+    FROM AvailabilityGroups1
+    ),
+    AvailabilityGroups3 (AvailabilityGroupItem, StartPosition, Selected) AS
+    (
+    SELECT CASE WHEN AvailabilityGroupItem = 'ALL_AVAILABILITY_GROUPS' THEN '%' ELSE AvailabilityGroupItem END AS AvailabilityGroupItem,
+           StartPosition,
+           Selected
+    FROM AvailabilityGroups2
+    ),
+    AvailabilityGroups4 (AvailabilityGroupName, StartPosition, Selected) AS
+    (
+    SELECT CASE WHEN LEFT(AvailabilityGroupItem,1) = '[' AND RIGHT(AvailabilityGroupItem,1) = ']' THEN PARSENAME(AvailabilityGroupItem,1) ELSE AvailabilityGroupItem END AS AvailabilityGroupItem,
+           StartPosition,
+           Selected
+    FROM AvailabilityGroups3
+    )
+    INSERT INTO @SelectedAvailabilityGroups (AvailabilityGroupName, StartPosition, Selected)
+    SELECT AvailabilityGroupName, StartPosition, Selected
+    FROM AvailabilityGroups4
+    OPTION (MAXRECURSION 0)
+
+    UPDATE tmpAvailabilityGroups
+    SET tmpAvailabilityGroups.Selected = SelectedAvailabilityGroups.Selected
+    FROM @tmpAvailabilityGroups tmpAvailabilityGroups
+    INNER JOIN @SelectedAvailabilityGroups SelectedAvailabilityGroups
+    ON tmpAvailabilityGroups.AvailabilityGroupName LIKE REPLACE(REPLACE(SelectedAvailabilityGroups.AvailabilityGroupName,'[','[[]'),'_','[_]')
+    WHERE SelectedAvailabilityGroups.Selected = 1
+
+    UPDATE tmpAvailabilityGroups
+    SET tmpAvailabilityGroups.Selected = SelectedAvailabilityGroups.Selected
+    FROM @tmpAvailabilityGroups tmpAvailabilityGroups
+    INNER JOIN @SelectedAvailabilityGroups SelectedAvailabilityGroups
+    ON tmpAvailabilityGroups.AvailabilityGroupName LIKE REPLACE(REPLACE(SelectedAvailabilityGroups.AvailabilityGroupName,'[','[[]'),'_','[_]')
+    WHERE SelectedAvailabilityGroups.Selected = 0
+
+    UPDATE tmpAvailabilityGroups
+    SET tmpAvailabilityGroups.StartPosition = SelectedAvailabilityGroups2.StartPosition
+    FROM @tmpAvailabilityGroups tmpAvailabilityGroups
+    INNER JOIN (SELECT tmpAvailabilityGroups.AvailabilityGroupName, MIN(SelectedAvailabilityGroups.StartPosition) AS StartPosition
+                FROM @tmpAvailabilityGroups tmpAvailabilityGroups
+                INNER JOIN @SelectedAvailabilityGroups SelectedAvailabilityGroups
+                ON tmpAvailabilityGroups.AvailabilityGroupName LIKE REPLACE(REPLACE(SelectedAvailabilityGroups.AvailabilityGroupName,'[','[[]'),'_','[_]')
+                WHERE SelectedAvailabilityGroups.Selected = 1
+                GROUP BY tmpAvailabilityGroups.AvailabilityGroupName) SelectedAvailabilityGroups2
+    ON tmpAvailabilityGroups.AvailabilityGroupName = SelectedAvailabilityGroups2.AvailabilityGroupName
+
+    UPDATE tmpDatabases
+    SET tmpDatabases.StartPosition = tmpAvailabilityGroups.StartPosition,
+        tmpDatabases.Selected = 1
+    FROM @tmpDatabases tmpDatabases
+    INNER JOIN @tmpDatabasesAvailabilityGroups tmpDatabasesAvailabilityGroups ON tmpDatabases.DatabaseName = tmpDatabasesAvailabilityGroups.DatabaseName
+    INNER JOIN @tmpAvailabilityGroups tmpAvailabilityGroups ON tmpDatabasesAvailabilityGroups.AvailabilityGroupName = tmpAvailabilityGroups.AvailabilityGroupName
+    WHERE tmpAvailabilityGroups.Selected = 1
+
+  END
+
+  IF @AvailabilityGroups IS NOT NULL AND (NOT EXISTS(SELECT * FROM @SelectedAvailabilityGroups) OR EXISTS(SELECT * FROM @SelectedAvailabilityGroups WHERE AvailabilityGroupName IS NULL OR AvailabilityGroupName = ''))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @AvailabilityGroups is not supported. The value could not be parsed into a list of availability groups. See https://ola.hallengren.com/sql-server-integrity-check.html#AvailabilityGroups.', 16, 1)
+  END
+
+  IF @AvailabilityGroups IS NOT NULL AND @IsHadrEnabled = 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @AvailabilityGroups can only be used when availability groups are enabled on the instance. See https://ola.hallengren.com/sql-server-integrity-check.html#AvailabilityGroups.', 16, 1)
+  END
+
+  IF (@Databases IS NULL AND @AvailabilityGroups IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('You need to specify one of the parameters @Databases and @AvailabilityGroups. See https://ola.hallengren.com/sql-server-integrity-check.html.', 16, 1)
+  END
+
+  IF (@Databases IS NOT NULL AND @AvailabilityGroups IS NOT NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('You can only specify one of the parameters @Databases and @AvailabilityGroups. See https://ola.hallengren.com/sql-server-integrity-check.html.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Select filegroups                                                                          //--
+  ----------------------------------------------------------------------------------------------------
+
+  SET @FileGroups = REPLACE(@FileGroups, CHAR(10), '')
+  SET @FileGroups = REPLACE(@FileGroups, CHAR(13), '')
+
+  WHILE CHARINDEX(@StringDelimiter + ' ', @FileGroups) > 0 SET @FileGroups = REPLACE(@FileGroups, @StringDelimiter + ' ', @StringDelimiter)
+  WHILE CHARINDEX(' ' + @StringDelimiter, @FileGroups) > 0 SET @FileGroups = REPLACE(@FileGroups, ' ' + @StringDelimiter, @StringDelimiter)
+
+  SET @FileGroups = LTRIM(RTRIM(@FileGroups));
+
+  WITH FileGroups1 (StartPosition, EndPosition, FileGroupItem) AS
+  (
+  SELECT 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @FileGroups, 1), 0), LEN(@FileGroups) + 1) AS EndPosition,
+         SUBSTRING(@FileGroups, 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @FileGroups, 1), 0), LEN(@FileGroups) + 1) - 1) AS FileGroupItem
+  WHERE @FileGroups IS NOT NULL
+  UNION ALL
+  SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @FileGroups, EndPosition + 1), 0), LEN(@FileGroups) + 1) AS EndPosition,
+         SUBSTRING(@FileGroups, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @FileGroups, EndPosition + 1), 0), LEN(@FileGroups) + 1) - EndPosition - 1) AS FileGroupItem
+  FROM FileGroups1
+  WHERE EndPosition < LEN(@FileGroups) + 1
+  ),
+  FileGroups2 (FileGroupItem, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN FileGroupItem LIKE '-%' THEN RIGHT(FileGroupItem,LEN(FileGroupItem) - 1) ELSE FileGroupItem END AS FileGroupItem,
+         StartPosition,
+         CASE WHEN FileGroupItem LIKE '-%' THEN 0 ELSE 1 END AS Selected
+  FROM FileGroups1
+  ),
+  FileGroups3 (FileGroupItem, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN FileGroupItem = 'ALL_FILEGROUPS' THEN '%.%' ELSE FileGroupItem END AS FileGroupItem,
+         StartPosition,
+         Selected
+  FROM FileGroups2
+  ),
+  FileGroups4 (DatabaseName, FileGroupName, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN PARSENAME(FileGroupItem,4) IS NULL AND PARSENAME(FileGroupItem,3) IS NULL THEN PARSENAME(FileGroupItem,2) ELSE NULL END AS DatabaseName,
+         CASE WHEN PARSENAME(FileGroupItem,4) IS NULL AND PARSENAME(FileGroupItem,3) IS NULL THEN PARSENAME(FileGroupItem,1) ELSE NULL END AS FileGroupName,
+         StartPosition,
+         Selected
+  FROM FileGroups3
+  )
+  INSERT INTO @SelectedFileGroups (DatabaseName, FileGroupName, StartPosition, Selected)
+  SELECT DatabaseName, FileGroupName, StartPosition, Selected
+  FROM FileGroups4
+  OPTION (MAXRECURSION 0)
+
+  ----------------------------------------------------------------------------------------------------
+  --// Select objects                                                                             //--
+  ----------------------------------------------------------------------------------------------------
+
+  SET @Objects = REPLACE(@Objects, CHAR(10), '')
+  SET @Objects = REPLACE(@Objects, CHAR(13), '')
+
+  WHILE CHARINDEX(@StringDelimiter + ' ', @Objects) > 0 SET @Objects = REPLACE(@Objects, @StringDelimiter + ' ', @StringDelimiter)
+  WHILE CHARINDEX(' ' + @StringDelimiter, @Objects) > 0 SET @Objects = REPLACE(@Objects, ' ' + @StringDelimiter, @StringDelimiter)
+
+  SET @Objects = LTRIM(RTRIM(@Objects));
+
+  WITH Objects1 (StartPosition, EndPosition, ObjectItem) AS
+  (
+  SELECT 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Objects, 1), 0), LEN(@Objects) + 1) AS EndPosition,
+         SUBSTRING(@Objects, 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Objects, 1), 0), LEN(@Objects) + 1) - 1) AS ObjectItem
+  WHERE @Objects IS NOT NULL
+  UNION ALL
+  SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Objects, EndPosition + 1), 0), LEN(@Objects) + 1) AS EndPosition,
+         SUBSTRING(@Objects, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Objects, EndPosition + 1), 0), LEN(@Objects) + 1) - EndPosition - 1) AS ObjectItem
+  FROM Objects1
+  WHERE EndPosition < LEN(@Objects) + 1
+  ),
+  Objects2 (ObjectItem, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN ObjectItem LIKE '-%' THEN RIGHT(ObjectItem,LEN(ObjectItem) - 1) ELSE ObjectItem END AS ObjectItem,
+          StartPosition,
+         CASE WHEN ObjectItem LIKE '-%' THEN 0 ELSE 1 END AS Selected
+  FROM Objects1
+  ),
+  Objects3 (ObjectItem, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN ObjectItem = 'ALL_OBJECTS' THEN '%.%.%' ELSE ObjectItem END AS ObjectItem,
+         StartPosition,
+         Selected
+  FROM Objects2
+  ),
+  Objects4 (DatabaseName, SchemaName, ObjectName, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN PARSENAME(ObjectItem,4) IS NULL THEN PARSENAME(ObjectItem,3) ELSE NULL END AS DatabaseName,
+         CASE WHEN PARSENAME(ObjectItem,4) IS NULL THEN PARSENAME(ObjectItem,2) ELSE NULL END AS SchemaName,
+         CASE WHEN PARSENAME(ObjectItem,4) IS NULL THEN PARSENAME(ObjectItem,1) ELSE NULL END AS ObjectName,
+         StartPosition,
+         Selected
+  FROM Objects3
+  )
+  INSERT INTO @SelectedObjects (DatabaseName, SchemaName, ObjectName, StartPosition, Selected)
+  SELECT DatabaseName, SchemaName, ObjectName, StartPosition, Selected
+  FROM Objects4
+  OPTION (MAXRECURSION 0)
+
+  ----------------------------------------------------------------------------------------------------
+  --// Select check commands                                                                      //--
+  ----------------------------------------------------------------------------------------------------
+
+  SET @CheckCommands = REPLACE(@CheckCommands, @StringDelimiter + ' ', @StringDelimiter);
+
+  WITH CheckCommands (StartPosition, EndPosition, CheckCommand) AS
+  (
+  SELECT 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @CheckCommands, 1), 0), LEN(@CheckCommands) + 1) AS EndPosition,
+         SUBSTRING(@CheckCommands, 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @CheckCommands, 1), 0), LEN(@CheckCommands) + 1) - 1) AS CheckCommand
+  WHERE @CheckCommands IS NOT NULL
+  UNION ALL
+  SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @CheckCommands, EndPosition + 1), 0), LEN(@CheckCommands) + 1) AS EndPosition,
+         SUBSTRING(@CheckCommands, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @CheckCommands, EndPosition + 1), 0), LEN(@CheckCommands) + 1) - EndPosition - 1) AS CheckCommand
+  FROM CheckCommands
+  WHERE EndPosition < LEN(@CheckCommands) + 1
+  )
+  INSERT INTO @SelectedCheckCommands (CheckCommand)
+  SELECT CheckCommand
+  FROM CheckCommands
+  OPTION (MAXRECURSION 0)
+
+  ----------------------------------------------------------------------------------------------------
+  --// Check input parameters                                                                     //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF EXISTS (SELECT * FROM @SelectedCheckCommands WHERE CheckCommand NOT IN('CHECKDB','CHECKFILEGROUP','CHECKALLOC','CHECKTABLE','CHECKCATALOG'))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CheckCommands is not supported. Supported values are CHECKDB, CHECKFILEGROUP, CHECKALLOC, CHECKTABLE and CHECKCATALOG. See https://ola.hallengren.com/sql-server-integrity-check.html#CheckCommands.', 16, 1)
+  END
+
+  IF EXISTS (SELECT * FROM @SelectedCheckCommands GROUP BY CheckCommand HAVING COUNT(*) > 1)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CheckCommands is not supported. The same check command has been specified more than once. See https://ola.hallengren.com/sql-server-integrity-check.html#CheckCommands.', 16, 1)
+  END
+
+  IF NOT EXISTS (SELECT * FROM @SelectedCheckCommands)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CheckCommands is not supported. The value cannot be NULL or empty. See https://ola.hallengren.com/sql-server-integrity-check.html#CheckCommands.', 16, 1)
+  END
+
+  IF EXISTS (SELECT * FROM @SelectedCheckCommands WHERE CheckCommand IN('CHECKDB')) AND EXISTS (SELECT CheckCommand FROM @SelectedCheckCommands WHERE CheckCommand IN('CHECKFILEGROUP','CHECKALLOC','CHECKTABLE','CHECKCATALOG'))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CheckCommands is not supported. CHECKDB cannot be combined with CHECKFILEGROUP, CHECKALLOC, CHECKTABLE or CHECKCATALOG. See https://ola.hallengren.com/sql-server-integrity-check.html#CheckCommands.', 16, 1)
+  END
+
+  IF EXISTS (SELECT * FROM @SelectedCheckCommands WHERE CheckCommand IN('CHECKFILEGROUP')) AND EXISTS (SELECT CheckCommand FROM @SelectedCheckCommands WHERE CheckCommand IN('CHECKALLOC','CHECKTABLE'))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @CheckCommands is not supported. CHECKFILEGROUP cannot be combined with CHECKALLOC or CHECKTABLE. See https://ola.hallengren.com/sql-server-integrity-check.html#CheckCommands.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @PhysicalOnly NOT IN ('Y','N') OR @PhysicalOnly IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @PhysicalOnly is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-integrity-check.html#PhysicalOnly.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DataPurity NOT IN ('Y','N') OR @DataPurity IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DataPurity is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-integrity-check.html#DataPurity.', 16, 1)
+  END
+
+  IF @PhysicalOnly = 'Y' AND @DataPurity = 'Y'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameters @PhysicalOnly and @DataPurity cannot be used together. See https://ola.hallengren.com/sql-server-integrity-check.html.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @NoIndex NOT IN ('Y','N') OR @NoIndex IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @NoIndex is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-integrity-check.html#NoIndex.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @ExtendedLogicalChecks NOT IN ('Y','N') OR @ExtendedLogicalChecks IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @ExtendedLogicalChecks is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-integrity-check.html#ExtendedLogicalChecks.', 16, 1)
+  END
+
+  IF @PhysicalOnly = 'Y' AND @ExtendedLogicalChecks = 'Y'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameters @PhysicalOnly and @ExtendedLogicalChecks cannot be used together. See https://ola.hallengren.com/sql-server-integrity-check.html.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @NoInformationalMessages NOT IN ('Y','N') OR @NoInformationalMessages IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @NoInformationalMessages is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-integrity-check.html#NoInformationalMessages.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @TabLock NOT IN ('Y','N') OR @TabLock IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @TabLock is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-integrity-check.html#TabLock.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF EXISTS(SELECT * FROM @SelectedFileGroups WHERE DatabaseName IS NULL OR FileGroupName IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FileGroups is not supported. The value contains one or more items that could not be parsed. See https://ola.hallengren.com/sql-server-integrity-check.html#FileGroups.', 16, 1)
+  END
+
+  IF @FileGroups IS NOT NULL AND NOT EXISTS(SELECT * FROM @SelectedFileGroups)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FileGroups is not supported. The value could not be parsed into a list of filegroups. See https://ola.hallengren.com/sql-server-integrity-check.html#FileGroups.', 16, 1)
+  END
+
+  IF @FileGroups IS NOT NULL AND NOT EXISTS (SELECT * FROM @SelectedCheckCommands WHERE CheckCommand = 'CHECKFILEGROUP')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @FileGroups can only be used together with @CheckCommands = ''CHECKFILEGROUP''. See https://ola.hallengren.com/sql-server-integrity-check.html#FileGroups.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF EXISTS(SELECT * FROM @SelectedObjects WHERE DatabaseName IS NULL OR SchemaName IS NULL OR ObjectName IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Objects is not supported. The value contains one or more items that could not be parsed. See https://ola.hallengren.com/sql-server-integrity-check.html#Objects.', 16, 1)
+  END
+
+  IF (@Objects IS NOT NULL AND NOT EXISTS(SELECT * FROM @SelectedObjects))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Objects is not supported. The value could not be parsed into a list of objects. See https://ola.hallengren.com/sql-server-integrity-check.html#Objects.', 16, 1)
+  END
+
+  IF (@Objects IS NOT NULL AND NOT EXISTS (SELECT * FROM @SelectedCheckCommands WHERE CheckCommand = 'CHECKTABLE'))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @Objects can only be used together with @CheckCommands = ''CHECKTABLE''. See https://ola.hallengren.com/sql-server-integrity-check.html#Objects.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @MaxDOP < 0 OR @MaxDOP > 64
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MaxDOP is not supported. The value has to be between 0 and 64. See https://ola.hallengren.com/sql-server-integrity-check.html#MaxDOP.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @AvailabilityGroupReplicas NOT IN('ALL','PRIMARY','SECONDARY','PREFERRED_BACKUP_REPLICA') OR @AvailabilityGroupReplicas IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @AvailabilityGroupReplicas is not supported. Supported values are ALL, PRIMARY, SECONDARY and PREFERRED_BACKUP_REPLICA. See https://ola.hallengren.com/sql-server-integrity-check.html#AvailabilityGroupReplicas.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Updateability NOT IN('READ_ONLY','READ_WRITE','ALL') OR @Updateability IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Updateability is not supported. Supported values are ALL, READ_ONLY and READ_WRITE. See https://ola.hallengren.com/sql-server-integrity-check.html#Updateability.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @TimeLimit < 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @TimeLimit is not supported. The value has to be greater than or equal to 0. See https://ola.hallengren.com/sql-server-integrity-check.html#TimeLimit.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @LockTimeout < 0 OR @LockTimeout > 86400
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @LockTimeout is not supported. The value has to be between 0 and 86400. See https://ola.hallengren.com/sql-server-integrity-check.html#LockTimeout.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @LockMessageSeverity NOT IN(10, 16) OR @LockMessageSeverity IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @LockMessageSeverity is not supported. Supported values are 10 and 16. See https://ola.hallengren.com/sql-server-integrity-check.html#LockMessageSeverity.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @StringDelimiter IS NULL OR LEN(@StringDelimiter) <> 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @StringDelimiter is not supported. The value has to be exactly one character. See https://ola.hallengren.com/sql-server-integrity-check.html#StringDelimiter.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DatabaseOrder NOT IN('DATABASE_NAME_ASC','DATABASE_NAME_DESC','DATABASE_SIZE_ASC','DATABASE_SIZE_DESC','DATABASE_LAST_GOOD_CHECK_ASC','DATABASE_LAST_GOOD_CHECK_DESC','REPLICA_LAST_GOOD_CHECK_ASC','REPLICA_LAST_GOOD_CHECK_DESC')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DatabaseOrder is not supported. Supported values are DATABASE_NAME_ASC, DATABASE_NAME_DESC, DATABASE_SIZE_ASC, DATABASE_SIZE_DESC, DATABASE_LAST_GOOD_CHECK_ASC, DATABASE_LAST_GOOD_CHECK_DESC, REPLICA_LAST_GOOD_CHECK_ASC and REPLICA_LAST_GOOD_CHECK_DESC. See https://ola.hallengren.com/sql-server-integrity-check.html#DatabaseOrder.', 16, 1)
+  END
+
+  IF @DatabaseOrder IN('DATABASE_LAST_GOOD_CHECK_ASC','DATABASE_LAST_GOOD_CHECK_DESC') AND NOT (@Version >= 14.03029 OR (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous'))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DatabaseOrder is not supported. DATABASEPROPERTYEX(''DatabaseName'', ''LastGoodCheckDbTime'') is not available in this version of SQL Server. See https://ola.hallengren.com/sql-server-integrity-check.html#DatabaseOrder.', 16, 1)
+  END
+
+  IF @DatabaseOrder IN('REPLICA_LAST_GOOD_CHECK_ASC','REPLICA_LAST_GOOD_CHECK_DESC') AND @LogToTable = 'N'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DatabaseOrder is not supported. You need to provide the parameter @LogToTable = ''Y''. See https://ola.hallengren.com/sql-server-integrity-check.html#DatabaseOrder.', 16, 1)
+  END
+
+  IF @DatabaseOrder IN('DATABASE_LAST_GOOD_CHECK_ASC','DATABASE_LAST_GOOD_CHECK_DESC','REPLICA_LAST_GOOD_CHECK_ASC','REPLICA_LAST_GOOD_CHECK_DESC') AND @CheckCommands <> 'CHECKDB'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DatabaseOrder is not supported. You need to provide the parameter @CheckCommands = ''CHECKDB''. See https://ola.hallengren.com/sql-server-integrity-check.html#DatabaseOrder.', 16, 1)
+  END
+
+  IF @DatabaseOrder IS NOT NULL AND @EngineEdition = 5
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @DatabaseOrder is not supported in Azure SQL Database. See https://ola.hallengren.com/sql-server-integrity-check.html#DatabaseOrder.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DatabasesInParallel NOT IN('Y','N') OR @DatabasesInParallel IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DatabasesInParallel is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-integrity-check.html#DatabasesInParallel.', 16, 1)
+  END
+
+  IF @DatabasesInParallel = 'Y' AND @EngineEdition = 5
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @DatabasesInParallel is not supported in Azure SQL Database. See https://ola.hallengren.com/sql-server-integrity-check.html#DatabasesInParallel.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @LogToTable NOT IN('Y','N') OR @LogToTable IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @LogToTable is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-integrity-check.html#LogToTable.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Execute NOT IN('Y','N') OR @Execute IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Execute is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-integrity-check.html#Execute.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Check that selected databases and availability groups exist                                //--
+  ----------------------------------------------------------------------------------------------------
+
+  SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(DatabaseName) AS nvarchar(max)), ', ')
+                         WITHIN GROUP (ORDER BY DatabaseName ASC)
+  FROM @SelectedDatabases
+  WHERE DatabaseName NOT LIKE '%[%]%'
+  AND DatabaseName NOT IN (SELECT DatabaseName FROM @tmpDatabases)
+
+  IF @ErrorMessage IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The following databases in the @Databases parameter do not exist: ' + @ErrorMessage + '. See https://ola.hallengren.com/sql-server-integrity-check.html#Databases.', 10, 1)
+  END
+
+  SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(DatabaseName) AS nvarchar(max)), ', ')
+                         WITHIN GROUP (ORDER BY DatabaseName ASC)
+  FROM @SelectedFileGroups
+  WHERE DatabaseName NOT LIKE '%[%]%'
+  AND DatabaseName NOT IN (SELECT DatabaseName FROM @tmpDatabases)
+
+  IF @ErrorMessage IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The following databases in the @FileGroups parameter do not exist: ' + @ErrorMessage + '. See https://ola.hallengren.com/sql-server-integrity-check.html#FileGroups.', 10, 1)
+  END
+
+  SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(DatabaseName) AS nvarchar(max)), ', ')
+                         WITHIN GROUP (ORDER BY DatabaseName ASC)
+  FROM @SelectedObjects
+  WHERE DatabaseName NOT LIKE '%[%]%'
+  AND DatabaseName NOT IN (SELECT DatabaseName FROM @tmpDatabases)
+
+  IF @ErrorMessage IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The following databases in the @Objects parameter do not exist: ' + @ErrorMessage + '. See https://ola.hallengren.com/sql-server-integrity-check.html#Objects.', 10, 1)
+  END
+
+  SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(AvailabilityGroupName) AS nvarchar(max)), ', ')
+                         WITHIN GROUP (ORDER BY AvailabilityGroupName ASC)
+  FROM @SelectedAvailabilityGroups
+  WHERE AvailabilityGroupName NOT LIKE '%[%]%'
+  AND AvailabilityGroupName NOT IN (SELECT AvailabilityGroupName FROM @tmpAvailabilityGroups)
+
+  IF @ErrorMessage IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The following availability groups do not exist: ' + @ErrorMessage + '. See https://ola.hallengren.com/sql-server-integrity-check.html#AvailabilityGroups.', 10, 1)
+  END
+
+  SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(DatabaseName) AS nvarchar(max)), ', ')
+                         WITHIN GROUP (ORDER BY DatabaseName ASC)
+  FROM @SelectedFileGroups
+  WHERE DatabaseName NOT LIKE '%[%]%'
+  AND DatabaseName IN (SELECT DatabaseName FROM @tmpDatabases)
+  AND DatabaseName NOT IN (SELECT DatabaseName FROM @tmpDatabases WHERE Selected = 1)
+
+  IF @ErrorMessage IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The following databases have been selected in the @FileGroups parameter, but not in the @Databases or @AvailabilityGroups parameters: ' + @ErrorMessage + '. See https://ola.hallengren.com/sql-server-integrity-check.html#FileGroups.', 10, 1)
+  END
+
+  SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(DatabaseName) AS nvarchar(max)), ', ')
+                         WITHIN GROUP (ORDER BY DatabaseName ASC)
+  FROM @SelectedObjects
+  WHERE DatabaseName NOT LIKE '%[%]%'
+  AND DatabaseName IN (SELECT DatabaseName FROM @tmpDatabases)
+  AND DatabaseName NOT IN (SELECT DatabaseName FROM @tmpDatabases WHERE Selected = 1)
+
+  IF @ErrorMessage IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The following databases have been selected in the @Objects parameter, but not in the @Databases or @AvailabilityGroups parameters: ' + @ErrorMessage + '. See https://ola.hallengren.com/sql-server-integrity-check.html#Objects.', 10, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Check @@SERVERNAME                                                                         //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF UPPER(@@SERVERNAME) <> UPPER(@ServerName) AND @IsHadrEnabled = 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The @@SERVERNAME does not match SERVERPROPERTY(''ServerName''). See ' + CASE WHEN @IsClustered = 0 THEN 'https://learn.microsoft.com/en-us/sql/database-engine/install-windows/rename-a-computer-that-hosts-a-stand-alone-instance-of-sql-server' WHEN @IsClustered = 1 THEN 'https://learn.microsoft.com/en-us/sql/sql-server/failover-clusters/install/rename-a-sql-server-failover-cluster-instance' END + '.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Raise errors                                                                               //--
+  ----------------------------------------------------------------------------------------------------
+
+  DECLARE ErrorCursor CURSOR LOCAL FAST_FORWARD FOR SELECT [Message], Severity, [State] FROM @Errors ORDER BY [ID] ASC
+
+  OPEN ErrorCursor
+
+  FETCH ErrorCursor INTO @CurrentMessage, @CurrentSeverity, @CurrentState
+
+  WHILE @@FETCH_STATUS = 0
+  BEGIN
+    RAISERROR('%s', @CurrentSeverity, @CurrentState, @CurrentMessage) WITH NOWAIT
+    RAISERROR(@EmptyLine, 10, 1) WITH NOWAIT
+
+    FETCH NEXT FROM ErrorCursor INTO @CurrentMessage, @CurrentSeverity, @CurrentState
+  END
+
+  CLOSE ErrorCursor
+
+  DEALLOCATE ErrorCursor
+
+  IF EXISTS (SELECT * FROM @Errors WHERE Severity >= 16)
+  BEGIN
+    SET @ReturnCode = 50000
+    GOTO Logging
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Update database order                                                                      //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DatabaseOrder IN('DATABASE_SIZE_ASC','DATABASE_SIZE_DESC')
+  BEGIN
+    UPDATE tmpDatabases
+    SET DatabaseSize = (SELECT SUM(CAST(size AS bigint)) FROM sys.master_files WHERE [type] = 0 AND database_id = DB_ID(tmpDatabases.DatabaseName))
+    FROM @tmpDatabases tmpDatabases
+  END
+
+  IF @DatabaseOrder IN('DATABASE_LAST_GOOD_CHECK_ASC','DATABASE_LAST_GOOD_CHECK_DESC')
+  BEGIN
+    UPDATE tmpDatabases
+    SET LastGoodCheckDbTime = NULLIF(CAST(DATABASEPROPERTYEX (DatabaseName,'LastGoodCheckDbTime') AS datetime2),'1900-01-01 00:00:00.000')
+    FROM @tmpDatabases tmpDatabases
+  END
+
+  IF @DatabaseOrder IN('REPLICA_LAST_GOOD_CHECK_ASC','REPLICA_LAST_GOOD_CHECK_DESC')
+  BEGIN
+    UPDATE tmpDatabases
+    SET LastCommandTime = MaxStartTime
+    FROM @tmpDatabases tmpDatabases
+    INNER JOIN (SELECT DatabaseName, MAX(StartTime) AS MaxStartTime
+                FROM dbo.CommandLog
+                WHERE CommandType = 'DBCC_CHECKDB'
+                AND ErrorNumber = 0
+                GROUP BY DatabaseName) CommandLog
+    ON tmpDatabases.DatabaseName = CommandLog.DatabaseName COLLATE DATABASE_DEFAULT
+  END
+
+  IF @DatabaseOrder IS NULL
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY StartPosition ASC, DatabaseName ASC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'DATABASE_NAME_ASC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY DatabaseName ASC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'DATABASE_NAME_DESC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY DatabaseName DESC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'DATABASE_SIZE_ASC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY DatabaseSize ASC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'DATABASE_SIZE_DESC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY DatabaseSize DESC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'DATABASE_LAST_GOOD_CHECK_ASC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY LastGoodCheckDbTime ASC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'DATABASE_LAST_GOOD_CHECK_DESC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY LastGoodCheckDbTime DESC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'REPLICA_LAST_GOOD_CHECK_ASC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY LastCommandTime ASC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'REPLICA_LAST_GOOD_CHECK_DESC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY LastCommandTime DESC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Update the queue                                                                           //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DatabasesInParallel = 'Y'
+  BEGIN
+
+    BEGIN TRY
+
+      SELECT @QueueID = QueueID
+      FROM dbo.[Queue]
+      WHERE SchemaName = @SchemaName
+      AND ObjectName = @ObjectName
+      AND [Parameters] = @ParametersString
+
+      IF @QueueID IS NULL
+      BEGIN
+        BEGIN TRANSACTION
+
+        SELECT @QueueID = QueueID
+        FROM dbo.[Queue] WITH (UPDLOCK, HOLDLOCK)
+        WHERE SchemaName = @SchemaName
+        AND ObjectName = @ObjectName
+        AND [Parameters] = @ParametersString
+
+        IF @QueueID IS NULL
+        BEGIN
+          INSERT INTO dbo.[Queue] (SchemaName, ObjectName, [Parameters])
+          VALUES(@SchemaName, @ObjectName, @ParametersString)
+
+          SET @QueueID = SCOPE_IDENTITY()
+        END
+
+        COMMIT TRANSACTION
+      END
+
+      BEGIN TRANSACTION
+
+      UPDATE [Queue]
+      SET QueueStartTime = SYSDATETIME(),
+          SessionID = @@SPID,
+          RequestID = (SELECT request_id FROM sys.dm_exec_requests WHERE session_id = @@SPID),
+          RequestStartTime = (SELECT start_time FROM sys.dm_exec_requests WHERE session_id = @@SPID)
+      FROM dbo.[Queue] [Queue]
+      WHERE QueueID = @QueueID
+      AND NOT EXISTS (SELECT *
+                      FROM sys.dm_exec_requests
+                      WHERE session_id = [Queue].SessionID
+                      AND request_id = [Queue].RequestID
+                      AND start_time = [Queue].RequestStartTime)
+      AND NOT EXISTS (SELECT *
+                      FROM dbo.QueueDatabase QueueDatabase
+                      INNER JOIN sys.dm_exec_requests ON QueueDatabase.SessionID = session_id AND QueueDatabase.RequestID = request_id AND QueueDatabase.RequestStartTime = start_time
+                      WHERE QueueDatabase.QueueID = @QueueID)
+
+      IF @@ROWCOUNT = 1
+      BEGIN
+        INSERT INTO dbo.QueueDatabase (QueueID, DatabaseName)
+        SELECT @QueueID AS QueueID,
+               DatabaseName
+        FROM @tmpDatabases tmpDatabases
+        WHERE Selected = 1
+        AND NOT EXISTS (SELECT * FROM dbo.QueueDatabase WHERE DatabaseName COLLATE DATABASE_DEFAULT = tmpDatabases.DatabaseName AND QueueID = @QueueID)
+
+        DELETE QueueDatabase
+        FROM dbo.QueueDatabase QueueDatabase
+        WHERE QueueID = @QueueID
+        AND NOT EXISTS (SELECT * FROM @tmpDatabases tmpDatabases WHERE DatabaseName = QueueDatabase.DatabaseName COLLATE DATABASE_DEFAULT AND Selected = 1)
+
+        UPDATE QueueDatabase
+        SET DatabaseOrder = tmpDatabases.[Order]
+        FROM dbo.QueueDatabase QueueDatabase
+        INNER JOIN @tmpDatabases tmpDatabases ON QueueDatabase.DatabaseName COLLATE DATABASE_DEFAULT = tmpDatabases.DatabaseName
+        WHERE QueueID = @QueueID
+      END
+
+      COMMIT TRANSACTION
+
+      SELECT @QueueStartTime = QueueStartTime
+      FROM dbo.[Queue]
+      WHERE QueueID = @QueueID
+
+    END TRY
+
+    BEGIN CATCH
+      IF XACT_STATE() <> 0
+      BEGIN
+        ROLLBACK TRANSACTION
+      END
+      SET @ErrorMessage = 'Msg ' + CAST(ERROR_NUMBER() AS nvarchar(max)) + ', ' + ISNULL(ERROR_MESSAGE(),'')
+      RAISERROR('%s',16,1,@ErrorMessage) WITH NOWAIT
+      RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+      SET @ReturnCode = ERROR_NUMBER()
+      GOTO Logging
+    END CATCH
+
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Execute commands                                                                           //--
+  ----------------------------------------------------------------------------------------------------
+
+  WHILE (1 = 1)
+  BEGIN -- Start of database loop
+
+    IF @DatabasesInParallel = 'Y'
+    BEGIN
+      UPDATE QueueDatabase
+      SET DatabaseStartTime = NULL,
+          SessionID = NULL,
+          RequestID = NULL,
+          RequestStartTime = NULL
+      FROM dbo.QueueDatabase QueueDatabase
+      WHERE QueueID = @QueueID
+      AND DatabaseStartTime IS NOT NULL
+      AND DatabaseEndTime IS NULL
+      AND NOT EXISTS (SELECT * FROM sys.dm_exec_requests WHERE session_id = QueueDatabase.SessionID AND request_id = QueueDatabase.RequestID AND start_time = QueueDatabase.RequestStartTime)
+
+      UPDATE QueueDatabase
+      SET DatabaseStartTime = SYSDATETIME(),
+          DatabaseEndTime = NULL,
+          SessionID = @@SPID,
+          RequestID = (SELECT request_id FROM sys.dm_exec_requests WHERE session_id = @@SPID),
+          RequestStartTime = (SELECT start_time FROM sys.dm_exec_requests WHERE session_id = @@SPID),
+          @CurrentDatabaseName = DatabaseName
+      FROM (SELECT TOP 1 DatabaseStartTime,
+                         DatabaseEndTime,
+                         SessionID,
+                         RequestID,
+                         RequestStartTime,
+                         DatabaseName
+            FROM dbo.QueueDatabase
+            WHERE QueueID = @QueueID
+            AND (DatabaseStartTime < @QueueStartTime OR DatabaseStartTime IS NULL)
+            AND NOT (DatabaseStartTime IS NOT NULL AND DatabaseEndTime IS NULL)
+            ORDER BY DatabaseOrder ASC
+            ) QueueDatabase
+    END
+    ELSE
+    BEGIN
+      SELECT TOP 1 @CurrentDBID = ID,
+                   @CurrentDatabaseName = DatabaseName
+      FROM @tmpDatabases
+      WHERE Selected = 1
+      AND Completed = 0
+      ORDER BY [Order] ASC
+    END
+
+    IF @@ROWCOUNT = 0
+    BEGIN
+      BREAK
+    END
+
+    SET @CurrentDatabase_sp_executesql = QUOTENAME(@CurrentDatabaseName) + '.sys.sp_executesql'
+
+    BEGIN
+      SET @DatabaseMessage = 'Date and time: ' + CONVERT(nvarchar(max),SYSDATETIME(),120)
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Database: ' + QUOTENAME(@CurrentDatabaseName)
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    SELECT @CurrentUserAccess = user_access_desc,
+           @CurrentIsReadOnly = is_read_only,
+           @CurrentDatabaseState = state_desc,
+           @CurrentInStandby = is_in_standby,
+           @CurrentRecoveryModel = recovery_model_desc
+    FROM sys.databases
+    WHERE [name] = @CurrentDatabaseName
+
+    BEGIN
+      SET @DatabaseMessage = 'State: ' + @CurrentDatabaseState
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Standby: ' + CASE WHEN @CurrentInStandby = 1 THEN 'Yes' ELSE 'No' END
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Updateability: ' + CASE WHEN @CurrentIsReadOnly = 1 THEN 'READ_ONLY' WHEN  @CurrentIsReadOnly = 0 THEN 'READ_WRITE' END
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'User access: ' + @CurrentUserAccess
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Recovery model: ' + @CurrentRecoveryModel
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    IF @IsHadrEnabled = 1
+    BEGIN
+      SELECT @CurrentAvailabilityGroupReplicaID = databases.replica_id
+      FROM sys.databases databases
+      INNER JOIN sys.availability_replicas availability_replicas ON databases.replica_id = availability_replicas.replica_id
+      WHERE databases.[name] = @CurrentDatabaseName
+
+      SELECT @CurrentAvailabilityGroupID = group_id
+      FROM sys.availability_replicas
+      WHERE replica_id = @CurrentAvailabilityGroupReplicaID
+
+      IF @CurrentAvailabilityGroupReplicaID IS NULL AND @CurrentAvailabilityGroupID IS NULL AND @Version >= 16
+      BEGIN
+        SET @CurrentAvailabilityGroupID = @ContainedAvailabilityGroupID
+
+        SELECT @CurrentAvailabilityGroupReplicaID = replica_id
+        FROM sys.dm_hadr_availability_replica_states
+        WHERE group_id = @CurrentAvailabilityGroupID
+        AND is_local = 1
+      END
+
+      SELECT @CurrentSecondaryRoleAllowConnections = secondary_role_allow_connections_desc
+      FROM sys.availability_replicas
+      WHERE replica_id = @CurrentAvailabilityGroupReplicaID
+
+      SELECT @CurrentAvailabilityGroupRole = role_desc
+      FROM sys.dm_hadr_availability_replica_states
+      WHERE replica_id = @CurrentAvailabilityGroupReplicaID
+
+      SELECT @CurrentAvailabilityGroupDatabaseReplicaSynchronizationState = synchronization_state_desc,
+             @CurrentAvailabilityGroupDatabaseReplicaSynchronizationHealth = synchronization_health_desc
+      FROM sys.dm_hadr_database_replica_states
+      WHERE replica_id = @CurrentAvailabilityGroupReplicaID
+      AND database_id = DB_ID(@CurrentDatabaseName)
+
+      IF @CurrentAvailabilityGroupDatabaseReplicaSynchronizationState IS NULL AND @ContainedAvailabilityGroupListenerConnection = 1
+      BEGIN
+        SELECT @CurrentAvailabilityGroupDatabaseReplicaSynchronizationState = synchronization_state_desc,
+               @CurrentAvailabilityGroupDatabaseReplicaSynchronizationHealth = synchronization_health_desc
+        FROM sys.dm_hadr_database_replica_states
+        WHERE replica_id = @CurrentAvailabilityGroupReplicaID
+        AND DB_NAME(database_id) = @CurrentDatabaseName
+      END
+
+      SELECT @CurrentAvailabilityGroup = [name],
+             @CurrentAvailabilityGroupBackupPreference = UPPER(automated_backup_preference_desc)
+      FROM sys.availability_groups
+      WHERE group_id = @CurrentAvailabilityGroupID
+    END
+
+    IF @IsHadrEnabled = 1 AND @CurrentAvailabilityGroup IS NOT NULL AND @EngineEdition = 3 AND @AvailabilityGroupReplicas = 'PREFERRED_BACKUP_REPLICA'
+    BEGIN
+      SELECT @CurrentIsPreferredBackupReplica = sys.fn_hadr_backup_is_preferred_replica(@CurrentDatabaseName)
+    END
+
+    IF @IsHadrEnabled = 1 AND @CurrentAvailabilityGroup IS NOT NULL
+    BEGIN
+      SELECT @CurrentDistributedAvailabilityGroup = availability_groups.[name],
+             @CurrentDistributedAvailabilityGroupReplicaID = availability_replicas.replica_id
+      FROM sys.availability_groups availability_groups
+      INNER JOIN sys.availability_replicas availability_replicas ON availability_groups.group_id = availability_replicas.group_id
+      INNER JOIN sys.availability_groups availability_groups_local ON availability_replicas.replica_server_name = availability_groups_local.[name]
+      WHERE availability_groups.is_distributed = 1
+      AND availability_groups_local.group_id = @CurrentAvailabilityGroupID
+
+      SELECT @CurrentDistributedAvailabilityGroupRole = dm_hadr_availability_replica_states.role_desc
+      FROM sys.dm_hadr_availability_replica_states dm_hadr_availability_replica_states
+      WHERE dm_hadr_availability_replica_states.replica_id = @CurrentDistributedAvailabilityGroupReplicaID
+    END
+
+    IF @EngineEdition <> 5
+    BEGIN
+      SELECT @CurrentDatabaseMirroringRole = UPPER(mirroring_role_desc)
+      FROM sys.database_mirroring database_mirroring
+      INNER JOIN sys.databases databases ON database_mirroring.database_id = databases.database_id
+      WHERE databases.[name] = @CurrentDatabaseName
+    END
+
+    IF @CurrentAvailabilityGroup IS NOT NULL
+    BEGIN
+      SET @DatabaseMessage =  'Availability group: ' + ISNULL(@CurrentAvailabilityGroup,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Availability group role: ' + ISNULL(@CurrentAvailabilityGroupRole,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Availability group database replica synchronization state: ' + ISNULL(@CurrentAvailabilityGroupDatabaseReplicaSynchronizationState,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Availability group database replica synchronization health: ' + ISNULL(@CurrentAvailabilityGroupDatabaseReplicaSynchronizationHealth,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      IF @CurrentAvailabilityGroupRole = 'SECONDARY'
+      BEGIN
+        SET @DatabaseMessage =  'Readable Secondary: ' + ISNULL(@CurrentSecondaryRoleAllowConnections,'N/A')
+        RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+      END
+
+      IF @AvailabilityGroupReplicas = 'PREFERRED_BACKUP_REPLICA'
+      BEGIN
+        SET @DatabaseMessage = 'Availability group backup preference: ' + ISNULL(@CurrentAvailabilityGroupBackupPreference,'N/A')
+        RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+        SET @DatabaseMessage = 'Is preferred backup replica: ' + CASE WHEN @CurrentIsPreferredBackupReplica = 1 THEN 'Yes' WHEN @CurrentIsPreferredBackupReplica = 0 THEN 'No' ELSE 'N/A' END
+        RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+      END
+    END
+
+    IF @CurrentDistributedAvailabilityGroup IS NOT NULL
+    BEGIN
+      SET @DatabaseMessage = 'Distributed availability group: ' + ISNULL(@CurrentDistributedAvailabilityGroup,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Distributed availability group role: ' + ISNULL(@CurrentDistributedAvailabilityGroupRole,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Replica role in distributed availability group: ' + CASE WHEN @CurrentDistributedAvailabilityGroupRole = 'PRIMARY' AND @CurrentAvailabilityGroupRole = 'PRIMARY' THEN 'Global primary'
+                                                                                       WHEN @CurrentDistributedAvailabilityGroupRole = 'SECONDARY' AND @CurrentAvailabilityGroupRole = 'PRIMARY' THEN 'Forwarder'
+                                                                                       WHEN @CurrentDistributedAvailabilityGroupRole = 'SECONDARY' AND @CurrentAvailabilityGroupRole = 'SECONDARY' THEN 'Secondary replica in secondary availability group'
+                                                                                       WHEN @CurrentDistributedAvailabilityGroupRole = 'PRIMARY' AND @CurrentAvailabilityGroupRole = 'SECONDARY' THEN 'Secondary replica in primary availability group' ELSE 'N/A' END
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    IF @CurrentDatabaseMirroringRole IS NOT NULL
+    BEGIN
+      SET @DatabaseMessage = 'Database mirroring role: ' + @CurrentDatabaseMirroringRole
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+    IF @CurrentDatabaseState IN('ONLINE','EMERGENCY')
+    AND NOT (@CurrentUserAccess = 'SINGLE_USER')
+    AND (@CurrentAvailabilityGroupRole = 'PRIMARY' OR (@CurrentAvailabilityGroupRole = 'SECONDARY' AND @EngineEdition = 3) OR @CurrentAvailabilityGroup IS NULL)
+    AND ((@AvailabilityGroupReplicas = 'PRIMARY' AND @CurrentAvailabilityGroupRole = 'PRIMARY') OR (@AvailabilityGroupReplicas = 'SECONDARY' AND @CurrentAvailabilityGroupRole = 'SECONDARY') OR (@AvailabilityGroupReplicas = 'PREFERRED_BACKUP_REPLICA' AND (@CurrentIsPreferredBackupReplica = 1 OR NOT (@EngineEdition = 3))) OR @AvailabilityGroupReplicas = 'ALL' OR @CurrentAvailabilityGroupRole IS NULL)
+    AND NOT (@CurrentIsReadOnly = 1 AND @Updateability = 'READ_WRITE')
+    AND NOT (@CurrentIsReadOnly = 0 AND @Updateability = 'READ_ONLY')
+    AND NOT (@AmazonRDS = 1 AND @CurrentDatabaseName = 'rdsadmin')
+    BEGIN
+
+      -- Check database
+      IF EXISTS(SELECT * FROM @SelectedCheckCommands WHERE CheckCommand = 'CHECKDB') AND (SYSDATETIME() < DATEADD(SECOND,@TimeLimit,@StartTime) OR @TimeLimit IS NULL)
+      BEGIN
+        SET @CurrentDatabaseContext = CASE WHEN @EngineEdition = 5 THEN @CurrentDatabaseName ELSE 'master' END
+
+        SET @CurrentCommandType = 'DBCC_CHECKDB'
+
+        SET @CurrentCommand = ''
+        IF @LockTimeout IS NOT NULL SET @CurrentCommand = 'SET LOCK_TIMEOUT ' + CAST(@LockTimeout * 1000 AS nvarchar(max)) + '; '
+        SET @CurrentCommand += 'DBCC CHECKDB (' + QUOTENAME(@CurrentDatabaseName)
+        IF @NoIndex = 'Y' SET @CurrentCommand += ', NOINDEX'
+        SET @CurrentCommand += ') WITH ALL_ERRORMSGS'
+        IF @DataPurity = 'Y' SET @CurrentCommand += ', DATA_PURITY'
+        IF @PhysicalOnly = 'Y' SET @CurrentCommand += ', PHYSICAL_ONLY'
+        IF @ExtendedLogicalChecks = 'Y' SET @CurrentCommand += ', EXTENDED_LOGICAL_CHECKS'
+        IF @NoInformationalMessages = 'Y' SET @CurrentCommand += ', NO_INFOMSGS'
+        IF @TabLock = 'Y' SET @CurrentCommand += ', TABLOCK'
+        IF @MaxDOP IS NOT NULL SET @CurrentCommand += ', MAXDOP = ' + CAST(@MaxDOP AS nvarchar(max))
+
+        EXECUTE @CurrentCommandOutput = dbo.CommandExecute @DatabaseContext = @CurrentDatabaseContext, @Command = @CurrentCommand, @CommandType = @CurrentCommandType, @Mode = 1, @DatabaseName = @CurrentDatabaseName, @LogToTable = @LogToTable, @Execute = @Execute
+        SET @Error = @@ERROR
+        IF @Error <> 0 SET @CurrentCommandOutput = @Error
+        IF @CurrentCommandOutput <> 0 SET @ReturnCode = @CurrentCommandOutput
+      END
+
+      -- Check filegroups
+      IF EXISTS(SELECT * FROM @SelectedCheckCommands WHERE CheckCommand = 'CHECKFILEGROUP')
+      AND (@CurrentAvailabilityGroupRole = 'PRIMARY' OR (@CurrentAvailabilityGroupRole = 'SECONDARY' AND @CurrentSecondaryRoleAllowConnections = 'ALL') OR @CurrentAvailabilityGroupRole IS NULL)
+      AND (SYSDATETIME() < DATEADD(SECOND,@TimeLimit,@StartTime) OR @TimeLimit IS NULL)
+      BEGIN
+        SET @CurrentCommand = 'SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED; SELECT data_space_id AS FileGroupID, name AS FileGroupName FROM sys.filegroups filegroups WHERE [type] <> ''FX'' ORDER BY CASE WHEN filegroups.name = ''PRIMARY'' THEN 1 ELSE 0 END DESC, filegroups.name ASC'
+
+        INSERT INTO @tmpFileGroups (FileGroupID, FileGroupName)
+        EXECUTE @CurrentDatabase_sp_executesql  @stmt = @CurrentCommand
+        SET @Error = @@ERROR
+        IF @Error <> 0 SET @ReturnCode = @Error
+
+        IF @FileGroups IS NULL
+        BEGIN
+          UPDATE tmpFileGroups
+          SET tmpFileGroups.Selected = 1
+          FROM @tmpFileGroups tmpFileGroups
+        END
+        ELSE
+        BEGIN
+          UPDATE tmpFileGroups
+          SET tmpFileGroups.Selected = SelectedFileGroups.Selected
+          FROM @tmpFileGroups tmpFileGroups
+          INNER JOIN @SelectedFileGroups SelectedFileGroups
+          ON @CurrentDatabaseName LIKE REPLACE(REPLACE(SelectedFileGroups.DatabaseName,'[','[[]'),'_','[_]') AND tmpFileGroups.FileGroupName LIKE REPLACE(REPLACE(SelectedFileGroups.FileGroupName,'[','[[]'),'_','[_]')
+          WHERE SelectedFileGroups.Selected = 1
+
+          UPDATE tmpFileGroups
+          SET tmpFileGroups.Selected = SelectedFileGroups.Selected
+          FROM @tmpFileGroups tmpFileGroups
+          INNER JOIN @SelectedFileGroups SelectedFileGroups
+          ON @CurrentDatabaseName LIKE REPLACE(REPLACE(SelectedFileGroups.DatabaseName,'[','[[]'),'_','[_]') AND tmpFileGroups.FileGroupName LIKE REPLACE(REPLACE(SelectedFileGroups.FileGroupName,'[','[[]'),'_','[_]')
+          WHERE SelectedFileGroups.Selected = 0
+
+          UPDATE tmpFileGroups
+          SET tmpFileGroups.StartPosition = SelectedFileGroups2.StartPosition
+          FROM @tmpFileGroups tmpFileGroups
+          INNER JOIN (SELECT tmpFileGroups.FileGroupName, MIN(SelectedFileGroups.StartPosition) AS StartPosition
+                      FROM @tmpFileGroups tmpFileGroups
+                      INNER JOIN @SelectedFileGroups SelectedFileGroups
+                      ON @CurrentDatabaseName LIKE REPLACE(REPLACE(SelectedFileGroups.DatabaseName,'[','[[]'),'_','[_]') AND tmpFileGroups.FileGroupName LIKE REPLACE(REPLACE(SelectedFileGroups.FileGroupName,'[','[[]'),'_','[_]')
+                      WHERE SelectedFileGroups.Selected = 1
+                      GROUP BY tmpFileGroups.FileGroupName) SelectedFileGroups2
+          ON tmpFileGroups.FileGroupName = SelectedFileGroups2.FileGroupName
+        END;
+
+        WITH tmpFileGroups AS (
+        SELECT FileGroupName, [Order], ROW_NUMBER() OVER (ORDER BY StartPosition ASC, FileGroupName ASC) AS RowNumber
+        FROM @tmpFileGroups tmpFileGroups
+        WHERE Selected = 1
+        )
+        UPDATE tmpFileGroups
+        SET [Order] = RowNumber
+
+        SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(DatabaseName) AS nvarchar(max)) + '.' + QUOTENAME(FileGroupName), ', ')
+                               WITHIN GROUP (ORDER BY DatabaseName ASC, FileGroupName ASC)
+        FROM @SelectedFileGroups SelectedFileGroups
+        WHERE DatabaseName = @CurrentDatabaseName
+        AND FileGroupName NOT LIKE '%[%]%'
+        AND NOT EXISTS (SELECT * FROM @tmpFileGroups WHERE FileGroupName = SelectedFileGroups.FileGroupName)
+
+        IF @ErrorMessage IS NOT NULL
+        BEGIN
+          SET @ErrorMessage = 'The following file groups do not exist: ' + @ErrorMessage + '.'
+          RAISERROR('%s',10,1,@ErrorMessage) WITH NOWAIT
+          RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+        END
+
+        WHILE (SYSDATETIME() < DATEADD(SECOND,@TimeLimit,@StartTime) OR @TimeLimit IS NULL)
+        BEGIN
+          SELECT TOP 1 @CurrentFGID = ID,
+                       @CurrentFileGroupID = FileGroupID,
+                       @CurrentFileGroupName = FileGroupName
+          FROM @tmpFileGroups
+          WHERE Selected = 1
+          AND Completed = 0
+          ORDER BY [Order] ASC
+
+          IF @@ROWCOUNT = 0
+          BEGIN
+            BREAK
+          END
+
+          -- Does the filegroup exist?
+          SET @CurrentCommand = ''
+          IF @LockTimeout IS NOT NULL SET @CurrentCommand = 'SET LOCK_TIMEOUT ' + CAST(@LockTimeout * 1000 AS nvarchar(max)) + '; '
+          SET @CurrentCommand += 'IF EXISTS(SELECT * FROM sys.filegroups filegroups WHERE [type] <> ''FX'' AND filegroups.data_space_id = @ParamFileGroupID AND filegroups.[name] = @ParamFileGroupName) BEGIN SET @ParamFileGroupExists = 1 END'
+
+          BEGIN TRY
+            EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand, @params = N'@ParamFileGroupID int, @ParamFileGroupName sysname, @ParamFileGroupExists bit OUTPUT', @ParamFileGroupID = @CurrentFileGroupID, @ParamFileGroupName = @CurrentFileGroupName, @ParamFileGroupExists = @CurrentFileGroupExists OUTPUT
+
+            IF @CurrentFileGroupExists IS NULL SET @CurrentFileGroupExists = 0
+          END TRY
+          BEGIN CATCH
+            SET @ErrorMessage = 'Msg ' + CAST(ERROR_NUMBER() AS nvarchar(max)) + ', ' + ISNULL(ERROR_MESSAGE(),'') + CASE WHEN ERROR_NUMBER() = 1222 THEN ', ' + ' The file group ' + QUOTENAME(@CurrentFileGroupName) + ' in the database ' + QUOTENAME(@CurrentDatabaseName) + ' is locked. It could not be checked if the filegroup exists.' ELSE '' END
+            SET @Severity = CASE WHEN ERROR_NUMBER() IN(1205,1222) THEN @LockMessageSeverity ELSE 16 END
+            RAISERROR('%s',@Severity,1,@ErrorMessage) WITH NOWAIT
+            RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+            IF NOT (ERROR_NUMBER() IN(1205,1222) AND @LockMessageSeverity = 10)
+            BEGIN
+              SET @ReturnCode = ERROR_NUMBER()
+            END
+          END CATCH
+
+          IF @CurrentFileGroupExists = 1
+          BEGIN
+            SET @CurrentDatabaseContext = @CurrentDatabaseName
+
+            SET @CurrentCommandType = 'DBCC_CHECKFILEGROUP'
+
+            SET @CurrentCommand = ''
+            IF @LockTimeout IS NOT NULL SET @CurrentCommand = 'SET LOCK_TIMEOUT ' + CAST(@LockTimeout * 1000 AS nvarchar(max)) + '; '
+            SET @CurrentCommand += 'DBCC CHECKFILEGROUP (' + QUOTENAME(@CurrentFileGroupName)
+            IF @NoIndex = 'Y' SET @CurrentCommand += ', NOINDEX'
+            SET @CurrentCommand += ') WITH ALL_ERRORMSGS'
+            IF @PhysicalOnly = 'Y' SET @CurrentCommand += ', PHYSICAL_ONLY'
+            IF @NoInformationalMessages = 'Y' SET @CurrentCommand += ', NO_INFOMSGS'
+            IF @TabLock = 'Y' SET @CurrentCommand += ', TABLOCK'
+            IF @MaxDOP IS NOT NULL SET @CurrentCommand += ', MAXDOP = ' + CAST(@MaxDOP AS nvarchar(max))
+
+            EXECUTE @CurrentCommandOutput = dbo.CommandExecute @DatabaseContext = @CurrentDatabaseContext, @Command = @CurrentCommand, @CommandType = @CurrentCommandType, @Mode = 1, @DatabaseName = @CurrentDatabaseName, @LogToTable = @LogToTable, @Execute = @Execute
+            SET @Error = @@ERROR
+            IF @Error <> 0 SET @CurrentCommandOutput = @Error
+            IF @CurrentCommandOutput <> 0 SET @ReturnCode = @CurrentCommandOutput
+          END
+
+          UPDATE @tmpFileGroups
+          SET Completed = 1
+          WHERE Selected = 1
+          AND Completed = 0
+          AND ID = @CurrentFGID
+
+          SET @CurrentFGID = NULL
+          SET @CurrentFileGroupID = NULL
+          SET @CurrentFileGroupName = NULL
+          SET @CurrentFileGroupExists = NULL
+
+          SET @CurrentDatabaseContext = NULL
+          SET @CurrentCommand = NULL
+          SET @CurrentCommandOutput = NULL
+          SET @CurrentCommandType = NULL
+        END
+      END
+
+      -- Check disk space allocation structures
+      IF EXISTS(SELECT * FROM @SelectedCheckCommands WHERE CheckCommand = 'CHECKALLOC') AND (SYSDATETIME() < DATEADD(SECOND,@TimeLimit,@StartTime) OR @TimeLimit IS NULL)
+      BEGIN
+        SET @CurrentDatabaseContext = CASE WHEN @EngineEdition = 5 THEN @CurrentDatabaseName ELSE 'master' END
+
+        SET @CurrentCommandType = 'DBCC_CHECKALLOC'
+
+        SET @CurrentCommand = ''
+        IF @LockTimeout IS NOT NULL SET @CurrentCommand = 'SET LOCK_TIMEOUT ' + CAST(@LockTimeout * 1000 AS nvarchar(max)) + '; '
+        SET @CurrentCommand += 'DBCC CHECKALLOC (' + QUOTENAME(@CurrentDatabaseName)
+        IF @NoIndex = 'Y' SET @CurrentCommand += ', NOINDEX'
+        SET @CurrentCommand += ') WITH ALL_ERRORMSGS'
+        IF @NoInformationalMessages = 'Y' SET @CurrentCommand += ', NO_INFOMSGS'
+        IF @TabLock = 'Y' SET @CurrentCommand += ', TABLOCK'
+
+        EXECUTE @CurrentCommandOutput = dbo.CommandExecute @DatabaseContext = @CurrentDatabaseContext, @Command = @CurrentCommand, @CommandType = @CurrentCommandType, @Mode = 1, @DatabaseName = @CurrentDatabaseName, @LogToTable = @LogToTable, @Execute = @Execute
+        SET @Error = @@ERROR
+        IF @Error <> 0 SET @CurrentCommandOutput = @Error
+        IF @CurrentCommandOutput <> 0 SET @ReturnCode = @CurrentCommandOutput
+      END
+
+      -- Check objects
+      IF EXISTS(SELECT * FROM @SelectedCheckCommands WHERE CheckCommand = 'CHECKTABLE')
+      AND (@CurrentAvailabilityGroupRole = 'PRIMARY' OR (@CurrentAvailabilityGroupRole = 'SECONDARY' AND @CurrentSecondaryRoleAllowConnections = 'ALL') OR @CurrentAvailabilityGroupRole IS NULL)
+      AND (SYSDATETIME() < DATEADD(SECOND,@TimeLimit,@StartTime) OR @TimeLimit IS NULL)
+      BEGIN
+        SET @CurrentCommand = 'SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED; SELECT schemas.[schema_id] AS SchemaID, schemas.[name] AS SchemaName, objects.[object_id] AS ObjectID, objects.[name] AS ObjectName, RTRIM(objects.[type]) AS ObjectType FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.schema_id = schemas.schema_id LEFT OUTER JOIN sys.tables tables ON objects.object_id = tables.object_id WHERE objects.[type] IN(''U'',''V'') AND EXISTS(SELECT * FROM sys.indexes indexes WHERE indexes.object_id = objects.object_id) AND (tables.is_memory_optimized = 0 OR is_memory_optimized IS NULL) ORDER BY schemas.name ASC, objects.name ASC'
+
+        INSERT INTO @tmpObjects (SchemaID, SchemaName, ObjectID, ObjectName, ObjectType)
+        EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand
+        SET @Error = @@ERROR
+        IF @Error <> 0 SET @ReturnCode = @Error
+
+        IF @Objects IS NULL
+        BEGIN
+          UPDATE tmpObjects
+          SET tmpObjects.Selected = 1
+          FROM @tmpObjects tmpObjects
+        END
+        ELSE
+        BEGIN
+          UPDATE tmpObjects
+          SET tmpObjects.Selected = SelectedObjects.Selected
+          FROM @tmpObjects tmpObjects
+          INNER JOIN @SelectedObjects SelectedObjects
+          ON @CurrentDatabaseName LIKE REPLACE(REPLACE(SelectedObjects.DatabaseName,'[','[[]'),'_','[_]') AND tmpObjects.SchemaName LIKE REPLACE(REPLACE(SelectedObjects.SchemaName,'[','[[]'),'_','[_]') AND tmpObjects.ObjectName LIKE REPLACE(REPLACE(SelectedObjects.ObjectName,'[','[[]'),'_','[_]')
+          WHERE SelectedObjects.Selected = 1
+
+          UPDATE tmpObjects
+          SET tmpObjects.Selected = SelectedObjects.Selected
+          FROM @tmpObjects tmpObjects
+          INNER JOIN @SelectedObjects SelectedObjects
+          ON @CurrentDatabaseName LIKE REPLACE(REPLACE(SelectedObjects.DatabaseName,'[','[[]'),'_','[_]') AND tmpObjects.SchemaName LIKE REPLACE(REPLACE(SelectedObjects.SchemaName,'[','[[]'),'_','[_]') AND tmpObjects.ObjectName LIKE REPLACE(REPLACE(SelectedObjects.ObjectName,'[','[[]'),'_','[_]')
+          WHERE SelectedObjects.Selected = 0
+
+          UPDATE tmpObjects
+          SET tmpObjects.StartPosition = SelectedObjects2.StartPosition
+          FROM @tmpObjects tmpObjects
+          INNER JOIN (SELECT tmpObjects.SchemaName, tmpObjects.ObjectName, MIN(SelectedObjects.StartPosition) AS StartPosition
+                      FROM @tmpObjects tmpObjects
+                      INNER JOIN @SelectedObjects SelectedObjects
+                      ON @CurrentDatabaseName LIKE REPLACE(REPLACE(SelectedObjects.DatabaseName,'[','[[]'),'_','[_]') AND tmpObjects.SchemaName LIKE REPLACE(REPLACE(SelectedObjects.SchemaName,'[','[[]'),'_','[_]') AND tmpObjects.ObjectName LIKE REPLACE(REPLACE(SelectedObjects.ObjectName,'[','[[]'),'_','[_]')
+                      WHERE SelectedObjects.Selected = 1
+                      GROUP BY tmpObjects.SchemaName, tmpObjects.ObjectName) SelectedObjects2
+          ON tmpObjects.SchemaName = SelectedObjects2.SchemaName AND tmpObjects.ObjectName = SelectedObjects2.ObjectName
+        END;
+
+        WITH tmpObjects AS (
+        SELECT SchemaName, ObjectName, [Order], ROW_NUMBER() OVER (ORDER BY StartPosition ASC, SchemaName ASC, ObjectName ASC) AS RowNumber
+        FROM @tmpObjects tmpObjects
+        WHERE Selected = 1
+        )
+        UPDATE tmpObjects
+        SET [Order] = RowNumber
+
+        SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(DatabaseName) AS nvarchar(max)) + '.' + QUOTENAME(SchemaName) + '.' + QUOTENAME(ObjectName), ', ')
+                               WITHIN GROUP (ORDER BY DatabaseName ASC, SchemaName ASC, ObjectName ASC)
+        FROM @SelectedObjects SelectedObjects
+        WHERE DatabaseName = @CurrentDatabaseName
+        AND SchemaName NOT LIKE '%[%]%'
+        AND ObjectName NOT LIKE '%[%]%'
+        AND NOT EXISTS (SELECT * FROM @tmpObjects WHERE SchemaName = SelectedObjects.SchemaName AND ObjectName = SelectedObjects.ObjectName)
+
+        IF @ErrorMessage IS NOT NULL
+        BEGIN
+          SET @ErrorMessage = 'The following objects do not exist: ' + @ErrorMessage + '.'
+          RAISERROR('%s',10,1,@ErrorMessage) WITH NOWAIT
+          RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+        END
+
+        WHILE (SYSDATETIME() < DATEADD(SECOND,@TimeLimit,@StartTime) OR @TimeLimit IS NULL)
+        BEGIN
+          SELECT TOP 1 @CurrentOID = ID,
+                       @CurrentSchemaID = SchemaID,
+                       @CurrentSchemaName = SchemaName,
+                       @CurrentObjectID = ObjectID,
+                       @CurrentObjectName = ObjectName,
+                       @CurrentObjectType = ObjectType
+          FROM @tmpObjects
+          WHERE Selected = 1
+          AND Completed = 0
+          ORDER BY [Order] ASC
+
+          IF @@ROWCOUNT = 0
+          BEGIN
+            BREAK
+          END
+
+          -- Does the object exist?
+          SET @CurrentCommand = ''
+          IF @LockTimeout IS NOT NULL SET @CurrentCommand = 'SET LOCK_TIMEOUT ' + CAST(@LockTimeout * 1000 AS nvarchar(max)) + '; '
+          SET @CurrentCommand += 'IF EXISTS(SELECT * FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.schema_id = schemas.schema_id LEFT OUTER JOIN sys.tables tables ON objects.object_id = tables.object_id WHERE objects.[type] IN(''U'',''V'') AND EXISTS(SELECT * FROM sys.indexes indexes WHERE indexes.object_id = objects.object_id) AND (tables.is_memory_optimized = 0 OR is_memory_optimized IS NULL) AND schemas.[schema_id] = @ParamSchemaID AND schemas.[name] = @ParamSchemaName AND objects.[object_id] = @ParamObjectID AND objects.[name] = @ParamObjectName AND objects.[type] = @ParamObjectType) BEGIN SET @ParamObjectExists = 1 END'
+
+          BEGIN TRY
+            EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand, @params = N'@ParamSchemaID int, @ParamSchemaName sysname, @ParamObjectID int, @ParamObjectName sysname, @ParamObjectType sysname, @ParamObjectExists bit OUTPUT', @ParamSchemaID = @CurrentSchemaID, @ParamSchemaName = @CurrentSchemaName, @ParamObjectID = @CurrentObjectID, @ParamObjectName = @CurrentObjectName, @ParamObjectType = @CurrentObjectType, @ParamObjectExists = @CurrentObjectExists OUTPUT
+
+            IF @CurrentObjectExists IS NULL SET @CurrentObjectExists = 0
+          END TRY
+          BEGIN CATCH
+            SET @ErrorMessage = 'Msg ' + CAST(ERROR_NUMBER() AS nvarchar(max)) + ', ' + ISNULL(ERROR_MESSAGE(),'') + CASE WHEN ERROR_NUMBER() = 1222 THEN ', ' + 'The object ' + QUOTENAME(@CurrentDatabaseName) + '.' + QUOTENAME(@CurrentSchemaName) + '.' + QUOTENAME(@CurrentObjectName) + ' is locked. It could not be checked if the object exists.' ELSE '' END
+            SET @Severity = CASE WHEN ERROR_NUMBER() IN(1205,1222) THEN @LockMessageSeverity ELSE 16 END
+            RAISERROR('%s',@Severity,1,@ErrorMessage) WITH NOWAIT
+            RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+            IF NOT (ERROR_NUMBER() IN(1205,1222) AND @LockMessageSeverity = 10)
+            BEGIN
+              SET @ReturnCode = ERROR_NUMBER()
+            END
+          END CATCH
+
+          IF @CurrentObjectExists = 1
+          BEGIN
+            SET @CurrentDatabaseContext = @CurrentDatabaseName
+
+            SET @CurrentCommandType = 'DBCC_CHECKTABLE'
+
+            SET @CurrentCommand = ''
+            IF @LockTimeout IS NOT NULL SET @CurrentCommand = 'SET LOCK_TIMEOUT ' + CAST(@LockTimeout * 1000 AS nvarchar(max)) + '; '
+            SET @CurrentCommand += 'DBCC CHECKTABLE (N''' + REPLACE(QUOTENAME(@CurrentSchemaName) + '.' + QUOTENAME(@CurrentObjectName),'''','''''') + ''''
+            IF @NoIndex = 'Y' SET @CurrentCommand += ', NOINDEX'
+            SET @CurrentCommand += ') WITH ALL_ERRORMSGS'
+            IF @DataPurity = 'Y' SET @CurrentCommand += ', DATA_PURITY'
+            IF @PhysicalOnly = 'Y' SET @CurrentCommand += ', PHYSICAL_ONLY'
+            IF @ExtendedLogicalChecks = 'Y' SET @CurrentCommand += ', EXTENDED_LOGICAL_CHECKS'
+            IF @NoInformationalMessages = 'Y' SET @CurrentCommand += ', NO_INFOMSGS'
+            IF @TabLock = 'Y' SET @CurrentCommand += ', TABLOCK'
+            IF @MaxDOP IS NOT NULL SET @CurrentCommand += ', MAXDOP = ' + CAST(@MaxDOP AS nvarchar(max))
+
+            EXECUTE @CurrentCommandOutput = dbo.CommandExecute @DatabaseContext = @CurrentDatabaseContext, @Command = @CurrentCommand, @CommandType = @CurrentCommandType, @Mode = 1, @DatabaseName = @CurrentDatabaseName, @SchemaName = @CurrentSchemaName, @ObjectName = @CurrentObjectName, @ObjectType = @CurrentObjectType, @LogToTable = @LogToTable, @Execute = @Execute
+            SET @Error = @@ERROR
+            IF @Error <> 0 SET @CurrentCommandOutput = @Error
+            IF @CurrentCommandOutput <> 0 SET @ReturnCode = @CurrentCommandOutput
+          END
+
+          UPDATE @tmpObjects
+          SET Completed = 1
+          WHERE Selected = 1
+          AND Completed = 0
+          AND ID = @CurrentOID
+
+          SET @CurrentOID = NULL
+          SET @CurrentSchemaID = NULL
+          SET @CurrentSchemaName = NULL
+          SET @CurrentObjectID = NULL
+          SET @CurrentObjectName = NULL
+          SET @CurrentObjectType = NULL
+          SET @CurrentObjectExists = NULL
+
+          SET @CurrentDatabaseContext = NULL
+          SET @CurrentCommand = NULL
+          SET @CurrentCommandOutput = NULL
+          SET @CurrentCommandType = NULL
+        END
+      END
+
+      -- Check catalog
+      IF EXISTS(SELECT * FROM @SelectedCheckCommands WHERE CheckCommand = 'CHECKCATALOG') AND (@CurrentAvailabilityGroupRole = 'PRIMARY' OR @CurrentAvailabilityGroupRole IS NULL) AND (@CurrentDistributedAvailabilityGroupRole = 'PRIMARY' OR @CurrentDistributedAvailabilityGroupRole IS NULL) AND (SYSDATETIME() < DATEADD(SECOND,@TimeLimit,@StartTime) OR @TimeLimit IS NULL)
+      BEGIN
+        SET @CurrentDatabaseContext = CASE WHEN @EngineEdition = 5 THEN @CurrentDatabaseName ELSE 'master' END
+
+        SET @CurrentCommandType = 'DBCC_CHECKCATALOG'
+
+        SET @CurrentCommand = ''
+        IF @LockTimeout IS NOT NULL SET @CurrentCommand = 'SET LOCK_TIMEOUT ' + CAST(@LockTimeout * 1000 AS nvarchar(max)) + '; '
+        SET @CurrentCommand += 'DBCC CHECKCATALOG (' + QUOTENAME(@CurrentDatabaseName)
+        SET @CurrentCommand += ')'
+        IF @NoInformationalMessages = 'Y' SET @CurrentCommand += ' WITH NO_INFOMSGS'
+
+        EXECUTE @CurrentCommandOutput = dbo.CommandExecute @DatabaseContext = @CurrentDatabaseContext, @Command = @CurrentCommand, @CommandType = @CurrentCommandType, @Mode = 1, @DatabaseName = @CurrentDatabaseName, @LogToTable = @LogToTable, @Execute = @Execute
+        SET @Error = @@ERROR
+        IF @Error <> 0 SET @CurrentCommandOutput = @Error
+        IF @CurrentCommandOutput <> 0 SET @ReturnCode = @CurrentCommandOutput
+      END
+
+    END
+
+    IF @CurrentDatabaseState = 'SUSPECT'
+    BEGIN
+      SET @ErrorMessage = 'The database ' + QUOTENAME(@CurrentDatabaseName) + ' is in a SUSPECT state.'
+      RAISERROR('%s',16,1,@ErrorMessage) WITH NOWAIT
+      SET @Error = @@ERROR
+      SET @ReturnCode = @Error
+      RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+    END
+
+    -- Update that the database is completed
+    IF @DatabasesInParallel = 'Y'
+    BEGIN
+      UPDATE dbo.QueueDatabase
+      SET DatabaseEndTime = SYSDATETIME()
+      WHERE QueueID = @QueueID
+      AND DatabaseName = @CurrentDatabaseName
+    END
+    ELSE
+    BEGIN
+      UPDATE @tmpDatabases
+      SET Completed = 1
+      WHERE Selected = 1
+      AND Completed = 0
+      AND ID = @CurrentDBID
+    END
+
+    -- Clear variables
+    SET @CurrentDBID = NULL
+    SET @CurrentDatabaseName = NULL
+
+    SET @CurrentDatabase_sp_executesql = NULL
+
+    SET @CurrentUserAccess = NULL
+    SET @CurrentIsReadOnly = NULL
+    SET @CurrentDatabaseState = NULL
+    SET @CurrentInStandby = NULL
+    SET @CurrentRecoveryModel = NULL
+    SET @CurrentAvailabilityGroupReplicaID = NULL
+    SET @CurrentAvailabilityGroupID = NULL
+    SET @CurrentAvailabilityGroup = NULL
+    SET @CurrentAvailabilityGroupRole = NULL
+    SET @CurrentAvailabilityGroupDatabaseReplicaSynchronizationState = NULL
+    SET @CurrentAvailabilityGroupDatabaseReplicaSynchronizationHealth = NULL
+    SET @CurrentAvailabilityGroupBackupPreference = NULL
+    SET @CurrentSecondaryRoleAllowConnections = NULL
+    SET @CurrentIsPreferredBackupReplica = NULL
+    SET @CurrentDistributedAvailabilityGroup = NULL
+    SET @CurrentDistributedAvailabilityGroupReplicaID = NULL
+    SET @CurrentDistributedAvailabilityGroupRole = NULL
+    SET @CurrentDatabaseMirroringRole = NULL
+
+    SET @CurrentDatabaseContext = NULL
+    SET @CurrentCommand = NULL
+    SET @CurrentCommandOutput = NULL
+    SET @CurrentCommandType = NULL
+
+    DELETE FROM @tmpFileGroups
+    DELETE FROM @tmpObjects
+
+  END -- End of database loop
+
+  ----------------------------------------------------------------------------------------------------
+  --// Log completing information                                                                 //--
+  ----------------------------------------------------------------------------------------------------
+
+  Logging:
+  SET @EndMessage = 'Date and time: ' + CONVERT(nvarchar(max),SYSDATETIME(),120)
+  RAISERROR('%s',10,1,@EndMessage) WITH NOWAIT
+
+  RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+  IF @ReturnCode <> 0
+  BEGIN
+    RETURN @ReturnCode
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+END
+
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[IndexOptimize]') AND type in (N'P', N'PC'))
+BEGIN
+EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [dbo].[IndexOptimize] AS'
+END
+GO
+
+ALTER PROCEDURE [dbo].[IndexOptimize]
+
+@Databases nvarchar(max) = NULL,
+@FragmentationLow nvarchar(max) = NULL,
+@FragmentationMedium nvarchar(max) = 'INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
+@FragmentationHigh nvarchar(max) = 'INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
+@FragmentationLevel1 int = 5,
+@FragmentationLevel2 int = 30,
+@MinNumberOfPages int = 1000,
+@MaxNumberOfPages int = NULL,
+@SortInTempdb nvarchar(max) = 'N',
+@MaxDOP int = NULL,
+@FillFactor int = NULL,
+@PadIndex nvarchar(max) = NULL,
+@DataCompression nvarchar(max) = NULL,
+@WaitAtLowPriorityMaxDuration int = NULL,
+@WaitAtLowPriorityAbortAfterWait nvarchar(max) = NULL,
+@Resumable nvarchar(max) = 'N',
+@LOBCompaction nvarchar(max) = 'Y',
+@UpdateStatistics nvarchar(max) = NULL,
+@OnlyModifiedStatistics nvarchar(max) = 'N',
+@StatisticsModificationLevel int = NULL,
+@StatisticsSample int = NULL,
+@StatisticsPersistSample nvarchar(max) = NULL,
+@StatisticsResample nvarchar(max) = 'N',
+@PartitionLevel nvarchar(max) = 'Y',
+@MSShippedObjects nvarchar(max) = 'N',
+@Indexes nvarchar(max) = NULL,
+@TimeLimit int = NULL,
+@Delay int = NULL,
+@AvailabilityGroups nvarchar(max) = NULL,
+@LockTimeout int = NULL,
+@LockMessageSeverity int = 16,
+@StringDelimiter nvarchar(max) = ',',
+@DatabaseOrder nvarchar(max) = NULL,
+@DatabasesInParallel nvarchar(max) = 'N',
+@ExecuteAsUser nvarchar(max) = NULL,
+@LogToTable nvarchar(max) = 'N',
+@Execute nvarchar(max) = 'Y'
+
+AS
+
+BEGIN
+
+  ----------------------------------------------------------------------------------------------------
+  --// Source:  https://ola.hallengren.com                                                        //--
+  --// License: https://ola.hallengren.com/license.html                                           //--
+  --// GitHub:  https://github.com/olahallengren/sql-server-maintenance-solution                  //--
+  --// Version: 2026-09-12 15:02:38                                                               //--
+  ----------------------------------------------------------------------------------------------------
+
+  SET NOCOUNT ON
+
+  SET ARITHABORT ON
+
+  SET NUMERIC_ROUNDABORT OFF
+
+  DECLARE @StartMessage nvarchar(max)
+  DECLARE @EndMessage nvarchar(max)
+  DECLARE @DatabaseMessage nvarchar(max)
+  DECLARE @ErrorMessage nvarchar(max)
+  DECLARE @Severity int
+
+  DECLARE @StartTime datetime2 = SYSDATETIME()
+  DECLARE @SchemaName nvarchar(max) = OBJECT_SCHEMA_NAME(@@PROCID)
+  DECLARE @ObjectName nvarchar(max) = OBJECT_NAME(@@PROCID)
+  DECLARE @VersionTimestamp nvarchar(max) = SUBSTRING(OBJECT_DEFINITION(@@PROCID),CHARINDEX('--// Version: ',OBJECT_DEFINITION(@@PROCID)) + LEN('--// Version: ') + 1, 19)
+
+  DECLARE @Parameters TABLE (ID int IDENTITY PRIMARY KEY,
+                             [Name] nvarchar(max) NOT NULL,
+                             ValueNvarchar nvarchar(max),
+                             ValueInt int,
+                             ValueDatetime datetime2)
+
+  DECLARE @ParametersString nvarchar(max)
+  DECLARE @CurrentParameterName nvarchar(max)
+  DECLARE @CurrentParameterValueNvarchar nvarchar(max)
+  DECLARE @CurrentParameterValueInt int
+  DECLARE @CurrentParameterValueDatetime datetime2
+  DECLARE @CurrentParameterDelimiter nvarchar(max)
+  DECLARE @CurrentParameterMessage nvarchar(max)
+
+  DECLARE @HostPlatform nvarchar(max)
+  DECLARE @ContainedAvailabilityGroupID uniqueidentifier
+  DECLARE @ContainedAvailabilityGroupListenerConnection bit
+  DECLARE @IsSysadmin bit = IS_SRVROLEMEMBER('sysadmin')
+
+  DECLARE @QueueID int
+  DECLARE @QueueStartTime datetime2
+
+  DECLARE @CurrentDBID int
+  DECLARE @CurrentDatabaseName nvarchar(max)
+
+  DECLARE @CurrentDatabase_sp_executesql nvarchar(max)
+
+  DECLARE @CurrentExecuteAsUserExists bit
+  DECLARE @CurrentUserAccess nvarchar(max)
+  DECLARE @CurrentIsReadOnly bit
+  DECLARE @CurrentDatabaseState nvarchar(max)
+  DECLARE @CurrentInStandby bit
+  DECLARE @CurrentRecoveryModel nvarchar(max)
+  DECLARE @CurrentDatabaseHasReadOnlyFileGroup bit
+  DECLARE @CurrentAvailabilityGroupReplicaID uniqueidentifier
+  DECLARE @CurrentAvailabilityGroupID uniqueidentifier
+  DECLARE @CurrentAvailabilityGroup nvarchar(max)
+  DECLARE @CurrentAvailabilityGroupRole nvarchar(max)
+  DECLARE @CurrentAvailabilityGroupDatabaseReplicaSynchronizationState nvarchar(max)
+  DECLARE @CurrentAvailabilityGroupDatabaseReplicaSynchronizationHealth nvarchar(max)
+  DECLARE @CurrentDistributedAvailabilityGroup nvarchar(max)
+  DECLARE @CurrentDistributedAvailabilityGroupReplicaID uniqueidentifier
+  DECLARE @CurrentDistributedAvailabilityGroupRole nvarchar(max)
+  DECLARE @CurrentDatabaseMirroringRole nvarchar(max)
+
+  DECLARE @CurrentDatabaseContext nvarchar(max)
+  DECLARE @CurrentCommand nvarchar(max)
+  DECLARE @CurrentCommandOutput int
+  DECLARE @CurrentCommandType nvarchar(max)
+  DECLARE @CurrentComment nvarchar(max)
+  DECLARE @CurrentExtendedInfo xml
+
+  DECLARE @Errors TABLE (ID int IDENTITY PRIMARY KEY,
+                         [Message] nvarchar(max) NOT NULL,
+                         Severity int NOT NULL,
+                         [State] int NOT NULL)
+
+  DECLARE @CurrentMessage nvarchar(max)
+  DECLARE @CurrentSeverity int
+  DECLARE @CurrentState int
+
+  DECLARE @CurrentIxID int
+  DECLARE @CurrentIxOrder int
+  DECLARE @CurrentSchemaID int
+  DECLARE @CurrentSchemaName nvarchar(max)
+  DECLARE @CurrentObjectID int
+  DECLARE @CurrentObjectName nvarchar(max)
+  DECLARE @CurrentObjectType nvarchar(max)
+  DECLARE @CurrentIsMemoryOptimized bit
+  DECLARE @CurrentIndexID int
+  DECLARE @CurrentIndexName nvarchar(max)
+  DECLARE @CurrentIndexType int
+  DECLARE @CurrentStatisticsID int
+  DECLARE @CurrentStatisticsName nvarchar(max)
+  DECLARE @CurrentPartitionID bigint
+  DECLARE @CurrentPartitionNumber int
+  DECLARE @CurrentInRowDataPageCount bigint
+  DECLARE @CurrentAlterIndexCompleted bit
+  DECLARE @CurrentUpdateStatisticsCompleted bit
+  DECLARE @CurrentIsPartition bit
+  DECLARE @CurrentIsLastPartition bit
+  DECLARE @CurrentIndexExists bit
+  DECLARE @CurrentStatisticsExists bit
+  DECLARE @CurrentIsImageText bit
+  DECLARE @CurrentIsFileStream bit
+  DECLARE @CurrentHasClusteredColumnstore bit
+  DECLARE @CurrentIsColumnstoreOrdered bit
+  DECLARE @CurrentIsComputed bit
+  DECLARE @CurrentIsClusteredIndexComputed bit
+  DECLARE @CurrentIsTimestamp bit
+  DECLARE @CurrentAllowPageLocks bit
+  DECLARE @CurrentHasFilter bit
+  DECLARE @CurrentNoRecompute bit
+  DECLARE @CurrentIsIncremental bit
+  DECLARE @CurrentObjectHasRows bit
+  DECLARE @CurrentRowCount bigint
+  DECLARE @CurrentModificationCounter bigint
+  DECLARE @CurrentOnReadOnlyFileGroup bit
+  DECLARE @CurrentResumableIndexOperation bit
+  DECLARE @CurrentFragmentationLevel float
+  DECLARE @CurrentPageCount bigint
+  DECLARE @CurrentFragmentationGroup nvarchar(max)
+  DECLARE @CurrentAction nvarchar(max)
+  DECLARE @CurrentMaxDOP int
+  DECLARE @CurrentUpdateStatistics nvarchar(max)
+  DECLARE @CurrentStatisticsSample int
+  DECLARE @CurrentStatisticsPersistSample nvarchar(max)
+  DECLARE @CurrentStatisticsResample nvarchar(max)
+  DECLARE @CurrentDelay datetime
+
+  DECLARE @tmpDatabases TABLE (ID int IDENTITY,
+                               DatabaseName nvarchar(128),
+                               DatabaseType nvarchar(1),
+                               AvailabilityGroup bit,
+                               StartPosition int,
+                               DatabaseSize bigint,
+                               [Order] int DEFAULT 0,
+                               Selected bit DEFAULT 0,
+                               Completed bit DEFAULT 0,
+                               PRIMARY KEY (Selected, Completed, [Order], ID))
+
+  DECLARE @tmpAvailabilityGroups TABLE (ID int IDENTITY PRIMARY KEY,
+                                        AvailabilityGroupName nvarchar(128),
+                                        StartPosition int,
+                                        Selected bit DEFAULT 0)
+
+  DECLARE @tmpDatabasesAvailabilityGroups TABLE (DatabaseName nvarchar(128),
+                                                 AvailabilityGroupName nvarchar(128))
+
+  DECLARE @tmpIndexesStatistics TABLE (ID int IDENTITY,
+                                       SchemaID int,
+                                       SchemaName nvarchar(128),
+                                       ObjectID int,
+                                       ObjectName nvarchar(128),
+                                       ObjectType nvarchar(2),
+                                       IsMemoryOptimized bit,
+                                       IndexID int,
+                                       IndexName nvarchar(128),
+                                       IndexType int,
+                                       AllowPageLocks bit,
+                                       HasFilter bit,
+                                       IsImageText bit,
+                                       IsFileStream bit,
+                                       HasClusteredColumnstore bit,
+                                       IsColumnstoreOrdered bit,
+                                       IsComputed bit,
+                                       IsClusteredIndexComputed bit,
+                                       IsTimestamp bit,
+                                       OnReadOnlyFileGroup bit,
+                                       ResumableIndexOperation bit,
+                                       StatisticsID int,
+                                       StatisticsName nvarchar(128),
+                                       [NoRecompute] bit,
+                                       IsIncremental bit,
+                                       PartitionID bigint,
+                                       PartitionNumber int,
+                                       IsPartition bit,
+                                       IsLastPartition bit,
+                                       InRowDataPageCount bigint,
+                                       StartPosition int,
+                                       [Order] int DEFAULT 0,
+                                       Selected bit DEFAULT 0,
+                                       AlterIndexCompleted bit DEFAULT 0,
+                                       UpdateStatisticsCompleted bit DEFAULT 0,
+                                       Completed AS CAST(CASE WHEN AlterIndexCompleted = 1 AND UpdateStatisticsCompleted = 1 THEN 1 ELSE 0 END AS bit) PERSISTED,
+                                       PRIMARY KEY (Selected, Completed, [Order], ID),
+                                       INDEX IX_ObjectID_IndexID_PartitionNumber NONCLUSTERED (ObjectID, IndexID, PartitionNumber),
+                                       INDEX IX_ObjectID_StatisticsID_PartitionNumber NONCLUSTERED (ObjectID, StatisticsID, PartitionNumber))
+
+  DROP TABLE IF EXISTS #SelectedIndexes
+
+  CREATE TABLE #SelectedIndexes (DatabaseName nvarchar(max) COLLATE DATABASE_DEFAULT,
+                                 SchemaName nvarchar(max) COLLATE DATABASE_DEFAULT,
+                                 ObjectName nvarchar(max) COLLATE DATABASE_DEFAULT,
+                                 IndexName nvarchar(max) COLLATE DATABASE_DEFAULT,
+                                 StartPosition int,
+                                 Selected bit)
+
+  DROP TABLE IF EXISTS #Objects
+
+  CREATE TABLE #Objects (ObjectID int NOT NULL,
+                         SchemaID int,
+                         SchemaName nvarchar(128) COLLATE DATABASE_DEFAULT,
+                         ObjectName nvarchar(128) COLLATE DATABASE_DEFAULT,
+                         ObjectType nvarchar(2) COLLATE DATABASE_DEFAULT,
+                         IsMemoryOptimized bit,
+                         HasClusteredColumnstore bit,
+                         IsClusteredIndexComputed bit,
+                         IsClusteredIndexDisabled bit,
+                         PRIMARY KEY (ObjectID))
+
+  DROP TABLE IF EXISTS #Indexes
+
+  CREATE TABLE #Indexes (ObjectID int NOT NULL,
+                         IndexID int NOT NULL,
+                         IndexName nvarchar(128) COLLATE DATABASE_DEFAULT,
+                         IndexType int,
+                         DataSpaceID int,
+                         IsPartitioned bit,
+                         AllowPageLocks bit,
+                         HasFilter bit,
+                         IsImageText bit,
+                         IsFileStream bit,
+                         IsColumnstoreOrdered bit,
+                         IsComputed bit,
+                         IsTimestamp bit,
+                         PRIMARY KEY (ObjectID, IndexID))
+
+  DROP TABLE IF EXISTS #Stats
+
+  CREATE TABLE #Stats (ObjectID int NOT NULL,
+                       StatisticsID int NOT NULL,
+                       StatisticsName nvarchar(128) COLLATE DATABASE_DEFAULT,
+                       [NoRecompute] bit,
+                       IsIncremental bit,
+                       IsIndex bit,
+                       PRIMARY KEY (ObjectID, StatisticsID))
+
+  DROP TABLE IF EXISTS #ExistingObjects
+
+  CREATE TABLE #ExistingObjects (SchemaName nvarchar(max) COLLATE DATABASE_DEFAULT,
+                                 ObjectName nvarchar(max) COLLATE DATABASE_DEFAULT)
+
+  DROP TABLE IF EXISTS #ExistingIndexes
+
+  CREATE TABLE #ExistingIndexes (SchemaName nvarchar(max) COLLATE DATABASE_DEFAULT,
+                                 ObjectName nvarchar(max) COLLATE DATABASE_DEFAULT,
+                                 IndexName nvarchar(max) COLLATE DATABASE_DEFAULT)
+
+  DECLARE @tmpResumableOperations TABLE (ObjectID int NOT NULL,
+                                         IndexID int NOT NULL,
+                                         PartitionNumber int)
+
+  DECLARE @SelectedDatabases TABLE (DatabaseName nvarchar(max),
+                                    DatabaseType nvarchar(1),
+                                    AvailabilityGroup bit,
+                                    StartPosition int,
+                                    Selected bit)
+
+  DECLARE @SelectedAvailabilityGroups TABLE (AvailabilityGroupName nvarchar(max),
+                                             StartPosition int,
+                                             Selected bit)
+
+  DECLARE @SelectedIndexes TABLE (DatabaseName nvarchar(max),
+                                  SchemaName nvarchar(max),
+                                  ObjectName nvarchar(max),
+                                  IndexName nvarchar(max),
+                                  StartPosition int,
+                                  Selected bit)
+
+  DECLARE @PhysicalStats TABLE (ObjectID int,
+                                IndexID int,
+                                PartitionNumber int,
+                                FragmentationLevel float,
+                                PageCount bigint,
+                                PRIMARY KEY (ObjectID, IndexID, PartitionNumber))
+
+  DECLARE @IncrementalStatsProperties TABLE (ObjectID int,
+                                             StatisticsID int,
+                                             PartitionNumber int,
+                                             [Rows] bigint,
+                                             ModificationCounter bigint,
+                                             PRIMARY KEY (ObjectID, StatisticsID, PartitionNumber))
+
+  DECLARE @Actions TABLE ([Action] nvarchar(max))
+
+  INSERT INTO @Actions([Action]) VALUES('INDEX_REBUILD_ONLINE')
+  INSERT INTO @Actions([Action]) VALUES('INDEX_REBUILD_OFFLINE')
+  INSERT INTO @Actions([Action]) VALUES('INDEX_REORGANIZE')
+
+  DECLARE @ActionsPreferred TABLE (FragmentationGroup nvarchar(max),
+                                   [Priority] int,
+                                   [Action] nvarchar(max))
+
+  DECLARE @CurrentActionsAllowed TABLE ([Action] nvarchar(max))
+
+  DECLARE @CurrentAlterIndexWithClauseArguments TABLE (ID int IDENTITY,
+                                                       Argument nvarchar(max))
+
+  DECLARE @CurrentUpdateStatisticsWithClauseArguments TABLE (ID int IDENTITY,
+                                                             Argument nvarchar(max))
+
+  DECLARE @Error int = 0
+  DECLARE @ReturnCode int = 0
+
+  DECLARE @EmptyLine nvarchar(max) = CHAR(9)
+
+  DECLARE @ProductVersion nvarchar(max) = CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(max))
+  DECLARE @ProductUpdateType nvarchar(max) = CAST(SERVERPROPERTY('ProductUpdateType') AS nvarchar(max))
+  DECLARE @EngineEdition int = CAST(SERVERPROPERTY('EngineEdition') AS int)
+  DECLARE @Edition nvarchar(max) = CAST(SERVERPROPERTY('Edition') AS nvarchar(max))
+  DECLARE @IsHadrEnabled bit = CAST(SERVERPROPERTY('IsHadrEnabled') AS bit)
+  DECLARE @ServerName nvarchar(max) = CAST(SERVERPROPERTY('ServerName') AS nvarchar(max))
+
+  DECLARE @Collation nvarchar(128) = CAST(DATABASEPROPERTYEX(DB_NAME(),'Collation') AS nvarchar(128))
+
+  DECLARE @Version numeric(18,10) = CAST(PARSENAME(@ProductVersion,4) + '.' + PARSENAME(@ProductVersion,3) + PARSENAME(@ProductVersion,2) AS numeric(18,10))
+
+  IF @EngineEdition = 8 AND @ProductVersion = '12.0.2000.8' AND @ProductUpdateType = 'CU'
+  BEGIN
+    SET @Version = 16.01000
+  END
+
+  IF @EngineEdition <> 5
+  BEGIN
+    SELECT @HostPlatform = host_platform
+    FROM sys.dm_os_host_info
+  END
+
+  IF @Version >= 16 AND @EngineEdition NOT IN(5, 8)
+  BEGIN
+    SET @CurrentCommand = 'SELECT @ParamContainedAvailabilityGroupID = contained_availability_group_id FROM sys.dm_exec_sessions WHERE session_id = @@SPID'
+
+    EXECUTE sp_executesql @stmt = @CurrentCommand, @params = N'@ParamContainedAvailabilityGroupID uniqueidentifier OUTPUT', @ParamContainedAvailabilityGroupID = @ContainedAvailabilityGroupID OUTPUT
+  END
+
+  SET @ContainedAvailabilityGroupListenerConnection = CASE WHEN @ContainedAvailabilityGroupID IS NOT NULL THEN 1 ELSE 0 END
+
+  DECLARE @AmazonRDS bit = CASE WHEN @EngineEdition IN (5, 8) THEN 0 WHEN EXISTS (SELECT * FROM sys.databases WHERE [name] = 'rdsadmin') AND SUSER_SNAME(0x01) = 'rdsa' THEN 1 ELSE 0 END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Log initial information                                                                    //--
+  ----------------------------------------------------------------------------------------------------
+
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Databases', @Databases)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@FragmentationLow', @FragmentationLow)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@FragmentationMedium', @FragmentationMedium)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@FragmentationHigh', @FragmentationHigh)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@FragmentationLevel1', @FragmentationLevel1)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@FragmentationLevel2', @FragmentationLevel2)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@MinNumberOfPages', @MinNumberOfPages)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@MaxNumberOfPages', @MaxNumberOfPages)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@SortInTempdb', @SortInTempdb)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@MaxDOP', @MaxDOP)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@FillFactor', @FillFactor)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@PadIndex', @PadIndex)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@DataCompression', @DataCompression)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@WaitAtLowPriorityMaxDuration', @WaitAtLowPriorityMaxDuration)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@WaitAtLowPriorityAbortAfterWait', @WaitAtLowPriorityAbortAfterWait)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Resumable', @Resumable)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@LOBCompaction', @LOBCompaction)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@UpdateStatistics', @UpdateStatistics)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@OnlyModifiedStatistics', @OnlyModifiedStatistics)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@StatisticsModificationLevel', @StatisticsModificationLevel)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@StatisticsSample', @StatisticsSample)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@StatisticsPersistSample', @StatisticsPersistSample)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@StatisticsResample', @StatisticsResample)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@PartitionLevel', @PartitionLevel)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@MSShippedObjects', @MSShippedObjects)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Indexes', @Indexes)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@TimeLimit', @TimeLimit)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@Delay', @Delay)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@AvailabilityGroups', @AvailabilityGroups)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@LockTimeout', @LockTimeout)
+  INSERT INTO @Parameters ([Name], ValueInt) VALUES('@LockMessageSeverity', @LockMessageSeverity)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@StringDelimiter', @StringDelimiter)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@DatabaseOrder', @DatabaseOrder)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@DatabasesInParallel', @DatabasesInParallel)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@ExecuteAsUser', @ExecuteAsUser)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@LogToTable', @LogToTable)
+  INSERT INTO @Parameters ([Name], ValueNvarchar) VALUES('@Execute', @Execute)
+
+  SELECT @ParametersString = STRING_AGG(CAST([Name] + ' = ' + CASE WHEN ValueNvarchar IS NOT NULL THEN '''' + REPLACE(ValueNvarchar,'''','''''') + '''' WHEN ValueInt IS NOT NULL THEN CAST(ValueInt AS nvarchar(max)) WHEN ValueDatetime IS NOT NULL THEN '''' + CONVERT(nvarchar(max), ValueDatetime, 21) + '''' ELSE 'NULL' END AS nvarchar(max)), ', ') WITHIN GROUP (ORDER BY [ID] ASC)
+  FROM @Parameters
+
+  SET @StartMessage = 'Date and time: ' + CONVERT(nvarchar(max),@StartTime,120)
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Server: ' + @ServerName
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Version: ' + @ProductVersion
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Edition: ' + @Edition
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  IF @EngineEdition = 8
+  BEGIN
+    SET @StartMessage = 'Update type: ' + @ProductUpdateType
+    RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+  END
+
+  IF @EngineEdition <> 5
+  BEGIN
+    SET @StartMessage = 'Platform: ' + ISNULL(@HostPlatform, 'N/A')
+    RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+  END
+
+  IF @Version >= 16 AND @EngineEdition NOT IN(5, 8)
+  BEGIN
+    SET @StartMessage = 'Contained availability group connection: ' + CASE WHEN @ContainedAvailabilityGroupListenerConnection = 1 THEN 'Yes' WHEN @ContainedAvailabilityGroupListenerConnection = 0 THEN 'No' ELSE 'N/A' END
+    RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+  END
+
+  IF @EngineEdition <> 5
+  BEGIN
+    SET @StartMessage = 'Is sysadmin: ' + CASE WHEN @IsSysadmin = 1 THEN 'Yes' WHEN @IsSysadmin = 0 THEN 'No' ELSE 'N/A' END
+    RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+  END
+
+  SET @StartMessage = 'Database: ' + QUOTENAME(DB_NAME())
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Procedure: ' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@ObjectName)
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Version: ' + @VersionTimestamp
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'Source: https://ola.hallengren.com'
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+  RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+  SET @StartMessage = 'Command:'
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  SET @StartMessage = 'EXECUTE ' + QUOTENAME(@SchemaName) + '.' + QUOTENAME(@ObjectName)
+  RAISERROR('%s',10,1,@StartMessage) WITH NOWAIT
+
+  DECLARE ParameterCursor CURSOR LOCAL FAST_FORWARD FOR SELECT [Name], ValueNvarchar, ValueInt, ValueDatetime, CASE WHEN [ID] = MAX([ID]) OVER() THEN '' ELSE ',' END FROM @Parameters ORDER BY [ID] ASC
+
+  OPEN ParameterCursor
+
+  FETCH ParameterCursor INTO @CurrentParameterName, @CurrentParameterValueNvarchar, @CurrentParameterValueInt, @CurrentParameterValueDatetime, @CurrentParameterDelimiter
+
+  WHILE @@FETCH_STATUS = 0
+  BEGIN
+    SET @CurrentParameterMessage = @CurrentParameterName + ' = ' + CASE WHEN @CurrentParameterValueNvarchar IS NOT NULL THEN '''' + REPLACE(@CurrentParameterValueNvarchar,'''','''''') + '''' WHEN @CurrentParameterValueInt IS NOT NULL THEN CAST(@CurrentParameterValueInt AS nvarchar(max)) WHEN @CurrentParameterValueDatetime IS NOT NULL THEN '''' + CONVERT(nvarchar(max), @CurrentParameterValueDatetime, 21) + '''' ELSE 'NULL' END + @CurrentParameterDelimiter
+
+    RAISERROR('%s',10,1,@CurrentParameterMessage) WITH NOWAIT
+
+    FETCH NEXT FROM ParameterCursor INTO @CurrentParameterName, @CurrentParameterValueNvarchar, @CurrentParameterValueInt, @CurrentParameterValueDatetime, @CurrentParameterDelimiter
+  END
+
+  CLOSE ParameterCursor
+
+  DEALLOCATE ParameterCursor
+
+  RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+  ----------------------------------------------------------------------------------------------------
+  --// Check core requirements                                                                    //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF NOT (SELECT uses_ansi_nulls FROM sys.sql_modules WHERE [object_id] = @@PROCID) = 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('ANSI_NULLS has to be set to ON for the stored procedure. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html.', 16, 1)
+  END
+
+  IF NOT (SELECT uses_quoted_identifier FROM sys.sql_modules WHERE [object_id] = @@PROCID) = 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('QUOTED_IDENTIFIER has to be set to ON for the stored procedure. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html.', 16, 1)
+  END
+
+  IF NOT EXISTS (SELECT * FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] = 'P' AND schemas.[name] = 'dbo' AND objects.[name] = 'CommandExecute')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The stored procedure CommandExecute is missing. Download https://ola.hallengren.com/scripts/CommandExecute.sql.', 16, 1)
+  END
+
+  IF EXISTS (SELECT * FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] = 'P' AND schemas.[name] = 'dbo' AND objects.[name] = 'CommandExecute' AND OBJECT_DEFINITION(objects.[object_id]) NOT LIKE '%@DatabaseContext%')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The stored procedure CommandExecute needs to be updated. Download https://ola.hallengren.com/scripts/CommandExecute.sql.', 16, 1)
+  END
+
+  IF @LogToTable = 'Y' AND NOT EXISTS (SELECT * FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] = 'U' AND schemas.[name] = 'dbo' AND objects.[name] = 'CommandLog')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The table CommandLog is missing. Download https://ola.hallengren.com/scripts/CommandLog.sql.', 16, 1)
+  END
+
+  IF @DatabasesInParallel = 'Y' AND NOT EXISTS (SELECT * FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] = 'U' AND schemas.[name] = 'dbo' AND objects.[name] = 'Queue')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The table Queue is missing. It is required when @DatabasesInParallel = ''Y''. Download https://ola.hallengren.com/scripts/Queue.sql.', 16, 1)
+  END
+
+  IF @DatabasesInParallel = 'Y' AND NOT EXISTS (SELECT * FROM sys.objects objects INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] = 'U' AND schemas.[name] = 'dbo' AND objects.[name] = 'QueueDatabase')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The table QueueDatabase is missing. It is required when @DatabasesInParallel = ''Y''. Download https://ola.hallengren.com/scripts/QueueDatabase.sql.', 16, 1)
+  END
+
+  IF @@TRANCOUNT <> 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The stored procedure cannot be executed inside a transaction. The transaction count (@@TRANCOUNT) has to be 0. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Select databases                                                                           //--
+  ----------------------------------------------------------------------------------------------------
+
+  SET @Databases = REPLACE(@Databases, CHAR(10), '')
+  SET @Databases = REPLACE(@Databases, CHAR(13), '')
+
+  WHILE CHARINDEX(@StringDelimiter + ' ', @Databases) > 0 SET @Databases = REPLACE(@Databases, @StringDelimiter + ' ', @StringDelimiter)
+  WHILE CHARINDEX(' ' + @StringDelimiter, @Databases) > 0 SET @Databases = REPLACE(@Databases, ' ' + @StringDelimiter, @StringDelimiter)
+
+  SET @Databases = LTRIM(RTRIM(@Databases));
+
+  WITH Databases1 (StartPosition, EndPosition, DatabaseItem) AS
+  (
+  SELECT 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Databases, 1), 0), LEN(@Databases) + 1) AS EndPosition,
+         SUBSTRING(@Databases, 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Databases, 1), 0), LEN(@Databases) + 1) - 1) AS DatabaseItem
+  WHERE @Databases IS NOT NULL
+  UNION ALL
+  SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Databases, EndPosition + 1), 0), LEN(@Databases) + 1) AS EndPosition,
+         SUBSTRING(@Databases, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Databases, EndPosition + 1), 0), LEN(@Databases) + 1) - EndPosition - 1) AS DatabaseItem
+  FROM Databases1
+  WHERE EndPosition < LEN(@Databases) + 1
+  ),
+  Databases2 (DatabaseItem, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN DatabaseItem LIKE '-%' THEN RIGHT(DatabaseItem,LEN(DatabaseItem) - 1) ELSE DatabaseItem END AS DatabaseItem,
+         StartPosition,
+         CASE WHEN DatabaseItem LIKE '-%' THEN 0 ELSE 1 END AS Selected
+  FROM Databases1
+  ),
+  Databases3 (DatabaseItem, DatabaseType, AvailabilityGroup, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN DatabaseItem IN('ALL_DATABASES','SYSTEM_DATABASES','USER_DATABASES','AVAILABILITY_GROUP_DATABASES') THEN '%' ELSE DatabaseItem END AS DatabaseItem,
+         CASE WHEN DatabaseItem = 'SYSTEM_DATABASES' THEN 'S' WHEN DatabaseItem = 'USER_DATABASES' THEN 'U' ELSE NULL END AS DatabaseType,
+         CASE WHEN DatabaseItem = 'AVAILABILITY_GROUP_DATABASES' THEN 1 ELSE NULL END AvailabilityGroup,
+         StartPosition,
+         Selected
+  FROM Databases2
+  ),
+  Databases4 (DatabaseName, DatabaseType, AvailabilityGroup, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN LEFT(DatabaseItem,1) = '[' AND RIGHT(DatabaseItem,1) = ']' THEN PARSENAME(DatabaseItem,1) ELSE DatabaseItem END AS DatabaseItem,
+         DatabaseType,
+         AvailabilityGroup,
+         StartPosition,
+         Selected
+  FROM Databases3
+  )
+  INSERT INTO @SelectedDatabases (DatabaseName, DatabaseType, AvailabilityGroup, StartPosition, Selected)
+  SELECT DatabaseName,
+         DatabaseType,
+         AvailabilityGroup,
+         StartPosition,
+         Selected
+  FROM Databases4
+  OPTION (MAXRECURSION 0)
+
+  IF @IsHadrEnabled = 1
+  BEGIN
+    INSERT INTO @tmpAvailabilityGroups (AvailabilityGroupName)
+    SELECT name AS AvailabilityGroupName
+    FROM sys.availability_groups
+
+    INSERT INTO @tmpDatabasesAvailabilityGroups (DatabaseName, AvailabilityGroupName)
+    SELECT databases.name,
+           availability_groups.name
+    FROM sys.databases databases
+    INNER JOIN sys.availability_replicas availability_replicas ON databases.replica_id = availability_replicas.replica_id
+    INNER JOIN sys.availability_groups availability_groups ON availability_replicas.group_id = availability_groups.group_id
+  END
+
+  INSERT INTO @tmpDatabases (DatabaseName, DatabaseType, AvailabilityGroup)
+  SELECT [name] AS DatabaseName,
+         CASE WHEN name IN('master','msdb','model') OR is_distributor = 1 THEN 'S' ELSE 'U' END AS DatabaseType,
+         NULL AS AvailabilityGroup
+  FROM sys.databases
+  WHERE [name] <> 'tempdb'
+  AND source_database_id IS NULL
+  ORDER BY [name] ASC
+
+  UPDATE tmpDatabases
+  SET AvailabilityGroup = CASE WHEN EXISTS (SELECT * FROM @tmpDatabasesAvailabilityGroups WHERE DatabaseName = tmpDatabases.DatabaseName) THEN 1 ELSE 0 END
+  FROM @tmpDatabases tmpDatabases
+
+  UPDATE tmpDatabases
+  SET tmpDatabases.Selected = SelectedDatabases.Selected
+  FROM @tmpDatabases tmpDatabases
+  INNER JOIN @SelectedDatabases SelectedDatabases
+  ON tmpDatabases.DatabaseName LIKE REPLACE(REPLACE(SelectedDatabases.DatabaseName,'[','[[]'),'_','[_]')
+  AND (tmpDatabases.DatabaseType = SelectedDatabases.DatabaseType OR SelectedDatabases.DatabaseType IS NULL)
+  AND (tmpDatabases.AvailabilityGroup = SelectedDatabases.AvailabilityGroup OR SelectedDatabases.AvailabilityGroup IS NULL)
+  WHERE SelectedDatabases.Selected = 1
+
+  UPDATE tmpDatabases
+  SET tmpDatabases.Selected = SelectedDatabases.Selected
+  FROM @tmpDatabases tmpDatabases
+  INNER JOIN @SelectedDatabases SelectedDatabases
+  ON tmpDatabases.DatabaseName LIKE REPLACE(REPLACE(SelectedDatabases.DatabaseName,'[','[[]'),'_','[_]')
+  AND (tmpDatabases.DatabaseType = SelectedDatabases.DatabaseType OR SelectedDatabases.DatabaseType IS NULL)
+  AND (tmpDatabases.AvailabilityGroup = SelectedDatabases.AvailabilityGroup OR SelectedDatabases.AvailabilityGroup IS NULL)
+  WHERE SelectedDatabases.Selected = 0
+
+  UPDATE tmpDatabases
+  SET tmpDatabases.StartPosition = SelectedDatabases2.StartPosition
+  FROM @tmpDatabases tmpDatabases
+  INNER JOIN (SELECT tmpDatabases.DatabaseName, MIN(SelectedDatabases.StartPosition) AS StartPosition
+              FROM @tmpDatabases tmpDatabases
+              INNER JOIN @SelectedDatabases SelectedDatabases
+              ON tmpDatabases.DatabaseName LIKE REPLACE(REPLACE(SelectedDatabases.DatabaseName,'[','[[]'),'_','[_]')
+              AND (tmpDatabases.DatabaseType = SelectedDatabases.DatabaseType OR SelectedDatabases.DatabaseType IS NULL)
+              AND (tmpDatabases.AvailabilityGroup = SelectedDatabases.AvailabilityGroup OR SelectedDatabases.AvailabilityGroup IS NULL)
+              WHERE SelectedDatabases.Selected = 1
+              GROUP BY tmpDatabases.DatabaseName) SelectedDatabases2
+  ON tmpDatabases.DatabaseName = SelectedDatabases2.DatabaseName
+
+  IF @Databases IS NOT NULL AND (NOT EXISTS(SELECT * FROM @SelectedDatabases) OR EXISTS(SELECT * FROM @SelectedDatabases WHERE DatabaseName IS NULL OR DATALENGTH(DatabaseName) = 0))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Databases is not supported. The value could not be parsed into a list of databases. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#Databases.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Select availability groups                                                                 //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @AvailabilityGroups IS NOT NULL AND @IsHadrEnabled = 1
+  BEGIN
+
+    SET @AvailabilityGroups = REPLACE(@AvailabilityGroups, CHAR(10), '')
+    SET @AvailabilityGroups = REPLACE(@AvailabilityGroups, CHAR(13), '')
+
+    WHILE CHARINDEX(@StringDelimiter + ' ', @AvailabilityGroups) > 0 SET @AvailabilityGroups = REPLACE(@AvailabilityGroups, @StringDelimiter + ' ', @StringDelimiter)
+    WHILE CHARINDEX(' ' + @StringDelimiter, @AvailabilityGroups) > 0 SET @AvailabilityGroups = REPLACE(@AvailabilityGroups, ' ' + @StringDelimiter, @StringDelimiter)
+
+    SET @AvailabilityGroups = LTRIM(RTRIM(@AvailabilityGroups));
+
+    WITH AvailabilityGroups1 (StartPosition, EndPosition, AvailabilityGroupItem) AS
+    (
+    SELECT 1 AS StartPosition,
+           ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @AvailabilityGroups, 1), 0), LEN(@AvailabilityGroups) + 1) AS EndPosition,
+           SUBSTRING(@AvailabilityGroups, 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @AvailabilityGroups, 1), 0), LEN(@AvailabilityGroups) + 1) - 1) AS AvailabilityGroupItem
+    WHERE @AvailabilityGroups IS NOT NULL
+    UNION ALL
+    SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+           ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @AvailabilityGroups, EndPosition + 1), 0), LEN(@AvailabilityGroups) + 1) AS EndPosition,
+           SUBSTRING(@AvailabilityGroups, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @AvailabilityGroups, EndPosition + 1), 0), LEN(@AvailabilityGroups) + 1) - EndPosition - 1) AS AvailabilityGroupItem
+    FROM AvailabilityGroups1
+    WHERE EndPosition < LEN(@AvailabilityGroups) + 1
+    ),
+    AvailabilityGroups2 (AvailabilityGroupItem, StartPosition, Selected) AS
+    (
+    SELECT CASE WHEN AvailabilityGroupItem LIKE '-%' THEN RIGHT(AvailabilityGroupItem,LEN(AvailabilityGroupItem) - 1) ELSE AvailabilityGroupItem END AS AvailabilityGroupItem,
+           StartPosition,
+           CASE WHEN AvailabilityGroupItem LIKE '-%' THEN 0 ELSE 1 END AS Selected
+    FROM AvailabilityGroups1
+    ),
+    AvailabilityGroups3 (AvailabilityGroupItem, StartPosition, Selected) AS
+    (
+    SELECT CASE WHEN AvailabilityGroupItem = 'ALL_AVAILABILITY_GROUPS' THEN '%' ELSE AvailabilityGroupItem END AS AvailabilityGroupItem,
+           StartPosition,
+           Selected
+    FROM AvailabilityGroups2
+    ),
+    AvailabilityGroups4 (AvailabilityGroupName, StartPosition, Selected) AS
+    (
+    SELECT CASE WHEN LEFT(AvailabilityGroupItem,1) = '[' AND RIGHT(AvailabilityGroupItem,1) = ']' THEN PARSENAME(AvailabilityGroupItem,1) ELSE AvailabilityGroupItem END AS AvailabilityGroupItem,
+           StartPosition,
+           Selected
+    FROM AvailabilityGroups3
+    )
+    INSERT INTO @SelectedAvailabilityGroups (AvailabilityGroupName, StartPosition, Selected)
+    SELECT AvailabilityGroupName, StartPosition, Selected
+    FROM AvailabilityGroups4
+    OPTION (MAXRECURSION 0)
+
+    UPDATE tmpAvailabilityGroups
+    SET tmpAvailabilityGroups.Selected = SelectedAvailabilityGroups.Selected
+    FROM @tmpAvailabilityGroups tmpAvailabilityGroups
+    INNER JOIN @SelectedAvailabilityGroups SelectedAvailabilityGroups
+    ON tmpAvailabilityGroups.AvailabilityGroupName LIKE REPLACE(REPLACE(SelectedAvailabilityGroups.AvailabilityGroupName,'[','[[]'),'_','[_]')
+    WHERE SelectedAvailabilityGroups.Selected = 1
+
+    UPDATE tmpAvailabilityGroups
+    SET tmpAvailabilityGroups.Selected = SelectedAvailabilityGroups.Selected
+    FROM @tmpAvailabilityGroups tmpAvailabilityGroups
+    INNER JOIN @SelectedAvailabilityGroups SelectedAvailabilityGroups
+    ON tmpAvailabilityGroups.AvailabilityGroupName LIKE REPLACE(REPLACE(SelectedAvailabilityGroups.AvailabilityGroupName,'[','[[]'),'_','[_]')
+    WHERE SelectedAvailabilityGroups.Selected = 0
+
+    UPDATE tmpAvailabilityGroups
+    SET tmpAvailabilityGroups.StartPosition = SelectedAvailabilityGroups2.StartPosition
+    FROM @tmpAvailabilityGroups tmpAvailabilityGroups
+    INNER JOIN (SELECT tmpAvailabilityGroups.AvailabilityGroupName, MIN(SelectedAvailabilityGroups.StartPosition) AS StartPosition
+                FROM @tmpAvailabilityGroups tmpAvailabilityGroups
+                INNER JOIN @SelectedAvailabilityGroups SelectedAvailabilityGroups
+                ON tmpAvailabilityGroups.AvailabilityGroupName LIKE REPLACE(REPLACE(SelectedAvailabilityGroups.AvailabilityGroupName,'[','[[]'),'_','[_]')
+                WHERE SelectedAvailabilityGroups.Selected = 1
+                GROUP BY tmpAvailabilityGroups.AvailabilityGroupName) SelectedAvailabilityGroups2
+    ON tmpAvailabilityGroups.AvailabilityGroupName = SelectedAvailabilityGroups2.AvailabilityGroupName
+
+    UPDATE tmpDatabases
+    SET tmpDatabases.StartPosition = tmpAvailabilityGroups.StartPosition,
+        tmpDatabases.Selected = 1
+    FROM @tmpDatabases tmpDatabases
+    INNER JOIN @tmpDatabasesAvailabilityGroups tmpDatabasesAvailabilityGroups ON tmpDatabases.DatabaseName = tmpDatabasesAvailabilityGroups.DatabaseName
+    INNER JOIN @tmpAvailabilityGroups tmpAvailabilityGroups ON tmpDatabasesAvailabilityGroups.AvailabilityGroupName = tmpAvailabilityGroups.AvailabilityGroupName
+    WHERE tmpAvailabilityGroups.Selected = 1
+
+  END
+
+  IF @AvailabilityGroups IS NOT NULL AND (NOT EXISTS(SELECT * FROM @SelectedAvailabilityGroups) OR EXISTS(SELECT * FROM @SelectedAvailabilityGroups WHERE AvailabilityGroupName IS NULL OR AvailabilityGroupName = ''))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @AvailabilityGroups is not supported. The value could not be parsed into a list of availability groups. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#AvailabilityGroups.', 16, 1)
+  END
+
+  IF @AvailabilityGroups IS NOT NULL AND @IsHadrEnabled = 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @AvailabilityGroups can only be used when availability groups are enabled on the instance. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#AvailabilityGroups.', 16, 1)
+  END
+
+  IF (@Databases IS NULL AND @AvailabilityGroups IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('You need to specify one of the parameters @Databases and @AvailabilityGroups. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html.', 16, 1)
+  END
+
+  IF (@Databases IS NOT NULL AND @AvailabilityGroups IS NOT NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('You can only specify one of the parameters @Databases and @AvailabilityGroups. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Select indexes                                                                             //--
+  ----------------------------------------------------------------------------------------------------
+
+  SET @Indexes = REPLACE(@Indexes, CHAR(10), '')
+  SET @Indexes = REPLACE(@Indexes, CHAR(13), '')
+
+  WHILE CHARINDEX(@StringDelimiter + ' ', @Indexes) > 0 SET @Indexes = REPLACE(@Indexes, @StringDelimiter + ' ', @StringDelimiter)
+  WHILE CHARINDEX(' ' + @StringDelimiter, @Indexes) > 0 SET @Indexes = REPLACE(@Indexes, ' ' + @StringDelimiter, @StringDelimiter)
+
+  SET @Indexes = LTRIM(RTRIM(@Indexes));
+
+  WITH Indexes1 (StartPosition, EndPosition, IndexItem) AS
+  (
+  SELECT 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Indexes, 1), 0), LEN(@Indexes) + 1) AS EndPosition,
+         SUBSTRING(@Indexes, 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Indexes, 1), 0), LEN(@Indexes) + 1) - 1) AS IndexItem
+  WHERE @Indexes IS NOT NULL
+  UNION ALL
+  SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Indexes, EndPosition + 1), 0), LEN(@Indexes) + 1) AS EndPosition,
+         SUBSTRING(@Indexes, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @Indexes, EndPosition + 1), 0), LEN(@Indexes) + 1) - EndPosition - 1) AS IndexItem
+  FROM Indexes1
+  WHERE EndPosition < LEN(@Indexes) + 1
+  ),
+  Indexes2 (IndexItem, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN IndexItem LIKE '-%' THEN RIGHT(IndexItem,LEN(IndexItem) - 1) ELSE IndexItem END AS IndexItem,
+         StartPosition,
+         CASE WHEN IndexItem LIKE '-%' THEN 0 ELSE 1 END AS Selected
+  FROM Indexes1
+  ),
+  Indexes3 (IndexItem, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN IndexItem = 'ALL_INDEXES' THEN '%.%.%.%' ELSE IndexItem END AS IndexItem,
+         StartPosition,
+         Selected
+  FROM Indexes2
+  ),
+  Indexes4 (DatabaseName, SchemaName, ObjectName, IndexName, StartPosition, Selected) AS
+  (
+  SELECT CASE WHEN PARSENAME(IndexItem,4) IS NULL THEN PARSENAME(IndexItem,3) ELSE PARSENAME(IndexItem,4) END AS DatabaseName,
+         CASE WHEN PARSENAME(IndexItem,4) IS NULL THEN PARSENAME(IndexItem,2) ELSE PARSENAME(IndexItem,3) END AS SchemaName,
+         CASE WHEN PARSENAME(IndexItem,4) IS NULL THEN PARSENAME(IndexItem,1) ELSE PARSENAME(IndexItem,2) END AS ObjectName,
+         CASE WHEN PARSENAME(IndexItem,4) IS NULL THEN '%' ELSE PARSENAME(IndexItem,1) END AS IndexName,
+         StartPosition,
+         Selected
+  FROM Indexes3
+  )
+  INSERT INTO @SelectedIndexes (DatabaseName, SchemaName, ObjectName, IndexName, StartPosition, Selected)
+  SELECT DatabaseName, SchemaName, ObjectName, IndexName, StartPosition, Selected
+  FROM Indexes4
+  OPTION (MAXRECURSION 0)
+
+  INSERT INTO #SelectedIndexes (DatabaseName, SchemaName, ObjectName, IndexName, StartPosition, Selected)
+  SELECT DatabaseName, SchemaName, ObjectName, IndexName, StartPosition, Selected
+  FROM @SelectedIndexes
+
+  ----------------------------------------------------------------------------------------------------
+  --// Select actions                                                                             //--
+  ----------------------------------------------------------------------------------------------------
+
+  SET @FragmentationLow = REPLACE(@FragmentationLow, @StringDelimiter + ' ', @StringDelimiter);
+
+  WITH FragmentationLow (StartPosition, EndPosition, [Action]) AS
+  (
+  SELECT 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @FragmentationLow, 1), 0), LEN(@FragmentationLow) + 1) AS EndPosition,
+         SUBSTRING(@FragmentationLow, 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @FragmentationLow, 1), 0), LEN(@FragmentationLow) + 1) - 1) AS [Action]
+  WHERE @FragmentationLow IS NOT NULL
+  UNION ALL
+  SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @FragmentationLow, EndPosition + 1), 0), LEN(@FragmentationLow) + 1) AS EndPosition,
+         SUBSTRING(@FragmentationLow, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @FragmentationLow, EndPosition + 1), 0), LEN(@FragmentationLow) + 1) - EndPosition - 1) AS [Action]
+  FROM FragmentationLow
+  WHERE EndPosition < LEN(@FragmentationLow) + 1
+  )
+  INSERT INTO @ActionsPreferred(FragmentationGroup, [Priority], [Action])
+  SELECT 'Low' AS FragmentationGroup,
+         ROW_NUMBER() OVER(ORDER BY StartPosition ASC) AS [Priority],
+         [Action]
+  FROM FragmentationLow
+  OPTION (MAXRECURSION 0)
+
+  SET @FragmentationMedium = REPLACE(@FragmentationMedium, @StringDelimiter + ' ', @StringDelimiter);
+
+  WITH FragmentationMedium (StartPosition, EndPosition, [Action]) AS
+  (
+  SELECT 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @FragmentationMedium, 1), 0), LEN(@FragmentationMedium) + 1) AS EndPosition,
+         SUBSTRING(@FragmentationMedium, 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @FragmentationMedium, 1), 0), LEN(@FragmentationMedium) + 1) - 1) AS [Action]
+  WHERE @FragmentationMedium IS NOT NULL
+  UNION ALL
+  SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @FragmentationMedium, EndPosition + 1), 0), LEN(@FragmentationMedium) + 1) AS EndPosition,
+         SUBSTRING(@FragmentationMedium, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @FragmentationMedium, EndPosition + 1), 0), LEN(@FragmentationMedium) + 1) - EndPosition - 1) AS [Action]
+  FROM FragmentationMedium
+  WHERE EndPosition < LEN(@FragmentationMedium) + 1
+  )
+  INSERT INTO @ActionsPreferred(FragmentationGroup, [Priority], [Action])
+  SELECT 'Medium' AS FragmentationGroup,
+         ROW_NUMBER() OVER(ORDER BY StartPosition ASC) AS [Priority],
+         [Action]
+  FROM FragmentationMedium
+  OPTION (MAXRECURSION 0)
+
+  SET @FragmentationHigh = REPLACE(@FragmentationHigh, @StringDelimiter + ' ', @StringDelimiter);
+
+  WITH FragmentationHigh (StartPosition, EndPosition, [Action]) AS
+  (
+  SELECT 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @FragmentationHigh, 1), 0), LEN(@FragmentationHigh) + 1) AS EndPosition,
+         SUBSTRING(@FragmentationHigh, 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @FragmentationHigh, 1), 0), LEN(@FragmentationHigh) + 1) - 1) AS [Action]
+  WHERE @FragmentationHigh IS NOT NULL
+  UNION ALL
+  SELECT CAST(EndPosition AS int) + 1 AS StartPosition,
+         ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @FragmentationHigh, EndPosition + 1), 0), LEN(@FragmentationHigh) + 1) AS EndPosition,
+         SUBSTRING(@FragmentationHigh, EndPosition + 1, ISNULL(NULLIF(CHARINDEX(@StringDelimiter, @FragmentationHigh, EndPosition + 1), 0), LEN(@FragmentationHigh) + 1) - EndPosition - 1) AS [Action]
+  FROM FragmentationHigh
+  WHERE EndPosition < LEN(@FragmentationHigh) + 1
+  )
+  INSERT INTO @ActionsPreferred(FragmentationGroup, [Priority], [Action])
+  SELECT 'High' AS FragmentationGroup,
+         ROW_NUMBER() OVER(ORDER BY StartPosition ASC) AS [Priority],
+         [Action]
+  FROM FragmentationHigh
+  OPTION (MAXRECURSION 0)
+
+  ----------------------------------------------------------------------------------------------------
+  --// Check input parameters                                                                     //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF EXISTS (SELECT [Action] FROM @ActionsPreferred WHERE FragmentationGroup = 'Low' AND [Action] NOT IN(SELECT * FROM @Actions))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FragmentationLow is not supported. Supported values are INDEX_REBUILD_ONLINE, INDEX_REBUILD_OFFLINE and INDEX_REORGANIZE. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#FragmentationLow.', 16, 1)
+  END
+
+  IF EXISTS (SELECT * FROM @ActionsPreferred WHERE FragmentationGroup = 'Low' GROUP BY [Action] HAVING COUNT(*) > 1)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FragmentationLow is not supported. The same action has been specified more than once. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#FragmentationLow.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF EXISTS (SELECT [Action] FROM @ActionsPreferred WHERE FragmentationGroup = 'Medium' AND [Action] NOT IN(SELECT * FROM @Actions))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FragmentationMedium is not supported. Supported values are INDEX_REBUILD_ONLINE, INDEX_REBUILD_OFFLINE and INDEX_REORGANIZE. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#FragmentationMedium.', 16, 1)
+  END
+
+  IF EXISTS (SELECT * FROM @ActionsPreferred WHERE FragmentationGroup = 'Medium' GROUP BY [Action] HAVING COUNT(*) > 1)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FragmentationMedium is not supported. The same action has been specified more than once. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#FragmentationMedium.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF EXISTS (SELECT [Action] FROM @ActionsPreferred WHERE FragmentationGroup = 'High' AND [Action] NOT IN(SELECT * FROM @Actions))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FragmentationHigh is not supported. Supported values are INDEX_REBUILD_ONLINE, INDEX_REBUILD_OFFLINE and INDEX_REORGANIZE. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#FragmentationHigh.', 16, 1)
+  END
+
+  IF EXISTS (SELECT * FROM @ActionsPreferred WHERE FragmentationGroup = 'High' GROUP BY [Action] HAVING COUNT(*) > 1)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FragmentationHigh is not supported. The same action has been specified more than once. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#FragmentationHigh.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @FragmentationLevel1 <= 0 OR @FragmentationLevel1 >= 100 OR @FragmentationLevel1 IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FragmentationLevel1 is not supported. The value has to be greater than 0 and less than 100. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#FragmentationLevel1.', 16, 1)
+  END
+
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @FragmentationLevel2 <= 0 OR @FragmentationLevel2 >= 100 OR @FragmentationLevel2 IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FragmentationLevel2 is not supported. The value has to be greater than 0 and less than 100. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#FragmentationLevel2.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @FragmentationLevel2 <= @FragmentationLevel1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FragmentationLevel2 has to be greater than the value for @FragmentationLevel1. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#FragmentationLevel2.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @MinNumberOfPages < 0 OR @MinNumberOfPages IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MinNumberOfPages is not supported. The value has to be greater than or equal to 0. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#MinNumberOfPages.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @MaxNumberOfPages < 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MaxNumberOfPages is not supported. The value has to be greater than or equal to 0. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#MaxNumberOfPages.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @MinNumberOfPages > @MaxNumberOfPages
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MaxNumberOfPages has to be greater than or equal to the value for @MinNumberOfPages. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#MaxNumberOfPages.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @SortInTempdb NOT IN('Y','N') OR @SortInTempdb IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @SortInTempdb is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#SortInTempdb.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @MaxDOP < 0 OR @MaxDOP > 64
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MaxDOP is not supported. The value has to be between 0 and 64. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#MaxDOP.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @FillFactor <= 0 OR @FillFactor > 100
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @FillFactor is not supported. The value has to be between 1 and 100. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#FillFactor.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @PadIndex NOT IN('Y','N')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @PadIndex is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#PadIndex.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DataCompression NOT IN('NONE', 'PAGE', 'ROW')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DataCompression is not supported. Supported values are NONE, PAGE and ROW. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#DataCompression.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @WaitAtLowPriorityMaxDuration < 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @WaitAtLowPriorityMaxDuration is not supported. The value has to be greater than or equal to 0. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#WaitAtLowPriorityMaxDuration.', 16, 1)
+  END
+
+  IF @WaitAtLowPriorityAbortAfterWait = 'SELF' AND @WaitAtLowPriorityMaxDuration = 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @WaitAtLowPriorityMaxDuration is not supported. The value has to be greater than 0 when @WaitAtLowPriorityAbortAfterWait = ''SELF''. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#WaitAtLowPriorityMaxDuration.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @WaitAtLowPriorityAbortAfterWait NOT IN('NONE','SELF','BLOCKERS')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @WaitAtLowPriorityAbortAfterWait is not supported. Supported values are NONE, SELF and BLOCKERS. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#WaitAtLowPriorityAbortAfterWait.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF (@WaitAtLowPriorityAbortAfterWait IS NOT NULL AND @WaitAtLowPriorityMaxDuration IS NULL) OR (@WaitAtLowPriorityAbortAfterWait IS NULL AND @WaitAtLowPriorityMaxDuration IS NOT NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameters @WaitAtLowPriorityMaxDuration and @WaitAtLowPriorityAbortAfterWait can only be used together. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Resumable NOT IN('Y','N') OR @Resumable IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Resumable is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#Resumable.', 16, 1)
+  END
+
+  IF @Resumable = 'Y' AND @SortInTempdb = 'Y'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('You can only specify one of the parameters @Resumable and @SortInTempdb. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @LOBCompaction NOT IN('Y','N') OR @LOBCompaction IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @LOBCompaction is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#LOBCompaction.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @UpdateStatistics NOT IN('ALL','COLUMNS','INDEX')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @UpdateStatistics is not supported. Supported values are ALL, COLUMNS and INDEX. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#UpdateStatistics.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @OnlyModifiedStatistics NOT IN('Y','N') OR @OnlyModifiedStatistics IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @OnlyModifiedStatistics is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#OnlyModifiedStatistics.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @StatisticsModificationLevel <= 0 OR @StatisticsModificationLevel > 100
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @StatisticsModificationLevel is not supported. The value has to be greater than 0 and less than or equal to 100. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#StatisticsModificationLevel.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @OnlyModifiedStatistics = 'Y' AND @StatisticsModificationLevel IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('You can only specify one of the parameters @OnlyModifiedStatistics and @StatisticsModificationLevel. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @StatisticsSample <= 0 OR @StatisticsSample  > 100
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @StatisticsSample is not supported. The value has to be between 1 and 100. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#StatisticsSample.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @StatisticsPersistSample NOT IN('Y','N')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @StatisticsPersistSample is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#StatisticsPersistSample.', 16, 1)
+  END
+
+  IF @StatisticsPersistSample IS NOT NULL AND @StatisticsSample IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @StatisticsPersistSample can only be used together with @StatisticsSample. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#StatisticsPersistSample.', 16, 1)
+  END
+
+  IF @StatisticsPersistSample IS NOT NULL AND @StatisticsResample = 'Y'
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameters @StatisticsPersistSample and @StatisticsResample cannot be used together. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html.', 16, 1)
+  END
+
+  IF @StatisticsPersistSample IS NOT NULL AND NOT (@Version >= 14.03006 OR @EngineEdition = 5 OR (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous'))
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @StatisticsPersistSample is not supported. PERSIST_SAMPLE_PERCENT is not supported in this version of SQL Server. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#StatisticsPersistSample.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @StatisticsResample NOT IN('Y','N') OR @StatisticsResample IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @StatisticsResample is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#StatisticsResample.', 16, 1)
+  END
+
+  IF @StatisticsResample = 'Y' AND @StatisticsSample IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('Setting @StatisticsResample to ''Y'' cannot be combined with @StatisticsSample. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#StatisticsResample.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @PartitionLevel NOT IN('Y','N') OR @PartitionLevel IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @PartitionLevel is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#PartitionLevel.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @MSShippedObjects NOT IN('Y','N') OR @MSShippedObjects IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @MSShippedObjects is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#MSShippedObjects.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF EXISTS(SELECT * FROM @SelectedIndexes WHERE DatabaseName IS NULL OR SchemaName IS NULL OR ObjectName IS NULL OR IndexName IS NULL)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Indexes is not supported. The value contains one or more items that could not be parsed. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#Indexes.', 16, 1)
+  END
+
+  IF @Indexes IS NOT NULL AND NOT EXISTS(SELECT * FROM @SelectedIndexes)
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Indexes is not supported. The value could not be parsed into a list of indexes. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#Indexes.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @TimeLimit < 0
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @TimeLimit is not supported. The value has to be greater than or equal to 0. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#TimeLimit.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Delay < 0 OR @Delay >= 86400
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Delay is not supported. The value has to be greater than or equal to 0 and less than 86400. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#Delay.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @LockTimeout < 0 OR @LockTimeout > 86400
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @LockTimeout is not supported. The value has to be between 0 and 86400. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#LockTimeout.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @LockMessageSeverity NOT IN(10, 16) OR @LockMessageSeverity IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @LockMessageSeverity is not supported. Supported values are 10 and 16. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#LockMessageSeverity.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @StringDelimiter IS NULL OR LEN(@StringDelimiter) <> 1
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @StringDelimiter is not supported. The value has to be exactly one character. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#StringDelimiter.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DatabaseOrder NOT IN('DATABASE_NAME_ASC','DATABASE_NAME_DESC','DATABASE_SIZE_ASC','DATABASE_SIZE_DESC')
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DatabaseOrder is not supported. Supported values are DATABASE_NAME_ASC, DATABASE_NAME_DESC, DATABASE_SIZE_ASC and DATABASE_SIZE_DESC. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#DatabaseOrder.', 16, 1)
+  END
+
+  IF @DatabaseOrder IS NOT NULL AND @EngineEdition = 5
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @DatabaseOrder is not supported in Azure SQL Database. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#DatabaseOrder.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DatabasesInParallel NOT IN('Y','N') OR @DatabasesInParallel IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @DatabasesInParallel is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#DatabasesInParallel.', 16, 1)
+  END
+
+  IF @DatabasesInParallel = 'Y' AND @EngineEdition = 5
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The parameter @DatabasesInParallel is not supported in Azure SQL Database. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#DatabasesInParallel.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF LEN(@ExecuteAsUser) > 128
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @ExecuteAsUser is not supported. The maximum length is 128 characters. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#ExecuteAsUser.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @LogToTable NOT IN('Y','N') OR @LogToTable IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @LogToTable is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#LogToTable.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+  IF @Execute NOT IN('Y','N') OR @Execute IS NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The value for the parameter @Execute is not supported. Supported values are ''Y'' and ''N''. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#Execute.', 16, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Check that selected databases and availability groups exist                                //--
+  ----------------------------------------------------------------------------------------------------
+
+  SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(DatabaseName) AS nvarchar(max)), ', ')
+                         WITHIN GROUP (ORDER BY DatabaseName ASC)
+  FROM @SelectedDatabases
+  WHERE DatabaseName NOT LIKE '%[%]%'
+  AND DatabaseName NOT IN (SELECT DatabaseName FROM @tmpDatabases)
+
+  IF @ErrorMessage IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The following databases in the @Databases parameter do not exist: ' + @ErrorMessage + '. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#Databases.', 10, 1)
+  END
+
+  SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(DatabaseName) AS nvarchar(max)), ', ')
+                         WITHIN GROUP (ORDER BY DatabaseName ASC)
+  FROM @SelectedIndexes
+  WHERE DatabaseName NOT LIKE '%[%]%'
+  AND DatabaseName NOT IN (SELECT DatabaseName FROM @tmpDatabases)
+
+  IF @ErrorMessage IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The following databases in the @Indexes parameter do not exist: ' + @ErrorMessage + '. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#Indexes.', 10, 1)
+  END
+
+  SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(AvailabilityGroupName) AS nvarchar(max)), ', ')
+                         WITHIN GROUP (ORDER BY AvailabilityGroupName ASC)
+  FROM @SelectedAvailabilityGroups
+  WHERE AvailabilityGroupName NOT LIKE '%[%]%'
+  AND AvailabilityGroupName NOT IN (SELECT AvailabilityGroupName FROM @tmpAvailabilityGroups)
+
+  IF @ErrorMessage IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The following availability groups do not exist: ' + @ErrorMessage + '. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#AvailabilityGroups.', 10, 1)
+  END
+
+  SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(DatabaseName) AS nvarchar(max)), ', ')
+                         WITHIN GROUP (ORDER BY DatabaseName ASC)
+  FROM @SelectedIndexes
+  WHERE DatabaseName NOT LIKE '%[%]%'
+  AND DatabaseName IN (SELECT DatabaseName FROM @tmpDatabases)
+  AND DatabaseName NOT IN (SELECT DatabaseName FROM @tmpDatabases WHERE Selected = 1)
+
+  IF @ErrorMessage IS NOT NULL
+  BEGIN
+    INSERT INTO @Errors ([Message], Severity, [State])
+    VALUES('The following databases have been selected in the @Indexes parameter, but not in the @Databases or @AvailabilityGroups parameters: ' + @ErrorMessage + '. See https://ola.hallengren.com/sql-server-index-and-statistics-maintenance.html#Indexes.', 10, 1)
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Raise errors                                                                               //--
+  ----------------------------------------------------------------------------------------------------
+
+  DECLARE ErrorCursor CURSOR LOCAL FAST_FORWARD FOR SELECT [Message], Severity, [State] FROM @Errors ORDER BY [ID] ASC
+
+  OPEN ErrorCursor
+
+  FETCH ErrorCursor INTO @CurrentMessage, @CurrentSeverity, @CurrentState
+
+  WHILE @@FETCH_STATUS = 0
+  BEGIN
+    RAISERROR('%s', @CurrentSeverity, @CurrentState, @CurrentMessage) WITH NOWAIT
+    RAISERROR(@EmptyLine, 10, 1) WITH NOWAIT
+
+    FETCH NEXT FROM ErrorCursor INTO @CurrentMessage, @CurrentSeverity, @CurrentState
+  END
+
+  CLOSE ErrorCursor
+
+  DEALLOCATE ErrorCursor
+
+  IF EXISTS (SELECT * FROM @Errors WHERE Severity >= 16)
+  BEGIN
+    SET @ReturnCode = 50000
+    GOTO Logging
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Update database order                                                                      //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DatabaseOrder IN('DATABASE_SIZE_ASC','DATABASE_SIZE_DESC')
+  BEGIN
+    UPDATE tmpDatabases
+    SET DatabaseSize = (SELECT SUM(CAST(size AS bigint)) FROM sys.master_files WHERE [type] = 0 AND database_id = DB_ID(tmpDatabases.DatabaseName))
+    FROM @tmpDatabases tmpDatabases
+  END
+
+  IF @DatabaseOrder IS NULL
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY StartPosition ASC, DatabaseName ASC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'DATABASE_NAME_ASC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY DatabaseName ASC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'DATABASE_NAME_DESC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY DatabaseName DESC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'DATABASE_SIZE_ASC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY DatabaseSize ASC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+  ELSE
+  IF @DatabaseOrder = 'DATABASE_SIZE_DESC'
+  BEGIN
+    WITH tmpDatabases AS (
+    SELECT DatabaseName, [Order], ROW_NUMBER() OVER (ORDER BY DatabaseSize DESC) AS RowNumber
+    FROM @tmpDatabases tmpDatabases
+    WHERE Selected = 1
+    )
+    UPDATE tmpDatabases
+    SET [Order] = RowNumber
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Update the queue                                                                           //--
+  ----------------------------------------------------------------------------------------------------
+
+  IF @DatabasesInParallel = 'Y'
+  BEGIN
+
+    BEGIN TRY
+
+      SELECT @QueueID = QueueID
+      FROM dbo.[Queue]
+      WHERE SchemaName = @SchemaName
+      AND ObjectName = @ObjectName
+      AND [Parameters] = @ParametersString
+
+      IF @QueueID IS NULL
+      BEGIN
+        BEGIN TRANSACTION
+
+        SELECT @QueueID = QueueID
+        FROM dbo.[Queue] WITH (UPDLOCK, HOLDLOCK)
+        WHERE SchemaName = @SchemaName
+        AND ObjectName = @ObjectName
+        AND [Parameters] = @ParametersString
+
+        IF @QueueID IS NULL
+        BEGIN
+          INSERT INTO dbo.[Queue] (SchemaName, ObjectName, [Parameters])
+          VALUES(@SchemaName, @ObjectName, @ParametersString)
+
+          SET @QueueID = SCOPE_IDENTITY()
+        END
+
+        COMMIT TRANSACTION
+      END
+
+      BEGIN TRANSACTION
+
+      UPDATE [Queue]
+      SET QueueStartTime = SYSDATETIME(),
+          SessionID = @@SPID,
+          RequestID = (SELECT request_id FROM sys.dm_exec_requests WHERE session_id = @@SPID),
+          RequestStartTime = (SELECT start_time FROM sys.dm_exec_requests WHERE session_id = @@SPID)
+      FROM dbo.[Queue] [Queue]
+      WHERE QueueID = @QueueID
+      AND NOT EXISTS (SELECT *
+                      FROM sys.dm_exec_requests
+                      WHERE session_id = [Queue].SessionID
+                      AND request_id = [Queue].RequestID
+                      AND start_time = [Queue].RequestStartTime)
+      AND NOT EXISTS (SELECT *
+                      FROM dbo.QueueDatabase QueueDatabase
+                      INNER JOIN sys.dm_exec_requests ON QueueDatabase.SessionID = session_id AND QueueDatabase.RequestID = request_id AND QueueDatabase.RequestStartTime = start_time
+                      WHERE QueueDatabase.QueueID = @QueueID)
+
+      IF @@ROWCOUNT = 1
+      BEGIN
+        INSERT INTO dbo.QueueDatabase (QueueID, DatabaseName)
+        SELECT @QueueID AS QueueID,
+               DatabaseName
+        FROM @tmpDatabases tmpDatabases
+        WHERE Selected = 1
+        AND NOT EXISTS (SELECT * FROM dbo.QueueDatabase WHERE DatabaseName COLLATE DATABASE_DEFAULT = tmpDatabases.DatabaseName AND QueueID = @QueueID)
+
+        DELETE QueueDatabase
+        FROM dbo.QueueDatabase QueueDatabase
+        WHERE QueueID = @QueueID
+        AND NOT EXISTS (SELECT * FROM @tmpDatabases tmpDatabases WHERE DatabaseName = QueueDatabase.DatabaseName COLLATE DATABASE_DEFAULT AND Selected = 1)
+
+        UPDATE QueueDatabase
+        SET DatabaseOrder = tmpDatabases.[Order]
+        FROM dbo.QueueDatabase QueueDatabase
+        INNER JOIN @tmpDatabases tmpDatabases ON QueueDatabase.DatabaseName COLLATE DATABASE_DEFAULT = tmpDatabases.DatabaseName
+        WHERE QueueID = @QueueID
+      END
+
+      COMMIT TRANSACTION
+
+      SELECT @QueueStartTime = QueueStartTime
+      FROM dbo.[Queue]
+      WHERE QueueID = @QueueID
+
+    END TRY
+
+    BEGIN CATCH
+      IF XACT_STATE() <> 0
+      BEGIN
+        ROLLBACK TRANSACTION
+      END
+      SET @ErrorMessage = 'Msg ' + CAST(ERROR_NUMBER() AS nvarchar(max)) + ', ' + ISNULL(ERROR_MESSAGE(),'')
+      RAISERROR('%s',16,1,@ErrorMessage) WITH NOWAIT
+      RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+      SET @ReturnCode = ERROR_NUMBER()
+      GOTO Logging
+    END CATCH
+
+  END
+
+  ----------------------------------------------------------------------------------------------------
+  --// Execute commands                                                                           //--
+  ----------------------------------------------------------------------------------------------------
+
+  WHILE (1 = 1)
+  BEGIN -- Start of database loop
+
+    IF @DatabasesInParallel = 'Y'
+    BEGIN
+      UPDATE QueueDatabase
+      SET DatabaseStartTime = NULL,
+          SessionID = NULL,
+          RequestID = NULL,
+          RequestStartTime = NULL
+      FROM dbo.QueueDatabase QueueDatabase
+      WHERE QueueID = @QueueID
+      AND DatabaseStartTime IS NOT NULL
+      AND DatabaseEndTime IS NULL
+      AND NOT EXISTS (SELECT * FROM sys.dm_exec_requests WHERE session_id = QueueDatabase.SessionID AND request_id = QueueDatabase.RequestID AND start_time = QueueDatabase.RequestStartTime)
+
+      UPDATE QueueDatabase
+      SET DatabaseStartTime = SYSDATETIME(),
+          DatabaseEndTime = NULL,
+          SessionID = @@SPID,
+          RequestID = (SELECT request_id FROM sys.dm_exec_requests WHERE session_id = @@SPID),
+          RequestStartTime = (SELECT start_time FROM sys.dm_exec_requests WHERE session_id = @@SPID),
+          @CurrentDatabaseName = DatabaseName
+      FROM (SELECT TOP 1 DatabaseStartTime,
+                         DatabaseEndTime,
+                         SessionID,
+                         RequestID,
+                         RequestStartTime,
+                         DatabaseName
+            FROM dbo.QueueDatabase
+            WHERE QueueID = @QueueID
+            AND (DatabaseStartTime < @QueueStartTime OR DatabaseStartTime IS NULL)
+            AND NOT (DatabaseStartTime IS NOT NULL AND DatabaseEndTime IS NULL)
+            ORDER BY DatabaseOrder ASC
+            ) QueueDatabase
+    END
+    ELSE
+    BEGIN
+      SELECT TOP 1 @CurrentDBID = ID,
+                   @CurrentDatabaseName = DatabaseName
+      FROM @tmpDatabases
+      WHERE Selected = 1
+      AND Completed = 0
+      ORDER BY [Order] ASC
+    END
+
+    IF @@ROWCOUNT = 0
+    BEGIN
+      BREAK
+    END
+
+    SET @CurrentDatabase_sp_executesql = QUOTENAME(@CurrentDatabaseName) + '.sys.sp_executesql'
+
+    BEGIN
+      SET @DatabaseMessage = 'Date and time: ' + CONVERT(nvarchar(max),SYSDATETIME(),120)
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Database: ' + QUOTENAME(@CurrentDatabaseName)
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    SELECT @CurrentUserAccess = user_access_desc,
+           @CurrentIsReadOnly = is_read_only,
+           @CurrentDatabaseState = state_desc,
+           @CurrentInStandby = is_in_standby,
+           @CurrentRecoveryModel = recovery_model_desc
+    FROM sys.databases
+    WHERE [name] = @CurrentDatabaseName
+
+    BEGIN
+      SET @DatabaseMessage = 'State: ' + @CurrentDatabaseState
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Standby: ' + CASE WHEN @CurrentInStandby = 1 THEN 'Yes' ELSE 'No' END
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Updateability: ' + CASE WHEN @CurrentIsReadOnly = 1 THEN 'READ_ONLY' WHEN  @CurrentIsReadOnly = 0 THEN 'READ_WRITE' END
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'User access: ' + @CurrentUserAccess
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Recovery model: ' + @CurrentRecoveryModel
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    IF @IsHadrEnabled = 1
+    BEGIN
+      SELECT @CurrentAvailabilityGroupReplicaID = databases.replica_id
+      FROM sys.databases databases
+      INNER JOIN sys.availability_replicas availability_replicas ON databases.replica_id = availability_replicas.replica_id
+      WHERE databases.[name] = @CurrentDatabaseName
+
+      SELECT @CurrentAvailabilityGroupID = group_id
+      FROM sys.availability_replicas
+      WHERE replica_id = @CurrentAvailabilityGroupReplicaID
+
+      IF @CurrentAvailabilityGroupReplicaID IS NULL AND @CurrentAvailabilityGroupID IS NULL AND @Version >= 16
+      BEGIN
+        SET @CurrentAvailabilityGroupID = @ContainedAvailabilityGroupID
+
+        SELECT @CurrentAvailabilityGroupReplicaID = replica_id
+        FROM sys.dm_hadr_availability_replica_states
+        WHERE group_id = @CurrentAvailabilityGroupID
+        AND is_local = 1
+      END
+
+      SELECT @CurrentAvailabilityGroupRole = role_desc
+      FROM sys.dm_hadr_availability_replica_states
+      WHERE replica_id = @CurrentAvailabilityGroupReplicaID
+
+      SELECT @CurrentAvailabilityGroupDatabaseReplicaSynchronizationState = synchronization_state_desc,
+             @CurrentAvailabilityGroupDatabaseReplicaSynchronizationHealth = synchronization_health_desc
+      FROM sys.dm_hadr_database_replica_states
+      WHERE replica_id = @CurrentAvailabilityGroupReplicaID
+      AND database_id = DB_ID(@CurrentDatabaseName)
+
+      IF @CurrentAvailabilityGroupDatabaseReplicaSynchronizationState IS NULL AND @ContainedAvailabilityGroupListenerConnection = 1
+      BEGIN
+        SELECT @CurrentAvailabilityGroupDatabaseReplicaSynchronizationState = synchronization_state_desc,
+               @CurrentAvailabilityGroupDatabaseReplicaSynchronizationHealth = synchronization_health_desc
+        FROM sys.dm_hadr_database_replica_states
+        WHERE replica_id = @CurrentAvailabilityGroupReplicaID
+        AND DB_NAME(database_id) = @CurrentDatabaseName
+      END
+
+      SELECT @CurrentAvailabilityGroup = [name]
+      FROM sys.availability_groups
+      WHERE group_id = @CurrentAvailabilityGroupID
+    END
+
+    IF @IsHadrEnabled = 1 AND @CurrentAvailabilityGroup IS NOT NULL
+    BEGIN
+      SELECT @CurrentDistributedAvailabilityGroup = availability_groups.[name],
+             @CurrentDistributedAvailabilityGroupReplicaID = availability_replicas.replica_id
+      FROM sys.availability_groups availability_groups
+      INNER JOIN sys.availability_replicas availability_replicas ON availability_groups.group_id = availability_replicas.group_id
+      INNER JOIN sys.availability_groups availability_groups_local ON availability_replicas.replica_server_name = availability_groups_local.[name]
+      WHERE availability_groups.is_distributed = 1
+      AND availability_groups_local.group_id = @CurrentAvailabilityGroupID
+
+      SELECT @CurrentDistributedAvailabilityGroupRole = dm_hadr_availability_replica_states.role_desc
+      FROM sys.dm_hadr_availability_replica_states dm_hadr_availability_replica_states
+      WHERE dm_hadr_availability_replica_states.replica_id = @CurrentDistributedAvailabilityGroupReplicaID
+    END
+
+    IF @EngineEdition <> 5
+    BEGIN
+      SELECT @CurrentDatabaseMirroringRole = UPPER(mirroring_role_desc)
+      FROM sys.database_mirroring database_mirroring
+      INNER JOIN sys.databases databases ON database_mirroring.database_id = databases.database_id
+      WHERE databases.[name] = @CurrentDatabaseName
+    END
+
+    IF @CurrentAvailabilityGroup IS NOT NULL
+    BEGIN
+      SET @DatabaseMessage = 'Availability group: ' + ISNULL(@CurrentAvailabilityGroup,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Availability group role: ' + ISNULL(@CurrentAvailabilityGroupRole,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Availability group database replica synchronization state: ' + ISNULL(@CurrentAvailabilityGroupDatabaseReplicaSynchronizationState,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Availability group database replica synchronization health: ' + ISNULL(@CurrentAvailabilityGroupDatabaseReplicaSynchronizationHealth,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    IF @CurrentDistributedAvailabilityGroup IS NOT NULL
+    BEGIN
+      SET @DatabaseMessage = 'Distributed availability group: ' + ISNULL(@CurrentDistributedAvailabilityGroup,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Distributed availability group role: ' + ISNULL(@CurrentDistributedAvailabilityGroupRole,'N/A')
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+
+      SET @DatabaseMessage = 'Replica role in distributed availability group: ' + CASE WHEN @CurrentDistributedAvailabilityGroupRole = 'PRIMARY' AND @CurrentAvailabilityGroupRole = 'PRIMARY' THEN 'Global primary'
+                                                                                       WHEN @CurrentDistributedAvailabilityGroupRole = 'SECONDARY' AND @CurrentAvailabilityGroupRole = 'PRIMARY' THEN 'Forwarder'
+                                                                                       WHEN @CurrentDistributedAvailabilityGroupRole = 'SECONDARY' AND @CurrentAvailabilityGroupRole = 'SECONDARY' THEN 'Secondary replica in secondary availability group'
+                                                                                       WHEN @CurrentDistributedAvailabilityGroupRole = 'PRIMARY' AND @CurrentAvailabilityGroupRole = 'SECONDARY' THEN 'Secondary replica in primary availability group' ELSE 'N/A' END
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    IF @CurrentDatabaseMirroringRole IS NOT NULL
+    BEGIN
+      SET @DatabaseMessage = 'Database mirroring role: ' + @CurrentDatabaseMirroringRole
+      RAISERROR('%s',10,1,@DatabaseMessage) WITH NOWAIT
+    END
+
+    RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+    IF @ExecuteAsUser IS NOT NULL
+    AND @CurrentDatabaseState = 'ONLINE'
+    AND NOT (@CurrentUserAccess = 'SINGLE_USER')
+    AND NOT (@CurrentAvailabilityGroup IS NOT NULL AND (@CurrentAvailabilityGroupRole <> 'PRIMARY' OR @CurrentAvailabilityGroupRole IS NULL))
+    AND NOT (@AmazonRDS = 1 AND @CurrentDatabaseName = 'rdsadmin')
+    BEGIN
+      SET @CurrentCommand = ''
+      SET @CurrentCommand += 'IF EXISTS(SELECT * FROM sys.database_principals database_principals WHERE database_principals.[name] = @ParamExecuteAsUser) BEGIN SET @ParamExecuteAsUserExists = 1 END ELSE BEGIN SET @ParamExecuteAsUserExists = 0 END'
+
+      EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand, @params = N'@ParamExecuteAsUser sysname, @ParamExecuteAsUserExists bit OUTPUT', @ParamExecuteAsUser = @ExecuteAsUser, @ParamExecuteAsUserExists = @CurrentExecuteAsUserExists OUTPUT
+    END
+
+    IF @CurrentExecuteAsUserExists = 0
+    BEGIN
+      SET @DatabaseMessage = 'The user ' + QUOTENAME(@ExecuteAsUser) + ' does not exist in the database ' + QUOTENAME(@CurrentDatabaseName) + '.'
+      RAISERROR('%s',16,1,@DatabaseMessage) WITH NOWAIT
+      SET @Error = @@ERROR
+      SET @ReturnCode = @Error
+      RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+    END
+
+    IF @CurrentDatabaseState = 'ONLINE'
+    AND NOT (@CurrentUserAccess = 'SINGLE_USER')
+    AND NOT (@CurrentAvailabilityGroup IS NOT NULL AND (@CurrentAvailabilityGroupRole <> 'PRIMARY' OR @CurrentAvailabilityGroupRole IS NULL))
+    AND NOT (@CurrentDistributedAvailabilityGroup IS NOT NULL AND (@CurrentDistributedAvailabilityGroupRole <> 'PRIMARY' OR @CurrentDistributedAvailabilityGroupRole IS NULL))
+    AND NOT (@AmazonRDS = 1 AND @CurrentDatabaseName = 'rdsadmin')
+    AND NOT (@CurrentIsReadOnly = 1)
+    AND (@CurrentExecuteAsUserExists = 1 OR @CurrentExecuteAsUserExists IS NULL)
+    BEGIN
+
+      IF (EXISTS(SELECT * FROM @ActionsPreferred) OR @UpdateStatistics IS NOT NULL) AND (SYSDATETIME() < DATEADD(SECOND,@TimeLimit,@StartTime) OR @TimeLimit IS NULL)
+      BEGIN
+        -- Select objects
+        SET @CurrentCommand = 'SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;'
+                            + ' SELECT objects.[object_id] AS ObjectID'
+                            + ', objects.[schema_id] AS SchemaID'
+                            + ', schemas.[name] AS SchemaName'
+                            + ', objects.[name] AS ObjectName'
+                            + ', RTRIM(objects.[type]) AS ObjectType'
+                            + ', ISNULL(tables.is_memory_optimized, 0) AS IsMemoryOptimized'
+                            + ', ' + CASE WHEN @EngineEdition IN (3, 5, 8) AND EXISTS(SELECT * FROM @ActionsPreferred WHERE [Action] = 'INDEX_REBUILD_ONLINE') THEN 'CASE WHEN EXISTS(SELECT * FROM sys.indexes indexes WHERE indexes.[object_id] = objects.object_id AND [type] = 5) THEN 1 ELSE 0 END' ELSE 'NULL' END + ' AS HasClusteredColumnstore'
+                            + ', ' + CASE WHEN @EngineEdition IN (3, 5, 8) AND EXISTS(SELECT * FROM @ActionsPreferred WHERE [Action] = 'INDEX_REBUILD_ONLINE') AND @Resumable = 'Y' THEN 'CASE WHEN EXISTS(SELECT * FROM sys.index_columns index_columns INNER JOIN sys.columns columns ON index_columns.object_id = columns.object_id AND index_columns.column_id = columns.column_id INNER JOIN sys.indexes indexes2 ON index_columns.object_id = indexes2.object_id AND index_columns.index_id = indexes2.index_id WHERE (index_columns.key_ordinal > 0 OR index_columns.partition_ordinal > 0) AND columns.is_computed = 1 AND indexes2.[type] = 1 AND index_columns.object_id = objects.object_id) THEN 1 ELSE 0 END' ELSE 'NULL' END + ' AS IsClusteredIndexComputed'
+                            + ', CASE WHEN EXISTS(SELECT * FROM sys.indexes indexes WHERE indexes.[object_id] = objects.object_id AND [type] = 1 AND is_disabled = 1) THEN 1 ELSE 0 END AS IsClusteredIndexDisabled'
+                            + ' FROM sys.objects objects'
+                            + ' INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id]'
+                            + ' LEFT OUTER JOIN sys.tables tables ON objects.[object_id] = tables.[object_id]'
+                            + ' WHERE objects.[type] IN(''U'',''V'')'
+                            + ' AND (tables.is_external = 0 OR tables.is_external IS NULL)'
+                            + CASE WHEN @MSShippedObjects = 'N' THEN ' AND objects.is_ms_shipped = 0' ELSE '' END
+        IF @Indexes IS NOT NULL AND EXISTS(SELECT * FROM @SelectedIndexes WHERE Selected = 1) AND NOT EXISTS(SELECT * FROM @SelectedIndexes WHERE Selected = 1 AND DatabaseName = '%' AND SchemaName = '%' AND ObjectName = '%')
+        BEGIN
+          SET @CurrentCommand += ' AND EXISTS(SELECT * FROM #SelectedIndexes SelectedIndexes WHERE @ParamDatabaseName LIKE REPLACE(REPLACE(SelectedIndexes.DatabaseName,''['',''[[]''),''_'',''[_]'') COLLATE ' + @Collation + ' AND schemas.[name] LIKE REPLACE(REPLACE(SelectedIndexes.SchemaName,''['',''[[]''),''_'',''[_]'') COLLATE ' + @Collation + ' AND objects.[name] LIKE REPLACE(REPLACE(SelectedIndexes.ObjectName,''['',''[[]''),''_'',''[_]'') COLLATE ' + @Collation + ' AND SelectedIndexes.Selected = 1)'
+        END
+        IF @Indexes IS NOT NULL AND EXISTS(SELECT * FROM @SelectedIndexes WHERE Selected = 0 AND IndexName = '%')
+        BEGIN
+          SET @CurrentCommand += ' AND NOT EXISTS(SELECT * FROM #SelectedIndexes SelectedIndexes WHERE @ParamDatabaseName LIKE REPLACE(REPLACE(SelectedIndexes.DatabaseName,''['',''[[]''),''_'',''[_]'') COLLATE ' + @Collation + ' AND schemas.[name] LIKE REPLACE(REPLACE(SelectedIndexes.SchemaName,''['',''[[]''),''_'',''[_]'') COLLATE ' + @Collation + ' AND objects.[name] LIKE REPLACE(REPLACE(SelectedIndexes.ObjectName,''['',''[[]''),''_'',''[_]'') COLLATE ' + @Collation + ' AND SelectedIndexes.IndexName = ''%'' AND SelectedIndexes.Selected = 0)'
+        END
+
+        INSERT INTO #Objects (ObjectID, SchemaID, SchemaName, ObjectName, ObjectType, IsMemoryOptimized, HasClusteredColumnstore, IsClusteredIndexComputed, IsClusteredIndexDisabled)
+        EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand, @params = N'@ParamDatabaseName nvarchar(max)', @ParamDatabaseName = @CurrentDatabaseName
+        SET @Error = @@ERROR
+        IF @Error <> 0
+        BEGIN
+          SET @ReturnCode = @Error
+        END
+
+        -- Select indexes
+        SET @CurrentCommand = 'SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;'
+                            + ' SELECT indexes.[object_id] AS ObjectID'
+                            + ', indexes.index_id AS IndexID'
+                            + ', indexes.[name] AS IndexName'
+                            + ', indexes.[type] AS IndexType'
+                            + ', indexes.data_space_id AS DataSpaceID'
+                            + ', CASE WHEN EXISTS (SELECT * FROM sys.partition_schemes partition_schemes WHERE partition_schemes.data_space_id = indexes.data_space_id) THEN 1 ELSE 0 END AS IsPartitioned'
+                            + ', indexes.allow_page_locks AS AllowPageLocks'
+                            + ', indexes.has_filter AS HasFilter'
+                            + ', ' + CASE WHEN @EngineEdition IN (3, 5, 8) AND EXISTS(SELECT * FROM @ActionsPreferred WHERE [Action] = 'INDEX_REBUILD_ONLINE') THEN 'CASE WHEN indexes.[type] = 1 AND EXISTS(SELECT * FROM sys.columns columns INNER JOIN sys.types types ON columns.system_type_id = types.user_type_id WHERE columns.[object_id] = indexes.object_id AND types.name IN(''image'',''text'',''ntext'')) THEN 1 ELSE 0 END' ELSE 'NULL' END + ' AS IsImageText'
+                            + ', ' + CASE WHEN @EngineEdition IN (3, 5, 8) AND EXISTS(SELECT * FROM @ActionsPreferred WHERE [Action] = 'INDEX_REBUILD_ONLINE') THEN 'CASE WHEN indexes.[type] = 1 AND EXISTS(SELECT * FROM sys.columns columns WHERE columns.[object_id] = indexes.object_id AND columns.is_filestream = 1) THEN 1 ELSE 0 END' ELSE 'NULL' END + ' AS IsFileStream'
+                            + ', ' + CASE WHEN @EngineEdition IN (3, 5, 8) AND EXISTS(SELECT * FROM @ActionsPreferred WHERE [Action] = 'INDEX_REBUILD_ONLINE') AND (@Version >= 16 OR @EngineEdition = 5 OR (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous')) THEN 'CASE WHEN EXISTS(SELECT * FROM sys.index_columns index_columns WHERE index_columns.[object_id] = indexes.[object_id] AND index_columns.index_id = indexes.index_id AND index_columns.column_store_order_ordinal = 1) THEN 1 ELSE 0 END' ELSE 'NULL' END + ' AS IsColumnstoreOrdered'
+                            + ', ' + CASE WHEN @EngineEdition IN (3, 5, 8) AND EXISTS(SELECT * FROM @ActionsPreferred WHERE [Action] = 'INDEX_REBUILD_ONLINE') AND @Resumable = 'Y' THEN 'CASE WHEN EXISTS(SELECT * FROM sys.index_columns index_columns INNER JOIN sys.columns columns ON index_columns.object_id = columns.object_id AND index_columns.column_id = columns.column_id WHERE (index_columns.key_ordinal > 0 OR index_columns.partition_ordinal > 0 OR index_columns.is_included_column = 1) AND columns.is_computed = 1 AND index_columns.object_id = indexes.object_id AND index_columns.index_id = indexes.index_id) THEN 1 ELSE 0 END' ELSE 'NULL' END + ' AS IsComputed'
+                            + ', ' + CASE WHEN @EngineEdition IN (3, 5, 8) AND EXISTS(SELECT * FROM @ActionsPreferred WHERE [Action] = 'INDEX_REBUILD_ONLINE') AND @Resumable = 'Y' THEN 'CASE WHEN EXISTS(SELECT * FROM sys.index_columns index_columns INNER JOIN sys.columns columns ON index_columns.[object_id] = columns.[object_id] AND index_columns.column_id = columns.column_id INNER JOIN sys.types types ON columns.system_type_id = types.system_type_id WHERE (index_columns.key_ordinal > 0 OR index_columns.partition_ordinal > 0) AND index_columns.[object_id] = indexes.[object_id] AND index_columns.index_id = indexes.index_id AND types.[name] = ''timestamp'') THEN 1 ELSE 0 END' ELSE 'NULL' END + ' AS IsTimestamp'
+                            + ' FROM sys.indexes indexes'
+                            + ' INNER JOIN #Objects Objects ON indexes.[object_id] = Objects.ObjectID'
+                            + ' AND indexes.[type] IN(1,2,3,4,5,6,7)'
+                            + ' AND indexes.is_disabled = 0'
+                            + ' AND indexes.is_hypothetical = 0'
+
+        INSERT INTO #Indexes (ObjectID, IndexID, IndexName, IndexType, DataSpaceID, IsPartitioned, AllowPageLocks, HasFilter, IsImageText, IsFileStream, IsColumnstoreOrdered, IsComputed, IsTimestamp)
+        EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand
+        SET @Error = @@ERROR
+        IF @Error <> 0
+        BEGIN
+          SET @ReturnCode = @Error
+        END
+
+        -- Select statistics
+        SET @CurrentCommand = 'SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;'
+                            + ' SELECT stats.[object_id] AS ObjectID'
+                            + ', stats.stats_id AS StatisticsID'
+                            + ', stats.name AS StatisticsName'
+                            + ', stats.no_recompute AS NoRecompute'
+                            + ', stats.is_incremental AS IsIncremental'
+                            + ', CASE WHEN EXISTS(SELECT * FROM sys.indexes indexes WHERE indexes.[object_id] = stats.[object_id] AND indexes.index_id = stats.stats_id) THEN 1 ELSE 0 END AS IsIndex'
+                            + ' FROM sys.stats stats'
+                            + ' INNER JOIN #Objects Objects ON stats.[object_id] = Objects.ObjectID'
+
+        INSERT INTO #Stats (ObjectID, StatisticsID, StatisticsName, [NoRecompute], IsIncremental, IsIndex)
+        EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand
+        SET @Error = @@ERROR
+        IF @Error <> 0
+        BEGIN
+          SET @ReturnCode = @Error
+        END
+
+        -- Select paused resumable index operations
+        SET @CurrentCommand = 'SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;'
+                            + ' SELECT index_resumable_operations.object_id AS ObjectID'
+                            + ', index_resumable_operations.index_id AS IndexID'
+                            + ', ' + CASE WHEN @PartitionLevel = 'Y' THEN 'index_resumable_operations.partition_number AS PartitionNumber' WHEN @PartitionLevel = 'N' THEN 'NULL AS PartitionNumber' END
+                            + ' FROM sys.index_resumable_operations index_resumable_operations'
+                            + ' WHERE index_resumable_operations.state_desc = ''PAUSED'''
+
+        INSERT INTO @tmpResumableOperations (ObjectID, IndexID, PartitionNumber)
+        EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand
+        SET @Error = @@ERROR
+        IF @Error <> 0
+        BEGIN
+          SET @ReturnCode = @Error
+        END
+
+        IF EXISTS(SELECT * FROM @ActionsPreferred) OR @UpdateStatistics IN('ALL','INDEX')
+        BEGIN
+          -- Check if there are read-only filegroups in the database
+          SET @CurrentCommand = 'SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;'
+                              + ' SELECT @ParamDatabaseHasReadOnlyFileGroup = CASE WHEN EXISTS(SELECT * FROM sys.filegroups filegroups WHERE filegroups.is_read_only = 1) THEN 1 ELSE 0 END'
+          EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand, @params = N'@ParamDatabaseHasReadOnlyFileGroup bit OUTPUT', @ParamDatabaseHasReadOnlyFileGroup = @CurrentDatabaseHasReadOnlyFileGroup OUTPUT
+          SET @Error = @@ERROR
+          IF @Error <> 0
+          BEGIN
+            SET @ReturnCode = @Error
+          END
+
+          -- Select clustered, nonclustered and hash indexes
+          SET @CurrentCommand = 'SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;'
+                              + ' SELECT Objects.SchemaID AS SchemaID'
+                              + ', Objects.SchemaName AS SchemaName'
+                              + ', Objects.ObjectID AS ObjectID'
+                              + ', Objects.ObjectName AS ObjectName'
+                              + ', Objects.ObjectType AS ObjectType'
+                              + ', Objects.IsMemoryOptimized AS IsMemoryOptimized'
+                              + ', Indexes.IndexID AS IndexID'
+                              + ', Indexes.IndexName AS IndexName'
+                              + ', Indexes.IndexType AS IndexType'
+                              + ', Indexes.AllowPageLocks AS AllowPageLocks'
+                              + ', Indexes.HasFilter AS HasFilter'
+                              + ', Indexes.IsImageText AS IsImageText'
+                              + ', Indexes.IsFileStream AS IsFileStream'
+                              + ', Objects.HasClusteredColumnstore AS HasClusteredColumnstore'
+                              + ', Indexes.IsColumnstoreOrdered AS IsColumnstoreOrdered'
+                              + ', Indexes.IsComputed AS IsComputed'
+                              + ', Objects.IsClusteredIndexComputed AS IsClusteredIndexComputed'
+                              + ', Indexes.IsTimestamp AS IsTimestamp'
+                              + CASE WHEN @CurrentDatabaseHasReadOnlyFileGroup = 1 THEN ', CASE WHEN EXISTS (SELECT * FROM sys.indexes indexes2 INNER JOIN sys.destination_data_spaces destination_data_spaces ON Indexes.DataSpaceID = destination_data_spaces.partition_scheme_id INNER JOIN sys.filegroups filegroups ON destination_data_spaces.data_space_id = filegroups.data_space_id WHERE filegroups.is_read_only = 1 AND indexes2.[object_id] = Indexes.ObjectID AND indexes2.[index_id] = Indexes.IndexID' + CASE WHEN @PartitionLevel = 'Y' THEN ' AND destination_data_spaces.destination_id = partitions.partition_number' ELSE '' END + ') THEN 1'
+                              + ' WHEN EXISTS (SELECT * FROM sys.indexes indexes2 INNER JOIN sys.filegroups filegroups ON Indexes.DataSpaceID = filegroups.data_space_id WHERE filegroups.is_read_only = 1 AND Indexes.ObjectID = indexes2.[object_id] AND Indexes.IndexID = indexes2.index_id) THEN 1'
+                              + ' WHEN Indexes.IndexType = 1 AND EXISTS (SELECT * FROM sys.tables tables INNER JOIN sys.filegroups filegroups ON tables.lob_data_space_id = filegroups.data_space_id WHERE filegroups.is_read_only = 1 AND tables.[object_id] = Objects.ObjectID) THEN 1 ELSE 0 END AS OnReadOnlyFileGroup' ELSE ', 0 AS OnReadOnlyFileGroup' END
+                              + ', 0 AS ResumableIndexOperation'
+                              + CASE WHEN @UpdateStatistics IN('ALL','INDEX') THEN ', Stats.StatisticsID AS StatisticsID' ELSE ', NULL AS StatisticsID' END
+                              + CASE WHEN @UpdateStatistics IN('ALL','INDEX') THEN ', Stats.StatisticsName AS StatisticsName' ELSE ', NULL AS StatisticsName' END
+                              + CASE WHEN @UpdateStatistics IN('ALL','INDEX') THEN ', Stats.[NoRecompute] AS NoRecompute' ELSE ', NULL AS NoRecompute' END
+                              + CASE WHEN @UpdateStatistics IN('ALL','INDEX') THEN ', Stats.IsIncremental AS IsIncremental' ELSE ', NULL AS IsIncremental' END
+                              + ', ' + CASE WHEN @PartitionLevel = 'Y' THEN 'partitions.partition_id AS PartitionID' WHEN @PartitionLevel = 'N' THEN 'NULL AS PartitionID' END
+                              + ', ' + CASE WHEN @PartitionLevel = 'Y' THEN 'partitions.partition_number AS PartitionNumber' WHEN @PartitionLevel = 'N' THEN 'NULL AS PartitionNumber' END
+                              + ', ' + CASE WHEN @PartitionLevel = 'Y' THEN 'Indexes.IsPartitioned AS IsPartition' WHEN @PartitionLevel = 'N' THEN '0 AS IsPartition' END
+                              + ', ' + CASE WHEN (@MinNumberOfPages > 0 OR @MaxNumberOfPages IS NOT NULL) THEN 'dm_db_partition_stats.in_row_data_page_count AS InRowDataPageCount' ELSE 'NULL AS InRowDataPageCount' END
+                              + ' FROM #Indexes Indexes'
+                              + ' INNER JOIN #Objects Objects ON Indexes.ObjectID = Objects.ObjectID'
+                              + CASE WHEN @UpdateStatistics IN('ALL','INDEX') THEN ' INNER JOIN #Stats Stats ON Indexes.ObjectID = Stats.ObjectID AND Indexes.IndexID = Stats.StatisticsID' ELSE '' END
+          IF @PartitionLevel = 'Y'
+          BEGIN
+            SET @CurrentCommand += ' INNER JOIN sys.partitions partitions ON Indexes.ObjectID = partitions.[object_id] AND Indexes.IndexID = partitions.index_id'
+          END
+          IF @PartitionLevel = 'Y' AND (@MinNumberOfPages > 0 OR @MaxNumberOfPages IS NOT NULL)
+          BEGIN
+            SET @CurrentCommand += ' INNER JOIN sys.dm_db_partition_stats dm_db_partition_stats ON partitions.object_id = dm_db_partition_stats.object_id AND partitions.index_id = dm_db_partition_stats.index_id AND partitions.partition_number = dm_db_partition_stats.partition_number'
+          END
+          IF @PartitionLevel = 'N' AND (@MinNumberOfPages > 0 OR @MaxNumberOfPages IS NOT NULL)
+          BEGIN
+            SET @CurrentCommand += ' INNER JOIN (SELECT object_id, index_id, SUM(in_row_data_page_count) AS in_row_data_page_count FROM sys.dm_db_partition_stats GROUP BY object_id, index_id) dm_db_partition_stats ON Indexes.ObjectID = dm_db_partition_stats.object_id AND Indexes.IndexID = dm_db_partition_stats.index_id'
+          END
+          SET @CurrentCommand += ' WHERE Objects.ObjectType IN(''U'',''V'')'
+                               + ' AND Indexes.IndexType IN(1,2,7)'
+                               + CASE WHEN (@UpdateStatistics = 'COLUMNS' OR @UpdateStatistics IS NULL) AND @MinNumberOfPages > 0 THEN ' AND dm_db_partition_stats.in_row_data_page_count >= @ParamMinNumberOfPages' ELSE '' END
+                               + CASE WHEN (@UpdateStatistics = 'COLUMNS' OR @UpdateStatistics IS NULL) AND @MaxNumberOfPages IS NOT NULL THEN ' AND dm_db_partition_stats.in_row_data_page_count <= @ParamMaxNumberOfPages' ELSE '' END
+
+          INSERT INTO @tmpIndexesStatistics (SchemaID, SchemaName, ObjectID, ObjectName, ObjectType, IsMemoryOptimized, IndexID, IndexName, IndexType, AllowPageLocks, HasFilter, IsImageText, IsFileStream, HasClusteredColumnstore, IsColumnstoreOrdered, IsComputed, IsClusteredIndexComputed, IsTimestamp, OnReadOnlyFileGroup, ResumableIndexOperation, StatisticsID, StatisticsName, [NoRecompute], IsIncremental, PartitionID, PartitionNumber, IsPartition, InRowDataPageCount)
+          EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand, @params = N'@ParamMinNumberOfPages int, @ParamMaxNumberOfPages int', @ParamMinNumberOfPages = @MinNumberOfPages, @ParamMaxNumberOfPages = @MaxNumberOfPages
+          SET @Error = @@ERROR
+          IF @Error <> 0
+          BEGIN
+            SET @ReturnCode = @Error
+          END
+
+          -- Select XML and spatial indexes
+          SET @CurrentCommand = 'SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;'
+                              + ' SELECT Objects.SchemaID AS SchemaID'
+                              + ', Objects.SchemaName AS SchemaName'
+                              + ', Objects.ObjectID AS ObjectID'
+                              + ', Objects.ObjectName AS ObjectName'
+                              + ', Objects.ObjectType AS ObjectType'
+                              + ', Objects.IsMemoryOptimized AS IsMemoryOptimized'
+                              + ', Indexes.IndexID AS IndexID'
+                              + ', Indexes.IndexName AS IndexName'
+                              + ', Indexes.IndexType AS IndexType'
+                              + ', Indexes.AllowPageLocks AS AllowPageLocks'
+                              + ', Indexes.HasFilter AS HasFilter'
+                              + ', Indexes.IsImageText AS IsImageText'
+                              + ', Indexes.IsFileStream AS IsFileStream'
+                              + ', Objects.HasClusteredColumnstore AS HasClusteredColumnstore'
+                              + ', Indexes.IsColumnstoreOrdered AS IsColumnstoreOrdered'
+                              + ', Indexes.IsComputed AS IsComputed'
+                              + ', Objects.IsClusteredIndexComputed AS IsClusteredIndexComputed'
+                              + ', Indexes.IsTimestamp AS IsTimestamp'
+                              + CASE WHEN @CurrentDatabaseHasReadOnlyFileGroup = 1 THEN ', CASE WHEN EXISTS (SELECT * FROM sys.indexes indexes2 INNER JOIN sys.destination_data_spaces destination_data_spaces ON Indexes.DataSpaceID = destination_data_spaces.partition_scheme_id INNER JOIN sys.filegroups filegroups ON destination_data_spaces.data_space_id = filegroups.data_space_id WHERE filegroups.is_read_only = 1 AND indexes2.[object_id] = Indexes.ObjectID AND indexes2.[index_id] = Indexes.IndexID) THEN 1'
+                              + ' WHEN EXISTS (SELECT * FROM sys.indexes indexes2 INNER JOIN sys.filegroups filegroups ON Indexes.DataSpaceID = filegroups.data_space_id WHERE filegroups.is_read_only = 1 AND Indexes.ObjectID = indexes2.[object_id] AND Indexes.IndexID = indexes2.index_id) THEN 1 ELSE 0 END AS OnReadOnlyFileGroup' ELSE ', 0 AS OnReadOnlyFileGroup' END
+                              + ', 0 AS ResumableIndexOperation'
+                              + ', 0 AS IsPartition'
+                              + ' FROM #Indexes Indexes'
+                              + ' INNER JOIN #Objects Objects ON Indexes.ObjectID = Objects.ObjectID'
+                              + ' WHERE Objects.ObjectType = ''U'''
+                              + ' AND Indexes.IndexType IN(3,4)'
+
+          INSERT INTO @tmpIndexesStatistics (SchemaID, SchemaName, ObjectID, ObjectName, ObjectType, IsMemoryOptimized, IndexID, IndexName, IndexType, AllowPageLocks, HasFilter, IsImageText, IsFileStream, HasClusteredColumnstore, IsColumnstoreOrdered, IsComputed, IsClusteredIndexComputed, IsTimestamp, OnReadOnlyFileGroup, ResumableIndexOperation, IsPartition)
+          EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand
+          SET @Error = @@ERROR
+          IF @Error <> 0
+          BEGIN
+            SET @ReturnCode = @Error
+          END
+
+          -- Select columnstore indexes
+          SET @CurrentCommand = 'SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;'
+                              + ' SELECT Objects.SchemaID AS SchemaID'
+                              + ', Objects.SchemaName AS SchemaName'
+                              + ', Objects.ObjectID AS ObjectID'
+                              + ', Objects.ObjectName AS ObjectName'
+                              + ', Objects.ObjectType AS ObjectType'
+                              + ', Objects.IsMemoryOptimized AS IsMemoryOptimized'
+                              + ', Indexes.IndexID AS IndexID'
+                              + ', Indexes.IndexName AS IndexName'
+                              + ', Indexes.IndexType AS IndexType'
+                              + ', Indexes.AllowPageLocks AS AllowPageLocks'
+                              + ', Indexes.HasFilter AS HasFilter'
+                              + ', Indexes.IsImageText AS IsImageText'
+                              + ', Indexes.IsFileStream AS IsFileStream'
+                              + ', Objects.HasClusteredColumnstore AS HasClusteredColumnstore'
+                              + ', Indexes.IsColumnstoreOrdered AS IsColumnstoreOrdered'
+                              + ', Indexes.IsComputed AS IsComputed'
+                              + ', Objects.IsClusteredIndexComputed AS IsClusteredIndexComputed'
+                              + ', Indexes.IsTimestamp AS IsTimestamp'
+                              + CASE WHEN @CurrentDatabaseHasReadOnlyFileGroup = 1 THEN ', CASE WHEN EXISTS (SELECT * FROM sys.indexes indexes2 INNER JOIN sys.destination_data_spaces destination_data_spaces ON Indexes.DataSpaceID = destination_data_spaces.partition_scheme_id INNER JOIN sys.filegroups filegroups ON destination_data_spaces.data_space_id = filegroups.data_space_id WHERE filegroups.is_read_only = 1 AND indexes2.[object_id] = Indexes.ObjectID AND indexes2.[index_id] = Indexes.IndexID' + CASE WHEN @PartitionLevel = 'Y' THEN ' AND destination_data_spaces.destination_id = partitions.partition_number' ELSE '' END + ') THEN 1'
+                              + ' WHEN EXISTS (SELECT * FROM sys.indexes indexes2 INNER JOIN sys.filegroups filegroups ON Indexes.DataSpaceID = filegroups.data_space_id WHERE filegroups.is_read_only = 1 AND Indexes.ObjectID = indexes2.[object_id] AND Indexes.IndexID = indexes2.index_id) THEN 1'
+                              + ' WHEN Indexes.IndexType = 1 AND EXISTS (SELECT * FROM sys.tables tables INNER JOIN sys.filegroups filegroups ON tables.lob_data_space_id = filegroups.data_space_id WHERE filegroups.is_read_only = 1 AND tables.[object_id] = Objects.ObjectID) THEN 1 ELSE 0 END AS OnReadOnlyFileGroup' ELSE ', 0 AS OnReadOnlyFileGroup' END
+                              + ', 0 AS ResumableIndexOperation'
+                              + ', NULL AS StatisticsID'
+                              + ', NULL AS StatisticsName'
+                              + ', NULL AS NoRecompute'
+                              + ', NULL AS IsIncremental'
+                              + ', ' + CASE WHEN @PartitionLevel = 'Y' THEN 'partitions.partition_id AS PartitionID' WHEN @PartitionLevel = 'N' THEN 'NULL AS PartitionID' END
+                              + ', ' + CASE WHEN @PartitionLevel = 'Y' THEN 'partitions.partition_number AS PartitionNumber' WHEN @PartitionLevel = 'N' THEN 'NULL AS PartitionNumber' END
+                              + ', ' + CASE WHEN @PartitionLevel = 'Y' THEN 'Indexes.IsPartitioned AS IsPartition' WHEN @PartitionLevel = 'N' THEN '0 AS IsPartition' END
+                              + ', ' + CASE WHEN (@MinNumberOfPages > 0 OR @MaxNumberOfPages IS NOT NULL) THEN 'dm_db_partition_stats.in_row_data_page_count AS InRowDataPageCount' ELSE 'NULL AS InRowDataPageCount' END
+                              + ' FROM #Indexes Indexes'
+                              + ' INNER JOIN #Objects Objects ON Indexes.ObjectID = Objects.ObjectID'
+          IF @PartitionLevel = 'Y'
+          BEGIN
+            SET @CurrentCommand += ' INNER JOIN sys.partitions partitions ON Indexes.ObjectID = partitions.[object_id] AND Indexes.IndexID = partitions.index_id'
+          END
+          IF @PartitionLevel = 'Y' AND (@MinNumberOfPages > 0 OR @MaxNumberOfPages IS NOT NULL)
+          BEGIN
+            SET @CurrentCommand += ' INNER JOIN sys.dm_db_partition_stats dm_db_partition_stats ON partitions.object_id = dm_db_partition_stats.object_id AND partitions.index_id = dm_db_partition_stats.index_id AND partitions.partition_number = dm_db_partition_stats.partition_number'
+          END
+          IF @PartitionLevel = 'N' AND (@MinNumberOfPages > 0 OR @MaxNumberOfPages IS NOT NULL)
+          BEGIN
+            SET @CurrentCommand += ' INNER JOIN (SELECT object_id, index_id, SUM(in_row_data_page_count) AS in_row_data_page_count FROM sys.dm_db_partition_stats GROUP BY object_id, index_id) dm_db_partition_stats ON Indexes.ObjectID = dm_db_partition_stats.object_id AND Indexes.IndexID = dm_db_partition_stats.index_id'
+          END
+          SET @CurrentCommand += ' WHERE Objects.ObjectType = ''U'''
+                               + ' AND Indexes.IndexType IN(5,6)'
+                               + CASE WHEN (@UpdateStatistics = 'COLUMNS' OR @UpdateStatistics IS NULL) AND @MinNumberOfPages > 0 THEN ' AND dm_db_partition_stats.in_row_data_page_count >= @ParamMinNumberOfPages' ELSE '' END
+                               + CASE WHEN (@UpdateStatistics = 'COLUMNS' OR @UpdateStatistics IS NULL) AND @MaxNumberOfPages IS NOT NULL THEN ' AND dm_db_partition_stats.in_row_data_page_count <= @ParamMaxNumberOfPages' ELSE '' END
+
+          INSERT INTO @tmpIndexesStatistics (SchemaID, SchemaName, ObjectID, ObjectName, ObjectType, IsMemoryOptimized, IndexID, IndexName, IndexType, AllowPageLocks, HasFilter, IsImageText, IsFileStream, HasClusteredColumnstore, IsColumnstoreOrdered, IsComputed, IsClusteredIndexComputed, IsTimestamp, OnReadOnlyFileGroup, ResumableIndexOperation, StatisticsID, StatisticsName, [NoRecompute], IsIncremental, PartitionID, PartitionNumber, IsPartition, InRowDataPageCount)
+          EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand, @params = N'@ParamMinNumberOfPages int, @ParamMaxNumberOfPages int', @ParamMinNumberOfPages = @MinNumberOfPages, @ParamMaxNumberOfPages = @MaxNumberOfPages
+          SET @Error = @@ERROR
+          IF @Error <> 0
+          BEGIN
+            SET @ReturnCode = @Error
+          END
+
+        END
+
+        IF @UpdateStatistics IN('ALL','COLUMNS')
+        BEGIN
+          -- Select non-incremental column level statistics
+          SET @CurrentCommand = 'SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;'
+                              + ' SELECT Objects.SchemaID AS SchemaID'
+                              + ', Objects.SchemaName AS SchemaName'
+                              + ', Objects.ObjectID AS ObjectID'
+                              + ', Objects.ObjectName AS ObjectName'
+                              + ', Objects.ObjectType AS ObjectType'
+                              + ', Objects.IsMemoryOptimized AS IsMemoryOptimized'
+                              + ', Stats.StatisticsID AS StatisticsID'
+                              + ', Stats.StatisticsName AS StatisticsName'
+                              + ', Stats.[NoRecompute] AS NoRecompute'
+                              + ', Stats.IsIncremental AS IsIncremental'
+                              + ', NULL AS PartitionNumber'
+                              + ', 0 AS IsPartition'
+                              + ' FROM #Stats Stats'
+                              + ' INNER JOIN #Objects Objects ON Stats.ObjectID = Objects.ObjectID'
+                              + ' WHERE Stats.IsIndex = 0'
+                              + ' AND Stats.IsIncremental = 0'
+                              + ' AND Objects.IsClusteredIndexDisabled = 0'
+
+          INSERT INTO @tmpIndexesStatistics (SchemaID, SchemaName, ObjectID, ObjectName, ObjectType, IsMemoryOptimized, StatisticsID, StatisticsName, [NoRecompute], IsIncremental, PartitionNumber, IsPartition)
+          EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand
+          SET @Error = @@ERROR
+          IF @Error <> 0
+          BEGIN
+            SET @ReturnCode = @Error
+          END
+
+          -- Select incremental column level statistics
+          SET @CurrentCommand = 'SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;'
+                              + ' SELECT Objects.SchemaID AS SchemaID'
+                              + ', Objects.SchemaName AS SchemaName'
+                              + ', Objects.ObjectID AS ObjectID'
+                              + ', Objects.ObjectName AS ObjectName'
+                              + ', Objects.ObjectType AS ObjectType'
+                              + ', Objects.IsMemoryOptimized AS IsMemoryOptimized'
+                              + ', Stats.StatisticsID AS StatisticsID'
+                              + ', Stats.StatisticsName AS StatisticsName'
+                              + ', Stats.[NoRecompute] AS NoRecompute'
+                              + ', Stats.IsIncremental AS IsIncremental'
+                              + ', ' + CASE WHEN @PartitionLevel = 'Y' THEN 'partitions.partition_number' ELSE 'NULL' END + ' AS PartitionNumber'
+                              + ', ' + CASE WHEN @PartitionLevel = 'Y' THEN '1' ELSE '0' END + ' AS IsPartition'
+                              + ' FROM #Stats Stats'
+                              + ' INNER JOIN #Objects Objects ON Stats.ObjectID = Objects.ObjectID'
+          IF @PartitionLevel = 'Y'
+          BEGIN
+            SET @CurrentCommand += ' INNER JOIN sys.partitions partitions ON partitions.[object_id] = Stats.ObjectID AND partitions.index_id IN (0, 1)'
+          END
+          SET @CurrentCommand += ' WHERE Objects.IsMemoryOptimized = 0'
+                               + ' AND Stats.IsIndex = 0'
+                               + ' AND Stats.IsIncremental = 1'
+                               + ' AND Objects.IsClusteredIndexDisabled = 0'
+
+          INSERT INTO @tmpIndexesStatistics (SchemaID, SchemaName, ObjectID, ObjectName, ObjectType, IsMemoryOptimized, StatisticsID, StatisticsName, [NoRecompute], IsIncremental, PartitionNumber, IsPartition)
+          EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand
+          SET @Error = @@ERROR
+          IF @Error <> 0
+          BEGIN
+            SET @ReturnCode = @Error
+          END
+        END
+
+        IF @PartitionLevel = 'Y'
+        BEGIN
+          UPDATE tmpIndexesStatistics
+          SET tmpIndexesStatistics.IsLastPartition = CASE WHEN tmpIndexesStatistics.PartitionNumber = LastPartitionNumbers.LastPartitionNumber THEN 1 ELSE 0 END
+          FROM @tmpIndexesStatistics tmpIndexesStatistics
+          INNER JOIN (SELECT ObjectID, IndexID, MAX(PartitionNumber) AS LastPartitionNumber FROM @tmpIndexesStatistics WHERE IndexID IS NOT NULL AND PartitionNumber IS NOT NULL GROUP BY ObjectID, IndexID) LastPartitionNumbers ON tmpIndexesStatistics.ObjectID = LastPartitionNumbers.ObjectID AND tmpIndexesStatistics.IndexID = LastPartitionNumbers.IndexID
+          OPTION (RECOMPILE)
+        END
+
+        UPDATE tmpIndexesStatistics
+        SET tmpIndexesStatistics.ResumableIndexOperation = 1
+        FROM @tmpIndexesStatistics tmpIndexesStatistics
+        INNER JOIN @tmpResumableOperations tmpResumableOperations ON tmpIndexesStatistics.ObjectID = tmpResumableOperations.ObjectID AND tmpIndexesStatistics.IndexID = tmpResumableOperations.IndexID AND (tmpIndexesStatistics.PartitionNumber = tmpResumableOperations.PartitionNumber OR tmpResumableOperations.PartitionNumber IS NULL)
+        OPTION (RECOMPILE)
+
+        IF @Indexes IS NULL
+        BEGIN
+          UPDATE tmpIndexesStatistics
+          SET tmpIndexesStatistics.Selected = 1
+          FROM @tmpIndexesStatistics tmpIndexesStatistics
+        END
+        ELSE
+        BEGIN
+          UPDATE tmpIndexesStatistics
+          SET tmpIndexesStatistics.Selected = SelectedIndexes.Selected
+          FROM @tmpIndexesStatistics tmpIndexesStatistics
+          INNER JOIN @SelectedIndexes SelectedIndexes
+          ON @CurrentDatabaseName LIKE REPLACE(REPLACE(SelectedIndexes.DatabaseName,'[','[[]'),'_','[_]') AND tmpIndexesStatistics.SchemaName LIKE REPLACE(REPLACE(SelectedIndexes.SchemaName,'[','[[]'),'_','[_]') AND tmpIndexesStatistics.ObjectName LIKE REPLACE(REPLACE(SelectedIndexes.ObjectName,'[','[[]'),'_','[_]') AND COALESCE(tmpIndexesStatistics.IndexName,tmpIndexesStatistics.StatisticsName) LIKE REPLACE(REPLACE(SelectedIndexes.IndexName,'[','[[]'),'_','[_]')
+          WHERE SelectedIndexes.Selected = 1
+
+          UPDATE tmpIndexesStatistics
+          SET tmpIndexesStatistics.Selected = SelectedIndexes.Selected
+          FROM @tmpIndexesStatistics tmpIndexesStatistics
+          INNER JOIN @SelectedIndexes SelectedIndexes
+          ON @CurrentDatabaseName LIKE REPLACE(REPLACE(SelectedIndexes.DatabaseName,'[','[[]'),'_','[_]') AND tmpIndexesStatistics.SchemaName LIKE REPLACE(REPLACE(SelectedIndexes.SchemaName,'[','[[]'),'_','[_]') AND tmpIndexesStatistics.ObjectName LIKE REPLACE(REPLACE(SelectedIndexes.ObjectName,'[','[[]'),'_','[_]') AND COALESCE(tmpIndexesStatistics.IndexName,tmpIndexesStatistics.StatisticsName) LIKE REPLACE(REPLACE(SelectedIndexes.IndexName,'[','[[]'),'_','[_]')
+          WHERE SelectedIndexes.Selected = 0
+
+          UPDATE tmpIndexesStatistics
+          SET tmpIndexesStatistics.StartPosition = SelectedIndexes2.StartPosition
+          FROM @tmpIndexesStatistics tmpIndexesStatistics
+          INNER JOIN (SELECT tmpIndexesStatistics.SchemaName, tmpIndexesStatistics.ObjectName, tmpIndexesStatistics.IndexName, tmpIndexesStatistics.StatisticsName, MIN(SelectedIndexes.StartPosition) AS StartPosition
+                      FROM @tmpIndexesStatistics tmpIndexesStatistics
+                      INNER JOIN @SelectedIndexes SelectedIndexes
+                      ON @CurrentDatabaseName LIKE REPLACE(REPLACE(SelectedIndexes.DatabaseName,'[','[[]'),'_','[_]') AND tmpIndexesStatistics.SchemaName LIKE REPLACE(REPLACE(SelectedIndexes.SchemaName,'[','[[]'),'_','[_]') AND tmpIndexesStatistics.ObjectName LIKE REPLACE(REPLACE(SelectedIndexes.ObjectName,'[','[[]'),'_','[_]') AND COALESCE(tmpIndexesStatistics.IndexName,tmpIndexesStatistics.StatisticsName) LIKE REPLACE(REPLACE(SelectedIndexes.IndexName,'[','[[]'),'_','[_]')
+                      WHERE SelectedIndexes.Selected = 1
+                      GROUP BY tmpIndexesStatistics.SchemaName, tmpIndexesStatistics.ObjectName, tmpIndexesStatistics.IndexName, tmpIndexesStatistics.StatisticsName) SelectedIndexes2
+          ON tmpIndexesStatistics.SchemaName = SelectedIndexes2.SchemaName
+          AND tmpIndexesStatistics.ObjectName = SelectedIndexes2.ObjectName
+          AND (tmpIndexesStatistics.IndexName = SelectedIndexes2.IndexName OR tmpIndexesStatistics.IndexName IS NULL)
+          AND (tmpIndexesStatistics.StatisticsName = SelectedIndexes2.StatisticsName OR tmpIndexesStatistics.StatisticsName IS NULL)
+        END;
+
+        WITH tmpIndexesStatistics AS (
+        SELECT SchemaName, ObjectName, [Order], ROW_NUMBER() OVER (ORDER BY ISNULL(ResumableIndexOperation,0) DESC, StartPosition ASC, SchemaName ASC, ObjectName ASC, CASE WHEN IndexType IS NULL THEN 1 ELSE 0 END ASC, IndexType ASC, IndexName ASC, StatisticsName ASC, PartitionNumber ASC) AS RowNumber
+        FROM @tmpIndexesStatistics tmpIndexesStatistics
+        WHERE Selected = 1
+        )
+        UPDATE tmpIndexesStatistics
+        SET [Order] = RowNumber
+
+        -- Update that alter index is completed for rows that have no index, if no index actions have been selected, for rows on read-only filegroups, or based on the page counts
+        UPDATE @tmpIndexesStatistics
+        SET AlterIndexCompleted = 1
+        WHERE IndexID IS NULL
+        OR NOT EXISTS (SELECT * FROM @ActionsPreferred)
+        OR OnReadOnlyFileGroup = 1
+        OR NOT (((InRowDataPageCount >= @MinNumberOfPages OR @MinNumberOfPages = 0) AND (InRowDataPageCount <= @MaxNumberOfPages OR @MaxNumberOfPages IS NULL)) OR InRowDataPageCount IS NULL)
+
+        -- Update that update statistics is completed for rows that have no statistics
+        UPDATE @tmpIndexesStatistics
+        SET UpdateStatisticsCompleted = 1
+        WHERE StatisticsID IS NULL
+        OR (IndexID IS NOT NULL AND @PartitionLevel = 'Y' AND IsIncremental = 0 AND IsLastPartition = 0)
+
+        SET @CurrentCommand = 'SELECT schemas.[name] AS SchemaName, objects.[name] AS ObjectName'
+                            + ' FROM sys.objects objects'
+                            + ' INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id]'
+                            + ' WHERE objects.[type] IN(''U'',''V'')'
+                            + ' AND EXISTS(SELECT * FROM #SelectedIndexes SelectedIndexes'
+                            + ' WHERE SelectedIndexes.DatabaseName = @ParamDatabaseName'
+                            + ' AND SelectedIndexes.SchemaName NOT LIKE ''%[%]%'''
+                            + ' AND SelectedIndexes.ObjectName NOT LIKE ''%[%]%'''
+                            + ' AND schemas.[name] = SelectedIndexes.SchemaName COLLATE ' + @Collation
+                            + ' AND objects.[name] = SelectedIndexes.ObjectName COLLATE ' + @Collation + ')'
+
+        INSERT INTO #ExistingObjects (SchemaName, ObjectName)
+        EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand, @params = N'@ParamDatabaseName nvarchar(max)', @ParamDatabaseName = @CurrentDatabaseName
+
+        SET @CurrentCommand = 'SELECT schemas.[name] AS SchemaName, objects.[name] AS ObjectName, [Names].[name] AS IndexName'
+                            + ' FROM sys.objects objects'
+                            + ' INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id]'
+                            + ' CROSS APPLY (SELECT indexes.[name] FROM sys.indexes indexes WHERE indexes.[object_id] = objects.[object_id] AND indexes.[type] <> 0'
+                            + ' UNION SELECT stats.[name] FROM sys.stats stats WHERE stats.[object_id] = objects.[object_id]) [Names]'
+                            + ' WHERE objects.[type] IN(''U'',''V'')'
+                            + ' AND EXISTS(SELECT * FROM #SelectedIndexes SelectedIndexes'
+                            + ' WHERE SelectedIndexes.DatabaseName = @ParamDatabaseName'
+                            + ' AND SelectedIndexes.SchemaName NOT LIKE ''%[%]%'''
+                            + ' AND SelectedIndexes.ObjectName NOT LIKE ''%[%]%'''
+                            + ' AND SelectedIndexes.IndexName NOT LIKE ''%[%]%'''
+                            + ' AND schemas.[name] = SelectedIndexes.SchemaName COLLATE ' + @Collation
+                            + ' AND objects.[name] = SelectedIndexes.ObjectName COLLATE ' + @Collation
+                            + ' AND [Names].[name] = SelectedIndexes.IndexName COLLATE ' + @Collation + ')'
+
+        INSERT INTO #ExistingIndexes (SchemaName, ObjectName, IndexName)
+        EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand, @params = N'@ParamDatabaseName nvarchar(max)', @ParamDatabaseName = @CurrentDatabaseName
+
+        SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(DatabaseName) AS nvarchar(max)) + '.' + QUOTENAME(SchemaName) + '.' + QUOTENAME(ObjectName), ', ')
+                               WITHIN GROUP (ORDER BY DatabaseName ASC, SchemaName ASC, ObjectName ASC)
+        FROM @SelectedIndexes SelectedIndexes
+        WHERE DatabaseName = @CurrentDatabaseName
+        AND SchemaName NOT LIKE '%[%]%'
+        AND ObjectName NOT LIKE '%[%]%'
+        AND IndexName LIKE '%[%]%'
+        AND NOT EXISTS (SELECT * FROM #ExistingObjects WHERE SchemaName = SelectedIndexes.SchemaName AND ObjectName = SelectedIndexes.ObjectName)
+
+        IF @ErrorMessage IS NOT NULL
+        BEGIN
+          SET @ErrorMessage = 'The following objects in the @Indexes parameter do not exist: ' + @ErrorMessage + '.'
+          RAISERROR('%s',10,1,@ErrorMessage) WITH NOWAIT
+          RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+        END
+
+        SELECT @ErrorMessage = STRING_AGG(CAST(QUOTENAME(DatabaseName) AS nvarchar(max)) + '.' + QUOTENAME(SchemaName) + '.' + QUOTENAME(ObjectName) + '.' + QUOTENAME(IndexName), ', ')
+                               WITHIN GROUP (ORDER BY DatabaseName ASC, SchemaName ASC, ObjectName ASC, IndexName ASC)
+        FROM @SelectedIndexes SelectedIndexes
+        WHERE DatabaseName = @CurrentDatabaseName
+        AND SchemaName NOT LIKE '%[%]%'
+        AND ObjectName NOT LIKE '%[%]%'
+        AND IndexName NOT LIKE '%[%]%'
+        AND NOT EXISTS (SELECT * FROM #ExistingIndexes WHERE SchemaName = SelectedIndexes.SchemaName AND ObjectName = SelectedIndexes.ObjectName AND IndexName = SelectedIndexes.IndexName)
+
+        IF @ErrorMessage IS NOT NULL
+        BEGIN
+          SET @ErrorMessage = 'The following indexes in the @Indexes parameter do not exist: ' + @ErrorMessage + '.'
+          RAISERROR('%s',10,1,@ErrorMessage) WITH NOWAIT
+          RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+        END
+      END
+
+      WHILE (SYSDATETIME() < DATEADD(SECOND,@TimeLimit,@StartTime) OR @TimeLimit IS NULL)
+      BEGIN
+        SELECT TOP 1 @CurrentIxID = ID,
+                     @CurrentIxOrder = [Order],
+                     @CurrentSchemaID = SchemaID,
+                     @CurrentSchemaName = SchemaName,
+                     @CurrentObjectID = ObjectID,
+                     @CurrentObjectName = ObjectName,
+                     @CurrentObjectType = ObjectType,
+                     @CurrentIsMemoryOptimized = IsMemoryOptimized,
+                     @CurrentIndexID = IndexID,
+                     @CurrentIndexName = IndexName,
+                     @CurrentIndexType = IndexType,
+                     @CurrentAllowPageLocks = AllowPageLocks,
+                     @CurrentHasFilter = HasFilter,
+                     @CurrentIsImageText = IsImageText,
+                     @CurrentIsFileStream = IsFileStream,
+                     @CurrentHasClusteredColumnstore = HasClusteredColumnstore,
+                     @CurrentIsColumnstoreOrdered = IsColumnstoreOrdered,
+                     @CurrentIsComputed = IsComputed,
+                     @CurrentIsClusteredIndexComputed = IsClusteredIndexComputed,
+                     @CurrentIsTimestamp = IsTimestamp,
+                     @CurrentOnReadOnlyFileGroup = OnReadOnlyFileGroup,
+                     @CurrentResumableIndexOperation = ResumableIndexOperation,
+                     @CurrentStatisticsID = StatisticsID,
+                     @CurrentStatisticsName = StatisticsName,
+                     @CurrentNoRecompute = [NoRecompute],
+                     @CurrentIsIncremental = IsIncremental,
+                     @CurrentPartitionID = PartitionID,
+                     @CurrentPartitionNumber = PartitionNumber,
+                     @CurrentIsPartition = IsPartition,
+                     @CurrentIsLastPartition = IsLastPartition,
+                     @CurrentInRowDataPageCount = InRowDataPageCount,
+                     @CurrentAlterIndexCompleted = AlterIndexCompleted,
+                     @CurrentUpdateStatisticsCompleted = UpdateStatisticsCompleted
+        FROM @tmpIndexesStatistics
+        WHERE Selected = 1
+        AND Completed = 0
+        ORDER BY [Order] ASC
+
+        IF @@ROWCOUNT = 0
+        BEGIN
+          BREAK
+        END
+
+        IF @CurrentAlterIndexCompleted = 0 AND @CurrentIndexID IS NOT NULL AND EXISTS(SELECT * FROM @ActionsPreferred) AND @CurrentOnReadOnlyFileGroup = 0
+        BEGIN
+          SET @CurrentMaxDOP = @MaxDOP
+
+          -- Does the index exist?
+          SET @CurrentCommand = ''
+
+          IF @LockTimeout IS NOT NULL SET @CurrentCommand = 'SET LOCK_TIMEOUT ' + CAST(@LockTimeout * 1000 AS nvarchar(max)) + '; '
+
+          IF @CurrentIsPartition = 0 SET @CurrentCommand += 'IF EXISTS(SELECT * FROM sys.indexes indexes INNER JOIN sys.objects objects ON indexes.[object_id] = objects.[object_id] INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] IN(''U'',''V'') AND indexes.[type] IN(1,2,3,4,5,6,7) AND indexes.is_disabled = 0 AND indexes.is_hypothetical = 0 AND schemas.[schema_id] = @ParamSchemaID AND schemas.[name] = @ParamSchemaName AND objects.[object_id] = @ParamObjectID AND objects.[name] = @ParamObjectName AND objects.[type] = @ParamObjectType AND indexes.index_id = @ParamIndexID AND indexes.[name] = @ParamIndexName AND indexes.[type] = @ParamIndexType) BEGIN SET @ParamIndexExists = 1 END'
+          IF @CurrentIsPartition = 1 SET @CurrentCommand += 'IF EXISTS(SELECT * FROM sys.indexes indexes INNER JOIN sys.objects objects ON indexes.[object_id] = objects.[object_id] INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] INNER JOIN sys.partitions partitions ON indexes.[object_id] = partitions.[object_id] AND indexes.index_id = partitions.index_id WHERE objects.[type] IN(''U'',''V'') AND indexes.[type] IN(1,2,3,4,5,6,7) AND indexes.is_disabled = 0 AND indexes.is_hypothetical = 0 AND schemas.[schema_id] = @ParamSchemaID AND schemas.[name] = @ParamSchemaName AND objects.[object_id] = @ParamObjectID AND objects.[name] = @ParamObjectName AND objects.[type] = @ParamObjectType AND indexes.index_id = @ParamIndexID AND indexes.[name] = @ParamIndexName AND indexes.[type] = @ParamIndexType AND partitions.partition_id = @ParamPartitionID AND partitions.partition_number = @ParamPartitionNumber) BEGIN SET @ParamIndexExists = 1 END'
+
+          BEGIN TRY
+            EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand, @params = N'@ParamSchemaID int, @ParamSchemaName sysname, @ParamObjectID int, @ParamObjectName sysname, @ParamObjectType sysname, @ParamIndexID int, @ParamIndexName sysname, @ParamIndexType int, @ParamPartitionID bigint, @ParamPartitionNumber int, @ParamIndexExists bit OUTPUT', @ParamSchemaID = @CurrentSchemaID, @ParamSchemaName = @CurrentSchemaName, @ParamObjectID = @CurrentObjectID, @ParamObjectName = @CurrentObjectName, @ParamObjectType = @CurrentObjectType, @ParamIndexID = @CurrentIndexID, @ParamIndexName = @CurrentIndexName, @ParamIndexType = @CurrentIndexType, @ParamPartitionID = @CurrentPartitionID, @ParamPartitionNumber = @CurrentPartitionNumber, @ParamIndexExists = @CurrentIndexExists OUTPUT
+
+            IF @CurrentIndexExists IS NULL
+            BEGIN
+              SET @CurrentIndexExists = 0
+              GOTO NoAction
+            END
+          END TRY
+          BEGIN CATCH
+            SET @ErrorMessage = 'Msg ' + CAST(ERROR_NUMBER() AS nvarchar(max)) + ', ' + ISNULL(ERROR_MESSAGE(),'') + CASE WHEN ERROR_NUMBER() = 1222 THEN ' The index ' + QUOTENAME(@CurrentIndexName) + ' on the object ' + QUOTENAME(@CurrentDatabaseName) + '.' + QUOTENAME(@CurrentSchemaName) + '.' + QUOTENAME(@CurrentObjectName) + ' is locked. It could not be checked if the index exists.' ELSE '' END
+            SET @Severity = CASE WHEN ERROR_NUMBER() IN(1205,1222) THEN @LockMessageSeverity ELSE 16 END
+            RAISERROR('%s',@Severity,1,@ErrorMessage) WITH NOWAIT
+            RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+            IF NOT (ERROR_NUMBER() IN(1205,1222) AND @LockMessageSeverity = 10)
+            BEGIN
+              SET @ReturnCode = ERROR_NUMBER()
+            END
+
+            GOTO NoAction
+          END CATCH
+
+          -- Is the index fragmented?
+          IF EXISTS(SELECT [Priority], [Action], COUNT(*) FROM @ActionsPreferred GROUP BY [Priority], [Action] HAVING COUNT(*) <> 3) OR @MinNumberOfPages > 0 OR @MaxNumberOfPages IS NOT NULL
+          BEGIN
+            IF NOT EXISTS (SELECT * FROM @PhysicalStats WHERE ObjectID = @CurrentObjectID AND IndexID = @CurrentIndexID)
+            BEGIN
+              SET @CurrentCommand = ''
+
+              IF @LockTimeout IS NOT NULL SET @CurrentCommand = 'SET LOCK_TIMEOUT ' + CAST(@LockTimeout * 1000 AS nvarchar(max)) + '; '
+
+              IF @CurrentIndexType IN(5, 6)
+              BEGIN
+                SET @CurrentCommand += 'SELECT object_id, index_id, partition_number, MAX(avg_fragmentation_in_percent), SUM(page_count) FROM sys.dm_db_index_physical_stats(DB_ID(@ParamDatabaseName), @ParamObjectID, @ParamIndexID, NULL, ''LIMITED'') WHERE alloc_unit_type_desc = ''IN_ROW_DATA'' AND index_level = 0 GROUP BY object_id, index_id, partition_number'
+              END
+              ELSE
+              BEGIN
+                SET @CurrentCommand += 'SELECT object_id, index_id, partition_number, avg_fragmentation_in_percent, page_count FROM sys.dm_db_index_physical_stats(DB_ID(@ParamDatabaseName), @ParamObjectID, @ParamIndexID, NULL, ''LIMITED'') WHERE alloc_unit_type_desc = ''IN_ROW_DATA'' AND index_level = 0'
+              END
+
+              BEGIN TRY
+                INSERT INTO @PhysicalStats (ObjectID, IndexID, PartitionNumber, FragmentationLevel, PageCount)
+                EXECUTE sp_executesql @stmt = @CurrentCommand, @params = N'@ParamDatabaseName nvarchar(max), @ParamObjectID int, @ParamIndexID int', @ParamDatabaseName = @CurrentDatabaseName, @ParamObjectID = @CurrentObjectID, @ParamIndexID = @CurrentIndexID
+              END TRY
+              BEGIN CATCH
+                SET @ErrorMessage = 'Msg ' + CAST(ERROR_NUMBER() AS nvarchar(max)) + ', ' + ISNULL(ERROR_MESSAGE(),'') + CASE WHEN ERROR_NUMBER() = 1222 THEN ' The index ' + QUOTENAME(@CurrentIndexName) + ' on the object ' + QUOTENAME(@CurrentDatabaseName) + '.' + QUOTENAME(@CurrentSchemaName) + '.' + QUOTENAME(@CurrentObjectName) + ' is locked. The page_count and avg_fragmentation_in_percent could not be checked.' ELSE '' END
+                SET @Severity = CASE WHEN ERROR_NUMBER() IN(1205,1222) THEN @LockMessageSeverity ELSE 16 END
+                RAISERROR('%s',@Severity,1,@ErrorMessage) WITH NOWAIT
+                RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+                IF NOT (ERROR_NUMBER() IN(1205,1222) AND @LockMessageSeverity = 10)
+                BEGIN
+                  SET @ReturnCode = ERROR_NUMBER()
+                END
+
+                UPDATE @tmpIndexesStatistics
+                SET AlterIndexCompleted = 1
+                WHERE ObjectID = @CurrentObjectID
+                AND IndexID = @CurrentIndexID
+                AND AlterIndexCompleted = 0
+
+                GOTO NoAction
+              END CATCH
+            END
+
+            IF @CurrentPartitionNumber IS NULL
+            BEGIN
+              SELECT @CurrentFragmentationLevel = MAX(FragmentationLevel),
+                     @CurrentPageCount = SUM(PageCount)
+              FROM @PhysicalStats
+              WHERE ObjectID = @CurrentObjectID
+              AND IndexID = @CurrentIndexID
+            END
+            ELSE
+            BEGIN
+              SELECT @CurrentFragmentationLevel = FragmentationLevel,
+                     @CurrentPageCount = PageCount
+              FROM @PhysicalStats
+              WHERE ObjectID = @CurrentObjectID
+              AND IndexID = @CurrentIndexID
+              AND PartitionNumber = @CurrentPartitionNumber
+            END
+          END
+
+          -- Select fragmentation group
+          SET @CurrentFragmentationGroup = CASE
+          WHEN @CurrentFragmentationLevel >= @FragmentationLevel2 THEN 'High'
+          WHEN @CurrentFragmentationLevel >= @FragmentationLevel1 AND @CurrentFragmentationLevel < @FragmentationLevel2 THEN 'Medium'
+          WHEN @CurrentFragmentationLevel < @FragmentationLevel1 THEN 'Low'
+          END
+
+          -- Which actions are allowed?
+          IF NOT (@CurrentIsMemoryOptimized = 1)
+          AND NOT (@CurrentAllowPageLocks = 0)
+          BEGIN
+            INSERT INTO @CurrentActionsAllowed ([Action])
+            VALUES ('INDEX_REORGANIZE')
+          END
+          IF NOT (@CurrentIsMemoryOptimized = 1)
+          BEGIN
+            INSERT INTO @CurrentActionsAllowed ([Action])
+            VALUES ('INDEX_REBUILD_OFFLINE')
+          END
+          IF @EngineEdition IN (3, 5, 8)
+          AND NOT (@CurrentIsMemoryOptimized = 1)
+          AND NOT (@CurrentIndexType = 1 AND @CurrentIsImageText = 1 AND @CurrentIsImageText IS NOT NULL)
+          AND NOT (@CurrentIndexType = 1 AND @CurrentIsFileStream = 1 AND @CurrentIsFileStream IS NOT NULL)
+          AND NOT (@CurrentIndexType = 3)
+          AND NOT (@CurrentIndexType = 4)
+          AND NOT (@CurrentIndexType = 5 AND NOT (@Version >= 15 OR @EngineEdition = 5 OR (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous')))
+          AND NOT (@CurrentIndexType = 2 AND @CurrentHasClusteredColumnstore = 1 AND @CurrentHasClusteredColumnstore IS NOT NULL AND NOT (@Version >= 15 OR @EngineEdition = 5 OR (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous')))
+          AND NOT (@CurrentIndexType = 5 AND @CurrentIsColumnstoreOrdered = 1 AND @CurrentIsColumnstoreOrdered IS NOT NULL AND NOT (@Version >= 17 OR @EngineEdition = 5 OR (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous')))
+          BEGIN
+            INSERT INTO @CurrentActionsAllowed ([Action])
+            VALUES ('INDEX_REBUILD_ONLINE')
+          END
+
+          -- Decide action
+          IF (@CurrentPageCount >= @MinNumberOfPages OR @MinNumberOfPages = 0)
+          AND (@CurrentPageCount <= @MaxNumberOfPages OR @MaxNumberOfPages IS NULL)
+          AND @CurrentResumableIndexOperation = 0
+          BEGIN
+            IF EXISTS(SELECT [Priority], [Action], COUNT(*) FROM @ActionsPreferred GROUP BY [Priority], [Action] HAVING COUNT(*) <> 3)
+            BEGIN
+              SELECT @CurrentAction = [Action]
+              FROM @ActionsPreferred
+              WHERE FragmentationGroup = @CurrentFragmentationGroup
+              AND [Priority] = (SELECT MIN([Priority])
+                                FROM @ActionsPreferred
+                                WHERE FragmentationGroup = @CurrentFragmentationGroup
+                                AND [Action] IN (SELECT [Action] FROM @CurrentActionsAllowed))
+            END
+            ELSE
+            BEGIN
+              SELECT @CurrentAction = [Action]
+              FROM @ActionsPreferred
+              WHERE [Priority] = (SELECT MIN([Priority])
+                                  FROM @ActionsPreferred
+                                  WHERE [Action] IN (SELECT [Action] FROM @CurrentActionsAllowed))
+            END
+          END
+
+          IF @CurrentResumableIndexOperation = 1
+          BEGIN
+            SET @CurrentAction = 'INDEX_REBUILD_ONLINE'
+          END
+
+          -- Workaround for limitation in SQL Server, http://support.microsoft.com/kb/2292737
+          IF @CurrentAction = 'INDEX_REBUILD_ONLINE' AND @CurrentIndexType IN (1, 2) AND @CurrentAllowPageLocks = 0
+          BEGIN
+            SET @CurrentMaxDOP = 1
+          END
+
+          -- Create index comment
+          IF @CurrentAction IS NOT NULL
+          BEGIN
+            SET @CurrentComment = 'ObjectType: ' + CASE WHEN @CurrentObjectType = 'U' THEN 'Table' WHEN @CurrentObjectType = 'V' THEN 'View' ELSE 'N/A' END + ', '
+            SET @CurrentComment += 'IndexType: ' + CASE WHEN @CurrentIndexType = 1 THEN 'Clustered' WHEN @CurrentIndexType = 2 THEN 'NonClustered' WHEN @CurrentIndexType = 3 THEN 'XML' WHEN @CurrentIndexType = 4 THEN 'Spatial' WHEN @CurrentIndexType = 5 THEN 'Clustered Columnstore' WHEN @CurrentIndexType = 6 THEN 'NonClustered Columnstore' WHEN @CurrentIndexType = 7 THEN 'NonClustered Hash' ELSE 'N/A' END + ', '
+            IF @CurrentIsImageText IS NOT NULL SET @CurrentComment += 'ImageText: ' + CASE WHEN @CurrentIsImageText = 1 THEN 'Yes' WHEN @CurrentIsImageText = 0 THEN 'No' ELSE 'N/A' END + ', '
+            IF @CurrentIsFileStream IS NOT NULL SET @CurrentComment += 'FileStream: ' + CASE WHEN @CurrentIsFileStream = 1 THEN 'Yes' WHEN @CurrentIsFileStream = 0 THEN 'No' ELSE 'N/A' END + ', '
+            IF @CurrentHasClusteredColumnstore IS NOT NULL AND @CurrentIndexType NOT IN(5, 6) SET @CurrentComment += 'HasClusteredColumnstore: ' + CASE WHEN @CurrentHasClusteredColumnstore = 1 THEN 'Yes' WHEN @CurrentHasClusteredColumnstore = 0 THEN 'No' ELSE 'N/A' END + ', '
+            IF @CurrentIsColumnstoreOrdered IS NOT NULL AND @CurrentIndexType = 5 SET @CurrentComment += 'IsColumnstoreOrdered: ' + CASE WHEN @CurrentIsColumnstoreOrdered = 1 THEN 'Yes' WHEN @CurrentIsColumnstoreOrdered = 0 THEN 'No' ELSE 'N/A' END + ', '
+            IF @CurrentIsComputed IS NOT NULL SET @CurrentComment += 'Computed: ' + CASE WHEN @CurrentIsComputed = 1 THEN 'Yes' WHEN @CurrentIsComputed = 0 THEN 'No' ELSE 'N/A' END + ', '
+            IF @CurrentIsClusteredIndexComputed IS NOT NULL AND @CurrentIndexType = 2 SET @CurrentComment += 'ClusteredIndexComputed: ' + CASE WHEN @CurrentIsClusteredIndexComputed = 1 THEN 'Yes' WHEN @CurrentIsClusteredIndexComputed = 0 THEN 'No' ELSE 'N/A' END + ', '
+            IF @CurrentIsTimestamp IS NOT NULL SET @CurrentComment += 'Timestamp: ' + CASE WHEN @CurrentIsTimestamp = 1 THEN 'Yes' WHEN @CurrentIsTimestamp = 0 THEN 'No' ELSE 'N/A' END + ', '
+            IF @Resumable = 'Y' SET @CurrentComment += 'HasFilter: ' + CASE WHEN @CurrentHasFilter = 1 THEN 'Yes' WHEN @CurrentHasFilter = 0 THEN 'No' ELSE 'N/A' END + ', '
+            SET @CurrentComment += 'AllowPageLocks: ' + CASE WHEN @CurrentAllowPageLocks = 1 THEN 'Yes' WHEN @CurrentAllowPageLocks = 0 THEN 'No' ELSE 'N/A' END + ', '
+            SET @CurrentComment += 'PageCount: ' + ISNULL(CAST(@CurrentPageCount AS nvarchar(max)),'N/A') + ', '
+            SET @CurrentComment += 'Fragmentation: ' + ISNULL(CAST(@CurrentFragmentationLevel AS nvarchar(max)),'N/A')
+          END
+
+          IF @CurrentAction IS NOT NULL AND (@CurrentPageCount IS NOT NULL OR @CurrentFragmentationLevel IS NOT NULL)
+          BEGIN
+          SET @CurrentExtendedInfo = (SELECT *
+                                      FROM (SELECT CAST(@CurrentPageCount AS nvarchar(max)) AS [PageCount],
+                                                   CAST(@CurrentFragmentationLevel AS nvarchar(max)) AS Fragmentation
+                                      ) ExtendedInfo FOR XML RAW('ExtendedInfo'), ELEMENTS)
+          END
+
+          IF @CurrentAction IS NOT NULL AND (SYSDATETIME() < DATEADD(SECOND,@TimeLimit,@StartTime) OR @TimeLimit IS NULL)
+          BEGIN
+            SET @CurrentDatabaseContext = @CurrentDatabaseName
+
+            SET @CurrentCommandType = 'ALTER_INDEX'
+
+            SET @CurrentCommand = ''
+            IF @LockTimeout IS NOT NULL SET @CurrentCommand = 'SET LOCK_TIMEOUT ' + CAST(@LockTimeout * 1000 AS nvarchar(max)) + '; '
+            SET @CurrentCommand += 'ALTER INDEX ' + QUOTENAME(@CurrentIndexName) + ' ON ' + QUOTENAME(@CurrentSchemaName) + '.' + QUOTENAME(@CurrentObjectName)
+            IF @CurrentResumableIndexOperation = 1 SET @CurrentCommand += ' RESUME'
+            IF @CurrentAction IN('INDEX_REBUILD_ONLINE','INDEX_REBUILD_OFFLINE') AND @CurrentResumableIndexOperation = 0 SET @CurrentCommand += ' REBUILD'
+            IF @CurrentAction IN('INDEX_REORGANIZE') AND @CurrentResumableIndexOperation = 0 SET @CurrentCommand += ' REORGANIZE'
+            IF @CurrentIsPartition = 1 AND @CurrentResumableIndexOperation = 0 SET @CurrentCommand += ' PARTITION = ' + CAST(@CurrentPartitionNumber AS nvarchar(max))
+
+            IF @CurrentAction IN('INDEX_REBUILD_ONLINE','INDEX_REBUILD_OFFLINE') AND @SortInTempdb = 'Y' AND @CurrentIndexType IN(1,2,3,4) AND @CurrentResumableIndexOperation = 0
+            BEGIN
+              INSERT INTO @CurrentAlterIndexWithClauseArguments (Argument)
+              VALUES('SORT_IN_TEMPDB = ON')
+            END
+
+            IF @CurrentAction IN('INDEX_REBUILD_ONLINE','INDEX_REBUILD_OFFLINE') AND @SortInTempdb = 'N' AND @CurrentIndexType IN(1,2,3,4) AND @CurrentResumableIndexOperation = 0
+            BEGIN
+              INSERT INTO @CurrentAlterIndexWithClauseArguments (Argument)
+              VALUES('SORT_IN_TEMPDB = OFF')
+            END
+
+            IF @CurrentAction = 'INDEX_REBUILD_ONLINE' AND @CurrentResumableIndexOperation = 0
+            BEGIN
+              INSERT INTO @CurrentAlterIndexWithClauseArguments (Argument)
+              VALUES('ONLINE = ON' + CASE WHEN @WaitAtLowPriorityMaxDuration IS NOT NULL THEN ' (WAIT_AT_LOW_PRIORITY (MAX_DURATION = ' + CAST(@WaitAtLowPriorityMaxDuration AS nvarchar(max)) + ', ABORT_AFTER_WAIT = ' + UPPER(@WaitAtLowPriorityAbortAfterWait) + '))' ELSE '' END)
+            END
+
+            IF @CurrentAction = 'INDEX_REBUILD_ONLINE' AND @CurrentResumableIndexOperation = 1 AND @WaitAtLowPriorityMaxDuration IS NOT NULL
+            BEGIN
+              INSERT INTO @CurrentAlterIndexWithClauseArguments (Argument)
+              VALUES('WAIT_AT_LOW_PRIORITY (MAX_DURATION = ' + CAST(@WaitAtLowPriorityMaxDuration AS nvarchar(max)) + ', ABORT_AFTER_WAIT = ' + UPPER(@WaitAtLowPriorityAbortAfterWait) + ')')
+            END
+
+            IF @CurrentAction = 'INDEX_REBUILD_OFFLINE' AND @CurrentResumableIndexOperation = 0
+            BEGIN
+              INSERT INTO @CurrentAlterIndexWithClauseArguments (Argument)
+              VALUES('ONLINE = OFF')
+            END
+
+            IF @CurrentAction IN('INDEX_REBUILD_ONLINE','INDEX_REBUILD_OFFLINE') AND @CurrentMaxDOP IS NOT NULL
+            BEGIN
+              INSERT INTO @CurrentAlterIndexWithClauseArguments (Argument)
+              VALUES('MAXDOP = ' + CAST(@CurrentMaxDOP AS nvarchar(max)))
+            END
+
+            IF @CurrentAction IN('INDEX_REBUILD_ONLINE','INDEX_REBUILD_OFFLINE') AND @FillFactor IS NOT NULL AND @CurrentIsPartition = 0 AND @CurrentIndexType IN(1,2,3,4) AND @CurrentResumableIndexOperation = 0
+            BEGIN
+              INSERT INTO @CurrentAlterIndexWithClauseArguments (Argument)
+              VALUES('FILLFACTOR = ' + CAST(@FillFactor AS nvarchar(max)))
+            END
+
+            IF @CurrentAction IN('INDEX_REBUILD_ONLINE','INDEX_REBUILD_OFFLINE') AND @PadIndex IS NOT NULL AND @CurrentIsPartition = 0 AND @CurrentIndexType IN(1,2,3,4) AND @CurrentResumableIndexOperation = 0
+            BEGIN
+              INSERT INTO @CurrentAlterIndexWithClauseArguments (Argument)
+              VALUES('PAD_INDEX = ' + CASE WHEN @PadIndex = 'Y' THEN 'ON' WHEN @PadIndex = 'N' THEN 'OFF' END)
+            END
+
+            IF @CurrentAction IN('INDEX_REBUILD_ONLINE','INDEX_REBUILD_OFFLINE') AND @DataCompression IS NOT NULL AND @CurrentIndexType IN(1,2,4) AND @CurrentResumableIndexOperation = 0
+            BEGIN
+              INSERT INTO @CurrentAlterIndexWithClauseArguments (Argument)
+              VALUES('DATA_COMPRESSION = ' + @DataCompression)
+            END
+
+            IF @CurrentAction = 'INDEX_REBUILD_ONLINE' AND @CurrentResumableIndexOperation = 0
+            BEGIN
+              INSERT INTO @CurrentAlterIndexWithClauseArguments (Argument)
+              VALUES(CASE WHEN @Resumable = 'Y' AND @CurrentIndexType IN(1,2) AND (@CurrentIsComputed = 0 OR @CurrentIsComputed IS NULL) AND (@CurrentIsClusteredIndexComputed = 0 OR @CurrentIsClusteredIndexComputed IS NULL) AND (@CurrentIsTimestamp = 0 OR @CurrentIsTimestamp IS NULL) AND @CurrentHasFilter = 0 AND (@CurrentHasClusteredColumnstore = 0 OR @CurrentHasClusteredColumnstore IS NULL) THEN 'RESUMABLE = ON' ELSE 'RESUMABLE = OFF' END)
+            END
+
+            IF @CurrentAction = 'INDEX_REBUILD_ONLINE' AND ((@Resumable = 'Y' AND @CurrentIndexType IN(1,2) AND (@CurrentIsComputed = 0 OR @CurrentIsComputed IS NULL) AND (@CurrentIsClusteredIndexComputed = 0 OR @CurrentIsClusteredIndexComputed IS NULL) AND (@CurrentIsTimestamp = 0 OR @CurrentIsTimestamp IS NULL) AND @CurrentHasFilter = 0 AND (@CurrentHasClusteredColumnstore = 0 OR @CurrentHasClusteredColumnstore IS NULL)) OR @CurrentResumableIndexOperation = 1) AND @TimeLimit IS NOT NULL
+            BEGIN
+              INSERT INTO @CurrentAlterIndexWithClauseArguments (Argument)
+              VALUES('MAX_DURATION = ' + CAST(CASE WHEN DATEDIFF(MINUTE,SYSDATETIME(),DATEADD(SECOND,@TimeLimit,@StartTime)) < 1 THEN 1 WHEN DATEDIFF(MINUTE,SYSDATETIME(),DATEADD(SECOND,@TimeLimit,@StartTime)) > 10080 THEN 10080 ELSE DATEDIFF(MINUTE,SYSDATETIME(),DATEADD(SECOND,@TimeLimit,@StartTime)) END AS nvarchar(max)))
+            END
+
+            IF @CurrentAction IN('INDEX_REORGANIZE') AND @LOBCompaction = 'Y'
+            BEGIN
+              INSERT INTO @CurrentAlterIndexWithClauseArguments (Argument)
+              VALUES('LOB_COMPACTION = ON')
+            END
+
+            IF @CurrentAction IN('INDEX_REORGANIZE') AND @LOBCompaction = 'N'
+            BEGIN
+              INSERT INTO @CurrentAlterIndexWithClauseArguments (Argument)
+              VALUES('LOB_COMPACTION = OFF')
+            END
+
+            IF EXISTS (SELECT * FROM @CurrentAlterIndexWithClauseArguments)
+            BEGIN
+              SELECT @CurrentCommand += ' WITH (' + STRING_AGG(Argument, ', ') WITHIN GROUP (ORDER BY ID ASC) + ')'
+              FROM @CurrentAlterIndexWithClauseArguments
+            END
+
+            EXECUTE @CurrentCommandOutput = dbo.CommandExecute @DatabaseContext = @CurrentDatabaseContext, @Command = @CurrentCommand, @CommandType = @CurrentCommandType, @Mode = 2, @Comment = @CurrentComment, @DatabaseName = @CurrentDatabaseName, @SchemaName = @CurrentSchemaName, @ObjectName = @CurrentObjectName, @ObjectType = @CurrentObjectType, @IndexName = @CurrentIndexName, @IndexType = @CurrentIndexType, @PartitionNumber = @CurrentPartitionNumber, @ExtendedInfo = @CurrentExtendedInfo, @LockMessageSeverity = @LockMessageSeverity, @ExecuteAsUser = @ExecuteAsUser, @LogToTable = @LogToTable, @Execute = @Execute
+            SET @Error = @@ERROR
+            IF @Error <> 0 SET @CurrentCommandOutput = @Error
+            IF @CurrentCommandOutput <> 0 SET @ReturnCode = @CurrentCommandOutput
+
+            IF @Delay > 0
+            BEGIN
+              SET @CurrentDelay = DATEADD(ss,@Delay,'1900-01-01')
+              WAITFOR DELAY @CurrentDelay
+            END
+          END
+        END
+
+        -- Should the statistics be updated?
+        IF @CurrentUpdateStatisticsCompleted = 0
+        AND @CurrentStatisticsID IS NOT NULL
+        AND ((@UpdateStatistics = 'ALL' AND (@CurrentIndexType IN (1,2,7) OR @CurrentIndexID IS NULL)) OR (@UpdateStatistics = 'INDEX' AND @CurrentIndexID IS NOT NULL AND @CurrentIndexType IN (1,2,7)) OR (@UpdateStatistics = 'COLUMNS' AND @CurrentIndexID IS NULL))
+        AND ((@CurrentIsPartition = 0 AND (@CurrentAction NOT IN('INDEX_REBUILD_ONLINE','INDEX_REBUILD_OFFLINE') OR @CurrentAction IS NULL)) OR (@CurrentIsPartition = 1 AND (@CurrentIsLastPartition = 1 OR (@PartitionLevel = 'Y' AND @CurrentIsIncremental = 1))))
+        BEGIN
+          SET @CurrentMaxDOP = @MaxDOP
+
+          -- Does the statistics exist?
+          SET @CurrentCommand = ''
+
+          IF @LockTimeout IS NOT NULL SET @CurrentCommand = 'SET LOCK_TIMEOUT ' + CAST(@LockTimeout * 1000 AS nvarchar(max)) + '; '
+
+          SET @CurrentCommand += 'IF EXISTS(SELECT * FROM sys.stats stats INNER JOIN sys.objects objects ON stats.[object_id] = objects.[object_id] INNER JOIN sys.schemas schemas ON objects.[schema_id] = schemas.[schema_id] WHERE objects.[type] IN(''U'',''V'')' + CASE WHEN @MSShippedObjects = 'N' THEN ' AND objects.is_ms_shipped = 0' ELSE '' END + ' AND schemas.[schema_id] = @ParamSchemaID AND schemas.[name] = @ParamSchemaName AND objects.[object_id] = @ParamObjectID AND objects.[name] = @ParamObjectName AND objects.[type] = @ParamObjectType AND stats.stats_id = @ParamStatisticsID AND stats.[name] = @ParamStatisticsName) BEGIN SET @ParamStatisticsExists = 1 END'
+
+          BEGIN TRY
+            EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand, @params = N'@ParamSchemaID int, @ParamSchemaName sysname, @ParamObjectID int, @ParamObjectName sysname, @ParamObjectType sysname, @ParamStatisticsID int, @ParamStatisticsName sysname, @ParamStatisticsExists bit OUTPUT', @ParamSchemaID = @CurrentSchemaID, @ParamSchemaName = @CurrentSchemaName, @ParamObjectID = @CurrentObjectID, @ParamObjectName = @CurrentObjectName, @ParamObjectType = @CurrentObjectType, @ParamStatisticsID = @CurrentStatisticsID, @ParamStatisticsName = @CurrentStatisticsName, @ParamStatisticsExists = @CurrentStatisticsExists OUTPUT
+
+            IF @CurrentStatisticsExists IS NULL
+            BEGIN
+              SET @CurrentStatisticsExists = 0
+              GOTO NoAction
+            END
+          END TRY
+          BEGIN CATCH
+            SET @ErrorMessage = 'Msg ' + CAST(ERROR_NUMBER() AS nvarchar(max)) + ', ' + ISNULL(ERROR_MESSAGE(),'') + CASE WHEN ERROR_NUMBER() = 1222 THEN ' The statistics ' + QUOTENAME(@CurrentStatisticsName) + ' on the object ' + QUOTENAME(@CurrentDatabaseName) + '.' + QUOTENAME(@CurrentSchemaName) + '.' + QUOTENAME(@CurrentObjectName) + ' is locked. It could not be checked if the statistics exists.' ELSE '' END
+            SET @Severity = CASE WHEN ERROR_NUMBER() IN(1205,1222) THEN @LockMessageSeverity ELSE 16 END
+            RAISERROR('%s',@Severity,1,@ErrorMessage) WITH NOWAIT
+            RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+            IF NOT (ERROR_NUMBER() IN(1205,1222) AND @LockMessageSeverity = 10)
+            BEGIN
+              SET @ReturnCode = ERROR_NUMBER()
+            END
+
+            GOTO NoAction
+          END CATCH
+
+          -- Check non-incremental statistics properties
+          IF NOT (@OnlyModifiedStatistics = 'N' AND @StatisticsModificationLevel IS NULL) AND NOT (@PartitionLevel = 'Y' AND @CurrentIsIncremental = 1)
+          BEGIN
+            SET @CurrentCommand = ''
+
+            IF @LockTimeout IS NOT NULL SET @CurrentCommand = 'SET LOCK_TIMEOUT ' + CAST(@LockTimeout * 1000 AS nvarchar(max)) + '; '
+
+            SET @CurrentCommand += 'SELECT @ParamRowCount = [rows], @ParamModificationCounter = modification_counter FROM sys.dm_db_stats_properties (@ParamObjectID, @ParamStatisticsID)'
+
+            BEGIN TRY
+              EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand, @params = N'@ParamObjectID int, @ParamStatisticsID int, @ParamRowCount bigint OUTPUT, @ParamModificationCounter bigint OUTPUT', @ParamObjectID = @CurrentObjectID, @ParamStatisticsID = @CurrentStatisticsID, @ParamRowCount = @CurrentRowCount OUTPUT, @ParamModificationCounter = @CurrentModificationCounter OUTPUT
+            END TRY
+            BEGIN CATCH
+              SET @ErrorMessage = 'Msg ' + CAST(ERROR_NUMBER() AS nvarchar(max)) + ', ' + ISNULL(ERROR_MESSAGE(),'') + CASE WHEN ERROR_NUMBER() = 1222 THEN ' The statistics ' + QUOTENAME(@CurrentStatisticsName) + ' on the object ' + QUOTENAME(@CurrentDatabaseName) + '.' + QUOTENAME(@CurrentSchemaName) + '.' + QUOTENAME(@CurrentObjectName) + ' is locked. The rows and modification_counter could not be checked.' ELSE '' END
+              SET @Severity = CASE WHEN ERROR_NUMBER() IN(1205,1222) THEN @LockMessageSeverity ELSE 16 END
+              RAISERROR('%s',@Severity,1,@ErrorMessage) WITH NOWAIT
+              RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+              IF NOT (ERROR_NUMBER() IN(1205,1222) AND @LockMessageSeverity = 10)
+              BEGIN
+                SET @ReturnCode = ERROR_NUMBER()
+              END
+
+              GOTO NoAction
+            END CATCH
+          END
+
+          -- Check incremental statistics properties
+          IF NOT (@OnlyModifiedStatistics = 'N' AND @StatisticsModificationLevel IS NULL) AND @PartitionLevel = 'Y' AND @CurrentIsIncremental = 1
+          AND NOT EXISTS (SELECT * FROM @IncrementalStatsProperties WHERE ObjectID = @CurrentObjectID AND StatisticsID = @CurrentStatisticsID)
+          BEGIN
+            SET @CurrentCommand = ''
+
+            IF @LockTimeout IS NOT NULL SET @CurrentCommand = 'SET LOCK_TIMEOUT ' + CAST(@LockTimeout * 1000 AS nvarchar(max)) + '; '
+
+            BEGIN
+              SET @CurrentCommand += 'SELECT object_id, stats_id, partition_number, [rows], modification_counter FROM sys.dm_db_incremental_stats_properties (@ParamObjectID, @ParamStatisticsID)'
+            END
+
+            BEGIN TRY
+              INSERT INTO @IncrementalStatsProperties (ObjectID, StatisticsID, PartitionNumber, [Rows], ModificationCounter)
+              EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand, @params = N'@ParamObjectID int, @ParamStatisticsID int', @ParamObjectID = @CurrentObjectID, @ParamStatisticsID = @CurrentStatisticsID
+            END TRY
+            BEGIN CATCH
+              SET @ErrorMessage = 'Msg ' + CAST(ERROR_NUMBER() AS nvarchar(max)) + ', ' + ISNULL(ERROR_MESSAGE(),'') + CASE WHEN ERROR_NUMBER() = 1222 THEN ' The statistics ' + QUOTENAME(@CurrentStatisticsName) + ' on the object ' + QUOTENAME(@CurrentDatabaseName) + '.' + QUOTENAME(@CurrentSchemaName) + '.' + QUOTENAME(@CurrentObjectName) + ' is locked. The rows and modification_counter could not be checked.' ELSE '' END
+              SET @Severity = CASE WHEN ERROR_NUMBER() IN(1205,1222) THEN @LockMessageSeverity ELSE 16 END
+              RAISERROR('%s',@Severity,1,@ErrorMessage) WITH NOWAIT
+              RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+              IF NOT (ERROR_NUMBER() IN(1205,1222) AND @LockMessageSeverity = 10)
+              BEGIN
+                SET @ReturnCode = ERROR_NUMBER()
+              END
+
+              UPDATE @tmpIndexesStatistics
+              SET UpdateStatisticsCompleted = 1
+              WHERE ObjectID = @CurrentObjectID
+              AND StatisticsID = @CurrentStatisticsID
+              AND UpdateStatisticsCompleted = 0
+
+              GOTO NoAction
+            END CATCH
+          END
+
+          IF NOT (@OnlyModifiedStatistics = 'N' AND @StatisticsModificationLevel IS NULL) AND @PartitionLevel = 'Y' AND @CurrentIsIncremental = 1
+          BEGIN
+            SELECT @CurrentRowCount = [Rows],
+                   @CurrentModificationCounter = [ModificationCounter]
+            FROM @IncrementalStatsProperties
+            WHERE ObjectID = @CurrentObjectID
+            AND StatisticsID = @CurrentStatisticsID
+            AND PartitionNumber = @CurrentPartitionNumber
+          END
+
+          -- Check partition statistics
+          IF NOT (@OnlyModifiedStatistics = 'N' AND @StatisticsModificationLevel IS NULL) AND @CurrentModificationCounter IS NULL
+          BEGIN
+            SET @CurrentCommand = ''
+            IF @LockTimeout IS NOT NULL SET @CurrentCommand = 'SET LOCK_TIMEOUT ' + CAST(@LockTimeout * 1000 AS nvarchar(max)) + '; '
+
+            IF @PartitionLevel = 'Y' AND @CurrentIsIncremental = 1
+            BEGIN
+              SET @CurrentCommand += 'SELECT @ParamObjectHasRows = CASE WHEN EXISTS (SELECT * FROM sys.dm_db_partition_stats WHERE [object_id] = @ParamObjectID AND index_id IN (0,1) AND partition_number = @ParamPartitionNumber AND row_count > 0) THEN 1 ELSE 0 END'
+            END
+            ELSE
+            BEGIN
+              SET @CurrentCommand += 'SELECT @ParamObjectHasRows = CASE WHEN EXISTS (SELECT * FROM sys.dm_db_partition_stats WHERE [object_id] = @ParamObjectID AND index_id IN (0,1) AND row_count > 0) THEN 1 ELSE 0 END'
+            END
+
+            BEGIN TRY
+              EXECUTE @CurrentDatabase_sp_executesql @stmt = @CurrentCommand, @params = N'@ParamObjectID int, @ParamPartitionNumber int, @ParamObjectHasRows bit OUTPUT', @ParamObjectID = @CurrentObjectID, @ParamPartitionNumber = @CurrentPartitionNumber, @ParamObjectHasRows = @CurrentObjectHasRows OUTPUT
+            END TRY
+            BEGIN CATCH
+              SET @ErrorMessage = 'Msg ' + CAST(ERROR_NUMBER() AS nvarchar(max)) + ', ' + ISNULL(ERROR_MESSAGE(),'') + CASE WHEN ERROR_NUMBER() = 1222 THEN ' The object ' + QUOTENAME(@CurrentDatabaseName) + '.' + QUOTENAME(@CurrentSchemaName) + '.' + QUOTENAME(@CurrentObjectName) + ' is locked. The row count could not be checked.' ELSE '' END
+              SET @Severity = CASE WHEN ERROR_NUMBER() IN(1205,1222) THEN @LockMessageSeverity ELSE 16 END
+              RAISERROR('%s',@Severity,1,@ErrorMessage) WITH NOWAIT
+              RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+              IF NOT (ERROR_NUMBER() IN(1205,1222) AND @LockMessageSeverity = 10)
+              BEGIN
+                SET @ReturnCode = ERROR_NUMBER()
+              END
+              GOTO NoAction
+            END CATCH
+          END
+
+          -- Update statistics?
+          IF ((@OnlyModifiedStatistics = 'N' AND @StatisticsModificationLevel IS NULL) OR (@OnlyModifiedStatistics = 'Y' AND @CurrentModificationCounter > 0) OR ((@CurrentModificationCounter * 1. / NULLIF(@CurrentRowCount,0)) * 100 >= @StatisticsModificationLevel) OR (@StatisticsModificationLevel IS NOT NULL AND @CurrentModificationCounter > 0 AND (@CurrentModificationCounter >= SQRT(@CurrentRowCount * 1000))) OR ((@CurrentIndexType IN (1,2) OR @CurrentIndexID IS NULL) AND @CurrentModificationCounter IS NULL AND @CurrentObjectHasRows = 1))
+          BEGIN
+            SET @CurrentUpdateStatistics = 'Y'
+          END
+          ELSE
+          BEGIN
+            SET @CurrentUpdateStatistics = 'N'
+          END
+
+          SET @CurrentStatisticsSample = @StatisticsSample
+          SET @CurrentStatisticsPersistSample = @StatisticsPersistSample
+          SET @CurrentStatisticsResample = @StatisticsResample
+
+          -- Incremental statistics only supports RESAMPLE
+          IF @PartitionLevel = 'Y' AND @CurrentIsIncremental = 1
+          BEGIN
+            SET @CurrentStatisticsSample = NULL
+            SET @CurrentStatisticsPersistSample = NULL
+            SET @CurrentStatisticsResample = 'Y'
+          END
+
+          -- Create statistics comment
+          IF @CurrentUpdateStatistics = 'Y'
+          BEGIN
+            SET @CurrentComment = 'ObjectType: ' + CASE WHEN @CurrentObjectType = 'U' THEN 'Table' WHEN @CurrentObjectType = 'V' THEN 'View' ELSE 'N/A' END + ', '
+            SET @CurrentComment += 'StatisticsType: ' + CASE WHEN @CurrentIndexID IS NOT NULL THEN 'Index' ELSE 'Column' END + ', '
+            IF @CurrentIndexID IS NOT NULL SET @CurrentComment += 'IndexType: ' + CASE WHEN @CurrentIndexType = 1 THEN 'Clustered' WHEN @CurrentIndexType = 2 THEN 'NonClustered' WHEN @CurrentIndexType = 3 THEN 'XML' WHEN @CurrentIndexType = 4 THEN 'Spatial' WHEN @CurrentIndexType = 5 THEN 'Clustered Columnstore' WHEN @CurrentIndexType = 6 THEN 'NonClustered Columnstore' WHEN @CurrentIndexType = 7 THEN 'NonClustered Hash' ELSE 'N/A' END + ', '
+            SET @CurrentComment += 'Incremental: ' + CASE WHEN @CurrentIsIncremental = 1 THEN 'Yes' WHEN @CurrentIsIncremental = 0 THEN 'No' ELSE 'N/A' END + ', '
+            SET @CurrentComment += 'RowCount: ' + ISNULL(CAST(@CurrentRowCount AS nvarchar(max)),'N/A') + ', '
+            SET @CurrentComment += 'ModificationCounter: ' + ISNULL(CAST(@CurrentModificationCounter AS nvarchar(max)),'N/A')
+          END
+
+          IF @CurrentUpdateStatistics = 'Y' AND (@CurrentRowCount IS NOT NULL OR @CurrentModificationCounter IS NOT NULL)
+          BEGIN
+            SET @CurrentExtendedInfo = (SELECT *
+                                        FROM (SELECT CAST(@CurrentRowCount AS nvarchar(max)) AS [RowCount],
+                                                     CAST(@CurrentModificationCounter AS nvarchar(max)) AS ModificationCounter
+                                        ) ExtendedInfo FOR XML RAW('ExtendedInfo'), ELEMENTS)
+          END
+          ELSE
+          BEGIN
+            SET @CurrentExtendedInfo = NULL
+          END
+
+          IF @CurrentUpdateStatistics = 'Y' AND (SYSDATETIME() < DATEADD(SECOND,@TimeLimit,@StartTime) OR @TimeLimit IS NULL)
+          BEGIN
+            SET @CurrentDatabaseContext = @CurrentDatabaseName
+
+            SET @CurrentCommandType = 'UPDATE_STATISTICS'
+
+            SET @CurrentCommand = ''
+            IF @LockTimeout IS NOT NULL SET @CurrentCommand = 'SET LOCK_TIMEOUT ' + CAST(@LockTimeout * 1000 AS nvarchar(max)) + '; '
+            SET @CurrentCommand += 'UPDATE STATISTICS ' + QUOTENAME(@CurrentSchemaName) + '.' + QUOTENAME(@CurrentObjectName) + ' ' + QUOTENAME(@CurrentStatisticsName)
+
+            IF @CurrentMaxDOP IS NOT NULL AND (@Version >= 14.03015 OR @EngineEdition = 5 OR (@EngineEdition = 8 AND @ProductUpdateType = 'Continuous'))
+            BEGIN
+              INSERT INTO @CurrentUpdateStatisticsWithClauseArguments (Argument)
+              VALUES('MAXDOP = ' + CAST(@CurrentMaxDOP AS nvarchar(max)))
+            END
+
+            IF @CurrentStatisticsSample = 100
+            BEGIN
+              INSERT INTO @CurrentUpdateStatisticsWithClauseArguments (Argument)
+              VALUES('FULLSCAN')
+            END
+
+            IF @CurrentStatisticsSample IS NOT NULL AND @CurrentStatisticsSample <> 100
+            BEGIN
+              INSERT INTO @CurrentUpdateStatisticsWithClauseArguments (Argument)
+              VALUES('SAMPLE ' + CAST(@CurrentStatisticsSample AS nvarchar(max)) + ' PERCENT')
+            END
+
+            IF @CurrentStatisticsPersistSample = 'Y'
+            BEGIN
+              INSERT INTO @CurrentUpdateStatisticsWithClauseArguments (Argument)
+              VALUES('PERSIST_SAMPLE_PERCENT = ON')
+            END
+
+            IF @CurrentStatisticsPersistSample = 'N'
+            BEGIN
+              INSERT INTO @CurrentUpdateStatisticsWithClauseArguments (Argument)
+              VALUES('PERSIST_SAMPLE_PERCENT = OFF')
+            END
+
+            IF @CurrentNoRecompute = 1
+            BEGIN
+              INSERT INTO @CurrentUpdateStatisticsWithClauseArguments (Argument)
+              VALUES('NORECOMPUTE')
+            END
+
+            IF @CurrentStatisticsResample = 'Y'
+            BEGIN
+              INSERT INTO @CurrentUpdateStatisticsWithClauseArguments (Argument)
+              VALUES('RESAMPLE')
+            END
+
+            IF EXISTS (SELECT * FROM @CurrentUpdateStatisticsWithClauseArguments)
+            BEGIN
+              SELECT @CurrentCommand += ' WITH ' + STRING_AGG(Argument, ', ') WITHIN GROUP (ORDER BY ID ASC)
+              FROM @CurrentUpdateStatisticsWithClauseArguments
+            END
+
+            IF @PartitionLevel = 'Y' AND @CurrentIsIncremental = 1 AND @CurrentPartitionNumber IS NOT NULL SET @CurrentCommand += ' ON PARTITIONS(' + CAST(@CurrentPartitionNumber AS nvarchar(max)) + ')'
+
+            EXECUTE @CurrentCommandOutput = dbo.CommandExecute @DatabaseContext = @CurrentDatabaseContext, @Command = @CurrentCommand, @CommandType = @CurrentCommandType, @Mode = 2, @Comment = @CurrentComment, @DatabaseName = @CurrentDatabaseName, @SchemaName = @CurrentSchemaName, @ObjectName = @CurrentObjectName, @ObjectType = @CurrentObjectType, @IndexName = @CurrentIndexName, @IndexType = @CurrentIndexType, @StatisticsName = @CurrentStatisticsName, @PartitionNumber = @CurrentPartitionNumber, @ExtendedInfo = @CurrentExtendedInfo, @LockMessageSeverity = @LockMessageSeverity, @ExecuteAsUser = @ExecuteAsUser, @LogToTable = @LogToTable, @Execute = @Execute
+            SET @Error = @@ERROR
+            IF @Error <> 0 SET @CurrentCommandOutput = @Error
+            IF @CurrentCommandOutput <> 0 SET @ReturnCode = @CurrentCommandOutput
+          END
+        END
+
+        NoAction:
+
+        -- Update that the index or statistics is completed
+        UPDATE @tmpIndexesStatistics
+        SET AlterIndexCompleted = 1,
+            UpdateStatisticsCompleted = 1
+        WHERE Selected = 1
+        AND Completed = 0
+        AND [Order] = @CurrentIxOrder
+        AND ID = @CurrentIxID
+
+        -- Update that index operations on remaining partitions are completed where no action is needed
+        IF @CurrentAlterIndexCompleted = 0 AND @CurrentIndexID IS NOT NULL AND @PartitionLevel = 'Y' AND @CurrentIsPartition = 1 AND (SELECT COUNT(DISTINCT FragmentationGroup) FROM @ActionsPreferred) < 3
+        BEGIN
+          UPDATE tmpIndexesStatistics
+          SET AlterIndexCompleted = 1
+          FROM @tmpIndexesStatistics tmpIndexesStatistics
+          INNER JOIN @PhysicalStats PhysicalStats ON tmpIndexesStatistics.ObjectID = PhysicalStats.ObjectID AND tmpIndexesStatistics.IndexID = PhysicalStats.IndexID AND tmpIndexesStatistics.PartitionNumber = PhysicalStats.PartitionNumber
+          WHERE tmpIndexesStatistics.ObjectID = @CurrentObjectID
+          AND tmpIndexesStatistics.IndexID = @CurrentIndexID
+          AND tmpIndexesStatistics.AlterIndexCompleted = 0
+          AND tmpIndexesStatistics.ResumableIndexOperation = 0
+          AND NOT EXISTS (SELECT *
+                          FROM @ActionsPreferred ActionsPreferred
+                          WHERE ActionsPreferred.FragmentationGroup = CASE
+                          WHEN PhysicalStats.FragmentationLevel >= @FragmentationLevel2 THEN 'High'
+                          WHEN PhysicalStats.FragmentationLevel >= @FragmentationLevel1 AND PhysicalStats.FragmentationLevel < @FragmentationLevel2 THEN 'Medium'
+                          WHEN PhysicalStats.FragmentationLevel < @FragmentationLevel1 THEN 'Low'
+                          END)
+        END
+
+        -- Update that statistics on remaining partitions are completed where no update is needed
+        IF @CurrentUpdateStatisticsCompleted = 0 AND @CurrentStatisticsID IS NOT NULL AND @PartitionLevel = 'Y' AND @CurrentIsIncremental = 1 AND NOT (@OnlyModifiedStatistics = 'N' AND @StatisticsModificationLevel IS NULL)
+        BEGIN
+          UPDATE tmpIndexesStatistics
+          SET UpdateStatisticsCompleted = 1
+          FROM @tmpIndexesStatistics tmpIndexesStatistics
+          INNER JOIN @IncrementalStatsProperties IncrementalStatsProperties ON tmpIndexesStatistics.ObjectID = IncrementalStatsProperties.ObjectID AND tmpIndexesStatistics.StatisticsID = IncrementalStatsProperties.StatisticsID AND tmpIndexesStatistics.PartitionNumber = IncrementalStatsProperties.PartitionNumber
+          WHERE tmpIndexesStatistics.ObjectID = @CurrentObjectID
+          AND tmpIndexesStatistics.StatisticsID = @CurrentStatisticsID
+          AND tmpIndexesStatistics.Selected = 1
+          AND tmpIndexesStatistics.Completed = 0
+          AND IncrementalStatsProperties.ModificationCounter IS NOT NULL
+          AND ((@OnlyModifiedStatistics = 'Y' AND NOT (IncrementalStatsProperties.ModificationCounter > 0))
+          OR (@StatisticsModificationLevel IS NOT NULL AND NOT ((IncrementalStatsProperties.ModificationCounter * 1. / NULLIF(IncrementalStatsProperties.[Rows],0)) * 100 >= @StatisticsModificationLevel OR (IncrementalStatsProperties.ModificationCounter > 0 AND IncrementalStatsProperties.ModificationCounter >= SQRT(IncrementalStatsProperties.[Rows] * 1000)))))
+        END
+
+        -- Clear variables
+        SET @CurrentDatabaseContext = NULL
+
+        SET @CurrentCommand = NULL
+        SET @CurrentCommandOutput = NULL
+        SET @CurrentCommandType = NULL
+        SET @CurrentComment = NULL
+        SET @CurrentExtendedInfo = NULL
+
+        SET @CurrentIxID = NULL
+        SET @CurrentIxOrder = NULL
+        SET @CurrentSchemaID = NULL
+        SET @CurrentSchemaName = NULL
+        SET @CurrentObjectID = NULL
+        SET @CurrentObjectName = NULL
+        SET @CurrentObjectType = NULL
+        SET @CurrentIsMemoryOptimized = NULL
+        SET @CurrentIndexID = NULL
+        SET @CurrentIndexName = NULL
+        SET @CurrentIndexType = NULL
+        SET @CurrentStatisticsID = NULL
+        SET @CurrentStatisticsName = NULL
+        SET @CurrentPartitionID = NULL
+        SET @CurrentPartitionNumber = NULL
+        SET @CurrentInRowDataPageCount = NULL
+        SET @CurrentAlterIndexCompleted = NULL
+        SET @CurrentUpdateStatisticsCompleted = NULL
+        SET @CurrentIsPartition = NULL
+        SET @CurrentIsLastPartition = NULL
+        SET @CurrentIndexExists = NULL
+        SET @CurrentStatisticsExists = NULL
+        SET @CurrentIsImageText = NULL
+        SET @CurrentIsFileStream = NULL
+        SET @CurrentHasClusteredColumnstore = NULL
+        SET @CurrentIsColumnstoreOrdered = NULL
+        SET @CurrentIsComputed = NULL
+        SET @CurrentIsClusteredIndexComputed = NULL
+        SET @CurrentIsTimestamp = NULL
+        SET @CurrentAllowPageLocks = NULL
+        SET @CurrentHasFilter = NULL
+        SET @CurrentNoRecompute = NULL
+        SET @CurrentIsIncremental = NULL
+        SET @CurrentObjectHasRows = NULL
+        SET @CurrentRowCount = NULL
+        SET @CurrentModificationCounter = NULL
+        SET @CurrentOnReadOnlyFileGroup = NULL
+        SET @CurrentResumableIndexOperation = NULL
+        SET @CurrentFragmentationLevel = NULL
+        SET @CurrentPageCount = NULL
+        SET @CurrentFragmentationGroup = NULL
+        SET @CurrentAction = NULL
+        SET @CurrentMaxDOP = NULL
+        SET @CurrentUpdateStatistics = NULL
+        SET @CurrentStatisticsSample = NULL
+        SET @CurrentStatisticsPersistSample = NULL
+        SET @CurrentStatisticsResample = NULL
+
+        DELETE FROM @CurrentActionsAllowed
+        DELETE FROM @CurrentAlterIndexWithClauseArguments
+        DELETE FROM @CurrentUpdateStatisticsWithClauseArguments
+
+      END
+
+    END
+
+    IF @CurrentDatabaseState = 'SUSPECT'
+    BEGIN
+      SET @ErrorMessage = 'The database ' + QUOTENAME(@CurrentDatabaseName) + ' is in a SUSPECT state.'
+      RAISERROR('%s',16,1,@ErrorMessage) WITH NOWAIT
+      SET @Error = @@ERROR
+      SET @ReturnCode = @Error
+      RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+    END
+
+    -- Update that the database is completed
+    IF @DatabasesInParallel = 'Y'
+    BEGIN
+      UPDATE dbo.QueueDatabase
+      SET DatabaseEndTime = SYSDATETIME()
+      WHERE QueueID = @QueueID
+      AND DatabaseName = @CurrentDatabaseName
+    END
+    ELSE
+    BEGIN
+      UPDATE @tmpDatabases
+      SET Completed = 1
+      WHERE Selected = 1
+      AND Completed = 0
+      AND ID = @CurrentDBID
+    END
+
+    -- Clear variables
+    SET @CurrentDBID = NULL
+    SET @CurrentDatabaseName = NULL
+
+    SET @CurrentDatabase_sp_executesql = NULL
+
+    SET @CurrentExecuteAsUserExists = NULL
+    SET @CurrentUserAccess = NULL
+    SET @CurrentIsReadOnly = NULL
+    SET @CurrentDatabaseState = NULL
+    SET @CurrentInStandby = NULL
+    SET @CurrentRecoveryModel = NULL
+    SET @CurrentDatabaseHasReadOnlyFileGroup = NULL
+    SET @CurrentAvailabilityGroupReplicaID = NULL
+    SET @CurrentAvailabilityGroupID = NULL
+    SET @CurrentAvailabilityGroup = NULL
+    SET @CurrentAvailabilityGroupRole = NULL
+    SET @CurrentAvailabilityGroupDatabaseReplicaSynchronizationState = NULL
+    SET @CurrentAvailabilityGroupDatabaseReplicaSynchronizationHealth = NULL
+    SET @CurrentDistributedAvailabilityGroup = NULL
+    SET @CurrentDistributedAvailabilityGroupReplicaID = NULL
+    SET @CurrentDistributedAvailabilityGroupRole = NULL
+
+    SET @CurrentDatabaseMirroringRole = NULL
+
+    SET @CurrentCommand = NULL
+
+    DELETE FROM @tmpIndexesStatistics
+
+    TRUNCATE TABLE #Objects
+    TRUNCATE TABLE #Indexes
+    TRUNCATE TABLE #Stats
+    TRUNCATE TABLE #ExistingObjects
+    TRUNCATE TABLE #ExistingIndexes
+    DELETE FROM @tmpResumableOperations
+    DELETE FROM @PhysicalStats
+    DELETE FROM @IncrementalStatsProperties
+
+  END -- End of database loop
+
+  ----------------------------------------------------------------------------------------------------
+  --// Log completing information                                                                 //--
+  ----------------------------------------------------------------------------------------------------
+
+  Logging:
+  SET @EndMessage = 'Date and time: ' + CONVERT(nvarchar(max),SYSDATETIME(),120)
+  RAISERROR('%s',10,1,@EndMessage) WITH NOWAIT
+
+  RAISERROR(@EmptyLine,10,1) WITH NOWAIT
+
+  IF @ReturnCode <> 0
+  BEGIN
+    RETURN @ReturnCode
+  END
+
+  ----------------------------------------------------------------------------------------------------
+
+END
+
+GO
+IF (SELECT [Value] FROM #Config WHERE Name = 'CreateJobs') = 'Y'
+    AND SERVERPROPERTY('EngineEdition') NOT IN(4, 5)
+    AND (IS_SRVROLEMEMBER('sysadmin') = 1 OR (EXISTS (SELECT * FROM sys.databases WHERE [name] = 'rdsadmin') AND SUSER_SNAME(0x01) = 'rdsa'))
+    AND NOT (EXISTS (SELECT * FROM #Config WHERE Name = 'BackupDirectory' AND [Value] IS NOT NULL) AND EXISTS (SELECT * FROM #Config WHERE Name = 'BackupURL' AND [Value] IS NOT NULL))
+    AND NOT (EXISTS (SELECT * FROM #Config WHERE Name = 'BackupURL' AND [Value] IS NOT NULL) AND EXISTS (SELECT * FROM #Config WHERE Name = 'CleanupTime' AND [Value] IS NOT NULL))
+BEGIN
+
+  DECLARE @BackupDirectory nvarchar(max)
+  DECLARE @BackupURL nvarchar(max)
+  DECLARE @CleanupTime int
+  DECLARE @OutputFileDirectory nvarchar(max)
+  DECLARE @LogToTable nvarchar(max)
+  DECLARE @DatabaseName nvarchar(max)
+
+  DECLARE @HostPlatform nvarchar(max)
+  DECLARE @DirectorySeparator nvarchar(max)
+  DECLARE @LogDirectory nvarchar(max)
+
+  DECLARE @TokenServer nvarchar(max)
+  DECLARE @TokenJobName nvarchar(max)
+  DECLARE @TokenStepID nvarchar(max)
+  DECLARE @TokenStepName nvarchar(max)
+  DECLARE @TokenDate nvarchar(max)
+  DECLARE @TokenTime nvarchar(max)
+  DECLARE @TokenLogDirectory nvarchar(max)
+
+  DECLARE @JobDescription nvarchar(max)
+  DECLARE @JobCategory nvarchar(max)
+  DECLARE @JobOwner nvarchar(max)
+
+  DECLARE @Jobs TABLE (JobID int IDENTITY,
+                       [Name] nvarchar(max),
+                       CommandTSQL nvarchar(max),
+                       CommandCmdExec nvarchar(max),
+                       DatabaseName varchar(max),
+                       Selected bit DEFAULT 0,
+                       Completed bit DEFAULT 0)
+
+  DECLARE @CurrentJobID int
+  DECLARE @CurrentJobName nvarchar(max)
+  DECLARE @CurrentCommandTSQL nvarchar(max)
+  DECLARE @CurrentCommandCmdExec nvarchar(max)
+  DECLARE @CurrentDatabaseName nvarchar(max)
+
+  DECLARE @CurrentJobStepCommand nvarchar(max)
+  DECLARE @CurrentJobStepSubSystem nvarchar(max)
+  DECLARE @CurrentJobStepDatabaseName nvarchar(max)
+  DECLARE @CurrentOutputFileName nvarchar(max)
+
+  DECLARE @AmazonRDS bit = CASE WHEN SERVERPROPERTY('EngineEdition') IN (5, 8) THEN 0 WHEN EXISTS (SELECT * FROM sys.databases WHERE [name] = 'rdsadmin') AND SUSER_SNAME(0x01) = 'rdsa' THEN 1 ELSE 0 END
+
+  SELECT @HostPlatform = host_platform
+  FROM sys.dm_os_host_info
+
+  SELECT @DirectorySeparator = CASE
+  WHEN @HostPlatform = 'Windows' THEN '\'
+  WHEN @HostPlatform = 'Linux' THEN '/'
+  END
+
+  SET @TokenServer = '$' + '(ESCAPE_SQUOTE(SRVR))'
+  SET @TokenStepID = '$' + '(ESCAPE_SQUOTE(STEPID))'
+  SET @TokenDate = '$' + '(ESCAPE_SQUOTE(DATE))'
+  SET @TokenTime = '$' + '(ESCAPE_SQUOTE(TIME))'
+  SET @TokenJobName = '$' + '(ESCAPE_SQUOTE(JOBNAME))'
+  SET @TokenStepName = '$' + '(ESCAPE_SQUOTE(STEPNAME))'
+
+  IF @HostPlatform = 'Windows'
+  BEGIN
+    SET @TokenLogDirectory = '$' + '(ESCAPE_SQUOTE(SQLLOGDIR))'
+  END
+
+  SELECT @BackupDirectory = Value
+  FROM #Config
+  WHERE [Name] = 'BackupDirectory'
+
+  SELECT @BackupURL = Value
+  FROM #Config
+  WHERE [Name] = 'BackupURL'
+
+  SELECT @CleanupTime = Value
+  FROM #Config
+  WHERE [Name] = 'CleanupTime'
+
+  SELECT @OutputFileDirectory = Value
+  FROM #Config
+  WHERE [Name] = 'OutputFileDirectory'
+
+  SELECT @LogToTable = Value
+  FROM #Config
+  WHERE [Name] = 'LogToTable'
+
+  SELECT @DatabaseName = Value
+  FROM #Config
+  WHERE [Name] = 'DatabaseName'
+
+  SELECT @LogDirectory = [path]
+  FROM sys.dm_os_server_diagnostics_log_configurations
+
+  IF @OutputFileDirectory IS NOT NULL AND RIGHT(@OutputFileDirectory,1) = @DirectorySeparator
+  BEGIN
+    SET @OutputFileDirectory = LEFT(@OutputFileDirectory, LEN(@OutputFileDirectory) - 1)
+  END
+
+  IF @LogDirectory IS NOT NULL AND RIGHT(@LogDirectory,1) = @DirectorySeparator
+  BEGIN
+    SET @LogDirectory = LEFT(@LogDirectory, LEN(@LogDirectory) - 1)
+  END
+
+  SET @JobDescription = 'Source: https://ola.hallengren.com'
+  SET @JobCategory = 'Database Maintenance'
+
+  IF @AmazonRDS = 0
+  BEGIN
+    SET @JobOwner = SUSER_SNAME(0x01)
+  END
+
+  INSERT INTO @Jobs ([Name], CommandTSQL, DatabaseName)
+  VALUES('DatabaseBackup - SYSTEM_DATABASES - FULL',
+         'EXECUTE [dbo].[DatabaseBackup]' + CHAR(13) + CHAR(10) + '@Databases = ''SYSTEM_DATABASES'',' + CHAR(13) + CHAR(10) + CASE WHEN @BackupURL IS NOT NULL THEN '@URL = N''' + REPLACE(@BackupURL,'''','''''') + '''' ELSE '@Directory = ' + ISNULL('N''' + REPLACE(@BackupDirectory,'''','''''') + '''','NULL') END + ',' + CHAR(13) + CHAR(10) + '@BackupType = ''FULL'',' + CHAR(13) + CHAR(10) + '@Verify = ''Y'',' + CHAR(13) + CHAR(10) + '@CleanupTime = ' + ISNULL(CAST(@CleanupTime AS nvarchar),'NULL') + ',' + CHAR(13) + CHAR(10) + '@Checksum = ''Y'',' + CHAR(13) + CHAR(10) + '@LogToTable = ''' + @LogToTable + '''',
+         @DatabaseName)
+
+  INSERT INTO @Jobs ([Name], CommandTSQL, DatabaseName)
+  VALUES('DatabaseBackup - USER_DATABASES - DIFF',
+         'EXECUTE [dbo].[DatabaseBackup]' + CHAR(13) + CHAR(10) + '@Databases = ''USER_DATABASES'',' + CHAR(13) + CHAR(10) + CASE WHEN @BackupURL IS NOT NULL THEN '@URL = N''' + REPLACE(@BackupURL,'''','''''') + '''' ELSE '@Directory = ' + ISNULL('N''' + REPLACE(@BackupDirectory,'''','''''') + '''','NULL') END + ',' + CHAR(13) + CHAR(10) + '@BackupType = ''DIFF'',' + CHAR(13) + CHAR(10) + '@Verify = ''Y'',' + CHAR(13) + CHAR(10) + '@CleanupTime = ' + ISNULL(CAST(@CleanupTime AS nvarchar),'NULL') + ',' + CHAR(13) + CHAR(10) + '@Checksum = ''Y'',' + CHAR(13) + CHAR(10) + '@LogToTable = ''' + @LogToTable + '''',
+          @DatabaseName)
+
+  INSERT INTO @Jobs ([Name], CommandTSQL, DatabaseName)
+  VALUES('DatabaseBackup - USER_DATABASES - FULL',
+         'EXECUTE [dbo].[DatabaseBackup]' + CHAR(13) + CHAR(10) + '@Databases = ''USER_DATABASES'',' + CHAR(13) + CHAR(10) + CASE WHEN @BackupURL IS NOT NULL THEN '@URL = N''' + REPLACE(@BackupURL,'''','''''') + '''' ELSE '@Directory = ' + ISNULL('N''' + REPLACE(@BackupDirectory,'''','''''') + '''','NULL') END + ',' + CHAR(13) + CHAR(10) + '@BackupType = ''FULL'',' + CHAR(13) + CHAR(10) + '@Verify = ''Y'',' + CHAR(13) + CHAR(10) + '@CleanupTime = ' + ISNULL(CAST(@CleanupTime AS nvarchar),'NULL') + ',' + CHAR(13) + CHAR(10) + '@Checksum = ''Y'',' + CHAR(13) + CHAR(10) + '@LogToTable = ''' + @LogToTable + '''',
+         @DatabaseName)
+
+  INSERT INTO @Jobs ([Name], CommandTSQL, DatabaseName)
+  VALUES('DatabaseBackup - USER_DATABASES - LOG',
+         'EXECUTE [dbo].[DatabaseBackup]' + CHAR(13) + CHAR(10) + '@Databases = ''USER_DATABASES'',' + CHAR(13) + CHAR(10) + CASE WHEN @BackupURL IS NOT NULL THEN '@URL = N''' + REPLACE(@BackupURL,'''','''''') + '''' ELSE '@Directory = ' + ISNULL('N''' + REPLACE(@BackupDirectory,'''','''''') + '''','NULL') END + ',' + CHAR(13) + CHAR(10) + '@BackupType = ''LOG'',' + CHAR(13) + CHAR(10) + '@Verify = ''Y'',' + CHAR(13) + CHAR(10) + '@CleanupTime = ' + ISNULL(CAST(@CleanupTime AS nvarchar),'NULL') + ',' + CHAR(13) + CHAR(10) + '@Checksum = ''Y'',' + CHAR(13) + CHAR(10) + '@LogToTable = ''' + @LogToTable + '''',
+         @DatabaseName)
+
+  INSERT INTO @Jobs ([Name], CommandTSQL, DatabaseName)
+  VALUES('DatabaseIntegrityCheck - SYSTEM_DATABASES',
+         'EXECUTE [dbo].[DatabaseIntegrityCheck]' + CHAR(13) + CHAR(10) + '@Databases = ''SYSTEM_DATABASES'',' + CHAR(13) + CHAR(10) + '@NoInformationalMessages = ''Y'',' + CHAR(13) + CHAR(10) + '@LogToTable = ''' + @LogToTable + '''',
+         @DatabaseName)
+
+  INSERT INTO @Jobs ([Name], CommandTSQL, DatabaseName)
+  VALUES('DatabaseIntegrityCheck - USER_DATABASES',
+         'EXECUTE [dbo].[DatabaseIntegrityCheck]' + CHAR(13) + CHAR(10) + '@Databases = ''USER_DATABASES'',' + CHAR(13) + CHAR(10) + '@NoInformationalMessages = ''Y'',' + CHAR(13) + CHAR(10) + '@LogToTable = ''' + @LogToTable + '''',
+         @DatabaseName)
+
+  INSERT INTO @Jobs ([Name], CommandTSQL, DatabaseName)
+  VALUES('IndexOptimize - USER_DATABASES',
+         'EXECUTE [dbo].[IndexOptimize]' + CHAR(13) + CHAR(10) + '@Databases = ''USER_DATABASES'',' + CHAR(13) + CHAR(10) + '@LogToTable = ''' + @LogToTable + '''',
+         @DatabaseName)
+
+  INSERT INTO @Jobs ([Name], CommandTSQL, DatabaseName)
+  VALUES('sp_delete_backuphistory',
+         'DECLARE @CleanupDate datetime' + CHAR(13) + CHAR(10) + 'SET @CleanupDate = DATEADD(dd,-30,GETDATE())' + CHAR(13) + CHAR(10) + 'EXECUTE dbo.sp_delete_backuphistory @oldest_date = @CleanupDate',
+         'msdb')
+
+  INSERT INTO @Jobs ([Name], CommandTSQL, DatabaseName)
+  VALUES('sp_purge_jobhistory',
+         'DECLARE @CleanupDate datetime' + CHAR(13) + CHAR(10) + 'SET @CleanupDate = DATEADD(dd,-30,GETDATE())' + CHAR(13) + CHAR(10) + 'EXECUTE dbo.sp_purge_jobhistory @oldest_date = @CleanupDate',
+         'msdb')
+
+  INSERT INTO @Jobs ([Name], CommandTSQL, DatabaseName)
+  VALUES('CommandLog Cleanup',
+         'DELETE FROM [dbo].[CommandLog]' + CHAR(13) + CHAR(10) + 'WHERE StartTime < DATEADD(dd,-30,GETDATE())',
+         @DatabaseName)
+
+  INSERT INTO @Jobs ([Name], CommandCmdExec)
+  VALUES('Output File Cleanup',
+         'powershell.exe -NoProfile -Command "Get-ChildItem -LiteralPath ''' + REPLACE(COALESCE(@OutputFileDirectory,@TokenLogDirectory,@LogDirectory),'''','''''') + ''' -Filter ''*_*_*_*.txt'' -File | Where-Object { $_.LastWriteTime.Date -le (Get-Date).Date.AddDays(-30) } | ForEach-Object { Write-Output (''del '' + $_.FullName); Remove-Item -LiteralPath $_.FullName }"')
+
+  IF @AmazonRDS = 1
+  BEGIN
+   UPDATE @Jobs
+   SET Selected = 1
+   WHERE [Name] IN('DatabaseIntegrityCheck - USER_DATABASES','IndexOptimize - USER_DATABASES','CommandLog Cleanup')
+  END
+  ELSE IF SERVERPROPERTY('EngineEdition') = 8
+  BEGIN
+   UPDATE @Jobs
+   SET Selected = 1
+   WHERE [Name] IN('DatabaseIntegrityCheck - SYSTEM_DATABASES','DatabaseIntegrityCheck - USER_DATABASES','IndexOptimize - USER_DATABASES','CommandLog Cleanup','sp_delete_backuphistory','sp_purge_jobhistory')
+  END
+  ELSE IF @HostPlatform = 'Windows'
+  BEGIN
+   UPDATE @Jobs
+   SET Selected = 1
+  END
+  ELSE IF @HostPlatform = 'Linux'
+  BEGIN
+   UPDATE @Jobs
+   SET Selected = 1
+   WHERE CommandTSQL IS NOT NULL
+  END
+
+  WHILE EXISTS (SELECT * FROM @Jobs WHERE Completed = 0 AND Selected = 1)
+  BEGIN
+    SELECT TOP 1 @CurrentJobID = JobID,
+                 @CurrentJobName = [Name],
+                 @CurrentCommandTSQL = CommandTSQL,
+                 @CurrentCommandCmdExec = CommandCmdExec,
+                 @CurrentDatabaseName = DatabaseName
+    FROM @Jobs
+    WHERE Completed = 0
+    AND Selected = 1
+    ORDER BY JobID ASC
+
+    IF @CurrentCommandTSQL IS NOT NULL
+    BEGIN
+      SET @CurrentJobStepSubSystem = 'TSQL'
+      SET @CurrentJobStepCommand = @CurrentCommandTSQL
+      SET @CurrentJobStepDatabaseName = @CurrentDatabaseName
+    END
+    ELSE IF @CurrentCommandCmdExec IS NOT NULL AND @HostPlatform = 'Windows'
+    BEGIN
+      SET @CurrentJobStepSubSystem = 'CMDEXEC'
+      SET @CurrentJobStepCommand = @CurrentCommandCmdExec
+      SET @CurrentJobStepDatabaseName = NULL
+    END
+
+    IF @AmazonRDS = 0 AND SERVERPROPERTY('EngineEdition') <> 8
+    BEGIN
+      SET @CurrentOutputFileName = COALESCE(@OutputFileDirectory,@TokenLogDirectory,@LogDirectory) + @DirectorySeparator + @TokenJobName + '_' + @TokenStepID + '_' + @TokenDate + '_' + @TokenTime + '.txt'
+      IF LEN(@CurrentOutputFileName) > 200 SET @CurrentOutputFileName = NULL
+    END
+
+    IF @CurrentJobStepSubSystem IS NOT NULL AND @CurrentJobStepCommand IS NOT NULL AND NOT EXISTS (SELECT * FROM msdb.dbo.sysjobs WHERE [name] = @CurrentJobName)
+    BEGIN
+      EXECUTE msdb.dbo.sp_add_job @job_name = @CurrentJobName, @description = @JobDescription, @category_name = @JobCategory, @owner_login_name = @JobOwner
+      EXECUTE msdb.dbo.sp_add_jobstep @job_name = @CurrentJobName, @step_name = @CurrentJobName, @subsystem = @CurrentJobStepSubSystem, @command = @CurrentJobStepCommand, @output_file_name = @CurrentOutputFileName, @database_name = @CurrentJobStepDatabaseName
+      EXECUTE msdb.dbo.sp_add_jobserver @job_name = @CurrentJobName
+    END
+
+    UPDATE Jobs
+    SET Completed = 1
+    FROM @Jobs Jobs
+    WHERE JobID = @CurrentJobID
+
+    SET @CurrentJobID = NULL
+    SET @CurrentJobName = NULL
+    SET @CurrentCommandTSQL = NULL
+    SET @CurrentCommandCmdExec = NULL
+    SET @CurrentDatabaseName = NULL
+    SET @CurrentJobStepCommand = NULL
+    SET @CurrentJobStepSubSystem = NULL
+    SET @CurrentJobStepDatabaseName = NULL
+    SET @CurrentOutputFileName = NULL
+
+  END
+
+END
+GO
+
+DECLARE @job_id uniqueidentifier
+DECLARE @step_id int
+DECLARE @command nvarchar(max)
+DECLARE @AmazonRDS bit = CASE WHEN SERVERPROPERTY('EngineEdition') IN (5, 8) THEN 0 WHEN EXISTS (SELECT * FROM sys.databases WHERE [name] = 'rdsadmin') AND SUSER_SNAME(0x01) = 'rdsa' THEN 1 ELSE 0 END
+
+IF @AmazonRDS = 0
+BEGIN
+
+  DECLARE JobCursor CURSOR LOCAL FAST_FORWARD FOR SELECT job_id, step_id, command FROM msdb.dbo.sysjobsteps WHERE command LIKE '%DatabaseBackup%@CheckSum%' COLLATE SQL_Latin1_General_CP1_CS_AS OR command LIKE '%DatabaseBackup%@ModificationLevel%' OR command LIKE '%DatabaseBackup%@LogSizeSinceLastLogBackup%' OR command LIKE '%DatabaseBackup%@TimeSinceLastLogBackup%'
+
+  OPEN JobCursor
+
+  FETCH JobCursor INTO @job_id, @step_id, @command
+
+  WHILE @@FETCH_STATUS = 0
+  BEGIN
+    SET @command = REPLACE(@command, '@CheckSum', '@Checksum')
+    SET @command = REPLACE(@command, '@ModificationLevel', '@MinModificationLevel')
+    SET @command = REPLACE(@command, '@LogSizeSinceLastLogBackup', '@MinLogSizeSinceLastLogBackup')
+    SET @command = REPLACE(@command, '@TimeSinceLastLogBackup', '@MinTimeSinceLastLogBackup')
+
+    EXECUTE msdb.dbo.sp_update_jobstep @job_id = @job_id, @step_id = @step_id, @command = @command
+
+    FETCH NEXT FROM JobCursor INTO @job_id, @step_id, @command
+  END
+
+  CLOSE JobCursor
+
+  DEALLOCATE JobCursor
+END
+GO
+
+-- =====================================================================
+-- END Ola Hallengren Maintenance Solution
+-- =====================================================================
+
+------------------------------------------------------------------------------
+-- End of Ola's section. Resume normal execution. (If the pre-flight aborted,
+-- the next batch refuses to continue.)
+------------------------------------------------------------------------------
+SET NOEXEC OFF;
+GO
+
+------------------------------------------------------------------------------
+-- Jobs. Reads the settings stored by the first batch.
+------------------------------------------------------------------------------
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+
+IF OBJECT_ID(N'tempdb..#CasControl') IS NULL
+    THROW 50010, N'Run the whole file in one go: the settings from its first batch are missing in this session. Nothing was created.', 1;
+
+DECLARE @DatabaseName sysname, @OlaDatabase sysname, @JobOwner sysname, @OlaVersion char(19), @Action varchar(10);
+DECLARE @msg nvarchar(2048);
+SELECT @DatabaseName = DatabaseName, @OlaDatabase = OlaDatabase, @JobOwner = JobOwner,
+       @OlaVersion = OlaVersion, @Action = Action, @msg = Message
+FROM #CasControl;
+
+IF @Action = 'abort'
+    THROW 50011, @msg, 1;      -- same text as the first batch raised; nothing ran in between
+
+-- After the Ola section: all three procedures we call, at the embedded version, plus dbo.CommandLog
+DECLARE @sql nvarchar(max) =
+    N'SELECT @n = COUNT(*) FROM ' + QUOTENAME(@OlaDatabase) + N'.sys.objects o '
+  + N'JOIN ' + QUOTENAME(@OlaDatabase) + N'.sys.sql_modules m ON m.object_id = o.object_id '
+  + N'WHERE o.type = N''P'' AND o.schema_id = 1 '
+  + N'AND o.name IN (N''CommandExecute'', N''IndexOptimize'', N''DatabaseIntegrityCheck'') '
+  + N'AND SUBSTRING(m.definition, CHARINDEX(N''--// Version: '', m.definition) + 14, 19) = @v';
+DECLARE @ok int;
+EXECUTE sys.sp_executesql @sql, N'@n int OUTPUT, @v nvarchar(30)', @n = @ok OUTPUT, @v = @OlaVersion;
+
+IF @ok <> 3 OR OBJECT_ID(QUOTENAME(@OlaDatabase) + N'.dbo.CommandLog', N'U') IS NULL
+BEGIN
+    SET @msg = N'Ola Hallengren''s Maintenance Solution (version ' + @OlaVersion + N') is not complete in ' + QUOTENAME(@OlaDatabase)
+             + N'. If you moved Ola to another database, change BOTH @OlaDatabase and the USE line in Ola''s section (see the header). Otherwise read the errors above. No jobs were created.';
+    THROW 50012, @msg, 1;
+END
+
+IF NOT EXISTS (SELECT 1 FROM sys.dm_exec_sessions WHERE program_name LIKE N'SQLAgent%')
+    RAISERROR('Warning: SQL Server Agent does not appear to be running. The jobs will be created but will not run until it is started.', 10, 1) WITH NOWAIT;
+
+
+------------------------------------------------------------------------------
+-- Job definitions. The database name is embedded as a quoted literal built by
+-- QUOTENAME(..., ''''), never by plain concatenation.
+------------------------------------------------------------------------------
+DECLARE @DbLiteral nvarchar(300) = N'N' + QUOTENAME(@DatabaseName, N'''');   -- N'Name', quotes doubled
+DECLARE @Suffix    nvarchar(200) = N' - ' + @DatabaseName;
+
+DECLARE @Jobs TABLE (
+    JobName      sysname      NOT NULL PRIMARY KEY,
+    Description  nvarchar(512) NOT NULL,
+    FreqType     int          NOT NULL,   -- 4 = daily, 8 = weekly
+    FreqInterval int          NOT NULL,   -- weekly: 1 = Sunday, 64 = Saturday
+    StartTime    int          NOT NULL    -- HHMMSS
+);
+DECLARE @Steps TABLE (
+    JobName  sysname       NOT NULL,
+    StepId   int           NOT NULL,
+    StepName sysname       NOT NULL,
+    Command  nvarchar(max) NOT NULL,
+    PRIMARY KEY (JobName, StepId)
+);
+
+DECLARE @JobStats     sysname = N'CAS - Statistics (nightly)' + @Suffix;
+DECLARE @JobIndex     sysname = N'CAS - Index optimize (weekly)' + @Suffix;
+DECLARE @JobIntegrity sysname = N'CAS - Integrity check (weekly)' + @Suffix;
+DECLARE @JobCleanup   sysname = N'CAS - Cleanup (weekly)' + @Suffix;
+
+INSERT INTO @Jobs (JobName, Description, FreqType, FreqInterval, StartTime) VALUES
+    (@JobStats,     N'Updates modified statistics only (no index work). Managed by CreateMaintenanceAgentJobs.sql.', 4,  1, 220000),
+    (@JobIndex,     N'Reorganizes/rebuilds fragmented indexes, stops starting new work after 2 hours. Managed by CreateMaintenanceAgentJobs.sql.', 8, 1, 223000),
+    (@JobIntegrity, N'DBCC CHECKDB. Managed by CreateMaintenanceAgentJobs.sql.', 8, 64, 220000),
+    (@JobCleanup,   N'Deletes CommandLog rows and these jobs'' history older than 30 days. Managed by CreateMaintenanceAgentJobs.sql.', 8, 1, 213000);
+
+INSERT INTO @Steps (JobName, StepId, StepName, Command) VALUES
+(@JobStats, 1, N'IndexOptimize - statistics only',
+ N'EXECUTE dbo.IndexOptimize
+    @Databases              = ' + @DbLiteral + N',
+    @FragmentationLow       = NULL,
+    @FragmentationMedium    = NULL,
+    @FragmentationHigh      = NULL,
+    @UpdateStatistics       = ''ALL'',
+    @OnlyModifiedStatistics = ''Y'',
+    @LogToTable             = ''Y'';'),
+(@JobIndex, 1, N'IndexOptimize - indexes and statistics',
+ N'EXECUTE dbo.IndexOptimize
+    @Databases              = ' + @DbLiteral + N',
+    @FragmentationLow       = NULL,
+    @FragmentationMedium    = ''INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE'',
+    @FragmentationHigh      = ''INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE'',
+    @FragmentationLevel1    = 5,
+    @FragmentationLevel2    = 30,
+    @MinNumberOfPages       = 1000,
+    @UpdateStatistics       = ''ALL'',
+    @OnlyModifiedStatistics = ''Y'',
+    @TimeLimit              = 7200,
+    @LogToTable             = ''Y'';'),
+(@JobIntegrity, 1, N'DatabaseIntegrityCheck - CHECKDB',
+ N'EXECUTE dbo.DatabaseIntegrityCheck
+    @Databases     = ' + @DbLiteral + N',
+    @CheckCommands = ''CHECKDB'',
+    @LogToTable    = ''Y'';'),
+-- Cleanup: batched delete keeps the log small; history is purged per job name so
+-- other jobs on the instance keep their history.
+(@JobCleanup, 1, N'Delete CommandLog rows older than 30 days',
+ N'DECLARE @Cutoff datetime2 = DATEADD(DAY, -30, SYSDATETIME());
+WHILE 1 = 1
+BEGIN
+    DELETE TOP (5000) FROM dbo.CommandLog WHERE StartTime < @Cutoff;
+    IF @@ROWCOUNT = 0 BREAK;
+END'),
+(@JobCleanup, 2, N'Purge job history older than 30 days',
+ N'DECLARE @Oldest datetime = DATEADD(DAY, -30, GETDATE());
+EXECUTE msdb.dbo.sp_purge_jobhistory @job_name = ' + QUOTENAME(@JobStats, N'''') + N', @oldest_date = @Oldest;
+EXECUTE msdb.dbo.sp_purge_jobhistory @job_name = ' + QUOTENAME(@JobIndex, N'''') + N', @oldest_date = @Oldest;
+EXECUTE msdb.dbo.sp_purge_jobhistory @job_name = ' + QUOTENAME(@JobIntegrity, N'''') + N', @oldest_date = @Oldest;
+EXECUTE msdb.dbo.sp_purge_jobhistory @job_name = ' + QUOTENAME(@JobCleanup, N'''') + N', @oldest_date = @Oldest;');
+
+------------------------------------------------------------------------------
+-- Create: all or nothing
+------------------------------------------------------------------------------
+DECLARE @JobName   sysname;
+DECLARE @StepId    int;
+DECLARE @StepName  sysname;
+DECLARE @Command   nvarchar(max);
+DECLARE @Desc      nvarchar(512);
+DECLARE @FreqType  int;
+DECLARE @FreqInt   int;
+DECLARE @StartTime int;
+DECLARE @StepCount int;
+DECLARE @OnSuccess int;
+
+BEGIN TRY
+    BEGIN TRANSACTION;
+
+    -- Re-run: drop only the jobs we own (exact names). Their schedules go with them.
+    SET @JobName = NULL;
+    WHILE 1 = 1
+    BEGIN
+        SELECT TOP (1) @JobName = j.JobName FROM @Jobs j
+        WHERE EXISTS (SELECT 1 FROM msdb.dbo.sysjobs s WHERE s.name = j.JobName)
+          AND (@JobName IS NULL OR j.JobName > @JobName)
+        ORDER BY j.JobName;
+        IF @@ROWCOUNT = 0 BREAK;
+        EXECUTE msdb.dbo.sp_delete_job @job_name = @JobName, @delete_unused_schedule = 1;
+    END
+
+    SET @JobName = N'';
+    WHILE 1 = 1
+    BEGIN
+        SELECT TOP (1) @JobName = JobName, @Desc = Description, @FreqType = FreqType,
+                       @FreqInt = FreqInterval, @StartTime = StartTime
+        FROM @Jobs WHERE JobName > @JobName ORDER BY JobName;
+        IF @@ROWCOUNT = 0 BREAK;
+
+        EXECUTE msdb.dbo.sp_add_job
+            @job_name = @JobName, @description = @Desc, @enabled = 1,
+            @owner_login_name = @JobOwner, @category_name = N'Database Maintenance';
+
+        SELECT @StepCount = COUNT(*) FROM @Steps WHERE JobName = @JobName;
+        SET @StepId = 0;
+        WHILE 1 = 1
+        BEGIN
+            SELECT TOP (1) @StepId = StepId, @StepName = StepName, @Command = Command
+            FROM @Steps WHERE JobName = @JobName AND StepId > @StepId ORDER BY StepId;
+            IF @@ROWCOUNT = 0 BREAK;
+
+            SET @OnSuccess = CASE WHEN @StepId < @StepCount THEN 3 ELSE 1 END;
+            -- on success: next step (last step: quit with success); on failure: quit reporting failure
+            -- @flags = 4: write the step output to job history
+            EXECUTE msdb.dbo.sp_add_jobstep
+                @job_name = @JobName, @step_id = @StepId, @step_name = @StepName,
+                @subsystem = N'TSQL', @command = @Command, @database_name = @OlaDatabase,
+                @on_success_action = @OnSuccess,
+                @on_fail_action = 2, @retry_attempts = 0, @flags = 4;
+        END
+
+        EXECUTE msdb.dbo.sp_add_jobschedule
+            @job_name = @JobName, @name = @JobName, @enabled = 1,
+            @freq_type = @FreqType, @freq_interval = @FreqInt,
+            @freq_recurrence_factor = 1, @active_start_time = @StartTime;
+
+        EXECUTE msdb.dbo.sp_add_jobserver @job_name = @JobName, @server_name = N'(local)';
+    END
+
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH
+
+------------------------------------------------------------------------------
+-- Result: what exists now
+------------------------------------------------------------------------------
+SELECT j.name                                    AS JobName,
+       SUSER_SNAME(j.owner_sid)                  AS Owner,
+       j.enabled                                 AS JobEnabled,
+       sc.name                                   AS ScheduleName,
+       CASE sc.freq_type WHEN 4 THEN 'Daily' WHEN 8 THEN 'Weekly' END AS Frequency,
+       CASE WHEN sc.freq_type = 4 THEN 'every day'
+            ELSE CASE WHEN sc.freq_interval & 1  > 0 THEN 'Sun ' ELSE '' END
+               + CASE WHEN sc.freq_interval & 2  > 0 THEN 'Mon ' ELSE '' END
+               + CASE WHEN sc.freq_interval & 4  > 0 THEN 'Tue ' ELSE '' END
+               + CASE WHEN sc.freq_interval & 8  > 0 THEN 'Wed ' ELSE '' END
+               + CASE WHEN sc.freq_interval & 16 > 0 THEN 'Thu ' ELSE '' END
+               + CASE WHEN sc.freq_interval & 32 > 0 THEN 'Fri ' ELSE '' END
+               + CASE WHEN sc.freq_interval & 64 > 0 THEN 'Sat ' ELSE '' END END AS Days,
+       STUFF(STUFF(RIGHT('000000' + CAST(sc.active_start_time AS varchar(6)), 6), 5, 0, ':'), 3, 0, ':') AS StartTime,
+       CAST(nx.NextRun AS datetime2(0))          AS NextRun        -- calculated here; the Agent fills its own value later
+FROM msdb.dbo.sysjobs j
+JOIN @Jobs d                       ON d.JobName = j.name
+LEFT JOIN msdb.dbo.sysjobschedules js ON js.job_id = j.job_id
+LEFT JOIN msdb.dbo.sysschedules sc    ON sc.schedule_id = js.schedule_id
+OUTER APPLY (
+    -- first day from today on that matches the schedule (0 = Sunday), at its start time, still in the future
+    SELECT MIN(c.Candidate) AS NextRun
+    FROM (SELECT DATEADD(SECOND, sc.active_start_time / 10000 * 3600 + sc.active_start_time / 100 % 100 * 60 + sc.active_start_time % 100,
+                         CAST(DATEADD(DAY, v.n, CAST(SYSDATETIME() AS date)) AS datetime2)) AS Candidate,
+                 DATEDIFF(DAY, '19000107', DATEADD(DAY, v.n, CAST(SYSDATETIME() AS date))) % 7 AS DayOfWeek0
+          FROM (VALUES (0), (1), (2), (3), (4), (5), (6), (7)) v(n)) c
+    WHERE c.Candidate > SYSDATETIME()
+      AND (sc.freq_type = 4 OR sc.freq_interval & POWER(2, c.DayOfWeek0) > 0)
+) nx
+ORDER BY j.name;
