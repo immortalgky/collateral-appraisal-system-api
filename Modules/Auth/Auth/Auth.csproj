@@ -24,6 +24,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="Fido2"/>
         <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect"/>
         <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore"/>
         <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore"/>
@@ -31,6 +32,7 @@
         <PackageReference Include="OpenIddict.EntityFrameworkCore"/>
         <PackageReference Include="OpenIddict.Server.AspNetCore"/>
         <PackageReference Include="OpenIddict.Validation.AspNetCore"/>
+        <PackageReference Include="QRCoder"/>
         <PackageReference Include="System.DirectoryServices.Protocols"/>
         <PackageReference Include="System.Linq.Async"/>
     </ItemGroup>

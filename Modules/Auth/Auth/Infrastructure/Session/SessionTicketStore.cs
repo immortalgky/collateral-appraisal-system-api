@@ -40,7 +40,7 @@ public sealed class SessionTicketStore(
 
     /// <summary>"No live session has this id" — remembered briefly so a dead cookie that keeps being sent (a tab
     /// polling after the session ended) does not cost a database read per request.</summary>
-    private sealed record MissingSession(DateTime CheckedAt);
+    private sealed record MissingSession(DateTime CheckedAt, SessionEndReason? Reason);
 
     private sealed record CachedSession(Guid UserId, byte[] Ticket, DateTime LastActivityAt, DateTime CheckedAt);
 
@@ -84,7 +84,11 @@ public sealed class SessionTicketStore(
         CachedSession? session = null;
         if (cache.TryGetValue(cacheKey, out object? entry))
         {
-            if (entry is MissingSession missing && now - missing.CheckedAt < CacheLifetime) return null;
+            if (entry is MissingSession missing && now - missing.CheckedAt < CacheLifetime)
+            {
+                NoteEnded(missing.Reason);
+                return null;
+            }
             session = entry as CachedSession;
         }
 
@@ -108,9 +112,14 @@ public sealed class SessionTicketStore(
             if (now - session.LastActivityAt >= options.Value.IdleTimeout)
             {
                 await using var scope = scopeFactory.CreateAsyncScope();
-                await scope.ServiceProvider.GetRequiredService<IUserSessionService>()
-                    .EndAsync(id, SessionEndReason.Idle, session.LastActivityAt + options.Value.IdleTimeout);
-                cache.Set(cacheKey, new MissingSession(now), CacheLifetime);
+                var sessions = scope.ServiceProvider.GetRequiredService<IUserSessionService>();
+                // False: another node ended the row first, for a reason of its own.
+                var reason = await sessions.EndAsync(id, SessionEndReason.Idle,
+                    session.LastActivityAt + options.Value.IdleTimeout)
+                    ? SessionEndReason.Idle
+                    : await ReadEndReasonAsync(sessions, id);
+                cache.Set(cacheKey, new MissingSession(now, reason), CacheLifetime);
+                NoteEnded(reason);
                 return null;
             }
         }
@@ -121,9 +130,12 @@ public sealed class SessionTicketStore(
         if (!IsBackgroundRequest() && now - session.LastActivityAt >= ActivityWriteInterval)
         {
             await using var scope = scopeFactory.CreateAsyncScope();
-            if (!await scope.ServiceProvider.GetRequiredService<IUserSessionService>().TouchAsync(id, now))
+            var sessions = scope.ServiceProvider.GetRequiredService<IUserSessionService>();
+            if (!await sessions.TouchAsync(id, now))
             {
-                cache.Set(cacheKey, new MissingSession(now), CacheLifetime);
+                var reason = await ReadEndReasonAsync(sessions, id);
+                cache.Set(cacheKey, new MissingSession(now, reason), CacheLifetime);
+                NoteEnded(reason);
                 return null;
             }
 
@@ -143,6 +155,7 @@ public sealed class SessionTicketStore(
         {
             // A ticket sealed by a key that is no longer in the ring. The session is unusable; the user signs in again.
             logger.LogWarning(ex, "Session {SessionId} holds a ticket that can no longer be unprotected", id);
+            NoteEnded(null);
             return null;
         }
     }
@@ -153,13 +166,43 @@ public sealed class SessionTicketStore(
         var found = await scope.ServiceProvider.GetRequiredService<IUserSessionService>().GetActiveAsync(id);
         if (found is null)
         {
-            cache.Set(UserSessionService.CacheKey(id), new MissingSession(now), CacheLifetime);
+            var reason = await ReadEndReasonAsync(scope.ServiceProvider.GetRequiredService<IUserSessionService>(), id);
+            cache.Set(UserSessionService.CacheKey(id), new MissingSession(now, reason), CacheLifetime);
+            NoteEnded(reason);
             return null;
         }
 
         var session = new CachedSession(found.UserId, found.Ticket, found.LastActivityAt, now);
         cache.Set(UserSessionService.CacheKey(id), session, CacheLifetime);
         return session;
+    }
+
+    /// <summary>
+    /// The row's end reason, read only to label the 401. A database hiccup here must not turn that 401 into a 500,
+    /// so a failure is logged and reported as unknown (which the caller reports as "ended").
+    /// </summary>
+    private async Task<SessionEndReason?> ReadEndReasonAsync(IUserSessionService sessions, Guid id)
+    {
+        try
+        {
+            return await sessions.GetEndReasonAsync(id);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not read the end reason of session {SessionId}", id);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Remembers why the session behind this request's cookie is gone, so the 401 can say so
+    /// (<see cref="AppSessionEvents.RedirectToLogin"/>). A row that is missing or ended without a reason counts as
+    /// revoked: all the caller learns is "idle" or "ended".
+    /// </summary>
+    private void NoteEnded(SessionEndReason? reason)
+    {
+        if (httpContextAccessor.HttpContext is { } http)
+            http.Items[AuthSchemes.EndHintItem] = reason ?? SessionEndReason.Revoked;
     }
 
     public async Task RemoveAsync(string key)

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Time;
 
@@ -19,6 +20,9 @@ namespace Auth.Infrastructure.Session;
 public static class AppSessionEvents
 {
     private const string LoggerCategory = "Auth.Session";
+
+    /// <summary>Response header on a 401: <c>idle</c> or <c>ended</c>. Exposed through CORS so the SPA can read it.</summary>
+    public const string SessionEndHeader = "X-Session-End";
 
     // ── App cookie ───────────────────────────────────────────────────────────────
 
@@ -84,6 +88,7 @@ public static class AppSessionEvents
     {
         context.RejectPrincipal();
         context.HttpContext.Items[AuthSchemes.EndReasonItem] = reason;
+        context.HttpContext.Items[AuthSchemes.EndHintItem] = reason;
         await context.HttpContext.SignOutAsync(AuthSchemes.AppCookie);
     }
 
@@ -102,6 +107,12 @@ public static class AppSessionEvents
                 new AuthenticationProperties { RedirectUri = request.PathBase + request.Path + request.QueryString });
 
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        // Only when a session cookie was presented and its session is gone; the SPA tells "timed out" from "ended".
+        // Nothing when the user ended it themselves (signed out in another tab, signed in again): telling them
+        // their session "was ended" would be wrong.
+        if (context.HttpContext.Items[AuthSchemes.EndHintItem] is SessionEndReason ended
+            and not (SessionEndReason.Logout or SessionEndReason.Replaced))
+            context.Response.Headers[SessionEndHeader] = ended == SessionEndReason.Idle ? "idle" : "ended";
         // Debug: a forgotten Hangfire tab polls every 2 s after its session ends, which at Information is tens of thousands of rows a day.
         Logger(context.HttpContext).LogDebug(
             "[AUTH-401] {Method} {Path} has no valid session", request.Method, request.Path.Value);
@@ -185,6 +196,11 @@ public static class AppSessionEvents
         var message = context.ProtocolMessage;
         message.IssuerAddress = urls.ToPublic(message.IssuerAddress);
         message.RedirectUri = urls.PublicBase + context.Options.CallbackPath;
+        // Set by /auth/login ("Continue as ..."); the handler itself does not copy it onto the authorize request.
+        message.LoginHint = context.Properties.GetParameter<string>(OpenIdConnectParameterNames.LoginHint);
+        // Same for the sign-in method; the IdP reads it back from the authorize URL it is given as the return URL.
+        if (context.Properties.GetParameter<string>(LoginMethod.Parameter) is { } method)
+            message.SetParameter(LoginMethod.Parameter, method);
         return Task.CompletedTask;
     }
 
@@ -217,6 +233,15 @@ public static class AppSessionEvents
     public static async Task TicketReceivedAsync(TicketReceivedContext context)
     {
         var http = context.HttpContext;
+
+        // "Continue as A" that was signed in as B must not land on A's page: keep only the origin of the return URL
+        // (already checked against the allowed SPA origins), or the SPA home when it is a path on this API.
+        if (context.Properties?.Items.Remove(AuthSchemes.LoginHintItem, out var hint) == true
+            && !string.Equals(hint, context.Principal?.FindFirstValue("name"), StringComparison.OrdinalIgnoreCase))
+            context.ReturnUri = Uri.TryCreate(context.ReturnUri, UriKind.Absolute, out var target)
+                ? target.GetLeftPart(UriPartial.Authority) + "/"
+                : http.RequestServices.GetRequiredService<BffUrls>().SpaHome;
+
         // The sign-in completed: forget that an earlier attempt failed.
         http.Response.Cookies.Delete(RetryCookie(http), RetryCookieOptions());
 

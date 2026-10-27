@@ -248,6 +248,9 @@ namespace Auth.Infrastructure.Migrations
                     b.Property<bool>("RequireNonAlphanumeric")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("RequireTwoFactorForExternal")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("RequireUppercase")
                         .HasColumnType("bit");
 
@@ -255,6 +258,9 @@ namespace Auth.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<int>("RequiredUniqueChars")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TwoFactorRememberHours")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
@@ -916,6 +922,61 @@ namespace Auth.Infrastructure.Migrations
                     b.ToTable("Officers", "auth");
                 });
 
+            modelBuilder.Entity("Auth.Domain.Passkeys.UserPasskey", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AaGuid")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("CredentialId")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("varbinary(1024)");
+
+                    b.Property<bool>("IsBackedUp")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsBackupEligible")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastUsedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<byte[]>("PublicKey")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("varbinary(1024)");
+
+                    b.Property<long>("SignCount")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Transports")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CredentialId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserPasskeys", "auth");
+                });
+
             modelBuilder.Entity("Auth.Domain.Preferences.UserPreference", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -1522,6 +1583,15 @@ namespace Auth.Infrastructure.Migrations
                     b.HasOne("Auth.Domain.Menu.MenuItem", null)
                         .WithMany("Translations")
                         .HasForeignKey("MenuItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Auth.Domain.Passkeys.UserPasskey", b =>
+                {
+                    b.HasOne("Auth.Domain.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

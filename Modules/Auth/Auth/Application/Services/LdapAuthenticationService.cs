@@ -151,7 +151,11 @@ public class LdapAuthenticationService(
             "(objectClass=*)",
             SearchScope.Base,
             attrs.Username, attrs.Email, attrs.FirstName,
-            attrs.LastName, attrs.Department, attrs.Position);
+            attrs.LastName, attrs.Department, attrs.Position,
+            // msDS-User-Account-Control-Computed is a constructed attribute: the directory builds it on request, so it is
+            // returned only when named here (a base-scope read, as this is), never by a wildcard.
+            AdAccountStatus.UserAccountControlAttribute, AdAccountStatus.AccountExpiresAttribute,
+            AdAccountStatus.ComputedControlAttribute);
 
         var response = (SearchResponse)connection.SendRequest(searchRequest);
         if (response.Entries.Count == 0)
@@ -169,7 +173,10 @@ public class LdapAuthenticationService(
             LastName: GetAttribute(entry, attrs.LastName),
             Department: GetAttribute(entry, attrs.Department),
             Position: GetAttribute(entry, attrs.Position),
-            DistinguishedName: userDn);
+            DistinguishedName: userDn,
+            UserAccountControl: int.TryParse(GetAttribute(entry, AdAccountStatus.UserAccountControlAttribute), out var uac) ? uac : null,
+            AccountExpires: long.TryParse(GetAttribute(entry, AdAccountStatus.AccountExpiresAttribute), out var expires) ? expires : null,
+            UserAccountControlComputed: int.TryParse(GetAttribute(entry, AdAccountStatus.ComputedControlAttribute), out var computed) ? computed : null);
 
         return Task.FromResult(userInfo);
     }

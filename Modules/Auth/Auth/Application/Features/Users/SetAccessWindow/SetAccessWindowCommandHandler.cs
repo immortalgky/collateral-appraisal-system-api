@@ -13,7 +13,8 @@ public class SetAccessWindowCommandHandler(
     IPasswordPolicyProvider passwordPolicyProvider,
     IAuthAuditWriter auditWriter,
     IDateTimeProvider dateTimeProvider,
-    IUserSessionService sessions)
+    IUserSessionService sessions,
+    TwoFactorService twoFactor)
     : ICommandHandler<SetAccessWindowCommand, SetAccessWindowResult>
 {
     public async Task<SetAccessWindowResult> Handle(
@@ -95,6 +96,21 @@ public class SetAccessWindowCommandHandler(
             endedSessions = await sessions.RevokeUserAsync(user.Id, user.UserName,
                 closing ? SessionEndReason.AccessExpired : SessionEndReason.PasswordReset,
                 cancellationToken: cancellationToken);
+
+            // A new window is a new holder: the previous one's authenticator (or half-finished enrolment) must not
+            // carry over, or they could still pass the code step with the new password in someone else's hands.
+            // The next holder starts clean, and enrols on their own phone at sign-in if the policy requires it.
+            // Closing a window needs none of this: nobody signs in on it until a new one opens. Nor does an account
+            // that never had two-factor, not even an unverified key.
+            if (!closing)
+            {
+                var hadTwoFactor = user.TwoFactorEnabled;
+                if (hadTwoFactor || await userManager.GetAuthenticatorKeyAsync(user) is not null)
+                    await twoFactor.ResetAsync(user);
+                if (hadTwoFactor)
+                    auditWriter.Record(AuditAction.TwoFactorReset, AuditEntityType.User, user.Id, user.UserName,
+                        new { reason = "AccessWindow" });
+            }
 
             // A closed window's password is dead on arrival — rotating it is the point, handing it
             // back is not. Only an open window returns one.
