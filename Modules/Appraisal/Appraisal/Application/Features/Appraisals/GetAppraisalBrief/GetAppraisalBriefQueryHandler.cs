@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Appraisal.Application.Features.Appraisals.GetCarryForwardDocuments;
 using Appraisal.Application.Features.Shared;
 using Appraisal.Domain.Appraisals.Exceptions;
 using Dapper;
@@ -50,8 +51,11 @@ public class GetAppraisalBriefQueryHandler(
     ICurrentUserService currentUser
 ) : IQueryHandler<GetAppraisalBriefQuery, GetAppraisalBriefResult>
 {
-    /// <summary>The two documents credit actually files. Everything else rides along behind them.</summary>
-    private static readonly string[] PrimaryDocumentCodes = ["D043", "D001"];
+    /// <summary>
+    /// The documents credit actually files: the appraisal summary (D043, or D042 for a construction
+    /// progress inspection) and the report. Everything else rides along behind them.
+    /// </summary>
+    private static readonly HashSet<string> PrimaryDocumentCodes = new(["D043", "D042", "D001"], StringComparer.OrdinalIgnoreCase);
 
     public async Task<GetAppraisalBriefResult> Handle(
         GetAppraisalBriefQuery query,
@@ -760,6 +764,12 @@ public class GetAppraisalBriefQueryHandler(
                            WHERE p.[Group] IN (N'BuildingType', N'BuildingCondition', N'PublicUtility', N'Facilities')
                              AND p.[Language] = N'TH' AND p.IsActive = 1
                            ORDER BY p.[Group], p.Code, p.ParId;
+
+                           -- Display names of the two appraisal-summary types. Which of them applies is
+                           -- decided in C# (SummaryCodeFor), so both are read and one is picked.
+                           SELECT  dt.Code, dt.Name, dt.NameTh
+                           FROM parameter.DocumentTypes dt
+                           WHERE dt.Code IN (N'D042', N'D043');
                            """;
 
         var connection = connectionFactory.GetOpenConnection();
@@ -791,6 +801,7 @@ public class GetAppraisalBriefQueryHandler(
         var machineRows = (await grid.ReadAsync<MachineRow>()).ToList();
         var progressRows = (await grid.ReadAsync<ProgressRow>()).ToList();
         var labelRows = (await grid.ReadAsync<ParamLabelRow>()).ToList();
+        var summaryTypeRows = (await grid.ReadAsync<SummaryTypeRow>()).ToList();
 
         var facilityCodes = ParseCodes(project?.Facilities);
         var location = project is null
@@ -836,6 +847,10 @@ public class GetAppraisalBriefQueryHandler(
         // at the same files on the Documents tab one click away.
         var documentsReleased = approved || !AppraisalFieldScope.IsTrackingOnly(currentUser);
 
+        // The summary type is a label, not a figure, so it is sent whatever the release state.
+        var summaryTypeCode = GetCarryForwardDocumentsQueryHandler.SummaryCodeFor(project is not null, header.AppraisalType);
+        var summaryType = summaryTypeRows.FirstOrDefault(t => string.Equals(t.Code?.Trim(), summaryTypeCode, StringComparison.OrdinalIgnoreCase));
+
         return new GetAppraisalBriefResult
         {
             Id = header.Id,
@@ -860,6 +875,9 @@ public class GetAppraisalBriefQueryHandler(
 
             IsReleased = released,
             DocumentsReleased = documentsReleased,
+            SummaryTypeCode = summaryTypeCode,
+            SummaryTypeName = summaryType?.Name,
+            SummaryTypeNameTh = summaryType?.NameTh,
 
             // Withheld rather than zeroed: the screen distinguishes "no price yet" from "zero".
             AppraisalValue = released ? header.AppraisedValue : null,
@@ -1023,7 +1041,7 @@ public class GetAppraisalBriefQueryHandler(
             Documents = documentsReleased
                 ? docs.Select(d => new BriefDocument(
                     d.DocumentId, d.TypeCode, d.TypeName, d.TypeNameTh,
-                    PrimaryDocumentCodes.Contains(d.TypeCode),
+                    PrimaryDocumentCodes.Contains(d.TypeCode.Trim()),
                     d.FileName, d.FileSizeBytes, d.UploadedAt)).ToList()
                 : []
         };
@@ -1405,6 +1423,8 @@ public class GetAppraisalBriefQueryHandler(
     private sealed record ProgressRow(Guid AppraisalPropertyId, decimal? ProgressPct);
 
     private sealed record ParamLabelRow(string Group, string Code, string? Description);
+
+    private sealed record SummaryTypeRow(string? Code, string? Name, string? NameTh);
 
     internal sealed record DepreciationRow(
         Guid AppraisalPropertyId, bool IsBuilding, string? AreaDescription, decimal? Area);
