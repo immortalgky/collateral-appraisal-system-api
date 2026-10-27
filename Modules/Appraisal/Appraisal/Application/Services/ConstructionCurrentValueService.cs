@@ -115,10 +115,10 @@ public record ConstructionValueBreakdown(
     /// value, the cap collapses all three milestones onto it and the card shows 0 baht of movement
     /// beside a percentage that did move. That is what the stored data says — the price of record is
     /// below what the components add up to — and the likeliest cause is a PricingFinalValues.LandValue
-    /// row saved before the 2026-09-24 ApplyLandAreaValue change, which still holds a market approach's
-    /// whole-property lump under a column that means land. Those rows correct themselves when the
-    /// group is saved again; no backfill shipped, by decision. Smoothing the delta rows here would
-    /// only make a contradiction in the data look like a clean report.
+    /// that holds a whole-property lump under a column that means land (a Market method saved before
+    /// it carried a Role, when a per-area rate was multiplied out whatever the group held). Those rows
+    /// correct themselves when the group is saved again; no backfill shipped, by decision. Smoothing the delta rows here would only make a contradiction in the
+    /// data look like a clean report.
     /// </summary>
     public decimal PreviousValue => RawPreviousPercent >= 100m
         ? CompleteValue
@@ -343,25 +343,17 @@ public class ConstructionCurrentValueService(ISqlConnectionFactory connectionFac
     /// the land one. Their LandValue is always NULL by construction today (only Land/LandAndBuilding
     /// writers ever populate it), so excluding them changes nothing for existing data — it just stops
     /// the SUM from silently picking up a second row if that construction-time guarantee ever drifts.
-    /// Role IS NULL is still let through. As of 2026-09-23 such a row contributes nothing ONCE IT HAS
-    /// BEEN SAVED AGAIN — rows untouched since then still carry their market lump, so this SUM is a
-    /// mix until the data catches up (no backfill shipped, by decision). The mechanism:
-    /// PricingAnalysisMethod.ApplyLandAreaValue now CLEARS the land figures for a method with no Role.
-    /// Market, income and residual price the collateral as one lump, so a per-square-wa comparable
-    /// rate says how the market quotes a parcel, not that the resulting figure excludes the buildings
-    /// standing on it — multiplying it out wrote the whole property's value into LandValue, and this
-    /// SUM then added the buildings again from BuildingDepreciationDetails. The role clause narrows to
-    /// Land / LandAndBuilding (plus NULL) so a second selected method of another role cannot add a
-    /// LandValue of its own. The gate that matters is still the domain one in ApplyLandAreaValue —
-    /// this is a second line of defence, not a substitute, and it is inert on current data because
-    /// only the land-bearing roles ever write the column. The same clause is now in RS02 of the
-    /// construction book and in vw_MisCasReport's Land CTE; change one and change all three.
-    /// <para>
-    /// A market-priced appraisal that also has a construction inspection therefore now contributes
-    /// 0 land instead of a double-counted total. Neither figure is right — this formula needs a
-    /// separable land value and the market approach cannot produce one — but construction work is
-    /// priced with the cost approach in practice, so the combination is not expected to arise.
-    /// </para>
+    /// Role IS NULL is still let through: legacy Cost rows predate the column, and Income / Residual
+    /// methods (a whole lump, no land figure) never carry one. A Market method now carries the role
+    /// the appraiser declared. "Land" prices the land alone by area and records a real LandValue
+    /// (PricingAnalysisMethod.ApplyLandAreaValue + SyncLandValueWithIndicatedValue); "LandAndBuilding"
+    /// is a whole lump and keeps LandValue NULL, so the buildings are not counted twice. Market rows
+    /// saved before the role existed fill in on their next save (no backfill of the figures, by
+    /// decision). The role clause narrows to Land / LandAndBuilding (plus NULL) so a second selected method of another
+    /// role cannot add a LandValue of its own. The gate that matters is still the domain one in
+    /// ApplyLandAreaValue — this is a second line of defence, not a substitute. The same clause is
+    /// in RS02 of the construction book and in vw_MisCasReport's Land CTE; change one and change all
+    /// three.
     /// </para>
     /// </summary>
     private const string LandValueSql = $"""

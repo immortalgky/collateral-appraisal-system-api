@@ -49,7 +49,7 @@ public class PricingPropertyDataService(
     /// reads <c>TotalLandAreaInSqWa</c> off the domain instead and keeps the registered figure.
     /// </para>
     /// </summary>
-    public async Task<decimal?> GetTotalLandAreaFromTitlesAsync(
+    public virtual async Task<decimal?> GetTotalLandAreaFromTitlesAsync(
         Guid propertyGroupId, CancellationToken cancellationToken)
     {
         using var connection = sqlConnectionFactory.GetOpenConnection();
@@ -82,6 +82,35 @@ public class PricingPropertyDataService(
             return null;
 
         return landProperties.Sum(p => p.LandDetail!.NetLandAreaInSqWa);
+    }
+
+    /// <summary>
+    /// The Role a newly added Market-approach method starts with: "Land" when every property in the
+    /// group is land — PropertyType code "L" or "LSL" (leasehold land) — otherwise "LandAndBuilding"
+    /// (B, LB, LSB, LS, U, LSU, MAC, VEH, VES, a mixed group, or an empty one: the safe side, since
+    /// that role records no land figure). Set once at creation and never re-derived; the appraiser
+    /// can flip it on the method's Role chip. KEEP IN SYNC with
+    /// Database/Migration/Scripts/20261027130000_DataFix_MarketMethodDefaultRole.sql.
+    /// </summary>
+    public static string DefaultMarketRole(IReadOnlyCollection<string> propertyTypeCodes) =>
+        propertyTypeCodes.Count > 0 && propertyTypeCodes.All(c => c is "L" or "LSL") ? "Land" : "LandAndBuilding";
+
+    public async Task<string> GetDefaultMarketRoleAsync(Guid propertyGroupId, CancellationToken cancellationToken)
+    {
+        using var connection = sqlConnectionFactory.GetOpenConnection();
+
+        var codes = (await connection.QueryAsync<string>(
+            new CommandDefinition(
+                """
+                SELECT ap.PropertyType
+                FROM appraisal.PropertyGroupItems pgi
+                INNER JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
+                WHERE pgi.PropertyGroupId = @PropertyGroupId
+                """,
+                new { PropertyGroupId = propertyGroupId },
+                cancellationToken: cancellationToken))).ToList();
+
+        return DefaultMarketRole(codes);
     }
 
     /// <summary>

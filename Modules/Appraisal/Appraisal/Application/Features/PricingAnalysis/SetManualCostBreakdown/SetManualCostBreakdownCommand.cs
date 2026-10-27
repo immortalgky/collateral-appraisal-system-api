@@ -8,10 +8,13 @@ namespace Appraisal.Application.Features.PricingAnalysis.SetManualCostBreakdown;
 /// The caller supplies only the land rate and the rounded appraisal price; land area,
 /// land value and building value are derived server-side.
 /// A null <paramref name="LandRatePerSqWa"/> clears the breakdown.
+/// <paramref name="BuildingValue"/> is read only for a Cost method with Role = LandAndBuilding,
+/// where it is required alongside a rate.
 /// </summary>
 public record SetManualCostBreakdownCommand(
     Guid PricingAnalysisId,
     Guid MethodId,
     decimal? LandRatePerSqWa,
-    decimal? IndicatedValue
+    decimal? IndicatedValue,
+    decimal? BuildingValue = null
 ) : ICommand<SetManualCostBreakdownResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

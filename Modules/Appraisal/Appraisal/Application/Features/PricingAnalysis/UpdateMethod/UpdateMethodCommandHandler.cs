@@ -75,6 +75,13 @@ public class UpdateMethodCommandHandler(
         // Through the approach, which rejects a role that would count a Cost component twice.
         if (command.Role != null)
         {
+            // A reference is not anchored to a group: its (Market) methods make no land /
+            // land-and-building declaration, and a Land role would let the land-value sync overwrite the
+            // DCF override they hold. Cost roles on a reference stay editable.
+            if (pricingAnalysis.IsReference && parentApproach!.ApproachType != "Cost")
+                throw new BadRequestException(
+                    "A method role cannot be set on a non-Cost method of a reference pricing analysis.");
+
             parentApproach!.SetMethodRole(method.Id, command.Role);
         }
 

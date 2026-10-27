@@ -197,14 +197,20 @@
         <tr class="grp-total">
           <td></td>
           <td colspan="3" style="text-align:right;"><strong>รวมมูลค่าทรัพย์สินกลุ่ม {{ g.group_number }}</strong></td>
-          <!-- Both cells stay, even for a group with nothing under construction. Unlike every
-               other merged cell in this table they are not the same number by construction:
-               group_total is the STORED valuation (GroupAppraisalValue ?? AppraisalPrice ??
-               FinalValueRounded) while group_total_current is summed from the components the grid
-               actually printed, and it is the one รวมมูลค่าทรัพย์สินตามสภาพปัจจุบัน adds up.
-               Colspanning here would hide it and stop that column reconciling. -->
+          <!-- Two cells only for a group that HAS something under construction. group_total is the
+               STORED valuation (GroupAppraisalValue ?? AppraisalPrice ?? FinalValueRounded) and
+               group_total_current is what the page prints for the group as it stands: its land value
+               plus the current-condition building subtotal (the stored valuation less the unbuilt
+               portion when the group has no land figure). A group with nothing under construction
+               has the same figure in both, so it prints once across the pair, like every other
+               merged cell here; group_total_current equals group_total for it, so the current column
+               still adds up. -->
+          {{ if uc && (g.buildings_under_construction.size > 0 || g.development_items_under_construction.size > 0) }}
           <td class="num"><strong>{{ if g.group_total; g.group_total | math.format "N2"; end }}</strong></td>
-          {{ if uc }}<td class="num"><strong>{{ if g.group_total_current; g.group_total_current | math.format "N2"; end }}</strong></td>{{ end }}
+          <td class="num"><strong>{{ if g.group_total_current; g.group_total_current | math.format "N2"; end }}</strong></td>
+          {{ else }}
+          <td class="num"{{ if uc }} colspan="2"{{ end }}><strong>{{ if g.group_total; g.group_total | math.format "N2"; end }}</strong></td>
+          {{ end }}
         </tr>
         {{ end }}
         {{ else }}
@@ -218,7 +224,7 @@
 - {{ d }}{{ end }}</div>{{ end }}</td>
           <td class="num{{ nb }}">{{ if g.show_land_unit_columns }}{{ g.market_land_area | math.format "N2" }}{{ end }}</td>
           <td class="num{{ nb }}">{{ if g.show_land_unit_columns }}{{ g.market_land_unit_price | math.format "N2" }}{{ end }}</td>
-          <td class="num{{ nb }}"{{ if uc }} colspan="2"{{ end }}>{{ if g.group_total; g.group_total | math.format "N2"; end }}</td>
+          <td class="num{{ nb }}"{{ if uc }} colspan="2"{{ end }}>{{ if g.show_land_unit_columns; g.market_land_value | math.format "N2"; else if g.group_total; g.group_total | math.format "N2"; end }}</td>
         </tr>
         {{ if multi }}
         <tr class="grp-total">

@@ -231,6 +231,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 totalPfv.EffectiveValue,
                 landPfv.ValuePerUnit,
                 landPfv.UnitType,
+                landPfv.Role AS MethodRole,
                 landPfv.IncludeLandArea,
                 (SELECT TOP 1 ap.PropertyType
                  FROM appraisal.PropertyGroupItems gi2
@@ -280,8 +281,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             LEFT JOIN appraisal.PricingAnalysis pa
                 ON pa.AnchorId = pg.Id AND pa.SubjectType = 0
             OUTER APPLY (
-                -- landPfv must still match a NON-Cost approach's selected method (Market/Income/
-                -- Residual never tag Role at all) — pap.ApproachType is selected out precisely so the
+                -- landPfv must still match a NON-Cost approach's selected method (a Market method
+                -- carries Land/LandAndBuilding, Income/Residual no Role at all) — pap.ApproachType is
+                -- selected out precisely so the
                 -- C# below can tell them apart, so this cannot filter to Cost-only the way item 3's
                 -- AS400 view does. "Role IS NULL" covers both that case AND a Cost-approach method
                 -- the backfill has not (yet, or ever) reached — Role only NARROWS which of several
@@ -298,7 +300,10 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                     fv.FinalValueOverride,
                     fv.IncludeLandArea,
                     pm.ValuePerUnit,
-                    pm.UnitType
+                    -- Resolved the way PricingAnalysisMethod.ApplyLandAreaValue does: the method's own
+                    -- unit, else the row's stamp while it still includes land area.
+                    COALESCE(pm.UnitType, CASE WHEN fv.IncludeLandArea = 1 THEN fv.FinalValueUnitType END) AS UnitType,
+                    pm.Role
                 FROM appraisal.PricingAnalysisApproaches pap
                 JOIN appraisal.PricingAnalysisMethods pm
                     ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
@@ -1068,9 +1073,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             // "พร้อม…" clause on the combined row ("พร้อมถังน้ำ 3 ชั้น … อายุอาคาร 0 ปี"). Both
             // layouts list it under ส่วนพัฒนา instead. A building with NO rows at all is NOT one of
             // these: nothing was entered yet, so it keeps printing as an unvalued building.
-            // Neither is one carrying a house number: an enhancement never has one, so it is proof
-            // the appraiser meant a real สิ่งปลูกสร้าง and its rows were merely flagged wrong —
-            // reclassifying would erase the house, its เลขที่ and its พื้นที่ใช้สอย from the document.
+            // The rule is only the rows: a property whose depreciation rows are ALL non-building is
+            // ส่วนพัฒนา, whether or not it has a house number (a numbered one used to stay a blank
+            // building line and print a second time under ส่วนพัฒนา).
             var depRowsByBuilding = deps
                 .GroupBy(d => d.BuildingAppraisalDetailId)
                 .ToDictionary(grp => grp.Key, grp => grp.ToList());
@@ -1078,7 +1083,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             // The rule itself lives in Shared so the appraisal brief applies the same one.
             bool IsDevelopmentOnly(GroupBuildingRow b) =>
                 depRowsByBuilding.TryGetValue(b.BuildingId, out var rows)
-                && DevelopmentOnlyBuilding.IsDevelopmentOnly(b.HouseNumber, rows.Select(r => r.IsBuilding));
+                && DevelopmentOnlyBuilding.IsDevelopmentOnly(rows.Select(r => r.IsBuilding));
 
             // Rows moved out of the สิ่งปลูกสร้าง list lose the only place their type was printed, so
             // they lead with it under ส่วนพัฒนา — "รั้วตาข่ายเหล็ก …" instead of a bare "พื้นที่ใช้สอย …".
@@ -1435,31 +1440,58 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             // Floored per PROPERTY: an override at or above a property's 100% sum would make its shortfall
             // negative and cancel another property's real one, in this group or another.
             // A group that prints its saved building total instead of the rows contributes none.
-            if (splitLandAndBuilding && !useSavedBuildingValue)
-                constructionShortfallSum += ShortfallPerProperty(
+            var groupShortfall = splitLandAndBuilding && !useSavedBuildingValue
+                ? ShortfallPerProperty(
                     [.. buildingRows.Select(x => (x.AppraisalPropertyId, x.Row)),
-                     .. developmentRows.Select(x => (x.AppraisalPropertyId, x.Row))]);
+                     .. developmentRows.Select(x => (x.AppraisalPropertyId, x.Row))])
+                : 0m;
+            constructionShortfallSum += groupShortfall;
 
-            // Market/combined row only: show พื้นที่ + ราคาต่อหน่วย for a LAND-ONLY group priced at a
-            // per-unit rate, where the rate genuinely prices the land. A Land+Building market group
-            // has a single blended figure with nothing to divide, so both cells stay blank.
-            // Mirrors Appraisal.Domain.Services.PricingUnit.IsPerUnitRate — Reporting cannot
-            // reference the Appraisal assembly. KEEP IN SYNC with PricingUnit.cs.
-            var isLandRate = g.UnitType is "PerSqWa" or "PerSqm";
+            // Market/combined row only: show พื้นที่ and ราคาต่อหน่วย when the APPRAISER declared the
+            // method a land valuation (Role = Land) — the same gate Appraisal's ApplyLandAreaValue
+            // records LandArea/LandValue by. A Market method tagged LandAndBuilding (or an
+            // Income/Residual one, no Role) is a whole lump: those cells stay blank and the row prints
+            // group_total. The group's own composition is not consulted — the role is the appraiser's
+            // answer to that.
+            //   - priced by area: the rate, and ราคาประเมิน is area x rate so the row reconciles;
+            //   - priced as a lump (ราคาเหมา): the rate is DERIVED (LandValue / area, display only)
+            //     and ราคาประเมิน is the stored LandValue.
+            // Only PerSqWa is a LAND rate: PerSqm is quoted against the usable (building) area, so a
+            // PerSqm row is shown like a lump. KEEP IN SYNC with PricingAnalysisMethod.ApplyLandAreaValue
+            // — Reporting cannot reference the Appraisal assembly.
+            var isLandRate = g.UnitType == "PerSqWa";
+            // Explicitly not a land rate (PerUnit lumpsum or PerSqm). A NULL unit (legacy per-area Cost
+            // rows predate the column) is not one: it keeps printing FinalValueOverride as the rate,
+            // as it always did.
+            var isLumpUnit = g.UnitType is "PerUnit" or "PerSqm";
 
             // totalSquareWa is PricingFinalValues.LandArea when the pricing recorded one (see above),
             // else the title-derived net area — which is also populated for historical rows that
             // predate LandArea being written.
             var marketLandArea = totalSquareWa == 0m ? null : (decimal?)totalSquareWa;
-            var marketLandUnitPrice = g.ValuePerUnit ?? g.LandUnitPrice;   // else FinalValueOverride
+            // Per area: the appraiser's typed-over rate first, then the calculated one — the same
+            // precedence ApplyLandAreaValue multiplies by, so the page agrees with the stored LandValue.
+            var derivedLumpUnitPrice = isLumpUnit ? DerivedUnitPrice(g.LandValue, totalSquareWa) : null;
+            var marketLandUnitPrice = isLandRate
+                ? g.LandUnitPrice ?? g.ValuePerUnit   // FinalValueOverride, else ValuePerUnit
+                : derivedLumpUnitPrice;
 
             var showLandUnitColumns = !isCost
                                       && hasLand
-                                      && !hasBuilding
-                                      && isLandRate
-                                      && g.IncludeLandArea != false
+                                      && string.Equals(g.MethodRole, "Land", StringComparison.OrdinalIgnoreCase)
+                                      && g.IncludeLandArea == true
                                       && marketLandArea.HasValue
                                       && marketLandUnitPrice.HasValue;
+
+            // Per area: the product of the two cells printed beside it, so the row reconciles on the
+            // page — whole baht, away from zero, the way ApplyLandAreaValue rounds. It can differ from
+            // the committed group total (the appraiser's rounded IndicatedValue); that gap is left
+            // visible. Lump: the stored LandValue itself, never recomputed from the derived rate.
+            var marketLandValue = !showLandUnitColumns
+                ? (decimal?)null
+                : isLandRate
+                    ? Math.Round(marketLandArea!.Value * marketLandUnitPrice!.Value, 0, MidpointRounding.AwayFromZero)
+                    : g.LandValue;
 
             return new SummaryGroupRow
             {
@@ -1468,7 +1500,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 PropertyType = TranslateCollateralType(family),
                 CollateralDetails = collateralDetails,
                 AreaOrUnit = areaOrUnit,
-                PricePerAreaOrUnit = g.LandUnitPrice,
+                // FinalValueOverride is a rate only on a per-area unit; on a lump it is the whole price.
+                PricePerAreaOrUnit = isLumpUnit ? null : g.LandUnitPrice,
                 AppraisalValue = groupTotal,
                 Condition = null,
                 Remark = null,
@@ -1481,6 +1514,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 ShowLandUnitColumns = showLandUnitColumns,
                 MarketLandArea = marketLandArea,
                 MarketLandUnitPrice = marketLandUnitPrice,
+                MarketLandValue = marketLandValue,
                 LandDescription = landDescription,
                 LandDescriptions = landParts,
                 LandDeductionLines = landDeductionLines,
@@ -1488,7 +1522,11 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 BuildingDescription = buildingDescription,
                 DevelopmentDescriptions = developmentDescriptions,
                 TotalSquareWa = totalSquareWa == 0m ? null : totalSquareWa,
-                LandUnitPrice = g.LandUnitPrice,
+                // The ราคาต่อหน่วย cell of the cost split land row. FinalValueOverride is a rate only on
+                // a per-area unit; on a lump (ราคาเหมา) it is the whole price, so printing it as a unit
+                // price is wrong. A lump prints the DERIVED rate (LandValue / the printed area) instead.
+                // Display only: nothing stores this, and ราคาประเมิน stays LandValue.
+                LandUnitPrice = isLumpUnit ? DerivedUnitPrice(g.LandValue, totalSquareWa) : g.LandUnitPrice,
                 // The land ROW prints พื้นที่ and ราคาต่อหน่วย in the two cells to the left of this
                 // one, so this cell is their product: a reader has to be able to reconcile the row
                 // from the figures printed on it, and PricingFinalValues.LandValue is an
@@ -1497,8 +1535,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 // area instead would reconcile against a number that is not on the page.
                 //
                 // Gated on the same three conditions the market row's equivalent cells use
-                // (:1383-1389), for the same reasons — that gate also carries shape checks
-                // (!isCost && hasLand && !hasBuilding) that do not apply here:
+                // (showLandUnitColumns above), for the same reasons — that gate also carries shape
+                // checks (!isCost && hasLand && Role = Land) that do not apply here:
                 //   isLandRate            — LandUnitPrice is FinalValueOverride, a per-area rate
                 //                           only when the method prices by area. On a PerUnit
                 //                           method it is a whole-property lump sum, and area ×
@@ -1511,7 +1549,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 //
                 // Where the appraiser's own adjusted figure shows instead: PricingFinalValues.LandValue
                 // itself, which the รวมมูลค่าที่ดิน subtotal and the group total print. On a Role=Land
-                // method that column IS the appraised land price — PricingAnalysisMethod
+                // method (Cost, or a Market method the appraiser tagged Land), that column IS the
+                // appraised land price — PricingAnalysisMethod
                 // .SyncLandValueWithIndicatedValue settles that at save time, so nothing here has to
                 // choose between two figures. The land row is the arithmetic; the lines beneath it
                 // are the appraised price, differing by exactly the adjustment.
@@ -1525,7 +1564,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 // way ApplyLandAreaValue does so the arithmetic on the page is self-consistent.
                 //
                 // It no longer equals the stored LandValue, and is not meant to. For a Role=Land
-                // method SyncLandValueWithIndicatedValue now overwrites LandValue with the figure the
+                // method (Cost, or a Market method tagged Land),
+                // SyncLandValueWithIndicatedValue now overwrites LandValue with the figure the
                 // appraiser committed, which the manual-cost path rounds to the nearest 1,000 — so
                 // the two can differ by up to 999 baht, not by satang. That gap is the point of the
                 // layout the user asked for: the row shows the product, the subtotal below it
@@ -1552,14 +1592,21 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 BuildingsUnderConstruction = buildingsUnderConstruction,
                 DevelopmentItemsUnderConstruction = developmentUnderConstruction,
                 GroupTotal = groupTotal,
-                // Summed from the components this group actually prints — land subtotal plus the
-                // current-condition building subtotal — so the total always equals the rows above
-                // it. Anchoring to groupTotal instead would inherit a stale GroupValuations figure
-                // (e.g. a building added without re-running pricing) and contradict the grid.
-                // A market/combined group states one blended value with no components to sum, so it
-                // keeps its own total.
-                GroupTotalCurrent = splitLandAndBuilding
-                    ? (g.LandValue ?? 0m) + buildingSubtotalCurrent
+                // The ตามสภาพปัจจุบัน total of this group:
+                //   - a split group with something under construction (buildings OR development
+                //     items — the same signal the template uses to print two cells) is the sum of
+                //     what the page prints, land + the current-condition building subtotal; with no
+                //     land figure (LandValue NULL, e.g. a LandAndBuilding method with no
+                //     PricingFinalValues row) it falls back to the stored valuation less the unbuilt
+                //     portion (groupShortfall), so the land is never dropped;
+                //   - a split group with nothing under construction keeps the appraised value (it
+                //     prints one merged cell);
+                //   - a market/combined group states one blended value with nothing to deduct from,
+                //     so it keeps its own total. A null groupTotal stays null.
+                GroupTotalCurrent = splitLandAndBuilding && (buildingsUnderConstruction.Count > 0 || developmentUnderConstruction.Count > 0)
+                    ? g.LandValue.HasValue
+                        ? g.LandValue.Value + buildingSubtotalCurrent
+                        : groupTotal.HasValue ? groupTotal.Value - groupShortfall : null
                     : groupTotal
             };
         }).ToList();
@@ -1714,9 +1761,11 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
         if (hasUnderConstruction)
         {
-            // Summed from the per-group current totals, which a split group builds from the very
-            // rows it prints — so รวมมูลค่า…ตามสภาพปัจจุบัน always equals land + the current-condition
-            // building subtotal above it.
+            // Summed from the per-group current totals: land + the printed current-condition building
+            // subtotal for a group under construction, the appraised value for every other group.
+            // That is NOT the appraisal total less constructionShortfall — a group's LandValue need
+            // not equal its share of the appraised value — but it is what the page adds up, so the
+            // column reconciles with the per-group rows printed above it.
             currentConditionTotal = summaryGroups.Sum(g => g.GroupTotalCurrent ?? g.GroupTotal ?? 0m);
 
             // Scaled by the same ratio rather than re-applying the rate, so both forced-sale figures
@@ -2064,6 +2113,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public decimal? EffectiveValue { get; init; }         // GroupAppraisalValue fallback only — SUM(IndicatedValue ?? FinalValue) across selected methods
         public decimal? ValuePerUnit { get; init; }           // PricingAnalysisMethods.ValuePerUnit
         public string? UnitType { get; init; }                // "PerSqWa" | "PerSqm" | "PerUnit"
+        public string? MethodRole { get; init; }              // PricingAnalysisMethods.Role of the land-side method
         public bool? IncludeLandArea { get; init; }
         public string? PropertyType { get; init; }
         public bool HasCombinedProperty { get; init; }        // group holds an LB / LS property
@@ -2072,6 +2122,15 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public decimal? AreaNgan { get; init; }
         public decimal? AreaSquareWa { get; init; }
     }
+
+    /// <summary>
+    /// ราคาต่อหน่วย for a land row priced as a lump: the land value over the area the row prints,
+    /// two decimals, halves away from zero. Null when either is missing or not positive. Display only.
+    /// </summary>
+    internal static decimal? DerivedUnitPrice(decimal? landValue, decimal squareWa) =>
+        landValue is > 0m && squareWa > 0m
+            ? Math.Round(landValue.Value / squareWa, 2, MidpointRounding.AwayFromZero)
+            : null;
 
     private sealed class GroupDepreciationRow
     {

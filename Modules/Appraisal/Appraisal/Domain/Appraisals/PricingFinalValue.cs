@@ -118,6 +118,16 @@ public class PricingFinalValue : Entity<Guid>
         LandValue = landValue;
     }
 
+    /// <summary>
+    /// Records the land area alone and turns the flag on, leaving LandValue for the caller that owns
+    /// it (<see cref="PricingAnalysisMethod.SyncLandValueWithIndicatedValue"/> on a Role=Land lumpsum).
+    /// </summary>
+    public void SetLandArea(decimal landArea)
+    {
+        IncludeLandArea = true;
+        LandArea = landArea;
+    }
+
     public void ExcludeLandArea()
     {
         IncludeLandArea = false;

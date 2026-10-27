@@ -183,8 +183,6 @@ public class GetAppraisalBriefQueryHandler(
                                    COALESCE(NULLIF(bd.RoofType, N''), cd.RoofType)          AS RoofTypeJson,
                                    bd.FenceType                                             AS FenceTypeJson,
                                    COALESCE(bd.IsUnderConstruction, cd.IsUnderConstruction) AS IsUnderConstruction,
-                                   -- Raw, for the development-only test (see IsDevelopmentOnly).
-                                   bd.HouseNumber,
                                    cd.UsableArea                                            AS CondoUsableArea,
                                    cd.FacilityType                                          AS FacilityTypeJson,
                                    cd.LocationViewType                                      AS LocationViewTypeJson,
@@ -970,7 +968,7 @@ public class GetAppraisalBriefQueryHandler(
                     IsUnderConstruction: a.IsUnderConstruction,
                     // The same rule the appraisal summary report uses to move a building under ส่วนพัฒนา.
                     IsDevelopmentOnly: DevelopmentOnlyBuilding.IsDevelopmentOnly(
-                        a.HouseNumber, depRows.Select(d => d.IsBuilding)),
+                        depRows.Select(d => d.IsBuilding)),
                     Improvements: depRows.Where(d => !d.IsBuilding)
                         .Select(d => new BriefImprovement(d.AreaDescription, d.Area)).ToList(),
                     UsableArea: PositiveOrNull(a.CondoUsableArea),
@@ -1322,7 +1320,6 @@ public class GetAppraisalBriefQueryHandler(
         public string? RoofTypeJson { get; init; }
         public string? FenceTypeJson { get; init; }
         public bool? IsUnderConstruction { get; init; }
-        public string? HouseNumber { get; init; }
         public decimal? CondoUsableArea { get; init; }
         public string? FacilityTypeJson { get; init; }
         public string? LocationViewTypeJson { get; init; }

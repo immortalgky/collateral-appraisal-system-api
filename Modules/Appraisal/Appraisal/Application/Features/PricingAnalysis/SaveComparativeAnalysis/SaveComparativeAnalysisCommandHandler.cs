@@ -94,36 +94,36 @@ public class SaveComparativeAnalysisCommandHandler(
         // wrote to MethodValue above.
         method.SyncMethodValueWithIndicatedValue();
 
-        // Land area + land value. A per-unit RATE (PerSqWa/PerSqm) means the final value prices
+        // Land area + land value. A land RATE (PerSqWa) means the final value prices
         // LAND per unit area, so both are derivable and must NOT be gated on the building-cost
         // toggle (the old guard also required command.LandValue, which the WQS screen never sends
         // unless building cost is on — so land area was silently never persisted).
         // The area is authoritative from the property's land titles, never from the request.
-        // PerUnit is a whole-unit lumpsum carrying no land rate → leave the row alone.
-        // An explicit command.LandValue still wins (cost approach enters it by hand).
-        decimal? totalLandAreaFromTitles = null;
+        // Only PerSqWa is a land rate. A Role=Land lumpsum or PerSqm row records the area plus the
+        // IndicatedValue; a non-Land PerSqm row is "explicit or clear" in Cost and "clear" in Market,
+        // as is a Cost PerUnit row that is not Land but has a building in it (its includeLandArea
+        // false is the unit derivation, not honoured); a Cost PerUnit row that is not Land and has no
+        // building is left alone. An explicit command.LandValue (cost approach enters it by hand)
+        // applies only on PerSqWa, or on those Cost non-Land rows, when > 0.
+        // null means ONLY "a reference analysis": its row is left untouched. A property group is a
+        // known area — a group with no land properties (condo, building, machinery) is 0 — and so is a
+        // project model, which has no titles (0); a known 0 excludes or clears the land figures.
+        decimal? totalLandAreaFromTitles = pricingAnalysis.IsReference ? null : 0m;
         if (pricingAnalysis.SubjectType == PricingAnalysisSubjectType.PropertyGroup
             && pricingAnalysis.AnchorId.HasValue)
             totalLandAreaFromTitles = await propertyDataService.GetTotalLandAreaFromTitlesAsync(
-                pricingAnalysis.AnchorId.Value, cancellationToken);
-
-        var landAreaFromTitles = totalLandAreaFromTitles ?? 0m;
+                pricingAnalysis.AnchorId.Value, cancellationToken) ?? 0m;
 
         var approach = pricingAnalysis.Approaches.First(a => a.Id == method.ApproachId);
-
-        // Approach type, not method.Role: Role is also null on cost rows that predate it, and
-        // treating those as market would clear a land value that is real.
-        method.ApplyLandAreaValue(
-            landAreaFromTitles, command.LandValue, command.IncludeLandArea,
-            isCostApproach: approach.ApproachType == "Cost");
 
         // Building value toggle (separate from IndicatedValue now).
         //
         // Cost approach: "include building" links to (or auto-creates) a real BuildingCost method
         // under this approach instead of trusting a client-supplied figure — see plan §2.2 / decision
         // 15 (WQS/SAG/DC "include building" -> Building Cost). Market approach is unchanged: it has
-        // no Cost-approach role/rollup concept, so the client-supplied BuildingValue is still stored
-        // as-is, exactly as before.
+        // no Cost-approach rollup (nothing is linked or summed by role; a Market method's Land /
+        // LandAndBuilding role is the appraiser's own declaration), so the client-supplied
+        // BuildingValue is still stored as-is, exactly as before.
         if (approach.ApproachType == "Cost")
         {
             if (command.HasBuildingValue == true)
@@ -179,6 +179,20 @@ public class SaveComparativeAnalysisCommandHandler(
             else if (command.HasBuildingValue == false)
                 method.FinalValue.ClearBuildingValue();
         }
+
+        // Land area + value, after the building block: on a Role=Land lumpsum or PerSqm row the land
+        // value IS the indicated value, and whether a building is (or just was) part of the row
+        // decides if that figure may be used at all. The block above is also what settles the role (a
+        // freshly linked method is LandAndBuilding by now and records no lump land value). Only
+        // PerSqWa is a land rate; a non-Land PerSqm row is "explicit or clear" in Cost and "clear" in
+        // Market, as is a Cost PerUnit row that is not Land with a building in it; a Cost PerUnit row
+        // that is not Land and has no building is left alone.
+        // Approach type, not method.Role: Role is also null on cost rows that predate it, and
+        // treating those as market would clear a land value that is real.
+        method.ApplyLandAreaValue(
+            totalLandAreaFromTitles, command.LandValue, command.IncludeLandArea,
+            isCostApproach: approach.ApproachType == "Cost",
+            buildingWasPresentBeforeThisSave);
 
         // A Role=Land method's land IS its indicated value. This has to run LAST, after the block
         // above, because that block is what settles the role: LinkOrCreateBuildingCostMethod re-tags
