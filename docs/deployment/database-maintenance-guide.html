@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collateral Appraisal System — Database Maintenance Guide</title>
+<style>
+  :root {
+    --ink: #1f2933;
+    --muted: #6b7280;
+    --line: #e2e8f0;
+    --band: #f8fafc;
+    --brand: #1e3a5f;
+    --brand-soft: #eef3f9;
+    --ok: #047857;
+    --ok-bg: #ecfdf5;
+    --danger: #b91c1c;
+    --danger-bg: #fef2f2;
+    --warn: #b45309;
+    --warn-bg: #fffbeb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    line-height: 1.5;
+    margin: 0;
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 40px 32px 80px; }
+  header.doc { border-bottom: 3px solid var(--brand); padding-bottom: 18px; margin-bottom: 8px; }
+  header.doc h1 { margin: 0 0 4px; font-size: 27px; color: var(--brand); }
+  header.doc .sub { color: var(--muted); font-size: 14px; }
+
+  h2 {
+    font-size: 19px; color: var(--brand);
+    margin: 42px 0 6px; padding-bottom: 6px; border-bottom: 1px solid var(--line);
+  }
+  h4 { font-size: 13.5px; margin: 18px 0 6px; color: var(--brand); }
+  p { margin: 8px 0; font-size: 14px; }
+  code {
+    background: var(--brand-soft); border: 1px solid var(--line); border-radius: 4px;
+    padding: 1px 5px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; color: #0f3057;
+  }
+
+  pre.cmd {
+    background: #0f172a; color: #e2e8f0; border-radius: 8px; padding: 14px 16px; margin: 10px 0;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.55;
+    overflow-x: auto; white-space: pre;
+  }
+  pre.cmd .c  { color: #7dd3fc; }
+  pre.cmd .cm { color: #94a3b8; font-style: italic; }
+  .cmd-cap {
+    font-size: 11.5px; color: var(--muted); margin: 14px 0 -4px;
+    font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  }
+  .cmd-cap .who {
+    display: inline-block; background: var(--brand-soft); border: 1px solid #cbd9ea;
+    color: var(--brand); border-radius: 3px; padding: 0 6px; margin-right: 8px;
+    text-transform: none; letter-spacing: 0; font-size: 11px;
+  }
+
+  .tbl { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0 8px; font-size: 13.5px; }
+  thead th {
+    background: var(--brand); color: #fff; text-align: left;
+    padding: 9px 11px; font-weight: 600; font-size: 12.5px;
+  }
+  tbody td { padding: 9px 11px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr:nth-child(even) { background: var(--band); }
+  td.tok { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px; color: #0f3057; white-space: nowrap; }
+  tr.busy td { color: var(--warn); }
+
+  .note {
+    border-left: 4px solid var(--brand); background: var(--brand-soft);
+    padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 16px 0; font-size: 13.5px;
+  }
+  .note b { color: var(--brand); }
+  .note.danger { border-left-color: var(--danger); background: var(--danger-bg); }
+  .note.danger b { color: var(--danger); }
+  .note.warn { border-left-color: var(--warn); background: var(--warn-bg); }
+  .note.warn b { color: var(--warn); }
+
+  ul.check { list-style: none; padding-left: 0; margin: 8px 0; }
+  ul.check li { padding: 5px 0 5px 28px; position: relative; font-size: 13.5px; border-bottom: 1px dashed var(--line); }
+  ul.check li::before { content: "\2610"; position: absolute; left: 4px; top: 3px; font-size: 16px; color: var(--brand); }
+  ul.plain li { margin: 6px 0; font-size: 13.5px; }
+
+  .toc { columns: 2; column-gap: 40px; font-size: 13px; margin: 10px 0; }
+  .toc a { color: var(--brand); text-decoration: none; }
+  .toc div { break-inside: avoid; padding: 2px 0; }
+
+  footer.doc { margin-top: 50px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+
+  @media (max-width: 640px) {
+    .wrap { padding: 24px 16px 60px; }
+    .toc { columns: 1; }
+  }
+  @media print {
+    .wrap { padding: 0 12px; max-width: none; }
+    h2 { page-break-after: avoid; }
+    table, .note, pre.cmd { page-break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <h1>Database Maintenance Guide</h1>
+  <div class="sub">Collateral Appraisal System &mdash; SQL Server Agent jobs for index, statistics and integrity upkeep</div>
+</header>
+
+<h2>Contents</h2>
+<div class="toc">
+  <div><a href="#scope">1. Scope and ownership</a></div>
+  <div><a href="#install">2. Install: one script, run once</a></div>
+  <div><a href="#jobs">3. Job definitions</a></div>
+  <div><a href="#schedule">4. Schedule</a></div>
+  <div><a href="#notes">5. Notes specific to this database</a></div>
+  <div><a href="#alerting">6. Failures and corruption response</a></div>
+  <div><a href="#verify">7. Verification checklist</a></div>
+</div>
+
+<!-- ==================================================================== -->
+<h2 id="scope">1. Scope and ownership</h2>
+<p>The application performs <b>no</b> database maintenance itself. Its background jobs (Hangfire) purge
+  only application data: logs, outbox messages and expired report files. Index maintenance, statistics
+  updates and integrity checks are <b>SQL Server Agent jobs owned by the DBA</b>, as described in this guide.</p>
+
+<div class="note danger">
+  <b>Do not grant these rights to the application login.</b> <code>DBCC CHECKDB</code> needs
+  <code>db_owner</code> or <code>sysadmin</code>, and <code>ALTER INDEX</code> needs <code>ALTER</code> on
+  every table. The jobs below run under the SQL Server Agent service account. The application account keeps
+  its existing least-privilege grants.
+</div>
+
+<div class="note">
+  <b>Already in place?</b> If the bank already runs maintenance on this instance, run the optional pre-check in
+  section 2 and skip what it already covers (verification: section 7).
+</div>
+
+<!-- ==================================================================== -->
+<h2 id="install">2. Install: one script, run once</h2>
+<p>Everything is in <b>one</b> script, <code>Database\Scripts\Maintenance\CreateMaintenanceAgentJobs.sql</code>. It installs
+  Ola Hallengren's SQL Server Maintenance Solution (free, MIT licence,
+  <a href="https://ola.hallengren.com">ola.hallengren.com</a>; version 2026-09-12 embedded unchanged, into
+  <code>master</code>, with no Ola jobs and no backups) and then creates the four Agent jobs of section 3.
+  The DBA runs it <b>once, by hand, in SSMS, as sysadmin</b>. It is not run by DbUp, the migrate tool or the
+  deploy scripts, and it only needs to be run again to change a setting.</p>
+
+<h4>Server preparation &mdash; check before running</h4>
+<ul class="check">
+  <li><b>SQL Server Agent</b> service is running and its startup type is <b>Automatic</b>.</li>
+  <li>The database server <b>clock and time zone are Thai</b>: <code>SELECT SYSDATETIMEOFFSET();</code> must end in
+    <code>+07:00</code>. Agent schedules use the server's local time; on a UTC server 22:00 would fire at 05:00
+    Thai time, inside the application's 01:00&ndash;05:00 window.</li>
+  <li>The application database exists. Optional: a dedicated database for Ola instead of <code>master</code>
+    (see the script header: change <code>@OlaDatabase</code> <b>and</b> the <code>USE [master]</code> line in Ola's section).</li>
+</ul>
+
+<h4>Optional pre-check</h4>
+<p>On a server that might already have Ola or other maintenance jobs, run
+  <code>Database\Scripts\Maintenance\CheckMaintenanceSolution.sql</code> first. It is read-only. It shows where Ola
+  lives and its version, and any Agent job that already calls <code>IndexOptimize</code> or
+  <code>DatabaseIntegrityCheck</code>. If such a job covers this database (<code>USER_DATABASES</code>,
+  <code>ALL_DATABASES</code> or its name), it would maintain the database twice. Either exclude it there
+  (<code>@Databases = 'USER_DATABASES, -CollateralAppraisal'</code>) or do not run our script.</p>
+
+<div class="note warn">
+  <b>If Ola is already in <code>master</code>:</b> the script leaves it alone when it is the same version, so running
+  it again is safe. If it is any <b>other</b> version, the script <b>stops with an error before changing anything</b>.
+  It never upgrades or downgrades an install that other jobs may depend on.
+</div>
+
+<p>Then set the three variables at the top of the first batch (<code>@DatabaseName</code>, <code>@OlaDatabase</code>,
+  <code>@JobOwner</code>), run the whole file in one go, and verify with section 7.</p>
+
+<!-- ==================================================================== -->
+<h2 id="jobs">3. Job definitions</h2>
+<p>The script creates these four jobs. It checks its variables first and stops, creating nothing, if the database,
+  owner login or <code>@OlaDatabase</code> is wrong. The jobs are created in one transaction. Running the script again
+  drops and recreates only these four jobs (matched by exact name). Each job name ends with
+  <code> - &lt;database&gt;</code>. The blocks below show what the job steps run.</p>
+
+<h4>3.1 Statistics &mdash; nightly</h4>
+<p>This job is cheap, and it matters most for this database (see section 5). It updates only statistics whose
+  rows changed since the last update.</p>
+<pre class="cmd"><span class="c">EXECUTE</span> dbo.IndexOptimize
+    @Databases              = 'CollateralAppraisal',
+    @FragmentationLow       = NULL,
+    @FragmentationMedium    = NULL,
+    @FragmentationHigh      = NULL,     <span class="cm">-- statistics only, no index work</span>
+    @UpdateStatistics       = 'ALL',
+    @OnlyModifiedStatistics = 'Y',
+    @LogToTable             = 'Y';</pre>
+
+<h4>3.2 Index optimize &mdash; weekly</h4>
+<p>This job reorganizes indexes fragmented 5&ndash;30% and rebuilds those above 30%. It skips indexes smaller
+  than 1,000 pages, and stops starting new work after two hours.</p>
+<pre class="cmd"><span class="c">EXECUTE</span> dbo.IndexOptimize
+    @Databases              = 'CollateralAppraisal',
+    @FragmentationLow       = NULL,
+    @FragmentationMedium    = 'INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
+    @FragmentationHigh      = 'INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
+    @FragmentationLevel1    = 5,
+    @FragmentationLevel2    = 30,
+    @MinNumberOfPages       = 1000,
+    @UpdateStatistics       = 'ALL',
+    @OnlyModifiedStatistics = 'Y',
+    @TimeLimit              = 7200,     <span class="cm">-- seconds</span>
+    @LogToTable             = 'Y';</pre>
+
+<h4>3.3 Integrity check &mdash; weekly</h4>
+<pre class="cmd"><span class="c">EXECUTE</span> dbo.DatabaseIntegrityCheck
+    @Databases     = 'CollateralAppraisal',
+    @CheckCommands = 'CHECKDB',
+    @LogToTable    = 'Y';</pre>
+
+<h4>3.4 Housekeeping &mdash; weekly</h4>
+<p>This job deletes <code>dbo.CommandLog</code> rows older than 30 days and purges the job history of these four
+  jobs older than 30 days. History of other jobs is not touched.</p>
+
+<p>Backups follow the bank's existing backup policy. This setup creates no backup job and never calls Ola's
+  <code>DatabaseBackup</code>.</p>
+
+<!-- ==================================================================== -->
+<h2 id="schedule">4. Schedule</h2>
+<p>The application runs its own jobs in the early morning. Heavy maintenance in the same window competes
+  for locks and I/O, so the DBA jobs run in the evening instead.</p>
+
+<div class="tbl">
+<table>
+  <thead><tr><th>When</th><th>Job</th><th>Owner</th></tr></thead>
+  <tbody>
+    <tr><td class="tok">Daily 22:00</td><td><code>CAS - Statistics (nightly)</code> (3.1)</td><td>DBA</td></tr>
+    <tr><td class="tok">Saturday 22:00</td><td><code>CAS - Integrity check (weekly)</code> (3.3)</td><td>DBA</td></tr>
+    <tr><td class="tok">Sunday 21:30</td><td><code>CAS - Cleanup (weekly)</code> (3.4)</td><td>DBA</td></tr>
+    <tr><td class="tok">Sunday 22:30</td><td><code>CAS - Index optimize (weekly)</code> (3.2); <code>@TimeLimit</code> stops it well before 01:00</td><td>DBA</td></tr>
+    <tr class="busy"><td class="tok">Daily 01:00&ndash;04:00</td><td>Block reappraisal scan, outbox purge, log purge, report cleanup</td><td>Application</td></tr>
+    <tr class="busy"><td class="tok">2nd of month 02:00&ndash;04:00</td><td>AS400 file ingest and exports (regulatory, collateral result)</td><td>Application</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note warn">
+  <b>The application times are defaults, not fixed.</b> An administrator can move them in the application
+  under <b>Scheduled Jobs</b> (<code>/admin/job-schedules</code>). Check the current schedules there before you fix the maintenance window.
+  If the bank has users working at 22:00, move the DBA jobs later and keep them clear of the application
+  window.
+</div>
+
+<!-- ==================================================================== -->
+<h2 id="notes">5. Notes specific to this database</h2>
+<ul class="plain">
+  <li><b>Primary keys are time-ordered GUIDs (GUID v7).</b> New rows append at the end of each index, so
+    fragmentation grows slowly and the weekly index job is mostly a safety net. Stale statistics hurt
+    query plans much more, which is why they are refreshed every night.</li>
+  <li><b><code>dbo.Logs</code> has high churn:</b> about 150,000 rows are inserted per day and purged again
+    by a nightly job. It will usually be the most fragmented table, which is expected.</li>
+  <li><b>The <code>hangfire</code> schema</b> (background job storage) also changes constantly. It is in the
+    same database and is covered automatically.</li>
+  <li><b>Spatial indexes</b> exist on geo-point columns in the <code>appraisal</code>,
+    <code>collateral</code> and <code>request</code> schemas. They are slow to rebuild, and
+    <code>@TimeLimit</code> keeps the job inside its window.</li>
+  <li><b>Edition:</b> <code>INDEX_REBUILD_ONLINE</code> works only on Enterprise edition. On Standard
+    edition the procedure falls back to an offline rebuild, which locks the table while it runs. That is
+    acceptable inside the evening window.</li>
+</ul>
+
+<!-- ==================================================================== -->
+<h2 id="alerting">6. Failures and corruption response</h2>
+<p>No e-mail is configured. A failed job shows in SQL Server Agent (job history, red icon) and in the queries of
+  section 7. Check them after the first weekend and then regularly. An integrity check that fails silently is
+  worse than none.</p>
+
+<div class="note danger">
+  <b>If <code>CHECKDB</code> reports corruption, do not run <code>REPAIR_ALLOW_DATA_LOSS</code>.</b>
+  Restore from the last good backup, then contact the application vendor. Repair can silently discard rows
+  that the application needs.
+</div>
+
+<!-- ==================================================================== -->
+<h2 id="verify">7. Verification checklist</h2>
+
+<div class="cmd-cap"><span class="who">Run on: SQL Server</span>SSMS</div>
+<pre class="cmd"><span class="cm">-- Start the cheap job once, then read the outcome (run_status 1 = succeeded, 0 = failed; step_id 0 = whole job)</span>
+<span class="c">EXEC</span> msdb.dbo.sp_start_job @job_name = N'CAS - Statistics (nightly) - CollateralAppraisal';
+
+<span class="c">SELECT TOP</span> (20) j.name, h.step_id, h.run_status, h.run_date, h.run_time, <span class="c">LEFT</span>(h.message, 200) <span class="c">AS</span> message
+<span class="c">FROM</span>   msdb.dbo.sysjobhistory h <span class="c">JOIN</span> msdb.dbo.sysjobs j <span class="c">ON</span> j.job_id = h.job_id
+<span class="c">WHERE</span>  j.name <span class="c">LIKE</span> N'CAS - %'
+<span class="c">ORDER BY</span> h.instance_id <span class="c">DESC</span>;
+
+<span class="cm">-- Last clean CHECKDB: should be less than 8 days old once the first Saturday has passed</span>
+<span class="c">SELECT</span> DATABASEPROPERTYEX('CollateralAppraisal', 'LastGoodCheckDbTime');
+
+<span class="cm">-- What the jobs actually did recently (non-zero ErrorNumber = investigate)</span>
+<span class="c">SELECT TOP</span> (50) StartTime, EndTime, CommandType, ObjectName, IndexName, ErrorNumber
+<span class="c">FROM</span>   master.dbo.CommandLog   <span class="cm">-- or the database you used as @OlaDatabase</span>
+<span class="c">ORDER BY</span> ID <span class="c">DESC</span>;</pre>
+
+<ul class="check">
+  <li>All four jobs exist in SQL Server Agent, are enabled, and have schedules attached.</li>
+  <li>The Statistics job, started by hand with <code>sp_start_job</code>, ended with <code>run_status = 1</code>.</li>
+  <li>After the first weekend, <code>LastGoodCheckDbTime</code> shows that weekend's date.</li>
+  <li><code>dbo.CommandLog</code> shows entries for <code>CollateralAppraisal</code> with
+    <code>ErrorNumber = 0</code>.</li>
+  <li>No DBA job overlaps the application window shown under <b>Scheduled Jobs</b> (<code>/admin/job-schedules</code>) in the application.</li>
+</ul>
+
+<footer class="doc">
+  Collateral Appraisal System &mdash; Database Maintenance Guide. Internal operations document. Verify every
+  database name, schedule and account against the live environment and the bank's own standards before
+  enabling in production.
+</footer>
+
+</div>
+</body>
+</html>
