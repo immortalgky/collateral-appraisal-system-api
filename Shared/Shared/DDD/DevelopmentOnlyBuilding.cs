@@ -9,24 +9,21 @@ namespace Shared.DDD;
 public static class DevelopmentOnlyBuilding
 {
     /// <summary>
-    /// Whether a Building Detail actually carries a house number. Appraisers type "-" for "none"
-    /// (35 of the 232 rows on the dev database), so a dash-only value must read as absent — it is
-    /// used as proof that a mis-flagged building is a real สิ่งปลูกสร้าง, and a placeholder is not
-    /// proof of anything.
+    /// Whether a number field (the condo building number) actually carries a value. Appraisers type
+    /// "-" for "none" (35 of the 232 Building Detail rows on the dev database), so a dash-only value
+    /// must read as absent. Not part of the development-only rule, which does not look at numbers.
     /// </summary>
     public static bool HasHouseNumber(string? houseNumber) =>
         !string.IsNullOrWhiteSpace(houseNumber) && houseNumber.Trim().Trim('-', '–', '—').Length > 0;
 
     /// <summary>
-    /// No real house number, at least one depreciation row, and every row flagged ส่วนพัฒนา
-    /// (<c>IsBuilding = false</c>). A building with NO rows is not one of these — nothing has been
-    /// entered yet — and neither is one with a house number: an enhancement never has one.
+    /// At least one depreciation row, and every row flagged ส่วนพัฒนา (<c>IsBuilding = false</c>).
+    /// A building with NO rows is not one of these — nothing has been entered yet. A house number
+    /// does not matter: only non-building rows means development, whatever the property is called.
     /// </summary>
     /// <param name="isBuildingFlags">The <c>IsBuilding</c> flag of each depreciation row of the building.</param>
-    public static bool IsDevelopmentOnly(string? houseNumber, IEnumerable<bool> isBuildingFlags)
+    public static bool IsDevelopmentOnly(IEnumerable<bool> isBuildingFlags)
     {
-        if (HasHouseNumber(houseNumber)) return false;
-
         // One pass, so a lazy sequence is enumerated once: any building row rules it out, and no rows
         // at all does too.
         var any = false;

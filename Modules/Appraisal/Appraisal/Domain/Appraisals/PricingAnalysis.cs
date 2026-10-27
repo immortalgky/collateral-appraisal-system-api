@@ -36,6 +36,13 @@ public class PricingAnalysis : Aggregate<Guid>
     public PricingAnalysisSubjectType SubjectType { get; private set; }
 
     /// <summary>
+    /// A reference sub-analysis (machinery / income / leasehold / room / profit-rent anchor): not a
+    /// property group and not a project model. It has no titles, and no land / building role.
+    /// </summary>
+    public bool IsReference =>
+        SubjectType is not (PricingAnalysisSubjectType.PropertyGroup or PricingAnalysisSubjectType.ProjectModel);
+
+    /// <summary>
     /// Generic anchor: PropertyGroup id, ProjectModel id, or reference-subject id depending on SubjectType.
     /// Always non-null (enforced by DB CHECK constraint).
     /// </summary>

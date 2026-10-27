@@ -273,8 +273,8 @@ public record BriefAsset(
     /// <summary>The building's own flag, else the condo's.</summary>
     bool? IsUnderConstruction,
     /// <summary>
-    /// A property whose only building content is ส่วนพัฒนา (fences, paving …): no house number and
-    /// every depreciation row is a non-building one. Same rule as the appraisal summary report.
+    /// A property whose only building content is ส่วนพัฒนา (fences, paving …): it has depreciation
+    /// rows and every one is a non-building one. Same rule as the appraisal summary report.
     /// </summary>
     bool IsDevelopmentOnly,
     /// <summary>ส่วนพัฒนา rows (depreciation rows with IsBuilding = 0). Never null.</summary>

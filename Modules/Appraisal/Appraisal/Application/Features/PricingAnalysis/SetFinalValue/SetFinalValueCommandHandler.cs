@@ -59,26 +59,27 @@ public class SetFinalValueCommandHandler(
         // force-write it as a side effect.
         method.RecordCalcMode(false);
 
-        // Handle land area. A per-unit RATE (PerSqWa/PerSqm) means the final value prices LAND per
-        // unit area, so area and value are derivable and must NOT be gated on the building-cost
-        // toggle. Area is authoritative from the property's land titles, never from the request.
-        // PerUnit is a whole-unit lumpsum carrying no land rate → leave the row alone.
-        // An explicit command.LandValue still wins (cost approach enters it by hand).
-        decimal? totalLandAreaFromTitles = null;
+        // Handle land area. Only PerSqWa is a LAND rate: area x rate is derivable and must NOT be gated
+        // on the building-cost toggle. Area is authoritative from the property's land titles, never
+        // from the request. A Role=Land lumpsum (PerUnit) or PerSqm row (quoted against the usable
+        // area, not a land rate) records the area plus the IndicatedValue as its land value. A
+        // non-Land PerSqm row is "explicit or clear" in Cost and "clear" in Market, as is a Cost
+        // PerUnit row that is not Land but has a building in it; a Cost PerUnit row that is not Land
+        // and has no building is left alone. An explicit command.LandValue (cost approach enters it
+        // by hand) applies only on PerSqWa, or on those Cost non-Land rows, and only when > 0.
+        // null means ONLY "a reference analysis": its row is left untouched. A property group is a
+        // known area — a group with no land properties (condo, building, machinery) is 0 — and so is a
+        // project model, which has no titles (0); a known 0 excludes or clears the land figures.
+        decimal? totalLandAreaFromTitles = pricingAnalysis.IsReference ? null : 0m;
         if (pricingAnalysis.SubjectType == PricingAnalysisSubjectType.PropertyGroup
             && pricingAnalysis.AnchorId.HasValue)
             totalLandAreaFromTitles = await propertyDataService.GetTotalLandAreaFromTitlesAsync(
-                pricingAnalysis.AnchorId.Value, cancellationToken);
-
-        var landAreaFromTitles = totalLandAreaFromTitles ?? 0m;
+                pricingAnalysis.AnchorId.Value, cancellationToken) ?? 0m;
 
         // Approach type, not method.Role: Role is also null on cost rows that predate it, and
         // treating those as market would clear a land value that is real.
         var isCostApproach = pricingAnalysis.Approaches
             .First(a => a.Id == method.ApproachId).ApproachType == "Cost";
-
-        method.ApplyLandAreaValue(
-            landAreaFromTitles, command.LandValue, command.IncludeLandArea, isCostApproach);
 
         // Captured before the building block below flips it — see the parameter's remarks.
         var buildingWasPresentBeforeThisSave = method.FinalValue?.HasBuildingValue ?? false;
@@ -97,6 +98,13 @@ public class SetFinalValueCommandHandler(
         {
             finalValue.SetIndicatedValue(command.IndicatedValue.Value);
         }
+
+        // After this save's building block and IndicatedValue, not before them: on a Role=Land
+        // lumpsum the land value IS the indicated value, so running it first wrote the PREVIOUS
+        // save's figure (and, with a building involved, an old land+building total).
+        method.ApplyLandAreaValue(
+            totalLandAreaFromTitles, command.LandValue, command.IncludeLandArea, isCostApproach,
+            buildingWasPresentBeforeThisSave);
 
         // MethodValue = IndicatedValue ?? FinalValue — last, once both are set for this save — then
         // roll the new method value up through approach → analysis (null-safe, idempotent).

@@ -500,8 +500,8 @@ public class GetAppraisalForCollateralQueryHandler(
                 selectedMethods = [fallbackMethod];
 
             // The land-bearing method is "the" method in the single-method world this reader used to
-            // assume. Every non-Cost approach's methods never carry a Role at all (Role is Cost-only),
-            // so this falls back to "any selected method" there — unchanged from before.
+            // assume. A Market method carries Land/LandAndBuilding and Income/Residual methods carry
+            // no Role, so a non-Cost approach resolves to its one selected method either way.
             // Never a Building/Machinery-role method: its FinalValueOverride is not a land rate (on
             // MachineryCost it is a whole-value total), and would reach Collateral Master as UnitPrice.
             // Same land-side filter as vw_CollateralResultExport's landM and GetAppraisalResult's pfv.

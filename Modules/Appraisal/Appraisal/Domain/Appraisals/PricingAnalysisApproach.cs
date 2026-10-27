@@ -82,6 +82,13 @@ public class PricingAnalysisApproach : Entity<Guid>
     public PricingAnalysisMethod AttachClonedMethod(PricingAnalysisMethod source)
     {
         var clone = PricingAnalysisMethod.CloneForApproach(source, Id);
+
+        // A reference is not anchored to a property group, so it makes no land / land-and-building
+        // declaration. The source's Cost role (Land, LandAndBuilding, Building, Machinery) means
+        // nothing in a Market approach — Building/Machinery are not even valid there — and a carried
+        // Land would let SyncLandValueWithIndicatedValue overwrite the DCF land override this clone
+        // exists to hold.
+        clone.SetRole(null);
         _methods.Add(clone);
         return clone;
     }
@@ -93,7 +100,8 @@ public class PricingAnalysisApproach : Entity<Guid>
         // Default Role for a Cost-approach method — see PricingAnalysisMethod.Role. BuildingCost is
         // always the Building component and MachineryCost always Machinery; everything else starts
         // as Land ("include building" is off by default) and moves to LandAndBuilding only through
-        // LinkOrCreateBuildingCostMethod. Non-Cost approaches never tag a role.
+        // LinkOrCreateBuildingCostMethod. Income and Residual never tag a role; a Market method's
+        // role is the appraiser's declaration, defaulted by AddMethodCommandHandler from the group.
         if (ApproachType == "Cost")
             method.SetRole(methodType switch
             {
@@ -238,15 +246,31 @@ public class PricingAnalysisApproach : Entity<Guid>
     /// holds — setting <see cref="PricingAnalysisMethod.Role"/> on the method directly (as
     /// UpdateMethod used to) let a PUT leave two selected methods covering the same component.
     /// Changes no selection, so a linked BuildingCost method's deliberate deselection is untouched.
+    /// A Market approach method may be tagged Land or LandAndBuilding only (what the appraiser says
+    /// it values); Income and Residual take no role.
     /// </summary>
     public void SetMethodRole(Guid methodId, string role)
     {
         var method = _methods.FirstOrDefault(m => m.Id == methodId)
                      ?? throw new NotFoundException("PricingAnalysisMethod", methodId);
 
-        // Role only means something inside the Cost rollup (ComputeSelectedValue sums by it there).
+        // Market: the appraiser declares what the method values — the land alone, or the whole
+        // property as one lump. Nothing here rolls up by Role (ComputeSelectedValue, RevertToLand and
+        // EnsureNoComponentCountedTwice belong to the Cost rollup), so the tag is just stored. Like
+        // Cost, a role change leaves LandArea/LandValue as they are; they settle on the next price
+        // save (ApplyLandAreaValue).
+        if (ApproachType == "Market")
+        {
+            if (role is not ("Land" or "LandAndBuilding"))
+                throw new DomainException("A Market approach method role must be Land or LandAndBuilding.");
+
+            method.SetRole(role);
+            return;
+        }
+
+        // Elsewhere, role only means something inside the Cost rollup (ComputeSelectedValue sums by it).
         if (ApproachType != "Cost")
-            throw new DomainException("A method role can only be set on a Cost approach method.");
+            throw new DomainException("A method role can only be set on a Cost or Market approach method.");
 
         // Moving OFF LandAndBuilding: the method's value may still fold the building in (and a
         // linked one keeps BuildingCost deselected) — undo that the same way include-building off
@@ -270,6 +294,11 @@ public class PricingAnalysisApproach : Entity<Guid>
     {
         var method = _methods.FirstOrDefault(m => m.Id == methodId)
                      ?? throw new NotFoundException("PricingAnalysisMethod", methodId);
+
+        // Cost rollup only: a Market method's LandAndBuilding is the appraiser's own declaration, and
+        // ResetPricingMethod calls this for every approach. After the lookup so an unknown id still
+        // throws on every approach.
+        if (ApproachType != "Cost") return;
 
         if (method.LinkedMethodId.HasValue)
         {

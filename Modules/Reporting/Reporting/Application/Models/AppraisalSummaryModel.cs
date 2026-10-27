@@ -144,8 +144,9 @@ public sealed class AppraisalSummaryModel
     /// <summary>True when the report renders the 100% / current-condition split.</summary>
     public bool HasUnderConstruction { get; init; }
 
-    /// <summary>รวมมูลค่าทรัพย์สินตามสภาพปัจจุบัน — <see cref="TotalAppraisalValue"/> less the
-    /// not-yet-built portion of every under-construction building.</summary>
+    /// <summary>รวมมูลค่าทรัพย์สินตามสภาพปัจจุบัน — the sum of each group's
+    /// <see cref="SummaryGroupRow.GroupTotalCurrent"/>: land + the current-condition building
+    /// subtotal for a group under construction, the appraised value for every other group.</summary>
     public decimal? CurrentConditionTotal { get; init; }
 
     /// <summary>ราคาบังคับขายตามสภาพปัจจุบัน — <see cref="ForcedSaleValue"/> scaled by the same
@@ -677,16 +678,22 @@ public sealed class SummaryGroupRow
     // ── Market/combined land columns ──────────────────────────────────────────────
     // Separate from TotalSquareWa/LandUnitPrice above, which the cost branch owns.
 
-    /// <summary>True when the market/combined row should render พื้นที่ + ราคาต่อหน่วย —
-    /// a land-only group priced at a per-unit rate (PerSqWa/PerSqm).</summary>
+    /// <summary>True when the market/combined row should render พื้นที่ + ราคาต่อหน่วย + their
+    /// product — a Market method the appraiser tagged Role = Land, priced at a per-area rate
+    /// (PerSqWa/PerSqm) with IncludeLandArea on.</summary>
     public bool ShowLandUnitColumns { get; init; }
 
     /// <summary>Land area in square-wa for the market/combined row.</summary>
     public decimal? MarketLandArea { get; init; }
 
     /// <summary>Land rate per square-wa / square-metre for the market/combined row
-    /// (PricingAnalysisMethods.ValuePerUnit, else PricingFinalValues.FinalValueOverride).</summary>
+    /// (PricingFinalValues.FinalValueOverride, else PricingAnalysisMethods.ValuePerUnit).</summary>
     public decimal? MarketLandUnitPrice { get; init; }
+
+    /// <summary>ราคาประเมิน of the market/combined row when <see cref="ShowLandUnitColumns"/> holds:
+    /// <see cref="MarketLandArea"/> × <see cref="MarketLandUnitPrice"/>, whole baht. Null otherwise,
+    /// and the cell falls back to <see cref="AppraisalValue"/>.</summary>
+    public decimal? MarketLandValue { get; init; }
 
     /// <summary>Land price per square-wa (PricingFinalValues.FinalValueOverride). Cost approach only.</summary>
     public decimal? LandUnitPrice { get; init; }
@@ -758,8 +765,9 @@ public sealed class SummaryGroupRow
     /// <summary>Group total value (รวมมูลค่าทรัพย์สินกลุ่ม). Also the combined value for market groups.</summary>
     public decimal? GroupTotal { get; init; }
 
-    /// <summary>Group total at the current construction progress — <see cref="GroupTotal"/> less the
-    /// not-yet-built portion of its building lines.</summary>
+    /// <summary>Group total at the current construction progress. A split group under construction:
+    /// land + the current-condition building subtotal (the stored valuation less the unbuilt portion
+    /// when it has no land figure). Any other group: <see cref="GroupTotal"/>.</summary>
     public decimal? GroupTotalCurrent { get; init; }
 }
 

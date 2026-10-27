@@ -7,7 +7,13 @@ namespace Appraisal.Application.Features.PricingAnalysis.SetManualCostBreakdown;
 
 /// <summary>
 /// Records a hand-entered Cost-approach breakdown so the appraisal-summary report can print
-/// ที่ดิน and สิ่งปลูกสร้าง as separate rows.
+/// ที่ดิน and สิ่งปลูกสร้าง as separate rows. A Market-approach method the appraiser tagged
+/// Role = Land gets the same land entry (rate x area = land); one tagged LandAndBuilding, or an
+/// Income / Residual method, is a whole lump with no land figure and is rejected.
+///
+/// A Cost method tagged Role = LandAndBuilding takes BOTH a land rate and a building value and keeps
+/// them as separate figures (land value, building value) with a total. The handler never changes a
+/// method's role: the appraiser's Role chip decides which breakdown applies.
 ///
 /// Manual pricing used to write only <c>PricingAnalysisMethods.MethodValue</c> (via UpdateMethod),
 /// leaving no <c>PricingFinalValues</c> row. The summary report reaches ApproachType through an
@@ -25,6 +31,7 @@ public class SetManualCostBreakdownCommandHandler(
 ) : ICommandHandler<SetManualCostBreakdownCommand, SetManualCostBreakdownResult>
 {
     private const string CostApproachType = "Cost";
+    private const string MarketApproachType = "Market";
 
     public async Task<SetManualCostBreakdownResult> Handle(
         SetManualCostBreakdownCommand command,
@@ -45,9 +52,19 @@ public class SetManualCostBreakdownCommandHandler(
 
         var method = approach.Methods.First(m => m.Id == command.MethodId);
 
-        if (!string.Equals(approach.ApproachType, CostApproachType, StringComparison.OrdinalIgnoreCase))
+        // Cost, or a Market method the appraiser declared a land valuation. Role is read live: a
+        // Market method with LandAndBuilding or no role values the property as one lump, so there is
+        // no land rate to enter. Nothing below is Cost-specific for a Market Land method —
+        // RevertToLand is a no-op on it (no link, Role is not LandAndBuilding), ClearBuildingValue
+        // only drops a building the Land role should not carry, and the rollup of a non-Cost approach
+        // is simply its selected method's value.
+        var isCost = string.Equals(approach.ApproachType, CostApproachType, StringComparison.OrdinalIgnoreCase);
+        var isMarketLand = string.Equals(approach.ApproachType, MarketApproachType, StringComparison.OrdinalIgnoreCase)
+                           && string.Equals(method.Role, "Land", StringComparison.OrdinalIgnoreCase);
+        if (!isCost && !isMarketLand)
             throw new BadRequestException(
-                "A manual cost breakdown can only be recorded on a method under the Cost approach.");
+                "A manual land breakdown can only be recorded on a method under the Cost approach, "
+                + "or on a Market approach method whose role is Land.");
 
         // The breakdown is a LAND rate plus the building: it belongs on a land method. On the
         // BuildingCost method it would link the method to itself, and on MachineryCost it would
@@ -66,15 +83,27 @@ public class SetManualCostBreakdownCommandHandler(
         // sends null, typing 0 sends 0.
         // A price or rate below zero is never a valuation — it would drive the Cost total and
         // FinalAppraisedValue negative on their way to LOS/AS400.
-        if (command.LandRatePerSqWa < 0m || command.IndicatedValue < 0m)
-            throw new BadRequestException("The land rate and price cannot be negative.");
+        if (command.LandRatePerSqWa < 0m || command.IndicatedValue < 0m || command.BuildingValue < 0m)
+            throw new BadRequestException("The land rate, building value and price cannot be negative.");
+
+        // Cost + LandAndBuilding: land rate AND a building value. Market LandAndBuilding never gets
+        // here (rejected above), and the role is left exactly as the appraiser set it.
+        var isLandAndBuilding = isCost
+                                && string.Equals(method.Role, "LandAndBuilding", StringComparison.OrdinalIgnoreCase);
+
+        if (isLandAndBuilding && command.LandRatePerSqWa.HasValue && !command.BuildingValue.HasValue)
+            throw new BadRequestException(
+                "A land-and-building method needs a building value together with the land rate.");
 
         if (command.LandRatePerSqWa is null)
         {
             // The whole breakdown (including any linked BuildingCost method) goes with it — a
             // cleared rate means there is no longer a land component to attach a building to.
-            // RevertToLand covers a linked AND an unlinked LandAndBuilding method.
-            approach.RevertToLand(method.Id);
+            // RevertToLand covers a linked AND an unlinked LandAndBuilding method — but a method the
+            // appraiser tagged LandAndBuilding stays that way, so it is skipped for one (a linked
+            // BuildingCost method then stays deselected, as it already is).
+            if (!isLandAndBuilding)
+                approach.RevertToLand(method.Id);
 
             method.ClearFinalValue();
 
@@ -113,14 +142,18 @@ public class SetManualCostBreakdownCommandHandler(
             throw new BadRequestException(
                 "This property group has no land area on its title deeds, so a land rate cannot be applied.");
 
-        // LAND ONLY (user decision 2026-09-22: "เลิกผูก — ให้เป็นวิธี 'ที่ดิน' ล้วน"). The panel prices
+        // Role Land (user decision 2026-09-22: "เลิกผูก — ให้เป็นวิธี 'ที่ดิน' ล้วน"): the panel prices
         // the land; the building reaches the Cost total through the Building Cost method as its own
-        // selected line, so this method stays Role=Land and folds nothing in.
+        // selected line, so this method folds nothing in. The role is the appraiser's: this handler
+        // never changes it. A LandAndBuilding method is priced here too, with its building keyed
+        // alongside the land rate (see isLandAndBuilding).
         // Whole baht: the title area carries two decimals, so rate × area lands on satang nobody
         // entered. Same rule as PricingAnalysisMethod.ApplyLandAreaValue, which is what writes this
         // column on every other save path.
         var landValue = Math.Round(landArea.Value * rate, 0, MidpointRounding.AwayFromZero);
-        var computedTotal = landValue;
+        // LandAndBuilding: the total is land + the keyed building; Land: the land alone.
+        var buildingValue = isLandAndBuilding ? command.BuildingValue : null;
+        var computedTotal = landValue + (buildingValue ?? 0m);
 
         // The appraiser's own figure wins. Without one, seed the same number the card would have
         // put in the price box: the whole-baht land value rounded to the nearest thousand, halves
@@ -170,17 +203,26 @@ public class SetManualCostBreakdownCommandHandler(
         // combined total through into LandValue, which is what the parameter exists to stop.
         var buildingWasPresentBeforeThisSave = finalValue.HasBuildingValue;
 
-        approach.RevertToLand(method.Id);
-        finalValue.ClearBuildingValue();
+        if (isLandAndBuilding)
+        {
+            // The keyed building value wins over any snapshot the calculated include-building path
+            // took. LandValue stays the land-only figure: the sync below returns for this role.
+            finalValue.SetBuildingValue(buildingValue!.Value);
+        }
+        else
+        {
+            approach.RevertToLand(method.Id);
+            finalValue.ClearBuildingValue();
+        }
 
         finalValue.SetIndicatedValue(indicatedValue);
 
         // PerSqWa marks this as a land rate, matching the calculated Cost+WQS path.
         method.SetValue(indicatedValue, rate, PricingUnit.PerSqWa);
 
-        // A Role=Land method's land IS its indicated value — RevertToLand above guarantees the role,
-        // so this replaces the area × rate figure written earlier with the one the appraiser settled
-        // on. LAST, after both SetIndicatedValue AND SetValue: the sync only acts on a method that
+        // A Role=Land method's land IS its indicated value, so this replaces the area × rate figure
+        // written earlier with the one the appraiser settled on (it does nothing for LandAndBuilding,
+        // whose LandValue stays the land-only figure). LAST, after both SetIndicatedValue AND SetValue: the sync only acts on a method that
         // prices land by area, and the unit it reads is the one SetValue stamps on the line above. A
         // method reaching this panel with no unit yet — created on the board, or cleared by the
         // no-rate branch, which leaves PerUnit behind — still read the PRE-save unit when this ran

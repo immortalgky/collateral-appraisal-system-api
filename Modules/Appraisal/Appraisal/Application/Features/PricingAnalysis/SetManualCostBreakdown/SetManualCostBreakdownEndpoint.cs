@@ -26,7 +26,8 @@ public class SetManualCostBreakdownEndpoint : ICarterModule
                         id,
                         methodId,
                         request.LandRatePerSqWa,
-                        request.IndicatedValue
+                        request.IndicatedValue,
+                        request.BuildingValue
                     );
 
                     var result = await sender.Send(command, cancellationToken);

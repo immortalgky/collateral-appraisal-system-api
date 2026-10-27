@@ -50,8 +50,14 @@ public class PricingAnalysisMethod : Entity<Guid>
 
     /// <summary>
     /// This method's component of a Cost approach: Land / Building / LandAndBuilding / Machinery.
-    /// Null for any method outside a Cost approach — a Cost approach sums MethodValue across its
-    /// selected, role-tagged methods instead of adopting a single selected method's value verbatim.
+    /// A Cost approach sums MethodValue across its selected, role-tagged methods instead of adopting
+    /// a single selected method's value verbatim.
+    /// <para>
+    /// A Market approach method carries what the APPRAISER says it values: "Land" (the land alone,
+    /// priced by area — records LandArea/LandValue like Cost Role=Land) or "LandAndBuilding" (the
+    /// whole property as one lump — records no land figures). Income and Residual stay null, which
+    /// also means a whole lump with no land figures.
+    /// </para>
     /// </summary>
     public string? Role { get; private set; }
 
@@ -369,13 +375,14 @@ public class PricingAnalysisMethod : Entity<Guid>
     }
 
     /// <summary>
-    /// On a <c>Role = Land</c> method, makes <see cref="PricingFinalValue.LandValue"/> the figure the
-    /// appraiser settled on rather than the raw <c>area × rate</c> this save derived.
+    /// On a <c>Role = Land</c> method (Cost or Market), makes <see cref="PricingFinalValue.LandValue"/>
+    /// the figure the appraiser settled on rather than the raw <c>area × rate</c> this save derived.
     /// <para>
-    /// Such a method prices land and nothing else (leaving LandAndBuilding goes through
-    /// <c>RevertToLand</c>, so the role is the guarantee), which makes its IndicatedValue the land
-    /// price itself. Without this the row carries two answers to one question — the arithmetic in
-    /// LandValue and the appraised figure in IndicatedValue — and every reader has to know which to
+    /// Such a method prices land and nothing else (in the Cost approach leaving LandAndBuilding goes
+    /// through <c>RevertToLand</c>, and in the Market approach the appraiser declares it, so the role
+    /// is the guarantee), which makes its IndicatedValue the land price itself — on a lumpsum unit
+    /// (ราคาเหมา) as much as a per-area one. Without this the row carries two answers to one
+    /// question — the arithmetic in LandValue and the appraised figure in IndicatedValue — and every reader has to know which to
     /// prefer. Settling it here means they can all just read the column: the summary book, the
     /// engagement's frozen CurrentValue, the LOS payload and the MIS land columns.
     /// </para>
@@ -421,13 +428,9 @@ public class PricingAnalysisMethod : Entity<Guid>
         if (!string.Equals(Role, "Land", StringComparison.OrdinalIgnoreCase))
             return;
 
-        // Only when this method actually prices land BY AREA — the same condition ApplyLandAreaValue
-        // turns away on. A whole-unit lumpsum carries no rate, and its stored LandArea is whatever an
-        // earlier save under a rate unit left behind; writing the indicated value against that area
-        // resurrects a figure the doc above says is left alone, and SetLandAreaValues forces
-        // IncludeLandArea back to true while doing it.
-        if (!PricingUnit.IsPerUnitRate(UnitType ?? FinalValue?.FinalValueUnitType))
-            return;
+        // No unit check: Role = Land means the method's whole value is the land value, on a lumpsum
+        // unit as much as a per-area one. ApplyLandAreaValue writes a fresh net area on every save
+        // that has titles, so the stored LandArea this reads is not a leftover from an earlier unit.
 
         // HasBuildingValue as well as the role, because the two are set by different callers and can
         // disagree mid-save. SetFinalValue and UpdateFinalValue write a building value without
@@ -439,8 +442,16 @@ public class PricingAnalysisMethod : Entity<Guid>
         if (FinalValue is not { IncludeLandArea: true, HasBuildingValue: false, LandArea: { } area } fv)
             return;
 
+        // A typed figure of 0 or less means the method is valued at nothing, so there is no land
+        // figure: the land values are cleared (flag untouched) rather than left next to it. No typed
+        // figure keeps what the row had.
         if (fv.IndicatedValue is { } indicated)
-            fv.SetLandAreaValues(area, indicated);
+        {
+            if (indicated > 0m)
+                fv.SetLandAreaValues(area, indicated);
+            else
+                fv.ClearLandAreaValues();
+        }
     }
 
     /// <summary>
@@ -454,32 +465,42 @@ public class PricingAnalysisMethod : Entity<Guid>
     }
 
     /// <summary>
-    /// Records the land area this method priced, and what that land is worth, when — and only when —
-    /// this method prices land BY AREA. Single home for a rule three save handlers used to carry a
+    /// Records the land area this method priced, and what that land is worth, when this method prices
+    /// land BY AREA or is declared <c>Role = Land</c>. Single home for a rule three save handlers used to carry a
     /// copy of each (SetFinalValue, UpdateFinalValue, SaveComparativeAnalysis); it decides money that
     /// reaches the engagement's frozen CurrentValue, the LOS payload and the AS400 regulatory file,
     /// so it is stated once.
     /// <para>
-    /// Only the cost approach records land separately at all — it is the one approach that breaks a
-    /// collateral into named components. Market, income and residual price the collateral as a single
-    /// figure, so they get their land figures CLEARED, not merely skipped (see
-    /// <see cref="PricingFinalValue.ClearLandAreaValues"/>), and an <paramref name="explicitLandValue"/>
-    /// does NOT rescue them: there is no separable land figure to record.
+    /// The cost approach breaks a collateral into named components, so there a land RATE (PerSqWa)
+    /// means the final value prices land per unit area: area and value are derivable and must NOT be
+    /// gated on the building-cost toggle. PerSqm is a rate too, but the price sections quote it against
+    /// the subject's usable (building) area, so it is NOT a land rate here. PerUnit is a whole-unit
+    /// lumpsum carrying no land rate. A Cost PerUnit row that is not Land and has no building in it is
+    /// left alone; a Cost PerSqm row that is not Land, and a Cost PerUnit one WITH a building
+    /// (<see cref="PricingFinalValue.HasBuildingValue"/>), store a land value the caller typed (> 0)
+    /// or else clear — unless the method is <c>Role = Land</c> (below).
     /// </para>
     /// <para>
-    /// The caller passes the approach type rather than letting this read <see cref="Role"/>, even
-    /// though today Role is null exactly when the approach is not Cost. Role is also null on cost
-    /// rows that predate it — a category this aggregate names in several places ("older rows predate
-    /// Role") — and treating those as market would wipe a land value that is real, on the next save
-    /// of any kind, including one that never touched the price.
+    /// <c>Role = Land</c> means the method's whole value IS the land value, whatever the unit, in the
+    /// Cost and Market approaches alike. On a lumpsum unit (ราคาเหมา) there is no rate to multiply, so
+    /// the net title area is recorded against the indicated value (else the method value): that is
+    /// the land price the appraiser committed. This is also how a PerSqm Land method is handled (its
+    /// rate is not a land rate). With no positive figure the land values are cleared.
     /// </para>
     /// <para>
-    /// WITHIN the cost approach, a per-unit RATE (PerSqWa/PerSqm) means the final value prices land
-    /// per unit area, so area and value are derivable and must NOT be gated on the building-cost
-    /// toggle. PerUnit is a whole-unit lumpsum carrying no land rate, so the row is left alone.
-    /// The unit only gets a say once the approach check above has passed: a non-cost method records
-    /// no land whatever its unit, and a lumpsum one is cleared rather than skipped so a figure left
-    /// by an earlier save under a rate unit cannot survive as a land value.
+    /// Outside the cost approach the APPRAISER decides, through <see cref="Role"/>: a Market method
+    /// tagged "Land" values the land alone, so a land rate (PerSqWa) records area × rate exactly as in
+    /// Cost. Anything else — "LandAndBuilding", or a null Role (Income, Residual, or a Market row not
+    /// yet tagged) — values the property as one figure, so the land figures are CLEARED, not merely skipped (see <see cref="PricingFinalValue.ClearLandAreaValues"/>):
+    /// a figure left by an earlier save must not survive as a land value. An
+    /// <paramref name="explicitLandValue"/> does NOT rescue those methods: there is no separable
+    /// land figure to record.
+    /// </para>
+    /// <para>
+    /// The caller passes the approach type rather than letting this read <see cref="Role"/> for it:
+    /// Role is also null on cost rows that predate it — a category this aggregate names in several
+    /// places ("older rows predate Role") — and treating those as non-cost would wipe a land value
+    /// that is real, on the next save of any kind, including one that never touched the price.
     /// </para>
     /// <para>
     /// The unit is read LIVE first and the row's own stamp only when this method has genuinely
@@ -499,54 +520,159 @@ public class PricingAnalysisMethod : Entity<Guid>
     /// </para>
     /// </summary>
     /// <param name="landAreaFromTitles">
-    /// Area from the property's land titles — authoritative, never taken from the request.
+    /// Net area from the property's land titles — authoritative, never taken from the request. NULL
+    /// means the analysis is a reference: the row is left exactly as it is. A known value of 0 or less
+    /// is a group with no net titled land — a condo, building or machinery group included, and a
+    /// project model, which has no titles: the land figures are excluded or cleared.
     /// </param>
-    /// <param name="explicitLandValue">A land value supplied by the caller, or null to derive one.</param>
+    /// <param name="explicitLandValue">
+    /// A land value supplied by the caller (used only when above 0), or null to derive one. Read only
+    /// on a rate unit: PerSqWa, or PerSqm on a Cost row that is not Land, or a Cost lumpsum (PerUnit)
+    /// that is not Land and has a building in the row. Other lumpsum and unknown-unit paths never
+    /// read it.
+    /// </param>
+    /// <param name="buildingWasPresentBeforeThisSave">
+    /// <see cref="PricingFinalValue.HasBuildingValue"/> as it stood when the save began (see
+    /// <see cref="SyncLandValueWithIndicatedValue"/>). Only the Role = Land lumpsum branch reads it:
+    /// its IndicatedValue then may be a land+building total, which must never become LandValue.
+    /// </param>
     /// <param name="includeLandArea">
     /// The appraiser's own answer to "does this method price land at all" — false clears the area and
     /// value outright. Null means the request did not say, which is not the same as false: the save
     /// DTOs default it, so an ordinary save must not read silence as a decision to exclude.
+    /// <para>
+    /// Exception: on a <c>Role = Land</c> method priced on an EXPLICIT lumpsum unit (PerUnit or PerSqm — not an
+    /// unknown one, e.g. after SetCalcMode forgot it) a false is NOT honoured. The
+    /// WQS / SaleGrid / DirectComparison price sections derive the flag from the comparables' unit
+    /// (<c>includeLandArea = isUnitPrice</c>) and have no toggle, so there it only restates "this is a
+    /// lump" — and the Land role already says the lump is land.
+    /// </para>
+    /// <para>
+    /// The same holds for a Cost method that is NOT Land, priced on an explicit lumpsum unit, with a
+    /// building in the row ("include building" ticked): the typed land value is the figure the
+    /// appraiser entered, so a derived false must not discard it.
+    /// </para>
     /// </param>
     /// <param name="isCostApproach">
-    /// True when this method sits under the Cost approach. Only that approach records a land figure
-    /// of its own; everything else values the collateral as one lump.
+    /// True when this method sits under the Cost approach. Cost needs only a land rate (PerSqWa); every
+    /// other approach also needs <c>Role = Land</c>, and clears the land figures when it does not
+    /// have it.
     /// </param>
     public void ApplyLandAreaValue(
-        decimal landAreaFromTitles,
+        decimal? landAreaFromTitles,
         decimal? explicitLandValue,
         bool? includeLandArea,
-        bool isCostApproach)
+        bool isCostApproach,
+        bool buildingWasPresentBeforeThisSave)
     {
         if (FinalValue is null)
             return;
 
-        if (includeLandArea == false)
+        var isLand = string.Equals(Role, "Land", StringComparison.OrdinalIgnoreCase);
+        var unit = UnitType ?? (FinalValue.IncludeLandArea ? FinalValue.FinalValueUnitType : null);
+        // Only PerSqWa is a LAND rate. PerSqm is a rate too (PricingUnit.IsPerUnitRate), but the price
+        // sections quote it against the subject's USABLE (building) area, so multiplying it by land
+        // area is meaningless: for land-figure purposes it is handled like a lump.
+        var pricedByArea = unit == PricingUnit.PerSqWa;
+        // Explicitly not a land rate (PerUnit lumpsum or PerSqm). A NULL unit is "forgotten"
+        // (SetCalcMode -> ClearValue nulls it and excludes the land area), so it keeps the older
+        // behaviour below.
+        var lumpLand = isLand && unit is not null && !pricedByArea;
+        // Same exemption for a Cost non-Land lump WITH a building: the land figure is the typed one.
+        var costLumpWithBuilding = isCostApproach && !isLand && unit is not null && !pricedByArea
+                                   && FinalValue.HasBuildingValue;
+
+        // A reference analysis (no group): there are no titles to compare
+        // against, and the land figures it holds were put there deliberately —
+        // CreateReferenceFromMethod builds a "Market" approach and calls SetLandAreaValues to carry the
+        // DCF non-HBU land-area override. Left exactly as it is, FIRST, ahead of the exclusion and the
+        // approach check below: excluding or clearing here destroyed that override on the reference's
+        // first save (the price sections send includeLandArea = false for a lump).
+        if (landAreaFromTitles is null)
+            return;
+
+        // Role = Land on a lumpsum, or a Cost lump with a building: the false is the screen's unit
+        // derivation, not a decision (see the includeLandArea param), so it must not exclude. Every
+        // other false is honoured.
+        if (includeLandArea == false && !lumpLand && !costLumpWithBuilding)
         {
             FinalValue.ExcludeLandArea();
             return;
         }
 
-        // No titled land to derive from — nothing to write and nothing to correct, so the row is left
-        // exactly as it is. This comes FIRST, ahead of the approach check below, because a pricing
-        // analysis that is not anchored to a property group has no titles by definition and its land
-        // figures were put there deliberately: CreateReferenceFromMethod builds a "Market" approach
-        // and calls SetLandAreaValues to carry the DCF non-HBU land-area override. Clearing ahead of
-        // this guard destroyed that override on the reference's first save.
-        if (landAreaFromTitles <= 0m)
-            return;
-
-        // Market, income and residual value land and whatever stands on it as ONE figure. Their
-        // comparables being quoted per square wa says how the market prices a parcel, NOT that the
-        // resulting figure excludes the buildings on it, so multiplying that rate by the land area
-        // produces the whole property's value under a column named LandValue.
-        if (!isCostApproach)
+        // A group WITH titles whose net appraisable area is nil: there is no land to record, so any
+        // figure an earlier save left is cleared (flag untouched) — which also leaves LandArea null,
+        // so SyncLandValueWithIndicatedValue cannot copy a value against a stale area.
+        var area = landAreaFromTitles.Value;
+        if (area <= 0m)
         {
+            FinalValue.ClearLandAreaValues();
+            if (includeLandArea == true)
+                FinalValue.MarkLandAreaIncluded();
+            return;
+        }
+
+        if (!pricedByArea)
+        {
+            // Role = Land on a lumpsum: the whole value IS the land value. area is the
+            // NET appraisable area (title area less deductions).
+            if (lumpLand)
+            {
+                // A building is, or was, part of the row: IndicatedValue/MethodValue is then a
+                // land+building total, so there is no land figure to record — and whatever an earlier
+                // save left must not survive as one. The flag is the appraiser's and stays.
+                if (FinalValue.HasBuildingValue || buildingWasPresentBeforeThisSave)
+                {
+                    FinalValue.ClearLandAreaValues();
+                    return;
+                }
+
+                // A typed IndicatedValue above 0 records only the area: the sync that follows in every
+                // handler owns the IndicatedValue -> LandValue copy (and its building guard). One of 0
+                // or less means the method is valued at nothing — no land figure, cleared, the same as
+                // the sync clears. With NO typed figure the method value is the land value, when it is
+                // usable (> 0); otherwise there is no figure at all and earlier ones are cleared.
+                if (FinalValue.IndicatedValue is { } typedLump)
+                {
+                    if (typedLump > 0m)
+                        FinalValue.SetLandArea(area);
+                    else
+                        FinalValue.ClearLandAreaValues();
+                }
+                else if (MethodValue is > 0m and var lumpLandValue)
+                    FinalValue.SetLandAreaValues(area, lumpLandValue);
+                else
+                    FinalValue.ClearLandAreaValues();
+                return;
+            }
+
+            if (isCostApproach)
+            {
+                // A cost PerUnit lumpsum that is not Land and has no building carries no land rate:
+                // left alone (a typed land value is not read either), as is a row whose unit is unknown.
+                // A PerSqm row, or a lump WITH a building, is not a land rate either: a land value the
+                // caller typed (> 0) is stored, otherwise the old area x rate figure of an earlier
+                // PerSqWa save must not survive under that unit and is cleared (flag untouched).
+                if (unit == PricingUnit.PerSqm || costLumpWithBuilding)
+                {
+                    if (explicitLandValue is > 0m)
+                        FinalValue.SetLandAreaValues(area, explicitLandValue.Value);
+                    else
+                    {
+                        FinalValue.ClearLandAreaValues();
+                        if (includeLandArea == true)
+                            FinalValue.MarkLandAreaIncluded();
+                    }
+                }
+                return;
+            }
+
             FinalValue.ClearLandAreaValues();
 
             // The flag is still the appraiser's own answer and still drives whether the book prints
             // this group's พื้นที่ / ราคาต่อหน่วย columns, so an explicit "yes" is honoured even though
             // no figures come with it. Without this the flag was one-way for non-cost methods:
-            // SetLandAreaValues is the only other writer that turns it back on, and this branch
+            // SetLandAreaValues is the only other writer that turns it back on, and this path
             // returns before reaching it, so unticking and re-ticking left it false forever.
             if (includeLandArea == true)
                 FinalValue.MarkLandAreaIncluded();
@@ -554,28 +680,47 @@ public class PricingAnalysisMethod : Entity<Guid>
             return;
         }
 
-        var unit = UnitType ?? (FinalValue.IncludeLandArea ? FinalValue.FinalValueUnitType : null);
-        if (!PricingUnit.IsPerUnitRate(unit))
+        // A land rate (PerSqWa) prices land by area. Cost takes that at face value; Market additionally
+        // needs the appraiser's say-so (Role = Land), because a rate quoted per square wa says how
+        // the market prices a parcel, NOT that the figure excludes the buildings on it — multiplying
+        // it out for a group with buildings would put the whole property's value under LandValue.
+        if (!isCostApproach && !isLand)
+        {
+            FinalValue.ClearLandAreaValues();
+
+            // See the lumpsum branch above for why the flag is honoured when the appraiser says yes.
+            if (includeLandArea == true)
+                FinalValue.MarkLandAreaIncluded();
+
             return;
+        }
 
         // Rounded to whole baht: a rate over a fractional area (503.33 sq.wa × 111,111) lands on
         // satang nobody entered and nobody can act on, and that figure is printed in the book and
         // exported to LOS and AS400.
         //
-        // A land value the caller supplied is stored as given here — but on a Role=Land method it
-        // does not survive the save: every handler calls SyncLandValueWithIndicatedValue afterwards,
-        // which replaces it with IndicatedValue. That is the decision, not an oversight — for a
-        // method whose whole subject is land, the figure the appraiser committed IS the land price,
-        // and having two ways to say it was what let the row disagree with itself. The parameter
-        // still matters for the other roles.
+        // A land value the caller supplied (> 0; the Cost include-building "Land Price" input) is
+        // stored as given on PerSqWa. On a Role=Land method the sync that follows in every handler
+        // replaces it with IndicatedValue — except when it returns early (a building is, or was, in
+        // the row), where the typed figure stays. A figure of 0 or less is "no figure" and never
+        // stored as land.
         var rate = FinalValue.FinalValueOverride ?? ValuePerUnit;
-        var landValue = explicitLandValue
-                        ?? (rate.HasValue
-                            ? Math.Round(landAreaFromTitles * rate.Value, 0, MidpointRounding.AwayFromZero)
-                            : (decimal?)null);
+        var landValue = explicitLandValue is > 0m
+            ? explicitLandValue
+            : rate.HasValue
+                ? Math.Round(area * rate.Value, 0, MidpointRounding.AwayFromZero)
+                : (decimal?)null;
 
         if (landValue.HasValue)
-            FinalValue.SetLandAreaValues(landAreaFromTitles, landValue.Value);
+        {
+            FinalValue.SetLandAreaValues(area, landValue.Value);
+            return;
+        }
+
+        // No explicit figure and no rate: nothing to record, and an earlier figure must not survive.
+        FinalValue.ClearLandAreaValues();
+        if (includeLandArea == true)
+            FinalValue.MarkLandAreaIncluded();
     }
 
     /// <summary>
