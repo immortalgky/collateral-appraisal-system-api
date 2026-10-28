@@ -541,6 +541,8 @@ public class QuotationRequest : Aggregate<Guid>
             TentativelySelectedBy = null;
             TentativelySelectedByRole = null;
             Status = "UnderAdminReview";
+
+            RecalculateQuotationsReceived();
         }
     }
 
@@ -741,13 +743,14 @@ public class QuotationRequest : Aggregate<Guid>
     }
 
     /// <summary>
-    /// Recalculates TotalQuotationsReceived, excluding Draft and PendingCheckerReview rows.
-    /// Call after any status transition that changes a CompanyQuotation to/from Submitted.
+    /// Recalculates TotalQuotationsReceived, excluding Draft, PendingCheckerReview, Declined and Withdrawn rows.
+    /// Call after any status transition that changes a CompanyQuotation into or out of one of those statuses.
     /// </summary>
     internal void RecalculateQuotationsReceived()
     {
         TotalQuotationsReceived = _quotations.Count(q =>
-            q.Status != "Draft" && q.Status != "PendingCheckerReview");
+            q.Status != "Draft" && q.Status != "PendingCheckerReview" &&
+            q.Status != "Declined" && q.Status != "Withdrawn");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
