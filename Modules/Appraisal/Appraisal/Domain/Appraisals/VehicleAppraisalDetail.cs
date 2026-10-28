@@ -14,13 +14,19 @@ public class VehicleAppraisalDetail : Entity<Guid>
     public string? VehicleName { get; private set; }
     public string? EngineNo { get; private set; }
     public string? ChassisNo { get; private set; }
+    public string? LicensePlateNumber { get; private set; }
     public string? RegistrationNumber { get; private set; }
+    public DateTime? RegistrationDate { get; private set; }
+    public string? Color { get; private set; }
+    public string? ColorOther { get; private set; }
 
     // Vehicle Specifications
     public string? Brand { get; private set; }
     public string? Model { get; private set; }
     public int? YearOfManufacture { get; private set; }
     public string? CountryOfManufacture { get; private set; }
+    public string? VehicleType { get; private set; }
+    public string? VehicleTypeOther { get; private set; }
 
     // Purchase Info
     public DateTime? PurchaseDate { get; private set; }
@@ -78,11 +84,17 @@ public class VehicleAppraisalDetail : Entity<Guid>
             VehicleName = source.VehicleName,
             EngineNo = source.EngineNo,
             ChassisNo = source.ChassisNo,
+            LicensePlateNumber = source.LicensePlateNumber,
             RegistrationNumber = source.RegistrationNumber,
+            RegistrationDate = source.RegistrationDate,
+            Color = source.Color,
+            ColorOther = source.ColorOther,
             Brand = source.Brand,
             Model = source.Model,
             YearOfManufacture = source.YearOfManufacture,
             CountryOfManufacture = source.CountryOfManufacture,
+            VehicleType = source.VehicleType,
+            VehicleTypeOther = source.VehicleTypeOther,
             PurchaseDate = source.PurchaseDate,
             PurchasePrice = source.PurchasePrice,
             Capacity = source.Capacity,
@@ -114,12 +126,18 @@ public class VehicleAppraisalDetail : Entity<Guid>
         string? vehicleName = null,
         string? engineNo = null,
         string? chassisNo = null,
+        string? licensePlateNumber = null,
         string? registrationNumber = null,
+        DateTime? registrationDate = null,
+        string? color = null,
+        string? colorOther = null,
         // Vehicle Specifications
         string? brand = null,
         string? model = null,
         int? yearOfManufacture = null,
         string? countryOfManufacture = null,
+        string? vehicleType = null,
+        string? vehicleTypeOther = null,
         // Purchase Info
         DateTime? purchaseDate = null,
         decimal? purchasePrice = null,
@@ -154,13 +172,19 @@ public class VehicleAppraisalDetail : Entity<Guid>
         if (vehicleName is not null) VehicleName = vehicleName;
         if (engineNo is not null) EngineNo = engineNo;
         if (chassisNo is not null) ChassisNo = chassisNo;
+        if (licensePlateNumber is not null) LicensePlateNumber = licensePlateNumber;
         if (registrationNumber is not null) RegistrationNumber = registrationNumber;
+        if (registrationDate.HasValue) RegistrationDate = registrationDate.Value;
+        if (color is not null) Color = color;
+        if (colorOther is not null) ColorOther = colorOther;
 
         // Vehicle Specifications
         if (brand is not null) Brand = brand;
         if (model is not null) Model = model;
         if (yearOfManufacture.HasValue) YearOfManufacture = yearOfManufacture.Value;
         if (countryOfManufacture is not null) CountryOfManufacture = countryOfManufacture;
+        if (vehicleType is not null) VehicleType = vehicleType;
+        if (vehicleTypeOther is not null) VehicleTypeOther = vehicleTypeOther;
 
         // Purchase Info
         if (purchaseDate.HasValue) PurchaseDate = purchaseDate.Value;

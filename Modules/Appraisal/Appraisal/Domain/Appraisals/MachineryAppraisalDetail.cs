@@ -24,6 +24,7 @@ public class MachineryAppraisalDetail : Entity<Guid>
     public bool RegistrationStatus { get; private set; }
     public string? InstallationStatus { get; private set; }
     public string? MachineType { get; private set; }
+    public string? MachineTypeOther { get; private set; }
     public string? InvoiceNumber { get; private set; }
 
     /// <summary>
@@ -110,6 +111,7 @@ public class MachineryAppraisalDetail : Entity<Guid>
             RegistrationStatus = source.RegistrationStatus,
             InstallationStatus = source.InstallationStatus,
             MachineType = source.MachineType,
+            MachineTypeOther = source.MachineTypeOther,
             InvoiceNumber = source.InvoiceNumber,
             IsPriceCertified = source.IsPriceCertified,
             Brand = source.Brand,
@@ -158,6 +160,7 @@ public class MachineryAppraisalDetail : Entity<Guid>
         bool? registrationStatus = null,
         string? installationStatus = null,
         string? machineType = null,
+        string? machineTypeOther = null,
         string? invoiceNumber = null,
         bool? isPriceCertified = null,
         // Machine Specifications
@@ -212,6 +215,7 @@ public class MachineryAppraisalDetail : Entity<Guid>
         if (registrationStatus.HasValue) RegistrationStatus = registrationStatus.Value;
         if (installationStatus is not null) InstallationStatus = installationStatus;
         if (machineType is not null) MachineType = machineType;
+        if (machineTypeOther is not null) MachineTypeOther = machineTypeOther;
         if (invoiceNumber is not null) InvoiceNumber = invoiceNumber;
         if (isPriceCertified.HasValue) IsPriceCertified = isPriceCertified.Value;
 

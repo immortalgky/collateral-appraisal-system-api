@@ -13,6 +13,7 @@ public class VesselAppraisalDetail : Entity<Guid>
     public string? PropertyName { get; private set; }
     public string? VesselName { get; private set; }
     public string? EngineNo { get; private set; }
+    public string? HullNumber { get; private set; }
     public string? RegistrationNumber { get; private set; }
     public DateTime? RegistrationDate { get; private set; }
 
@@ -22,7 +23,10 @@ public class VesselAppraisalDetail : Entity<Guid>
     public int? YearOfManufacture { get; private set; }
     public string? PlaceOfManufacture { get; private set; }
     public string? VesselType { get; private set; }
+    public string? VesselTypeOther { get; private set; }
     public string? ClassOfVessel { get; private set; }
+    public string? EnginePower { get; private set; }
+    public decimal? NumberOfEngines { get; private set; }
 
     // Purchase Info
     public DateTime? PurchaseDate { get; private set; }
@@ -85,6 +89,7 @@ public class VesselAppraisalDetail : Entity<Guid>
             PropertyName = source.PropertyName,
             VesselName = source.VesselName,
             EngineNo = source.EngineNo,
+            HullNumber = source.HullNumber,
             RegistrationNumber = source.RegistrationNumber,
             RegistrationDate = source.RegistrationDate,
             Brand = source.Brand,
@@ -92,7 +97,10 @@ public class VesselAppraisalDetail : Entity<Guid>
             YearOfManufacture = source.YearOfManufacture,
             PlaceOfManufacture = source.PlaceOfManufacture,
             VesselType = source.VesselType,
+            VesselTypeOther = source.VesselTypeOther,
             ClassOfVessel = source.ClassOfVessel,
+            EnginePower = source.EnginePower,
+            NumberOfEngines = source.NumberOfEngines,
             PurchaseDate = source.PurchaseDate,
             PurchasePrice = source.PurchasePrice,
             EngineCapacity = source.EngineCapacity,
@@ -127,6 +135,7 @@ public class VesselAppraisalDetail : Entity<Guid>
         string? propertyName = null,
         string? vesselName = null,
         string? engineNo = null,
+        string? hullNumber = null,
         string? registrationNumber = null,
         DateTime? registrationDate = null,
         // Vessel Specifications
@@ -135,7 +144,10 @@ public class VesselAppraisalDetail : Entity<Guid>
         int? yearOfManufacture = null,
         string? placeOfManufacture = null,
         string? vesselType = null,
+        string? vesselTypeOther = null,
         string? classOfVessel = null,
+        string? enginePower = null,
+        decimal? numberOfEngines = null,
         // Purchase Info
         DateTime? purchaseDate = null,
         decimal? purchasePrice = null,
@@ -174,6 +186,7 @@ public class VesselAppraisalDetail : Entity<Guid>
         if (propertyName is not null) PropertyName = propertyName;
         if (vesselName is not null) VesselName = vesselName;
         if (engineNo is not null) EngineNo = engineNo;
+        if (hullNumber is not null) HullNumber = hullNumber;
         if (registrationNumber is not null) RegistrationNumber = registrationNumber;
         if (registrationDate.HasValue) RegistrationDate = registrationDate.Value;
 
@@ -183,7 +196,10 @@ public class VesselAppraisalDetail : Entity<Guid>
         if (yearOfManufacture.HasValue) YearOfManufacture = yearOfManufacture.Value;
         if (placeOfManufacture is not null) PlaceOfManufacture = placeOfManufacture;
         if (vesselType is not null) VesselType = vesselType;
+        if (vesselTypeOther is not null) VesselTypeOther = vesselTypeOther;
         if (classOfVessel is not null) ClassOfVessel = classOfVessel;
+        if (enginePower is not null) EnginePower = enginePower;
+        if (numberOfEngines.HasValue) NumberOfEngines = numberOfEngines.Value;
 
         // Purchase Info
         if (purchaseDate.HasValue) PurchaseDate = purchaseDate.Value;
