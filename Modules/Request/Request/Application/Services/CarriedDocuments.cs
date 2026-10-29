@@ -156,7 +156,7 @@ internal static class CarriedDocuments
     }
 
     // The number the carry-forward view emits for a title — the request page's movableIdentity rule (FE
-    // titleList.ts), written three times (view, PlaceholderSql, here): keep them identical.
+    // titleList.ts), written four times (view, PlaceholderSql, here, and GetAppraisalBriefQueryHandler's document SQL): keep them identical.
     private static string? NumberOf(RequestTitleDto title) => title.CollateralType switch
     {
         "10" => Some(title.LicensePlateNumber) ?? title.VehicleRegistrationNumber,

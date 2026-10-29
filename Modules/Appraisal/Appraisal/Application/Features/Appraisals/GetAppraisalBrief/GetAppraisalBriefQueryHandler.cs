@@ -57,6 +57,14 @@ public class GetAppraisalBriefQueryHandler(
     /// </summary>
     private static readonly HashSet<string> PrimaryDocumentCodes = new(["D043", "D042", "D001"], StringComparer.OrdinalIgnoreCase);
 
+    // Where a document row came from. The SQL emits these as literals (not interpolated: Sonar S2077
+    // flags any interpolated Dapper SQL, consts included) and the release gate in Handle compares
+    // against these consts, so the two must agree. GetAppraisalBriefQueryTests asserts the literals
+    // reach the JSON for a released caller, so a drift fails there instead of opening or closing the gate.
+    private const string SourceAppraisal = "Appraisal";
+    private const string SourceRequest = "Request";
+    private const string SourceTitle = "Title";
+
     public async Task<GetAppraisalBriefResult> Handle(
         GetAppraisalBriefQuery query,
         CancellationToken cancellationToken)
@@ -290,22 +298,114 @@ public class GetAppraisalBriefQueryHandler(
                            ORDER BY CASE WHEN pg.GroupNumber IS NULL THEN 1 ELSE 0 END,
                                     pg.GroupNumber, pgi.SequenceInGroup, ap.SequenceNumber, ap.Id;
 
-                           -- Only rows that actually have a file: the checklist's empty types are
-                           -- the appraiser's to-do list, not something credit can open.
-                           SELECT  ad.DocumentId,
-                                   dt.Code                                           AS TypeCode,
-                                   dt.Name                                           AS TypeName,
-                                   dt.NameTh                                         AS TypeNameTh,
-                                   COALESCE(d.FileName, ad.FileName)                 AS FileName,
-                                   COALESCE(d.FileSizeBytes, ad.FileSizeBytes)       AS FileSizeBytes,
-                                   ad.CreatedAt                                      AS UploadedAt
-                           FROM appraisal.AppraisalDocuments ad
-                                    JOIN parameter.DocumentTypes dt ON dt.Code = ad.DocumentTypeCode
-                                    LEFT JOIN document.Documents d ON d.Id = ad.DocumentId
-                           WHERE ad.AppraisalId = @AppraisalId
-                             AND ad.DocumentId IS NOT NULL
-                             AND dt.Category IN ('VAL_DOC', 'VAL_REPORT')
-                           ORDER BY dt.SortOrder, dt.Code, ad.SortOrder, ad.Id;
+                           -- Every attached file of the application, from three places: the appraisal
+                           -- folder, the request's own files and the files hung on each collateral
+                           -- (title) of the request. Only rows that actually have a file: the
+                           -- checklist's empty types are the appraiser's to-do list, not something
+                           -- credit can open. The appraisal link's DocumentId is never null, so its
+                           -- inner join to Documents is what drops a link with no file. No rule on the document TYPE anywhere — D036 and any
+                           -- other code is listed like the rest — hence LEFT JOIN to the master: a
+                           -- code the master does not know still shows, under its own code.
+                           -- All three branches skip a soft-deleted file (inner join to Documents with
+                           -- IsDeleted = 0); request / title rows are also skipped when the request is
+                           -- deleted. The link tables have no IsDeleted (unlinking removes the row). Reading request.* from this module follows GetDecisionSummary.
+                           -- The grid is read into a positional record: column ORDER matters, so the
+                           -- sort keys live in the derived table and only ORDER BY sees them.
+                           SELECT  x.DocumentId, x.TypeCode, x.TypeName, x.TypeNameTh,
+                                   x.FileName, x.FileSizeBytes, x.UploadedAt,
+                                   x.Source, x.TitleNumber, x.CollateralType, x.CarriedFromAppraisalNumber
+                           FROM (
+                               SELECT  ad.DocumentId,
+                                       COALESCE(dt.Code, ad.DocumentTypeCode)            AS TypeCode,
+                                       dt.Name                                           AS TypeName,
+                                       dt.NameTh                                         AS TypeNameTh,
+                                       COALESCE(d.FileName, ad.FileName)                 AS FileName,
+                                       COALESCE(d.FileSizeBytes, ad.FileSizeBytes)       AS FileSizeBytes,
+                                       ad.CreatedAt                                      AS UploadedAt,
+                                       N'Appraisal'                                      AS Source,
+                                       CAST(NULL AS nvarchar(100))                       AS TitleNumber,
+                                       CAST(NULL AS nvarchar(10))                        AS CollateralType,
+                                       CAST(NULL AS nvarchar(50))                        AS CarriedFromAppraisalNumber,
+                                       0 AS GroupOrder, 0 AS TitleSeq,
+                                       CAST(NULL AS datetime2) AS TitleCreatedAt, CAST(NULL AS uniqueidentifier) AS TitleId,
+                                       COALESCE(dt.SortOrder, 2147483647)                AS TypeSort,
+                                       COALESCE(dt.Code, ad.DocumentTypeCode)            AS SortCode,
+                                       ad.SortOrder                                      AS RowOrder,
+                                       ad.Id                                             AS RowId
+                               FROM appraisal.AppraisalDocuments ad
+                                        LEFT JOIN parameter.DocumentTypes dt ON dt.Code = ad.DocumentTypeCode
+                                        JOIN document.Documents d ON d.Id = ad.DocumentId AND d.IsDeleted = 0
+                               WHERE ad.AppraisalId = @AppraisalId
+
+                               UNION ALL
+
+                               SELECT  rd.DocumentId,
+                                       COALESCE(dt.Code, rd.DocumentType),
+                                       dt.Name,
+                                       dt.NameTh,
+                                       COALESCE(rd.FileName, d.FileName),
+                                       d.FileSizeBytes,
+                                       rd.UploadedAt,
+                                       N'Request',
+                                       NULL,
+                                       NULL,
+                                       -- A file carried over from the previous appraisal is marked
+                                       -- Source = 'PREV' on its link row; the number is the request's.
+                                       CASE WHEN rd.Source = N'PREV' THEN rq.PrevAppraisalNumber END,
+                                       1, 0, NULL, NULL,
+                                       COALESCE(dt.SortOrder, 2147483647),
+                                       COALESCE(dt.Code, rd.DocumentType),
+                                       0,
+                                       rd.Id
+                               FROM appraisal.Appraisals a
+                                        JOIN request.Requests r ON r.Id = a.RequestId AND r.IsDeleted = 0
+                                        JOIN request.RequestDocuments rd ON rd.RequestId = r.Id
+                                        JOIN document.Documents d ON d.Id = rd.DocumentId AND d.IsDeleted = 0
+                                        LEFT JOIN request.RequestDetails rq ON rq.RequestId = r.Id
+                                        LEFT JOIN parameter.DocumentTypes dt ON dt.Code = rd.DocumentType
+                               WHERE a.Id = @AppraisalId
+                                 AND rd.DocumentId IS NOT NULL
+
+                               UNION ALL
+
+                               SELECT  td.DocumentId,
+                                       COALESCE(dt.Code, td.DocumentType, N''),
+                                       dt.Name,
+                                       dt.NameTh,
+                                       COALESCE(td.FileName, d.FileName),
+                                       d.FileSizeBytes,
+                                       td.UploadedAt,
+                                       N'Title',
+                                       -- Movable collaterals have no deed number: the per-type number of the
+                                       -- carry-forward / FE movableIdentity rule (copied from
+                                       -- vw_CarryForwardDocuments; keep them identical): vehicle plate, machine
+                                       -- registration, vessel registration, the deed's TitleNumber otherwise.
+                                       CASE
+                                           WHEN t.CollateralType = '10' THEN COALESCE(NULLIF(t.LicensePlateNumber, ''), t.VehicleRegistrationNumber)
+                                           WHEN t.CollateralType = '11' THEN CASE WHEN t.RegistrationStatus = 1 THEN t.RegistrationNumber END
+                                           WHEN t.CollateralType = '12' THEN COALESCE(NULLIF(t.VesselRegistrationNumber, ''), t.HIN)
+                                           ELSE t.TitleNumber
+                                       END,
+                                       t.CollateralType,
+                                       CASE WHEN td.Source = N'PREV' THEN rq.PrevAppraisalNumber END,
+                                       -- Legacy titles all have SequenceNumber 0, so CreatedAt and Id keep
+                                       -- each title's files together.
+                                       2, t.SequenceNumber, t.CreatedAt, t.Id,
+                                       COALESCE(dt.SortOrder, 2147483647),
+                                       COALESCE(dt.Code, td.DocumentType, N''),
+                                       0,
+                                       td.Id
+                               FROM appraisal.Appraisals a
+                                        JOIN request.Requests r ON r.Id = a.RequestId AND r.IsDeleted = 0
+                                        JOIN request.RequestTitles t ON t.RequestId = r.Id
+                                        JOIN request.RequestTitleDocuments td ON td.TitleId = t.Id
+                                        JOIN document.Documents d ON d.Id = td.DocumentId AND d.IsDeleted = 0
+                                        LEFT JOIN request.RequestDetails rq ON rq.RequestId = r.Id
+                                        LEFT JOIN parameter.DocumentTypes dt ON dt.Code = td.DocumentType
+                               WHERE a.Id = @AppraisalId
+                                 AND td.DocumentId IS NOT NULL
+                           ) x
+                           ORDER BY x.GroupOrder, x.TitleSeq, x.TitleCreatedAt, x.TitleId, x.TypeSort, x.SortCode, x.RowOrder, x.UploadedAt, x.RowId;
 
                            -- Who is holding it right now. PendingTasks.CorrelationId is the
                            -- REQUEST id, not the appraisal id (see GetAppraisalWorkflowProgress).
@@ -752,14 +852,15 @@ public class GetAppraisalBriefQueryHandler(
                            WHERE ap.AppraisalId = @AppraisalId;
 
                            -- Thai labels for every code list the brief shows as text: building types and
-                           -- conditions (assets, house models) and a project's utilities and facilities.
+                           -- conditions (assets, house models), a project's utilities and facilities, and the collateral type
+                           -- of a title's documents.
                            -- One small master read mapped in C# (LabelMap), rather than a lookup per
                            -- column: which of code / remark / label wins is decided there
                            -- (CodeOrOtherDisplay), so the code-99 rule is testable. Ordered so a
                            -- duplicate row (the master is unique per Country) resolves the same way every time.
                            SELECT  p.[Group] AS [Group], p.Code, p.Description
                            FROM parameter.Parameters p
-                           WHERE p.[Group] IN (N'BuildingType', N'BuildingCondition', N'PublicUtility', N'Facilities')
+                           WHERE p.[Group] IN (N'BuildingType', N'BuildingCondition', N'PublicUtility', N'Facilities', N'CollateralType')
                              AND p.[Language] = N'TH' AND p.IsActive = 1
                            ORDER BY p.[Group], p.Code, p.ParId;
 
@@ -816,6 +917,7 @@ public class GetAppraisalBriefQueryHandler(
         var conditionLabels = LabelMap(labelRows, "BuildingCondition");
         var utilityLabels = LabelMap(labelRows, "PublicUtility");
         var facilityLabels = LabelMap(labelRows, "Facilities");
+        var collateralTypeLabels = LabelMap(labelRows, "CollateralType");
 
         var depreciationByProperty = depreciationRows.ToLookup(d => d.AppraisalPropertyId);
 
@@ -1033,15 +1135,20 @@ public class GetAppraisalBriefQueryHandler(
             // IsPriceCertified is the valuation outcome: it follows the figures, not the descriptive fields.
             Machines = BuildMachines(machineRows, released),
 
-            // Documents are withheld whole: a DocumentId is a working download link on its own
-            // (GET /documents/{id}/download), so shipping the ids of a locked appraisal would
-            // hand over the files no matter what the client renders.
-            Documents = documentsReleased
-                ? docs.Select(d => new BriefDocument(
+            // The appraisal's own files are withheld whole when it is not released: a DocumentId is
+            // a working download link on its own (GET /documents/{id}/download), so shipping the ids
+            // of a locked appraisal would hand over the files no matter what the client renders.
+            // The request's and collaterals' files are what the requester submitted, not appraisal
+            // output, so they go out in every state (decided with the release rule, not by accident).
+            // Primary (the summary / report credit files) is an appraisal-folder notion, never a request file.
+            // An allow-list, not "everything but Appraisal": a source nobody named here stays withheld.
+            Documents = docs
+                .Where(d => documentsReleased || d.Source is SourceRequest or SourceTitle)
+                .Select(d => new BriefDocument(
                     d.DocumentId, d.TypeCode, d.TypeName, d.TypeNameTh,
-                    PrimaryDocumentCodes.Contains(d.TypeCode.Trim()),
-                    d.FileName, d.FileSizeBytes, d.UploadedAt)).ToList()
-                : []
+                    d.Source == SourceAppraisal && PrimaryDocumentCodes.Contains(d.TypeCode.Trim()),
+                    d.FileName, d.FileSizeBytes, d.UploadedAt,
+                    d.Source, d.TitleNumber, LabelOf(collateralTypeLabels, d.CollateralType), d.CarriedFromAppraisalNumber)).ToList()
         };
     }
 
@@ -1524,5 +1631,6 @@ public class GetAppraisalBriefQueryHandler(
 
     private sealed record DocumentRow(
         Guid DocumentId, string TypeCode, string? TypeName, string? TypeNameTh,
-        string? FileName, long? FileSizeBytes, DateTime? UploadedAt);
+        string? FileName, long? FileSizeBytes, DateTime? UploadedAt,
+        string Source, string? TitleNumber, string? CollateralType, string? CarriedFromAppraisalNumber);
 }
