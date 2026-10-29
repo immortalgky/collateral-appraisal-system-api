@@ -207,6 +207,28 @@ public class GetPropertyGroupByIdQueryHandler(
                 property.LeaseEndDate = f.LeaseEndDate;
                 property.LeaseRentFee = f.LeaseRentFee;
             }
+
+            // Secondary query: the IsBuilding flag of every depreciation row of the group's buildings, one
+            // query for the whole group. Same rule as the appraisal summary report and the brief: a
+            // building whose rows are all ส่วนพัฒนา (IsBuilding = 0) is development-only.
+            var depreciationSql = """
+                                  SELECT bad.AppraisalPropertyId, bdd.IsBuilding
+                                  FROM appraisal.BuildingDepreciationDetails bdd
+                                  INNER JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
+                                  WHERE bad.AppraisalPropertyId IN @PropertyIds
+                                  """;
+
+            var isBuildingByProperty = (await connection.QueryAsync<DepreciationFlagRow>(
+                    depreciationSql,
+                    new { PropertyIds = propertyIds }))
+                .ToLookup(r => r.AppraisalPropertyId, r => r.IsBuilding);
+
+            foreach (var property in propertyGroup.Properties!)
+            {
+                if (property.PropertyId is not null)
+                    property.IsDevelopmentOnly =
+                        DevelopmentOnlyBuilding.IsDevelopmentOnly(isBuildingByProperty[property.PropertyId.Value]);
+            }
         }
 
         return propertyGroup;
@@ -264,6 +286,11 @@ public record PropertyGroupItemDto
     /// construction inspection. Null when finished or when no inspection has been recorded yet.
     /// </summary>
     public decimal? ConstructionProgressPct { get; set; }
+    /// <summary>
+    /// Building / land-and-building: true when the building has depreciation rows and every one is
+    /// ส่วนพัฒนา (IsBuilding = false) — the same rule as the appraisal summary report and brief. False otherwise.
+    /// </summary>
+    public bool IsDevelopmentOnly { get; set; }
     /// <summary>Building / land-and-building: the building's total floor area (m²).</summary>
     public decimal? BuildingArea { get; set; }
     /// <summary>Condo only: project name.</summary>
@@ -298,6 +325,12 @@ public record PropertyGroupItemDto
 public record PropertyPhotoDto(Guid MappingId, Guid DocumentId, bool IsThumbnail);
 
 internal record PropertyPhotoRow(Guid MappingId, Guid AppraisalPropertyId, Guid DocumentId, bool IsThumbnail);
+
+internal record DepreciationFlagRow
+{
+    public Guid AppraisalPropertyId { get; init; }
+    public bool IsBuilding { get; init; }
+}
 
 internal record PropertyFactsRow
 {

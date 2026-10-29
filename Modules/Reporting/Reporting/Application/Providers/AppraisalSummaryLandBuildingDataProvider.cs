@@ -1014,23 +1014,6 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         bool IsUnderConstructionProperty(Guid propertyId) =>
             ProgressPctOf(propertyId) is { } pct && pct < 100m;
 
-        // Value at current progress. Null percent (no inspection) → the line is complete, so the
-        // current value IS the 100% value. Zero percent (ยังไม่ก่อสร้าง) → null, rendered as "-".
-        //
-        // The percent is capped at 100: RS24 sums ConstructionWorkDetails.CurrentProportionPct,
-        // which nothing bounds, so a data error can read above 100. Uncapped, such a row landed in
-        // the COMPLETED block (IsUnderConstructionProperty treats >= 100 as finished) printing its
-        // 100% value, while the subtotals still carried value × 1.1 — and the printed blocks then
-        // no longer added up to รวมมูลค่าทรัพย์สินตามสภาพปัจจุบัน. Capping keeps the two in step.
-        static decimal? CurrentValueOf(decimal? value100, decimal? pct)
-        {
-            if (value100 is null) return null;
-            if (pct is null) return value100;
-            if (pct.Value <= 0m) return null;
-            if (pct.Value >= 100m) return value100;
-            return Math.Round(value100.Value * pct.Value / 100m, 2, MidpointRounding.AwayFromZero);
-        }
-
         // PropertyType stores domain family codes, so map family → CollateralType code before lookup.
         string? TranslateCollateralType(string? code) =>
             CollateralFamilyTranslator.ToThai(code, collateralTypeMap);
@@ -1076,27 +1059,10 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             // The rule is only the rows: a property whose depreciation rows are ALL non-building is
             // ส่วนพัฒนา, whether or not it has a house number (a numbered one used to stay a blank
             // building line and print a second time under ส่วนพัฒนา).
-            var depRowsByBuilding = deps
-                .GroupBy(d => d.BuildingAppraisalDetailId)
-                .ToDictionary(grp => grp.Key, grp => grp.ToList());
+            var developmentOnlyIds = DevelopmentOnlyBuildingIds(deps);
 
             // The rule itself lives in Shared so the appraisal brief applies the same one.
-            bool IsDevelopmentOnly(GroupBuildingRow b) =>
-                depRowsByBuilding.TryGetValue(b.BuildingId, out var rows)
-                && DevelopmentOnlyBuilding.IsDevelopmentOnly(rows.Select(r => r.IsBuilding));
-
-            // Rows moved out of the สิ่งปลูกสร้าง list lose the only place their type was printed, so
-            // they lead with it under ส่วนพัฒนา — "รั้วตาข่ายเหล็ก …" instead of a bare "พื้นที่ใช้สอย …".
-            // Rows under a normal building are left alone: that building still names itself on its
-            // own line, so a prefix would only repeat it.
-            // GroupBy (not a bare ToDictionary): RS14 joins parameter.Parameters on Group+Language
-            // +Code while that table is unique on (Group, Country, Language, Code), so a second
-            // active row for the same code can fan one building into two — a duplicate key here
-            // would 500 the whole report.
-            var movedNameByBuilding = buildings
-                .Where(IsDevelopmentOnly)
-                .GroupBy(b => b.BuildingId)
-                .ToDictionary(grp => grp.Key, grp => BuildingDisplayName(grp.First()));
+            bool IsDevelopmentOnly(GroupBuildingRow b) => developmentOnlyIds.Contains(b.BuildingId);
 
             // Land description (titles only — no building clause).
             var landParts = new List<string>();
@@ -1237,12 +1203,11 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
             // Cost-approach breakdown. Buildings: ONE line per building (not per depreciation row).
             //
-            // The property's structure total is the Building Cost Value the appraiser saw on the
-            // form: their keyed figure when they entered one, otherwise the depreciated sum rounded
-            // to the nearest 1,000. That total already covers the property's ส่วนพัฒนา rows, which
-            // print on their own lines below, so the building line carries the remainder — leaving
-            // รวมมูลค่าสิ่งปลูกสร้าง equal to what the form showed.
-            // KEEP IN SYNC with the property form's Building Cost Value (BuildingDetail.tsx).
+            // The property's structure total is its Building Cost Value (see BuildingCostTotal). That
+            // total already covers the property's ส่วนพัฒนา rows, which print on their own lines below,
+            // so the building line carries the remainder — leaving รวมมูลค่าสิ่งปลูกสร้าง equal to what
+            // the form showed. A development-only building has no building line: it prints its whole
+            // total as one ส่วนพัฒนา line instead.
             var buildingValueById = deps
                 .GroupBy(d => d.BuildingAppraisalDetailId)
                 .Where(grp => grp.Any(d => d.IsBuilding))
@@ -1250,10 +1215,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                     grp => grp.Key,
                     grp =>
                     {
-                        var total = grp.First().BuildingCostValue
-                                    ?? Math.Round(
-                                        grp.Sum(d => d.PriceAfterDepreciation ?? 0m) / 1000m,
-                                        MidpointRounding.AwayFromZero) * 1000m;
+                        var total = BuildingCostTotal(
+                            grp.First().BuildingCostValue, grp.Select(d => d.PriceAfterDepreciation));
                         return total - grp.Where(d => !d.IsBuilding)
                                           .Sum(d => d.PriceAfterDepreciation ?? 0m);
                     });
@@ -1280,45 +1243,27 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
             var buildingItems = buildingRows.ConvertAll(x => x.Row);
 
-            // Print the moved rows in property order rather than the ORDER BY bdd.Id the query gives
-            // (a Guid v7 sorts arbitrarily under SQL Server's uniqueidentifier collation), so each
-            // property's items stay together. OrderBy is stable — rows within a property keep their
-            // existing relative order.
-            var sequenceByProperty = buildings
-                .GroupBy(b => b.AppraisalPropertyId)
-                .ToDictionary(grp => grp.Key, grp => grp.Min(b => b.SequenceInGroup));
-
-            // ส่วนพัฒนา: development items are the non-building (IsBuilding=0) depreciation rows.
-            var developmentRows = deps.Where(d => !d.IsBuilding)
-                .OrderBy(d => sequenceByProperty.TryGetValue(d.AppraisalPropertyId, out var seq) ? seq : int.MaxValue)
-                .Select(d =>
-                {
-                    var pct = ProgressPctOf(d.AppraisalPropertyId);
-                    var isMoved = movedNameByBuilding.TryGetValue(d.BuildingAppraisalDetailId, out var namePrefix);
-                    return (
-                        d.AppraisalPropertyId,
-                        IsMoved: isMoved,
-                        IsUnderConstruction: IsUnderConstructionProperty(d.AppraisalPropertyId),
-                        Row: new SummaryItemRow
-                        {
-                            Description = BuildItemDesc(d, "พื้นที่", pct, namePrefix),
-                            Value = d.PriceAfterDepreciation,
-                            CurrentValue = CurrentValueOf(d.PriceAfterDepreciation, pct)
-                        });
-                })
+            // ส่วนพัฒนา: the non-building (IsBuilding=0) depreciation rows of a normal building, one per row,
+            // plus ONE line per development-only building (see BuildDevelopmentRows).
+            var developmentRows = BuildDevelopmentRows(buildings, deps, developmentOnlyIds, ProgressPctOf)
+                .Select(x => (
+                    x.AppraisalPropertyId,
+                    x.IsMoved,
+                    IsUnderConstruction: IsUnderConstructionProperty(x.AppraisalPropertyId),
+                    x.Row))
                 .ToList();
 
             var developmentItems = developmentRows.ConvertAll(x => x.Row);
 
             ReconcileToStored(
-                [.. buildingRows.Select(x => (x.AppraisalPropertyId, x.Row, IsBuilding: true)),
-                 .. developmentRows.Select(x => (x.AppraisalPropertyId, x.Row, IsBuilding: false))],
+                [.. buildingRows.Select(x => (x.AppraisalPropertyId, x.Row, OnInspectionBase: true)),
+                 .. developmentRows.Select(x => (x.AppraisalPropertyId, x.Row, OnInspectionBase: x.IsMoved))],
                 ProgressPctOf, storedCurrentByProperty);
 
             // The combined/market row carries ONE blended figure and has no valued ส่วนพัฒนา block,
-            // so it lists only the rows whose property just lost its "พร้อม…" clause — as plain text
-            // under a ส่วนพัฒนา heading. Rows belonging to a normal building stay unlisted there,
-            // exactly as before.
+            // so it lists only the development-only buildings' lines — whose property just lost its
+            // "พร้อม…" clause — as plain text under a ส่วนพัฒนา heading. Rows belonging to a normal
+            // building stay unlisted there, exactly as before.
             var developmentDescriptions = developmentRows
                 .Where(x => x.IsMoved && !string.IsNullOrWhiteSpace(x.Row.Description))
                 .Select(x => x.Row.Description!)
@@ -1398,12 +1343,13 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             // lines above it.
             //
             // Only when NOTHING in the group is under construction. A group with partial progress
-            // derives every current-condition figure from its own rows (CurrentValueOf, per
-            // property percent), and BuildingSubtotal − BuildingSubtotalCurrent is what decides
-            // whether the book prints its ตามสภาพปัจจุบัน block at all. Substituting the total on
-            // one side of that subtraction and not the other would invent a shortfall out of the
-            // override and print a construction block for a finished group.
-            var hasUnderConstructionBuilding = buildingRows.Any(x => x.IsUnderConstruction);
+            // derives every current-condition figure (and the shortfall) from its own rows
+            // (CurrentValueOf, per property percent), so both columns must come from that same
+            // source rather than the saved total on one side and the rows on the other.
+            // A development-only building under construction counts too: its line carries the same
+            // current-condition figure, in the UC ส่วนพัฒนา block.
+            var hasUnderConstructionBuilding = buildingRows.Any(x => x.IsUnderConstruction)
+                                               || developmentRows.Any(x => x.IsUnderConstruction);
             var useSavedBuildingValue = g.BuildingValue is > 0m && !hasUnderConstructionBuilding;
 
             var buildingSubtotal = useSavedBuildingValue
@@ -1874,23 +1820,134 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         // Thai land-area shorthand rai-ngan-wa; every empty position shows 0 (e.g. "9-2-41 ไร่", "1-0-0 ไร่").
         => $"{rai ?? 0:#,##0.##}-{ngan ?? 0:#,##0.##}-{sqwa ?? 0:#,##0.##} ไร่";
 
+    // Value at current progress. Null percent (no inspection) → the line is complete, so the
+    // current value IS the 100% value. Zero percent (ยังไม่ก่อสร้าง) → null, rendered as "-".
+    //
+    // The percent is capped at 100: RS24 sums ConstructionWorkDetails.CurrentProportionPct,
+    // which nothing bounds, so a data error can read above 100. Uncapped, such a row landed in
+    // the COMPLETED block (IsUnderConstructionProperty treats >= 100 as finished) printing its
+    // 100% value, while the subtotals still carried value × 1.1 — and the printed blocks then
+    // no longer added up to รวมมูลค่าทรัพย์สินตามสภาพปัจจุบัน. Capping keeps the two in step.
+    private static decimal? CurrentValueOf(decimal? value100, decimal? pct)
+    {
+        if (value100 is null) return null;
+        if (pct is null) return value100;
+        if (pct.Value <= 0m) return null;
+        if (pct.Value >= 100m) return value100;
+        return Math.Round(value100.Value * pct.Value / 100m, 2, MidpointRounding.AwayFromZero);
+    }
+
+    /// <summary>
+    /// A property's structure total — the Building Cost Value the appraiser saw on the form: their keyed
+    /// figure when they entered one, otherwise the depreciated sum rounded to the nearest 1,000.
+    /// KEEP IN SYNC with the property form's Building Cost Value (BuildingDetail.tsx).
+    /// </summary>
+    internal static decimal BuildingCostTotal(decimal? keyed, IEnumerable<decimal?> priceAfterDepreciation) =>
+        keyed ?? Math.Round(priceAfterDepreciation.Sum(p => p ?? 0m) / 1000m, MidpointRounding.AwayFromZero) * 1000m;
+
+    /// <summary>
+    /// The buildings whose depreciation rows are ALL non-building — one definition, shared by the lines below
+    /// and the caller. The rule itself lives in Shared so the appraisal brief applies the same one.
+    /// </summary>
+    internal static HashSet<Guid> DevelopmentOnlyBuildingIds(IEnumerable<GroupDepreciationRow> deps) =>
+        deps.GroupBy(d => d.BuildingAppraisalDetailId)
+            .Where(grp => DevelopmentOnlyBuilding.IsDevelopmentOnly(grp.Select(r => r.IsBuilding)))
+            .Select(grp => grp.Key)
+            .ToHashSet();
+
+    /// <summary>
+    /// The ส่วนพัฒนา lines, in property order rather than the ORDER BY bdd.Id the query gives (a Guid v7 sorts
+    /// arbitrarily under SQL Server's uniqueidentifier collation), so each property's items stay together.
+    /// A development-only building prints as ONE line (<c>IsMoved</c>) valued at its Building Cost Value, with
+    /// area and age from the property level — the user saw that figure on the property page, and the
+    /// inspection is on that base. Rows under a normal building print one line each, on raw depreciation.
+    /// </summary>
+    internal static List<(Guid AppraisalPropertyId, bool IsMoved, SummaryItemRow Row)> BuildDevelopmentRows(
+        IReadOnlyList<GroupBuildingRow> buildings,
+        IReadOnlyList<GroupDepreciationRow> deps,
+        IReadOnlySet<Guid> developmentOnlyIds,
+        Func<Guid, decimal?> progressPctOf)
+    {
+        var rowsByBuilding = deps
+            .GroupBy(d => d.BuildingAppraisalDetailId)
+            .ToDictionary(grp => grp.Key, grp => grp.ToList());
+
+        // GroupBy (not a bare ToDictionary): RS14 joins parameter.Parameters on Group+Language
+        // +Code while that table is unique on (Group, Country, Language, Code), so a second
+        // active row for the same code can fan one building into two — and into two lines.
+        var developmentOnly = buildings
+            .GroupBy(b => b.BuildingId)
+            .Select(grp => grp.First())
+            .Where(b => developmentOnlyIds.Contains(b.BuildingId))
+            .ToList();
+
+        var moved = developmentOnly.Select(b =>
+        {
+            var rows = rowsByBuilding[b.BuildingId];
+            var pct = progressPctOf(b.AppraisalPropertyId);
+            // Nothing keyed and nothing priced: leave the line blank rather than print 0.00.
+            decimal? value = rows[0].BuildingCostValue is null && rows.All(r => r.PriceAfterDepreciation is null)
+                ? null
+                : BuildingCostTotal(rows[0].BuildingCostValue, rows.Select(r => r.PriceAfterDepreciation));
+            return (b.AppraisalPropertyId, IsMoved: true, Row: new SummaryItemRow
+            {
+                Description = BuildDevelopmentOnlyLine(b, pct),
+                Value = value,
+                CurrentValue = CurrentValueOf(value, pct)
+            });
+        });
+
+        var normal = deps
+            .Where(d => !d.IsBuilding && !developmentOnlyIds.Contains(d.BuildingAppraisalDetailId))
+            .Select(d =>
+            {
+                var pct = progressPctOf(d.AppraisalPropertyId);
+                return (d.AppraisalPropertyId, IsMoved: false, Row: new SummaryItemRow
+                {
+                    Description = BuildItemDesc(d, "พื้นที่", pct),
+                    Value = d.PriceAfterDepreciation,
+                    CurrentValue = CurrentValueOf(d.PriceAfterDepreciation, pct)
+                });
+            });
+
+        var sequenceByProperty = buildings
+            .GroupBy(b => b.AppraisalPropertyId)
+            .ToDictionary(grp => grp.Key, grp => grp.Min(b => b.SequenceInGroup));
+
+        // OrderBy is stable — lines within a property keep their existing relative order.
+        return normal.Concat(moved)
+            .OrderBy(x => sequenceByProperty.TryGetValue(x.AppraisalPropertyId, out var seq) ? seq : int.MaxValue)
+            .ToList();
+    }
+
+    /// <summary>
+    /// The one ส่วนพัฒนา line of a development-only building: its type, then area and age from the property
+    /// level (never the depreciation rows), e.g. "รั้วตาข่ายเหล็ก พื้นที่ 80 ตารางเมตร อายุ 1 ปี". A zero or
+    /// missing area/age is "not stated" and is skipped, as is the floors/condition a house line would add.
+    /// </summary>
+    private static string? BuildDevelopmentOnlyLine(GroupBuildingRow b, decimal? progressPct)
+    {
+        var parts = new List<string>();
+        if (BuildingDisplayName(b) is { } name)
+            parts.Add(name);
+        if (b.TotalBuildingArea is { } area && area != 0)
+            parts.Add($"พื้นที่ {area:#,##0.##} ตารางเมตร");
+        if (b.BuildingAge is { } age && age != 0)
+            parts.Add($"อายุ {age} ปี");
+        if (ProgressSuffix(progressPct) is { } suffix)
+            parts.Add(suffix);
+        return parts.Count > 0 ? string.Join(" ", parts) : null;
+    }
+
     /// <summary>
     /// Builds a cost-breakdown line, e.g. "อาคารโรงงานชั้นเดียว พื้นที่ใช้สอย 1,800 ตารางเมตร อายุ 9 ปี".
     /// <paramref name="areaLabel"/> is "พื้นที่ใช้สอย" for buildings, "พื้นที่" for development items.
-    /// <paramref name="namePrefix"/> is the owning property's building type, passed for ส่วนพัฒนา
-    /// rows whose property prints no สิ่งปลูกสร้าง line of its own. It NAMES the item, replacing the
-    /// row's free-text <c>AreaDescription</c> — the two describe the same thing, and the building
-    /// type is the curated one. Rows under a normal building pass none and keep their own text.
-    /// An enhancement property carries a single Non-Building row in practice, so the replacement
-    /// loses nothing; were it to carry several, they would all print under this one name.
     /// </summary>
     private static string? BuildItemDesc(
-        GroupDepreciationRow d, string areaLabel, decimal? progressPct = null, string? namePrefix = null)
+        GroupDepreciationRow d, string areaLabel, decimal? progressPct = null)
     {
         var parts = new List<string>();
-        if (!string.IsNullOrWhiteSpace(namePrefix))
-            parts.Add(namePrefix!.Trim());
-        else if (!string.IsNullOrWhiteSpace(d.AreaDescription))
+        if (!string.IsNullOrWhiteSpace(d.AreaDescription))
             parts.Add(d.AreaDescription!.Trim());
         if (d.Area is { } a && a != 0)
             parts.Add($"{areaLabel} {a:#,##0.##} ตารางเมตร");
@@ -1990,11 +2047,12 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     /// (a zero-value line can then never print a stray satang). With no override the ratio is about 1, and that
     /// holds because the building line absorbs the base rounding (the keyed Building Cost Value, or the schedule
     /// rounded to 1,000) that the ส่วนพัฒนา lines, on raw depreciation, do not — which is why a property without a
-    /// valued building line is skipped and stays pct-scaled. So are properties with no inspection or no stored
-    /// value, not started, finished, or with a negative line.
+    /// line on that base (a building line, or the single line of a development-only building, which carries the
+    /// Building Cost Value itself) is skipped and stays pct-scaled. So are properties with no inspection or no
+    /// stored value, not started, finished, or with a negative line.
     /// </summary>
     internal static void ReconcileToStored(
-        IReadOnlyList<(Guid PropertyId, SummaryItemRow Row, bool IsBuilding)> lines,
+        IReadOnlyList<(Guid PropertyId, SummaryItemRow Row, bool OnInspectionBase)> lines,
         Func<Guid, decimal?> progressPctOf,
         IReadOnlyDictionary<Guid, decimal> storedByProperty)
     {
@@ -2006,9 +2064,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
             // The building line is what makes the ratio about 1: it absorbs the base rounding (the keyed Building
             // Cost Value, or the schedule rounded to 1,000) that the ส่วนพัฒนา lines, on raw depreciation, do not.
-            // Without a valued building line the lines are not on the inspection's base and the ratio distorts them,
-            // so such a property stays pct-scaled; a negative line breaks the proportions the same way.
-            if (!property.Any(l => l.IsBuilding && l.Row.Value > 0m) || property.Any(l => l.Row.Value < 0m))
+            // Without a valued line on that base the lines are not on the inspection's base and the ratio distorts
+            // them, so such a property stays pct-scaled; a negative line breaks the proportions the same way.
+            if (!property.Any(l => l.OnInspectionBase && l.Row.Value > 0m) || property.Any(l => l.Row.Value < 0m))
                 continue;
 
             var pct = progressPctOf(property.Key)!.Value;
@@ -2132,7 +2190,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             ? Math.Round(landValue.Value / squareWa, 2, MidpointRounding.AwayFromZero)
             : null;
 
-    private sealed class GroupDepreciationRow
+    internal sealed class GroupDepreciationRow
     {
         public Guid PropertyGroupId { get; init; }
         public Guid BuildingAppraisalDetailId { get; init; }
@@ -2274,7 +2332,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public string? ReasonDescription { get; init; }
     }
 
-    private sealed class GroupBuildingRow
+    internal sealed class GroupBuildingRow
     {
         public Guid PropertyGroupId { get; init; }
         public Guid BuildingId { get; init; }

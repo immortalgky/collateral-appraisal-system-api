@@ -49,4 +49,32 @@ public class PropertyGroupConstructionProgressTests(IntegrationTestFixture fixtu
     [Fact]
     public async Task Full_detail_round_is_the_sum_of_the_work_items() =>
         Assert.Equal(60m, await ProgressAsync(full: true, summaryCurrent: null, workRowCurrent: 60m));
+
+    private async Task<bool> DevelopmentOnlyAsync(params bool[] depreciationIsBuilding)
+    {
+        var (aid, groups, _) = await SeedGroupedAsync(a =>
+        {
+            var p = a.AddBuildingProperty();
+            p.BuildingDetail!.Update(ownerName: "owner");
+            foreach (var isBuilding in depreciationIsBuilding)
+                p.BuildingDetail!.AddDepreciationDetail("Period", isBuilding: isBuilding);
+            return [p];
+        });
+
+        var result = await SendAsync(new GetPropertyGroupByIdQuery(aid, groups[0]));
+
+        return Assert.Single(result.Properties!).IsDevelopmentOnly;
+    }
+
+    [Fact]
+    public async Task Building_with_only_development_rows_is_development_only() =>
+        Assert.True(await DevelopmentOnlyAsync(false, false));
+
+    [Fact]
+    public async Task Building_with_a_building_row_is_not_development_only() =>
+        Assert.False(await DevelopmentOnlyAsync(false, true));
+
+    [Fact]
+    public async Task Building_with_no_depreciation_rows_is_not_development_only() =>
+        Assert.False(await DevelopmentOnlyAsync());
 }
