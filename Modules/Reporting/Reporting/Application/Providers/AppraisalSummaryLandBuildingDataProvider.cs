@@ -1400,44 +1400,21 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             // group_total. The group's own composition is not consulted — the role is the appraiser's
             // answer to that.
             //   - priced by area: the rate, and ราคาประเมิน is area x rate so the row reconciles;
-            //   - priced as a lump (ราคาเหมา): the rate is DERIVED (LandValue / area, display only)
-            //     and ราคาประเมิน is the stored LandValue.
+            //   - priced as a lump (ราคาเหมา): there is no rate, so ราคาต่อหน่วย prints blank while
+            //     พื้นที่ and ราคาประเมิน (the stored LandValue) still print.
             // Only PerSqWa is a LAND rate: PerSqm is quoted against the usable (building) area, so a
             // PerSqm row is shown like a lump. KEEP IN SYNC with PricingAnalysisMethod.ApplyLandAreaValue
             // — Reporting cannot reference the Appraisal assembly.
             var isLandRate = g.UnitType == "PerSqWa";
-            // Explicitly not a land rate (PerUnit lumpsum or PerSqm). A NULL unit (legacy per-area Cost
-            // rows predate the column) is not one: it keeps printing FinalValueOverride as the rate,
-            // as it always did.
-            var isLumpUnit = g.UnitType is "PerUnit" or "PerSqm";
+            var isLumpUnit = IsLumpUnit(g.UnitType);
 
             // totalSquareWa is PricingFinalValues.LandArea when the pricing recorded one (see above),
             // else the title-derived net area — which is also populated for historical rows that
             // predate LandArea being written.
             var marketLandArea = totalSquareWa == 0m ? null : (decimal?)totalSquareWa;
-            // Per area: the appraiser's typed-over rate first, then the calculated one — the same
-            // precedence ApplyLandAreaValue multiplies by, so the page agrees with the stored LandValue.
-            var derivedLumpUnitPrice = isLumpUnit ? DerivedUnitPrice(g.LandValue, totalSquareWa) : null;
-            var marketLandUnitPrice = isLandRate
-                ? g.LandUnitPrice ?? g.ValuePerUnit   // FinalValueOverride, else ValuePerUnit
-                : derivedLumpUnitPrice;
-
-            var showLandUnitColumns = !isCost
-                                      && hasLand
-                                      && string.Equals(g.MethodRole, "Land", StringComparison.OrdinalIgnoreCase)
-                                      && g.IncludeLandArea == true
-                                      && marketLandArea.HasValue
-                                      && marketLandUnitPrice.HasValue;
-
-            // Per area: the product of the two cells printed beside it, so the row reconciles on the
-            // page — whole baht, away from zero, the way ApplyLandAreaValue rounds. It can differ from
-            // the committed group total (the appraiser's rounded IndicatedValue); that gap is left
-            // visible. Lump: the stored LandValue itself, never recomputed from the derived rate.
-            var marketLandValue = !showLandUnitColumns
-                ? (decimal?)null
-                : isLandRate
-                    ? Math.Round(marketLandArea!.Value * marketLandUnitPrice!.Value, 0, MidpointRounding.AwayFromZero)
-                    : g.LandValue;
+            var (showLandUnitColumns, marketLandUnitPrice, marketLandValue) = MarketLandColumns(
+                g.UnitType, !isCost && hasLand, g.MethodRole, g.IncludeLandArea,
+                g.LandUnitPrice, g.ValuePerUnit, g.LandValue, marketLandArea);
 
             return new SummaryGroupRow
             {
@@ -1470,9 +1447,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 TotalSquareWa = totalSquareWa == 0m ? null : totalSquareWa,
                 // The ราคาต่อหน่วย cell of the cost split land row. FinalValueOverride is a rate only on
                 // a per-area unit; on a lump (ราคาเหมา) it is the whole price, so printing it as a unit
-                // price is wrong. A lump prints the DERIVED rate (LandValue / the printed area) instead.
-                // Display only: nothing stores this, and ราคาประเมิน stays LandValue.
-                LandUnitPrice = isLumpUnit ? DerivedUnitPrice(g.LandValue, totalSquareWa) : g.LandUnitPrice,
+                // price is wrong. A lump prints no rate (blank cell); ราคาประเมิน stays LandValue.
+                LandUnitPrice = isLumpUnit ? null : g.LandUnitPrice,
                 // The land ROW prints พื้นที่ and ราคาต่อหน่วย in the two cells to the left of this
                 // one, so this cell is their product: a reader has to be able to reconcile the row
                 // from the figures printed on it, and PricingFinalValues.LandValue is an
@@ -2182,13 +2158,39 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     }
 
     /// <summary>
-    /// ราคาต่อหน่วย for a land row priced as a lump: the land value over the area the row prints,
-    /// two decimals, halves away from zero. Null when either is missing or not positive. Display only.
+    /// Explicitly not a land rate (PerUnit lumpsum or PerSqm). A NULL unit (legacy per-area Cost rows
+    /// predate the column) is not one: it keeps printing FinalValueOverride as the rate, as it always did.
     /// </summary>
-    internal static decimal? DerivedUnitPrice(decimal? landValue, decimal squareWa) =>
-        landValue is > 0m && squareWa > 0m
-            ? Math.Round(landValue.Value / squareWa, 2, MidpointRounding.AwayFromZero)
-            : null;
+    internal static bool IsLumpUnit(string? unitType) => unitType is "PerUnit" or "PerSqm";
+
+    /// <summary>
+    /// The market/combined land row's พื้นที่ gate, ราคาต่อหน่วย and ราคาประเมิน cells.
+    /// Per area (PerSqWa): the appraiser's typed-over rate first, then the calculated one — the same
+    /// precedence ApplyLandAreaValue multiplies by — and the value is area x rate, whole baht, away from
+    /// zero, so the row reconciles on the page. A NULL unit shows nothing (the row prints group_total).
+    /// A lump has no rate: the rate stays null (blank cell),
+    /// never derived from LandValue / area, while the stored LandValue and the area still print.
+    /// </summary>
+    internal static (bool Show, decimal? UnitPrice, decimal? Value) MarketLandColumns(
+        string? unitType, bool marketRowHasLand, string? methodRole, bool? includeLandArea,
+        decimal? landUnitPrice, decimal? valuePerUnit, decimal? landValue, decimal? area)
+    {
+        var isLandRate = unitType == "PerSqWa";
+        var unitPrice = isLandRate ? landUnitPrice ?? valuePerUnit : null;   // FinalValueOverride, else ValuePerUnit
+
+        var show = marketRowHasLand
+                   && string.Equals(methodRole, "Land", StringComparison.OrdinalIgnoreCase)
+                   && includeLandArea == true
+                   && area.HasValue
+                   && (isLandRate ? unitPrice.HasValue : IsLumpUnit(unitType) && landValue is > 0m);
+
+        var value = !show
+            ? (decimal?)null
+            : isLandRate
+                ? Math.Round(area!.Value * unitPrice!.Value, 0, MidpointRounding.AwayFromZero)
+                : landValue;
+        return (show, unitPrice, value);
+    }
 
     internal sealed class GroupDepreciationRow
     {

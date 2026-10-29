@@ -1,4 +1,6 @@
+using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
+using Appraisal.Domain.Services;
 
 namespace Appraisal.Application.Features.PricingAnalysis.UpdateMethod;
 
@@ -6,7 +8,8 @@ namespace Appraisal.Application.Features.PricingAnalysis.UpdateMethod;
 /// Handler for updating a method
 /// </summary>
 public class UpdateMethodCommandHandler(
-    IPricingAnalysisRepository pricingAnalysisRepository
+    IPricingAnalysisRepository pricingAnalysisRepository,
+    PricingPropertyDataService propertyDataService
 ) : ICommandHandler<UpdateMethodCommand, UpdateMethodResult>
 {
     public async Task<UpdateMethodResult> Handle(
@@ -133,11 +136,40 @@ public class UpdateMethodCommandHandler(
             && command.UseSystemCalc != true
             && command.MethodValue.HasValue
             && command.MethodValue.Value != methodValueBeforeThisSave
-            && method.FinalValue is not null
             && string.Equals(method.Role, "Land", StringComparison.OrdinalIgnoreCase))
         {
-            method.FinalValue.SetIndicatedValue(command.MethodValue.Value);
-            method.SyncLandValueWithIndicatedValue(buildingWasPresentBeforeThisSave: false);
+            // Role = Land priced as a LUMP (PerUnit or no unit — a PerSqm method is quoted against the
+            // building area and keeps the per-area path, which would otherwise lose its typed override):
+            // the typed figure is the whole land value, so it is recorded as land whether or not a
+            // PricingFinalValues row exists yet, and a land area a manual flip excluded is switched back
+            // on. One rule in one place: PricingAnalysisMethod.RecordLandLump. A reference analysis is
+            // skipped — its land figures are a deliberate DCF override, not the group's titles.
+            var isLump = (method.UnitType is null || method.UnitType == PricingUnit.PerUnit)
+                         && !pricingAnalysis.IsReference;
+
+            // The whole lump rule (record when > 0, delete when <= 0) applies only to a group with a net
+            // title area; a condo or project model has no land to record, so it keeps the old path
+            // below for every value, including 0.
+            decimal netLandArea = 0m;
+            if (isLump
+                && pricingAnalysis.SubjectType == PricingAnalysisSubjectType.PropertyGroup
+                && pricingAnalysis.AnchorId.HasValue)
+                netLandArea = await propertyDataService.GetTotalLandAreaInSqWaAsync(
+                    pricingAnalysis.AnchorId.Value, cancellationToken) ?? 0m;
+
+            if (netLandArea > 0m)
+            {
+                if (command.MethodValue.Value > 0m)
+                    method.RecordLandLump(command.MethodValue.Value, netLandArea);
+                else
+                    // Valued at nothing: no row, the same as SetManualCostBreakdown for the same input.
+                    method.ClearFinalValue();
+            }
+            else if (method.FinalValue is not null)
+            {
+                method.FinalValue.SetIndicatedValue(command.MethodValue.Value);
+                method.SyncLandValueWithIndicatedValue(buildingWasPresentBeforeThisSave: false);
+            }
         }
 
         // Roll the new method value up through approach → analysis (null-safe, idempotent).

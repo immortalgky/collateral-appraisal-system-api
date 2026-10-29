@@ -161,7 +161,7 @@ public class PricingPropertyDataService(
     /// KEEP IN SYNC with LandAppraisalDetail.NetLandAreaInSqWa — same three area terms, same
     /// per-property subtraction, same floor at zero.
     /// </remarks>
-    public async Task<decimal?> GetTotalLandAreaInSqWaAsync(
+    public virtual async Task<decimal?> GetTotalLandAreaInSqWaAsync(
         Guid propertyGroupId, CancellationToken cancellationToken)
     {
         using var connection = sqlConnectionFactory.GetOpenConnection();
