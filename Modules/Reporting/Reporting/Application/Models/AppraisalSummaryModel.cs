@@ -1,5 +1,4 @@
 using Reporting.Application.Models.Sections;
-using System.Text.RegularExpressions;
 using Shared.DDD;
 
 namespace Reporting.Application.Models;
@@ -810,10 +809,21 @@ public sealed record SummaryRemark(string Label, string Text)
     public static SummaryRemark? From(string? raw, string? scope = null) =>
         PlaceholderText.Stated(raw) is null
             ? null
-            : new SummaryRemark(scope is null ? PlainLabel : $"หมายเหตุ ({scope}):", LeadingBlankLines.Replace(raw!, "").TrimEnd());
+            : new SummaryRemark(scope is null ? PlainLabel : $"หมายเหตุ ({scope}):", WithoutLeadingBlankLines(raw!).TrimEnd());
 
     // Whole whitespace-only lines at the start; the first typed line keeps its own indentation.
-    private static readonly Regex LeadingBlankLines = new(@"\A(?:[^\S\r\n]*(?:\r\n|\r|\n))+", RegexOptions.Compiled);
+    private static string WithoutLeadingBlankLines(string text)
+    {
+        var lineStart = 0;
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (text[i] is '\r' or '\n')
+                lineStart = i + 1;
+            else if (!char.IsWhiteSpace(text[i]))
+                break;
+        }
+        return text[lineStart..];
+    }
 }
 
 /// <summary>One committee approver row (fields 45–50).</summary>
