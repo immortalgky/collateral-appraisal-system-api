@@ -119,7 +119,7 @@
              which group they belong to only at the subtotal. A group is at most three sets plus a
              subtotal, so it takes an unlucky break to hit. Revisit with a repeating thead if real
              reports start splitting groups across pages. -->
-        <td>{{ if multi && for.first }}<div class="g-name">{{ g.group_label }}</div>{{ end }}<div class="m-head">{{ s.heading }}</div>{{ for it in s.items }}<div class="m-item">{{ for.index + 1 }}. {{ it }}</div>{{ end }}{{ if row_has }}<div class="m-total">สรุปมูลค่าเครื่องจักร</div>{{ end }}</td>
+        <td>{{ if multi && for.first }}<div class="g-name">{{ g.group_label }}</div>{{ end }}<div class="m-head">{{ s.heading }}</div>{{ for it in s.items }}<div class="m-item">{{ for.index + 1 }}. {{ it.description }}</div>{{ if it.remark }}{{ remark_item = it.remark }}{{ include 'partials/summary-remark' }}{{ end }}{{ end }}{{ if row_has }}<div class="m-total">สรุปมูลค่าเครื่องจักร</div>{{ end }}</td>
         <td>&nbsp;</td>
         <td>&nbsp;</td>
         <td class="num{{ if row_has }} foot{{ end }}">{{ if row_has; row_value | math.format "N2"; end }}</td>
@@ -132,7 +132,7 @@
           <span class="chk on"></span>
           <strong>{{ g.property_type }}</strong>
         </td>
-        <td>{{ if multi }}<div class="g-name">{{ g.group_label }}</div>{{ end }}{{ if g.collateral_details }}<div>{{ g.collateral_details }}</div>{{ end }}{{ for d in g.detail_items }}<div>{{ for.index + 1 }}. {{ d }}</div>{{ end }}</td>
+        <td>{{ if multi }}<div class="g-name">{{ g.group_label }}</div>{{ end }}{{ if g.collateral_details }}<div>{{ g.collateral_details }}</div>{{ end }}{{ for d in g.detail_items }}<div>{{ for.index + 1 }}. {{ d.description }}</div>{{ end }}</td>
         <td>&nbsp;</td>
         <td>&nbsp;</td>
         <!-- use_section_value is false here by construction — no sections means no split — so this

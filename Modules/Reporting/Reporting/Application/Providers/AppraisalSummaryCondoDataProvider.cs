@@ -152,7 +152,8 @@ public sealed class AppraisalSummaryCondoDataProvider(
                 CASE WHEN cad.BuildingConditionType = '99' AND NULLIF(cad.BuildingConditionTypeOther, '') IS NOT NULL
                      THEN cad.BuildingConditionTypeOther
                      ELSE COALESCE(ptBC.Description, cad.BuildingConditionTypeOther, cad.BuildingConditionType) END
-                    AS BuildingConditionDisplay
+                    AS BuildingConditionDisplay,
+                cad.Remark
             FROM appraisal.PropertyGroupItems pgi
             JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
             JOIN appraisal.CondoAppraisalDetails cad ON cad.AppraisalPropertyId = ap.Id
@@ -265,7 +266,7 @@ public sealed class AppraisalSummaryCondoDataProvider(
             condoByGroup.TryGetValue(g.GroupId, out var condoRows);
             condoRows ??= [];
 
-            var detailParts = new List<string>();
+            var detailItems = new List<SummaryItemRow>();
 
             foreach (var c in condoRows)
             {
@@ -332,10 +333,16 @@ public sealed class AppraisalSummaryCondoDataProvider(
                     parts.Add($"สภาพอาคาร{c.BuildingConditionDisplay}");
 
                 if (parts.Count > 0)
-                    detailParts.Add(string.Join(" ", parts));
+                {
+                    detailItems.Add(new SummaryItemRow
+                    {
+                        Description = string.Join(" ", parts),
+                        Remark = SummaryRemark.From(c.Remark)
+                    });
+                }
             }
 
-            var collateralDetails = detailParts.Count > 0 ? string.Join(" | ", detailParts) : null;
+            var collateralDetails = detailItems.Count > 0 ? string.Join(" | ", detailItems.Select(i => i.Description)) : null;
 
             // Condo does not show a unit count in the พื้นที่ / จำนวน column (a bare "1.00"
             // is meaningless); the column is left blank.
@@ -349,7 +356,7 @@ public sealed class AppraisalSummaryCondoDataProvider(
                 CollateralDetails = collateralDetails,
                 // One entry per unit; the template prints them as "- " lines only when there are 2+,
                 // otherwise it keeps CollateralDetails.
-                DetailItems = detailParts,
+                DetailItems = detailItems,
                 AreaOrUnit = areaOrUnit,
                 PricePerAreaOrUnit = null,
                 AppraisalValue = g.GroupAppraisalValue,
@@ -509,6 +516,7 @@ public sealed class AppraisalSummaryCondoDataProvider(
         public string? District { get; init; }
         public string? Province { get; init; }
         public string? BuildingConditionDisplay { get; init; }
+        public string? Remark { get; init; }
     }
 
     private sealed class ParamRow
