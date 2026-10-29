@@ -57,8 +57,9 @@ namespace Reporting.Application.Providers;
 ///   progress table, D011 for photos. The override covers external-company books that bundle everything into
 ///   D001, where nothing can be auto-detected and the book-verification reviewer ticks manually.
 ///
-/// ตรวจครั้งที่ comes from Appraisals.InspectionNumber, stamped at creation by
-/// AppraisalCreationService. The upward chain count RS07 also returns is only its fallback for
+/// ตรวจครั้งที่ comes from Appraisals.InspectionNumber, set at creation by
+/// AppraisalCreationService and later correctable by the appraiser (UpdateInspectionNumber).
+/// The upward chain count RS07 also returns is only its fallback for
 /// Progressive appraisals created before that column existed.
 ///
 /// Deferred (no stored source — left null with inline comments):
@@ -352,9 +353,10 @@ public sealed class AppraisalSummaryConstructionDataProvider(
 
             -- RS07: QCI7 — ตรวจครั้งที่.
             --
-            -- StampedRound is Appraisals.InspectionNumber, written once when a Progressive appraisal
-            -- is created (AppraisalCreationService -> ResolveLatestInAppraisalChainQuery) and never
-            -- recomputed. It is the authoritative round: the creation-time walk finds the chain ROOT
+            -- StampedRound is Appraisals.InspectionNumber, set when a Progressive appraisal is created
+            -- (AppraisalCreationService -> ResolveLatestInAppraisalChainQuery) and never recomputed
+            -- from the chain afterwards; the appraiser may correct it (UpdateInspectionNumber).
+            -- It is the authoritative round: the creation-time walk finds the chain ROOT
             -- and then counts the whole tree downwards, excluding cancelled appraisals, which a
             -- fork or an abandoned request makes different from anything countable from here.
             --
@@ -842,7 +844,8 @@ public sealed class AppraisalSummaryConstructionDataProvider(
 
     /// <summary>
     /// ตรวจครั้งที่, from the two sources RS07 returns. <see cref="StampedRound"/> is
-    /// Appraisals.InspectionNumber — the round decided when the appraisal was created, and the
+    /// Appraisals.InspectionNumber — the round decided when the appraisal was created (the appraiser may later
+    /// correct it), and the
     /// number the Construction Inspection screen shows. <see cref="ChainCount"/> is the legacy
     /// upward-only chain count, read only when the stamp is missing.
     /// </summary>
