@@ -28,7 +28,7 @@ public class CondoSummaryTemplateTests
             new SummaryGroupRow
             {
                 GroupNumber = 1, PropertyType = "ห้องชุด",
-                CollateralDetails = details, DetailItems = items
+                CollateralDetails = details, DetailItems = items.ConvertAll(i => new SummaryItemRow { Description = i })
             }
         ]
     };

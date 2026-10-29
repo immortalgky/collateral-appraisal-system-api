@@ -98,7 +98,8 @@ public sealed class AppraisalBookDataProvider(
                     bodyType = "construction";
                     break;
                 default:
-                    model = await AppraisalSummaryLandBuildingDataProvider.BuildAsync(connection, appraisalId, forceSaleRateDefault, cancellationToken);
+                    model = await AppraisalSummaryLandBuildingDataProvider.BuildAsync(
+                        connection, appraisalId, forceSaleRateDefault, includePropertyRemarks: false, cancellationToken);
                     bodyType = "standard";
                     break;
             }
