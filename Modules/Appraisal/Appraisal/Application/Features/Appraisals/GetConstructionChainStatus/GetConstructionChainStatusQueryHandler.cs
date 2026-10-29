@@ -30,6 +30,9 @@ public class GetConstructionChainStatusQueryHandler(
     // otherwise find itself as "already inspecting this chain".
     //
     // Purposes 06 and 11 are both AppraisalType Progressive, so they form one group.
+    //
+    // A request whose prior is a block is skipped: every unit of the block points its first inspection there,
+    // so it cannot be attributed to the unit being checked.
     private const string OpenRequestSql = """
         SELECT TOP 1 r.Id AS RequestId, r.RequestNumber
         FROM request.Requests r
@@ -40,6 +43,7 @@ public class GetConstructionChainStatusQueryHandler(
           AND r.Status NOT IN ('Completed', 'Cancelled')
           AND r.Purpose IN ('06', '11')
           AND d.PrevAppraisalId IN @TreeIds
+          AND NOT EXISTS (SELECT 1 FROM appraisal.Projects p WHERE p.AppraisalId = d.PrevAppraisalId)
           AND r.Id <> @ExcludeRequestId
           AND (a.Id IS NULL OR (a.IsDeleted = 0 AND a.Status NOT IN ('Completed', 'Cancelled')))
         ORDER BY r.RequestedAt DESC, r.Id DESC
