@@ -43,7 +43,7 @@ public class Appraisal : Aggregate<Guid>
     public string? PrevAppraisalNumber { get; private set; }
 
     // For Progressive (construction-inspection) appraisals — which inspection round this is
-    // (1st, 2nd, ...). System-assigned at creation = (completed Progressive inspections already on
+    // (1st, 2nd, ...). Assigned at creation = (completed Progressive inspections already on
     // the same collateral) + 1. NULL for non-Progressive appraisals.
     public int? InspectionNumber { get; private set; }
 
@@ -223,7 +223,8 @@ public class Appraisal : Aggregate<Guid>
 
     /// <summary>
     /// Sets the construction-inspection round number (1st, 2nd, ...).
-    /// System-only — called once during creation of a Progressive appraisal.
+    /// Set at creation of a Progressive appraisal, and corrected afterwards by the appraiser via
+    /// UpdateInspectionNumber. Affects this appraisal only; the next round is still ProgressiveCount + 1.
     /// </summary>
     public void SetInspectionNumber(int number)
     {
