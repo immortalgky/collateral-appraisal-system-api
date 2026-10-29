@@ -166,4 +166,100 @@ public class LandBuildingConstructionCurrentValueTests
         fence.CurrentValue.Should().Be(300_000m);
         pavement.CurrentValue.Should().Be(150_000m);
     }
+
+    // ── Development-only buildings: one line, on the Building Cost Value ──────────────────────────
+
+    private static AppraisalSummaryLandBuildingDataProvider.GroupBuildingRow Bld(
+        Guid id, decimal? area = 80m, int? age = 0) => new()
+        {
+            BuildingId = id, AppraisalPropertyId = Property, BuildingTypeDisplay = "รั้วตาข่ายเหล็ก",
+            TotalBuildingArea = area, BuildingAge = age
+        };
+
+    private static AppraisalSummaryLandBuildingDataProvider.GroupDepreciationRow Dep(
+        Guid buildingId, bool isBuilding, decimal? price, decimal? keyed = null, decimal area = 77.77m, short year = 1) => new()
+        {
+            BuildingAppraisalDetailId = buildingId, AppraisalPropertyId = Property, IsBuilding = isBuilding,
+            AreaDescription = "ลานคอนกรีต", Area = area, Year = year, PriceAfterDepreciation = price,
+            BuildingCostValue = keyed
+        };
+
+    private static List<(Guid AppraisalPropertyId, bool IsMoved, SummaryItemRow Row)> Rows(
+        decimal? pct, AppraisalSummaryLandBuildingDataProvider.GroupBuildingRow[] buildings,
+        params AppraisalSummaryLandBuildingDataProvider.GroupDepreciationRow[] deps) =>
+        AppraisalSummaryLandBuildingDataProvider.BuildDevelopmentRows(
+            buildings, deps, AppraisalSummaryLandBuildingDataProvider.DevelopmentOnlyBuildingIds(deps), _ => pct);
+
+    [Fact]
+    public void Development_only_building_prints_the_keyed_value_and_reconciles_to_the_stored_current_value()
+    {
+        var id = Guid.NewGuid();
+
+        var rows = Rows(70m, [Bld(id)], Dep(id, false, 7_699_230m, keyed: 7_699_000m));
+        var line = rows.Should().ContainSingle().Subject;
+        line.Row.CurrentValue.Should().Be(5_389_300m);   // pct-scaled before reconcile
+
+        // The inspector's stored override differs from value x pct, so only a real reconcile can print it.
+        AppraisalSummaryLandBuildingDataProvider.ReconcileToStored(
+            [.. rows.Select(x => (x.AppraisalPropertyId, x.Row, OnInspectionBase: x.IsMoved))], _ => 70m,
+            new Dictionary<Guid, decimal> { [Property] = 5_500_000m });
+
+        line.IsMoved.Should().BeTrue();
+        line.Row.Value.Should().Be(7_699_000m);
+        line.Row.CurrentValue.Should().Be(5_500_000m);
+        // Area and age come from the property level (80 m², age 0 skipped), never the row's 77.77 / year 1.
+        line.Row.Description.Should().Be("รั้วตาข่ายเหล็ก พื้นที่ 80 ตารางเมตร (แล้วเสร็จ 70%)");
+    }
+
+    [Fact]
+    public void Development_only_building_without_a_keyed_value_rounds_to_1000()
+    {
+        var id = Guid.NewGuid();
+
+        var rows = Rows(null, [Bld(id, age: 3)], Dep(id, false, 7_699_230m));
+
+        rows.Single().Row.Value.Should().Be(7_699_000m);
+        rows.Single().Row.CurrentValue.Should().Be(7_699_000m);
+        rows.Single().Row.Description.Should().Be("รั้วตาข่ายเหล็ก พื้นที่ 80 ตารางเมตร อายุ 3 ปี");
+    }
+
+    [Fact]
+    public void Development_only_building_with_two_rows_is_still_one_line_and_skips_unstated_area()
+    {
+        var id = Guid.NewGuid();
+
+        var rows = Rows(null, [Bld(id, area: null)], Dep(id, false, 400_400m), Dep(id, false, 300_200m));
+
+        var line = rows.Should().ContainSingle().Subject;
+        line.Row.Value.Should().Be(701_000m);   // 700,600 rounded to 1,000
+        line.Row.Description.Should().Be("รั้วตาข่ายเหล็ก");
+    }
+
+    [Fact]
+    public void Development_rows_under_a_normal_building_stay_one_line_per_row_on_raw_depreciation()
+    {
+        var id = Guid.NewGuid();
+
+        var rows = Rows(null, [Bld(id)],
+            Dep(id, true, 5_000_000m, keyed: 5_800_000m),
+            Dep(id, false, 400_400m),
+            Dep(id, false, 300_200m, area: 10m, year: 2));
+
+        rows.Should().HaveCount(2);
+        rows.Should().OnlyContain(x => !x.IsMoved);
+        rows.Select(x => x.Row.Value).Should().Equal(400_400m, 300_200m);
+        rows[0].Row.Description.Should().Be("ลานคอนกรีต พื้นที่ 77.77 ตารางเมตร อายุ 1 ปี");
+        rows[1].Row.Description.Should().Be("ลานคอนกรีต พื้นที่ 10 ตารางเมตร อายุ 2 ปี");
+    }
+
+    [Fact]
+    public void Unkeyed_and_unpriced_development_only_building_prints_blank_values()
+    {
+        var id = Guid.NewGuid();
+
+        var rows = Rows(70m, [Bld(id)], Dep(id, false, price: null));
+
+        rows.Single().Row.Value.Should().BeNull();
+        rows.Single().Row.CurrentValue.Should().BeNull();
+    }
 }
