@@ -223,7 +223,7 @@
           <td>{{ if multi }}<strong>กลุ่มที่ {{ g.group_number }}</strong>{{ end }}{{ if g.land_descriptions.size > 0 }}<ol class="land-titles{{ if g.land_descriptions.size == 1 }} no-num{{ end }}">{{ for d in g.land_descriptions }}<li>{{ d }}</li>{{ end }}</ol>{{ end }}{{ ded }}{{ if g.building_description }}<div class="brk" style="margin-top:1px;">{{ g.building_description }}</div>{{ end }}{{ if g.development_descriptions.size > 0 }}<div class="brk" style="margin-top:1px;"><strong>ส่วนพัฒนา</strong>{{ for d in g.development_descriptions }}
 - {{ d }}{{ end }}</div>{{ end }}</td>
           <td class="num{{ nb }}">{{ if g.show_land_unit_columns }}{{ g.market_land_area | math.format "N2" }}{{ end }}</td>
-          <td class="num{{ nb }}">{{ if g.show_land_unit_columns }}{{ g.market_land_unit_price | math.format "N2" }}{{ end }}</td>
+          <td class="num{{ nb }}">{{ if g.show_land_unit_columns && g.market_land_unit_price }}{{ g.market_land_unit_price | math.format "N2" }}{{ end }}</td>
           <td class="num{{ nb }}"{{ if uc }} colspan="2"{{ end }}>{{ if g.show_land_unit_columns; g.market_land_value | math.format "N2"; else if g.group_total; g.group_total | math.format "N2"; end }}</td>
         </tr>
         {{ if multi }}
