@@ -19,7 +19,7 @@ namespace Reporting.Application.Providers;
 ///   RS03  QCI3  BuildingAppraisalDetails (+ its schedule) — value of the already-finished buildings
 ///   RS04  QCI4  LandAppraisalDetails.Village / CondoAppraisalDetails.CondoName — ชื่ออาคาร
 ///   RS05  QCI5  LandAppraisalDetails — first land address
-///   RS06  QCI6  Appraisals (self + prev join) — PrevAppraisalId + prior number/type
+///   RS06  QCI6  Appraisals (self + prev join) — PrevAppraisalId + prior number/type/InspectionNumber
 ///   RS07  QCI7  Appraisals — stamped InspectionNumber, with the prev-chain count as fallback
 ///   RS08  QCI8  AppraisalDecisions + documents — เอกสารประกอบ checkboxes
 ///   RS09  QCI9  RequestProperties — ประเภททรัพย์สิน in Request entry order
@@ -49,7 +49,7 @@ namespace Reporting.Application.Providers;
 ///   LandAppraisalDetails (appraisal.LandAppraisalDetails):
 ///     HouseNumber, Village, Soi, Street(Road), SubDistrict, District, Province, LandOffice
 ///   Appraisals (appraisal.Appraisals):
-///     PrevAppraisalId (uniqueidentifier nullable), AppraisalNumber, AppraisalType
+///     PrevAppraisalId (uniqueidentifier nullable), AppraisalNumber, AppraisalType, InspectionNumber (int nullable)
 ///
 /// เอกสารประกอบ checkboxes (HasConstructionLicense/HasProgressTable/HasConstructionPhoto): effective value =
 ///   manual override (appraisal.AppraisalDecisions.HasConstruction*Doc, null = auto) ?? auto-derived document
@@ -345,7 +345,8 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             -- RS06: QCI6 — Prev appraisal (self + left join to prior)
             SELECT a.PrevAppraisalId,
                    prev.AppraisalNumber AS PrevAppraisalNumber,
-                   prev.AppraisalType   AS PrevAppraisalType
+                   prev.AppraisalType   AS PrevAppraisalType,
+                   prev.InspectionNumber AS PrevInspectionNumber
             FROM appraisal.Appraisals a
             LEFT JOIN appraisal.Appraisals prev ON prev.Id = a.PrevAppraisalId
             WHERE a.Id = @AppraisalId
@@ -481,9 +482,11 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         bool isReferConstructionBook = false;
         string? referConstructionBookNumber = null;
 
+        bool isPriorProgressive = false;
+
         if (prevRow?.PrevAppraisalId is not null && !string.IsNullOrWhiteSpace(prevRow.PrevAppraisalNumber))
         {
-            bool isPriorProgressive = string.Equals(
+            isPriorProgressive = string.Equals(
                 prevRow.PrevAppraisalType, "Progressive", StringComparison.OrdinalIgnoreCase);
 
             if (isPriorProgressive)
@@ -634,17 +637,13 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         bool hasConstructionLicense = docRow?.OverrideLicense ?? (docRow?.AutoLicense ?? false);
         bool hasConstructionPhoto   = docRow?.OverridePhoto ?? (docRow?.AutoPhoto ?? false);
 
-        // This inspection's round: the number stamped on the appraisal when it was created, which
-        // is what the Construction Inspection screen shows. Only when that is missing — a
-        // Progressive appraisal predating the column — fall back to counting the chain and adding
-        // one, which is what this report used to do for every appraisal and why the book printed
-        // "ครั้งที่ 1" against a screen showing "ครั้งที่ 3".
-        int currentRound = roundRow?.StampedRound ?? (roundRow?.ChainCount ?? 0) + 1;
+        // ตรวจครั้งที่ rules: see ResolveRounds.
         // อ้างอิง: ตรวจครั้งที่ = round of the previous inspection being referenced (right branch
-        // only). Derived from this one so the two cannot disagree; blank on a first round.
-        string? inspectionRound = currentRound > 1 ? (currentRound - 1).ToString() : null;
-        // Value block: ตรวจครั้งที่ = round of THIS inspection.
-        string? currentInspectionRound = currentRound.ToString();
+        // only): the prior's own stored round, else the chain count (which ends AT the prior); blank when
+        // the prior is an appraisal report. Never derived from this round, which the appraiser can edit.
+        // Value block: ตรวจครั้งที่ = THIS round.
+        var (inspectionRound, currentInspectionRound) = ResolveRounds(
+            isPriorProgressive, prevRow?.PrevInspectionNumber, roundRow?.StampedRound, roundRow?.ChainCount);
         string? installmentNumber = null; // DEFERRED: no stored source
 
         // ประเภททรัพย์สิน — the types selected on the Request, translated to Thai, same as the
@@ -818,6 +817,27 @@ public sealed class AppraisalSummaryConstructionDataProvider(
     }
 
     /// <summary>
+    /// (referenced round, this round).
+    /// This round is the number stamped on the appraisal when it was created, which is what the
+    /// Construction Inspection screen shows. Only when that is missing — a Progressive appraisal
+    /// predating the column — fall back to counting the chain and adding one, which is what this
+    /// report used to do for every appraisal and why the book printed "ครั้งที่ 1" against a screen
+    /// showing "ครั้งที่ 3".
+    /// The referenced round is the prior's OWN stored InspectionNumber,
+    /// only when the prior is a Progressive inspection; a legacy prior without one falls back to the
+    /// chain count, whose upward walk starts AT the prior (not to this round, which is editable).
+    /// Anything else (appraisal-report prior, no prior) is blank.
+    /// </summary>
+    internal static (string? Reference, string Current) ResolveRounds(
+        bool isPriorProgressive, int? priorStamped, int? stamped, int? chainCount)
+    {
+        int current = stamped ?? (chainCount ?? 0) + 1;
+        int? reference = !isPriorProgressive ? null
+            : priorStamped ?? (chainCount > 0 ? chainCount : null);
+        return (reference?.ToString(), current.ToString());
+    }
+
+    /// <summary>
     /// Mirror of ConstructionValueBreakdown.AsReportedPercent in the Appraisal module: 0–100, two
     /// decimal places, halves away from zero. Duplicated because Reporting has no project reference
     /// to Appraisal and the original is a private member of a record; if one side changes, the
@@ -840,6 +860,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
         public Guid? PrevAppraisalId { get; init; }
         public string? PrevAppraisalNumber { get; init; }
         public string? PrevAppraisalType { get; init; }
+        public int? PrevInspectionNumber { get; init; }
     }
 
     /// <summary>
