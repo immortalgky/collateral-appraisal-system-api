@@ -1,5 +1,6 @@
 using Appraisal.Contracts.Appraisals;
 using Appraisal.Domain.Appraisals;
+using Appraisal.Domain.Projects;
 using Appraisal.Infrastructure;
 using Dapper;
 using Integration.Fixtures;
@@ -292,6 +293,187 @@ public class ConstructionChainStatusTests(IntegrationTestFixture fixture)
         // A different open request is still found.
         await InsertRequestAsync(other, ci1.Id, "11", T0.AddDays(2), "Submitted", "REQ-OTHER");
         Assert.Equal(other, (await StatusOf(scope, ci1.Id, excludeRequestId: self))!.OpenInspectionRequest!.RequestId);
+    }
+
+    // ── blocks are never part of a unit's chain ─────────────────────────────────
+
+    private static async Task<AppraisalAggregate> SeedBlockAsync(
+        AppraisalDbContext db, string type, string purpose, Guid? prev, DateTime completedAt)
+    {
+        var block = await SeedAsync(db, type, purpose, prev, completedAt);
+        db.Projects.Add(Project.Create(block.Id, ProjectType.Condo));
+        await db.SaveChangesAsync(Ct);
+        return block;
+    }
+
+    private static Task<AppraisalAggregate> SeedUnitAsync(
+        AppraisalDbContext db, Guid prev, DateTime completedAt, decimal pct, int round) =>
+        SeedAsync(db, AppraisalTypes.Progressive, "06", prev, completedAt, summaryCurrentPct: pct, inspectionNumber: round);
+
+    /// <summary>
+    /// Block B (a completed appraisal with an appraisal.Projects row) with two units that each point their first
+    /// inspection at it: A r1 (60%) → A r2 (100%), then C r1 (20%) completed AFTER A r2 so a leak would show.
+    /// </summary>
+    private static async Task<(AppraisalAggregate B, AppraisalAggregate A1, AppraisalAggregate A2, AppraisalAggregate C1)>
+        SeedBlockWithTwoUnitsAsync(AppraisalDbContext db)
+    {
+        var b = await SeedBlockAsync(db, AppraisalTypes.PreAppraisal, "01", null, T0);
+        var a1 = await SeedUnitAsync(db, b.Id, T0.AddDays(30), 60m, 1);
+        var a2 = await SeedUnitAsync(db, a1.Id, T0.AddDays(60), 100m, 2);
+        var c1 = await SeedUnitAsync(db, b.Id, T0.AddDays(75), 20m, 1);
+        return (b, a1, a2, c1);
+    }
+
+    [Fact]
+    public async Task Picking_the_block_is_not_blocked_by_a_finished_unit_or_another_units_open_request()
+    {
+        using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+        var (b, _, _, _) = await SeedBlockWithTwoUnitsAsync(db);
+        await InsertRequestAsync(Guid.NewGuid(), b.Id, "06", T0.AddDays(70), "Submitted", "REQ-UNIT-C-2");
+
+        var result = await StatusOf(scope, b.Id);
+
+        Assert.Equal(ConstructionChainStatuses.NoData, result!.Construction.Status);
+        Assert.Null(result.LaterInspection);
+        Assert.Null(result.OpenInspectionRequest);
+        Assert.Null(result.LatestAppraisal);
+        Assert.Null(result.BlockReason);
+    }
+
+    [Fact]
+    public async Task A_unit_still_blocks_its_own_chain_but_a_sibling_unit_completed_later_does_not_leak_in()
+    {
+        using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+        var (_, a1, a2, c1) = await SeedBlockWithTwoUnitsAsync(db);
+
+        // A r2 is at 100%: its own unit blocks it, and C r1 (completed later, 20%) is neither its figure nor "later".
+        var pickedA2 = await StatusOf(scope, a2.Id);
+        Assert.Equal(a2.Id, pickedA2!.Construction.SourceAppraisalId);
+        Assert.Equal(ConstructionChainStatuses.Complete, pickedA2.Construction.Status);
+        Assert.Equal(ConstructionChainBlockReasons.ConstructionComplete, pickedA2.BlockReason);
+        Assert.Null(pickedA2.LaterInspection);
+
+        // C r1 sees only itself: not A's 100%, no A round.
+        var pickedC1 = await StatusOf(scope, c1.Id);
+        Assert.Equal(c1.Id, pickedC1!.Construction.SourceAppraisalId);
+        Assert.Equal(20m, pickedC1.Construction.ProgressPct);
+        Assert.Null(pickedC1.LaterInspection);
+        Assert.Null(pickedC1.BlockReason);
+
+        // A r1's later round is A r2, never C r1.
+        var pickedA1 = await StatusOf(scope, a1.Id);
+        Assert.Equal(a2.Id, pickedA1!.LaterInspection!.AppraisalId);
+    }
+
+    [Fact]
+    public async Task ResolveLatest_keeps_each_unit_apart_and_a_block_pick_counts_no_rounds()
+    {
+        using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        var (b, _, a2, c1) = await SeedBlockWithTwoUnitsAsync(db);
+
+        var pickedBlock = await sender.Send(new ResolveLatestInAppraisalChainQuery(b.Id), Ct);
+        Assert.Equal(0, pickedBlock!.ProgressiveCount);
+        Assert.Equal(b.Id, pickedBlock.AppraisalId);
+
+        var pickedC = await sender.Send(new ResolveLatestInAppraisalChainQuery(c1.Id), Ct);
+        Assert.Equal(1, pickedC!.ProgressiveCount);
+        Assert.Equal(c1.Id, pickedC.AppraisalId);
+
+        var pickedA = await sender.Send(new ResolveLatestInAppraisalChainQuery(a2.Id), Ct);
+        Assert.Equal(2, pickedA!.ProgressiveCount);
+        Assert.Equal(a2.Id, pickedA.AppraisalId);
+    }
+
+    [Fact]
+    public async Task A_block_reappraisal_of_a_block_stays_in_the_chain_and_units_under_either_block_stay_out()
+    {
+        using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        var b1 = await SeedBlockAsync(db, AppraisalTypes.PreAppraisal, "01", null, T0);
+        var u1 = await SeedUnitAsync(db, b1.Id, T0.AddDays(10), 50m, 1);
+        var b2 = await SeedBlockAsync(db, AppraisalTypes.ReAppraisal, "03", b1.Id, T0.AddDays(20));
+        var u2 = await SeedUnitAsync(db, b2.Id, T0.AddDays(30), 100m, 1);
+
+        // B1 reaches B2 (offered as the latest appraisal) but neither unit.
+        var pickedB1 = await StatusOf(scope, b1.Id);
+        Assert.Equal(b2.Id, pickedB1!.LatestAppraisal!.AppraisalId);
+        Assert.Equal(ConstructionChainStatuses.NoData, pickedB1.Construction.Status);
+        Assert.Null(pickedB1.BlockReason);
+        var resolvedB1 = await sender.Send(new ResolveLatestInAppraisalChainQuery(b1.Id), Ct);
+        Assert.Equal(b2.Id, resolvedB1!.AppraisalId);
+        Assert.Equal(0, resolvedB1.ProgressiveCount);
+
+        // B2 walks UP to B1 through block ancestors: same family, still no unit.
+        var pickedB2 = await StatusOf(scope, b2.Id);
+        Assert.Equal(ConstructionChainStatuses.NoData, pickedB2!.Construction.Status);
+        Assert.Null(pickedB2.BlockReason);
+        Assert.Equal(0, (await sender.Send(new ResolveLatestInAppraisalChainQuery(b2.Id), Ct))!.ProgressiveCount);
+
+        // Each unit sees only itself: not the other unit, not the blocks.
+        var pickedU1 = await StatusOf(scope, u1.Id);
+        Assert.Equal(u1.Id, pickedU1!.Construction.SourceAppraisalId);
+        Assert.Equal(50m, pickedU1.Construction.ProgressPct);
+        Assert.Null(pickedU1.LaterInspection);
+        Assert.Null(pickedU1.LatestAppraisal);
+        Assert.Null(pickedU1.BlockReason);
+        var resolvedU1 = await sender.Send(new ResolveLatestInAppraisalChainQuery(u1.Id), Ct);
+        Assert.Equal(1, resolvedU1!.ProgressiveCount);
+        Assert.Equal(u1.Id, resolvedU1.AppraisalId);
+
+        var pickedU2 = await StatusOf(scope, u2.Id);
+        Assert.Equal(u2.Id, pickedU2!.Construction.SourceAppraisalId);
+        Assert.Equal(ConstructionChainBlockReasons.ConstructionComplete, pickedU2.BlockReason);
+        Assert.Equal(1, (await sender.Send(new ResolveLatestInAppraisalChainQuery(u2.Id), Ct))!.ProgressiveCount);
+    }
+
+    [Fact]
+    public async Task An_open_unit_request_on_a_block_does_not_block_the_non_block_above_it()
+    {
+        using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+        var l = await SeedAsync(db, AppraisalTypes.New, "01", null, T0);
+        var b = await SeedBlockAsync(db, AppraisalTypes.ReAppraisal, "03", l.Id, T0.AddDays(10));
+        await InsertRequestAsync(Guid.NewGuid(), b.Id, "06", T0.AddDays(20), "Submitted", "REQ-UNIT-ON-B");
+
+        var result = await StatusOf(scope, l.Id);
+
+        Assert.Equal(b.Id, result!.LatestAppraisal!.AppraisalId);   // B is in L's tree, so the filter is what drops the request
+        Assert.Null(result.OpenInspectionRequest);
+        Assert.Null(result.BlockReason);
+
+        // The filter drops only the block-targeted request: an open request on L itself is still reported.
+        var onL = Guid.NewGuid();
+        await InsertRequestAsync(onL, l.Id, "06", T0.AddDays(25), "Submitted", "REQ-ON-L");
+
+        var withOpenOnL = await StatusOf(scope, l.Id);
+
+        Assert.Equal(onL, withOpenOnL!.OpenInspectionRequest!.RequestId);
+        Assert.Equal(ConstructionChainBlockReasons.OpenInspectionRequest, withOpenOnL.BlockReason);
+    }
+
+    [Fact]
+    public async Task A_non_block_above_a_block_does_not_reach_the_units_under_the_block()
+    {
+        using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+        var l = await SeedAsync(db, AppraisalTypes.New, "01", null, T0);
+        var b = await SeedBlockAsync(db, AppraisalTypes.ReAppraisal, "03", l.Id, T0.AddDays(10));
+        await SeedUnitAsync(db, b.Id, T0.AddDays(20), 100m, 1);
+
+        var result = await StatusOf(scope, l.Id);
+        Assert.Equal(ConstructionChainStatuses.NoData, result!.Construction.Status);
+        Assert.Null(result.BlockReason);
+        Assert.Equal(b.Id, result.LatestAppraisal!.AppraisalId);
+
+        var resolved = await sender.Send(new ResolveLatestInAppraisalChainQuery(l.Id), Ct);
+        Assert.Equal(0, resolved!.ProgressiveCount);
+        Assert.Equal(b.Id, resolved.AppraisalId);
     }
 
     // ── the HTTP contract the front end is built against ───────────────────────
