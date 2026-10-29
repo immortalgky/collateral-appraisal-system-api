@@ -93,6 +93,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
                 mad.InstallationStatus,
                 mad.IsPriceCertified,
                 mad.ConditionUse,
+                mad.Remark,
                 mv.FairMarketValue AS AppraisedValue
             FROM appraisal.PropertyGroupItems pgi
             JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
@@ -369,13 +370,14 @@ public sealed class AppraisalSummaryMachineDataProvider(
 
     // KEEP IN SYNC with GetAppraisalBriefQueryHandler.BuildMachines / MachineRow (Appraisal module, the
     // credit-side brief): the three sections, their order, and the "nothing to describe" test in
-    // DescribeMachine are copied there.
+    // DescribeMachine are copied there. The per-machine Remark is the exception: it is summary-only on
+    // purpose, and the brief does not print it.
     /// <summary>
     /// Splits a group's machines into the sets the form prints, one section per set, in report
     /// order. A set with no machines produces nothing, so a group of one kind still reads as one
     /// section — which is how the majority of appraisals print.
     /// </summary>
-    private static List<SummaryMachineSection> BuildMachineSections(List<GroupMachineDetailRow> rows)
+    internal static List<SummaryMachineSection> BuildMachineSections(List<GroupMachineDetailRow> rows)
     {
         // Every machine matches exactly one bucket: "ยังไม่ติดตั้ง" is decided by the installation
         // status ALONE and takes precedence, so a registered machine still under procurement is
@@ -408,7 +410,9 @@ public sealed class AppraisalSummaryMachineDataProvider(
 
             // Described first: a machine with nothing recorded on it prints no line, and a heading
             // that counted it would claim more than the list beneath it shows.
-            var described = members.Select(DescribeMachine).Where(t => t.Length > 0).ToList();
+            var described = members
+                .Select(m => new SummaryItemRow { Description = DescribeMachine(m), Remark = SummaryRemark.From(m.Remark) })
+                .Where(t => t.Description!.Length > 0).ToList();
             // Not one machine in the set could be described — no name, brand, model, registration,
             // serial, year or condition on any of them. Drop the set entirely rather than print a
             // heading reading "จำนวน 0 เครื่อง" over nothing. If such a machine also carried a
@@ -495,7 +499,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
         public int? SurveyedNumber { get; init; }
     }
 
-    private sealed class GroupMachineDetailRow
+    internal sealed class GroupMachineDetailRow
     {
         public Guid PropertyGroupId { get; init; }
         public int SequenceInGroup { get; init; }
@@ -521,5 +525,6 @@ public sealed class AppraisalSummaryMachineDataProvider(
         public bool IsPriceCertified { get; init; }
         public string? ConditionUse { get; init; }
         public decimal? AppraisedValue { get; init; }
+        public string? Remark { get; init; }
     }
 }

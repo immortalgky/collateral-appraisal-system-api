@@ -1,4 +1,5 @@
 using Reporting.Application.Models.Sections;
+using Shared.DDD;
 
 namespace Reporting.Application.Models;
 
@@ -542,10 +543,10 @@ public sealed record SummaryMachineSection
     public required string Heading { get; init; }
 
     /// <summary>
-    /// The machines under this heading, in the appraiser's sequence. The template numbers them,
+    /// The machines under this heading, in the appraiser's sequence; each carries its own remark. The template numbers them,
     /// starting from 1 again in every section, so each set counts itself.
     /// </summary>
-    public required List<string> Items { get; init; }
+    public required List<SummaryItemRow> Items { get; init; }
 
     /// <summary>
     /// What the machines in this section were appraised at, summed from the selected cost
@@ -658,19 +659,22 @@ public sealed class SummaryGroupRow
     /// <summary>What is left after <see cref="LandDeductionLines"/>, e.g. "36-2-89 ไร่ หรือ 14,689 ตารางวา".</summary>
     public string? LandNetAreaText { get; init; }
 
-    /// <summary>Building clause (พร้อม…), newline-joined per building. Shown after the land
+    /// <summary>Building clauses (พร้อม…), one per building, each with its own remark. Shown after the land
     /// titles in the market/combined land row (separated from the land title list). Excludes
     /// enhancement-only properties — see <see cref="DevelopmentDescriptions"/>.</summary>
-    public string? BuildingDescription { get; init; }
+    public List<SummaryItemRow> BuildingClauses { get; init; } = [];
 
     /// <summary>ส่วนพัฒนา lines for the market/combined row — descriptive only, since that layout
     /// carries a single blended figure with no per-line money column. Holds just the rows of
     /// properties whose Building Detail is entirely non-building, which therefore print no
     /// "พร้อม…" clause of their own.</summary>
-    public List<string> DevelopmentDescriptions { get; init; } = [];
+    public List<SummaryItemRow> DevelopmentDescriptions { get; init; } = [];
 
     /// <summary>Per-item detail lines (each machine; each unit of a multi-unit condo group, printed with a "- " marker).</summary>
-    public List<string> DetailItems { get; init; } = [];
+    public List<SummaryItemRow> DetailItems { get; init; } = [];
+
+    /// <summary>Land-building: the remark of each land property in the group that has one, in group order. Printed after the คงเหลือ line.</summary>
+    public List<SummaryRemark> LandRemarks { get; init; } = [];
 
     /// <summary>Total land area in square-wa (rai×400 + ngan×100 + sqwa). Cost approach only.</summary>
     public decimal? TotalSquareWa { get; init; }
@@ -787,6 +791,39 @@ public sealed class SummaryItemRow
     /// เมื่อแล้วเสร็จ 100% / ตามสภาพปัจจุบัน split.
     /// </summary>
     public decimal? CurrentValue { get; set; }
+
+    /// <summary>The owning property's หมายเหตุ. Set on the property's own line only — its building line, or the single line of a development-only property — never on a normal building's ส่วนพัฒนา rows, and only when that line itself has text.</summary>
+    public SummaryRemark? Remark { get; init; }
+}
+
+/// <summary>
+/// A property's own หมายเหตุ as the summaries print it: a label (which may name a deed), and the appraiser's text
+/// on the line below it. The text keeps the leading spaces of its first non-blank line (the cell is pre-wrap),
+/// drops any blank lines before it, and drops the trailing whitespace.
+/// </summary>
+public sealed record SummaryRemark(string Label, string Text)
+{
+    public const string PlainLabel = "หมายเหตุ:";
+
+    /// <summary>Null when the remark is blank or only dashes. <paramref name="scope"/> names what it belongs to, e.g. a deed.</summary>
+    public static SummaryRemark? From(string? raw, string? scope = null) =>
+        PlaceholderText.Stated(raw) is null
+            ? null
+            : new SummaryRemark(scope is null ? PlainLabel : $"หมายเหตุ ({scope}):", WithoutLeadingBlankLines(raw!).TrimEnd());
+
+    // Whole whitespace-only lines at the start; the first typed line keeps its own indentation.
+    private static string WithoutLeadingBlankLines(string text)
+    {
+        var lineStart = 0;
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (text[i] is '\r' or '\n')
+                lineStart = i + 1;
+            else if (!char.IsWhiteSpace(text[i]))
+                break;
+        }
+        return text[lineStart..];
+    }
 }
 
 /// <summary>One committee approver row (fields 45–50).</summary>

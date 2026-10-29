@@ -54,7 +54,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
         using var connection = connectionFactory.CreateNewConnection();
         var forceSaleRateDefault = await configReader.GetDecimalAsync("ForceSaleRateDefaultPct", 70m, cancellationToken);
-        var model = await BuildAsync(connection, appraisalId, forceSaleRateDefault, cancellationToken);
+        var model = await BuildAsync(connection, appraisalId, forceSaleRateDefault, includePropertyRemarks: true, cancellationToken);
 
         logger.LogDebug(
             "AppraisalSummaryLandBuilding model assembled for appraisal {AppraisalId}: " +
@@ -68,11 +68,14 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     /// Builds an <see cref="AppraisalSummaryModel"/> from an open connection — the standard
     /// (land/building/condo/machine) summary header. Called by <see cref="GetModelAsync"/>
     /// (standalone form) and by <c>AppraisalBookDataProvider</c> (unified internal book, "standard" body).
+    /// <paramref name="includePropertyRemarks"/> is false for the book, whose land and building sections
+    /// already print each property's หมายเหตุ: the batch then selects NULL for it.
     /// </summary>
     internal static async Task<AppraisalSummaryModel> BuildAsync(
         System.Data.IDbConnection connection,
         Guid appraisalId,
         decimal forceSaleRateDefault,
+        bool includePropertyRemarks,
         CancellationToken cancellationToken)
     {
         // ── Batch 1: 15 result sets, single round-trip ───────────────────────────
@@ -419,6 +422,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             SELECT
                 pgi.PropertyGroupId,
                 pgi.SequenceInGroup,
+                ap.Id         AS AppraisalPropertyId,
                 lt.Id         AS TitleId,
                 lt.TitleNumber,
                 lt.TitleType,
@@ -466,7 +470,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 bad.BuildingConditionTypeOther,
                 CASE WHEN bad.BuildingConditionType = '99' AND NULLIF(bad.BuildingConditionTypeOther, '') IS NOT NULL
                      THEN bad.BuildingConditionTypeOther
-                     ELSE COALESCE(ptBC.Description, bad.BuildingConditionTypeOther, bad.BuildingConditionType) END AS BuildingConditionDisplay
+                     ELSE COALESCE(ptBC.Description, bad.BuildingConditionTypeOther, bad.BuildingConditionType) END AS BuildingConditionDisplay,
+                CASE WHEN @IncludePropertyRemarks = 1 THEN bad.Remark END AS Remark
             FROM appraisal.PropertyGroupItems pgi
             JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
             JOIN appraisal.BuildingAppraisalDetails bad ON bad.AppraisalPropertyId = ap.Id
@@ -521,11 +526,13 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             SELECT
                 pgi.PropertyGroupId,
                 pgi.SequenceInGroup,
+                ap.Id AS AppraisalPropertyId,
                 CASE WHEN lad.LandFillType = '99' AND NULLIF(lad.LandFillTypeOther, '') IS NOT NULL
                      THEN lad.LandFillTypeOther
                      ELSE COALESCE(pFill.[description], lad.LandFillTypeOther, lad.LandFillType) END AS LandFill,
                 lad.LandUseType,
-                lad.LandUseTypeOther
+                lad.LandUseTypeOther,
+                CASE WHEN @IncludePropertyRemarks = 1 THEN lad.Remark END AS Remark
             FROM appraisal.PropertyGroupItems pgi
             JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
             JOIN appraisal.LandAppraisalDetails lad ON lad.AppraisalPropertyId = ap.Id
@@ -534,7 +541,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 ON pFill.[group] = 'Landfill' AND pFill.[language] = 'TH'
                AND pFill.[isactive] = 1 AND pFill.[code] = lad.LandFillType
             WHERE pg.AppraisalId = @AppraisalId
-            ORDER BY pgi.PropertyGroupId, pgi.SequenceInGroup;
+            ORDER BY pgi.PropertyGroupId, pgi.SequenceInGroup, ap.Id;
 
             -- RS20: Loan limits from the Request detail. (ที่ตั้งทรัพย์สิน is RS25, from the property.)
             SELECT TOP 1
@@ -656,6 +663,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
         var batchParams = new DynamicParameters();
         batchParams.Add("AppraisalId", appraisalId);
+        batchParams.Add("IncludePropertyRemarks", includePropertyRemarks);
 
         HeaderRow? header;
         List<string> customerNames;
@@ -968,6 +976,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 foreach (var title in orderedTitles)
                     titleDisplayOrder.TryAdd(title.TitleId, titleDisplayOrder.Count);
 
+        var landRowsByGroup = landFillRows.ToLookup(r => r.PropertyGroupId);
+
         var buildingsByGroup = groupBuildingRows
             .GroupBy(r => r.PropertyGroupId)
             .ToDictionary(g => g.Key, g => g.OrderBy(r => r.SequenceInGroup).ToList());
@@ -1103,7 +1113,10 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             var landDescription = landParts.Count > 0 ? string.Join(" ", landParts) : null;
 
             // Descriptive building clause (used by the market/combined view).
-            var buildingDescParts = new List<string>();
+            // The market row's building block: one clause per building, each with its หมายเหตุ.
+            var buildingClauses = new List<SummaryItemRow>();
+            // (property, remark) pairs the market block prints, for the land-side dedupe below.
+            var marketRemarks = new HashSet<(Guid, string)>();
             foreach (var bld in buildings)
             {
                 if (IsDevelopmentOnly(bld))
@@ -1130,18 +1143,19 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 if (ProgressSuffix(ProgressPctOf(bld.AppraisalPropertyId)) is { } bldProgress)
                     bldParts.Add(bldProgress);
                 if (bldParts.Count > 0)
-                    buildingDescParts.Add(string.Join(" ", bldParts));
+                {
+                    var clause = string.Join(" ", bldParts);
+                    // Only under a clause that exists: a remark alone would read as the previous building's.
+                    var bldRemark = SummaryRemark.From(bld.Remark);
+                    buildingClauses.Add(new SummaryItemRow { Description = clause, Remark = bldRemark });
+                    if (bldRemark is not null)
+                        marketRemarks.Add((bld.AppraisalPropertyId, bldRemark.Text.Trim()));
+                }
             }
 
             var collateralDetails = string.Join(" ",
-                new[] { landDescription }.Concat(buildingDescParts).Where(s => !string.IsNullOrWhiteSpace(s)));
+                new[] { landDescription }.Concat(buildingClauses.Select(c => c.Description)).Where(s => !string.IsNullOrWhiteSpace(s)));
             collateralDetails = string.IsNullOrWhiteSpace(collateralDetails) ? null : collateralDetails;
-
-            // Building clause shown separately (below the land-title list) in the
-            // market/combined row — newline-joined so multiple buildings line-break.
-            var buildingDescription = buildingDescParts.Count > 0
-                ? string.Join("\n", buildingDescParts)
-                : null;
 
             var totalRai = titles.Sum(t => t.AreaRai ?? 0m);
             var totalNgan = titles.Sum(t => t.AreaNgan ?? 0m);
@@ -1229,14 +1243,17 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 {
                     var value = buildingValueById.TryGetValue(b.BuildingId, out var v) ? v : (decimal?)null;
                     var pct = ProgressPctOf(b.AppraisalPropertyId);
+                    var description = BuildBuildingLine(b, pct);
                     return (
                         b.AppraisalPropertyId,
                         IsUnderConstruction: IsUnderConstructionProperty(b.AppraisalPropertyId),
                         Row: new SummaryItemRow
                         {
-                            Description = BuildBuildingLine(b, pct),
+                            Description = description,
                             Value = value,
-                            CurrentValue = CurrentValueOf(value, pct)
+                            CurrentValue = CurrentValueOf(value, pct),
+                            // Only under a line that exists: a remark alone would float in an empty cell.
+                            Remark = description is null ? null : SummaryRemark.From(b.Remark)
                         });
                 })
                 .ToList();
@@ -1264,10 +1281,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             // so it lists only the development-only buildings' lines — whose property just lost its
             // "พร้อม…" clause — as plain text under a ส่วนพัฒนา heading. Rows belonging to a normal
             // building stay unlisted there, exactly as before.
-            var developmentDescriptions = developmentRows
-                .Where(x => x.IsMoved && !string.IsNullOrWhiteSpace(x.Row.Description))
-                .Select(x => x.Row.Description!)
-                .ToList();
+            var developmentDescriptions = DevelopmentDescriptions(developmentRows.Select(x => (x.IsMoved, x.Row)));
 
             var groupTotal = g.GroupAppraisalValue ?? g.EffectiveValue;
 
@@ -1291,6 +1305,12 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             // rendering its land row with พื้นที่ / ราคาต่อหน่วย / ราคาประเมิน. The template gates
             // the per-type subtotals on the group actually having both blocks.
             var splitLandAndBuilding = isCost && !g.HasCombinedProperty;
+
+            // (property, remark) pairs printed under a building line. An LB/LS property saves the same remark on
+            // its land and its building; when they are equal it prints once, under the building, and the land
+            // copy is dropped (see LandRemarkLines).
+            var remarkUnderBuilding = RemarksUnderBuildingLines(
+                marketRemarks, developmentRows.Select(x => (x.AppraisalPropertyId, x.IsMoved, x.Row)));
 
             var family = DeriveFamily(g.PropertyType, hasLand, hasBuilding);
 
@@ -1400,44 +1420,21 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             // group_total. The group's own composition is not consulted — the role is the appraiser's
             // answer to that.
             //   - priced by area: the rate, and ราคาประเมิน is area x rate so the row reconciles;
-            //   - priced as a lump (ราคาเหมา): the rate is DERIVED (LandValue / area, display only)
-            //     and ราคาประเมิน is the stored LandValue.
+            //   - priced as a lump (ราคาเหมา): there is no rate, so ราคาต่อหน่วย prints blank while
+            //     พื้นที่ and ราคาประเมิน (the stored LandValue) still print.
             // Only PerSqWa is a LAND rate: PerSqm is quoted against the usable (building) area, so a
             // PerSqm row is shown like a lump. KEEP IN SYNC with PricingAnalysisMethod.ApplyLandAreaValue
             // — Reporting cannot reference the Appraisal assembly.
             var isLandRate = g.UnitType == "PerSqWa";
-            // Explicitly not a land rate (PerUnit lumpsum or PerSqm). A NULL unit (legacy per-area Cost
-            // rows predate the column) is not one: it keeps printing FinalValueOverride as the rate,
-            // as it always did.
-            var isLumpUnit = g.UnitType is "PerUnit" or "PerSqm";
+            var isLumpUnit = IsLumpUnit(g.UnitType);
 
             // totalSquareWa is PricingFinalValues.LandArea when the pricing recorded one (see above),
             // else the title-derived net area — which is also populated for historical rows that
             // predate LandArea being written.
             var marketLandArea = totalSquareWa == 0m ? null : (decimal?)totalSquareWa;
-            // Per area: the appraiser's typed-over rate first, then the calculated one — the same
-            // precedence ApplyLandAreaValue multiplies by, so the page agrees with the stored LandValue.
-            var derivedLumpUnitPrice = isLumpUnit ? DerivedUnitPrice(g.LandValue, totalSquareWa) : null;
-            var marketLandUnitPrice = isLandRate
-                ? g.LandUnitPrice ?? g.ValuePerUnit   // FinalValueOverride, else ValuePerUnit
-                : derivedLumpUnitPrice;
-
-            var showLandUnitColumns = !isCost
-                                      && hasLand
-                                      && string.Equals(g.MethodRole, "Land", StringComparison.OrdinalIgnoreCase)
-                                      && g.IncludeLandArea == true
-                                      && marketLandArea.HasValue
-                                      && marketLandUnitPrice.HasValue;
-
-            // Per area: the product of the two cells printed beside it, so the row reconciles on the
-            // page — whole baht, away from zero, the way ApplyLandAreaValue rounds. It can differ from
-            // the committed group total (the appraiser's rounded IndicatedValue); that gap is left
-            // visible. Lump: the stored LandValue itself, never recomputed from the derived rate.
-            var marketLandValue = !showLandUnitColumns
-                ? (decimal?)null
-                : isLandRate
-                    ? Math.Round(marketLandArea!.Value * marketLandUnitPrice!.Value, 0, MidpointRounding.AwayFromZero)
-                    : g.LandValue;
+            var (showLandUnitColumns, marketLandUnitPrice, marketLandValue) = MarketLandColumns(
+                g.UnitType, !isCost && hasLand, g.MethodRole, g.IncludeLandArea,
+                g.LandUnitPrice, g.ValuePerUnit, g.LandValue, marketLandArea);
 
             return new SummaryGroupRow
             {
@@ -1465,14 +1462,14 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 LandDescriptions = landParts,
                 LandDeductionLines = landDeductionLines,
                 LandNetAreaText = landNetAreaText,
-                BuildingDescription = buildingDescription,
+                LandRemarks = LandRemarkLines([.. landRowsByGroup[g.GroupId]], titles, remarkUnderBuilding),
+                BuildingClauses = buildingClauses,
                 DevelopmentDescriptions = developmentDescriptions,
                 TotalSquareWa = totalSquareWa == 0m ? null : totalSquareWa,
                 // The ราคาต่อหน่วย cell of the cost split land row. FinalValueOverride is a rate only on
                 // a per-area unit; on a lump (ราคาเหมา) it is the whole price, so printing it as a unit
-                // price is wrong. A lump prints the DERIVED rate (LandValue / the printed area) instead.
-                // Display only: nothing stores this, and ราคาประเมิน stays LandValue.
-                LandUnitPrice = isLumpUnit ? DerivedUnitPrice(g.LandValue, totalSquareWa) : g.LandUnitPrice,
+                // price is wrong. A lump prints no rate (blank cell); ราคาประเมิน stays LandValue.
+                LandUnitPrice = isLumpUnit ? null : g.LandUnitPrice,
                 // The land ROW prints พื้นที่ and ราคาต่อหน่วย in the two cells to the left of this
                 // one, so this cell is their product: a reader has to be able to reconcile the row
                 // from the figures printed on it, and PricingFinalValues.LandValue is an
@@ -1889,11 +1886,14 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             decimal? value = rows[0].BuildingCostValue is null && rows.All(r => r.PriceAfterDepreciation is null)
                 ? null
                 : BuildingCostTotal(rows[0].BuildingCostValue, rows.Select(r => r.PriceAfterDepreciation));
+            var description = BuildDevelopmentOnlyLine(b, pct);
             return (b.AppraisalPropertyId, IsMoved: true, Row: new SummaryItemRow
             {
-                Description = BuildDevelopmentOnlyLine(b, pct),
+                Description = description,
                 Value = value,
-                CurrentValue = CurrentValueOf(value, pct)
+                CurrentValue = CurrentValueOf(value, pct),
+                // Only under a line that exists: a remark alone would float in an empty cell.
+                Remark = description is null ? null : SummaryRemark.From(b.Remark)
             });
         });
 
@@ -2182,13 +2182,106 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     }
 
     /// <summary>
-    /// ราคาต่อหน่วย for a land row priced as a lump: the land value over the area the row prints,
-    /// two decimals, halves away from zero. Null when either is missing or not positive. Display only.
+    /// The (property, remark) pairs that print under a building line: the market row's building block
+    /// (<paramref name="marketRemarks"/>, collected where its clause is built) and any development-only line.
+    /// The split layout needs no entry: only an LB/LS property has a land AND a building detail, and a group
+    /// holding one is never split (HasCombinedProperty). A remark is only on a row whose line exists.
     /// </summary>
-    internal static decimal? DerivedUnitPrice(decimal? landValue, decimal squareWa) =>
-        landValue is > 0m && squareWa > 0m
-            ? Math.Round(landValue.Value / squareWa, 2, MidpointRounding.AwayFromZero)
-            : null;
+    internal static HashSet<(Guid Property, string Remark)> RemarksUnderBuildingLines(
+        IEnumerable<(Guid Property, string Remark)> marketRemarks,
+        IEnumerable<(Guid Property, bool IsMoved, SummaryItemRow Row)> developmentLines)
+    {
+        var printed = new HashSet<(Guid Property, string Remark)>(marketRemarks);
+        printed.UnionWith(developmentLines
+            .Where(l => l.IsMoved && l.Row.Remark is not null)
+            .Select(l => (l.Property, l.Row.Remark!.Text.Trim())));
+        return printed;
+    }
+
+    /// <summary>
+    /// The remark of each land property in a group that has one, in group order (SequenceInGroup).
+    /// <paramref name="landRows"/> is RS19, one row per land property — fanned into several when a duplicate
+    /// parameter row matches, hence the grouping. A group with more than one land property names the deed(s) each
+    /// remark belongs to, since the remarks are otherwise unattributable. A remark already printed under its
+    /// property's building (<paramref name="printedUnderBuilding"/>) is not repeated here.
+    /// </summary>
+    internal static List<SummaryRemark> LandRemarkLines(
+        IReadOnlyList<GroupLandFillRow> landRows,
+        IReadOnlyList<GroupTitleRow> titles,
+        IReadOnlySet<(Guid Property, string Remark)> printedUnderBuilding)
+    {
+        var properties = landRows
+            .GroupBy(r => r.AppraisalPropertyId)
+            .Select(p => (Property: p.Key, Sequence: p.Min(r => r.SequenceInGroup), Raw: p.First().Remark))
+            .Where(p => PlaceholderText.Stated(p.Raw) is not null)
+            .OrderBy(p => p.Sequence)
+            .ThenBy(p => p.Property)
+            .ToList();
+        // Named by what the group holds, not by which remarks survive: every land property in the group counts.
+        var named = landRows.Select(r => r.AppraisalPropertyId).Distinct().Count() > 1;
+
+        return properties
+            .Where(p => !printedUnderBuilding.Contains((p.Property, PlaceholderText.Stated(p.Raw)!)))
+            .Select(p => SummaryRemark.From(
+                p.Raw, named ? DeedScope(titles.Where(t => t.AppraisalPropertyId == p.Property)) : null)!)
+            .ToList();
+    }
+
+    /// <summary>
+    /// "โฉนดที่ดิน 12346, 12347" — the property's deed numbers, each run led by the document's own noun
+    /// (<see cref="TitleDeedLabel.Noun"/>, the same wording source as the title list). Null when no title has a number.
+    /// </summary>
+    private static string? DeedScope(IEnumerable<GroupTitleRow> titles)
+    {
+        var segments = titles
+            .Where(t => !string.IsNullOrWhiteSpace(t.TitleNumber))
+            .GroupBy(t => TitleDeedLabel.Noun(t.TitleType))
+            .Select(g => $"{g.Key} {string.Join(", ", g.Select(t => t.TitleNumber!.Trim()))}")
+            .ToList();
+        return segments.Count > 0 ? string.Join(", ", segments) : null;
+    }
+
+    /// <summary>
+    /// The market row's ส่วนพัฒนา lines: the development-only properties that have a line. A property with nothing
+    /// recorded prints no line, and its remark (already null on such a row) goes with it.
+    /// </summary>
+    internal static List<SummaryItemRow> DevelopmentDescriptions(IEnumerable<(bool IsMoved, SummaryItemRow Row)> rows) =>
+        rows.Where(x => x.IsMoved && !string.IsNullOrWhiteSpace(x.Row.Description)).Select(x => x.Row).ToList();
+
+    /// <summary>
+    /// Explicitly not a land rate (PerUnit lumpsum or PerSqm). A NULL unit (legacy per-area Cost rows
+    /// predate the column) is not one: it keeps printing FinalValueOverride as the rate, as it always did.
+    /// </summary>
+    internal static bool IsLumpUnit(string? unitType) => unitType is "PerUnit" or "PerSqm";
+
+    /// <summary>
+    /// The market/combined land row's พื้นที่ gate, ราคาต่อหน่วย and ราคาประเมิน cells.
+    /// Per area (PerSqWa): the appraiser's typed-over rate first, then the calculated one — the same
+    /// precedence ApplyLandAreaValue multiplies by — and the value is area x rate, whole baht, away from
+    /// zero, so the row reconciles on the page. A NULL unit shows nothing (the row prints group_total).
+    /// A lump has no rate: the rate stays null (blank cell),
+    /// never derived from LandValue / area, while the stored LandValue and the area still print.
+    /// </summary>
+    internal static (bool Show, decimal? UnitPrice, decimal? Value) MarketLandColumns(
+        string? unitType, bool marketRowHasLand, string? methodRole, bool? includeLandArea,
+        decimal? landUnitPrice, decimal? valuePerUnit, decimal? landValue, decimal? area)
+    {
+        var isLandRate = unitType == "PerSqWa";
+        var unitPrice = isLandRate ? landUnitPrice ?? valuePerUnit : null;   // FinalValueOverride, else ValuePerUnit
+
+        var show = marketRowHasLand
+                   && string.Equals(methodRole, "Land", StringComparison.OrdinalIgnoreCase)
+                   && includeLandArea == true
+                   && area.HasValue
+                   && (isLandRate ? unitPrice.HasValue : IsLumpUnit(unitType) && landValue is > 0m);
+
+        var value = !show
+            ? (decimal?)null
+            : isLandRate
+                ? Math.Round(area!.Value * unitPrice!.Value, 0, MidpointRounding.AwayFromZero)
+                : landValue;
+        return (show, unitPrice, value);
+    }
 
     internal sealed class GroupDepreciationRow
     {
@@ -2223,13 +2316,15 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public decimal? CurrentValue { get; init; }
     }
 
-    private sealed class GroupLandFillRow
+    internal sealed class GroupLandFillRow
     {
         public Guid PropertyGroupId { get; init; }
+        public Guid AppraisalPropertyId { get; init; }
         public int SequenceInGroup { get; init; }
         public string? LandFill { get; init; }
         public string? LandUseType { get; init; }
         public string? LandUseTypeOther { get; init; }
+        public string? Remark { get; init; }
     }
 
     private sealed class GovPriceRow
@@ -2299,9 +2394,10 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public DateTime CompletedAt { get; init; }
     }
 
-    private sealed class GroupTitleRow
+    internal sealed class GroupTitleRow
     {
         public Guid PropertyGroupId { get; init; }
+        public Guid AppraisalPropertyId { get; init; }
         public int SequenceInGroup { get; init; }
         public Guid TitleId { get; init; }
         public string? TitleNumber { get; init; }
@@ -2348,5 +2444,6 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public decimal? TotalBuildingArea { get; init; }
         public int? BuildingAge { get; init; }
         public string? BuildingConditionDisplay { get; init; }
+        public string? Remark { get; init; }
     }
 }
