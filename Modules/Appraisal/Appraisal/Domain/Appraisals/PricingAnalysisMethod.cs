@@ -455,6 +455,54 @@ public class PricingAnalysisMethod : Entity<Guid>
     }
 
     /// <summary>
+    /// Records a <c>Role = Land</c> method valued as a lump (no land rate) as land: creates or reuses
+    /// the <see cref="FinalValue"/> row and stores the lump as FinalValue, IndicatedValue AND LandValue
+    /// — the same shape the calculated Role=Land lumpsum path stores. Every land reader (report RS07,
+    /// LOS, MIS, ConstructionCurrentValueService) reads LandValue from that row, so a lump with no row
+    /// (or with the land excluded) makes the land vanish.
+    /// <para>
+    /// The land area is switched back on (<see cref="PricingFinalValue.IncludeLandArea"/>): Role = Land
+    /// means the whole method is land. <paramref name="netLandArea"/> is the net title area, resolved by
+    /// the caller (the domain does no I/O) and must be positive: a group with no title area (condo,
+    /// project model) has no land to record, and the caller keeps its old behaviour instead. There is no
+    /// real unit rate, so the override and any building are cleared — the report prints a lump's
+    /// ราคาต่อหน่วย blank.
+    /// </para>
+    /// <para>
+    /// The method is also stamped as a lump: MethodValue = the lump, no rate, and <c>PerUnit</c> on both
+    /// the method and the row. A reused row may still carry the unit of an earlier rate calculation
+    /// (PerSqWa), and a lump left under a rate stamp is read as a rate by the report and wiped by the next
+    /// <see cref="ApplyLandAreaValue"/>. The caller owns the role/unit checks.
+    /// </para>
+    /// </summary>
+    public PricingFinalValue RecordLandLump(decimal lump, decimal netLandArea)
+    {
+        if (lump <= 0m)
+            throw new DomainException("A land lump must be greater than zero.");
+        if (netLandArea <= 0m)
+            throw new DomainException("A land lump needs a positive net land area.");
+
+        var row = FinalValue;
+        if (row is null)
+        {
+            row = PricingFinalValue.Create(Id, lump);
+            SetFinalValue(row);
+        }
+        else
+        {
+            row.UpdateFinalValue(lump);
+        }
+
+        row.SetFinalValueOverride(null);
+        row.SetLandAreaValues(netLandArea, lump);
+        row.ClearBuildingValue();
+        row.SetIndicatedValue(lump);
+        // After the row is attached: SetValue stamps the unit onto it (replacing any earlier-rate stamp).
+        SetValue(lump, null, PricingUnit.PerUnit);
+        return row;
+    }
+
+    /// <summary>
     /// Drops the final-value row. The relationship is required and cascades, so severing it deletes
     /// the row rather than orphaning it — which is the point: consumers treat the row's existence as
     /// "per-component figures were recorded", so a blanked-but-present row is worse than none.

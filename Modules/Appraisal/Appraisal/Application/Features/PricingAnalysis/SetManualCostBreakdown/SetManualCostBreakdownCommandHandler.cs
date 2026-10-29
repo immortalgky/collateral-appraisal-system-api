@@ -73,9 +73,10 @@ public class SetManualCostBreakdownCommandHandler(
             throw new BadRequestException(
                 $"A manual cost breakdown cannot be recorded on a {method.MethodType} method.");
 
-        // Clearing the rate removes the breakdown entirely. The PricingFinalValues row itself has to
-        // go: leaving it behind keeps ApproachType non-null, so the report would still split and print
-        // a land row with an empty money cell — which reads as zero.
+        // Clearing the rate removes the rate breakdown. A Role = Land method keeps its value as a land
+        // lump (PricingAnalysisMethod.RecordLandLump), so its PricingFinalValues row stays; any other
+        // method loses the row, because leaving one behind keeps ApproachType non-null and the report
+        // would still split and print a land row with an empty money cell — which reads as zero.
         //
         // Only NULL clears. A keyed 0 is a real land value of zero (a group priced on its structures
         // alone) and keeps its breakdown row, so the summary still splits ที่ดิน / สิ่งปลูกสร้าง and
@@ -97,22 +98,50 @@ public class SetManualCostBreakdownCommandHandler(
 
         if (command.LandRatePerSqWa is null)
         {
-            // The whole breakdown (including any linked BuildingCost method) goes with it — a
-            // cleared rate means there is no longer a land component to attach a building to.
+            // The figure the appraiser typed (or the one the method already holds) is the lump.
+            var lumpValue = command.IndicatedValue ?? method.MethodValue ?? 0m;
+
+            // A Role = Land method valued as a lump keeps a PricingFinalValues row (see
+            // PricingAnalysisMethod.RecordLandLump), provided the group has a net title area to record
+            // it against: a condo or project model has none, so the whole lump is not land and the
+            // row goes as before. Role is read BEFORE RevertToLand below, which can re-tag a legacy
+            // linked LandAndBuilding method as Land — that one stays on today's behaviour. A
+            // reference analysis is skipped, the same as UpdateMethod.
+            decimal netLandArea = 0m;
+            if (string.Equals(method.Role, "Land", StringComparison.OrdinalIgnoreCase)
+                && lumpValue > 0m
+                && !pricingAnalysis.IsReference
+                && pricingAnalysis.SubjectType == PricingAnalysisSubjectType.PropertyGroup
+                && pricingAnalysis.AnchorId.HasValue)
+                netLandArea = await propertyDataService.GetTotalLandAreaInSqWaAsync(
+                    pricingAnalysis.AnchorId.Value, cancellationToken) ?? 0m;
+
+            // A cleared rate means there is no longer a land component to attach a building to, so any
+            // linked BuildingCost method is released below. The final-value row goes too, except for a
+            // Role = Land lump on a titled group, where RecordLandLump keeps and reuses it.
             // RevertToLand covers a linked AND an unlinked LandAndBuilding method — but a method the
             // appraiser tagged LandAndBuilding stays that way, so it is skipped for one (a linked
             // BuildingCost method then stays deselected, as it already is).
             if (!isLandAndBuilding)
                 approach.RevertToLand(method.Id);
 
-            method.ClearFinalValue();
+            PricingFinalValue? lumpRow = null;
+            if (netLandArea > 0m)
+            {
+                // Also stamps the method: MethodValue = lump, no rate, PerUnit.
+                lumpRow = method.RecordLandLump(lumpValue, netLandArea);
+            }
+            else
+            {
+                method.ClearFinalValue();
 
-            // SetValue is the only writer of ValuePerUnit/UnitType, so it has to run even when no
-            // price comes with the clear. Skipping it leaves the method advertising a PerSqWa rate
-            // whose breakdown was just deleted, and PricingUnit.IsPerUnitRate consumers — the
-            // summary report's ราคาต่อหน่วย cell among them — act on that stale rate.
-            method.SetValue(
-                command.IndicatedValue ?? method.MethodValue ?? 0m, null, PricingUnit.PerUnit);
+                // SetValue is the only writer of ValuePerUnit/UnitType besides RecordLandLump, so it has
+                // to run even when no price comes with the clear. Skipping it leaves the method
+                // advertising a PerSqWa rate whose breakdown was just deleted, and
+                // PricingUnit.IsPerUnitRate consumers — the summary report's ราคาต่อหน่วย cell among
+                // them — act on that stale rate.
+                method.SetValue(lumpValue, null, PricingUnit.PerUnit);
+            }
 
             pricingAnalysis.RecalculateRollup();
             // Stamp only the method actually written — see PricingAnalysis.UseSystemCalc's remarks
@@ -120,8 +149,9 @@ public class SetManualCostBreakdownCommandHandler(
             method.RecordCalcMode(false);
 
             return new SetManualCostBreakdownResult(
-                method.Id, null, null, null, null, null, 0m,
-                command.IndicatedValue, method.MethodValue,
+                method.Id, lumpRow?.Id, null, lumpRow?.LandArea, lumpRow?.LandValue, null,
+                lumpRow is null ? 0m : lumpValue,
+                lumpRow?.IndicatedValue ?? command.IndicatedValue, method.MethodValue,
                 approach.ApproachValue, pricingAnalysis.FinalAppraisedValue);
         }
 
