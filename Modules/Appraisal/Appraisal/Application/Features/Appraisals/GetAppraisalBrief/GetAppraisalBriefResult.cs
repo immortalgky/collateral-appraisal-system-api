@@ -640,9 +640,16 @@ public record BriefContact(
     string? UserName);
 
 /// <summary>
-/// A file in the appraisal folder. <see cref="IsPrimary"/> marks the two the credit officer
-/// actually files — the Appraisal Summary (D043, or D042 for a construction progress inspection) and
-/// D001 Appraisal Report — so the client can lead with them and keep the rest at a quieter weight.
+/// A file attached to the application, from one of three places (<see cref="Source"/>): the appraisal
+/// folder ("Appraisal"), the request itself ("Request") or one collateral of the request ("Title").
+/// <see cref="IsPrimary"/> marks the two the credit officer actually files — the Appraisal Summary
+/// (D043, or D042 for a construction progress inspection) and D001 Appraisal Report — so the client can
+/// lead with them and keep the rest at a quieter weight; it is only ever true for an "Appraisal" file.
+/// There is no rule on the document type: every file is listed, so <see cref="TypeCode"/> falls back to
+/// the file's own code (empty if it has none) and the names are null when the master does not know it.
+/// <see cref="TitleNumber"/> and <see cref="CollateralTypeName"/> (Thai) are set on "Title" files only.
+/// <see cref="CarriedFromAppraisalNumber"/> is the previous appraisal a "Request" / "Title" file was
+/// carried over from, null for anything the customer attached this time.
 /// </summary>
 public record BriefDocument(
     Guid DocumentId,
@@ -652,4 +659,8 @@ public record BriefDocument(
     bool IsPrimary,
     string? FileName,
     long? FileSizeBytes,
-    DateTime? UploadedAt);
+    DateTime? UploadedAt,
+    string Source,
+    string? TitleNumber,
+    string? CollateralTypeName,
+    string? CarriedFromAppraisalNumber);

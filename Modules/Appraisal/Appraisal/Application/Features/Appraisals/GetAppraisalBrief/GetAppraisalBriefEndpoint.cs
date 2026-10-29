@@ -23,8 +23,9 @@ public class GetAppraisalBriefEndpoint : ICarterModule
             .WithDescription(
                 "Returns the appraisal header, the collateral items, who is holding the work and "
                 + "how to reach them, and — for a tracking-only caller, only once the committee has "
-                + "approved the price — the appraised/forced-sale/insurance values and the document "
-                + "list. Carries the SLA DUE DATE, the current holder's contact details and how "
+                + "approved the price — the appraised/forced-sale/insurance values and the "
+                + "appraisal-folder files. The request's and its collaterals' files are returned in "
+                + "every state. Carries the SLA DUE DATE, the current holder's contact details and how "
                 + "long they have held the task; it does not carry the assignment history or the "
                 + "SLA status ladder.")
             .WithTags("Appraisal")

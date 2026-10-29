@@ -10,6 +10,9 @@ using Integration.Fixtures;
 using MediatR;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
+using Shared.Data;
+using Shared.Identity;
 using AppraisalAggregate = Appraisal.Domain.Appraisals.Appraisal;
 
 namespace Integration.Appraisal.Integration.Tests;
@@ -180,5 +183,138 @@ public class GetAppraisalBriefQueryTests(IntegrationTestFixture fixture) : Integ
         if (!condo) Assert.Equal(12m, p.GetProperty("land").GetProperty("roadFrontage").GetDecimal());
         Assert.Equal(condo ? 1 : 0, p.GetProperty("towers").GetArrayLength());
         Assert.Equal(condo ? 0 : 1, p.GetProperty("houseModels").GetArrayLength());
+    }
+
+    // One appraisal whose request carries a request-level file (a D036 carried from a previous appraisal), a
+    // title-level file and a request file under a code the master does not know, plus one file in the
+    // appraisal's own folder. Returns the appraisal id and the id of that appraisal-folder file.
+    private async Task<(Guid AppraisalId, Guid AppraisalFileId)> SeedAppraisalWithEveryDocumentSourceAsync()
+    {
+        var requestId = Guid.CreateVersion7();
+        var titleId = Guid.CreateVersion7();
+        var prevNumber = $"PV{Guid.NewGuid():N}"[..12];
+        var requestFile = Guid.CreateVersion7();
+        var unknownTypeFile = Guid.CreateVersion7();
+        var titleFile = Guid.CreateVersion7();
+        var vehicleId = Guid.CreateVersion7();
+        var vehicleFile = Guid.CreateVersion7();
+        var appraisalFile = Guid.CreateVersion7();
+
+        Guid appraisalId;
+        using (var scope = Fixture.IntegrationTestWebApplicationFactory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+            var appraisal = AppraisalAggregate.Create(requestId, "New", "Normal", DateTime.Now);
+            appraisal.SetAppraisalNumber($"BRD-{Guid.NewGuid():N}"[..18]);
+            db.Appraisals.Add(appraisal);
+            await db.SaveChangesAsync(Ct);
+            appraisalId = appraisal.Id;
+        }
+
+        await using var conn = new SqlConnection(Fixture.ConnectionString);
+        await conn.ExecuteAsync(new CommandDefinition(
+            """
+            INSERT INTO request.Requests (Id, Status, Requestor, RequestorName, Creator, CreatorName, CreatedAt, IsPma, IsDeleted,
+                                          Purpose, RequestNumber, RequestedAt)
+            VALUES (@requestId, N'New', N'u', N'u', N'u', N'u', SYSDATETIME(), 0, 0, N'01', @requestNumber, SYSDATETIME());
+            INSERT INTO request.RequestDetails (RequestId, HasAppraisalBook, PrevAppraisalNumber)
+            VALUES (@requestId, 0, @prevNumber);
+            INSERT INTO request.RequestTitles (Id, RequestId, CollateralType, TitleNumber, SequenceNumber)
+            VALUES (@titleId, @requestId, N'02', N'LT-BRIEF-1', 1);
+            -- A vehicle has no deed number: its plate is the number.
+            INSERT INTO request.RequestTitles (Id, RequestId, CollateralType, LicensePlateNumber, SequenceNumber)
+            VALUES (@vehicleId, @requestId, N'10', N'1กข-4321', 2);
+
+            DECLARE @session uniqueidentifier = NEWID();
+            INSERT document.UploadSessions (Id, Status, ExpiresAt, TotalDocuments, TotalSizeBytes)
+            VALUES (@session, N'Completed', DATEADD(DAY, 1, SYSDATETIME()), 5, 6170);
+
+            INSERT document.Documents (Id, UploadSessionId, DocumentType, DocumentCategory, FileName, FileExtension, FileSizeBytes,
+                                       MimeType, StoragePath, StorageUrl, UploadedBy, UploadedByName, UploadedAt, ReferenceCount,
+                                       IsOrphaned, AccessLevel, IsActive, IsArchived, IsDeleted)
+            SELECT v.Id, @session, N'X', N'X', v.FileName, N'.pdf', 1234, N'application/pdf', N'p', N'u', N'u', N'u',
+                   SYSDATETIME(), 1, 0, N'Public', 1, 0, 0
+            FROM (VALUES (@requestFile, N'prev-summary.pdf'), (@unknownTypeFile, N'odd.pdf'),
+                         (@titleFile, N'deed.pdf'), (@vehicleFile, N'registration.pdf'), (@appraisalFile, N'report.pdf')) v(Id, FileName);
+
+            INSERT request.RequestDocuments (Id, RequestId, DocumentType, DocumentId, FileName, Source, IsRequired, UploadedAt)
+            VALUES (NEWID(), @requestId, N'D036', @requestFile, N'prev-summary.pdf', N'PREV', 0, SYSDATETIME()),
+                   (NEWID(), @requestId, N'ZZ99', @unknownTypeFile, N'odd.pdf', N'REQUEST', 0, SYSDATETIME());
+            INSERT request.RequestTitleDocuments (Id, TitleId, DocumentType, DocumentId, FileName, Source, [Set], IsRequired, UploadedAt)
+            VALUES (NEWID(), @titleId, N'D013', @titleFile, N'deed.pdf', N'REQUEST', 1, 0, SYSDATETIME()),
+                   (NEWID(), @vehicleId, N'D013', @vehicleFile, N'registration.pdf', N'REQUEST', 1, 0, SYSDATETIME());
+            INSERT appraisal.AppraisalDocuments (Id, AppraisalId, DocumentTypeCode, DocumentId, FileName, SortOrder)
+            VALUES (NEWID(), @appraisalId, N'D001', @appraisalFile, N'report.pdf', 1);
+            """,
+            new
+            {
+                requestId, titleId, vehicleId, vehicleFile, prevNumber, appraisalId, requestFile, unknownTypeFile, titleFile, appraisalFile,
+                requestNumber = $"RQ{Guid.NewGuid():N}"[..14]
+            },
+            cancellationToken: Ct));
+        return (appraisalId, appraisalFile);
+    }
+
+    [Fact]
+    public async Task The_documents_list_carries_the_appraisal_request_and_title_files_with_their_source()
+    {
+        var (appraisalId, appraisalFile) = await SeedAppraisalWithEveryDocumentSourceAsync();
+
+        var brief = await GetBriefAsync(appraisalId);
+
+        var docs = brief.GetProperty("documents").EnumerateArray().ToList();
+        // Appraisal folder first, then the request's own files, then the collateral's. The literals are the
+        // SQL's; the handler's release gate compares against its own consts, so this pins the two together:
+        // a released caller must get the appraisal-folder file back as "Appraisal".
+        Assert.Equal(["Appraisal", "Request", "Request", "Title", "Title"], docs.Select(d => d.GetProperty("source").GetString()));
+
+        var appraisal = docs[0];
+        Assert.Equal(appraisalFile, appraisal.GetProperty("documentId").GetGuid());
+        Assert.True(appraisal.GetProperty("isPrimary").GetBoolean());
+
+        // D036 is listed like any other code, and says which appraisal it came from.
+        var carried = docs.Single(d => d.GetProperty("typeCode").GetString() == "D036");
+        Assert.Equal("Request", carried.GetProperty("source").GetString());
+        Assert.False(carried.GetProperty("isPrimary").GetBoolean());
+        Assert.StartsWith("PV", carried.GetProperty("carriedFromAppraisalNumber").GetString());
+        Assert.Equal(JsonValueKind.Null, carried.GetProperty("titleNumber").ValueKind);
+
+        // A code the master does not know still shows, under its own code with no names.
+        var unknown = docs.Single(d => d.GetProperty("typeCode").GetString() == "ZZ99");
+        Assert.Equal(JsonValueKind.Null, unknown.GetProperty("typeName").ValueKind);
+        Assert.Equal(JsonValueKind.Null, unknown.GetProperty("carriedFromAppraisalNumber").ValueKind);
+
+        var title = docs[^2];
+        Assert.Equal("D013", title.GetProperty("typeCode").GetString());
+        Assert.Equal("LT-BRIEF-1", title.GetProperty("titleNumber").GetString());
+        Assert.Equal("ที่ดินพร้อมสิ่งปลูกสร้าง", title.GetProperty("collateralTypeName").GetString());
+        Assert.Equal(JsonValueKind.Null, title.GetProperty("carriedFromAppraisalNumber").ValueKind);
+        Assert.Equal("deed.pdf", title.GetProperty("fileName").GetString());
+        Assert.Equal(1234, title.GetProperty("fileSizeBytes").GetInt64());
+
+        // Per-type number: the plate stands in for the deed number, and the Thai type label comes from the master.
+        var vehicle = docs[^1];
+        Assert.Equal("1กข-4321", vehicle.GetProperty("titleNumber").GetString());
+        Assert.Equal("registration.pdf", vehicle.GetProperty("fileName").GetString());
+    }
+
+    [Fact]
+    public async Task A_locked_tracking_only_caller_gets_the_request_and_title_files_but_no_appraisal_file()
+    {
+        var (appraisalId, appraisalFile) = await SeedAppraisalWithEveryDocumentSourceAsync();
+
+        // The handler built by hand so the caller can be tracking-only: the harness's own caller holds neither permission.
+        var user = Substitute.For<ICurrentUserService>();
+        user.HasPermission("APPRAISAL_TRACKING_VIEW").Returns(true);
+        using var scope = Fixture.IntegrationTestWebApplicationFactory.Services.CreateScope();
+        var handler = new GetAppraisalBriefQueryHandler(
+            scope.ServiceProvider.GetRequiredService<ISqlConnectionFactory>(), user);
+        var result = await handler.Handle(new GetAppraisalBriefQuery(appraisalId), Ct);
+
+        Assert.False(result.DocumentsReleased);
+        Assert.Equal(["Request", "Request", "Title", "Title"], result.Documents.Select(d => d.Source));
+        // Not merely hidden: the appraisal file's id must not leave the handler at all.
+        Assert.DoesNotContain(result.Documents, d => d.DocumentId == appraisalFile);
+        Assert.DoesNotContain(result.Documents, d => d.IsPrimary);
     }
 }
