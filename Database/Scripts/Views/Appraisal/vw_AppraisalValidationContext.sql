@@ -161,7 +161,17 @@ SELECT
         SELECT COUNT(*)
         FROM appraisal.AppraisalGallery g
         WHERE g.AppraisalId = a.Id
-    )                                                                       AS PhotoCount
+    )                                                                       AS PhotoCount,
+
+    -- Check if a Complete Valuation Report (D001) file is attached to the appraisal.
+    CASE WHEN EXISTS (
+        SELECT 1
+        FROM appraisal.AppraisalDocuments ad
+                INNER JOIN document.Documents d ON d.Id = ad.DocumentId AND d.IsDeleted = 0
+        WHERE ad.AppraisalId = a.Id
+        AND ad.DocumentTypeCode = 'D001'
+    ) THEN 1 ELSE 0 END                                                     AS HasCompleteValuationReport
+
 
 FROM appraisal.Appraisals a
          LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = a.Id

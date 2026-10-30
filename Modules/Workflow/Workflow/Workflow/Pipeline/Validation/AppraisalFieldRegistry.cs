@@ -41,6 +41,7 @@ public static class AppraisalFieldRegistry
         new("externalAppraisalDateRecorded", "ExternalAppraisalDateRecorded", "boolean", "External Appraisal Date Recorded"),
 
         // Execution-stage readiness
+        new("hasCompleteValuationReport", "HasCompleteValuationReport",   "boolean", "Has Complete Valuation Report"),
         new("selectedPricingMethodCount", "SelectedPricingMethodCount",   "number",  "Selected Pricing Method Count"),
         new("comparableCount",            "ComparableCount",              "number",  "Comparable Count"),
         new("photoCount",                 "PhotoCount",                   "number",  "Photo Count"),
