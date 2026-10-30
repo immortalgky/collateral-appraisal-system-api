@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Appraisal.infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    [Migration("20261030173342_AddAssignmentEmails")]
+    [Migration("20261030180905_AddAssignmentEmails")]
     partial class AddAssignmentEmails
     {
         /// <inheritdoc />
@@ -1656,6 +1656,10 @@ namespace Appraisal.infrastructure.Migrations
                     b.PrimitiveCollection<string>("Cc")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CompanyId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");

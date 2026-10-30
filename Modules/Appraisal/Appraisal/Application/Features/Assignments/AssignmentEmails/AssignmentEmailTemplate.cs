@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Text.RegularExpressions;
 
 namespace Appraisal.Application.Features.Assignments.AssignmentEmails;
 
@@ -24,8 +25,9 @@ public static class AssignmentEmailTemplate
         string? Responsible,
         string? Remark);
 
+    // One line, single-spaced: a header cannot carry a line break, and a missing value leaves no double space.
     public static string Subject(Values v) =>
-        $"ขอนำส่งงานประเมิน ลูกค้าราย {v.CustomerName} {v.AppraisalNumber}".Trim();
+        Regex.Replace($"ขอนำส่งงานประเมิน ลูกค้าราย {v.CustomerName} {v.AppraisalNumber}", @"\s+", " ", RegexOptions.None, TimeSpan.FromMilliseconds(100)).Trim();
 
     public static string BodyHtml(Values v) =>
         $"<p>เรียน {Encode(v.Company) ?? CompanyPlaceholder}</p>" +

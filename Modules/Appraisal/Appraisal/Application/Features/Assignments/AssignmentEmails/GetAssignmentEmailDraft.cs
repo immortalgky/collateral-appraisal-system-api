@@ -28,13 +28,14 @@ public class GetAssignmentEmailDraftQueryHandler(
             : null;
         var maxAttachmentBytes = AssignmentEmailLimits.MaxAttachmentBytes(configuration);
 
-        // A draft written for an earlier assignment (the case was routed back and reassigned) no longer describes
-        // the case: the template is offered instead, and the next save takes the old row over.
+        // A draft written for an earlier assignment (the case was routed back and reassigned) or another company no
+        // longer describes the case: the template is offered instead, and the next save takes the old row over.
         var saved = query.Template ? null : await dbContext.AssignmentEmails
             .AsNoTracking()
             .FirstOrDefaultAsync(e => e.AppraisalId == query.AppraisalId
                                       && e.Status == AssignmentEmailStatus.Draft
-                                      && e.AssignmentId == @case.AssignmentId,
+                                      && e.AssignmentId == @case.AssignmentId
+                                      && e.CompanyId == @case.AssigneeCompanyId,
                 cancellationToken);
         if (saved is not null)
         {
@@ -75,8 +76,8 @@ public class GetAssignmentEmailDraftQueryHandler(
             @case.AppraisalNumber,
             @case.ContactName,
             @case.ContactPhone,
-            // No fee item at all: nothing would be billed, so no figure is invented.
-            fee.Items.Count == 0 ? null : fee.Total,
+            // No billable base yet (no fee, or only a 01 awaiting approval): assign would refuse it, so no figure is invented.
+            fee.HasBillableBase ? fee.Total : null,
             @case.FeePaymentText,
             responsible,
             @case.Remark);

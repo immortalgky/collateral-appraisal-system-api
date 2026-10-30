@@ -11,6 +11,12 @@ public class AssignmentEmail : Entity<Guid>
 {
     public Guid AppraisalId { get; private set; }
     public Guid? AssignmentId { get; private set; }
+
+    /// <summary>
+    /// The assignment's company when the draft was saved. A draft only describes the case for that assignment and
+    /// that company: when either has changed, the template is offered instead.
+    /// </summary>
+    public string? CompanyId { get; private set; }
     public string Status { get; private set; } = AssignmentEmailStatus.Draft;
     public List<string> ExtraTo { get; private set; } = [];
 
@@ -29,11 +35,12 @@ public class AssignmentEmail : Entity<Guid>
         // For EF Core
     }
 
-    public static AssignmentEmail CreateDraft(Guid appraisalId, Guid? assignmentId) =>
-        new() { Id = Guid.CreateVersion7(), AppraisalId = appraisalId, AssignmentId = assignmentId };
+    public static AssignmentEmail CreateDraft(Guid appraisalId) =>
+        new() { Id = Guid.CreateVersion7(), AppraisalId = appraisalId };
 
     public void UpdateDraft(
         Guid? assignmentId,
+        string? companyId,
         IEnumerable<string> extraTo,
         IEnumerable<string> cc,
         string subject,
@@ -44,6 +51,7 @@ public class AssignmentEmail : Entity<Guid>
             throw new InvalidOperationException($"Only a draft email can be edited; this one is {Status}.");
 
         AssignmentId = assignmentId;
+        CompanyId = companyId;
         ExtraTo = extraTo.ToList();
         Cc = cc.ToList();
         Subject = subject;

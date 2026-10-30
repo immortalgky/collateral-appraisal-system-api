@@ -10,6 +10,7 @@ public class AssignmentEmailConfiguration : IEntityTypeConfiguration<AssignmentE
         builder.Property(e => e.Id).ValueGeneratedNever();
 
         builder.Property(e => e.Status).HasMaxLength(20).IsRequired();
+        builder.Property(e => e.CompanyId).HasMaxLength(100);
         builder.Property(e => e.Subject).HasMaxLength(500).IsRequired();
         builder.Property(e => e.BodyHtml).IsRequired();
 

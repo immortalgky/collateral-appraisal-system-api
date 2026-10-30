@@ -26,20 +26,21 @@ public class SaveAssignmentEmailDraftCommandHandler(
     public async Task<Unit> Handle(SaveAssignmentEmailDraftCommand command, CancellationToken cancellationToken)
     {
         AssignmentEmailAccess.EnsureAllowed(currentUser);
-        // The same read GET fills the template from: it also names the current assignment the draft belongs to.
-        var assignmentId = (await caseReader.GetCaseAsync(command.AppraisalId, cancellationToken)
-                            ?? throw new AppraisalNotFoundException(command.AppraisalId)).AssignmentId;
+        // The same read GET fills the template from: it names the assignment and company the draft belongs to.
+        var @case = await caseReader.GetCaseAsync(command.AppraisalId, cancellationToken)
+                    ?? throw new AppraisalNotFoundException(command.AppraisalId);
         await EnsureAttachmentsFitAsync(command.Attachments, cancellationToken);
 
         var draft = await emailRepository.GetDraftAsync(command.AppraisalId, cancellationToken);
         if (draft is null)
         {
-            draft = AssignmentEmail.CreateDraft(command.AppraisalId, assignmentId);
+            draft = AssignmentEmail.CreateDraft(command.AppraisalId);
             await emailRepository.AddAsync(draft, cancellationToken);
         }
 
         draft.UpdateDraft(
-            assignmentId,
+            @case.AssignmentId,
+            @case.AssigneeCompanyId,
             command.ExtraTo,
             command.Cc,
             command.Subject,

@@ -155,6 +155,27 @@ public class AssignmentEmailDraftTests
     }
 
     [Fact]
+    public async Task A_fee_with_nothing_billable_yet_shows_a_dash()
+    {
+        _sender.Send(Arg.Is<GetFeePreviewQuery>(q => q.AppraisalId == AppraisalId), Arg.Any<CancellationToken>())
+            .Returns(new FeePreviewResult(null, null, new FeeBaseSourceDto(FeeBaseKinds.None, null, null, null, null, null, null),
+                null, [new FeePreviewItemDto(Guid.NewGuid(), "01", "Appraisal fee", 2500m, "User")],
+                HasBillableBase: false, 0m, 7m, 0m, 0m));
+
+        var draft = await GetAsync(Exto());
+
+        Assert.Contains("ค่าธรรมเนียม : -<br>", draft.BodyHtml);
+    }
+
+    [Fact]
+    public async Task The_template_subject_is_one_line_whatever_the_customer_name_holds()
+    {
+        var draft = await GetAsync(Exto() with { CustomerName = "นายสมศักดิ์\r\n  มั่นคง" });
+
+        Assert.Equal("ขอนำส่งงานประเมิน ลูกค้าราย นายสมศักดิ์ มั่นคง 69042630", draft.Subject);
+    }
+
+    [Fact]
     public async Task A_company_with_a_blank_thai_name_is_greeted_by_its_name()
     {
         _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>())
@@ -263,6 +284,18 @@ public class AssignmentEmailDraftTests
 
         Assert.Null(draft.Id);
         Assert.Equal("ขอนำส่งงานประเมิน ลูกค้าราย นายสมศักดิ์ มั่นคง 69042630", draft.Subject);
+    }
+
+    [Fact]
+    public async Task A_draft_saved_for_another_company_is_replaced_by_the_template()
+    {
+        CaseExists();
+        Documents(new(DocA, "deed.pdf", 1_000), new(DocB, "map.png", 2_000));
+        await SaveAsync(Save());
+
+        var draft = await GetAsync(Exto() with { AssigneeCompanyId = Guid.NewGuid().ToString() });
+
+        Assert.Null(draft.Id);
     }
 
     [Fact]
