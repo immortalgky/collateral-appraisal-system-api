@@ -138,12 +138,13 @@ SELECT
     (
         SELECT COUNT(pam.Id)
         FROM appraisal.PricingAnalysisMethods pam
-                 INNER JOIN appraisal.PricingAnalysisApproaches paa ON pam.ApproachId = paa.Id
-                 INNER JOIN appraisal.PricingAnalysis pa ON paa.PricingAnalysisId = pa.Id
-                 INNER JOIN appraisal.PropertyGroups pg ON pa.AnchorId = pg.Id
-        WHERE pg.AppraisalId = a.Id
-          AND pa.SubjectType = 0
-          AND pam.IsSelected = 1
+            INNER JOIN appraisal.PricingAnalysisApproaches paa ON pam.ApproachId = paa.Id
+            INNER JOIN appraisal.PricingAnalysis pa ON paa.PricingAnalysisId = pa.Id
+            LEFT JOIN appraisal.PropertyGroups pg ON pa.SubjectType = 0 AND pg.Id = pa.AnchorId
+            LEFT JOIN appraisal.ProjectModels pm ON pa.SubjectType = 1 AND pm.Id = pa.AnchorId
+            LEFT JOIN appraisal.Projects pr ON pr.Id = pm.ProjectId
+        WHERE COALESCE(pg.AppraisalId, pr.AppraisalId) = a.Id
+        AND pam.IsSelected = 1
     )                                                                       AS SelectedPricingMethodCount,
 
     -- Count of (non-deleted) market comparables linked to the appraisal.
