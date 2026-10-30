@@ -248,10 +248,15 @@ public class AffectedHandlersGroupAssignmentTests(IntegrationTestFixture fixture
     [Fact]
     public async Task SetOfflineExternalEngagement_persists_company_status_book_date_and_external_appraiser()
     {
+        // The row as the InternalAssigned consumer leaves it on int-offline-book-keyin, for a case with no company
+        // yet (the keyer names it). A Pending row is not on the key-in task and is refused.
         var (aid, _) = await SeedAssignmentAsync(a =>
         {
-            a.SaveDraft("Internal", "keyer-1", null, AppraisalAssignment.OfflineAssignmentMethod, null, null, null);
             a.SetAssigner("P5229");
+            // The consumer passes the recorded assigner back, as here.
+            a.Assign("External", assigneeUserId: "keyer-1", assignmentMethod: AppraisalAssignment.OfflineAssignmentMethod,
+                assignedBy: a.AssignedBy);
+            a.StartWork();
         });
         var stamp = await AppraisalUpdatedAtAsync(aid);
         Guid companyId;

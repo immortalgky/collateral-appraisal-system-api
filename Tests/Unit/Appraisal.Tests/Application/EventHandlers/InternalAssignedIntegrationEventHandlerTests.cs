@@ -106,16 +106,75 @@ public class InternalAssignedIntegrationEventHandlerTests
         Assert.NotEqual(AssignmentStatus.InProgress, assignment.AssignmentStatus);
     }
 
+    [Fact]
+    public async Task Consume_OfflineLanding_KeepsTheAdminsCompany_AndMaterialisesTheTierFee()
+    {
+        // EXTO: AssignAppraisalCommandHandler recorded the admin's company on the Pending row before the workflow
+        // landed on int-offline-book-keyin, which publishes this event with method "Offline" and type "External".
+        var appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "Initial", "Normal", DateTime.Now);
+        appraisal.AssignAdmin();
+        var assignment = appraisal.Assignments.Single();
+        assignment.SetAssigner("P5229");
+        assignment.SetAssigneeCompany("3f1b2c4d-0000-0000-0000-000000000001");
+        var fees = Substitute.For<IAssignmentFeeService>();
+
+        await BuildHandler(appraisal, fees).Consume(BuildContext(new InternalAssignedIntegrationEvent
+        {
+            AppraisalId = appraisal.Id,
+            AssigneeUserId = "keyer",
+            AssignmentMethod = AppraisalAssignment.OfflineAssignmentMethod,
+            AssignmentType = "External",
+            CompletedBy = "P5229"
+        }));
+
+        Assert.Equal("3f1b2c4d-0000-0000-0000-000000000001", assignment.AssigneeCompanyId);
+        Assert.Equal(AssignmentType.External, assignment.AssignmentType);
+        Assert.True(assignment.IsOfflineEngagement);
+        // Tier-based, as CompanyAssignedIntegrationEventHandler prices a manual in-system external pick; a genuine
+        // first assignment (the row was Pending) so a system base is priced.
+        await fees.Received(1).ResolveSourceForAppraisalAsync(
+            appraisal, Arg.Any<AssignmentFeeSource.TierBased>(), Arg.Any<CancellationToken>());
+        await fees.Received(1).EnsureAssignmentFeeItemsAsync(
+            appraisal.Id, assignment.Id, Arg.Any<AssignmentFeeSource>(), true, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Consume_InternalAfterRouteBackFromOffline_DropsTheEXTOCompany()
+    {
+        // EXTO recorded a company, the case was routed back to appraisal-assignment (ReturnToAssignmentQueue keeps
+        // the selections) and the admin re-decided INT. An internal case must not stay linked to that company:
+        // company-scoped queries (quick search, invoices) filter on AssigneeCompanyId.
+        var appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "Initial", "Normal", DateTime.Now);
+        appraisal.AssignAdmin();
+        var assignment = appraisal.Assignments.Single();
+        assignment.SetAssigneeCompany("3f1b2c4d-0000-0000-0000-000000000001");
+        assignment.Assign("External", assigneeUserId: "keyer", assigneeCompanyId: "3f1b2c4d-0000-0000-0000-000000000001",
+            assignmentMethod: AppraisalAssignment.OfflineAssignmentMethod, assignedBy: "P5229");
+        assignment.ReturnToAssignmentQueue();
+
+        await BuildHandler(appraisal).Consume(BuildContext(new InternalAssignedIntegrationEvent
+        {
+            AppraisalId = appraisal.Id,
+            AssigneeUserId = "P0001",
+            AssignmentMethod = "Manual",
+            CompletedBy = "P5229"
+        }));
+
+        Assert.Equal(AssignmentType.Internal, assignment.AssignmentType);
+        Assert.Null(assignment.AssigneeCompanyId);
+    }
+
     // ── Helpers ──
 
-    private static InternalAssignedIntegrationEventHandler BuildHandler(AppraisalAggregate appraisal)
+    private static InternalAssignedIntegrationEventHandler BuildHandler(
+        AppraisalAggregate appraisal, IAssignmentFeeService? feeService = null)
     {
         var repo = Substitute.For<IAppraisalRepository>();
         repo.GetByIdWithAllDataAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(appraisal);
 
         var uow = Substitute.For<IAppraisalUnitOfWork>();
 
-        var feeService = Substitute.For<IAssignmentFeeService>();
+        feeService ??= Substitute.For<IAssignmentFeeService>();
         feeService.ResolveSourceForAppraisalAsync(
                 Arg.Any<AppraisalAggregate>(),
                 Arg.Any<AssignmentFeeSource>(),
