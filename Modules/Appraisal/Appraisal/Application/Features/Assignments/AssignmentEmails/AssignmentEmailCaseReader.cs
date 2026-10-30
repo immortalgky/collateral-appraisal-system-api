@@ -8,10 +8,11 @@ public class AssignmentEmailCaseReader(ISqlConnectionFactory connectionFactory) 
     {
         // Column order = AssignmentEmailCase's constructor order: Dapper maps positional records by position.
         // The current assignment is the newest live row, as AppraisalAssignmentElection picks it.
-        // Fee payment text is the FeePaymentMethod label of the code the case's fee carries.
+        // Fee payment text is the FeePaymentMethod label of the code the case's fee carries: the current
+        // assignment's fee, else the newest live one, as the fee preview picks it (FeeShellFactory.LatestFee).
         const string sql = """
                            SELECT  a.AppraisalNumber,
-                                   v.CustomerName,
+                                   cu.Name                                           AS CustomerName,
                                    rd.ContactPersonName                              AS ContactName,
                                    rd.ContactPersonPhone                             AS ContactPhone,
                                    pm.Description                                    AS FeePaymentText,
@@ -25,7 +26,11 @@ public class AssignmentEmailCaseReader(ISqlConnectionFactory connectionFactory) 
                                                                                      AS FollowupName,
                                    asg.Remark
                            FROM appraisal.Appraisals a
-                                    JOIN appraisal.vw_AppraisalList v ON v.Id = a.Id
+                                    -- vw_AppraisalList's customer rule (first customer by Id), without the whole view.
+                                    OUTER APPLY (SELECT TOP 1 rc.Name
+                                                 FROM request.RequestCustomers rc
+                                                 WHERE rc.RequestId = a.RequestId
+                                                 ORDER BY rc.Id) cu
                                     LEFT JOIN request.RequestDetails rd ON rd.RequestId = a.RequestId
                                     OUTER APPLY (SELECT TOP 1 x.*
                                                  FROM appraisal.AppraisalAssignments x
@@ -36,6 +41,7 @@ public class AssignmentEmailCaseReader(ISqlConnectionFactory connectionFactory) 
                                                  FROM appraisal.AppraisalFees f
                                                           JOIN appraisal.AppraisalAssignments fa ON fa.Id = f.AssignmentId
                                                  WHERE fa.AppraisalId = a.Id
+                                                   AND fa.AssignmentStatus NOT IN (N'Rejected', N'Cancelled')
                                                  ORDER BY CASE WHEN f.AssignmentId = asg.Id THEN 0 ELSE 1 END,
                                                           f.CreatedAt DESC, f.Id DESC) fee
                                     OUTER APPLY (SELECT TOP 1 p.Description
@@ -60,7 +66,7 @@ public class AssignmentEmailCaseReader(ISqlConnectionFactory connectionFactory) 
         const string sql = """
                            SELECT d.Id, d.FileName, d.FileSizeBytes
                            FROM document.Documents d
-                           WHERE d.Id IN @Ids AND d.IsDeleted = 0
+                           WHERE d.Id IN @Ids AND d.IsDeleted = 0 AND d.IsActive = 1
                            """;
 
         var connection = connectionFactory.GetOpenConnection();

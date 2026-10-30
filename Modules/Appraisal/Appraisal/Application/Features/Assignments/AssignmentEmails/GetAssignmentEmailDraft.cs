@@ -28,9 +28,13 @@ public class GetAssignmentEmailDraftQueryHandler(
             : null;
         var maxAttachmentBytes = AssignmentEmailLimits.MaxAttachmentBytes(configuration);
 
+        // A draft written for an earlier assignment (the case was routed back and reassigned) no longer describes
+        // the case: the template is offered instead, and the next save takes the old row over.
         var saved = query.Template ? null : await dbContext.AssignmentEmails
             .AsNoTracking()
-            .FirstOrDefaultAsync(e => e.AppraisalId == query.AppraisalId && e.Status == AssignmentEmailStatus.Draft,
+            .FirstOrDefaultAsync(e => e.AppraisalId == query.AppraisalId
+                                      && e.Status == AssignmentEmailStatus.Draft
+                                      && e.AssignmentId == @case.AssignmentId,
                 cancellationToken);
         if (saved is not null)
         {
@@ -57,7 +61,8 @@ public class GetAssignmentEmailDraftQueryHandler(
 
         // EXTO (method Offline): the keyer is the bank's responsible person. EXT: the follow-up officer, known only
         // when the admin picked one by hand; อัตโนมัติ leaves the placeholder for the send to fill.
-        var isOffline = @case.AssignmentMethod == AppraisalAssignment.OfflineAssignmentMethod;
+        var isOffline = string.Equals(
+            @case.AssignmentMethod, AppraisalAssignment.OfflineAssignmentMethod, StringComparison.OrdinalIgnoreCase);
         var responsible = isOffline
             ? @case.KeyerName
             : string.Equals(@case.FollowupMethod, AssignmentDefaultValues.MethodManual, StringComparison.OrdinalIgnoreCase) ? @case.FollowupName : null;
@@ -65,12 +70,13 @@ public class GetAssignmentEmailDraftQueryHandler(
         var fee = await sender.Send(new GetFeePreviewQuery(query.AppraisalId, null, null, null), cancellationToken);
 
         var values = new AssignmentEmailTemplate.Values(
-            company is null ? null : company.NameLocal ?? company.Name,
+            company is null ? null : string.IsNullOrWhiteSpace(company.NameLocal) ? company.Name : company.NameLocal,
             @case.CustomerName,
             @case.AppraisalNumber,
             @case.ContactName,
             @case.ContactPhone,
-            fee.Total,
+            // No fee item at all: nothing would be billed, so no figure is invented.
+            fee.Items.Count == 0 ? null : fee.Total,
             @case.FeePaymentText,
             responsible,
             @case.Remark);

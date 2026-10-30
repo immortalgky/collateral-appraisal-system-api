@@ -26,7 +26,7 @@ public interface IAssignmentEmailCaseReader
     /// <summary>Null when the appraisal does not exist.</summary>
     Task<AssignmentEmailCase?> GetCaseAsync(Guid appraisalId, CancellationToken ct);
 
-    /// <summary>The live (not deleted) documents among <paramref name="ids"/>.</summary>
+    /// <summary>The live (active, not deleted) documents among <paramref name="ids"/>.</summary>
     Task<IReadOnlyList<AssignmentEmailDocument>> GetDocumentsAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct);
 }
 

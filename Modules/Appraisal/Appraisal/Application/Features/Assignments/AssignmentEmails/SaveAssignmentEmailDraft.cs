@@ -72,7 +72,9 @@ public class SaveAssignmentEmailDraftCommandValidator : AbstractValidator<SaveAs
 {
     public SaveAssignmentEmailDraftCommandValidator()
     {
-        RuleFor(c => c.Subject).NotEmpty().MaximumLength(500);
+        // A line break would end the header at send (and could inject one), so it is refused now.
+        RuleFor(c => c.Subject).NotEmpty().MaximumLength(500)
+            .Must(s => s is null || s.IndexOfAny(['\r', '\n']) < 0).WithMessage("The subject must be a single line.");
         RuleFor(c => c.BodyHtml).NotEmpty();
         RuleForEach(c => c.ExtraTo).Must(IsPlainAddress)
             .WithMessage("'{PropertyValue}' is not a valid email address.");
@@ -80,7 +82,7 @@ public class SaveAssignmentEmailDraftCommandValidator : AbstractValidator<SaveAs
             .WithMessage("'{PropertyValue}' is not a valid email address or Cc role.");
         RuleFor(c => c.Attachments.Count).LessThanOrEqualTo(AssignmentEmailLimits.MaxAttachments)
             .WithMessage($"At most {AssignmentEmailLimits.MaxAttachments} attachments can be sent.");
-        RuleForEach(c => c.Attachments).Must(a => AssignmentEmailAttachmentSources.All.Contains(a.Source))
+        RuleForEach(c => c.Attachments).Must(a => a is not null && AssignmentEmailAttachmentSources.All.Contains(a.Source))
             .WithMessage("Attachment source must be request, appraisal or upload.");
     }
 

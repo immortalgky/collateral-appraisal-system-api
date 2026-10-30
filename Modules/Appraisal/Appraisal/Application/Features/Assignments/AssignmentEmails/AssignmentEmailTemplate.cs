@@ -19,7 +19,7 @@ public static class AssignmentEmailTemplate
         string? AppraisalNumber,
         string? ContactName,
         string? ContactPhone,
-        decimal FeeTotal,
+        decimal? FeeTotal,
         string? FeePaymentText,
         string? Responsible,
         string? Remark);
@@ -34,7 +34,7 @@ public static class AssignmentEmailTemplate
         $"ชื่อลูกค้า : {Text(v.CustomerName)}<br>" +
         $"ชื่อผู้ติดต่อ : {Text(v.ContactName)}<br>" +
         $"โทรศัพท์ : {Text(v.ContactPhone)}<br>" +
-        $"ค่าธรรมเนียม : {v.FeeTotal.ToString("N2", CultureInfo.InvariantCulture)}<br>" +
+        $"ค่าธรรมเนียม : {v.FeeTotal?.ToString("N2", CultureInfo.InvariantCulture) ?? "-"}<br>" +
         $"การชำระค่าธรรมเนียม : {Text(v.FeePaymentText)}<br>" +
         $"ผู้รับผิดชอบ : {Encode(v.Responsible) ?? ResponsiblePlaceholder}<br>" +
         $"หมายเหตุ : {Text(v.Remark)}</p>" +

@@ -42,7 +42,13 @@ public class AssignmentEmailDraftTests
     private void FeeTotal(decimal total) =>
         _sender.Send(Arg.Is<GetFeePreviewQuery>(q => q.AppraisalId == AppraisalId), Arg.Any<CancellationToken>())
             .Returns(new FeePreviewResult(null, null, new FeeBaseSourceDto(FeeBaseKinds.None, null, null, null, null, null, null),
-                null, [], true, total / 1.07m, 7m, total - total / 1.07m, total));
+                null, [new FeePreviewItemDto(null, "01", "Appraisal fee", total / 1.07m, "System")],
+                true, total / 1.07m, 7m, total - total / 1.07m, total));
+
+    private void NoFee() =>
+        _sender.Send(Arg.Is<GetFeePreviewQuery>(q => q.AppraisalId == AppraisalId), Arg.Any<CancellationToken>())
+            .Returns(new FeePreviewResult(null, null, new FeeBaseSourceDto(FeeBaseKinds.None, null, null, null, null, null, null),
+                null, [], false, 0m, 7m, 0m, 0m));
 
     private static AssignmentEmailCase Exto(string? keyerName = "สมชาย ใจดี") => new(
         AppraisalNumber: "69042630",
@@ -139,6 +145,35 @@ public class AssignmentEmailDraftTests
     }
 
     [Fact]
+    public async Task A_case_with_no_fee_shows_a_dash_not_a_zero_fee()
+    {
+        NoFee();
+
+        var draft = await GetAsync(Exto());
+
+        Assert.Contains("ค่าธรรมเนียม : -<br>", draft.BodyHtml);
+    }
+
+    [Fact]
+    public async Task A_company_with_a_blank_thai_name_is_greeted_by_its_name()
+    {
+        _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>())
+            .Returns(new CompanyLookupDto(CompanyId, "Acme Appraisal", null, true, "jobs@acme.co.th", ""));
+
+        var draft = await GetAsync(Exto());
+
+        Assert.StartsWith("<p>เรียน Acme Appraisal</p>", draft.BodyHtml);
+    }
+
+    [Fact]
+    public async Task Offline_method_is_recognised_whatever_its_casing()
+    {
+        var draft = await GetAsync(Exto() with { AssignmentMethod = "offline" });
+
+        Assert.Equal(["IntAdminAll", "Keyer", "KeyerSupervisor"], draft.Cc);
+    }
+
+    [Fact]
     public async Task Non_admin_cannot_read_the_draft()
     {
         _user.HasPermission("APPRAISAL_ADMINISTRATION_EDIT").Returns(false);
@@ -215,6 +250,33 @@ public class AssignmentEmailDraftTests
         Assert.Null(draft.Id);
         Assert.Equal("ขอนำส่งงานประเมิน ลูกค้าราย นายสมศักดิ์ มั่นคง 69042630", draft.Subject);
         Assert.Empty(draft.Attachments);
+    }
+
+    [Fact]
+    public async Task A_draft_saved_for_an_earlier_assignment_is_replaced_by_the_template()
+    {
+        CaseExists();
+        Documents(new(DocA, "deed.pdf", 1_000), new(DocB, "map.png", 2_000));
+        await SaveAsync(Save());
+
+        var draft = await GetAsync(Exto() with { AssignmentId = Guid.NewGuid() });
+
+        Assert.Null(draft.Id);
+        Assert.Equal("ขอนำส่งงานประเมิน ลูกค้าราย นายสมศักดิ์ มั่นคง 69042630", draft.Subject);
+    }
+
+    [Fact]
+    public async Task Saving_after_a_reassignment_takes_over_the_old_draft()
+    {
+        CaseExists();
+        Documents(new(DocA, "deed.pdf", 1_000), new(DocB, "map.png", 2_000));
+        await SaveAsync(Save());
+        var newAssignment = Guid.NewGuid();
+        _reader.GetCaseAsync(AppraisalId, Arg.Any<CancellationToken>()).Returns(Exto() with { AssignmentId = newAssignment });
+
+        await SaveAsync(Save());
+
+        Assert.Equal(newAssignment, (await _db.AssignmentEmails.SingleAsync()).AssignmentId);
     }
 
     [Fact]
@@ -314,6 +376,16 @@ public class AssignmentEmailDraftTests
     [Fact]
     public void An_unknown_attachment_source_is_rejected() =>
         Assert.NotEmpty(Errors(Save(attachments: [new(DocA, "elsewhere")])));
+
+    [Fact]
+    public void A_null_attachment_entry_is_a_validation_error_not_a_crash() =>
+        Assert.NotEmpty(Errors(Save(attachments: [null!])));
+
+    [Theory]
+    [InlineData("ขอนำส่ง\nBcc: x@evil.co")]
+    [InlineData("ขอนำส่ง\r")]
+    public void A_subject_with_a_line_break_is_rejected(string subject) =>
+        Assert.NotEmpty(Errors(Save() with { Subject = subject }));
 
     [Fact]
     public void A_blank_subject_is_rejected() =>
