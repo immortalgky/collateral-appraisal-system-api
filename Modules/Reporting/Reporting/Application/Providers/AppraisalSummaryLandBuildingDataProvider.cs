@@ -431,6 +431,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 lt.LandParcelNumber,
                 lt.SurveyNumber,
                 lt.Rawang,
+                lt.MapSheetNumber,
+                lt.AerialMapName,
+                lt.AerialMapNumber,
                 lt.AreaRai,
                 lt.AreaNgan,
                 lt.AreaSquareWa,
@@ -1078,24 +1081,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             var landParts = new List<string>();
             foreach (var title in titles)
             {
-                var titleParts = new List<string>();
-
-                // The document's own name, never a fixed "โฉนดที่ดิน" — a parcel held under a
-                // น.ส.3 is not a title deed and must not be announced as one (CA-609).
-                if (!string.IsNullOrWhiteSpace(title.TitleNumber))
-                    titleParts.Add($"{TitleDeedLabel.NumberPrefix(title.TitleType)} {title.TitleNumber}");
-                if (!string.IsNullOrWhiteSpace(title.BookNumber))
-                    titleParts.Add($"เล่ม {title.BookNumber}");
-                if (!string.IsNullOrWhiteSpace(title.PageNumber))
-                    titleParts.Add($"หน้า {title.PageNumber}");
-                if (!string.IsNullOrWhiteSpace(title.LandParcelNumber))
-                    titleParts.Add($"เลขที่ดิน {title.LandParcelNumber}");
-                if (!string.IsNullOrWhiteSpace(title.SurveyNumber))
-                    titleParts.Add($"หน้าสำรวจ {title.SurveyNumber}");
-                // ระวาง lives in LandTitles.Rawang — MapSheetNumber is the separate
-                // "Sheet Number" (แผ่นที่) field the UI only collects for นส.3ก.
-                if (!string.IsNullOrWhiteSpace(title.Rawang))
-                    titleParts.Add($"ระวาง {title.Rawang}");
+                var titleParts = TitleIdentityParts(title);
 
                 var titleArea = BuildAreaString(title.AreaRai, title.AreaNgan, title.AreaSquareWa);
                 if (!string.IsNullOrWhiteSpace(titleArea))
@@ -2249,6 +2235,43 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         rows.Where(x => x.IsMoved && !string.IsNullOrWhiteSpace(x.Row.Description)).Select(x => x.Row).ToList();
 
     /// <summary>
+    /// The identifying pieces of one land title, in print order; each prints only when it has a value.
+    /// </summary>
+    internal static List<string> TitleIdentityParts(GroupTitleRow title)
+    {
+        var titleParts = new List<string>();
+
+        // The document's own name, never a fixed "โฉนดที่ดิน" — a parcel held under a
+        // น.ส.3 is not a title deed and must not be announced as one (CA-609).
+        if (!string.IsNullOrWhiteSpace(title.TitleNumber))
+            titleParts.Add($"{TitleDeedLabel.NumberPrefix(title.TitleType)} {title.TitleNumber}");
+        if (!string.IsNullOrWhiteSpace(title.BookNumber))
+            titleParts.Add($"เล่ม {title.BookNumber}");
+        if (!string.IsNullOrWhiteSpace(title.PageNumber))
+            titleParts.Add($"หน้า {title.PageNumber}");
+        if (!string.IsNullOrWhiteSpace(title.LandParcelNumber))
+            titleParts.Add($"เลขที่ดิน {title.LandParcelNumber}");
+        // น.ส.3 / น.ส.3 ก. / น.ส.3 ข. carry no survey page — the form hides the field, so a value
+        // left in the column from an earlier title type is stale and must not print.
+        // Mirrors the app's SURVEY_TITLE_TYPES (DEED, POSR, OTHER).
+        var noSurveyPage = title.TitleType?.Trim().ToUpperInvariant() is "NS3" or "NS3K" or "NS3KO";
+        if (!noSurveyPage && !string.IsNullOrWhiteSpace(title.SurveyNumber))
+            titleParts.Add($"หน้าสำรวจ {title.SurveyNumber}");
+        // The aerial-photo map (ระวางรูปถ่ายทางอากาศ) and its sheet are the น.ส.3 ก. counterpart of ระวาง.
+        // MapSheetNumber is its แผ่นที่; ระวาง proper lives in LandTitles.Rawang (โฉนด).
+        if (!string.IsNullOrWhiteSpace(title.AerialMapName))
+            titleParts.Add($"ระวางรูปถ่ายทางอากาศชื่อ {title.AerialMapName}");
+        if (!string.IsNullOrWhiteSpace(title.AerialMapNumber))
+            titleParts.Add($"หมายเลข {title.AerialMapNumber}");
+        if (!string.IsNullOrWhiteSpace(title.MapSheetNumber))
+            titleParts.Add($"แผ่นที่ {title.MapSheetNumber}");
+        if (!string.IsNullOrWhiteSpace(title.Rawang))
+            titleParts.Add($"ระวาง {title.Rawang}");
+
+        return titleParts;
+    }
+
+    /// <summary>
     /// Explicitly not a land rate (PerUnit lumpsum or PerSqm). A NULL unit (legacy per-area Cost rows
     /// predate the column) is not one: it keeps printing FinalValueOverride as the rate, as it always did.
     /// </summary>
@@ -2407,6 +2430,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public string? LandParcelNumber { get; init; }
         public string? SurveyNumber { get; init; }
         public string? Rawang { get; init; }
+        public string? MapSheetNumber { get; init; }
+        public string? AerialMapName { get; init; }
+        public string? AerialMapNumber { get; init; }
         public decimal? AreaRai { get; init; }
         public decimal? AreaNgan { get; init; }
         public decimal? AreaSquareWa { get; init; }
