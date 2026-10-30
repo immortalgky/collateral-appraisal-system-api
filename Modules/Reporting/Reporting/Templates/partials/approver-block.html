@@ -13,7 +13,7 @@
 <table class="grid">
   <tr>
     <td colspan="2"><strong>รายการทรัพย์สิน</strong></td>
-    <td colspan="2">{{ if model.approval_property_text }}{{ model.approval_property_text }}{{ else }}{{ model.collateral_address }}{{ end }}</td>
+    <td colspan="2" style="white-space:pre-line">{{ if model.approval_property_text }}{{ model.approval_property_text }}{{ else }}{{ model.collateral_address }}{{ end }}</td>
   </tr>
   {{ if !model.approval_value_text && model.has_under_construction }}
   <!-- Under construction: the committee resolves on both figures, so each gets its own row.
