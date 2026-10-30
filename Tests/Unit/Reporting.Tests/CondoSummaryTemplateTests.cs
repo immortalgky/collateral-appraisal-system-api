@@ -62,7 +62,7 @@ public class CondoSummaryTemplateTests
         CollateralCell(html).Should().Be(
             "<td><div>- ห้องชุดเลขที่ 312/429 ชั้นที่ 31</div><div>- ห้องชุดเลขที่ 312/430 ชั้นที่ 31</div></td>");
         LocationLine(html).Should().Be(
-            "<span class=\"k\">ที่ตั้งทรัพย์สิน</span><span class=\"v\">ห้องชุดเลขที่ 312/429, 312/430 ชั้นที่ 31 อาคารชุดโนเบิล จังหวัดกรุงเทพมหานคร</span>");
+            "<span class=\"k\">ที่ตั้งทรัพย์สิน</span><span class=\"v\" style=\"white-space:pre-line\">ห้องชุดเลขที่ 312/429, 312/430 ชั้นที่ 31 อาคารชุดโนเบิล จังหวัดกรุงเทพมหานคร</span>");
     }
 
     [Fact]
