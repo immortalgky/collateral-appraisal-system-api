@@ -456,6 +456,21 @@ another row's children, and nothing fails to tell you.
 - Integration events flow through MassTransit/RabbitMQ
 - Connection strings in appsettings.json need actual values for database access
 
+## Release branches
+
+Process: `docs/deployment/release-process.md`. `main` is the trunk; `release/vX.Y` feeds UAT and PRD.
+
+1. A fix for UAT/PRD goes to `release/vX.Y` by PR (squash). **In the same task**, cherry-pick it onto a
+   branch off `origin/main` with `git cherry-pick -x <sha>` and open a PR to `main`. If a newer
+   `release/v*` already exists, port it there too. Report every PR link; the task is not done until
+   the ports are open. If the fix does not apply to `main`, say why in the release PR.
+2. Never merge a release branch into `main`, never push to it directly, never create, move or delete
+   `v*` tags or `release/*` branches unless the user asks.
+3. Before saying a release is ready, run `git cherry -v origin/main origin/release/vX.Y`; any `+` line
+   is a fix missing from `main`.
+4. A fix on a release branch avoids EF migrations. If one is unavoidable it must be additive and
+   idempotent, and keep the same migration name when ported.
+
 ## Claude rules
 1. First, think through the problem, read the codebase for relevant files, and write a plan.
 2. The plan should have a list of todo items that you can check off as you complete them.
