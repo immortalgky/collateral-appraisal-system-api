@@ -6,6 +6,7 @@ using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Quotations;
 using Appraisal.Infrastructure;
 using Appraisal.Infrastructure.Repositories;
+using Auth.Contracts.Companies;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
@@ -30,6 +31,7 @@ public class AssignAppraisalQuotationGuardTests
     private readonly IWorkflowRelayService _relay = Substitute.For<IWorkflowRelayService>();
     private readonly ISender _sender = Substitute.For<ISender>();
     private readonly ICurrentUserService _user = Substitute.For<ICurrentUserService>();
+    private readonly ICompanyLookupService _companies = Substitute.For<ICompanyLookupService>();
     private readonly Guid _companyId = Guid.NewGuid();
     private readonly AppraisalAggregate _appraisal;
 
@@ -38,6 +40,9 @@ public class AssignAppraisalQuotationGuardTests
         _appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "New", "Normal", DateTime.Now);
         _appraisal.AssignAdmin();
         _user.UserCode.Returns("P0001");
+        // EXTO names a company: by default it exists and is within its MOU window.
+        _companies.GetByIdAsync(_companyId, Arg.Any<CancellationToken>())
+            .Returns(new CompanyLookupDto(_companyId, "Acme", null, IsAssignable: true));
         // By default the fee preview shows a base fee (01), so these tests are about the quotation guard.
         _sender.Send(Arg.Any<GetFeePreviewQuery>(), Arg.Any<CancellationToken>())
             .Returns(FeePreviewWithBase(2_500m));
@@ -53,7 +58,7 @@ public class AssignAppraisalQuotationGuardTests
     private AssignAppraisalCommandHandler Handler()
     {
         _appraisals.GetByIdWithAllDataAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(_appraisal);
-        return new AssignAppraisalCommandHandler(_appraisals, Substitute.For<IAppraisalUnitOfWork>(), _relay, _quotations, _ownership, _sender, _user);
+        return new AssignAppraisalCommandHandler(_appraisals, Substitute.For<IAppraisalUnitOfWork>(), _relay, _quotations, _ownership, _sender, _user, _companies);
     }
 
     // company: omitted -> the winner's id; pass null / "" / garbage explicitly to send exactly that.
@@ -88,7 +93,7 @@ public class AssignAppraisalQuotationGuardTests
                 assignedByWhenResumed = _appraisal.Assignments.Single().AssignedBy;
                 return Task.CompletedTask;
             });
-        var handler = new AssignAppraisalCommandHandler(_appraisals, uow, _relay, _quotations, _ownership, _sender, _user);
+        var handler = new AssignAppraisalCommandHandler(_appraisals, uow, _relay, _quotations, _ownership, _sender, _user, _companies);
         _user.UserCode.Returns("P5229");
 
         // The authenticated user is who is recorded, and who completes the task.

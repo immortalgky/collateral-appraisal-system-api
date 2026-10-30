@@ -269,6 +269,17 @@ public class AppraisalAssignment : Entity<Guid>
     }
 
     /// <summary>
+    /// Records the company the admin picked for an off-system (EXTO) decision on this Pending row before the
+    /// workflow resumes. The int-offline-book-keyin consumer passes the row's company back through
+    /// <see cref="Assign"/>, so it survives the hand-over to the keyer.
+    /// </summary>
+    public void SetAssigneeCompany(string companyId)
+    {
+        ValidateStatus("record the company", AssignmentStatus.Pending);
+        AssigneeCompanyId = companyId;
+    }
+
+    /// <summary>
     /// Assign the appraisal to an internal user or external company
     /// </summary>
     public void Assign(

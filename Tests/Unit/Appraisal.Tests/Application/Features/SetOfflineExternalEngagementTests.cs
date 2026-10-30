@@ -45,10 +45,71 @@ public class SetOfflineExternalEngagementTests
         return (appraisal, assignment);
     }
 
-    private Task Handle(Guid appraisalId) =>
+    private Task Handle(Guid appraisalId) => Handle(appraisalId, _companyId);
+
+    private Task Handle(Guid appraisalId, Guid? companyId, string? appraiserName = null) =>
         new SetOfflineExternalEngagementCommandHandler(
                 _appraisals, _companies, _fees, _db, _user, NullLogger<SetOfflineExternalEngagementCommandHandler>.Instance)
-            .Handle(new SetOfflineExternalEngagementCommand(appraisalId, _companyId, new DateTime(2026, 1, 5)), Ct);
+            .Handle(new SetOfflineExternalEngagementCommand(appraisalId, companyId, new DateTime(2026, 1, 5), appraiserName), Ct);
+
+    // EXTO assigned under #618: the admin recorded the company at assignment, so it is on the row when the keyer saves.
+    private (AppraisalAggregate Appraisal, AppraisalAssignment Assignment) SeedWithAdminsCompany(Guid companyId)
+    {
+        var appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "New", "Normal", DateTime.Now);
+        var assignment = appraisal.AssignAdmin();
+        assignment.SetAssigner("P5229");
+        assignment.SetAssigneeCompany(companyId.ToString());
+        assignment.Assign("External", assigneeUserId: "keyer", assigneeCompanyId: companyId.ToString(),
+            assignmentMethod: AppraisalAssignment.OfflineAssignmentMethod, assignedBy: "P5229");
+        assignment.StartWork();
+        _appraisals.GetByIdWithAllDataAsync(appraisal.Id, Arg.Any<CancellationToken>()).Returns(appraisal);
+        return (appraisal, assignment);
+    }
+
+    [Theory]
+    [InlineData(false)] // the keyer's page shows the company read-only and sends none
+    [InlineData(true)]  // an older page sends the company it was shown
+    public async Task With_the_admins_company_on_the_row_the_book_date_and_appraiser_are_recorded_and_the_company_kept(
+        bool sendSameCompany)
+    {
+        var adminsCompany = Guid.NewGuid();
+        var (appraisal, assignment) = SeedWithAdminsCompany(adminsCompany);
+
+        await Handle(appraisal.Id, sendSameCompany ? adminsCompany : null, "Somchai");
+
+        Assert.Equal(adminsCompany.ToString(), assignment.AssigneeCompanyId);
+        Assert.Equal("Somchai", assignment.ExternalAppraiserName);
+        Assert.Equal(new DateTime(2026, 1, 5), _db.ValuationAnalyses.Local.Single(v => v.AppraisalId == appraisal.Id).ValuationDate);
+        Assert.Equal(AssignmentStatus.InProgress, assignment.AssignmentStatus);
+        // Validated at assignment: an MOU that lapsed since must not strand the keyer.
+        await _companies.DidNotReceiveWithAnyArgs().GetByIdAsync(default, default);
+    }
+
+    [Fact]
+    public async Task With_the_admins_company_on_the_row_a_different_company_is_refused_and_nothing_is_written()
+    {
+        var adminsCompany = Guid.NewGuid();
+        var (appraisal, assignment) = SeedWithAdminsCompany(adminsCompany);
+
+        var ex = await Assert.ThrowsAsync<BadRequestException>(() => Handle(appraisal.Id, _companyId));
+
+        Assert.Contains("route the case back to appraisal assignment", ex.Message);
+        Assert.Equal(adminsCompany.ToString(), assignment.AssigneeCompanyId);
+        Assert.Empty(_db.ValuationAnalyses.Local);
+        await _fees.DidNotReceiveWithAnyArgs().EnsureAssignmentFeeItemsAsync(default, default, default!, default, default);
+    }
+
+    [Fact]
+    public async Task Without_a_company_on_the_row_the_keyer_must_still_name_one()
+    {
+        // A case already at key-in when #618 shipped: nobody recorded a company at assignment.
+        var (appraisal, assignment) = Seed("P5229");
+
+        var ex = await Assert.ThrowsAsync<BadRequestException>(() => Handle(appraisal.Id, null));
+
+        Assert.Equal("The external company is required.", ex.Message);
+        Assert.Null(assignment.AssigneeCompanyId);
+    }
 
     [Theory]
     [InlineData("System")]

@@ -78,15 +78,7 @@ public class SetOfflineExternalEngagementCommandHandler(
                 $"'{assignment.AssignmentStatus.Code}'). Route the case back to the keyin task " +
                 "before correcting the external engagement.");
 
-        // Enforce the same MOU-window rule CompanySelectionActivity applies to a manual selection,
-        // so an off-system engagement cannot record a company the bank may not currently use.
-        // IsAssignable is resolved inside Auth (which owns the rule) and surfaced on the DTO.
-        var company = await companyLookup.GetByIdAsync(command.CompanyId, cancellationToken)
-                      ?? throw new NotFoundException("Company", command.CompanyId);
-
-        if (!company.IsAssignable)
-            throw new BadRequestException(
-                $"Company '{company.Name}' is not currently assignable (outside its MOU approval window).");
+        var companyId = await ResolveCompanyAsync(command, assignment, cancellationToken);
 
         // Assign() defaults every optional parameter to null, so anything not passed back is wiped.
         // AssigneeUserId matters most: the keyer is stamped onto the row when the workflow lands on
@@ -97,7 +89,7 @@ public class SetOfflineExternalEngagementCommandHandler(
         assignment.Assign(
             assignmentType: "External",
             assigneeUserId: assignment.AssigneeUserId,
-            assigneeCompanyId: command.CompanyId.ToString(),
+            assigneeCompanyId: companyId,
             assignmentMethod: AppraisalAssignment.OfflineAssignmentMethod,
             internalAppraiserId: assignment.InternalAppraiserId,
             internalFollowupMethod: assignment.InternalFollowupAssignmentMethod,
@@ -136,9 +128,42 @@ public class SetOfflineExternalEngagementCommandHandler(
 
         logger.LogInformation(
             "Recorded offline external engagement for Appraisal {AppraisalId}: CompanyId={CompanyId}, BookDate={BookDate}",
-            command.AppraisalId, command.CompanyId, command.BookDate);
+            command.AppraisalId, companyId, command.BookDate);
 
         return new SetOfflineExternalEngagementResult(assignment.Id);
+    }
+
+    /// <summary>
+    /// The company the admin recorded at assignment is the single source: kept as is, and not re-checked against
+    /// its MOU window (it was checked when assigned; a window that lapsed since must not strand the keyer). Only a
+    /// case with no company on the row (at key-in before the admin picked it at assignment) takes the keyer's,
+    /// under the same MOU-window rule CompanySelectionActivity applies to a manual selection.
+    /// </summary>
+    private async Task<string> ResolveCompanyAsync(
+        SetOfflineExternalEngagementCommand command, AppraisalAssignment assignment, CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(assignment.AssigneeCompanyId))
+        {
+            if (command.CompanyId is { } sent
+                && !(Guid.TryParse(assignment.AssigneeCompanyId, out var recorded) && recorded == sent))
+                throw new BadRequestException(
+                    "The external company was recorded when the case was assigned and cannot be changed here. " +
+                    "To correct it, route the case back to appraisal assignment.");
+            return assignment.AssigneeCompanyId;
+        }
+
+        if (command.CompanyId is not { } companyId)
+            throw new BadRequestException("The external company is required.");
+
+        // IsAssignable is resolved inside Auth (which owns the rule) and surfaced on the DTO.
+        var company = await companyLookup.GetByIdAsync(companyId, ct)
+                      ?? throw new NotFoundException("Company", companyId);
+
+        if (!company.IsAssignable)
+            throw new BadRequestException(
+                $"Company '{company.Name}' is not currently assignable (outside its MOU approval window).");
+
+        return companyId.ToString();
     }
 
     private static bool IsUnstamped(string? assignedBy) =>

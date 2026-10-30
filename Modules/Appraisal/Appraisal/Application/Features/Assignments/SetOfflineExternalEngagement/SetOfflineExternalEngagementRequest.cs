@@ -5,7 +5,8 @@ namespace Appraisal.Application.Features.Assignments.SetOfflineExternalEngagemen
 /// keeps the admin already recorded on the row, else uses the authenticated principal.
 /// </summary>
 public record SetOfflineExternalEngagementRequest(
-    Guid CompanyId,
+    /// <summary>Omitted once the admin recorded the company at assignment; see the command.</summary>
+    Guid? CompanyId,
     /// <summary>Appraisal date printed on the external company's book.</summary>
     DateTime BookDate,
     string? ExternalAppraiserName = null);

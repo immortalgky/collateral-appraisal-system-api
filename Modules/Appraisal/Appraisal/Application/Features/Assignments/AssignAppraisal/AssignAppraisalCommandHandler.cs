@@ -1,6 +1,7 @@
 using Appraisal.Application.Features.Fees.GetFeePreview;
 using Appraisal.Application.Features.Quotations.AutoAssign;
 using Appraisal.Application.Services;
+using Auth.Contracts.Companies;
 using Shared.Identity;
 using Workflow;
 
@@ -15,6 +16,8 @@ namespace Appraisal.Application.Features.Assignments.AssignAppraisal;
 ///         CompanyAssignedIntegrationEventHandler (calls .Assign() + fee materialisation).
 ///   INT → int-appraisal-execution → WorkflowService.PublishInternalAssignedEvent →
 ///         InternalAssignedIntegrationEventHandler (calls .Assign() + tier-based fee).
+///   EXTO → int-offline-book-keyin → the same InternalAssigned consumer, which keeps the company this handler
+///         recorded on the Pending row (validated like a manual external pick) and materialises its fee.
 ///
 /// This handler does NOT mutate AppraisalAssignment or create AppraisalFee rows directly.
 /// </summary>
@@ -25,7 +28,8 @@ public class AssignAppraisalCommandHandler(
     IQuotationRepository quotationRepository,
     IQuotationAutoAssignStateReader workflowOwnership,
     ISender sender,
-    ICurrentUserService currentUser)
+    ICurrentUserService currentUser,
+    ICompanyLookupService companyLookup)
     : ICommandHandler<AssignAppraisalCommand, AssignAppraisalResult>
 {
     /// <summary>Stable <c>errorCode</c> of the 400 when the assignment would bill no base appraisal fee (01).</summary>
@@ -83,6 +87,20 @@ public class AssignAppraisalCommandHandler(
                 throw new BadRequestException("The selected company did not win a finalized quotation for this appraisal.");
         }
 
+        // EXTO: the admin names the off-system company here (the validator made it required). Same rule as a manual
+        // in-system pick (CompanySelectionActivity): it must exist and be within its MOU window.
+        var isOfflineExternal = IsOfflineExternal(command.DecisionTaken);
+        string? offlineCompanyId = null;
+        if (isOfflineExternal)
+        {
+            var companyId = Guid.Parse(command.AssigneeCompanyId!);
+            offlineCompanyId = companyId.ToString();
+            var company = await companyLookup.GetByIdAsync(companyId, cancellationToken)
+                          ?? throw new NotFoundException("Company", companyId);
+            if (!company.IsAssignable)
+                throw new BadRequestException("Selected company is not currently assignable (outside its MOU approval window).");
+        }
+
         // Reject (C) and request-more-info (R) assign nobody: they need no base fee and must not credit the admin.
         var isAssigning = IsAssigningDecision(command.DecisionTaken, out var decision);
         if (isAssigning)
@@ -99,6 +117,11 @@ public class AssignAppraisalCommandHandler(
         // touch Remark, so it survives. This handler otherwise stays a pure relay (no transactional marker).
         if (command.Remark is not null)
             pendingAssignment.SetRemark(command.Remark);
+
+        // Recorded with the assigner, before the resume: the consumer for int-offline-book-keyin keeps the row's
+        // company when it calls Assign() and materialises the fee, exactly as for a company the keyer recorded.
+        if (offlineCompanyId is not null)
+            pendingAssignment.SetAssigneeCompany(offlineCompanyId);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -121,8 +144,6 @@ public class AssignAppraisalCommandHandler(
         // appraisal-book-verification. Writing it unconditionally makes the flag track the CURRENT
         // decision. Both keys are declared in appraisal-assignment's inputMappings; TaskActivity
         // maps them onto workflow variables of the same name, preserving the bool.
-        var isOfflineExternal = IsOfflineExternal(command.DecisionTaken);
-
         var input = new Dictionary<string, object>
         {
             ["selectedCompanyId"] = command.AssigneeCompanyId ?? string.Empty,
@@ -229,6 +250,6 @@ public class AssignAppraisalCommandHandler(
     /// Kept as a named predicate so the literal lives in one place alongside the
     /// route_external_offline decision condition in appraisal-workflow.json.
     /// </summary>
-    private static bool IsOfflineExternal(string? decisionTaken) =>
+    internal static bool IsOfflineExternal(string? decisionTaken) =>
         string.Equals(decisionTaken, DecisionExternalOffline, StringComparison.OrdinalIgnoreCase);
 }
