@@ -299,6 +299,31 @@ public class AssignmentEmailDraftTests
     }
 
     [Fact]
+    public async Task A_draft_saved_before_the_company_was_known_survives_the_pick()
+    {
+        _reader.GetCaseAsync(AppraisalId, Arg.Any<CancellationToken>()).Returns(Exto() with { AssigneeCompanyId = null });
+        Documents(new(DocA, "deed.pdf", 1_000), new(DocB, "map.png", 2_000));
+        await SaveAsync(Save());
+
+        var draft = await GetAsync(Exto());
+
+        Assert.NotNull(draft.Id);
+    }
+
+    [Fact]
+    public async Task The_same_company_spelt_in_another_case_is_still_the_same_company()
+    {
+        _reader.GetCaseAsync(AppraisalId, Arg.Any<CancellationToken>())
+            .Returns(Exto() with { AssigneeCompanyId = CompanyId.ToString().ToUpperInvariant() });
+        Documents(new(DocA, "deed.pdf", 1_000), new(DocB, "map.png", 2_000));
+        await SaveAsync(Save());
+
+        var draft = await GetAsync(Exto());
+
+        Assert.NotNull(draft.Id);
+    }
+
+    [Fact]
     public async Task Saving_after_a_reassignment_takes_over_the_old_draft()
     {
         CaseExists();
@@ -417,6 +442,8 @@ public class AssignmentEmailDraftTests
     [Theory]
     [InlineData("ขอนำส่ง\nBcc: x@evil.co")]
     [InlineData("ขอนำส่ง\r")]
+    [InlineData("ขอนำส่ง\u2028Bcc: x@evil.co")]
+    [InlineData("ขอนำส่ง\u000b")]
     public void A_subject_with_a_line_break_is_rejected(string subject) =>
         Assert.NotEmpty(Errors(Save() with { Subject = subject }));
 

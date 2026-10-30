@@ -28,15 +28,13 @@ public class GetAssignmentEmailDraftQueryHandler(
             : null;
         var maxAttachmentBytes = AssignmentEmailLimits.MaxAttachmentBytes(configuration);
 
-        // A draft written for an earlier assignment (the case was routed back and reassigned) or another company no
-        // longer describes the case: the template is offered instead, and the next save takes the old row over.
         var saved = query.Template ? null : await dbContext.AssignmentEmails
             .AsNoTracking()
-            .FirstOrDefaultAsync(e => e.AppraisalId == query.AppraisalId
-                                      && e.Status == AssignmentEmailStatus.Draft
-                                      && e.AssignmentId == @case.AssignmentId
-                                      && e.CompanyId == @case.AssigneeCompanyId,
+            .FirstOrDefaultAsync(e => e.AppraisalId == query.AppraisalId && e.Status == AssignmentEmailStatus.Draft,
                 cancellationToken);
+        // A stale draft (reassigned, or another company) is not shown; the next save takes the row over.
+        if (saved is not null && !saved.IsFor(@case.AssignmentId, @case.AssigneeCompanyId))
+            saved = null;
         if (saved is not null)
         {
             var documents = (await caseReader.GetDocumentsAsync(

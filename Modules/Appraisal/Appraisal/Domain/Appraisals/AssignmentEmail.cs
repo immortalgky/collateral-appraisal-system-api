@@ -12,10 +12,7 @@ public class AssignmentEmail : Entity<Guid>
     public Guid AppraisalId { get; private set; }
     public Guid? AssignmentId { get; private set; }
 
-    /// <summary>
-    /// The assignment's company when the draft was saved. A draft only describes the case for that assignment and
-    /// that company: when either has changed, the template is offered instead.
-    /// </summary>
+    /// <summary>The assignment's company when the draft was saved; null while none was picked. See <see cref="IsFor"/>.</summary>
     public string? CompanyId { get; private set; }
     public string Status { get; private set; } = AssignmentEmailStatus.Draft;
     public List<string> ExtraTo { get; private set; } = [];
@@ -37,6 +34,16 @@ public class AssignmentEmail : Entity<Guid>
 
     public static AssignmentEmail CreateDraft(Guid appraisalId) =>
         new() { Id = Guid.CreateVersion7(), AppraisalId = appraisalId };
+
+    /// <summary>
+    /// Whether this email still describes the case: written for the same assignment, and for the same company unless
+    /// none was picked when it was saved (its body then greets {{company}}, which fits whoever is picked).
+    /// A case that was reassigned, or switched to another company, gets the template instead.
+    /// </summary>
+    public bool IsFor(Guid? assignmentId, string? companyId) =>
+        AssignmentId == assignmentId
+        && (string.IsNullOrWhiteSpace(CompanyId)
+            || (Guid.TryParse(CompanyId, out var saved) && Guid.TryParse(companyId, out var current) && saved == current));
 
     public void UpdateDraft(
         Guid? assignmentId,
