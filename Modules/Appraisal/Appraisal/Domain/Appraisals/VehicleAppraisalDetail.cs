@@ -168,56 +168,56 @@ public class VehicleAppraisalDetail : Entity<Guid>
         string? appraiserOpinion = null)
     {
         // Vehicle Identification
-        if (propertyName is not null) PropertyName = propertyName;
-        if (vehicleName is not null) VehicleName = vehicleName;
-        if (engineNo is not null) EngineNo = engineNo;
-        if (chassisNo is not null) ChassisNo = chassisNo;
-        if (licensePlateNumber is not null) LicensePlateNumber = licensePlateNumber;
-        if (registrationNumber is not null) RegistrationNumber = registrationNumber;
-        if (registrationDate.HasValue) RegistrationDate = registrationDate.Value;
-        if (color is not null) Color = color;
-        if (colorOther is not null) ColorOther = colorOther;
+        PropertyName = propertyName;
+        VehicleName = vehicleName;
+        EngineNo = engineNo;
+        ChassisNo = chassisNo;
+        LicensePlateNumber = licensePlateNumber;
+        RegistrationNumber = registrationNumber;
+        RegistrationDate = registrationDate;
+        Color = color;
+        ColorOther = colorOther;
 
         // Vehicle Specifications
-        if (brand is not null) Brand = brand;
-        if (model is not null) Model = model;
-        if (yearOfManufacture.HasValue) YearOfManufacture = yearOfManufacture.Value;
-        if (countryOfManufacture is not null) CountryOfManufacture = countryOfManufacture;
-        if (vehicleType is not null) VehicleType = vehicleType;
-        if (vehicleTypeOther is not null) VehicleTypeOther = vehicleTypeOther;
+        Brand = brand;
+        Model = model;
+        YearOfManufacture = yearOfManufacture;
+        CountryOfManufacture = countryOfManufacture;
+        VehicleType = vehicleType;
+        VehicleTypeOther = vehicleTypeOther;
 
         // Purchase Info
-        if (purchaseDate.HasValue) PurchaseDate = purchaseDate.Value;
-        if (purchasePrice.HasValue) PurchasePrice = purchasePrice.Value;
+        PurchaseDate = purchaseDate;
+        PurchasePrice = purchasePrice;
 
         // Dimensions
-        if (capacity is not null) Capacity = capacity;
-        if (width.HasValue) Width = width.Value;
-        if (length.HasValue) Length = length.Value;
-        if (height.HasValue) Height = height.Value;
+        Capacity = capacity;
+        Width = width;
+        Length = length;
+        Height = height;
 
         // Energy
-        if (energyUse is not null) EnergyUse = energyUse;
-        if (energyUseRemark is not null) EnergyUseRemark = energyUseRemark;
+        EnergyUse = energyUse;
+        EnergyUseRemark = energyUseRemark;
 
         // Owner
-        if (ownerName is not null) OwnerName = ownerName;
+        OwnerName = ownerName;
         if (isOwnerVerified.HasValue) IsOwnerVerified = isOwnerVerified.Value;
 
         // Usage & Condition
         if (canUse.HasValue) CanUse = canUse.Value;
-        if (location is not null) Location = location;
-        if (conditionUse is not null) ConditionUse = conditionUse;
-        if (vehicleCondition is not null) VehicleCondition = vehicleCondition;
-        if (vehicleAge.HasValue) VehicleAge = vehicleAge.Value;
-        if (vehicleEfficiency is not null) VehicleEfficiency = vehicleEfficiency;
-        if (vehicleTechnology is not null) VehicleTechnology = vehicleTechnology;
-        if (usePurpose is not null) UsePurpose = usePurpose;
-        if (vehiclePart is not null) VehiclePart = vehiclePart;
+        Location = location;
+        ConditionUse = conditionUse;
+        VehicleCondition = vehicleCondition;
+        VehicleAge = vehicleAge;
+        VehicleEfficiency = vehicleEfficiency;
+        VehicleTechnology = vehicleTechnology;
+        UsePurpose = usePurpose;
+        VehiclePart = vehiclePart;
 
         // Appraiser Notes
-        if (remark is not null) Remark = remark;
-        if (other is not null) Other = other;
-        if (appraiserOpinion is not null) AppraiserOpinion = appraiserOpinion;
+        Remark = remark;
+        Other = other;
+        AppraiserOpinion = appraiserOpinion;
     }
 }

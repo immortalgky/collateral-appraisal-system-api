@@ -204,67 +204,67 @@ public class MachineryAppraisalDetail : Entity<Guid>
         string? appraiserOpinion = null)
     {
         // Machine Identification
-        if (propertyName is not null) PropertyName = propertyName;
-        if (machineName is not null) MachineName = machineName;
-        if (engineNo is not null) EngineNo = engineNo;
-        if (chassisNo is not null) ChassisNo = chassisNo;
-        if (registrationNumber is not null) RegistrationNumber = registrationNumber;
-        if (serialNo is not null) SerialNo = serialNo;
+        PropertyName = propertyName;
+        MachineName = machineName;
+        EngineNo = engineNo;
+        ChassisNo = chassisNo;
+        RegistrationNumber = registrationNumber;
+        SerialNo = serialNo;
 
         // Registration & Installation
         if (registrationStatus.HasValue) RegistrationStatus = registrationStatus.Value;
-        if (installationStatus is not null) InstallationStatus = installationStatus;
-        if (machineType is not null) MachineType = machineType;
-        if (machineTypeOther is not null) MachineTypeOther = machineTypeOther;
-        if (invoiceNumber is not null) InvoiceNumber = invoiceNumber;
+        InstallationStatus = installationStatus;
+        MachineType = machineType;
+        MachineTypeOther = machineTypeOther;
+        InvoiceNumber = invoiceNumber;
         if (isPriceCertified.HasValue) IsPriceCertified = isPriceCertified.Value;
 
         // Machine Specifications
-        if (brand is not null) Brand = brand;
-        if (model is not null) Model = model;
-        if (series is not null) Series = series;
-        if (yearOfManufacture.HasValue) YearOfManufacture = yearOfManufacture.Value;
-        if (manufacturer is not null) Manufacturer = manufacturer;
+        Brand = brand;
+        Model = model;
+        Series = series;
+        YearOfManufacture = yearOfManufacture;
+        Manufacturer = manufacturer;
 
         // Purchase Info
-        if (purchaseDate.HasValue) PurchaseDate = purchaseDate.Value;
-        if (purchasePrice.HasValue) PurchasePrice = purchasePrice.Value;
+        PurchaseDate = purchaseDate;
+        PurchasePrice = purchasePrice;
 
         // Dimensions
-        if (capacity is not null) Capacity = capacity;
-        if (quantity.HasValue) Quantity = quantity.Value;
-        if (machineDimensions is not null) MachineDimensions = machineDimensions;
-        if (width.HasValue) Width = width.Value;
-        if (length.HasValue) Length = length.Value;
-        if (height.HasValue) Height = height.Value;
+        Capacity = capacity;
+        Quantity = quantity;
+        MachineDimensions = machineDimensions;
+        Width = width;
+        Length = length;
+        Height = height;
 
         // Energy
-        if (energyUse is not null) EnergyUse = energyUse;
-        if (energyUseRemark is not null) EnergyUseRemark = energyUseRemark;
+        EnergyUse = energyUse;
+        EnergyUseRemark = energyUseRemark;
 
         // Owner
-        if (ownerName is not null) OwnerName = ownerName;
+        OwnerName = ownerName;
         if (isOwnerVerified.HasValue) IsOwnerVerified = isOwnerVerified.Value;
 
         // Usage & Condition
         if (isOperational.HasValue) IsOperational = isOperational.Value;
-        if (location is not null) Location = location;
-        if (conditionUse is not null) ConditionUse = conditionUse;
-        if (machineCondition is not null) MachineCondition = machineCondition;
-        if (machineAge.HasValue) MachineAge = machineAge.Value;
-        if (machineEfficiency is not null) MachineEfficiency = machineEfficiency;
-        if (machineTechnology is not null) MachineTechnology = machineTechnology;
-        if (usagePurpose is not null) UsagePurpose = usagePurpose;
-        if (machineParts is not null) MachineParts = machineParts;
+        Location = location;
+        ConditionUse = conditionUse;
+        MachineCondition = machineCondition;
+        MachineAge = machineAge;
+        MachineEfficiency = machineEfficiency;
+        MachineTechnology = machineTechnology;
+        UsagePurpose = usagePurpose;
+        MachineParts = machineParts;
 
         // Valuation
-        if (replacementValue.HasValue) ReplacementValue = replacementValue.Value;
-        if (conditionValue.HasValue) ConditionValue = conditionValue.Value;
+        ReplacementValue = replacementValue;
+        ConditionValue = conditionValue;
 
         // Appraiser Notes
-        if (remark is not null) Remark = remark;
-        if (other is not null) Other = other;
-        if (appraiserOpinion is not null) AppraiserOpinion = appraiserOpinion;
+        Remark = remark;
+        Other = other;
+        AppraiserOpinion = appraiserOpinion;
 
         ClearInapplicableFields();
     }
