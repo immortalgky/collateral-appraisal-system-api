@@ -56,22 +56,21 @@ public class SetOfflineExternalEngagementCommandHandler(
                 $"(assignment is '{assignment.AssignmentStatus.Code}' via '{assignment.AssignmentMethod}'). " +
                 "Only an appraisal routed with the EXTO decision can record an offline engagement.");
 
-        // A Pending row that was assigned before (AssignedAt is stamped only by Assign()) is a routed-back one:
-        // ReturnToAssignmentQueue keeps the selections, including method "Offline", but the workflow is at
-        // appraisal-assignment — there is no keyer, and Assign() below would hand the case on (and re-price it)
-        // behind the admin's back. A Pending row never assigned (an admin's EXTO draft, or the instant before
-        // InternalAssignedIntegrationEventHandler has consumed the event) is still a legitimate first key-in.
-        if (assignment.AssignmentStatus == AssignmentStatus.Pending && assignment.AssignedAt is not null)
+        // Only a row the workflow has handed to the keyer (InternalAssignedIntegrationEventHandler: Assigned, then
+        // InProgress) is on the key-in task. A Pending row is not: a routed-back one is at appraisal-assignment
+        // (ReturnToAssignmentQueue keeps method "Offline"), and a never-assigned one is an admin's EXTO draft or the
+        // instant before the consumer ran. Recording there would hand the case on behind the admin's back, and let
+        // any caller convert a case still awaiting its decision. The keyer saves again once the task is theirs.
+        if (assignment.AssignmentStatus == AssignmentStatus.Pending)
             throw new BadRequestException(
-                $"Appraisal '{command.AppraisalId}' is back at appraisal assignment awaiting the admin's decision. " +
-                "The off-system engagement can be recorded once it is on the key-in task again.");
+                $"Appraisal '{command.AppraisalId}' is not on the key-in task (its assignment is still Pending at " +
+                "appraisal assignment, or about to be handed to the keyer). Try again once it is on the key-in task.");
 
         // Assign() below unconditionally rewinds the row to Assigned. That is correct while the
         // keyer still owns the work, but silently demoting an assignment the bank has already
         // reviewed would reopen the invoicing gate and discard SubmittedAt. Once the book has been
         // handed on, a correction has to come back through a workflow route-back.
-        if (assignment.AssignmentStatus != AssignmentStatus.Pending
-            && assignment.AssignmentStatus != AssignmentStatus.Assigned
+        if (assignment.AssignmentStatus != AssignmentStatus.Assigned
             && assignment.AssignmentStatus != AssignmentStatus.InProgress)
             throw new BadRequestException(
                 $"The appraisal book has already been submitted for review (assignment is " +
@@ -85,7 +84,6 @@ public class SetOfflineExternalEngagementCommandHandler(
         // int-offline-book-keyin (InternalAssignedIntegrationEventHandler), and omitting it here
         // would erase the very person doing this save. ReassignmentNumber is preserved for the same
         // reason — resetting it to 1 would discard the rework count on a routed-back case.
-        var wasPending = assignment.AssignmentStatus == AssignmentStatus.Pending;
         assignment.Assign(
             assignmentType: "External",
             assigneeUserId: assignment.AssigneeUserId,
@@ -119,7 +117,8 @@ public class SetOfflineExternalEngagementCommandHandler(
             appraisalId: command.AppraisalId,
             assignmentId: assignment.Id,
             source: feeSource,
-            repriceSystemBase: wasPending,
+            // The row was priced when it was handed to the keyer; a base that may already be billed is left alone.
+            repriceSystemBase: false,
             ct: cancellationToken);
 
         // Kept on purpose: assignment events only touch AppraisalAssignment rows, so this stamps Appraisals.UpdatedAt
@@ -136,30 +135,25 @@ public class SetOfflineExternalEngagementCommandHandler(
     /// <summary>
     /// A company already on the row is the single source: kept, never replaced here (a wrong one is corrected by
     /// routing back to appraisal-assignment). Normally the admin recorded it at assignment; on a case that reached
-    /// key-in before that, the keyer recorded it with an earlier save. Only a row with no company takes the keyer's.
-    /// The existence + MOU-window rule CompanySelectionActivity applies to a manual selection is checked on every
-    /// company except one on a row the workflow has assigned (AssignedAt set): that one was checked when it was
-    /// recorded, and a window that lapsed since must not strand the keyer. A never-assigned row's company may come
-    /// from an unvalidated draft, so it is checked again.
+    /// key-in before that, the keyer recorded it with an earlier save. It is not re-checked against its MOU window:
+    /// it was checked when recorded, and a window that lapsed since must not strand the keyer. Only a row with no
+    /// company takes the keyer's, under the existence + MOU-window rule CompanySelectionActivity applies to a
+    /// manual selection.
     /// </summary>
     private async Task<string> ResolveCompanyAsync(
         SetOfflineExternalEngagementCommand command, AppraisalAssignment assignment, CancellationToken ct)
     {
-        Guid companyId;
         if (!string.IsNullOrWhiteSpace(assignment.AssigneeCompanyId))
         {
-            if (!Guid.TryParse(assignment.AssigneeCompanyId, out companyId)
-                || (command.CompanyId is { } sent && sent != companyId))
+            var recorded = Guid.TryParse(assignment.AssigneeCompanyId, out var id) ? id : (Guid?)null;
+            if (command.CompanyId is { } sent && sent != recorded)
                 throw new BadRequestException(
                     "The external company is already recorded on this assignment and cannot be changed here. " +
                     "To correct it, route the case back to appraisal assignment.");
-            if (assignment.AssignedAt is not null)
-                return assignment.AssigneeCompanyId;
+            return recorded?.ToString() ?? assignment.AssigneeCompanyId;
         }
-        else
-        {
-            companyId = command.CompanyId ?? throw new BadRequestException("The external company is required.");
-        }
+
+        var companyId = command.CompanyId ?? throw new BadRequestException("The external company is required.");
 
         // IsAssignable is resolved inside Auth (which owns the rule) and surfaced on the DTO.
         var company = await companyLookup.GetByIdAsync(companyId, ct)

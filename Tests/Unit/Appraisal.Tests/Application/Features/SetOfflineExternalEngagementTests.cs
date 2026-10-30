@@ -99,54 +99,6 @@ public class SetOfflineExternalEngagementTests
         await _fees.DidNotReceiveWithAnyArgs().EnsureAssignmentFeeItemsAsync(default, default, default!, default, default);
     }
 
-    // A never-assigned row (AssignedAt null) carries the company of an unvalidated draft, or the admin's EXTO pick in
-    // the instant before the InternalAssigned consumer ran. Either way it stays locked, but is checked again.
-    private (AppraisalAggregate Appraisal, AppraisalAssignment Assignment) SeedNeverAssignedWithCompany(Guid companyId)
-    {
-        var appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "New", "Normal", DateTime.Now);
-        var assignment = appraisal.AssignAdmin();
-        assignment.SaveDraft("External", "keyer-1", companyId.ToString(), AppraisalAssignment.OfflineAssignmentMethod,
-            null, null, null);
-        _appraisals.GetByIdWithAllDataAsync(appraisal.Id, Arg.Any<CancellationToken>()).Returns(appraisal);
-        return (appraisal, assignment);
-    }
-
-    [Fact]
-    public async Task A_never_assigned_rows_company_is_kept_after_the_existence_and_MOU_check()
-    {
-        var (appraisal, assignment) = SeedNeverAssignedWithCompany(_companyId);
-
-        await Handle(appraisal.Id, null);
-
-        Assert.Equal(_companyId.ToString(), assignment.AssigneeCompanyId);
-        await _companies.Received(1).GetByIdAsync(_companyId, Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task A_never_assigned_rows_company_outside_its_MOU_window_is_refused()
-    {
-        var draftCompany = Guid.NewGuid();
-        _companies.GetByIdAsync(draftCompany, Arg.Any<CancellationToken>())
-            .Returns(new CompanyLookupDto(draftCompany, "Lapsed", null, IsAssignable: false));
-        var (appraisal, assignment) = SeedNeverAssignedWithCompany(draftCompany);
-
-        var ex = await Assert.ThrowsAsync<BadRequestException>(() => Handle(appraisal.Id, null));
-
-        Assert.Contains("outside its MOU approval window", ex.Message);
-        Assert.Equal(AssignmentStatus.Pending, assignment.AssignmentStatus);
-        await _fees.DidNotReceiveWithAnyArgs().EnsureAssignmentFeeItemsAsync(default, default, default!, default, default);
-    }
-
-    [Fact]
-    public async Task A_never_assigned_rows_company_is_locked_too()
-    {
-        var (appraisal, assignment) = SeedNeverAssignedWithCompany(Guid.NewGuid());
-
-        await Assert.ThrowsAsync<BadRequestException>(() => Handle(appraisal.Id, _companyId));
-
-        Assert.NotEqual(_companyId.ToString(), assignment.AssigneeCompanyId);
-    }
-
     [Fact]
     public async Task Without_a_company_on_the_row_the_keyer_must_still_name_one()
     {
@@ -206,29 +158,32 @@ public class SetOfflineExternalEngagementTests
 
         var ex = await Assert.ThrowsAsync<BadRequestException>(() => Handle(appraisal.Id));
 
-        Assert.Contains("awaiting the admin's decision", ex.Message);
+        Assert.Contains("not on the key-in task", ex.Message);
         Assert.Equal(AssignmentStatus.Pending, assignment.AssignmentStatus);
         Assert.Null(assignment.AssigneeCompanyId);
         await _fees.DidNotReceiveWithAnyArgs().EnsureAssignmentFeeItemsAsync(default, default, default!, default, default);
     }
 
-    [Fact]
-    public async Task A_never_assigned_Pending_Offline_row_is_still_recorded_and_repriced()
+    [Theory]
+    [InlineData(null)]           // an admin's EXTO draft with no company
+    [InlineData("draft-company")] // an EXTO draft naming a company (unvalidated), or the admin's pick before hand-over
+    public async Task A_never_assigned_Pending_row_is_refused_and_nothing_is_written_or_priced(string? company)
     {
-        // An admin's EXTO draft (or the instant before the InternalAssigned consumer ran): Pending, AssignedAt null.
+        // Pending + AssignedAt null: the case is at appraisal-assignment (a draft), or the workflow has resumed but the
+        // InternalAssigned consumer has not handed it to the keyer yet. Neither is a key-in to record.
         var appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "New", "Normal", DateTime.Now);
         var assignment = appraisal.AssignAdmin();
-        assignment.SaveDraft("Internal", "keyer-1", null, AppraisalAssignment.OfflineAssignmentMethod, null, null, null);
-        assignment.SetAssigner("P5229");
+        var draftCompany = company is null ? null : Guid.NewGuid().ToString();
+        assignment.SaveDraft("External", "keyer-1", draftCompany, AppraisalAssignment.OfflineAssignmentMethod, null, null, null);
         _appraisals.GetByIdWithAllDataAsync(appraisal.Id, Arg.Any<CancellationToken>()).Returns(appraisal);
-        Assert.Null(assignment.AssignedAt);
 
-        await Handle(appraisal.Id);
+        var ex = await Assert.ThrowsAsync<BadRequestException>(() => Handle(appraisal.Id, _companyId));
 
-        Assert.Equal(_companyId.ToString(), assignment.AssigneeCompanyId);
-        Assert.Equal(AssignmentStatus.InProgress, assignment.AssignmentStatus);
-        await _fees.Received(1).EnsureAssignmentFeeItemsAsync(
-            appraisal.Id, assignment.Id, Arg.Any<AssignmentFeeSource>(), true, Arg.Any<CancellationToken>());
+        Assert.Contains("not on the key-in task", ex.Message);
+        Assert.Equal(AssignmentStatus.Pending, assignment.AssignmentStatus);
+        Assert.Equal(draftCompany, assignment.AssigneeCompanyId);
+        Assert.Empty(_db.ValuationAnalyses.Local);
+        await _fees.DidNotReceiveWithAnyArgs().EnsureAssignmentFeeItemsAsync(default, default, default!, default, default);
     }
 
     [Fact]

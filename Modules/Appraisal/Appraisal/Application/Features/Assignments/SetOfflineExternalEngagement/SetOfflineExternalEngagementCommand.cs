@@ -19,8 +19,8 @@ public record SetOfflineExternalEngagementCommand(
     Guid AppraisalId,
     /// <summary>
     /// Only for a case whose assignment holds no company (reached key-in before the admin picked it at assignment).
-    /// Once the admin recorded one it is locked here: omit it or send the same id; a wrong one is fixed by
-    /// routing back to appraisal-assignment.
+    /// Once the row holds one (the admin's, or the keyer's from an earlier save) it is locked here: omit it or send
+    /// the same id; a wrong one is fixed by routing back to appraisal-assignment.
     /// </summary>
     Guid? CompanyId,
     DateTime BookDate,
