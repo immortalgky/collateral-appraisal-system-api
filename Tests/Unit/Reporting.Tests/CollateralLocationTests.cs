@@ -113,17 +113,20 @@ public class CollateralLocationTests
         result.Land.Should().Be(new CollateralLocation("เลขที่ 3/48 ถนน ศรีนครินทร์", null));
     }
 
-    private static AppraisalSummaryCommonLoader.CollateralLocationRow Unit(string room, string floor, string building = "อาคารชุดโนเบิล", string? tower = null) => new()
+    private static AppraisalSummaryCommonLoader.CollateralLocationRow Unit(string room, string floor, string building = "อาคารชุดโนเบิล", string? tower = null, int? group = null) => new()
     {
-        Kind = "U", RoomNumber = room, FloorNumber = floor, CondoName = building, BuildingNumber = tower,
+        Kind = "U", RoomNumber = room, FloorNumber = floor, CondoName = building, BuildingNumber = tower, GroupNumber = group, GroupId = GroupIdOf(group),
         SubDistrict = "บางพลัด", District = "บางพลัด", Province = "กรุงเทพมหานคร"
     };
 
-    private static AppraisalSummaryCommonLoader.CollateralLocationRow House(string? number) => new()
+    private static AppraisalSummaryCommonLoader.CollateralLocationRow House(string? number, int? group = null) => new()
     {
-        Kind = "L", HouseNumber = number, Village = "หมู่บ้านสุขสันต์",
+        Kind = "L", HouseNumber = number, GroupNumber = group, GroupId = GroupIdOf(group), Village = "หมู่บ้านสุขสันต์",
         SubDistrict = "หนองบอน", District = "ประเวศ", Province = "กรุงเทพมหานคร"
     };
+
+    // One stable id per group number, so equal numbers share a group unless a test says otherwise.
+    private static Guid? GroupIdOf(int? number) => number is { } n ? new Guid(n, 0, 0, new byte[8]) : null;
 
     private const string CondoTail = "อาคารชุดโนเบิล ตำบล/แขวง บางพลัด อำเภอ/เขต บางพลัด จังหวัดกรุงเทพมหานคร";
     private const string LandTail = "หมู่บ้านสุขสันต์ ตำบล/แขวง หนองบอน อำเภอ/เขต ประเวศ จังหวัดกรุงเทพมหานคร";
@@ -267,5 +270,77 @@ public class CollateralLocationTests
             [Unit("101", "1", tower: "A"), Unit("-", "13", tower: "A"), Unit("-", "13", tower: "B")]);
 
         result.Condo!.Address.Should().Be($"ห้องชุดเลขที่ 101 ชั้นที่ 1, ชั้นที่ 13 {CondoTail}");
+    }
+
+    [Fact]
+    public void Units_in_two_groups_print_one_labelled_line_per_group_in_group_order()
+    {
+        // Rows arrive in SequenceNumber order, which need not follow the group order.
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations(
+            [Unit("312/430", "31", group: 2), Unit("312/429", "31", group: 1)]);
+
+        result.Condo!.Address.Should().Be(
+            $"กลุ่ม 1 ห้องชุดเลขที่ 312/429 ชั้นที่ 31 {CondoTail}\n" +
+            $"กลุ่ม 2 ห้องชุดเลขที่ 312/430 ชั้นที่ 31 {CondoTail}");
+    }
+
+    [Fact]
+    public void Several_units_in_one_group_print_unlabelled()
+    {
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations(
+            [Unit("312/429", "31", group: 1), Unit("312/430", "31", group: 1)]);
+
+        result.Condo!.Address.Should().Be($"ห้องชุดเลขที่ 312/429, 312/430 ชั้นที่ 31 {CondoTail}");
+    }
+
+    [Fact]
+    public void Groups_are_counted_per_kind_so_land_in_one_group_and_a_condo_in_another_stay_unlabelled()
+    {
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations([House("99/1", group: 1), Unit("312/429", "31", group: 2)]);
+
+        result.Land!.Address.Should().Be($"เลขที่ 99/1 {LandTail}");
+        result.Condo!.Address.Should().Be($"ห้องชุดเลขที่ 312/429 ชั้นที่ 31 {CondoTail}");
+    }
+
+    [Fact]
+    public void Same_tail_units_still_merge_inside_a_group()
+    {
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations(
+            [House("99/1", group: 1), House("99/2", group: 1), House("99/3", group: 2)]);
+
+        result.Land!.Address.Should().Be($"กลุ่ม 1 เลขที่ 99/1, 99/2 {LandTail}\nกลุ่ม 2 เลขที่ 99/3 {LandTail}");
+    }
+
+    [Fact]
+    public void One_group_plus_ungrouped_units_stays_unlabelled()
+    {
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations(
+            [House("99/1", group: 1), House("99/2")]);
+
+        result.Land!.Address.Should().Be($"เลขที่ 99/1, 99/2 {LandTail}");
+    }
+
+    [Fact]
+    public void Ungrouped_units_print_unlabelled_last_beside_two_groups()
+    {
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations(
+            [House("99/3"), House("99/2", group: 2), House("99/1", group: 1)]);
+
+        result.Land!.Address.Should().Be($"กลุ่ม 1 เลขที่ 99/1 {LandTail}\nกลุ่ม 2 เลขที่ 99/2 {LandTail}\nเลขที่ 99/3 {LandTail}");
+    }
+
+    [Fact]
+    public void Two_groups_sharing_a_number_are_still_two_lines()
+    {
+        var a = House("99/1", group: 1);
+        var b = new AppraisalSummaryCommonLoader.CollateralLocationRow
+        {
+            Kind = "L", HouseNumber = "99/2", Village = "หมู่บ้านสุขสันต์", GroupNumber = 1, GroupId = Guid.NewGuid(),
+            SubDistrict = "หนองบอน", District = "ประเวศ", Province = "กรุงเทพมหานคร"
+        };
+
+        var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations([a, b]);
+
+        result.Land!.Address.Should().Be($"กลุ่ม 1 เลขที่ 99/1 {LandTail}\nกลุ่ม 1 เลขที่ 99/2 {LandTail}");
     }
 }
