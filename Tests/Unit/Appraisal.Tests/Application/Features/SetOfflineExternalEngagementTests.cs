@@ -100,6 +100,19 @@ public class SetOfflineExternalEngagementTests
     }
 
     [Fact]
+    public async Task A_stored_value_that_is_not_a_company_id_is_replaced_by_the_keyers_checked_pick()
+    {
+        var (appraisal, assignment) = Seed("P5229");
+        typeof(AppraisalAssignment).GetProperty(nameof(AppraisalAssignment.AssigneeCompanyId))!
+            .SetValue(assignment, "ACME-OLD");
+
+        await Handle(appraisal.Id, _companyId);
+
+        Assert.Equal(_companyId.ToString(), assignment.AssigneeCompanyId);
+        await _companies.Received(1).GetByIdAsync(_companyId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Without_a_company_on_the_row_the_keyer_must_still_name_one()
     {
         // A case already at key-in when #618 shipped: nobody recorded a company at assignment.
@@ -165,15 +178,15 @@ public class SetOfflineExternalEngagementTests
     }
 
     [Theory]
-    [InlineData(null)]           // an admin's EXTO draft with no company
-    [InlineData("draft-company")] // an EXTO draft naming a company (unvalidated), or the admin's pick before hand-over
-    public async Task A_never_assigned_Pending_row_is_refused_and_nothing_is_written_or_priced(string? company)
+    [InlineData(false)] // an admin's EXTO draft with no company
+    [InlineData(true)]  // an EXTO draft naming a company (unvalidated), or the admin's pick before hand-over
+    public async Task A_never_assigned_Pending_row_is_refused_and_nothing_is_written_or_priced(bool withCompany)
     {
         // Pending + AssignedAt null: the case is at appraisal-assignment (a draft), or the workflow has resumed but the
         // InternalAssigned consumer has not handed it to the keyer yet. Neither is a key-in to record.
         var appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "New", "Normal", DateTime.Now);
         var assignment = appraisal.AssignAdmin();
-        var draftCompany = company is null ? null : Guid.NewGuid().ToString();
+        var draftCompany = withCompany ? Guid.NewGuid().ToString() : null;
         assignment.SaveDraft("External", "keyer-1", draftCompany, AppraisalAssignment.OfflineAssignmentMethod, null, null, null);
         _appraisals.GetByIdWithAllDataAsync(appraisal.Id, Arg.Any<CancellationToken>()).Returns(appraisal);
 
