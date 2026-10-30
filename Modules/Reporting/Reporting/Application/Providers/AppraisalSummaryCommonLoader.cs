@@ -662,6 +662,9 @@ internal static class AppraisalSummaryCommonLoader
     ///   - ตำบล/อำเภอ/จังหวัด ← the property's DOPA address: the DOPA master's name, else the stored
     ///     code; blank only when the property has no DOPA code. Never the deed address or the Title
     ///     master, never the Request.
+    ///   - GroupId / GroupNumber ← the property's property group (TOP 1, so the group lookup never multiplies a row). They
+    ///     drive the per-group "กลุ่ม n" lines in Compose; GroupNumber is only the label and sort key
+    ///     (not unique — it is resequenced on delete), GroupId is the identity.
     /// Block appraisals have no AppraisalProperties, so they get no rows (the block provider
     /// composes its own address from appraisal.Projects).
     /// </summary>
@@ -681,7 +684,9 @@ internal static class AppraisalSummaryCommonLoader
                 -- The DOPA name, else the stored code (never the Title master's name).
                 COALESCE(dsub.NameTh,  loc.DopaSubDistrict) AS SubDistrict,
                 COALESCE(ddist.NameTh, loc.DopaDistrict)    AS District,
-                COALESCE(dprov.NameTh, loc.DopaProvince)    AS Province
+                COALESCE(dprov.NameTh, loc.DopaProvince)    AS Province,
+                g.GroupId,
+                g.GroupNumber
             FROM (
                 SELECT
                     ap.Id,
@@ -749,6 +754,14 @@ internal static class AppraisalSummaryCommonLoader
                                            AND NOT EXISTS (SELECT 1 FROM appraisal.CondoAppraisalDetails fc
                                                            WHERE fc.AppraisalPropertyId = fp.Id))))
             ) h
+            OUTER APPLY (
+                -- The property's group; TOP 1 keeps one row per anchor should it sit in several.
+                SELECT TOP 1 pg.Id AS GroupId, pg.GroupNumber
+                FROM appraisal.PropertyGroupItems pgi
+                JOIN appraisal.PropertyGroups pg ON pg.Id = pgi.PropertyGroupId
+                WHERE pgi.AppraisalPropertyId = loc.Id
+                ORDER BY pg.GroupNumber, pg.Id
+            ) g
             LEFT JOIN parameter.DopaSubDistricts dsub  ON dsub.Code  = loc.DopaSubDistrict
             LEFT JOIN parameter.DopaDistricts    ddist ON ddist.Code = loc.DopaDistrict
             LEFT JOIN parameter.DopaProvinces    dprov ON dprov.Code = loc.DopaProvince
@@ -769,6 +782,8 @@ internal static class AppraisalSummaryCommonLoader
         public string? SubDistrict { get; init; }
         public string? District { get; init; }
         public string? Province { get; init; }
+        public Guid? GroupId { get; init; }
+        public int? GroupNumber { get; init; }
     }
 
     /// <summary>
@@ -787,6 +802,9 @@ internal static class AppraisalSummaryCommonLoader
     /// One kind's units as a single ที่ตั้งทรัพย์สิน. Units sharing the same tail (everything after the
     /// unit identity: building/village, soi, road, locality) print their identities once, comma-separated,
     /// then the tail once; each distinct tail is one such group in first-seen order, joined with ", ".
+    /// When the kind's units span two or more property groups (by GroupId), each group prints on its own
+    /// line ("กลุ่ม 1 ...", "\n"-separated, in GroupNumber order); units with no group print unlabelled,
+    /// last. One group plus ungrouped units stays a single unlabelled line.
     /// </summary>
     private static CollateralLocation? Compose(List<CollateralLocationRow> all, string kind)
     {
@@ -796,11 +814,17 @@ internal static class AppraisalSummaryCommonLoader
         if (units.Count == 0)
             return null;
 
-        var address = string.Join(", ", units.GroupBy(u => FormatAnchor(u, null, null)).Select(ComposeSameTail));
+        var groups = units.GroupBy(u => u.GroupId).OrderBy(g => g.Min(u => u.GroupNumber) ?? int.MaxValue).ToList();
+        var address = groups.Count(g => g.Key is not null) < 2
+            ? JoinTails(units)
+            : string.Join("\n", groups.Select(g => g.Key is null ? JoinTails(g) : $"กลุ่ม {g.First().GroupNumber} {JoinTails(g)}"));
 
         // Stated, like the address segments, so เขตการปกครอง and ที่ตั้งทรัพย์สิน agree.
         return new CollateralLocation(address, ThaiAddressFormatter.Stated(units[0].SubDistrict));
     }
+
+    private static string JoinTails(IEnumerable<CollateralLocationRow> units) =>
+        string.Join(", ", units.GroupBy(u => FormatAnchor(u, null, null)).Select(ComposeSameTail));
 
     private static string ComposeSameTail(IEnumerable<CollateralLocationRow> group)
     {
