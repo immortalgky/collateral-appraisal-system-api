@@ -1,5 +1,4 @@
 using Appraisal.Contracts.Appraisals;
-using MassTransit;
 using Parameter.Contracts.Parameters;
 using Parameter.Contracts.Parameters.Dtos;
 using Shared.Data.Outbox;
@@ -10,7 +9,6 @@ namespace Workflow.Tasks.EventHandlers;
 
 public class TaskCompletedDomainEventHandler(
     IAssignmentRepository assignmentRepository,
-    IPublishEndpoint publishEndpoint,
     IIntegrationEventOutbox outbox,
     WorkflowDbContext workflowDbContext,
     ISender sender,
@@ -83,7 +81,8 @@ public class TaskCompletedDomainEventHandler(
             }, notification.CorrelationId.ToString());
         }
 
-        await publishEndpoint.Publish(new TaskCompletedIntegrationEvent
+        // Outbox, not a direct publish: a submit that rolls back must not announce the completion.
+        outbox.Publish(new TaskCompletedIntegrationEvent
         {
             CorrelationId = notification.CorrelationId,
             TaskName = notification.TaskName,
@@ -96,7 +95,7 @@ public class TaskCompletedDomainEventHandler(
             WasOverdue = wasOverdue,
             OriginalAssignedTo = originalAssignedTo,
             Movement = notification.Movement
-        }, cancellationToken);
+        }, notification.CorrelationId.ToString());
 
         // Publish outbound status-change event so the Integration module can fire the
         // APPRAISAL_STATUS_CHANGED webhook when the activity maps to an external status.

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Workflow.Workflow.Activities;
+using Workflow.Workflow.Activities.Approval;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Activities.Factories;
 using Workflow.Workflow.Engine.Core;
@@ -224,6 +225,14 @@ public class WorkflowEngine : IWorkflowEngine
             _logger.LogWarning(
                 "ORCHESTRATION: Concurrency conflict resuming workflow instance {WorkflowInstanceId} at activity {ActivityId}; propagating for caller retry",
                 workflowInstanceId, activityId);
+            throw;
+        }
+        catch (ApprovalRoundUnresolvableException ex)
+        {
+            // The submit must be refused and rolled back, not turned into a terminal Failed instance.
+            _logger.LogWarning(
+                "ORCHESTRATION: Approval round cannot resolve on workflow instance {WorkflowInstanceId} after {ActivityId}; refusing the submit: {Reason}",
+                workflowInstanceId, activityId, ex.Message);
             throw;
         }
         catch (Exception ex)
@@ -507,6 +516,11 @@ public class WorkflowEngine : IWorkflowEngine
             // race and must reload and retry the whole unit. Converting it to ActivityResult.Failed
             // would hide it from the caller's retry filter AND mark a perfectly healthy activity as
             // failed. Let it propagate untouched — do NOT track a failed execution step.
+            throw;
+        }
+        catch (ApprovalRoundUnresolvableException)
+        {
+            // Same reasoning: the caller's submit must roll back (see the exception).
             throw;
         }
         catch (Exception ex)

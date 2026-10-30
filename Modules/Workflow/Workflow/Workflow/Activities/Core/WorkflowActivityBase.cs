@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Workflow.Workflow.Activities.Approval;
 using Workflow.Workflow.Engine.Expression;
 using Workflow.Workflow.Models;
 
@@ -46,6 +47,11 @@ public abstract class WorkflowActivityBase : IWorkflowActivity
             // For Pending status, execution remains InProgress
 
             return result;
+        }
+        catch (ApprovalRoundUnresolvableException)
+        {
+            // Not an activity failure: the submit that led here must roll back (see the exception).
+            throw;
         }
         catch (Exception ex)
         {

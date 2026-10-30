@@ -6,6 +6,7 @@ using Workflow.Data.Repository;
 using Workflow.Domain;
 using Workflow.Domain.Committees;
 using Workflow.Meetings.Domain;
+using Workflow.Tasks.Authorization;
 using Workflow.Workflow.Activities.Approval;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Engine.Expression;
@@ -27,6 +28,7 @@ public class ApprovalActivity : WorkflowActivityBase
     private readonly ExpressionEvaluator _expressionEvaluator;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ISlaCalculator _slaCalculator;
+    private readonly ISegregationOfDutiesGuard _segregationOfDutiesGuard;
     private readonly ILogger<ApprovalActivity> _logger;
 
     public ApprovalActivity(
@@ -38,6 +40,7 @@ public class ApprovalActivity : WorkflowActivityBase
         WorkflowDbContext dbContext,
         IDateTimeProvider dateTimeProvider,
         ISlaCalculator slaCalculator,
+        ISegregationOfDutiesGuard segregationOfDutiesGuard,
         ILogger<ApprovalActivity> logger)
     {
         _memberResolver = memberResolver;
@@ -48,6 +51,7 @@ public class ApprovalActivity : WorkflowActivityBase
         _dbContext = dbContext;
         _dateTimeProvider = dateTimeProvider;
         _slaCalculator = slaCalculator;
+        _segregationOfDutiesGuard = segregationOfDutiesGuard;
         _expressionEvaluator = new ExpressionEvaluator();
         _logger = logger;
     }
@@ -96,19 +100,25 @@ public class ApprovalActivity : WorkflowActivityBase
                     "ApprovalActivity {ActivityId}: released from a meeting with no committee recorded; " +
                     "falling back to the value-based tier {CommitteeCode}",
                     context.ActivityId, groupInfo.CommitteeCode ?? "inline");
-            var resolvedMembers = overrideMembers.Count > 0
+            var candidateMembers = overrideMembers.Count > 0
                 ? overrideMembers.Select(m => new ApprovalMemberInfo(m.UserId, m.Role)).ToList()
                 : groupInfo.Members;
 
-            if (overrideMembers.Count > 0)
-            {
-                var requiredQuorum = GetRequiredQuorum(groupInfo.Quorum, overrideMembers.Count);
-                if (overrideMembers.Count < requiredQuorum)
-                    _logger.LogWarning(
-                        "ApprovalActivity {ActivityId}: override member count ({OverrideCount}) is below required quorum ({Quorum}); approval may never reach quorum",
-                        context.ActivityId, overrideMembers.Count, requiredQuorum);
-            }
-            else if (context.Variables.ContainsKey("meetingMemberOverrides"))
+            // Conflicted members: whoever completed an activity in pending-approval's excludeAssigneesFrom
+            // (e.g. the Sign-off staff of the summary report) must not vote on their own appraisal.
+            var conflicted = await _segregationOfDutiesGuard.GetConflictedUsersAsync(
+                context.WorkflowInstance, context.ActivityId, candidateMembers.Select(m => m.Username),
+                cancellationToken);
+            var resolvedMembers = candidateMembers.Where(m => !conflicted.ContainsKey(m.Username)).ToList();
+            var excludedSummary = conflicted.Count == 0
+                ? "none"
+                : string.Join(", ", conflicted.Select(c => $"{c.Key} ({c.Value})"));
+            if (conflicted.Count > 0)
+                _logger.LogInformation(
+                    "ApprovalActivity {ActivityId}: excluded conflicted member(s) from committee {CommitteeCode} on instance {InstanceId}: {Excluded}",
+                    context.ActivityId, groupInfo.CommitteeCode ?? "inline", context.WorkflowInstanceId, excludedSummary);
+
+            if (overrideMembers.Count == 0 && context.Variables.ContainsKey("meetingMemberOverrides"))
             {
                 // The variable exists but carries no members, so the ternary above silently fell
                 // back to the committee's own members — the substitution this path exists to
@@ -120,18 +130,15 @@ public class ApprovalActivity : WorkflowActivityBase
                     context.ActivityId, groupInfo.CommitteeCode ?? "inline");
             }
 
-            // A FixedCount threshold above the member count can never be reached, so the round
-            // would open and then sit Pending forever. Checked against resolvedMembers — a
-            // released meeting roster replaces the committee's members, so that is the count the
-            // round actually runs with.
-            if (string.Equals(groupInfo.Majority.Type, nameof(MajorityType.FixedCount),
-                    StringComparison.OrdinalIgnoreCase)
-                && groupInfo.Majority.Value > resolvedMembers.Count)
-            {
-                return ActivityResult.Failed(
-                    $"Approval requires {groupInfo.Majority.Value} approve vote(s) but the group has only " +
-                    $"{resolvedMembers.Count} member(s); the round could never resolve");
-            }
+            // A round that can never resolve would open and then sit Pending forever. Checked against
+            // resolvedMembers — the released meeting roster or the committee, minus Conflicted members —
+            // because that is the set the round actually runs with.
+            var unresolvable = FindUnresolvableReason(groupInfo, resolvedMembers);
+            if (unresolvable is not null)
+                throw new ApprovalRoundUnresolvableException(
+                    $"Committee {groupInfo.CommitteeName ?? groupInfo.CommitteeCode ?? "approval"} cannot decide this " +
+                    $"appraisal: {unresolvable}. {resolvedMembers.Count} member(s) remain after excluding conflicted " +
+                    $"members ({excludedSummary}). Contact an admin to add committee members, then submit again.");
 
             var activityName = GetProperty(context, "activityName", context.ActivityId);
             var voteOptions = GetProperty<List<string>>(context, "voteOptions",
@@ -155,6 +162,8 @@ public class ApprovalActivity : WorkflowActivityBase
                 [$"{NormalizeActivityId(context.ActivityId)}_committeeName"] = groupInfo.CommitteeName ?? "",
                 [$"{NormalizeActivityId(context.ActivityId)}_committeeCode"] = groupInfo.CommitteeCode ?? "",
                 [$"{NormalizeActivityId(context.ActivityId)}_totalMembers"] = resolvedMembers.Count,
+                // Audit: who was left out of this round, and the activity that made them conflicted.
+                [$"{NormalizeActivityId(context.ActivityId)}_excludedMembers"] = conflicted.ToDictionary(),
                 [$"{NormalizeActivityId(context.ActivityId)}_votesReceived"] = 0,
                 ["activityName"] = activityName
             };
@@ -264,7 +273,7 @@ public class ApprovalActivity : WorkflowActivityBase
 
             return ActivityResult.Pending(outputData);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not ApprovalRoundUnresolvableException)
         {
             _logger.LogError(ex, "Error executing ApprovalActivity {ActivityId}", context.ActivityId);
             return ActivityResult.Failed($"ApprovalActivity failed: {ex.Message}");
@@ -821,6 +830,35 @@ public class ApprovalActivity : WorkflowActivityBase
     }
 
     // -- Private helpers --
+
+    /// <summary>
+    /// Why a round with these members can never resolve, or null when it can. FixedCount is the only
+    /// majority that can be out of reach (the proportional ones are taken of the members themselves), and the
+    /// quorum number only matters in Quorum mode: WaitForAll resolves once everyone has voted.
+    /// </summary>
+    private static string? FindUnresolvableReason(ApprovalGroupInfo groupInfo, List<ApprovalMemberInfo> members)
+    {
+        if (members.Count == 0)
+            return "no members left to vote";
+
+        if (string.Equals(groupInfo.Majority.Type, nameof(MajorityType.FixedCount), StringComparison.OrdinalIgnoreCase)
+            && groupInfo.Majority.Value > members.Count)
+            return $"{groupInfo.Majority.Value} approve vote(s) required";
+
+        if (!string.Equals(groupInfo.VotingMode, "WaitForAll", StringComparison.OrdinalIgnoreCase))
+        {
+            var requiredQuorum = GetRequiredQuorum(groupInfo.Quorum, members.Count);
+            if (members.Count < requiredQuorum)
+                return $"quorum requires {requiredQuorum} vote(s)";
+        }
+
+        var missingRole = groupInfo.Conditions
+            .Where(c => c.ConditionType == "RoleRequired" && !string.IsNullOrEmpty(c.RoleRequired))
+            .Select(c => c.RoleRequired)
+            .FirstOrDefault(role => !members.Any(m =>
+                string.Equals(m.Role, role, StringComparison.OrdinalIgnoreCase)));
+        return missingRole is null ? null : $"no remaining member holds the required role {missingRole}";
+    }
 
     private static bool CheckApprovalConditions(
         List<ApprovalConditionInfo> conditions, List<ApprovalVote> votes, string targetVote)

@@ -7,8 +7,8 @@ using Workflow.Data.Entities;
 namespace Workflow.Services.Configuration;
 
 /// <summary>
-/// Seeds example <see cref="TaskAssignmentConfiguration"/> override rows.
-/// Idempotent: skipped if any rows already exist.
+/// Seeds example <see cref="TaskAssignmentConfiguration"/> override rows, plus the active pending-approval
+/// conflicted-member rule. Idempotent: skipped if any rows already exist.
 ///
 /// The examples are seeded <b>inactive</b> on purpose — they appear in the admin page
 /// (/admin/workflow-assignment-config) as ready-made templates, but do NOT change runtime
@@ -35,14 +35,28 @@ public class TaskAssignmentConfigSeeder(
                 bankingSegment: "Retail",
                 assigneeGroup: "IntAdmin",
                 primaryStrategies: ["pool"],
-                routeBackStrategies: ["previous_owner"])
+                routeBackStrategies: ["previous_owner"]),
+
+            // Active, unlike the examples: Conflicted members (the Sign-off staff of the summary report) get no
+            // committee approval task. Same value as the 20261030120000_SeedData_PendingApprovalConflictedMembers
+            // script, which is what reaches databases outside Development. Approval runs no strategies.
+            TaskAssignmentConfiguration.Create(
+                "pending-approval",
+                primaryStrategies: "[]",
+                routeBackStrategies: "[]",
+                createdBy: "system",
+                escalateToAdminPool: false,
+                excludeAssigneesFrom: JsonSerializer.Serialize(new[]
+                {
+                    "int-appraisal-execution", "appraisal-book-verification",
+                    "int-appraisal-check", "int-appraisal-verification"
+                }))
         };
 
         context.TaskAssignmentConfigurations.AddRange(examples);
         await context.SaveChangesAsync();
 
-        logger.LogInformation(
-            "Seeded {Count} example (inactive) TaskAssignmentConfiguration rows", examples.Length);
+        logger.LogInformation("Seeded {Count} TaskAssignmentConfiguration rows", examples.Length);
     }
 
     private static TaskAssignmentConfiguration BuildInactive(

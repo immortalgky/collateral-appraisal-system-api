@@ -174,6 +174,10 @@ public class MeetingRouteBackReturnFlowTests
             services.AddScoped<ICommitteeRepository, CommitteeRepository>();
             services.AddScoped<IApprovalMemberResolver, ApprovalMemberResolver>();
             services.AddScoped<IApprovalVoteRepository, ApprovalVoteRepository>();
+            services.AddScoped<global::Workflow.Services.Configuration.ITaskConfigurationService,
+                global::Workflow.Services.Configuration.TaskConfigurationService>();
+            services.AddScoped<global::Workflow.Tasks.Authorization.ISegregationOfDutiesGuard,
+                global::Workflow.Tasks.Authorization.SegregationOfDutiesGuard>();
             services.AddScoped<MeetingItemReleasedDomainEventHandler>();
             services.AddScoped<MeetingItemRoutedBackDomainEventHandler>();
 
