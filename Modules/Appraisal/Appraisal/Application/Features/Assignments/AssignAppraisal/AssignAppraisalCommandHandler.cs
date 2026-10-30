@@ -19,7 +19,8 @@ namespace Appraisal.Application.Features.Assignments.AssignAppraisal;
 ///   EXTO → int-offline-book-keyin → the same InternalAssigned consumer, which keeps the company this handler
 ///         recorded on the Pending row (validated like a manual external pick) and materialises its fee.
 ///
-/// This handler does NOT mutate AppraisalAssignment or create AppraisalFee rows directly.
+/// This handler creates no AppraisalFee rows and does not call Assign(). On the Pending row it only records the
+/// assigner, the remark and, for EXTO, the company, committed before the workflow resumes.
 /// </summary>
 public class AssignAppraisalCommandHandler(
     IAppraisalRepository appraisalRepository,
@@ -93,7 +94,9 @@ public class AssignAppraisalCommandHandler(
         string? offlineCompanyId = null;
         if (isOfflineExternal)
         {
-            var companyId = Guid.Parse(command.AssigneeCompanyId!);
+            // The validator already requires it; checked again so a caller outside the pipeline gets a 400, not a 500.
+            if (!Guid.TryParse(command.AssigneeCompanyId, out var companyId) || companyId == Guid.Empty)
+                throw new BadRequestException("The external company is required for an off-system (EXTO) assignment.");
             offlineCompanyId = companyId.ToString();
             var company = await companyLookup.GetByIdAsync(companyId, cancellationToken)
                           ?? throw new NotFoundException("Company", companyId);

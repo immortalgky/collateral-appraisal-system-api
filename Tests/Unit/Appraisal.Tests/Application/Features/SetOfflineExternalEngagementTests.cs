@@ -100,6 +100,27 @@ public class SetOfflineExternalEngagementTests
     }
 
     [Fact]
+    public async Task A_company_from_a_draft_on_a_never_assigned_row_is_not_taken_as_the_admins_pick()
+    {
+        // SaveAssignmentDraft stores any company unvalidated. Only a row the workflow has assigned (AssignedAt set)
+        // carries a company AssignAppraisal validated, so a never-assigned row's company is not locked.
+        var appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "New", "Normal", DateTime.Now);
+        var assignment = appraisal.AssignAdmin();
+        var draftCompany = Guid.NewGuid();
+        assignment.SaveDraft("External", "keyer-1", draftCompany.ToString(), AppraisalAssignment.OfflineAssignmentMethod,
+            null, null, null);
+        _appraisals.GetByIdWithAllDataAsync(appraisal.Id, Arg.Any<CancellationToken>()).Returns(appraisal);
+
+        var ex = await Assert.ThrowsAsync<BadRequestException>(() => Handle(appraisal.Id, null));
+        Assert.Equal("The external company is required.", ex.Message);
+
+        // Naming one goes through the existence + MOU check and replaces the draft's.
+        await Handle(appraisal.Id, _companyId);
+        Assert.Equal(_companyId.ToString(), assignment.AssigneeCompanyId);
+        await _companies.Received(1).GetByIdAsync(_companyId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Without_a_company_on_the_row_the_keyer_must_still_name_one()
     {
         // A case already at key-in when #618 shipped: nobody recorded a company at assignment.

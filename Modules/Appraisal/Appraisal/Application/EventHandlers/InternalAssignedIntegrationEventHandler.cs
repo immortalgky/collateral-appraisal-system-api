@@ -69,9 +69,10 @@ public class InternalAssignedIntegrationEventHandler(
         // This event now re-fires on every landing at int-offline-book-keyin, including a route-back
         // from int-appraisal-check — and unlike the internal path, an off-system case carries state
         // this event does not know about:
-        //   AssigneeCompanyId  — the external company the keyer recorded via
-        //                        SetOfflineExternalEngagement. Losing it blanks the company on the
-        //                        printed book and the AS400/LOS feed, breaks fee/company linkage,
+        //   AssigneeCompanyId  — the external company the admin recorded at assignment (EXTO), or on a case
+        //                        that reached key-in before that, the keyer via SetOfflineExternalEngagement.
+        //                        Losing it blanks the company on the printed book and the AS400/LOS
+        //                        feed, breaks fee/company linkage,
         //                        and flips ExternalCompanyRecorded back to 0 so the keyer is blocked.
         //   ReassignmentNumber — the rework count; resetting it to 1 discards the routeback history.
         // Both are read off the row and passed straight back. The company only on the off-system path: an INT

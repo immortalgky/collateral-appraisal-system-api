@@ -135,14 +135,15 @@ public class SetOfflineExternalEngagementCommandHandler(
 
     /// <summary>
     /// The company the admin recorded at assignment is the single source: kept as is, and not re-checked against
-    /// its MOU window (it was checked when assigned; a window that lapsed since must not strand the keyer). Only a
-    /// case with no company on the row (at key-in before the admin picked it at assignment) takes the keyer's,
-    /// under the same MOU-window rule CompanySelectionActivity applies to a manual selection.
+    /// its MOU window (it was checked when assigned; a window that lapsed since must not strand the keyer). It is
+    /// locked only on a row the workflow has assigned (AssignedAt set): a never-assigned row's company may come
+    /// from an unvalidated draft. Otherwise (and on cases at key-in before the admin picked it at assignment) the
+    /// keyer's is taken, under the same MOU-window rule CompanySelectionActivity applies to a manual selection.
     /// </summary>
     private async Task<string> ResolveCompanyAsync(
         SetOfflineExternalEngagementCommand command, AppraisalAssignment assignment, CancellationToken ct)
     {
-        if (!string.IsNullOrWhiteSpace(assignment.AssigneeCompanyId))
+        if (assignment.AssignedAt is not null && !string.IsNullOrWhiteSpace(assignment.AssigneeCompanyId))
         {
             if (command.CompanyId is { } sent
                 && !(Guid.TryParse(assignment.AssigneeCompanyId, out var recorded) && recorded == sent))
