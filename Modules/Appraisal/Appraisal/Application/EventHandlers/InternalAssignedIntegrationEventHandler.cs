@@ -74,12 +74,14 @@ public class InternalAssignedIntegrationEventHandler(
         //                        printed book and the AS400/LOS feed, breaks fee/company linkage,
         //                        and flips ExternalCompanyRecorded back to 0 so the keyer is blocked.
         //   ReassignmentNumber — the rework count; resetting it to 1 discards the routeback history.
-        // Both are read off the row and passed straight back. The internal path is unaffected: an
-        // INT case has no company, and its ReassignmentNumber round-trips unchanged.
+        // Both are read off the row and passed straight back. The company only on the off-system path: an INT
+        // case has none, and a row routed back from EXTO (ReturnToAssignmentQueue keeps the selections) and
+        // re-decided INT must not stay linked to that company, which company-scoped queries filter on.
+        var keepsCompany = string.Equals(message.AssignmentType, "External", StringComparison.OrdinalIgnoreCase);
         assignment.Assign(
             assignmentType: message.AssignmentType,
             assigneeUserId: message.AssigneeUserId,
-            assigneeCompanyId: assignment.AssigneeCompanyId,
+            assigneeCompanyId: keepsCompany ? assignment.AssigneeCompanyId : null,
             internalAppraiserId: message.InternalAppraiserId,
             assignmentMethod: message.AssignmentMethod,
             internalFollowupMethod: message.InternalFollowupAssignmentMethod,
