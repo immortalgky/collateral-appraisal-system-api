@@ -253,8 +253,9 @@ public class AffectedHandlersGroupAssignmentTests(IntegrationTestFixture fixture
         var (aid, _) = await SeedAssignmentAsync(a =>
         {
             a.SetAssigner("P5229");
+            // The consumer passes the recorded assigner back, as here.
             a.Assign("External", assigneeUserId: "keyer-1", assignmentMethod: AppraisalAssignment.OfflineAssignmentMethod,
-                assignedBy: "P5229");
+                assignedBy: a.AssignedBy);
             a.StartWork();
         });
         var stamp = await AppraisalUpdatedAtAsync(aid);

@@ -143,14 +143,15 @@ public class SetOfflineExternalEngagementCommandHandler(
     private async Task<string> ResolveCompanyAsync(
         SetOfflineExternalEngagementCommand command, AppraisalAssignment assignment, CancellationToken ct)
     {
-        // A value that is not a company id (old bad data) counts as no company, so the keyer's pick replaces it.
-        if (Guid.TryParse(assignment.AssigneeCompanyId, out var recorded))
+        // "Holds a company" is the same test vw_AppraisalValidationContext.ExternalCompanyRecorded uses: non-empty.
+        if (!string.IsNullOrWhiteSpace(assignment.AssigneeCompanyId))
         {
-            if (command.CompanyId is { } sent && sent != recorded)
+            if (command.CompanyId is { } sent
+                && !(Guid.TryParse(assignment.AssigneeCompanyId, out var recorded) && recorded == sent))
                 throw new BadRequestException(
                     "The external company is already recorded on this assignment and cannot be changed here. " +
                     "To correct it, route the case back to appraisal assignment.");
-            return assignment.AssigneeCompanyId!;
+            return assignment.AssigneeCompanyId;
         }
 
         var companyId = command.CompanyId ?? throw new BadRequestException("The external company is required.");

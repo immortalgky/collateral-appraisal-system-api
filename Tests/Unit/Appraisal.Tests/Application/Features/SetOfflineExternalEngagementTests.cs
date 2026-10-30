@@ -100,19 +100,6 @@ public class SetOfflineExternalEngagementTests
     }
 
     [Fact]
-    public async Task A_stored_value_that_is_not_a_company_id_is_replaced_by_the_keyers_checked_pick()
-    {
-        var (appraisal, assignment) = Seed("P5229");
-        typeof(AppraisalAssignment).GetProperty(nameof(AppraisalAssignment.AssigneeCompanyId))!
-            .SetValue(assignment, "ACME-OLD");
-
-        await Handle(appraisal.Id, _companyId);
-
-        Assert.Equal(_companyId.ToString(), assignment.AssigneeCompanyId);
-        await _companies.Received(1).GetByIdAsync(_companyId, Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
     public async Task Without_a_company_on_the_row_the_keyer_must_still_name_one()
     {
         // A case already at key-in when #618 shipped: nobody recorded a company at assignment.
