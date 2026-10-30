@@ -99,25 +99,52 @@ public class SetOfflineExternalEngagementTests
         await _fees.DidNotReceiveWithAnyArgs().EnsureAssignmentFeeItemsAsync(default, default, default!, default, default);
     }
 
-    [Fact]
-    public async Task A_company_from_a_draft_on_a_never_assigned_row_is_not_taken_as_the_admins_pick()
+    // A never-assigned row (AssignedAt null) carries the company of an unvalidated draft, or the admin's EXTO pick in
+    // the instant before the InternalAssigned consumer ran. Either way it stays locked, but is checked again.
+    private (AppraisalAggregate Appraisal, AppraisalAssignment Assignment) SeedNeverAssignedWithCompany(Guid companyId)
     {
-        // SaveAssignmentDraft stores any company unvalidated. Only a row the workflow has assigned (AssignedAt set)
-        // carries a company AssignAppraisal validated, so a never-assigned row's company is not locked.
         var appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "New", "Normal", DateTime.Now);
         var assignment = appraisal.AssignAdmin();
-        var draftCompany = Guid.NewGuid();
-        assignment.SaveDraft("External", "keyer-1", draftCompany.ToString(), AppraisalAssignment.OfflineAssignmentMethod,
+        assignment.SaveDraft("External", "keyer-1", companyId.ToString(), AppraisalAssignment.OfflineAssignmentMethod,
             null, null, null);
         _appraisals.GetByIdWithAllDataAsync(appraisal.Id, Arg.Any<CancellationToken>()).Returns(appraisal);
+        return (appraisal, assignment);
+    }
 
-        var ex = await Assert.ThrowsAsync<BadRequestException>(() => Handle(appraisal.Id, null));
-        Assert.Equal("The external company is required.", ex.Message);
+    [Fact]
+    public async Task A_never_assigned_rows_company_is_kept_after_the_existence_and_MOU_check()
+    {
+        var (appraisal, assignment) = SeedNeverAssignedWithCompany(_companyId);
 
-        // Naming one goes through the existence + MOU check and replaces the draft's.
-        await Handle(appraisal.Id, _companyId);
+        await Handle(appraisal.Id, null);
+
         Assert.Equal(_companyId.ToString(), assignment.AssigneeCompanyId);
         await _companies.Received(1).GetByIdAsync(_companyId, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_never_assigned_rows_company_outside_its_MOU_window_is_refused()
+    {
+        var draftCompany = Guid.NewGuid();
+        _companies.GetByIdAsync(draftCompany, Arg.Any<CancellationToken>())
+            .Returns(new CompanyLookupDto(draftCompany, "Lapsed", null, IsAssignable: false));
+        var (appraisal, assignment) = SeedNeverAssignedWithCompany(draftCompany);
+
+        var ex = await Assert.ThrowsAsync<BadRequestException>(() => Handle(appraisal.Id, null));
+
+        Assert.Contains("outside its MOU approval window", ex.Message);
+        Assert.Equal(AssignmentStatus.Pending, assignment.AssignmentStatus);
+        await _fees.DidNotReceiveWithAnyArgs().EnsureAssignmentFeeItemsAsync(default, default, default!, default, default);
+    }
+
+    [Fact]
+    public async Task A_never_assigned_rows_company_is_locked_too()
+    {
+        var (appraisal, assignment) = SeedNeverAssignedWithCompany(Guid.NewGuid());
+
+        await Assert.ThrowsAsync<BadRequestException>(() => Handle(appraisal.Id, _companyId));
+
+        Assert.NotEqual(_companyId.ToString(), assignment.AssigneeCompanyId);
     }
 
     [Fact]

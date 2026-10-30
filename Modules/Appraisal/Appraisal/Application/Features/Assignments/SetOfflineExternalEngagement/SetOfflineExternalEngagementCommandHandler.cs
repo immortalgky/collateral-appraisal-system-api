@@ -134,27 +134,32 @@ public class SetOfflineExternalEngagementCommandHandler(
     }
 
     /// <summary>
-    /// The company the admin recorded at assignment is the single source: kept as is, and not re-checked against
-    /// its MOU window (it was checked when assigned; a window that lapsed since must not strand the keyer). It is
-    /// locked only on a row the workflow has assigned (AssignedAt set): a never-assigned row's company may come
-    /// from an unvalidated draft. Otherwise (and on cases at key-in before the admin picked it at assignment) the
-    /// keyer's is taken, under the same MOU-window rule CompanySelectionActivity applies to a manual selection.
+    /// A company already on the row is the single source: kept, never replaced here (a wrong one is corrected by
+    /// routing back to appraisal-assignment). Normally the admin recorded it at assignment; on a case that reached
+    /// key-in before that, the keyer recorded it with an earlier save. Only a row with no company takes the keyer's.
+    /// The existence + MOU-window rule CompanySelectionActivity applies to a manual selection is checked on every
+    /// company except one on a row the workflow has assigned (AssignedAt set): that one was checked when it was
+    /// recorded, and a window that lapsed since must not strand the keyer. A never-assigned row's company may come
+    /// from an unvalidated draft, so it is checked again.
     /// </summary>
     private async Task<string> ResolveCompanyAsync(
         SetOfflineExternalEngagementCommand command, AppraisalAssignment assignment, CancellationToken ct)
     {
-        if (assignment.AssignedAt is not null && !string.IsNullOrWhiteSpace(assignment.AssigneeCompanyId))
+        Guid companyId;
+        if (!string.IsNullOrWhiteSpace(assignment.AssigneeCompanyId))
         {
-            if (command.CompanyId is { } sent
-                && !(Guid.TryParse(assignment.AssigneeCompanyId, out var recorded) && recorded == sent))
+            if (!Guid.TryParse(assignment.AssigneeCompanyId, out companyId)
+                || (command.CompanyId is { } sent && sent != companyId))
                 throw new BadRequestException(
-                    "The external company was recorded when the case was assigned and cannot be changed here. " +
+                    "The external company is already recorded on this assignment and cannot be changed here. " +
                     "To correct it, route the case back to appraisal assignment.");
-            return assignment.AssigneeCompanyId;
+            if (assignment.AssignedAt is not null)
+                return assignment.AssigneeCompanyId;
         }
-
-        if (command.CompanyId is not { } companyId)
-            throw new BadRequestException("The external company is required.");
+        else
+        {
+            companyId = command.CompanyId ?? throw new BadRequestException("The external company is required.");
+        }
 
         // IsAssignable is resolved inside Auth (which owns the rule) and surfaced on the DTO.
         var company = await companyLookup.GetByIdAsync(companyId, ct)

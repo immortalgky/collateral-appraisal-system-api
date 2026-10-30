@@ -72,8 +72,8 @@ public class InternalAssignedIntegrationEventHandler(
         //   AssigneeCompanyId  — the external company the admin recorded at assignment (EXTO), or on a case
         //                        that reached key-in before that, the keyer via SetOfflineExternalEngagement.
         //                        Losing it blanks the company on the printed book and the AS400/LOS
-        //                        feed, breaks fee/company linkage,
-        //                        and flips ExternalCompanyRecorded back to 0 so the keyer is blocked.
+        //                        feed, breaks fee/company linkage, and flips ExternalCompanyRecorded
+        //                        back to 0 so the keyer is blocked.
         //   ReassignmentNumber — the rework count; resetting it to 1 discards the routeback history.
         // Both are read off the row and passed straight back. The company only on the off-system path: an INT
         // case has none, and a row routed back from EXTO (ReturnToAssignmentQueue keeps the selections) and
