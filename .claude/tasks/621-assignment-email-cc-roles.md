@@ -29,7 +29,8 @@ No deliverable To (company has no email, no extra To) → row `Failed` with `Fai
       group. Open question to the user: IsSystem accounts in the IntAdmin Cc.
 - [x] /code-review r2 (9 findings): fixed the reason when no company id / not found, the reason and company id in the
       warning log, tests for the not-found reason and a split "a; b" To, Hard/SoftDeleteGroupAsync names
-- [ ] /code-review r3 (fix diff only)
+- [x] /code-review r3 (4 findings): fixed the log to carry the looked-up company id, not the raw assignment string.
+      No new critical/high/medium → loop stopped. Open question to the user: IsAssignable at handover (pre-existing, #620).
 - [ ] test-automator gates
 - [ ] User test → merge `--no-ff` into the integration branch, close #621 by hand
 
@@ -58,3 +59,6 @@ No deliverable To (company has no email, no extra To) → row `Failed` with `Fai
   the delimiter rule copied from Notification's EmailRecipients (Appraisal cannot reference Notification.Infrastructure;
   the comment links them); the consumer's empty-To guard kept as defence; the test's IntAdmin group being
   Company-scoped (the exclusion is by name, on purpose).
+- Declined in r3: the two null-company paths sharing one reason (the log has the id); a test for the
+  unparseable-id path (pre-existing TryParse from #620); `IsAssignable` not checked at handover (pre-existing #620
+  behaviour, raised with the user).

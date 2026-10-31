@@ -54,7 +54,7 @@ public class AssignmentEmailDispatcher(
             email.Fail(reason);
             logger.LogWarning(
                 "Assignment email {EmailId} for appraisal {AppraisalId} (company {CompanyId}) marked Failed: {Reason}",
-                email.Id, appraisalId, assignment.AssigneeCompanyId, reason);
+                email.Id, appraisalId, company?.Id, reason);
             return;
         }
 
