@@ -6,7 +6,7 @@ the trigger takes the Pending row Assign wrote; NotSent → nothing; no row → 
 
 ## Flow
 1. `InternalAssignedIntegrationEventHandler` (Appraisal), method `Offline`, first landing only (the row was Pending):
-   `AssignmentEmailDispatcher.QueueAsync` in the same save as the Assign (handover, email row and outbox atomic).
+   `AssignmentEmailDispatcher.QueueExtoAsync` in the same save as the Assign (handover, email row and outbox atomic).
    - newest Pending/NotSent row of this assignment: NotSent → nothing; Pending → fill `{{company}}` /
      `{{responsible}}` (= keyer) in the stored body and move it to **Queued**; none → build a row from the template
      (then Queued).
@@ -32,7 +32,8 @@ Preview's template build moves into a shared composer so the trigger can use it 
       alias constants, Sent consumer via unit of work, inline Source, composer in its own file
 - [x] /code-review r1 (8 findings): fixed multi-address To, queue after the save (stale template), Sent consumer test
 - [x] /code-review r2 (9 findings, from r1's two saves): back to one save, composer gets the EXTO handover, Cc minus To
-- [ ] /code-review r3 (fix diff only), test-automator gates
+- [x] /code-review r3 (7 findings): explicit compose/queue API for the EXTO handover, a test pinning publish-before-save
+- [ ] /code-review r4 (fix diff only), test-automator gates
 - [ ] User test → merge `--no-ff` into the integration branch, close #620 by hand
 
 ## Settled decisions
@@ -73,6 +74,17 @@ Preview's template build moves into a shared composer so the trigger can use it 
     The documents were checked live at assign.
   - Placeholders the admin edited in the rich text editor are taken as the admin's intent.
   - The company is looked up twice on the template path (nit).
+- The API is explicit (r3): `AssignmentEmailComposer.ComposeAsync` (preview, stored row) vs
+  `ComposeForExtoHandoverAsync(appraisalId, keyerName, ct)`. `AssignmentEmailDispatcher.QueueExtoAsync` is EXTO-only;
+  #622 adds EXT's own responsible person, Cc roles and fee question.
+- Declined in /code-review r3:
+  - Partial failure inside the dispatcher committing a Queued row with no outbox message. The only step after the
+    mutations is `outbox.Publish`, which serializes a record of strings and Guids into an in-memory list and does
+    not throw in practice.
+  - A shared helper for the EXTO fee question (`external-offline` / `manual` / company), duplicated from
+    AssignAppraisal. Cleanup, not a bug.
+  - The fee is a re-simulation, not the tracked materialised fee. The preview shares its resolution with
+    AssignmentFeeService by design, and it is the figure AssignAppraisal checked.
 - Declined in /code-review r2: `EmailRecipients.Parse` splitting a display name with a comma. ExtraTo/Cc are plain
   addresses (the #627 validator), and the company master holds addresses.
 

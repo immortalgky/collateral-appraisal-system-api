@@ -14,15 +14,22 @@ public class AssignmentEmailComposer(
     ISender sender,
     IConfiguration configuration)
 {
-    /// <param name="extoKeyerName">
-    /// Set at an EXTO handover, while the stored row still shows the decision before it (a route-back keeps the old
-    /// selections): the case is off-system, this keyer is the responsible person and the fee is priced as
-    /// external-offline. Null for the preview, which reads the row as the admin saved it.
-    /// </param>
-    public async Task<AssignmentEmailPreviewResult> ComposeAsync(
-        Guid appraisalId, CancellationToken cancellationToken, string? extoKeyerName = null)
+    /// <summary>The template from the stored row, as the admin saved it: the preview.</summary>
+    public Task<AssignmentEmailPreviewResult> ComposeAsync(Guid appraisalId, CancellationToken cancellationToken) =>
+        ComposeAsync(appraisalId, extoHandover: false, keyerName: null, cancellationToken);
+
+    /// <summary>
+    /// The template at an EXTO handover, while the stored row may still show the decision before it (a route-back keeps
+    /// the old selections): the case is off-system, <paramref name="keyerName"/> is the responsible person and the fee
+    /// is priced as AssignAppraisal priced it.
+    /// </summary>
+    public Task<AssignmentEmailPreviewResult> ComposeForExtoHandoverAsync(
+        Guid appraisalId, string? keyerName, CancellationToken cancellationToken) =>
+        ComposeAsync(appraisalId, extoHandover: true, keyerName, cancellationToken);
+
+    private async Task<AssignmentEmailPreviewResult> ComposeAsync(
+        Guid appraisalId, bool extoHandover, string? keyerName, CancellationToken cancellationToken)
     {
-        var isHandover = extoKeyerName is not null;
         var @case = await caseReader.GetCaseAsync(appraisalId, cancellationToken)
                     ?? throw new AppraisalNotFoundException(appraisalId);
 
@@ -32,14 +39,14 @@ public class AssignmentEmailComposer(
 
         // EXTO (method Offline): the keyer is the bank's responsible person. EXT: the follow-up officer, known only
         // when the admin picked one by hand; อัตโนมัติ leaves the placeholder for the send to fill.
-        var isOffline = isHandover || @case.IsOffline;
-        var responsible = isHandover ? extoKeyerName
+        var isOffline = extoHandover || @case.IsOffline;
+        var responsible = extoHandover ? keyerName
             : isOffline ? @case.KeyerName
             : string.Equals(@case.FollowupMethod, AssignmentDefaultValues.MethodManual, StringComparison.OrdinalIgnoreCase) ? @case.FollowupName : null;
 
         // The handover asks what AssignAppraisal asked for EXTO; the preview lets the row decide.
         var fee = await sender.Send(
-            isHandover
+            extoHandover
                 ? new GetFeePreviewQuery(appraisalId, "external-offline", "manual", company?.Id)
                 : new GetFeePreviewQuery(appraisalId, null, null, null),
             cancellationToken);

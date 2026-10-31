@@ -100,7 +100,14 @@ public class ExtoAssignmentEmailDispatchTests
         // The row holds what was sent, Queued (never picked again) until Notification confirms.
         Assert.Equal(sent.HtmlBody, row.BodyHtml);
         Assert.Equal(AssignmentEmailStatus.Queued, row.Status);
-        await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>()); // with the handover, atomically
+        // Queued before the handover's one save, so the row and its outbox message commit with it.
+        Received.InOrder(() =>
+        {
+            _outbox.Publish(Arg.Any<AssignmentEmailRequestedIntegrationEvent>(), Arg.Any<string?>(),
+                Arg.Any<Dictionary<string, string>?>());
+            _uow.SaveChangesAsync(Arg.Any<CancellationToken>());
+        });
+        await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
