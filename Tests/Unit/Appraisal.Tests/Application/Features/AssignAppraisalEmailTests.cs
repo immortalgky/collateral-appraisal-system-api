@@ -336,6 +336,7 @@ public class AssignAppraisalEmailTests
         var error = await Assert.ThrowsAsync<BadRequestException>(() => AssignAsync("EXT", Email(), sendEmail: true));
 
         Assert.Equal("No company could be selected.", error.Message);
+        await _emails.Received(1).DeleteNowAsync(Assert.Single(_added).Id, CancellationToken.None);
     }
 
     [Fact]
