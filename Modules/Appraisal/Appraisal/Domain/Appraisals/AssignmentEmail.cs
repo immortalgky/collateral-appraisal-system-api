@@ -1,23 +1,17 @@
 namespace Appraisal.Domain.Appraisals;
 
 /// <summary>
-/// One email to the external company an appraisal is assigned to (EXT / EXTO). While the admin prepares it the
-/// row is the appraisal's single <see cref="AssignmentEmailStatus.Draft"/>; sending, resending and failure add the
-/// other statuses. The company's own address is never stored here: it is the assigned company's email, resolved
-/// when read or sent, so the email cannot go to a company other than the one assigned. <see cref="ExtraTo"/> holds
-/// only the admin's additional addresses.
+/// One email to the external company an appraisal is assigned to (EXT / EXTO), written when the admin assigns:
+/// <see cref="AssignmentEmailStatus.Pending"/> to be sent, or <see cref="AssignmentEmailStatus.NotSent"/> when the
+/// admin assigned without sending. Sending, resending and failure add the other statuses. The company's own address
+/// is never stored here: it is the assigned company's email, resolved when sent, so the email cannot go to a company
+/// other than the one assigned. <see cref="ExtraTo"/> holds only the admin's additional addresses.
 /// </summary>
 public class AssignmentEmail : Entity<Guid>
 {
     public Guid AppraisalId { get; private set; }
-    public Guid? AssignmentId { get; private set; }
-
-    /// <summary>The assignment's company when the draft was saved; null while none was picked. See <see cref="IsFor"/>.</summary>
-    public string? CompanyId { get; private set; }
-
-    /// <summary>Written for an off-system (EXTO) engagement: keyer as the responsible person, Keyer Cc roles.</summary>
-    public bool IsOffline { get; private set; }
-    public string Status { get; private set; } = AssignmentEmailStatus.Draft;
+    public Guid AssignmentId { get; private set; }
+    public string Status { get; private set; } = AssignmentEmailStatus.Pending;
     public List<string> ExtraTo { get; private set; } = [];
 
     /// <summary>Role tokens (<see cref="AssignmentEmailCcRoles"/>), stored unresolved, plus literal addresses.</summary>
@@ -35,42 +29,37 @@ public class AssignmentEmail : Entity<Guid>
         // For EF Core
     }
 
-    public static AssignmentEmail CreateDraft(Guid appraisalId) =>
-        new() { Id = Guid.CreateVersion7(), AppraisalId = appraisalId };
-
-    /// <summary>
-    /// Whether this email still describes the case: written for the same assignment and the same path (EXT / EXTO),
-    /// and for the same company unless none was picked when it was saved (its body then greets {{company}}, which
-    /// fits whoever is picked). A case reassigned, switched EXT↔EXTO or to another company gets the template instead.
-    /// </summary>
-    public bool IsFor(Guid? assignmentId, string? companyId, bool isOffline) =>
-        AssignmentId == assignmentId
-        && IsOffline == isOffline
-        && (string.IsNullOrWhiteSpace(CompanyId)
-            || (Guid.TryParse(CompanyId, out var saved) && Guid.TryParse(companyId, out var current) && saved == current));
-
-    public void UpdateDraft(
-        Guid? assignmentId,
-        string? companyId,
-        bool isOffline,
+    /// <summary>The email the admin chose to send with the assignment, waiting for the send.</summary>
+    public static AssignmentEmail ToSend(
+        Guid appraisalId,
+        Guid assignmentId,
         IEnumerable<string> extraTo,
         IEnumerable<string> cc,
         string subject,
         string bodyHtml,
-        IEnumerable<AssignmentEmailAttachment> attachments)
-    {
-        if (Status != AssignmentEmailStatus.Draft)
-            throw new InvalidOperationException($"Only a draft email can be edited; this one is {Status}.");
+        IEnumerable<AssignmentEmailAttachment> attachments) =>
+        new()
+        {
+            Id = Guid.CreateVersion7(),
+            AppraisalId = appraisalId,
+            AssignmentId = assignmentId,
+            Status = AssignmentEmailStatus.Pending,
+            ExtraTo = extraTo.ToList(),
+            Cc = cc.ToList(),
+            Subject = subject,
+            BodyHtml = bodyHtml,
+            Attachments = attachments.ToList()
+        };
 
-        AssignmentId = assignmentId;
-        CompanyId = companyId;
-        IsOffline = isOffline;
-        ExtraTo = extraTo.ToList();
-        Cc = cc.ToList();
-        Subject = subject;
-        BodyHtml = bodyHtml;
-        Attachments = attachments.ToList();
-    }
+    /// <summary>The admin assigned without sending: only the choice is recorded, not what the dialog held.</summary>
+    public static AssignmentEmail NotSent(Guid appraisalId, Guid assignmentId) =>
+        new()
+        {
+            Id = Guid.CreateVersion7(),
+            AppraisalId = appraisalId,
+            AssignmentId = assignmentId,
+            Status = AssignmentEmailStatus.NotSent
+        };
 }
 
 /// <summary>A Document-module document attached to the email, and where the admin picked it from.</summary>
@@ -78,7 +67,6 @@ public record AssignmentEmailAttachment(Guid DocumentId, string Source);
 
 public static class AssignmentEmailStatus
 {
-    public const string Draft = "Draft";
     public const string Pending = "Pending";
     public const string Sent = "Sent";
     public const string Failed = "Failed";

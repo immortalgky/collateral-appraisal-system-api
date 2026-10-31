@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+using Appraisal.Application.Features.Assignments.AssignmentEmails;
 using Appraisal.Application.Features.Assignments.AssignAppraisal;
 using Appraisal.Application.Features.Fees.AddFeeItem;
 using Appraisal.Application.Features.Fees.GetFeePreview;
@@ -63,7 +65,8 @@ public class AssignAppraisalBaseFeeTests
     private async Task AssignAsync(Guid appraisalId, string decision, string method = "Manual")
     {
         var handler = new AssignAppraisalCommandHandler(
-            _appraisals, Substitute.For<IAppraisalUnitOfWork>(), _relay, _quotations, _ownership, _sender, _user, _companies);
+            _appraisals, Substitute.For<IAppraisalUnitOfWork>(), _relay, _quotations, _ownership, _sender, _user, _companies,
+                Substitute.For<IAssignmentEmailRepository>(), Substitute.For<IAssignmentEmailCaseReader>(), Substitute.For<IConfiguration>());
         await handler.Handle(
             new AssignAppraisalCommand(appraisalId, Guid.NewGuid(), AssigneeCompanyId: _winner.ToString(),
                 AssignmentMethod: method, DecisionTaken: decision), Ct);

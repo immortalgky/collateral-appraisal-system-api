@@ -4,19 +4,20 @@ using Auth.Contracts.Companies;
 
 namespace Appraisal.Application.Features.Assignments.AssignmentEmails;
 
-/// <param name="Template">True for "คืนค่า template": the filled template even when a draft is saved.</param>
-public record GetAssignmentEmailDraftQuery(Guid AppraisalId, bool Template = false) : IQuery<AssignmentEmailDraftResult>;
+public record GetAssignmentEmailPreviewQuery(Guid AppraisalId) : IQuery<AssignmentEmailPreviewResult>;
 
-/// <summary>The appraisal's saved email draft, or the bank template filled from the case when there is none.</summary>
-public class GetAssignmentEmailDraftQueryHandler(
-    AppraisalDbContext dbContext,
+/// <summary>
+/// The email the admin edits when pressing มอบหมาย (EXT / EXTO): the bank template filled from the case's current
+/// assignment row. Nothing is saved; the edited email travels with the assign request.
+/// </summary>
+public class GetAssignmentEmailPreviewQueryHandler(
     IAssignmentEmailCaseReader caseReader,
     ICompanyLookupService companyLookup,
     ISender sender,
     ICurrentUserService currentUser,
-    IConfiguration configuration) : IQueryHandler<GetAssignmentEmailDraftQuery, AssignmentEmailDraftResult>
+    IConfiguration configuration) : IQueryHandler<GetAssignmentEmailPreviewQuery, AssignmentEmailPreviewResult>
 {
-    public async Task<AssignmentEmailDraftResult> Handle(GetAssignmentEmailDraftQuery query, CancellationToken cancellationToken)
+    public async Task<AssignmentEmailPreviewResult> Handle(GetAssignmentEmailPreviewQuery query, CancellationToken cancellationToken)
     {
         AssignmentEmailAccess.EnsureAllowed(currentUser);
 
@@ -26,36 +27,6 @@ public class GetAssignmentEmailDraftQueryHandler(
         var company = Guid.TryParse(@case.AssigneeCompanyId, out var companyId)
             ? await companyLookup.GetByIdAsync(companyId, cancellationToken)
             : null;
-        var maxAttachmentBytes = AssignmentEmailLimits.MaxAttachmentBytes(configuration);
-
-        var saved = query.Template ? null : await dbContext.AssignmentEmails
-            .AsNoTracking()
-            .FirstOrDefaultAsync(e => e.AppraisalId == query.AppraisalId && e.Status == AssignmentEmailStatus.Draft,
-                cancellationToken);
-        // A stale draft (reassigned, or another company) is not shown: the template is, and the next save takes
-        // the row over.
-        if (saved is not null && saved.IsFor(@case.AssignmentId, @case.AssigneeCompanyId, @case.IsOffline))
-        {
-            var documents = (await caseReader.GetDocumentsAsync(
-                    saved.Attachments.Select(a => a.DocumentId).ToList(), cancellationToken))
-                .ToDictionary(d => d.Id);
-            return new AssignmentEmailDraftResult(
-                saved.Id,
-                company?.Email,
-                saved.ExtraTo,
-                saved.Cc,
-                saved.Subject,
-                saved.BodyHtml,
-                // A document deleted since the save is still listed, without a name or size, so the admin sees it.
-                saved.Attachments
-                    .Select(a => documents.TryGetValue(a.DocumentId, out var d)
-                        ? new AssignmentEmailAttachmentDto(a.DocumentId, a.Source, d.FileName, d.FileSizeBytes)
-                        : new AssignmentEmailAttachmentDto(a.DocumentId, a.Source, null, 0))
-                    .ToList(),
-                AssignmentEmailLimits.MaxAttachments,
-                maxAttachmentBytes,
-                saved.UpdatedAt ?? saved.CreatedAt);
-        }
 
         // EXTO (method Offline): the keyer is the bank's responsible person. EXT: the follow-up officer, known only
         // when the admin picked one by hand; อัตโนมัติ leaves the placeholder for the send to fill.
@@ -81,8 +52,7 @@ public class GetAssignmentEmailDraftQueryHandler(
             ? [AssignmentEmailCcRoles.IntAdminAll, AssignmentEmailCcRoles.Keyer, AssignmentEmailCcRoles.KeyerSupervisor]
             : [AssignmentEmailCcRoles.IntAdminAll, AssignmentEmailCcRoles.FollowupStaff, AssignmentEmailCcRoles.FollowupSupervisor];
 
-        return new AssignmentEmailDraftResult(
-            null,
+        return new AssignmentEmailPreviewResult(
             company?.Email,
             [],
             cc,
@@ -90,7 +60,6 @@ public class GetAssignmentEmailDraftQueryHandler(
             AssignmentEmailTemplate.BodyHtml(values),
             [],
             AssignmentEmailLimits.MaxAttachments,
-            maxAttachmentBytes,
-            null);
+            AssignmentEmailLimits.MaxAttachmentBytes(configuration));
     }
 }

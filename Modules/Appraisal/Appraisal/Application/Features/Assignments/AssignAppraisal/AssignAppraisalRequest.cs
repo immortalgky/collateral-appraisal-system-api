@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Assignments.AssignmentEmails;
+
 namespace Appraisal.Application.Features.Assignments.AssignAppraisal;
 
 public record AssignAppraisalRequest(
@@ -16,4 +18,8 @@ public record AssignAppraisalRequest(
     /// </summary>
     string DecisionTaken = "EXT",
     /// <summary>Admin remark persisted onto the assignment row alongside the assign action.</summary>
-    string? Remark = null);
+    string? Remark = null,
+    /// <summary>EXT / EXTO only: the email edited in the assign dialog, read when <see cref="SendEmail"/> is true.</summary>
+    AssignmentEmailInput? Email = null,
+    /// <summary>EXT / EXTO only: true = assign and send, false = assign without sending; omitted = no email row.</summary>
+    bool? SendEmail = null);

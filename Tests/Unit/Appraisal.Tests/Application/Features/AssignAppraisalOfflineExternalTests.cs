@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+using Appraisal.Application.Features.Assignments.AssignmentEmails;
 using Appraisal.Application.Features.Assignments.AssignAppraisal;
 using Appraisal.Application.Features.Assignments.GetAssignments;
 using Appraisal.Application.Features.Assignments.SaveAssignmentDraft;
@@ -57,7 +59,8 @@ public class AssignAppraisalOfflineExternalTests
     private Task Assign(string decision, string? company) =>
         new AssignAppraisalCommandHandler(
                 _appraisals, Substitute.For<IAppraisalUnitOfWork>(), _relay, Substitute.For<IQuotationRepository>(),
-                _ownership, _sender, _user, _companies)
+                _ownership, _sender, _user, _companies,
+                Substitute.For<IAssignmentEmailRepository>(), Substitute.For<IAssignmentEmailCaseReader>(), Substitute.For<IConfiguration>())
             .Handle(Command(decision, company), Ct);
 
     private Task ResumedNever() =>

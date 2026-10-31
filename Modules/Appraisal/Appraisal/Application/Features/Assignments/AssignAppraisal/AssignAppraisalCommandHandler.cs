@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Assignments.AssignmentEmails;
 using Appraisal.Application.Features.Fees.GetFeePreview;
 using Appraisal.Application.Features.Quotations.AutoAssign;
 using Appraisal.Application.Services;
@@ -20,7 +21,8 @@ namespace Appraisal.Application.Features.Assignments.AssignAppraisal;
 ///         recorded on the Pending row (validated like a manual external pick) and materialises its fee.
 ///
 /// This handler creates no AppraisalFee rows and does not call Assign(). On the Pending row it only records the
-/// assigner, the remark and, for EXTO, the company, committed before the workflow resumes.
+/// assigner, the remark and, for EXTO, the company; for EXT / EXTO it also writes the admin's email choice
+/// (an AssignmentEmail row). All of it is committed in one save before the workflow resumes.
 /// </summary>
 public class AssignAppraisalCommandHandler(
     IAppraisalRepository appraisalRepository,
@@ -30,7 +32,10 @@ public class AssignAppraisalCommandHandler(
     IQuotationAutoAssignStateReader workflowOwnership,
     ISender sender,
     ICurrentUserService currentUser,
-    ICompanyLookupService companyLookup)
+    ICompanyLookupService companyLookup,
+    IAssignmentEmailRepository emailRepository,
+    IAssignmentEmailCaseReader emailCaseReader,
+    IConfiguration configuration)
     : ICommandHandler<AssignAppraisalCommand, AssignAppraisalResult>
 {
     /// <summary>Stable <c>errorCode</c> of the 400 when the assignment would bill no base appraisal fee (01).</summary>
@@ -108,6 +113,14 @@ public class AssignAppraisalCommandHandler(
         var isAssigning = IsAssigningDecision(command.DecisionTaken, out var decision);
         if (isAssigning)
             await EnsureBaseFeeAsync(command, decision, cancellationToken);
+
+        // EXT / EXTO: the email the admin sends (or chose not to send) with this assignment. Its documents are
+        // checked here, before anything is recorded, so an invalid email assigns nothing and the admin fixes it.
+        if (WritesEmail(command))
+            await emailRepository.AddAsync(command.SendEmail == true
+                    ? await EmailToSendAsync(command, pendingAssignment.Id, cancellationToken)
+                    : AssignmentEmail.NotSent(command.AppraisalId, pendingAssignment.Id),
+                cancellationToken);
 
         // The admin's identity is only known here: the consumers that later call Assign() are workflow-driven, and
         // used to stamp "System". Recorded with the remark, in the same durable save before the resume.
@@ -200,6 +213,36 @@ public class AssignAppraisalCommandHandler(
         return new AssignAppraisalResult(pendingAssignment.Id);
     }
 
+    private async Task<AssignmentEmail> EmailToSendAsync(AssignAppraisalCommand command, Guid assignmentId, CancellationToken ct)
+    {
+        // The validator already requires it; checked again so a caller outside the pipeline gets a 400, not a 500.
+        var email = command.Email ?? throw new BadRequestException("The email to the company is required to send it.");
+        var attachments = (email.Attachments ?? []).DistinctBy(a => a.DocumentId).ToList();
+
+        // Sizes come from document.Documents, never from the client.
+        if (attachments.Count > 0)
+        {
+            var documents = await emailCaseReader.GetDocumentsAsync(attachments.Select(a => a.DocumentId).ToList(), ct);
+            if (documents.Count != attachments.Count)
+                throw new BadRequestException("One or more attachments are not available documents. Remove them and attach again.");
+
+            var limit = AssignmentEmailLimits.MaxAttachmentBytes(configuration);
+            var total = documents.Sum(d => d.FileSizeBytes);
+            if (total > limit)
+                throw new BadRequestException(FormattableString.Invariant(
+                    $"Attachments total {total / 1024d / 1024:0.#} MB, over the {limit / 1024d / 1024:0.#} MB limit. Remove some files."));
+        }
+
+        return AssignmentEmail.ToSend(
+            command.AppraisalId,
+            assignmentId,
+            email.ExtraTo ?? [],
+            email.Cc ?? [],
+            email.Subject,
+            email.BodyHtml,
+            attachments.Select(a => new AssignmentEmailAttachment(a.DocumentId, a.Source)));
+    }
+
     // Workflow decision codes (appraisal-workflow.json, appraisal-assignment decisionConditions).
     private const string DecisionExternal = "EXT";
     private const string DecisionInternal = "INT";
@@ -255,4 +298,13 @@ public class AssignAppraisalCommandHandler(
     /// </summary>
     internal static bool IsOfflineExternal(string? decisionTaken) =>
         string.Equals(decisionTaken, DecisionExternalOffline, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>EXT / EXTO with the admin's choice made: the assign writes an email row. Every other decision ignores it.</summary>
+    internal static bool WritesEmail(AssignAppraisalCommand command) =>
+        command.SendEmail is not null
+        && IsAssigningDecision(command.DecisionTaken, out var decision)
+        && decision is DecisionExternal or DecisionExternalOffline;
+
+    /// <summary>An email row that will be sent, so the email must be valid.</summary>
+    internal static bool SendsEmail(AssignAppraisalCommand command) => WritesEmail(command) && command.SendEmail == true;
 }
