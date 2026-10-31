@@ -54,3 +54,8 @@ and touches the dispatcher too: keep the dispatcher diff small.
     follow-up): filling at send is story 25's intent.
 - Waiting on the user (r1): a `{{responsible}}` / `{{company}}` still unknown at send goes out as literal text
   (EXT auto follow-up not chosen yet, or a deleted company with an extra To).
+- /code-review r2 (fix diff only): no correctness/security finding; 6 low. Accepted: `refuseWithoutTo` moved before
+  the CancellationToken (CA1068); SQL Server translation of the JSON projections proven by an integration test
+  (test-automator). Declined: NULL `Attachments` column (EF always writes `[]`, only a manual SQL write could make it
+  NULL); the empty-To message also covering a deleted company; the flag living in the shared dispatcher (the handover's
+  empty-To failure is #621/#624). → loop stopped (no new critical/high/medium).

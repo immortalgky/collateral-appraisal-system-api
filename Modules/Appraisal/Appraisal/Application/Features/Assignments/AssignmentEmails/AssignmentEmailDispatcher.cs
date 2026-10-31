@@ -32,7 +32,7 @@ public class AssignmentEmailDispatcher(
         email ??= AssignmentEmail.ToSend(
             appraisalId, assignment.Id, template!.ExtraTo, template.Cc, template.Subject, template.BodyHtml, []);
 
-        await QueueAsync(email, assignment.AssigneeCompanyId, responsible, assignment.AssignedBy, ct);
+        await QueueAsync(email, assignment.AssigneeCompanyId, responsible, assignment.AssignedBy, refuseWithoutTo: false, ct);
         // Added only once queued: a failed read must not leave a Pending template row for the caller's save.
         if (template is not null)
             await emails.AddAsync(email, ct);
@@ -50,8 +50,8 @@ public class AssignmentEmailDispatcher(
         string? assigneeCompanyId,
         string? responsible,
         string? assignedBy,
-        CancellationToken ct,
-        bool refuseWithoutTo = false)
+        bool refuseWithoutTo,
+        CancellationToken ct)
     {
         var company = Guid.TryParse(assigneeCompanyId, out var companyId)
             ? await companyLookup.GetByIdAsync(companyId, ct)

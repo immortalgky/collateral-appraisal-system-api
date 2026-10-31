@@ -45,7 +45,7 @@ public class ResendAssignmentEmailCommandHandler(
         var responsible = @case.IsOffline ? @case.KeyerName : @case.FollowupName;
 
         // The admin is waiting for an answer, so a send that would reach nobody is refused rather than left Queued.
-        await dispatcher.QueueAsync(email, @case.AssigneeCompanyId, responsible, sentBy, ct, refuseWithoutTo: true);
+        await dispatcher.QueueAsync(email, @case.AssigneeCompanyId, responsible, sentBy, refuseWithoutTo: true, ct);
         await emails.AddAsync(email, ct);
         await unitOfWork.SaveChangesAsync(ct);
 
