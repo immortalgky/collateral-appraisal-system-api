@@ -4,6 +4,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Notification.Application.EventHandlers;
 using Notification.Contracts.Email;
 using Notification.Data;
+using Auth.Contracts.Users;
+using Notification.Domain.Notifications.Models;
+using Notification.Domain.Notifications.Services;
 using Notification.Infrastructure.Email.Attachments;
 using Notification.Infrastructure.Email.Templates;
 using NSubstitute;
@@ -22,6 +25,7 @@ public class AssignmentEmailRequestedHandlerTests
     private readonly IEmailSender _sender = Substitute.For<IEmailSender>();
     private readonly IEmailTemplateRenderer _renderer = Substitute.For<IEmailTemplateRenderer>();
     private readonly IEmailAttachmentResolver _documents = Substitute.For<IEmailAttachmentResolver>();
+    private readonly INotificationService _notifications = Substitute.For<INotificationService>();
     private readonly ConsumeContext<AssignmentEmailRequestedIntegrationEvent> _ctx =
         Substitute.For<ConsumeContext<AssignmentEmailRequestedIntegrationEvent>>();
 
@@ -60,6 +64,8 @@ public class AssignmentEmailRequestedHandlerTests
                 _renderer,
                 new EmailAttachmentAssembler([_documents], NullLogger<EmailAttachmentAssembler>.Instance),
                 inbox,
+                new AssignmentEmailFailureNotifier(
+                    _notifications, Substitute.For<IUserLookupService>(), NullLogger<AssignmentEmailFailureNotifier>.Instance),
                 NullLogger<AssignmentEmailRequestedHandler>.Instance)
             .Consume(_ctx);
     }
@@ -127,12 +133,19 @@ public class AssignmentEmailRequestedHandlerTests
     }
 
     [Fact]
-    public async Task No_company_address_sends_nothing_even_with_a_Cc()
+    public async Task No_company_address_sends_nothing_even_with_a_Cc_and_reports_the_failure()
     {
         // The company has no email and the admin added none: a mail only to bank staff is not the assignment email.
-        await ConsumeAsync(Request(to: []));
+        var request = Request(to: []);
+        await ConsumeAsync(request);
 
         await _sender.DidNotReceive().SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>());
         await _ctx.DidNotReceive().Publish(Arg.Any<AssignmentEmailSentIntegrationEvent>(), Arg.Any<CancellationToken>());
+        await _ctx.Received(1).Publish(
+            Arg.Is<AssignmentEmailFailedIntegrationEvent>(e => e.EmailId == request.EmailId && e.Reason == "บริษัทไม่มีอีเมลผู้รับ"),
+            Arg.Any<CancellationToken>());
+        await _notifications.Received(1).SendNotificationToUserAsync(
+            "P5229", Arg.Any<string>(), Arg.Is<string>(m => m.EndsWith("ไม่สำเร็จ: บริษัทไม่มีอีเมลผู้รับ")),
+            NotificationType.AssignmentEmailFailed, Arg.Any<string?>(), Arg.Any<Dictionary<string, object>?>());
     }
 }

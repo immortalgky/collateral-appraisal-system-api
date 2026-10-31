@@ -42,6 +42,7 @@ public class ExtoAssignmentEmailDispatchTests
     public ExtoAssignmentEmailDispatchTests()
     {
         _appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "Initial", "Normal", DateTime.Now);
+        _appraisal.SetAppraisalNumber("69042630");
         _appraisal.AssignAdmin();
         _assignment = _appraisal.Assignments.Single();
         // What AssignAppraisalCommandHandler recorded before the workflow landed on int-offline-book-keyin.
@@ -97,6 +98,8 @@ public class ExtoAssignmentEmailDispatchTests
         Assert.Equal("<p>เรียน บริษัท แอคมี จำกัด</p><p>ผู้รับผิดชอบ : สมชาย ใจดี</p>", sent.HtmlBody);
         Assert.Equal([new EmailAttachmentRefData("document", DocumentId.ToString())], sent.AttachmentRefs);
         Assert.Equal("P5229", sent.AssignedBy);
+        Assert.Equal("69042630", sent.AppraisalNumber); // for the failure notice (#624)
+        Assert.Equal("บริษัท แอคมี จำกัด", sent.CompanyName);
         // The row holds what was sent, Queued (never picked again) until Notification confirms.
         Assert.Equal(sent.HtmlBody, row.BodyHtml);
         Assert.Equal(AssignmentEmailStatus.Queued, row.Status);

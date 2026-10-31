@@ -77,6 +77,7 @@ public static class NotificationModule
         services.AddTransient<IEmailAttachmentResolver, DocumentAttachmentResolver>();
         services.AddTransient<IEmailAttachmentResolver, ReportAttachmentResolver>();
         services.AddTransient<EmailAttachmentAssembler>();
+        services.AddTransient<Application.EventHandlers.AssignmentEmailFailureNotifier>();
 
         // Send-log writer: best-effort persistence of every email attempt outcome.
         services.AddScoped<IEmailSendLogWriter, EmailSendLogWriter>();

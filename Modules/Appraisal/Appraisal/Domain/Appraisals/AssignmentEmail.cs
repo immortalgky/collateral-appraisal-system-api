@@ -27,6 +27,9 @@ public class AssignmentEmail : Entity<Guid>
 
     public List<AssignmentEmailAttachment> Attachments { get; private set; } = [];
 
+    /// <summary>Why the send failed, as Notification reported it (#624). The time is <c>UpdatedAt</c>.</summary>
+    public string? FailureReason { get; private set; }
+
     private AssignmentEmail()
     {
         // For EF Core
@@ -86,6 +89,14 @@ public class AssignmentEmail : Entity<Guid>
     {
         if (Status == AssignmentEmailStatus.Queued)
             Status = AssignmentEmailStatus.Sent;
+    }
+
+    /// <summary>The send gave up. Only a Queued email becomes Failed, so a redelivered report changes nothing.</summary>
+    public void MarkFailed(string reason)
+    {
+        if (Status != AssignmentEmailStatus.Queued) return;
+        Status = AssignmentEmailStatus.Failed;
+        FailureReason = reason;
     }
 }
 

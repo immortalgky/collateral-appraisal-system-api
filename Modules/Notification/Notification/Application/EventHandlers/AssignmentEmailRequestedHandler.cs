@@ -17,6 +17,7 @@ public sealed class AssignmentEmailRequestedHandler(
     IEmailTemplateRenderer templateRenderer,
     EmailAttachmentAssembler attachmentAssembler,
     InboxGuard<NotificationDbContext> inboxGuard,
+    AssignmentEmailFailureNotifier failureNotifier,
     ILogger<AssignmentEmailRequestedHandler> logger)
     : IConsumer<AssignmentEmailRequestedIntegrationEvent>
 {
@@ -32,10 +33,7 @@ public sealed class AssignmentEmailRequestedHandler(
             // The company is the addressee: without a To, a mail to the Cc'd bank staff alone is not this email.
             if (to.Count == 0)
             {
-                // ponytail: logged only; the row stays Queued until #624 reports failures.
-                logger.LogWarning(
-                    "Assignment email {EmailId} for appraisal {AppraisalId} has no To (the company has no email). Not sent",
-                    msg.EmailId, msg.AppraisalId);
+                await failureNotifier.NotifyAsync(context, msg, "บริษัทไม่มีอีเมลผู้รับ", ct);
                 return;
             }
 

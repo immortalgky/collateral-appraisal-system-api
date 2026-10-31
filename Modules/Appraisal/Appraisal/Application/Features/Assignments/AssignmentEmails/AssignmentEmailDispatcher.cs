@@ -17,8 +17,10 @@ public class AssignmentEmailDispatcher(
     IUserLookupService userLookup,
     IIntegrationEventOutbox outbox)
 {
+    /// <param name="appraisalNumber">App No., carried for the failure notice (#624).</param>
     /// <param name="keyerUserId">The keyer the case was handed to, a username.</param>
-    public async Task QueueExtoAsync(AppraisalAssignment assignment, string? keyerUserId, CancellationToken ct)
+    public async Task QueueExtoAsync(
+        AppraisalAssignment assignment, string? appraisalNumber, string? keyerUserId, CancellationToken ct)
     {
         var appraisalId = assignment.AppraisalId;
         var email = await emails.GetLatestUnsentAsync(assignment.Id, ct);
@@ -40,7 +42,8 @@ public class AssignmentEmailDispatcher(
             await emails.AddAsync(email, ct);
         }
 
-        email.Queue(company is null ? null : AssignmentEmailComposer.DisplayName(company), responsible);
+        var companyName = company is null ? null : AssignmentEmailComposer.DisplayName(company);
+        email.Queue(companyName, responsible);
 
         outbox.Publish(new AssignmentEmailRequestedIntegrationEvent
         {
@@ -55,7 +58,9 @@ public class AssignmentEmailDispatcher(
             HtmlBody = email.BodyHtml,
             AttachmentRefs = email.Attachments
                 .Select(a => new EmailAttachmentRefData("document", a.DocumentId.ToString())).ToList(),
-            AssignedBy = assignment.AssignedBy
+            AssignedBy = assignment.AssignedBy,
+            AppraisalNumber = appraisalNumber,
+            CompanyName = companyName
         }, correlationId: appraisalId.ToString());
     }
 
