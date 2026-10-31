@@ -26,17 +26,15 @@ public class ResendAssignmentEmailCommandHandler(
         var @case = await caseReader.GetCaseAsync(command.AppraisalId, ct)
                     ?? throw new AppraisalNotFoundException(command.AppraisalId);
 
-        if (@case.AppraisalStatus == AppraisalStatus.Completed.Code || @case.AppraisalStatus == AppraisalStatus.Cancelled.Code)
+        if (@case.IsClosed)
             throw new BadRequestException("The case is closed, so the email to the company can no longer be sent.");
 
-        if (@case.AssignmentId is not { } assignmentId
-            || @case.AssignmentType != AssignmentType.External.Code
-            || @case.AssignmentStatus == AssignmentStatus.Pending.Code
-            || !Guid.TryParse(@case.AssigneeCompanyId, out _))
+        if (!@case.IsAssignedToCompany)
             throw new BadRequestException("The case is not assigned to an external company, so there is no one to email.");
+        var assignmentId = @case.AssignmentId!.Value;
 
         if ((await emails.GetLatestUnsentAsync(assignmentId, ct))?.Status == AssignmentEmailStatus.Pending)
-            throw new BadRequestException("The email of this assignment has not been sent yet. It goes out when the case reaches the company.");
+            throw new BadRequestException("The email chosen at assignment has not been sent yet, so it cannot be sent again.");
 
         var input = command.Email;
         var attachments = await AssignmentEmailAttachments.CheckAsync(input.Attachments, caseReader, configuration, ct);
@@ -47,6 +45,10 @@ public class ResendAssignmentEmailCommandHandler(
         var responsible = @case.IsOffline ? @case.KeyerName : @case.FollowupName;
 
         await dispatcher.QueueAsync(email, @case.AssigneeCompanyId, responsible, sentBy, ct);
+        // The admin is waiting for an answer, so a send that would reach nobody is refused rather than left Queued.
+        // Nothing is saved: the row was never added and the outbox message is dropped with the request.
+        if (email.SentTo.Count == 0)
+            throw new BadRequestException("The company has no email address. Add a To address to send it.");
         await emails.AddAsync(email, ct);
         await unitOfWork.SaveChangesAsync(ct);
 

@@ -35,7 +35,7 @@ public class AssignmentEmail : Entity<Guid>
 
     public List<string> SentCc { get; private set; } = [];
 
-    /// <summary>When the gateway accepted it.</summary>
+    /// <summary>When Notification's confirmation that the gateway accepted it arrived.</summary>
     public DateTime? SentAt { get; private set; }
 
     private AssignmentEmail()

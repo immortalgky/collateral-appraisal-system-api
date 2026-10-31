@@ -82,7 +82,13 @@ public class GetAssignmentEmailSentQueryHandler(
         AssignmentEmailAccess.EnsureAllowed(currentUser);
 
         var email = await dbContext.AssignmentEmails.AsNoTracking()
-                        .FirstOrDefaultAsync(e => e.Id == query.EmailId && e.AppraisalId == query.AppraisalId, ct)
+                        .Where(e => e.Id == query.EmailId && e.AppraisalId == query.AppraisalId)
+                        .Select(e => new
+                        {
+                            e.Id, e.IsResend, e.Status, e.CreatedBy, e.CreatedAt, e.SentAt, e.SentTo, e.SentCc,
+                            e.ExtraTo, e.Cc, e.Subject, e.BodyHtml, e.Attachments
+                        })
+                        .FirstOrDefaultAsync(ct)
                     ?? throw new NotFoundException("AssignmentEmail", query.EmailId);
 
         // Names come from document.Documents; a document deleted since is still listed, without its name.

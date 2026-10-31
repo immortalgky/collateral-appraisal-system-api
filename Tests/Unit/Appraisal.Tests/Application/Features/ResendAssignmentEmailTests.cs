@@ -63,14 +63,16 @@ public class ResendAssignmentEmailTests
         "<p>เรียน {{company}}</p><p>ผู้รับผิดชอบ : {{responsible}}</p>",
         [new AssignmentEmailAttachmentInput(DocumentId, AssignmentEmailAttachmentSources.Request)]);
 
-    private Task<ResendAssignmentEmailResult> ResendAsync()
+    private ResendAssignmentEmailCommandHandler Handler()
     {
         var composer = new AssignmentEmailComposer(_caseReader, _companies, Substitute.For<ISender>(), _configuration);
         var dispatcher = new AssignmentEmailDispatcher(
             _emails, composer, _companies, Substitute.For<IUserLookupService>(), _outbox);
-        return new ResendAssignmentEmailCommandHandler(_user, _caseReader, _emails, dispatcher, _configuration, _uow)
-            .Handle(new ResendAssignmentEmailCommand(AppraisalId, Edited()), CancellationToken.None);
+        return new ResendAssignmentEmailCommandHandler(_user, _caseReader, _emails, dispatcher, _configuration, _uow);
     }
+
+    private Task<ResendAssignmentEmailResult> ResendAsync() =>
+        Handler().Handle(new ResendAssignmentEmailCommand(AppraisalId, Edited()), CancellationToken.None);
 
     private AssignmentEmailRequestedIntegrationEvent? Published() =>
         _outbox.ReceivedCalls()
@@ -155,6 +157,20 @@ public class ResendAssignmentEmailTests
         await Assert.ThrowsAsync<BadRequestException>(ResendAsync);
 
         await AssertNothingSentAsync();
+    }
+
+    [Fact]
+    public async Task A_resend_that_would_reach_nobody_is_refused()
+    {
+        _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>())
+            .Returns(new CompanyLookupDto(CompanyId, "Acme Appraisal", null, true, null, "บริษัท แอคมี จำกัด"));
+        var handler = Handler();
+
+        await Assert.ThrowsAsync<BadRequestException>(() => handler.Handle(
+            new ResendAssignmentEmailCommand(AppraisalId, Edited() with { ExtraTo = [] }), CancellationToken.None));
+
+        await _emails.DidNotReceive().AddAsync(Arg.Any<AssignmentEmail>(), Arg.Any<CancellationToken>());
+        await _uow.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]

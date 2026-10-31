@@ -19,7 +19,7 @@ public record AssignmentEmailRequestedIntegrationEvent : IntegrationEvent
     public string HtmlBody { get; init; } = default!;
     public IReadOnlyList<EmailAttachmentRefData> AttachmentRefs { get; init; } = [];
 
-    /// <summary>The admin who assigned the case (bank code), for the failure notice.</summary>
+    /// <summary>For the failure notice (bank code): the admin who assigned the case, or who pressed ส่งอีกครั้ง.</summary>
     public string? AssignedBy { get; init; }
 }
 

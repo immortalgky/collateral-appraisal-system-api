@@ -24,6 +24,16 @@ public record AssignmentEmailCase(
 {
     /// <summary>EXTO: the bank engaged the company off-system.</summary>
     public bool IsOffline => AppraisalAssignment.IsOfflineMethod(AssignmentMethod);
+
+    /// <summary>Completed or cancelled: nothing more is emailed to the company.</summary>
+    public bool IsClosed => AppraisalStatus == Domain.Appraisals.AppraisalStatus.Completed.Code
+                            || AppraisalStatus == Domain.Appraisals.AppraisalStatus.Cancelled.Code;
+
+    /// <summary>The current assignment was handed to an external company (EXT / EXTO): there is someone to email.</summary>
+    public bool IsAssignedToCompany => AssignmentId is not null
+                                       && AssignmentType == Domain.Appraisals.AssignmentType.External.Code
+                                       && AssignmentStatus != Domain.Appraisals.AssignmentStatus.Pending.Code
+                                       && Guid.TryParse(AssigneeCompanyId, out _);
 }
 
 public record AssignmentEmailDocument(Guid Id, string? FileName, long FileSizeBytes);
