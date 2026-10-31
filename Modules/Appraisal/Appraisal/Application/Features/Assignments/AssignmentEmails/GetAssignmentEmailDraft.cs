@@ -32,10 +32,9 @@ public class GetAssignmentEmailDraftQueryHandler(
             .AsNoTracking()
             .FirstOrDefaultAsync(e => e.AppraisalId == query.AppraisalId && e.Status == AssignmentEmailStatus.Draft,
                 cancellationToken);
-        // A stale draft (reassigned, or another company) is not shown; the next save takes the row over.
-        if (saved is not null && !saved.IsFor(@case.AssignmentId, @case.AssigneeCompanyId))
-            saved = null;
-        if (saved is not null)
+        // A stale draft (reassigned, or another company) is not shown: the template is, and the next save takes
+        // the row over.
+        if (saved is not null && saved.IsFor(@case.AssignmentId, @case.AssigneeCompanyId, @case.IsOffline))
         {
             var documents = (await caseReader.GetDocumentsAsync(
                     saved.Attachments.Select(a => a.DocumentId).ToList(), cancellationToken))
@@ -60,9 +59,7 @@ public class GetAssignmentEmailDraftQueryHandler(
 
         // EXTO (method Offline): the keyer is the bank's responsible person. EXT: the follow-up officer, known only
         // when the admin picked one by hand; อัตโนมัติ leaves the placeholder for the send to fill.
-        var isOffline = string.Equals(
-            @case.AssignmentMethod, AppraisalAssignment.OfflineAssignmentMethod, StringComparison.OrdinalIgnoreCase);
-        var responsible = isOffline
+        var responsible = @case.IsOffline
             ? @case.KeyerName
             : string.Equals(@case.FollowupMethod, AssignmentDefaultValues.MethodManual, StringComparison.OrdinalIgnoreCase) ? @case.FollowupName : null;
 
@@ -80,7 +77,7 @@ public class GetAssignmentEmailDraftQueryHandler(
             responsible,
             @case.Remark);
 
-        List<string> cc = isOffline
+        List<string> cc = @case.IsOffline
             ? [AssignmentEmailCcRoles.IntAdminAll, AssignmentEmailCcRoles.Keyer, AssignmentEmailCcRoles.KeyerSupervisor]
             : [AssignmentEmailCcRoles.IntAdminAll, AssignmentEmailCcRoles.FollowupStaff, AssignmentEmailCcRoles.FollowupSupervisor];
 

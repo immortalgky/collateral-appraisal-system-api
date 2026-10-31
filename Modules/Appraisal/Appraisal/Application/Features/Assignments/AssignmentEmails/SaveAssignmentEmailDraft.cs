@@ -41,6 +41,7 @@ public class SaveAssignmentEmailDraftCommandHandler(
         draft.UpdateDraft(
             @case.AssignmentId,
             @case.AssigneeCompanyId,
+            @case.IsOffline,
             command.ExtraTo,
             command.Cc,
             command.Subject,
@@ -76,7 +77,7 @@ public class SaveAssignmentEmailDraftCommandValidator : AbstractValidator<SaveAs
         // A line break (control characters, U+2028/U+2029) would end the header at send, or inject one: refused now.
         RuleFor(c => c.Subject).NotEmpty().MaximumLength(500)
             .Must(s => s is null || !s.Any(ch => char.IsControl(ch) || ch is '\u2028' or '\u2029'))
-            .WithMessage("The subject must be a single line.");
+            .WithMessage("The subject must be a single line, without tabs or other control characters.");
         RuleFor(c => c.BodyHtml).NotEmpty();
         RuleForEach(c => c.ExtraTo).Must(IsPlainAddress)
             .WithMessage("'{PropertyValue}' is not a valid email address.");

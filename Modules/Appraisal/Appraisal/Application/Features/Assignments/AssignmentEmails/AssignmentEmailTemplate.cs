@@ -24,10 +24,14 @@ public static class AssignmentEmailTemplate
         string? Responsible,
         string? Remark);
 
-    // One line, single-spaced: a header cannot carry a line break, and a missing value leaves no double space.
-    public static string Subject(Values v) =>
-        string.Join(' ', $"ขอนำส่งงานประเมิน ลูกค้าราย {v.CustomerName} {v.AppraisalNumber}"
-            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    // One line, single-spaced and free of control characters, so the subject it writes always passes save
+    // validation: a header cannot carry a line break, and a missing value leaves no double space.
+    public static string Subject(Values v)
+    {
+        var raw = $"ขอนำส่งงานประเมิน ลูกค้าราย {v.CustomerName} {v.AppraisalNumber}";
+        var printable = new string(raw.Select(c => char.IsControl(c) ? ' ' : c).ToArray());
+        return string.Join(' ', printable.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    }
 
     public static string BodyHtml(Values v) =>
         $"<p>เรียน {Encode(v.Company) ?? CompanyPlaceholder}</p>" +

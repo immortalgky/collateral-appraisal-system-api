@@ -176,6 +176,15 @@ public class AssignmentEmailDraftTests
     }
 
     [Fact]
+    public async Task The_template_subject_drops_control_characters_so_it_can_be_saved()
+    {
+        var draft = await GetAsync(Exto() with { CustomerName = "นายสมศักดิ์\u0000\u001b มั่นคง" });
+
+        Assert.Equal("ขอนำส่งงานประเมิน ลูกค้าราย นายสมศักดิ์ มั่นคง 69042630", draft.Subject);
+        Assert.Empty(Errors(Save() with { Subject = draft.Subject }));
+    }
+
+    [Fact]
     public async Task A_company_with_a_blank_thai_name_is_greeted_by_its_name()
     {
         _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>())
@@ -321,6 +330,32 @@ public class AssignmentEmailDraftTests
         var draft = await GetAsync(Exto());
 
         Assert.NotNull(draft.Id);
+    }
+
+    [Fact]
+    public async Task A_draft_saved_for_a_company_is_not_shown_once_the_company_is_cleared()
+    {
+        CaseExists();
+        Documents(new(DocA, "deed.pdf", 1_000), new(DocB, "map.png", 2_000));
+        await SaveAsync(Save());
+
+        var draft = await GetAsync(Exto() with { AssigneeCompanyId = null });
+
+        Assert.Null(draft.Id);
+    }
+
+    [Fact]
+    public async Task A_draft_written_for_ext_is_not_shown_once_the_case_is_exto()
+    {
+        _reader.GetCaseAsync(AppraisalId, Arg.Any<CancellationToken>())
+            .Returns(Exto() with { AssignmentMethod = "RoundRobin", AssigneeCompanyId = null });
+        Documents(new(DocA, "deed.pdf", 1_000), new(DocB, "map.png", 2_000));
+        await SaveAsync(Save());
+
+        var draft = await GetAsync(Exto());
+
+        Assert.Null(draft.Id);
+        Assert.Equal(["IntAdminAll", "Keyer", "KeyerSupervisor"], draft.Cc);
     }
 
     [Fact]

@@ -14,6 +14,9 @@ public class AssignmentEmail : Entity<Guid>
 
     /// <summary>The assignment's company when the draft was saved; null while none was picked. See <see cref="IsFor"/>.</summary>
     public string? CompanyId { get; private set; }
+
+    /// <summary>Written for an off-system (EXTO) engagement: keyer as the responsible person, Keyer Cc roles.</summary>
+    public bool IsOffline { get; private set; }
     public string Status { get; private set; } = AssignmentEmailStatus.Draft;
     public List<string> ExtraTo { get; private set; } = [];
 
@@ -36,18 +39,20 @@ public class AssignmentEmail : Entity<Guid>
         new() { Id = Guid.CreateVersion7(), AppraisalId = appraisalId };
 
     /// <summary>
-    /// Whether this email still describes the case: written for the same assignment, and for the same company unless
-    /// none was picked when it was saved (its body then greets {{company}}, which fits whoever is picked).
-    /// A case that was reassigned, or switched to another company, gets the template instead.
+    /// Whether this email still describes the case: written for the same assignment and the same path (EXT / EXTO),
+    /// and for the same company unless none was picked when it was saved (its body then greets {{company}}, which
+    /// fits whoever is picked). A case reassigned, switched EXT↔EXTO or to another company gets the template instead.
     /// </summary>
-    public bool IsFor(Guid? assignmentId, string? companyId) =>
+    public bool IsFor(Guid? assignmentId, string? companyId, bool isOffline) =>
         AssignmentId == assignmentId
+        && IsOffline == isOffline
         && (string.IsNullOrWhiteSpace(CompanyId)
             || (Guid.TryParse(CompanyId, out var saved) && Guid.TryParse(companyId, out var current) && saved == current));
 
     public void UpdateDraft(
         Guid? assignmentId,
         string? companyId,
+        bool isOffline,
         IEnumerable<string> extraTo,
         IEnumerable<string> cc,
         string subject,
@@ -59,6 +64,7 @@ public class AssignmentEmail : Entity<Guid>
 
         AssignmentId = assignmentId;
         CompanyId = companyId;
+        IsOffline = isOffline;
         ExtraTo = extraTo.ToList();
         Cc = cc.ToList();
         Subject = subject;

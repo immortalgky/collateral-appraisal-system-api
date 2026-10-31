@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Appraisal.infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    [Migration("20261030180905_AddAssignmentEmails")]
+    [Migration("20261031033255_AddAssignmentEmails")]
     partial class AddAssignmentEmails
     {
         /// <inheritdoc />
@@ -1674,6 +1674,9 @@ namespace Appraisal.infrastructure.Migrations
                     b.PrimitiveCollection<string>("ExtraTo")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsOffline")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Status")
                         .IsRequired()

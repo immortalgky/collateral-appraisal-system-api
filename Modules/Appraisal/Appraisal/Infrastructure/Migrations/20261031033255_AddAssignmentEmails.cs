@@ -20,6 +20,7 @@ namespace Appraisal.infrastructure.Migrations
                     AppraisalId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     AssignmentId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     CompanyId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    IsOffline = table.Column<bool>(type: "bit", nullable: false),
                     Status = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
                     ExtraTo = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Cc = table.Column<string>(type: "nvarchar(max)", nullable: false),
