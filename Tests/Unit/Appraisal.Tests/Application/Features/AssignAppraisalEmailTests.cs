@@ -312,41 +312,37 @@ public class AssignAppraisalEmailTests
         Assert.Equal("P5229", _appraisal.Assignments.Single().AssignedBy);
     }
 
-    private AssignmentEmail EarlierUnsentRow()
-    {
-        var earlier = AssignmentEmail.NotSent(_appraisal.Id, _appraisal.Assignments.Single().Id);
-        _emails.GetUnsentForAssignmentAsync(earlier.AssignmentId, Arg.Any<CancellationToken>()).Returns([earlier]);
-        return earlier;
-    }
-
-    private Task Deleted(AssignmentEmail row) =>
-        _emails.Received(1).DeleteRangeAsync(
-            Arg.Is<IEnumerable<AssignmentEmail>>(rows => rows.Single() == row), Arg.Any<CancellationToken>());
+    private void ResumeFails() =>
+        _relay.ResumeWorkflowAsync(default, default!, default!, default!, default, default)
+            .ReturnsForAnyArgs<Task>(_ => throw new BadRequestException("No company could be selected."));
 
     [Fact]
-    public async Task Assigning_again_replaces_the_earlier_unsent_row()
+    public async Task A_failed_resume_removes_the_email_it_wrote_and_reports_the_original_error()
     {
-        var earlier = EarlierUnsentRow();
+        ResumeFails();
 
-        await AssignAsync("EXT", Email(), sendEmail: true);
+        var error = await Assert.ThrowsAsync<BadRequestException>(() => AssignAsync("EXT", Email(), sendEmail: true));
 
-        await Deleted(earlier);
-        Assert.Equal(AssignmentEmailStatus.Pending, Assert.Single(_added).Status);
+        Assert.Equal("No company could be selected.", error.Message);
+        await _emails.Received(1).DeleteNowAsync(Assert.Single(_added).Id, Arg.Any<CancellationToken>());
     }
 
-    [Theory]
-    [InlineData("INT", null)]
-    [InlineData("EXT", null)]
-    [InlineData("C", true)]
-    public async Task A_decision_without_an_email_still_drops_the_earlier_unsent_row(string decision, bool? sendEmail)
+    [Fact]
+    public async Task A_resume_that_stands_keeps_the_email()
     {
-        // Routed back (same assignment, Pending again) or a failed resume, then decided another way: the old
-        // email no longer describes the handover, so it must not be sent.
-        var earlier = EarlierUnsentRow();
+        await AssignAsync("EXTO", Email(), sendEmail: false);
 
-        await AssignAsync(decision, Email(), sendEmail);
+        Assert.Single(_added);
+        await _emails.DidNotReceiveWithAnyArgs().DeleteNowAsync(default, default);
+    }
 
-        await Deleted(earlier);
-        Assert.Empty(_added);
+    [Fact]
+    public async Task A_failed_resume_without_an_email_deletes_nothing()
+    {
+        ResumeFails();
+
+        await Assert.ThrowsAsync<BadRequestException>(() => AssignAsync("INT", Email(), sendEmail: true));
+
+        await _emails.DidNotReceiveWithAnyArgs().DeleteNowAsync(default, default);
     }
 }

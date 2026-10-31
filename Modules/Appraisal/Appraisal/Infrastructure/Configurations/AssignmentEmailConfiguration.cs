@@ -21,13 +21,5 @@ public class AssignmentEmailConfiguration : IEntityTypeConfiguration<AssignmentE
 
         // Read per appraisal (the slip's history).
         builder.HasIndex(e => e.AppraisalId);
-
-        // At most one unsent email per assignment: two assigns racing (double-click, two admins) cannot both leave
-        // one to send. Sent and Failed rows are not counted, so a resend can follow them. Same statuses as
-        // GetUnsentForAssignmentAsync.
-        builder.HasIndex(e => e.AssignmentId)
-            .IsUnique()
-            .HasFilter("[Status] IN ('Pending', 'NotSent')")
-            .HasDatabaseName("UX_AssignmentEmails_AssignmentId_Unsent");
     }
 }

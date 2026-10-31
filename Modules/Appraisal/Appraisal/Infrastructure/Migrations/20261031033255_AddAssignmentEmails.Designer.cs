@@ -1695,11 +1695,6 @@ namespace Appraisal.infrastructure.Migrations
 
                     b.HasIndex("AppraisalId");
 
-                    b.HasIndex("AssignmentId")
-                        .IsUnique()
-                        .HasDatabaseName("UX_AssignmentEmails_AssignmentId_Unsent")
-                        .HasFilter("[Status] IN ('Pending', 'NotSent')");
-
                     b.ToTable("AssignmentEmails", "appraisal");
                 });
 

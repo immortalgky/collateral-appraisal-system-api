@@ -123,16 +123,8 @@ public class AssignAppraisalCommandHandler(
             email = command.SendEmail == true
                 ? await EmailToSendAsync(command, pendingAssignment.Id, cancellationToken)
                 : AssignmentEmail.NotSent(command.AppraisalId, pendingAssignment.Id);
-        }
-
-        // An unsent row on this Pending assignment belongs to an earlier handover that did not stand: a resume that
-        // failed, or a route-back (which returns the same row to Pending). Whatever is decided now, that email no
-        // longer describes the case, so it is dropped; this decision's own email, if any, replaces it. Sent and
-        // Failed rows stay as history.
-        await emailRepository.DeleteRangeAsync(
-            await emailRepository.GetUnsentForAssignmentAsync(pendingAssignment.Id, cancellationToken), cancellationToken);
-        if (email is not null)
             await emailRepository.AddAsync(email, cancellationToken);
+        }
 
         // The admin's identity is only known here: the consumers that later call Assign() are workflow-driven, and
         // used to stamp "System". Recorded with the remark, in the same durable save before the resume.
@@ -214,13 +206,24 @@ public class AssignAppraisalCommandHandler(
             };
         }
 
-        await workflowRelayService.ResumeWorkflowAsync(
-            command.WorkflowInstanceId,
-            "appraisal-assignment",
-            assignedBy,
-            input,
-            overrides,
-            cancellationToken);
+        try
+        {
+            await workflowRelayService.ResumeWorkflowAsync(
+                command.WorkflowInstanceId,
+                "appraisal-assignment",
+                assignedBy,
+                input,
+                overrides,
+                cancellationToken);
+        }
+        catch when (email is not null)
+        {
+            // Nothing was assigned, so this attempt's email must not wait to be sent; a retry writes its own. Only
+            // rows of handovers that stood remain, kept as history (a route-back reuses the assignment row, so a
+            // re-assign adds a new email beside them). Not cancellable: the cleanup must run even if the request is.
+            await emailRepository.DeleteNowAsync(email.Id, CancellationToken.None);
+            throw;
+        }
 
         return new AssignAppraisalResult(pendingAssignment.Id);
     }
