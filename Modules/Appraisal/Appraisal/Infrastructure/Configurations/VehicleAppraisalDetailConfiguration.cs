@@ -17,12 +17,17 @@ public class VehicleAppraisalDetailConfiguration : IOwnedEntityConfiguration<App
         builder.Property(e => e.VehicleName).HasMaxLength(200);
         builder.Property(e => e.EngineNo).HasMaxLength(100);
         builder.Property(e => e.ChassisNo).HasMaxLength(100);
+        builder.Property(e => e.LicensePlateNumber).HasMaxLength(50);
         builder.Property(e => e.RegistrationNumber).HasMaxLength(50);
+        builder.Property(e => e.Color).HasMaxLength(10);
+        builder.Property(e => e.ColorOther).HasMaxLength(200);
 
         // Vehicle Specifications
         builder.Property(e => e.Brand).HasMaxLength(100);
         builder.Property(e => e.Model).HasMaxLength(100);
         builder.Property(e => e.CountryOfManufacture).HasMaxLength(100);
+        builder.Property(e => e.VehicleType).HasMaxLength(10);
+        builder.Property(e => e.VehicleTypeOther).HasMaxLength(200);
 
         // Purchase Info
         builder.Property(e => e.PurchasePrice).HasPrecision(18, 2);

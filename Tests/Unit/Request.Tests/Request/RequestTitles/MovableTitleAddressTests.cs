@@ -74,6 +74,31 @@ public class MovableTitleAddressTests
         Assert.NotNull(dto.DopaAddress.SubDistrict);
     }
 
+    [Fact]
+    public void Submitted_event_mapping_carries_movable_type_fields()
+    {
+        var vehicle = RequestSubmittedEventHandler.MapToDto(Title("10", null));
+        Assert.Equal("Car", vehicle.VehicleType);
+        Assert.Equal("REGIS-123", vehicle.VehicleRegistrationNumber);
+        Assert.Equal("Location", vehicle.VehicleLocation);
+        Assert.Equal("VIN123", vehicle.VIN);
+        Assert.Equal("ABC-1234", vehicle.LicensePlateNumber);
+
+        var vessel = RequestSubmittedEventHandler.MapToDto(Title("12", null));
+        Assert.Equal("Boat", vessel.VesselType);
+        Assert.Equal("Marina", vessel.VesselLocation);
+        Assert.Equal("HIN123", vessel.HIN);
+        Assert.Equal("VES-001", vessel.VesselRegistrationNumber);
+
+        var machine = RequestSubmittedEventHandler.MapToDto(Title("11", null));
+        Assert.True(machine.RegistrationStatus);
+        Assert.Equal("REG123", machine.RegistrationNumber);
+        Assert.Equal("Type", machine.MachineType);
+        Assert.Equal("Installed", machine.InstallationStatus);
+        Assert.Equal("INV123", machine.InvoiceNumber);
+        Assert.Equal(1, machine.NumberOfMachine);
+    }
+
     private static TitleImportValidator ImportValidator()
     {
         var parameters = Substitute.For<IParameterLookupService>();

@@ -13,6 +13,7 @@ public class VesselAppraisalDetail : Entity<Guid>
     public string? PropertyName { get; private set; }
     public string? VesselName { get; private set; }
     public string? EngineNo { get; private set; }
+    public string? HullNumber { get; private set; }
     public string? RegistrationNumber { get; private set; }
     public DateTime? RegistrationDate { get; private set; }
 
@@ -22,7 +23,10 @@ public class VesselAppraisalDetail : Entity<Guid>
     public int? YearOfManufacture { get; private set; }
     public string? PlaceOfManufacture { get; private set; }
     public string? VesselType { get; private set; }
+    public string? VesselTypeOther { get; private set; }
     public string? ClassOfVessel { get; private set; }
+    public string? EnginePower { get; private set; }
+    public decimal? NumberOfEngines { get; private set; }
 
     // Purchase Info
     public DateTime? PurchaseDate { get; private set; }
@@ -85,6 +89,7 @@ public class VesselAppraisalDetail : Entity<Guid>
             PropertyName = source.PropertyName,
             VesselName = source.VesselName,
             EngineNo = source.EngineNo,
+            HullNumber = source.HullNumber,
             RegistrationNumber = source.RegistrationNumber,
             RegistrationDate = source.RegistrationDate,
             Brand = source.Brand,
@@ -92,7 +97,10 @@ public class VesselAppraisalDetail : Entity<Guid>
             YearOfManufacture = source.YearOfManufacture,
             PlaceOfManufacture = source.PlaceOfManufacture,
             VesselType = source.VesselType,
+            VesselTypeOther = source.VesselTypeOther,
             ClassOfVessel = source.ClassOfVessel,
+            EnginePower = source.EnginePower,
+            NumberOfEngines = source.NumberOfEngines,
             PurchaseDate = source.PurchaseDate,
             PurchasePrice = source.PurchasePrice,
             EngineCapacity = source.EngineCapacity,
@@ -127,6 +135,7 @@ public class VesselAppraisalDetail : Entity<Guid>
         string? propertyName = null,
         string? vesselName = null,
         string? engineNo = null,
+        string? hullNumber = null,
         string? registrationNumber = null,
         DateTime? registrationDate = null,
         // Vessel Specifications
@@ -135,7 +144,10 @@ public class VesselAppraisalDetail : Entity<Guid>
         int? yearOfManufacture = null,
         string? placeOfManufacture = null,
         string? vesselType = null,
+        string? vesselTypeOther = null,
         string? classOfVessel = null,
+        string? enginePower = null,
+        decimal? numberOfEngines = null,
         // Purchase Info
         DateTime? purchaseDate = null,
         decimal? purchasePrice = null,
@@ -171,58 +183,62 @@ public class VesselAppraisalDetail : Entity<Guid>
         string? appraiserOpinion = null)
     {
         // Vessel Identification
-        if (propertyName is not null) PropertyName = propertyName;
-        if (vesselName is not null) VesselName = vesselName;
-        if (engineNo is not null) EngineNo = engineNo;
-        if (registrationNumber is not null) RegistrationNumber = registrationNumber;
-        if (registrationDate.HasValue) RegistrationDate = registrationDate.Value;
+        PropertyName = propertyName;
+        VesselName = vesselName;
+        EngineNo = engineNo;
+        HullNumber = hullNumber;
+        RegistrationNumber = registrationNumber;
+        RegistrationDate = registrationDate;
 
         // Vessel Specifications
-        if (brand is not null) Brand = brand;
-        if (model is not null) Model = model;
-        if (yearOfManufacture.HasValue) YearOfManufacture = yearOfManufacture.Value;
-        if (placeOfManufacture is not null) PlaceOfManufacture = placeOfManufacture;
-        if (vesselType is not null) VesselType = vesselType;
-        if (classOfVessel is not null) ClassOfVessel = classOfVessel;
+        Brand = brand;
+        Model = model;
+        YearOfManufacture = yearOfManufacture;
+        PlaceOfManufacture = placeOfManufacture;
+        VesselType = vesselType;
+        VesselTypeOther = vesselTypeOther;
+        ClassOfVessel = classOfVessel;
+        EnginePower = enginePower;
+        NumberOfEngines = numberOfEngines;
 
         // Purchase Info
-        if (purchaseDate.HasValue) PurchaseDate = purchaseDate.Value;
-        if (purchasePrice.HasValue) PurchasePrice = purchasePrice.Value;
+        PurchaseDate = purchaseDate;
+        PurchasePrice = purchasePrice;
 
         // Dimensions
-        if (engineCapacity is not null) EngineCapacity = engineCapacity;
-        if (width.HasValue) Width = width.Value;
-        if (length.HasValue) Length = length.Value;
-        if (height.HasValue) Height = height.Value;
-        if (grossTonnage.HasValue) GrossTonnage = grossTonnage.Value;
-        if (netTonnage.HasValue) NetTonnage = netTonnage.Value;
+        EngineCapacity = engineCapacity;
+        Width = width;
+        Length = length;
+        Height = height;
+        GrossTonnage = grossTonnage;
+        NetTonnage = netTonnage;
 
         // Energy
-        if (energyUse is not null) EnergyUse = energyUse;
-        if (energyUseRemark is not null) EnergyUseRemark = energyUseRemark;
+        EnergyUse = energyUse;
+        EnergyUseRemark = energyUseRemark;
 
         // Owner
-        if (ownerName is not null) OwnerName = ownerName;
+        OwnerName = ownerName;
         if (isOwnerVerified.HasValue) IsOwnerVerified = isOwnerVerified.Value;
 
         // Vessel Info
         if (canUse.HasValue) CanUse = canUse.Value;
-        if (formerName is not null) FormerName = formerName;
-        if (vesselCurrentName is not null) VesselCurrentName = vesselCurrentName;
-        if (location is not null) Location = location;
+        FormerName = formerName;
+        VesselCurrentName = vesselCurrentName;
+        Location = location;
 
         // Condition & Assessment
-        if (conditionUse is not null) ConditionUse = conditionUse;
-        if (vesselCondition is not null) VesselCondition = vesselCondition;
-        if (vesselAge.HasValue) VesselAge = vesselAge.Value;
-        if (vesselEfficiency is not null) VesselEfficiency = vesselEfficiency;
-        if (vesselTechnology is not null) VesselTechnology = vesselTechnology;
-        if (usePurpose is not null) UsePurpose = usePurpose;
-        if (vesselPart is not null) VesselPart = vesselPart;
+        ConditionUse = conditionUse;
+        VesselCondition = vesselCondition;
+        VesselAge = vesselAge;
+        VesselEfficiency = vesselEfficiency;
+        VesselTechnology = vesselTechnology;
+        UsePurpose = usePurpose;
+        VesselPart = vesselPart;
 
         // Appraiser Notes
-        if (remark is not null) Remark = remark;
-        if (other is not null) Other = other;
-        if (appraiserOpinion is not null) AppraiserOpinion = appraiserOpinion;
+        Remark = remark;
+        Other = other;
+        AppraiserOpinion = appraiserOpinion;
     }
 }

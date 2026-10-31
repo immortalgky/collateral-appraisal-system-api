@@ -20,6 +20,7 @@ public record UpdateMachineryPropertyCommand(
     bool? RegistrationStatus = null,
     string? InstallationStatus = null,
     string? MachineType = null,
+    string? MachineTypeOther = null,
     string? InvoiceNumber = null,
     bool? IsPriceCertified = null,
     // Machine Specifications
