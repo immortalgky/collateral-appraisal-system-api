@@ -53,22 +53,18 @@ public class GetAssignmentEmailHistoryQueryHandler(
         var rows = await dbContext.AssignmentEmails.AsNoTracking()
             .Where(e => e.AppraisalId == query.AppraisalId)
             .OrderByDescending(e => e.CreatedAt).ThenByDescending(e => e.Id)
-            .Select(e => new
-            {
-                e.Id, e.IsResend, e.Status, e.CreatedBy, e.CreatedAt, e.SentAt, e.SentTo,
-                CcCount = e.SentCc.Count, AttachmentCount = e.Attachments.Count
-            })
+            // Whole JSON columns, counted in memory: a few small rows per case, and no OPENJSON translation to rely on.
+            .Select(e => new { e.Id, e.IsResend, e.Status, e.CreatedBy, e.CreatedAt, e.SentAt, e.SentTo, e.SentCc, e.Attachments })
             .ToListAsync(ct);
 
-        var codes = rows.Select(r => r.CreatedBy).OfType<string>().Distinct().ToList();
-        var users = codes.Count == 0 ? new Dictionary<string, UserLookupDto>() : await userLookup.GetByUsernamesAsync(codes, ct);
+        var users = await userLookup.GetByUsernamesAsync(rows.Select(r => r.CreatedBy).OfType<string>().Distinct().ToList(), ct);
 
         return rows.Select(r => new AssignmentEmailHistoryItem(
             r.Id, r.IsResend, r.Status, r.CreatedBy,
             r.CreatedBy is not null && users.TryGetValue(r.CreatedBy, out var user)
                 ? $"{user.FirstName} {user.LastName}".Trim() is { Length: > 0 } name ? name : null
                 : null,
-            r.CreatedAt, r.SentAt, r.SentTo, r.CcCount, r.AttachmentCount)).ToList();
+            r.CreatedAt, r.SentAt, r.SentTo, r.SentCc.Count, r.Attachments.Count)).ToList();
     }
 }
 

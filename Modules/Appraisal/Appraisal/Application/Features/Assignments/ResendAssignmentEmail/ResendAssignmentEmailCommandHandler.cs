@@ -44,11 +44,8 @@ public class ResendAssignmentEmailCommandHandler(
         // ผู้รับผิดชอบ as the preview names it: EXTO's keyer, EXT's follow-up officer.
         var responsible = @case.IsOffline ? @case.KeyerName : @case.FollowupName;
 
-        await dispatcher.QueueAsync(email, @case.AssigneeCompanyId, responsible, sentBy, ct);
         // The admin is waiting for an answer, so a send that would reach nobody is refused rather than left Queued.
-        // Nothing is saved: the row was never added and the outbox message is dropped with the request.
-        if (email.SentTo.Count == 0)
-            throw new BadRequestException("The company has no email address. Add a To address to send it.");
+        await dispatcher.QueueAsync(email, @case.AssigneeCompanyId, responsible, sentBy, ct, refuseWithoutTo: true);
         await emails.AddAsync(email, ct);
         await unitOfWork.SaveChangesAsync(ct);
 

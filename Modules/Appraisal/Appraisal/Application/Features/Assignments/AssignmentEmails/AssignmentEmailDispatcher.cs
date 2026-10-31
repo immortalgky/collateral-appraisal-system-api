@@ -43,8 +43,15 @@ public class AssignmentEmailDispatcher(
     /// sender (outbox): the EXTO handover and a resend from the slip (#623). The company is read before the email
     /// changes, so a failed read leaves nothing half-queued.
     /// </summary>
+    /// <param name="refuseWithoutTo">A resend: an email that would reach nobody is a 400, before anything is queued.
+    /// The handover still hands it over, so the failure is reported there (#621/#624).</param>
     public async Task QueueAsync(
-        AssignmentEmail email, string? assigneeCompanyId, string? responsible, string? assignedBy, CancellationToken ct)
+        AssignmentEmail email,
+        string? assigneeCompanyId,
+        string? responsible,
+        string? assignedBy,
+        CancellationToken ct,
+        bool refuseWithoutTo = false)
     {
         var company = Guid.TryParse(assigneeCompanyId, out var companyId)
             ? await companyLookup.GetByIdAsync(companyId, ct)
@@ -55,6 +62,8 @@ public class AssignmentEmailDispatcher(
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         // ponytail: role tokens are dropped until #621 expands them to addresses.
         var cc = email.Cc.Where(c => !AssignmentEmailCcRoles.All.Contains(c)).ToList();
+        if (refuseWithoutTo && to.Count == 0)
+            throw new BadRequestException("The company has no email address. Add a To address to send it.");
 
         email.Queue(company is null ? null : AssignmentEmailComposer.DisplayName(company), responsible, to, cc);
 

@@ -169,8 +169,8 @@ public class ResendAssignmentEmailTests
         await Assert.ThrowsAsync<BadRequestException>(() => handler.Handle(
             new ResendAssignmentEmailCommand(AppraisalId, Edited() with { ExtraTo = [] }), CancellationToken.None));
 
-        await _emails.DidNotReceive().AddAsync(Arg.Any<AssignmentEmail>(), Arg.Any<CancellationToken>());
-        await _uow.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+        // Refused before the outbox: a later save in the same scope must have nothing to commit.
+        await AssertNothingSentAsync();
     }
 
     [Fact]
