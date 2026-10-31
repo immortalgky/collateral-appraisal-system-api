@@ -1646,7 +1646,7 @@ namespace Appraisal.infrastructure.Migrations
                     b.Property<Guid>("AppraisalId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("AssignmentId")
+                    b.Property<Guid>("AssignmentId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("BodyHtml")
@@ -1656,10 +1656,6 @@ namespace Appraisal.infrastructure.Migrations
                     b.PrimitiveCollection<string>("Cc")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("CompanyId")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -1674,9 +1670,6 @@ namespace Appraisal.infrastructure.Migrations
                     b.PrimitiveCollection<string>("ExtraTo")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsOffline")
-                        .HasColumnType("bit");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1700,10 +1693,9 @@ namespace Appraisal.infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AppraisalId")
-                        .IsUnique()
-                        .HasDatabaseName("UX_AssignmentEmails_AppraisalId_Draft")
-                        .HasFilter("[Status] = 'Draft'");
+                    b.HasIndex("AppraisalId");
+
+                    b.HasIndex("AssignmentId");
 
                     b.ToTable("AssignmentEmails", "appraisal");
                 });

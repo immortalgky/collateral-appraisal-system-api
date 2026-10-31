@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+using Appraisal.Application.Features.Assignments.AssignmentEmails;
 using Appraisal.Application.Features.Assignments.AssignAppraisal;
 using Appraisal.Application.Features.Fees.GetFeePreview;
 using Appraisal.Application.Features.Quotations.AutoAssign;
@@ -58,7 +60,8 @@ public class AssignAppraisalQuotationGuardTests
     private AssignAppraisalCommandHandler Handler()
     {
         _appraisals.GetByIdWithAllDataAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(_appraisal);
-        return new AssignAppraisalCommandHandler(_appraisals, Substitute.For<IAppraisalUnitOfWork>(), _relay, _quotations, _ownership, _sender, _user, _companies);
+        return new AssignAppraisalCommandHandler(_appraisals, Substitute.For<IAppraisalUnitOfWork>(), _relay, _quotations, _ownership, _sender, _user, _companies,
+                Substitute.For<IAssignmentEmailRepository>(), Substitute.For<IAssignmentEmailCaseReader>(), Substitute.For<IConfiguration>());
     }
 
     // company: omitted -> the winner's id; pass null / "" / garbage explicitly to send exactly that.
@@ -93,7 +96,8 @@ public class AssignAppraisalQuotationGuardTests
                 assignedByWhenResumed = _appraisal.Assignments.Single().AssignedBy;
                 return Task.CompletedTask;
             });
-        var handler = new AssignAppraisalCommandHandler(_appraisals, uow, _relay, _quotations, _ownership, _sender, _user, _companies);
+        var handler = new AssignAppraisalCommandHandler(_appraisals, uow, _relay, _quotations, _ownership, _sender, _user, _companies,
+                Substitute.For<IAssignmentEmailRepository>(), Substitute.For<IAssignmentEmailCaseReader>(), Substitute.For<IConfiguration>());
         _user.UserCode.Returns("P5229");
 
         // The authenticated user is who is recorded, and who completes the task.

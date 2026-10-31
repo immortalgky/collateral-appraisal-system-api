@@ -16,7 +16,6 @@ public class AssignmentEmailCaseReader(ISqlConnectionFactory connectionFactory) 
                                    rd.ContactPersonName                              AS ContactName,
                                    rd.ContactPersonPhone                             AS ContactPhone,
                                    pm.Description                                    AS FeePaymentText,
-                                   asg.Id                                            AS AssignmentId,
                                    asg.AssignmentMethod,
                                    asg.AssigneeCompanyId,
                                    NULLIF(LTRIM(RTRIM(CONCAT(NULLIF(ku.FirstName, N''), N' ', NULLIF(ku.LastName, N'')))), N'')
