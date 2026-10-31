@@ -1,0 +1,55 @@
+using Appraisal.Application.Features.Assignments.AssignmentEmails;
+using Appraisal.Infrastructure;
+
+namespace Appraisal.Application.Features.Assignments.ResendAssignmentEmail;
+
+/// <summary>
+/// Sends the email to the company of the case's current assignment again: a new row (IsResend) queued and requested in
+/// one save, through the same pipeline as the first send. Allowed until the case is closed, and never while the
+/// assignment's own email still waits for its handover (the company would get it twice).
+/// </summary>
+public class ResendAssignmentEmailCommandHandler(
+    ICurrentUserService currentUser,
+    IAssignmentEmailCaseReader caseReader,
+    IAssignmentEmailRepository emails,
+    AssignmentEmailDispatcher dispatcher,
+    IConfiguration configuration,
+    IAppraisalUnitOfWork unitOfWork) : ICommandHandler<ResendAssignmentEmailCommand, ResendAssignmentEmailResult>
+{
+    public async Task<ResendAssignmentEmailResult> Handle(ResendAssignmentEmailCommand command, CancellationToken ct)
+    {
+        AssignmentEmailAccess.EnsureAllowed(currentUser);
+        var sentBy = currentUser.UserCode?.Trim();
+        if (string.IsNullOrWhiteSpace(sentBy))
+            throw new ForbiddenException("The current user could not be determined, so the email cannot be sent. Sign in again.");
+
+        var @case = await caseReader.GetCaseAsync(command.AppraisalId, ct)
+                    ?? throw new AppraisalNotFoundException(command.AppraisalId);
+
+        if (@case.AppraisalStatus == AppraisalStatus.Completed.Code || @case.AppraisalStatus == AppraisalStatus.Cancelled.Code)
+            throw new BadRequestException("The case is closed, so the email to the company can no longer be sent.");
+
+        if (@case.AssignmentId is not { } assignmentId
+            || @case.AssignmentType != AssignmentType.External.Code
+            || @case.AssignmentStatus == AssignmentStatus.Pending.Code
+            || !Guid.TryParse(@case.AssigneeCompanyId, out _))
+            throw new BadRequestException("The case is not assigned to an external company, so there is no one to email.");
+
+        if ((await emails.GetLatestUnsentAsync(assignmentId, ct))?.Status == AssignmentEmailStatus.Pending)
+            throw new BadRequestException("The email of this assignment has not been sent yet. It goes out when the case reaches the company.");
+
+        var input = command.Email;
+        var attachments = await AssignmentEmailAttachments.CheckAsync(input.Attachments, caseReader, configuration, ct);
+
+        var email = AssignmentEmail.Resend(
+            command.AppraisalId, assignmentId, input.ExtraTo ?? [], input.Cc ?? [], input.Subject, input.BodyHtml, attachments);
+        // ผู้รับผิดชอบ as the preview names it: EXTO's keyer, EXT's follow-up officer.
+        var responsible = @case.IsOffline ? @case.KeyerName : @case.FollowupName;
+
+        await dispatcher.QueueAsync(email, @case.AssigneeCompanyId, responsible, sentBy, ct);
+        await emails.AddAsync(email, ct);
+        await unitOfWork.SaveChangesAsync(ct);
+
+        return new ResendAssignmentEmailResult(email.Id);
+    }
+}

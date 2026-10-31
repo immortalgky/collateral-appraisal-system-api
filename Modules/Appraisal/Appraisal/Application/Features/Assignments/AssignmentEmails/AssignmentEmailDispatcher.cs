@@ -25,38 +25,51 @@ public class AssignmentEmailDispatcher(
         if (email?.Status == AssignmentEmailStatus.NotSent)
             return;
 
-        // Every read happens before anything is added or published, so a failed read leaves nothing half-queued.
-        var company = Guid.TryParse(assignment.AssigneeCompanyId, out var companyId)
-            ? await companyLookup.GetByIdAsync(companyId, ct)
-            : null;
         var responsible = await DisplayNameAsync(keyerUserId, ct);
         var template = email is null ? await composer.ComposeForExtoHandoverAsync(appraisalId, responsible, ct) : null;
 
         // No choice recorded (an assign that did not carry one): the bank template, as the preview would show it.
-        if (template is not null)
-        {
-            email = AssignmentEmail.ToSend(
-                appraisalId, assignment.Id, template.ExtraTo, template.Cc, template.Subject, template.BodyHtml, []);
-            await emails.AddAsync(email, ct);
-        }
+        email ??= AssignmentEmail.ToSend(
+            appraisalId, assignment.Id, template!.ExtraTo, template.Cc, template.Subject, template.BodyHtml, []);
 
-        email.Queue(company is null ? null : AssignmentEmailComposer.DisplayName(company), responsible);
+        await QueueAsync(email, assignment.AssigneeCompanyId, responsible, assignment.AssignedBy, ct);
+        // Added only once queued: a failed read must not leave a Pending template row for the caller's save.
+        if (template is not null)
+            await emails.AddAsync(email, ct);
+    }
+
+    /// <summary>
+    /// Fills the company / responsible placeholders, resolves the recipients and hands <paramref name="email"/> to the
+    /// sender (outbox): the EXTO handover and a resend from the slip (#623). The company is read before the email
+    /// changes, so a failed read leaves nothing half-queued.
+    /// </summary>
+    public async Task QueueAsync(
+        AssignmentEmail email, string? assigneeCompanyId, string? responsible, string? assignedBy, CancellationToken ct)
+    {
+        var company = Guid.TryParse(assigneeCompanyId, out var companyId)
+            ? await companyLookup.GetByIdAsync(companyId, ct)
+            : null;
+
+        var to = new[] { company?.Email }.Concat(email.ExtraTo)
+            .Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => a!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        // ponytail: role tokens are dropped until #621 expands them to addresses.
+        var cc = email.Cc.Where(c => !AssignmentEmailCcRoles.All.Contains(c)).ToList();
+
+        email.Queue(company is null ? null : AssignmentEmailComposer.DisplayName(company), responsible, to, cc);
 
         outbox.Publish(new AssignmentEmailRequestedIntegrationEvent
         {
-            AppraisalId = appraisalId,
+            AppraisalId = email.AppraisalId,
             EmailId = email.Id,
-            To = new[] { company?.Email }.Concat(email.ExtraTo)
-                .Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => a!.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
-            // ponytail: role tokens are dropped until #621 expands them to addresses.
-            Cc = email.Cc.Where(c => !AssignmentEmailCcRoles.All.Contains(c)).ToList(),
+            To = to,
+            Cc = cc,
             Subject = email.Subject,
             HtmlBody = email.BodyHtml,
             AttachmentRefs = email.Attachments
                 .Select(a => new EmailAttachmentRefData("document", a.DocumentId.ToString())).ToList(),
-            AssignedBy = assignment.AssignedBy
-        }, correlationId: appraisalId.ToString());
+            AssignedBy = assignedBy
+        }, correlationId: email.AppraisalId.ToString());
     }
 
     private async Task<string?> DisplayNameAsync(string? username, CancellationToken ct)

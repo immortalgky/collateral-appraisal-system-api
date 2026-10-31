@@ -23,7 +23,11 @@ public class AssignmentEmailCaseReader(ISqlConnectionFactory connectionFactory) 
                                    asg.InternalFollowupAssignmentMethod              AS FollowupMethod,
                                    NULLIF(LTRIM(RTRIM(CONCAT(NULLIF(fu.FirstName, N''), N' ', NULLIF(fu.LastName, N'')))), N'')
                                                                                      AS FollowupName,
-                                   asg.Remark
+                                   asg.Remark,
+                                   a.Status                                          AS AppraisalStatus,
+                                   asg.Id                                            AS AssignmentId,
+                                   asg.AssignmentType,
+                                   asg.AssignmentStatus
                            FROM appraisal.Appraisals a
                                     -- vw_AppraisalList's customer rule (first customer by Id), without the whole view.
                                     OUTER APPLY (SELECT TOP 1 rc.Name

@@ -30,6 +30,10 @@ namespace Appraisal.infrastructure.Migrations
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     UpdatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
                     UpdatedWorkstation = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    IsResend = table.Column<bool>(type: "bit", nullable: false),
+                    SentTo = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    SentCc = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    SentAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     Attachments = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
