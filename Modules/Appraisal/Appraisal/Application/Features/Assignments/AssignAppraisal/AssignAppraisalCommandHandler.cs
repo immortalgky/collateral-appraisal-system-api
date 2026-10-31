@@ -116,11 +116,19 @@ public class AssignAppraisalCommandHandler(
 
         // EXT / EXTO: the email the admin sends (or chose not to send) with this assignment. Its documents are
         // checked here, before anything is recorded, so an invalid email assigns nothing and the admin fixes it.
-        if (WritesEmail(command))
-            await emailRepository.AddAsync(command.SendEmail == true
-                    ? await EmailToSendAsync(command, pendingAssignment.Id, cancellationToken)
-                    : AssignmentEmail.NotSent(command.AppraisalId, pendingAssignment.Id),
-                cancellationToken);
+        if (HasEmailChoice(command))
+        {
+            AssignmentEmailAccess.EnsureAllowed(currentUser);
+            var email = command.SendEmail == true
+                ? await EmailToSendAsync(command, pendingAssignment.Id, cancellationToken)
+                : AssignmentEmail.NotSent(command.AppraisalId, pendingAssignment.Id);
+
+            // The assignment is still Pending, so nothing was sent for it yet: any row it has is from an assign whose
+            // resume failed. This assign's email replaces it, so the send finds one row per assignment.
+            await emailRepository.DeleteRangeAsync(
+                await emailRepository.GetForAssignmentAsync(pendingAssignment.Id, cancellationToken), cancellationToken);
+            await emailRepository.AddAsync(email, cancellationToken);
+        }
 
         // The admin's identity is only known here: the consumers that later call Assign() are workflow-driven, and
         // used to stamp "System". Recorded with the remark, in the same durable save before the resume.
@@ -300,11 +308,11 @@ public class AssignAppraisalCommandHandler(
         string.Equals(decisionTaken, DecisionExternalOffline, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>EXT / EXTO with the admin's choice made: the assign writes an email row. Every other decision ignores it.</summary>
-    internal static bool WritesEmail(AssignAppraisalCommand command) =>
+    internal static bool HasEmailChoice(AssignAppraisalCommand command) =>
         command.SendEmail is not null
         && IsAssigningDecision(command.DecisionTaken, out var decision)
         && decision is DecisionExternal or DecisionExternalOffline;
 
     /// <summary>An email row that will be sent, so the email must be valid.</summary>
-    internal static bool SendsEmail(AssignAppraisalCommand command) => WritesEmail(command) && command.SendEmail == true;
+    internal static bool SendsEmail(AssignAppraisalCommand command) => HasEmailChoice(command) && command.SendEmail == true;
 }

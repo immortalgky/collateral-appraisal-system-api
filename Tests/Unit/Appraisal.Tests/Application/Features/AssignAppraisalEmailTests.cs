@@ -87,6 +87,12 @@ public class AssignAppraisalEmailTests
         Assert.NotEmpty(Errors(Email(attachments: [null!])));
 
     [Fact]
+    public void Ten_documents_named_more_than_once_are_still_ten_attachments() =>
+        Assert.Empty(Errors(Email(attachments: Enumerable.Range(0, 10)
+            .Select(_ => new AssignmentEmailAttachmentInput(Guid.NewGuid(), "upload"))
+            .SelectMany(a => new[] { a, a }).ToList())));
+
+    [Fact]
     public void Missing_lists_are_read_as_empty() =>
         Assert.Empty(Errors(new AssignmentEmailInput(null, null, "ขอนำส่งงานประเมิน", "<p>x</p>", null)));
 
@@ -146,6 +152,7 @@ public class AssignAppraisalEmailTests
         _appraisal.AssignAdmin();
         _appraisals.GetByIdWithAllDataAsync(_appraisal.Id, Arg.Any<CancellationToken>()).Returns(_appraisal);
         _user.UserCode.Returns("P5229");
+        _user.HasPermission("APPRAISAL_ADMINISTRATION_EDIT").Returns(true);
         _ownership.WorkflowInstanceBelongsToAppraisalAsync(default, default, default).ReturnsForAnyArgs(true);
         _sender.Send(Arg.Any<GetFeePreviewQuery>(), Arg.Any<CancellationToken>())
             .Returns(AssignAppraisalQuotationGuardTests.FeePreviewWithBase(2_500m));
@@ -279,5 +286,42 @@ public class AssignAppraisalEmailTests
 
         await Assert.ThrowsAsync<BadRequestException>(() => AssignAsync("EXT", Email(), sendEmail: true, configuration));
         await ResumedNever();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Only_an_appraisal_administrator_can_choose_the_email(bool sendEmail)
+    {
+        _user.HasPermission("APPRAISAL_ADMINISTRATION_EDIT").Returns(false);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => AssignAsync("EXT", Email(), sendEmail));
+
+        Assert.Empty(_added);
+        Assert.NotEqual("P5229", _appraisal.Assignments.Single().AssignedBy);
+        await ResumedNever();
+    }
+
+    [Fact]
+    public async Task Without_an_email_choice_no_permission_is_asked()
+    {
+        _user.HasPermission("APPRAISAL_ADMINISTRATION_EDIT").Returns(false);
+
+        await AssignAsync("EXT", null, sendEmail: null);
+
+        Assert.Equal("P5229", _appraisal.Assignments.Single().AssignedBy);
+    }
+
+    [Fact]
+    public async Task Assigning_again_after_a_failed_resume_replaces_the_earlier_unsent_row()
+    {
+        var earlier = AssignmentEmail.NotSent(_appraisal.Id, _appraisal.Assignments.Single().Id);
+        _emails.GetForAssignmentAsync(earlier.AssignmentId, Arg.Any<CancellationToken>()).Returns([earlier]);
+
+        await AssignAsync("EXT", Email(), sendEmail: true);
+
+        await _emails.Received(1).DeleteRangeAsync(
+            Arg.Is<IEnumerable<AssignmentEmail>>(rows => rows.Single() == earlier), Arg.Any<CancellationToken>());
+        Assert.Equal(AssignmentEmailStatus.Pending, Assert.Single(_added).Status);
     }
 }

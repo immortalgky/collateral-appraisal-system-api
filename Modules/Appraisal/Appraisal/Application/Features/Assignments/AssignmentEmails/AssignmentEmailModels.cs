@@ -46,7 +46,7 @@ public record AssignmentEmailPreviewResult(
     int MaxAttachments,
     long MaxAttachmentBytes);
 
-/// <summary>Who may preview the assignment email: the Administration tab's editors (IntAdmin, Admin).</summary>
+/// <summary>Who may preview the assignment email and choose it at assign: the Administration tab's editors (IntAdmin, Admin).</summary>
 internal static class AssignmentEmailAccess
 {
     public const string Permission = "APPRAISAL_ADMINISTRATION_EDIT";
@@ -95,7 +95,9 @@ public class AssignmentEmailInputValidator : AbstractValidator<AssignmentEmailIn
             .WithMessage("'{PropertyValue}' is not a valid email address.");
         RuleForEach(e => e.Cc).Must(cc => AssignmentEmailCcRoles.All.Contains(cc) || IsPlainAddress(cc))
             .WithMessage("'{PropertyValue}' is not a valid email address or Cc role.");
-        RuleFor(e => e.Attachments!.Count).LessThanOrEqualTo(AssignmentEmailLimits.MaxAttachments)
+        // Counted as the assign attaches them: once per document.
+        RuleFor(e => e.Attachments!.Where(a => a != null).Select(a => a.DocumentId).Distinct().Count())
+            .LessThanOrEqualTo(AssignmentEmailLimits.MaxAttachments)
             .When(e => e.Attachments is not null)
             .WithMessage($"At most {AssignmentEmailLimits.MaxAttachments} attachments can be sent.");
         RuleForEach(e => e.Attachments).Must(a => a is not null && AssignmentEmailAttachmentSources.All.Contains(a.Source))
