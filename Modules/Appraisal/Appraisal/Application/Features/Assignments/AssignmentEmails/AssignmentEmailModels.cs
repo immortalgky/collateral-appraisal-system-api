@@ -18,9 +18,8 @@ public record AssignmentEmailCase(
     string? FollowupName,
     string? Remark)
 {
-    /// <summary>EXTO: the bank engaged the company off-system (as AppraisalAssignment.IsOfflineEngagement).</summary>
-    public bool IsOffline =>
-        string.Equals(AssignmentMethod, AppraisalAssignment.OfflineAssignmentMethod, StringComparison.OrdinalIgnoreCase);
+    /// <summary>EXTO: the bank engaged the company off-system.</summary>
+    public bool IsOffline => AppraisalAssignment.IsOfflineMethod(AssignmentMethod);
 }
 
 public record AssignmentEmailDocument(Guid Id, string? FileName, long FileSizeBytes);

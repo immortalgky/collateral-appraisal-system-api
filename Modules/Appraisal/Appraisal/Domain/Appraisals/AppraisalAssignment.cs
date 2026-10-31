@@ -404,8 +404,11 @@ public class AppraisalAssignment : Entity<Guid>
     /// True when the company was engaged outside the system and an internal appraiser keys the
     /// book in — External for reporting/fee purposes, but no vendor time is measurable in CAS.
     /// </summary>
-    public bool IsOfflineEngagement =>
-        string.Equals(AssignmentMethod, OfflineAssignmentMethod, StringComparison.OrdinalIgnoreCase);
+    public bool IsOfflineEngagement => IsOfflineMethod(AssignmentMethod);
+
+    /// <summary>THE test for an off-system (EXTO) assignment method, for readers that hold only the method string.</summary>
+    public static bool IsOfflineMethod(string? assignmentMethod) =>
+        string.Equals(assignmentMethod, OfflineAssignmentMethod, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Return the row to the admin assignment queue after the workflow routed the case back to
