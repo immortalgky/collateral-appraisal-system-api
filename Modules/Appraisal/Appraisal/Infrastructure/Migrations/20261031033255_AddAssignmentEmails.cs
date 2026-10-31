@@ -42,6 +42,14 @@ namespace Appraisal.infrastructure.Migrations
                 schema: "appraisal",
                 table: "AssignmentEmails",
                 column: "AppraisalId");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_AssignmentEmails_AssignmentId_Unsent",
+                schema: "appraisal",
+                table: "AssignmentEmails",
+                column: "AssignmentId",
+                unique: true,
+                filter: "[Status] IN ('Pending', 'NotSent')");
         }
 
         /// <inheritdoc />

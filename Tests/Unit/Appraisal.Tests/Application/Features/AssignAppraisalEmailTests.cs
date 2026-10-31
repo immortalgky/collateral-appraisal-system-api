@@ -312,16 +312,41 @@ public class AssignAppraisalEmailTests
         Assert.Equal("P5229", _appraisal.Assignments.Single().AssignedBy);
     }
 
-    [Fact]
-    public async Task Assigning_again_after_a_failed_resume_replaces_the_earlier_unsent_row()
+    private AssignmentEmail EarlierUnsentRow()
     {
         var earlier = AssignmentEmail.NotSent(_appraisal.Id, _appraisal.Assignments.Single().Id);
-        _emails.GetForAssignmentAsync(earlier.AssignmentId, Arg.Any<CancellationToken>()).Returns([earlier]);
+        _emails.GetUnsentForAssignmentAsync(earlier.AssignmentId, Arg.Any<CancellationToken>()).Returns([earlier]);
+        return earlier;
+    }
+
+    private Task Deleted(AssignmentEmail row) =>
+        _emails.Received(1).DeleteRangeAsync(
+            Arg.Is<IEnumerable<AssignmentEmail>>(rows => rows.Single() == row), Arg.Any<CancellationToken>());
+
+    [Fact]
+    public async Task Assigning_again_replaces_the_earlier_unsent_row()
+    {
+        var earlier = EarlierUnsentRow();
 
         await AssignAsync("EXT", Email(), sendEmail: true);
 
-        await _emails.Received(1).DeleteRangeAsync(
-            Arg.Is<IEnumerable<AssignmentEmail>>(rows => rows.Single() == earlier), Arg.Any<CancellationToken>());
+        await Deleted(earlier);
         Assert.Equal(AssignmentEmailStatus.Pending, Assert.Single(_added).Status);
+    }
+
+    [Theory]
+    [InlineData("INT", null)]
+    [InlineData("EXT", null)]
+    [InlineData("C", true)]
+    public async Task A_decision_without_an_email_still_drops_the_earlier_unsent_row(string decision, bool? sendEmail)
+    {
+        // Routed back (same assignment, Pending again) or a failed resume, then decided another way: the old
+        // email no longer describes the handover, so it must not be sent.
+        var earlier = EarlierUnsentRow();
+
+        await AssignAsync(decision, Email(), sendEmail);
+
+        await Deleted(earlier);
+        Assert.Empty(_added);
     }
 }

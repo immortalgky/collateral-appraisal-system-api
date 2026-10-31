@@ -116,19 +116,23 @@ public class AssignAppraisalCommandHandler(
 
         // EXT / EXTO: the email the admin sends (or chose not to send) with this assignment. Its documents are
         // checked here, before anything is recorded, so an invalid email assigns nothing and the admin fixes it.
+        AssignmentEmail? email = null;
         if (HasEmailChoice(command))
         {
             AssignmentEmailAccess.EnsureAllowed(currentUser);
-            var email = command.SendEmail == true
+            email = command.SendEmail == true
                 ? await EmailToSendAsync(command, pendingAssignment.Id, cancellationToken)
                 : AssignmentEmail.NotSent(command.AppraisalId, pendingAssignment.Id);
-
-            // The assignment is still Pending, so nothing was sent for it yet: any row it has is from an assign whose
-            // resume failed. This assign's email replaces it, so the send finds one row per assignment.
-            await emailRepository.DeleteRangeAsync(
-                await emailRepository.GetForAssignmentAsync(pendingAssignment.Id, cancellationToken), cancellationToken);
-            await emailRepository.AddAsync(email, cancellationToken);
         }
+
+        // An unsent row on this Pending assignment belongs to an earlier handover that did not stand: a resume that
+        // failed, or a route-back (which returns the same row to Pending). Whatever is decided now, that email no
+        // longer describes the case, so it is dropped; this decision's own email, if any, replaces it. Sent and
+        // Failed rows stay as history.
+        await emailRepository.DeleteRangeAsync(
+            await emailRepository.GetUnsentForAssignmentAsync(pendingAssignment.Id, cancellationToken), cancellationToken);
+        if (email is not null)
+            await emailRepository.AddAsync(email, cancellationToken);
 
         // The admin's identity is only known here: the consumers that later call Assign() are workflow-driven, and
         // used to stamp "System". Recorded with the remark, in the same durable save before the resume.

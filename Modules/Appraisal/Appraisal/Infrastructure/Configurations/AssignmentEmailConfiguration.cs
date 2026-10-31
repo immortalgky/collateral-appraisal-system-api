@@ -19,7 +19,15 @@ public class AssignmentEmailConfiguration : IEntityTypeConfiguration<AssignmentE
         builder.PrimitiveCollection(e => e.Cc);
         builder.OwnsMany(e => e.Attachments, a => a.ToJson());
 
-        // Read per appraisal (the slip's history); a case has only a few rows, so the send's assignment filter needs no index of its own.
+        // Read per appraisal (the slip's history).
         builder.HasIndex(e => e.AppraisalId);
+
+        // At most one unsent email per assignment: two assigns racing (double-click, two admins) cannot both leave
+        // one to send. Sent and Failed rows are not counted, so a resend can follow them. Same statuses as
+        // GetUnsentForAssignmentAsync.
+        builder.HasIndex(e => e.AssignmentId)
+            .IsUnique()
+            .HasFilter("[Status] IN ('Pending', 'NotSent')")
+            .HasDatabaseName("UX_AssignmentEmails_AssignmentId_Unsent");
     }
 }
