@@ -23,6 +23,8 @@ public class CompanyLookupService(
             company.Id,
             company.Name,
             company.LegacyCompanyCode,
-            company.IsAssignable(dateTimeProvider.ApplicationNow));
+            company.IsAssignable(dateTimeProvider.ApplicationNow),
+            company.Email,
+            company.NameLocal);
     }
 }

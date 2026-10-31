@@ -1635,6 +1635,76 @@ namespace Appraisal.Infrastructure.Migrations
                     b.ToTable("AssetSummaryGroup", "appraisal");
                 });
 
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.AssignmentEmail", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppraisalId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AssignmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BodyHtml")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.PrimitiveCollection<string>("Cc")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CompanyId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("CreatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.PrimitiveCollection<string>("ExtraTo")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsOffline")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("UpdatedWorkstation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppraisalId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AssignmentEmails_AppraisalId_Draft")
+                        .HasFilter("[Status] = 'Draft'");
+
+                    b.ToTable("AssignmentEmails", "appraisal");
+                });
+
             modelBuilder.Entity("Appraisal.Domain.Appraisals.ComparableAdjustment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -11134,6 +11204,37 @@ namespace Appraisal.Infrastructure.Migrations
                     b.Navigation("VehicleDetail");
 
                     b.Navigation("VesselDetail");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.AssignmentEmail", b =>
+                {
+                    b.OwnsMany("Appraisal.Domain.Appraisals.AssignmentEmailAttachment", "Attachments", b1 =>
+                        {
+                            b1.Property<Guid>("AssignmentEmailId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("int");
+
+                            b1.Property<Guid>("DocumentId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("Source")
+                                .IsRequired()
+                                .HasColumnType("nvarchar(max)");
+
+                            b1.HasKey("AssignmentEmailId", "__synthesizedOrdinal");
+
+                            b1.ToTable("AssignmentEmails", "appraisal");
+
+                            b1.ToJson("Attachments");
+
+                            b1.WithOwner()
+                                .HasForeignKey("AssignmentEmailId");
+                        });
+
+                    b.Navigation("Attachments");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Appraisals.ComparableAdjustment", b =>

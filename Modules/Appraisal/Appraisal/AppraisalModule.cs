@@ -13,6 +13,7 @@ using Shared.Data.Seed;
 using Appraisal.Contracts.Services;
 using Appraisal.Scheduling;
 using Shared.Scheduling;
+using Appraisal.Application.Features.Assignments.AssignmentEmails;
 using Appraisal.Application.Features.Assignments.GetAssignmentDefaults;
 using Appraisal.Infrastructure.FileAssignmentDefaults;
 
@@ -85,6 +86,8 @@ public static class AppraisalModule
 
         // Register Decision repository
         services.AddScoped<IAppraisalDecisionRepository, AppraisalDecisionRepository>();
+        services.AddScoped<IAssignmentEmailRepository, AssignmentEmailRepository>();
+        services.AddScoped<IAssignmentEmailCaseReader, AssignmentEmailCaseReader>();
 
         // Register Application Services
         services.AddScoped<IAppraisalCreationService, AppraisalCreationService>();
