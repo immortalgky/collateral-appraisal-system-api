@@ -24,6 +24,7 @@ namespace Appraisal.infrastructure.Migrations
                     Cc = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Subject = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     BodyHtml = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    FailureReason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
                     CreatedWorkstation = table.Column<string>(type: "nvarchar(max)", nullable: true),

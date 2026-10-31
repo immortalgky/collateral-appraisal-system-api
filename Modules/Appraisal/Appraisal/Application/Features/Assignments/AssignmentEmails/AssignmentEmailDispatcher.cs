@@ -31,6 +31,7 @@ public class AssignmentEmailDispatcher(
             : null;
         var responsible = await DisplayNameAsync(keyerUserId, ct);
         var template = email is null ? await composer.ComposeForExtoHandoverAsync(appraisalId, responsible, ct) : null;
+        var cc = await ExpandCcAsync(template?.Cc ?? email!.Cc, keyerUserId, ct);
 
         // No choice recorded (an assign that did not carry one): the bank template, as the preview would show it.
         if (template is not null)
@@ -42,15 +43,22 @@ public class AssignmentEmailDispatcher(
 
         email.Queue(company is null ? null : AssignmentEmailComposer.DisplayName(company), responsible);
 
+        var to = new[] { company?.Email }.Concat(email.ExtraTo)
+            .Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => a!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        // The company is the addressee: without it there is nobody to send to, whoever is in Cc.
+        if (to.Count == 0)
+        {
+            email.Fail("The company has no email address and no other To address was added.");
+            return;
+        }
+
         outbox.Publish(new AssignmentEmailRequestedIntegrationEvent
         {
             AppraisalId = appraisalId,
             EmailId = email.Id,
-            To = new[] { company?.Email }.Concat(email.ExtraTo)
-                .Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => a!.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
-            // ponytail: role tokens are dropped until #621 expands them to addresses.
-            Cc = email.Cc.Where(c => !AssignmentEmailCcRoles.All.Contains(c)).ToList(),
+            To = to,
+            Cc = cc,
             Subject = email.Subject,
             HtmlBody = email.BodyHtml,
             AttachmentRefs = email.Attachments
@@ -58,6 +66,33 @@ public class AssignmentEmailDispatcher(
             AssignedBy = assignment.AssignedBy
         }, correlationId: appraisalId.ToString());
     }
+
+    /// <summary>
+    /// The stored Cc as addresses: literal addresses as they are, each remaining role chip through Auth (which skips
+    /// inactive, expired and email-less users). A chip the admin removed is not in the list, so it is not expanded.
+    /// Keyer and follow-up chips name <paramref name="responsibleUserId"/>, the person the case was handed to.
+    /// </summary>
+    private async Task<List<string>> ExpandCcAsync(IEnumerable<string> cc, string? responsibleUserId, CancellationToken ct)
+    {
+        var addresses = new List<string>();
+        foreach (var entry in cc)
+        {
+            addresses.AddRange(entry switch
+            {
+                AssignmentEmailCcRoles.IntAdminAll => await userLookup.GetEmailsInRoleAsync(IntAdminRole, ct),
+                AssignmentEmailCcRoles.Keyer or AssignmentEmailCcRoles.FollowupStaff =>
+                    string.IsNullOrWhiteSpace(responsibleUserId) ? [] : await userLookup.GetEmailsAsync([responsibleUserId], ct),
+                AssignmentEmailCcRoles.KeyerSupervisor or AssignmentEmailCcRoles.FollowupSupervisor =>
+                    string.IsNullOrWhiteSpace(responsibleUserId) ? [] : await userLookup.GetSupervisorEmailsAsync(responsibleUserId, ct),
+                _ => [entry]
+            });
+        }
+
+        return addresses.Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => a.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private const string IntAdminRole = "IntAdmin";
 
     private async Task<string?> DisplayNameAsync(string? username, CancellationToken ct)
     {
