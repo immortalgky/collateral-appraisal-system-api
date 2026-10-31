@@ -43,10 +43,8 @@ public class AssignmentEmailDispatcher(
 
         email.Queue(company is null ? null : AssignmentEmailComposer.DisplayName(company), responsible);
 
-        var to = new[] { company?.Email }.Concat(email.ExtraTo)
-            .Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => a!.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        // The company is the addressee: without it there is nobody to send to, whoever is in Cc.
+        var to = Clean(new[] { company?.Email }.Concat(email.ExtraTo));
+        // The company's own address or the admin's extra To: with neither there is nobody to send to, whoever is in Cc.
         if (to.Count == 0)
         {
             email.Fail("The company has no email address and no other To address was added.");
@@ -88,9 +86,12 @@ public class AssignmentEmailDispatcher(
             });
         }
 
-        return addresses.Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => a.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return Clean(addresses);
     }
+
+    private static List<string> Clean(IEnumerable<string?> addresses) =>
+        addresses.Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => a!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
     private const string IntAdminRole = "IntAdmin";
 

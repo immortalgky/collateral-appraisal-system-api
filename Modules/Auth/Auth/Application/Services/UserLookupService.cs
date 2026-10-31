@@ -100,8 +100,8 @@ public class UserLookupService(
             where usersGroups.Contains(monitored.Id) && monitor.Name != IntAdminGroupName
             select monitor.Id;
 
-        return await EmailsOf(UsableWithEmail().Where(u => u.NormalizedUserName != normalized
-            && db.GroupUsers.Any(gu => gu.UserId == u.Id && monitorGroups.Contains(gu.GroupId))), ct);
+        return await EmailsOf(UsableWithEmail()
+            .Where(u => db.GroupUsers.Any(gu => gu.UserId == u.Id && monitorGroups.Contains(gu.GroupId))), ct);
     }
 
     /// <summary>Users who may use the system now (<see cref="ApplicationUser.IsUsable(DateTime)"/>) and have an email.</summary>

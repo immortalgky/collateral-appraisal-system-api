@@ -22,7 +22,9 @@ No deliverable To (company has no email, no extra To) → row `Failed` with `Fai
 - [x] Domain: `AssignmentEmail.FailureReason`, `Fail(reason)` (Queued only)
 - [x] Migration: FailureReason folded into `AddAssignmentEmails` (remove + re-add)
 - [x] Dispatcher: Cc expansion + Failed on no To; dispatch-seam tests
-- [ ] Matt code-review, then /code-review loop until clean
+- [x] Matt code-review (Standards + Spec): all 6 AC met. Fixed: the no-To comment (an extra To still sends, story 50),
+      dropped the unasked-for self-exclusion from the supervisor query, one `Clean` helper for To/Cc addresses
+- [ ] /code-review loop
 - [ ] test-automator gates
 - [ ] User test → merge `--no-ff` into the integration branch, close #621 by hand
 
@@ -34,3 +36,11 @@ No deliverable To (company has no email, no extra To) → row `Failed` with `Fai
   already applied it must roll back first.
 - Keyer and follow-up tokens both resolve to the responsible person the dispatcher was given (EXTO: the keyer);
   #622 passes the follow-up officer.
+
+## Settled decisions (do not re-raise)
+- The IntAdmin group is matched by name: `20260729130000_UpdateSeed_BankCompanyScopes.sql`, `GetAppraisalBrief` and the
+  workflow pool already depend on the group named `IntAdmin`.
+- `UsableWithEmail` restates `ApplicationUser.IsUsable` in a form EF can translate; the doc comment links the two.
+- A company with no email but an admin-added extra To still sends (story 50: Failed only with no deliverable To).
+- The failure reason is an English string (house rule); the UI localises.
+- A supervisor who is also the keyer is listed (no self-exclusion); Cc de-duplicates.
