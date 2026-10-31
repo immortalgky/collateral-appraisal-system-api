@@ -1692,6 +1692,8 @@ namespace Appraisal.infrastructure.Migrations
 
                     b.HasIndex("AppraisalId");
 
+                    b.HasIndex("AssignmentId");
+
                     b.ToTable("AssignmentEmails", "appraisal");
                 });
 

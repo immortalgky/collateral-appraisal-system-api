@@ -42,6 +42,12 @@ namespace Appraisal.infrastructure.Migrations
                 schema: "appraisal",
                 table: "AssignmentEmails",
                 column: "AppraisalId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AssignmentEmails_AssignmentId",
+                schema: "appraisal",
+                table: "AssignmentEmails",
+                column: "AssignmentId");
         }
 
         /// <inheritdoc />

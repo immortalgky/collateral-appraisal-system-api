@@ -221,7 +221,16 @@ public class AssignAppraisalCommandHandler(
             // Nothing was assigned, so this attempt's email must not wait to be sent; a retry writes its own. Only
             // rows of handovers that stood remain, kept as history (a route-back reuses the assignment row, so a
             // re-assign adds a new email beside them). Not cancellable: the cleanup must run even if the request is.
-            await emailRepository.DeleteNowAsync(email.Id, CancellationToken.None);
+            try
+            {
+                await emailRepository.DeleteNowAsync(email.Id, CancellationToken.None);
+            }
+            catch
+            {
+                // The workflow's error is what the admin must see. A row left by a failed resume is never sent: the
+                // send is triggered only by the assignment events a successful resume publishes.
+            }
+
             throw;
         }
 

@@ -19,7 +19,8 @@ public class AssignmentEmailConfiguration : IEntityTypeConfiguration<AssignmentE
         builder.PrimitiveCollection(e => e.Cc);
         builder.OwnsMany(e => e.Attachments, a => a.ToJson());
 
-        // Read per appraisal (the slip's history).
+        // Read per appraisal (the slip's history) and per assignment (the send).
         builder.HasIndex(e => e.AppraisalId);
+        builder.HasIndex(e => e.AssignmentId);
     }
 }

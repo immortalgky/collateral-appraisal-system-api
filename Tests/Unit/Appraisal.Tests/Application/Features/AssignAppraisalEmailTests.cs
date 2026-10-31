@@ -324,7 +324,18 @@ public class AssignAppraisalEmailTests
         var error = await Assert.ThrowsAsync<BadRequestException>(() => AssignAsync("EXT", Email(), sendEmail: true));
 
         Assert.Equal("No company could be selected.", error.Message);
-        await _emails.Received(1).DeleteNowAsync(Assert.Single(_added).Id, Arg.Any<CancellationToken>());
+        await _emails.Received(1).DeleteNowAsync(Assert.Single(_added).Id, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task The_admin_sees_the_workflow_error_even_when_the_cleanup_fails()
+    {
+        ResumeFails();
+        _emails.DeleteNowAsync(default, default).ReturnsForAnyArgs<Task>(_ => throw new InvalidOperationException("SQL down"));
+
+        var error = await Assert.ThrowsAsync<BadRequestException>(() => AssignAsync("EXT", Email(), sendEmail: true));
+
+        Assert.Equal("No company could be selected.", error.Message);
     }
 
     [Fact]
