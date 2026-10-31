@@ -10,8 +10,8 @@ namespace Appraisal.Application.Features.Assignments.AssignmentEmails;
 /// </summary>
 public static class AssignmentEmailTemplate
 {
-    public const string CompanyPlaceholder = "{{company}}";
-    public const string ResponsiblePlaceholder = "{{responsible}}";
+    public const string CompanyPlaceholder = AssignmentEmail.CompanyPlaceholder;
+    public const string ResponsiblePlaceholder = AssignmentEmail.ResponsiblePlaceholder;
 
     public record Values(
         string? Company,

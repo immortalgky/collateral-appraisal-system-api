@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Assignments.AssignmentEmails;
 using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
@@ -16,7 +17,8 @@ public class InternalAssignedIntegrationEventHandler(
     IAppraisalUnitOfWork unitOfWork,
     IAssignmentFeeService feeService,
     ILogger<InternalAssignedIntegrationEventHandler> logger,
-    InboxGuard<AppraisalDbContext> inboxGuard
+    InboxGuard<AppraisalDbContext> inboxGuard,
+    AssignmentEmailDispatcher emailDispatcher
 ) : IConsumer<InternalAssignedIntegrationEvent>
 {
     public Task Consume(ConsumeContext<InternalAssignedIntegrationEvent> context) =>
@@ -114,6 +116,23 @@ public class InternalAssignedIntegrationEventHandler(
             source: feeSource,
             repriceSystemBase: wasPending,
             ct: ct);
+
+        // EXTO (#620): the case just reached the keyer, so the company gets its email, committed with this save
+        // through the outbox. Only on the handover itself (the row was Pending): a redelivery or a route-back
+        // re-fire finds it Assigned or later and sends nothing again. The email never holds up the assignment.
+        if (wasPending && assignment.IsOfflineEngagement)
+        {
+            try
+            {
+                await emailDispatcher.QueueAsync(message.AppraisalId, assignment, message.AssigneeUserId, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex,
+                    "Assignment email for AppraisalId {AppraisalId} was not queued; the assignment goes ahead without it",
+                    message.AppraisalId);
+            }
+        }
 
         // Kept on purpose: assignment events only touch AppraisalAssignment rows, so this stamps Appraisals.UpdatedAt
         // (read by GetAppraisalStatus and vw_MisCasReport).

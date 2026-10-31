@@ -88,6 +88,8 @@ public static class AppraisalModule
         services.AddScoped<IAppraisalDecisionRepository, AppraisalDecisionRepository>();
         services.AddScoped<IAssignmentEmailRepository, AssignmentEmailRepository>();
         services.AddScoped<IAssignmentEmailCaseReader, AssignmentEmailCaseReader>();
+        services.AddScoped<AssignmentEmailComposer>();
+        services.AddScoped<AssignmentEmailDispatcher>();
 
         // Register Application Services
         services.AddScoped<IAppraisalCreationService, AppraisalCreationService>();

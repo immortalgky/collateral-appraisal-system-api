@@ -192,7 +192,8 @@ public class InternalAssignedIntegrationEventHandlerTests
         return new InternalAssignedIntegrationEventHandler(
             repo, uow, feeService,
             NullLogger<InternalAssignedIntegrationEventHandler>.Instance,
-            inboxGuard);
+            inboxGuard,
+            ExtoAssignmentEmailDispatchTests.NoEmailDispatcher());
     }
 
     private static ConsumeContext<InternalAssignedIntegrationEvent> BuildContext(

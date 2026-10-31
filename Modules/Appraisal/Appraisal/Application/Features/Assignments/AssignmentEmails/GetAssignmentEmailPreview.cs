@@ -11,18 +11,30 @@ public record GetAssignmentEmailPreviewQuery(Guid AppraisalId) : IQuery<Assignme
 /// assignment row. Nothing is saved; the edited email travels with the assign request.
 /// </summary>
 public class GetAssignmentEmailPreviewQueryHandler(
+    AssignmentEmailComposer composer,
+    ICurrentUserService currentUser) : IQueryHandler<GetAssignmentEmailPreviewQuery, AssignmentEmailPreviewResult>
+{
+    public Task<AssignmentEmailPreviewResult> Handle(GetAssignmentEmailPreviewQuery query, CancellationToken cancellationToken)
+    {
+        AssignmentEmailAccess.EnsureAllowed(currentUser);
+        return composer.ComposeAsync(query.AppraisalId, cancellationToken);
+    }
+}
+
+/// <summary>
+/// The bank template filled from the case's current assignment row: the admin's preview, and the email sent when an
+/// assigned case has none chosen (#620).
+/// </summary>
+public class AssignmentEmailComposer(
     IAssignmentEmailCaseReader caseReader,
     ICompanyLookupService companyLookup,
     ISender sender,
-    ICurrentUserService currentUser,
-    IConfiguration configuration) : IQueryHandler<GetAssignmentEmailPreviewQuery, AssignmentEmailPreviewResult>
+    IConfiguration configuration)
 {
-    public async Task<AssignmentEmailPreviewResult> Handle(GetAssignmentEmailPreviewQuery query, CancellationToken cancellationToken)
+    public async Task<AssignmentEmailPreviewResult> ComposeAsync(Guid appraisalId, CancellationToken cancellationToken)
     {
-        AssignmentEmailAccess.EnsureAllowed(currentUser);
-
-        var @case = await caseReader.GetCaseAsync(query.AppraisalId, cancellationToken)
-                    ?? throw new AppraisalNotFoundException(query.AppraisalId);
+        var @case = await caseReader.GetCaseAsync(appraisalId, cancellationToken)
+                    ?? throw new AppraisalNotFoundException(appraisalId);
 
         var company = Guid.TryParse(@case.AssigneeCompanyId, out var companyId)
             ? await companyLookup.GetByIdAsync(companyId, cancellationToken)
@@ -34,10 +46,10 @@ public class GetAssignmentEmailPreviewQueryHandler(
             ? @case.KeyerName
             : string.Equals(@case.FollowupMethod, AssignmentDefaultValues.MethodManual, StringComparison.OrdinalIgnoreCase) ? @case.FollowupName : null;
 
-        var fee = await sender.Send(new GetFeePreviewQuery(query.AppraisalId, null, null, null), cancellationToken);
+        var fee = await sender.Send(new GetFeePreviewQuery(appraisalId, null, null, null), cancellationToken);
 
         var values = new AssignmentEmailTemplate.Values(
-            company is null ? null : string.IsNullOrWhiteSpace(company.NameLocal) ? company.Name : company.NameLocal,
+            company is null ? null : DisplayName(company),
             @case.CustomerName,
             @case.AppraisalNumber,
             @case.ContactName,
@@ -62,4 +74,8 @@ public class GetAssignmentEmailPreviewQueryHandler(
             AssignmentEmailLimits.MaxAttachments,
             AssignmentEmailLimits.MaxAttachmentBytes(configuration));
     }
+
+    /// <summary>The company as the Thai email names it: its Thai name when it has one.</summary>
+    public static string DisplayName(CompanyLookupDto company) =>
+        string.IsNullOrWhiteSpace(company.NameLocal) ? company.Name : company.NameLocal;
 }

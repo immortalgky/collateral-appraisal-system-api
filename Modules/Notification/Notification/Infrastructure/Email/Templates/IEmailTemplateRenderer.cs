@@ -6,6 +6,9 @@ public interface IEmailTemplateRenderer
     /// <summary>Renders the quotation-sent email.</summary>
     string QuotationSent(string subject, string? adminContent);
 
+    /// <summary>Renders the email to the company an appraisal is assigned to: the admin's HTML in the branded shell.</summary>
+    string AssignmentEmail(string subject, string? adminContent);
+
     /// <summary>Renders the meeting-invitation email.</summary>
     string MeetingInvitation(string subject, string? adminContent);
 

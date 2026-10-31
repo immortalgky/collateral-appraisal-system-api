@@ -9,6 +9,9 @@ namespace Appraisal.Domain.Appraisals;
 /// </summary>
 public class AssignmentEmail : Entity<Guid>
 {
+    public const string CompanyPlaceholder = "{{company}}";
+    public const string ResponsiblePlaceholder = "{{responsible}}";
+
     public Guid AppraisalId { get; private set; }
     public Guid AssignmentId { get; private set; }
     public string Status { get; private set; } = AssignmentEmailStatus.Pending;
@@ -60,6 +63,28 @@ public class AssignmentEmail : Entity<Guid>
             AssignmentId = assignmentId,
             Status = AssignmentEmailStatus.NotSent
         };
+
+    /// <summary>
+    /// Fills the template's <c>{{company}}</c> / <c>{{responsible}}</c> left open at assign, so the row keeps what was
+    /// sent. Values are HTML-encoded: they come from master data, not from the admin.
+    /// </summary>
+    public void FillPlaceholders(string? company, string? responsible)
+    {
+        BodyHtml = Fill(BodyHtml, CompanyPlaceholder, company);
+        BodyHtml = Fill(BodyHtml, ResponsiblePlaceholder, responsible);
+    }
+
+    private static string Fill(string html, string placeholder, string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? html
+            : html.Replace(placeholder, System.Net.WebUtility.HtmlEncode(value.Trim()), StringComparison.Ordinal);
+
+    /// <summary>The gateway accepted it. Only a Pending email becomes Sent, so a redelivered confirmation changes nothing.</summary>
+    public void MarkSent()
+    {
+        if (Status == AssignmentEmailStatus.Pending)
+            Status = AssignmentEmailStatus.Sent;
+    }
 }
 
 /// <summary>A Document-module document attached to the email, and where the admin picked it from.</summary>

@@ -53,7 +53,8 @@ public class AssignmentRowElectionTests
             NullLogger<InboxGuard<AppraisalDbContext>>.Instance, Substitute.For<IDateTimeProvider>());
         var handler = new InternalAssignedIntegrationEventHandler(
             repo, Substitute.For<IAppraisalUnitOfWork>(), BuildService(db),
-            NullLogger<InternalAssignedIntegrationEventHandler>.Instance, inbox);
+            NullLogger<InternalAssignedIntegrationEventHandler>.Instance, inbox,
+            Appraisal.Tests.Application.EventHandlers.ExtoAssignmentEmailDispatchTests.NoEmailDispatcher());
         var ctx = Substitute.For<ConsumeContext<InternalAssignedIntegrationEvent>>();
         ctx.Message.Returns(new InternalAssignedIntegrationEvent
         {
