@@ -48,11 +48,13 @@ public class AssignmentEmailDispatcher(
         // The company's own address or the admin's extra To: with neither there is nobody to send to, whoever is in Cc.
         if (to.Count == 0)
         {
-            email.Fail(company is null
-                ? "The assigned company could not be found and no other To address was added."
-                : "The company has no email address and no other To address was added.");
-            logger.LogWarning("Assignment email {EmailId} for appraisal {AppraisalId} has no To address. Marked Failed",
-                email.Id, appraisalId);
+            var reason = company is null
+                ? "No company is assigned, or it could not be found, and no other To address was added."
+                : "The company has no email address and no other To address was added.";
+            email.Fail(reason);
+            logger.LogWarning(
+                "Assignment email {EmailId} for appraisal {AppraisalId} (company {CompanyId}) marked Failed: {Reason}",
+                email.Id, appraisalId, assignment.AssigneeCompanyId, reason);
             return;
         }
 

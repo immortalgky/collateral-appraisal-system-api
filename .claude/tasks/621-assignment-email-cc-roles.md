@@ -27,7 +27,9 @@ No deliverable To (company has no email, no extra To) → row `Failed` with `Fai
 - [x] /code-review r1 (11 findings): fixed separator-only To ("; ,") now Failed (addresses split like EmailRecipients),
       a reason for "company not found", a warning log on Failed, the supervisor test no longer touches the seeded IntAdmin
       group. Open question to the user: IsSystem accounts in the IntAdmin Cc.
-- [ ] /code-review r2+ (fix diff only)
+- [x] /code-review r2 (9 findings): fixed the reason when no company id / not found, the reason and company id in the
+      warning log, tests for the not-found reason and a split "a; b" To, Hard/SoftDeleteGroupAsync names
+- [ ] /code-review r3 (fix diff only)
 - [ ] test-automator gates
 - [ ] User test → merge `--no-ff` into the integration branch, close #621 by hand
 
@@ -51,3 +53,8 @@ No deliverable To (company has no email, no extra To) → row `Failed` with `Fai
   looked up twice (one extra round-trip); `GetEmailsInRoleAsync` applying IsUsable while `GetUsernamesInRoleAsync`
   checks IsActive only (the spec asks for IsUsable here); "IntAdmin" constants per module (repo style); IntAdminAll
   not including the Admin role (spec says IntAdmin); tests using DateTime.Now with a ±1 day margin.
+- Declined in r2: a non-address company email such as "-" (the company master validates `EmailAddress()` on create and
+  update; a bad address reaching the gateway faults, #624); the preview showing the raw company email (display only);
+  the delimiter rule copied from Notification's EmailRecipients (Appraisal cannot reference Notification.Infrastructure;
+  the comment links them); the consumer's empty-To guard kept as defence; the test's IntAdmin group being
+  Company-scoped (the exclusion is by name, on purpose).

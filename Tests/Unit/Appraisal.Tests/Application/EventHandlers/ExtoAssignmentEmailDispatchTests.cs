@@ -147,10 +147,36 @@ public class ExtoAssignmentEmailDispatchTests
 
         Assert.Null(Published());
         Assert.Equal(AssignmentEmailStatus.Failed, row.Status);
-        Assert.False(string.IsNullOrWhiteSpace(row.FailureReason));
+        Assert.Contains("no email address", row.FailureReason);
         // The handover itself still saves, with the Failed row.
         Assert.Equal(AssignmentStatus.InProgress, _assignment.AssignmentStatus);
         await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task An_unknown_company_fails_the_email_with_its_own_reason()
+    {
+        var row = AssignmentEmail.ToSend(_appraisal.Id, _assignment.Id, [], [], "subject", "<p>body</p>", []);
+        _emails.GetLatestUnsentAsync(_assignment.Id, Arg.Any<CancellationToken>()).Returns(row);
+        _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>()).Returns((CompanyLookupDto?)null);
+
+        await LandOnKeyerAsync();
+
+        Assert.Null(Published());
+        Assert.Equal(AssignmentEmailStatus.Failed, row.Status);
+        Assert.Contains("No company is assigned", row.FailureReason);
+    }
+
+    [Fact]
+    public async Task A_master_data_address_list_is_sent_one_address_each()
+    {
+        _emails.GetLatestUnsentAsync(_assignment.Id, Arg.Any<CancellationToken>()).Returns(PendingRow());
+        _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>())
+            .Returns(new CompanyLookupDto(CompanyId, "Acme Appraisal", null, true, "jobs@acme.co.th; ops@acme.co.th", null));
+
+        await LandOnKeyerAsync();
+
+        Assert.Equal(["jobs@acme.co.th", "ops@acme.co.th", "extra@acme.co.th"], Published()!.To);
     }
 
     [Fact]

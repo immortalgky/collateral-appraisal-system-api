@@ -62,7 +62,7 @@ public class UserLookupEmailTests(IntegrationTestFixture fixture)
     }
 
     /// <summary>Removes a group and its rows outright, so a name-matched group does not leak into other tests.</summary>
-    private async Task DropGroupAsync(Guid groupId)
+    private async Task HardDeleteGroupAsync(Guid groupId)
     {
         await using var scope = Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
@@ -71,7 +71,7 @@ public class UserLookupEmailTests(IntegrationTestFixture fixture)
         await db.Groups.IgnoreQueryFilters().Where(g => g.Id == groupId).ExecuteDeleteAsync();
     }
 
-    private async Task DeleteGroupAsync(Guid groupId)
+    private async Task SoftDeleteGroupAsync(Guid groupId)
     {
         await using var scope = Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
@@ -141,7 +141,7 @@ public class UserLookupEmailTests(IntegrationTestFixture fixture)
         await MonitorAsync(await GroupAsync(null, "Bank", manager), otherGroup);
         var deleted = await GroupAsync(null, "Bank", deletedGroupLead);
         await MonitorAsync(deleted, keyGroup);
-        await DeleteGroupAsync(deleted);
+        await SoftDeleteGroupAsync(deleted);
         await GroupAsync(null, "Bank", bystander); // monitors nobody
         // A group named IntAdmin of its own (the seeded one stays untouched), matched by name like the real one.
         var intAdminGroup = await GroupAsync("IntAdmin", "Company", intAdmin, keyer);
@@ -159,7 +159,7 @@ public class UserLookupEmailTests(IntegrationTestFixture fixture)
         }
         finally
         {
-            await DropGroupAsync(intAdminGroup);
+            await HardDeleteGroupAsync(intAdminGroup);
         }
     }
 
