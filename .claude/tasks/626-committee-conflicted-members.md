@@ -36,7 +36,7 @@ Spec: GitHub issue #626. Branch `immortalgky/committee-conflicted-member-exclusi
 - Refusal messages say "approve vote(s)": every committee group's target vote is approve.
 - The activity list is written in both the script and the seeder, as CLAUDE.md requires; no drift test.
 
-## Separate tickets (pre-existing, out of scope)
+## Separate tickets (pre-existing, out of scope) — opened #628 (config swallows errors), #629 (resume failures → 500), #630 (events bypass outbox)
 - `TaskConfigurationService.GetConfigurationAsync` swallows DB errors and returns null, so a config read failure
   silently switches the exclusion (and every other override) off.
 - `ApprovalMemberResolver` throwing (committee has no active members / not found) still becomes a terminal
