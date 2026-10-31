@@ -100,7 +100,7 @@ public class ExtoAssignmentEmailDispatchTests
         // The row holds what was sent, Queued (never picked again) until Notification confirms.
         Assert.Equal(sent.HtmlBody, row.BodyHtml);
         Assert.Equal(AssignmentEmailStatus.Queued, row.Status);
-        await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await _uow.Received(2).SaveChangesAsync(Arg.Any<CancellationToken>()); // the handover, then the email
     }
 
     [Fact]
@@ -112,7 +112,6 @@ public class ExtoAssignmentEmailDispatchTests
         await LandOnKeyerAsync();
 
         Assert.Null(Published());
-        await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -132,6 +131,14 @@ public class ExtoAssignmentEmailDispatchTests
 
         await LandOnKeyerAsync();
 
+        // The template reads the case after the handover is saved (keyer, Offline method, materialised fee), and the
+        // email goes out in a save of its own.
+        Received.InOrder(() =>
+        {
+            _uow.SaveChangesAsync(Arg.Any<CancellationToken>());
+            _caseReader.GetCaseAsync(_appraisal.Id, Arg.Any<CancellationToken>());
+            _uow.SaveChangesAsync(Arg.Any<CancellationToken>());
+        });
         Assert.NotNull(added);
         Assert.Equal(AssignmentEmailStatus.Queued, added.Status);
         Assert.Equal(_assignment.Id, added.AssignmentId);

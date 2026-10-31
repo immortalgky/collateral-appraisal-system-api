@@ -1,6 +1,7 @@
 using MassTransit;
 using Notification.Contracts.Email;
 using Notification.Data;
+using Notification.Infrastructure.Email;
 using Notification.Infrastructure.Email.Attachments;
 using Notification.Infrastructure.Email.Templates;
 using Shared.Messaging.Filters;
@@ -23,9 +24,12 @@ public sealed class AssignmentEmailRequestedHandler(
         inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, async ct =>
         {
             var msg = context.Message;
+            // A master-data address may hold several ("a; b"): split as every sibling email handler does.
+            var to = msg.To.SelectMany(EmailRecipients.Parse).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var cc = msg.Cc.SelectMany(EmailRecipients.Parse).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
             // The company is the addressee: without a To, a mail to the Cc'd bank staff alone is not this email.
-            if (msg.To.Count == 0)
+            if (to.Count == 0)
             {
                 // ponytail: logged only; the row stays Queued until #624 reports failures.
                 logger.LogWarning(
@@ -40,8 +44,8 @@ public sealed class AssignmentEmailRequestedHandler(
             await emailSender.SendAsync(new EmailMessage(
                 Subject: msg.Subject,
                 HtmlBody: templateRenderer.AssignmentEmail(msg.Subject, msg.HtmlBody),
-                To: msg.To,
-                Cc: msg.Cc.Count > 0 ? msg.Cc : null,
+                To: to,
+                Cc: cc.Count > 0 ? cc : null,
                 Attachments: attachments.Count > 0 ? attachments : null,
                 Source: "AssignmentEmail", // EmailSendLogs; ReferenceId is the AssignmentEmails row
                 ReferenceId: msg.EmailId.ToString()), ct);

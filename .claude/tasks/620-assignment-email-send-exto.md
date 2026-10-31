@@ -6,7 +6,7 @@ the trigger takes the Pending row Assign wrote; NotSent → nothing; no row → 
 
 ## Flow
 1. `InternalAssignedIntegrationEventHandler` (Appraisal), method `Offline`, first landing only (the row was Pending):
-   `AssignmentEmailDispatcher.QueueAsync` in the same save as the Assign.
+   after the handover is saved, `AssignmentEmailDispatcher.QueueAsync` + a second save (email row + outbox together).
    - newest Pending/NotSent row of this assignment: NotSent → nothing; Pending → fill `{{company}}` /
      `{{responsible}}` (= keyer) in the stored body and move it to **Queued**; none → build a row from the template
      (then Queued).
@@ -30,7 +30,8 @@ Preview's template build moves into a shared composer so the trigger can use it 
 - [x] Tests: dispatch seam, handler guard (re-fire, failure isolation), Notification handler seam
 - [x] Matt code-review (Standards + Spec): fixed Queued status, To required, redundant appraisalId param,
       alias constants, Sent consumer via unit of work, inline Source, composer in its own file
-- [ ] built-in /code-review loop, test-automator gates
+- [x] /code-review r1 (8 findings): fixed multi-address To, queue after the save (stale template), Sent consumer test
+- [ ] /code-review r2 (fix diff only), test-automator gates
 - [ ] User test → merge `--no-ff` into the integration branch, close #620 by hand
 
 ## Settled decisions
@@ -38,8 +39,14 @@ Preview's template build moves into a shared composer so the trigger can use it 
   retried: the company never gets a duplicate, and the row stays Queued (user, 2026-11-01). The publish is not
   cancellable for the same reason.
 - The body goes out in the branded shell (`IEmailTemplateRenderer.AssignmentEmail` = the quotation `Wrap`) (user, 2026-11-01).
-- Sends only on the handover itself (the assignment row was Pending), in the same save as the Assign. That covers
-  redelivery and route-back re-fires without a new column.
+- Sends only on the handover itself (the assignment row was Pending). That covers redelivery and route-back re-fires
+  without a new column.
+- The email is queued after the handover's save, in a second save (/code-review r1). A template then reads the case as
+  handed over: keyer, Offline method, and the fee just materialised, not the pre-save row (wrong responsible after a
+  route-back, wrong fee type). Cost, accepted: a crash between the two saves loses the email, while the assignment
+  stands; #623's resend covers it.
+- The Notification handler splits every To/Cc entry with `EmailRecipients.Parse`, because the company master can hold
+  "a; b" (/code-review r1).
 - Status **Queued** (user, 2026-11-01, from review): the dispatch moves the row Pending → Queued, and the
   confirmation moves it Queued → Sent. A row already handed over (unconfirmed, or no To) is therefore never picked
   for a later handover. No migration (string column). #624 marks Failed from Queued.
@@ -58,6 +65,11 @@ Preview's template build moves into a shared composer so the trigger can use it 
   it is never sent.
 - `Mail:Enabled=false` returns normally from IEmailSender, so in dev the row becomes Sent (SkippedDisabled in EmailSendLogs).
 - No migration: the Status column already holds Sent.
+- Declined in /code-review r1:
+  - An attachment that cannot be resolved is skipped and the email still goes out, the same as the quotation email.
+    The documents were checked live at assign.
+  - Placeholders the admin edited in the rich text editor are taken as the admin's intent.
+  - The company is looked up twice on the template path (nit).
 
 ## Review
 - (after implementation)

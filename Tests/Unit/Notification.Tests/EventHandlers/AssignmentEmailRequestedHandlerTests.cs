@@ -85,6 +85,17 @@ public class AssignmentEmailRequestedHandlerTests
     }
 
     [Fact]
+    public async Task A_company_email_holding_several_addresses_reaches_each_of_them()
+    {
+        // The company master stores one string; nothing stops "a; b" there (the validator only checks for '@').
+        await ConsumeAsync(Request(to: ["ops@acme.co.th; mgr@acme.co.th", "extra@acme.co.th"]));
+
+        await _sender.Received(1).SendAsync(Arg.Is<EmailMessage>(m =>
+            m.To!.SequenceEqual(new[] { "ops@acme.co.th", "mgr@acme.co.th", "extra@acme.co.th" })),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task A_failed_send_is_not_confirmed_and_is_retried()
     {
         _sender.SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>())
