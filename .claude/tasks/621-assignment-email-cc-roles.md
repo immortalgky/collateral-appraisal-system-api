@@ -31,7 +31,10 @@ No deliverable To (company has no email, no extra To) → row `Failed` with `Fai
       warning log, tests for the not-found reason and a split "a; b" To, Hard/SoftDeleteGroupAsync names
 - [x] /code-review r3 (4 findings): fixed the log to carry the looked-up company id, not the raw assignment string.
       No new critical/high/medium → loop stopped. Open question to the user: IsAssignable at handover (pre-existing, #620).
-- [ ] test-automator gates
+- [x] test-automator gates: solution build 0 errors; unit 12 projects 4,590 passed / 1 known skip (Appraisal 1623,
+      Auth 368, Notification 38, Workflow 1219+1 skip); has-pending-model-changes (AppraisalDbContext) clean; Testcontainers
+      Auth + Appraisal integration namespaces + UserLookupEmailTests 435/435 (attempts 1–2 died on an orphaned
+      Testcontainers session, not on assertions).
 - [ ] User test → merge `--no-ff` into the integration branch, close #621 by hand
 
 ## Settled decisions
@@ -62,3 +65,18 @@ No deliverable To (company has no email, no extra To) → row `Failed` with `Fai
 - Declined in r3: the two null-company paths sharing one reason (the log has the id); a test for the
   unparseable-id path (pre-existing TryParse from #620); `IsAssignable` not checked at handover (pre-existing #620
   behaviour, raised with the user).
+
+## Review
+- Auth.Contracts `IUserLookupService`: `GetEmailsInRoleAsync`, `GetEmailsAsync`, `GetSupervisorEmailsAsync`. One filter
+  (`UsableWithEmail`: active, inside any access window, non-blank email, `ApplicationNow`). Supervisors via
+  GroupMonitoring joined through `Groups` (soft-delete filter on both sides), monitor group `IntAdmin` excluded.
+- Domain `AssignmentEmail`: `FailureReason` (nvarchar(1000), folded into `AddAssignmentEmails`, same id), `Fail(reason)`
+  only from Queued.
+- `AssignmentEmailDispatcher.QueueExtoAsync`: expands the stored Cc before any write; IntAdminAll → role emails,
+  Keyer/FollowupStaff → the responsible user's email, *Supervisor → their supervisors; literals kept; split on ',' ';'
+  and de-duplicated. No To left → Failed with a reason + warning log, nothing published.
+- Tests: `UserLookupEmailTests` (4, Testcontainers); `ExtoAssignmentEmailDispatchTests` 10 (Cc expansion, removed chips,
+  no-email / separator-only / unknown company → Failed, split To).
+- Security: recipients only from Auth (usable users) and the validated row; no new endpoint; no PII in logs (ids only).
+- Local DB: if `20261031033255_AddAssignmentEmails` was already applied, roll it back
+  (`dotnet ef database update 20261026030157_ExpandedFieldLenghtPaymentOrder --context AppraisalDbContext`) and re-run migrate.
