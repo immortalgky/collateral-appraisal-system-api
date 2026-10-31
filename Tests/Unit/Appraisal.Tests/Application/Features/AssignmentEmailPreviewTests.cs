@@ -58,7 +58,7 @@ public class AssignmentEmailPreviewTests
     private Task<AssignmentEmailPreviewResult> GetAsync(AssignmentEmailCase @case)
     {
         _reader.GetCaseAsync(AppraisalId, Arg.Any<CancellationToken>()).Returns(@case);
-        return new GetAssignmentEmailPreviewQueryHandler(_reader, _companies, _sender, _user, _configuration)
+        return new GetAssignmentEmailPreviewQueryHandler(new AssignmentEmailComposer(_reader, _companies, _sender, _configuration), _user)
             .Handle(new GetAssignmentEmailPreviewQuery(AppraisalId), CancellationToken.None);
     }
 

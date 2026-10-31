@@ -7,4 +7,10 @@ public interface IAssignmentEmailRepository : IRepository<AssignmentEmail, Guid>
     /// remove the email that attempt already committed.
     /// </summary>
     Task DeleteNowAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The admin's choice for this assignment's handover: the newest Pending or NotSent row (tracked), null when the
+    /// assign recorded none. Queued / Sent / Failed rows were already handed over.
+    /// </summary>
+    Task<AssignmentEmail?> GetLatestUnsentAsync(Guid assignmentId, CancellationToken cancellationToken = default);
 }

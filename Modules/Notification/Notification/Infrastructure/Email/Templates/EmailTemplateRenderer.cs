@@ -14,6 +14,9 @@ internal sealed class EmailTemplateRenderer(IDateTimeProvider clock) : IEmailTem
     public string QuotationSent(string subject, string? adminContent) =>
         Wrap(subject, adminContent);
 
+    public string AssignmentEmail(string subject, string? adminContent) =>
+        Wrap(subject, adminContent);
+
     public string MeetingInvitation(string subject, string? adminContent) =>
         Wrap(subject, BuildBody(adminContent));
 
