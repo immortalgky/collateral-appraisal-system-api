@@ -33,7 +33,11 @@ Preview's template build moves into a shared composer so the trigger can use it 
 - [x] /code-review r1 (8 findings): fixed multi-address To, queue after the save (stale template), Sent consumer test
 - [x] /code-review r2 (9 findings, from r1's two saves): back to one save, composer gets the EXTO handover, Cc minus To
 - [x] /code-review r3 (7 findings): explicit compose/queue API for the EXTO handover, a test pinning publish-before-save
-- [ ] /code-review r4 (fix diff only), test-automator gates
+- [x] /code-review r4: no correctness/security findings (4 low nits declined: same election rule for company,
+      blank AssigneeUserId never published, two cleanups) → loop stopped
+- [x] test-automator gates: build 0 errors; unit 12 projects green (Appraisal 1618, Notification 38, Workflow
+      1219 + 1 existing skip); has-pending-model-changes (--context AppraisalDbContext) clean; Testcontainers
+      Appraisal namespace 218/218 (Assign filter 28/28). No integration test covers the email path (unit only).
 - [ ] User test → merge `--no-ff` into the integration branch, close #620 by hand
 
 ## Settled decisions
@@ -89,4 +93,34 @@ Preview's template build moves into a shared composer so the trigger can use it 
   addresses (the #627 validator), and the company master holds addresses.
 
 ## Review
-- (after implementation)
+- Shared events: `AssignmentEmailRequestedIntegrationEvent` and `AssignmentEmailSentIntegrationEvent`
+  (Shared.Messaging).
+- Domain `AssignmentEmail`:
+  - status `Queued`
+  - `Queue(company, responsible)` fills the placeholders HTML-encoded and sets Queued
+  - `MarkSent()` changes only a Queued row
+  - placeholder constants live here
+- `AssignmentEmailComposer`: extracted from the preview handler. `ComposeAsync` is the preview;
+  `ComposeForExtoHandoverAsync` gives the keyer, the EXTO Cc and the external-offline fee.
+- `AssignmentEmailDispatcher.QueueExtoAsync`:
+  - picks the newest Pending/NotSent row; NotSent → nothing, none → template
+  - resolves the company To plus ExtraTo, keeps only literal Cc addresses, attaches documents
+  - publishes on the outbox
+- `InternalAssignedIntegrationEventHandler`: on the first Offline landing it calls the dispatcher inside a try/catch,
+  before its single save.
+- `AssignmentEmailSentIntegrationEventHandler`: Queued → Sent.
+- Notification `AssignmentEmailRequestedHandler` (InboxGuard):
+  - splits To/Cc, and drops a Cc already in To
+  - no To → not sent
+  - attachments go through the document resolver
+  - `IEmailTemplateRenderer.AssignmentEmail` gives the branded shell
+  - sends with Source `AssignmentEmail` and ReferenceId = the email id
+  - publishes Sent; a failed publish is logged only
+- Tests:
+  - `ExtoAssignmentEmailDispatchTests` (5)
+  - `AssignmentEmailSentIntegrationEventHandlerTests` (2)
+  - `AssignmentEmailRequestedHandlerTests` (6)
+- Security:
+  - Values filled into the HTML are encoded; the admin's HTML is trusted, as decided in #627.
+  - Recipients come only from the company master and the #627-validated ExtraTo/Cc, and From stays fixed.
+  - Nothing sensitive is logged; only ids are.
