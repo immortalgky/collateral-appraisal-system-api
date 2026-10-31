@@ -65,13 +65,15 @@ public class AssignmentEmail : Entity<Guid>
         };
 
     /// <summary>
-    /// Fills the template's <c>{{company}}</c> / <c>{{responsible}}</c> left open at assign, so the row keeps what was
-    /// sent. Values are HTML-encoded: they come from master data, not from the admin.
+    /// Hands the email to the sender: fills the template's <c>{{company}}</c> / <c>{{responsible}}</c> left open at
+    /// assign, so the row keeps what was sent, and moves it to <see cref="AssignmentEmailStatus.Queued"/> so it is never
+    /// picked for a later handover. Values are HTML-encoded: they come from master data, not from the admin.
     /// </summary>
-    public void FillPlaceholders(string? company, string? responsible)
+    public void Queue(string? company, string? responsible)
     {
         BodyHtml = Fill(BodyHtml, CompanyPlaceholder, company);
         BodyHtml = Fill(BodyHtml, ResponsiblePlaceholder, responsible);
+        Status = AssignmentEmailStatus.Queued;
     }
 
     private static string Fill(string html, string placeholder, string? value) =>
@@ -79,10 +81,10 @@ public class AssignmentEmail : Entity<Guid>
             ? html
             : html.Replace(placeholder, System.Net.WebUtility.HtmlEncode(value.Trim()), StringComparison.Ordinal);
 
-    /// <summary>The gateway accepted it. Only a Pending email becomes Sent, so a redelivered confirmation changes nothing.</summary>
+    /// <summary>The gateway accepted it. Only a Queued email becomes Sent, so a redelivered confirmation changes nothing.</summary>
     public void MarkSent()
     {
-        if (Status == AssignmentEmailStatus.Pending)
+        if (Status == AssignmentEmailStatus.Queued)
             Status = AssignmentEmailStatus.Sent;
     }
 }
@@ -92,7 +94,12 @@ public record AssignmentEmailAttachment(Guid DocumentId, string Source);
 
 public static class AssignmentEmailStatus
 {
+    /// <summary>Chosen at assign, waiting for the case to be handed over.</summary>
     public const string Pending = "Pending";
+
+    /// <summary>Handed to the Notification module, waiting for its confirmation.</summary>
+    public const string Queued = "Queued";
+
     public const string Sent = "Sent";
     public const string Failed = "Failed";
     public const string NotSent = "NotSent";

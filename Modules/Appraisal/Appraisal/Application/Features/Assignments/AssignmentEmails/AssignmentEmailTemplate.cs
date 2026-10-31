@@ -10,9 +10,6 @@ namespace Appraisal.Application.Features.Assignments.AssignmentEmails;
 /// </summary>
 public static class AssignmentEmailTemplate
 {
-    public const string CompanyPlaceholder = AssignmentEmail.CompanyPlaceholder;
-    public const string ResponsiblePlaceholder = AssignmentEmail.ResponsiblePlaceholder;
-
     public record Values(
         string? Company,
         string? CustomerName,
@@ -34,7 +31,7 @@ public static class AssignmentEmailTemplate
     }
 
     public static string BodyHtml(Values v) =>
-        $"<p>เรียน {Encode(v.Company) ?? CompanyPlaceholder}</p>" +
+        $"<p>เรียน {Encode(v.Company) ?? AssignmentEmail.CompanyPlaceholder}</p>" +
         "<p>ขอนำส่งงานประเมิน ลูกค้าจำนวน 1 รายการ (หากได้วันเข้าสำรวจแล้ว โปรดแจ้งกลับ)</p>" +
         $"<p>App No. : {Text(v.AppraisalNumber)}<br>" +
         $"ชื่อลูกค้า : {Text(v.CustomerName)}<br>" +
@@ -42,7 +39,7 @@ public static class AssignmentEmailTemplate
         $"โทรศัพท์ : {Text(v.ContactPhone)}<br>" +
         $"ค่าธรรมเนียม : {v.FeeTotal?.ToString("N2", CultureInfo.InvariantCulture) ?? "-"}<br>" +
         $"การชำระค่าธรรมเนียม : {Text(v.FeePaymentText)}<br>" +
-        $"ผู้รับผิดชอบ : {Encode(v.Responsible) ?? ResponsiblePlaceholder}<br>" +
+        $"ผู้รับผิดชอบ : {Encode(v.Responsible) ?? AssignmentEmail.ResponsiblePlaceholder}<br>" +
         $"หมายเหตุ : {Text(v.Remark)}</p>" +
         "<p>จึงเรียนมาเพื่อทราบและดำเนินการต่อ</p>";
 

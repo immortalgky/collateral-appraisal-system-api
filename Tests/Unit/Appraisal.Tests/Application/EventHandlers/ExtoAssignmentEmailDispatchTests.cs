@@ -97,9 +97,9 @@ public class ExtoAssignmentEmailDispatchTests
         Assert.Equal("<p>เรียน บริษัท แอคมี จำกัด</p><p>ผู้รับผิดชอบ : สมชาย ใจดี</p>", sent.HtmlBody);
         Assert.Equal([new EmailAttachmentRefData("document", DocumentId.ToString())], sent.AttachmentRefs);
         Assert.Equal("P5229", sent.AssignedBy);
-        // The row holds what was sent, still Pending until Notification confirms.
+        // The row holds what was sent, Queued (never picked again) until Notification confirms.
         Assert.Equal(sent.HtmlBody, row.BodyHtml);
-        Assert.Equal(AssignmentEmailStatus.Pending, row.Status);
+        Assert.Equal(AssignmentEmailStatus.Queued, row.Status);
         await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
@@ -133,7 +133,7 @@ public class ExtoAssignmentEmailDispatchTests
         await LandOnKeyerAsync();
 
         Assert.NotNull(added);
-        Assert.Equal(AssignmentEmailStatus.Pending, added.Status);
+        Assert.Equal(AssignmentEmailStatus.Queued, added.Status);
         Assert.Equal(_assignment.Id, added.AssignmentId);
         var sent = Published();
         Assert.NotNull(sent);

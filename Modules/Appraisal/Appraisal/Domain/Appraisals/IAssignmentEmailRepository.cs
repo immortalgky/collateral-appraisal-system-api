@@ -10,7 +10,7 @@ public interface IAssignmentEmailRepository : IRepository<AssignmentEmail, Guid>
 
     /// <summary>
     /// The admin's choice for this assignment's handover: the newest Pending or NotSent row (tracked), null when the
-    /// assign recorded none. Sent / Failed rows are earlier handovers' history.
+    /// assign recorded none. Queued / Sent / Failed rows were already handed over.
     /// </summary>
     Task<AssignmentEmail?> GetLatestUnsentAsync(Guid assignmentId, CancellationToken cancellationToken = default);
 }

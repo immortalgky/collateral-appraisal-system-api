@@ -107,9 +107,10 @@ public class AssignmentEmailRequestedHandlerTests
     }
 
     [Fact]
-    public async Task No_recipient_sends_nothing()
+    public async Task No_company_address_sends_nothing_even_with_a_Cc()
     {
-        await ConsumeAsync(Request(to: []) with { Cc = [] });
+        // The company has no email and the admin added none: a mail only to bank staff is not the assignment email.
+        await ConsumeAsync(Request(to: []));
 
         await _sender.DidNotReceive().SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>());
         await _ctx.DidNotReceive().Publish(Arg.Any<AssignmentEmailSentIntegrationEvent>(), Arg.Any<CancellationToken>());

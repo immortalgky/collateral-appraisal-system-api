@@ -124,7 +124,7 @@ public class InternalAssignedIntegrationEventHandler(
         {
             try
             {
-                await emailDispatcher.QueueAsync(message.AppraisalId, assignment, message.AssigneeUserId, ct);
+                await emailDispatcher.QueueAsync(assignment, message.AssigneeUserId, ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

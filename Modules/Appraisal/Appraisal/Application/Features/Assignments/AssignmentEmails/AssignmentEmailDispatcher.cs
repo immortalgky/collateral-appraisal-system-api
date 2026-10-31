@@ -17,9 +17,9 @@ public class AssignmentEmailDispatcher(
     IIntegrationEventOutbox outbox)
 {
     /// <param name="responsibleUserId">The bank's responsible person (EXTO: the keyer), a username.</param>
-    public async Task QueueAsync(
-        Guid appraisalId, AppraisalAssignment assignment, string? responsibleUserId, CancellationToken ct)
+    public async Task QueueAsync(AppraisalAssignment assignment, string? responsibleUserId, CancellationToken ct)
     {
+        var appraisalId = assignment.AppraisalId;
         var email = await emails.GetLatestUnsentAsync(assignment.Id, ct);
         if (email?.Status == AssignmentEmailStatus.NotSent)
             return;
@@ -39,7 +39,7 @@ public class AssignmentEmailDispatcher(
             await emails.AddAsync(email, ct);
         }
 
-        email.FillPlaceholders(company is null ? null : AssignmentEmailComposer.DisplayName(company), responsible);
+        email.Queue(company is null ? null : AssignmentEmailComposer.DisplayName(company), responsible);
 
         outbox.Publish(new AssignmentEmailRequestedIntegrationEvent
         {
