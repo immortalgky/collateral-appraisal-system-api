@@ -24,7 +24,10 @@ No deliverable To (company has no email, no extra To) → row `Failed` with `Fai
 - [x] Dispatcher: Cc expansion + Failed on no To; dispatch-seam tests
 - [x] Matt code-review (Standards + Spec): all 6 AC met. Fixed: the no-To comment (an extra To still sends, story 50),
       dropped the unasked-for self-exclusion from the supervisor query, one `Clean` helper for To/Cc addresses
-- [ ] /code-review loop
+- [x] /code-review r1 (11 findings): fixed separator-only To ("; ,") now Failed (addresses split like EmailRecipients),
+      a reason for "company not found", a warning log on Failed, the supervisor test no longer touches the seeded IntAdmin
+      group. Open question to the user: IsSystem accounts in the IntAdmin Cc.
+- [ ] /code-review r2+ (fix diff only)
 - [ ] test-automator gates
 - [ ] User test → merge `--no-ff` into the integration branch, close #621 by hand
 
@@ -44,3 +47,7 @@ No deliverable To (company has no email, no extra To) → row `Failed` with `Fai
 - A company with no email but an admin-added extra To still sends (story 50: Failed only with no deliverable To).
 - The failure reason is an English string (house rule); the UI localises.
 - A supervisor who is also the keyer is listed (no self-exclusion); Cc de-duplicates.
+- Declined in r1: Cc expanded before the To check (keeps reads before writes; failure is rare); the responsible user
+  looked up twice (one extra round-trip); `GetEmailsInRoleAsync` applying IsUsable while `GetUsernamesInRoleAsync`
+  checks IsActive only (the spec asks for IsUsable here); "IntAdmin" constants per module (repo style); IntAdminAll
+  not including the Admin role (spec says IntAdmin); tests using DateTime.Now with a ±1 day margin.

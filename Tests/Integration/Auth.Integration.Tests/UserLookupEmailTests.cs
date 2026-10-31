@@ -39,18 +39,13 @@ public class UserLookupEmailTests(IntegrationTestFixture fixture)
             .SetProperty(u => u.NormalizedEmail, (string?)null));
     }
 
-    private async Task<Guid> GroupAsync(string? name, params TestUser[] members)
+    /// <param name="scope">Name and scope are unique together: the seeded IntAdmin group is Bank-scoped.</param>
+    private async Task<Guid> GroupAsync(string? name, string scope, params TestUser[] members)
     {
-        await using var scope = Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-        var group = name is null
-            ? null
-            : await db.Groups.FirstOrDefaultAsync(g => g.Name == name && !g.IsDeleted);
-        if (group is null)
-        {
-            group = Group.Create(name ?? $"g{Guid.NewGuid():N}"[..20], "test", "Bank");
-            db.Groups.Add(group);
-        }
+        await using var services = Services.CreateAsyncScope();
+        var db = services.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var group = Group.Create(name ?? $"g{Guid.NewGuid():N}"[..20], "test", scope);
+        db.Groups.Add(group);
 
         foreach (var m in members)
             db.GroupUsers.Add(new GroupUser { GroupId = group.Id, UserId = m.Id });
@@ -64,6 +59,16 @@ public class UserLookupEmailTests(IntegrationTestFixture fixture)
         var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
         db.GroupMonitoring.Add(new GroupMonitoring { MonitorGroupId = monitorGroupId, MonitoredGroupId = monitoredGroupId });
         await db.SaveChangesAsync();
+    }
+
+    /// <summary>Removes a group and its rows outright, so a name-matched group does not leak into other tests.</summary>
+    private async Task DropGroupAsync(Guid groupId)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        await db.GroupMonitoring.Where(gm => gm.MonitorGroupId == groupId || gm.MonitoredGroupId == groupId).ExecuteDeleteAsync();
+        await db.GroupUsers.Where(gu => gu.GroupId == groupId).ExecuteDeleteAsync();
+        await db.Groups.IgnoreQueryFilters().Where(g => g.Id == groupId).ExecuteDeleteAsync();
     }
 
     private async Task DeleteGroupAsync(Guid groupId)
@@ -130,23 +135,32 @@ public class UserLookupEmailTests(IntegrationTestFixture fixture)
         var bystander = await UserAsync();
         var intAdmin = await UserAsync("IntAdmin");
 
-        var keyGroup = await GroupAsync(null, keyer);
-        var otherGroup = await GroupAsync(null, keyer);
-        await MonitorAsync(await GroupAsync(null, lead, manager, inactiveLead), keyGroup);
-        await MonitorAsync(await GroupAsync(null, manager), otherGroup);
-        var deleted = await GroupAsync(null, deletedGroupLead);
+        var keyGroup = await GroupAsync(null, "Bank", keyer);
+        var otherGroup = await GroupAsync(null, "Bank", keyer);
+        await MonitorAsync(await GroupAsync(null, "Bank", lead, manager, inactiveLead), keyGroup);
+        await MonitorAsync(await GroupAsync(null, "Bank", manager), otherGroup);
+        var deleted = await GroupAsync(null, "Bank", deletedGroupLead);
         await MonitorAsync(deleted, keyGroup);
         await DeleteGroupAsync(deleted);
-        await GroupAsync(null, bystander); // monitors nobody
-        // The IntAdmin group watches everyone's tasks: it is Cc'd through its own chip, never as a supervisor.
-        await MonitorAsync(await GroupAsync("IntAdmin", intAdmin), keyGroup);
-        // The keyer's own IntAdmin membership still counts: whoever monitors the IntAdmin group supervises them.
-        var adminHead = await UserAsync();
-        await MonitorAsync(await GroupAsync(null, adminHead), await GroupAsync("IntAdmin", keyer));
+        await GroupAsync(null, "Bank", bystander); // monitors nobody
+        // A group named IntAdmin of its own (the seeded one stays untouched), matched by name like the real one.
+        var intAdminGroup = await GroupAsync("IntAdmin", "Company", intAdmin, keyer);
+        try
+        {
+            // The IntAdmin group watches everyone's tasks: it is Cc'd through its own chip, never as a supervisor.
+            await MonitorAsync(intAdminGroup, keyGroup);
+            // The keyer's own IntAdmin membership still counts: whoever monitors the IntAdmin group supervises them.
+            var adminHead = await UserAsync();
+            await MonitorAsync(await GroupAsync(null, "Bank", adminHead), intAdminGroup);
 
-        var emails = await Lookup(s => s.GetSupervisorEmailsAsync(keyer.UserName, CancellationToken.None));
+            var emails = await Lookup(s => s.GetSupervisorEmailsAsync(keyer.UserName, CancellationToken.None));
 
-        emails.Should().BeEquivalentTo([await EmailOf(lead), await EmailOf(manager), await EmailOf(adminHead)]);
+            emails.Should().BeEquivalentTo([await EmailOf(lead), await EmailOf(manager), await EmailOf(adminHead)]);
+        }
+        finally
+        {
+            await DropGroupAsync(intAdminGroup);
+        }
     }
 
     [Fact]

@@ -15,7 +15,8 @@ public class AssignmentEmailDispatcher(
     AssignmentEmailComposer composer,
     ICompanyLookupService companyLookup,
     IUserLookupService userLookup,
-    IIntegrationEventOutbox outbox)
+    IIntegrationEventOutbox outbox,
+    ILogger<AssignmentEmailDispatcher> logger)
 {
     /// <param name="keyerUserId">The keyer the case was handed to, a username.</param>
     public async Task QueueExtoAsync(AppraisalAssignment assignment, string? keyerUserId, CancellationToken ct)
@@ -47,7 +48,11 @@ public class AssignmentEmailDispatcher(
         // The company's own address or the admin's extra To: with neither there is nobody to send to, whoever is in Cc.
         if (to.Count == 0)
         {
-            email.Fail("The company has no email address and no other To address was added.");
+            email.Fail(company is null
+                ? "The assigned company could not be found and no other To address was added."
+                : "The company has no email address and no other To address was added.");
+            logger.LogWarning("Assignment email {EmailId} for appraisal {AppraisalId} has no To address. Marked Failed",
+                email.Id, appraisalId);
             return;
         }
 
@@ -89,8 +94,12 @@ public class AssignmentEmailDispatcher(
         return Clean(addresses);
     }
 
+    /// <summary>
+    /// One address per entry, de-duplicated. A master-data address may hold several ("a; b"): split on ',' / ';' as
+    /// the Notification module's EmailRecipients does, so an entry of separators only counts as no address.
+    /// </summary>
     private static List<string> Clean(IEnumerable<string?> addresses) =>
-        addresses.Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => a!.Trim())
+        addresses.SelectMany(a => (a ?? "").Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
     private const string IntAdminRole = "IntAdmin";

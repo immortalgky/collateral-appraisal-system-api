@@ -132,14 +132,16 @@ public class ExtoAssignmentEmailDispatchTests
         await _users.DidNotReceive().GetSupervisorEmailsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task A_company_without_an_email_fails_the_email_and_sends_nothing()
+    [Theory]
+    [InlineData("  ")]
+    [InlineData(" ; , ")] // separators only: the Notification consumer would find no address in it
+    public async Task A_company_without_an_email_fails_the_email_and_sends_nothing(string companyEmail)
     {
         var row = AssignmentEmail.ToSend(_appraisal.Id, _assignment.Id, [], [AssignmentEmailCcRoles.IntAdminAll],
             "subject", "<p>body</p>", []);
         _emails.GetLatestUnsentAsync(_assignment.Id, Arg.Any<CancellationToken>()).Returns(row);
         _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>())
-            .Returns(new CompanyLookupDto(CompanyId, "Acme Appraisal", null, true, "  ", "บริษัท แอคมี จำกัด"));
+            .Returns(new CompanyLookupDto(CompanyId, "Acme Appraisal", null, true, companyEmail, "บริษัท แอคมี จำกัด"));
 
         await LandOnKeyerAsync();
 
@@ -251,7 +253,8 @@ public class ExtoAssignmentEmailDispatchTests
             Substitute.For<IDateTimeProvider>());
 
         var composer = new AssignmentEmailComposer(_caseReader, _companies, _sender, new ConfigurationBuilder().Build());
-        var dispatcher = new AssignmentEmailDispatcher(_emails, composer, _companies, _users, _outbox);
+        var dispatcher = new AssignmentEmailDispatcher(_emails, composer, _companies, _users, _outbox,
+            NullLogger<AssignmentEmailDispatcher>.Instance);
 
         return new InternalAssignedIntegrationEventHandler(
             repo, _uow, fees, NullLogger<InternalAssignedIntegrationEventHandler>.Instance, inboxGuard, dispatcher);
@@ -264,7 +267,8 @@ public class ExtoAssignmentEmailDispatchTests
             Substitute.For<ISender>(), new ConfigurationBuilder().Build()),
         Substitute.For<ICompanyLookupService>(),
         Substitute.For<IUserLookupService>(),
-        Substitute.For<IIntegrationEventOutbox>());
+        Substitute.For<IIntegrationEventOutbox>(),
+        NullLogger<AssignmentEmailDispatcher>.Instance);
 
     private static ConsumeContext<InternalAssignedIntegrationEvent> Context(InternalAssignedIntegrationEvent message)
     {
