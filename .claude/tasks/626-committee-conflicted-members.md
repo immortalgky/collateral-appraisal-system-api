@@ -43,12 +43,26 @@ Spec: GitHub issue #626. Branch `immortalgky/committee-conflicted-member-exclusi
   `ActivityResult.Failed`.
 - TaskAssigned / TaskStarted / ApprovalTasksAssigned still publish straight to MassTransit, so they leak on a
   rolled-back submit.
+- A vote from a non-member (including an excluded Conflicted member) is refused with HTTP 500, not 4xx:
+  `ResumeActivityAsync` returns Failed → `WorkflowService` throws InvalidOperationException. Nothing is persisted
+  (the transaction rolls back), but the status code is wrong.
 
 ## Review
 - Rollback was verified by reading the code. CompleteActivity and ReleaseMeetingItem both run inside one
   transaction (TransactionalBehavior → WorkflowService.ResumeWorkflowAsync inline), and every write in the
   submit, including outbox rows, rolls back with it. The one direct broker publish on that path
-  (TaskCompletedIntegrationEvent) now goes through the outbox. The user's local E2E still has to confirm it.
+  (TaskCompletedIntegrationEvent) now goes through the outbox.
+- Live E2E 2026-10-31 (test-automator, second API on 7399, dev DB, appraisal 69000191 on COMMITTEE):
+  - The round open before the deploy was left untouched.
+  - Too few members: HTTP 400 APPROVAL_ROUND_UNRESOLVABLE naming int.vrf1 and int.vrf2. Instance and task state
+    were identical before and after the call: the same PendingTask stayed with int.vrf1, status Suspended (not
+    Failed), and no new executions or outbox rows were written.
+  - Normal case: tasks went to the 5 original members only, `excludedMembers` lists both users, and the
+    TaskCompleted outbox row was processed.
+  - A vote from an excluded member was refused (500, see the separate ticket) and no vote was stored.
+  - Committee membership was restored to the snapshot, confirmed by diff.
+  - The `migrate` step applied the script once, and running it a second time changed 0 rows.
+  - Not covered live: the meeting-release path and the offline path. Both are covered by unit tests only.
 - Tests: 19 new unit tests (ApprovalActivityConflictedMemberTests, WorkflowEngineTests, PoolTaskCompletedNotificationTests).
 - Two fixtures in ApprovalActivityMemberOverrideTests went from a 1-person roster to 2 people, because a 1-member roster
   against a Fixed quorum of 2 is now refused (MeetingRosterEligibility already blocks it at release).
