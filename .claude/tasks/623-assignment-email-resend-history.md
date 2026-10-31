@@ -18,7 +18,7 @@ and touches the dispatcher too: keep the dispatcher diff small.
 - [x] Share the attachment check (assign + resend) and the queue/publish step (EXTO handover + resend)
 - [x] History query, view query, resend command, endpoints
 - [x] Unit tests: history, view, resend (NotSent, closed, non-admin, Pending, not EXT/EXTO)
-- [ ] Matt code-review, then the `/code-review` loop, then test-automator gates
+- [x] Matt code-review, then the `/code-review` loop (r1 9 findings → r2 no correctness/security, stopped), then test-automator gates
 - [ ] Commit; user test → merge `--no-ff` into the integration branch, close #623 by hand
 
 ## Settled decisions (user 2026-11-01)
@@ -59,3 +59,23 @@ and touches the dispatcher too: keep the dispatcher diff small.
   (test-automator). Declined: NULL `Attachments` column (EF always writes `[]`, only a manual SQL write could make it
   NULL); the empty-To message also covering a deleted company; the flag living in the shared dispatcher (the handover's
   empty-To failure is #621/#624). → loop stopped (no new critical/high/medium).
+- test-automator gates: build 0 errors; unit 12 projects green (Appraisal 1637, Notification 38, Workflow 1219 + 1
+  existing skip, the rest green); has-pending-model-changes (AppraisalDbContext) clean; new Testcontainers test
+  `AssignmentEmailQueriesSqlTests` (2/2) proves the JSON projections and the case reader's new columns on SQL Server;
+  `~Assign` integration filter 30/30 (first run hit a Docker memory kill from another session's containers, rerun clean).
+
+## Review
+- Domain `AssignmentEmail`: `IsResend`, `SentTo`/`SentCc` (written by `Queue`), `SentAt` (written by `MarkSent`, the
+  Sent consumer stamps `ApplicationNow`), factory `Resend`.
+- `AssignmentEmailDispatcher.QueueAsync`: the queue + publish step shared by the EXTO handover and the resend;
+  `refuseWithoutTo` makes the resend a 400 before anything is queued.
+- `AssignmentEmailAttachments.CheckAsync`: the attachment check moved out of AssignAppraisal, shared by both.
+- `AssignmentEmailCase` reads the appraisal status and the current assignment's id/type/status (`IsClosed`,
+  `IsAssignedToCompany`).
+- `ResendAssignmentEmailCommandHandler` + validator; `GetAssignmentEmailHistoryQueryHandler`,
+  `GetAssignmentEmailSentQueryHandler`; `AssignmentEmailsEndpoint` (3 routes).
+- Migration `20261031033255_AddAssignmentEmails` reshaped in place (4 columns).
+- Tests: `AssignmentEmailTests` (domain 4), `ResendAssignmentEmailTests` (11), `AssignmentEmailHistoryTests` (5),
+  `AssignmentEmailQueriesSqlTests` (integration 2).
+- Security: all three endpoints check `APPRAISAL_ADMINISTRATION_EDIT` in the handler; the view looks the email up by
+  id AND appraisal; the actor is the server-side bank code; values filled into HTML are encoded; nothing sensitive logged.
