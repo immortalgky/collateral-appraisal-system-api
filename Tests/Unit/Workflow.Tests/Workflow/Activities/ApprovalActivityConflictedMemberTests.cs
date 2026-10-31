@@ -235,6 +235,15 @@ public class ApprovalActivityConflictedMemberTests
     }
 
     [Fact]
+    public async Task Execute_MinVotesAboveTheMembersLeft_RefusesTheRound()
+    {
+        _conditions = [new ApprovalConditionInfo("MinVotes", null, 3)];
+        ConfigureExclusions("int-appraisal-execution");
+
+        await AssertRoundRefused(BuildContext(("int-appraisal-execution", "presenter")));
+    }
+
+    [Fact]
     public async Task Execute_WaitForAllWithAFixedQuorumAboveTheMembersLeft_StillOpensTheRound()
     {
         // WaitForAll resolves once everyone has voted; the quorum number is never consulted.

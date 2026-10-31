@@ -138,7 +138,7 @@ public class ApprovalActivity : WorkflowActivityBase
                 throw new ApprovalRoundUnresolvableException(
                     $"Committee {groupInfo.CommitteeName ?? groupInfo.CommitteeCode ?? "approval"} cannot decide this " +
                     $"appraisal: {unresolvable}. {resolvedMembers.Count} member(s) remain after excluding conflicted " +
-                    $"members ({excludedSummary}). Contact an admin to add committee members, then submit again.");
+                    $"members ({excludedSummary}). Contact an admin to fix the committee or meeting members, then try again.");
 
             var activityName = GetProperty(context, "activityName", context.ActivityId);
             var voteOptions = GetProperty<List<string>>(context, "voteOptions",
@@ -832,8 +832,8 @@ public class ApprovalActivity : WorkflowActivityBase
     // -- Private helpers --
 
     /// <summary>
-    /// Why a round with these members can never resolve, or null when it can. FixedCount is the only
-    /// majority that can be out of reach (the proportional ones are taken of the members themselves), and the
+    /// Why a round with these members can never resolve, or null when it can. FixedCount (and a MinVotes
+    /// condition) is the only vote count that can be out of reach (the proportional ones are taken of the members themselves), and the
     /// quorum number only matters in Quorum mode: WaitForAll resolves once everyone has voted.
     /// </summary>
     private static string? FindUnresolvableReason(ApprovalGroupInfo groupInfo, List<ApprovalMemberInfo> members)
@@ -851,6 +851,14 @@ public class ApprovalActivity : WorkflowActivityBase
             if (members.Count < requiredQuorum)
                 return $"quorum requires {requiredQuorum} vote(s)";
         }
+
+        var minVotes = groupInfo.Conditions
+            .Where(c => c.ConditionType == "MinVotes")
+            .Select(c => c.MinVotesRequired ?? 0)
+            .DefaultIfEmpty(0)
+            .Max();
+        if (minVotes > members.Count)
+            return $"{minVotes} approve vote(s) required";
 
         var missingRole = groupInfo.Conditions
             .Where(c => c.ConditionType == "RoleRequired" && !string.IsNullOrEmpty(c.RoleRequired))
