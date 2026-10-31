@@ -100,7 +100,7 @@ public class ExtoAssignmentEmailDispatchTests
         // The row holds what was sent, Queued (never picked again) until Notification confirms.
         Assert.Equal(sent.HtmlBody, row.BodyHtml);
         Assert.Equal(AssignmentEmailStatus.Queued, row.Status);
-        await _uow.Received(2).SaveChangesAsync(Arg.Any<CancellationToken>()); // the handover, then the email
+        await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>()); // with the handover, atomically
     }
 
     [Fact]
@@ -112,17 +112,19 @@ public class ExtoAssignmentEmailDispatchTests
         await LandOnKeyerAsync();
 
         Assert.Null(Published());
+        await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task No_choice_recorded_sends_the_bank_template_as_a_new_pending_row()
     {
-        // Read before this save: the stored row has the company but not yet the keyer.
+        // Read before this handler's save: the stored row is the one routed back, still naming the previous keyer and
+        // the previous decision's method. The handover being saved is what the email must describe.
         _caseReader.GetCaseAsync(_appraisal.Id, Arg.Any<CancellationToken>()).Returns(new AssignmentEmailCase(
             AppraisalNumber: "69042630", CustomerName: "นายสมศักดิ์ มั่นคง", ContactName: "คุณวิไล",
-            ContactPhone: "081-234-5678", FeePaymentText: null, AssignmentMethod: "Offline",
-            AssigneeCompanyId: CompanyId.ToString(), KeyerName: null, FollowupMethod: null, FollowupName: null,
-            Remark: null));
+            ContactPhone: "081-234-5678", FeePaymentText: null, AssignmentMethod: "Manual",
+            AssigneeCompanyId: CompanyId.ToString(), KeyerName: "คนคีย์ เดิม", FollowupMethod: "Manual",
+            FollowupName: "เจ้าหน้าที่ ติดตามเดิม", Remark: null));
         _sender.Send(Arg.Any<GetFeePreviewQuery>(), Arg.Any<CancellationToken>())
             .Returns(new FeePreviewResult(null, null, new FeeBaseSourceDto(FeeBaseKinds.None, null, null, null, null, null, null),
                 null, [], false, 0m, 7m, 0m, 0m));
@@ -131,14 +133,6 @@ public class ExtoAssignmentEmailDispatchTests
 
         await LandOnKeyerAsync();
 
-        // The template reads the case after the handover is saved (keyer, Offline method, materialised fee), and the
-        // email goes out in a save of its own.
-        Received.InOrder(() =>
-        {
-            _uow.SaveChangesAsync(Arg.Any<CancellationToken>());
-            _caseReader.GetCaseAsync(_appraisal.Id, Arg.Any<CancellationToken>());
-            _uow.SaveChangesAsync(Arg.Any<CancellationToken>());
-        });
         Assert.NotNull(added);
         Assert.Equal(AssignmentEmailStatus.Queued, added.Status);
         Assert.Equal(_assignment.Id, added.AssignmentId);
@@ -150,7 +144,17 @@ public class ExtoAssignmentEmailDispatchTests
         Assert.Equal("ขอนำส่งงานประเมิน ลูกค้าราย นายสมศักดิ์ มั่นคง 69042630", sent.Subject);
         Assert.Contains("<p>เรียน บริษัท แอคมี จำกัด</p>", sent.HtmlBody);
         Assert.Contains("ผู้รับผิดชอบ : สมชาย ใจดี<br>", sent.HtmlBody);
+        Assert.Equal(
+            [AssignmentEmailCcRoles.IntAdminAll, AssignmentEmailCcRoles.Keyer, AssignmentEmailCcRoles.KeyerSupervisor],
+            added.Cc); // EXTO's Cc roles (expanded by #621), not the follow-up ones
         Assert.Empty(sent.AttachmentRefs);
+        // Priced as this handover bills it, the same question AssignAppraisal asked.
+        await _sender.Received().Send(
+            Arg.Is<GetFeePreviewQuery>(q => q.AppraisalId == _appraisal.Id && q.AssignmentType == "external-offline"
+                                            && q.AssignmentMethod == "manual" && q.CompanyId == CompanyId),
+            Arg.Any<CancellationToken>());
+        // One save: the handover, the email row and its outbox message commit together.
+        await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]

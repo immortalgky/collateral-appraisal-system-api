@@ -26,7 +26,8 @@ public sealed class AssignmentEmailRequestedHandler(
             var msg = context.Message;
             // A master-data address may hold several ("a; b"): split as every sibling email handler does.
             var to = msg.To.SelectMany(EmailRecipients.Parse).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            var cc = msg.Cc.SelectMany(EmailRecipients.Parse).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var cc = msg.Cc.SelectMany(EmailRecipients.Parse)
+                .Except(to, StringComparer.OrdinalIgnoreCase).ToList(); // Except also removes duplicates
 
             // The company is the addressee: without a To, a mail to the Cc'd bank staff alone is not this email.
             if (to.Count == 0)

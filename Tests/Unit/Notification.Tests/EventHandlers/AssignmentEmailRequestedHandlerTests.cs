@@ -96,6 +96,15 @@ public class AssignmentEmailRequestedHandlerTests
     }
 
     [Fact]
+    public async Task An_address_already_in_To_is_not_copied_again()
+    {
+        await ConsumeAsync(Request(to: ["ops@acme.co.th; mgr@acme.co.th"]) with { Cc = ["OPS@acme.co.th", "boss@bank.co.th"] });
+
+        await _sender.Received(1).SendAsync(Arg.Is<EmailMessage>(m =>
+            m.Cc!.SequenceEqual(new[] { "boss@bank.co.th" })), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task A_failed_send_is_not_confirmed_and_is_retried()
     {
         _sender.SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>())

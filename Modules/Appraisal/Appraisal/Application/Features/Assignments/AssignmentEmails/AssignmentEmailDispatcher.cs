@@ -25,11 +25,11 @@ public class AssignmentEmailDispatcher(
             return;
 
         // Every read happens before anything is added or published, so a failed read leaves nothing half-queued.
-        var template = email is null ? await composer.ComposeAsync(appraisalId, ct) : null;
         var company = Guid.TryParse(assignment.AssigneeCompanyId, out var companyId)
             ? await companyLookup.GetByIdAsync(companyId, ct)
             : null;
         var responsible = await DisplayNameAsync(responsibleUserId, ct);
+        var template = email is null ? await composer.ComposeAsync(appraisalId, ct, responsible ?? string.Empty) : null;
 
         // No choice recorded (an assign that did not carry one): the bank template, as the preview would show it.
         if (template is not null)

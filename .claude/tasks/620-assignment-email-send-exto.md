@@ -6,7 +6,7 @@ the trigger takes the Pending row Assign wrote; NotSent → nothing; no row → 
 
 ## Flow
 1. `InternalAssignedIntegrationEventHandler` (Appraisal), method `Offline`, first landing only (the row was Pending):
-   after the handover is saved, `AssignmentEmailDispatcher.QueueAsync` + a second save (email row + outbox together).
+   `AssignmentEmailDispatcher.QueueAsync` in the same save as the Assign (handover, email row and outbox atomic).
    - newest Pending/NotSent row of this assignment: NotSent → nothing; Pending → fill `{{company}}` /
      `{{responsible}}` (= keyer) in the stored body and move it to **Queued**; none → build a row from the template
      (then Queued).
@@ -31,7 +31,8 @@ Preview's template build moves into a shared composer so the trigger can use it 
 - [x] Matt code-review (Standards + Spec): fixed Queued status, To required, redundant appraisalId param,
       alias constants, Sent consumer via unit of work, inline Source, composer in its own file
 - [x] /code-review r1 (8 findings): fixed multi-address To, queue after the save (stale template), Sent consumer test
-- [ ] /code-review r2 (fix diff only), test-automator gates
+- [x] /code-review r2 (9 findings, from r1's two saves): back to one save, composer gets the EXTO handover, Cc minus To
+- [ ] /code-review r3 (fix diff only), test-automator gates
 - [ ] User test → merge `--no-ff` into the integration branch, close #620 by hand
 
 ## Settled decisions
@@ -41,12 +42,14 @@ Preview's template build moves into a shared composer so the trigger can use it 
 - The body goes out in the branded shell (`IEmailTemplateRenderer.AssignmentEmail` = the quotation `Wrap`) (user, 2026-11-01).
 - Sends only on the handover itself (the assignment row was Pending). That covers redelivery and route-back re-fires
   without a new column.
-- The email is queued after the handover's save, in a second save (/code-review r1). A template then reads the case as
-  handed over: keyer, Offline method, and the fee just materialised, not the pre-save row (wrong responsible after a
-  route-back, wrong fee type). Cost, accepted: a crash between the two saves loses the email, while the assignment
-  stands; #623's resend covers it.
+- One save, atomic with the handover. r1 moved the email into a second save so the template would read fresh data, but
+  r2 showed the cost: a cancellation or a failed second save loses the email, because the retry no longer sees a
+  Pending row. Reverted. The stale-template problem is fixed at the source instead. At an EXTO handover the
+  composer gets the keyer, and then treats the case as off-system: keyer = ผู้รับผิดชอบ, EXTO Cc roles, and the fee
+  priced like AssignAppraisal (`external-offline`, `manual`, company). The stored row may still show the decision
+  before a route-back.
 - The Notification handler splits every To/Cc entry with `EmailRecipients.Parse`, because the company master can hold
-  "a; b" (/code-review r1).
+  "a; b" (/code-review r1). A Cc address already in To is dropped (r2).
 - Status **Queued** (user, 2026-11-01, from review): the dispatch moves the row Pending → Queued, and the
   confirmation moves it Queued → Sent. A row already handed over (unconfirmed, or no To) is therefore never picked
   for a later handover. No migration (string column). #624 marks Failed from Queued.
@@ -70,6 +73,8 @@ Preview's template build moves into a shared composer so the trigger can use it 
     The documents were checked live at assign.
   - Placeholders the admin edited in the rich text editor are taken as the admin's intent.
   - The company is looked up twice on the template path (nit).
+- Declined in /code-review r2: `EmailRecipients.Parse` splitting a display name with a comma. ExtraTo/Cc are plain
+  addresses (the #627 validator), and the company master holds addresses.
 
 ## Review
 - (after implementation)

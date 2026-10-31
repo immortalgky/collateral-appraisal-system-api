@@ -14,8 +14,15 @@ public class AssignmentEmailComposer(
     ISender sender,
     IConfiguration configuration)
 {
-    public async Task<AssignmentEmailPreviewResult> ComposeAsync(Guid appraisalId, CancellationToken cancellationToken)
+    /// <param name="extoKeyerName">
+    /// Set at an EXTO handover, while the stored row still shows the decision before it (a route-back keeps the old
+    /// selections): the case is off-system, this keyer is the responsible person and the fee is priced as
+    /// external-offline. Null for the preview, which reads the row as the admin saved it.
+    /// </param>
+    public async Task<AssignmentEmailPreviewResult> ComposeAsync(
+        Guid appraisalId, CancellationToken cancellationToken, string? extoKeyerName = null)
     {
+        var isHandover = extoKeyerName is not null;
         var @case = await caseReader.GetCaseAsync(appraisalId, cancellationToken)
                     ?? throw new AppraisalNotFoundException(appraisalId);
 
@@ -25,11 +32,17 @@ public class AssignmentEmailComposer(
 
         // EXTO (method Offline): the keyer is the bank's responsible person. EXT: the follow-up officer, known only
         // when the admin picked one by hand; อัตโนมัติ leaves the placeholder for the send to fill.
-        var responsible = @case.IsOffline
-            ? @case.KeyerName
+        var isOffline = isHandover || @case.IsOffline;
+        var responsible = isHandover ? extoKeyerName
+            : isOffline ? @case.KeyerName
             : string.Equals(@case.FollowupMethod, AssignmentDefaultValues.MethodManual, StringComparison.OrdinalIgnoreCase) ? @case.FollowupName : null;
 
-        var fee = await sender.Send(new GetFeePreviewQuery(appraisalId, null, null, null), cancellationToken);
+        // The handover asks what AssignAppraisal asked for EXTO; the preview lets the row decide.
+        var fee = await sender.Send(
+            isHandover
+                ? new GetFeePreviewQuery(appraisalId, "external-offline", "manual", company?.Id)
+                : new GetFeePreviewQuery(appraisalId, null, null, null),
+            cancellationToken);
 
         var values = new AssignmentEmailTemplate.Values(
             company is null ? null : DisplayName(company),
@@ -43,7 +56,7 @@ public class AssignmentEmailComposer(
             responsible,
             @case.Remark);
 
-        List<string> cc = @case.IsOffline
+        List<string> cc = isOffline
             ? [AssignmentEmailCcRoles.IntAdminAll, AssignmentEmailCcRoles.Keyer, AssignmentEmailCcRoles.KeyerSupervisor]
             : [AssignmentEmailCcRoles.IntAdminAll, AssignmentEmailCcRoles.FollowupStaff, AssignmentEmailCcRoles.FollowupSupervisor];
 
