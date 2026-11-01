@@ -16,7 +16,7 @@ public class AssignmentEmailComposer(
 {
     /// <summary>The template from the stored row, as the admin saved it: the preview.</summary>
     public Task<AssignmentEmailPreviewResult> ComposeAsync(Guid appraisalId, CancellationToken cancellationToken) =>
-        ComposeAsync(appraisalId, extoHandover: false, keyerName: null, cancellationToken);
+        ComposeAsync(appraisalId, handover: null, cancellationToken);
 
     /// <summary>
     /// The template at an EXTO handover, while the stored row may still show the decision before it (a route-back keeps
@@ -25,29 +25,43 @@ public class AssignmentEmailComposer(
     /// </summary>
     public Task<AssignmentEmailPreviewResult> ComposeForExtoHandoverAsync(
         Guid appraisalId, string? keyerName, CancellationToken cancellationToken) =>
-        ComposeAsync(appraisalId, extoHandover: true, keyerName, cancellationToken);
+        ComposeAsync(appraisalId, new Handover(IsOffline: true, Responsible: keyerName, CompanyId: null, FeeType: "external-offline", FeeMethod: "manual"), cancellationToken);
+
+    /// <summary>
+    /// The template when the workflow assigned an EXT case to <paramref name="companyId"/> with nobody pressing มอบหมาย
+    /// (#622), read before that assignment is saved: the company and the fee question come from the assignment, and the
+    /// responsible person stays <c>{{responsible}}</c> until the follow-up officer is known.
+    /// </summary>
+    public Task<AssignmentEmailPreviewResult> ComposeForExtHandoverAsync(
+        Guid appraisalId, Guid companyId, bool isQuotation, CancellationToken cancellationToken) =>
+        ComposeAsync(appraisalId, new Handover(IsOffline: false, Responsible: null, CompanyId: companyId, FeeType: "external",
+                FeeMethod: isQuotation ? "quotation" : "manual"),
+            cancellationToken);
+
+    /// <summary>The facts of an assignment being saved, which the stored row does not show yet.</summary>
+    private sealed record Handover(bool IsOffline, string? Responsible, Guid? CompanyId, string FeeType, string FeeMethod);
 
     private async Task<AssignmentEmailPreviewResult> ComposeAsync(
-        Guid appraisalId, bool extoHandover, string? keyerName, CancellationToken cancellationToken)
+        Guid appraisalId, Handover? handover, CancellationToken cancellationToken)
     {
         var @case = await caseReader.GetCaseAsync(appraisalId, cancellationToken)
                     ?? throw new AppraisalNotFoundException(appraisalId);
 
-        var company = Guid.TryParse(@case.AssigneeCompanyId, out var companyId)
-            ? await companyLookup.GetByIdAsync(companyId, cancellationToken)
-            : null;
+        var companyId = handover?.CompanyId
+                        ?? (Guid.TryParse(@case.AssigneeCompanyId, out var assigned) ? assigned : (Guid?)null);
+        var company = companyId is { } id ? await companyLookup.GetByIdAsync(id, cancellationToken) : null;
 
         // EXTO (method Offline): the keyer is the bank's responsible person. EXT: the follow-up officer, known only
         // when the admin picked one by hand; อัตโนมัติ leaves the placeholder for the send to fill.
-        var isOffline = extoHandover || @case.IsOffline;
-        var responsible = extoHandover ? keyerName
+        var isOffline = handover?.IsOffline ?? @case.IsOffline;
+        var responsible = handover is not null ? handover.Responsible
             : isOffline ? @case.KeyerName
             : string.Equals(@case.FollowupMethod, AssignmentDefaultValues.MethodManual, StringComparison.OrdinalIgnoreCase) ? @case.FollowupName : null;
 
-        // The handover asks what AssignAppraisal asked for EXTO; the preview lets the row decide.
+        // A handover asks what its assignment bills; the preview lets the row decide.
         var fee = await sender.Send(
-            extoHandover
-                ? new GetFeePreviewQuery(appraisalId, "external-offline", "manual", company?.Id)
+            handover is not null
+                ? new GetFeePreviewQuery(appraisalId, handover.FeeType, handover.FeeMethod, company?.Id)
                 : new GetFeePreviewQuery(appraisalId, null, null, null),
             cancellationToken);
 

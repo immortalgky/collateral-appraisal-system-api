@@ -113,6 +113,17 @@ public class AssignmentEmail : Entity<Guid>
             ? html
             : html.Replace(placeholder, System.Net.WebUtility.HtmlEncode(value.Trim()), StringComparison.Ordinal);
 
+    /// <summary>
+    /// The handover could not ready this email (#622 review). A handover happens once, so it must not stay Pending: no
+    /// later handover would send it, and a later assignment would send it in place of its own. Failed lets the admin send
+    /// it again from the slip.
+    /// </summary>
+    public void FailToPrepare(string reason)
+    {
+        Status = AssignmentEmailStatus.Failed;
+        FailureReason = reason;
+    }
+
     /// <summary>The <see cref="FailureReason"/> column width.</summary>
     public const int MaxFailureReasonLength = 1000;
 
