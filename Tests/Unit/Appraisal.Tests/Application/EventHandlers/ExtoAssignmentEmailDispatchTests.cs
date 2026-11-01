@@ -198,16 +198,7 @@ public class ExtoAssignmentEmailDispatchTests
     [Fact]
     public async Task No_choice_recorded_sends_the_bank_template_as_a_new_pending_row()
     {
-        // Read before this handler's save: the stored row is the one routed back, still naming the previous keyer and
-        // the previous decision's method. The handover being saved is what the email must describe.
-        _caseReader.GetCaseAsync(_appraisal.Id, Arg.Any<CancellationToken>()).Returns(new AssignmentEmailCase(
-            AppraisalNumber: "69042630", CustomerName: "นายสมศักดิ์ มั่นคง", ContactName: "คุณวิไล",
-            ContactPhone: "081-234-5678", FeePaymentText: null, AssignmentMethod: "Manual",
-            AssigneeCompanyId: CompanyId.ToString(), KeyerName: "คนคีย์ เดิม", FollowupMethod: "Manual",
-            FollowupName: "เจ้าหน้าที่ ติดตามเดิม", Remark: null));
-        _sender.Send(Arg.Any<GetFeePreviewQuery>(), Arg.Any<CancellationToken>())
-            .Returns(new FeePreviewResult(null, null, new FeeBaseSourceDto(FeeBaseKinds.None, null, null, null, null, null, null),
-                null, [], false, 0m, 7m, 0m, 0m));
+        StubTemplateReads();
         AssignmentEmail? added = null;
         await _emails.AddAsync(Arg.Do<AssignmentEmail>(e => added = e), Arg.Any<CancellationToken>());
 
@@ -269,6 +260,54 @@ public class ExtoAssignmentEmailDispatchTests
         Assert.Equal(AssignmentStatus.InProgress, _assignment.AssignmentStatus);
         await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task No_choice_whose_template_cannot_be_built_leaves_an_empty_Failed_row()
+    {
+        _caseReader.GetCaseAsync(_appraisal.Id, Arg.Any<CancellationToken>())
+            .Returns<AssignmentEmailCase?>(_ => throw new TimeoutException("case read timed out"));
+
+        await LandOnKeyerAsync();
+
+        Assert.Null(Published());
+        var row = Assert.Single(AddedRows());
+        Assert.Equal(AssignmentEmailStatus.Failed, row.Status);
+        Assert.Equal("", row.Subject);
+        await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task No_choice_whose_template_cannot_be_queued_is_kept_as_Failed()
+    {
+        StubTemplateReads();
+        _users.GetEmailsInRoleAsync("IntAdmin", Arg.Any<CancellationToken>())
+            .Returns<IReadOnlyList<string>>(_ => throw new TimeoutException("auth lookup timed out"));
+
+        await LandOnKeyerAsync();
+
+        Assert.Null(Published());
+        var row = Assert.Single(AddedRows());
+        Assert.Equal(AssignmentEmailStatus.Failed, row.Status);
+        Assert.Equal("ขอนำส่งงานประเมิน ลูกค้าราย นายสมศักดิ์ มั่นคง 69042630", row.Subject); // the template it was to send
+    }
+
+    private void StubTemplateReads()
+    {
+        // Read before this handler's save: the stored row is the one routed back, still naming the previous keyer and
+        // the previous decision's method. The handover being saved is what the email must describe.
+        _caseReader.GetCaseAsync(_appraisal.Id, Arg.Any<CancellationToken>()).Returns(new AssignmentEmailCase(
+            AppraisalNumber: "69042630", CustomerName: "นายสมศักดิ์ มั่นคง", ContactName: "คุณวิไล",
+            ContactPhone: "081-234-5678", FeePaymentText: null, AssignmentMethod: "Manual",
+            AssigneeCompanyId: CompanyId.ToString(), KeyerName: "คนคีย์ เดิม", FollowupMethod: "Manual",
+            FollowupName: "เจ้าหน้าที่ ติดตามเดิม", Remark: null));
+        _sender.Send(Arg.Any<GetFeePreviewQuery>(), Arg.Any<CancellationToken>())
+            .Returns(new FeePreviewResult(null, null, new FeeBaseSourceDto(FeeBaseKinds.None, null, null, null, null, null, null),
+                null, [], false, 0m, 7m, 0m, 0m));
+    }
+
+    private List<AssignmentEmail> AddedRows() => _emails.ReceivedCalls()
+        .Where(c => c.GetMethodInfo().Name == nameof(IAssignmentEmailRepository.AddAsync))
+        .Select(c => (AssignmentEmail)c.GetArguments()[0]!).ToList();
 
     private InternalAssignedIntegrationEventHandler BuildHandler()
     {

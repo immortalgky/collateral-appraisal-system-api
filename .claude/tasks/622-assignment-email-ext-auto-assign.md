@@ -28,7 +28,9 @@ Branch `immortalgky/implement-622-ext-auto-assign-email` (worktree `halibut`), o
       (automatic route-back through initial-routing) → template sent
 - [x] /code-review r1 (8 findings): fixed an email that cannot be readied at the handover → Failed (EXT and EXTO),
       fee question computed once, log text, ordering comment
-- [ ] /code-review r2+ (fix diff only), gates (test-automator)
+- [x] /code-review r2 (7 findings): a template that cannot be built → empty Failed row (EXT and EXTO); EXTO template
+      added before it is queued; `MarkFailed` back to Queued-only, new `FailToPrepare` for the dispatcher; tests
+- [ ] /code-review r3+ (fix diff only), gates (test-automator)
 - [ ] User test → merge `--no-ff` into the integration branch, close #622 by hand
 
 ## Settled decisions (user, 2026-11-01)
@@ -52,7 +54,10 @@ Branch `immortalgky/implement-622-ext-auto-assign-email` (worktree `halibut`), o
     (#627); the FE admin page never sends P with an email.
 - An email the handover could not ready (Auth/DB lookup throws) is marked **Failed** with the fixed reason
   "ระบบเตรียมอีเมลไม่สำเร็จ" in the same save, for EXT and EXTO, so it never stays Pending (user, from /code-review r1).
-  `MarkFailed` now also accepts a Pending row. No bell notification for this case (the slip shows Failed; resend works).
+  Domain `FailToPrepare` (dispatcher only); `MarkFailed` stays Queued-only for Notification's reports. No bell
+  notification for this case (the slip shows Failed; resend works).
+- A template that cannot be built at all is added as an **empty Failed row** (no subject/body, same reason), EXT at
+  CompanyAssigned and EXTO at the handover (user, from /code-review r2). app#538's history must render an empty subject.
 - Declined in /code-review r1 (do not re-raise):
   - A dead-lettered CompanyAssigned redriven after InternalFollowupAssigned leaves its template row Pending: needs a
     dead-letter plus an out-of-order redrive; accepted.
@@ -64,3 +69,6 @@ Branch `immortalgky/implement-622-ext-auto-assign-email` (worktree `halibut`), o
   - no_match keeps the row's earlier officer: on a route-back replay that officer is this engagement's real follow-up,
     clearing would be wrong.
   - no_match still loads/saves the aggregate (UpdatedAt bump): harmless; only the log text was fixed.
+- Declined in /code-review r2 (do not re-raise):
+  - A transient error (deadlock, timeout) becomes a permanent Failed instead of a retry: the trade-off the user chose in
+    r1 (Failed + resend over retry / dead-letter, which would hold up the follow-up).

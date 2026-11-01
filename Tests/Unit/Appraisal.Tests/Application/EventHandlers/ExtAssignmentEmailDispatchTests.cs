@@ -213,6 +213,24 @@ public class ExtAssignmentEmailDispatchTests
     }
 
     [Fact]
+    public async Task A_template_that_cannot_be_built_leaves_an_empty_Failed_row_and_the_assignment_saves()
+    {
+        StubTemplateReads();
+        _sender.Send(Arg.Any<GetFeePreviewQuery>(), Arg.Any<CancellationToken>())
+            .Returns<FeePreviewResult>(_ => throw new TimeoutException("fee preview timed out"));
+
+        await AssignCompanyAndFollowupAsync("RoundRobin");
+
+        Assert.Empty(Published());
+        // Shown on the slip as failed, so the admin sends it by hand (content from the preview).
+        var row = Assert.Single(_rows);
+        Assert.Equal(AssignmentEmailStatus.Failed, row.Status);
+        Assert.Equal("ระบบเตรียมอีเมลไม่สำเร็จ", row.FailureReason);
+        Assert.Equal("", row.Subject);
+        Assert.Equal(CompanyId.ToString(), _assignment.AssigneeCompanyId);
+    }
+
+    [Fact]
     public async Task Assigned_without_sending_requests_no_email()
     {
         _rows.Add(AssignmentEmail.NotSent(_appraisal.Id, _assignment.Id));

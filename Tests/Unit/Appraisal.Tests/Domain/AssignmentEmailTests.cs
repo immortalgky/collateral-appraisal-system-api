@@ -53,4 +53,26 @@ public class AssignmentEmailTests
         Assert.False(Chosen().IsResend);
         Assert.True(AssignmentEmail.Resend(Guid.NewGuid(), Guid.NewGuid(), [], [], "subject", "<p>body</p>", []).IsResend);
     }
+
+    [Fact]
+    public void A_reported_send_failure_never_touches_an_email_still_waiting_for_its_handover()
+    {
+        var email = Chosen();
+
+        email.MarkFailed("550 mailbox unavailable");
+
+        Assert.Equal(AssignmentEmailStatus.Pending, email.Status);
+        Assert.Null(email.FailureReason);
+    }
+
+    [Fact]
+    public void An_email_the_handover_could_not_ready_fails_with_its_reason()
+    {
+        var email = Chosen();
+
+        email.FailToPrepare("ระบบเตรียมอีเมลไม่สำเร็จ");
+
+        Assert.Equal(AssignmentEmailStatus.Failed, email.Status);
+        Assert.Equal("ระบบเตรียมอีเมลไม่สำเร็จ", email.FailureReason);
+    }
 }

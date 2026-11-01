@@ -27,20 +27,12 @@ public class AssignmentEmailDispatcher(
         if (email?.Status == AssignmentEmailStatus.NotSent)
             return;
 
-        await FailIfNotQueuedAsync(email, async () =>
-        {
-            var responsible = await DisplayNameAsync(keyerUserId, ct);
-            var template = email is null ? await composer.ComposeForExtoHandoverAsync(appraisalId, responsible, ct) : null;
+        // No choice recorded (an assign that did not carry one): the bank template, as the preview would show it.
+        email ??= await AddTemplateAsync(assignment, async () =>
+            await composer.ComposeForExtoHandoverAsync(appraisalId, await DisplayNameAsync(keyerUserId, ct), ct), ct);
 
-            // No choice recorded (an assign that did not carry one): the bank template, as the preview would show it.
-            var toSend = email ?? FromTemplate(assignment, template!);
-
-            await QueueAsync(toSend, appraisalNumber, assignment.AssigneeCompanyId, responsible, keyerUserId,
-                assignment.AssignedBy, refuseIfIncomplete: false, ct);
-            // Added only once queued: a failed read must not leave a Pending template row for the caller's save.
-            if (template is not null)
-                await emails.AddAsync(toSend, ct);
-        });
+        await FailIfNotQueuedAsync(email, async () => await QueueAsync(email, appraisalNumber, assignment.AssigneeCompanyId,
+            await DisplayNameAsync(keyerUserId, ct), keyerUserId, assignment.AssignedBy, refuseIfIncomplete: false, ct));
     }
 
     /// <summary>
@@ -54,13 +46,35 @@ public class AssignmentEmailDispatcher(
         if (await emails.GetLatestUnsentAsync(assignment.Id, ct) is not null)
             return; // the admin's choice, sent or not
 
-        var template = await composer.ComposeForExtHandoverAsync(assignment.AppraisalId, companyId, isQuotation, ct);
-        await emails.AddAsync(FromTemplate(assignment, template), ct);
+        await AddTemplateAsync(assignment,
+            () => composer.ComposeForExtHandoverAsync(assignment.AppraisalId, companyId, isQuotation, ct), ct);
     }
 
-    private static AssignmentEmail FromTemplate(AppraisalAssignment assignment, AssignmentEmailPreviewResult template) =>
-        AssignmentEmail.ToSend(
-            assignment.AppraisalId, assignment.Id, template.ExtraTo, template.Cc, template.Subject, template.BodyHtml, []);
+    /// <summary>
+    /// Adds the bank template as a Pending row for the caller's save. A template that cannot be built is added as an empty
+    /// Failed row instead (user, from /code-review r2), so the slip shows it and the admin sends one by hand; rethrows.
+    /// </summary>
+    private async Task<AssignmentEmail> AddTemplateAsync(
+        AppraisalAssignment assignment, Func<Task<AssignmentEmailPreviewResult>> compose, CancellationToken ct)
+    {
+        AssignmentEmail email;
+        try
+        {
+            var template = await compose();
+            email = AssignmentEmail.ToSend(
+                assignment.AppraisalId, assignment.Id, template.ExtraTo, template.Cc, template.Subject, template.BodyHtml, []);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            var failed = AssignmentEmail.ToSend(assignment.AppraisalId, assignment.Id, [], [], "", "", []);
+            failed.FailToPrepare(PreparationFailedReason);
+            await emails.AddAsync(failed, ct);
+            throw;
+        }
+
+        await emails.AddAsync(email, ct);
+        return email;
+    }
 
     /// <summary>
     /// EXT (#622): the follow-up officer is now known, so the email chosen for this engagement goes out. That is the
@@ -85,12 +99,10 @@ public class AssignmentEmailDispatcher(
     }
 
     /// <summary>
-    /// A handover happens once, so an email it could not ready must not stay Pending: no later handover would send it,
-    /// a later assignment would send it in place of its own, and the slip's resend refuses while one waits (#622 review).
-    /// Failed, with a fixed reason (the exception stays in the log), lets the admin send it again. Rethrows, so the caller
-    /// logs and saves. A template not yet added (<paramref name="email"/> null) is simply dropped.
+    /// An email the handover could not ready becomes Failed (<see cref="AssignmentEmail.FailToPrepare"/>) with a fixed
+    /// reason; the exception stays in the log. Rethrows, so the caller logs and saves.
     /// </summary>
-    private static async Task FailIfNotQueuedAsync(AssignmentEmail? email, Func<Task> queue)
+    private static async Task FailIfNotQueuedAsync(AssignmentEmail email, Func<Task> queue)
     {
         try
         {
@@ -98,7 +110,7 @@ public class AssignmentEmailDispatcher(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            email?.MarkFailed(PreparationFailedReason);
+            email.FailToPrepare(PreparationFailedReason);
             throw;
         }
     }
