@@ -256,13 +256,16 @@ public class ExtoAssignmentEmailDispatchTests
     [Fact]
     public async Task The_assignment_is_saved_even_when_the_email_cannot_be_prepared()
     {
-        _emails.GetLatestUnsentAsync(_assignment.Id, Arg.Any<CancellationToken>()).Returns(PendingRow());
+        var row = PendingRow();
+        _emails.GetLatestUnsentAsync(_assignment.Id, Arg.Any<CancellationToken>()).Returns(row);
         _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>())
             .Returns<CompanyLookupDto?>(_ => throw new TimeoutException("auth lookup timed out"));
 
         await LandOnKeyerAsync();
 
         Assert.Null(Published());
+        // Never left Pending, where a later assignment would send it (#622 review).
+        Assert.Equal(AssignmentEmailStatus.Failed, row.Status);
         Assert.Equal(AssignmentStatus.InProgress, _assignment.AssignmentStatus);
         await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }

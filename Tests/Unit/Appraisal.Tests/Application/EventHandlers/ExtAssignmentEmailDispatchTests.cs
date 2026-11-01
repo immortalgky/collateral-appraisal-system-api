@@ -197,6 +197,22 @@ public class ExtAssignmentEmailDispatchTests
     }
 
     [Fact]
+    public async Task An_email_that_cannot_be_prepared_is_marked_Failed_and_the_followup_still_saves()
+    {
+        var row = AdminRow();
+        _users.GetByUsernamesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
+            .Returns<IReadOnlyDictionary<string, UserLookupDto>>(_ => throw new TimeoutException("auth lookup timed out"));
+
+        await AssignCompanyAndFollowupAsync("Manual");
+
+        Assert.Empty(Published());
+        // Never left Pending: the slip shows it failed and the admin can send it again (#623).
+        Assert.Equal(AssignmentEmailStatus.Failed, row.Status);
+        Assert.Equal("ระบบเตรียมอีเมลไม่สำเร็จ", row.FailureReason);
+        Assert.Equal("F0001", _assignment.InternalAppraiserId);
+    }
+
+    [Fact]
     public async Task Assigned_without_sending_requests_no_email()
     {
         _rows.Add(AssignmentEmail.NotSent(_appraisal.Id, _assignment.Id));

@@ -128,10 +128,14 @@ public class AssignmentEmail : Entity<Guid>
         FailureReason = null;
     }
 
-    /// <summary>The send gave up. Only a Queued email becomes Failed, so a redelivered report changes nothing.</summary>
+    /// <summary>
+    /// The send gave up (a Queued email), or the email could not be readied at the handover (a Pending one, so it is
+    /// never left waiting for a handover that already passed). Any other status stays, so a redelivered report changes
+    /// nothing.
+    /// </summary>
     public void MarkFailed(string? reason)
     {
-        if (Status != AssignmentEmailStatus.Queued) return;
+        if (Status is not (AssignmentEmailStatus.Queued or AssignmentEmailStatus.Pending)) return;
         // A hand-edited redrive may drop it; the row must still leave Queued.
         reason = string.IsNullOrWhiteSpace(reason) ? "ไม่ทราบสาเหตุ" : reason.Trim();
         Status = AssignmentEmailStatus.Failed;

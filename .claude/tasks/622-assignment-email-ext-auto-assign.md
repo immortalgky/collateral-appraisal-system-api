@@ -26,7 +26,9 @@ Branch `immortalgky/implement-622-ext-auto-assign-email` (worktree `halibut`), o
 - [x] Matt code-review: Standards no hard violation; fixed quotation literal → constant, shared FromTemplate,
       named Handover args, nullable follow-up method (no "" sentinel). Spec: fixed new company on a row left Assigned
       (automatic route-back through initial-routing) → template sent
-- [ ] /code-review loop, gates (test-automator)
+- [x] /code-review r1 (8 findings): fixed an email that cannot be readied at the handover → Failed (EXT and EXTO),
+      fee question computed once, log text, ordering comment
+- [ ] /code-review r2+ (fix diff only), gates (test-automator)
 - [ ] User test → merge `--no-ff` into the integration branch, close #622 by hand
 
 ## Settled decisions (user, 2026-11-01)
@@ -48,3 +50,17 @@ Branch `immortalgky/implement-622-ext-auto-assign-email` (worktree `halibut`), o
     `CompanySelectionActivityTests` already cover the switch.
   - Decision "P" (admin-proceed-external) writes no email row, so the template is sent: same as `sendEmail` null
     (#627); the FE admin page never sends P with an email.
+- An email the handover could not ready (Auth/DB lookup throws) is marked **Failed** with the fixed reason
+  "ระบบเตรียมอีเมลไม่สำเร็จ" in the same save, for EXT and EXTO, so it never stays Pending (user, from /code-review r1).
+  `MarkFailed` now also accepts a Pending row. No bell notification for this case (the slip shows Failed; resend works).
+- Declined in /code-review r1 (do not re-raise):
+  - A dead-lettered CompanyAssigned redriven after InternalFollowupAssigned leaves its template row Pending: needs a
+    dead-letter plus an out-of-order redrive; accepted.
+  - A stale Pending row of an earlier engagement sent in place of the template: its main source (a swallowed queue
+    failure) is now Failed; the failed-cleanup source is the #620 accepted corner.
+  - Admin's manual follow-up baked into the body while a PMA completer wins the Cc: the admin's text is their intent (#620).
+  - AssignedBy of a route-back to a new company is the earlier admin: the row still records them; only the failure
+    notice recipient differs.
+  - no_match keeps the row's earlier officer: on a route-back replay that officer is this engagement's real follow-up,
+    clearing would be wrong.
+  - no_match still loads/saves the aggregate (UpdatedAt bump): harmless; only the log text was fixed.

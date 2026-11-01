@@ -27,17 +27,20 @@ public class AssignmentEmailDispatcher(
         if (email?.Status == AssignmentEmailStatus.NotSent)
             return;
 
-        var responsible = await DisplayNameAsync(keyerUserId, ct);
-        var template = email is null ? await composer.ComposeForExtoHandoverAsync(appraisalId, responsible, ct) : null;
+        await FailIfNotQueuedAsync(email, async () =>
+        {
+            var responsible = await DisplayNameAsync(keyerUserId, ct);
+            var template = email is null ? await composer.ComposeForExtoHandoverAsync(appraisalId, responsible, ct) : null;
 
-        // No choice recorded (an assign that did not carry one): the bank template, as the preview would show it.
-        email ??= FromTemplate(assignment, template!);
+            // No choice recorded (an assign that did not carry one): the bank template, as the preview would show it.
+            var toSend = email ?? FromTemplate(assignment, template!);
 
-        await QueueAsync(email, appraisalNumber, assignment.AssigneeCompanyId, responsible, keyerUserId, assignment.AssignedBy,
-            refuseIfIncomplete: false, ct);
-        // Added only once queued (or failed): a failed read must not leave a Pending template row for the caller's save.
-        if (template is not null)
-            await emails.AddAsync(email, ct);
+            await QueueAsync(toSend, appraisalNumber, assignment.AssigneeCompanyId, responsible, keyerUserId,
+                assignment.AssignedBy, refuseIfIncomplete: false, ct);
+            // Added only once queued: a failed read must not leave a Pending template row for the caller's save.
+            if (template is not null)
+                await emails.AddAsync(toSend, ct);
+        });
     }
 
     /// <summary>
@@ -72,11 +75,35 @@ public class AssignmentEmailDispatcher(
         if (email is not { Status: AssignmentEmailStatus.Pending })
             return;
 
-        // Nobody to follow up (no_match): "-" rather than a raw placeholder in the company's email (user, 2026-11-01).
-        var responsible = followupUserId is null ? "-" : await DisplayNameAsync(followupUserId, ct);
-        await QueueAsync(email, appraisalNumber, assignment.AssigneeCompanyId, responsible, followupUserId,
-            assignment.AssignedBy, refuseIfIncomplete: false, ct);
+        await FailIfNotQueuedAsync(email, async () =>
+        {
+            // Nobody to follow up (no_match): "-" rather than a raw placeholder in the company's email (user, 2026-11-01).
+            var responsible = followupUserId is null ? "-" : await DisplayNameAsync(followupUserId, ct);
+            await QueueAsync(email, appraisalNumber, assignment.AssigneeCompanyId, responsible, followupUserId,
+                assignment.AssignedBy, refuseIfIncomplete: false, ct);
+        });
     }
+
+    /// <summary>
+    /// A handover happens once, so an email it could not ready must not stay Pending: no later handover would send it,
+    /// a later assignment would send it in place of its own, and the slip's resend refuses while one waits (#622 review).
+    /// Failed, with a fixed reason (the exception stays in the log), lets the admin send it again. Rethrows, so the caller
+    /// logs and saves. A template not yet added (<paramref name="email"/> null) is simply dropped.
+    /// </summary>
+    private static async Task FailIfNotQueuedAsync(AssignmentEmail? email, Func<Task> queue)
+    {
+        try
+        {
+            await queue();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            email?.MarkFailed(PreparationFailedReason);
+            throw;
+        }
+    }
+
+    private const string PreparationFailedReason = "ระบบเตรียมอีเมลไม่สำเร็จ";
 
     /// <summary>
     /// Fills the company / responsible placeholders, resolves the recipients and hands <paramref name="email"/> to the

@@ -65,7 +65,7 @@ public class CompanyAssignedIntegrationEventHandler(
         // Promote the assignment to Assigned for all external paths (Manual, RoundRobin, Forced, Quotation).
         // Preserve internal-followup fields: Assign() defaults them to null, so without
         // passing them back we'd clobber values set by InternalFollowupAssignedIntegrationEventHandler
-        // if that event was processed first (consumer delivery order is not guaranteed).
+        // on an earlier pass (a route-back keeps the row), or if a dead-lettered CompanyAssigned is redriven after it.
         assignment.Assign(
             assignmentType: "External",
             assigneeCompanyId: message.CompanyId.ToString(),
@@ -76,7 +76,9 @@ public class CompanyAssignedIntegrationEventHandler(
             // resumed (Assign() would otherwise stamp "System" over them).
             assignedBy: assignment.AssignedBy);
 
-        var baseFeeSource = await ResolveFeeSourceAsync(message.AppraisalId, message.CompanyId, message.AssignmentMethod, assignment, ct);
+        // One answer for both the fee billed and the fee the email names.
+        var isQuotation = string.Equals(message.AssignmentMethod, AssignmentDefaultValues.MethodQuotation, StringComparison.OrdinalIgnoreCase);
+        var baseFeeSource = await ResolveFeeSourceAsync(message.AppraisalId, message.CompanyId, isQuotation, assignment, ct);
 
         // Construction Inspection appraisals carry over the prior engagement's fee; the fee service
         // substitutes AssignmentFeeSource.ConstructionInspection when that applies. Mirrors what
@@ -97,8 +99,7 @@ public class CompanyAssignedIntegrationEventHandler(
         {
             try
             {
-                await emailDispatcher.AddExtTemplateAsync(assignment, message.CompanyId,
-                    string.Equals(message.AssignmentMethod, AssignmentDefaultValues.MethodQuotation, StringComparison.OrdinalIgnoreCase), ct);
+                await emailDispatcher.AddExtTemplateAsync(assignment, message.CompanyId, isQuotation, ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -126,11 +127,11 @@ public class CompanyAssignedIntegrationEventHandler(
     private async Task<AssignmentFeeSource> ResolveFeeSourceAsync(
         Guid appraisalId,
         Guid companyId,
-        string assignmentMethod,
+        bool isQuotation,
         AppraisalAssignment assignment,
         CancellationToken ct)
     {
-        if (!string.Equals(assignmentMethod, "Quotation", StringComparison.OrdinalIgnoreCase))
+        if (!isQuotation)
             return new AssignmentFeeSource.TierBased();
 
         // Resolve the Finalized RFQ for this appraisal. Look up by appraisal id — this is
