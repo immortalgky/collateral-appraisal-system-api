@@ -21,15 +21,16 @@ public sealed class AssignmentEmailRequestFaultHandler(
                 Reason(context.Message.Exceptions.FirstOrDefault()), ct), context.CancellationToken);
 
     /// <summary>
-    /// The mail libraries' own message (the gateway's reply, a bad address) and a gateway that cannot be reached
-    /// (socket error, timeout) help the admin; anything else, such as a SQL error while attaching documents, would
-    /// show internals, so it stays in the logs and Failed Messages.
+    /// The mail libraries' own message (the gateway's reply, a bad address) helps the admin. A gateway that cannot be
+    /// reached gets a fixed text: .NET's connect failure names the relay's address and port. Anything else, such as a
+    /// SQL error or a timeout while attaching documents, would show internals or blame the gateway wrongly, so it
+    /// stays in the logs and Failed Messages.
     /// </summary>
-    private static string Reason(ExceptionInfo? exception) =>
-        exception?.ExceptionType is { } type
-        && (type.StartsWith("MailKit.", StringComparison.Ordinal)
-            || type.StartsWith("MimeKit.", StringComparison.Ordinal)
-            || type is "System.Net.Sockets.SocketException" or "System.TimeoutException")
-            ? exception.Message
-            : "ระบบส่งอีเมลขัดข้อง";
+    private static string Reason(ExceptionInfo? exception) => exception?.ExceptionType switch
+    {
+        { } type when type.StartsWith("MailKit.", StringComparison.Ordinal)
+                      || type.StartsWith("MimeKit.", StringComparison.Ordinal) => exception.Message,
+        { } type when type.EndsWith("SocketException", StringComparison.Ordinal) => "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้",
+        _ => "ระบบส่งอีเมลขัดข้อง"
+    };
 }

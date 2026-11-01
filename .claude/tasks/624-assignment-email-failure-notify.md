@@ -24,7 +24,9 @@ Branch `immortalgky/implement-624-issue` (worktree `candlefish`), off the local 
       own file, FailureReason nvarchar(200), blank App No. → "-"
 - [x] /code-review r1 (11 findings): fixed redrive Failed → Sent, socket/timeout reasons shown, assigner checked
       against the user lookup (no "System" row, account spelling), MarkFailed caps the column, file renamed
-- [ ] /code-review r2+ (fix diff only)
+- [x] /code-review r2 (6 findings): socket failure = fixed Thai text (the .NET message holds the relay IP:port),
+      TimeoutException no longer passes through, null Reason guarded
+- [ ] /code-review r3+ (fix diff only)
 - [ ] Gates (test-automator)
 - [ ] User test → merge `--no-ff` into the integration branch, close #624 by hand
 
@@ -54,3 +56,8 @@ Branch `immortalgky/implement-624-issue` (worktree `candlefish`), off the local 
 - No unit test for the FaultedMessageId inbox key: InboxGuard dedupes through a real SQL PK; InMemory can't show it.
 - The FE bell lacks the new type until app#539: tracked, both repos ship together from the integration branch.
 - Mail:Enabled=false marks the row Sent: #620 decision.
+
+## Declined in /code-review r2 (do not re-raise)
+- A deactivated assigner still gets the persisted notice: harmless; the user lookup has no IsActive filter.
+- The failure notice stays in the bell after a redrive delivered the email: redrive is a deliberate ops action.
+- The 200 cap exists in both modules: each module owns its own limit; cleanup, not correctness.

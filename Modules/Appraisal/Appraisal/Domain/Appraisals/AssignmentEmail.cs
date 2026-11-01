@@ -99,9 +99,10 @@ public class AssignmentEmail : Entity<Guid>
     }
 
     /// <summary>The send gave up. Only a Queued email becomes Failed, so a redelivered report changes nothing.</summary>
-    public void MarkFailed(string reason)
+    public void MarkFailed(string? reason)
     {
         if (Status != AssignmentEmailStatus.Queued) return;
+        reason ??= string.Empty; // a hand-edited redrive may drop it; the row must still leave Queued
         Status = AssignmentEmailStatus.Failed;
         FailureReason = reason.Length > MaxFailureReasonLength ? reason[..MaxFailureReasonLength] : reason;
     }

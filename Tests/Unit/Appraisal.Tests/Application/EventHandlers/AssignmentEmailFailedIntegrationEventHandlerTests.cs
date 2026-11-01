@@ -67,6 +67,16 @@ public class AssignmentEmailFailedIntegrationEventHandlerTests
     }
 
     [Fact]
+    public async Task A_report_without_a_reason_still_marks_the_email_failed()
+    {
+        var email = Queued();
+
+        await ReportAsync(email, null!);
+
+        Assert.Equal(AssignmentEmailStatus.Failed, email.Status);
+    }
+
+    [Fact]
     public void A_failed_email_that_a_redrive_delivered_becomes_sent()
     {
         // Ops redrove the faulted request from Failed Messages and the gateway took it this time.

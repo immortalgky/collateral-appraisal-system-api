@@ -103,12 +103,25 @@ public class AssignmentEmailRequestFaultHandlerTests
     }
 
     [Fact]
-    public async Task A_gateway_that_cannot_be_reached_is_reported_as_such()
+    public async Task A_gateway_that_cannot_be_reached_is_reported_as_such_without_its_address()
     {
-        await ConsumeAsync(Request, "Connection refused", "System.Net.Sockets.SocketException");
+        // .NET's connect failure is a SocketException subclass whose message names the relay's endpoint.
+        await ConsumeAsync(Request, "Connection refused 10.20.30.40:25",
+            "System.Net.Internals.SocketExceptionFactory+ExtendedSocketException");
 
         await _ctx.Received(1).Publish(
-            Arg.Is<AssignmentEmailFailedIntegrationEvent>(e => e.Reason == "Connection refused"),
+            Arg.Is<AssignmentEmailFailedIntegrationEvent>(e => e.Reason == "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_timeout_is_not_blamed_on_the_gateway()
+    {
+        // It can come from fetching the attachments as well.
+        await ConsumeAsync(Request, "The operation has timed out.", "System.TimeoutException");
+
+        await _ctx.Received(1).Publish(
+            Arg.Is<AssignmentEmailFailedIntegrationEvent>(e => e.Reason == "ระบบส่งอีเมลขัดข้อง"),
             Arg.Any<CancellationToken>());
     }
 
