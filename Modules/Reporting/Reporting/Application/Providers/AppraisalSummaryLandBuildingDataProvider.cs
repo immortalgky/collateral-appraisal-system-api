@@ -830,6 +830,10 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             appraiser = "ธนาคารแลนด์ แอนด์ เฮ้าส์ จำกัด (มหาชน)";
 
         // ── Committee / sub-committee votes from workflow.ApprovalVotes (by AppraisalId) ──
+        // Only the decisive round: the newest pending-approval execution that has votes (as in
+        // PatchLateCommitteeVote.sql). Members of earlier, routed-back rounds were not necessarily entitled to
+        // vote in it (e.g. a member who later became Conflicted, #626). Legacy-imported votes have no workflow
+        // instance and are kept as before.
         const string votesSql = """
             SELECT
                 COALESCE(NULLIF(LTRIM(RTRIM(u.FirstName + ' ' + u.LastName)), ''), av.Member) AS MemberName,
@@ -842,12 +846,19 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             FROM workflow.ApprovalVotes av
             LEFT JOIN auth.AspNetUsers u ON u.UserName = av.Member
             WHERE av.AppraisalId = @AppraisalId
+              AND (av.WorkflowInstanceId IS NULL
+                   OR av.ActivityExecutionId = (SELECT TOP (1) r.ActivityExecutionId
+                                                FROM workflow.ApprovalVotes r
+                                                WHERE r.AppraisalId = @AppraisalId
+                                                  AND r.WorkflowInstanceId IS NOT NULL
+                                                GROUP BY r.ActivityExecutionId
+                                                ORDER BY MAX(r.VotedAt) DESC))
             ORDER BY av.VotedAt
             """;
         var voteParams = new DynamicParameters();
         voteParams.Add("AppraisalId", appraisalId);
 
-        // One row per member (latest vote), in case of re-approval rounds, then ordered by committee
+        // One row per member (latest vote), then ordered by committee
         // rank. The sort has to sit AFTER the GroupBy — GroupBy re-imposes first-appearance order,
         // so an ORDER BY in the SQL would be silently discarded here.
         var votes = (await connection.QueryAsync<VoteRow>(votesSql, voteParams))
