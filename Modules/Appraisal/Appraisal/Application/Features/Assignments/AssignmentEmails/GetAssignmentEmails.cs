@@ -6,6 +6,8 @@ namespace Appraisal.Application.Features.Assignments.AssignmentEmails;
 /// <param name="CreatedBy">Bank code of the admin who chose or resent it; null when the system wrote it.</param>
 /// <param name="SentTo">The addresses it went to; empty until it is handed to the sender.</param>
 /// <param name="CcCount">Resolved Cc addresses it went to.</param>
+/// <param name="FailureReason">Why it was not sent (#632); null unless <see cref="AssignmentEmailStatus.Failed"/>.</param>
+/// <param name="FailedAt">When it failed (the row's UpdatedAt); null unless <see cref="AssignmentEmailStatus.Failed"/>.</param>
 public record AssignmentEmailHistoryItem(
     Guid Id,
     bool IsResend,
@@ -16,7 +18,9 @@ public record AssignmentEmailHistoryItem(
     DateTime? SentAt,
     List<string> SentTo,
     int CcCount,
-    int AttachmentCount);
+    int AttachmentCount,
+    string? FailureReason,
+    DateTime? FailedAt);
 
 /// <param name="SentTo">What went out, resolved. <paramref name="ExtraTo"/> / <paramref name="Cc"/> are what the admin
 /// composed (Cc role chips unresolved), for ส่งอีกครั้ง to pre-fill.</param>
@@ -54,7 +58,13 @@ public class GetAssignmentEmailHistoryQueryHandler(
             .Where(e => e.AppraisalId == query.AppraisalId)
             .OrderByDescending(e => e.CreatedAt).ThenByDescending(e => e.Id)
             // Whole JSON columns, counted in memory: a few small rows per case, and no OPENJSON translation to rely on.
-            .Select(e => new { e.Id, e.IsResend, e.Status, e.CreatedBy, e.CreatedAt, e.SentAt, e.SentTo, e.SentCc, e.Attachments })
+            .Select(e => new
+            {
+                e.Id, e.IsResend, e.Status, e.CreatedBy, e.CreatedAt, e.SentAt, e.SentTo, e.SentCc, e.Attachments,
+                // #632: only a Failed row reports why and when; the time is its UpdatedAt.
+                FailureReason = e.Status == AssignmentEmailStatus.Failed ? e.FailureReason : null,
+                FailedAt = e.Status == AssignmentEmailStatus.Failed ? e.UpdatedAt : null
+            })
             .ToListAsync(ct);
 
         var users = await userLookup.GetByUsernamesAsync(rows.Select(r => r.CreatedBy).OfType<string>().Distinct().ToList(), ct);
@@ -64,7 +74,8 @@ public class GetAssignmentEmailHistoryQueryHandler(
             r.CreatedBy is not null && users.TryGetValue(r.CreatedBy, out var user)
                 ? $"{user.FirstName} {user.LastName}".Trim() is { Length: > 0 } name ? name : null
                 : null,
-            r.CreatedAt, r.SentAt, r.SentTo, r.SentCc.Count, r.Attachments.Count)).ToList();
+            r.CreatedAt, r.SentAt, r.SentTo, r.SentCc.Count, r.Attachments.Count,
+            r.FailureReason, r.FailedAt)).ToList();
     }
 }
 

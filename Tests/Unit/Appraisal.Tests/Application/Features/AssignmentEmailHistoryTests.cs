@@ -89,6 +89,63 @@ public class AssignmentEmailHistoryTests
         Assert.Equal(AssignmentEmailStatus.Pending, history[0].Status);
     }
 
+    /// <summary>#632: a Failed email says why and when (the time is the row's UpdatedAt, stamped on the MarkFailed save).</summary>
+    [Fact]
+    public async Task A_failed_email_carries_its_reason_and_failure_time()
+    {
+        var email = Chosen();
+        email.Queue("บริษัท แอคมี จำกัด", null, ["jobs@acme.co.th"], []);
+        email.MarkFailed("SMTP 550 mailbox unavailable");
+        email.UpdatedAt = new DateTime(2026, 11, 1, 9, 5, 0);
+        await SeedAsync(email, new DateTime(2026, 11, 1, 9, 0, 0), "P5229");
+
+        var failed = Assert.Single(await HistoryAsync());
+
+        Assert.Equal(AssignmentEmailStatus.Failed, failed.Status);
+        Assert.Equal("SMTP 550 mailbox unavailable", failed.FailureReason);
+        Assert.Equal(new DateTime(2026, 11, 1, 9, 5, 0), failed.FailedAt);
+    }
+
+    [Fact]
+    public async Task Sent_pending_and_not_sent_emails_carry_no_failure()
+    {
+        var sent = Chosen();
+        sent.UpdatedAt = new DateTime(2026, 11, 1, 9, 1, 0);
+        await SeedAsync(sent, new DateTime(2026, 11, 1, 9, 0, 0), "P5229", sentAt: new DateTime(2026, 11, 1, 9, 1, 0));
+        var pending = Chosen(resend: true);
+        pending.UpdatedAt = new DateTime(2026, 11, 2, 9, 0, 0);
+        await SeedAsync(pending, new DateTime(2026, 11, 2, 9, 0, 0), "P5229");
+        var notSent = AssignmentEmail.NotSent(AppraisalId, AssignmentId);
+        notSent.UpdatedAt = new DateTime(2026, 11, 3, 9, 0, 0);
+        await SeedAsync(notSent, new DateTime(2026, 11, 3, 9, 0, 0), null);
+
+        var history = await HistoryAsync();
+
+        Assert.Equal(3, history.Count);
+        Assert.All(history, h =>
+        {
+            Assert.Null(h.FailureReason);
+            Assert.Null(h.FailedAt);
+        });
+    }
+
+    [Fact]
+    public async Task A_failed_email_redriven_to_sent_carries_no_failure()
+    {
+        var email = Chosen();
+        email.Queue("บริษัท แอคมี จำกัด", null, ["jobs@acme.co.th"], []);
+        email.MarkFailed("SMTP timeout");
+        email.MarkSent(new DateTime(2026, 11, 1, 10, 0, 0));
+        email.UpdatedAt = new DateTime(2026, 11, 1, 10, 0, 0);
+        await SeedAsync(email, new DateTime(2026, 11, 1, 9, 0, 0), "P5229");
+
+        var redriven = Assert.Single(await HistoryAsync());
+
+        Assert.Equal(AssignmentEmailStatus.Sent, redriven.Status);
+        Assert.Null(redriven.FailureReason);
+        Assert.Null(redriven.FailedAt);
+    }
+
     [Fact]
     public async Task A_row_the_system_wrote_has_no_actor_name()
     {
