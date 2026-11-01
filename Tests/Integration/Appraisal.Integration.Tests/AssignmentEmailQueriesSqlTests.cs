@@ -52,11 +52,14 @@ public class AssignmentEmailQueriesSqlTests(IntegrationTestFixture fixture)
         var resend = AssignmentEmail.Resend(appraisalId, assignmentId, [], [], "Subject 2", "<p>again</p>", []);
         var notSent = AssignmentEmail.NotSent(appraisalId, assignmentId);
         var otherCase = AssignmentEmail.NotSent(Guid.NewGuid(), assignmentId);
+        var failed = AssignmentEmail.ToSend(appraisalId, assignmentId, [], [], "Subject 3", "<p>x</p>", []);
+        failed.Queue(null, null, ["company@x.test"], []);
+        failed.MarkFailed("SMTP 550");
 
         using (var scope = CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
-            db.AssignmentEmails.AddRange(original, resend, notSent, otherCase);
+            db.AssignmentEmails.AddRange(original, resend, notSent, otherCase, failed);
             await db.SaveChangesAsync(Ct);
 
             // The audit interceptor stamps one time for the batch: pin distinct times so the order is defined.
@@ -64,7 +67,8 @@ public class AssignmentEmailQueriesSqlTests(IntegrationTestFixture fixture)
                      {
                          (original.Id, new DateTime(2026, 10, 31, 9, 0, 0), (string?)"P0001"),
                          (resend.Id, new DateTime(2026, 10, 31, 11, 0, 0), "P0002"),
-                         (notSent.Id, new DateTime(2026, 10, 31, 8, 0, 0), (string?)null)
+                         (notSent.Id, new DateTime(2026, 10, 31, 8, 0, 0), (string?)null),
+                         (failed.Id, new DateTime(2026, 10, 31, 7, 0, 0), (string?)null)
                      })
                 await db.AssignmentEmails.Where(e => e.Id == id).ExecuteUpdateAsync(s => s
                     .SetProperty(e => e.CreatedAt, at)
@@ -81,7 +85,7 @@ public class AssignmentEmailQueriesSqlTests(IntegrationTestFixture fixture)
             var history = await new GetAssignmentEmailHistoryQueryHandler(db, lookup, Admin())
                 .Handle(new GetAssignmentEmailHistoryQuery(appraisalId), Ct);
 
-            Assert.Equal([resend.Id, original.Id, notSent.Id], history.Select(h => h.Id));
+            Assert.Equal([resend.Id, original.Id, notSent.Id, failed.Id], history.Select(h => h.Id));
 
             var h0 = history[0];
             Assert.True(h0.IsResend);
@@ -100,6 +104,20 @@ public class AssignmentEmailQueriesSqlTests(IntegrationTestFixture fixture)
             Assert.Equal(2, h1.AttachmentCount);
             Assert.Equal("P0001", h1.CreatedBy);
             Assert.Equal("Somchai Jaidee", h1.CreatedByName);
+            // #632: the interceptor stamped UpdatedAt on every row, but only a Failed one reports it.
+            var stored = await db.AssignmentEmails.AsNoTracking()
+                .Where(e => e.Id == original.Id || e.Id == failed.Id)
+                .ToDictionaryAsync(e => e.Id, e => e.UpdatedAt, Ct);
+            Assert.NotNull(stored[original.Id]); // so the null below is the status gate, not a missing stamp
+            Assert.Null(h1.FailureReason);
+            Assert.Null(h1.FailedAt);
+
+            var h3 = history[3];
+            Assert.Equal(AssignmentEmailStatus.Failed, h3.Status);
+            Assert.Equal("SMTP 550", h3.FailureReason);
+            Assert.NotNull(stored[failed.Id]);
+            Assert.Equal(stored[failed.Id], h3.FailedAt);
+            Assert.NotEqual(new DateTime(2026, 10, 31, 7, 0, 0), h3.FailedAt); // not the pinned CreatedAt
 
             var h2 = history[2];
             Assert.Equal(AssignmentEmailStatus.NotSent, h2.Status);
