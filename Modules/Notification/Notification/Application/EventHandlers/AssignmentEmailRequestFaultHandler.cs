@@ -21,23 +21,31 @@ public sealed class AssignmentEmailRequestFaultHandler(
                 Reason(context.Message.Exceptions.FirstOrDefault()), ct), context.CancellationToken);
 
     /// <summary>
-    /// The mail libraries' own message (the gateway's reply, a bad address) helps the admin. A relay that cannot be
-    /// reached (socket error, or MailKit's connect/read timeout) gets a fixed text, because .NET's connect failure names
-    /// the relay's address and port. Attachment errors never fault (EmailAttachmentAssembler skips them); anything else,
-    /// such as a SQL error, would show internals, so it stays in the logs and Failed Messages.
+    /// What the admins are told:
+    /// <list type="bullet">
+    ///   <item>"cannot reach the mail server" for a socket error or timeout, on its own or under the transport's
+    ///   wrappers (IOException from SslStream with STARTTLS, MailKit's SslHandshakeException). A fixed text, because
+    ///   .NET's connect failure names the relay's address and port.</item>
+    ///   <item>MailKit/MimeKit's own message otherwise (the gateway's reply, a bad address).</item>
+    ///   <item>A generic text for anything else, such as a SQL or Redis error, even when a socket error sits inside
+    ///   it: it would show internals or blame the relay wrongly. Attachment errors never fault
+    ///   (EmailAttachmentAssembler skips them). The details stay in the logs and Failed Messages.</item>
+    /// </list>
     /// </summary>
     private static string Reason(ExceptionInfo? exception)
     {
-        if (exception?.ExceptionType is { } type
-            && (type.StartsWith("MailKit.", StringComparison.Ordinal) || type.StartsWith("MimeKit.", StringComparison.Ordinal)))
-            return exception.Message;
-
-        // With STARTTLS, SslStream wraps the socket error or timeout in an IOException: look through the chain.
         for (var e = exception; e is not null; e = e.InnerException)
+        {
             if (e.ExceptionType is "System.Net.Sockets.SocketException" or "System.TimeoutException"
                 || e.ExceptionType?.EndsWith("+ExtendedSocketException", StringComparison.Ordinal) == true)
                 return "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้";
+            if (e.ExceptionType is not ("System.IO.IOException" or "MailKit.Security.SslHandshakeException"))
+                break;
+        }
 
-        return "ระบบส่งอีเมลขัดข้อง";
+        return exception?.ExceptionType is { } type
+               && (type.StartsWith("MailKit.", StringComparison.Ordinal) || type.StartsWith("MimeKit.", StringComparison.Ordinal))
+            ? exception.Message
+            : "ระบบส่งอีเมลขัดข้อง";
     }
 }

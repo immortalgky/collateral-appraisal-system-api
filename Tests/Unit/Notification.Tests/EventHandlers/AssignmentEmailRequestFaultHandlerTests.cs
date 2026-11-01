@@ -50,10 +50,7 @@ public class AssignmentEmailRequestFaultHandlerTests
         AssignmentEmailRequestedIntegrationEvent request, string error,
         string exceptionType = "MailKit.Net.Smtp.SmtpCommandException", ExceptionInfo? inner = null)
     {
-        var exception = Substitute.For<ExceptionInfo>();
-        exception.Message.Returns(error);
-        exception.ExceptionType.Returns(exceptionType);
-        exception.InnerException.Returns(inner);
+        var exception = Info(exceptionType, error, inner);
         var fault = Substitute.For<Fault<AssignmentEmailRequestedIntegrationEvent>>();
         fault.Message.Returns(request);
         fault.Exceptions.Returns([exception]);
@@ -127,19 +124,31 @@ public class AssignmentEmailRequestFaultHandlerTests
             Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task A_timeout_inside_the_TLS_session_is_reported_as_unreachable()
+    private static ExceptionInfo Info(string type, string message, ExceptionInfo? inner = null)
     {
-        // With STARTTLS, SslStream wraps the timeout: the Fault's outer type is IOException.
-        var timeout = Substitute.For<ExceptionInfo>();
-        timeout.ExceptionType.Returns("System.TimeoutException");
-        timeout.Message.Returns("The operation has timed out.");
+        var info = Substitute.For<ExceptionInfo>();
+        info.ExceptionType.Returns(type);
+        info.Message.Returns(message);
+        info.InnerException.Returns(inner); // never an auto-substitute: the chain must end
+        return info;
+    }
 
-        await ConsumeAsync(Request, "The read operation failed, see inner exception.", "System.IO.IOException", timeout);
+    [Theory]
+    // STARTTLS: SslStream wraps the timeout or socket error in an IOException.
+    [InlineData("System.IO.IOException", "System.TimeoutException", "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้")]
+    [InlineData("System.IO.IOException", "System.Net.Internals.SocketExceptionFactory+ExtendedSocketException",
+        "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้")]
+    // The relay stalls during the TLS handshake: MailKit wraps it.
+    [InlineData("MailKit.Security.SslHandshakeException", "System.TimeoutException", "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้")]
+    // The database or Redis is down, not the relay.
+    [InlineData("Microsoft.Data.SqlClient.SqlException", "System.Net.Sockets.SocketException", "ระบบส่งอีเมลขัดข้อง")]
+    [InlineData("StackExchange.Redis.RedisConnectionException", "System.Net.Sockets.SocketException", "ระบบส่งอีเมลขัดข้อง")]
+    public async Task Only_a_transport_wrapper_is_looked_through(string outer, string inner, string reason)
+    {
+        await ConsumeAsync(Request, "wrapped 10.20.30.40:25", outer, Info(inner, "inner 10.20.30.40:25"));
 
         await _ctx.Received(1).Publish(
-            Arg.Is<AssignmentEmailFailedIntegrationEvent>(e => e.Reason == "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้"),
-            Arg.Any<CancellationToken>());
+            Arg.Is<AssignmentEmailFailedIntegrationEvent>(e => e.Reason == reason), Arg.Any<CancellationToken>());
     }
 
     [Fact]
