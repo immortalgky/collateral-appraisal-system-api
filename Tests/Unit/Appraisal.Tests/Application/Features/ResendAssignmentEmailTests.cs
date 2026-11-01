@@ -179,9 +179,21 @@ public class ResendAssignmentEmailTests
     {
         Case(keyerName: null); // nobody to name as ผู้รับผิดชอบ
 
-        await Assert.ThrowsAsync<BadRequestException>(ResendAsync);
+        var error = await Assert.ThrowsAsync<BadRequestException>(ResendAsync);
 
+        Assert.Contains("{{responsible}}", error.Message);
         await AssertNothingSentAsync();
+    }
+
+    [Fact]
+    public async Task An_unknown_value_is_fine_once_the_admin_removed_its_placeholder()
+    {
+        Case(keyerName: null);
+
+        await Handler().Handle(new ResendAssignmentEmailCommand(AppraisalId,
+            Edited() with { BodyHtml = "<p>เรียน {{company}}</p><p>ผู้รับผิดชอบ : คุณวิภา</p>" }), CancellationToken.None);
+
+        Assert.NotNull(Published());
     }
 
     [Fact]
@@ -190,7 +202,9 @@ public class ResendAssignmentEmailTests
         _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>()).Returns((CompanyLookupDto?)null);
 
         // The extra To would still reach someone, but "เรียน {{company}}" would go out as is.
-        await Assert.ThrowsAsync<BadRequestException>(ResendAsync);
+        var error = await Assert.ThrowsAsync<BadRequestException>(ResendAsync);
+
+        Assert.Contains("{{company}}", error.Message);
 
         await AssertNothingSentAsync();
     }

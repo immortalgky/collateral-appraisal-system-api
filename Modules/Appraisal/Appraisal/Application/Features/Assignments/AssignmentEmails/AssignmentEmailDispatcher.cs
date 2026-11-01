@@ -68,9 +68,11 @@ public class AssignmentEmailDispatcher(
         {
             if (to.Count == 0)
                 throw new BadRequestException("The company has no email address. Add a To address to send it.");
-            if (Unknown(AssignmentEmail.CompanyPlaceholder, companyName) || Unknown(AssignmentEmail.ResponsiblePlaceholder, responsible))
-                throw new BadRequestException(
-                    $"The email still has {AssignmentEmail.CompanyPlaceholder} or {AssignmentEmail.ResponsiblePlaceholder}, and its value is not known yet. Replace it in the email.");
+            var unknown = Unknown(AssignmentEmail.CompanyPlaceholder, companyName) ? AssignmentEmail.CompanyPlaceholder
+                : Unknown(AssignmentEmail.ResponsiblePlaceholder, responsible) ? AssignmentEmail.ResponsiblePlaceholder
+                : null;
+            if (unknown is not null)
+                throw new BadRequestException($"The email still has {unknown}, and its value is not known yet. Replace it in the email.");
         }
 
         email.Queue(companyName, responsible, to, cc);

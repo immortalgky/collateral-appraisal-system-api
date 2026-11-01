@@ -85,3 +85,7 @@ and touches the dispatcher too: keep the dispatcher diff small.
   `AssignmentEmailQueriesSqlTests` (integration 2).
 - Security: all three endpoints check `APPRAISAL_ADMINISTRATION_EDIT` in the handler; the view looks the email up by
   id AND appraisal; the actor is the server-side bank code; values filled into HTML are encoded; nothing sensitive logged.
+- /code-review r3 (placeholder fix only): no correctness/security finding; 4 low. Accepted: the 400 names the one
+  unknown placeholder; tests pin the message and the allowed side (value unknown, placeholder removed → sends).
+  Declined: a token the editor altered (`{{ company }}`) is neither filled nor refused — the same exact-match rule as
+  `Fill` since #620. → loop stopped.
