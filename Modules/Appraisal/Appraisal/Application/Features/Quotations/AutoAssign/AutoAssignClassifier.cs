@@ -28,9 +28,10 @@ public static class AutoAssignClassifier
             return new(AutoAssignOutcome.Skipped, AutoAssignReason.NoAssignment, "No assignment found for this appraisal");
 
         // A case routed back to appraisal-assignment keeps its row Assigned/InProgress by design (only a
-        // company decline/return resets it to Pending): the Administration page is locked for it and the admin
-        // forwards it from the Decision Summary page. That is the normal state, not a timing gap — except
-        // that the decline reset runs in an async consumer, so a declined case can briefly look the same.
+        // company decline/return or a failed company selection resets it to Pending): the Administration
+        // page is locked for it and the admin forwards it from the Decision Summary page. That is the
+        // normal state, not a timing gap — except that the reset runs in an async consumer, so such a case
+        // can briefly look the same.
         // Auto-assign must not touch it: it needs a person.
         if (state.AssignmentStatus != AssignmentStatusVo.Pending.Code
             && state.PendingActivityId == AppraisalAssignState.AssignmentActivityId)

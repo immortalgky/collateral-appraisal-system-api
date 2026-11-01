@@ -345,11 +345,13 @@ public class WorkflowTransitionedIntegrationEventHandler(
                 return false;
 
             case "appraisal-assignment":
-                // The external company declined or returned the job at ext-appraisal-assignment (cancel or
-                // route-back, even after work started): the admin picks again. Every other
-                // route-back here keeps its row — the Administration page stays locked and the admin forwards
-                // the case from the Decision Summary page.
-                if (string.Equals(source, "ext-appraisal-assignment", StringComparison.OrdinalIgnoreCase)
+                // No company holds the job any more: it declined or returned it at ext-appraisal-assignment
+                // (cancel or route-back, even after work started), or company-selection found no eligible
+                // company (no_match; a no-op when the row is already Pending). The admin picks again. Every
+                // other route-back here keeps its row — the Administration page stays locked and the admin
+                // forwards the case from the Decision Summary page.
+                if ((string.Equals(source, "ext-appraisal-assignment", StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(source, "company-selection", StringComparison.OrdinalIgnoreCase))
                     && (assignment.AssignmentStatus == AssignmentStatus.Assigned
                         || assignment.AssignmentStatus == AssignmentStatus.InProgress))
                 {

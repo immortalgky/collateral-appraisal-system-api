@@ -56,3 +56,4 @@ the Decision Summary page (P / C / R).
 - New warnings: 6× xUnit1051 (CancellationToken) in the new test files.
 - Follow-up tickets (not this PR): decline reset keeps old SLADueDate/StartedAt/QuotationRequestId;
   QuotationAutoAssignStateReader election differs from Current().
+- PR review (Copilot): company-selection no_match also resets — failed selection must let the admin re-pick.

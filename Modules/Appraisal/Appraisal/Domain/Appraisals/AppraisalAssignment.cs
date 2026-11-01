@@ -397,8 +397,8 @@ public class AppraisalAssignment : Entity<Guid>
         string.Equals(AssignmentMethod, OfflineAssignmentMethod, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// The external company declined or returned the job at ext-appraisal-assignment: Assigned or InProgress →
-    /// Pending so the admin can pick again. A no-op from any other status; every other route-back to
+    /// No company holds the job any more (it declined or returned it at ext-appraisal-assignment, or company
+    /// selection failed): Assigned or InProgress → Pending so the admin can pick again. A no-op from any other status; every other route-back to
     /// appraisal-assignment deliberately leaves the row where it is.
     /// </summary>
     public void ReturnToAssignmentQueue()
