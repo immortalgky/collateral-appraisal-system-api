@@ -71,7 +71,8 @@ public class InternalFollowupAssignedIntegrationEventHandlerTests
 
         return new InternalFollowupAssignedIntegrationEventHandler(
             repo, Substitute.For<IAppraisalUnitOfWork>(),
-            NullLogger<InternalFollowupAssignedIntegrationEventHandler>.Instance, inboxGuard);
+            NullLogger<InternalFollowupAssignedIntegrationEventHandler>.Instance, inboxGuard,
+            ExtoAssignmentEmailDispatchTests.NoEmailDispatcher());
     }
 
     private static ConsumeContext<InternalFollowupAssignedIntegrationEvent> BuildContext(

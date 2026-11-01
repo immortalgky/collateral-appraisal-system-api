@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Assignments.AssignmentEmails;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
 using MassTransit;
@@ -13,7 +14,8 @@ public class InternalFollowupAssignedIntegrationEventHandler(
     IAppraisalRepository appraisalRepository,
     IAppraisalUnitOfWork unitOfWork,
     ILogger<InternalFollowupAssignedIntegrationEventHandler> logger,
-    InboxGuard<AppraisalDbContext> inboxGuard
+    InboxGuard<AppraisalDbContext> inboxGuard,
+    AssignmentEmailDispatcher emailDispatcher
 ) : IConsumer<InternalFollowupAssignedIntegrationEvent>
 {
     public Task Consume(ConsumeContext<InternalFollowupAssignedIntegrationEvent> context) =>
@@ -48,9 +50,23 @@ public class InternalFollowupAssignedIntegrationEventHandler(
             return;
         }
 
-        assignment.AssignInternalFollowup(
-            message.InternalAppraiserId,
-            message.InternalFollowupAssignmentMethod);
+        // no_match publishes no officer: the row keeps what it had, and only the company's email goes on.
+        if (message.InternalAppraiserId is { } officer)
+            assignment.AssignInternalFollowup(officer, message.InternalFollowupAssignmentMethod ?? "");
+
+        // EXT (#622): the company is on the row (CompanyAssigned ran first on this partition) and the officer is known,
+        // so the email chosen for this engagement goes out, committed with this save through the outbox. It never holds
+        // up the follow-up.
+        try
+        {
+            await emailDispatcher.QueueExtAsync(assignment, appraisal.AppraisalNumber, message.InternalAppraiserId, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex,
+                "Assignment email for AppraisalId {AppraisalId} was not queued; the follow-up goes ahead without it",
+                message.AppraisalId);
+        }
 
         // Kept on purpose: assignment events only touch AppraisalAssignment rows, so this stamps Appraisals.UpdatedAt
         // (read by GetAppraisalStatus and vw_MisCasReport).

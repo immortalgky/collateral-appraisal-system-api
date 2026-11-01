@@ -8,7 +8,7 @@ namespace Appraisal.Application.Features.Assignments.AssignmentEmails;
 /// <summary>
 /// Readies the email to the external company when an EXTO case is handed over to its keyer (#620) and queues it on the
 /// outbox, to be committed by the caller's save together with the assignment. Never saves itself.
-/// EXT's handover (#622) will need its own responsible person, Cc roles and fee question.
+/// EXT (#622): the template row is added when the company is assigned, and sent once the follow-up is known.
 /// </summary>
 public class AssignmentEmailDispatcher(
     IAssignmentEmailRepository emails,
@@ -39,6 +39,41 @@ public class AssignmentEmailDispatcher(
         // Added only once queued (or failed): a failed read must not leave a Pending template row for the caller's save.
         if (template is not null)
             await emails.AddAsync(email, ct);
+    }
+
+    /// <summary>
+    /// EXT (#622), when the workflow assigned <paramref name="companyId"/> to a row that was Pending (a genuine
+    /// assignment, not a route-back replay) and nobody pressed มอบหมาย, so no email was chosen: adds the bank template
+    /// as a Pending row, for the caller's save. <see cref="QueueExtAsync"/> sends it once the follow-up is known.
+    /// </summary>
+    public async Task AddExtTemplateAsync(
+        AppraisalAssignment assignment, Guid companyId, bool isQuotation, CancellationToken ct)
+    {
+        if (await emails.GetLatestUnsentAsync(assignment.Id, ct) is not null)
+            return; // the admin's choice, sent or not
+
+        var template = await composer.ComposeForExtHandoverAsync(assignment.AppraisalId, companyId, isQuotation, ct);
+        await emails.AddAsync(AssignmentEmail.ToSend(
+            assignment.AppraisalId, assignment.Id, template.ExtraTo, template.Cc, template.Subject, template.BodyHtml, []), ct);
+    }
+
+    /// <summary>
+    /// EXT (#622): the follow-up officer is now known, so the email chosen for this engagement goes out. That is the
+    /// admin's Pending row, or the template row CompanyAssigned added for a system assignment. No such row (NotSent, or
+    /// a route-back replay of the company the case already holds) → nothing.
+    /// </summary>
+    /// <param name="followupUserId">The follow-up officer, a username; null when the selection found nobody.</param>
+    public async Task QueueExtAsync(
+        AppraisalAssignment assignment, string? appraisalNumber, string? followupUserId, CancellationToken ct)
+    {
+        var email = await emails.GetLatestUnsentAsync(assignment.Id, ct);
+        if (email is not { Status: AssignmentEmailStatus.Pending })
+            return;
+
+        // Nobody to follow up (no_match): "-" rather than a raw placeholder in the company's email (user, 2026-11-01).
+        var responsible = followupUserId is null ? "-" : await DisplayNameAsync(followupUserId, ct);
+        await QueueAsync(email, appraisalNumber, assignment.AssigneeCompanyId, responsible, followupUserId,
+            assignment.AssignedBy, refuseIfIncomplete: false, ct);
     }
 
     /// <summary>

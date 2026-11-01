@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Assignments.AssignmentEmails;
 using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Quotations;
@@ -19,7 +20,8 @@ public class CompanyAssignedIntegrationEventHandler(
     IAppraisalUnitOfWork unitOfWork,
     IAssignmentFeeService feeService,
     ILogger<CompanyAssignedIntegrationEventHandler> logger,
-    InboxGuard<AppraisalDbContext> inboxGuard
+    InboxGuard<AppraisalDbContext> inboxGuard,
+    AssignmentEmailDispatcher emailDispatcher
 ) : IConsumer<CompanyAssignedIntegrationEvent>
 {
     public Task Consume(ConsumeContext<CompanyAssignedIntegrationEvent> context) =>
@@ -83,6 +85,24 @@ public class CompanyAssignedIntegrationEventHandler(
             source: feeSource,
             repriceSystemBase: wasPending,
             ct: ct);
+
+        // EXT (#622): a genuine assignment (the row was Pending) that nobody chose an email for gets the bank template,
+        // sent by the follow-up consumer once the officer is known. A route-back replay of the company finds the row
+        // Assigned and adds nothing. The email never holds up the assignment.
+        if (wasPending)
+        {
+            try
+            {
+                await emailDispatcher.AddExtTemplateAsync(assignment, message.CompanyId,
+                    string.Equals(message.AssignmentMethod, "Quotation", StringComparison.OrdinalIgnoreCase), ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex,
+                    "Assignment email for AppraisalId {AppraisalId} was not prepared; the assignment goes ahead without it",
+                    message.AppraisalId);
+            }
+        }
 
         // Kept on purpose: assignment events only touch AppraisalAssignment rows, so this stamps Appraisals.UpdatedAt
         // (read by GetAppraisalStatus and vw_MisCasReport).

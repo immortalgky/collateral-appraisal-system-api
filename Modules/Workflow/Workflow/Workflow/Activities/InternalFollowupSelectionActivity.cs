@@ -116,6 +116,8 @@ public class InternalFollowupSelectionActivity : WorkflowActivityBase
             "InternalFollowupSelectionActivity {ActivityId}: no match. Error: {Error}",
             context.ActivityId, result.ErrorMessage);
 
+        // Still published: the company's assignment email waits for this event (#622).
+        PublishFollowupAssignedEvent(context, null, null);
         return ActivityResult.Success(outputData);
     }
 
@@ -150,8 +152,8 @@ public class InternalFollowupSelectionActivity : WorkflowActivityBase
 
     private void PublishFollowupAssignedEvent(
         ActivityContext context,
-        string internalAppraiserId,
-        string internalFollowupMethod)
+        string? internalAppraiserId,
+        string? internalFollowupMethod)
     {
         var appraisalId = WorkflowVariables.TryGetAppraisalId(context.Variables);
         if (appraisalId is null)
