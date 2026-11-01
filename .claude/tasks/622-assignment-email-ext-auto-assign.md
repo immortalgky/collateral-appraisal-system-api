@@ -31,7 +31,11 @@ Branch `immortalgky/implement-622-ext-auto-assign-email` (worktree `halibut`), o
 - [x] /code-review r2 (7 findings): a template that cannot be built → empty Failed row (EXT and EXTO); EXTO template
       added before it is queued; `MarkFailed` back to Queued-only, new `FailToPrepare` for the dispatcher; tests
 - [x] /code-review r3: no critical/high/medium; 5 low declined → loop stopped
-- [ ] Gates (test-automator)
+- [x] Gates (test-automator): build 0 errors · 12 unit projects green (Appraisal 1665, Workflow 1219 + 1 known skip) ·
+      no pending model change · Appraisal integration 219/220 in a run slowed by an accidental concurrent run; the one
+      failure (ClosedAppraisalWriteGuardTests.Property_write_on_a_closed_appraisal_is_refused, SQL timeout, property
+      write path the branch does not touch) passed alone, with AffectedHandlersGroupAssignmentTests +
+      AssignmentEmailQueriesSqlTests (24/24). No Workflow integration namespace.
 - [ ] User test → merge `--no-ff` into the integration branch, close #622 by hand
 
 ## Settled decisions (user, 2026-11-01)
