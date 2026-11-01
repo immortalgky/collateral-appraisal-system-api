@@ -34,8 +34,10 @@ Branch `immortalgky/implement-624-issue` (worktree `candlefish`), off the local 
       SslHandshakeException) and runs before the MailKit rule; test substitutes end the chain; negative cases
 - [x] /code-review r6 (3 findings, all accepted): SslHandshakeException = fixed TLS text, a bare IOException =
       unreachable, regression rows for the rule order
-- [ ] /code-review r7 (fix diff only)
-- [ ] Gates (test-automator)
+- [x] /code-review r7: no medium+ finding → loop stopped
+- [x] Gates (test-automator): build 0 errors · 12 unit projects green · no pending model change · Appraisal
+      integration 214/214 with `PropertySaveWriteScopeTests` excluded (2 SQL timeouts in a property reload; the
+      branch touches no property code — not compared on main)
 - [ ] User test → merge `--no-ff` into the integration branch, close #624 by hand
 
 ## Settled decisions (user, 2026-11-01)
@@ -79,3 +81,20 @@ Branch `immortalgky/implement-624-issue` (worktree `candlefish`), off the local 
 
 ## Declined in /code-review r4 (do not re-raise)
 - The 200 cut can split a surrogate pair / leave a trailing space: gateway replies are ASCII; low.
+
+## Declined in /code-review r7 (do not re-raise)
+- SslHandshakeException over an IOException reads "unreachable" though the relay was reached (TLS version/port
+  mismatch): wording only; the details are in the logs.
+
+## Review
+- Notification: `AssignmentEmailRequestFaultHandler` (Fault consumer, inbox key = FaultedMessageId) and the no-To
+  branch both go through `AssignmentEmailFailureNotifier`: Failed event first, then one persisted notification per
+  user (assigner if a real account ∪ active IntAdmins, deduped case-insensitively).
+- Retry: `SmtpFailures.IsPermanent` (5xx) wired into the bus-level `IgnoreNonTransient` in Program.cs.
+- Appraisal: `AssignmentEmail.FailureReason` nvarchar(200) + migration `AddAssignmentEmailFailureReason` (not
+  applied — user runs `migrate`); `MarkFailed` only from Queued; `MarkSent` recovers a Failed row after a redrive.
+- Request event now carries AppraisalNumber + CompanyName so Notification needs no cross-module lookup.
+- Security: the reason shown to admins never carries a raw non-mail exception message (no SQL text, no relay
+  IP:port, no certificate details); full detail stays in logs / EmailSendLogs / Failed Messages.
+- Follow-ups: app#539 adds `AssignmentEmailFailed` to `notificationTypeConfig`; fold #617 migrations at the
+  integration PR; check the Program.cs Ignore by hand (5xx → straight to _error, no retries).
