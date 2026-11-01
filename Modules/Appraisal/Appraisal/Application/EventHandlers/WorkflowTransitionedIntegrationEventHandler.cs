@@ -32,6 +32,7 @@ public class WorkflowTransitionedIntegrationEventHandler(
     IAppraisalRepository appraisalRepository,
     IAppraisalUnitOfWork unitOfWork,
     AppraisalDbContext dbContext,
+    IAssignmentEmailRepository emails,
     InboxGuard<AppraisalDbContext> inboxGuard,
     ISlaCalculatorClient slaCalculatorClient)
     : IConsumer<WorkflowTransitionedIntegrationEvent>
@@ -195,6 +196,16 @@ public class WorkflowTransitionedIntegrationEventHandler(
 
                 if (stageDueAt.HasValue)
                     activeAssignment.SetSlaDueDate(stageDueAt.Value);
+            }
+
+            // EXT company selection found nobody (company-no-match) and sent the case back to the admin: the email chosen
+            // for that attempt never reached a handover. Retired, so a later handover with no choice of its own does not
+            // pick it up as the admin's and send obsolete content (Copilot, api#636).
+            if (activeAssignment is not null
+                && string.Equals(message.SourceActivityId, "company-selection", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(message.DestinationActivityId, "appraisal-assignment", StringComparison.OrdinalIgnoreCase))
+            {
+                await emails.DeletePendingCreatedUpToAsync(activeAssignment.Id, message.CompletedAt, ct);
             }
 
             await unitOfWork.SaveChangesAsync(ct);

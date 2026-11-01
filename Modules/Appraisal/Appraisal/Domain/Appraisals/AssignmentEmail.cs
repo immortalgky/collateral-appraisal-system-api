@@ -104,7 +104,8 @@ public class AssignmentEmail : Entity<Guid>
         BodyHtml = Fill(BodyHtml, CompanyPlaceholder, company);
         BodyHtml = Fill(BodyHtml, ResponsiblePlaceholder, responsible);
         SentTo = to.ToList();
-        SentCc = cc.ToList();
+        // As the sender mails it: an address already in To is not copied again (EmailRecipients, Notification).
+        SentCc = cc.Except(SentTo, StringComparer.OrdinalIgnoreCase).ToList();
         Status = AssignmentEmailStatus.Queued;
     }
 
@@ -143,10 +144,15 @@ public class AssignmentEmail : Entity<Guid>
     public void MarkFailed(string? reason)
     {
         if (Status != AssignmentEmailStatus.Queued) return;
-        // A hand-edited redrive may drop it; the row must still leave Queued.
-        reason = string.IsNullOrWhiteSpace(reason) ? "ไม่ทราบสาเหตุ" : reason.Trim();
         Status = AssignmentEmailStatus.Failed;
-        FailureReason = reason.Length > MaxFailureReasonLength ? reason[..MaxFailureReasonLength] : reason;
+        FailureReason = NormalizeFailureReason(reason);
+    }
+
+    /// <summary>A hand-edited redrive may drop the reason (the row must still leave Queued); a long one is cut to the column.</summary>
+    public static string NormalizeFailureReason(string? reason)
+    {
+        reason = string.IsNullOrWhiteSpace(reason) ? "ไม่ทราบสาเหตุ" : reason.Trim();
+        return reason.Length > MaxFailureReasonLength ? reason[..MaxFailureReasonLength] : reason;
     }
 }
 

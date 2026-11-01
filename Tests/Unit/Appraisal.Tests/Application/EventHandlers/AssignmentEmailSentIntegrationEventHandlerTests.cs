@@ -1,6 +1,5 @@
 using Appraisal.Application.EventHandlers;
 using Appraisal.Domain.Appraisals;
-using Appraisal.Infrastructure;
 using MassTransit;
 using NSubstitute;
 using Shared.Messaging.Events;
@@ -12,39 +11,39 @@ namespace Appraisal.Tests.Application.EventHandlers;
 public class AssignmentEmailSentIntegrationEventHandlerTests
 {
     private readonly IAssignmentEmailRepository _emails = Substitute.For<IAssignmentEmailRepository>();
-    private readonly IAppraisalUnitOfWork _uow = Substitute.For<IAppraisalUnitOfWork>();
     private readonly IDateTimeProvider _clock = Substitute.For<IDateTimeProvider>();
 
-    private Task ConfirmAsync(AssignmentEmail email)
+    [Fact]
+    public async Task The_confirmation_is_one_conditional_update_stamped_on_arrival()
     {
-        _emails.GetByIdAsync(email.Id, Arg.Any<CancellationToken>()).Returns(email);
+        var now = new DateTime(2026, 11, 2, 10, 30, 0);
+        _clock.ApplicationNow.Returns(now);
+        var emailId = Guid.NewGuid();
         var ctx = Substitute.For<ConsumeContext<AssignmentEmailSentIntegrationEvent>>();
-        ctx.Message.Returns(new AssignmentEmailSentIntegrationEvent { AppraisalId = email.AppraisalId, EmailId = email.Id });
+        ctx.Message.Returns(new AssignmentEmailSentIntegrationEvent { AppraisalId = Guid.NewGuid(), EmailId = emailId });
         ctx.CancellationToken.Returns(CancellationToken.None);
-        return new AssignmentEmailSentIntegrationEventHandler(_emails, _uow, _clock).Consume(ctx);
-    }
 
-    private static AssignmentEmail Chosen() =>
-        AssignmentEmail.ToSend(Guid.NewGuid(), Guid.NewGuid(), [], [], "subject", "<p>body</p>", []);
+        await new AssignmentEmailSentIntegrationEventHandler(_emails, _clock).Consume(ctx);
 
-    [Fact]
-    public async Task A_queued_email_becomes_sent()
-    {
-        var email = Chosen();
-        email.Queue("บริษัท แอคมี จำกัด", "สมชาย ใจดี", ["jobs@acme.co.th"], []);
-
-        await ConfirmAsync(email);
-
-        Assert.Equal(AssignmentEmailStatus.Sent, email.Status);
-        await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await _emails.Received(1).MarkSentIfQueuedOrFailedAsync(emailId, now, Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Only_a_handed_over_email_can_be_confirmed()
+    public void An_address_already_in_to_is_not_stored_as_copied()
     {
-        var email = Chosen(); // still Pending: never handed to Notification
+        var email = AssignmentEmail.ToSend(Guid.NewGuid(), Guid.NewGuid(), [], [], "subject", "<p>body</p>", []);
 
-        await ConfirmAsync(email);
+        email.Queue("บริษัท แอคมี จำกัด", "สมชาย ใจดี", ["jobs@acme.co.th"], ["JOBS@acme.co.th", "boss@bank.co.th", "Boss@bank.co.th"]);
+
+        Assert.Equal(["boss@bank.co.th"], email.SentCc); // as the sender mails it (Except also drops duplicates)
+    }
+
+    [Fact]
+    public void A_pending_email_cannot_be_confirmed_by_the_domain_method()
+    {
+        var email = AssignmentEmail.ToSend(Guid.NewGuid(), Guid.NewGuid(), [], [], "subject", "<p>body</p>", []);
+
+        email.MarkSent(DateTime.Now);
 
         Assert.Equal(AssignmentEmailStatus.Pending, email.Status);
     }
