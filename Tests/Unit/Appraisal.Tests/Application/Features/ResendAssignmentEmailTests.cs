@@ -68,9 +68,9 @@ public class ResendAssignmentEmailTests
 
     private ResendAssignmentEmailCommandHandler Handler()
     {
-        var composer = new AssignmentEmailComposer(_caseReader, _companies, Substitute.For<ISender>(), _configuration);
+        var composer = new AssignmentEmailComposer(_caseReader, _companies, _users, Substitute.For<ISender>(), _configuration);
         var dispatcher = new AssignmentEmailDispatcher(
-            _emails, composer, _companies, _users, _outbox);
+            _emails, composer, _companies, _users, _outbox, Microsoft.Extensions.Logging.Abstractions.NullLogger<AssignmentEmailDispatcher>.Instance);
         return new ResendAssignmentEmailCommandHandler(_user, _caseReader, _emails, dispatcher, _configuration, _uow);
     }
 
@@ -159,6 +159,35 @@ public class ResendAssignmentEmailTests
         Case(assignmentType: assignmentType, assignmentStatus: assignmentStatus);
 
         await Assert.ThrowsAsync<BadRequestException>(ResendAsync);
+
+        await AssertNothingSentAsync();
+    }
+
+    [Fact]
+    public async Task Junk_in_a_stored_email_is_not_mailed_at_the_resend()
+    {
+        _users.GetEmailsInRoleAsync("IntAdmin", Arg.Any<CancellationToken>()).Returns(["ฝ่ายประเมิน; admin@bank.co.th"]);
+        _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>())
+            .Returns(new CompanyLookupDto(CompanyId, "Acme Appraisal", null, true, "jobs@acme.co.th; ฝ่ายประเมิน", "บริษัท แอคมี จำกัด"));
+
+        await ResendAsync();
+
+        var sent = Published();
+        Assert.NotNull(sent);
+        Assert.Equal(["jobs@acme.co.th", "extra@acme.co.th"], sent.To);
+        Assert.Equal(["admin@bank.co.th", "boss@bank.co.th"], sent.Cc);
+    }
+
+    [Fact]
+    public async Task A_company_email_with_no_plain_address_counts_as_no_to()
+    {
+        _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>())
+            .Returns(new CompanyLookupDto(CompanyId, "Acme Appraisal", null, true, "ฝ่ายประเมิน; ", "บริษัท แอคมี จำกัด"));
+        var handler = Handler();
+
+        var ex = await Assert.ThrowsAsync<BadRequestException>(() => handler.Handle(
+            new ResendAssignmentEmailCommand(AppraisalId, Edited() with { ExtraTo = [] }), CancellationToken.None));
+        Assert.Contains("not a valid address", ex.Message);
 
         await AssertNothingSentAsync();
     }

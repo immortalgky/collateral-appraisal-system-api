@@ -22,4 +22,9 @@ public record EligibleAssigneeDto(string UserId, string DisplayName)
     /// Role descriptions the user belongs to (from auth.AspNetRoles.Description, falls back to Name).
     /// </summary>
     public List<string> Roles { get; init; } = [];
+
+    /// <summary>
+    /// Open tasks held by the user: the count workload-based assignment uses (PendingTasks with AssignedTo = the user).
+    /// </summary>
+    public int ActiveTaskCount { get; init; }
 }

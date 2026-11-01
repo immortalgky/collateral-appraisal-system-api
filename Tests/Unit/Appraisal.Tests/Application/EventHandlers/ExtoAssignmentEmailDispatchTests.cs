@@ -214,8 +214,8 @@ public class ExtoAssignmentEmailDispatchTests
         // The template's EXTO chips: every IntAdmin, the keyer, the keyer's supervisors.
         Assert.Equal(["admin1@bank.co.th", "Boss@bank.co.th", "keyer@bank.co.th", "lead@bank.co.th"], sent.Cc);
         Assert.Equal("ขอนำส่งงานประเมิน ลูกค้าราย นายสมศักดิ์ มั่นคง 69042630", sent.Subject);
-        Assert.Contains("<p>เรียน บริษัท แอคมี จำกัด</p>", sent.HtmlBody);
-        Assert.Contains("ผู้รับผิดชอบ : สมชาย ใจดี<br>", sent.HtmlBody);
+        Assert.Contains("<p>เรียน บริษัท แอคมี จำกัด<br><br>", sent.HtmlBody);
+        Assert.Contains("ผู้รับผิดชอบ: สมชาย ใจดี<br>", sent.HtmlBody);
         Assert.Equal(
             [AssignmentEmailCcRoles.IntAdminAll, AssignmentEmailCcRoles.Keyer, AssignmentEmailCcRoles.KeyerSupervisor],
             added.Cc); // EXTO's Cc roles (expanded by #621), not the follow-up ones
@@ -227,6 +227,44 @@ public class ExtoAssignmentEmailDispatchTests
             Arg.Any<CancellationToken>());
         // One save: the handover, the email row and its outbox message commit together.
         await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_relanding_with_no_choice_does_not_send_the_template_again_when_the_company_already_has_this_assignments_email()
+    {
+        StubTemplateReads();
+        _emails.GetHandedOverRecipientsAsync(_assignment.Id, Arg.Any<CancellationToken>())
+            .Returns([new List<string> { "JOBS@acme.co.th", "extra@acme.co.th" }]);
+
+        await LandOnKeyerAsync();
+
+        Assert.Null(Published());
+        await _emails.DidNotReceive().AddAsync(Arg.Any<AssignmentEmail>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_relanding_sends_the_template_when_the_only_earlier_email_failed()
+    {
+        StubTemplateReads();
+        // The repository returns Queued / Sent emails only, so a Failed one leaves nothing handed over.
+        _emails.GetHandedOverRecipientsAsync(_assignment.Id, Arg.Any<CancellationToken>()).Returns([]);
+
+        await LandOnKeyerAsync();
+
+        Assert.NotNull(Published());
+    }
+
+    [Fact]
+    public async Task A_relanding_sends_the_template_when_the_earlier_email_never_reached_the_company_or_went_to_another()
+    {
+        StubTemplateReads();
+        // Failed emails are not handed over (the repository returns Queued / Sent only); another company's address does not count.
+        _emails.GetHandedOverRecipientsAsync(_assignment.Id, Arg.Any<CancellationToken>())
+            .Returns([new List<string> { "someone@other.co.th" }]);
+
+        await LandOnKeyerAsync();
+
+        Assert.NotNull(Published());
     }
 
     [Fact]
@@ -324,8 +362,8 @@ public class ExtoAssignmentEmailDispatchTests
             NullLogger<InboxGuard<AppraisalDbContext>>.Instance,
             Substitute.For<IDateTimeProvider>());
 
-        var composer = new AssignmentEmailComposer(_caseReader, _companies, _sender, new ConfigurationBuilder().Build());
-        var dispatcher = new AssignmentEmailDispatcher(_emails, composer, _companies, _users, _outbox);
+        var composer = new AssignmentEmailComposer(_caseReader, _companies, _users, _sender, new ConfigurationBuilder().Build());
+        var dispatcher = new AssignmentEmailDispatcher(_emails, composer, _companies, _users, _outbox, NullLogger<AssignmentEmailDispatcher>.Instance);
 
         return new InternalAssignedIntegrationEventHandler(
             repo, _uow, fees, NullLogger<InternalAssignedIntegrationEventHandler>.Instance, inboxGuard, dispatcher);
@@ -335,10 +373,10 @@ public class ExtoAssignmentEmailDispatchTests
     internal static AssignmentEmailDispatcher NoEmailDispatcher() => new(
         Substitute.For<IAssignmentEmailRepository>(),
         new AssignmentEmailComposer(Substitute.For<IAssignmentEmailCaseReader>(), Substitute.For<ICompanyLookupService>(),
-            Substitute.For<ISender>(), new ConfigurationBuilder().Build()),
+            Substitute.For<IUserLookupService>(), Substitute.For<ISender>(), new ConfigurationBuilder().Build()),
         Substitute.For<ICompanyLookupService>(),
         Substitute.For<IUserLookupService>(),
-        Substitute.For<IIntegrationEventOutbox>());
+        Substitute.For<IIntegrationEventOutbox>(), NullLogger<AssignmentEmailDispatcher>.Instance);
 
     private static ConsumeContext<InternalAssignedIntegrationEvent> Context(InternalAssignedIntegrationEvent message)
     {

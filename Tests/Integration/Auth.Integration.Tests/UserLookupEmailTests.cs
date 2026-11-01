@@ -170,4 +170,21 @@ public class UserLookupEmailTests(IntegrationTestFixture fixture)
 
         (await Lookup(s => s.GetSupervisorEmailsAsync(alone.UserName, CancellationToken.None))).Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task Names_by_email_are_first_and_last_name_else_the_username_for_usable_users_only()
+    {
+        var named = await UserAsync(configure: u => (u.FirstName, u.LastName) = ("สมหญิง", "แอดมิน"));
+        var unnamed = await UserAsync(configure: u => (u.FirstName, u.LastName) = ("", ""));
+        var inactive = await UserAsync(configure: u => u.IsActive = false);
+        var (namedEmail, unnamedEmail, inactiveEmail) = (await EmailOf(named), await EmailOf(unnamed), await EmailOf(inactive));
+
+        await using var scope = Services.CreateAsyncScope();
+        var names = await scope.ServiceProvider.GetRequiredService<IUserLookupService>().GetNamesByEmailAsync(
+            [namedEmail.ToUpperInvariant(), unnamedEmail, inactiveEmail, "nobody@here.test"], CancellationToken.None);
+
+        names.Should().HaveCount(2);
+        names[namedEmail].Should().Be("สมหญิง แอดมิน");
+        names[unnamedEmail].Should().Be(unnamed.UserName);
+    }
 }

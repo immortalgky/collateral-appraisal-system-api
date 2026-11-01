@@ -13,4 +13,11 @@ public class AssignmentEmailRepository(AppraisalDbContext dbContext)
             .OrderByDescending(e => e.CreatedAt)
             .ThenByDescending(e => e.Id)
             .FirstOrDefaultAsync(cancellationToken);
+
+    public Task<List<List<string>>> GetHandedOverRecipientsAsync(Guid assignmentId, CancellationToken cancellationToken = default) =>
+        dbContext.AssignmentEmails.AsNoTracking()
+            .Where(e => e.AssignmentId == assignmentId
+                        && (e.Status == AssignmentEmailStatus.Queued || e.Status == AssignmentEmailStatus.Sent))
+            .Select(e => e.SentTo)
+            .ToListAsync(cancellationToken);
 }

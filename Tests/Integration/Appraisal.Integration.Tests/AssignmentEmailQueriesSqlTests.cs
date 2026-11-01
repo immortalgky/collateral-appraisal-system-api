@@ -199,4 +199,36 @@ public class AssignmentEmailQueriesSqlTests(IntegrationTestFixture fixture)
             Assert.Null(await reader.GetCaseAsync(Guid.NewGuid(), Ct));
         }
     }
+
+    [Fact]
+    public async Task Case_reader_names_a_keyer_or_follower_without_a_name_by_their_username()
+    {
+        var services = fixture.IntegrationTestWebApplicationFactory.Services;
+        var keyer = await global::Integration.Auth.Integration.Tests.Bff.BffTestSupport.CreateUserAsync(
+            services, "IntAppraisalStaff", configure: u => (u.FirstName, u.LastName) = ("", ""));
+        var follower = await global::Integration.Auth.Integration.Tests.Bff.BffTestSupport.CreateUserAsync(
+            services, "IntAppraisalStaff", configure: u => (u.FirstName, u.LastName) = ("วิชัย", "รักงาน"));
+        Guid appraisalId;
+
+        using (var scope = CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppraisalDbContext>();
+            var appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "New", "Normal", DateTime.Now);
+            appraisal.SetAppraisalNumber($"AE-{Guid.NewGuid():N}"[..14]);
+            appraisal.Assign("External", assigneeUserId: keyer.UserName, assigneeCompanyId: Guid.NewGuid().ToString(),
+                internalAppraiserId: follower.UserName, assignedBy: "test");
+            db.Appraisals.Add(appraisal);
+            await db.SaveChangesAsync(Ct);
+            appraisalId = appraisal.Id;
+        }
+
+        using (var scope = CreateScope())
+        {
+            var found = await scope.ServiceProvider.GetRequiredService<IAssignmentEmailCaseReader>().GetCaseAsync(appraisalId, Ct);
+
+            Assert.NotNull(found);
+            Assert.Equal(keyer.UserName, found.KeyerName);
+            Assert.Equal("วิชัย รักงาน", found.FollowupName);
+        }
+    }
 }

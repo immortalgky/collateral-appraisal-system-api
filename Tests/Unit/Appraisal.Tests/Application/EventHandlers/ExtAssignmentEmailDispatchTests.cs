@@ -53,6 +53,9 @@ public class ExtAssignmentEmailDispatchTests
         _emails.GetLatestUnsentAsync(_assignment.Id, Arg.Any<CancellationToken>()).Returns(_ =>
             _rows.LastOrDefault(r => r.Status is AssignmentEmailStatus.Pending or AssignmentEmailStatus.NotSent));
 
+        _emails.GetHandedOverRecipientsAsync(_assignment.Id, Arg.Any<CancellationToken>()).Returns(_ =>
+            _rows.Where(r => r.Status is AssignmentEmailStatus.Queued or AssignmentEmailStatus.Sent).Select(r => r.SentTo).ToList());
+
         _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>())
             .Returns(new CompanyLookupDto(CompanyId, "Acme Appraisal", null, true, "jobs@acme.co.th", "บริษัท แอคมี จำกัด"));
         _users.GetByUsernamesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
@@ -133,8 +136,8 @@ public class ExtAssignmentEmailDispatchTests
         Assert.Equal(["jobs@acme.co.th"], sent.To);
         Assert.Equal(["admin1@bank.co.th", "followup@bank.co.th", "lead@bank.co.th"], sent.Cc);
         Assert.Equal("ขอนำส่งงานประเมิน ลูกค้าราย นายสมศักดิ์ มั่นคง 69042630", sent.Subject);
-        Assert.Contains("<p>เรียน บริษัท แอคมี จำกัด</p>", sent.HtmlBody);
-        Assert.Contains("ผู้รับผิดชอบ : สมหญิง ตามงาน<br>", sent.HtmlBody);
+        Assert.Contains("<p>เรียน บริษัท แอคมี จำกัด<br><br>", sent.HtmlBody);
+        Assert.Contains("ผู้รับผิดชอบ: สมหญิง ตามงาน<br>", sent.HtmlBody);
         Assert.Equal("บริษัท แอคมี จำกัด", sent.CompanyName);
         // Priced for the company this assignment bills, not the stored row's.
         await _sender.Received().Send(
@@ -162,6 +165,36 @@ public class ExtAssignmentEmailDispatchTests
     }
 
     [Fact]
+    public async Task A_pending_relanding_on_the_same_company_with_no_choice_does_not_send_the_template_again()
+    {
+        // The summary page's proceed after a route-back: the row is Pending again, holding the company that already got its email.
+        var first = AdminRow();
+        first.Queue("บริษัท แอคมี จำกัด", "สมหญิง ตามงาน", ["jobs@acme.co.th"], []);
+        first.MarkSent(DateTime.Now);
+        _assignment.SetAssigneeCompany(CompanyId.ToString());
+        StubTemplateReads();
+
+        await AssignCompanyAndFollowupAsync("RoundRobin");
+
+        Assert.Empty(Published());
+        Assert.Single(_rows);
+    }
+
+    [Fact]
+    public async Task A_pending_relanding_after_an_email_that_failed_sends_the_template()
+    {
+        var first = AdminRow();
+        first.FailToPrepare("ระบบเตรียมอีเมลไม่สำเร็จ");
+        _assignment.SetAssigneeCompany(CompanyId.ToString());
+        StubTemplateReads();
+
+        await AssignCompanyAndFollowupAsync("RoundRobin");
+
+        Assert.Single(Published());
+        Assert.Equal(2, _rows.Count);
+    }
+
+    [Fact]
     public async Task A_route_back_that_lands_on_a_different_company_sends_it_the_template()
     {
         // The automatic route-back (initiation-check → initial-routing) leaves the row Assigned to the old company;
@@ -177,7 +210,7 @@ public class ExtAssignmentEmailDispatchTests
 
         var sent = Assert.Single(Published());
         Assert.Equal(["jobs@acme.co.th"], sent.To);
-        Assert.Contains("<p>เรียน บริษัท แอคมี จำกัด</p>", sent.HtmlBody);
+        Assert.Contains("<p>เรียน บริษัท แอคมี จำกัด<br><br>", sent.HtmlBody);
         Assert.Equal(2, _rows.Count);
     }
 
@@ -286,8 +319,8 @@ public class ExtAssignmentEmailDispatchTests
     }
 
     private AssignmentEmailDispatcher Dispatcher() => new(
-        _emails, new AssignmentEmailComposer(_caseReader, _companies, _sender, new ConfigurationBuilder().Build()),
-        _companies, _users, _outbox);
+        _emails, new AssignmentEmailComposer(_caseReader, _companies, _users, _sender, new ConfigurationBuilder().Build()),
+        _companies, _users, _outbox, NullLogger<AssignmentEmailDispatcher>.Instance);
 
     // null MessageId (Context below) → the guard never touches this provider-less context.
     private static InboxGuard<AppraisalDbContext> InboxGuard() => new(

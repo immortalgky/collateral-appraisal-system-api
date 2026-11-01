@@ -31,7 +31,9 @@ public class CompanyRepository(AuthDbContext dbContext) : ICompanyRepository
             query = query.Where(c =>
                 c.Name.Contains(searchTerm)
                 || (c.NameLocal != null && c.NameLocal.Contains(searchTerm))
-                || (c.TaxId != null && c.TaxId.Contains(searchTerm)));
+                || (c.TaxId != null && c.TaxId.Contains(searchTerm))
+                || (c.Email != null && c.Email.Contains(searchTerm))
+                || (c.ContactPerson != null && c.ContactPerson.Contains(searchTerm)));
 
         if (activeOnly)
             query = query.Where(c => c.IsActive);

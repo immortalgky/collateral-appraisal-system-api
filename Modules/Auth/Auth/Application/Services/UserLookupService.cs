@@ -104,6 +104,28 @@ public class UserLookupService(
             .Where(u => db.GroupUsers.Any(gu => gu.UserId == u.Id && monitorGroups.Contains(gu.GroupId))), ct);
     }
 
+    public async Task<IReadOnlyDictionary<string, string>> GetNamesByEmailAsync(IEnumerable<string> emails, CancellationToken ct)
+    {
+        var wanted = emails.Where(e => !string.IsNullOrWhiteSpace(e)).Select(e => e.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (wanted.Length == 0) return names;
+
+        // Compared as EmailsOf returns it (trimmed; the collation ignores case). The same address held by several
+        // users goes to the first by username, not by whatever order the database returns.
+        var users = await UsableWithEmail().Where(u => wanted.Contains(u.Email!.Trim()))
+            .OrderBy(u => u.UserName).ThenBy(u => u.Id)
+            .Select(u => new { Email = u.Email!.Trim(), u.UserName, u.FirstName, u.LastName })
+            .ToListAsync(ct);
+        foreach (var u in users)
+        {
+            var name = $"{u.FirstName} {u.LastName}".Trim();
+            if (name.Length == 0) name = u.UserName ?? "";
+            if (name.Length > 0) names.TryAdd(u.Email, name);
+        }
+
+        return names;
+    }
+
     /// <summary>Users who may use the system now (<see cref="ApplicationUser.IsUsable(DateTime)"/>) and have an email.</summary>
     private IQueryable<ApplicationUser> UsableWithEmail()
     {

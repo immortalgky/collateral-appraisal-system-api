@@ -13,4 +13,7 @@ public interface IAssignmentEmailRepository : IRepository<AssignmentEmail, Guid>
     /// assign recorded none. Queued / Sent / Failed rows were already handed over.
     /// </summary>
     Task<AssignmentEmail?> GetLatestUnsentAsync(Guid assignmentId, CancellationToken cancellationToken = default);
+
+    /// <summary>The addresses each Queued or Sent email of this assignment went to (a Failed one never reached anybody).</summary>
+    Task<List<List<string>>> GetHandedOverRecipientsAsync(Guid assignmentId, CancellationToken cancellationToken = default);
 }

@@ -15,7 +15,8 @@ public class AssignmentEmailDispatcher(
     AssignmentEmailComposer composer,
     ICompanyLookupService companyLookup,
     IUserLookupService userLookup,
-    IIntegrationEventOutbox outbox)
+    IIntegrationEventOutbox outbox,
+    ILogger<AssignmentEmailDispatcher> logger)
 {
     /// <param name="appraisalNumber">App No., carried for the failure notice (#624).</param>
     /// <param name="keyerUserId">The keyer the case was handed to, a username.</param>
@@ -27,7 +28,12 @@ public class AssignmentEmailDispatcher(
         if (email?.Status == AssignmentEmailStatus.NotSent)
             return;
 
-        // No choice recorded (an assign that did not carry one): the bank template, as the preview would show it.
+        // No choice recorded (an assign that did not carry one): the bank template, as the preview would show it, unless
+        // the company already has this assignment's email (a route-back sent back to the same person, user 2026-11-02).
+        if (email is null && Guid.TryParse(assignment.AssigneeCompanyId, out var companyId)
+            && await CompanyAlreadyHasEmailAsync(assignment, companyId, "EXTO", ct))
+            return;
+
         email ??= await AddTemplateAsync(assignment, async () =>
             await composer.ComposeForExtoHandoverAsync(appraisalId, await DisplayNameAsync(keyerUserId, ct), ct), ct);
 
@@ -46,8 +52,34 @@ public class AssignmentEmailDispatcher(
         if (await emails.GetLatestUnsentAsync(assignment.Id, ct) is not null)
             return; // the admin's choice, sent or not
 
+        if (await CompanyAlreadyHasEmailAsync(assignment, companyId, "EXT", ct))
+            return;
+
         await AddTemplateAsync(assignment,
             () => composer.ComposeForExtHandoverAsync(assignment.AppraisalId, companyId, isQuotation, ct), ct);
+    }
+
+    /// <summary>
+    /// True when a Queued or Sent email of this assignment already went to the company's address, so a system handover
+    /// with no admin choice (a route-back re-landing) must not send the template again. A Failed email never reached the
+    /// company and does not count; a different company (no shared address) is a new engagement and does.
+    /// </summary>
+    private async Task<bool> CompanyAlreadyHasEmailAsync(
+        AppraisalAssignment assignment, Guid companyId, string path, CancellationToken ct)
+    {
+        var handedOver = await emails.GetHandedOverRecipientsAsync(assignment.Id, ct);
+        if (handedOver is not { Count: > 0 })
+            return false;
+
+        var company = await companyLookup.GetByIdAsync(companyId, ct);
+        var addresses = AssignmentEmailCcRoleExpansion.PlainAddresses([company?.Email]);
+        if (!handedOver.Any(sentTo => sentTo.Intersect(addresses, StringComparer.OrdinalIgnoreCase).Any()))
+            return false;
+
+        logger.LogInformation(
+            "{Path} handover for AppraisalId {AppraisalId}, AssignmentId {AssignmentId}: no template sent, the company already has this assignment's email",
+            path, assignment.AppraisalId, assignment.Id);
+        return true;
     }
 
     /// <summary>
@@ -143,12 +175,14 @@ public class AssignmentEmailDispatcher(
         var cc = await ExpandCcAsync(email.Cc, responsibleUserId, ct);
 
         // The company's own address or the admin's extra To: with neither there is nobody to send to, whoever is in Cc.
-        var to = Clean(new[] { company?.Email }.Concat(email.ExtraTo));
+        var to = AssignmentEmailCcRoleExpansion.PlainAddresses(new[] { company?.Email }.Concat(email.ExtraTo));
         var companyName = company is null ? null : AssignmentEmailComposer.DisplayName(company);
         if (refuseIfIncomplete)
         {
             if (to.Count == 0)
-                throw new BadRequestException("The company has no email address. Add a To address to send it.");
+                throw new BadRequestException(string.IsNullOrWhiteSpace(company?.Email)
+                    ? "The company has no email address. Add a To address to send it."
+                    : "The company's email is not a valid address: fix it in the company record.");
             var unknown = Unknown(AssignmentEmail.CompanyPlaceholder, companyName) ? AssignmentEmail.CompanyPlaceholder
                 : Unknown(AssignmentEmail.ResponsiblePlaceholder, responsible) ? AssignmentEmail.ResponsiblePlaceholder
                 : null;
@@ -187,29 +221,13 @@ public class AssignmentEmailDispatcher(
         var addresses = new List<string>();
         foreach (var entry in cc)
         {
-            addresses.AddRange(entry switch
-            {
-                AssignmentEmailCcRoles.IntAdminAll => await userLookup.GetEmailsInRoleAsync(IntAdminRole, ct),
-                AssignmentEmailCcRoles.Keyer or AssignmentEmailCcRoles.FollowupStaff =>
-                    string.IsNullOrWhiteSpace(responsibleUserId) ? [] : await userLookup.GetEmailsAsync([responsibleUserId], ct),
-                AssignmentEmailCcRoles.KeyerSupervisor or AssignmentEmailCcRoles.FollowupSupervisor =>
-                    string.IsNullOrWhiteSpace(responsibleUserId) ? [] : await userLookup.GetSupervisorEmailsAsync(responsibleUserId, ct),
-                _ => [entry]
-            });
+            addresses.AddRange(AssignmentEmailCcRoles.All.Contains(entry)
+                ? await AssignmentEmailCcRoleExpansion.EmailsAsync(userLookup, entry, responsibleUserId, ct)
+                : [entry]);
         }
 
-        return Clean(addresses);
+        return AssignmentEmailCcRoleExpansion.PlainAddresses(addresses);
     }
-
-    /// <summary>
-    /// One address per entry, de-duplicated. A master-data address may hold several ("a; b"): split on ',' / ';' as
-    /// the Notification module's EmailRecipients does, so an entry of separators only counts as no address.
-    /// </summary>
-    private static List<string> Clean(IEnumerable<string?> addresses) =>
-        addresses.SelectMany(a => (a ?? "").Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-
-    private const string IntAdminRole = "IntAdmin";
 
     private async Task<string?> DisplayNameAsync(string? username, CancellationToken ct)
     {

@@ -52,11 +52,22 @@ public interface IAssignmentEmailCaseReader
 
 public record AssignmentEmailAttachmentDto(Guid DocumentId, string Source, string? FileName, long FileSizeBytes);
 
-/// <param name="CompanyTo">The assigned company's address, locked; null while the company is not known yet.</param>
+/// <summary>An already-stored email, to be shown again with its Cc roles expanded as the preview does.</summary>
+public record StoredAssignmentEmail(
+    string Subject, string BodyHtml, List<string> ExtraTo, List<string> Cc, List<AssignmentEmailAttachmentDto> Attachments);
+
+public record AssignmentEmailPerson(string Email, string? Name);
+
+/// <param name="CompanyName">The saved assignment's company as the email names it; null while no company is known yet.</param>
+/// <param name="CompanyTo">The assigned company's address, locked; null while the company is not known yet or has no email.</param>
+/// <param name="Cc">Each role whose people are known is already their addresses; a role not known yet stays a token.</param>
+/// <param name="CcPeople">One entry per address in <paramref name="Cc"/>, with the person's name when known.</param>
 public record AssignmentEmailPreviewResult(
+    string? CompanyName,
     string? CompanyTo,
     List<string> ExtraTo,
     List<string> Cc,
+    List<AssignmentEmailPerson> CcPeople,
     string Subject,
     string BodyHtml,
     List<AssignmentEmailAttachmentDto> Attachments,
@@ -152,7 +163,7 @@ public class AssignmentEmailInputValidator : AbstractValidator<AssignmentEmailIn
     }
 
     // One bare address (no display name, no list), within the SMTP path limit.
-    private static bool IsPlainAddress(string? value) =>
+    internal static bool IsPlainAddress(string? value) =>
         value is { Length: <= 254 }
         && System.Net.Mail.MailAddress.TryCreate(value, out var address)
         && address.Address == value

@@ -18,10 +18,10 @@ public class AssignmentEmailCaseReader(ISqlConnectionFactory connectionFactory) 
                                    pm.Description                                    AS FeePaymentText,
                                    asg.AssignmentMethod,
                                    asg.AssigneeCompanyId,
-                                   NULLIF(LTRIM(RTRIM(CONCAT(NULLIF(ku.FirstName, N''), N' ', NULLIF(ku.LastName, N'')))), N'')
+                                   COALESCE(NULLIF(LTRIM(RTRIM(CONCAT(NULLIF(ku.FirstName, N''), N' ', NULLIF(ku.LastName, N'')))), N''), ku.UserName)
                                                                                      AS KeyerName,
                                    asg.InternalFollowupAssignmentMethod              AS FollowupMethod,
-                                   NULLIF(LTRIM(RTRIM(CONCAT(NULLIF(fu.FirstName, N''), N' ', NULLIF(fu.LastName, N'')))), N'')
+                                   COALESCE(NULLIF(LTRIM(RTRIM(CONCAT(NULLIF(fu.FirstName, N''), N' ', NULLIF(fu.LastName, N'')))), N''), fu.UserName)
                                                                                      AS FollowupName,
                                    asg.Remark,
                                    a.Status                                          AS AppraisalStatus,

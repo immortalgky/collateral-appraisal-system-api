@@ -83,3 +83,15 @@ Branch `immortalgky/implement-622-ext-auto-assign-email` (worktree `halibut`), o
   - `AddAsync(failed)` throwing inside the catch: EF Add with a Guid key does no I/O.
   - `FailToPrepare` after `Queue()` keeps SentTo: only when `outbox.Publish` throws (#620 r3 decline).
   - Two keyer display-name lookups on EXTO's no-choice (legacy) path; the async-lambda indirection.
+
+## Settled decision (user, 2026-11-02): a re-landing with no admin choice does not email again
+- Case 69105526 (EXTO) was emailed twice: the first from the admin's assign, the second a system template when the
+  summary page's "proceed" on the assignment task re-landed the case on the keyer after a route-back. That path only
+  exists once the case went through the Administration page and deliberately sends the work back to the same person,
+  so the company already has its email.
+- Rule: in the system handover paths (`QueueExtoAsync`, `AddExtTemplateAsync`), when there is no Pending/NotSent row
+  (no admin choice) and a Queued or Sent email of this assignment already went to the company's address, no template
+  is created. A Failed email never reached the company and does not block. A different company (no shared address)
+  is a new engagement and still gets its email. Logged at Information with the appraisal and assignment ids.
+- Unchanged: an admin pressing มอบหมายและส่ง still creates a Pending row and sends; ส่งอีกครั้ง is unaffected.
+- Out of scope: the assignment row still reads `Assigned` after the 23:55 route-back (user decides separately).

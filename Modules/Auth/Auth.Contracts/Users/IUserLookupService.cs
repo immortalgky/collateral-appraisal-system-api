@@ -37,6 +37,12 @@ public interface IUserLookupService
     Task<IReadOnlyList<string>> GetSupervisorEmailsAsync(string username, CancellationToken ct);
 
     /// <summary>
+    /// The display names (FirstName LastName, else the username) of the usable users holding <paramref name="emails"/>,
+    /// keyed by address (case-insensitive). Addresses nobody usable holds are left out.
+    /// </summary>
+    Task<IReadOnlyDictionary<string, string>> GetNamesByEmailAsync(IEnumerable<string> emails, CancellationToken ct);
+
+    /// <summary>
     /// Resolves a single user by their <paramref name="employeeId"/> (UserName / bank code, e.g. P5229)
     /// and returns their identity + org-structure snapshot (AO code, cost center, department).
     /// Returns null when the user does not exist or is inactive.
