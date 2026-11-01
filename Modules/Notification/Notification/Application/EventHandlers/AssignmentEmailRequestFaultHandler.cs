@@ -26,14 +26,18 @@ public sealed class AssignmentEmailRequestFaultHandler(
     /// the relay's address and port. Attachment errors never fault (EmailAttachmentAssembler skips them); anything else,
     /// such as a SQL error, would show internals, so it stays in the logs and Failed Messages.
     /// </summary>
-    private static string Reason(ExceptionInfo? exception) => exception?.ExceptionType switch
+    private static string Reason(ExceptionInfo? exception)
     {
-        { } type when type.StartsWith("MailKit.", StringComparison.Ordinal)
-                      || type.StartsWith("MimeKit.", StringComparison.Ordinal) => exception.Message,
-        "System.Net.Sockets.SocketException" or "System.TimeoutException" => Unreachable,
-        { } type when type.EndsWith("+ExtendedSocketException", StringComparison.Ordinal) => Unreachable,
-        _ => "ระบบส่งอีเมลขัดข้อง"
-    };
+        if (exception?.ExceptionType is { } type
+            && (type.StartsWith("MailKit.", StringComparison.Ordinal) || type.StartsWith("MimeKit.", StringComparison.Ordinal)))
+            return exception.Message;
 
-    private const string Unreachable = "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้";
+        // With STARTTLS, SslStream wraps the socket error or timeout in an IOException: look through the chain.
+        for (var e = exception; e is not null; e = e.InnerException)
+            if (e.ExceptionType is "System.Net.Sockets.SocketException" or "System.TimeoutException"
+                || e.ExceptionType?.EndsWith("+ExtendedSocketException", StringComparison.Ordinal) == true)
+                return "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้";
+
+        return "ระบบส่งอีเมลขัดข้อง";
+    }
 }

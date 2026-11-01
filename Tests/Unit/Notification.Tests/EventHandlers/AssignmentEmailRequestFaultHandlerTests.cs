@@ -48,11 +48,12 @@ public class AssignmentEmailRequestFaultHandlerTests
 
     private Task ConsumeAsync(
         AssignmentEmailRequestedIntegrationEvent request, string error,
-        string exceptionType = "MailKit.Net.Smtp.SmtpCommandException")
+        string exceptionType = "MailKit.Net.Smtp.SmtpCommandException", ExceptionInfo? inner = null)
     {
         var exception = Substitute.For<ExceptionInfo>();
         exception.Message.Returns(error);
         exception.ExceptionType.Returns(exceptionType);
+        exception.InnerException.Returns(inner);
         var fault = Substitute.For<Fault<AssignmentEmailRequestedIntegrationEvent>>();
         fault.Message.Returns(request);
         fault.Exceptions.Returns([exception]);
@@ -120,6 +121,21 @@ public class AssignmentEmailRequestFaultHandlerTests
         // A firewall dropping packets: MailKit's connect/read timeout. Attachment errors never get here (the
         // assembler skips them), so a timeout is the gateway's.
         await ConsumeAsync(Request, "The operation has timed out.", "System.TimeoutException");
+
+        await _ctx.Received(1).Publish(
+            Arg.Is<AssignmentEmailFailedIntegrationEvent>(e => e.Reason == "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_timeout_inside_the_TLS_session_is_reported_as_unreachable()
+    {
+        // With STARTTLS, SslStream wraps the timeout: the Fault's outer type is IOException.
+        var timeout = Substitute.For<ExceptionInfo>();
+        timeout.ExceptionType.Returns("System.TimeoutException");
+        timeout.Message.Returns("The operation has timed out.");
+
+        await ConsumeAsync(Request, "The read operation failed, see inner exception.", "System.IO.IOException", timeout);
 
         await _ctx.Received(1).Publish(
             Arg.Is<AssignmentEmailFailedIntegrationEvent>(e => e.Reason == "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้"),

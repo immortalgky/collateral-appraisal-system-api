@@ -29,7 +29,8 @@ Branch `immortalgky/implement-624-issue` (worktree `candlefish`), off the local 
 - [x] /code-review r3 (5 findings, all accepted): r2's premise was wrong (EmailAttachmentAssembler skips attachment
       errors), so TimeoutException = unreachable; exact socket match (not WebSocketException); blank reason →
       "ไม่ทราบสาเหตุ"
-- [ ] /code-review r4+ (fix diff only)
+- [x] /code-review r4 (3 findings): the unreachable check walks InnerException (STARTTLS wraps it in IOException)
+- [ ] /code-review r5+ (fix diff only)
 - [ ] Gates (test-automator)
 - [ ] User test → merge `--no-ff` into the integration branch, close #624 by hand
 
@@ -68,3 +69,6 @@ Branch `immortalgky/implement-624-issue` (worktree `candlefish`), off the local 
 - A deactivated assigner still gets the persisted notice: harmless; the user lookup has no IsActive filter.
 - The failure notice stays in the bell after a redrive delivered the email: redrive is a deliberate ops action.
 - The 200 cap exists in both modules: each module owns its own limit; cleanup, not correctness.
+
+## Declined in /code-review r4 (do not re-raise)
+- The 200 cut can split a surrogate pair / leave a trailing space: gateway replies are ASCII; low.
