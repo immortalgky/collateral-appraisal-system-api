@@ -30,7 +30,8 @@ Branch `immortalgky/implement-622-ext-auto-assign-email` (worktree `halibut`), o
       fee question computed once, log text, ordering comment
 - [x] /code-review r2 (7 findings): a template that cannot be built → empty Failed row (EXT and EXTO); EXTO template
       added before it is queued; `MarkFailed` back to Queued-only, new `FailToPrepare` for the dispatcher; tests
-- [ ] /code-review r3+ (fix diff only), gates (test-automator)
+- [x] /code-review r3: no critical/high/medium; 5 low declined → loop stopped
+- [ ] Gates (test-automator)
 - [ ] User test → merge `--no-ff` into the integration branch, close #622 by hand
 
 ## Settled decisions (user, 2026-11-01)
@@ -72,3 +73,9 @@ Branch `immortalgky/implement-622-ext-auto-assign-email` (worktree `halibut`), o
 - Declined in /code-review r2 (do not re-raise):
   - A transient error (deadlock, timeout) becomes a permanent Failed instead of a retry: the trade-off the user chose in
     r1 (Failed + resend over retry / dead-letter, which would hold up the follow-up).
+- Declined in /code-review r3 (do not re-raise):
+  - The first `GetLatestUnsentAsync` read itself failing leaves no row: whether the admin chose is unknown, and a read
+    failure on that DB usually fails the save too, so the message retries.
+  - `AddAsync(failed)` throwing inside the catch: EF Add with a Guid key does no I/O.
+  - `FailToPrepare` after `Queue()` keeps SentTo: only when `outbox.Publish` throws (#620 r3 decline).
+  - Two keyer display-name lookups on EXTO's no-choice (legacy) path; the async-lambda indirection.
