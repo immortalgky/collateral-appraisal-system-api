@@ -8,6 +8,7 @@ namespace Appraisal.Application.Features.Quotations.CreateQuotation;
 public class CreateQuotationCommandHandler(
     IQuotationRepository quotationRepository,
     IAppraisalRepository appraisalRepository,
+    QuotationAssignmentGuard assignmentGuard,
     ISqlConnectionFactory connectionFactory,
     ICurrentUserService currentUser,
     IQuotationActivityLogger activityLogger,
@@ -32,6 +33,7 @@ public class CreateQuotationCommandHandler(
         if (command.Appraisals is { Count: > 0 })
         {
             var appraisalIds = command.Appraisals.Select(a => a.AppraisalId).ToList();
+            await assignmentGuard.EnsureAwaitingAssignmentAsync(appraisalIds, cancellationToken);
             var summaries = await appraisalRepository.GetSummariesAsync(appraisalIds, cancellationToken);
             var summaryById = summaries.ToDictionary(s => s.AppraisalId);
 

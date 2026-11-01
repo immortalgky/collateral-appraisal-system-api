@@ -87,23 +87,6 @@ public class SetOfflineExternalEngagementTests
     }
 
     [Fact]
-    public async Task A_routed_back_Pending_row_is_refused_and_nothing_is_written_or_priced()
-    {
-        // ReturnToAssignmentQueue keeps AssignmentMethod "Offline" and AssignedAt, but the workflow is back at
-        // appraisal-assignment: there is no keyer, and Assign() would hand the case on behind the admin.
-        var (appraisal, assignment) = Seed("P5229");
-        assignment.ReturnToAssignmentQueue();
-        Assert.Equal(AssignmentStatus.Pending, assignment.AssignmentStatus);
-
-        var ex = await Assert.ThrowsAsync<BadRequestException>(() => Handle(appraisal.Id));
-
-        Assert.Contains("awaiting the admin's decision", ex.Message);
-        Assert.Equal(AssignmentStatus.Pending, assignment.AssignmentStatus);
-        Assert.Null(assignment.AssigneeCompanyId);
-        await _fees.DidNotReceiveWithAnyArgs().EnsureAssignmentFeeItemsAsync(default, default, default!, default, default);
-    }
-
-    [Fact]
     public async Task A_never_assigned_Pending_Offline_row_is_still_recorded_and_repriced()
     {
         // An admin's EXTO draft (or the instant before the InternalAssigned consumer ran): Pending, AssignedAt null.

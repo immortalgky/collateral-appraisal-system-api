@@ -12,6 +12,7 @@ namespace Appraisal.Application.Features.Quotations.StartQuotationFromTask;
 
 public class StartQuotationFromTaskCommandHandler(
     IQuotationRepository quotationRepository,
+    QuotationAssignmentGuard assignmentGuard,
     IAppraisalRepository appraisalRepository,
     ICurrentUserService currentUser,
     ISqlConnectionFactory connectionFactory,
@@ -30,6 +31,8 @@ public class StartQuotationFromTaskCommandHandler(
         var requestedBy = currentUser.Username
             ?? throw new UnauthorizedAccessException("Cannot resolve current user username from token");
         var adminUserId = currentUser.UserId;
+
+        await assignmentGuard.EnsureAwaitingAssignmentAsync([command.AppraisalId], cancellationToken);
 
         // ── Path A: add appraisal to an existing Draft ────────────────────────
         if (command.ExistingQuotationRequestId.HasValue)

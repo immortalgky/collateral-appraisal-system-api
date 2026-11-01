@@ -9,6 +9,7 @@ namespace Appraisal.Application.Features.Quotations.AddAppraisalToDraft;
 public class AddAppraisalToDraftCommandHandler(
     IQuotationRepository quotationRepository,
     IAppraisalRepository appraisalRepository,
+    QuotationAssignmentGuard assignmentGuard,
     ICurrentUserService currentUser,
     IIntegrationEventOutbox outbox,
     IDateTimeProvider dateTimeProvider)
@@ -43,6 +44,8 @@ public class AddAppraisalToDraftCommandHandler(
         if (alreadyActive)
             throw new ConflictException(
                 $"Appraisal '{command.AppraisalId}' is already part of another active quotation request.");
+
+        await assignmentGuard.EnsureAwaitingAssignmentAsync([command.AppraisalId], cancellationToken);
 
         quotation.AddAppraisal(command.AppraisalId, addedBy: adminUsername, addedAt: dateTimeProvider.ApplicationNow);
 
