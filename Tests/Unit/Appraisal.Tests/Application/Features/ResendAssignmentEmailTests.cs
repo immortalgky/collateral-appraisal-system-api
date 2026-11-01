@@ -45,11 +45,12 @@ public class ResendAssignmentEmailTests
         string appraisalStatus = "InProgress",
         string assignmentType = "External",
         string assignmentStatus = "Assigned",
-        string assignmentMethod = "Offline") =>
+        string assignmentMethod = "Offline",
+        string? keyerName = "สมชาย ใจดี") =>
         _caseReader.GetCaseAsync(AppraisalId, Arg.Any<CancellationToken>()).Returns(new AssignmentEmailCase(
             AppraisalNumber: "69042630", CustomerName: "นายสมศักดิ์ มั่นคง", ContactName: "คุณวิไล",
             ContactPhone: "081-234-5678", FeePaymentText: null, AssignmentMethod: assignmentMethod,
-            AssigneeCompanyId: CompanyId.ToString(), KeyerName: "สมชาย ใจดี", FollowupMethod: null,
+            AssigneeCompanyId: CompanyId.ToString(), KeyerName: keyerName, FollowupMethod: null,
             FollowupName: null, Remark: null, AppraisalStatus: appraisalStatus, AssignmentId: AssignmentId,
             AssignmentType: assignmentType, AssignmentStatus: assignmentStatus));
 
@@ -170,6 +171,27 @@ public class ResendAssignmentEmailTests
             new ResendAssignmentEmailCommand(AppraisalId, Edited() with { ExtraTo = [] }), CancellationToken.None));
 
         // Refused before the outbox: a later save in the same scope must have nothing to commit.
+        await AssertNothingSentAsync();
+    }
+
+    [Fact]
+    public async Task A_placeholder_still_unknown_at_send_is_refused()
+    {
+        Case(keyerName: null); // nobody to name as ผู้รับผิดชอบ
+
+        await Assert.ThrowsAsync<BadRequestException>(ResendAsync);
+
+        await AssertNothingSentAsync();
+    }
+
+    [Fact]
+    public async Task A_company_that_is_gone_cannot_be_named_in_the_body()
+    {
+        _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>()).Returns((CompanyLookupDto?)null);
+
+        // The extra To would still reach someone, but "เรียน {{company}}" would go out as is.
+        await Assert.ThrowsAsync<BadRequestException>(ResendAsync);
+
         await AssertNothingSentAsync();
     }
 

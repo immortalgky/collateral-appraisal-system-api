@@ -44,8 +44,8 @@ public class ResendAssignmentEmailCommandHandler(
         // ผู้รับผิดชอบ as the preview names it: EXTO's keyer, EXT's follow-up officer.
         var responsible = @case.IsOffline ? @case.KeyerName : @case.FollowupName;
 
-        // The admin is waiting for an answer, so a send that would reach nobody is refused rather than left Queued.
-        await dispatcher.QueueAsync(email, @case.AssigneeCompanyId, responsible, sentBy, refuseWithoutTo: true, ct);
+        // The admin is waiting for an answer: an email that would reach nobody, or name nobody, is refused, not sent.
+        await dispatcher.QueueAsync(email, @case.AssigneeCompanyId, responsible, sentBy, refuseIfIncomplete: true, ct);
         await emails.AddAsync(email, ct);
         await unitOfWork.SaveChangesAsync(ct);
 

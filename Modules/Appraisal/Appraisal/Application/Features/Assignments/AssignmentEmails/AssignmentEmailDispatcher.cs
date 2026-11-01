@@ -32,7 +32,7 @@ public class AssignmentEmailDispatcher(
         email ??= AssignmentEmail.ToSend(
             appraisalId, assignment.Id, template!.ExtraTo, template.Cc, template.Subject, template.BodyHtml, []);
 
-        await QueueAsync(email, assignment.AssigneeCompanyId, responsible, assignment.AssignedBy, refuseWithoutTo: false, ct);
+        await QueueAsync(email, assignment.AssigneeCompanyId, responsible, assignment.AssignedBy, refuseIfIncomplete: false, ct);
         // Added only once queued: a failed read must not leave a Pending template row for the caller's save.
         if (template is not null)
             await emails.AddAsync(email, ct);
@@ -43,14 +43,15 @@ public class AssignmentEmailDispatcher(
     /// sender (outbox): the EXTO handover and a resend from the slip (#623). The company is read before the email
     /// changes, so a failed read leaves nothing half-queued.
     /// </summary>
-    /// <param name="refuseWithoutTo">A resend: an email that would reach nobody is a 400, before anything is queued.
+    /// <param name="refuseIfIncomplete">A resend, with the admin waiting for the answer: an email that would reach nobody,
+    /// or whose <c>{{company}}</c> / <c>{{responsible}}</c> is still unknown, is a 400 before anything is queued.
     /// The handover still hands it over, so the failure is reported there (#621/#624).</param>
     public async Task QueueAsync(
         AssignmentEmail email,
         string? assigneeCompanyId,
         string? responsible,
         string? assignedBy,
-        bool refuseWithoutTo,
+        bool refuseIfIncomplete,
         CancellationToken ct)
     {
         var company = Guid.TryParse(assigneeCompanyId, out var companyId)
@@ -62,10 +63,20 @@ public class AssignmentEmailDispatcher(
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         // ponytail: role tokens are dropped until #621 expands them to addresses.
         var cc = email.Cc.Where(c => !AssignmentEmailCcRoles.All.Contains(c)).ToList();
-        if (refuseWithoutTo && to.Count == 0)
-            throw new BadRequestException("The company has no email address. Add a To address to send it.");
+        var companyName = company is null ? null : AssignmentEmailComposer.DisplayName(company);
+        if (refuseIfIncomplete)
+        {
+            if (to.Count == 0)
+                throw new BadRequestException("The company has no email address. Add a To address to send it.");
+            if (Unknown(AssignmentEmail.CompanyPlaceholder, companyName) || Unknown(AssignmentEmail.ResponsiblePlaceholder, responsible))
+                throw new BadRequestException(
+                    $"The email still has {AssignmentEmail.CompanyPlaceholder} or {AssignmentEmail.ResponsiblePlaceholder}, and its value is not known yet. Replace it in the email.");
+        }
 
-        email.Queue(company is null ? null : AssignmentEmailComposer.DisplayName(company), responsible, to, cc);
+        email.Queue(companyName, responsible, to, cc);
+
+        bool Unknown(string placeholder, string? value) =>
+            string.IsNullOrWhiteSpace(value) && email.BodyHtml.Contains(placeholder, StringComparison.Ordinal);
 
         outbox.Publish(new AssignmentEmailRequestedIntegrationEvent
         {

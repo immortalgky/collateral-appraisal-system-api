@@ -38,7 +38,13 @@ and touches the dispatcher too: keep the dispatcher diff small.
   - The two user-name formatters differ on purpose (dispatcher falls back to the username, history to null).
   - Subject placeholders: the template subject has none, and the admin's subject is taken as typed.
   - A document deleted since shows without its name in the view (accepted).
-- Waiting on the user (asked at the end of the session):
+- User answers 2026-11-01 (end of session):
+  - "ส่งอีเมล" after NotSent stays `IsResend=true` (= sent from the slip); the FE labels it differently when only a
+    NotSent row came before. No BE change.
+  - A `{{company}}` / `{{responsible}}` still unknown at a resend → 400 (`refuseIfIncomplete`, resend only; the handover
+    is unchanged). Fixed in this branch.
+  - Attachments not scoped to the case's documents: accepted (admin only), no fix, no ticket.
+- (Superseded by the answers above) Waiting on the user (asked at the end of the session):
   - "ส่งอีเมล" after มอบหมายโดยไม่ส่ง is stored `IsResend=true` (sent from the slip, not with the assignment), so the
     history labels the first email that actually went out as a resend.
   - Attachments are checked live but not against this case's documents (since #627): an admin can attach any
