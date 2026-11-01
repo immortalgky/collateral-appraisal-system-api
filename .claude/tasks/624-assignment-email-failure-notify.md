@@ -32,7 +32,9 @@ Branch `immortalgky/implement-624-issue` (worktree `candlefish`), off the local 
 - [x] /code-review r4 (3 findings): the unreachable check walks InnerException (STARTTLS wraps it in IOException)
 - [x] /code-review r5 (5 findings, all accepted): the walk only looks through transport wrappers (IOException,
       SslHandshakeException) and runs before the MailKit rule; test substitutes end the chain; negative cases
-- [ ] /code-review r6+ (fix diff only)
+- [x] /code-review r6 (3 findings, all accepted): SslHandshakeException = fixed TLS text, a bare IOException =
+      unreachable, regression rows for the rule order
+- [ ] /code-review r7 (fix diff only)
 - [ ] Gates (test-automator)
 - [ ] User test → merge `--no-ff` into the integration branch, close #624 by hand
 
@@ -44,9 +46,11 @@ Branch `immortalgky/implement-624-issue` (worktree `candlefish`), off the local 
 - Failure time = the row's UpdatedAt (no extra column).
 - Reason shown to admins (user, from Matt review; refined in r1–r3):
   - MailKit/MimeKit exception → its message (the gateway's reply)
-  - SocketException (+ExtendedSocketException) / TimeoutException, alone or under IOException /
-    SslHandshakeException (STARTTLS) → "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้" (the .NET message names the relay's
-    IP:port). Other wrappers (SQL, Redis) are not looked through → generic.
+  - SocketException (+ExtendedSocketException) / TimeoutException / IOException (a dropped stream; also SslStream's
+    wrapper under STARTTLS) → "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้" (the .NET message names the relay's IP:port)
+  - SslHandshakeException → the same, when its inner is one of those; else "เชื่อมต่อแบบเข้ารหัส (TLS) กับ
+    เซิร์ฟเวอร์อีเมลไม่สำเร็จ" (MailKit's message names the relay host and certificate)
+  - other wrappers (SQL, Redis) are not looked through
   - anything else → "ระบบส่งอีเมลขัดข้อง"; blank → "ไม่ทราบสาเหตุ"
   - the full exception stays in logs, EmailSendLogs and Failed Messages
 

@@ -143,12 +143,36 @@ public class AssignmentEmailRequestFaultHandlerTests
     // The database or Redis is down, not the relay.
     [InlineData("Microsoft.Data.SqlClient.SqlException", "System.Net.Sockets.SocketException", "ระบบส่งอีเมลขัดข้อง")]
     [InlineData("StackExchange.Redis.RedisConnectionException", "System.Net.Sockets.SocketException", "ระบบส่งอีเมลขัดข้อง")]
+    // A certificate problem: MailKit's message names the relay's host and the certificate's name.
+    [InlineData("MailKit.Security.SslHandshakeException", "System.Security.Authentication.AuthenticationException",
+        "เชื่อมต่อแบบเข้ารหัส (TLS) กับเซิร์ฟเวอร์อีเมลไม่สำเร็จ")]
     public async Task Only_a_transport_wrapper_is_looked_through(string outer, string inner, string reason)
     {
         await ConsumeAsync(Request, "wrapped 10.20.30.40:25", outer, Info(inner, "inner 10.20.30.40:25"));
 
         await _ctx.Received(1).Publish(
             Arg.Is<AssignmentEmailFailedIntegrationEvent>(e => e.Reason == reason), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_relay_that_drops_the_connection_is_reported_as_unreachable()
+    {
+        await ConsumeAsync(Request, "Received an unexpected EOF or 0 bytes from the transport stream.", "System.IO.IOException");
+
+        await _ctx.Received(1).Publish(
+            Arg.Is<AssignmentEmailFailedIntegrationEvent>(e => e.Reason == "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_mail_protocol_error_keeps_its_own_message_even_over_a_socket_error()
+    {
+        await ConsumeAsync(Request, "The SMTP server has unexpectedly disconnected.", "MailKit.Net.Smtp.SmtpProtocolException",
+            Info("System.IO.IOException", "x", Info("System.Net.Sockets.SocketException", "Connection reset 10.20.30.40:25")));
+
+        await _ctx.Received(1).Publish(
+            Arg.Is<AssignmentEmailFailedIntegrationEvent>(e => e.Reason == "The SMTP server has unexpectedly disconnected."),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
