@@ -18,6 +18,9 @@ public class AssignmentEmailConfiguration : IEntityTypeConfiguration<AssignmentE
         // Address lists and attachment refs are small and always read with the email: JSON columns.
         builder.PrimitiveCollection(e => e.ExtraTo);
         builder.PrimitiveCollection(e => e.Cc);
+        // What went out (#623): the resolved addresses, kept apart from the chips the admin composed.
+        builder.PrimitiveCollection(e => e.SentTo);
+        builder.PrimitiveCollection(e => e.SentCc);
         builder.OwnsMany(e => e.Attachments, a => a.ToJson());
 
         // Read per appraisal (the slip's history) and per assignment (the send).

@@ -26,26 +26,59 @@ public class AssignmentEmailDispatcher(
         if (email?.Status == AssignmentEmailStatus.NotSent)
             return;
 
-        // Every read happens before anything is added or published, so a failed read leaves nothing half-queued.
-        var company = Guid.TryParse(assignment.AssigneeCompanyId, out var companyId)
-            ? await companyLookup.GetByIdAsync(companyId, ct)
-            : null;
         var responsible = await DisplayNameAsync(keyerUserId, ct);
         var template = email is null ? await composer.ComposeForExtoHandoverAsync(appraisalId, responsible, ct) : null;
-        var cc = await ExpandCcAsync(template?.Cc ?? email!.Cc, keyerUserId, ct);
 
         // No choice recorded (an assign that did not carry one): the bank template, as the preview would show it.
+        email ??= AssignmentEmail.ToSend(
+            appraisalId, assignment.Id, template!.ExtraTo, template.Cc, template.Subject, template.BodyHtml, []);
+
+        await QueueAsync(email, assignment.AssigneeCompanyId, responsible, keyerUserId, assignment.AssignedBy,
+            refuseIfIncomplete: false, ct);
+        // Added only once queued (or failed): a failed read must not leave a Pending template row for the caller's save.
         if (template is not null)
-        {
-            email = AssignmentEmail.ToSend(
-                appraisalId, assignment.Id, template.ExtraTo, template.Cc, template.Subject, template.BodyHtml, []);
             await emails.AddAsync(email, ct);
+    }
+
+    /// <summary>
+    /// Fills the company / responsible placeholders, resolves the recipients and hands <paramref name="email"/> to the
+    /// sender (outbox): the EXTO handover and a resend from the slip (#623). Every read happens before the email
+    /// changes, so a failed read leaves nothing half-queued. An email with no To is marked Failed, not published.
+    /// </summary>
+    /// <param name="responsibleUserId">The keyer / follow-up officer as a username, for the Cc chips that name them.</param>
+    /// <param name="refuseIfIncomplete">A resend, with the admin waiting for the answer: an email that would reach nobody,
+    /// or whose <c>{{company}}</c> / <c>{{responsible}}</c> is still unknown, is a 400 before anything is queued.
+    /// The handover still hands it over, and an email with no To fails there (#621/#624).</param>
+    public async Task QueueAsync(
+        AssignmentEmail email,
+        string? assigneeCompanyId,
+        string? responsible,
+        string? responsibleUserId,
+        string? assignedBy,
+        bool refuseIfIncomplete,
+        CancellationToken ct)
+    {
+        var company = Guid.TryParse(assigneeCompanyId, out var companyId)
+            ? await companyLookup.GetByIdAsync(companyId, ct)
+            : null;
+        var cc = await ExpandCcAsync(email.Cc, responsibleUserId, ct);
+
+        // The company's own address or the admin's extra To: with neither there is nobody to send to, whoever is in Cc.
+        var to = Clean(new[] { company?.Email }.Concat(email.ExtraTo));
+        var companyName = company is null ? null : AssignmentEmailComposer.DisplayName(company);
+        if (refuseIfIncomplete)
+        {
+            if (to.Count == 0)
+                throw new BadRequestException("The company has no email address. Add a To address to send it.");
+            var unknown = Unknown(AssignmentEmail.CompanyPlaceholder, companyName) ? AssignmentEmail.CompanyPlaceholder
+                : Unknown(AssignmentEmail.ResponsiblePlaceholder, responsible) ? AssignmentEmail.ResponsiblePlaceholder
+                : null;
+            if (unknown is not null)
+                throw new BadRequestException($"The email still has {unknown}, and its value is not known yet. Replace it in the email.");
         }
 
-        email.Queue(company is null ? null : AssignmentEmailComposer.DisplayName(company), responsible);
+        email.Queue(companyName, responsible, to, cc);
 
-        var to = Clean(new[] { company?.Email }.Concat(email.ExtraTo));
-        // The company's own address or the admin's extra To: with neither there is nobody to send to, whoever is in Cc.
         if (to.Count == 0)
         {
             var reason = company is null
@@ -54,13 +87,13 @@ public class AssignmentEmailDispatcher(
             email.Fail(reason);
             logger.LogWarning(
                 "Assignment email {EmailId} for appraisal {AppraisalId} (company {CompanyId}) marked Failed: {Reason}",
-                email.Id, appraisalId, company?.Id, reason);
+                email.Id, email.AppraisalId, company?.Id, reason);
             return;
         }
 
         outbox.Publish(new AssignmentEmailRequestedIntegrationEvent
         {
-            AppraisalId = appraisalId,
+            AppraisalId = email.AppraisalId,
             EmailId = email.Id,
             To = to,
             Cc = cc,
@@ -68,8 +101,11 @@ public class AssignmentEmailDispatcher(
             HtmlBody = email.BodyHtml,
             AttachmentRefs = email.Attachments
                 .Select(a => new EmailAttachmentRefData("document", a.DocumentId.ToString())).ToList(),
-            AssignedBy = assignment.AssignedBy
-        }, correlationId: appraisalId.ToString());
+            AssignedBy = assignedBy
+        }, correlationId: email.AppraisalId.ToString());
+
+        bool Unknown(string placeholder, string? value) =>
+            string.IsNullOrWhiteSpace(value) && email.BodyHtml.Contains(placeholder, StringComparison.Ordinal);
     }
 
     /// <summary>

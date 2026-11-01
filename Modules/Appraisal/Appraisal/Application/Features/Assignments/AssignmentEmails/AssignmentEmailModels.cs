@@ -3,6 +3,7 @@ namespace Appraisal.Application.Features.Assignments.AssignmentEmails;
 /// <summary>
 /// What the template needs from the case, read in one go across the request, fee and user tables.
 /// Assignment fields are the appraisal's current assignment row (with the admin's assignment draft on it).
+/// The last four tell a resend (#623) whether the case is open and handed to a company.
 /// </summary>
 public record AssignmentEmailCase(
     string? AppraisalNumber,
@@ -15,10 +16,26 @@ public record AssignmentEmailCase(
     string? KeyerName,
     string? FollowupMethod,
     string? FollowupName,
-    string? Remark)
+    string? Remark,
+    string? AppraisalStatus = null,
+    Guid? AssignmentId = null,
+    string? AssignmentType = null,
+    string? AssignmentStatus = null,
+    string? KeyerUserId = null,
+    string? FollowupUserId = null)
 {
     /// <summary>EXTO: the bank engaged the company off-system.</summary>
     public bool IsOffline => AppraisalAssignment.IsOfflineMethod(AssignmentMethod);
+
+    /// <summary>Completed or cancelled: nothing more is emailed to the company.</summary>
+    public bool IsClosed => AppraisalStatus == Domain.Appraisals.AppraisalStatus.Completed.Code
+                            || AppraisalStatus == Domain.Appraisals.AppraisalStatus.Cancelled.Code;
+
+    /// <summary>The current assignment was handed to an external company (EXT / EXTO): there is someone to email.</summary>
+    public bool IsAssignedToCompany => AssignmentId is not null
+                                       && AssignmentType == Domain.Appraisals.AssignmentType.External.Code
+                                       && AssignmentStatus != Domain.Appraisals.AssignmentStatus.Pending.Code
+                                       && Guid.TryParse(AssigneeCompanyId, out _);
 }
 
 public record AssignmentEmailDocument(Guid Id, string? FileName, long FileSizeBytes);
@@ -55,6 +72,36 @@ internal static class AssignmentEmailAccess
     {
         if (!user.HasPermission(Permission))
             throw new ForbiddenException("Only an appraisal administrator can prepare the email to the company.");
+    }
+}
+
+/// <summary>The attachments an admin picked, checked against document.Documents: assign and resend share it.</summary>
+internal static class AssignmentEmailAttachments
+{
+    /// <summary>Once per document; every one live, all of them within <c>Mail:MaxAttachmentBytes</c>, else a 400.</summary>
+    public static async Task<List<AssignmentEmailAttachment>> CheckAsync(
+        IReadOnlyCollection<AssignmentEmailAttachmentInput>? picked,
+        IAssignmentEmailCaseReader caseReader,
+        IConfiguration configuration,
+        CancellationToken ct)
+    {
+        var attachments = (picked ?? []).DistinctBy(a => a.DocumentId).ToList();
+
+        // Sizes come from document.Documents, never from the client.
+        if (attachments.Count > 0)
+        {
+            var documents = await caseReader.GetDocumentsAsync(attachments.Select(a => a.DocumentId).ToList(), ct);
+            if (documents.Count != attachments.Count)
+                throw new BadRequestException("One or more attachments are not available documents. Remove them and attach again.");
+
+            var limit = AssignmentEmailLimits.MaxAttachmentBytes(configuration);
+            var total = documents.Sum(d => d.FileSizeBytes);
+            if (total > limit)
+                throw new BadRequestException(FormattableString.Invariant(
+                    $"Attachments total {total / 1024d / 1024:0.#} MB, over the {limit / 1024d / 1024:0.#} MB limit. Remove some files."));
+        }
+
+        return attachments.Select(a => new AssignmentEmailAttachment(a.DocumentId, a.Source)).ToList();
     }
 }
 

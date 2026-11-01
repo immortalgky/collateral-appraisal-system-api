@@ -241,21 +241,7 @@ public class AssignAppraisalCommandHandler(
     {
         // The validator already requires it; checked again so a caller outside the pipeline gets a 400, not a 500.
         var email = command.Email ?? throw new BadRequestException("The email to the company is required to send it.");
-        var attachments = (email.Attachments ?? []).DistinctBy(a => a.DocumentId).ToList();
-
-        // Sizes come from document.Documents, never from the client.
-        if (attachments.Count > 0)
-        {
-            var documents = await emailCaseReader.GetDocumentsAsync(attachments.Select(a => a.DocumentId).ToList(), ct);
-            if (documents.Count != attachments.Count)
-                throw new BadRequestException("One or more attachments are not available documents. Remove them and attach again.");
-
-            var limit = AssignmentEmailLimits.MaxAttachmentBytes(configuration);
-            var total = documents.Sum(d => d.FileSizeBytes);
-            if (total > limit)
-                throw new BadRequestException(FormattableString.Invariant(
-                    $"Attachments total {total / 1024d / 1024:0.#} MB, over the {limit / 1024d / 1024:0.#} MB limit. Remove some files."));
-        }
+        var attachments = await AssignmentEmailAttachments.CheckAsync(email.Attachments, emailCaseReader, configuration, ct);
 
         return AssignmentEmail.ToSend(
             command.AppraisalId,
@@ -264,7 +250,7 @@ public class AssignAppraisalCommandHandler(
             email.Cc ?? [],
             email.Subject,
             email.BodyHtml,
-            attachments.Select(a => new AssignmentEmailAttachment(a.DocumentId, a.Source)));
+            attachments);
     }
 
     // Workflow decision codes (appraisal-workflow.json, appraisal-assignment decisionConditions).

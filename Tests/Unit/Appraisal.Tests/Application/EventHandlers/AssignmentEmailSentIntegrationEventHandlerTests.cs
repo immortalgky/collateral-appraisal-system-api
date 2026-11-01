@@ -4,6 +4,7 @@ using Appraisal.Infrastructure;
 using MassTransit;
 using NSubstitute;
 using Shared.Messaging.Events;
+using Shared.Time;
 
 namespace Appraisal.Tests.Application.EventHandlers;
 
@@ -12,6 +13,7 @@ public class AssignmentEmailSentIntegrationEventHandlerTests
 {
     private readonly IAssignmentEmailRepository _emails = Substitute.For<IAssignmentEmailRepository>();
     private readonly IAppraisalUnitOfWork _uow = Substitute.For<IAppraisalUnitOfWork>();
+    private readonly IDateTimeProvider _clock = Substitute.For<IDateTimeProvider>();
 
     private Task ConfirmAsync(AssignmentEmail email)
     {
@@ -19,7 +21,7 @@ public class AssignmentEmailSentIntegrationEventHandlerTests
         var ctx = Substitute.For<ConsumeContext<AssignmentEmailSentIntegrationEvent>>();
         ctx.Message.Returns(new AssignmentEmailSentIntegrationEvent { AppraisalId = email.AppraisalId, EmailId = email.Id });
         ctx.CancellationToken.Returns(CancellationToken.None);
-        return new AssignmentEmailSentIntegrationEventHandler(_emails, _uow).Consume(ctx);
+        return new AssignmentEmailSentIntegrationEventHandler(_emails, _uow, _clock).Consume(ctx);
     }
 
     private static AssignmentEmail Chosen() =>
@@ -29,7 +31,7 @@ public class AssignmentEmailSentIntegrationEventHandlerTests
     public async Task A_queued_email_becomes_sent()
     {
         var email = Chosen();
-        email.Queue("บริษัท แอคมี จำกัด", "สมชาย ใจดี");
+        email.Queue("บริษัท แอคมี จำกัด", "สมชาย ใจดี", ["jobs@acme.co.th"], []);
 
         await ConfirmAsync(email);
 
