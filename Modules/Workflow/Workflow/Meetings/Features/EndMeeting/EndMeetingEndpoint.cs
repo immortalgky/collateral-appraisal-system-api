@@ -38,11 +38,12 @@ public class EndMeetingCommandHandler(
 
         // Friendly 409s for state conflicts (mirrors CutOff's handler-level ConflictException).
         // Wording uses the user-facing "in progress" vocabulary, not the raw InvitationSent enum.
-        if (meeting.Status != MeetingStatus.InvitationSent)
+        if (meeting.Status != MeetingStatus.InvitationSent && meeting.Status != MeetingStatus.AwaitingVotes)
             throw new ConflictException(
                 $"Cannot end meeting: it is {meeting.Status}, not in progress.");
 
-        if (!meeting.StartAt.HasValue || meeting.StartAt.Value > now)
+        // AwaitingVotes means every item was already released, so the start check only guards InvitationSent.
+        if (meeting.Status == MeetingStatus.InvitationSent && (!meeting.StartAt.HasValue || meeting.StartAt.Value > now))
             throw new ConflictException(
                 "Cannot end meeting: it has not started yet. Cancel it instead.");
 
@@ -52,6 +53,12 @@ public class EndMeetingCommandHandler(
         if (outstanding.Count > 0)
             throw new ConflictException(
                 $"Cannot end meeting: {outstanding.Count} decision item(s) are still pending release or routed back.");
+
+        // Every released item's committee round must have concluded (approve, reject or cancelled).
+        var open = await meetingRepository.CountOpenApprovalRoundsAsync(meeting.Id, ct);
+        if (open > 0)
+            throw new ConflictException(
+                $"Cannot end meeting: {open} decision item(s) are still awaiting committee votes.");
 
         meeting.EndNow(now);
         return Unit.Value;

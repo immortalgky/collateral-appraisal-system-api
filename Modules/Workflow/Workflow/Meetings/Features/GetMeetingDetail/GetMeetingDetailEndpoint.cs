@@ -2,6 +2,7 @@ using Dapper;
 using Shared.Data;
 using Shared.Time;
 using Workflow.Contracts.Sql;
+using Workflow.Data;
 using Workflow.Meetings.Domain;
 
 namespace Workflow.Meetings.Features.GetMeetingDetail;
@@ -123,6 +124,15 @@ public record MeetingItemDto(
 
     /// <summary>Timestamp of the most recent approver vote, or null when none has been cast.</summary>
     public DateTime? LastVotedAt { get; init; }
+
+    /// <summary>
+    /// The concluded committee decision for a Released Decision item: "approve" or any other
+    /// workflow-config (<c>decisionConditions</c>) key, "reject" (everyone voted but the approve rule was not met; some may have approved),
+    /// "cancelled" (the round was cancelled), or "route_back" (the round ended in a route-back but the
+    /// item is still Released). Null while the round is open or recalled, and for items that are not
+    /// Released or are acknowledgements. Defined by <see cref="ApprovalRoundQuery.ConcludedDecision"/>.
+    /// </summary>
+    public string? VoteOutcome { get; init; }
 }
 
 /// <summary>
@@ -155,7 +165,7 @@ public class GetMeetingDetailQueryHandler(
     /// The workflow activity that runs a committee approval round. Same identifier the recall
     /// guard (<c>RecallMeetingItemEndpoint</c>) and <c>GetApprovalHistoryQuery</c> use.
     /// </summary>
-    private const string ApprovalActivityId = "pending-approval";
+    private const string ApprovalActivityId = ApprovalRoundQuery.ApprovalActivityId;
 
     public async Task<MeetingDetailDto> Handle(GetMeetingDetailQuery query, CancellationToken cancellationToken)
     {
@@ -213,7 +223,9 @@ public class GetMeetingDetailQueryHandler(
                            WHERE mi.MeetingId = @Id
                              AND mi.ItemDecision = 'Released'
                            ORDER BY v.VotedAt
-                           """;
+
+                           -- Latest approval round per Released item; ApprovalRoundQuery decides whether it concluded.
+                           """ + "\n" + ApprovalRoundQuery.LatestRoundsSql("Id") + "\n";
 
         var connection = sqlConnectionFactory.GetOpenConnection();
         await using var multi = await connection.QueryMultipleAsync(sql, new { query.Id, ApprovalActivityId });
@@ -254,6 +266,14 @@ public class GetMeetingDetailQueryHandler(
                     LastVotedAt = voted.LastVotedAt
                 };
             }
+        }
+
+        // Attach each concluded round's outcome by MeetingItem Id (the SQL only returns Decision items).
+        foreach (var round in await multi.ReadAsync<ApprovalRoundQuery.Round>())
+        {
+            var index = allItems.FindIndex(i => i.Id == round.MeetingItemId);
+            if (round.Outcome is { } outcome && index >= 0)
+                allItems[index] = allItems[index] with { VoteOutcome = outcome };
         }
 
         // Decision items: one group per AppraisalType, known types first then any others.

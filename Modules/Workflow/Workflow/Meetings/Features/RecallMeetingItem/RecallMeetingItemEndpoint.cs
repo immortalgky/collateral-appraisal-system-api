@@ -121,18 +121,23 @@ public class RecallMeetingItemCommandHandler(
                 actor, command.AppraisalId, command.MeetingId, command.Reason);
         }
 
+        // The queue item is Released only when the meeting ENDS (MeetingEndedDomainEventHandler), so on
+        // an InvitationSent / AwaitingVotes meeting it is normally still Assigned and none is found.
+        // But a meeting that ended earlier and was reopened (Ended -> RoutedBack on an approver
+        // route-back) keeps Released queue items; put the item back whenever one exists. Only a
+        // missing one on an ENDED meeting is suspicious.
         var queueItem = await dbContext.MeetingQueueItems
             .FirstOrDefaultAsync(q =>
                 q.AppraisalId == command.AppraisalId &&
                 q.MeetingId == command.MeetingId &&
                 q.Status == MeetingQueueItemStatus.Released, ct);
-        if (queueItem is null)
+        if (queueItem is not null)
+            queueItem.Requeue();
+        else if (meeting.Status == MeetingStatus.Ended)
             logger.LogWarning(
-                "RecallMeetingItem: no Released MeetingQueueItem found for appraisal {AppraisalId} on meeting " +
+                "RecallMeetingItem: no Released MeetingQueueItem found for appraisal {AppraisalId} on ended meeting " +
                 "{MeetingId}; the queue view will diverge from the meeting until reconciled",
                 command.AppraisalId, command.MeetingId);
-        else
-            queueItem.Requeue();
 
         meeting.UndoRelease(command.AppraisalId, actor, command.Reason, dateTimeProvider.ApplicationNow);
 

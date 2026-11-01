@@ -414,7 +414,7 @@ public class MeetingRouteBackReturnFlowTests
     /// SQL Server generates rowversion values; EF InMemory does not, and rejects the null on save.
     /// Stamps a fresh value on every added/modified row so InMemory behaves like the real store.
     /// </summary>
-    private sealed class StampRowVersions : SaveChangesInterceptor
+    internal sealed class StampRowVersions : SaveChangesInterceptor
     {
         public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
             DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
@@ -431,7 +431,7 @@ public class MeetingRouteBackReturnFlowTests
     }
 
     /// <summary>Real Switch / Meeting / Approval activities; the human rework steps just park the workflow.</summary>
-    private sealed class RealOrParkedFactory(IWorkflowActivityFactory real) : IWorkflowActivityFactory
+    internal sealed class RealOrParkedFactory(IWorkflowActivityFactory real) : IWorkflowActivityFactory
     {
         private static readonly HashSet<string> RealTypes =
             [ActivityTypes.SwitchActivity, ActivityTypes.MeetingActivity, ActivityTypes.ApprovalActivity];

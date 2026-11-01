@@ -107,6 +107,16 @@ public class MeetingRepository(WorkflowDbContext dbContext) : IMeetingRepository
             .FirstOrDefaultAsync(ct);
     }
 
+    public async Task<int> CountOpenApprovalRoundsAsync(Guid meetingId, CancellationToken ct = default)
+    {
+        var released = await dbContext.MeetingItems.CountAsync(
+            mi => mi.MeetingId == meetingId
+                  && mi.Kind == MeetingItemKind.Decision
+                  && mi.ItemDecision == ItemDecision.Released, ct);
+        var concluded = await dbContext.ConcludedByItemAsync(meetingId, ct);
+        return released - concluded.Count;
+    }
+
     public Task AddAsync(Meeting meeting, CancellationToken ct = default)
     {
         dbContext.Meetings.Add(meeting);
