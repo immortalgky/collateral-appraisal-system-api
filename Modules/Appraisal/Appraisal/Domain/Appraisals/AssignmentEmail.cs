@@ -84,11 +84,18 @@ public class AssignmentEmail : Entity<Guid>
             ? html
             : html.Replace(placeholder, System.Net.WebUtility.HtmlEncode(value.Trim()), StringComparison.Ordinal);
 
-    /// <summary>The gateway accepted it. Only a Queued email becomes Sent, so a redelivered confirmation changes nothing.</summary>
+    /// <summary>The <see cref="FailureReason"/> column width.</summary>
+    public const int MaxFailureReasonLength = 200;
+
+    /// <summary>
+    /// The gateway accepted it. A Queued email becomes Sent, and so does a Failed one whose request ops redrove from
+    /// Failed Messages; a redelivered confirmation changes nothing.
+    /// </summary>
     public void MarkSent()
     {
-        if (Status == AssignmentEmailStatus.Queued)
-            Status = AssignmentEmailStatus.Sent;
+        if (Status is not (AssignmentEmailStatus.Queued or AssignmentEmailStatus.Failed)) return;
+        Status = AssignmentEmailStatus.Sent;
+        FailureReason = null;
     }
 
     /// <summary>The send gave up. Only a Queued email becomes Failed, so a redelivered report changes nothing.</summary>
@@ -96,7 +103,7 @@ public class AssignmentEmail : Entity<Guid>
     {
         if (Status != AssignmentEmailStatus.Queued) return;
         Status = AssignmentEmailStatus.Failed;
-        FailureReason = reason;
+        FailureReason = reason.Length > MaxFailureReasonLength ? reason[..MaxFailureReasonLength] : reason;
     }
 }
 

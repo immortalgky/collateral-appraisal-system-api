@@ -15,12 +15,17 @@ Branch `immortalgky/implement-624-issue` (worktree `candlefish`), off the local 
 4. Appraisal `AssignmentEmailFailedIntegrationEventHandler`: Queued → Failed + FailureReason.
 
 ## Todo
-- [ ] Events: AppraisalNumber + CompanyName on the request; new Failed event
-- [ ] Notification: notifier + Fault consumer + no-To branch; NotificationType.AssignmentEmailFailed
-- [ ] Retry: permanent-SMTP predicate in Notification, wired in Program.cs IgnoreNonTransient
-- [ ] Appraisal: MarkFailed, FailureReason column + migration, Failed consumer, dispatcher fills the new fields
-- [ ] Tests (Notification seam: fault → event + notifications, non-retry predicate; Appraisal: Failed consumer)
-- [ ] Matt code-review, then /code-review loop, then gates
+- [x] Events: AppraisalNumber + CompanyName on the request; new Failed event
+- [x] Notification: notifier + Fault consumer + no-To branch; NotificationType.AssignmentEmailFailed
+- [x] Retry: permanent-SMTP predicate in Notification, wired in Program.cs IgnoreNonTransient
+- [x] Appraisal: MarkFailed, FailureReason column + migration, Failed consumer, dispatcher fills the new fields
+- [x] Tests (Notification seam: fault → event + notifications, non-retry predicate; Appraisal: Failed consumer)
+- [x] Matt code-review: fixed inbox key = FaultedMessageId, reason only from MailKit/MimeKit, notifier in its
+      own file, FailureReason nvarchar(200), blank App No. → "-"
+- [x] /code-review r1 (11 findings): fixed redrive Failed → Sent, socket/timeout reasons shown, assigner checked
+      against the user lookup (no "System" row, account spelling), MarkFailed caps the column, file renamed
+- [ ] /code-review r2+ (fix diff only)
+- [ ] Gates (test-automator)
 - [ ] User test → merge `--no-ff` into the integration branch, close #624 by hand
 
 ## Settled decisions (user, 2026-11-01)
@@ -29,3 +34,23 @@ Branch `immortalgky/implement-624-issue` (worktree `candlefish`), off the local 
   fallback for an unknown type).
 - FailureReason gets its own migration now; fold all #617 migrations into one at the integration PR.
 - Failure time = the row's UpdatedAt (no extra column).
+- Reason shown to admins only from MailKit/MimeKit exceptions; anything else = "ระบบส่งอีเมลขัดข้อง" (user, from
+  Matt review). The full exception stays in logs, EmailSendLogs and Failed Messages.
+
+## Declined in Matt review (do not re-raise)
+- `MarkFailed` returns quietly on a non-Queued row (docs/DDD.md throws): same as `MarkSent`, idempotent on purpose.
+- Bare `"IntAdmin"` string: the repo has no role constant; siblings do the same.
+- Failed consumer duplicates the Sent consumer (~10 lines each): not worth folding.
+- `appraisalNumber` passed separately to `QueueExtoAsync`: fine with one caller.
+- One save per notification, so a DB failure midway re-notifies earlier users on retry (`ponytail:` comment).
+- The no-To branch: if the notifier itself fails until retries run out, the fault handler notifies again with a
+  generic reason. Edge case, accepted.
+- The `r.Ignore` wiring in Program.cs has no automated test (the predicate does); check by hand.
+
+## Declined in /code-review r1 (do not re-raise)
+- The 5xx Ignore lives in the shared IgnoreNonTransient, so sibling email consumers also stop retrying a 5xx. A 5xx
+  is the gateway's final answer (RFC 5321); retrying ends in the same _error queue, only later.
+- No-To branch double notice when the notifier itself throws: declined in Matt review.
+- No unit test for the FaultedMessageId inbox key: InboxGuard dedupes through a real SQL PK; InMemory can't show it.
+- The FE bell lacks the new type until app#539: tracked, both repos ship together from the integration branch.
+- Mail:Enabled=false marks the row Sent: #620 decision.

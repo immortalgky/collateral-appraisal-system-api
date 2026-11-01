@@ -55,4 +55,27 @@ public class AssignmentEmailFailedIntegrationEventHandlerTests
         Assert.Equal(AssignmentEmailStatus.Sent, email.Status);
         Assert.Null(email.FailureReason);
     }
+
+    [Fact]
+    public async Task A_long_reason_is_cut_to_the_column()
+    {
+        var email = Queued();
+
+        await ReportAsync(email, new string('x', 250));
+
+        Assert.Equal(200, email.FailureReason!.Length);
+    }
+
+    [Fact]
+    public void A_failed_email_that_a_redrive_delivered_becomes_sent()
+    {
+        // Ops redrove the faulted request from Failed Messages and the gateway took it this time.
+        var email = Queued();
+        email.MarkFailed("connection refused");
+
+        email.MarkSent();
+
+        Assert.Equal(AssignmentEmailStatus.Sent, email.Status);
+        Assert.Null(email.FailureReason);
+    }
 }

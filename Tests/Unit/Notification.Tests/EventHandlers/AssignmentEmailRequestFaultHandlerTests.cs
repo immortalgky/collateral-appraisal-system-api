@@ -37,6 +37,11 @@ public class AssignmentEmailRequestFaultHandlerTests
     {
         _users.GetUsernamesInRoleAsync("IntAdmin", null, Arg.Any<CancellationToken>())
             .Returns(["P1001", "P5229"]); // the assigner is an IntAdmin too
+        _users.GetByUsernamesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
+            .Returns(c => c.Arg<IEnumerable<string>>()
+                .Where(u => u.Equals("P5229", StringComparison.OrdinalIgnoreCase) || u.Equals("P7777", StringComparison.OrdinalIgnoreCase))
+                .ToDictionary(u => u, u => new UserLookupDto(u.ToUpperInvariant(), "สมชาย", "ใจดี"),
+                    StringComparer.OrdinalIgnoreCase) as IReadOnlyDictionary<string, UserLookupDto>);
         _ctx.MessageId.Returns((Guid?)null); // the real InboxGuard below never touches its provider-less context
         _ctx.CancellationToken.Returns(CancellationToken.None);
     }
@@ -95,6 +100,42 @@ public class AssignmentEmailRequestFaultHandlerTests
         await _notifications.Received().SendNotificationToUserAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Is<string>(m => m.EndsWith("ไม่สำเร็จ: ระบบส่งอีเมลขัดข้อง")),
             NotificationType.AssignmentEmailFailed, Arg.Any<string?>(), Arg.Any<Dictionary<string, object>?>());
+    }
+
+    [Fact]
+    public async Task A_gateway_that_cannot_be_reached_is_reported_as_such()
+    {
+        await ConsumeAsync(Request, "Connection refused", "System.Net.Sockets.SocketException");
+
+        await _ctx.Received(1).Publish(
+            Arg.Is<AssignmentEmailFailedIntegrationEvent>(e => e.Reason == "Connection refused"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task An_assigner_who_is_not_a_user_is_not_notified()
+    {
+        // Automatic paths stamp "System" as the assigner.
+        await ConsumeAsync(Request with { AssignedBy = "System" }, "connection refused");
+
+        await _notifications.DidNotReceive().SendNotificationToUserAsync(
+            "System", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<NotificationType>(),
+            Arg.Any<string?>(), Arg.Any<Dictionary<string, object>?>());
+        await _notifications.ReceivedWithAnyArgs(2).SendNotificationToUserAsync(default!, default!, default!, default);
+    }
+
+    [Fact]
+    public async Task The_assigner_is_notified_under_their_account_spelling()
+    {
+        // The realtime group is user-{Username} and case-sensitive: use the account's own spelling.
+        _users.GetUsernamesInRoleAsync("IntAdmin", null, Arg.Any<CancellationToken>()).Returns(["P1001"]);
+
+        await ConsumeAsync(Request with { AssignedBy = "p7777" }, "connection refused");
+
+        await _notifications.Received(1).SendNotificationToUserAsync(
+            "P7777", Arg.Any<string>(), Arg.Any<string>(), NotificationType.AssignmentEmailFailed,
+            Arg.Any<string?>(), Arg.Any<Dictionary<string, object>?>());
+        await _notifications.ReceivedWithAnyArgs(2).SendNotificationToUserAsync(default!, default!, default!, default);
     }
 
     [Fact]

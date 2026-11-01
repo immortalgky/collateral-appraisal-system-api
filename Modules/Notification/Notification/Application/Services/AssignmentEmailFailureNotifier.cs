@@ -14,8 +14,8 @@ public sealed class AssignmentEmailFailureNotifier(
     IUserLookupService userLookup,
     ILogger<AssignmentEmailFailureNotifier> logger)
 {
-    /// <summary>The <c>AssignmentEmails.FailureReason</c> column width.</summary>
-    public const int MaxReasonLength = 200;
+    /// <summary>A short reason for the notice (the Appraisal side caps its column on its own).</summary>
+    private const int MaxReasonLength = 200;
 
     public async Task NotifyAsync(
         IPublishEndpoint publisher, AssignmentEmailRequestedIntegrationEvent email, string? reason, CancellationToken ct)
@@ -32,8 +32,17 @@ public sealed class AssignmentEmailFailureNotifier(
             Reason = reason
         }, ct);
 
+        // The assigner only when they are a user ("System" on automatic paths), under the account's own spelling:
+        // the realtime group user-{Username} is case-sensitive.
+        string? assigner = null;
+        if (!string.IsNullOrWhiteSpace(email.AssignedBy))
+        {
+            var found = await userLookup.GetByUsernamesAsync([email.AssignedBy], ct);
+            assigner = found.TryGetValue(email.AssignedBy, out var user) ? user.Username : null;
+        }
+
         var admins = await userLookup.GetUsernamesInRoleAsync("IntAdmin", ct: ct);
-        var recipients = new[] { email.AssignedBy }.Concat(admins)
+        var recipients = new[] { assigner }.Concat(admins)
             .Where(u => !string.IsNullOrWhiteSpace(u))
             .Distinct(StringComparer.OrdinalIgnoreCase);
 

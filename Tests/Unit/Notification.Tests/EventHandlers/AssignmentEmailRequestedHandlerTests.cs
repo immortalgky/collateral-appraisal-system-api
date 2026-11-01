@@ -64,10 +64,17 @@ public class AssignmentEmailRequestedHandlerTests
                 _renderer,
                 new EmailAttachmentAssembler([_documents], NullLogger<EmailAttachmentAssembler>.Instance),
                 inbox,
-                new AssignmentEmailFailureNotifier(
-                    _notifications, Substitute.For<IUserLookupService>(), NullLogger<AssignmentEmailFailureNotifier>.Instance),
+                new AssignmentEmailFailureNotifier(_notifications, Users(), NullLogger<AssignmentEmailFailureNotifier>.Instance),
                 NullLogger<AssignmentEmailRequestedHandler>.Instance)
             .Consume(_ctx);
+    }
+
+    private static IUserLookupService Users()
+    {
+        var users = Substitute.For<IUserLookupService>();
+        users.GetByUsernamesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, UserLookupDto> { ["P5229"] = new("P5229", "สมชาย", "ใจดี") });
+        return users;
     }
 
     [Fact]
