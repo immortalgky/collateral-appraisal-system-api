@@ -26,7 +26,10 @@ Branch `immortalgky/implement-624-issue` (worktree `candlefish`), off the local 
       against the user lookup (no "System" row, account spelling), MarkFailed caps the column, file renamed
 - [x] /code-review r2 (6 findings): socket failure = fixed Thai text (the .NET message holds the relay IP:port),
       TimeoutException no longer passes through, null Reason guarded
-- [ ] /code-review r3+ (fix diff only)
+- [x] /code-review r3 (5 findings, all accepted): r2's premise was wrong (EmailAttachmentAssembler skips attachment
+      errors), so TimeoutException = unreachable; exact socket match (not WebSocketException); blank reason →
+      "ไม่ทราบสาเหตุ"
+- [ ] /code-review r4+ (fix diff only)
 - [ ] Gates (test-automator)
 - [ ] User test → merge `--no-ff` into the integration branch, close #624 by hand
 
@@ -36,8 +39,12 @@ Branch `immortalgky/implement-624-issue` (worktree `candlefish`), off the local 
   fallback for an unknown type).
 - FailureReason gets its own migration now; fold all #617 migrations into one at the integration PR.
 - Failure time = the row's UpdatedAt (no extra column).
-- Reason shown to admins only from MailKit/MimeKit exceptions; anything else = "ระบบส่งอีเมลขัดข้อง" (user, from
-  Matt review). The full exception stays in logs, EmailSendLogs and Failed Messages.
+- Reason shown to admins (user, from Matt review; refined in r1–r3):
+  - MailKit/MimeKit exception → its message (the gateway's reply)
+  - SocketException (+ExtendedSocketException) / TimeoutException → "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้" (the .NET
+    message names the relay's IP:port)
+  - anything else → "ระบบส่งอีเมลขัดข้อง"; blank → "ไม่ทราบสาเหตุ"
+  - the full exception stays in logs, EmailSendLogs and Failed Messages
 
 ## Declined in Matt review (do not re-raise)
 - `MarkFailed` returns quietly on a non-Queued row (docs/DDD.md throws): same as `MarkSent`, idempotent on purpose.

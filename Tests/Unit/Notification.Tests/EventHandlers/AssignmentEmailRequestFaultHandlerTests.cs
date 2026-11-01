@@ -90,7 +90,7 @@ public class AssignmentEmailRequestFaultHandlerTests
     [Fact]
     public async Task A_failure_outside_the_mail_gateway_is_reported_without_its_internals()
     {
-        // e.g. the attachment lookup's SQL error: admins see a generic reason, the details stay in the logs.
+        // e.g. a SQL error (the inbox claim): admins see a generic reason, the details stay in the logs.
         await ConsumeAsync(Request, "Invalid object name 'document.Documents'. Server db01",
             "Microsoft.Data.SqlClient.SqlException");
 
@@ -115,10 +115,21 @@ public class AssignmentEmailRequestFaultHandlerTests
     }
 
     [Fact]
-    public async Task A_timeout_is_not_blamed_on_the_gateway()
+    public async Task A_relay_that_never_answers_is_reported_as_unreachable()
     {
-        // It can come from fetching the attachments as well.
+        // A firewall dropping packets: MailKit's connect/read timeout. Attachment errors never get here (the
+        // assembler skips them), so a timeout is the gateway's.
         await ConsumeAsync(Request, "The operation has timed out.", "System.TimeoutException");
+
+        await _ctx.Received(1).Publish(
+            Arg.Is<AssignmentEmailFailedIntegrationEvent>(e => e.Reason == "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_web_socket_error_is_not_taken_for_the_mail_relay()
+    {
+        await ConsumeAsync(Request, "The remote party closed the WebSocket", "System.Net.WebSockets.WebSocketException");
 
         await _ctx.Received(1).Publish(
             Arg.Is<AssignmentEmailFailedIntegrationEvent>(e => e.Reason == "ระบบส่งอีเมลขัดข้อง"),

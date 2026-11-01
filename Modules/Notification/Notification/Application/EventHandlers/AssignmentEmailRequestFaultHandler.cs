@@ -21,16 +21,19 @@ public sealed class AssignmentEmailRequestFaultHandler(
                 Reason(context.Message.Exceptions.FirstOrDefault()), ct), context.CancellationToken);
 
     /// <summary>
-    /// The mail libraries' own message (the gateway's reply, a bad address) helps the admin. A gateway that cannot be
-    /// reached gets a fixed text: .NET's connect failure names the relay's address and port. Anything else, such as a
-    /// SQL error or a timeout while attaching documents, would show internals or blame the gateway wrongly, so it
-    /// stays in the logs and Failed Messages.
+    /// The mail libraries' own message (the gateway's reply, a bad address) helps the admin. A relay that cannot be
+    /// reached (socket error, or MailKit's connect/read timeout) gets a fixed text, because .NET's connect failure names
+    /// the relay's address and port. Attachment errors never fault (EmailAttachmentAssembler skips them); anything else,
+    /// such as a SQL error, would show internals, so it stays in the logs and Failed Messages.
     /// </summary>
     private static string Reason(ExceptionInfo? exception) => exception?.ExceptionType switch
     {
         { } type when type.StartsWith("MailKit.", StringComparison.Ordinal)
                       || type.StartsWith("MimeKit.", StringComparison.Ordinal) => exception.Message,
-        { } type when type.EndsWith("SocketException", StringComparison.Ordinal) => "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้",
+        "System.Net.Sockets.SocketException" or "System.TimeoutException" => Unreachable,
+        { } type when type.EndsWith("+ExtendedSocketException", StringComparison.Ordinal) => Unreachable,
         _ => "ระบบส่งอีเมลขัดข้อง"
     };
+
+    private const string Unreachable = "เชื่อมต่อเซิร์ฟเวอร์อีเมลไม่ได้";
 }

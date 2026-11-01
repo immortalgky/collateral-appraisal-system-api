@@ -74,6 +74,8 @@ public class AssignmentEmailFailedIntegrationEventHandlerTests
         await ReportAsync(email, null!);
 
         Assert.Equal(AssignmentEmailStatus.Failed, email.Status);
+        Assert.Equal("ไม่ทราบสาเหตุ", email.FailureReason);
+        await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]

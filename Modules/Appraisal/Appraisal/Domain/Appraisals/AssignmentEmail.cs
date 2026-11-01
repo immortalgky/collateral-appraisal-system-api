@@ -102,7 +102,8 @@ public class AssignmentEmail : Entity<Guid>
     public void MarkFailed(string? reason)
     {
         if (Status != AssignmentEmailStatus.Queued) return;
-        reason ??= string.Empty; // a hand-edited redrive may drop it; the row must still leave Queued
+        // A hand-edited redrive may drop it; the row must still leave Queued.
+        reason = string.IsNullOrWhiteSpace(reason) ? "ไม่ทราบสาเหตุ" : reason.Trim();
         Status = AssignmentEmailStatus.Failed;
         FailureReason = reason.Length > MaxFailureReasonLength ? reason[..MaxFailureReasonLength] : reason;
     }
