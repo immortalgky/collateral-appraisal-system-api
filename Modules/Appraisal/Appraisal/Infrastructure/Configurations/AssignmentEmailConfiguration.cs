@@ -13,7 +13,8 @@ public class AssignmentEmailConfiguration : IEntityTypeConfiguration<AssignmentE
         builder.Property(e => e.Subject).HasMaxLength(500).IsRequired();
         // Empty on a NotSent row: only the admin's choice is recorded.
         builder.Property(e => e.BodyHtml).IsRequired();
-        builder.Property(e => e.FailureReason).HasMaxLength(500);
+        // Notification cuts the reason to 200 (AssignmentEmailFailureNotifier.MaxReasonLength).
+        builder.Property(e => e.FailureReason).HasMaxLength(200);
 
         // Address lists and attachment refs are small and always read with the email: JSON columns.
         builder.PrimitiveCollection(e => e.ExtraTo);

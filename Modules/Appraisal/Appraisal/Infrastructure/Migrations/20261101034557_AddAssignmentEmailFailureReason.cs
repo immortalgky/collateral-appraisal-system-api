@@ -14,8 +14,8 @@ namespace Appraisal.infrastructure.Migrations
                 name: "FailureReason",
                 schema: "appraisal",
                 table: "AssignmentEmails",
-                type: "nvarchar(500)",
-                maxLength: 500,
+                type: "nvarchar(200)",
+                maxLength: 200,
                 nullable: true);
         }
 

@@ -1669,8 +1669,8 @@ namespace Appraisal.infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("FailureReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("Status")
                         .IsRequired()

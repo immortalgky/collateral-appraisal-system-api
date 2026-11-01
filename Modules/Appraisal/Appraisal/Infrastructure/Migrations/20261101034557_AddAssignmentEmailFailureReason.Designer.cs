@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Appraisal.infrastructure.Migrations
 {
     [DbContext(typeof(AppraisalDbContext))]
-    [Migration("20261031180818_AddAssignmentEmailFailureReason")]
+    [Migration("20261101034557_AddAssignmentEmailFailureReason")]
     partial class AddAssignmentEmailFailureReason
     {
         /// <inheritdoc />
@@ -1672,8 +1672,8 @@ namespace Appraisal.infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("FailureReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("Status")
                         .IsRequired()

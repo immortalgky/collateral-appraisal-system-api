@@ -41,10 +41,13 @@ public class AssignmentEmailRequestFaultHandlerTests
         _ctx.CancellationToken.Returns(CancellationToken.None);
     }
 
-    private Task ConsumeAsync(AssignmentEmailRequestedIntegrationEvent request, string error)
+    private Task ConsumeAsync(
+        AssignmentEmailRequestedIntegrationEvent request, string error,
+        string exceptionType = "MailKit.Net.Smtp.SmtpCommandException")
     {
         var exception = Substitute.For<ExceptionInfo>();
         exception.Message.Returns(error);
+        exception.ExceptionType.Returns(exceptionType);
         var fault = Substitute.For<Fault<AssignmentEmailRequestedIntegrationEvent>>();
         fault.Message.Returns(request);
         fault.Exceptions.Returns([exception]);
@@ -77,6 +80,21 @@ public class AssignmentEmailRequestFaultHandlerTests
                 user, Arg.Any<string>(), expected, NotificationType.AssignmentEmailFailed,
                 $"/appraisals/{Request.AppraisalId}/administration", Arg.Any<Dictionary<string, object>?>());
         await _notifications.ReceivedWithAnyArgs(2).SendNotificationToUserAsync(default!, default!, default!, default);
+    }
+
+    [Fact]
+    public async Task A_failure_outside_the_mail_gateway_is_reported_without_its_internals()
+    {
+        // e.g. the attachment lookup's SQL error: admins see a generic reason, the details stay in the logs.
+        await ConsumeAsync(Request, "Invalid object name 'document.Documents'. Server db01",
+            "Microsoft.Data.SqlClient.SqlException");
+
+        await _ctx.Received(1).Publish(
+            Arg.Is<AssignmentEmailFailedIntegrationEvent>(e => e.Reason == "ระบบส่งอีเมลขัดข้อง"),
+            Arg.Any<CancellationToken>());
+        await _notifications.Received().SendNotificationToUserAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Is<string>(m => m.EndsWith("ไม่สำเร็จ: ระบบส่งอีเมลขัดข้อง")),
+            NotificationType.AssignmentEmailFailed, Arg.Any<string?>(), Arg.Any<Dictionary<string, object>?>());
     }
 
     [Fact]

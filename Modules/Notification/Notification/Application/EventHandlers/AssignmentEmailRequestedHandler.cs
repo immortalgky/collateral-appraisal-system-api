@@ -1,6 +1,7 @@
 using MassTransit;
 using Notification.Contracts.Email;
 using Notification.Data;
+using Notification.Domain.Notifications.Services;
 using Notification.Infrastructure.Email;
 using Notification.Infrastructure.Email.Attachments;
 using Notification.Infrastructure.Email.Templates;
