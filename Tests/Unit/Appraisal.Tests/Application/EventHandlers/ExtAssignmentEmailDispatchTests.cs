@@ -120,15 +120,7 @@ public class ExtAssignmentEmailDispatchTests
     [InlineData("Forced", "manual")] // Construction-Inspection carry-over
     public async Task A_system_assignment_sends_the_template_to_the_workflow_chosen_company(string method, string feeMethod)
     {
-        // Read while CompanyAssigned runs: the stored row still names an earlier decision's company and officer.
-        _caseReader.GetCaseAsync(_appraisal.Id, Arg.Any<CancellationToken>()).Returns(new AssignmentEmailCase(
-            AppraisalNumber: "69042630", CustomerName: "นายสมศักดิ์ มั่นคง", ContactName: "คุณวิไล",
-            ContactPhone: "081-234-5678", FeePaymentText: null, AssignmentMethod: "Manual",
-            AssigneeCompanyId: Guid.NewGuid().ToString(), KeyerName: null, FollowupMethod: "Manual",
-            FollowupName: "เจ้าหน้าที่ ติดตามเดิม", Remark: null));
-        _sender.Send(Arg.Any<GetFeePreviewQuery>(), Arg.Any<CancellationToken>())
-            .Returns(new FeePreviewResult(null, null, new FeeBaseSourceDto(FeeBaseKinds.None, null, null, null, null, null, null),
-                null, [], false, 0m, 7m, 0m, 0m));
+        StubTemplateReads();
         _quotations.GetFinalizedByAppraisalIdAsync(_appraisal.Id, CompanyId, Arg.Any<CancellationToken>())
             .Returns(WonQuotation());
 
@@ -170,6 +162,26 @@ public class ExtAssignmentEmailDispatchTests
     }
 
     [Fact]
+    public async Task A_route_back_that_lands_on_a_different_company_sends_it_the_template()
+    {
+        // The automatic route-back (initiation-check → initial-routing) leaves the row Assigned to the old company;
+        // round-robin then picked another one (the banking segment changed).
+        var first = AdminRow();
+        _assignment.Assign("External", assigneeCompanyId: Guid.NewGuid().ToString(), assignmentMethod: "RoundRobin",
+            internalAppraiserId: "F0001", internalFollowupMethod: "RoundRobin", assignedBy: "P5229");
+        first.Queue("บริษัท เดิม จำกัด", "สมหญิง ตามงาน", ["old@company.co.th"], []);
+        first.MarkSent(DateTime.Now);
+        StubTemplateReads();
+
+        await AssignCompanyAndFollowupAsync("RoundRobin");
+
+        var sent = Assert.Single(Published());
+        Assert.Equal(["jobs@acme.co.th"], sent.To);
+        Assert.Contains("<p>เรียน บริษัท แอคมี จำกัด</p>", sent.HtmlBody);
+        Assert.Equal(2, _rows.Count);
+    }
+
+    [Fact]
     public async Task No_followup_found_still_sends_without_the_followup_Cc_and_a_dash_as_responsible()
     {
         var row = AdminRow();
@@ -193,6 +205,19 @@ public class ExtAssignmentEmailDispatchTests
 
         Assert.Empty(Published());
         Assert.Single(_rows);
+    }
+
+    private void StubTemplateReads()
+    {
+        // Read while CompanyAssigned runs: the stored row still names an earlier decision's company and officer.
+        _caseReader.GetCaseAsync(_appraisal.Id, Arg.Any<CancellationToken>()).Returns(new AssignmentEmailCase(
+            AppraisalNumber: "69042630", CustomerName: "นายสมศักดิ์ มั่นคง", ContactName: "คุณวิไล",
+            ContactPhone: "081-234-5678", FeePaymentText: null, AssignmentMethod: "Manual",
+            AssigneeCompanyId: Guid.NewGuid().ToString(), KeyerName: null, FollowupMethod: "Manual",
+            FollowupName: "เจ้าหน้าที่ ติดตามเดิม", Remark: null));
+        _sender.Send(Arg.Any<GetFeePreviewQuery>(), Arg.Any<CancellationToken>())
+            .Returns(new FeePreviewResult(null, null, new FeeBaseSourceDto(FeeBaseKinds.None, null, null, null, null, null, null),
+                null, [], false, 0m, 7m, 0m, 0m));
     }
 
     private QuotationRequest WonQuotation()

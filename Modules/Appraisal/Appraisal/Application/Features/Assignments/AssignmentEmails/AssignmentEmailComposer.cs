@@ -25,7 +25,7 @@ public class AssignmentEmailComposer(
     /// </summary>
     public Task<AssignmentEmailPreviewResult> ComposeForExtoHandoverAsync(
         Guid appraisalId, string? keyerName, CancellationToken cancellationToken) =>
-        ComposeAsync(appraisalId, new Handover(true, keyerName, null, "external-offline", "manual"), cancellationToken);
+        ComposeAsync(appraisalId, new Handover(IsOffline: true, Responsible: keyerName, CompanyId: null, FeeType: "external-offline", FeeMethod: "manual"), cancellationToken);
 
     /// <summary>
     /// The template when the workflow assigned an EXT case to <paramref name="companyId"/> with nobody pressing มอบหมาย
@@ -34,7 +34,8 @@ public class AssignmentEmailComposer(
     /// </summary>
     public Task<AssignmentEmailPreviewResult> ComposeForExtHandoverAsync(
         Guid appraisalId, Guid companyId, bool isQuotation, CancellationToken cancellationToken) =>
-        ComposeAsync(appraisalId, new Handover(false, null, companyId, "external", isQuotation ? "quotation" : "manual"),
+        ComposeAsync(appraisalId, new Handover(IsOffline: false, Responsible: null, CompanyId: companyId, FeeType: "external",
+                FeeMethod: isQuotation ? "quotation" : "manual"),
             cancellationToken);
 
     /// <summary>The facts of an assignment being saved, which the stored row does not show yet.</summary>

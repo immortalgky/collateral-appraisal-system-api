@@ -52,7 +52,7 @@ public class InternalFollowupAssignedIntegrationEventHandler(
 
         // no_match publishes no officer: the row keeps what it had, and only the company's email goes on.
         if (message.InternalAppraiserId is { } officer)
-            assignment.AssignInternalFollowup(officer, message.InternalFollowupAssignmentMethod ?? "");
+            assignment.AssignInternalFollowup(officer, message.InternalFollowupAssignmentMethod);
 
         // EXT (#622): the company is on the row (CompanyAssigned ran first on this partition) and the officer is known,
         // so the email chosen for this engagement goes out, committed with this save through the outbox. It never holds

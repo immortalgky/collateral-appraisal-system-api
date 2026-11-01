@@ -322,7 +322,7 @@ public class AppraisalAssignment : Entity<Guid>
     /// <summary>
     /// Attach internal followup staff after the company has been assigned.
     /// </summary>
-    public void AssignInternalFollowup(string internalAppraiserId, string internalFollowupMethod)
+    public void AssignInternalFollowup(string internalAppraiserId, string? internalFollowupMethod)
     {
         InternalAppraiserId = internalAppraiserId;
         InternalFollowupAssignmentMethod = internalFollowupMethod;

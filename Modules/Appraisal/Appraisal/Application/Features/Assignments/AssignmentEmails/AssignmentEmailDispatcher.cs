@@ -31,8 +31,7 @@ public class AssignmentEmailDispatcher(
         var template = email is null ? await composer.ComposeForExtoHandoverAsync(appraisalId, responsible, ct) : null;
 
         // No choice recorded (an assign that did not carry one): the bank template, as the preview would show it.
-        email ??= AssignmentEmail.ToSend(
-            appraisalId, assignment.Id, template!.ExtraTo, template.Cc, template.Subject, template.BodyHtml, []);
+        email ??= FromTemplate(assignment, template!);
 
         await QueueAsync(email, appraisalNumber, assignment.AssigneeCompanyId, responsible, keyerUserId, assignment.AssignedBy,
             refuseIfIncomplete: false, ct);
@@ -42,8 +41,8 @@ public class AssignmentEmailDispatcher(
     }
 
     /// <summary>
-    /// EXT (#622), when the workflow assigned <paramref name="companyId"/> to a row that was Pending (a genuine
-    /// assignment, not a route-back replay) and nobody pressed มอบหมาย, so no email was chosen: adds the bank template
+    /// EXT (#622), when the workflow assigned <paramref name="companyId"/> as a new engagement (the row was Pending, or
+    /// held another company; not a route-back replay) and nobody pressed มอบหมาย, so no email was chosen: adds the bank template
     /// as a Pending row, for the caller's save. <see cref="QueueExtAsync"/> sends it once the follow-up is known.
     /// </summary>
     public async Task AddExtTemplateAsync(
@@ -53,9 +52,12 @@ public class AssignmentEmailDispatcher(
             return; // the admin's choice, sent or not
 
         var template = await composer.ComposeForExtHandoverAsync(assignment.AppraisalId, companyId, isQuotation, ct);
-        await emails.AddAsync(AssignmentEmail.ToSend(
-            assignment.AppraisalId, assignment.Id, template.ExtraTo, template.Cc, template.Subject, template.BodyHtml, []), ct);
+        await emails.AddAsync(FromTemplate(assignment, template), ct);
     }
+
+    private static AssignmentEmail FromTemplate(AppraisalAssignment assignment, AssignmentEmailPreviewResult template) =>
+        AssignmentEmail.ToSend(
+            assignment.AppraisalId, assignment.Id, template.ExtraTo, template.Cc, template.Subject, template.BodyHtml, []);
 
     /// <summary>
     /// EXT (#622): the follow-up officer is now known, so the email chosen for this engagement goes out. That is the

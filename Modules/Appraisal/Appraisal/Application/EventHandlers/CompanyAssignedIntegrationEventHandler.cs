@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Assignments.AssignmentEmails;
+using Appraisal.Application.Features.Assignments.GetAssignmentDefaults;
 using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Quotations;
@@ -57,6 +58,9 @@ public class CompanyAssignedIntegrationEventHandler(
         // Read before Assign() flips it: a row that was Pending is a genuine (re)assignment, so a system base left by
         // an earlier source is re-priced; any other re-fire must not rewrite a base that may already be billed.
         var wasPending = assignment.AssignmentStatus == AssignmentStatus.Pending;
+        // A company the row did not hold is a new engagement even on a row left Assigned (the automatic route-back
+        // through initial-routing, when round-robin lands elsewhere): it gets its email (#622, user 2026-11-01).
+        var isNewCompany = !(Guid.TryParse(assignment.AssigneeCompanyId, out var heldCompanyId) && heldCompanyId == message.CompanyId);
 
         // Promote the assignment to Assigned for all external paths (Manual, RoundRobin, Forced, Quotation).
         // Preserve internal-followup fields: Assign() defaults them to null, so without
@@ -86,15 +90,15 @@ public class CompanyAssignedIntegrationEventHandler(
             repriceSystemBase: wasPending,
             ct: ct);
 
-        // EXT (#622): a genuine assignment (the row was Pending) that nobody chose an email for gets the bank template,
-        // sent by the follow-up consumer once the officer is known. A route-back replay of the company finds the row
-        // Assigned and adds nothing. The email never holds up the assignment.
-        if (wasPending)
+        // EXT (#622): a genuine assignment (the row was Pending, or the company is new) that nobody chose an email for
+        // gets the bank template, sent by the follow-up consumer once the officer is known. A route-back replay of the
+        // company the row holds adds nothing. The email never holds up the assignment.
+        if (wasPending || isNewCompany)
         {
             try
             {
                 await emailDispatcher.AddExtTemplateAsync(assignment, message.CompanyId,
-                    string.Equals(message.AssignmentMethod, "Quotation", StringComparison.OrdinalIgnoreCase), ct);
+                    string.Equals(message.AssignmentMethod, AssignmentDefaultValues.MethodQuotation, StringComparison.OrdinalIgnoreCase), ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
