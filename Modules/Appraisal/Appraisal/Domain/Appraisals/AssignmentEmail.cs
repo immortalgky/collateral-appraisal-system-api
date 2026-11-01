@@ -27,7 +27,7 @@ public class AssignmentEmail : Entity<Guid>
 
     public List<AssignmentEmailAttachment> Attachments { get; private set; } = [];
 
-    /// <summary>Why the email was not sent, when <see cref="AssignmentEmailStatus.Failed"/>.</summary>
+    /// <summary>Why the email was not sent, when <see cref="AssignmentEmailStatus.Failed"/>. The time is <c>UpdatedAt</c>.</summary>
     public string? FailureReason { get; private set; }
 
     /// <summary>Sent again from the read-only slip (#623), not the email of the assignment itself.</summary>
@@ -113,20 +113,29 @@ public class AssignmentEmail : Entity<Guid>
             ? html
             : html.Replace(placeholder, System.Net.WebUtility.HtmlEncode(value.Trim()), StringComparison.Ordinal);
 
-    /// <summary>The email cannot go out. Only a Queued email fails, so a Sent one is never marked Failed afterwards.</summary>
-    public void Fail(string reason)
-    {
-        if (Status != AssignmentEmailStatus.Queued) return;
-        Status = AssignmentEmailStatus.Failed;
-        FailureReason = reason;
-    }
+    /// <summary>The <see cref="FailureReason"/> column width.</summary>
+    public const int MaxFailureReasonLength = 1000;
 
-    /// <summary>The gateway accepted it. Only a Queued email becomes Sent, so a redelivered confirmation changes nothing.</summary>
+    /// <summary>
+    /// The gateway accepted it. A Queued email becomes Sent, and so does a Failed one whose request ops redrove from
+    /// Failed Messages; a redelivered confirmation changes nothing.
+    /// </summary>
     public void MarkSent(DateTime sentAt)
     {
-        if (Status != AssignmentEmailStatus.Queued) return;
+        if (Status is not (AssignmentEmailStatus.Queued or AssignmentEmailStatus.Failed)) return;
         Status = AssignmentEmailStatus.Sent;
         SentAt = sentAt;
+        FailureReason = null;
+    }
+
+    /// <summary>The send gave up. Only a Queued email becomes Failed, so a redelivered report changes nothing.</summary>
+    public void MarkFailed(string? reason)
+    {
+        if (Status != AssignmentEmailStatus.Queued) return;
+        // A hand-edited redrive may drop it; the row must still leave Queued.
+        reason = string.IsNullOrWhiteSpace(reason) ? "ไม่ทราบสาเหตุ" : reason.Trim();
+        Status = AssignmentEmailStatus.Failed;
+        FailureReason = reason.Length > MaxFailureReasonLength ? reason[..MaxFailureReasonLength] : reason;
     }
 }
 

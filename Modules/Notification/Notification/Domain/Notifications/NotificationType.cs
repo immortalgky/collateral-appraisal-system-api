@@ -12,5 +12,6 @@ public enum NotificationType
     DocumentLineItemDeclined,
     ReportReady,
     ReportFailed,
-    QuotationAutoAssignIncomplete
+    QuotationAutoAssignIncomplete,
+    AssignmentEmailFailed
 }

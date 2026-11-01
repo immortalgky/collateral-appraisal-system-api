@@ -47,7 +47,7 @@ public class ResendAssignmentEmailCommandHandler(
             : (@case.FollowupName, @case.FollowupUserId);
 
         // The admin is waiting for an answer: an email that would reach nobody, or name nobody, is refused, not sent.
-        await dispatcher.QueueAsync(email, @case.AssigneeCompanyId, responsible, responsibleUserId, sentBy,
+        await dispatcher.QueueAsync(email, @case.AppraisalNumber, @case.AssigneeCompanyId, responsible, responsibleUserId, sentBy,
             refuseIfIncomplete: true, ct);
         await emails.AddAsync(email, ct);
         await unitOfWork.SaveChangesAsync(ct);

@@ -42,6 +42,7 @@ public class ExtoAssignmentEmailDispatchTests
     public ExtoAssignmentEmailDispatchTests()
     {
         _appraisal = AppraisalAggregate.Create(Guid.NewGuid(), "Initial", "Normal", DateTime.Now);
+        _appraisal.SetAppraisalNumber("69042630");
         _appraisal.AssignAdmin();
         _assignment = _appraisal.Assignments.Single();
         // What AssignAppraisalCommandHandler recorded before the workflow landed on int-offline-book-keyin.
@@ -105,6 +106,8 @@ public class ExtoAssignmentEmailDispatchTests
         Assert.Equal("<p>เรียน บริษัท แอคมี จำกัด</p><p>ผู้รับผิดชอบ : สมชาย ใจดี</p>", sent.HtmlBody);
         Assert.Equal([new EmailAttachmentRefData("document", DocumentId.ToString())], sent.AttachmentRefs);
         Assert.Equal("P5229", sent.AssignedBy);
+        Assert.Equal("69042630", sent.AppraisalNumber); // for the failure notice (#624)
+        Assert.Equal("บริษัท แอคมี จำกัด", sent.CompanyName);
         // The row holds what was sent, Queued (never picked again) until Notification confirms.
         Assert.Equal(sent.HtmlBody, row.BodyHtml);
         Assert.Equal(AssignmentEmailStatus.Queued, row.Status);
@@ -135,7 +138,7 @@ public class ExtoAssignmentEmailDispatchTests
     [Theory]
     [InlineData("  ")]
     [InlineData(" ; , ")] // separators only: the Notification consumer would find no address in it
-    public async Task A_company_without_an_email_fails_the_email_and_sends_nothing(string companyEmail)
+    public async Task A_company_without_an_email_is_still_handed_to_Notification_with_no_To(string companyEmail)
     {
         var row = AssignmentEmail.ToSend(_appraisal.Id, _assignment.Id, [], [AssignmentEmailCcRoles.IntAdminAll],
             "subject", "<p>body</p>", []);
@@ -145,16 +148,16 @@ public class ExtoAssignmentEmailDispatchTests
 
         await LandOnKeyerAsync();
 
-        Assert.Null(Published());
-        Assert.Equal(AssignmentEmailStatus.Failed, row.Status);
-        Assert.Contains("no email address", row.FailureReason);
-        // The handover itself still saves, with the Failed row.
+        // Notification's no-To branch marks it Failed and notifies the admins (#624).
+        Assert.Empty(Published()!.To);
+        Assert.Equal(AssignmentEmailStatus.Queued, row.Status);
+        // The handover itself still saves.
         Assert.Equal(AssignmentStatus.InProgress, _assignment.AssignmentStatus);
         await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task An_unknown_company_fails_the_email_with_its_own_reason()
+    public async Task An_unknown_company_is_still_handed_to_Notification_with_no_To()
     {
         var row = AssignmentEmail.ToSend(_appraisal.Id, _assignment.Id, [], [], "subject", "<p>body</p>", []);
         _emails.GetLatestUnsentAsync(_assignment.Id, Arg.Any<CancellationToken>()).Returns(row);
@@ -162,9 +165,10 @@ public class ExtoAssignmentEmailDispatchTests
 
         await LandOnKeyerAsync();
 
-        Assert.Null(Published());
-        Assert.Equal(AssignmentEmailStatus.Failed, row.Status);
-        Assert.Contains("No company is assigned", row.FailureReason);
+        var published = Published()!;
+        Assert.Empty(published.To);
+        Assert.Null(published.CompanyName);
+        Assert.Equal(AssignmentEmailStatus.Queued, row.Status);
     }
 
     [Fact]
@@ -279,8 +283,7 @@ public class ExtoAssignmentEmailDispatchTests
             Substitute.For<IDateTimeProvider>());
 
         var composer = new AssignmentEmailComposer(_caseReader, _companies, _sender, new ConfigurationBuilder().Build());
-        var dispatcher = new AssignmentEmailDispatcher(_emails, composer, _companies, _users, _outbox,
-            NullLogger<AssignmentEmailDispatcher>.Instance);
+        var dispatcher = new AssignmentEmailDispatcher(_emails, composer, _companies, _users, _outbox);
 
         return new InternalAssignedIntegrationEventHandler(
             repo, _uow, fees, NullLogger<InternalAssignedIntegrationEventHandler>.Instance, inboxGuard, dispatcher);
@@ -293,8 +296,7 @@ public class ExtoAssignmentEmailDispatchTests
             Substitute.For<ISender>(), new ConfigurationBuilder().Build()),
         Substitute.For<ICompanyLookupService>(),
         Substitute.For<IUserLookupService>(),
-        Substitute.For<IIntegrationEventOutbox>(),
-        NullLogger<AssignmentEmailDispatcher>.Instance);
+        Substitute.For<IIntegrationEventOutbox>());
 
     private static ConsumeContext<InternalAssignedIntegrationEvent> Context(InternalAssignedIntegrationEvent message)
     {

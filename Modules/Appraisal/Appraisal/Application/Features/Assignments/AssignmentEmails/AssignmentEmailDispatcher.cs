@@ -15,11 +15,12 @@ public class AssignmentEmailDispatcher(
     AssignmentEmailComposer composer,
     ICompanyLookupService companyLookup,
     IUserLookupService userLookup,
-    IIntegrationEventOutbox outbox,
-    ILogger<AssignmentEmailDispatcher> logger)
+    IIntegrationEventOutbox outbox)
 {
+    /// <param name="appraisalNumber">App No., carried for the failure notice (#624).</param>
     /// <param name="keyerUserId">The keyer the case was handed to, a username.</param>
-    public async Task QueueExtoAsync(AppraisalAssignment assignment, string? keyerUserId, CancellationToken ct)
+    public async Task QueueExtoAsync(
+        AppraisalAssignment assignment, string? appraisalNumber, string? keyerUserId, CancellationToken ct)
     {
         var appraisalId = assignment.AppraisalId;
         var email = await emails.GetLatestUnsentAsync(assignment.Id, ct);
@@ -33,7 +34,7 @@ public class AssignmentEmailDispatcher(
         email ??= AssignmentEmail.ToSend(
             appraisalId, assignment.Id, template!.ExtraTo, template.Cc, template.Subject, template.BodyHtml, []);
 
-        await QueueAsync(email, assignment.AssigneeCompanyId, responsible, keyerUserId, assignment.AssignedBy,
+        await QueueAsync(email, appraisalNumber, assignment.AssigneeCompanyId, responsible, keyerUserId, assignment.AssignedBy,
             refuseIfIncomplete: false, ct);
         // Added only once queued (or failed): a failed read must not leave a Pending template row for the caller's save.
         if (template is not null)
@@ -43,14 +44,16 @@ public class AssignmentEmailDispatcher(
     /// <summary>
     /// Fills the company / responsible placeholders, resolves the recipients and hands <paramref name="email"/> to the
     /// sender (outbox): the EXTO handover and a resend from the slip (#623). Every read happens before the email
-    /// changes, so a failed read leaves nothing half-queued. An email with no To is marked Failed, not published.
+    /// changes, so a failed read leaves nothing half-queued. An email with no To is still published: Notification marks
+    /// it Failed and tells the admins (#624).
     /// </summary>
     /// <param name="responsibleUserId">The keyer / follow-up officer as a username, for the Cc chips that name them.</param>
     /// <param name="refuseIfIncomplete">A resend, with the admin waiting for the answer: an email that would reach nobody,
     /// or whose <c>{{company}}</c> / <c>{{responsible}}</c> is still unknown, is a 400 before anything is queued.
-    /// The handover still hands it over, and an email with no To fails there (#621/#624).</param>
+    /// The handover still hands it over, and Notification fails an email with no To (#624).</param>
     public async Task QueueAsync(
         AssignmentEmail email,
+        string? appraisalNumber,
         string? assigneeCompanyId,
         string? responsible,
         string? responsibleUserId,
@@ -79,18 +82,6 @@ public class AssignmentEmailDispatcher(
 
         email.Queue(companyName, responsible, to, cc);
 
-        if (to.Count == 0)
-        {
-            var reason = company is null
-                ? "No company is assigned, or it could not be found, and no other To address was added."
-                : "The company has no email address and no other To address was added.";
-            email.Fail(reason);
-            logger.LogWarning(
-                "Assignment email {EmailId} for appraisal {AppraisalId} (company {CompanyId}) marked Failed: {Reason}",
-                email.Id, email.AppraisalId, company?.Id, reason);
-            return;
-        }
-
         outbox.Publish(new AssignmentEmailRequestedIntegrationEvent
         {
             AppraisalId = email.AppraisalId,
@@ -101,7 +92,9 @@ public class AssignmentEmailDispatcher(
             HtmlBody = email.BodyHtml,
             AttachmentRefs = email.Attachments
                 .Select(a => new EmailAttachmentRefData("document", a.DocumentId.ToString())).ToList(),
-            AssignedBy = assignedBy
+            AssignedBy = assignedBy,
+            AppraisalNumber = appraisalNumber,
+            CompanyName = companyName
         }, correlationId: email.AppraisalId.ToString());
 
         bool Unknown(string placeholder, string? value) =>

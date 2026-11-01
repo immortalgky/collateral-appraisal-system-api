@@ -6,7 +6,6 @@ using Auth.Contracts.Companies;
 using Auth.Contracts.Users;
 using MediatR;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shared.Data.Outbox;
 using Shared.Exceptions;
@@ -71,7 +70,7 @@ public class ResendAssignmentEmailTests
     {
         var composer = new AssignmentEmailComposer(_caseReader, _companies, Substitute.For<ISender>(), _configuration);
         var dispatcher = new AssignmentEmailDispatcher(
-            _emails, composer, _companies, _users, _outbox, NullLogger<AssignmentEmailDispatcher>.Instance);
+            _emails, composer, _companies, _users, _outbox);
         return new ResendAssignmentEmailCommandHandler(_user, _caseReader, _emails, dispatcher, _configuration, _uow);
     }
 

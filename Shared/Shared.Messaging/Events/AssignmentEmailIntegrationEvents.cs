@@ -21,6 +21,11 @@ public record AssignmentEmailRequestedIntegrationEvent : IntegrationEvent
 
     /// <summary>For the failure notice (bank code): the admin who assigned the case, or who pressed ส่งอีกครั้ง.</summary>
     public string? AssignedBy { get; init; }
+
+    /// <summary>App No. and company name, for the failure notice (#624).</summary>
+    public string? AppraisalNumber { get; init; }
+
+    public string? CompanyName { get; init; }
 }
 
 /// <summary>Published by the Notification module once the gateway accepted an assignment email.</summary>
@@ -28,4 +33,15 @@ public record AssignmentEmailSentIntegrationEvent : IntegrationEvent
 {
     public Guid AppraisalId { get; init; }
     public Guid EmailId { get; init; }
+}
+
+/// <summary>
+/// Published by the Notification module when an assignment email could not be sent (#624): retries ran out, the
+/// gateway rejected it for good, or it had no To. The Appraisal module marks the row Failed with the reason.
+/// </summary>
+public record AssignmentEmailFailedIntegrationEvent : IntegrationEvent
+{
+    public Guid AppraisalId { get; init; }
+    public Guid EmailId { get; init; }
+    public string Reason { get; init; } = default!;
 }
