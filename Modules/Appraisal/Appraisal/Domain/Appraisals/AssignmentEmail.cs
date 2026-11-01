@@ -27,6 +27,9 @@ public class AssignmentEmail : Entity<Guid>
 
     public List<AssignmentEmailAttachment> Attachments { get; private set; } = [];
 
+    /// <summary>Why the email was not sent, when <see cref="AssignmentEmailStatus.Failed"/>.</summary>
+    public string? FailureReason { get; private set; }
+
     private AssignmentEmail()
     {
         // For EF Core
@@ -80,6 +83,14 @@ public class AssignmentEmail : Entity<Guid>
         string.IsNullOrWhiteSpace(value)
             ? html
             : html.Replace(placeholder, System.Net.WebUtility.HtmlEncode(value.Trim()), StringComparison.Ordinal);
+
+    /// <summary>The email cannot go out. Only a Queued email fails, so a Sent one is never marked Failed afterwards.</summary>
+    public void Fail(string reason)
+    {
+        if (Status != AssignmentEmailStatus.Queued) return;
+        Status = AssignmentEmailStatus.Failed;
+        FailureReason = reason;
+    }
 
     /// <summary>The gateway accepted it. Only a Queued email becomes Sent, so a redelivered confirmation changes nothing.</summary>
     public void MarkSent()

@@ -52,6 +52,13 @@ public class ExtoAssignmentEmailDispatchTests
             .Returns(new CompanyLookupDto(CompanyId, "Acme Appraisal", null, true, "jobs@acme.co.th", "บริษัท แอคมี จำกัด"));
         _users.GetByUsernamesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, UserLookupDto> { ["K0001"] = new("K0001", "สมชาย", "ใจดี") });
+        // What Auth answers for the Cc role chips (it already drops unusable users and blank emails).
+        _users.GetEmailsInRoleAsync("IntAdmin", Arg.Any<CancellationToken>())
+            .Returns(["admin1@bank.co.th", "Boss@bank.co.th"]);
+        _users.GetEmailsAsync(Arg.Is<IEnumerable<string>>(u => u.SequenceEqual(new[] { "K0001" })), Arg.Any<CancellationToken>())
+            .Returns(["keyer@bank.co.th"]);
+        _users.GetSupervisorEmailsAsync("K0001", Arg.Any<CancellationToken>())
+            .Returns(["lead@bank.co.th", "admin1@bank.co.th"]);
     }
 
     private AssignmentEmail PendingRow() => AssignmentEmail.ToSend(
@@ -92,7 +99,8 @@ public class ExtoAssignmentEmailDispatchTests
         Assert.Equal(_appraisal.Id, sent.AppraisalId);
         Assert.Equal(row.Id, sent.EmailId);
         Assert.Equal(["jobs@acme.co.th", "extra@acme.co.th"], sent.To);
-        Assert.Equal(["boss@bank.co.th"], sent.Cc); // role tokens are expanded in a later slice (#621)
+        // The IntAdmin chip expanded, the literal kept, an address both give listed once.
+        Assert.Equal(["admin1@bank.co.th", "Boss@bank.co.th"], sent.Cc);
         Assert.Equal("ขอนำส่งงานประเมิน ลูกค้าราย นายสมศักดิ์ 69042630", sent.Subject);
         Assert.Equal("<p>เรียน บริษัท แอคมี จำกัด</p><p>ผู้รับผิดชอบ : สมชาย ใจดี</p>", sent.HtmlBody);
         Assert.Equal([new EmailAttachmentRefData("document", DocumentId.ToString())], sent.AttachmentRefs);
@@ -108,6 +116,67 @@ public class ExtoAssignmentEmailDispatchTests
             _uow.SaveChangesAsync(Arg.Any<CancellationToken>());
         });
         await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Removed_role_chips_are_not_expanded()
+    {
+        var row = AssignmentEmail.ToSend(_appraisal.Id, _assignment.Id, [], ["boss@bank.co.th"], "subject", "<p>body</p>", []);
+        _emails.GetLatestUnsentAsync(_assignment.Id, Arg.Any<CancellationToken>()).Returns(row);
+
+        await LandOnKeyerAsync();
+
+        Assert.Equal(["boss@bank.co.th"], Published()!.Cc);
+        await _users.DidNotReceive().GetEmailsInRoleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _users.DidNotReceive().GetEmailsAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>());
+        await _users.DidNotReceive().GetSupervisorEmailsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("  ")]
+    [InlineData(" ; , ")] // separators only: the Notification consumer would find no address in it
+    public async Task A_company_without_an_email_fails_the_email_and_sends_nothing(string companyEmail)
+    {
+        var row = AssignmentEmail.ToSend(_appraisal.Id, _assignment.Id, [], [AssignmentEmailCcRoles.IntAdminAll],
+            "subject", "<p>body</p>", []);
+        _emails.GetLatestUnsentAsync(_assignment.Id, Arg.Any<CancellationToken>()).Returns(row);
+        _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>())
+            .Returns(new CompanyLookupDto(CompanyId, "Acme Appraisal", null, true, companyEmail, "บริษัท แอคมี จำกัด"));
+
+        await LandOnKeyerAsync();
+
+        Assert.Null(Published());
+        Assert.Equal(AssignmentEmailStatus.Failed, row.Status);
+        Assert.Contains("no email address", row.FailureReason);
+        // The handover itself still saves, with the Failed row.
+        Assert.Equal(AssignmentStatus.InProgress, _assignment.AssignmentStatus);
+        await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task An_unknown_company_fails_the_email_with_its_own_reason()
+    {
+        var row = AssignmentEmail.ToSend(_appraisal.Id, _assignment.Id, [], [], "subject", "<p>body</p>", []);
+        _emails.GetLatestUnsentAsync(_assignment.Id, Arg.Any<CancellationToken>()).Returns(row);
+        _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>()).Returns((CompanyLookupDto?)null);
+
+        await LandOnKeyerAsync();
+
+        Assert.Null(Published());
+        Assert.Equal(AssignmentEmailStatus.Failed, row.Status);
+        Assert.Contains("No company is assigned", row.FailureReason);
+    }
+
+    [Fact]
+    public async Task A_master_data_address_list_is_sent_one_address_each()
+    {
+        _emails.GetLatestUnsentAsync(_assignment.Id, Arg.Any<CancellationToken>()).Returns(PendingRow());
+        _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>())
+            .Returns(new CompanyLookupDto(CompanyId, "Acme Appraisal", null, true, "jobs@acme.co.th; ops@acme.co.th", null));
+
+        await LandOnKeyerAsync();
+
+        Assert.Equal(["jobs@acme.co.th", "ops@acme.co.th", "extra@acme.co.th"], Published()!.To);
     }
 
     [Fact]
@@ -147,7 +216,8 @@ public class ExtoAssignmentEmailDispatchTests
         Assert.NotNull(sent);
         Assert.Equal(added.Id, sent.EmailId);
         Assert.Equal(["jobs@acme.co.th"], sent.To);
-        Assert.Empty(sent.Cc); // the template's Cc is role tokens only
+        // The template's EXTO chips: every IntAdmin, the keyer, the keyer's supervisors.
+        Assert.Equal(["admin1@bank.co.th", "Boss@bank.co.th", "keyer@bank.co.th", "lead@bank.co.th"], sent.Cc);
         Assert.Equal("ขอนำส่งงานประเมิน ลูกค้าราย นายสมศักดิ์ มั่นคง 69042630", sent.Subject);
         Assert.Contains("<p>เรียน บริษัท แอคมี จำกัด</p>", sent.HtmlBody);
         Assert.Contains("ผู้รับผิดชอบ : สมชาย ใจดี<br>", sent.HtmlBody);
@@ -209,7 +279,8 @@ public class ExtoAssignmentEmailDispatchTests
             Substitute.For<IDateTimeProvider>());
 
         var composer = new AssignmentEmailComposer(_caseReader, _companies, _sender, new ConfigurationBuilder().Build());
-        var dispatcher = new AssignmentEmailDispatcher(_emails, composer, _companies, _users, _outbox);
+        var dispatcher = new AssignmentEmailDispatcher(_emails, composer, _companies, _users, _outbox,
+            NullLogger<AssignmentEmailDispatcher>.Instance);
 
         return new InternalAssignedIntegrationEventHandler(
             repo, _uow, fees, NullLogger<InternalAssignedIntegrationEventHandler>.Instance, inboxGuard, dispatcher);
@@ -222,7 +293,8 @@ public class ExtoAssignmentEmailDispatchTests
             Substitute.For<ISender>(), new ConfigurationBuilder().Build()),
         Substitute.For<ICompanyLookupService>(),
         Substitute.For<IUserLookupService>(),
-        Substitute.For<IIntegrationEventOutbox>());
+        Substitute.For<IIntegrationEventOutbox>(),
+        NullLogger<AssignmentEmailDispatcher>.Instance);
 
     private static ConsumeContext<InternalAssignedIntegrationEvent> Context(InternalAssignedIntegrationEvent message)
     {

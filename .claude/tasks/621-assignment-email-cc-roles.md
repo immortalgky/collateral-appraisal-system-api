@@ -1,0 +1,82 @@
+# #621 Assignment email: expand Cc role chips
+
+Branch `immortalgky/implement-621-ticket` (worktree `ribboneel`), off the local integration branch
+`feat/617-admin-company-email` @ e13d7f58 (#620 merged). Parent spec #617.
+
+## Flow
+At queue time (`AssignmentEmailDispatcher.QueueExtoAsync`, before anything is mutated) the stored Cc is expanded:
+- literal address → kept
+- `IntAdminAll` → `IUserLookupService.GetEmailsInRoleAsync("IntAdmin")`
+- `Keyer` / `FollowupStaff` → `GetEmailsAsync([responsible username])`
+- `KeyerSupervisor` / `FollowupSupervisor` → `GetSupervisorEmailsAsync(responsible username)`
+- a token the row no longer holds (chip removed) is not expanded; result de-duplicated (case-insensitive)
+
+Auth contract queries (Auth module, own DbContext): only users that are `IsUsable` (active, inside any access window)
+and have a non-blank email. Supervisors = members of non-deleted groups that monitor a non-deleted group the user is
+in, the monitor group named `IntAdmin` excluded.
+
+No deliverable To (company has no email, no extra To) → row `Failed` with `FailureReason`, nothing published.
+
+## Todo
+- [x] Auth contract: `GetEmailsInRoleAsync`, `GetEmailsAsync`, `GetSupervisorEmailsAsync` + integration tests
+- [x] Domain: `AssignmentEmail.FailureReason`, `Fail(reason)` (Queued only)
+- [x] Migration: FailureReason folded into `AddAssignmentEmails` (remove + re-add)
+- [x] Dispatcher: Cc expansion + Failed on no To; dispatch-seam tests
+- [x] Matt code-review (Standards + Spec): all 6 AC met. Fixed: the no-To comment (an extra To still sends, story 50),
+      dropped the unasked-for self-exclusion from the supervisor query, one `Clean` helper for To/Cc addresses
+- [x] /code-review r1 (11 findings): fixed separator-only To ("; ,") now Failed (addresses split like EmailRecipients),
+      a reason for "company not found", a warning log on Failed, the supervisor test no longer touches the seeded IntAdmin
+      group. Open question to the user: IsSystem accounts in the IntAdmin Cc.
+- [x] /code-review r2 (9 findings): fixed the reason when no company id / not found, the reason and company id in the
+      warning log, tests for the not-found reason and a split "a; b" To, Hard/SoftDeleteGroupAsync names
+- [x] /code-review r3 (4 findings): fixed the log to carry the looked-up company id, not the raw assignment string.
+      No new critical/high/medium → loop stopped. Open question to the user: IsAssignable at handover (pre-existing, #620).
+- [x] test-automator gates: solution build 0 errors; unit 12 projects 4,590 passed / 1 known skip (Appraisal 1623,
+      Auth 368, Notification 38, Workflow 1219+1 skip); has-pending-model-changes (AppraisalDbContext) clean; Testcontainers
+      Auth + Appraisal integration namespaces + UserLookupEmailTests 435/435 (attempts 1–2 died on an orphaned
+      Testcontainers session, not on assertions).
+- [ ] User test → merge `--no-ff` into the integration branch, close #621 by hand
+
+## Settled decisions
+- IntAdmin exclusion is on the monitor side (user, 2026-11-01): an `IntAdmin` group monitoring the keyer's group does
+  not count as a supervisor, so a removed `IntAdminAll` chip cannot come back through the supervisor chip. The
+  keyer's own membership in the IntAdmin group still counts.
+- FailureReason is folded into `AddAssignmentEmails` (user, 2026-11-01; one migration per topic). A local DB that
+  already applied it must roll back first.
+- Keyer and follow-up tokens both resolve to the responsible person the dispatcher was given (EXTO: the keyer);
+  #622 passes the follow-up officer.
+
+## Settled decisions (do not re-raise)
+- The IntAdmin group is matched by name: `20260729130000_UpdateSeed_BankCompanyScopes.sql`, `GetAppraisalBrief` and the
+  workflow pool already depend on the group named `IntAdmin`.
+- `UsableWithEmail` restates `ApplicationUser.IsUsable` in a form EF can translate; the doc comment links the two.
+- A company with no email but an admin-added extra To still sends (story 50: Failed only with no deliverable To).
+- The failure reason is an English string (house rule); the UI localises.
+- A supervisor who is also the keyer is listed (no self-exclusion); Cc de-duplicates.
+- Declined in r1: Cc expanded before the To check (keeps reads before writes; failure is rare); the responsible user
+  looked up twice (one extra round-trip); `GetEmailsInRoleAsync` applying IsUsable while `GetUsernamesInRoleAsync`
+  checks IsActive only (the spec asks for IsUsable here); "IntAdmin" constants per module (repo style); IntAdminAll
+  not including the Admin role (spec says IntAdmin); tests using DateTime.Now with a ±1 day margin.
+- Declined in r2: a non-address company email such as "-" (the company master validates `EmailAddress()` on create and
+  update; a bad address reaching the gateway faults, #624); the preview showing the raw company email (display only);
+  the delimiter rule copied from Notification's EmailRecipients (Appraisal cannot reference Notification.Infrastructure;
+  the comment links them); the consumer's empty-To guard kept as defence; the test's IntAdmin group being
+  Company-scoped (the exclusion is by name, on purpose).
+- Declined in r3: the two null-company paths sharing one reason (the log has the id); a test for the
+  unparseable-id path (pre-existing TryParse from #620); `IsAssignable` not checked at handover (pre-existing #620
+  behaviour, raised with the user).
+
+## Review
+- Auth.Contracts `IUserLookupService`: `GetEmailsInRoleAsync`, `GetEmailsAsync`, `GetSupervisorEmailsAsync`. One filter
+  (`UsableWithEmail`: active, inside any access window, non-blank email, `ApplicationNow`). Supervisors via
+  GroupMonitoring joined through `Groups` (soft-delete filter on both sides), monitor group `IntAdmin` excluded.
+- Domain `AssignmentEmail`: `FailureReason` (nvarchar(1000), folded into `AddAssignmentEmails`, same id), `Fail(reason)`
+  only from Queued.
+- `AssignmentEmailDispatcher.QueueExtoAsync`: expands the stored Cc before any write; IntAdminAll → role emails,
+  Keyer/FollowupStaff → the responsible user's email, *Supervisor → their supervisors; literals kept; split on ',' ';'
+  and de-duplicated. No To left → Failed with a reason + warning log, nothing published.
+- Tests: `UserLookupEmailTests` (4, Testcontainers); `ExtoAssignmentEmailDispatchTests` 10 (Cc expansion, removed chips,
+  no-email / separator-only / unknown company → Failed, split To).
+- Security: recipients only from Auth (usable users) and the validated row; no new endpoint; no PII in logs (ids only).
+- Local DB: if `20261031033255_AddAssignmentEmails` was already applied, roll it back
+  (`dotnet ef database update 20261026030157_ExpandedFieldLenghtPaymentOrder --context AppraisalDbContext`) and re-run migrate.

@@ -21,6 +21,22 @@ public interface IUserLookupService
         CancellationToken ct = default);
 
     /// <summary>
+    /// The emails of the users in <paramref name="role"/> who may use the system now (active, inside any access
+    /// window), blank emails dropped.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetEmailsInRoleAsync(string role, CancellationToken ct);
+
+    /// <summary>The emails of those of <paramref name="usernames"/> who may use the system now, blank emails dropped.</summary>
+    Task<IReadOnlyList<string>> GetEmailsAsync(IEnumerable<string> usernames, CancellationToken ct);
+
+    /// <summary>
+    /// The emails of <paramref name="username"/>'s supervisors: usable members of the groups that monitor (Group
+    /// Monitoring) any group the user is in, de-duplicated. The IntAdmin group never counts as a supervisor group:
+    /// it monitors everyone, and is reached through its own role instead.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetSupervisorEmailsAsync(string username, CancellationToken ct);
+
+    /// <summary>
     /// Resolves a single user by their <paramref name="employeeId"/> (UserName / bank code, e.g. P5229)
     /// and returns their identity + org-structure snapshot (AO code, cost center, department).
     /// Returns null when the user does not exist or is inactive.
