@@ -70,7 +70,7 @@ public class AssignmentFeeService(
 
         // Step 2 — The base (FeeCode "01") line. An admin's override is never recomputed, and neither is any
         // other non-system 01. A system 01 is brought in line with the CURRENT source only on a genuine
-        // (re)assignment (repriceSystemBase: the row was Pending, e.g. routed back to the admin queue); any other
+        // (re)assignment (repriceSystemBase: the row was Pending); any other
         // call is a replay or a later route-back re-fire, which must not rewrite a base that may already be billed,
         // nor add one to a fee that already holds items (the original HasItems safety).
         var existingBase = fee.Items.FirstOrDefault(i => i.FeeCode == AppraisalFee.BaseFeeCode);

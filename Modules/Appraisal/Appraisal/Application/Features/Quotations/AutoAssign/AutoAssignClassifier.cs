@@ -27,13 +27,17 @@ public static class AutoAssignClassifier
         if (state.AssignmentStatus is null)
             return new(AutoAssignOutcome.Skipped, AutoAssignReason.NoAssignment, "No assignment found for this appraisal");
 
-        // The return-to-queue reset of the assignment runs in an async consumer, so a task can be back here
-        // before its assignment is Pending again. That needs a person, not a silent skip.
+        // A case routed back to appraisal-assignment keeps its row Assigned/InProgress by design (only a
+        // company decline/return or a failed company selection resets it to Pending): the Administration
+        // page is locked for it and the admin forwards it from the Decision Summary page. That is the
+        // normal state, not a timing gap — except that the reset runs in an async consumer, so such a case
+        // can briefly look the same.
+        // Auto-assign must not touch it: it needs a person.
         if (state.AssignmentStatus != AssignmentStatusVo.Pending.Code
             && state.PendingActivityId == AppraisalAssignState.AssignmentActivityId)
             return new(AutoAssignOutcome.Failed, AutoAssignReason.AssignmentNotReset,
-                $"Back at appraisal-assignment but the assignment record is not Pending yet (status '{state.AssignmentStatus}'). " +
-                "Assign it on the Administration page.");
+                $"Back at appraisal-assignment after a route-back (assignment status '{state.AssignmentStatus}'). " +
+                "Send it on from the Decision Summary page.");
 
         if (state.AssignmentStatus != AssignmentStatusVo.Pending.Code)
             return new(AutoAssignOutcome.Skipped, AutoAssignReason.NotPending,

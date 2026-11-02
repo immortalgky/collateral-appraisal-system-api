@@ -56,16 +56,6 @@ public class SetOfflineExternalEngagementCommandHandler(
                 $"(assignment is '{assignment.AssignmentStatus.Code}' via '{assignment.AssignmentMethod}'). " +
                 "Only an appraisal routed with the EXTO decision can record an offline engagement.");
 
-        // A Pending row that was assigned before (AssignedAt is stamped only by Assign()) is a routed-back one:
-        // ReturnToAssignmentQueue keeps the selections, including method "Offline", but the workflow is at
-        // appraisal-assignment — there is no keyer, and Assign() below would hand the case on (and re-price it)
-        // behind the admin's back. A Pending row never assigned (an admin's EXTO draft, or the instant before
-        // InternalAssignedIntegrationEventHandler has consumed the event) is still a legitimate first key-in.
-        if (assignment.AssignmentStatus == AssignmentStatus.Pending && assignment.AssignedAt is not null)
-            throw new BadRequestException(
-                $"Appraisal '{command.AppraisalId}' is back at appraisal assignment awaiting the admin's decision. " +
-                "The off-system engagement can be recorded once it is on the key-in task again.");
-
         // Assign() below unconditionally rewinds the row to Assigned. That is correct while the
         // keyer still owns the work, but silently demoting an assignment the bank has already
         // reviewed would reopen the invoicing gate and discard SubmittedAt. Once the book has been
