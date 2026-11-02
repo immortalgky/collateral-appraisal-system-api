@@ -411,24 +411,14 @@ public class AppraisalAssignment : Entity<Guid>
         string.Equals(assignmentMethod, OfflineAssignmentMethod, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Return the row to the admin assignment queue after the workflow routed the case back to
-    /// appraisal-assignment. AssignAppraisalCommandHandler only accepts a Pending assignment, so
-    /// without this a routed-back case is stranded: the admin's re-decision is rejected with
-    /// "No pending assignment found" and there is no other way to move the appraisal.
-    ///
-    /// Selections (company / assignee / method) are deliberately left on the row so the admin sees
-    /// what was previously chosen; Assign() overwrites them on the next decision.
-    /// Idempotent, and a no-op from terminal states, which never route back here.
+    /// No company holds the job any more (it declined or returned it at ext-appraisal-assignment, or company
+    /// selection failed): Assigned or InProgress → Pending so the admin can pick again. A no-op from any other status; every other route-back to
+    /// appraisal-assignment deliberately leaves the row where it is.
     /// </summary>
     public void ReturnToAssignmentQueue()
     {
-        if (AssignmentStatus == AssignmentStatus.Pending) return;
-
-        if (AssignmentStatus != AssignmentStatus.Assigned
-            && AssignmentStatus != AssignmentStatus.InProgress)
-            return;
-
-        AssignmentStatus = AssignmentStatus.Pending;
+        if (AssignmentStatus == AssignmentStatus.Assigned || AssignmentStatus == AssignmentStatus.InProgress)
+            AssignmentStatus = AssignmentStatus.Pending;
     }
 
     /// <summary>

@@ -147,23 +147,6 @@ public class SetOfflineExternalEngagementTests
         Assert.Equal("P5229", assignment.AssignedBy);
     }
 
-    [Fact]
-    public async Task A_routed_back_Pending_row_is_refused_and_nothing_is_written_or_priced()
-    {
-        // ReturnToAssignmentQueue keeps AssignmentMethod "Offline" and AssignedAt, but the workflow is back at
-        // appraisal-assignment: there is no keyer, and Assign() would hand the case on behind the admin.
-        var (appraisal, assignment) = Seed("P5229");
-        assignment.ReturnToAssignmentQueue();
-        Assert.Equal(AssignmentStatus.Pending, assignment.AssignmentStatus);
-
-        var ex = await Assert.ThrowsAsync<BadRequestException>(() => Handle(appraisal.Id));
-
-        Assert.Contains("not on the key-in task", ex.Message);
-        Assert.Equal(AssignmentStatus.Pending, assignment.AssignmentStatus);
-        Assert.Null(assignment.AssigneeCompanyId);
-        await _fees.DidNotReceiveWithAnyArgs().EnsureAssignmentFeeItemsAsync(default, default, default!, default, default);
-    }
-
     [Theory]
     [InlineData(false)] // an admin's EXTO draft with no company
     [InlineData(true)]  // an EXTO draft naming a company (unvalidated), or the admin's pick before hand-over

@@ -65,6 +65,7 @@ public static class AppraisalModule
         // Register quotation activity logger (audit trail for quotation lifecycle)
         services.AddScoped<IQuotationActivityLogger, QuotationActivityLogger>();
         services.AddScoped<IQuotationAutoAssignStateReader, QuotationAutoAssignStateReader>();
+        services.AddScoped<QuotationAssignmentGuard>();
 
         // Generates the quotation-summary PDF and links it to the quotation aggregate.
         services.AddScoped<IQuotationDocumentGenerator, QuotationDocumentGenerator>();

@@ -177,7 +177,9 @@ public class TaskAssignmentConfigAdminEndpoints : ICarterModule
 
         var activities = allActivities!
             .Where(a => a.Type is ActivityTypes.TaskActivity or ActivityTypes.FanOutTaskActivity
-                        or ActivityTypes.InternalFollowupSelectionActivity)
+                        or ActivityTypes.InternalFollowupSelectionActivity
+                        // pending-approval: only its excludeAssigneesFrom is read (Conflicted members, #626).
+                        or ActivityTypes.ApprovalActivity)
             .Select(a => new WorkflowActivityOptionDto(
                 a.Id,
                 a.Type,

@@ -1,3 +1,4 @@
+using Workflow.Workflow.Activities.Approval;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Activities.Factories;
 using Workflow.Workflow.Engine;
@@ -1149,5 +1150,47 @@ public class WorkflowEngineTests
             workflowInstance, "Workflow completed successfully", Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// A committee round that could never resolve must reach the caller as an exception, so the submit that
+    /// led to it rolls back. Turning it into WorkflowStatus.Failed would kill the instance: Failed is terminal.
+    /// </summary>
+    [Fact]
+    public async Task ResumeWorkflowAsync_WhenTheNextApprovalRoundCannotResolve_PropagatesAndDoesNotFailTheWorkflow()
+    {
+        var workflowInstanceId = Guid.NewGuid();
+        var activityId = "test-activity";
+        var workflowInstance = CreateTestWorkflowInstance();
+        workflowInstance.SetCurrentActivity(activityId);
+        workflowInstance.UpdateStatus(WorkflowStatus.Suspended, "Waiting for submit");
+        var workflowSchema = CreateTestWorkflowSchema();
+
+        _persistenceService.GetWorkflowInstanceAsync(workflowInstanceId, Arg.Any<CancellationToken>())
+            .Returns(workflowInstance);
+        _persistenceService.GetSchemaByVersionIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(workflowSchema);
+        _stateManager.ValidateWorkflowState(workflowInstance, activityId, WorkflowStatus.Suspended)
+            .Returns(new StateValidationResult { IsValid = true });
+
+        // The submitted task completes, then the approval activity it leads to refuses to open.
+        _activityFactory.CreateActivity("TaskActivity").Returns(_mockActivity);
+        _mockActivity.ResumeAsync(Arg.Any<ActivityContext>(), Arg.Any<Dictionary<string, object>>(), Arg.Any<CancellationToken>())
+            .Returns(ActivityResult.Success(new Dictionary<string, object>()));
+        _flowControlManager.DetermineNextActivityAsync(
+                Arg.Any<WorkflowSchema>(), activityId, Arg.Any<ActivityResult>(),
+                Arg.Any<Dictionary<string, object>>(), Arg.Any<CancellationToken>())
+            .Returns("end");
+        var approval = Substitute.For<IWorkflowActivity>();
+        approval.ExecuteAsync(Arg.Any<ActivityContext>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new ApprovalRoundUnresolvableException("Committee cannot decide this appraisal"));
+        _activityFactory.CreateActivity("EndActivity").Returns(approval);
+
+        var act = () => _workflowEngine.ResumeWorkflowAsync(workflowInstanceId, activityId, "submitter");
+
+        await act.Should().ThrowAsync<ApprovalRoundUnresolvableException>();
+        await _lifecycleManager.DidNotReceive().TransitionWorkflowStateAsync(
+            Arg.Any<WorkflowInstance>(), WorkflowStatus.Failed, Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
     #endregion
+
 }

@@ -29,6 +29,17 @@ public interface ISegregationOfDutiesGuard
         string activityId,
         string username,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The <paramref name="usernames"/> disqualified from working <paramref name="activityId"/> on
+    /// <paramref name="instance"/>, each mapped to the activity that disqualifies them. Same rule as
+    /// <see cref="GetBlockingActivityAsync"/>, for a whole member list (committee approval).
+    /// </summary>
+    Task<IReadOnlyDictionary<string, string>> GetConflictedUsersAsync(
+        WorkflowInstance instance,
+        string activityId,
+        IEnumerable<string> usernames,
+        CancellationToken cancellationToken = default);
 }
 
 public class SegregationOfDutiesGuard(
@@ -54,20 +65,8 @@ public class SegregationOfDutiesGuard(
         if (instance is null)
             return null;
 
-        var excludeFrom = await ResolveExcludeAssigneesFromAsync(instance, activityId, cancellationToken);
-        if (excludeFrom.Count == 0)
-            return null;
-
-        // CompletedBy is the individual who actually finished the activity — the same identifier shape
-        // PreviousOwnerAssigneeSelector compares against. AssignedTo is not used: for a pool task it
-        // holds a group name, not a person.
-        var blocking = instance.ActivityExecutions
-            .Where(e => e.Status == ActivityExecutionStatus.Completed
-                        && !string.IsNullOrEmpty(e.CompletedBy)
-                        && excludeFrom.Contains(e.ActivityId)
-                        && string.Equals(e.CompletedBy, username, StringComparison.OrdinalIgnoreCase))
-            .Select(e => e.ActivityId)
-            .FirstOrDefault();
+        var blocking = (await GetConflictedUsersAsync(instance, activityId, [username], cancellationToken))
+            .Values.FirstOrDefault();
 
         if (blocking is not null)
             logger.LogInformation(
@@ -75,6 +74,38 @@ public class SegregationOfDutiesGuard(
                 username, blocking, workflowInstanceId, activityId);
 
         return blocking;
+    }
+
+    public async Task<IReadOnlyDictionary<string, string>> GetConflictedUsersAsync(
+        WorkflowInstance instance,
+        string activityId,
+        IEnumerable<string> usernames,
+        CancellationToken cancellationToken = default)
+    {
+        var conflicted = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var excludeFrom = await ResolveExcludeAssigneesFromAsync(instance, activityId, cancellationToken);
+        if (excludeFrom.Count == 0)
+            return conflicted;
+
+        // CompletedBy is the individual who actually finished the activity — the same identifier shape
+        // PreviousOwnerAssigneeSelector compares against. AssignedTo is not used: for a pool task it
+        // holds a group name, not a person. Every round counts, so a route-back does not clear it.
+        var completers = instance.ActivityExecutions
+            .Where(e => e.Status == ActivityExecutionStatus.Completed
+                        && !string.IsNullOrEmpty(e.CompletedBy)
+                        && excludeFrom.Contains(e.ActivityId))
+            .ToList();
+
+        foreach (var username in usernames)
+        {
+            var blocking = completers.FirstOrDefault(e =>
+                string.Equals(e.CompletedBy, username, StringComparison.OrdinalIgnoreCase));
+            if (blocking is not null)
+                conflicted[username] = blocking.ActivityId;
+        }
+
+        return conflicted;
     }
 
     /// <summary>

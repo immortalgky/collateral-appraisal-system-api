@@ -57,10 +57,9 @@ public class SetOfflineExternalEngagementCommandHandler(
                 "Only an appraisal routed with the EXTO decision can record an offline engagement.");
 
         // Only a row the workflow has handed to the keyer (InternalAssignedIntegrationEventHandler: Assigned, then
-        // InProgress) is on the key-in task. A Pending row is not: a routed-back one is at appraisal-assignment
-        // (ReturnToAssignmentQueue keeps method "Offline"), and a never-assigned one is an admin's EXTO draft or the
-        // instant before the consumer ran. Recording there would hand the case on behind the admin's back, and let
-        // any caller convert a case still awaiting its decision. The keyer saves again once the task is theirs.
+        // InProgress) is on the key-in task. A Pending row is not: an admin's EXTO draft, the instant before the
+        // consumer ran, or a case the company declined and that went back for a new pick. Recording there would hand
+        // the case on behind the admin's back. The keyer saves again once the task is theirs.
         if (assignment.AssignmentStatus == AssignmentStatus.Pending)
             throw new BadRequestException(
                 $"Appraisal '{command.AppraisalId}' is not on the key-in task (its assignment is still Pending at " +
