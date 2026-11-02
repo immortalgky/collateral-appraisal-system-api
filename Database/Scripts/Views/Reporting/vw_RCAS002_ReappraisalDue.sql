@@ -90,7 +90,10 @@ SELECT c.Id,
        na.SubmittedAt                      AS NewAppraisalSubmittedAt,
        na.CompletedAt                      AS NewAppraisalCompletedAt,
        na.Status                           AS NewAppraisalStatus,
-       c.Status                            AS ReviewStatusCode
+       c.Status                            AS ReviewStatusCode,
+       c.CollateralAddress,
+       c.AoCode,
+       c.AoName
 FROM ranked c
          CROSS JOIN latest
          -- The reappraisal this book produced, newest non-cancelled first. Two arms, one key each:
