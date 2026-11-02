@@ -18,10 +18,7 @@ namespace Request.Infrastructure.Migrations
                 maxLength: 10,
                 nullable: true);
 
-            // Backfill all existing rows to 'REQUEST' — they were all created before the
-            // document-followup flow existed, so REQUEST is the correct source for every one.
-            migrationBuilder.Sql(
-                "UPDATE [request].[RequestTitleDocuments] SET [Source] = 'REQUEST' WHERE [Source] IS NULL");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />

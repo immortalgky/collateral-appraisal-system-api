@@ -11,20 +11,10 @@ namespace Appraisal.Infrastructure.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             // Appointment status lifecycle simplified to: Appointed, Pending, Cancelled.
-            // Data-only migration (no schema change) — bring existing rows onto the new vocabulary.
+            // Was a data-only migration (no schema change): the row remap onto the new vocabulary has been
+            // removed, so Up is now a no-op.
 
-            // Defensive: rename any confirmed 'Approved' rows (no-op where the auto-approve
-            // path never ran, e.g. before the approval feature was launched).
-            migrationBuilder.Sql(
-                "UPDATE appraisal.Appointments SET Status = 'Appointed' WHERE Status = 'Approved';");
-
-            // The approval feature was not live when these rows were created, so a persisted
-            // 'Pending' row is a confirmed appointment, not one awaiting a bank decision.
-            // Promote it to 'Appointed', but guard on the approval markers so a genuine
-            // pending-approval row (if any exists) is never silently auto-confirmed.
-            migrationBuilder.Sql(
-                "UPDATE appraisal.Appointments SET Status = 'Appointed' " +
-                "WHERE Status = 'Pending' AND RequiresApproval = 0 AND ApprovalSubmittedAt IS NULL;");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />

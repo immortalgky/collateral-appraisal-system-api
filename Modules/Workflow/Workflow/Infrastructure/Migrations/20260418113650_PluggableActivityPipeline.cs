@@ -8,16 +8,6 @@ namespace Workflow.Infrastructure.Migrations
     /// <inheritdoc />
     public partial class PluggableActivityPipeline : Migration
     {
-        // Action-style step names that should be classified as Kind = 1 (Action).
-        // All other existing rows default to Kind = 0 (Validation).
-        private static readonly string[] ActionStepNames =
-        [
-            "UpdateAppraisalStatus",
-            "UpdateAssignmentStatus",
-            "EmitAppraisalCreationRequested",
-            "SetVariable"
-        ];
-
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -53,15 +43,7 @@ namespace Workflow.Infrastructure.Migrations
                 nullable: false,
                 defaultValue: 1);
 
-            // ── Data migration: flip Kind = 1 for action-style steps ──
-            foreach (var stepName in ActionStepNames)
-            {
-                migrationBuilder.Sql($"""
-                    UPDATE workflow.ActivityProcessConfigurations
-                    SET Kind = 1
-                    WHERE ProcessorName = '{stepName}'
-                    """);
-            }
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             // ── ActivityProcessExecutions: new trace table ──
 

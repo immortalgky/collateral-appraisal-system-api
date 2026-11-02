@@ -59,15 +59,10 @@ namespace Appraisal.Infrastructure.Migrations
                 table: "GalleryPhotoTopicMappings",
                 column: "PhotoTopicId");
 
-            // 2. Migrate existing data from PhotoTopicId column into the join table
-            migrationBuilder.Sql("""
-                INSERT INTO [appraisal].[GalleryPhotoTopicMappings] (Id, GalleryPhotoId, PhotoTopicId, CreatedAt)
-                SELECT NEWID(), Id, PhotoTopicId, GETUTCDATE()
-                FROM [appraisal].[AppraisalGallery]
-                WHERE PhotoTopicId IS NOT NULL
-                """);
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
-            // 3. Drop the old FK, index, and column
+            // 2. Drop the old FK, index, and column. The copy into the join table was removed;
+            // only safe on an empty table.
             migrationBuilder.DropForeignKey(
                 name: "FK_AppraisalGallery_PhotoTopics_PhotoTopicId",
                 schema: "appraisal",

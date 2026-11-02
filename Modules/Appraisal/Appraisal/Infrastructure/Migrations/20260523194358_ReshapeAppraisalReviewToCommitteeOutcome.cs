@@ -11,16 +11,7 @@ namespace Appraisal.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Defensive: the old schema allowed multiple review rows per appraisal. Collapse any
-            // duplicates (keep the latest by Id) so the UNIQUE index below cannot fail. The table
-            // is historically unused so this is a no-op in practice, but guards fresh deploys.
-            migrationBuilder.Sql(
-                """
-                DELETE r
-                FROM appraisal.AppraisalReviews r
-                WHERE r.Id <> (SELECT MAX(r2.Id) FROM appraisal.AppraisalReviews r2
-                               WHERE r2.AppraisalId = r.AppraisalId);
-                """);
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             migrationBuilder.DropIndex(
                 name: "IX_AppraisalReviews_AppraisalId",

@@ -10,15 +10,7 @@ namespace Workflow.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Remove seed rows for the retired UpdateAssignmentStatus pipeline step.
-            // Assignment-status transitions are now driven by:
-            //   1. Synchronous command handlers (Pending → Assigned).
-            //   2. WorkflowTransitionedIntegrationEventHandler (mid-states).
-            //   3. AppraisalApprovedIntegrationEventHandler / MarkApprovedByCommittee (terminal Completed).
-            // Leaving rows of this kind in place would silently throw at runtime now that
-            // AppraisalAssignment.Complete() requires the Verified pre-state.
-            migrationBuilder.Sql(
-                "DELETE FROM workflow.ActivityProcessConfigurations WHERE ProcessorName = 'UpdateAssignmentStatus';");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />

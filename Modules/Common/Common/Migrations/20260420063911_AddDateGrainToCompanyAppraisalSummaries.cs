@@ -11,9 +11,7 @@ namespace Common.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Event-sourced read model: clear and let the reconcile endpoint
-            // rebuild rows with the correct per-day grain.
-            migrationBuilder.Sql("DELETE FROM common.CompanyAppraisalSummaries;");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             migrationBuilder.DropPrimaryKey(
                 name: "PK_CompanyAppraisalSummaries",

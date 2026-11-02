@@ -73,39 +73,10 @@ namespace Collateral.Migrations
                 table: "ProjectUnits",
                 columns: new[] { "CollateralMasterId", "SequenceNumber" });
 
-            // --- Backfill: materialize existing ProjectDetails.StructureJson blobs into per-unit rows
-            // BEFORE the column is dropped. Runs atomically inside this migration so the data survives.
-            // Id omitted → NEWSEQUENTIALID() default. PurchaseBy/LoanBankName/LastAppraisedValue have no
-            // source in the legacy JSON → left null. IsSold coalesced to 0 to satisfy the NOT NULL column.
-            migrationBuilder.Sql(@"
-INSERT INTO collateral.ProjectUnits
-    (CollateralMasterId, SequenceNumber, Floor, TowerName, CondoRegistrationNumber, RoomNumber,
-     PlotNumber, HouseNumber, NumberOfFloors, LandArea, ModelType, UsableArea, SellingPrice, IsSold)
-SELECT pd.CollateralMasterId,
-       u.SequenceNumber, u.Floor, u.TowerName, u.CondoRegistrationNumber, u.RoomNumber,
-       u.PlotNumber, u.HouseNumber, u.NumberOfFloors, u.LandArea, u.ModelType, u.UsableArea, u.SellingPrice,
-       ISNULL(u.IsSold, 0)
-FROM collateral.ProjectDetails pd
-CROSS APPLY OPENJSON(pd.StructureJson, '$.Units')
-WITH (
-    SequenceNumber          int             '$.SequenceNumber',
-    IsSold                  bit             '$.IsSold',
-    ModelType               nvarchar(200)   '$.ModelType',
-    UsableArea              decimal(10,2)   '$.UsableArea',
-    SellingPrice            decimal(18,2)   '$.SellingPrice',
-    Floor                   int             '$.Floor',
-    TowerName               nvarchar(200)   '$.TowerName',
-    CondoRegistrationNumber nvarchar(100)   '$.CondoRegistrationNumber',
-    RoomNumber              nvarchar(50)    '$.RoomNumber',
-    PlotNumber              nvarchar(100)   '$.PlotNumber',
-    HouseNumber             nvarchar(100)   '$.HouseNumber',
-    NumberOfFloors          int             '$.NumberOfFloors',
-    LandArea                decimal(10,2)   '$.LandArea'
-) u
-WHERE pd.StructureJson IS NOT NULL AND ISJSON(pd.StructureJson) = 1;
-");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
-            // Now safe to drop the legacy blob column.
+            // Drop the legacy blob column. The copy of its units into ProjectUnits was removed;
+            // only safe on an empty table.
             migrationBuilder.DropColumn(
                 name: "StructureJson",
                 schema: "collateral",

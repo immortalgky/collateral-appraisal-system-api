@@ -21,12 +21,9 @@ namespace Appraisal.Tests.Application.Features;
 /// 4. PricingAnalysis.SetFinalValues rollup — the PricingFinalValue write is additive;
 ///    FinalAppraisedValue derives from MethodValue, never from PricingFinalValue fields.
 ///
-/// NOT COVERED — BackfillPricingFinalValues migration SQL:
-///   The test project references Microsoft.EntityFrameworkCore.InMemory which does not
-///   execute raw SQL strings passed to migrationBuilder.Sql. Testing the idempotency
-///   guards (NOT EXISTS) and the second-run zero-insert behaviour requires a real
-///   SQL Server instance. See Tests/Integration/Collateral.Integration.Tests/ for the
-///   established pattern of spinning up a testcontainer or localdb for such cases.
+/// NOT COVERED — the historical backfill into PricingFinalValues:
+///   BackfillPricingFinalValues.Up() is now a no-op (its SQL was removed after every environment
+///   had applied it); Down() still has its DELETE ... CreatedBy = 'BACKFILL'.
 /// </summary>
 public class PricingFinalValueConsolidationTests
 {

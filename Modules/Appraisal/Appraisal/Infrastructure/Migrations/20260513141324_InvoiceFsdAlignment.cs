@@ -77,17 +77,7 @@ namespace Appraisal.Infrastructure.Migrations
                 type: "datetime2",
                 nullable: true);
 
-            // Migrate existing status values to FSD vocabulary
-            migrationBuilder.Sql("""
-                UPDATE appraisal.Invoices
-                SET Status = CASE Status
-                    WHEN 'Draft' THEN 'Pending'
-                    WHEN 'Submitted' THEN 'Sent'
-                    WHEN 'Approved' THEN 'Paid'
-                    ELSE Status
-                END
-                WHERE Status IN ('Draft', 'Submitted', 'Approved')
-                """);
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />

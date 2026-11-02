@@ -26,12 +26,7 @@ namespace Appraisal.Infrastructure.Migrations
                 schema: "appraisal",
                 table: "ProjectModelAssumptions");
 
-            // Safety guard: any row with PropertyGroupId IS NULL would have been illegal
-            // under the old schema (NOT NULL column).  Rows like this could not exist
-            // legitimately, so delete them before making the column nullable; otherwise
-            // the XOR CHECK added later would reject them.
-            migrationBuilder.Sql(
-                "DELETE FROM [appraisal].[PricingAnalysis] WHERE [PropertyGroupId] IS NULL");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "PropertyGroupId",

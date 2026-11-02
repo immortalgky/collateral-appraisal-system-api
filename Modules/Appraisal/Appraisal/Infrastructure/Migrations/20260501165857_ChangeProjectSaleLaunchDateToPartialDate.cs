@@ -10,19 +10,15 @@ namespace Appraisal.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Convert datetime2 → nvarchar(10) preserving existing values as 'YYYY-MM-DD'.
-            // EF's plain AlterColumn would fail on an implicit datetime2-to-string cast,
-            // so we stage the new column, copy values via CONVERT(..., 23), then swap names.
+            // Convert datetime2 → nvarchar(10). EF's plain AlterColumn would fail on an implicit
+            // datetime2-to-string cast, so we stage the new column and then swap names. The
+            // CONVERT(..., 23) value copy was removed; only safe on an empty table.
             migrationBuilder.Sql(@"
                 ALTER TABLE [appraisal].[Projects]
                 ADD [ProjectSaleLaunchDate_New] nvarchar(10) NULL;
             ");
 
-            migrationBuilder.Sql(@"
-                UPDATE [appraisal].[Projects]
-                SET [ProjectSaleLaunchDate_New] = CONVERT(varchar(10), [ProjectSaleLaunchDate], 23)
-                WHERE [ProjectSaleLaunchDate] IS NOT NULL;
-            ");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             migrationBuilder.Sql(@"
                 ALTER TABLE [appraisal].[Projects]

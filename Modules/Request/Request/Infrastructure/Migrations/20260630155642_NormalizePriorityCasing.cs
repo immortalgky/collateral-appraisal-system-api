@@ -10,12 +10,7 @@ namespace Request.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Normalize any non-canonical casing (e.g. lowercase values written by the
-            // request-page priority toggle) to the canonical Priority value-object form.
-            migrationBuilder.Sql(@"
-                UPDATE request.Requests SET Priority = 'Normal' WHERE LOWER(Priority) = 'normal';
-                UPDATE request.Requests SET Priority = 'High'   WHERE LOWER(Priority) = 'high';
-            ");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />

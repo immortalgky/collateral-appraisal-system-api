@@ -10,12 +10,7 @@ namespace Appraisal.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Draft is no longer a valid status — partial saves now persist as Pending.
-            migrationBuilder.Sql(@"
-                UPDATE appraisal.AppraisalEvaluations
-                SET EvaluationStatus = 'Pending'
-                WHERE EvaluationStatus = 'Draft';
-            ");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />
