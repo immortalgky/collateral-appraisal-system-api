@@ -7,6 +7,7 @@ using Workflow.Domain;
 using Workflow.Domain.Committees;
 using Workflow.Meetings.Domain;
 using Workflow.Tasks.Authorization;
+using Workflow.Data;
 using Workflow.Workflow.Activities.Approval;
 using Workflow.Workflow.Activities.Core;
 using Workflow.Workflow.Engine.Expression;
@@ -708,7 +709,26 @@ public class ApprovalActivity : WorkflowActivityBase
                     }
                 }
 
+                // This round concluded (approve/reject): if it was the last open one on a meeting
+                // that is waiting on votes, the meeting ends now.
+                if (ApprovalRoundQuery.IsConcludingDecision(successOutput["decision"]?.ToString())
+                    && ResolveAppraisalId(context.Variables) is { } concludedAppraisalId)
+                {
+                    await EndMeetingIfLastRoundConcludedAsync(
+                        concludedAppraisalId, context.WorkflowInstanceId, context.ActivityId, cancellationToken);
+                }
+
                 return ActivityResult.Success(successOutput);
+            }
+
+            // Everyone has voted but approve was not reached (WaitForAll wedge, or Quorum mode with
+            // approve unmet). The engine keeps the round Pending, but for the meeting it is concluded
+            // (as "reject", see ApprovalRoundQuery). The current vote is not flushed yet, so the hook
+            // counts this round as concluded itself.
+            if (allVoted && ResolveAppraisalId(context.Variables) is { } votedOutAppraisalId)
+            {
+                await EndMeetingIfLastRoundConcludedAsync(
+                    votedOutAppraisalId, context.WorkflowInstanceId, context.ActivityId, cancellationToken);
             }
 
             // WaitForAll: everyone has voted but the approve rule was not met. By design the round
@@ -771,15 +791,8 @@ public class ApprovalActivity : WorkflowActivityBase
     {
         try
         {
-            var meetingItem = await _dbContext.MeetingItems
-                .Where(mi => mi.AppraisalId == appraisalId
-                             && mi.WorkflowInstanceId == workflowInstanceId
-                             && mi.Kind == MeetingItemKind.Decision
-                             && mi.ItemDecision == ItemDecision.Released)
-                .OrderByDescending(mi => mi.AddedAt)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (meetingItem is null)
+            var found = await FindReleasedMeetingItemAsync(appraisalId, workflowInstanceId, cancellationToken);
+            if (found is null)
             {
                 _logger.LogDebug(
                     "ApprovalActivity {ActivityId}: no released meeting item for appraisal {AppraisalId}; " +
@@ -788,10 +801,7 @@ public class ApprovalActivity : WorkflowActivityBase
                 return;
             }
 
-            var meeting = await _dbContext.Meetings
-                .Include(m => m.Items)
-                .FirstOrDefaultAsync(m => m.Id == meetingItem.MeetingId, cancellationToken);
-
+            var (meetingItem, meeting) = found.Value;
             if (meeting is null || meeting.Status == MeetingStatus.Cancelled)
             {
                 _logger.LogWarning(
@@ -814,6 +824,85 @@ public class ApprovalActivity : WorkflowActivityBase
                 "ApprovalActivity {ActivityId}: failed to mirror approver route back onto the meeting " +
                 "for appraisal {AppraisalId}. The appraisal will re-queue onto a new meeting instead of " +
                 "returning to its original one.",
+                activityId, appraisalId);
+        }
+    }
+
+    /// <summary>
+    /// The Released Decision MeetingItem of this appraisal+instance (newest first) and the Meeting
+    /// aggregate it belongs to, loaded with its Items. Null when there is no such item — a
+    /// non-meeting approval. The meeting itself is null if its row is missing.
+    /// </summary>
+    private async Task<(MeetingItem Item, Meeting? Meeting)?> FindReleasedMeetingItemAsync(
+        Guid appraisalId, Guid workflowInstanceId, CancellationToken cancellationToken)
+    {
+        var item = await _dbContext.MeetingItems
+            .Where(mi => mi.AppraisalId == appraisalId
+                         && mi.WorkflowInstanceId == workflowInstanceId
+                         && mi.Kind == MeetingItemKind.Decision
+                         && mi.ItemDecision == ItemDecision.Released)
+            .OrderByDescending(mi => mi.AddedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (item is null) return null;
+
+        var meeting = await _dbContext.Meetings
+            .Include(m => m.Items)
+            .FirstOrDefaultAsync(m => m.Id == item.MeetingId, cancellationToken);
+        return (item, meeting);
+    }
+
+    /// <summary>
+    /// Ends the meeting that released this appraisal once its LAST approval round concludes.
+    ///
+    /// Only acts on a meeting in <see cref="MeetingStatus.AwaitingVotes"/> (every Decision item
+    /// released); a non-meeting approval finds no Released meeting item and is a no-op. The current
+    /// item counts as concluded although its execution row is not flushed yet; every other Released
+    /// Decision item is checked against the committed rows by <see cref="ApprovalRoundQuery"/>.
+    ///
+    /// The Meeting is mutated through the same DbContext as <see cref="RecordRouteBackOnMeetingAsync"/>;
+    /// the engine's checkpoint SaveChanges flushes it, and DispatchDomainEventInterceptor publishes
+    /// the <c>MeetingEndedDomainEvent</c> then (the handler releases queue items, acknowledges ack items).
+    ///
+    /// ponytail: two rounds concluding in parallel can each see the other as still open and leave the
+    /// meeting in AwaitingVotes. Votes on one instance are serialized by wf-approval:{instanceId}, but
+    /// not across instances. The secretary's manual End (EndMeeting) is the fallback; add a
+    /// meeting-level lock here if it ever happens in practice.
+    ///
+    /// The try/catch below covers ONLY this method's own reads and the aggregate call. It does NOT
+    /// protect the engine's later checkpoint SaveChanges, where the Meeting is flushed (RowVersion
+    /// check) and the MeetingEnded handler runs (nested SaveChanges). If that save throws, the whole
+    /// vote fails and the member simply votes again.
+    /// </summary>
+    private async Task EndMeetingIfLastRoundConcludedAsync(
+        Guid appraisalId, Guid workflowInstanceId, string activityId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var found = await FindReleasedMeetingItemAsync(appraisalId, workflowInstanceId, cancellationToken);
+            if (found is null) return;
+
+            var (meetingItem, meeting) = found.Value;
+            if (meeting is null || meeting.Status != MeetingStatus.AwaitingVotes) return;
+
+            var concluded = await _dbContext.ConcludedByItemAsync(meeting.Id, cancellationToken);
+            var anotherRoundIsOpen = meeting.Items.Any(i =>
+                i.Kind == MeetingItemKind.Decision
+                && i.ItemDecision == ItemDecision.Released
+                && i.Id != meetingItem.Id
+                && !concluded.ContainsKey(i.Id));
+            if (anotherRoundIsOpen) return;
+
+            meeting.EndAfterVoting(_dateTimeProvider.ApplicationNow);
+
+            _logger.LogInformation(
+                "ApprovalActivity {ActivityId}: last approval round on meeting {MeetingId} concluded (appraisal {AppraisalId}); meeting ended",
+                activityId, meeting.Id, appraisalId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "ApprovalActivity {ActivityId}: failed to end the meeting after the last round concluded for appraisal " +
+                "{AppraisalId}. The meeting stays AwaitingVotes; the secretary can end it manually.",
                 activityId, appraisalId);
         }
     }

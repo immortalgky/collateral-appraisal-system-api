@@ -9,7 +9,7 @@ namespace Workflow.Tests.Meetings;
 
 /// <summary>
 /// Unit tests for the Meeting aggregate covering the new lifecycle:
-/// New → InvitationSent → [InProgress time-derived] → Ended (auto) / RoutedBack → Ended
+/// New → InvitationSent → [InProgress time-derived] → AwaitingVotes → Ended (last vote concludes) / RoutedBack → ...
 /// plus cancellation from New and InvitationSent.
 /// </summary>
 public class MeetingTests
@@ -156,14 +156,23 @@ public class MeetingTests
     [Fact]
     public void SendInvitation_WhenEnded_Throws()
     {
-        var meeting = BuildInvitationSentMeetingWithOneItem();
-        // Release all decision items to auto-end
-        var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
-        meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);
+        var meeting = BuildAwaitingVotesMeeting(out _);
+        meeting.EndAfterVoting(DateTime.UtcNow);
 
         var act = () => meeting.SendInvitation(DateTime.UtcNow);
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*terminal*");
+    }
+
+    [Fact]
+    public void SendInvitation_WhenAwaitingVotes_Throws()
+    {
+        var meeting = BuildAwaitingVotesMeeting(out _);
+
+        var act = () => meeting.SendInvitation(DateTime.UtcNow);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*AwaitingVotes*");
+        meeting.Status.Should().Be(MeetingStatus.AwaitingVotes);
     }
 
     [Fact]
@@ -254,20 +263,107 @@ public class MeetingTests
     }
 
     // =========================================================================
-    // ReleaseItem — auto-transition to Ended
+    // ReleaseItem — last release waits for the votes (AwaitingVotes), it does not end the meeting
     // =========================================================================
 
     [Fact]
-    public void ReleaseItem_LastPendingDecisionItem_AutoTransitionsToEnded()
+    public void ReleaseItem_LastPendingDecisionItem_TransitionsToAwaitingVotes_WithoutEnding()
     {
         var meeting = BuildInvitationSentMeetingWithOneItem();
         var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
 
         meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);
 
+        meeting.Status.Should().Be(MeetingStatus.AwaitingVotes);
+        meeting.EndedAt.Should().BeNull();
+        meeting.DomainEvents.Should().NotContain(e => e is MeetingEndedDomainEvent);
+        meeting.DomainEvents.Should().ContainSingle(e => e is MeetingItemReleasedDomainEvent);
+    }
+
+    [Fact]
+    public void EndAfterVoting_WhenAwaitingVotes_EndsAndRaisesMeetingEndedEvent()
+    {
+        var meeting = BuildAwaitingVotesMeeting(out _);
+        meeting.ClearDomainEvents();
+        var now = DateTime.UtcNow;
+
+        meeting.EndAfterVoting(now);
+
         meeting.Status.Should().Be(MeetingStatus.Ended);
-        meeting.EndedAt.Should().NotBeNull();
-        meeting.DomainEvents.Should().Contain(e => e is MeetingEndedDomainEvent);
+        meeting.EndedAt.Should().Be(now);
+        meeting.DomainEvents.Should().ContainSingle(e => e is MeetingEndedDomainEvent);
+    }
+
+    [Fact]
+    public void EndAfterVoting_WhenNotAwaitingVotes_Throws()
+    {
+        var meeting = BuildInvitationSentMeetingWithOneItem();
+
+        var act = () => meeting.EndAfterVoting(DateTime.UtcNow);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*awaiting votes*");
+    }
+
+    [Fact]
+    public void UndoRelease_WhenAwaitingVotes_ReopensToInvitationSent()
+    {
+        var meeting = BuildAwaitingVotesMeeting(out var appraisalId);
+
+        meeting.UndoRelease(appraisalId, "secretary", "released by mistake", DateTime.UtcNow);
+
+        meeting.Status.Should().Be(MeetingStatus.InvitationSent);
+        meeting.Items.Single().ItemDecision.Should().Be(ItemDecision.Pending);
+    }
+
+    [Fact]
+    public void RecordApproverRouteBack_WhenAwaitingVotes_MovesToRoutedBack()
+    {
+        var meeting = BuildAwaitingVotesMeeting(out var appraisalId);
+
+        meeting.RecordApproverRouteBack(appraisalId, "jane.smith", "needs rework", DateTime.UtcNow);
+
+        meeting.Status.Should().Be(MeetingStatus.RoutedBack);
+        meeting.Items.Single().ItemDecision.Should().Be(ItemDecision.RoutedBack);
+        meeting.DomainEvents.Should().NotContain(e => e is MeetingEndedDomainEvent);
+    }
+
+    [Fact]
+    public void Cancel_WhenAwaitingVotes_Throws()
+    {
+        var meeting = BuildAwaitingVotesMeeting(out _);
+
+        var act = () => meeting.Cancel("reason", DateTime.UtcNow);
+
+        act.Should().Throw<InvalidOperationException>();
+        meeting.Status.Should().Be(MeetingStatus.AwaitingVotes);
+    }
+
+    [Fact]
+    public void RosterAndItemEdits_WhenAwaitingVotes_AreRefused()
+    {
+        var meeting = BuildAwaitingVotesMeeting(out var appraisalId);
+
+        var addMember = () => meeting.AddMember(
+            MeetingMember.CreateManual(meeting.Id, "x", "X", CommitteeMemberPosition.Member), DateTime.UtcNow);
+        var removeItem = () => meeting.RemoveItem(appraisalId, DateTime.UtcNow);
+        var release = () => meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);
+
+        addMember.Should().Throw<InvalidOperationException>();
+        removeItem.Should().Throw<InvalidOperationException>();
+        release.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void EndNow_WhenAwaitingVotes_Ends_WithoutRequiringAStartTime()
+    {
+        // The handler guards open rounds; the aggregate only guards item state and status.
+        var meeting = BuildAwaitingVotesMeeting(out _);
+        meeting.ClearDomainEvents();
+
+        meeting.EndNow(DateTime.UtcNow);
+
+        meeting.Status.Should().Be(MeetingStatus.Ended);
+        meeting.DomainEvents.Should().ContainSingle(e => e is MeetingEndedDomainEvent);
     }
 
     [Fact]
@@ -530,15 +626,11 @@ public class MeetingTests
     }
 
     [Fact]
-    public void RecordApproverRouteBack_OnAutoEndedMeeting_ReopensAsRoutedBack()
+    public void RecordApproverRouteBack_OnEndedMeeting_ReopensAsRoutedBack()
     {
-        var meeting = BuildNewMeeting();
-        var id1 = Guid.NewGuid();
-        meeting.AddItem(id1, "APR-001", 500_000m, 500_000m, Guid.NewGuid(), "act-1", DateTime.UtcNow);
-        meeting.SendInvitation(DateTime.UtcNow.AddDays(-1));
-
-        // Releasing the only decision item auto-ends the meeting.
-        meeting.ReleaseItem(id1, "secretary", DateTime.UtcNow);
+        // A meeting ended before AwaitingVotes existed (releasing the last item used to end it).
+        var meeting = BuildAwaitingVotesMeeting(out var id1);
+        meeting.EndAfterVoting(DateTime.UtcNow);
         meeting.Status.Should().Be(MeetingStatus.Ended);
 
         meeting.RecordApproverRouteBack(id1, "jane.smith", "needs rework", DateTime.UtcNow);
@@ -673,9 +765,8 @@ public class MeetingTests
     [Fact]
     public void Cancel_WhenEnded_Throws()
     {
-        var meeting = BuildInvitationSentMeetingWithOneItem();
-        var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
-        meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);
+        var meeting = BuildAwaitingVotesMeeting(out _);
+        meeting.EndAfterVoting(DateTime.UtcNow);
 
         var act = () => meeting.Cancel("reason", DateTime.UtcNow);
 
@@ -950,7 +1041,7 @@ public class MeetingTests
     }
 
     [Fact]
-    public void ReinstateRoutedBackItem_ThenReleaseAll_TransitionsToEnded()
+    public void ReinstateRoutedBackItem_ThenReleaseAll_TransitionsToAwaitingVotes()
     {
         var meeting = BuildInvitationSentMeetingWithOneItem();
         var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
@@ -960,8 +1051,8 @@ public class MeetingTests
         meeting.ReinstateRoutedBackItem(appraisalId, now.AddMinutes(5));
         meeting.ReleaseItem(appraisalId, "secretary", now.AddMinutes(10));
 
-        meeting.Status.Should().Be(MeetingStatus.Ended);
-        meeting.EndedAt.Should().NotBeNull();
+        meeting.Status.Should().Be(MeetingStatus.AwaitingVotes);
+        meeting.EndedAt.Should().BeNull();
     }
 
     [Fact]
@@ -1066,9 +1157,8 @@ public class MeetingTests
     [Fact]
     public void EndNow_WhenAlreadyEnded_Throws()
     {
-        var meeting = BuildInvitationSentMeetingWithOneItem();
-        var appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
-        meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);   // auto-ends
+        var meeting = BuildAwaitingVotesMeeting(out _);
+        meeting.EndAfterVoting(DateTime.UtcNow);
 
         var act = () => meeting.EndNow(DateTime.UtcNow);
 
@@ -1101,6 +1191,15 @@ public class MeetingTests
         meeting.SendInvitation(DateTime.UtcNow.AddDays(-1));
         meeting.ClearDomainEvents();
 
+        return meeting;
+    }
+
+    /// <summary>One Decision item, released: the meeting is AwaitingVotes.</summary>
+    private static Meeting BuildAwaitingVotesMeeting(out Guid appraisalId)
+    {
+        var meeting = BuildInvitationSentMeetingWithOneItem();
+        appraisalId = meeting.Items.Single(i => i.Kind == MeetingItemKind.Decision).AppraisalId;
+        meeting.ReleaseItem(appraisalId, "secretary", DateTime.UtcNow);
         return meeting;
     }
 

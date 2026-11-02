@@ -299,7 +299,7 @@ public class Meeting : Aggregate<Guid>
             throw new InvalidOperationException(
                 $"Cannot send invitation for a meeting in terminal status {Status}");
 
-        if (Status == MeetingStatus.RoutedBack)
+        if (Status == MeetingStatus.RoutedBack || Status == MeetingStatus.AwaitingVotes)
             throw new InvalidOperationException(
                 $"Cannot send invitation for a meeting in status {Status}");
 
@@ -391,7 +391,7 @@ public class Meeting : Aggregate<Guid>
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Cancels a New or InvitationSent meeting. <paramref name="reason"/> is required.
+    /// Cancels a New or InvitationSent meeting (refused in AwaitingVotes: its items are already released). <paramref name="reason"/> is required.
     /// Raises exactly one <see cref="MeetingCancelledDomainEvent"/> regardless of the number of
     /// decision items (including zero), so the handler always runs to detach ack items.
     /// </summary>
@@ -421,21 +421,24 @@ public class Meeting : Aggregate<Guid>
     }
 
     /// <summary>
-    /// Manually ends an in-progress meeting that has no outstanding decisions.
-    /// In progress = <see cref="MeetingStatus.InvitationSent"/> + <see cref="StartAt"/> has passed.
-    /// Guard-and-stamp only: does not release or return items. Refuses before the scheduled start,
-    /// and while any Decision item is still Pending or RoutedBack. Supports acknowledgement-only
-    /// meetings that have no Decision items and therefore never auto-end via <see cref="ReleaseItem"/>.
+    /// Manually ends a meeting that has no outstanding decisions: in progress
+    /// (<see cref="MeetingStatus.InvitationSent"/> + <see cref="StartAt"/> has passed) or
+    /// <see cref="MeetingStatus.AwaitingVotes"/>.
+    /// Guard-and-stamp only: does not release or return items. Refuses before the scheduled start
+    /// (InvitationSent only — AwaitingVotes means items were already released), and while any Decision
+    /// item is still Pending or RoutedBack. Supports acknowledgement-only meetings that have no
+    /// Decision items. The caller (EndMeetingCommandHandler) is responsible for refusing while a
+    /// Released item's approval round is still open — that state lives in the workflow tables.
     /// Raises <see cref="MeetingEndedDomainEvent"/>.
     /// </summary>
     public void EndNow(DateTime now)
     {
-        if (Status != MeetingStatus.InvitationSent)
+        if (Status != MeetingStatus.InvitationSent && Status != MeetingStatus.AwaitingVotes)
             throw new InvalidOperationException(
                 $"Only an in-progress meeting can be ended; this meeting is {Status}.");
 
         // Must have actually started (InProgress). Ending early is Cancel's job.
-        if (!StartAt.HasValue || StartAt.Value > now)
+        if (Status == MeetingStatus.InvitationSent && (!StartAt.HasValue || StartAt.Value > now))
             throw new InvalidOperationException(
                 "Cannot end the meeting before its scheduled start time.");
 
@@ -445,6 +448,26 @@ public class Meeting : Aggregate<Guid>
             throw new InvalidOperationException(
                 "Cannot end the meeting while decision items are pending or routed back.");
 
+        End(now);
+    }
+
+    /// <summary>
+    /// Ends a <see cref="MeetingStatus.AwaitingVotes"/> meeting because its last approval round has
+    /// concluded (approve or reject). Called by the approval activity; the caller has already
+    /// checked that every other Released Decision item's round concluded.
+    /// Raises <see cref="MeetingEndedDomainEvent"/>.
+    /// </summary>
+    public void EndAfterVoting(DateTime now)
+    {
+        if (Status != MeetingStatus.AwaitingVotes)
+            throw new InvalidOperationException(
+                $"Only a meeting awaiting votes can end after voting; this meeting is {Status}.");
+
+        End(now);
+    }
+
+    private void End(DateTime now)
+    {
         Status = MeetingStatus.Ended;
         EndedAt = now;
         AddDomainEvent(new MeetingEndedDomainEvent(Id, now));
@@ -457,8 +480,10 @@ public class Meeting : Aggregate<Guid>
     /// <summary>
     /// Secretary releases a Decision item.
     /// Allowed in <see cref="MeetingStatus.InvitationSent"/> and <see cref="MeetingStatus.RoutedBack"/>.
-    /// If this is the last Decision item with a pending outcome, the meeting auto-transitions to
-    /// <see cref="MeetingStatus.Ended"/> and raises <see cref="MeetingEndedDomainEvent"/>.
+    /// If this is the last Decision item with a pending outcome, the meeting moves to
+    /// <see cref="MeetingStatus.AwaitingVotes"/>. It does NOT end here: it ends when the last
+    /// committee approval round concludes (<see cref="EndAfterVoting"/>) or the secretary ends it
+    /// (<see cref="EndNow"/>).
     /// </summary>
     public void ReleaseItem(Guid appraisalId, string actor, DateTime now)
     {
@@ -493,14 +518,10 @@ public class Meeting : Aggregate<Guid>
         AddDomainEvent(new MeetingItemReleasedDomainEvent(
             Id, appraisalId, item.WorkflowInstanceId.Value, item.ActivityId, actor, approvers, CommitteeId));
 
-        // Auto-transition: if every Decision item has been Released, end the meeting.
+        // Every Decision item released: nothing left for the secretary, votes are what remain.
         var allDecisionItems = _items.Where(i => i.Kind == MeetingItemKind.Decision).ToList();
         if (allDecisionItems.Count > 0 && allDecisionItems.All(i => i.ItemDecision == ItemDecision.Released))
-        {
-            Status = MeetingStatus.Ended;
-            EndedAt = now;
-            AddDomainEvent(new MeetingEndedDomainEvent(Id, now));
-        }
+            Status = MeetingStatus.AwaitingVotes;
     }
 
     /// <summary>
@@ -537,14 +558,16 @@ public class Meeting : Aggregate<Guid>
     /// <summary>
     /// Secretary undoes an accidental release, putting the item back on this meeting as
     /// <see cref="ItemDecision.Pending"/> before any committee member has voted.
-    /// Deliberately does not use <see cref="EnsureDecisionAllowed"/>: a release commonly
-    /// auto-ends the meeting, so recall must also be allowed from <see cref="MeetingStatus.Ended"/>.
-    /// Reopens an Ended meeting to <see cref="MeetingStatus.InvitationSent"/> (or
+    /// Deliberately does not use <see cref="EnsureDecisionAllowed"/>: releasing the last item moves
+    /// the meeting to <see cref="MeetingStatus.AwaitingVotes"/>, so recall must also be allowed from
+    /// there (and from <see cref="MeetingStatus.Ended"/> for meetings ended before that change).
+    /// Reopens an AwaitingVotes or Ended meeting to <see cref="MeetingStatus.InvitationSent"/> (or
     /// <see cref="MeetingStatus.RoutedBack"/> if another item on it is still routed back).
     /// </summary>
     public void UndoRelease(Guid appraisalId, string actor, string reason, DateTime now)
     {
-        if (Status != MeetingStatus.InvitationSent && Status != MeetingStatus.RoutedBack && Status != MeetingStatus.Ended)
+        if (Status != MeetingStatus.InvitationSent && Status != MeetingStatus.RoutedBack
+            && Status != MeetingStatus.AwaitingVotes && Status != MeetingStatus.Ended)
             throw new InvalidOperationException(
                 $"Cannot recall an item on a meeting in status {Status}");
 
@@ -564,8 +587,8 @@ public class Meeting : Aggregate<Guid>
             throw new InvalidOperationException(
                 $"Decision item for appraisal {appraisalId} is missing WorkflowInstanceId or ActivityId");
 
-        // Reopen the meeting if the release had auto-ended it.
-        if (Status == MeetingStatus.Ended)
+        // Reopen the meeting if the release had moved it to AwaitingVotes (or ended it).
+        if (Status == MeetingStatus.AwaitingVotes || Status == MeetingStatus.Ended)
         {
             EndedAt = null;
             Status = _items.Any(i => i.Kind == MeetingItemKind.Decision && i.ItemDecision == ItemDecision.RoutedBack)
@@ -596,8 +619,9 @@ public class Meeting : Aggregate<Guid>
     ///
     /// Deliberately differs from <see cref="RouteBackItem"/> in three ways:
     /// <list type="bullet">
-    /// <item>No <see cref="EnsureDecisionAllowed"/>: releasing the last item auto-ends the
-    /// meeting, so an approver's route-back almost always arrives while Ended. Reopening mirrors
+    /// <item>No <see cref="EnsureDecisionAllowed"/>: releasing the last item moves the meeting to
+    /// <see cref="MeetingStatus.AwaitingVotes"/>, so an approver's route-back almost always arrives
+    /// there (or while Ended, for meetings ended before that change). Reopening mirrors
     /// <see cref="UndoRelease"/>.</item>
     /// <item>Expects <see cref="ItemDecision.Released"/>, not Pending.</item>
     /// <item>Raises NO domain event. <see cref="MeetingItemRoutedBackDomainEvent"/> resumes the
@@ -625,7 +649,7 @@ public class Meeting : Aggregate<Guid>
 
         item.ApplyDecision(ItemDecision.RoutedBack, actor, reason, now);
 
-        // Reopen an auto-ended meeting — it has unfinished business again.
+        // Reopen an ended meeting — it has unfinished business again.
         if (Status == MeetingStatus.Ended) EndedAt = null;
         Status = MeetingStatus.RoutedBack;
     }

@@ -47,5 +47,11 @@ public interface IMeetingRepository
     /// </summary>
     Task<Meeting?> GetEarliestScheduledAfterNumberAsync(int meetingNoYear, int meetingNoSeq, CancellationToken ct = default);
 
+    /// <summary>
+    /// How many of the meeting's Released Decision items still have an open committee approval round
+    /// (not concluded as defined by <c>ApprovalRoundQuery</c>). Read from committed state.
+    /// </summary>
+    Task<int> CountOpenApprovalRoundsAsync(Guid meetingId, CancellationToken ct = default);
+
     Task AddAsync(Meeting meeting, CancellationToken ct = default);
 }
