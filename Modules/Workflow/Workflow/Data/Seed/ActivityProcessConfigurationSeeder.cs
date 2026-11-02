@@ -139,6 +139,7 @@ public class ActivityProcessConfigurationSeeder(
           {"fieldKey":"hasNoAppraisedValue","op":"Equals","value":"false","message":"Set an appraised value before proceeding."},
           {"fieldKey":"selectedPricingMethodCount","op":"GreaterThan","value":"0","message":"Select at least one pricing method before proceeding."},
           {"fieldKey":"appointmentInFuture","op":"Equals","value":"false","message":"The appointment date must be in the past."},
+          {"fieldKey":"hasCompleteValuationReport","op":"Equals","value":"true","message":"A Complete Valuation Report (D001) must be attached."},
           {"fieldKey":"propsMissingTitle","op":"Equals","value":"0","message":"Every land property needs a title number."},
           {"fieldKey":"propsMissingLandOffice","op":"Equals","value":"0","message":"Every land property needs a land office."}
         ],"mode":"AllMustPass"}
