@@ -60,7 +60,7 @@ public class ExtAssignmentEmailDispatchTests
             .Returns(new CompanyLookupDto(CompanyId, "Acme Appraisal", null, true, "jobs@acme.co.th", "บริษัท แอคมี จำกัด"));
         _users.GetByUsernamesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, UserLookupDto> { ["F0001"] = new("F0001", "สมหญิง", "ตามงาน") });
-        _users.GetEmailsInRoleAsync("IntAdmin", Arg.Any<CancellationToken>()).Returns(["admin1@bank.co.th"]);
+        _users.GetEmailsInGroupAsync("IntAdmin", Arg.Any<CancellationToken>()).Returns(["admin1@bank.co.th"]);
         _users.GetEmailsAsync(Arg.Is<IEnumerable<string>>(u => u.SequenceEqual(new[] { "F0001" })), Arg.Any<CancellationToken>())
             .Returns(["followup@bank.co.th"]);
         _users.GetSupervisorEmailsAsync("F0001", Arg.Any<CancellationToken>()).Returns(["lead@bank.co.th"]);
@@ -74,7 +74,7 @@ public class ExtAssignmentEmailDispatchTests
             _appraisal.Id, _assignment.Id, [],
             [AssignmentEmailCcRoles.IntAdminAll, AssignmentEmailCcRoles.FollowupStaff, AssignmentEmailCcRoles.FollowupSupervisor],
             "ขอนำส่งงานประเมิน ลูกค้าราย นายสมศักดิ์ 69042630",
-            "<p>เรียน {{company}}</p><p>ผู้รับผิดชอบ : {{responsible}}</p>", []);
+            "<p>เรียน {{company}}</p><p>ผู้รับผิดชอบ : {{internal_staff}}</p>", []);
         _rows.Add(row);
         return row;
     }

@@ -10,7 +10,9 @@ namespace Appraisal.Domain.Appraisals;
 public class AssignmentEmail : Entity<Guid>
 {
     public const string CompanyPlaceholder = "{{company}}";
-    public const string ResponsiblePlaceholder = "{{responsible}}";
+    public const string ResponsiblePlaceholder = "{{internal_staff}}";
+    // Drafts saved before the rename still carry this token.
+    public const string LegacyResponsiblePlaceholder = "{{responsible}}";
 
     public Guid AppraisalId { get; private set; }
     public Guid AssignmentId { get; private set; }
@@ -94,7 +96,7 @@ public class AssignmentEmail : Entity<Guid>
         };
 
     /// <summary>
-    /// Hands the email to the sender: fills the template's <c>{{company}}</c> / <c>{{responsible}}</c> left open at
+    /// Hands the email to the sender: fills the template's <c>{{company}}</c> / <c>{{internal_staff}}</c> left open at
     /// assign, so the row keeps what was sent, and moves it to <see cref="AssignmentEmailStatus.Queued"/> so it is never
     /// picked for a later handover. Values are HTML-encoded: they come from master data, not from the admin.
     /// <paramref name="to"/> / <paramref name="cc"/> are the resolved addresses handed to the sender.
@@ -103,6 +105,7 @@ public class AssignmentEmail : Entity<Guid>
     {
         BodyHtml = Fill(BodyHtml, CompanyPlaceholder, company);
         BodyHtml = Fill(BodyHtml, ResponsiblePlaceholder, responsible);
+        BodyHtml = Fill(BodyHtml, LegacyResponsiblePlaceholder, responsible);
         SentTo = to.ToList();
         // As the sender mails it: an address already in To is not copied again (EmailRecipients, Notification).
         SentCc = cc.Except(SentTo, StringComparer.OrdinalIgnoreCase).ToList();

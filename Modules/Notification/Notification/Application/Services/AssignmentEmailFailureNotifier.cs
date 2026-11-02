@@ -41,7 +41,7 @@ public sealed class AssignmentEmailFailureNotifier(
             assigner = found.TryGetValue(email.AssignedBy, out var user) ? user.Username : null;
         }
 
-        var admins = await userLookup.GetUsernamesInRoleAsync("IntAdmin", ct: ct);
+        var admins = await userLookup.GetUsernamesInGroupAsync("IntAdmin", ct);
         var recipients = new[] { assigner }.Concat(admins)
             .Where(u => !string.IsNullOrWhiteSpace(u))
             .Distinct(StringComparer.OrdinalIgnoreCase);

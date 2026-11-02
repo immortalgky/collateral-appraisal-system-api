@@ -35,7 +35,7 @@ public class AssignmentEmailRequestFaultHandlerTests
 
     public AssignmentEmailRequestFaultHandlerTests()
     {
-        _users.GetUsernamesInRoleAsync("IntAdmin", null, Arg.Any<CancellationToken>())
+        _users.GetUsernamesInGroupAsync("IntAdmin", Arg.Any<CancellationToken>())
             .Returns(["P1001", "P5229"]); // the assigner is an IntAdmin too
         _users.GetByUsernamesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
             .Returns(c => c.Arg<IEnumerable<string>>()
@@ -83,6 +83,20 @@ public class AssignmentEmailRequestFaultHandlerTests
                 user, Arg.Any<string>(), expected, NotificationType.AssignmentEmailFailed,
                 $"/appraisals/{Request.AppraisalId}/administration", Arg.Any<Dictionary<string, object>?>());
         await _notifications.ReceivedWithAnyArgs(2).SendNotificationToUserAsync(default!, default!, default!, default);
+    }
+
+    [Fact]
+    public async Task The_admins_come_from_the_IntAdmin_group_not_the_role()
+    {
+        _users.GetUsernamesInRoleAsync("IntAdmin", Arg.Any<Guid?>(), Arg.Any<CancellationToken>()).Returns(["ROLEONLY"]);
+
+        await ConsumeAsync(Request, "connection refused");
+
+        await _users.Received(1).GetUsernamesInGroupAsync("IntAdmin", Arg.Any<CancellationToken>());
+        await _users.DidNotReceiveWithAnyArgs().GetUsernamesInRoleAsync(default!, default, default);
+        await _notifications.DidNotReceive().SendNotificationToUserAsync(
+            "ROLEONLY", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<NotificationType>(),
+            Arg.Any<string?>(), Arg.Any<Dictionary<string, object>?>());
     }
 
     [Fact]
@@ -201,7 +215,7 @@ public class AssignmentEmailRequestFaultHandlerTests
     public async Task The_assigner_is_notified_under_their_account_spelling()
     {
         // The realtime group is user-{Username} and case-sensitive: use the account's own spelling.
-        _users.GetUsernamesInRoleAsync("IntAdmin", null, Arg.Any<CancellationToken>()).Returns(["P1001"]);
+        _users.GetUsernamesInGroupAsync("IntAdmin", Arg.Any<CancellationToken>()).Returns(["P1001"]);
 
         await ConsumeAsync(Request with { AssignedBy = "p7777" }, "connection refused");
 
@@ -214,7 +228,7 @@ public class AssignmentEmailRequestFaultHandlerTests
     [Fact]
     public async Task A_system_assigned_case_tells_every_IntAdmin()
     {
-        _users.GetUsernamesInRoleAsync("IntAdmin", null, Arg.Any<CancellationToken>()).Returns(["P1001", "P1002"]);
+        _users.GetUsernamesInGroupAsync("IntAdmin", Arg.Any<CancellationToken>()).Returns(["P1001", "P1002"]);
 
         await ConsumeAsync(Request with { AssignedBy = null }, "connection refused");
 
