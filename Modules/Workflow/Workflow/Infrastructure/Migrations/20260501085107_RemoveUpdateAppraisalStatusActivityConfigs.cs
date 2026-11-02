@@ -10,11 +10,7 @@ namespace Workflow.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Remove seed rows for the retired UpdateAppraisalStatus pipeline step.
-            // Status transitions for in-flight appraisals are now driven by
-            // WorkflowTransitionedIntegrationEvent consumed in the Appraisal module.
-            migrationBuilder.Sql(
-                "DELETE FROM workflow.ActivityProcessConfigurations WHERE ProcessorName = 'UpdateAppraisalStatus';");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />

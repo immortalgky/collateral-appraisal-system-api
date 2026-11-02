@@ -9,29 +9,13 @@ namespace Workflow.Infrastructure.Migrations;
 /// explicit <c>entrySource</c> discriminator (UI vs API). A UI-created request may carry a
 /// non-MANUAL channel yet must still pass through appraisal-initiation-check, so the UI-vs-API
 /// split must key on how the request entered the system, not on channel.
-/// Idempotent UPDATEs; safe to re-run.
+/// The UPDATEs were removed, so Up is now a no-op.
 /// </summary>
 public partial class SwitchAppraisalCreationTriggerToEntrySource : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        // Non-UI entry (API + reappraisal): immediate appraisal creation at workflow start.
-        migrationBuilder.Sql("""
-            UPDATE workflow.ActivityProcessConfigurations
-            SET ParametersJson = '{"condition": "entrySource != ''UI''"}',
-                UpdatedAt = GETDATE(), UpdatedBy = 'system'
-            WHERE ActivityName = '__on_workflow_start__'
-              AND ProcessorName = 'EmitAppraisalCreationRequested'
-            """);
-
-        // UI entry: deferred appraisal creation at initiation-check approval.
-        migrationBuilder.Sql("""
-            UPDATE workflow.ActivityProcessConfigurations
-            SET ParametersJson = '{"condition": "entrySource == ''UI''", "requireDecision": "P"}',
-                UpdatedAt = GETDATE(), UpdatedBy = 'system'
-            WHERE ActivityName = 'appraisal-initiation-check'
-              AND ProcessorName = 'EmitAppraisalCreationRequested'
-            """);
+        // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)

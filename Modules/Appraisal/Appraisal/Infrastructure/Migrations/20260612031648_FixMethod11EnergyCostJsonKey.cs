@@ -10,17 +10,7 @@ namespace Appraisal.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Method 11 (Income) detail JSON historically used a misspelled key 'totalEnegyCost'.
-            // The C# model (Method11Detail) now serializes/deserializes 'totalEnergyCost', so any
-            // row persisted before the rename would deserialize that key to an empty array (data
-            // orphaned). Data-only migration: rename the key in place for existing rows.
-            //
-            // The two tokens are not substrings of one another ('Enegy' lacks the 'r' of 'Energy'),
-            // so REPLACE is unambiguous and the statement is idempotent (the WHERE re-guards).
-            migrationBuilder.Sql(
-                "UPDATE appraisal.IncomeAssumptions " +
-                "SET Method_DetailJson = REPLACE(Method_DetailJson, 'totalEnegyCost', 'totalEnergyCost') " +
-                "WHERE Method_DetailJson LIKE '%totalEnegyCost%';");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />

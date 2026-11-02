@@ -11,34 +11,27 @@ namespace Appraisal.Infrastructure.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             // Convert ProjectUnits.PurchaseBy from int (1=Cash, 2=Loan) to nvarchar(10)
-            // holding the enum name. Five-step ALTER pattern preserves existing rows.
+            // holding the enum name. The int → name backfill was removed;
+            // only safe on an empty table.
 
             // 1. Add new string column alongside the int column.
             migrationBuilder.Sql("""
                 ALTER TABLE appraisal.ProjectUnits ADD PurchaseBy_New nvarchar(10) NULL;
                 """);
 
-            // 2. Backfill: convert int values to enum-name strings.
-            migrationBuilder.Sql("""
-                UPDATE appraisal.ProjectUnits
-                SET PurchaseBy_New = CASE PurchaseBy
-                    WHEN 1 THEN N'Cash'
-                    WHEN 2 THEN N'Loan'
-                    ELSE NULL
-                END;
-                """);
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
-            // 3. Drop the int column.
+            // 2. Drop the int column.
             migrationBuilder.Sql("""
                 ALTER TABLE appraisal.ProjectUnits DROP COLUMN PurchaseBy;
                 """);
 
-            // 4. Rename the new column back to PurchaseBy.
+            // 3. Rename the new column back to PurchaseBy.
             migrationBuilder.Sql("""
                 EXEC sp_rename 'appraisal.ProjectUnits.PurchaseBy_New', 'PurchaseBy', 'COLUMN';
                 """);
 
-            // 5. Column stays NULL (nullable in the domain); no ALTER ... NOT NULL.
+            // 4. Column stays NULL (nullable in the domain); no ALTER ... NOT NULL.
         }
 
         /// <inheritdoc />

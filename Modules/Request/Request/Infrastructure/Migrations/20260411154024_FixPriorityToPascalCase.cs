@@ -10,11 +10,7 @@ namespace Request.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.Sql(@"
-                UPDATE request.Requests
-                SET Priority = 'Normal'
-                WHERE Priority = 'NORMAL';
-            ");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />

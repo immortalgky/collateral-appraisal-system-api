@@ -64,20 +64,7 @@ namespace Collateral.Migrations
                 table: "CollateralEngagementBuildings",
                 column: "EngagementId");
 
-            // Data migration: rename CollateralType values to match Appraisal's PropertyType.Code vocabulary.
-            // L=bare land, LB=land+building, U=condo, LSL=bare leasehold, MAC=machinery.
-            // Existing rows carry the old verbose strings; new rows use the short codes directly.
-            migrationBuilder.Sql("""
-                UPDATE collateral.CollateralMasters
-                SET CollateralType = CASE CollateralType
-                    WHEN 'Land'      THEN 'L'
-                    WHEN 'Condo'     THEN 'U'
-                    WHEN 'Leasehold' THEN 'LSL'
-                    WHEN 'Machine'   THEN 'MAC'
-                    ELSE CollateralType
-                END
-                WHERE CollateralType IN ('Land', 'Condo', 'Leasehold', 'Machine');
-                """);
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />
