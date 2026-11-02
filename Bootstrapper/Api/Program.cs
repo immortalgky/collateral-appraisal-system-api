@@ -167,6 +167,8 @@ builder.Services.AddMassTransit(config =>
         {
             r.Ignore<Shared.Exceptions.ConflictException>();
             r.Ignore<Collateral.CollateralMasters.Exceptions.MissingIdentityKeyException>();
+            // A permanent SMTP rejection (5xx, e.g. message size) gets the same answer on every retry (#624).
+            r.Ignore<MailKit.Net.Smtp.SmtpCommandException>(Notification.Infrastructure.Email.SmtpFailures.IsPermanent);
         }
 
         configurator.UseMessageRetry(r =>

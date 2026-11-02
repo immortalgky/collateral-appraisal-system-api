@@ -126,18 +126,26 @@ public class InternalFollowupSelectionActivityTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_NoMatch_DoesNotPublish()
+    public async Task ExecuteAsync_NoMatch_PublishesFollowupEventWithoutAnOfficer()
     {
+        var appraisalId = Guid.NewGuid();
         _staffRoundRobinService.SelectStaffAsync(Arg.Any<CancellationToken>())
             .Returns(StaffSelectionResult.Failure("No eligible internal staff"));
 
-        var context = CreateContext();
+        var context = CreateContext(new Dictionary<string, object> { ["appraisalId"] = appraisalId });
 
         var result = await _sut.ExecuteAsync(context);
 
         result.OutputData["decision"].Should().Be("no_match");
         result.OutputData["selectionError"].Should().Be("No eligible internal staff");
-        _outbox.DidNotReceiveWithAnyArgs().Publish<InternalFollowupAssignedIntegrationEvent>(default!);
+        // The company's assignment email (#622) still goes out, just without the follow-up officer.
+        _outbox.Received(1).Publish(
+            Arg.Is<InternalFollowupAssignedIntegrationEvent>(e =>
+                e.AppraisalId == appraisalId
+                && e.InternalAppraiserId == null
+                && e.InternalFollowupAssignmentMethod == null),
+            appraisalId.ToString(),
+            Arg.Any<Dictionary<string, string>?>());
     }
 
     // ── sameAssigneeAsActivity: the source activity's completer becomes the followup staff ──

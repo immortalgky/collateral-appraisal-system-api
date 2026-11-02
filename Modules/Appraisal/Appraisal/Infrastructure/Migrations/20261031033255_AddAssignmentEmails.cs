@@ -1,0 +1,66 @@
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace Appraisal.infrastructure.Migrations
+{
+    /// <inheritdoc />
+    public partial class AddAssignmentEmails : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.CreateTable(
+                name: "AssignmentEmails",
+                schema: "appraisal",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    AppraisalId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    AssignmentId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    ExtraTo = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Cc = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Subject = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    BodyHtml = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    FailureReason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    CreatedWorkstation = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedBy = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    UpdatedWorkstation = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    IsResend = table.Column<bool>(type: "bit", nullable: false),
+                    SentTo = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    SentCc = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    SentAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    Attachments = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AssignmentEmails", x => x.Id);
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AssignmentEmails_AppraisalId",
+                schema: "appraisal",
+                table: "AssignmentEmails",
+                column: "AppraisalId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AssignmentEmails_AssignmentId",
+                schema: "appraisal",
+                table: "AssignmentEmails",
+                column: "AssignmentId");
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropTable(
+                name: "AssignmentEmails",
+                schema: "appraisal");
+        }
+    }
+}

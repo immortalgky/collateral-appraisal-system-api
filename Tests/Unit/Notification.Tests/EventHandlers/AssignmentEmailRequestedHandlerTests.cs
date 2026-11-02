@@ -1,0 +1,158 @@
+using MassTransit;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Notification.Application.EventHandlers;
+using Notification.Contracts.Email;
+using Notification.Data;
+using Auth.Contracts.Users;
+using Notification.Domain.Notifications.Models;
+using Notification.Domain.Notifications.Services;
+using Notification.Infrastructure.Email.Attachments;
+using Notification.Infrastructure.Email.Templates;
+using NSubstitute;
+using NSubstitute.ExceptionExtensions;
+using Shared.Messaging.Events;
+using Shared.Messaging.Filters;
+using Shared.Time;
+
+namespace Notification.Tests.EventHandlers;
+
+/// <summary>#620 Notification seam: the assignment email request comes in, the IEmailSender call goes out.</summary>
+public class AssignmentEmailRequestedHandlerTests
+{
+    private static readonly Guid DocumentId = Guid.NewGuid();
+
+    private readonly IEmailSender _sender = Substitute.For<IEmailSender>();
+    private readonly IEmailTemplateRenderer _renderer = Substitute.For<IEmailTemplateRenderer>();
+    private readonly IEmailAttachmentResolver _documents = Substitute.For<IEmailAttachmentResolver>();
+    private readonly INotificationService _notifications = Substitute.For<INotificationService>();
+    private readonly ConsumeContext<AssignmentEmailRequestedIntegrationEvent> _ctx =
+        Substitute.For<ConsumeContext<AssignmentEmailRequestedIntegrationEvent>>();
+
+    public AssignmentEmailRequestedHandlerTests()
+    {
+        _renderer.AssignmentEmail(Arg.Any<string>(), Arg.Any<string?>())
+            .Returns(c => $"<shell>{c.ArgAt<string?>(1)}</shell>");
+        _documents.Type.Returns("document");
+        _documents.ResolveAsync(DocumentId.ToString(), Arg.Any<CancellationToken>())
+            .Returns([new EmailAttachment("deed.pdf", [1, 2, 3], "application/pdf")]);
+        _ctx.MessageId.Returns((Guid?)null); // the real InboxGuard below never touches its provider-less context
+        _ctx.CancellationToken.Returns(CancellationToken.None);
+    }
+
+    private static AssignmentEmailRequestedIntegrationEvent Request(IReadOnlyList<string>? to = null) => new()
+    {
+        AppraisalId = Guid.NewGuid(),
+        EmailId = Guid.NewGuid(),
+        To = to ?? ["jobs@acme.co.th", "extra@acme.co.th"],
+        Cc = ["boss@bank.co.th"],
+        Subject = "ขอนำส่งงานประเมิน ลูกค้าราย นายสมศักดิ์ 69042630",
+        HtmlBody = "<p>เรียน บริษัท แอคมี จำกัด</p>",
+        AttachmentRefs = [new EmailAttachmentRefData("document", DocumentId.ToString())],
+        AssignedBy = "P5229"
+    };
+
+    private Task ConsumeAsync(AssignmentEmailRequestedIntegrationEvent request)
+    {
+        _ctx.Message.Returns(request);
+        var inbox = new InboxGuard<NotificationDbContext>(
+            new NotificationDbContext(new DbContextOptionsBuilder<NotificationDbContext>().Options),
+            NullLogger<InboxGuard<NotificationDbContext>>.Instance,
+            Substitute.For<IDateTimeProvider>());
+        return new AssignmentEmailRequestedHandler(
+                _sender,
+                _renderer,
+                new EmailAttachmentAssembler([_documents], NullLogger<EmailAttachmentAssembler>.Instance),
+                inbox,
+                new AssignmentEmailFailureNotifier(_notifications, Users(), NullLogger<AssignmentEmailFailureNotifier>.Instance),
+                NullLogger<AssignmentEmailRequestedHandler>.Instance)
+            .Consume(_ctx);
+    }
+
+    private static IUserLookupService Users()
+    {
+        var users = Substitute.For<IUserLookupService>();
+        users.GetByUsernamesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, UserLookupDto> { ["P5229"] = new("P5229", "สมชาย", "ใจดี") });
+        return users;
+    }
+
+    [Fact]
+    public async Task Sends_the_email_logged_under_the_assignment_email_then_confirms_it()
+    {
+        var request = Request();
+
+        await ConsumeAsync(request);
+
+        await _sender.Received(1).SendAsync(Arg.Is<EmailMessage>(m =>
+            m.Subject == request.Subject
+            && m.HtmlBody == "<shell><p>เรียน บริษัท แอคมี จำกัด</p></shell>"
+            && m.To!.SequenceEqual(new[] { "jobs@acme.co.th", "extra@acme.co.th" })
+            && m.Cc!.SequenceEqual(new[] { "boss@bank.co.th" })
+            && m.Attachments!.Single().FileName == "deed.pdf"
+            && m.Source == "AssignmentEmail"
+            && m.ReferenceId == request.EmailId.ToString()), Arg.Any<CancellationToken>());
+        await _ctx.Received(1).Publish(
+            Arg.Is<AssignmentEmailSentIntegrationEvent>(e => e.EmailId == request.EmailId && e.AppraisalId == request.AppraisalId),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_company_email_holding_several_addresses_reaches_each_of_them()
+    {
+        // The company master stores one string; nothing stops "a; b" there (the validator only checks for '@').
+        await ConsumeAsync(Request(to: ["ops@acme.co.th; mgr@acme.co.th", "extra@acme.co.th"]));
+
+        await _sender.Received(1).SendAsync(Arg.Is<EmailMessage>(m =>
+            m.To!.SequenceEqual(new[] { "ops@acme.co.th", "mgr@acme.co.th", "extra@acme.co.th" })),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task An_address_already_in_To_is_not_copied_again()
+    {
+        await ConsumeAsync(Request(to: ["ops@acme.co.th; mgr@acme.co.th"]) with { Cc = ["OPS@acme.co.th", "boss@bank.co.th"] });
+
+        await _sender.Received(1).SendAsync(Arg.Is<EmailMessage>(m =>
+            m.Cc!.SequenceEqual(new[] { "boss@bank.co.th" })), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_failed_send_is_not_confirmed_and_is_retried()
+    {
+        _sender.SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("SMTP 451"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => ConsumeAsync(Request()));
+
+        await _ctx.DidNotReceive().Publish(Arg.Any<AssignmentEmailSentIntegrationEvent>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task A_failed_confirmation_does_not_send_the_company_a_second_email()
+    {
+        _ctx.Publish(Arg.Any<AssignmentEmailSentIntegrationEvent>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("broker unreachable"));
+
+        await ConsumeAsync(Request()); // does not throw, so the bus does not retry the send
+
+        await _sender.Received(1).SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task No_company_address_sends_nothing_even_with_a_Cc_and_reports_the_failure()
+    {
+        // The company has no email and the admin added none: a mail only to bank staff is not the assignment email.
+        var request = Request(to: []);
+        await ConsumeAsync(request);
+
+        await _sender.DidNotReceive().SendAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>());
+        await _ctx.DidNotReceive().Publish(Arg.Any<AssignmentEmailSentIntegrationEvent>(), Arg.Any<CancellationToken>());
+        await _ctx.Received(1).Publish(
+            Arg.Is<AssignmentEmailFailedIntegrationEvent>(e => e.EmailId == request.EmailId && e.Reason == "บริษัทไม่มีอีเมลผู้รับ"),
+            Arg.Any<CancellationToken>());
+        await _notifications.Received(1).SendNotificationToUserAsync(
+            "P5229", Arg.Any<string>(), Arg.Is<string>(m => m.EndsWith("ไม่สำเร็จ: บริษัทไม่มีอีเมลผู้รับ")),
+            NotificationType.AssignmentEmailFailed, Arg.Any<string?>(), Arg.Any<Dictionary<string, object>?>());
+    }
+}

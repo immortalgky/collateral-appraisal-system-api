@@ -66,6 +66,7 @@ public class GetEligibleAssigneesQueryHandler
         // Fetch role descriptions per candidate username so the FE picker can show "Appraisal Staff" etc.
         var usernames = pipelineCtx.CandidatePool.Select(m => m.UserId).Distinct().ToList();
         var rolesByUser = await GetRolesByUsernameAsync(usernames, cancellationToken);
+        var taskCounts = await GetActiveTaskCountsAsync(usernames, cancellationToken);
 
         return new GetEligibleAssigneesResponse
         {
@@ -76,10 +77,37 @@ public class GetEligibleAssigneesQueryHandler
                 .Select(m => new EligibleAssigneeDto(m.UserId, m.DisplayName)
                 {
                     UserName = m.UserId,
-                    Roles = rolesByUser.TryGetValue(m.UserId, out var roles) ? roles : []
+                    Roles = rolesByUser.TryGetValue(m.UserId, out var roles) ? roles : [],
+                    ActiveTaskCount = taskCounts.GetValueOrDefault(m.UserId)
                 })
                 .ToList()
         };
+    }
+
+    /// <summary>
+    /// Open tasks per user in one query, by the rule of AssignmentRepository.GetActiveTaskCountForUserAsync
+    /// (PendingTasks.AssignedTo = the user). Users with none are absent.
+    /// </summary>
+    private async Task<Dictionary<string, int>> GetActiveTaskCountsAsync(
+        List<string> usernames, CancellationToken cancellationToken)
+    {
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        if (usernames.Count == 0)
+            return counts;
+
+        var connection = _connectionFactory.GetOpenConnection(); // the shared scoped connection: not ours to dispose
+        const string sql = """
+            SELECT AssignedTo, COUNT(*) AS TaskCount
+            FROM workflow.PendingTasks
+            WHERE AssignedTo IN @UserNames
+            GROUP BY AssignedTo
+            """;
+
+        var rows = await connection.QueryAsync<(string AssignedTo, int TaskCount)>(
+            new CommandDefinition(sql, new { UserNames = usernames }, cancellationToken: cancellationToken));
+        foreach (var (assignedTo, taskCount) in rows)
+            counts[assignedTo] = taskCount;
+        return counts;
     }
 
     private async Task<Dictionary<string, List<string>>> GetRolesByUsernameAsync(
@@ -88,7 +116,7 @@ public class GetEligibleAssigneesQueryHandler
         if (usernames.Count == 0)
             return new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
-        using var connection = _connectionFactory.GetOpenConnection();
+        var connection = _connectionFactory.GetOpenConnection(); // the shared scoped connection: not ours to dispose
         const string sql = """
             SELECT u.UserName AS UserName,
                    COALESCE(NULLIF(r.Description, ''), r.Name) AS RoleLabel

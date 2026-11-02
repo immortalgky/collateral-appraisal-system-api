@@ -4,6 +4,7 @@ using Auth.Domain.Identity;
 using Auth.Domain.Organization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Shared.Time;
 
 namespace Auth.Application.Services;
 
@@ -12,8 +13,14 @@ namespace Auth.Application.Services;
 /// Returns first/last name (and company name when available) for a batch of usernames
 /// in a single round-trip.
 /// </summary>
-public class UserLookupService(AuthDbContext db, UserManager<ApplicationUser> userManager) : IUserLookupService
+public class UserLookupService(
+    AuthDbContext db,
+    UserManager<ApplicationUser> userManager,
+    IDateTimeProvider dateTimeProvider) : IUserLookupService
 {
+    /// <summary>The group the seeder creates for the IntAdmin role; it monitors everyone's work.</summary>
+    private const string IntAdminGroupName = "IntAdmin";
+
     public async Task<IReadOnlyDictionary<string, UserLookupDto>> GetByUsernamesAsync(
         IEnumerable<string> usernames,
         CancellationToken cancellationToken)
@@ -59,6 +66,79 @@ public class UserLookupService(AuthDbContext db, UserManager<ApplicationUser> us
                         && (companyId == null || u.CompanyId == companyId))
             .Select(u => u.UserName!)
             .ToArray();
+    }
+
+    public async Task<IReadOnlyList<string>> GetEmailsInRoleAsync(string role, CancellationToken ct)
+    {
+        var normalizedRole = role.ToUpperInvariant();
+        return await EmailsOf(UsableWithEmail().Where(u => db.UserRoles.Any(ur => ur.UserId == u.Id
+            && db.Roles.Any(r => r.Id == ur.RoleId && r.NormalizedName == normalizedRole))), ct);
+    }
+
+    public async Task<IReadOnlyList<string>> GetEmailsAsync(IEnumerable<string> usernames, CancellationToken ct)
+    {
+        var normalized = usernames.Where(u => !string.IsNullOrWhiteSpace(u))
+            .Select(u => u.Trim().ToUpperInvariant()).Distinct().ToArray();
+        if (normalized.Length == 0) return [];
+
+        return await EmailsOf(UsableWithEmail().Where(u => normalized.Contains(u.NormalizedUserName)), ct);
+    }
+
+    public async Task<IReadOnlyList<string>> GetSupervisorEmailsAsync(string username, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(username)) return [];
+        var normalized = username.Trim().ToUpperInvariant();
+
+        var usersGroups = db.GroupUsers
+            .Where(gu => db.Users.Any(u => u.Id == gu.UserId && u.NormalizedUserName == normalized))
+            .Select(gu => gu.GroupId);
+        // Joined through Groups so its soft-delete filter applies to both sides.
+        var monitorGroups =
+            from gm in db.GroupMonitoring
+            join monitor in db.Groups on gm.MonitorGroupId equals monitor.Id
+            join monitored in db.Groups on gm.MonitoredGroupId equals monitored.Id
+            where usersGroups.Contains(monitored.Id) && monitor.Name != IntAdminGroupName
+            select monitor.Id;
+
+        return await EmailsOf(UsableWithEmail()
+            .Where(u => db.GroupUsers.Any(gu => gu.UserId == u.Id && monitorGroups.Contains(gu.GroupId))), ct);
+    }
+
+    public async Task<IReadOnlyDictionary<string, string>> GetNamesByEmailAsync(IEnumerable<string> emails, CancellationToken ct)
+    {
+        var wanted = emails.Where(e => !string.IsNullOrWhiteSpace(e)).Select(e => e.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (wanted.Length == 0) return names;
+
+        // Compared as EmailsOf returns it (trimmed; the collation ignores case). The same address held by several
+        // users goes to the first by username, not by whatever order the database returns.
+        var users = await UsableWithEmail().Where(u => wanted.Contains(u.Email!.Trim()))
+            .OrderBy(u => u.UserName).ThenBy(u => u.Id)
+            .Select(u => new { Email = u.Email!.Trim(), u.UserName, u.FirstName, u.LastName })
+            .ToListAsync(ct);
+        foreach (var u in users)
+        {
+            var name = $"{u.FirstName} {u.LastName}".Trim();
+            if (name.Length == 0) name = u.UserName ?? "";
+            if (name.Length > 0) names.TryAdd(u.Email, name);
+        }
+
+        return names;
+    }
+
+    /// <summary>Users who may use the system now (<see cref="ApplicationUser.IsUsable(DateTime)"/>) and have an email.</summary>
+    private IQueryable<ApplicationUser> UsableWithEmail()
+    {
+        var now = dateTimeProvider.ApplicationNow;
+        return db.Users.Where(u => u.IsActive
+                                   && (u.AccessExpiresAt == null || u.AccessExpiresAt > now)
+                                   && u.Email != null && u.Email.Trim() != "");
+    }
+
+    private static async Task<IReadOnlyList<string>> EmailsOf(IQueryable<ApplicationUser> users, CancellationToken ct)
+    {
+        var emails = await users.Select(u => u.Email!.Trim()).ToListAsync(ct);
+        return emails.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     public async Task<RequestorInfoDto?> GetRequestorAsync(string employeeId, CancellationToken ct = default)

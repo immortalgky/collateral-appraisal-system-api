@@ -75,6 +75,7 @@ public class AppraisalDbContext : DbContext
     // =====================================================
     public DbSet<AppraisalReview> AppraisalReviews => Set<AppraisalReview>();
     public DbSet<AppraisalDecision> AppraisalDecisions => Set<AppraisalDecision>();
+    public DbSet<AssignmentEmail> AssignmentEmails => Set<AssignmentEmail>();
     public DbSet<Committee> Committees => Set<Committee>();
     public DbSet<CommitteeMember> CommitteeMembers => Set<CommitteeMember>();
     public DbSet<CommitteeApprovalCondition> CommitteeApprovalConditions => Set<CommitteeApprovalCondition>();

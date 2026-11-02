@@ -269,6 +269,17 @@ public class AppraisalAssignment : Entity<Guid>
     }
 
     /// <summary>
+    /// Records the company the admin picked for an off-system (EXTO) decision on this Pending row before the
+    /// workflow resumes. The int-offline-book-keyin consumer passes the row's company back through
+    /// <see cref="Assign"/>, so it survives the hand-over to the keyer.
+    /// </summary>
+    public void SetAssigneeCompany(string companyId)
+    {
+        ValidateStatus("record the company", AssignmentStatus.Pending);
+        AssigneeCompanyId = companyId;
+    }
+
+    /// <summary>
     /// Assign the appraisal to an internal user or external company
     /// </summary>
     public void Assign(
@@ -311,7 +322,7 @@ public class AppraisalAssignment : Entity<Guid>
     /// <summary>
     /// Attach internal followup staff after the company has been assigned.
     /// </summary>
-    public void AssignInternalFollowup(string internalAppraiserId, string internalFollowupMethod)
+    public void AssignInternalFollowup(string internalAppraiserId, string? internalFollowupMethod)
     {
         InternalAppraiserId = internalAppraiserId;
         InternalFollowupAssignmentMethod = internalFollowupMethod;
@@ -393,8 +404,11 @@ public class AppraisalAssignment : Entity<Guid>
     /// True when the company was engaged outside the system and an internal appraiser keys the
     /// book in — External for reporting/fee purposes, but no vendor time is measurable in CAS.
     /// </summary>
-    public bool IsOfflineEngagement =>
-        string.Equals(AssignmentMethod, OfflineAssignmentMethod, StringComparison.OrdinalIgnoreCase);
+    public bool IsOfflineEngagement => IsOfflineMethod(AssignmentMethod);
+
+    /// <summary>THE test for an off-system (EXTO) assignment method, for readers that hold only the method string.</summary>
+    public static bool IsOfflineMethod(string? assignmentMethod) =>
+        string.Equals(assignmentMethod, OfflineAssignmentMethod, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// No company holds the job any more (it declined or returned it at ext-appraisal-assignment, or company

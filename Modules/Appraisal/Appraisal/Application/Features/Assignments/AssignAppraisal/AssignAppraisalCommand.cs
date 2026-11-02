@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Assignments.AssignmentEmails;
+
 namespace Appraisal.Application.Features.Assignments.AssignAppraisal;
 
 /// <summary>
@@ -24,5 +26,12 @@ public record AssignAppraisalCommand(
     /// </summary>
     string DecisionTaken = "EXT",
     /// <summary>Admin remark persisted onto the assignment row alongside the assign action.</summary>
-    string? Remark = null
+    string? Remark = null,
+    /// <summary>EXT / EXTO only: the email the admin edited in the assign dialog. Read only when sending.</summary>
+    AssignmentEmailInput? Email = null,
+    /// <summary>
+    /// EXT / EXTO only: true = มอบหมายและส่ง (a Pending email row), false = มอบหมายโดยไม่ส่ง (a NotSent row),
+    /// null = no admin choice (quotation auto-assign): no row, so the send falls back to the template.
+    /// </summary>
+    bool? SendEmail = null
 ) : ICommand<AssignAppraisalResult>;

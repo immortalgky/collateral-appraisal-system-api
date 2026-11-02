@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+using Appraisal.Application.Features.Assignments.AssignmentEmails;
 using Appraisal.Application.Features.Assignments.AssignAppraisal;
 using Appraisal.Application.Features.Fees.AddFeeItem;
 using Appraisal.Application.Features.Fees.GetFeePreview;
@@ -32,6 +34,7 @@ public class AssignAppraisalBaseFeeTests
     private readonly IWorkflowRelayService _relay = Substitute.For<IWorkflowRelayService>();
     private readonly ISender _sender = Substitute.For<ISender>();
     private readonly ICurrentUserService _user = Substitute.For<ICurrentUserService>();
+    private readonly ICompanyLookupService _companies = Substitute.For<ICompanyLookupService>();
     private readonly Guid _winner = Guid.NewGuid();
 
     public AssignAppraisalBaseFeeTests()
@@ -39,6 +42,8 @@ public class AssignAppraisalBaseFeeTests
         _user.UserCode.Returns("P0001");
         _ownership.WorkflowInstanceBelongsToAppraisalAsync(default, default, default).ReturnsForAnyArgs(true);
         _quotations.HasFinalizedWonByAsync(default, default, default).ReturnsForAnyArgs(true);
+        _companies.GetByIdAsync(_winner, Arg.Any<CancellationToken>())
+            .Returns(new CompanyLookupDto(_winner, "Acme", null, IsAssignable: true));
         // The handler asks the real preview handler, exactly as MediatR would route it.
         _sender.Send(Arg.Any<GetFeePreviewQuery>(), Arg.Any<CancellationToken>()).Returns(call =>
             new GetFeePreviewQueryHandler(_db, BuildService(_db), Substitute.For<ICompanyLookupService>())
@@ -60,7 +65,8 @@ public class AssignAppraisalBaseFeeTests
     private async Task AssignAsync(Guid appraisalId, string decision, string method = "Manual")
     {
         var handler = new AssignAppraisalCommandHandler(
-            _appraisals, Substitute.For<IAppraisalUnitOfWork>(), _relay, _quotations, _ownership, _sender, _user);
+            _appraisals, Substitute.For<IAppraisalUnitOfWork>(), _relay, _quotations, _ownership, _sender, _user, _companies,
+                Substitute.For<IAssignmentEmailRepository>(), Substitute.For<IAssignmentEmailCaseReader>(), Substitute.For<IConfiguration>());
         await handler.Handle(
             new AssignAppraisalCommand(appraisalId, Guid.NewGuid(), AssigneeCompanyId: _winner.ToString(),
                 AssignmentMethod: method, DecisionTaken: decision), Ct);

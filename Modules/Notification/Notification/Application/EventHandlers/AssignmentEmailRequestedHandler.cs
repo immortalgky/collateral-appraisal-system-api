@@ -1,0 +1,70 @@
+using MassTransit;
+using Notification.Contracts.Email;
+using Notification.Data;
+using Notification.Domain.Notifications.Services;
+using Notification.Infrastructure.Email;
+using Notification.Infrastructure.Email.Attachments;
+using Notification.Infrastructure.Email.Templates;
+using Shared.Messaging.Filters;
+
+namespace Notification.Application.EventHandlers;
+
+/// <summary>
+/// Sends the email to the company an appraisal was assigned to (#620), published by the Appraisal module with its
+/// recipients and placeholders already resolved, then confirms it with <see cref="AssignmentEmailSentIntegrationEvent"/>.
+/// </summary>
+public sealed class AssignmentEmailRequestedHandler(
+    IEmailSender emailSender,
+    IEmailTemplateRenderer templateRenderer,
+    EmailAttachmentAssembler attachmentAssembler,
+    InboxGuard<NotificationDbContext> inboxGuard,
+    AssignmentEmailFailureNotifier failureNotifier,
+    ILogger<AssignmentEmailRequestedHandler> logger)
+    : IConsumer<AssignmentEmailRequestedIntegrationEvent>
+{
+    public Task Consume(ConsumeContext<AssignmentEmailRequestedIntegrationEvent> context) =>
+        inboxGuard.RunOnceAsync(context.MessageId, GetType().Name, async ct =>
+        {
+            var msg = context.Message;
+            // A master-data address may hold several ("a; b"): split as every sibling email handler does.
+            var to = msg.To.SelectMany(EmailRecipients.Parse).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var cc = msg.Cc.SelectMany(EmailRecipients.Parse)
+                .Except(to, StringComparer.OrdinalIgnoreCase).ToList(); // Except also removes duplicates
+
+            // The company is the addressee: without a To, a mail to the Cc'd bank staff alone is not this email.
+            if (to.Count == 0)
+            {
+                await failureNotifier.NotifyAsync(context, msg, "บริษัทไม่มีอีเมลผู้รับ", ct);
+                return;
+            }
+
+            var attachments = await attachmentAssembler.AssembleAsync(
+                msg.AttachmentRefs.Select(r => new EmailAttachmentRef(r.Type, r.Value)), ct);
+
+            await emailSender.SendAsync(new EmailMessage(
+                Subject: msg.Subject,
+                HtmlBody: templateRenderer.AssignmentEmail(msg.Subject, msg.HtmlBody),
+                To: to,
+                Cc: cc.Count > 0 ? cc : null,
+                Attachments: attachments.Count > 0 ? attachments : null,
+                Source: "AssignmentEmail", // EmailSendLogs; ReferenceId is the AssignmentEmails row
+                ReferenceId: msg.EmailId.ToString()), ct);
+
+            // The gateway has the mail. Notification has no outbox, so a failed confirmation is only logged: throwing
+            // would release the inbox claim and the retry would email the company a second time (decided 2026-11-01).
+            try
+            {
+                await context.Publish(new AssignmentEmailSentIntegrationEvent
+                {
+                    AppraisalId = msg.AppraisalId,
+                    EmailId = msg.EmailId
+                }, CancellationToken.None); // not ct: a shutdown now must not turn into a resend either
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex,
+                    "Assignment email {EmailId} for appraisal {AppraisalId} was sent but not confirmed; its row stays Queued",
+                    msg.EmailId, msg.AppraisalId);
+            }
+        }, context.CancellationToken);
+}

@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Assignments.AssignmentEmails;
+using Appraisal.Application.Features.Assignments.GetAssignmentDefaults;
 using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Domain.Quotations;
@@ -19,7 +21,8 @@ public class CompanyAssignedIntegrationEventHandler(
     IAppraisalUnitOfWork unitOfWork,
     IAssignmentFeeService feeService,
     ILogger<CompanyAssignedIntegrationEventHandler> logger,
-    InboxGuard<AppraisalDbContext> inboxGuard
+    InboxGuard<AppraisalDbContext> inboxGuard,
+    AssignmentEmailDispatcher emailDispatcher
 ) : IConsumer<CompanyAssignedIntegrationEvent>
 {
     public Task Consume(ConsumeContext<CompanyAssignedIntegrationEvent> context) =>
@@ -55,11 +58,14 @@ public class CompanyAssignedIntegrationEventHandler(
         // Read before Assign() flips it: a row that was Pending is a genuine (re)assignment, so a system base left by
         // an earlier source is re-priced; any other re-fire must not rewrite a base that may already be billed.
         var wasPending = assignment.AssignmentStatus == AssignmentStatus.Pending;
+        // A company the row did not hold is a new engagement even on a row left Assigned (the automatic route-back
+        // through initial-routing, when round-robin lands elsewhere): it gets its email (#622, user 2026-11-01).
+        var isNewCompany = !(Guid.TryParse(assignment.AssigneeCompanyId, out var heldCompanyId) && heldCompanyId == message.CompanyId);
 
         // Promote the assignment to Assigned for all external paths (Manual, RoundRobin, Forced, Quotation).
         // Preserve internal-followup fields: Assign() defaults them to null, so without
         // passing them back we'd clobber values set by InternalFollowupAssignedIntegrationEventHandler
-        // if that event was processed first (consumer delivery order is not guaranteed).
+        // on an earlier pass (a route-back keeps the row), or if a dead-lettered CompanyAssigned is redriven after it.
         assignment.Assign(
             assignmentType: "External",
             assigneeCompanyId: message.CompanyId.ToString(),
@@ -70,7 +76,9 @@ public class CompanyAssignedIntegrationEventHandler(
             // resumed (Assign() would otherwise stamp "System" over them).
             assignedBy: assignment.AssignedBy);
 
-        var baseFeeSource = await ResolveFeeSourceAsync(message.AppraisalId, message.CompanyId, message.AssignmentMethod, assignment, ct);
+        // One answer for both the fee billed and the fee the email names.
+        var isQuotation = string.Equals(message.AssignmentMethod, AssignmentDefaultValues.MethodQuotation, StringComparison.OrdinalIgnoreCase);
+        var baseFeeSource = await ResolveFeeSourceAsync(message.AppraisalId, message.CompanyId, isQuotation, assignment, ct);
 
         // Construction Inspection appraisals carry over the prior engagement's fee; the fee service
         // substitutes AssignmentFeeSource.ConstructionInspection when that applies. Mirrors what
@@ -83,6 +91,23 @@ public class CompanyAssignedIntegrationEventHandler(
             source: feeSource,
             repriceSystemBase: wasPending,
             ct: ct);
+
+        // EXT (#622): a genuine assignment (the row was Pending, or the company is new) that nobody chose an email for
+        // gets the bank template, sent by the follow-up consumer once the officer is known. A route-back replay of the
+        // company the row holds adds nothing. The email never holds up the assignment.
+        if (wasPending || isNewCompany)
+        {
+            try
+            {
+                await emailDispatcher.AddExtTemplateAsync(assignment, message.CompanyId, isQuotation, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex,
+                    "Assignment email for AppraisalId {AppraisalId} was not prepared; the assignment goes ahead without it",
+                    message.AppraisalId);
+            }
+        }
 
         // Kept on purpose: assignment events only touch AppraisalAssignment rows, so this stamps Appraisals.UpdatedAt
         // (read by GetAppraisalStatus and vw_MisCasReport).
@@ -102,11 +127,11 @@ public class CompanyAssignedIntegrationEventHandler(
     private async Task<AssignmentFeeSource> ResolveFeeSourceAsync(
         Guid appraisalId,
         Guid companyId,
-        string assignmentMethod,
+        bool isQuotation,
         AppraisalAssignment assignment,
         CancellationToken ct)
     {
-        if (!string.Equals(assignmentMethod, "Quotation", StringComparison.OrdinalIgnoreCase))
+        if (!isQuotation)
             return new AssignmentFeeSource.TierBased();
 
         // Resolve the Finalized RFQ for this appraisal. Look up by appraisal id — this is

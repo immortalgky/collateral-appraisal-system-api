@@ -1,3 +1,4 @@
+using Appraisal.Application.Features.Assignments.AssignmentEmails;
 using Appraisal.Application.Services;
 using Appraisal.Domain.Appraisals;
 using Appraisal.Infrastructure;
@@ -16,7 +17,8 @@ public class InternalAssignedIntegrationEventHandler(
     IAppraisalUnitOfWork unitOfWork,
     IAssignmentFeeService feeService,
     ILogger<InternalAssignedIntegrationEventHandler> logger,
-    InboxGuard<AppraisalDbContext> inboxGuard
+    InboxGuard<AppraisalDbContext> inboxGuard,
+    AssignmentEmailDispatcher emailDispatcher
 ) : IConsumer<InternalAssignedIntegrationEvent>
 {
     public Task Consume(ConsumeContext<InternalAssignedIntegrationEvent> context) =>
@@ -69,17 +71,20 @@ public class InternalAssignedIntegrationEventHandler(
         // This event now re-fires on every landing at int-offline-book-keyin, including a route-back
         // from int-appraisal-check — and unlike the internal path, an off-system case carries state
         // this event does not know about:
-        //   AssigneeCompanyId  — the external company the keyer recorded via
-        //                        SetOfflineExternalEngagement. Losing it blanks the company on the
-        //                        printed book and the AS400/LOS feed, breaks fee/company linkage,
-        //                        and flips ExternalCompanyRecorded back to 0 so the keyer is blocked.
+        //   AssigneeCompanyId  — the external company the admin recorded at assignment (EXTO), or on a case
+        //                        that reached key-in before that, the keyer via SetOfflineExternalEngagement.
+        //                        Losing it blanks the company on the printed book and the AS400/LOS
+        //                        feed, breaks fee/company linkage, and flips ExternalCompanyRecorded
+        //                        back to 0 so the keyer is blocked.
         //   ReassignmentNumber — the rework count; resetting it to 1 discards the routeback history.
-        // Both are read off the row and passed straight back. The internal path is unaffected: an
-        // INT case has no company, and its ReassignmentNumber round-trips unchanged.
+        // Both are read off the row and passed straight back. The company only on the off-system path: an INT
+        // case has none, and a row routed back from EXTO (ReturnToAssignmentQueue keeps the selections) and
+        // re-decided INT must not stay linked to that company, which company-scoped queries filter on.
+        var keepsCompany = string.Equals(message.AssignmentType, "External", StringComparison.OrdinalIgnoreCase);
         assignment.Assign(
             assignmentType: message.AssignmentType,
             assigneeUserId: message.AssigneeUserId,
-            assigneeCompanyId: assignment.AssigneeCompanyId,
+            assigneeCompanyId: keepsCompany ? assignment.AssigneeCompanyId : null,
             internalAppraiserId: message.InternalAppraiserId,
             assignmentMethod: message.AssignmentMethod,
             internalFollowupMethod: message.InternalFollowupAssignmentMethod,
@@ -111,6 +116,23 @@ public class InternalAssignedIntegrationEventHandler(
             source: feeSource,
             repriceSystemBase: wasPending,
             ct: ct);
+
+        // EXTO (#620): the case just reached the keyer, so the company gets its email, committed with this save
+        // through the outbox. Only on the handover itself (the row was Pending): a redelivery or a route-back
+        // re-fire finds it Assigned or later and sends nothing again. The email never holds up the assignment.
+        if (wasPending && assignment.IsOfflineEngagement)
+        {
+            try
+            {
+                await emailDispatcher.QueueExtoAsync(assignment, appraisal.AppraisalNumber, message.AssigneeUserId, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex,
+                    "Assignment email for AppraisalId {AppraisalId} was not queued; the assignment goes ahead without it",
+                    message.AppraisalId);
+            }
+        }
 
         // Kept on purpose: assignment events only touch AppraisalAssignment rows, so this stamps Appraisals.UpdatedAt
         // (read by GetAppraisalStatus and vw_MisCasReport).

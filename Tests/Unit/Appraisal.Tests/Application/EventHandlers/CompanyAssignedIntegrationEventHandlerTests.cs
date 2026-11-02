@@ -230,6 +230,7 @@ public class CompanyAssignedIntegrationEventHandlerTests
 
         return new CompanyAssignedIntegrationEventHandler(
             repo, quotationRepo, Substitute.For<IAppraisalUnitOfWork>(), feeService,
-            NullLogger<CompanyAssignedIntegrationEventHandler>.Instance, inboxGuard);
+            NullLogger<CompanyAssignedIntegrationEventHandler>.Instance, inboxGuard,
+            ExtoAssignmentEmailDispatchTests.NoEmailDispatcher());
     }
 }

@@ -18,8 +18,9 @@ public class SetOfflineExternalEngagementCommandValidator
         RuleFor(c => c.AppraisalId)
             .NotEmpty().WithMessage("AppraisalId is required.");
 
+        // Optional (the admin may already have recorded it); the handler requires it when the row has none.
         RuleFor(c => c.CompanyId)
-            .NotEmpty().WithMessage("The external company is required.");
+            .NotEqual(Guid.Empty).WithMessage("The external company id is not valid.");
 
         RuleFor(c => c.BookDate)
             .Must(d => d != default)
