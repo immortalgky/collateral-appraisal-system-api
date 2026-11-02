@@ -59,6 +59,34 @@ function Invoke-Step {
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "$Name failed (exit $LASTEXITCODE)" }
 }
 
+# Display only: returns text saying which branch/commit a repo is built from, so a checkout left on
+# the wrong branch is noticed. Never fails the build; untracked files are ignored on purpose.
+# Captured once up front and re-printed at the end, so the final banner describes what was built.
+function Get-SourceInfo {
+    param([string]$Label, [string]$Path)
+    $head = "  $Label  "
+    $pad  = ' ' * $head.Length
+    if ([string]::IsNullOrWhiteSpace($Path)) { return "$head(path not set)" }
+    try {
+        # Same (wildcard) Resolve-Path the frontend build uses, so we describe the folder that is built.
+        $full = (Resolve-Path $Path -ErrorAction SilentlyContinue).ProviderPath
+        if (-not $full) { return "$head$Path  (path not found)" }
+        $commit = git -C $full log -1 --format='%h %s' 2>$null   # non-zero exit = not a repo
+        if ($LASTEXITCODE -ne 0) { return "$head$full  (not a git repository)" }
+        $branch = git -C $full branch --show-current 2>$null   # empty when detached
+        $dirty  = @(git -C $full status --porcelain --untracked-files=no 2>$null).Count
+        "$head$full"
+        "$pad$(if ($branch) { $branch } else { 'detached' })  $commit"
+        if ($dirty) { "${pad}uncommitted changes: $dirty files" }
+    } catch {
+        "$head$Path  (could not read repository info)"
+    } finally { $global:LASTEXITCODE = 0 }   # don't let git's exit code trip Invoke-Step
+}
+
+$sourceInfo = @(Get-SourceInfo 'Backend ' $repoRoot) + @(Get-SourceInfo 'Frontend' $FrontendRepo)
+Write-Host "==> Building from" -ForegroundColor Cyan
+$sourceInfo | Write-Host
+
 $stage = Join-Path $OutDir $Version
 $apiOut = Join-Path $stage 'api'
 $dbOut  = Join-Path $stage 'database'
@@ -167,6 +195,7 @@ Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
 
 Write-Host ""
 Write-Host "Built $zip" -ForegroundColor Green
+$sourceInfo | Write-Host
 Write-Host "  contains: api/  web/  tools/  db/$(if (Test-Path (Join-Path $stage 'rollback')) { '  rollback/' })$(if (-not $SkipDbTool) { '  database/' })   (version $Version)"
 Write-Host ""
 Write-Host "Next:"
