@@ -60,6 +60,7 @@ public class ApprovalActivityMeetingRoleConditionTests
     private ApprovalActivity BuildActivity() =>
         new(_memberResolver, _voteRepository, _publisher, _outbox, _committeeRepository,
             _dbContext, _clock, Substitute.For<ISlaCalculator>(),
+            Substitute.For<global::Workflow.Tasks.Authorization.ISegregationOfDutiesGuard>(),
             Substitute.For<ILogger<ApprovalActivity>>());
 
     [Fact]

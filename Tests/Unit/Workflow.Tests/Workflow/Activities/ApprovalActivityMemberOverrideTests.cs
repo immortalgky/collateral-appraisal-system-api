@@ -63,6 +63,7 @@ public class ApprovalActivityMemberOverrideTests
     private ApprovalActivity BuildActivity() =>
         new(_memberResolver, _voteRepository, _publisher, _outbox, _committeeRepository,
             _dbContext, _clock, Substitute.For<ISlaCalculator>(),
+            Substitute.For<global::Workflow.Tasks.Authorization.ISegregationOfDutiesGuard>(),
             Substitute.For<ILogger<ApprovalActivity>>());
 
     [Fact]
@@ -117,7 +118,9 @@ public class ApprovalActivityMemberOverrideTests
     [Fact]
     public async Task Execute_WithMeetingRoster_ClearsTheOverrideSoALaterNonMeetingRoundCannotInheritIt()
     {
-        var context = BuildContext(WithOverride(("meeting-1", nameof(CommitteeMemberPosition.Chairman))));
+        var context = BuildContext(WithOverride(
+            ("meeting-1", nameof(CommitteeMemberPosition.Chairman)),
+            ("meeting-2", nameof(CommitteeMemberPosition.Member))));
 
         var result = await BuildActivity().ExecuteAsync(context, CancellationToken.None);
 
@@ -146,7 +149,9 @@ public class ApprovalActivityMemberOverrideTests
         // A routed-back appraisal reworked below the meeting threshold still comes back through its
         // meeting; it must be approved under that meeting's committee, not the tier its value picks.
         var meetingCommitteeId = Guid.NewGuid();
-        var variables = WithOverride(("meeting-1", nameof(CommitteeMemberPosition.Chairman)));
+        var variables = WithOverride(
+            ("meeting-1", nameof(CommitteeMemberPosition.Chairman)),
+            ("meeting-2", nameof(CommitteeMemberPosition.Member)));
         variables["meetingCommitteeId"] = meetingCommitteeId.ToString();
 
         var result = await BuildActivity().ExecuteAsync(BuildContext(variables), CancellationToken.None);

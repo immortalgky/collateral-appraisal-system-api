@@ -36,7 +36,7 @@ public class PoolTaskCompletedNotificationTests
         var db = new WorkflowDbContext(new DbContextOptionsBuilder<WorkflowDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 
-        var handler = new TaskCompletedDomainEventHandler(repo, Substitute.For<IPublishEndpoint>(), outbox, db,
+        var handler = new TaskCompletedDomainEventHandler(repo, outbox, db,
             Substitute.For<ISender>(), Substitute.For<IParameterLookupService>(),
             Substitute.For<ILogger<TaskCompletedDomainEventHandler>>());
 
@@ -48,6 +48,32 @@ public class PoolTaskCompletedNotificationTests
             Arg.Is<PoolTaskCompletedIntegrationEvent>(e =>
                 e.PoolGroup == "IntAppraisalVerifier" && e.TaskId == task.Id && e.CompletedBy == "alice"),
             Arg.Any<string?>(), Arg.Any<Dictionary<string, string>?>());
+    }
+
+    [Fact]
+    public async Task Handle_PublishesTaskCompletedThroughTheOutbox()
+    {
+        // Delivered only after commit: a submit that rolls back (e.g. the committee round it leads to
+        // cannot resolve) must not tell anyone the task was completed.
+        var task = PendingTask.Create(Guid.NewGuid(), "Verify", "verifier", "1",
+            DateTime.Now.AddHours(-1), Guid.NewGuid(), "int-appraisal-verification");
+        var repo = Substitute.For<IAssignmentRepository>();
+        repo.GetPendingTaskAsync(task.CorrelationId, task.TaskName, Arg.Any<CancellationToken>()).Returns(task);
+        var outbox = Substitute.For<IIntegrationEventOutbox>();
+        var db = new WorkflowDbContext(new DbContextOptionsBuilder<WorkflowDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+
+        var handler = new TaskCompletedDomainEventHandler(repo, outbox, db,
+            Substitute.For<ISender>(), Substitute.For<IParameterLookupService>(),
+            Substitute.For<ILogger<TaskCompletedDomainEventHandler>>());
+
+        await handler.Handle(
+            new TaskCompletedDomainEvent(task.CorrelationId, task.TaskName, "P", DateTime.Now, "verifier"),
+            CancellationToken.None);
+
+        outbox.Received(1).Publish(
+            Arg.Is<TaskCompletedIntegrationEvent>(e => e.TaskName == "Verify" && e.CompletedBy == "verifier"),
+            task.CorrelationId.ToString(), Arg.Any<Dictionary<string, string>?>());
     }
 
     [Fact]

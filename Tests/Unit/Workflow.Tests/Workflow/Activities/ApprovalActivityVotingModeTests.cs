@@ -45,6 +45,7 @@ public class ApprovalActivityVotingModeTests
     private ApprovalActivity BuildActivity() =>
         new(_memberResolver, _voteRepository, _publisher, _outbox, _committeeRepository,
             _dbContext, _clock, Substitute.For<global::Workflow.Sla.Services.ISlaCalculator>(),
+            Substitute.For<global::Workflow.Tasks.Authorization.ISegregationOfDutiesGuard>(),
             Substitute.For<ILogger<ApprovalActivity>>());
 
     private static string Normalize(string id) =>
