@@ -39,7 +39,7 @@ public class ResendAssignmentEmailTests
             .Returns(new CompanyLookupDto(CompanyId, "Acme Appraisal", null, true, "jobs@acme.co.th", "บริษัท แอคมี จำกัด"));
         _caseReader.GetDocumentsAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
             .Returns([new AssignmentEmailDocument(DocumentId, "deed.pdf", 1024)]);
-        _users.GetEmailsInRoleAsync("IntAdmin", Arg.Any<CancellationToken>()).Returns(["admin@bank.co.th"]);
+        _users.GetEmailsInGroupAsync("IntAdmin", Arg.Any<CancellationToken>()).Returns(["admin@bank.co.th"]);
         Case();
     }
 
@@ -63,7 +63,7 @@ public class ResendAssignmentEmailTests
         ["extra@acme.co.th"],
         [AssignmentEmailCcRoles.IntAdminAll, "boss@bank.co.th"],
         "ขอนำส่งงานประเมิน ลูกค้าราย นายสมศักดิ์ 69042630 (ส่งซ้ำ)",
-        "<p>เรียน {{company}}</p><p>ผู้รับผิดชอบ : {{responsible}}</p>",
+        "<p>เรียน {{company}}</p><p>ผู้รับผิดชอบ : {{internal_staff}}</p>",
         [new AssignmentEmailAttachmentInput(DocumentId, AssignmentEmailAttachmentSources.Request)]);
 
     private ResendAssignmentEmailCommandHandler Handler()
@@ -166,7 +166,7 @@ public class ResendAssignmentEmailTests
     [Fact]
     public async Task Junk_in_a_stored_email_is_not_mailed_at_the_resend()
     {
-        _users.GetEmailsInRoleAsync("IntAdmin", Arg.Any<CancellationToken>()).Returns(["ฝ่ายประเมิน; admin@bank.co.th"]);
+        _users.GetEmailsInGroupAsync("IntAdmin", Arg.Any<CancellationToken>()).Returns(["ฝ่ายประเมิน; admin@bank.co.th"]);
         _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>())
             .Returns(new CompanyLookupDto(CompanyId, "Acme Appraisal", null, true, "jobs@acme.co.th; ฝ่ายประเมิน", "บริษัท แอคมี จำกัด"));
 
@@ -213,7 +213,7 @@ public class ResendAssignmentEmailTests
 
         var error = await Assert.ThrowsAsync<BadRequestException>(ResendAsync);
 
-        Assert.Contains("{{responsible}}", error.Message);
+        Assert.Contains("{{internal_staff}}", error.Message);
         await AssertNothingSentAsync();
     }
 
@@ -226,6 +226,29 @@ public class ResendAssignmentEmailTests
             Edited() with { BodyHtml = "<p>เรียน {{company}}</p><p>ผู้รับผิดชอบ : คุณวิภา</p>" }), CancellationToken.None);
 
         Assert.NotNull(Published());
+    }
+
+    private const string LegacyBody = "<p>เรียน {{company}}</p><p>ผู้รับผิดชอบ : {{responsible}}</p>";
+
+    [Fact]
+    public async Task A_draft_saved_with_the_legacy_responsible_token_is_still_filled()
+    {
+        await Handler().Handle(new ResendAssignmentEmailCommand(AppraisalId,
+            Edited() with { BodyHtml = LegacyBody }), CancellationToken.None);
+
+        Assert.Equal("<p>เรียน บริษัท แอคมี จำกัด</p><p>ผู้รับผิดชอบ : สมชาย ใจดี</p>", Published()!.HtmlBody);
+    }
+
+    [Fact]
+    public async Task A_legacy_responsible_token_still_unknown_at_send_is_refused()
+    {
+        Case(keyerName: null);
+
+        var error = await Assert.ThrowsAsync<BadRequestException>(() => Handler().Handle(
+            new ResendAssignmentEmailCommand(AppraisalId, Edited() with { BodyHtml = LegacyBody }), CancellationToken.None));
+
+        Assert.Contains("{{responsible}}", error.Message);
+        await AssertNothingSentAsync();
     }
 
     [Fact]
