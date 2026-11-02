@@ -22,7 +22,7 @@ public class AssignmentEmailComposer(
     /// send expands.
     /// <para>
     /// The preview trusts the row: whoever it names as keyer (EXTO) or follow-up officer (EXT), by the admin's hand or
-    /// because the system already resolved them, is shown (Cc chips and <c>{{responsible}}</c>); an unset field keeps
+    /// because the system already resolved them, is shown (Cc chips and <c>{{internal_staff}}</c>); an unset field keeps
     /// the token / placeholder. Callers must save the assignment draft first: <c>SaveDraft</c> is a full replace of
     /// the assignee, follow-up and company fields, so after a route-back the row reflects THIS decision (an automatic
     /// pick leaves them empty) and no previous officer is shown. For a resend the row is the live assignment.
@@ -52,7 +52,7 @@ public class AssignmentEmailComposer(
     /// <summary>
     /// The template when the workflow assigned an EXT case to <paramref name="companyId"/> with nobody pressing มอบหมาย
     /// (#622), read before that assignment is saved: the company and the fee question come from the assignment, and the
-    /// responsible person stays <c>{{responsible}}</c> until the follow-up officer is known.
+    /// responsible person stays <c>{{internal_staff}}</c> until the follow-up officer is known.
     /// </summary>
     public Task<AssignmentEmailPreviewResult> ComposeForExtHandoverAsync(
         Guid appraisalId, Guid companyId, bool isQuotation, CancellationToken cancellationToken) =>
