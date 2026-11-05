@@ -28,6 +28,8 @@
   <ItemGroup>
     <ProjectReference Include="../../../Shared/Shared/Shared.csproj" />
     <ProjectReference Include="../../../Shared/Shared.Messaging/Shared.Messaging.csproj" />
+    <!-- Persistence/ModelSnapshotDriftTests.cs: Database references every module's DbContext + migrations. -->
+    <ProjectReference Include="../../../Database/Database.csproj" />
   </ItemGroup>
 
 </Project>
