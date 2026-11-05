@@ -36,7 +36,8 @@ public record MeetingQueueItemDto(
     string ActivityId,
     Guid? MeetingId,
     string Status,
-    DateTime EnqueuedAt);
+    DateTime EnqueuedAt,
+    string? CustomerName);
 
 public class GetMeetingQueueQueryHandler(ISqlConnectionFactory connectionFactory)
     : IQueryHandler<GetMeetingQueueQuery, PaginatedResult<MeetingQueueItemDto>>
@@ -52,8 +53,13 @@ public class GetMeetingQueueQueryHandler(ISqlConnectionFactory connectionFactory
             q.ActivityId,
             q.MeetingId,
             q.Status,
-            q.EnqueuedAt
+            q.EnqueuedAt,
+            c.Name AS CustomerName
         FROM workflow.MeetingQueueItems q
+            LEFT JOIN appraisal.Appraisals a ON a.Id = q.AppraisalId
+            OUTER APPLY (SELECT TOP 1 Name
+                         FROM request.RequestCustomers
+                         WHERE RequestId = a.RequestId) c
         WHERE (@Status IS NULL OR q.Status = @Status)
         """;
 
