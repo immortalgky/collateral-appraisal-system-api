@@ -29,6 +29,10 @@ jobs:
       - name: Build
         run: dotnet build collateral-appraisal-system-api.sln --configuration Release --no-restore
 
+      # Unlike the Test step below, this one gates the job: a model that drifted from its migrations must not merge.
+      - name: EF model drift
+        run: dotnet test Tests/Unit/Shared.Tests/Shared.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~ModelSnapshotDriftTests"
+
       - name: Test
         run: dotnet test collateral-appraisal-system-api.sln --no-restore --verbosity normal
         continue-on-error: true
