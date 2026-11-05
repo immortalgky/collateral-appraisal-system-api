@@ -262,4 +262,11 @@ public class LandBuildingConstructionCurrentValueTests
         rows.Single().Row.Value.Should().BeNull();
         rows.Single().Row.CurrentValue.Should().BeNull();
     }
+
+    [Theory]
+    [InlineData(97_389_300, 70, 68_173_000)]   // 68,172,510 rounds up
+    [InlineData(191_916_818, 70, 134_342_000)]
+    public void Current_condition_forced_sale_is_total_times_rate_rounded_to_thousands(
+        decimal total, decimal rate, decimal expected) =>
+        AppraisalSummaryLandBuildingDataProvider.ForcedSaleOf(total, rate).Should().Be(expected);
 }
