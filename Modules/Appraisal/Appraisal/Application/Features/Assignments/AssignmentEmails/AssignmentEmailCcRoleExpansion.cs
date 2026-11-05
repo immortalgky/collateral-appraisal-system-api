@@ -8,7 +8,7 @@ namespace Appraisal.Application.Features.Assignments.AssignmentEmails;
 /// </summary>
 internal static class AssignmentEmailCcRoleExpansion
 {
-    private const string IntAdminRole = "IntAdmin";
+    private const string IntAdminGroup = "IntAdmin";
 
     /// <summary>
     /// One address per entry, de-duplicated. A master-data address may hold several ("a; b"): split on ',' / ';' as
@@ -45,7 +45,7 @@ internal static class AssignmentEmailCcRoleExpansion
     public static async Task<IReadOnlyList<string>> EmailsAsync(
         IUserLookupService users, string role, string? responsibleUserId, CancellationToken ct) => role switch
     {
-        AssignmentEmailCcRoles.IntAdminAll => await users.GetEmailsInRoleAsync(IntAdminRole, ct),
+        AssignmentEmailCcRoles.IntAdminAll => await users.GetEmailsInGroupAsync(IntAdminGroup, ct),
         AssignmentEmailCcRoles.Keyer or AssignmentEmailCcRoles.FollowupStaff =>
             string.IsNullOrWhiteSpace(responsibleUserId) ? [] : await users.GetEmailsAsync([responsibleUserId], ct),
         AssignmentEmailCcRoles.KeyerSupervisor or AssignmentEmailCcRoles.FollowupSupervisor =>

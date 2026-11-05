@@ -11,7 +11,8 @@ namespace Appraisal.infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Add new column, convert existing int year to Jan 1 of that year, drop old, rename
+            // Add new column, drop old, rename. The int-year → Jan 1 conversion was removed;
+            // only safe on an empty table.
             migrationBuilder.AddColumn<DateTime>(
                 name: "AtYearNew",
                 schema: "appraisal",
@@ -20,8 +21,7 @@ namespace Appraisal.infrastructure.Migrations
                 nullable: false,
                 defaultValue: new DateTime(1, 1, 1));
 
-            migrationBuilder.Sql(
-                "UPDATE [appraisal].[RentalUpFrontEntries] SET [AtYearNew] = DATEFROMPARTS([AtYear], 1, 1) WHERE [AtYear] > 0");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             migrationBuilder.DropColumn(
                 name: "AtYear",

@@ -12,10 +12,8 @@ namespace Appraisal.Infrastructure.Migrations
         {
             // The old polymorphic AppraiserOpinion held the *performer's* opinion — the external
             // appraiser on the external path, the internal appraiser on the internal path. EF's
-            // detected rename lands it all in InternalAppraiserOpinion; the corrective below then
-            // moves only the external-path rows out to ExternalAppraiserOpinion. Internal-path and
-            // unresolvable rows stay in Internal (the latter kept there deliberately so the value
-            // still surfaces in report Field 39, which reads InternalAppraiserOpinion).
+            // detected rename lands it all in InternalAppraiserOpinion. A corrective step that moved the
+            // external-path rows into ExternalAppraiserOpinion was removed from Up().
             migrationBuilder.RenameColumn(
                 name: "AppraiserOpinionType",
                 schema: "appraisal",
@@ -44,28 +42,7 @@ namespace Appraisal.Infrastructure.Migrations
                 maxLength: 100,
                 nullable: true);
 
-            // Path-corrective backfill: external-path rows -> External opinion. Path is the latest
-            // non-Rejected/Cancelled assignment, mirroring the report loader
-            // (AppraisalSummaryCommonLoader RS04). AssignmentType stores AssignmentType.Code
-            // ("Internal"/"External"). INNER JOIN + '= External' means internal-path AND
-            // unresolvable rows are left untouched in InternalAppraiserOpinion.
-            migrationBuilder.Sql("""
-                ;WITH latest AS (
-                    SELECT aa.AppraisalId, aa.AssignmentType,
-                           ROW_NUMBER() OVER (PARTITION BY aa.AppraisalId
-                                              ORDER BY aa.AssignedAt DESC, aa.Id DESC) AS rn
-                    FROM appraisal.AppraisalAssignments aa
-                    WHERE aa.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
-                )
-                UPDATE ad SET
-                    ExternalAppraiserOpinion     = ad.InternalAppraiserOpinion,
-                    ExternalAppraiserOpinionType = ad.InternalAppraiserOpinionType,
-                    InternalAppraiserOpinion     = NULL,
-                    InternalAppraiserOpinionType = NULL
-                FROM appraisal.AppraisalDecisions ad
-                JOIN latest l ON l.AppraisalId = ad.AppraisalId AND l.rn = 1
-                WHERE l.AssignmentType = N'External';
-                """);
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />

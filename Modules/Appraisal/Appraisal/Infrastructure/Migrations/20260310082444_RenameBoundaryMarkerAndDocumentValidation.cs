@@ -17,7 +17,8 @@ namespace Appraisal.Infrastructure.Migrations
                 table: "LandTitles",
                 newName: "BoundaryMarkerType");
 
-            // LandTitles.IsDocumentValidated: bit → nvarchar(max) with data migration
+            // LandTitles.IsDocumentValidated: bit → nvarchar(max). The value copy was removed;
+            // only safe on an empty table.
             migrationBuilder.AddColumn<string>(
                 name: "DocumentValidationResultType",
                 schema: "appraisal",
@@ -25,15 +26,14 @@ namespace Appraisal.Infrastructure.Migrations
                 type: "nvarchar(max)",
                 nullable: true);
 
-            migrationBuilder.Sql(
-                "UPDATE appraisal.LandTitles SET DocumentValidationResultType = CAST(IsDocumentValidated AS NVARCHAR(10))");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             migrationBuilder.DropColumn(
                 name: "IsDocumentValidated",
                 schema: "appraisal",
                 table: "LandTitles");
 
-            // CondoAppraisalDetails.IsDocumentValidated: bit → nvarchar(max) with data migration
+            // CondoAppraisalDetails.IsDocumentValidated: bit → nvarchar(max). Same: no value copy.
             migrationBuilder.AddColumn<string>(
                 name: "DocumentValidationResultType",
                 schema: "appraisal",
@@ -41,8 +41,7 @@ namespace Appraisal.Infrastructure.Migrations
                 type: "nvarchar(max)",
                 nullable: true);
 
-            migrationBuilder.Sql(
-                "UPDATE appraisal.CondoAppraisalDetails SET DocumentValidationResultType = CAST(IsDocumentValidated AS NVARCHAR(10))");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             migrationBuilder.DropColumn(
                 name: "IsDocumentValidated",

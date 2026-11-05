@@ -14,8 +14,7 @@ namespace Workflow.Infrastructure.Migrations
     /// alone — returned them in arbitrary order. AssigneeAssignedAt is re-stamped on hand-off and is
     /// what those timelines now order and display on; AssignedAt keeps its SLA meaning untouched.
     ///
-    /// Backfilled from AssignedAt, which is exactly right for every pre-existing row: before this
-    /// column existed the two values were by definition the same moment.
+    /// The backfill from AssignedAt was removed from Up(); only safe on an empty table.
     /// </summary>
     public partial class AddAssigneeAssignedAtToTasks : Migration
     {
@@ -23,7 +22,8 @@ namespace Workflow.Infrastructure.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             // Land nullable first — a NOT NULL add would stamp every existing row with the CLR
-            // default (0001-01-01) and sort the entire history backwards.
+            // default (0001-01-01) and sort the entire history backwards. It is made NOT NULL below;
+            // the backfill in between was removed (only safe on an empty table).
             migrationBuilder.AddColumn<DateTime>(
                 name: "AssigneeAssignedAt",
                 schema: "workflow",
@@ -38,11 +38,7 @@ namespace Workflow.Infrastructure.Migrations
                 type: "datetime2",
                 nullable: true);
 
-            migrationBuilder.Sql(
-                "UPDATE workflow.PendingTasks SET AssigneeAssignedAt = AssignedAt WHERE AssigneeAssignedAt IS NULL;");
-
-            migrationBuilder.Sql(
-                "UPDATE workflow.CompletedTasks SET AssigneeAssignedAt = AssignedAt WHERE AssigneeAssignedAt IS NULL;");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             migrationBuilder.AlterColumn<DateTime>(
                 name: "AssigneeAssignedAt",

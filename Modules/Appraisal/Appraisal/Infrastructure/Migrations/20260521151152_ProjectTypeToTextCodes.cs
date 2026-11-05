@@ -10,7 +10,8 @@ namespace Appraisal.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Two-step column-type change: add new column, backfill, drop old, rename, alter NOT NULL.
+            // Column-type change: add new column, drop old, rename, alter NOT NULL. The int → code backfill
+            // was removed; only safe on an empty table.
             // Direct AlterColumn on SQL Server cannot convert int → nvarchar when data exists.
 
             // 1. Add the new nullable text column alongside the existing int column
@@ -18,27 +19,19 @@ namespace Appraisal.Infrastructure.Migrations
                 ALTER TABLE appraisal.Projects ADD ProjectType_New nvarchar(2) NULL;
                 """);
 
-            // 2. Backfill: convert existing int values to short text codes
-            migrationBuilder.Sql("""
-                UPDATE appraisal.Projects
-                SET ProjectType_New = CASE ProjectType
-                    WHEN 1 THEN N'U'
-                    WHEN 2 THEN N'LB'
-                    ELSE NULL
-                END;
-                """);
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
-            // 3. Drop the old int column
+            // 2. Drop the old int column
             migrationBuilder.Sql("""
                 ALTER TABLE appraisal.Projects DROP COLUMN ProjectType;
                 """);
 
-            // 4. Rename the new column to ProjectType
+            // 3. Rename the new column to ProjectType
             migrationBuilder.Sql("""
                 EXEC sp_rename 'appraisal.Projects.ProjectType_New', 'ProjectType', 'COLUMN';
                 """);
 
-            // 5. Make the column NOT NULL now that all rows have a value
+            // 4. Make the column NOT NULL
             migrationBuilder.Sql("""
                 ALTER TABLE appraisal.Projects ALTER COLUMN ProjectType nvarchar(2) NOT NULL;
                 """);

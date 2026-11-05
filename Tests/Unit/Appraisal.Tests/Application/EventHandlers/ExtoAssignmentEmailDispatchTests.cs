@@ -54,7 +54,7 @@ public class ExtoAssignmentEmailDispatchTests
         _users.GetByUsernamesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, UserLookupDto> { ["K0001"] = new("K0001", "สมชาย", "ใจดี") });
         // What Auth answers for the Cc role chips (it already drops unusable users and blank emails).
-        _users.GetEmailsInRoleAsync("IntAdmin", Arg.Any<CancellationToken>())
+        _users.GetEmailsInGroupAsync("IntAdmin", Arg.Any<CancellationToken>())
             .Returns(["admin1@bank.co.th", "Boss@bank.co.th"]);
         _users.GetEmailsAsync(Arg.Is<IEnumerable<string>>(u => u.SequenceEqual(new[] { "K0001" })), Arg.Any<CancellationToken>())
             .Returns(["keyer@bank.co.th"]);
@@ -68,7 +68,7 @@ public class ExtoAssignmentEmailDispatchTests
         ["extra@acme.co.th"],
         [AssignmentEmailCcRoles.IntAdminAll, "boss@bank.co.th"],
         "ขอนำส่งงานประเมิน ลูกค้าราย นายสมศักดิ์ 69042630",
-        "<p>เรียน {{company}}</p><p>ผู้รับผิดชอบ : {{responsible}}</p>",
+        "<p>เรียน {{company}}</p><p>ผู้รับผิดชอบ : {{internal_staff}}</p>",
         [new AssignmentEmailAttachment(DocumentId, AssignmentEmailAttachmentSources.Request)]);
 
     private Task LandOnKeyerAsync() => BuildHandler().Consume(Context(new InternalAssignedIntegrationEvent
@@ -130,7 +130,7 @@ public class ExtoAssignmentEmailDispatchTests
         await LandOnKeyerAsync();
 
         Assert.Equal(["boss@bank.co.th"], Published()!.Cc);
-        await _users.DidNotReceive().GetEmailsInRoleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _users.DidNotReceive().GetEmailsInGroupAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
         await _users.DidNotReceive().GetEmailsAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>());
         await _users.DidNotReceive().GetSupervisorEmailsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
@@ -318,7 +318,7 @@ public class ExtoAssignmentEmailDispatchTests
     public async Task No_choice_whose_template_cannot_be_queued_is_kept_as_Failed()
     {
         StubTemplateReads();
-        _users.GetEmailsInRoleAsync("IntAdmin", Arg.Any<CancellationToken>())
+        _users.GetEmailsInGroupAsync("IntAdmin", Arg.Any<CancellationToken>())
             .Returns<IReadOnlyList<string>>(_ => throw new TimeoutException("auth lookup timed out"));
 
         await LandOnKeyerAsync();

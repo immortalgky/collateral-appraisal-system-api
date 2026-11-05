@@ -31,7 +31,7 @@ public class AssignmentEmailPreviewTests
         _companies.GetByIdAsync(CompanyId, Arg.Any<CancellationToken>())
             .Returns(new CompanyLookupDto(CompanyId, "Acme Appraisal", null, true, "jobs@acme.co.th", "บริษัท แอคมี จำกัด"));
         FeeTotal(2675m);
-        _users.GetEmailsInRoleAsync("IntAdmin", Arg.Any<CancellationToken>()).Returns(["admin1@bank.co.th", "Admin2@bank.co.th"]);
+        _users.GetEmailsInGroupAsync("IntAdmin", Arg.Any<CancellationToken>()).Returns(["admin1@bank.co.th", "Admin2@bank.co.th"]);
         _users.GetEmailsAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>()).Returns([]);
         _users.GetSupervisorEmailsAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns([]);
         _users.GetNamesByEmailAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
@@ -172,7 +172,7 @@ public class AssignmentEmailPreviewTests
         Assert.Null(draft.CompanyTo);
         Assert.Equal(["admin1@bank.co.th", "Admin2@bank.co.th", "FollowupStaff", "FollowupSupervisor"], draft.Cc);
         Assert.StartsWith("<p>เรียน {{company}}<br><br>", draft.BodyHtml);
-        Assert.Contains("ผู้รับผิดชอบ: {{responsible}}<br>", draft.BodyHtml);
+        Assert.Contains("ผู้รับผิดชอบ: {{internal_staff}}<br>", draft.BodyHtml);
     }
 
     [Fact]
@@ -192,7 +192,7 @@ public class AssignmentEmailPreviewTests
     {
         var draft = await GetAsync(Exto(keyerName: null));
 
-        Assert.Contains("ผู้รับผิดชอบ: {{responsible}}<br>", draft.BodyHtml);
+        Assert.Contains("ผู้รับผิดชอบ: {{internal_staff}}<br>", draft.BodyHtml);
     }
 
     [Fact]
@@ -303,9 +303,9 @@ public class AssignmentEmailPreviewTests
         var ext = await GetAsync(Exto() with { AssignmentMethod = "Manual", KeyerName = null, FollowupMethod = "RoundRobin" });
 
         Assert.Equal(["admin1@bank.co.th", "Admin2@bank.co.th", "Keyer", "KeyerSupervisor"], exto.Cc);
-        Assert.Contains("ผู้รับผิดชอบ: {{responsible}}<br>", exto.BodyHtml);
+        Assert.Contains("ผู้รับผิดชอบ: {{internal_staff}}<br>", exto.BodyHtml);
         Assert.Equal(["admin1@bank.co.th", "Admin2@bank.co.th", "FollowupStaff", "FollowupSupervisor"], ext.Cc);
-        Assert.Contains("ผู้รับผิดชอบ: {{responsible}}<br>", ext.BodyHtml);
+        Assert.Contains("ผู้รับผิดชอบ: {{internal_staff}}<br>", ext.BodyHtml);
         await _users.DidNotReceive().GetEmailsAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>());
     }
 
@@ -332,7 +332,7 @@ public class AssignmentEmailPreviewTests
     [Fact]
     public async Task A_known_role_with_nobody_usable_keeps_its_token()
     {
-        _users.GetEmailsInRoleAsync("IntAdmin", Arg.Any<CancellationToken>()).Returns([]);
+        _users.GetEmailsInGroupAsync("IntAdmin", Arg.Any<CancellationToken>()).Returns([]);
 
         var draft = await GetAsync(Exto());
 
@@ -343,7 +343,7 @@ public class AssignmentEmailPreviewTests
     [Fact]
     public async Task A_stored_email_holding_several_addresses_becomes_one_chip_per_plain_address_and_keeps_the_name()
     {
-        _users.GetEmailsInRoleAsync("IntAdmin", Arg.Any<CancellationToken>())
+        _users.GetEmailsInGroupAsync("IntAdmin", Arg.Any<CancellationToken>())
             .Returns(["a@x.co; B@x.co, not an address", "b@x.co", ";"]);
         _users.GetNamesByEmailAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
             .Returns(new Dictionary<string, string> { ["a@x.co; B@x.co, not an address"] = "สมหญิง แอดมิน" });
@@ -360,7 +360,7 @@ public class AssignmentEmailPreviewTests
     [Fact]
     public async Task A_stored_email_with_a_display_name_keeps_its_bare_address()
     {
-        _users.GetEmailsInRoleAsync("IntAdmin", Arg.Any<CancellationToken>())
+        _users.GetEmailsInGroupAsync("IntAdmin", Arg.Any<CancellationToken>())
             .Returns(["Somchai <somchai@bank.co.th>", "somchai@BANK.co.th", "ฝ่ายประเมิน"]);
 
         var draft = await GetAsync(Exto());
@@ -371,7 +371,7 @@ public class AssignmentEmailPreviewTests
     [Fact]
     public async Task A_messy_stored_email_is_dropped_not_rewritten_into_another_address()
     {
-        _users.GetEmailsInRoleAsync("IntAdmin", Arg.Any<CancellationToken>())
+        _users.GetEmailsInGroupAsync("IntAdmin", Arg.Any<CancellationToken>())
             .Returns(["john smith@bank.co.th", "info@x.co sales@x.co", "Somchai <s@bank.co.th>", "plain@bank.co.th"]);
 
         var draft = await GetAsync(Exto());

@@ -18,7 +18,7 @@ namespace Workflow.Data.Seed;
 ///  - Forward-only checks carry RunIf <c>activity.movement === 'F'</c> so route-back/cancel skip them.
 ///  - Ownership runs on every movement (no RunIf).
 ///  - An activity holds at most ONE ValidateAppraisalFields row (admin-PUT keys by ProcessorName):
-///    hard field checks (Error) at execution; the soft comparables/photos warning at check.
+///    hard field checks (Error) at execution and verification; the soft comparables/photos warning at check.
 /// </summary>
 public class ActivityProcessConfigurationSeeder(
     WorkflowDbContext context,
@@ -97,8 +97,9 @@ public class ActivityProcessConfigurationSeeder(
         rows.Add(Own("ext-appraisal-check", 1));
         rows.Add(Fields("ext-appraisal-check", 2, ForwardOnly, CheckSoftRulesJson, StepSeverity.Warning));
 
-        // ── ext-appraisal-verification: owner only (completeness enforced upstream) ──
+        // ── ext-appraisal-verification: owner; complete valuation report attached ──
         rows.Add(Own("ext-appraisal-verification", 1));
+        rows.Add(Fields("ext-appraisal-verification", 2, ForwardOnly, VerificationRulesJson));
 
         // ── appraisal-book-verification: owner only ──
         rows.Add(Own("appraisal-book-verification", 1));
@@ -125,10 +126,11 @@ public class ActivityProcessConfigurationSeeder(
         rows.Add(Validation("int-appraisal-check", "Require Document Followup Cleared",
             "RequireDocumentFollowupCleared", 3, null, ForwardOnly));
 
-        // ── int-appraisal-verification: owner; followups cleared ──
+        // ── int-appraisal-verification: owner; followups cleared; complete valuation report attached ──
         rows.Add(Own("int-appraisal-verification", 1));
         rows.Add(Validation("int-appraisal-verification", "Require Document Followup Cleared",
             "RequireDocumentFollowupCleared", 2, null, ForwardOnly));
+        rows.Add(Fields("int-appraisal-verification", 3, ForwardOnly, VerificationRulesJson));
 
         return rows;
     }
@@ -155,6 +157,8 @@ public class ActivityProcessConfigurationSeeder(
         {"rules":[
           {"fieldKey":"hasNoAppraisedValue","op":"Equals","value":"false","message":"Set an appraised value before proceeding."},
           {"fieldKey":"selectedPricingMethodCount","op":"GreaterThan","value":"0","message":"Select at least one pricing method before proceeding."},
+          {"fieldKey":"appointmentInFuture","op":"Equals","value":"false","message":"The appointment date must be in the past."},
+          {"fieldKey":"hasCompleteValuationReport","op":"Equals","value":"true","message":"A Complete Valuation Report (D001) must be attached."},
           {"fieldKey":"propsMissingTitle","op":"Equals","value":"0","message":"Every land property needs a title number."},
           {"fieldKey":"propsMissingLandOffice","op":"Equals","value":"0","message":"Every land property needs a land office."},
           {"fieldKey":"externalCompanyRecorded","op":"Equals","value":"true","message":"Record the external appraisal company before proceeding."},
@@ -166,7 +170,15 @@ public class ActivityProcessConfigurationSeeder(
     private const string CheckSoftRulesJson = """
         {"rules":[
           {"fieldKey":"comparableCount","op":"GreaterOrEqual","value":"3","message":"Fewer than 3 market comparables were captured."},
+          {"fieldKey":"hasCompleteValuationReport","op":"Equals","value":"true","message":"A Complete Valuation Report (D001) must be attached."},
           {"fieldKey":"photoCount","op":"GreaterOrEqual","value":"2","message":"Fewer than 2 photos were attached."}
+        ],"mode":"AllMustPass"}
+        """;
+
+    // Hard field check at verification: the complete valuation report must still be attached.
+    private const string VerificationRulesJson = """
+        {"rules":[
+          {"fieldKey":"hasCompleteValuationReport","op":"Equals","value":"true","message":"A Complete Valuation Report (D001) must be attached."}
         ],"mode":"AllMustPass"}
         """;
 

@@ -15,38 +15,7 @@ namespace Workflow.Infrastructure.Migrations
                 "IF EXISTS (SELECT 1 FROM sys.key_constraints WHERE name = 'PK_SlaConfigurations') " +
                 "EXEC sp_rename 'workflow.PK_SlaConfigurations', 'PK_SlaPolicies', 'OBJECT'");
 
-            // o3: Backfill existing WorkflowSlaConfiguration rows into SlaPolicies as Scope=3 rows
-            // so that CalculateWorkflowDueAtAsync now reads from the single SlaPolicies table.
-            // ActivityId is set to '*' (wildcard) as a non-null placeholder required by the column constraint.
-            // NOTE: audit columns on SlaPolicies are CreatedAt/UpdatedAt (set by the interceptor).
-            migrationBuilder.Sql(@"
-                INSERT INTO [workflow].[SlaPolicies]
-                    (Id, ActivityId, WorkflowDefinitionId, CompanyId, LoanType,
-                     DurationHours, UseBusinessDays, Priority, Scope,
-                     StartActivityKey, EndActivityKey, MiddleActivityKeys,
-                     CreatedAt, UpdatedAt)
-                SELECT
-                    Id,
-                    '*'           AS ActivityId,
-                    WorkflowDefinitionId,
-                    NULL          AS CompanyId,
-                    LoanType,
-                    TotalDurationHours AS DurationHours,
-                    UseBusinessDays,
-                    Priority,
-                    3             AS Scope,      -- SlaPolicyScope.Workflow
-                    NULL          AS StartActivityKey,
-                    NULL          AS EndActivityKey,
-                    NULL          AS MiddleActivityKeys,
-                    CreatedAt,
-                    UpdatedAt
-                FROM [workflow].[WorkflowSlaConfigurations]
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM [workflow].[SlaPolicies] sp
-                    WHERE sp.WorkflowDefinitionId = [workflow].[WorkflowSlaConfigurations].WorkflowDefinitionId
-                      AND sp.Scope = 3
-                      AND ((sp.LoanType IS NULL AND [workflow].[WorkflowSlaConfigurations].LoanType IS NULL) OR sp.LoanType = [workflow].[WorkflowSlaConfigurations].LoanType)
-                )");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             migrationBuilder.CreateIndex(
                 name: "IX_SlaPolicies_Activity",

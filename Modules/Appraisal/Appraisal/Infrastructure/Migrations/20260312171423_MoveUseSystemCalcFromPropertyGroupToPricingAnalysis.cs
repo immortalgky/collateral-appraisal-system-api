@@ -19,15 +19,10 @@ namespace Appraisal.Infrastructure.Migrations
                 nullable: false,
                 defaultValue: true);
 
-            // 2. Copy existing values from PropertyGroups → PricingAnalysis
-            migrationBuilder.Sql("""
-                UPDATE pa
-                SET pa.UseSystemCalc = pg.UseSystemCalc
-                FROM appraisal.PricingAnalysis pa
-                INNER JOIN appraisal.PropertyGroups pg ON pg.Id = pa.PropertyGroupId
-                """);
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
-            // 3. Drop old column
+            // 2. Drop old column. The copy of existing values into PricingAnalysis was removed;
+            // only safe on an empty table.
             migrationBuilder.DropColumn(
                 name: "UseSystemCalc",
                 schema: "appraisal",

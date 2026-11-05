@@ -18,29 +18,7 @@ namespace Workflow.Infrastructure.Migrations
                 type: "uniqueidentifier",
                 nullable: true);
 
-            // Backfill: copy CompanyId from QuotationInvitations onto completed ext-role tasks
-            // where exactly one invitation exists for the quotation (unambiguous single-company match).
-            // Multi-invitation rows stay NULL — PoolTaskAccess username/group match still narrows visibility.
-            // Guard: on fresh databases appraisal.QuotationInvitations may not yet exist (Appraisal
-            // migrations run after Workflow migrations in the test fixture ordering).
-            migrationBuilder.Sql(@"
-                IF OBJECT_ID('appraisal.QuotationInvitations', 'U') IS NOT NULL
-                BEGIN
-                    UPDATE ct
-                    SET ct.AssigneeCompanyId = qi.CompanyId
-                    FROM workflow.CompletedTasks ct
-                    JOIN appraisal.QuotationInvitations qi
-                      ON qi.QuotationRequestId = ct.CorrelationId
-                    WHERE ct.AssigneeCompanyId IS NULL
-                      AND ct.AssignedType = '2'
-                      AND ct.AssignedTo LIKE 'Ext%'
-                      AND (
-                          SELECT COUNT(*)
-                          FROM appraisal.QuotationInvitations qi2
-                          WHERE qi2.QuotationRequestId = ct.CorrelationId
-                      ) = 1
-                END
-            ");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />

@@ -21,19 +21,7 @@ namespace Workflow.Infrastructure.Migrations
                 nullable: false,
                 defaultValue: "Always");
 
-            // 2. Remap Meetings.Status string values to match new MeetingStatus enum.
-            //    Storage is string (HasConversion<string>()), so we update the literals.
-            //    Draft → New, Scheduled → InvitationSent.
-            //    Ended, Cancelled, and the new RoutedBack require no row changes.
-            migrationBuilder.Sql("""
-                UPDATE workflow.Meetings
-                SET Status = CASE Status
-                    WHEN 'Draft'      THEN 'New'
-                    WHEN 'Scheduled'  THEN 'InvitationSent'
-                    ELSE Status
-                END
-                WHERE Status IN ('Draft', 'Scheduled')
-                """);
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />

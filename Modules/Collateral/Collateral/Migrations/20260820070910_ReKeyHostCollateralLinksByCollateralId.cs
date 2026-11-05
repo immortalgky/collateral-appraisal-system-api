@@ -10,15 +10,7 @@ namespace Collateral.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Every existing row is the product of the old per-appraisal key, which collapsed an
-            // appraisal's several collateral into one row and dropped 8,383 of the feed's 36,110.
-            // What survived is not a subset that can be corrected in place — the row that won was
-            // whichever the collapse happened to pick. Emptying the table is the only honest
-            // starting point; the nightly COLLATLINK ingest refills it completely on its next run.
-            //
-            // This also clears the way for the unique index: HostCollateralId was nullable, and SQL
-            // Server treats NULLs as equal in a unique index, so two null rows would fail the build.
-            migrationBuilder.Sql("DELETE FROM collateral.HostCollateralLinks;");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             migrationBuilder.DropIndex(
                 name: "IX_HostCollateralLinks_IsRedeemed",

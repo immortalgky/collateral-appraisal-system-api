@@ -54,17 +54,7 @@ namespace Appraisal.Infrastructure.Migrations
                     ON appraisal.MarketComparables(GeoPoint);
                 """);
 
-            // Best-effort backfill: stamp CreatedByCompanyId from auth.AspNetUsers.
-            // CreatedBy stores the username (nvarchar) stamped by AuditableEntityInterceptor.
-            // Rows where the user has no company (bank-internal users) stay NULL — that is correct.
-            migrationBuilder.Sql("""
-                UPDATE mc
-                SET    mc.CreatedByCompanyId = u.CompanyId
-                FROM   appraisal.MarketComparables mc
-                JOIN   auth.AspNetUsers u ON u.UserName = mc.CreatedBy
-                WHERE  mc.CreatedByCompanyId IS NULL
-                  AND  u.CompanyId IS NOT NULL;
-                """);
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />

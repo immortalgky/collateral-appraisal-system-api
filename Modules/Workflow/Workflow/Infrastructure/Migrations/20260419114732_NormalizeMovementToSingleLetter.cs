@@ -10,11 +10,7 @@ namespace Workflow.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Normalize existing rows before changing the default constraint
-            migrationBuilder.Sql("UPDATE [workflow].[PendingTasks] SET [Movement] = 'F' WHERE [Movement] = 'Forward';");
-            migrationBuilder.Sql("UPDATE [workflow].[PendingTasks] SET [Movement] = 'B' WHERE [Movement] = 'Backward';");
-            migrationBuilder.Sql("UPDATE [workflow].[CompletedTasks] SET [Movement] = 'F' WHERE [Movement] = 'Forward';");
-            migrationBuilder.Sql("UPDATE [workflow].[CompletedTasks] SET [Movement] = 'B' WHERE [Movement] = 'Backward';");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             migrationBuilder.AlterColumn<string>(
                 name: "Movement",

@@ -9,24 +9,14 @@ namespace Appraisal.Infrastructure.Migrations
     ///  - "ConstructionInspection" → "Progressive": the progressive-inspection flow was mis-labelled.
     ///  - block/project deals (collateral type 32/33) that defaulted to "New" → "PreAppraisal";
     ///    identified via the appraisal.Projects rows created for those appraisals.
-    /// Data-only; no schema change.
+    /// Data-only; no schema change. The relabel SQL was removed, so Up is now a no-op.
     /// </summary>
     public partial class RelabelProgressiveAndPreAppraisalTypes : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Mis-labelled progressive appraisals.
-            migrationBuilder.Sql(
-                "UPDATE [appraisal].[Appraisals] SET AppraisalType = 'Progressive' WHERE AppraisalType = 'ConstructionInspection'");
-
-            // Block/project deals (32/33) that defaulted to New.
-            migrationBuilder.Sql(
-                """
-                UPDATE [appraisal].[Appraisals] SET AppraisalType = 'PreAppraisal'
-                WHERE AppraisalType = 'New'
-                  AND Id IN (SELECT AppraisalId FROM [appraisal].[Projects]);
-                """);
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />

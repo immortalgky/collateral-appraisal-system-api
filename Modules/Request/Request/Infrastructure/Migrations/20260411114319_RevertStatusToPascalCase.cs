@@ -10,44 +10,7 @@ namespace Request.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Requests.Status: SCREAMING_SNAKE → PascalCase
-            migrationBuilder.Sql("""
-                UPDATE request.Requests
-                SET Status = CASE Status
-                    WHEN 'DRAFT'        THEN 'Draft'
-                    WHEN 'NEW'          THEN 'New'
-                    WHEN 'SUBMITTED'    THEN 'Submitted'
-                    WHEN 'ASSIGNED'     THEN 'Assigned'
-                    WHEN 'IN_PROGRESS'  THEN 'InProgress'
-                    WHEN 'INPROGRESS'   THEN 'InProgress'
-                    WHEN 'COMPLETED'    THEN 'Completed'
-                    WHEN 'CANCELLED'    THEN 'Cancelled'
-                    ELSE Status
-                END
-                WHERE Status IN ('DRAFT','NEW','SUBMITTED','ASSIGNED','IN_PROGRESS','INPROGRESS','COMPLETED','CANCELLED')
-                """);
-
-            // common.RequestStatusSummaries: UPPER → PascalCase (dashboard aggregation table)
-            // Guard: on fresh databases the table may already be renamed to AppraisalStatusSummaries
-            // by the Common module migration (20260415), so only update if the old name still exists.
-            migrationBuilder.Sql("""
-                IF OBJECT_ID('common.RequestStatusSummaries', 'U') IS NOT NULL
-                BEGIN
-                    UPDATE common.RequestStatusSummaries
-                    SET Status = CASE Status
-                        WHEN 'DRAFT'        THEN 'Draft'
-                        WHEN 'NEW'          THEN 'New'
-                        WHEN 'SUBMITTED'    THEN 'Submitted'
-                        WHEN 'ASSIGNED'     THEN 'Assigned'
-                        WHEN 'IN_PROGRESS'  THEN 'InProgress'
-                        WHEN 'INPROGRESS'   THEN 'InProgress'
-                        WHEN 'COMPLETED'    THEN 'Completed'
-                        WHEN 'CANCELLED'    THEN 'Cancelled'
-                        ELSE Status
-                    END
-                    WHERE Status IN ('DRAFT','NEW','SUBMITTED','ASSIGNED','IN_PROGRESS','INPROGRESS','COMPLETED','CANCELLED')
-                END
-                """);
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />

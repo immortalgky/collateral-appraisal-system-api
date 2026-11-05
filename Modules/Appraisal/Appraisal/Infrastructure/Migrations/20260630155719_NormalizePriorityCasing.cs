@@ -10,11 +10,7 @@ namespace Appraisal.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Normalize any non-canonical casing to the canonical Priority value-object form.
-            migrationBuilder.Sql(@"
-                UPDATE appraisal.Appraisals SET Priority = 'Normal' WHERE LOWER(Priority) = 'normal';
-                UPDATE appraisal.Appraisals SET Priority = 'High'   WHERE LOWER(Priority) = 'high';
-            ");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />

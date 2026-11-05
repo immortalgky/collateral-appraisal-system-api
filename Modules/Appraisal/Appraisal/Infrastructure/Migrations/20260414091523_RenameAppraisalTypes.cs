@@ -10,10 +10,7 @@ namespace Appraisal.infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Rename legacy AppraisalType string values to new canonical names.
-            migrationBuilder.Sql("UPDATE [appraisal].[Appraisals] SET AppraisalType = 'New' WHERE AppraisalType = 'Initial'");
-            migrationBuilder.Sql("UPDATE [appraisal].[Appraisals] SET AppraisalType = 'ReAppraisal' WHERE AppraisalType = 'Revaluation'");
-            migrationBuilder.Sql("UPDATE [appraisal].[Appraisals] SET AppraisalType = 'PreAppraisal' WHERE AppraisalType = 'Special'");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />
