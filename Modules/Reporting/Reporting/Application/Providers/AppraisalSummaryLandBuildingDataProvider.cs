@@ -1675,13 +1675,12 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             ? summaryGroups.Sum(g => g.AppraisalValue ?? 0m)
             : valuation?.AppraisedValue;
 
-        // Force-sale rate resolution: appraisal override (valuation.ForceSaleRate) -> system
-        // default, passed in by the caller since this method is static and cannot inject
-        // ISystemConfigurationReader. Only used as a fallback when ForcedSaleValue itself is
-        // not yet persisted (e.g. no PricingAnalysis committed yet).
+        // Force-sale rate: appraisal override (valuation.ForceSaleRate) -> system default (passed in, as this
+        // method is static). Drives CurrentConditionForcedSaleValue, and the 100% figure when none is persisted.
         var forceSaleRate = valuation?.ForceSaleRate ?? forceSaleRateDefault;
+        if (forceSaleRate is <= 0 or > 100) forceSaleRate = 70m; // mirrors ForceSaleRateResolver
         decimal? forcedSaleValue = valuation?.ForcedSaleValue
-            ?? (totalAppraisalValue.HasValue ? totalAppraisalValue.Value * forceSaleRate / 100m : null);
+            ?? (totalAppraisalValue.HasValue ? ForcedSaleOf(totalAppraisalValue.Value, forceSaleRate) : null);
 
         decimal? buildingCoverage = valuation?.InsuranceValue;
 
@@ -1708,14 +1707,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             // column reconciles with the per-group rows printed above it.
             currentConditionTotal = summaryGroups.Sum(g => g.GroupTotalCurrent ?? g.GroupTotal ?? 0m);
 
-            // Scaled by the same ratio rather than re-applying the rate, so both forced-sale figures
-            // share one rate even when the appraiser has overridden ValuationAnalyses.ForcedSaleValue.
-            currentConditionForcedSale =
-                forcedSaleValue.HasValue && totalAppraisalValue is { } total100 && total100 != 0m
-                    ? Math.Round(
-                        forcedSaleValue.Value * currentConditionTotal.Value / total100,
-                        2, MidpointRounding.AwayFromZero)
-                    : currentConditionTotal.Value * forceSaleRate / 100m;
+            // Current total x the same rate as the 100% figure, rounded to 1,000 the same way
+            // (AppraisalValuationSummaryService), so it is not skewed by the stored 100% figure's rounding.
+            currentConditionForcedSale = ForcedSaleOf(currentConditionTotal.Value, forceSaleRate);
         }
 
         // ── Build model ──────────────────────────────────────────────────────────
@@ -1813,6 +1807,10 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     private static string BuildAreaString(decimal? rai, decimal? ngan, decimal? sqwa)
         // Thai land-area shorthand rai-ngan-wa; every empty position shows 0 (e.g. "9-2-41 ไร่", "1-0-0 ไร่").
         => $"{rai ?? 0:#,##0.##}-{ngan ?? 0:#,##0.##}-{sqwa ?? 0:#,##0.##} ไร่";
+
+    // Same formula and 1,000 rounding as the 100% figure (AppraisalValuationSummaryService).
+    internal static decimal ForcedSaleOf(decimal total, decimal ratePct) =>
+        Math.Round(total * ratePct / 100m / 1000m, MidpointRounding.AwayFromZero) * 1000m;
 
     // Value at current progress. Null percent (no inspection) → the line is complete, so the
     // current value IS the 100% value. Zero percent (ยังไม่ก่อสร้าง) → null, rendered as "-".
