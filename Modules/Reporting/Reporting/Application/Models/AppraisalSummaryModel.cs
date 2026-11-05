@@ -150,8 +150,8 @@ public sealed class AppraisalSummaryModel
     /// subtotal for a group under construction, the appraised value for every other group.</summary>
     public decimal? CurrentConditionTotal { get; init; }
 
-    /// <summary>ราคาบังคับขายตามสภาพปัจจุบัน — <see cref="ForcedSaleValue"/> scaled by the same
-    /// ratio, so the two forced-sale figures share one rate.</summary>
+    /// <summary>ราคาบังคับขายตามสภาพปัจจุบัน — <see cref="CurrentConditionTotal"/> x the same
+    /// force-sale rate as <see cref="ForcedSaleValue"/>, rounded to the nearest 1,000.</summary>
     public decimal? CurrentConditionForcedSaleValue { get; init; }
 
     /// <summary>Field 18 — Overall condition (from AppraisalDecisions.Condition).</summary>
