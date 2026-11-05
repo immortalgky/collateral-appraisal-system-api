@@ -10,8 +10,11 @@ namespace Appraisal.Application.Features.Assignments.AssignmentEmails;
 /// A value the case does not know yet is null and is written as its placeholder, which the send fills in.
 /// Case values are HTML-encoded: they come from the request, not from the admin.
 /// </summary>
-public static class AssignmentEmailTemplate
+public static partial class AssignmentEmailTemplate
 {
+    [GeneratedRegex(" {2,}", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex SpaceRun();
+
     public record Values(
         string? Company,
         string? CustomerName,
@@ -76,7 +79,7 @@ public static class AssignmentEmailTemplate
             var indent = string.Concat(line[..^body.Length].Select(c => c == '\t' ? "&nbsp;&nbsp;&nbsp;&nbsp;" : "&nbsp;"));
             // Tabs and runs of spaces collapse when rendered: a tab is four &nbsp;, and all but the last space of a run
             // is one; a single space stays so the line still wraps.
-            var inner = Regex.Replace(WebUtility.HtmlEncode(body).Replace("\t", "&nbsp;&nbsp;&nbsp;&nbsp;"), " {2,}",
+            var inner = SpaceRun().Replace(WebUtility.HtmlEncode(body).Replace("\t", "&nbsp;&nbsp;&nbsp;&nbsp;"),
                 m => string.Concat(Enumerable.Repeat("&nbsp;", m.Length - 1)) + " ");
             return indent + inner;
         }));

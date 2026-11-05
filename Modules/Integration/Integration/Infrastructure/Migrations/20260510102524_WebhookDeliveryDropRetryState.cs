@@ -11,9 +11,7 @@ namespace Integration.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Terminate any rows stuck in the defunct Retrying state before this refactor.
-            migrationBuilder.Sql(
-                "UPDATE integration.WebhookDeliveries SET Status = 'Failed' WHERE Status = 'Retrying'");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             migrationBuilder.DropIndex(
                 name: "IX_WebhookDelivery_Status_NextRetryAt",

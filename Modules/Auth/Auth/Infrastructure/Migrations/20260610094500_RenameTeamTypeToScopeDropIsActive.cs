@@ -9,7 +9,8 @@ namespace Auth.Infrastructure.Migrations
     {
         // auth.Teams / auth.TeamMembers are mapped with ExcludeFromMigrations(), so EF does
         // not scaffold ops for them. This migration owns their creation (final schema) and
-        // migrates any pre-existing old-schema (Type/IsActive) tables. Authored as guarded raw SQL.
+        // migrates the shape of any pre-existing old-schema (Type/IsActive) tables (the Internal/External
+        // → Bank/Company value remap was removed). Authored as guarded raw SQL.
 
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -56,11 +57,7 @@ BEGIN
     EXEC sp_rename 'auth.Teams.Type', 'Scope', 'COLUMN';
 END");
 
-            // Backfill values
-            migrationBuilder.Sql(@"
-UPDATE auth.Teams
-SET Scope = CASE Scope WHEN 'Internal' THEN 'Bank' WHEN 'External' THEN 'Company' ELSE Scope END
-WHERE Scope IN ('Internal', 'External');");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             // Default 'Bank' on Scope
             migrationBuilder.Sql(@"

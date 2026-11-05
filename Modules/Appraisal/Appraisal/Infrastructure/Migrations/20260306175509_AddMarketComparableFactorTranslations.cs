@@ -33,15 +33,10 @@ namespace Appraisal.Infrastructure.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
-            // 2. Migrate existing FactorName data as English translations
-            migrationBuilder.Sql("""
-                INSERT INTO [appraisal].[MarketComparableFactorTranslations] ([MarketComparableFactorId], [Language], [FactorName])
-                SELECT [Id], 'en', [FactorName]
-                FROM [appraisal].[MarketComparableFactors]
-                WHERE [FactorName] IS NOT NULL AND [FactorName] <> ''
-                """);
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
-            // 3. Drop the old column
+            // 2. Drop the old column. The copy into the translations table was removed;
+            // only safe on an empty table.
             migrationBuilder.DropColumn(
                 name: "FactorName",
                 schema: "appraisal",

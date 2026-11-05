@@ -1,4 +1,6 @@
+using System.Linq.Expressions;
 using Auth.Contracts.Users;
+using Auth.Domain;
 using Auth.Domain.Companies;
 using Auth.Domain.Identity;
 using Auth.Domain.Organization;
@@ -18,8 +20,7 @@ public class UserLookupService(
     UserManager<ApplicationUser> userManager,
     IDateTimeProvider dateTimeProvider) : IUserLookupService
 {
-    /// <summary>The group the seeder creates for the IntAdmin role; it monitors everyone's work.</summary>
-    private const string IntAdminGroupName = "IntAdmin";
+    private const string CheckerGroupName = "IntAppraisalChecker";
 
     public async Task<IReadOnlyDictionary<string, UserLookupDto>> GetByUsernamesAsync(
         IEnumerable<string> usernames,
@@ -68,12 +69,21 @@ public class UserLookupService(
             .ToArray();
     }
 
-    public async Task<IReadOnlyList<string>> GetEmailsInRoleAsync(string role, CancellationToken ct)
-    {
-        var normalizedRole = role.ToUpperInvariant();
-        return await EmailsOf(UsableWithEmail().Where(u => db.UserRoles.Any(ur => ur.UserId == u.Id
-            && db.Roles.Any(r => r.Id == ur.RoleId && r.NormalizedName == normalizedRole))), ct);
-    }
+    public async Task<string[]> GetUsernamesInGroupAsync(string groupName, CancellationToken ct = default) =>
+        await Usable()
+            .Where(InGroup(groupName)).Where(u => u.UserName != null)
+            .Select(u => u.UserName!)
+            .ToArrayAsync(ct);
+
+    public async Task<IReadOnlyList<string>> GetEmailsInGroupAsync(string groupName, CancellationToken ct) =>
+        await EmailsOf(UsableWithEmail().Where(InGroup(groupName)), ct);
+
+    // Bank staff in the bank-wide group of that name. Fails closed: a Company-scoped or company-owned group of the same
+    // name (Groups are unique on Name+Scope) and a company user in the Bank group never count. Goes through Groups so
+    // its soft-delete filter applies.
+    private Expression<Func<ApplicationUser, bool>> InGroup(string groupName) =>
+        u => u.CompanyId == null && db.GroupUsers.Any(gu => gu.UserId == u.Id && db.Groups.Any(g => g.Id == gu.GroupId
+            && g.Name == groupName && g.Scope == AuthScopes.Bank && g.CompanyId == null));
 
     public async Task<IReadOnlyList<string>> GetEmailsAsync(IEnumerable<string> usernames, CancellationToken ct)
     {
@@ -89,19 +99,13 @@ public class UserLookupService(
         if (string.IsNullOrWhiteSpace(username)) return [];
         var normalized = username.Trim().ToUpperInvariant();
 
-        var usersGroups = db.GroupUsers
-            .Where(gu => db.Users.Any(u => u.Id == gu.UserId && u.NormalizedUserName == normalized))
-            .Select(gu => gu.GroupId);
-        // Joined through Groups so its soft-delete filter applies to both sides.
-        var monitorGroups =
-            from gm in db.GroupMonitoring
-            join monitor in db.Groups on gm.MonitorGroupId equals monitor.Id
-            join monitored in db.Groups on gm.MonitoredGroupId equals monitored.Id
-            where usersGroups.Contains(monitored.Id) && monitor.Name != IntAdminGroupName
-            select monitor.Id;
+        var teams = db.TeamMembers
+            .Where(tm => db.Users.Any(u => u.Id == tm.UserId && u.NormalizedUserName == normalized)
+                         && db.Teams.Any(t => t.Id == tm.TeamId && t.Scope == AuthScopes.Bank))
+            .Select(tm => tm.TeamId);
 
-        return await EmailsOf(UsableWithEmail()
-            .Where(u => db.GroupUsers.Any(gu => gu.UserId == u.Id && monitorGroups.Contains(gu.GroupId))), ct);
+        return await EmailsOf(UsableWithEmail().Where(InGroup(CheckerGroupName))
+            .Where(u => db.TeamMembers.Any(tm => tm.UserId == u.Id && teams.Contains(tm.TeamId))), ct);
     }
 
     public async Task<IReadOnlyDictionary<string, string>> GetNamesByEmailAsync(IEnumerable<string> emails, CancellationToken ct)
@@ -126,14 +130,15 @@ public class UserLookupService(
         return names;
     }
 
-    /// <summary>Users who may use the system now (<see cref="ApplicationUser.IsUsable(DateTime)"/>) and have an email.</summary>
-    private IQueryable<ApplicationUser> UsableWithEmail()
+    /// <summary>Users who may use the system now (<see cref="ApplicationUser.IsUsable(DateTime)"/>).</summary>
+    private IQueryable<ApplicationUser> Usable()
     {
         var now = dateTimeProvider.ApplicationNow;
-        return db.Users.Where(u => u.IsActive
-                                   && (u.AccessExpiresAt == null || u.AccessExpiresAt > now)
-                                   && u.Email != null && u.Email.Trim() != "");
+        return db.Users.Where(u => u.IsActive && (u.AccessExpiresAt == null || u.AccessExpiresAt > now));
     }
+
+    private IQueryable<ApplicationUser> UsableWithEmail() =>
+        Usable().Where(u => u.Email != null && u.Email.Trim() != "");
 
     private static async Task<IReadOnlyList<string>> EmailsOf(IQueryable<ApplicationUser> users, CancellationToken ct)
     {

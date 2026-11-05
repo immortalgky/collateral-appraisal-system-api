@@ -10,7 +10,8 @@ namespace Appraisal.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // ── PricingAnalysis: merge PropertyGroupId / ProjectModelId into a single AnchorId ──
+            // ── PricingAnalysis: replace PropertyGroupId / ProjectModelId with a single AnchorId ──
+            // (the copy into AnchorId was removed; only safe on an empty table)
             // (+ AnchorRefKey for room-type keys, + HostMethodId for reference cleanup scope).
             // No FK is created on AnchorId — it is polymorphic (PropertyGroup / ProjectModel /
             // IncomeAnalysis / AppraisalProperty ids). The dropped ProjectModels cascade is
@@ -37,11 +38,7 @@ namespace Appraisal.Infrastructure.Migrations
                 type: "uniqueidentifier",
                 nullable: true);
 
-            // Backfill AnchorId from the two old columns before dropping them.
-            migrationBuilder.Sql(
-                "UPDATE appraisal.PricingAnalysis " +
-                "SET AnchorId = COALESCE(PropertyGroupId, ProjectModelId) " +
-                "WHERE AnchorId IS NULL;");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             migrationBuilder.DropForeignKey(
                 name: "FK_PricingAnalysis_ProjectModels_ProjectModelId",

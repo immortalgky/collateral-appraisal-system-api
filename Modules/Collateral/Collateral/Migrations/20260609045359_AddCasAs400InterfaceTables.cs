@@ -197,40 +197,11 @@ namespace Collateral.Migrations
                     ON collateral.ReappraisalCandidates(GeoPoint);
                 """);
 
-            // ── Copy existing data from request.ReappraisalCandidates (the vertical moved here). ──
-            // Guarded so it no-ops if the source is already gone. GeoPoint is computed — excluded.
-            migrationBuilder.Sql("""
-                IF OBJECT_ID('request.ReappraisalCandidates', 'U') IS NOT NULL
-                INSERT INTO collateral.ReappraisalCandidates (
-                    Id, SourceFileName, SourceFileDate, EffectiveDate, IngestedAt, RowHash,
-                    Status, ReviewType, ReviewDate, CollateralId, SurveyNumber,
-                    CollateralCode, CollateralCategory, CollateralName, CollateralAddress,
-                    CifNumber, CifName, AoCode, AoName, TitleNumber,
-                    CurrentValue, ValuationDate, InternalExternal, BusinessSize, BusinessSizeDesc,
-                    MortgageAmount, PastDueDay, ApplicationNumber, FacilityCode, FacilitySequence,
-                    CpNumber, CarCode, FacilityLimit, FlagLessAge4Y, FlagGreaterAge4Y,
-                    CountAgeingDate, CollateralDescription, ExternalValuerName, InternalValuerName,
-                    SllOver100M, SllDescription, Stage, IBGRetail, [Group],
-                    EffectiveDateAppraisal, Latitude, Longitude
-                )
-                SELECT
-                    Id, SourceFileName, SourceFileDate, EffectiveDate, IngestedAt, RowHash,
-                    Status, ReviewType, ReviewDate, CollateralId, SurveyNumber,
-                    CollateralCode, CollateralCategory, CollateralName, CollateralAddress,
-                    CifNumber, CifName, AoCode, AoName, TitleNumber,
-                    CurrentValue, ValuationDate, InternalExternal, BusinessSize, BusinessSizeDesc,
-                    MortgageAmount, PastDueDay, ApplicationNumber, FacilityCode, FacilitySequence,
-                    CpNumber, CarCode, FacilityLimit, FlagLessAge4Y, FlagGreaterAge4Y,
-                    CountAgeingDate, CollateralDescription, ExternalValuerName, InternalValuerName,
-                    SllOver100M, SllDescription, Stage, IBGRetail, [Group],
-                    EffectiveDateAppraisal, Latitude, Longitude
-                FROM request.ReappraisalCandidates;
-                """);
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
-            // ── Drop the source table now that data is copied. Done HERE (Collateral context),
-            // not in the Request module, so copy-then-drop order is guaranteed: UseRequestModule
-            // runs before UseCollateralModule at startup, so a Request-side drop would run first
-            // and the copy above would lose its source. Guarded with IF EXISTS for re-run safety.
+            // ── Drop the legacy request.ReappraisalCandidates table (now owned by the Collateral context).
+            // The copy into collateral.ReappraisalCandidates was removed;
+            // only safe on an empty table. Guarded with IF EXISTS for re-run safety.
             migrationBuilder.Sql("""
                 DROP INDEX IF EXISTS IX_ReappraisalCandidates_GeoPoint
                     ON request.ReappraisalCandidates;

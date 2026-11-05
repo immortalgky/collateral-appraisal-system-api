@@ -101,10 +101,7 @@ namespace Workflow.Infrastructure.Migrations
                 type: "datetime2",
                 nullable: true);
 
-            // Backfill EndAt for existing meetings: default to StartAt + 2 hours
-            // (preserves the old single-datetime behavior where ScheduledAt implied a short window).
-            migrationBuilder.Sql(
-                "UPDATE workflow.Meetings SET EndAt = DATEADD(HOUR, 2, StartAt) WHERE EndAt IS NULL AND StartAt IS NOT NULL");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             migrationBuilder.AddColumn<string>(
                 name: "FromText",

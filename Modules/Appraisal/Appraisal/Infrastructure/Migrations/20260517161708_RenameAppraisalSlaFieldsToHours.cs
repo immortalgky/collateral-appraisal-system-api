@@ -22,12 +22,7 @@ namespace Appraisal.Infrastructure.Migrations
                 table: "Appraisals",
                 newName: "ActualHoursToComplete");
 
-            // Convert pre-existing day values to hours (8 business-hours per business-day convention).
-            // No-op on fresh environments where both columns are null.
-            migrationBuilder.Sql(
-                "UPDATE [appraisal].[Appraisals] SET SLAHours = SLAHours * 8 WHERE SLAHours IS NOT NULL");
-            migrationBuilder.Sql(
-                "UPDATE [appraisal].[Appraisals] SET ActualHoursToComplete = ActualHoursToComplete * 8 WHERE ActualHoursToComplete IS NOT NULL");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />

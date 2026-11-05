@@ -21,18 +21,27 @@ public interface IUserLookupService
         CancellationToken ct = default);
 
     /// <summary>
-    /// The emails of the users in <paramref name="role"/> who may use the system now (active, inside any access
-    /// window), blank emails dropped.
+    /// Returns the usernames (bank codes) of the members of the group named <paramref name="groupName"/> who may use the
+    /// system now (active, inside any access window). Only a live Bank-scoped group with no company counts, and only
+    /// members with no company.
     /// </summary>
-    Task<IReadOnlyList<string>> GetEmailsInRoleAsync(string role, CancellationToken ct);
+    Task<string[]> GetUsernamesInGroupAsync(string groupName, CancellationToken ct = default);
+
+    /// <summary>
+    /// The emails of the members of the group named <paramref name="groupName"/> who may use the system now (active,
+    /// inside any access window), blank emails dropped. Only a live Bank-scoped group with no company counts, and only
+    /// members with no company.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetEmailsInGroupAsync(string groupName, CancellationToken ct);
 
     /// <summary>The emails of those of <paramref name="usernames"/> who may use the system now, blank emails dropped.</summary>
     Task<IReadOnlyList<string>> GetEmailsAsync(IEnumerable<string> usernames, CancellationToken ct);
 
     /// <summary>
-    /// The emails of <paramref name="username"/>'s supervisors: usable members of the groups that monitor (Group
-    /// Monitoring) any group the user is in, de-duplicated. The IntAdmin group never counts as a supervisor group:
-    /// it monitors everyone, and is reached through its own role instead.
+    /// The emails of <paramref name="username"/>'s supervisors: members of the group IntAppraisalChecker (live,
+    /// Bank-scoped, no company; members with no company, active and inside any access window) who share at least one
+    /// Bank-scoped Team with the user, de-duplicated. A user in several teams gets the checkers of all of them; a user
+    /// in no Bank team has none.
     /// </summary>
     Task<IReadOnlyList<string>> GetSupervisorEmailsAsync(string username, CancellationToken ct);
 

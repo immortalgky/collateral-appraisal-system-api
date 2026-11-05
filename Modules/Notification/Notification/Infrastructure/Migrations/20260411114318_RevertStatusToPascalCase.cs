@@ -10,26 +10,7 @@ namespace Notification.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // UserNotifications.Type: SCREAMING_SNAKE → PascalCase
-            migrationBuilder.Sql("""
-                UPDATE notification.UserNotifications
-                SET Type = CASE Type
-                    WHEN 'TASK_ASSIGNED'                THEN 'TaskAssigned'
-                    WHEN 'TASK_COMPLETED'               THEN 'TaskCompleted'
-                    WHEN 'WORKFLOW_TRANSITION'          THEN 'WorkflowTransition'
-                    WHEN 'SYSTEM_NOTIFICATION'          THEN 'SystemNotification'
-                    WHEN 'DOCUMENT_FOLLOWUP_RAISED'     THEN 'DocumentFollowupRaised'
-                    WHEN 'DOCUMENT_FOLLOWUP_RESOLVED'   THEN 'DocumentFollowupResolved'
-                    WHEN 'DOCUMENT_FOLLOWUP_CANCELLED'  THEN 'DocumentFollowupCancelled'
-                    WHEN 'DOCUMENT_LINE_ITEM_DECLINED'  THEN 'DocumentLineItemDeclined'
-                    ELSE Type
-                END
-                WHERE Type IN (
-                    'TASK_ASSIGNED','TASK_COMPLETED','WORKFLOW_TRANSITION','SYSTEM_NOTIFICATION',
-                    'DOCUMENT_FOLLOWUP_RAISED','DOCUMENT_FOLLOWUP_RESOLVED',
-                    'DOCUMENT_FOLLOWUP_CANCELLED','DOCUMENT_LINE_ITEM_DECLINED'
-                )
-                """);
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
         }
 
         /// <inheritdoc />

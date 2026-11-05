@@ -10,12 +10,7 @@ namespace Collateral.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // The bool this replaces could not tell an explicit 'N' from a row that never stated the
-            // flag — both landed as false — so the existing rows cannot be converted, only re-read.
-            // The distinction is the point of the change: the regulatory export reports 'N' and drops
-            // the unstated. Emptying the table is the only honest starting point; the nightly
-            // COLLATLINK ingest refills it completely on its next run.
-            migrationBuilder.Sql("DELETE FROM collateral.HostCollateralLinks;");
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             migrationBuilder.DropIndex(
                 name: "IX_HostCollateralLinks_IsRedeemed_IsMasterTitle",

@@ -30,4 +30,7 @@ public sealed record Rcas002Row(
     DateTime? NewAppraisalSubmittedAt,
     DateTime? NewAppraisalCompletedAt,
     string? NewAppraisalStatus,
-    string? ReviewStatusCode);
+    string? ReviewStatusCode,
+    string? CollateralAddress,
+    string? AoCode,
+    string? AoName);

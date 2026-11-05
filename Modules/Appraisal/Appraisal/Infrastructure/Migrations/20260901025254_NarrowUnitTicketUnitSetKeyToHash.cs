@@ -10,17 +10,7 @@ namespace Appraisal.infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Tickets issued while the key was the caller's spelling cannot be honoured under the
-            // hash: the same rooms would fingerprint differently and mint a second ticket, which is
-            // the duplicate this change exists to stop. They are dropped rather than migrated —
-            // the value cannot be recomputed without the units, and the table has never shipped, so
-            // the only rows this can reach are on a developer's machine.
-            migrationBuilder.Sql(
-                """
-                DELETE FROM appraisal.UnitTickets
-                WHERE LEN(RTRIM(UnitSetKey)) <> 64
-                   OR RTRIM(UnitSetKey) LIKE '%[^0-9a-f]%';
-                """);
+            // Data patch removed 2026-10-28: already applied on every environment (2026-10-27 PRD deploy) and a no-op on a fresh DB.
 
             migrationBuilder.AlterColumn<string>(
                 name: "UnitSetKey",

@@ -157,7 +157,7 @@ public class AssignmentEmailDispatcher(
     /// </summary>
     /// <param name="responsibleUserId">The keyer / follow-up officer as a username, for the Cc chips that name them.</param>
     /// <param name="refuseIfIncomplete">A resend, with the admin waiting for the answer: an email that would reach nobody,
-    /// or whose <c>{{company}}</c> / <c>{{responsible}}</c> is still unknown, is a 400 before anything is queued.
+    /// or whose <c>{{company}}</c> / <c>{{internal_staff}}</c> is still unknown, is a 400 before anything is queued.
     /// The handover still hands it over, and Notification fails an email with no To (#624).</param>
     public async Task QueueAsync(
         AssignmentEmail email,
@@ -185,6 +185,7 @@ public class AssignmentEmailDispatcher(
                     : "The company's email is not a valid address: fix it in the company record.");
             var unknown = Unknown(AssignmentEmail.CompanyPlaceholder, companyName) ? AssignmentEmail.CompanyPlaceholder
                 : Unknown(AssignmentEmail.ResponsiblePlaceholder, responsible) ? AssignmentEmail.ResponsiblePlaceholder
+                : Unknown(AssignmentEmail.LegacyResponsiblePlaceholder, responsible) ? AssignmentEmail.LegacyResponsiblePlaceholder
                 : null;
             if (unknown is not null)
                 throw new BadRequestException($"The email still has {unknown}, and its value is not known yet. Replace it in the email.");
