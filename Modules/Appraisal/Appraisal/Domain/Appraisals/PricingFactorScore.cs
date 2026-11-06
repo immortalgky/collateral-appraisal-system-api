@@ -103,12 +103,24 @@ public class PricingFactorScore : Entity<Guid>
         DisplaySequence = sequence;
     }
 
+    private const decimal WqsMaxScore = 10m;
+
+    // FE round2 = Math.Round(x * 100) / 100 (half up); decimal AwayFromZero is identical for the positive values here.
+    private static decimal Round2(decimal x) => Math.Round(x, 2, MidpointRounding.AwayFromZero);
+
     private void CalculateWeightedScore()
     {
-        if (Score.HasValue)
-            WeightedScore = Score.Value * FactorWeight;
-        else
+        if (!Score.HasValue)
+        {
             WeightedScore = null;
+            return;
+        }
+
+        // WQS (Intensity set) mirrors the screen: round2(round2(Weight x Intensity) x Score / MaxScore).
+        // SaleGrid / DirectComparison send no Intensity and keep Weight x Score.
+        WeightedScore = Intensity.HasValue
+            ? Round2(Round2(FactorWeight * Intensity.Value) * Score.Value / WqsMaxScore)
+            : Score.Value * FactorWeight;
     }
 
     /// <summary>
