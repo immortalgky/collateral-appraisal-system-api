@@ -642,10 +642,11 @@ public class AppraisalCreationService(
 
         vehicleDetail.Update(
             chassisNo: requestTitle.VIN,
-            registrationNumber: requestTitle.LicensePlateNumber,
+            registrationNumber: requestTitle.VehicleRegistrationNumber,
+            licensePlateNumber: requestTitle.LicensePlateNumber,
             location: requestTitle.VehicleLocation,
             ownerName: requestTitle.OwnerName,
-            vehiclePart: requestTitle.VehicleType);
+            vehicleType: requestTitle.VehicleType);
     }
 
     private void CreateVesselProperty(Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle)
@@ -663,7 +664,7 @@ public class AppraisalCreationService(
             vesselType: requestTitle.VesselType,
             location: requestTitle.VesselLocation,
             ownerName: requestTitle.OwnerName,
-            other: requestTitle.HIN is not null ? $"HIN={requestTitle.HIN}" : null);
+            hullNumber: requestTitle.HIN);
     }
 
     private void CreateMachineryProperty(Domain.Appraisals.Appraisal appraisal, RequestTitleDto requestTitle)

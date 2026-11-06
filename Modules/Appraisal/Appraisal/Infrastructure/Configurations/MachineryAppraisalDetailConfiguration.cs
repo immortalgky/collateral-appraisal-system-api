@@ -25,6 +25,7 @@ public class
         builder.Property(e => e.RegistrationStatus).HasDefaultValue(false);
         builder.Property(e => e.InstallationStatus).HasMaxLength(10);
         builder.Property(e => e.MachineType).HasMaxLength(10);
+        builder.Property(e => e.MachineTypeOther).HasMaxLength(200);
         builder.Property(e => e.InvoiceNumber).HasMaxLength(20);
         builder.Property(e => e.IsPriceCertified).HasDefaultValue(true);
 

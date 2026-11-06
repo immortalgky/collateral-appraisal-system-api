@@ -17,12 +17,18 @@ public record GetVehiclePropertyResponse(
     string? VehicleName,
     string? EngineNo,
     string? ChassisNo,
+    string? LicensePlateNumber,
     string? RegistrationNumber,
+    DateTime? RegistrationDate,
+    string? Color,
+    string? ColorOther,
     // Vehicle Specifications
     string? Brand,
     string? Model,
     int? YearOfManufacture,
     string? CountryOfManufacture,
+    string? VehicleType,
+    string? VehicleTypeOther,
     // Purchase Info
     DateTime? PurchaseDate,
     decimal? PurchasePrice,

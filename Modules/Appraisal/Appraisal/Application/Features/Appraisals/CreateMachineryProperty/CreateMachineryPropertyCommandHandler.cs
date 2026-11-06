@@ -35,6 +35,7 @@ public class CreateMachineryPropertyCommandHandler(
             registrationStatus: command.RegistrationStatus,
             installationStatus: command.InstallationStatus,
             machineType: command.MachineType,
+            machineTypeOther: command.MachineTypeOther,
             invoiceNumber: command.InvoiceNumber,
             isPriceCertified: command.IsPriceCertified,
             brand: command.Brand,

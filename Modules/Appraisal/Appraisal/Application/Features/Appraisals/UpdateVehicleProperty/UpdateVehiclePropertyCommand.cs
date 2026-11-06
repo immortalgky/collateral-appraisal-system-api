@@ -14,12 +14,18 @@ public record UpdateVehiclePropertyCommand(
     string? VehicleName = null,
     string? EngineNo = null,
     string? ChassisNo = null,
+    string? LicensePlateNumber = null,
     string? RegistrationNumber = null,
+    DateTime? RegistrationDate = null,
+    string? Color = null,
+    string? ColorOther = null,
     // Vehicle Specifications
     string? Brand = null,
     string? Model = null,
     int? YearOfManufacture = null,
     string? CountryOfManufacture = null,
+    string? VehicleType = null,
+    string? VehicleTypeOther = null,
     // Purchase Info
     DateTime? PurchaseDate = null,
     decimal? PurchasePrice = null,

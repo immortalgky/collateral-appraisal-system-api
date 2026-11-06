@@ -12,12 +12,14 @@ SELECT PG.AppraisalId,
        PGI.SequenceInGroup,
        AP.Id                                                         AS PropertyId,
        AP.PropertyType,
-       COALESCE(L.Id, B.Id, C.Id, M.Id)                              AS AppraisalDetailId,
+       COALESCE(L.Id, B.Id, C.Id, M.Id, VH.Id, VS.Id)                AS AppraisalDetailId,
        -- Machinery falls back to MachineName: the form used to have both a property name and a
        -- machine name and now writes only the first, so a row filled in through the old form can
        -- carry its name in the other column. Same rule the machinery report applies.
        COALESCE(L.PropertyName, B.PropertyName, C.PropertyName,
-                NULLIF(M.PropertyName, ''), NULLIF(M.MachineName, '')) AS PropertyName,
+                NULLIF(M.PropertyName, ''), NULLIF(M.MachineName, ''),
+                NULLIF(VH.PropertyName, ''), NULLIF(VH.VehicleName, ''),
+                NULLIF(VS.PropertyName, ''), NULLIF(VS.VesselName, ''))   AS PropertyName,
        -- The lease types are the same four things held under a lease agreement, and they write to
        -- the same detail tables as their freehold twins: LSL/LS to land, LSB to building, LSU to
        -- condominium. Listing only the freehold codes here left every leased property with no
@@ -32,12 +34,16 @@ SELECT PG.AppraisalId,
            END                                                       AS MachineName,
        CASE
            WHEN AP.PropertyType = 'MAC' THEN M.Brand
+           WHEN AP.PropertyType = 'VEH' THEN VH.Brand
            END                                                       AS Brand,
        CASE
            WHEN AP.PropertyType = 'MAC' THEN M.Model
+           WHEN AP.PropertyType = 'VEH' THEN VH.Model
+           WHEN AP.PropertyType = 'VES' THEN VS.Model
            END                                                       AS Model,
        CASE
            WHEN AP.PropertyType = 'MAC' THEN M.RegistrationNumber
+           WHEN AP.PropertyType = 'VEH' THEN VH.RegistrationNumber
            END                                                       AS RegistrationNumber,
        CASE
            WHEN AP.PropertyType = 'MAC' THEN M.RegistrationStatus
@@ -47,6 +53,7 @@ SELECT PG.AppraisalId,
            END                                                       AS IsPriceCertified,
        CASE
            WHEN AP.PropertyType = 'MAC' THEN M.ConditionUse
+           WHEN AP.PropertyType = 'VES' THEN VS.ConditionUse
            END                                                       AS ConditionUse,
        CASE
            WHEN AP.PropertyType = 'MAC'
@@ -54,6 +61,8 @@ SELECT PG.AppraisalId,
            END                                                       AS Dimension,
        CASE
            WHEN AP.PropertyType = 'MAC' THEN M.Location
+           WHEN AP.PropertyType = 'VEH' THEN VH.Location
+           WHEN AP.PropertyType = 'VES' THEN VS.Location
            ELSE CONCAT_WS(',', SD.NameTh, DI.NameTh, PV.NameTh)
            END                                                       AS Location,
        -- A building has no address of its own: the tambon/amphoe/province live on the land it
@@ -93,6 +102,8 @@ FROM appraisal.PropertyGroups PG
 ON B.AppraisalPropertyId = AP.Id
     LEFT JOIN appraisal.CondoAppraisalDetails C ON C.AppraisalPropertyId = AP.Id
     LEFT JOIN appraisal.MachineryAppraisalDetails M ON M.AppraisalPropertyId = AP.Id
+    LEFT JOIN appraisal.VehicleAppraisalDetails VH ON VH.AppraisalPropertyId = AP.Id
+    LEFT JOIN appraisal.VesselAppraisalDetails VS ON VS.AppraisalPropertyId = AP.Id
 
     LEFT JOIN parameter.TitleProvinces PV ON PV.Code = ISNULL(L.Province, C.Province)
     LEFT JOIN parameter.TitleDistricts DI ON DI.Code = ISNULL(L.District, C.District)

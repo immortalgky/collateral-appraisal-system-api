@@ -16,6 +16,7 @@ public record GetVesselPropertyResponse(
     string? PropertyName,
     string? VesselName,
     string? EngineNo,
+    string? HullNumber,
     string? RegistrationNumber,
     DateTime? RegistrationDate,
     // Vessel Specifications
@@ -24,7 +25,10 @@ public record GetVesselPropertyResponse(
     int? YearOfManufacture,
     string? PlaceOfManufacture,
     string? VesselType,
+    string? VesselTypeOther,
     string? ClassOfVessel,
+    string? EnginePower,
+    decimal? NumberOfEngines,
     // Purchase Info
     DateTime? PurchaseDate,
     decimal? PurchasePrice,

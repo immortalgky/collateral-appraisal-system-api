@@ -23,6 +23,7 @@ public record GetMachineryPropertyResponse(
     bool RegistrationStatus,
     string? InstallationStatus,
     string? MachineType,
+    string? MachineTypeOther,
     string? InvoiceNumber,
     bool IsPriceCertified,
     // Machine Specifications

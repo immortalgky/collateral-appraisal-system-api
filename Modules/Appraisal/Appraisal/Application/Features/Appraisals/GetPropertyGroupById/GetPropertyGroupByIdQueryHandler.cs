@@ -165,8 +165,14 @@ public class GetPropertyGroupByIdQueryHandler(
                                   cad.RoomNumber,
                                   cad.RoomLayoutType,
                                   cad.RoomLayoutTypeOther,
-                                  mad.YearOfManufacture,
+                                  COALESCE(mad.YearOfManufacture, vhd.YearOfManufacture,
+                                           vsd.YearOfManufacture)                            AS YearOfManufacture,
                                   mad.MachineAge,
+                                  NULLIF(vhd.VehicleType, '')                                AS VehicleType,
+                                  NULLIF(vhd.VehicleTypeOther, '')                           AS VehicleTypeOther,
+                                  NULLIF(vsd.VesselType, '')                                 AS VesselType,
+                                  NULLIF(vsd.VesselTypeOther, '')                            AS VesselTypeOther,
+                                  vsd.GrossTonnage,
                                   lsd.RemainingLeaseAsAppraisalDate AS RemainingLeaseYears,
                                   lsd.LeaseEndDate,
                                   lsd.LeaseRentFee
@@ -175,6 +181,8 @@ public class GetPropertyGroupByIdQueryHandler(
                            LEFT JOIN appraisal.CondoAppraisalDetails cad ON cad.AppraisalPropertyId = ap.Id
                            LEFT JOIN appraisal.ConstructionInspections ci ON ci.AppraisalPropertyId = ap.Id
                            LEFT JOIN appraisal.MachineryAppraisalDetails mad ON mad.AppraisalPropertyId = ap.Id
+                           LEFT JOIN appraisal.VehicleAppraisalDetails vhd ON vhd.AppraisalPropertyId = ap.Id
+                           LEFT JOIN appraisal.VesselAppraisalDetails vsd ON vsd.AppraisalPropertyId = ap.Id
                            LEFT JOIN appraisal.LeaseAgreementDetails lsd ON lsd.AppraisalPropertyId = ap.Id
                            WHERE ap.Id IN @PropertyIds
                            """;
@@ -203,6 +211,11 @@ public class GetPropertyGroupByIdQueryHandler(
                 property.RoomLayoutTypeOther = f.RoomLayoutTypeOther;
                 property.YearOfManufacture = f.YearOfManufacture;
                 property.MachineAge = f.MachineAge;
+                property.VehicleType = f.VehicleType;
+                property.VehicleTypeOther = f.VehicleTypeOther;
+                property.VesselType = f.VesselType;
+                property.VesselTypeOther = f.VesselTypeOther;
+                property.GrossTonnage = f.GrossTonnage;
                 property.RemainingLeaseYears = f.RemainingLeaseYears;
                 property.LeaseEndDate = f.LeaseEndDate;
                 property.LeaseRentFee = f.LeaseRentFee;
@@ -303,10 +316,20 @@ public record PropertyGroupItemDto
     public string? RoomLayoutType { get; set; }
     /// <summary>Condo only: free-text layout when RoomLayoutType is "other".</summary>
     public string? RoomLayoutTypeOther { get; set; }
-    /// <summary>Machinery only: year of manufacture.</summary>
+    /// <summary>Machinery, vehicle or vessel: year of manufacture.</summary>
     public int? YearOfManufacture { get; set; }
     /// <summary>Machinery only: age in years as entered.</summary>
     public decimal? MachineAge { get; set; }
+    /// <summary>Vehicle only: VehicleType parameter code.</summary>
+    public string? VehicleType { get; set; }
+    /// <summary>Vehicle only: the free-text type entered when VehicleType is "other".</summary>
+    public string? VehicleTypeOther { get; set; }
+    /// <summary>Vessel only: VesselType parameter code.</summary>
+    public string? VesselType { get; set; }
+    /// <summary>Vessel only: the free-text type entered when VesselType is "other".</summary>
+    public string? VesselTypeOther { get; set; }
+    /// <summary>Vessel only: gross tonnage.</summary>
+    public decimal? GrossTonnage { get; set; }
     /// <summary>Lease types only: remaining lease term in years at the appraisal date, as entered.</summary>
     public decimal? RemainingLeaseYears { get; set; }
     /// <summary>Lease types only: contract end date.</summary>
@@ -346,6 +369,11 @@ internal record PropertyFactsRow
     public string? RoomLayoutTypeOther { get; init; }
     public int? YearOfManufacture { get; init; }
     public decimal? MachineAge { get; init; }
+    public string? VehicleType { get; init; }
+    public string? VehicleTypeOther { get; init; }
+    public string? VesselType { get; init; }
+    public string? VesselTypeOther { get; init; }
+    public decimal? GrossTonnage { get; init; }
     public decimal? RemainingLeaseYears { get; init; }
     public DateTime? LeaseEndDate { get; init; }
     public decimal? LeaseRentFee { get; init; }

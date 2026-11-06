@@ -17,6 +17,7 @@ public record CreateMachineryPropertyRequest(
     bool? RegistrationStatus = null,
     string? InstallationStatus = null,
     string? MachineType = null,
+    string? MachineTypeOther = null,
     string? InvoiceNumber = null,
     bool? IsPriceCertified = null,
     string? Description = null,

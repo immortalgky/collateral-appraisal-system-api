@@ -54,6 +54,7 @@ public class GetMachineryPropertyQueryHandler(
             detail.RegistrationStatus,
             detail.InstallationStatus,
             detail.MachineType,
+            detail.MachineTypeOther,
             detail.InvoiceNumber,
             detail.IsPriceCertified,
             detail.Brand,
