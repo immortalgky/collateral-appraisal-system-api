@@ -14,7 +14,11 @@ public class GetLawAndRegulationsQueryHandler(
         var regulations = await repository.GetByAppraisalIdWithImagesAsync(
             query.AppraisalId, cancellationToken);
 
-        var items = regulations.Select(r => new LawAndRegulationDto(
+        var items = regulations
+            .OrderBy(r => r.HeaderCode, StringComparer.Ordinal)
+            .ThenBy(r => r.CreatedAt)
+            .ThenBy(r => r.Id)
+            .Select(r => new LawAndRegulationDto(
             r.Id,
             r.HeaderCode,
             r.Remark,
