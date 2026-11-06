@@ -18,7 +18,7 @@ public class GetMeetingsEndpoint : ICarterModule
             })
             .WithName("GetMeetings")
             .WithTags("Meetings")
-            .RequireAuthorization("CommitteeMember");
+            .RequireAuthorization("MeetingView");
     }
 }
 
