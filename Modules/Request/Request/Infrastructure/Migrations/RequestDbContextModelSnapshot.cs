@@ -544,8 +544,8 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnType("uniqueidentifier");
 
                             b1.Property<string>("District")
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
                                 .HasColumnName("District");
 
                             b1.Property<string>("HouseNumber")
@@ -569,8 +569,8 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnName("ProjectName");
 
                             b1.Property<string>("Province")
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
                                 .HasColumnName("Province");
 
                             b1.Property<string>("Road")
@@ -584,8 +584,8 @@ namespace Request.Infrastructure.Migrations
                                 .HasColumnName("Soi");
 
                             b1.Property<string>("SubDistrict")
-                                .HasMaxLength(10)
-                                .HasColumnType("nvarchar(10)")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
                                 .HasColumnName("SubDistrict");
 
                             b1.HasKey("RequestTitleId");
