@@ -10,7 +10,7 @@ SELECT el.AppraisalId           AS Id,
        el.AppraiserCompanyName  AS AppraisalCompanyEn,   -- filter key: stays English so a company filter matches in either language
        a.CompletedAt            AS ApprovedDate,
        a.BankingSegment,
-       el.TotalScore            AS TotalScorePct,
+       el.TotalScorePct,
        e.Criteria1Rating        AS ScoreReportQuality,
        e.Criteria2Rating        AS ScoreDeliveryTime,
        e.Criteria3Rating        AS ScorePersonnel,
