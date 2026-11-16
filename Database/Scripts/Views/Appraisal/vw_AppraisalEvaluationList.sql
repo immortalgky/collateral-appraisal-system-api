@@ -47,6 +47,9 @@ SELECT
             AS DECIMAL(5, 2))
         END                                 AS TotalScore,
 
+    CAST(TotalScore * 100 / NULLIF(w.MaxTotal, 0) AS DECIMAL(5, 2))
+                                            AS TotalScorePct,
+
     -- Internal followup staff: the bank-side user attached to the current external
     -- assignment (AppraisalAssignment.InternalAppraiserId, stored as a username).
     -- Name is resolved from auth.AspNetUsers, mirroring vw_AppraisalEvaluationHeader.
@@ -101,7 +104,8 @@ ON ext.AppraisalId = a.Id AND ext.rn = 1
             MAX(CASE WHEN cfg.CriteriaSlot = 2 THEN cfg.Weight END) AS W2,
             MAX(CASE WHEN cfg.CriteriaSlot = 3 THEN cfg.Weight END) AS W3,
             MAX(CASE WHEN cfg.CriteriaSlot = 4 THEN cfg.Weight END) AS W4,
-            MAX(CASE WHEN cfg.CriteriaSlot = 5 THEN cfg.Weight END) AS W5
+            MAX(CASE WHEN cfg.CriteriaSlot = 5 THEN cfg.Weight END) AS W5,
+            SUM(CASE WHEN cfg.CriteriaSlot BETWEEN 1 AND 5 THEN cfg.Weight * cfg.MaxScore END) AS MaxTotal
         FROM appraisal.EvaluationCriteriaConfigs cfg
         WHERE UPPER(cfg.BankingSegment) = UPPER(ISNULL(a.BankingSegment, 'IBG'))
     ) w
