@@ -76,8 +76,10 @@ main     ──●──●──●──●──●──●──●──�
 git fetch
 git switch -c feat/xxx origin/main
 # ... เขียนโค้ด ...
-gh pr create --base main            # รอ dotnet-ci ผ่าน → merge
+gh pr create --base main            # รอ CI ผ่าน → กด "Update branch" ถ้าขึ้น → CI ผ่านอีกรอบ → squash merge
 ```
+
+- `main` บังคับ **squash** และ **ต้องตาม `main` ทันก่อน merge** (ดู §4.9)
 
 - `main` ต้อง **พร้อมขึ้นได้เสมอ** — งานที่ยังไม่เสร็จ **อย่า merge** ค้างไว้ใน PR
 - งานใหญ่เกิน 2 สัปดาห์ → ซ่อนหลัง config flag แล้ว merge ทีละชิ้น
@@ -129,13 +131,25 @@ git push origin v6.1.0-rc2
 # → Publish.ps1 -Version v6.1.0-rc2 → deploy UAT
 ```
 
-**ถ้า bug นั้นไม่มีใน `main` แล้ว** (โค้ดถูกเขียนใหม่ไปแล้ว) — ยังเปิด PR ไป main ได้ หรือเขียนในคำอธิบาย PR ของ release ว่า "ไม่ต้อง port: main แก้แล้วใน #xxx"
+**ถ้า bug นั้นไม่มีใน `main` แล้ว** (โค้ดถูกเขียนใหม่ไปแล้ว) — ยังเปิด PR ไป main ได้ หรือใส่บรรทัด `No-Port: main แก้แล้วใน #xxx` ใน **commit message** ของ fix บน release (ใส่ใน PR body ไม่นับ เพราะ squash ไม่เก็บ body)
 
-**ถ้า UAT ขอ feature ที่ merge เข้า `main` ไปแล้วให้เข้ารอบนี้ด้วย** — cherry-pick จาก main เข้า release ได้ แต่ต้องตกลงกับ UAT ก่อน และถือเป็นข้อยกเว้น ไม่ใช่เรื่องปกติ
+**ถ้า UAT ขอ feature ที่ merge เข้า `main` ไปแล้วให้เข้ารอบนี้ด้วย หรืออยากเอา feature ออกจากรอบนี้** — ดู §4.8
 
 ### 4.4 เตรียม PRD
 
+**ตัวเช็ค port อัตโนมัติ** (`deploy/Test-ReleasePorts.ps1`): commit บน `release/vX.Y` ผ่านถ้า (1) patch เดียวกันอยู่ใน main หรือ (2) main มี commit ที่เขียน `cherry picked from commit <sha นี้>` หรือ (3) ตัวมันเอง cherry-pick มาจาก main หรือ (4) มีบรรทัด `No-Port: <เหตุผล>`
+
+- **GitHub Action `release-port-check`** — รันทุก push เข้า main/release และทุกเช้า 08:00 → เจอที่ยังไม่ port จะเปิด/อัปเดต issue **"Release fixes not ported to main"** · port ครบ issue ปิดเอง
+- **`Publish.ps1`** — build `vX.Y.Z-rcN` แล้วเจอ fix ที่ไม่ port (เช็คทั้ง BE และ FE) จะ **เตือนตัวใหญ่ + รายการ แต่ build ต่อ** (เผื่อเคสยกเว้น) → ปกติให้ port merge เข้า main ก่อนค่อย build rc
+- ใส่ `No-Port:` **ตอนกด squash merge** (แก้ message ในหน้า GitHub หรือ `gh pr merge N --squash --body "... No-Port: <เหตุผล>"`) — merge แล้วเติมย้อนหลังไม่ได้ ถ้าลืม คำเตือนจะขึ้นค้าง ให้ยืนยันเองว่าเป็นเคสยกเว้น
+
 **ก่อนขึ้น — เช็คว่าไม่มี fix ไหนลืมส่งกลับ main:**
+
+```powershell
+pwsh deploy/Test-ReleasePorts.ps1 -Fetch     # exit 0 = ครบ
+```
+
+หรือเช็คมือ:
 
 ```bash
 git fetch
@@ -201,6 +215,75 @@ git push origin v6.1.1-rc1
 - `release/v6.1` ไม่ต้องใช้แล้ว (ไม่มีใครจะ hotfix v6.1 อีก) → ลบ branch ได้ **tag ยังอยู่ครบ**
 - ลบ zip ของ rc ที่ไม่ได้ขึ้น PRD ได้ เก็บเฉพาะ zip ที่ขึ้น PRD
 
+### 4.8 เพิ่ม / เอา feature ออกจาก release ที่ตัดไปแล้ว
+
+ทั้งสองแบบเป็น **ข้อยกเว้น**: ต้องตกลงกับ UAT ก่อน ทุกครั้งออก **rc ใหม่** และ UAT ต้อง regression ส่วนที่โดนแตะ
+ถ้าต้องทำเกิน 2–3 เรื่องต่อรอบ แปลว่าตัดเร็วไป → ขยับวันตัด หรือใช้ feature flag
+
+**เพิ่ม feature ที่อยู่ใน `main` แล้ว:**
+
+```bash
+git fetch
+git log --oneline origin/release/v6.1..origin/main    # มีอะไรบน main ที่ release ยังไม่มี
+git switch -c feat/CA-xxx-to-v6.1 origin/release/v6.1
+git cherry-pick -x <squash sha บน main>               # หลายเรื่อง: เรียงเก่า → ใหม่
+# PR ที่ merge ก่อนเปิด squash (ก่อน 2026-11-05) เป็น merge commit → git cherry-pick -x -m 1 <merge sha>
+gh pr create --base release/v6.1
+```
+
+- ไม่ต้อง port กลับ `main` (มาจาก main อยู่แล้ว)
+- **cherry-pick แล้ว conflict = feature พึ่ง commit ที่ release ยังไม่มี** → หยุด เลือกว่าจะ pick ตัวที่พึ่งมาด้วย หรือไม่เอาเรื่องนี้ **ห้ามแก้โค้ดให้เข้ากันบน release** (จะได้โค้ดที่ไม่มีใน main และ SIT ไม่เคยเทส)
+
+**เอา feature ออก** (ดีสุด → แย่สุด):
+
+1. **ปิดด้วย feature flag** — โค้ดขึ้นไปแต่ไม่ทำงาน (ดูด้านล่าง)
+2. **ตอนตัด: ตัดจาก commit ก่อน feature นั้น** — `git switch -c release/v6.1 <sha>` แล้ว cherry-pick เรื่องที่ต้องการที่อยู่หลังจุดนั้น
+3. **`git revert` บน release ผ่าน PR** — revert เฉพาะ release **ห้าม port ไป main** ใส่บรรทัด `No-Port: revert เฉพาะรอบนี้` ใน commit message (ไม่งั้นตัวเช็ค port จะฟ้อง) รอบหน้าตัดจาก main แล้วกลับมาเอง
+
+**⚠ migration (พังง่ายสุด):**
+
+- **migration ที่พึ่งกันไม่ขึ้น git conflict** (ไฟล์ใหม่เสมอ) — pick B ที่ใช้ column ของ A ที่ไม่ได้ pick จะ cherry-pick ผ่านแต่ `migrate` พัง → เปิดดู SQL ทุกครั้ง
+- ใช้ไฟล์ migration ตามเดิม **ห้ามเปลี่ยนชื่อ / timestamp**
+- `*ModelSnapshot.cs` จะ conflict → แก้มือให้ตรงกับสิ่งที่อยู่ใน release จริง
+- revert feature ที่มี migration **หลัง UAT migrate แล้ว** → DB UAT ล้ำหน้าโค้ด แอป start ได้ไม่เตือน → ใช้ flag ดีกว่า
+- view / DbUp script ต้องไปหรือออกพร้อม feature
+
+**Feature flag:**
+
+```json
+// appsettings.json — ค่ากลาง ปิด          // appsettings.Development.json — เปิด
+"Features": { "AutoAssignCompany": false }   "Features": { "AutoAssignCompany": true }
+```
+
+```csharp
+if (configuration.GetValue<bool>("Features:AutoAssignCompany"))
+    await autoAssigner.AssignAsync(appraisal, ct);   // ปิด = ทำงานแบบเดิม
+```
+
+- ตั้งชื่อ `Features:<ชื่อ>` · **ค่า default = ปิด** (ลืมใส่ config บน PRD = ไม่มี feature)
+- เปิดบน UAT/PRD = แก้ `appsettings.Production.json` บน server แล้ว restart — zip เดิม ไม่ build ใหม่
+- flag ซ่อน migration ไม่ได้ → migration ต้อง additive
+- ไม่ใช่ตัวกันสิทธิ์ — BE ต้องเช็คเอง ซ่อนปุ่ม FE อย่างเดียวไม่พอ
+- FE: ค่า `VITE_*` ฝังตอน build (§5) → ระหว่างที่ `config.js` ยังไม่เสร็จ ให้ BE ส่งค่า flag ให้ FE
+- feature นิ่งแล้ว 1–2 รอบ → **ลบ flag และ `if` ทิ้ง**
+- ใช้เฉพาะ feature ที่ "อาจไม่ได้ขึ้นรอบนี้" หรือ "อยากปิดได้ทันทีบน PRD" — bug fix / งานเล็กไม่ต้อง
+
+### 4.9 กติกา merge (หลายคน merge พร้อมกัน)
+
+ruleset `main` ทั้งสอง repo (ตั้ง 2026-11-05):
+
+- **squash เท่านั้น** — 1 PR = 1 commit → cherry-pick / revert / `git cherry` ได้คำสั่งเดียว
+- **ต้องตาม `main` ทันก่อน merge** — PR ขึ้น `BEHIND` → กด "Update branch" → CI รันใหม่ → merge
+  ไม่งั้น PR สองตัวเขียวแยกกัน แต่ไม่มีใครเคยเทสโค้ดที่รวมกัน → main พัง
+- BE: CI มีเทสเช็ค `ModelSnapshot` ตรงกับ model ทุก DbContext — สอง PR เพิ่ม migration module เดียวกัน → ตัวที่ merge ทีหลังต้อง `dotnet ef migrations remove` / `add` ใหม่บน main ล่าสุด
+
+กติกาทีม:
+
+1. **PR อายุสั้น** — ไม่กี่วัน · merge `main` เข้า branch ทุกวัน · PR ค้างเกินรอบ release → rebase หรือปิด
+2. **คนละ branch ต่อ base** — fix ไป release ใช้ branch แตกจาก `origin/release/vX.Y` ส่วนตัวไป main แตกจาก `origin/main` แล้ว `cherry-pick -x` **ห้ามใช้ branch เดียวเปิด PR ไปทั้งสองที่** (branch จาก release จะดึง fix ของ release เข้า main ตามมา)
+3. **แก้ conflict แล้วต้องเทสใหม่** — CI เขียวก่อนแก้ conflict ไม่นับ
+4. **stacked PR** — หลัง PR แม่ squash แล้ว ลูกยังมี commit ของแม่ (SHA เก่า) → `git rebase --onto origin/main <branch แม่> <branch ลูก>` แล้ว `gh pr edit <ลูก> --base main` · merge แม่ **ไม่ใส่** `--delete-branch` จนกว่าจะย้าย base ลูกแล้ว
+
 ---
 
 ## 5. Frontend: build ครั้งเดียวใช้ทุก env
@@ -256,12 +339,13 @@ window.__CAS_CONFIG__ = {
 
 ### ออก rc ใหม่
 - [ ] PR fix merge เข้า `release/vX.Y` แล้ว
-- [ ] PR port ไป `main` เปิดแล้ว (หรือระบุว่าไม่ต้อง port)
+- [ ] PR port ไป `main` **merge แล้ว** (หรือ commit มี `No-Port:`) — ไม่งั้น `Publish.ps1` ขึ้นคำเตือน
 - [ ] tag `vX.Y.0-rcN` → build → deploy UAT
 
 ### ขึ้น PRD
 - [ ] UAT sign-off ระบุเลข rc ชัดเจน
 - [ ] `git cherry -v origin/main origin/release/vX.Y` ไม่มี "+" ที่ยังไม่ port
+- [ ] rc ที่จะขึ้น build โดย **ไม่มีคำเตือน port** — หรือทุกตัวที่เตือนเป็นเคสยกเว้นที่ตกลงกันแล้ว
 - [ ] tag `vX.Y.0` บน commit ของ rc นั้น ทั้งสอง repo
 - [ ] ใช้ **zip เดิมของ rc นั้น**
 - [ ] DB program → node 1 → node 2 → health ผ่าน
@@ -314,10 +398,11 @@ window.__CAS_CONFIG__ = {
 
 | Ruleset | ครอบ | กฎ | ใครข้ามได้ |
 |---|---|---|---|
+| Protect main branch | `main` | บังคับ PR (approve 0), **squash เท่านั้น**, **ต้องตาม main ทันก่อน merge** (2026-11-05), ห้ามลบ, ห้าม force-push, Copilot review, CI ต้องผ่าน: BE `dotnet-ci` · FE `react-ci` (FE บังคับ 2026-11-05) | ไม่มีใคร |
 | Protect release branches | `release/**` | บังคับ PR (approve 0), **squash เท่านั้น**, ห้าม force-push, Copilot review, BE: `dotnet-ci` ต้องผ่าน (FE ไม่บังคับ CI) | ไม่มีใคร |
 | Release branch deletion | `release/**` | ห้ามลบ | Repository admin |
 | Protect release tags | `v*` | ห้ามลบ, ห้ามย้าย (สร้างใหม่ได้) | Repository admin |
 
 - แยก "deletion" ออกมาเป็น ruleset ของตัวเอง เพราะ bypass ของ GitHub ใช้ทั้ง ruleset — ถ้ารวมกัน admin ที่ได้สิทธิ์ลบจะข้ามกฎ PR ไปด้วย
-- ruleset `main` เดิมไม่ได้แตะ
+- ค่า ruleset `main` ก่อนแก้ 2026-11-05: merge/squash/rebase ได้หมด, BE ไม่ strict, FE ไม่มี required check
 - ดู/แก้: `gh api repos/immortalgky/<repo>/rulesets` หรือ GitHub → Settings → Rules → Rulesets
