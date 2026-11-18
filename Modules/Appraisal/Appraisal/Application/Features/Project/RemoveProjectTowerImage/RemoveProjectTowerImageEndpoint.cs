@@ -34,6 +34,7 @@ public class RemoveProjectTowerImageEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Remove image from project tower")
             .WithDescription("Removes an image from a project tower.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("ProjectTowers");
     }
 }

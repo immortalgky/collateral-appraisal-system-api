@@ -23,6 +23,7 @@ public class DeleteProjectTowerEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Delete project tower")
             .WithDescription("Removes a tower from a Condo project.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Project");
     }
 }

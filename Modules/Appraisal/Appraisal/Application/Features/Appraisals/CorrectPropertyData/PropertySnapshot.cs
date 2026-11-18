@@ -21,6 +21,7 @@ internal static class PropertySnapshot
     private static readonly HashSet<string> AuditStamps =
     [
         "CreatedAt", "CreatedBy", "CreatedWorkstation", "UpdatedAt", "UpdatedBy", "UpdatedWorkstation",
+        "DomainEvents",
     ];
 
     // Foreign keys back to the parent row. Other Guid members (ConstructionWorkGroupId, DocumentId) are data.
@@ -28,6 +29,7 @@ internal static class PropertySnapshot
     [
         "AppraisalPropertyId", "LandAppraisalDetailId", "BuildingAppraisalDetailId", "CondoAppraisalDetailId",
         "BuildingDepreciationDetailId", "ConstructionInspectionId", "RentalInfoId",
+        "ProjectId", "ProjectLandId", "ProjectModelId", "ProjectModelDepreciationDetailId", "ProjectUnitId",
     ];
 
     // LandTitle.SequenceNumber is list-position bookkeeping stamped on every title save, so rows that predate
@@ -74,9 +76,13 @@ internal static class PropertySnapshot
         if (detail is null)
             return;
 
+        snapshot[section] = Node(detail);
+    }
+    internal static JsonNode? Node<T>(T detail) where T : class
+    {
         var node = JsonSerializer.SerializeToNode(detail, Options);
         Hoist(node);
-        snapshot[section] = node;
+        return node;
     }
 
     private static void Hoist(JsonNode? node)

@@ -28,6 +28,7 @@ public class UpdateProjectTowerEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update project tower")
             .WithDescription("Updates an existing tower within a Condo project.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Project");
     }
 }

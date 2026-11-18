@@ -47,6 +47,7 @@ public class ChangeProjectTypeEndpoint : ICarterModule
                 "All child data (towers, models, units, pricing assumptions, land) is destroyed. " +
                 "Shared fields (name, developer, location, etc.) are preserved. " +
                 "Returns 404 if no project exists; 400 if the new type matches the current type.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Project");
     }
 }

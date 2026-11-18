@@ -29,6 +29,7 @@ public class SaveProjectLandEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Save project land")
             .WithDescription("Creates or updates land details for a LandAndBuilding project.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Project");
     }
 }

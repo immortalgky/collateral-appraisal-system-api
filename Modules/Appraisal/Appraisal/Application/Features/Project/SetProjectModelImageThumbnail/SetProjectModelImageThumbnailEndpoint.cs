@@ -34,6 +34,7 @@ public class SetProjectModelImageThumbnailEndpoint : ICarterModule
             .WithSummary("Set project model image as thumbnail")
             .WithDescription(
                 "Sets the specified image as the thumbnail for the project model. Automatically unsets any existing thumbnail.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("ProjectModels");
     }
 }

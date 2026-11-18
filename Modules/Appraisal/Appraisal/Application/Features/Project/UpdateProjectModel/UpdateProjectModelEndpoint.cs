@@ -28,6 +28,7 @@ public class UpdateProjectModelEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Update project model")
             .WithDescription("Updates an existing project model.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Project");
     }
 }

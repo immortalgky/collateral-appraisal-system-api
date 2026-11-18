@@ -41,6 +41,7 @@ public class AddProjectModelImageEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Add image to project model")
             .WithDescription("Links a gallery photo as an image to a project model.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("ProjectModels");
     }
 }

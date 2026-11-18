@@ -29,6 +29,7 @@ public class CreateProjectModelEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Create project model")
             .WithDescription("Creates a new model within a project. Supported for both Condo and LandAndBuilding projects.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Project");
     }
 }
