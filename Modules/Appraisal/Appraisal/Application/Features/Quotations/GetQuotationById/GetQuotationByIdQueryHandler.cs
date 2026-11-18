@@ -194,7 +194,8 @@ public class GetQuotationByIdQueryHandler(
                         : null,
                     FollowupStaffId: assignState?.FollowupStaffId,
                     FollowupStaffName: assignState?.FollowupStaffName,
-                    FollowupMethod: assignState?.FollowupMethod);
+                    FollowupMethod: assignState?.FollowupMethod,
+                    FeeId: meta.FeeId);
             })
             .ToList();
 
@@ -355,6 +356,7 @@ public class GetQuotationByIdQueryHandler(
             """
             SELECT a.Id AS AppraisalId,
                    a.RequestId,
+                   f.Id AS FeeId,
                    a.AppraisalNumber,
                    (SELECT TOP 1 rp.PropertyType
                     FROM [request].[RequestProperties] rp
@@ -365,6 +367,13 @@ public class GetQuotationByIdQueryHandler(
                    a.BankingSegment,
                    a.IsDeleted
             FROM [appraisal].[Appraisals] a
+            -- Newest fee row (a reassigned appraisal (company changed) has several); OUTER APPLY keeps appraisals with none.
+            OUTER APPLY (SELECT TOP 1 af.Id
+                    FROM [appraisal].[AppraisalFees] af
+                    JOIN [appraisal].[AppraisalAssignments] s ON s.Id = af.AssignmentId
+                    WHERE s.AppraisalId = a.Id
+                        AND s.AssignmentStatus NOT IN ('Rejected', 'Cancelled')
+                    ORDER BY af.CreatedAt DESC, af.Id DESC) f
             WHERE a.Id IN @AppraisalIds
             """,
             new { AppraisalIds = appraisalIds });
@@ -377,6 +386,7 @@ public class GetQuotationByIdQueryHandler(
     {
         public Guid AppraisalId { get; set; }
         public Guid RequestId { get; set; }
+        public Guid? FeeId { get; set; }
         public string? AppraisalNumber { get; set; }
         public string? CollateralType { get; set; }
         public string? AppraisalType { get; set; }
