@@ -25,6 +25,12 @@
     "BatchPerQueue": 100,
     "SkippedPendingRetentionDays": 30
   },
+  // Temporary: LOS must send a registered, active CAS user as Requestor. Deploy keeps the existing
+  // appsettings.Production.json, so on SIT/UAT ADD this whole section with true (there is nothing to flip).
+  // The value must be a JSON boolean (true/false), not a string like "1" or "yes", or requests fail.
+  "Integration": {
+    "RequireRegisteredRequestor": false
+  },
   "OAuth2": {
     "SigningCertificate": {
       "Source": "store",

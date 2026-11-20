@@ -3,6 +3,7 @@ using Integration.Application.Features.AppraisalRequests.CreateRequest;
 using Integration.Application.Features.AppraisalRequests.ResubmitRequest;
 using Integration.Application.Services;
 using MediatR;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Request.Application.Services;
@@ -15,7 +16,8 @@ namespace Integration.Tests;
 
 /// <summary>
 /// LOS must send a Requestor (the RM) who is a registered, active CAS user, otherwise the emails that look the RM
-/// up by employee code skip them silently. Both Integration handlers reject it with a 400 before any other work.
+/// up by employee code skip them silently. Both Integration handlers reject it with a 400 before any other work, but
+/// only when the temporary flag <c>Integration:RequireRegisteredRequestor</c> is on (off by default).
 /// </summary>
 public class RequestorGuardTests
 {
@@ -31,6 +33,12 @@ public class RequestorGuardTests
             .Returns(ci => new RequestorInfoDto(Guid.NewGuid(), ci.ArgAt<string>(0), "RM", null, null, null, null, null, null));
         return lookup;
     }
+
+    /// <summary>Configuration with the temporary Integration:RequireRegisteredRequestor flag set.</summary>
+    internal static IConfiguration Flag(bool on) =>
+        new ConfigurationBuilder()
+            .AddInMemoryCollection([new("Integration:RequireRegisteredRequestor", on.ToString())])
+            .Build();
 
     private static IUserLookupService UnknownUsers()
     {
@@ -56,7 +64,7 @@ public class RequestorGuardTests
         lookup.ResolvePriorAppraisalByNumberAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new PriorAppraisalRef(Guid.NewGuid(), "Completed"));
         var handler = new CreateRequestCommandHandler(
-            create, validator, lookup, Substitute.For<IDateTimeProvider>(), UnknownUsers());
+            create, validator, lookup, Substitute.For<IDateTimeProvider>(), UnknownUsers(), Flag(true));
         var detail = new RequestDetailDto(false, null, null, null, null, null, null, "62A00645", null, null);
 
         var ex = await Assert.ThrowsAsync<BadRequestException>(
@@ -76,7 +84,7 @@ public class RequestorGuardTests
             .ReturnsForAnyArgs(Task.FromException<(Request.Domain.Requests.Request, List<Request.Domain.RequestTitles.RequestTitle>)>(new StopHere()));
         var handler = new CreateRequestCommandHandler(
             create, Substitute.For<IRequestDocumentValidator>(), Substitute.For<IAppraisalLookupService>(),
-            Substitute.For<IDateTimeProvider>(), KnownUsers());
+            Substitute.For<IDateTimeProvider>(), KnownUsers(), Flag(true));
 
         await Assert.ThrowsAsync<StopHere>(() => handler.Handle(CreateCommand(), TestContext.Current.CancellationToken));
 
@@ -90,7 +98,7 @@ public class RequestorGuardTests
         var handler = new ResubmitRequestCommandHandler(
             update, Substitute.For<IRequestSyncService>(), Substitute.For<ISender>(),
             Substitute.For<IAppraisalLookupService>(), Substitute.For<IIntegrationEventOutbox>(),
-            NullLogger<ResubmitRequestCommandHandler>.Instance, UnknownUsers());
+            NullLogger<ResubmitRequestCommandHandler>.Instance, UnknownUsers(), Flag(true));
 
         var ex = await Assert.ThrowsAsync<BadRequestException>(
             () => handler.Handle(ResubmitCommand(), TestContext.Current.CancellationToken));
@@ -109,10 +117,61 @@ public class RequestorGuardTests
         var handler = new ResubmitRequestCommandHandler(
             update, Substitute.For<IRequestSyncService>(), Substitute.For<ISender>(),
             Substitute.For<IAppraisalLookupService>(), Substitute.For<IIntegrationEventOutbox>(),
-            NullLogger<ResubmitRequestCommandHandler>.Instance, KnownUsers());
+            NullLogger<ResubmitRequestCommandHandler>.Instance, KnownUsers(), Flag(true));
 
         await Assert.ThrowsAsync<StopHere>(() => handler.Handle(ResubmitCommand(), TestContext.Current.CancellationToken));
 
         await update.ReceivedWithAnyArgs(1).ResubmitRequestAsync(default!, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Create_with_the_flag_off_skips_the_lookup_and_proceeds_to_the_create_service()
+    {
+        var create = Substitute.For<ICreateRequestService>();
+        create.CreateAndSubmitRequestAsync(default!, default, default, default, TestContext.Current.CancellationToken)
+            .ReturnsForAnyArgs(Task.FromException<(Request.Domain.Requests.Request, List<Request.Domain.RequestTitles.RequestTitle>)>(new StopHere()));
+        var users = UnknownUsers();
+        var handler = new CreateRequestCommandHandler(
+            create, Substitute.For<IRequestDocumentValidator>(), Substitute.For<IAppraisalLookupService>(),
+            Substitute.For<IDateTimeProvider>(), users, Flag(false));
+
+        await Assert.ThrowsAsync<StopHere>(() => handler.Handle(CreateCommand(), TestContext.Current.CancellationToken));
+
+        await create.ReceivedWithAnyArgs(1).CreateAndSubmitRequestAsync(default!, default, default, default, TestContext.Current.CancellationToken);
+        await users.DidNotReceiveWithAnyArgs().GetRequestorAsync(default!, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Data_fix_resubmit_with_the_flag_off_skips_the_lookup_and_proceeds_to_the_update_service()
+    {
+        var update = Substitute.For<IUpdateRequestService>();
+        update.ResubmitRequestAsync(default!, TestContext.Current.CancellationToken)
+            .ReturnsForAnyArgs(Task.FromException<Request.Domain.Requests.Request>(new StopHere()));
+        var users = UnknownUsers();
+        var handler = new ResubmitRequestCommandHandler(
+            update, Substitute.For<IRequestSyncService>(), Substitute.For<ISender>(),
+            Substitute.For<IAppraisalLookupService>(), Substitute.For<IIntegrationEventOutbox>(),
+            NullLogger<ResubmitRequestCommandHandler>.Instance, users, Flag(false));
+
+        await Assert.ThrowsAsync<StopHere>(() => handler.Handle(ResubmitCommand(), TestContext.Current.CancellationToken));
+
+        await update.ReceivedWithAnyArgs(1).ResubmitRequestAsync(default!, TestContext.Current.CancellationToken);
+        await users.DidNotReceiveWithAnyArgs().GetRequestorAsync(default!, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Create_with_the_flag_unset_behaves_as_off()
+    {
+        var create = Substitute.For<ICreateRequestService>();
+        create.CreateAndSubmitRequestAsync(default!, default, default, default, TestContext.Current.CancellationToken)
+            .ReturnsForAnyArgs(Task.FromException<(Request.Domain.Requests.Request, List<Request.Domain.RequestTitles.RequestTitle>)>(new StopHere()));
+        var users = UnknownUsers();
+        var handler = new CreateRequestCommandHandler(
+            create, Substitute.For<IRequestDocumentValidator>(), Substitute.For<IAppraisalLookupService>(),
+            Substitute.For<IDateTimeProvider>(), users, new ConfigurationBuilder().Build());
+
+        await Assert.ThrowsAsync<StopHere>(() => handler.Handle(CreateCommand(), TestContext.Current.CancellationToken));
+
+        await users.DidNotReceiveWithAnyArgs().GetRequestorAsync(default!, TestContext.Current.CancellationToken);
     }
 }
