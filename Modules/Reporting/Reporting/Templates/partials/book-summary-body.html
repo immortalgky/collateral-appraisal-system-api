@@ -1,0 +1,11 @@
+<!--
+  Partial: the bank's appraisal-summary form for ONE model, picked by model.body_type — the same bodies
+  appraisal-summary renders (summary-*-body), so the book's internal front page cannot drift from it.
+  Included by appraisal-book.html for the book model and once per further form (model.extra_summary_forms,
+  with `model` swapped to that form). Expects: model.body_type + the model.* fields of that form.
+-->
+{{ if model.body_type == "construction" }}{{ include 'partials/summary-construction-body' }}{{ end }}
+{{ if model.body_type == "block" }}{{ include 'partials/summary-block-body' }}{{ end }}
+{{ if model.body_type == "standard" }}{{ include 'partials/summary-standard-body' }}{{ end }}
+{{ if model.body_type == "condo" }}{{ include 'partials/summary-condo-body' }}{{ end }}
+{{ if model.body_type == "machine" }}{{ include 'partials/summary-machine-body' }}{{ end }}

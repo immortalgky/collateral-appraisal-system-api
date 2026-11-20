@@ -33,6 +33,12 @@ public sealed class LeaseholdSection
     /// <summary>PropertyGroups.GroupName, or null when not set.</summary>
     public string? GroupName { get; init; }
 
+    /// <summary>Which approach / role this page belongs to and whether it is a reference (printed in the page banner).</summary>
+    public PricingMethodContext? Context { get; init; }
+
+    /// <summary>รายละเอียดสัญญาเช่า of the group's properties (LeaseAgreementDetails + RentalInfos); empty when none was recorded.</summary>
+    public IReadOnlyList<LeaseAgreementBlock> Leases { get; init; } = [];
+
     // ── Inputs ────────────────────────────────────────────────────────────────────
 
     /// <summary>มูลค่าที่ดินต่อตารางวา (บาท) — source: LandValuePerSqWa (18,2).</summary>
@@ -120,8 +126,29 @@ public sealed class LeaseholdSection
     /// <summary>มูลค่าสิทธิการเช่าสุทธิ — source: EstimateNetPrice (18,2 nullable).</summary>
     public decimal? EstimateNetPrice { get; init; }
 
+    /// <summary>
+    /// ที่ดินส่วนที่ไม่ได้อยู่ในสัญญาเช่า — area (ตร.วา) not covered by the lease. Derived: the stored uncovered price / the price per sq.wa.
+    /// Null when partial usage has no price or no stored estimate.
+    /// </summary>
+    public decimal? UncoveredLandArea { get; init; }
+
+    /// <summary>
+    /// ที่ดินส่วนที่ไม่ได้อยู่ในสัญญาเช่า — its value, the term that turns the PV estimate into <see cref="EstimateNetPrice"/>:
+    /// <c>EstimateNetPrice − FinalValueRounded</c>, so the printed estimate + uncovered land = printed total.
+    /// </summary>
+    public decimal? UncoveredLandPrice { get; init; }
+
     /// <summary>มูลค่าสิทธิการเช่า (ปัดเศษ) — source: EstimatePriceRounded (18,2 nullable).</summary>
     public decimal? EstimatePriceRounded { get; init; }
+
+    /// <summary>LandGrowthRateType = Period: the single rate / interval do not apply (the period table does), so the header hides them.</summary>
+    public bool LandGrowthIsPeriod { get; init; }
+
+    /// <summary>ช่วงการเติบโตของมูลค่าที่ดิน — LeaseholdLandGrowthPeriods, only when LandGrowthRateType = Period.</summary>
+    public IReadOnlyList<GrowthPeriodRow> LandGrowthPeriods { get; init; } = [];
+
+    /// <summary>ที่มาของมูลค่าที่ดินต่อตารางวา — the LeaseholdLandRef sub-analysis (SubjectType 4).</summary>
+    public IReadOnlyList<PricingSubAnalysis> LandValueSources { get; init; } = [];
 }
 
 /// <summary>One year row in the Leasehold calculation table.</summary>

@@ -37,6 +37,9 @@ public class LandAreaDeduction : Entity<Guid>
 
     public string? Remark { get; private set; }
 
+    /// <summary>1-based position in the request's list; 0 on rows that predate the column. See <see cref="LandTitle.SequenceNumber"/>.</summary>
+    public int SequenceNumber { get; private set; }
+
     private LandAreaDeduction()
     {
         // For EF Core
@@ -62,6 +65,8 @@ public class LandAreaDeduction : Entity<Guid>
         AreaInSqWa = areaInSqWa;
         Remark = remark;
     }
+
+    public void SetSequenceNumber(int sequenceNumber) => SequenceNumber = sequenceNumber;
 
     /// <summary>Reachable only here — <see cref="ReasonCode"/> is required, so <see cref="Update"/> leaves it alone.</summary>
     public void ChangeReason(string reasonCode)

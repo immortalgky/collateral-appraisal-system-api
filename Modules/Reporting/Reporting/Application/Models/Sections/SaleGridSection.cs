@@ -1,100 +1,62 @@
 namespace Reporting.Application.Models.Sections;
 
 /// <summary>
-/// Sub-model for the "ตารางการปรับมูลค่าหลักทรัพย์ (วิธีปรับเปรียบเทียบข้อมูลตลาด)"
-/// (Sale Grid / Direct Comparison) section — FSD §2.1.2.10.
-///
-/// The table is column-per-comparable, so data is stored pre-transposed:
-/// <c>ComparableHeaders</c> drives the column headings and <c>Rows</c> each provide
-/// one value per comparable column in the same order.
-///
-/// All scalar properties are nullable so that partial data renders as blank.
-/// The section is absent from the report when <see cref="SaleGridSectionLoader.LoadAsync"/>
-/// returns <see langword="null"/> (appraisal has no SaleGrid or DirectComparison method).
+/// One Sale Adjustment Grid (SG) or Direct Comparison (DC) table, laid out like the pricing screen.
+/// <see cref="Rows"/> is the flat print order (bands, factor rows, price rows, ...); every cell is pre-formatted.
+/// The section is absent from the report when the appraisal has no SaleGrid or DirectComparison method.
 /// </summary>
 public sealed class SaleGridSection
 {
-    // ── Property group routing ────────────────────────────────────────────────────
-
-    /// <summary>
-    /// PropertyGroups.GroupNumber for the group this SaleGrid method belongs to.
-    /// Used to print a กลุ่มที่ N bar when multiple groups use SaleGrid.
-    /// </summary>
+    /// <summary>PropertyGroups.GroupNumber for the group this method belongs to.</summary>
     public int GroupNumber { get; init; }
 
     /// <summary>PropertyGroups.GroupName for the group, or null when no name is set.</summary>
     public string? GroupName { get; init; }
 
-    // ── Column headers ────────────────────────────────────────────────────────
+    /// <summary>Which approach / role this page belongs to and whether it is a reference (printed in the page banner).</summary>
+    public PricingMethodContext? Context { get; init; }
 
-    /// <summary>
-    /// One header label per comparable column, e.g. ["ข้อมูล 1", "ข้อมูล 2", ...].
-    /// Ordered by <c>PricingComparableLinks.DisplaySequence</c>.
-    /// Source: appraisal.PricingComparableLinks (DisplaySequence → ordinal label).
-    /// </summary>
-    public IReadOnlyList<string> ComparableHeaders { get; init; } = [];
+    /// <summary>True for Direct Comparison (การเปรียบเทียบตรง): no weight band, final row is มูลค่าสุทธิ (ต่ำสุด).</summary>
+    public bool IsDirectComparison { get; init; }
 
-    // ── Grid rows (transposed: one row per adjustment line) ───────────────────
+    /// <summary>"ตลาด n" + kind · date · unit per comparable, ordered by PricingComparableLinks.DisplaySequence.</summary>
+    public IReadOnlyList<MarketHeader> ComparableHeaders { get; init; } = [];
 
-    /// <summary>
-    /// Adjustment rows. Each row has a Thai label and one value string per comparable.
-    /// The order matches the FSD §2.1.2.10 image layout:
-    /// <list type="bullet">
-    ///   <item>ราคาเสนอขาย (OfferingPrice)</item>
-    ///   <item>ปีที่ซื้อขาย / ราคาที่ซื้อขาย (BuySellYear / SellingPrice)</item>
-    ///   <item>ปรับค่าตามช่วงเวลา % (AdjustedPeriodPct)</item>
-    ///   <item>ส่วนขาดที่ดิน / ราคา / ค่าปรับ (LandAreaDeficient / LandPrice / LandValueAdjustment)</item>
-    ///   <item>ส่วนขาดอาคาร / ราคา / ค่าปรับ (UsableAreaDeficient / UsableAreaPrice / BuildingValueAdjustment)</item>
-    ///   <item>ราคาหลังปรับค่า (TotalAdjustedValue — before factor adj)</item>
-    ///   <item>ปรับปัจจัย % / จำนวนเงิน (TotalFactorDiffPct / TotalFactorDiffAmt)</item>
-    ///   <item>รวมค่าปรับทั้งหมด (TotalAdjustedValue)</item>
-    ///   <item>มูลค่าทรัพย์สิน (WeightedAdjustedValue or TotalAdjustedValue)</item>
-    ///   <item>Dynamic factor rows from PricingFactorScores (one row per factor)</item>
-    /// </list>
-    /// </summary>
+    /// <summary>The comparable columns split into tables that fit the page.</summary>
+    public IReadOnlyList<TableChunk> Chunks { get; init; } = [];
+
+    /// <summary>Every row in print order.</summary>
     public IReadOnlyList<SaleGridRow> Rows { get; init; } = [];
 
-    // ── Summary footer ────────────────────────────────────────────────────────
+    /// <summary>Index in <see cref="Rows"/> of the "การปรับตามปัจจัย และสรุป" band: rows before it print in the first table, it and the rest in a second table with its own header. -1 when absent.</summary>
+    public int AdjustStart { get; init; } = -1;
 
-    /// <summary>
-    /// สรุปมูลค่าทรัพย์สิน — source: appraisal.PricingAnalysisMethods.MethodValue.
-    /// Null when MethodValue has not been set.
-    /// </summary>
-    public decimal? SummaryValue { get; init; }
-
-    /// <summary>
-    /// สรุปมูลค่าทรัพย์สิน (ปัดเศษ) — MethodValue rounded to nearest 1 000.
-    /// Derived server-side; no dedicated DB column.
-    /// </summary>
-    public decimal? SummaryValueRounded { get; init; }
+    /// <summary>ปรับมูลค่าสุดท้าย (Adjust Final Value) — from PricingFinalValues. Empty when the method has none.</summary>
+    public IReadOnlyList<PricingFinalRow> FinalRows { get; init; } = [];
 }
 
 /// <summary>
-/// One horizontal row in the Sale Grid / Direct Comparison analysis table (FSD §2.1.2.10).
-///
-/// <c>Label</c> is the Thai row heading (first column), <c>Values</c> the per-comparable
-/// cells, and <c>SubjectValue</c> the ทรัพย์สิน (SP) column. <c>Emphasis</c> marks
-/// subtotal/summary rows that the FSD renders in bold.
+/// One row of the table. <see cref="Kind"/> picks the layout:
+/// "row" label | collateral cell | per comparable (Values + Amounts as two cells, or Values alone across both);
+/// "band" a full-width title; "subh" the sub-header of the adjust band; "final" label | collateral value | blank.
 /// </summary>
 public sealed class SaleGridRow
 {
-    /// <summary>Thai row label (first column), e.g. "ราคาเสนอขาย".</summary>
+    public string Kind { get; init; } = "row";
+
     public string? Label { get; init; }
 
-    /// <summary>
-    /// One value per comparable column, in the same order as
-    /// <see cref="SaleGridSection.ComparableHeaders"/>.
-    /// A null element means the comparable has no data for this row.
-    /// </summary>
+    /// <summary>Per comparable, in <see cref="SaleGridSection.ComparableHeaders"/> order. Null element = blank / "-".</summary>
     public IReadOnlyList<string?> Values { get; init; } = [];
 
-    /// <summary>
-    /// ทรัพย์สิน (SP) column value for this row (subject property). Null renders as blank.
-    /// Detail rows source it from PricingComparativeFactors.CollateralValue; the final
-    /// summary rows source it from the method's MethodValue / rounded value.
-    /// </summary>
+    /// <summary>Second cell per comparable (ระดับ in the factor band, จำนวนเงิน in the adjust band); null = one cell spanning both.</summary>
+    public IReadOnlyList<string?>? Amounts { get; init; }
+
+    /// <summary>The ทรัพย์ (Collateral) column: the property value, the factor remark, or the final value.</summary>
     public string? SubjectValue { get; init; }
 
-    /// <summary>True for subtotal/summary rows the FSD renders in bold.</summary>
+    /// <summary>True when an empty collateral / value cell should print "-" (factor and adjust bands); price rows leave it blank.</summary>
+    public bool DashEmpty { get; init; }
+
     public bool Emphasis { get; init; }
 }

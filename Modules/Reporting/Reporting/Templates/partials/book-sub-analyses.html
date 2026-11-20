@@ -1,0 +1,12 @@
+{{~ # Partial: the market sub-analyses a method owns (PricingSubAnalysis list). Caller sets subs. Each prints with the group pages' own WQS / Sale Grid partial; a heading prints once per run of the same heading. Nothing prints when subs is empty. ~}}
+{{ if subs && subs.size > 0 }}
+<div class="sub-an">
+<style>.sub-an .section-bar, .sub-an .method-banner { display:none; } .sub-an .sub-an-cap { font-weight:700; font-size:8.5pt; margin:4px 0 2px; }</style>
+{{ sub_h = null }}
+{{ for sa in subs }}
+{{ if sa.heading != sub_h }}<div class="sub-bar" style="margin-top:8px;">{{ sa.heading }}</div>{{ sub_h = sa.heading }}{{ end }}
+<div class="sub-an-cap">{{ if sa.caption }}{{ sa.caption }} · {{ end }}{{ sa.method_label }}</div>
+{{ if sa.wqs }}{{ w = sa.wqs }}{{ include 'partials/section-wqs' }}{{ else if sa.sale_grid }}{{ sgr = sa.sale_grid }}{{ include 'partials/section-salegrid' }}{{ end }}
+{{ end }}
+</div>
+{{ end }}

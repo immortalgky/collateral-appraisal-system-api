@@ -30,45 +30,18 @@ internal static class ProfitRentSectionLoader
     public static async Task<IReadOnlyList<ProfitRentSection>> LoadAllAsync(
         IDbConnection connection,
         Guid appraisalId,
+        Func<DateTime, DateTime> toApplicationTime,
         CancellationToken ct = default)
     {
-        var p = new DynamicParameters();
-        p.Add("AppraisalId", appraisalId);
-
-        // ── Q1: Resolve all ProfitRent PricingMethodIds ───────────────────────────
-        const string methodSql = """
-            SELECT
-                pg.Id          AS PropertyGroupId,
-                pg.GroupNumber,
-                pg.GroupName,
-                pam.Id         AS PricingMethodId
-            FROM appraisal.PropertyGroups pg
-            JOIN appraisal.PricingAnalysis pa
-                ON pa.AnchorId   = pg.Id
-               AND pa.SubjectType = 0
-            JOIN appraisal.PricingAnalysisApproaches paa
-                ON paa.PricingAnalysisId = pa.Id
-            JOIN appraisal.PricingAnalysisMethods pam
-                ON pam.ApproachId = paa.Id
-               AND pam.MethodType = 'ProfitRent'
-            WHERE pg.AppraisalId = @AppraisalId
-            ORDER BY pg.GroupNumber, pam.Id
-            """;
-
-        var allMethodRows = (await connection.QueryAsync<MethodRow>(methodSql, p)).ToList();
-        if (allMethodRows.Count == 0)
+        // ── Q1: the methods to print (selected + reference), see PricingMethodPicker ──
+        var methodsPerGroup = await PricingMethodPicker.LoadAsync(connection, appraisalId, ["ProfitRent"], ct);
+        if (methodsPerGroup.Count == 0)
             return [];
-
-        var methodsPerGroup = allMethodRows
-            .GroupBy(r => r.PropertyGroupId)
-            .Select(g => g.First())
-            .OrderBy(r => r.GroupNumber)
-            .ToList();
 
         var sections = new List<ProfitRentSection>(methodsPerGroup.Count);
         foreach (var method in methodsPerGroup)
         {
-            var section = await LoadOneAsync(connection, method, ct);
+            var section = await LoadOneAsync(connection, method, toApplicationTime, ct);
             if (section is not null)
                 sections.Add(section);
         }
@@ -78,7 +51,8 @@ internal static class ProfitRentSectionLoader
 
     private static async Task<ProfitRentSection?> LoadOneAsync(
         IDbConnection connection,
-        MethodRow method,
+        PickedMethod method,
+        Func<DateTime, DateTime> toApplicationTime,
         CancellationToken ct)
     {
         var mp = new DynamicParameters();
@@ -102,6 +76,10 @@ internal static class ProfitRentSectionLoader
                 pra.GrowthIntervalYears,
                 pra.DiscountRate,
                 pra.TotalPresentValue,
+                pra.TotalMarketRentalFee,
+                pra.TotalContractRentalFee,
+                pra.TotalReturnsFromLease,
+                pra.IncludeBuildingCost,
                 COALESCE(pfv.FinalValue, 0) AS FinalValueRounded,
                 pra.EstimatePriceRounded,
                 pfv.IndicatedValue          AS IndicatedValue,
@@ -143,23 +121,48 @@ internal static class ProfitRentSectionLoader
 
         var detailRows = (await connection.QueryAsync<ProfitRentDetailRow>(detailSql, dp)).ToList();
 
+        // ── Q4: growth by period (only printed when the appraiser chose แบบช่วงเวลา) ───
+        var periods = LeaseholdSectionLoader.IsPeriod(header.GrowthRateType)
+            ? (await connection.QueryAsync<GrowthPeriodRow>(
+                "SELECT FromYear, ToYear, GrowthRatePercent FROM appraisal.ProfitRentGrowthPeriods WHERE ProfitRentAnalysisId = @ProfitRentAnalysisId ORDER BY FromYear, ToYear",
+                dp)).ToList()
+            : [];
+
+        var buildingValue = header.IncludeBuildingCost
+            ? await LoadGroupBuildingValueAsync(connection, method.PropertyGroupId, ct)
+            : null;
+        var effective = header.MethodValue ?? header.IndicatedValue ?? header.EstimatePriceRounded ?? header.FinalValueRounded;
+        var (valueWithBuilding, isEdited) = Resolve(header.TotalPresentValue, header.IncludeBuildingCost, buildingValue, effective);
+
         return new ProfitRentSection
         {
             GroupNumber            = method.GroupNumber,
             GroupName              = method.GroupName,
+            Context              = method.Context,
+            Leases               = await LeaseAgreementLoader.LoadAsync(connection, method.PropertyGroupId, ct),
             MarketRentalFeePerSqWa = header.MarketRentalFeePerSqWa,
-            GrowthRateType         = header.GrowthRateType,
+            GrowthRateType         = LeaseAgreementLoader.GrowthTypeThai(header.GrowthRateType),
             GrowthRatePercent      = header.GrowthRatePercent,
             GrowthIntervalYears    = header.GrowthIntervalYears,
             DiscountRate           = header.DiscountRate,
             TotalPresentValue      = header.TotalPresentValue,
+            TotalMarketRentalFee   = header.TotalMarketRentalFee,
+            TotalContractRentalFee = header.TotalContractRentalFee,
+            TotalReturnsFromLease  = header.TotalReturnsFromLease,
+            IncludeBuildingCost    = header.IncludeBuildingCost,
+            GrowthIsPeriod         = LeaseholdSectionLoader.IsPeriod(header.GrowthRateType),
+            GrowthPeriods          = periods,
+            MarketRentSources      = await PricingSubAnalysisLoader.LoadForHostAsync(connection, method.PricingMethodId, toApplicationTime, ct),
             FinalValueRounded      = header.FinalValueRounded,
             EstimatePriceRounded   = header.EstimatePriceRounded,
             // MethodValue first: it is exactly what the rollup counts — IndicatedValue when typed, else
             // the computed price INCLUDING the building when IncludeBuildingCost is on. FinalValue on
             // this row is land-only, so without it a building-inclusive PR saved with no override
             // (IndicatedValue now null) printed the land figure only.
-            EffectiveFinalValue    = header.MethodValue ?? header.IndicatedValue ?? header.EstimatePriceRounded ?? header.FinalValueRounded,
+            EffectiveFinalValue    = effective,
+            BuildingCostValue      = buildingValue,
+            ValueIncludingBuilding = valueWithBuilding,
+            IsValueEdited          = isEdited,
             TableRows              = detailRows.Select(d => new ProfitRentCalcRow
             {
                 DisplaySequence          = d.DisplaySequence,
@@ -177,13 +180,62 @@ internal static class ProfitRentSectionLoader
         };
     }
 
-    // ── Private DTOs ──────────────────────────────────────────────────────────────
+    /// <summary>
+    /// What the Profit Rent screen compares the used value against: the system figure (PV, or PV + building when the
+    /// building is included) rounded to the thousand. A used value that differs is the appraiser's own ("Edited").
+    /// </summary>
+    internal static (decimal? ValueIncludingBuilding, bool IsEdited) Resolve(
+        decimal? totalPresentValue, bool includeBuilding, decimal? buildingValue, decimal? used)
+    {
+        decimal? withBuilding = includeBuilding && buildingValue is not null
+            ? (totalPresentValue ?? 0m) + buildingValue
+            : null;
+        var computed = includeBuilding ? withBuilding : totalPresentValue;
+        if (computed is null || used is null)
+            return (withBuilding, false);
 
-    private sealed record MethodRow(
-        Guid    PropertyGroupId,
-        int     GroupNumber,
-        string? GroupName,
-        Guid    PricingMethodId);
+        var rounded = Math.Round(computed.Value / 1000m, MidpointRounding.AwayFromZero) * 1000m;
+        return (withBuilding, Math.Abs(used.Value - rounded) >= 0.005m);
+    }
+
+    /// <summary>
+    /// The group's building value after depreciation, the way the screen derives it: the SELECTED Building Cost method's
+    /// value when it has one, else the Σ per building of its cost value (the keyed figure, or the depreciation rows rounded
+    /// to the thousand). Null when the group has no building.
+    /// </summary>
+    private static async Task<decimal?> LoadGroupBuildingValueAsync(IDbConnection connection, Guid groupId, CancellationToken ct)
+    {
+        var selected = await connection.QueryFirstOrDefaultAsync<decimal?>(new CommandDefinition(
+            """
+            SELECT TOP 1 pm.MethodValue
+            FROM appraisal.PricingAnalysis pa
+            JOIN appraisal.PricingAnalysisApproaches pap ON pap.PricingAnalysisId = pa.Id
+            JOIN appraisal.PricingAnalysisMethods pm ON pm.ApproachId = pap.Id
+            WHERE pa.AnchorId = @GroupId AND pa.SubjectType = 0
+              AND pm.MethodType = 'BuildingCost' AND pm.IsSelected = 1 AND pm.MethodValue > 0
+            ORDER BY pm.Id
+            """, new { GroupId = groupId }, cancellationToken: ct));
+        if (selected is not null)
+            return selected;
+
+        var rows = (await connection.QueryAsync<(Guid BuildingId, decimal? Keyed, decimal? Price)>(new CommandDefinition(
+            """
+            SELECT bad.Id AS BuildingId, bad.BuildingCostValue AS Keyed, bdd.PriceAfterDepreciation AS Price
+            FROM appraisal.PropertyGroupItems pgi
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
+            JOIN appraisal.BuildingAppraisalDetails bad ON bad.AppraisalPropertyId = ap.Id
+            LEFT JOIN appraisal.BuildingDepreciationDetails bdd ON bdd.BuildingAppraisalDetailId = bad.Id
+            WHERE pgi.PropertyGroupId = @GroupId
+            """, new { GroupId = groupId }, cancellationToken: ct))).ToList();
+
+        return rows.Count == 0
+            ? null
+            : rows.GroupBy(r => r.BuildingId)
+                  .Sum(g => AppraisalSummaryLandBuildingDataProvider.BuildingCostTotal(
+                      g.First().Keyed, g.Select(r => r.Price)));
+    }
+
+    // ── Private DTOs ──────────────────────────────────────────────────────────────
 
     private sealed record ProfitRentHeaderRow(
         Guid     ProfitRentAnalysisId,
@@ -193,6 +245,10 @@ internal static class ProfitRentSectionLoader
         int?     GrowthIntervalYears,
         decimal? DiscountRate,
         decimal? TotalPresentValue,
+        decimal? TotalMarketRentalFee,
+        decimal? TotalContractRentalFee,
+        decimal? TotalReturnsFromLease,
+        bool     IncludeBuildingCost,
         decimal? FinalValueRounded,
         decimal? EstimatePriceRounded,
         decimal? IndicatedValue,

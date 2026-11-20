@@ -22,10 +22,28 @@ public sealed class BuildingSection
     /// <summary>Group label — PropertyGroups.GroupName (null when ungrouped).</summary>
     public string? GroupName { get; init; }
 
+    /// <summary>Building photo as a file:// URI (thumbnail, else first by sequence); null prints nothing.</summary>
+    public string? PhotoSrc { get; init; }
+
+    /// <summary>Every depreciation row is ส่วนพัฒนา (fence, paving, tank …): not a สิ่งปลูกสร้าง, printed only in the ส่วนพัฒนา section.</summary>
+    public bool IsDevelopmentOnly { get; init; }
+
+    /// <summary>สิ่งปลูกสร้างรายการที่ N — numbered across the whole book over real, appraised buildings only (0 for development-only and for IsAppraisable == false).</summary>
+    public int BuildingNumber { get; set; }
+
+    /// <summary>The non-building (IsBuilding = 0) depreciation rows — listed under ส่วนพัฒนาอื่นๆ บนที่ดิน.</summary>
+    public IReadOnlyList<DevelopmentItem> DevelopmentItems { get; init; } = [];
+
     // ── Block 1: รายละเอียดสิ่งปลูกสร้าง ────────────────────────────────────────
 
     /// <summary>เลขที่บ้าน — Source: BuildingAppraisalDetails.HouseNumber (nvarchar 50).</summary>
     public string? HouseNumber { get; init; }
+
+    /// <summary>BuildingAppraisalDetails.IsAppraisable: only an explicit false means the appraiser chose not to value this building; null / true are appraised.</summary>
+    public bool? IsAppraisable { get; init; }
+
+    /// <summary>เหตุผลที่ไม่ประเมินมูลค่า — BuildingAppraisalDetails.NotAppraisableReason, used when <see cref="IsAppraisable"/> is false.</summary>
+    public string? NotAppraisableReason { get; init; }
 
     /// <summary>
     /// ประเภทอาคาร — Source: BuildingAppraisalDetails.BuildingType (code, nvarchar 100),
@@ -46,6 +64,46 @@ public sealed class BuildingSection
     /// <summary>ชื่อเจ้าของ — Source: BuildingAppraisalDetails.OwnerName (nvarchar 200).</summary>
     public string? OwnerName { get; init; }
 
+    /// <summary>BuildingAppraisalDetails.IsOwnerVerified: only an explicit false means the owner could not be verified; null / true are as stated.</summary>
+    public bool? IsOwnerVerified { get; init; }
+
+    /// <summary>BuildingAppraisalDetails.IsUnderConstruction: only an explicit true means the building is still being built.</summary>
+    public bool? IsUnderConstruction { get; init; }
+
+    /// <summary>
+    /// How far the construction has got, in percent: ConstructionInspections.SummaryCurrentProgressPct clamped to 0-100 (see BuildingSectionLoader).
+    /// Null when there is no inspection or no figure was ever keyed; it is never filled in with a made-up 0.
+    /// </summary>
+    public decimal? ConstructionProgressPct { get; init; }
+
+    /// <summary>
+    /// The suffix of the item text in the 3.2 table: null unless the building is under construction, then "(กำลังก่อสร้าง 59.5%)" with the
+    /// progress as stored (see <see cref="ProgressPctText"/>), or "(กำลังก่อสร้าง)" when no progress is known. A building flagged under
+    /// construction whose progress already reads 100% is finished, as in the summary form, so it gets nothing.
+    /// </summary>
+    public string? UnderConstructionText => IsUnderConstruction != true || ConstructionProgressPct >= 100m
+        ? null
+        : ConstructionProgressPct is { } pct
+            ? $"(กำลังก่อสร้าง {ProgressPctText(pct)}%)"
+            : "(กำลังก่อสร้าง)";
+
+    /// <summary>
+    /// A progress figure as the book prints it: the figure as stored, up to 2 decimals with trailing zeros dropped (99.6 reads 99.6, 65 reads 65,
+    /// 59.5 reads 59.5). 100 and above reads 100. Below 100 the extra decimals are cut, not rounded: the stored columns hold up to 4 decimals
+    /// (ConstructionInspections.SummaryCurrentProgressPct is decimal(7,4), and the inspection total is a computed sum), so rounding could turn
+    /// 99.996 into "100" on an unfinished building; truncating keeps it 99.99. Shared by the 3.2 item text and the cover's inspection line.
+    /// </summary>
+    public static string ProgressPctText(decimal pct) =>
+        (pct >= 100m ? 100m : Math.Truncate(pct * 100m) / 100m).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// The owner as the book prints it, in ONE place (the 3.2 table and the building page both read it): "ไม่สามารถตรวจสอบได้" when the owner
+    /// is marked not verified, otherwise the trimmed name, and "-" when there is none.
+    /// </summary>
+    public string OwnerText => IsOwnerVerified == false
+        ? Providers.AppraisalSummaryCommonLoader.OwnerNotVerifiedText
+        : string.IsNullOrWhiteSpace(OwnerName) ? "-" : OwnerName.Trim();
+
     /// <summary>
     /// เลขที่โฉนดที่ดินที่ตั้งอาคาร — Source: BuildingAppraisalDetails.BuiltOnTitleNumber (nvarchar 100).
     /// </summary>
@@ -57,21 +115,43 @@ public sealed class BuildingSection
     /// </summary>
     public string? LicenseSource { get; init; }
 
-    /// <summary>
-    /// เลขที่ใบอนุญาตก่อสร้าง — no dedicated source column; deferred (null).
-    /// BuildingAppraisalDetailConfiguration has ConstructionLicenseExpirationDate (DateTime?) only.
-    /// // no source
-    /// </summary>
+    /// <summary>เลขที่ใบอนุญาตก่อสร้าง — BuildingAppraisalDetails.ConstructionLicenseNumber.</summary>
     public string? LicenseNumber { get; init; }
+
+    /// <summary>ใบอนุญาตก่อสร้างหมดอายุ — BuildingAppraisalDetails.ConstructionLicenseExpirationDate.</summary>
+    public DateTime? LicenseExpiration { get; init; }
+
+    /// <summary>มูลค่าประกันอัคคีภัย (ปัดเศษ) — BuildingAppraisalDetails.BuildingInsurancePrice.</summary>
+    public decimal? InsurancePrice { get; init; }
+
+    /// <summary>
+    /// True when the cost table below is only a reference: the group's valuation did not use the Cost approach.
+    /// Printed as "(อ้างอิง)" on its heading.
+    /// </summary>
+    public bool CostIsReference { get; init; }
+
+    /// <summary>มูลค่าวิธีต้นทุนของกลุ่ม — PricingAnalysisApproaches.ApproachValue of the Cost approach (selected or not).</summary>
+    public decimal? CostApproachValue { get; init; }
+
+    /// <summary>ที่ดิน (วิธีต้นทุน) — the Cost approach's selected Land-role method value.</summary>
+    public decimal? CostLandValue { get; init; }
+
+    /// <summary>หมายเหตุและสมมติฐาน of the group's BuildingCost method (PricingAnalysisMethods.Remark); null when blank.</summary>
+    public string? CostMethodRemark { get; init; }
 
     /// <summary>พื้นที่ใช้สอย (ตร.ม.) — Source: BuildingAppraisalDetails.TotalBuildingArea (decimal 18,4).</summary>
     public decimal? UsableArea { get; init; }
 
     /// <summary>
-    /// ขนาด กว้าง × ยาว — no dedicated width/length columns in the entity; deferred (null).
-    /// // no source
+    /// ขนาด กว้าง × ยาว (เมตร) — Source: BuildingAppraisalDetails.BuildingWidth / BuildingLength, printed "W x L".
     /// </summary>
     public string? SizeText { get; init; }
+
+    /// <summary>การแบ่งพื้นที่ใช้ประโยชน์ — Source: BuildingAppraisalDetails.SpaceDivision (free text).</summary>
+    public string? SpaceDivision { get; init; }
+
+    /// <summary>งานระบบในอาคาร — Source: BuildingAppraisalDetails.BuildingSystemType (JSON array, group 'BuildingSystem') + BuildingSystemTypeOther.</summary>
+    public string? BuildingSystems { get; init; }
 
     /// <summary>อายุอาคาร (ปี) — Source: BuildingAppraisalDetails.BuildingAge (int).</summary>
     public int? BuildingAge { get; init; }
@@ -84,8 +164,8 @@ public sealed class BuildingSection
     public string? BuildingCondition { get; init; }
 
     /// <summary>
-    /// การบำรุงรักษา — no dedicated maintenance column in the entity; deferred (null).
-    /// // no source
+    /// การดูแล บำรุงรักษา — Source: BuildingAppraisalDetails.MaintenanceType (code, parameter group
+    /// 'BuildingMaintenance') + MaintenanceTypeOther; resolved to Thai by the loader.
     /// </summary>
     public string? Maintenance { get; init; }
 
@@ -145,20 +225,17 @@ public sealed class BuildingSection
     public string? Painting { get; init; }
 
     /// <summary>
-    /// ประตู — no dedicated door column; deferred (null).
-    /// // no source
+    /// ประตู — Source: BuildingAppraisalDetails.DoorType (JSON array, group 'Door') + DoorTypeOther.
     /// </summary>
     public string? Door { get; init; }
 
     /// <summary>
-    /// หน้าต่าง — no dedicated window column; deferred (null).
-    /// // no source
+    /// หน้าต่าง — Source: BuildingAppraisalDetails.WindowType (JSON array, group 'Window') + WindowTypeOther.
     /// </summary>
     public string? Window { get; init; }
 
     /// <summary>
-    /// สุขาภิบาล — no dedicated sanitary column; deferred (null).
-    /// // no source
+    /// ห้องน้ำและสุขภัณฑ์ — Source: BuildingAppraisalDetails.SanitaryType (JSON array, group 'Sanitary') + SanitaryTypeOther.
     /// </summary>
     public string? Sanitary { get; init; }
 
@@ -190,6 +267,12 @@ public sealed class BuildingSection
 
     /// <summary>รวมมูลค่าหลังหักค่าเสื่อม — SUM(BuildingDepreciationDetails.PriceAfterDepreciation).</summary>
     public decimal? TotalValueAfterDepreciation { get; init; }
+
+    /// <summary>The cost rows' own total (sum of the depreciated values, rounded to the nearest 1,000), whatever was keyed on the form.</summary>
+    public decimal? CostRowsTotal { get; init; }
+
+    /// <summary>The Building Cost Value the appraiser keyed, when it is not <see cref="CostRowsTotal"/>; null otherwise.</summary>
+    public decimal? CostOverride { get; init; }
 
     /// <summary>หมายเหตุ — Source: BuildingAppraisalDetails.Remark (nvarchar 4000).</summary>
     public string? Remark { get; init; }
@@ -230,6 +313,23 @@ public sealed class BuildingCostRow
 
     /// <summary>มูลค่าหลังหักค่าเสื่อม — Source: BuildingDepreciationDetails.PriceAfterDepreciation (decimal 18,2).</summary>
     public decimal? ValueAfterDepreciation { get; init; }
+
+    /// <summary>วิธีคิดค่าเสื่อม — BuildingDepreciationDetails.DepreciationMethod: "เหมารวม" (Gross) / "รายช่วง" (Period).</summary>
+    public string? DepreciationMethod { get; init; }
+
+    /// <summary>ราคาต่อ ตร.ม. หลังหักค่าเสื่อม — Source: BuildingDepreciationDetails.PricePerSqMAfterDepreciation (decimal 18,2).</summary>
+    public decimal? PricePerSqmAfterDepreciation { get; init; }
+
+    /// <summary>The depreciation rate by year range — BuildingDepreciationPeriods (Gross = one row 1..age).</summary>
+    public IReadOnlyList<DepreciationPeriodRow> Periods { get; init; } = [];
+}
+
+/// <summary>One BuildingDepreciationPeriods row: years AtYear..ToYear at DepreciationPerYear % a year.</summary>
+public sealed class DepreciationPeriodRow
+{
+    public int AtYear { get; init; }
+    public int ToYear { get; init; }
+    public decimal DepreciationPerYear { get; init; }
 }
 
 /// <summary>
@@ -252,4 +352,23 @@ public sealed class BuildingFloorRow
 
     /// <summary>วัสดุปูพื้น — FloorSurfaceType resolved to Thai (group 'FloorSurface').</summary>
     public string? FloorSurface { get; init; }
+}
+
+/// <summary>One ส่วนพัฒนา line. <see cref="Area"/> is in square metres, the unit of the cost table's พื้นที่ column.</summary>
+public sealed class DevelopmentItem
+{
+    public string? AreaDescription { get; init; }
+
+    /// <summary>The parent property's building type (its Other text when code 99), printed as the item title; the description is the fallback.</summary>
+    public string? BuildingTypeText { get; init; }
+
+    public decimal? Area { get; init; }
+    public short? AgeYears { get; init; }
+    public string? Remark { get; init; }
+
+    /// <summary>The owning property's IsAppraisable: only an explicit false drops this item from the 3.2 table (it is noted instead).</summary>
+    public bool? IsAppraisable { get; init; }
+
+    /// <summary>The owning property's reason for not valuing it (null when none is stated).</summary>
+    public string? NotAppraisableReason { get; init; }
 }

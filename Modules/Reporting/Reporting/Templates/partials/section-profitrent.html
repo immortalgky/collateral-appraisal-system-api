@@ -1,19 +1,24 @@
 {{- # caller sets: pr = sec (one ProfitRentSection) -}}
 <div class="section-bar">การประเมินมูลค่าทรัพย์สินโดยวิธีค่าเช่า (Profit Rent Approach)</div>
+{{ ctx = pr.context }}{{ include 'partials/book-method-banner' }}
+{{ leases = pr.leases }}{{ if !book_flow }}{{ include 'partials/book-lease-agreement' }}{{ end }}
 
 <table class="params" style="margin-bottom:6px;">
   <tr>
     <td class="pl">ค่าเช่าตลาดต่อตารางวา</td>
     <td class="pv">{{ if pr.market_rental_fee_per_sq_wa != null }}{{ pr.market_rental_fee_per_sq_wa | math.format "N2" }} บาท/ตร.วา{{ end }}</td>
     <td class="pl">ประเภทการเติบโต</td>
-    <td class="pv">{{ pr.growth_rate_type }}</td>
+    <td class="pv">{{ if pr.growth_is_period }}รายช่วง{{ if pr.growth_periods.size > 0 }} (ดูตารางช่วงการเติบโต){{ end }}{{ else }}{{ pr.growth_rate_type }}{{ end }}</td>
   </tr>
+  {{~ # Period mode: one rate per year range (the period table below); the single rate / interval would mislead. ~}}
+  {{ if !pr.growth_is_period }}
   <tr>
     <td class="pl">อัตราการเติบโต</td>
     <td class="pv">{{ if pr.growth_rate_percent != null }}{{ pr.growth_rate_percent | math.format "N4" }} %{{ end }}</td>
     <td class="pl">ช่วงเวลาการเติบโต</td>
     <td class="pv">{{ if pr.growth_interval_years != null }}{{ pr.growth_interval_years }} ปี{{ end }}</td>
   </tr>
+  {{ end }}
   <tr>
     <td class="pl">อัตราคิดลด</td>
     <td class="pv">{{ if pr.discount_rate != null }}{{ pr.discount_rate | math.format "N4" }} %{{ end }}</td>
@@ -57,17 +62,65 @@
 {{ end }}
 
 <table class="totals" style="margin-top:8px;">
+  {{ if pr.total_market_rental_fee != null }}
+  <tr>
+    <td class="tl">ค่าเช่าตลาดรวม</td>
+    <td class="tv">{{ pr.total_market_rental_fee | math.format "N2" }} บาท</td>
+  </tr>
+  {{ end }}
+  {{ if pr.total_contract_rental_fee != null }}
+  <tr>
+    <td class="tl">ค่าเช่าตามสัญญารวม</td>
+    <td class="tv">{{ pr.total_contract_rental_fee | math.format "N2" }} บาท</td>
+  </tr>
+  {{ end }}
+  {{ if pr.total_returns_from_lease != null }}
+  <tr>
+    <td class="tl">ส่วนต่างค่าเช่ารวม (Profit Rent)</td>
+    <td class="tv">{{ pr.total_returns_from_lease | math.format "N2" }} บาท</td>
+  </tr>
+  {{ end }}
   {{ if pr.total_present_value != null }}
   <tr>
     <td class="tl">รวมมูลค่าปัจจุบัน</td>
     <td class="tv">{{ pr.total_present_value | math.format "N2" }} บาท</td>
   </tr>
   {{ end }}
-  {{- # render effective_final_value = IndicatedValue ?? EstimatePriceRounded ?? FinalValueRounded -}}
+  {{~ # Building included: the building part and the combined figure, as the screen shows them, so the step from PV to the value is visible. ~}}
+  {{ if pr.include_building_cost && pr.building_cost_value != null }}
+  <tr>
+    <td class="tl">บวก มูลค่าสิ่งปลูกสร้างหลังหักค่าเสื่อมราคา</td>
+    <td class="tv">{{ pr.building_cost_value | math.format "N2" }} บาท</td>
+  </tr>
+  <tr>
+    <td class="tl">รวมมูลค่าทรัพย์สิน (คำนวณ)</td>
+    <td class="tv">{{ pr.value_including_building | math.format "N2" }} บาท</td>
+  </tr>
+  {{ end }}
+  {{~ # effective_final_value = MethodValue ?? IndicatedValue ?? EstimatePriceRounded ?? FinalValueRounded. "(ปัดเศษ)" only when it IS the system figure rounded; a typed value is the appraiser's. ~}}
   {{ if pr.effective_final_value != null }}
   <tr>
-    <td class="tl">มูลค่าทรัพย์สิน (ปัดเศษ)</td>
+    <td class="tl">{{ if pr.is_value_edited }}ปรับโดยผู้ประเมิน{{ else }}มูลค่าทรัพย์สิน (ปัดเศษ){{ end }}</td>
     <td class="tv">{{ pr.effective_final_value | math.format "N2" }} บาท</td>
   </tr>
   {{ end }}
 </table>
+<div class="pad" style="margin-top:4px;"><div class="kv"><span class="k">รวมมูลค่าอาคาร :</span><span class="v">{{ pr.include_building_cost ? "รวม" : "ไม่รวม" }}</span></div></div>
+
+{{ if pr.growth_periods && pr.growth_periods.size > 0 }}
+<div class="sub-bar" style="margin-top:8px;">ช่วงการเติบโตของค่าเช่าตลาด</div>
+<table class="grid" style="width:60%;">
+  <thead><tr><th>ช่วงปีที่</th><th>อัตราเพิ่ม (%)</th></tr></thead>
+  <tbody>
+    {{ for gp in pr.growth_periods }}<tr><td class="ctr">{{ gp.from_year }} – {{ gp.to_year }}</td><td class="num">{{ gp.growth_rate_percent | math.format "#,##0.00##" }}</td></tr>{{ end }}
+  </tbody>
+</table>
+{{ end }}
+
+{{ subs = pr.market_rent_sources }}{{ include 'partials/book-sub-analyses' }}
+
+{{ if pr.context && pr.context.remark }}
+<div class="pad" style="margin-top:4px;">
+  <div class="kv"><span class="k kw">หมายเหตุและสมมติฐาน :</span><span class="v">{{ pr.context.remark }}</span></div>
+</div>
+{{ end }}

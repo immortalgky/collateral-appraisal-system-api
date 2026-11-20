@@ -1,0 +1,6 @@
+{{~ # Opens a book part. Caller sets part_kind (raw, front or body) and part_id (or empty). Front and body parts also declare the taller top/bottom page margin that leaves room for the running header and footer drawn by PdfSharpAssembler. ~}}
+{{- if part_kind == 'raw' -}}
+<!-- PART: raw -->
+{{- else -}}
+<!-- PART: {{ part_kind }}{{ if part_id }} {{ part_id }}{{ end }} --><!-- pdf-margin-y:24mm -->
+{{- end -}}

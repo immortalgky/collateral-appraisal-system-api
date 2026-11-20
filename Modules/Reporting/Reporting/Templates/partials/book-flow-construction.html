@@ -1,0 +1,79 @@
+{{~ # Partial: the construction-inspection book (model.body_type == "construction"): 1 ทำเล, 2 เอกสารสิทธิ์, 3 รายละเอียดอาคารที่ตรวจ, 4 ความคืบหน้างานก่อสร้าง, 5 สรุปผล. Mock tab B4. ~}}
+{{ include 'partials/book-funcs' }}
+{{ cons = model.construction_section ?? {} }}
+{{ ls = null }}{{ if model.all_lands.size > 0 }}{{ ls = model.all_lands[0] }}{{ end }}
+{{ multi_land = model.all_lands.size > 1; multi_grp = model.property_groups.size > 1 }}
+
+{{ part_kind = 'body'; part_id = 's1'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>1.</span><span>ทำเลที่ตั้งทรัพย์สิน</span></div>
+<div class="bk-h2"><span>1.1</span><span>ที่ตั้งทรัพย์สินที่ประเมิน</span></div>
+{{ pic = appx_img 'BRIEF_MAP' 'DETAILED_MAP' 'EARTH_MAP' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
+<div class="vk">
+  {{ vk 'ที่ตั้งโครงการ' (model.collateral_address ?? model.collateral_location) }}
+  {{ vk 'การเข้าถึง' (ls ? ls.road_pass_in_front_of_land : null) }}
+  {{ vk 'สภาพแวดล้อม' (ls ? ls.environment_type : null) }}
+  {{ vk 'สาธารณูปโภค' (ls ? ls.public_utility_type : null) }}
+</div>
+{{ include 'partials/book-land-location' }}
+</div>
+
+{{ part_kind = 'body'; part_id = 's2'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>2.</span><span>เอกสารสิทธิ์</span></div>
+{{ nums = [] }}{{ owners = [] }}{{ obls_m = [] }}{{ obls_o = [] }}
+{{ for l in model.all_lands }}{{ for t in l.titles }}{{ nums = uadd nums t.title_number }}{{ end }}{{ owners = uadd owners l.titles[0].owner_name }}{{ obls_m = uadd obls_m l.obligation_mortgage }}{{ obls_o = uadd obls_o l.obligation_others }}{{ end }}
+<div class="vk">
+  {{ vk 'เอกสารสิทธิ์' (nums.size > 0 ? 'โฉนดที่ดินเลขที่ ' + (ljoin nums) : null) }}
+  {{ vk 'ผู้ถือกรรมสิทธิ์' (ljoin owners) }}
+  {{ vk 'ภาระผูกพันการจำนอง' (ljoin obls_m) }}
+  {{ vk 'ภาระผูกพันอื่นๆ' (ljoin obls_o) }}
+  {{ vk 'ราคาประเมินที่ดิน' (f0 model.land_appraisal_value) 'บาท' }}
+</div>
+{{ include 'partials/book-title-docs' }}
+</div>
+
+{{ part_kind = 'body'; part_id = 's3'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>3.</span><span>รายละเอียดอาคารที่ตรวจ</span></div>
+<div class="vk">
+  {{ vk 'รายงานการตรวจงวดก่อสร้างครั้งก่อน' (cons.refer_construction_book_number ? 'เลขที่ ' + cons.refer_construction_book_number + (cons.refer_inspection_round ? ' (ตรวจครั้งที่ ' + cons.refer_inspection_round + ')' : '') : null) }}
+  {{ vk 'ตรวจครั้งนี้' (cons.current_inspection_round ? 'ตรวจครั้งที่ ' + cons.current_inspection_round : null) }}
+</div>
+<table class="vt">
+  <thead><tr><th style="width:40px;">ลำดับ</th><th>อาคาร</th><th>มูลค่าก่อสร้าง<br/>100% (บาท)</th><th>ผลงาน<br/>ครั้งก่อน</th><th>ผลงาน<br/>ครั้งนี้</th><th>ผลงาน<br/>ปัจจุบัน</th><th>มูลค่า ณ ปัจจุบัน<br/>(บาท)</th></tr></thead>
+  <tbody>
+    {{ for b in cons.buildings }}
+    <tr><td class="c">{{ for.index + 1 }}</td><td>{{ nz b.building_name }}</td><td class="r">{{ nz (f0 b.total_value) }}</td><td class="r">{{ nz (f2 b.total_previous_pct) }}%</td><td class="r">{{ nz (f2 ((b.total_current_pct ?? 0) - (b.total_previous_pct ?? 0))) }}%</td><td class="r">{{ nz (f2 b.total_current_pct) }}%</td><td class="r">{{ nz (f0 b.total_current_value) }}</td></tr>
+    {{ end }}
+  </tbody>
+</table>
+{{ for b in cons.buildings }}
+<div class="vk-head"><span>อาคารรายการที่ {{ for.index + 1 }}</span><span>{{ b.building_name }}</span></div>
+<div class="vk bk-keep">
+  {{ vk 'มูลค่าก่อสร้างเมื่อแล้วเสร็จ 100%' (f0 b.total_value) 'บาท' }}
+  {{ vk 'ผลงานครั้งก่อน / ปัจจุบัน' ((nz (f2 b.total_previous_pct)) + '% / ' + (nz (f2 b.total_current_pct)) + '%') }}
+  {{ vk 'เลขที่ใบอนุญาตก่อสร้าง' b.license_number }}
+</div>
+{{ end }}
+{{ bld_k = 0 }}
+{{ real_a = []; real_x = []; for b in model.all_buildings }}{{ if !b.is_development_only }}{{ if b.is_appraisable == false }}{{ real_x = real_x | array.add b }}{{ else }}{{ real_a = real_a | array.add b }}{{ end }}{{ end }}{{ end }}
+{{ for b in (real_a | array.add_range real_x) }}
+{{ if b.is_appraisable != false }}{{ bld_k = bld_k + 1 }}{{ end }}
+{{ include 'partials/book-building-block' }}
+{{ end }}
+{{ cost_dev = []; for b in model.all_buildings }}{{ if b.is_development_only && b.cost_rows.size > 0 }}{{ cost_dev = cost_dev | array.add b }}{{ end }}{{ end }}
+{{ if cost_dev.size > 0 }}<div class="vk-sub">รายการประเมินทรัพย์สินโดยวิธีต้นทุน</div><div class="vm">{{ cost_blds = []; cost_total = null; include 'partials/book-building-cost' }}</div>{{ end }}
+{{ dev_items = model.all_development_items; dev_photos = model.all_development_photos; include 'partials/book-development' }}
+</div>
+
+{{ part_kind = 'body'; part_id = 's4'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>4.</span><span>ความคืบหน้างานก่อสร้าง</span></div>
+{{ for b in cons.buildings }}
+<div class="bk-h2"><span>4.{{ for.index + 1 }}</span><span>{{ nz b.building_name }}</span></div>
+{{ building = b }}{{ include 'partials/book-construction-table' }}
+{{ end }}
+</div>
+
+{{ concl_no = '5.'; concl_id = 's5'; concl_machine = false; concl_construction = true; concl_block = false; include 'partials/book-conclusion' }}

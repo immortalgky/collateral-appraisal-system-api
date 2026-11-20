@@ -1,0 +1,83 @@
+{{~ # Partial: the depreciated-replacement-cost table. Caller sets cost_blds (real buildings, each with its own header row and totals; a building the appraiser overrode gets its own "ปรับโดยผู้ประเมิน" row under its รวม row), cost_dev (development-only properties, printed under one ส่วนพัฒนาอื่นๆ บนที่ดิน row) and cost_total (the group's stored building subtotal, or null). Same columns as the cost table of section-building. ~}}
+{{ if cost_blds.size > 0 || cost_dev.size > 0 }}
+<table class="grid">
+  <thead>
+    <tr>
+      <th rowspan="2">รายการสิ่งปลูกสร้าง</th>
+      <th rowspan="2" style="width:62px;">พื้นที่<br/>(ตรม.)</th>
+      <th colspan="2">มูลค่าทดแทนใหม่</th>
+      <th rowspan="2" style="width:38px;">อายุ<br/>(ปี)</th>
+      <th colspan="3">การคิดค่าเสื่อมราคา</th>
+      <th rowspan="2" style="width:80px;">มูลค่าสิ่งปลูกสร้าง<br/>หลังหักค่าเสื่อม</th>
+    </tr>
+    <tr>
+      <th scope="col" style="width:66px;">หน่วยละ</th>
+      <th scope="col" style="width:72px;">รวม</th>
+      <th scope="col" style="width:44px;">ปีละ</th>
+      <th scope="col" style="width:44px;">รวม %</th>
+      <th scope="col" style="width:72px;">รวมเป็นเงิน</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ for part in [0, 1] }}
+    {{ blds = part == 0 ? cost_blds : cost_dev }}
+    {{ if blds.size > 0 }}
+    {{ if part == 1 }}<tr class="bh"><td colspan="9" style="font-weight:700;">ส่วนพัฒนาอื่นๆ บนที่ดิน</td></tr>{{ end }}
+    {{ for b in blds }}
+    {{ cost_title = "" }}
+    {{ if b.building_name != null && b.building_name != "" }}{{ cost_title = b.building_name }}
+    {{ else if b.building_type_text != null && b.building_type_text != "" }}{{ cost_title = b.building_type_text }}
+    {{ else if b.house_number != null && b.house_number != "" }}{{ cost_title = b.house_number }}{{ end }}
+    {{~ # Each property gets its header; a development-only property has no building number of its own, so it prints just its title. ~}}
+    {{ if b.building_number > 0 }}<tr class="bh"><td colspan="9" style="font-weight:700;">สิ่งปลูกสร้างรายการที่ {{ b.building_number }}{{ if cost_title != "" }} : {{ cost_title }}{{ end }}</td></tr>
+    {{ else if b.is_appraisable == false && part == 1 }}<tr class="bh"><td colspan="9" style="font-weight:700;">{{ cost_title }} (ไม่ประเมินมูลค่า)</td></tr>
+    {{ else if b.is_appraisable == false }}<tr class="bh"><td colspan="9" style="font-weight:700;">สิ่งปลูกสร้าง (ไม่ประเมินมูลค่า){{ if cost_title != "" }} : {{ cost_title }}{{ end }}</td></tr>
+    {{ else if cost_title != "" }}<tr class="bh"><td colspan="9" style="font-weight:700;">{{ cost_title }}</td></tr>{{ end }}
+    {{ for row in b.cost_rows }}
+    <tr>
+      <td>- {{ row.area_item_name }}</td>
+      <td class="num">{{ if row.area; row.area | math.format "N2"; end }}</td>
+      <td class="num">{{ if row.price_per_sqm; row.price_per_sqm | math.format "N2"; end }}</td>
+      <td class="num">{{ if row.price; row.price | math.format "N2"; end }}</td>
+      <td class="ctr">{{ row.age_years }}</td>
+      <td class="num">{{ if row.depreciation_pct_per_year != null; row.depreciation_pct_per_year | math.format "N2"; else if row.depreciation_method == "รายช่วง"; "รายช่วง"; end }}</td>
+      <td class="num">{{ if row.total_depreciation_pct; row.total_depreciation_pct | math.format "N2"; end }}</td>
+      <td class="num">{{ if row.depreciation_amount; row.depreciation_amount | math.format "N2"; end }}</td>
+      <td class="num">{{ if row.value_after_depreciation; row.value_after_depreciation | math.format "N2"; end }}</td>
+    </tr>
+    {{ end }}
+    {{~ # Every property, a development-only one included, closes on its own stored total (no summing across properties). ~}}
+    <tr style="font-weight:700;">
+      <td>รวม</td>
+      <td class="num">{{ if b.total_area; b.total_area | math.format "N2"; end }}</td>
+      <td></td>
+      <td class="num">{{ if b.total_price; b.total_price | math.format "N2"; end }}</td>
+      <td></td><td></td><td></td><td></td>
+      {{~ # A building the appraiser overrode closes on its rows' own total, the keyed value follows on its own row. ~}}
+      {{ tv = b.total_value_after_depreciation }}{{ if b.cost_override != null && b.cost_rows_total != null }}{{ tv = b.cost_rows_total }}{{ end }}
+      <td class="num">{{ if tv; tv | math.format "N2"; end }}</td>
+    </tr>
+    {{ if b.cost_override != null }}<tr style="font-weight:700; background:#e7e7e7;"><td colspan="8">ปรับโดยผู้ประเมิน</td><td class="num">{{ b.cost_override | math.format "N2" }}</td></tr>{{ end }}
+    {{ end }}
+    {{ end }}
+    {{ end }}
+    {{~ # The appraiser typed a building value over the computed total: the computed figure prints first, then the value used. Never labelled as rounded or "ตามสภาพปัจจุบัน". ~}}
+    {{ if cost_override != null }}
+    <tr style="font-weight:700;"><td colspan="8">รวมมูลค่าสิ่งปลูกสร้าง (คำนวณ)</td><td class="num">{{ (cost_computed ?? cost_total) | math.format "N2" }}</td></tr>
+    <tr style="font-weight:700; background:#e7e7e7;"><td colspan="8">ปรับโดยผู้ประเมิน</td><td class="num">{{ cost_override | math.format "N2" }}</td></tr>
+    {{ else if cost_total != null }}
+    <tr style="font-weight:700;"><td colspan="8">รวมมูลค่าสิ่งปลูกสร้าง ตามสภาพปัจจุบัน</td><td class="num">{{ cost_total | math.format "N2" }}</td></tr>
+    {{ end }}
+    {{~ # The book's insured building sum closes the last cost table (set by book-flow-methods, null elsewhere). ~}}
+    {{ if cost_insurance != null }}<tr style="font-weight:700;"><td colspan="8">ทุนประกันภัยสิ่งปลูกสร้าง</td><td class="num">{{ cost_insurance | math.format "N2" }}</td></tr>{{ end }}
+  </tbody>
+</table>
+{{ if cost_override != null && cost_manual_remark }}<div style="white-space:pre-line; margin-top:3px;">หมายเหตุ: {{ cost_manual_remark }}</div>{{ end }}
+{{~ # The BuildingCost method's remark: only on the valuation page (book-flow-methods sets cost_show_remark), not on the building / construction pages that reuse this table. ~}}
+{{ if cost_show_remark }}{{ cost_rm = null }}{{ for b in (cost_blds | array.concat cost_dev) }}{{ if !cost_rm && b.cost_method_remark }}{{ cost_rm = b.cost_method_remark }}{{ end }}{{ end }}
+{{ if cost_rm }}
+<div class="pad" style="margin-top:4px;">
+  <div class="kv"><span class="k kw">หมายเหตุและสมมติฐาน :</span><span class="v" style="white-space:pre-line;">{{ cost_rm }}</span></div>
+</div>
+{{ end }}{{ end }}
+{{ end }}

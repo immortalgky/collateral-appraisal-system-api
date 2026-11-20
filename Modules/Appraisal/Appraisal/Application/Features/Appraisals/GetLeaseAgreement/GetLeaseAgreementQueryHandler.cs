@@ -38,6 +38,8 @@ public class GetLeaseAgreementQueryHandler(
             ContractRenewal: detail.ContractRenewal,
             RentalTermsImpactingPropertyUse: detail.RentalTermsImpactingPropertyUse,
             TerminationOfLease: detail.TerminationOfLease,
-            Remark: detail.Remark);
+            Remark: detail.Remark,
+            IsLeaseRegistered: detail.IsLeaseRegistered,
+            IsLeaseholdPledgeable: detail.IsLeaseholdPledgeable);
     }
 }

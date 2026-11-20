@@ -213,7 +213,7 @@ public record LandIdentityForCollateral(
     string? LandShapeType,    // LandAppraisalDetail.LandShapeType
     string? LandZoneType,     // LandAppraisalDetail.LandZoneType — first element of list (nullable)
     string? UrbanPlanningType,// LandAppraisalDetail.UrbanPlanningType
-    decimal? AccessRoadWidth, // LandAppraisalDetail.AccessRoadWidth
+    decimal? AccessRoadWidth, // LandAppraisalDetail.CarriagewayWidth (name kept: Collateral stores it as AccessRoadWidth)
     decimal? RoadFrontage,    // LandAppraisalDetail.RoadFrontage
     decimal? LandArea         // LandAppraisalDetail.TotalLandAreaInSqWa
 );

@@ -622,6 +622,41 @@ public class UpdatePropertyHandlerCharacterisationTests
         Assert.Null(property.ConstructionInspection);
     }
 
+    [Fact]
+    public async Task Condo_rented_out_creates_lease_and_rental_and_keeps_the_two_lease_answers()
+    {
+        var (appraisal, property) = Seed(a => a.AddCondoProperty());
+        Assert.Null(property.RentalInfo);
+
+        await CondoHandler().Handle(new UpdateCondoPropertyCommand(
+            appraisal.Id, property.Id,
+            IsRentedOut: true,
+            LeaseAgreement: new LeaseAgreementData(LesseeName: "Lessee", IsLeaseRegistered: true, IsLeaseholdPledgeable: false),
+            RentalInfo: ThreeYearRental()), Ct);
+
+        Assert.True(property.CondoDetail!.IsRentedOut);
+        Assert.Equal("Lessee", property.LeaseAgreementDetail!.LesseeName);
+        Assert.True(property.LeaseAgreementDetail.IsLeaseRegistered);
+        Assert.False(property.LeaseAgreementDetail.IsLeaseholdPledgeable);
+        Assert.Equal(3, property.RentalInfo!.NumberOfYears);
+        Assert.Equal(3, property.RentalInfo.ScheduleEntries.Count);
+    }
+
+    [Fact]
+    public async Task Condo_not_rented_out_clears_lease_and_rental()
+    {
+        var (appraisal, property) = Seed(a => a.AddCondoProperty());
+        property.SetLeaseAgreementDetail(LeaseAgreementDetail.Create(property.Id));
+        property.SetRentalInfo(RentalInfo.Create(property.Id));
+
+        await CondoHandler().Handle(new UpdateCondoPropertyCommand(
+            appraisal.Id, property.Id, IsRentedOut: false), Ct);
+
+        Assert.Null(property.LeaseAgreementDetail);
+        Assert.Null(property.RentalInfo);
+        Assert.False(property.CondoDetail!.IsRentedOut);
+    }
+
     // ───────────────────────────── Machinery / Vehicle / Vessel ─────────────────────────────
 
     [Fact]

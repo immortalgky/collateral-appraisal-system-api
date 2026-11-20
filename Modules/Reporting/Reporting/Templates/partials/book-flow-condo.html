@@ -1,0 +1,189 @@
+{{~ # Partial: the condo book (model.body_type == "condo"): sections 1-4 for a condo unit, 5-8 in book-flow-tail. Mock tab B2. ~}}
+{{ include 'partials/book-funcs' }}
+{{ cd = model.condo_section }}
+{{ multi_land = false; multi_grp = false }}
+
+{{~ # ═══════════════ 1. ทำเลที่ตั้งทรัพย์สิน ═══════════════ ~}}
+{{ part_kind = 'body'; part_id = 's1'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>1.</span><span>ทำเลที่ตั้งทรัพย์สิน</span></div>
+<div class="bk-keep">
+<div class="bk-h2"><span>1.1</span><span>ที่ตั้งทรัพย์สินที่ประเมิน</span></div>
+{{ pic = appx_img 'BRIEF_MAP' 'DETAILED_MAP' 'EARTH_MAP' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
+<div class="vk">
+  {{ addr = model.collateral_address ?? model.collateral_location }}
+  {{ vk 'ที่ตั้ง' addr }}
+  {{ vk 'พิกัด' ((gps cd.latitude cd.longitude) ?? model.gps) }}
+  {{ vk 'ระยะห่างจากถนนสายหลัก' cd.distance_text }}
+</div>
+</div>
+<div class="bk-keep">
+<div class="bk-h2"><span>1.2</span><span>สภาพแวดล้อมและการใช้ประโยชน์</span></div>
+<div class="vk">
+  {{ vkm 'ทรัพย์สินอยู่ในพื้นที่' }}
+  {{ vk 'สภาพแวดล้อม' cd.environment }}
+  {{ cp = cplan cd.urban_planning_color cd.land_type }}{{ if cp }}{{ vk 'ผังเมือง' cp }}{{ end }}
+  {{ vkm 'ความเจริญของพื้นที่' }}
+  {{ vk 'การใช้ประโยชน์ที่ดิน' cd.utilization }}
+</div>
+</div>
+<div class="bk-keep">
+<div class="bk-h2"><span>1.3</span><span>การคมนาคม</span></div>
+<div class="vk">
+  {{ vk 'ถนนผ่านหน้าโครงการ' (cd.road_pass_in_front_of_land ? cd.road_pass_in_front_of_land : cd.located_on_road) }}
+  {{ vk 'ซอย' cd.soi }}
+  {{ vk 'ระยะห่างจากถนนสายหลัก' cd.distance_text }}
+  {{ vk 'การเดินทาง' cd.transportation_access_type }}
+</div>
+</div>
+<div class="bk-keep">
+<div class="bk-h2"><span>1.4</span><span>ระบบสาธารณูปโภคผ่านหน้าทรัพย์สิน</span></div>
+<div class="vk">{{ vk 'สาธารณูปโภค' cd.public_utility }}</div>
+</div>
+<div class="bk-keep">
+<div class="bk-h2"><span>1.5</span><span>ปัญหาสภาพแวดล้อมบริเวณใกล้เคียงที่มีผลกระทบต่อทรัพย์สิน</span></div>
+<div class="vk">
+  {{ env_probs cd }}
+</div>
+</div>
+<div class="bk-keep">
+<div class="bk-h2"><span>1.6</span><span>การตรวจสอบตำแหน่งที่ตั้งทรัพย์สิน</span></div>
+<div class="vk">
+  {{ vk 'ตำแหน่งห้องชุด' ((cb (cd.position_correct == true) 'ถูกต้อง') + (cb (cd.position_correct == false) 'ไม่ถูกต้อง') + (cd.position_correct == false && cd.position_remark != null && (cd.position_remark | string.strip) != '' ? '<span class="rm">หมายเหตุ : ' + cd.position_remark + '</span>' : '')) }}
+  {{ vkm 'ตรวจสอบจาก' }}
+</div>
+</div>
+</div>
+
+{{~ # ═══════════════ 2. หนังสือกรรมสิทธิ์ห้องชุด ═══════════════ ~}}
+{{ part_kind = 'body'; part_id = 's2'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>2.</span><span>หนังสือกรรมสิทธิ์ห้องชุด</span></div>
+<div class="bk-h2"><span>2.1</span><span>รายละเอียดหนังสือกรรมสิทธิ์ห้องชุด</span></div>
+{{ chk_off = []; chk_off = uadd chk_off cd.land_office; chk_ok = cd.document_validation_result == '01' ? ['x'] : []; chk_bad = cd.document_validation_result == '02' ? ['x'] : [] }}
+<p class="bk-p">{{ doc_check 'หนังสือกรรมสิทธิ์ห้องชุด' chk_off chk_ok chk_bad }}</p>
+<table class="vt">
+  <thead><tr><th style="width:40px;">ลำดับ</th><th>ห้องชุด<br/>เลขที่</th><th>ชั้นที่</th><th>อาคาร<br/>เลขที่</th><th>ทะเบียน<br/>อาคารชุด</th><th>พื้นที่ห้อง<br/>(ตร.ม.)</th><th>ระเบียง<br/>(ตร.ม.)</th><th>รวม<br/>(ตร.ม.)</th><th>ผู้ถือกรรมสิทธิ์</th></tr></thead>
+  <tbody>
+    {{ for u in cd.units }}
+    <tr>
+      <td class="c">{{ u.sequence }}</td><td class="c">{{ u.room_number }}</td><td class="c">{{ u.floor_number }}</td>
+      <td class="c">{{ cd.building_number }}</td><td class="c">{{ cd.registration_number }}</td>
+      <td class="r">{{ nz (f2 u.interior_area) }}</td><td class="r">{{ nz (f2 u.balcony_area) }}</td><td class="r">{{ nz (f2 u.total_area) }}</td>
+      <td>{{ u.owner_text }}</td>
+    </tr>
+    {{ end }}
+  </tbody>
+</table>
+<div class="vk bk-keep">
+  {{ vk 'ปลูกสร้างบนโฉนดที่ดินเลขที่' cd.built_on_title_number }}
+  {{ vk 'ที่ตั้งเอกสารสิทธิ์' (cd.sub_district || cd.district || cd.province ? (cd.sub_district ?? '') + ' ' + (cd.district ?? '') + ' ' + (cd.province ?? '') : null) }}
+  {{ vk 'ภาระผูกพัน' cd.obligation_mortgage_text }}
+  {{ vk 'ภาระผูกพันอื่นๆ' cd.obligation_others_text }}
+  {{ vk 'การให้เช่า' (cd.is_rented_out == true ? 'มีการให้เช่า' : (cd.is_rented_out == false ? 'ไม่มี' : null)) }}
+</div>
+<div class="bk-keep">
+<div class="bk-h2"><span>2.2</span><span>การรอนสิทธิ</span></div>
+<div class="vk">
+  {{ vk 'แนวเวนคืน' ((cb (cd.is_in_expropriation_line == false) 'ไม่อยู่ในแนวเวนคืน') + (cb (cd.is_in_expropriation_line == true) 'อยู่ในแนวเวนคืน')) }}
+  {{ prob 'แนวเขตป่าไม้' cd.is_forest_boundary 'ไม่อยู่' 'อยู่' }}
+</div>
+{{~ # ข้อจำกัดอื่นๆ ที่พบ (the form's free-text box) follows the limitation rows, shaped like the land book's; nothing prints when it is blank. ~}}
+{{ if cd.other_legal_limitations && (cd.other_legal_limitations | string.strip) != '' }}
+<div class="vk-sub">ข้อจำกัดอื่นๆ ที่พบ</div>
+<div style="white-space:pre-line;overflow-wrap:anywhere;line-height:1.75;font-size:10.5pt;padding-left:14px;">{{ cd.other_legal_limitations }}</div>
+{{ end }}
+</div>
+<div class="bk-keep">
+<div class="bk-h2"><span>2.3</span><span>ราคาประเมินราชการห้องชุด</span></div>
+{{ cv = cd.valuation }}
+{{ if cv }}
+<table class="vt">
+  <thead><tr><th>รายการ</th><th>พื้นที่ (ตร.ม.)</th><th>บาท/ตร.ม.</th><th>ราคาประเมินราชการ (บาท)</th></tr></thead>
+  <tbody>
+    <tr><td>ห้องชุด (พื้นที่ใช้สอย)</td><td class="r">{{ nz (f2 cd.usable_area) }}</td><td class="r">{{ nz (f0 cv.registration_price_per_sqm) }}</td><td class="r">{{ nz (f0 cv.registration_amount) }}</td></tr>
+  </tbody>
+</table>
+{{ else }}<div class="vk">{{ vk 'ราคาประเมินราชการ' null }}</div>{{ end }}
+</div>
+</div>
+
+{{~ # ═══════════════ 3. ทรัพย์สินที่ประเมินมูลค่า ═══════════════ ~}}
+{{ part_kind = 'body'; part_id = 's3'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>3.</span><span>ทรัพย์สินที่ประเมินมูลค่า</span></div>
+<div class="bk-h2"><span>3.1</span><span>อาคารชุด</span></div>
+{{ pic = appx_img 'BUILDING_LAYOUT' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
+<div class="vk bk-keep">
+  {{ vk 'ชื่ออาคารชุด' cd.condo_name }}
+  {{ vk 'อาคารเลขที่' cd.building_number }}
+  {{ vk 'ทะเบียนอาคารชุดเลขที่' cd.registration_number }}
+  {{ vk 'โฉนดที่ดินเลขที่' cd.built_on_title_number }}
+  {{ vk 'ที่ตั้ง' (cd.located_on_road ? (cd.located_on_road + (cd.soi ? ' ซอย' + cd.soi : '') + ' ' + (cd.sub_district ?? '') + ' ' + (cd.district ?? '') + ' ' + (cd.province ?? '')) : null) }}
+  {{ vkm 'เนื้อที่' 'ไร่' }}
+  {{ vk 'ปีที่สร้าง' cd.construction_year }}
+  {{ vk 'อายุอาคาร / ความสูง' ((cd.building_age != null ? cd.building_age + ' ปี' : '-') + ' / ' + (cd.building_height_floors != null ? (fx cd.building_height_floors) + ' ชั้น' : '-')) }}
+  {{ vk 'รูปแบบอาคารชุด' cd.building_form }}
+  {{ vk 'วัสดุก่อสร้าง' cd.construction_material }}
+  {{ vk 'หลังคาอาคารชุด' cd.roof_type }}
+  {{ vk 'สิ่งอำนวยความสะดวก' cd.facilities }}
+</div>
+<div class="vk-sub">ทางเข้าอาคารชุด</div>
+<div class="vk bk-keep">
+  {{ vk 'ลักษณะผิวจราจร' cd.road_surface_type }}
+  {{ vk 'จำนวนช่องจราจร' cd.number_of_lanes 'ช่องจราจร' }}
+  {{ vk 'ผิวจราจรกว้าง' (f2 cd.carriageway_width) 'เมตร' }}
+  {{ vk 'เขตทางกว้าง' (f2 cd.right_of_way_width) 'เมตร' }}
+  {{ vk 'สิทธิทางเข้าออก' cd.entry_exit_rights }}
+  {{ vk 'สาธารณูปโภค' cd.public_utility }}
+</div>
+<div class="bk-h2"><span>3.2</span><span>ห้องชุดที่ประเมิน</span></div>
+{{ pic = appx_img 'BLUEPRINT' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
+<table class="vt">
+  <thead><tr><th style="width:40px;">ลำดับ</th><th>ห้องชุดเลขที่</th><th>ชั้นที่</th><th>พื้นที่ภายใน<br/>ห้องชุด (ตร.ม.)</th><th>พื้นที่ระเบียง<br/>(ตร.ม.)</th><th>พื้นที่วางแอร์<br/>(ตร.ม.)</th><th>พื้นที่อื่นๆ<br/>(ตร.ม.)</th><th>พื้นที่รวม<br/>(ตร.ม.)</th></tr></thead>
+  <tbody>
+    {{ for u in cd.units }}
+    <tr><td class="c">{{ u.sequence }}</td><td class="c">{{ u.room_number }}</td><td class="c">{{ u.floor_number }}</td><td class="r">{{ nz (f2 u.interior_area) }}</td><td class="r">{{ nz (f2 u.balcony_area) }}</td><td class="r">{{ nz (f2 u.air_con_area) }}</td><td class="r">{{ nz (f2 u.other_area) }}</td><td class="r">{{ nz (f2 u.total_area) }}</td></tr>
+    {{ end }}
+  </tbody>
+</table>
+<div class="vk bk-keep">
+  {{ vk 'การแบ่งพื้นที่ใช้สอย' cd.room_layout }}
+  {{ vk 'สภาพห้อง' cd.building_condition }}
+  {{ vk 'การใช้ประโยชน์' cd.utilization }}
+</div>
+<div class="vk-sub">สภาพและการตกแต่งภายในห้องชุด</div>
+<div class="vk bk-keep">
+  {{ vk 'วัสดุปูพื้น' cd.floor_material }}
+  {{ vk 'พื้นห้องน้ำ' cd.bathroom_floor_material }}
+  {{ vk 'การตกแต่ง' cd.decoration }}
+  {{ vkm 'ผนัง' }}
+  {{ vkm 'ฝ้าเพดาน' }}
+  {{ vkm 'ประตู' }}
+  {{ vkm 'หน้าต่าง' }}
+  {{ vkm 'สุขภัณฑ์' }}
+</div>
+</div>
+
+{{~ # ═══════════════ 4. กฎหมายและข้อกำหนดที่เกี่ยวข้อง ═══════════════ ~}}
+{{ part_kind = 'body'; part_id = 's4'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>4.</span><span>กฎหมายและข้อกำหนดที่เกี่ยวข้อง</span></div>
+{{ if model.law_records.size > 0 }}
+{{ include 'partials/book-laws' }}
+{{ else }}
+<div class="bk-keep">
+<div class="bk-h2"><span>4.1</span><span>ข้อกำหนดผังเมือง</span></div>
+{{ pic = appx_img 'CITY_PLAN' 'STATUTORY_PLAN' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
+<div class="vk">
+  {{ vkm 'ผังเมืองรวม' }}
+  {{ vk 'เป็นพื้นที่สี' cd.urban_planning_color }}
+  {{ vk 'ที่ดินประเภท' cd.land_type }}
+</div>
+</div>
+<div class="bk-keep"><div class="bk-h2"><span>4.2</span><span>กฎหมายควบคุมอาคาร</span></div><div class="vk">{{ vkm 'ข้อกำหนด' }}</div></div>
+<div class="bk-keep"><div class="bk-h2"><span>4.3</span><span>กฎหมายอื่นๆ</span></div><div class="vk">{{ vkm 'ข้อจำกัดอื่น' }}</div></div>
+{{ end }}
+</div>
+
+{{ include 'partials/book-flow-tail' }}

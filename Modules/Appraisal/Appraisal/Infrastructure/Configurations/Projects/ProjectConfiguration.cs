@@ -95,6 +95,7 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Project>
         // (widened by 20260722083540_BuiltOnTitleNumberFieldLength): a condo can sit on many
         // parcels and the value is stored as one comma-separated list.
         builder.Property(p => p.BuiltOnTitleDeedNumber).HasMaxLength(500);
+        builder.Property(p => p.LicenseNumber).HasMaxLength(50);
 
         // Other
         builder.Property(p => p.Remark).HasMaxLength(4000);

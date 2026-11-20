@@ -1,0 +1,137 @@
+{{ if model.block_section }}
+{{ blk = model.block_section }}
+<!--
+  Partial: block (project) analysis page + unit price tables. The unit tables are printed here for the
+  external book only: the internal book's summary body (summary-block-body) already carries them.
+-->
+<style>
+  .bku-table { width:100%; border-collapse:collapse; font-size:7pt; margin-top:6px; table-layout:fixed; }
+  .bku-table th, .bku-table td { border:1px solid #888; padding:2px 3px; overflow-wrap:anywhere; }
+  .bku-table th { background:#f0f0f0; text-align:center; font-weight:bold; }
+  .bku-table thead { display:table-header-group; }
+  .bku-table td.c { text-align:center; }
+  .bku-table td.r { text-align:right; white-space:nowrap; }
+</style>
+
+{{ if blk.models.size > 0 }}
+<div style="page-break-before:always;">
+  <div class="section-bar">การวิเคราะห์และสรุปมูลค่าทรัพย์สิน</div>
+  <div class="pad">
+    {{ if blk.analysis_remark }}<p style="white-space:pre-line;">{{ blk.analysis_remark }}</p>{{ end }}
+    <table class="grid">
+      <thead>
+        <tr>
+          <th>{{ if blk.is_condo }}แบบห้องชุด{{ else }}แบบบ้าน{{ end }}</th>
+          {{ if !blk.is_condo }}<th class="num" style="width:90px;">ที่ดินมาตรฐาน (ตร.ว.)</th>{{ end }}
+          <th class="num" style="width:90px;">พื้นที่ใช้สอย (ตร.ม.)</th>
+          <th class="num" style="width:105px;">ราคาขายโครงการ (เริ่มต้น)</th>
+          <th class="num" style="width:105px;">ราคาประเมิน</th>
+          <th class="num" style="width:105px;">มูลค่าประกันภัย</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ for m in blk.models }}
+        <tr>
+          <td>{{ m.model_name }}{{ if m.model_description }} ({{ m.model_description }}){{ end }}</td>
+          {{ if !blk.is_condo }}<td class="num">{{ if m.standard_land_area; m.standard_land_area | math.format "N2"; end }}</td>{{ end }}
+          <td class="num">{{ if m.standard_usable_area; m.standard_usable_area | math.format "N2"; end }}</td>
+          <td class="num">{{ if m.starting_price_min; m.starting_price_min | math.format "N2"; end }}</td>
+          <td class="num">{{ if m.appraised_value; m.appraised_value | math.format "N2"; end }}</td>
+          <td class="num">{{ if m.coverage_amount; m.coverage_amount | math.format "N2"; end }}</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+    {{ if blk.assumptions.size > 0 }}
+    <div style="font-weight:600; margin:8px 0 3px; font-size:8pt;">เงื่อนไขการปรับราคา</div>
+    {{ for a in blk.assumptions }}
+    <div class="kv"><span class="k" style="width:270px;">{{ a.label }} :</span><span class="v">{{ a.value }}</span></div>
+    {{ end }}
+    {{ end }}
+  </div>
+</div>
+{{ end }}
+
+{{ if model.is_external }}
+{{ if blk.building_units.size > 0 }}
+<div style="page-break-before:always;">
+  <div class="section-bar center">สรุปราคาประเมินรายแปลง เพื่อสนับสนุนรายย่อยโครงการ</div>
+  <table class="bku-table">
+    <thead>
+      <tr>
+        <th style="width:34px;">ลำดับ</th>
+        <th style="width:58px;">แปลงเลขที่</th>
+        <th style="width:58px;">บ้านเลขที่</th>
+        <th>แบบบ้าน</th>
+        <th style="width:52px;">เนื้อที่ดิน<br/>(ตร.วา)</th>
+        <th style="width:52px;">พื้นที่ใช้สอย<br/>(ตร.ม.)</th>
+        <th style="width:72px;">ราคาขาย<br/>(บาท)</th>
+        <th style="width:72px;">ราคาประเมิน<br/>(บาท)</th>
+        <th style="width:72px;">ราคาบังคับขาย<br/>(บาท)</th>
+        <th style="width:72px;">มูลค่าประกัน<br/>อัคคีภัย (บาท)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ for u in blk.building_units }}
+      <tr>
+        <td class="c">{{ u.sequence }}</td>
+        <td class="c">{{ u.plot_number }}</td>
+        <td class="c">{{ u.house_number }}</td>
+        <td class="c">{{ u.model_type }}</td>
+        <td class="c">{{ if u.land_area; u.land_area | math.format "N2"; end }}</td>
+        <td class="c">{{ if u.usable_area; u.usable_area | math.format "N2"; end }}</td>
+        <td class="r">{{ if u.selling_price; u.selling_price | math.format "N2"; end }}</td>
+        <td class="r">{{ if u.appraisal_value; u.appraisal_value | math.format "N2"; end }}</td>
+        <td class="r">{{ if u.forced_sale_value; u.forced_sale_value | math.format "N2"; end }}</td>
+        <td class="r">{{ if u.coverage_amount; u.coverage_amount | math.format "N2"; end }}</td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+{{ end }}
+
+{{ if blk.condo_units.size > 0 }}
+<div style="page-break-before:always;">
+  <div class="section-bar center">สรุปราคาประเมินรายยูนิต เพื่อสนับสนุนรายย่อยโครงการ</div>
+  <table class="bku-table">
+    <thead>
+      <tr>
+        <th style="width:30px;">ลำดับ</th>
+        <th style="width:30px;">ชั้นที่</th>
+        <th style="width:40px;">อาคาร</th>
+        <th style="width:52px;">ห้องชุดเลขที่</th>
+        <th>แบบห้องชุด</th>
+        <th style="width:44px;">ห้องชุด</th>
+        <th style="width:48px;">พื้นที่ใช้สอย<br/>(ตร.ม.)</th>
+        <th style="width:70px;">ราคาขาย<br/>โครงการ (บาท)</th>
+        <th style="width:70px;">ราคาประเมิน<br/>(บาท)</th>
+        <th style="width:60px;">ราคา/ตร.ม.<br/>(บาท)</th>
+        <th style="width:70px;">ราคาบังคับขาย<br/>(บาท)</th>
+        <th style="width:70px;">มูลค่าประกัน<br/>อัคคีภัย (บาท)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ for u in blk.condo_units }}
+      <tr>
+        <td class="c">{{ u.sequence }}</td>
+        <td class="c">{{ u.floor }}</td>
+        <td class="c">{{ u.tower_name }}</td>
+        <td class="c">{{ u.condo_registration_number }}</td>
+        <td class="c">{{ u.model_type }}</td>
+        <td class="c">{{ u.room_number }}</td>
+        <td class="c">{{ if u.usable_area; u.usable_area | math.format "N2"; end }}</td>
+        <td class="r">{{ if u.selling_price; u.selling_price | math.format "N2"; end }}</td>
+        <td class="r">{{ if u.appraisal_value; u.appraisal_value | math.format "N2"; end }}</td>
+        <td class="r">{{ if u.price_per_sqm; u.price_per_sqm | math.format "N2"; end }}</td>
+        <td class="r">{{ if u.forced_sale_value; u.forced_sale_value | math.format "N2"; end }}</td>
+        <td class="r">{{ if u.coverage_amount; u.coverage_amount | math.format "N2"; end }}</td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</div>
+{{ end }}
+{{ end }}
+
+{{ end }}

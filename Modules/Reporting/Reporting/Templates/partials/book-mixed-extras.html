@@ -1,0 +1,93 @@
+{{~ # Partial: the condo unit and the machinery of a land + building appraisal that also holds them, folded into section 3 as further numbered subsections (3.n ห้องชุด, 3.n+1 เครื่องจักร). Needs n3 and the helper functions. The valuation of both goes in section 6. ~}}
+{{ if model.condo_section }}
+{{ cd = model.condo_section }}
+{{ n3 = n3 + 1 }}
+<div class="bk-h2"><span>3.{{ n3 }}</span><span>ห้องชุด{{ if cd.condo_name }} · {{ cd.condo_name }}{{ end }}</span></div>
+<div class="vk-sub">อาคารชุดและหนังสือกรรมสิทธิ์ห้องชุด</div>
+<div class="vk bk-keep">
+  {{ vk 'ชื่ออาคารชุด' cd.condo_name }}
+  {{ vk 'อาคารเลขที่' cd.building_number }}
+  {{ vk 'ทะเบียนอาคารชุดเลขที่' cd.registration_number }}
+  {{ vk 'ปลูกสร้างบนโฉนดที่ดินเลขที่' cd.built_on_title_number }}
+  {{ vk 'ที่ตั้ง' (cd.located_on_road ? (cd.located_on_road + (cd.soi ? ' ซอย' + cd.soi : '') + ' ' + (cd.sub_district ?? '') + ' ' + (cd.district ?? '') + ' ' + (cd.province ?? '')) : null) }}
+  {{ vk 'สำนักงานที่ดิน' cd.land_office }}
+  {{ vk 'ผู้ถือกรรมสิทธิ์' cd.owners_text }}
+  {{ vk 'ภาระผูกพันการจำนอง' cd.obligation_mortgage_text }}
+  {{ vk 'ภาระผูกพันอื่นๆ' cd.obligation_others_text }}
+  {{ vk 'การให้เช่า' (cd.is_rented_out == true ? 'มีการให้เช่า' : (cd.is_rented_out == false ? 'ไม่มี' : null)) }}
+  {{ vk 'แนวเวนคืน' ((cb (cd.is_in_expropriation_line == false) 'ไม่อยู่ในแนวเวนคืน') + (cb (cd.is_in_expropriation_line == true) 'อยู่ในแนวเวนคืน')) }}
+  {{ vk 'อายุอาคาร / ความสูง' ((cd.building_age != null ? cd.building_age + ' ปี' : '-') + ' / ' + (cd.building_height_floors != null ? (fx cd.building_height_floors) + ' ชั้น' : '-')) }}
+  {{ vk 'รูปแบบอาคารชุด' cd.building_form }}
+  {{ vk 'วัสดุก่อสร้าง' cd.construction_material }}
+  {{ vk 'หลังคาอาคารชุด' cd.roof_type }}
+  {{ vk 'ผิวจราจรกว้าง' (f2 cd.carriageway_width) 'เมตร' }}
+  {{ vk 'เขตทางกว้าง' (f2 cd.right_of_way_width) 'เมตร' }}
+  {{ vk 'จำนวนช่องจราจร' cd.number_of_lanes 'ช่องจราจร' }}
+  {{ vk 'สาธารณูปโภค' cd.public_utility }}
+</div>
+<div class="vk-sub">ห้องชุดที่ประเมิน</div>
+<table class="vt">
+  <thead><tr><th style="width:40px;">ลำดับ</th><th>ห้องชุดเลขที่</th><th>ชั้นที่</th><th>พื้นที่ภายใน<br/>ห้องชุด (ตร.ม.)</th><th>พื้นที่ระเบียง<br/>(ตร.ม.)</th><th>พื้นที่วางแอร์<br/>(ตร.ม.)</th><th>พื้นที่อื่นๆ<br/>(ตร.ม.)</th><th>พื้นที่รวม<br/>(ตร.ม.)</th></tr></thead>
+  <tbody>
+    {{ for u in cd.units }}
+    <tr><td class="c">{{ u.sequence }}</td><td class="c">{{ u.room_number }}</td><td class="c">{{ u.floor_number }}</td><td class="r">{{ nz (f2 u.interior_area) }}</td><td class="r">{{ nz (f2 u.balcony_area) }}</td><td class="r">{{ nz (f2 u.air_con_area) }}</td><td class="r">{{ nz (f2 u.other_area) }}</td><td class="r">{{ nz (f2 u.total_area) }}</td></tr>
+    {{ end }}
+  </tbody>
+</table>
+<div class="vk bk-keep">
+  {{ vk 'ตำแหน่งห้องชุด' ((cb (cd.position_correct == true) 'ถูกต้อง') + (cb (cd.position_correct == false) 'ไม่ถูกต้อง') + (cd.position_correct == false && cd.position_remark != null && (cd.position_remark | string.strip) != '' ? '<span class="rm">หมายเหตุ : ' + cd.position_remark + '</span>' : '')) }}
+  {{ vk 'สภาพห้อง' cd.building_condition }}
+  {{ vk 'การแบ่งพื้นที่ใช้สอย' cd.room_layout }}
+  {{ vk 'การใช้ประโยชน์' cd.utilization }}
+  {{ vk 'วัสดุปูพื้น' cd.floor_material }}
+  {{ vk 'การตกแต่ง' cd.decoration }}
+  {{ vkm 'ผนัง' }}
+  {{ vkm 'ฝ้าเพดาน' }}
+  {{ vkm 'ประตู' }}
+  {{ vkm 'หน้าต่าง' }}
+  {{ vkm 'สุขภัณฑ์' }}
+</div>
+{{ end }}
+
+{{ if model.machine_section }}
+{{ ms = model.machine_section }}
+{{ n3 = n3 + 1 }}
+<div class="bk-h2"><span>3.{{ n3 }}</span><span>เครื่องจักร</span></div>
+<div class="vk">{{ vk 'การมอบหมาย' ms.assignment }}{{ vk 'วัตถุประสงค์ในการประเมินมูลค่าทรัพย์สิน' ms.valuation_purpose }}</div>
+{{ include 'partials/book-machine-general' }}
+{{ for m in ms.machines }}
+{{ include 'partials/book-machine-block' }}
+{{ end }}
+{{ end }}
+
+{{~ # สัญญาเช่า (mock B6/B7 "3.n สัญญาเช่า"): the lease agreements held by the leasehold / profit-rent pages are printed once here, in section 3, instead of inside each method page. ~}}
+{{~ # Both methods load the leases of their whole property group, so a group with a leasehold AND a profit-rent page (or a used and a reference page) holds the same leases in each: a group's leases are taken once. ~}}
+{{ lease_list = []; lease_groups = [] }}
+{{ for sec in model.leasehold_sections }}{{ if !(lease_groups | array.contains sec.group_number) }}{{ lease_groups = lease_groups | array.add sec.group_number }}{{ for l in sec.leases }}{{ lease_list = lease_list | array.add l }}{{ end }}{{ end }}{{ end }}
+{{ for sec in model.profit_rent_sections }}{{ if !(lease_groups | array.contains sec.group_number) }}{{ lease_groups = lease_groups | array.add sec.group_number }}{{ for l in sec.leases }}{{ lease_list = lease_list | array.add l }}{{ end }}{{ end }}{{ end }}
+{{ if lease_list.size > 0 }}
+{{ n3 = n3 + 1 }}
+<div class="bk-h2"><span>3.{{ n3 }}</span><span>สัญญาเช่า</span></div>
+{{ for l in lease_list }}
+{{ if lease_list.size > 1 }}<div class="vk-head"><span>สัญญาเช่าที่ {{ for.index + 1 }}</span><span>{{ l.contract_no }}</span></div>{{ end }}
+<div class="vk bk-keep">
+  {{ vk 'ผู้ให้เช่า' l.lessor_name }}
+  {{ vk 'ผู้เช่า' l.lessee_name }}
+  {{ vk 'เลขที่สัญญา' l.contract_no }}
+  {{ vk 'วันเริ่มสัญญา' (l.lease_start_date ? thai.date l.lease_start_date : null) }}
+  {{ vk 'วันสิ้นสุดสัญญา' (l.lease_end_date ? thai.date l.lease_end_date : null) }}
+  {{ vk 'ระยะเวลาตามสัญญา' (fx l.lease_period_as_contract) 'ปี' }}
+  {{ vk 'ระยะเวลาคงเหลือ ณ วันประเมิน' (fx l.remaining_lease_as_appraisal_date) 'ปี' }}
+  {{ vk 'ค่าเช่าตามสัญญา' (f2 l.lease_rent_fee) 'บาท' }}
+  {{ vk 'การปรับค่าเช่า' (l.rent_adjust != null ? (f2 l.rent_adjust) + (l.growth_text ? ' ' + l.growth_text : '') : l.growth_text) }}
+  {{ vk 'ค่าใช้จ่ายเพิ่มเติม' (f2 l.additional_expenses) 'บาท' }}
+  {{ vk 'เช่าช่วง' l.sublease }}
+  {{ vk 'การต่อสัญญา' l.contract_renewal }}
+  {{ vk 'การบอกเลิกสัญญา' (l.lease_terminate ? l.lease_terminate + (l.termination_of_lease ? ' ' + l.termination_of_lease : '') : l.termination_of_lease) }}
+  {{ vk 'เงื่อนไขที่กระทบการใช้ประโยชน์' l.rental_terms_impacting_property_use }}
+  {{ vk 'การจดทะเบียนการเช่า' l.registration_text }}
+  {{ vk 'นำสิทธิการเช่าเป็นหลักประกัน' l.pledgeable_text }}
+  {{ vk 'หมายเหตุ' l.remark }}
+</div>
+{{ end }}
+{{ end }}

@@ -1,0 +1,25 @@
+{{~ # Partial: section 4 body when the appraiser has Law & Regulation records — 4.N per record: topic, images 2 per row (centred; a lone or odd last image spans the row), then the remark (line breaks kept). ~}}
+<style>
+.law-grid .cell { text-align:center; }
+.law-grid .cell:only-child, .law-grid .cell:last-child:nth-child(odd) { grid-column:1 / -1; }
+.law-grid img, .law-grid .cell:only-child img { max-height:60mm; max-width:100%; object-fit:contain; }
+/* beats the generic .bk .appendix-grid .cell:only-child img { width:100% } so a lone image keeps its natural size, centred */
+.bk .law-grid .cell:only-child img { width:auto; max-width:100%; max-height:60mm; }
+</style>
+{{ for law in model.law_records }}
+{{~ # one row of images (<= 2): the whole record (heading, images, remark) is kept together; more: the heading stays with the first row (break-after:avoid) and the rows flow ~}}
+<div class="{{ law.images.size <= 2 ? 'bk-keep' : '' }}">
+<div class="bk-h2" style="break-after:avoid;"><span>4.{{ for.index + 1 }}</span><span>{{ law.topic }}</span></div>
+{{ if law.images.size > 0 }}
+<div class="appendix-grid cols-2 law-grid">
+{{ for img in law.images }}
+<div class="cell">
+<img alt="" src="{{ img.img_src }}"/>
+{{ if img.caption }}<div class="cap">{{ img.caption }}</div>{{ end }}
+</div>
+{{ end }}
+</div>
+{{ end }}
+{{ if law.remark }}<div style="white-space:pre-line;overflow-wrap:anywhere;line-height:1.75;font-size:10.5pt;padding-left:14px;margin-top:6px;">{{ law.remark }}</div>{{ end }}
+</div>
+{{ end }}

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Reporting.Application.Formatting;
 using Reporting.Application.Models;
+using Reporting.Application.Models.Sections;
 using Reporting.Application.Services;
 using Shared.Configuration;
 
@@ -39,10 +40,33 @@ public sealed class AppraisalSummaryCondoDataProvider(
 
         var forceSaleRateDefault = await configReader.GetDecimalAsync("ForceSaleRateDefaultPct", 70m, cancellationToken);
 
+        var model = await BuildAsync(connection, appraisalId, forceSaleRateDefault, includePropertyRemarks: true, cancellationToken);
+
+        logger.LogDebug(
+            "AppraisalSummaryCondo model assembled for appraisal {AppraisalId}: " +
+            "{GroupCount} groups, {ApproverCount} approvers, showMeeting={ShowMeeting}",
+            appraisalId, model.Groups.Count, model.Approvers.Count, model.ShowMeeting);
+
+        return model;
+    }
+
+    /// <summary>
+    /// Builds the condo summary model from an open connection. Called by <see cref="GetModelAsync"/> (standalone
+    /// form) and by <c>AppraisalBookDataProvider</c> (the internal book's front page).
+    /// <paramref name="includePropertyRemarks"/> is false for the book, whose property sections already print
+    /// each property's หมายเหตุ: the batch then selects NULL for it (same switch as the land-building form).
+    /// </summary>
+    internal static async Task<AppraisalSummaryModel> BuildAsync(
+        System.Data.IDbConnection connection,
+        Guid appraisalId,
+        decimal forceSaleRateDefault,
+        bool includePropertyRemarks,
+        CancellationToken cancellationToken)
+    {
         // ── Common data (Q1–Q14 + ColTypeMap) ───────────────────────────────────
         var common = await AppraisalSummaryCommonLoader.LoadAsync(connection, appraisalId, forceSaleRateDefault, cancellationToken);
         if (common is null)
-            throw new NotFoundException("Appraisal", entityId);
+            throw new NotFoundException("Appraisal", appraisalId.ToString());
 
         // ── Batch: 3 condo-specific result sets, single round-trip ───────────────
         const string batchSql = """
@@ -64,9 +88,6 @@ public sealed class AppraisalSummaryCondoDataProvider(
                      ELSE COALESCE(ptBC.Description, cad.BuildingConditionTypeOther, cad.BuildingConditionType) END
                     AS BuildingConditionDisplay,
                 cad.BuildingAge,
-                cad.OwnerName,
-                cad.ObligationDetails,
-                cad.HasObligation,
                 cad.Soi,
                 cad.Street                AS Road,
                 COALESCE(tsub.NameTh,  cad.SubDistrict) AS SubDistrict,
@@ -82,6 +103,8 @@ public sealed class AppraisalSummaryCondoDataProvider(
                      ELSE COALESCE(pFill.Description, cad.LandFillTypeOther, cad.LandFillType) END
                     AS LandFillDisplay,
                 COALESCE(pUrban.Description, cad.UrbanPlanningType) AS UrbanPlanningType,
+                CASE WHEN cad.UrbanPlanningColor = N'99' THEN NULLIF(LTRIM(RTRIM(cad.UrbanPlanningColorOther)), N'')
+                     ELSE pUrbanColor.Description END AS UrbanPlanningColor,
                 cad.LandUseType,
                 cad.LandUseTypeOther,
                 cad.GovernmentPricePerSqm,
@@ -111,6 +134,11 @@ public sealed class AppraisalSummaryCondoDataProvider(
                AND pUrban.[Language] = 'TH'
                AND pUrban.[Code] = cad.UrbanPlanningType
                AND pUrban.IsActive = 1
+            LEFT JOIN parameter.Parameters pUrbanColor
+                ON pUrbanColor.[Group] = 'UrbanPlanningColor'
+               AND pUrbanColor.[Language] = 'TH'
+               AND pUrbanColor.[Code] = cad.UrbanPlanningColor
+               AND pUrbanColor.IsActive = 1
             WHERE ap.AppraisalId = @AppraisalId
             ORDER BY ap.SequenceNumber;
 
@@ -153,7 +181,7 @@ public sealed class AppraisalSummaryCondoDataProvider(
                      THEN cad.BuildingConditionTypeOther
                      ELSE COALESCE(ptBC.Description, cad.BuildingConditionTypeOther, cad.BuildingConditionType) END
                     AS BuildingConditionDisplay,
-                cad.Remark
+                CASE WHEN @IncludePropertyRemarks = 1 THEN cad.Remark END AS Remark
             FROM appraisal.PropertyGroupItems pgi
             JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
             JOIN appraisal.CondoAppraisalDetails cad ON cad.AppraisalPropertyId = ap.Id
@@ -192,10 +220,29 @@ public sealed class AppraisalSummaryCondoDataProvider(
               AND (cad.GovernmentPricePerSqm IS NOT NULL
                    OR ISNULL(cad.IsMissingFromSurvey, 0) = 1)
             ORDER BY ap.SequenceNumber, cad.Id;
+
+            -- RS07: Obligation code→Thai map (names of the other-obligation codes 03/04/05/99)
+            SELECT [code] AS Code, [description] AS Description
+            FROM parameter.Parameters
+            WHERE [group] = 'Obligation' AND [language] = 'TH' AND [isactive] = 1;
+
+            -- RS08: every unit's own owner and obligations (RS01 is the first unit only), in the order the book lists the units
+            SELECT
+                cad.RoomNumber,
+                cad.OwnerName,
+                cad.IsOwnerVerified,
+                cad.ObligationType,
+                cad.MortgageDetails,
+                cad.ObligationDetails
+            FROM appraisal.CondoAppraisalDetails cad
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = cad.AppraisalPropertyId
+            WHERE ap.AppraisalId = @AppraisalId
+            ORDER BY ap.SequenceNumber, cad.Id;
             """;
 
         var p = new DynamicParameters();
         p.Add("AppraisalId", appraisalId);
+        p.Add("IncludePropertyRemarks", includePropertyRemarks);
 
         FirstCondoRow? firstCondo;
         List<CondoAreaDetailRow> areaDetailRows;
@@ -203,6 +250,8 @@ public sealed class AppraisalSummaryCondoDataProvider(
         List<ParamRow> entranceExitParams;
         List<ParamRow> landUseParams;
         List<CondoGovPriceRow> govPriceRows;
+        List<ParamRow> obligationParams;
+        List<UnitOwnershipRow> unitRows;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, p))
         {
@@ -223,6 +272,12 @@ public sealed class AppraisalSummaryCondoDataProvider(
 
             // RS06
             govPriceRows = (await multi.ReadAsync<CondoGovPriceRow>()).ToList();
+
+            // RS07
+            obligationParams = (await multi.ReadAsync<ParamRow>()).ToList();
+
+            // RS08
+            unitRows = (await multi.ReadAsync<UnitOwnershipRow>()).ToList();
         }
 
         var entranceExitMap = ToParamMap(entranceExitParams);
@@ -246,6 +301,19 @@ public sealed class AppraisalSummaryCondoDataProvider(
                 i)),
             "ห้องชุดเลขที่",
             gpps => $"ตารางเมตรละ {gpps:N2} บาท");
+
+        // Owner and obligations of EVERY unit, worded by the same CondoSection helpers the book prints: all alike -> one text, else one "ห้อง X: …" line per unit (grouped above 10 here, the book lists every room).
+        var obligationMap = ToParamMap(obligationParams);
+        var unitSection = new CondoSection
+        {
+            Units = unitRows.Select(u => new CondoUnitAreaRow
+            {
+                RoomNumber = u.RoomNumber, OwnerName = u.OwnerName, IsOwnerVerified = u.IsOwnerVerified,
+                ObligationMortgage = ObligationText.Mortgage(u.ObligationType, u.MortgageDetails),
+                ObligationOthers = ObligationText.Others(u.ObligationType, u.ObligationDetails, obligationMap)
+            }).ToList()
+        };
+        var landOwner = unitSection.Owners(grouped: true);
 
         var gps = ThaiAddressFormatter.FormatGps(firstCondo?.Latitude, firstCondo?.Longitude);
 
@@ -396,19 +464,19 @@ public sealed class AppraisalSummaryCondoDataProvider(
             TotalAppraisalValue = summaryGroups.Count > 0 ? summaryGroups.Sum(g => g.AppraisalValue ?? 0m) : common.TotalAppraisalValue,
             BuildingCoverageAmount = common.BuildingCoverageAmount,
             ForcedSaleValue = common.ForcedSaleValue,
+            ForceSaleRate = common.ForceSaleRate,
             Condition = common.Condition,
             Remark = common.Remark,
-            LandOwner = firstCondo?.OwnerName,
+            LandOwner = landOwner,
             EntryExitRights = entryExitRights,
             BuildingOwner = null,
             LandCondition = firstCondo?.LandFillDisplay,
             LandConditions = string.IsNullOrWhiteSpace(firstCondo?.LandFillDisplay)
                 ? []
                 : [firstCondo!.LandFillDisplay!],
-            Obligation = string.IsNullOrWhiteSpace(firstCondo?.ObligationDetails)
-                ? AppraisalSummaryModel.NoObligationText
-                : firstCondo!.ObligationDetails,
-            CityPlan = firstCondo?.UrbanPlanningType,
+            ObligationMortgage = unitSection.Mortgage(grouped: true) ?? AppraisalSummaryModel.NoObligationText,
+            ObligationOthers = unitSection.Others(grouped: true),
+            CityPlan = AppraisalSummaryCommonLoader.CityPlan(firstCondo?.UrbanPlanningColor, firstCondo?.UrbanPlanningType),
             Gps = gps,
             GovernmentAssessedValue = firstCondo?.GovernmentPrice,
             GovernmentPriceText = governmentPriceText,
@@ -424,6 +492,7 @@ public sealed class AppraisalSummaryCondoDataProvider(
             IsLeasehold = methodFlags.IsLeasehold,
             IsProfitRent = methodFlags.IsProfitRent,
             AppraiserComment = common.AppraiserComment,
+            AdditionalAssumptions = common.AdditionalAssumptions,
             AppraisalStaffName = common.StaffName,
             AppraisalStaffPosition = common.StaffPosition,
             AppraisalCheckerName = common.CheckerName,
@@ -439,11 +508,6 @@ public sealed class AppraisalSummaryCondoDataProvider(
             Approvers = common.Approvers,
             ApproverSummaryComment = common.CommitteeOpinion
         };
-
-        logger.LogDebug(
-            "AppraisalSummaryCondo model assembled for appraisal {AppraisalId}: " +
-            "{GroupCount} groups, {ApproverCount} approvers, showMeeting={ShowMeeting}",
-            appraisalId, summaryGroups.Count, common.Approvers.Count, common.ShowMeeting);
 
         return model;
     }
@@ -462,9 +526,6 @@ public sealed class AppraisalSummaryCondoDataProvider(
         public decimal? UsableArea { get; init; }
         public string? BuildingConditionDisplay { get; init; }
         public int? BuildingAge { get; init; }
-        public string? OwnerName { get; init; }
-        public string? ObligationDetails { get; init; }
-        public string? HasObligation { get; init; }
         public string? Soi { get; init; }
         public string? Road { get; init; }
         public string? SubDistrict { get; init; }
@@ -477,6 +538,7 @@ public sealed class AppraisalSummaryCondoDataProvider(
         public string? LandEntranceExitTypeOther { get; init; }
         public string? LandFillDisplay { get; init; }
         public string? UrbanPlanningType { get; init; }
+        public string? UrbanPlanningColor { get; init; }
         public string? LandUseType { get; init; }
         public string? LandUseTypeOther { get; init; }
         public decimal? GovernmentPricePerSqm { get; init; }
@@ -517,6 +579,16 @@ public sealed class AppraisalSummaryCondoDataProvider(
         public string? Province { get; init; }
         public string? BuildingConditionDisplay { get; init; }
         public string? Remark { get; init; }
+    }
+
+    private sealed class UnitOwnershipRow
+    {
+        public string? RoomNumber { get; init; }
+        public string? OwnerName { get; init; }
+        public bool? IsOwnerVerified { get; init; }
+        public string? ObligationType { get; init; }
+        public string? MortgageDetails { get; init; }
+        public string? ObligationDetails { get; init; }
     }
 
     private sealed class ParamRow

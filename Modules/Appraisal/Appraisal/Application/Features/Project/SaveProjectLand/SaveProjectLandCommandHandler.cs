@@ -30,14 +30,15 @@ public class SaveProjectLandCommandHandler(
 
         land.Update(
             command.PropertyName, command.LandDescription, coordinates, address, command.LandOffice,
-            command.OwnerName, command.IsOwnerVerified, command.HasObligation, command.ObligationDetails,
+            command.OwnerName, command.IsOwnerVerified, command.ObligationType, command.ObligationDetails, command.MortgageDetails,
             command.IsLandLocationVerified, command.LandCheckMethodType, command.LandCheckMethodTypeOther,
+            command.LandLocationRemark,
             command.Street, command.Soi, command.DistanceFromMainRoad, command.Village, command.AddressLocation,
             command.LandShapeType, command.UrbanPlanningType,
             command.LandZoneType, command.LandZoneTypeOther,
             command.PlotLocationType, command.PlotLocationTypeOther,
             command.LandFillType, command.LandFillTypeOther, command.LandFillPercent, command.SoilLevel,
-            command.AccessRoadWidth, command.RightOfWay, command.RoadFrontage,
+            command.CarriagewayWidth, command.RightOfWayWidth, command.RoadFrontage,
             command.NumberOfSidesFacingRoad, command.RoadPassInFrontOfLand,
             command.LandAccessibilityType, command.LandAccessibilityRemark,
             command.RoadSurfaceType, command.RoadSurfaceTypeOther,
@@ -46,6 +47,7 @@ public class SaveProjectLandCommandHandler(
             command.LandUseType, command.LandUseTypeOther,
             command.LandEntranceExitType, command.LandEntranceExitTypeOther,
             command.TransportationAccessType, command.TransportationAccessTypeOther,
+            command.EnvironmentType, command.EnvironmentTypeOther,
             command.PropertyAnticipationType, command.PropertyAnticipationTypeOther,
             command.IsExpropriated, command.ExpropriationRemark,
             command.IsInExpropriationLine, command.ExpropriationLineRemark,
@@ -53,13 +55,17 @@ public class SaveProjectLandCommandHandler(
             command.IsLandlocked, command.LandlockedRemark,
             command.IsForestBoundary, command.ForestBoundaryRemark,
             command.OtherLegalLimitations,
-            command.EvictionType, command.EvictionTypeOther, command.AllocationType,
+            command.EvictionType, command.EvictionTypeOther, command.EvictionRemark, command.AllocationType,
             command.NorthAdjacentArea, command.NorthBoundaryLength,
             command.SouthAdjacentArea, command.SouthBoundaryLength,
             command.EastAdjacentArea, command.EastBoundaryLength,
             command.WestAdjacentArea, command.WestBoundaryLength,
             command.PondArea, command.PondDepth,
-            command.HasBuilding, command.HasBuildingOther, command.Remark);
+            command.HasBuilding, command.HasBuildingOther, command.Remark,
+            numberOfLanes: command.NumberOfLanes,
+            urbanPlanningColor: command.UrbanPlanningColor,
+            urbanPlanningColorOther: command.UrbanPlanningColorOther,
+            developmentSuitabilityType: command.DevelopmentSuitabilityType);
 
         if (command.Titles is not null)
             SyncTitles(land, command.Titles);

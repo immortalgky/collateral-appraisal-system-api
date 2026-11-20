@@ -191,22 +191,22 @@ public class AppraisalProperty : Entity<Guid>
     }
 
     /// <summary>
-    /// Set the lease agreement detail for this property (LSL, LSB, LS, Land, or LandAndBuilding)
+    /// Set the lease agreement detail for this property (LSL, LSB, LS, LSU, Land, LandAndBuilding, or Condo rented out)
     /// </summary>
     public void SetLeaseAgreementDetail(LeaseAgreementDetail detail)
     {
-        if (!PropertyType.IsLeaseAgreement && !PropertyType.HasLandDetail)
+        if (!PropertyType.IsLeaseAgreement && !PropertyType.HasLandDetail && PropertyType != PropertyType.Condo)
             throw new InvalidOperationException($"Cannot set lease agreement detail for property type '{PropertyType}'");
 
         LeaseAgreementDetail = detail;
     }
 
     /// <summary>
-    /// Set the rental info for this property (LSL, LSB, LS, Land, or LandAndBuilding)
+    /// Set the rental info for this property (LSL, LSB, LS, LSU, Land, LandAndBuilding, or Condo rented out)
     /// </summary>
     public void SetRentalInfo(RentalInfo info)
     {
-        if (!PropertyType.IsLeaseAgreement && !PropertyType.HasLandDetail)
+        if (!PropertyType.IsLeaseAgreement && !PropertyType.HasLandDetail && PropertyType != PropertyType.Condo)
             throw new InvalidOperationException($"Cannot set rental info for property type '{PropertyType}'");
 
         RentalInfo = info;

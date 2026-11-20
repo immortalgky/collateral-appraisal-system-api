@@ -13,6 +13,18 @@ namespace Reporting.Application.Models.Sections;
 /// </summary>
 public sealed class ConstructionSection
 {
+    /// <summary>ตรวจครั้งที่ (this round) — Appraisals.InspectionNumber, else the chain count + 1.</summary>
+    public string? CurrentInspectionRound { get; init; }
+
+    /// <summary>อ้างอิงรายงานการประเมิน เลขที่ — the previous appraisal's number when it is not a construction inspection.</summary>
+    public string? ReferAppraisalBookNumber { get; init; }
+
+    /// <summary>อ้างอิงรายงานการตรวจงานก่อสร้าง เลขที่ — the previous appraisal's number when it is a construction inspection.</summary>
+    public string? ReferConstructionBookNumber { get; init; }
+
+    /// <summary>ตรวจครั้งที่ of the referenced construction inspection (blank when the reference is an appraisal report).</summary>
+    public string? ReferInspectionRound { get; init; }
+
     /// <summary>
     /// One entry per building property that carries a full-detail CI record.
     /// Ordered by AppraisalProperty.SequenceNumber.
@@ -30,6 +42,9 @@ public sealed class ConstructionBuilding
     /// AppraisalPropertyId that owns this CI row.
     /// </summary>
     public string? BuildingName { get; init; }
+
+    /// <summary>เลขที่ใบอนุญาตก่อสร้าง — appraisal.BuildingAppraisalDetails.ConstructionLicenseNumber.</summary>
+    public string? LicenseNumber { get; init; }
 
     /// <summary>
     /// Work groups for this building, ordered by parameter.ConstructionWorkGroups.DisplayOrder.

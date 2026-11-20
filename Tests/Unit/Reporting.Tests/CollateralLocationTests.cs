@@ -47,13 +47,25 @@ public class CollateralLocationTests
     }
 
     [Fact]
-    public void Each_family_keeps_its_own_anchor_and_land_wins_the_shared_slot()
+    public void Each_family_keeps_its_own_anchor_and_the_shared_slot_is_land_then_condo_on_separate_lines()
     {
         var result = AppraisalSummaryCommonLoader.ComposeCollateralLocations([Condo(), Land()]);
 
-        result.LandOrCondo.Should().Be(result.Land);
         result.Land!.SubDistrict.Should().Be("หนองบอน");
         result.Condo!.SubDistrict.Should().Be("บางพลัด");
+        result.LandOrCondo!.Address.Should().Be(result.Land.Address + "\n" + result.Condo.Address);
+        result.LandOrCondo.Address.Split('\n')[1].Should().StartWith("ห้องชุดเลขที่");   // the condo text needs no label of its own
+        result.LandOrCondo.SubDistrict.Should().Be("หนองบอน");                          // เขตการปกครอง stays the land's
+    }
+
+    [Fact]
+    public void With_only_one_family_the_shared_slot_is_that_family()
+    {
+        var landOnly = AppraisalSummaryCommonLoader.ComposeCollateralLocations([Land()]);
+        var condoOnly = AppraisalSummaryCommonLoader.ComposeCollateralLocations([Condo()]);
+
+        landOnly.LandOrCondo.Should().Be(landOnly.Land);
+        condoOnly.LandOrCondo.Should().Be(condoOnly.Condo);
     }
 
     [Fact]

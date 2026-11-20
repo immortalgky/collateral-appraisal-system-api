@@ -26,13 +26,15 @@ public class ProjectLand : Entity<Guid>
     // Owner
     public string? OwnerName { get; private set; }
     public bool? IsOwnerVerified { get; private set; }
-    public string? HasObligation { get; private set; }
+    public List<string>? ObligationType { get; private set; }
     public string? ObligationDetails { get; private set; }
+    public string? MortgageDetails { get; private set; }
 
     // Document Verification
     public bool? IsLandLocationVerified { get; private set; }
-    public string? LandCheckMethodType { get; private set; }
+    public List<string>? LandCheckMethodType { get; private set; }
     public string? LandCheckMethodTypeOther { get; private set; }
+    public string? LandLocationRemark { get; private set; }
 
     // Location Details
     public string? Street { get; private set; }
@@ -43,7 +45,11 @@ public class ProjectLand : Entity<Guid>
 
     // Land Characteristics
     public string? LandShapeType { get; private set; }
+    public string? DevelopmentSuitabilityType { get; private set; }
     public string? UrbanPlanningType { get; private set; }
+    // สีผังเมืองตามแผนผังจริง (group UrbanPlanningColor; 99 = other, text in UrbanPlanningColorOther)
+    public string? UrbanPlanningColor { get; private set; }
+    public string? UrbanPlanningColorOther { get; private set; }
     public List<string>? LandZoneType { get; private set; }
     public string? LandZoneTypeOther { get; private set; }
     public List<string>? PlotLocationType { get; private set; }
@@ -54,8 +60,9 @@ public class ProjectLand : Entity<Guid>
     public decimal? SoilLevel { get; private set; }
 
     // Road Access
-    public decimal? AccessRoadWidth { get; private set; }
-    public short? RightOfWay { get; private set; }
+    public decimal? CarriagewayWidth { get; private set; }
+    public decimal? RightOfWayWidth { get; private set; }
+    public short? NumberOfLanes { get; private set; }
     public decimal? RoadFrontage { get; private set; }
     public int? NumberOfSidesFacingRoad { get; private set; }
     public string? RoadPassInFrontOfLand { get; private set; }
@@ -75,6 +82,8 @@ public class ProjectLand : Entity<Guid>
     public string? LandEntranceExitTypeOther { get; private set; }
     public List<string>? TransportationAccessType { get; private set; }
     public string? TransportationAccessTypeOther { get; private set; }
+    public List<string>? EnvironmentType { get; private set; }
+    public string? EnvironmentTypeOther { get; private set; }
     public string? PropertyAnticipationType { get; private set; }
     public string? PropertyAnticipationTypeOther { get; private set; }
 
@@ -94,6 +103,7 @@ public class ProjectLand : Entity<Guid>
     public string? OtherLegalLimitations { get; private set; }
     public List<string>? EvictionType { get; private set; }
     public string? EvictionTypeOther { get; private set; }
+    public string? EvictionRemark { get; private set; }
     public string? AllocationType { get; private set; }
 
     // Adjacent Boundaries (North/South/East/West)
@@ -142,12 +152,14 @@ public class ProjectLand : Entity<Guid>
         // Owner
         string? ownerName = null,
         bool? isOwnerVerified = null,
-        string? hasObligation = null,
+        List<string>? obligationType = null,
         string? obligationDetails = null,
+        string? mortgageDetails = null,
         // Document Verification
         bool? isLandLocationVerified = null,
-        string? landCheckMethodType = null,
+        List<string>? landCheckMethodType = null,
         string? landCheckMethodTypeOther = null,
+        string? landLocationRemark = null,
         // Location Details
         string? street = null,
         string? soi = null,
@@ -166,8 +178,8 @@ public class ProjectLand : Entity<Guid>
         decimal? landFillPercent = null,
         decimal? soilLevel = null,
         // Road Access
-        decimal? accessRoadWidth = null,
-        short? rightOfWay = null,
+        decimal? carriagewayWidth = null,
+        decimal? rightOfWayWidth = null,
         decimal? roadFrontage = null,
         int? numberOfSidesFacingRoad = null,
         string? roadPassInFrontOfLand = null,
@@ -186,6 +198,8 @@ public class ProjectLand : Entity<Guid>
         string? landEntranceExitTypeOther = null,
         List<string>? transportationAccessType = null,
         string? transportationAccessTypeOther = null,
+        List<string>? environmentType = null,
+        string? environmentTypeOther = null,
         string? propertyAnticipationType = null,
         string? propertyAnticipationTypeOther = null,
         // Legal Restrictions
@@ -204,6 +218,7 @@ public class ProjectLand : Entity<Guid>
         string? otherLegalLimitations = null,
         List<string>? evictionType = null,
         string? evictionTypeOther = null,
+        string? evictionRemark = null,
         string? allocationType = null,
         // Adjacent Boundaries
         string? northAdjacentArea = null,
@@ -219,7 +234,11 @@ public class ProjectLand : Entity<Guid>
         decimal? pondDepth = null,
         bool? hasBuilding = null,
         string? hasBuildingOther = null,
-        string? remark = null)
+        string? remark = null,
+        short? numberOfLanes = null,
+        string? developmentSuitabilityType = null,
+        string? urbanPlanningColor = null,
+        string? urbanPlanningColorOther = null)
     {
         // Property Identification
         PropertyName = propertyName;
@@ -231,13 +250,15 @@ public class ProjectLand : Entity<Guid>
         // Owner
         OwnerName = ownerName;
         IsOwnerVerified = isOwnerVerified;
-        HasObligation = hasObligation;
+        ObligationType = obligationType;
         ObligationDetails = obligationDetails;
+        MortgageDetails = mortgageDetails;
 
         // Document Verification
         IsLandLocationVerified = isLandLocationVerified;
         LandCheckMethodType = landCheckMethodType;
         LandCheckMethodTypeOther = landCheckMethodTypeOther;
+        LandLocationRemark = landLocationRemark;
 
         // Location Details
         Street = street;
@@ -259,8 +280,8 @@ public class ProjectLand : Entity<Guid>
         SoilLevel = soilLevel;
 
         // Road Access
-        AccessRoadWidth = accessRoadWidth;
-        RightOfWay = rightOfWay;
+        CarriagewayWidth = carriagewayWidth;
+        RightOfWayWidth = rightOfWayWidth;
         RoadFrontage = roadFrontage;
         NumberOfSidesFacingRoad = numberOfSidesFacingRoad;
         RoadPassInFrontOfLand = roadPassInFrontOfLand;
@@ -280,6 +301,8 @@ public class ProjectLand : Entity<Guid>
         LandEntranceExitTypeOther = landEntranceExitTypeOther;
         TransportationAccessType = transportationAccessType;
         TransportationAccessTypeOther = transportationAccessTypeOther;
+        EnvironmentType = environmentType;
+        EnvironmentTypeOther = environmentTypeOther;
         PropertyAnticipationType = propertyAnticipationType;
         PropertyAnticipationTypeOther = propertyAnticipationTypeOther;
 
@@ -299,6 +322,7 @@ public class ProjectLand : Entity<Guid>
         OtherLegalLimitations = otherLegalLimitations;
         EvictionType = evictionType;
         EvictionTypeOther = evictionTypeOther;
+        EvictionRemark = evictionRemark;
         AllocationType = allocationType;
 
         // Adjacent Boundaries
@@ -317,6 +341,10 @@ public class ProjectLand : Entity<Guid>
         HasBuilding = hasBuilding;
         HasBuildingOther = hasBuildingOther;
         Remark = remark;
+        NumberOfLanes = numberOfLanes;
+        DevelopmentSuitabilityType = developmentSuitabilityType;
+        UrbanPlanningColor = urbanPlanningColor;
+        UrbanPlanningColorOther = urbanPlanningColorOther;
     }
 
     public void AddTitle(ProjectLandTitle title)

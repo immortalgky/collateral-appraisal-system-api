@@ -29,6 +29,20 @@ public sealed class AppendixGroup
     public string? TypeNameThai { get; init; }
 
     /// <summary>
+    /// AppendixTypes.Code of a formal appendix group (BRIEF_MAP, LAND_PLAN, CITY_PLAN …); null for a Photos-tab topic.
+    /// The land + building book places the first image of some types inside its own sections (map under ที่ตั้ง,
+    /// plan under รายละเอียดที่ดิน …) as well as in the appendix.
+    /// </summary>
+    public string? TypeCode { get; init; }
+
+    /// <summary>
+    /// True when the group belongs under เอกสารแนบท้าย (copies of documents) rather than ภาคผนวก (maps, plans, photos) —
+    /// decided by the appendix type code, see AppendixSectionLoader.AttachmentTypeCodes; a type with no rule falls back
+    /// to the file format (a group holding PDFs only is an attachment).
+    /// </summary>
+    public bool IsAttachment { get; init; }
+
+    /// <summary>
     /// Number of columns for the CSS image grid. Source: AppraisalAppendices.LayoutColumns.
     /// Defaults to 2 when the DB value is null or zero.
     /// </summary>

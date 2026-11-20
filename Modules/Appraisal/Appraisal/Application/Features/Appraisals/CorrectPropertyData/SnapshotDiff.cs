@@ -181,6 +181,10 @@ internal static class SnapshotDiff
             && b.TryGetValue<decimal>(out var bd) && a.TryGetValue<decimal>(out var ad))
             return bd == ad; // 100 and 100.00 are the same figure
 
+        // A multi-select (ObligationType, LandUseType...) is a set of codes: the same codes in another order are not a change.
+        if (before is JsonArray ba && after is JsonArray aa)
+            return ba.Select(x => x?.ToString()).Order().SequenceEqual(aa.Select(x => x?.ToString()).Order());
+
         return before.ToJsonString() == after.ToJsonString();
     }
 
