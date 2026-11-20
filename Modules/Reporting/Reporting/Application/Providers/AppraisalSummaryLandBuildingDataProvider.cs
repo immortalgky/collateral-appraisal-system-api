@@ -460,7 +460,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = lad.District
             LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = lad.SubDistrict
             WHERE ap.AppraisalId = @AppraisalId
-            ORDER BY pgi.PropertyGroupId, pgi.SequenceInGroup, lt.SequenceNumber, lt.Id;
+            ORDER BY pgi.PropertyGroupId, pgi.SequenceInGroup, ap.SequenceNumber, ap.Id, lt.SequenceNumber, lt.Id;
 
             -- RS14: Q16 — Per-group building details (all groups)
             SELECT
@@ -993,9 +993,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         string? verifyPosition = AppraisalSummaryCommonLoader.NormalizePosition(verifyTask?.Position);
 
         // ── Build group lookups ───────────────────────────────────────────────────
-        var titlesByGroup = groupTitleRows
-            .GroupBy(r => r.PropertyGroupId)
-            .ToDictionary(g => g.Key, g => g.OrderBy(r => r.SequenceInGroup).ThenBy(r => r.TitleId).ToList());
+        var titlesByGroup = TitlesByGroup(groupTitleRows);
 
         // Already in print order (RS26 ORDER BY); GroupBy keeps it.
         var deductionsByGroup = deductionRows
@@ -1841,6 +1839,12 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     private static string BuildAreaString(decimal? rai, decimal? ngan, decimal? sqwa)
         // Thai land-area shorthand rai-ngan-wa; every empty position shows 0 (e.g. "9-2-41 ไร่", "1-0-0 ไร่").
         => $"{rai ?? 0:#,##0.##}-{ngan ?? 0:#,##0.##}-{sqwa ?? 0:#,##0.##} ไร่";
+
+    // Already in print order (RS13 ORDER BY); GroupBy keeps it. Do not re-sort here: GroupTitleRow
+    // does not carry lt.SequenceNumber, so that ORDER BY is the only source of title order and any
+    // C# re-sort (e.g. ThenBy(TitleId)) loses it. SequenceInGroup is the property's position, not the title's.
+    internal static Dictionary<Guid, List<GroupTitleRow>> TitlesByGroup(IEnumerable<GroupTitleRow> rows) =>
+        rows.GroupBy(r => r.PropertyGroupId).ToDictionary(g => g.Key, g => g.ToList());
 
     // Same formula and 1,000 rounding as the 100% figure (AppraisalValuationSummaryService).
     internal static decimal ForcedSaleOf(decimal total, decimal ratePct) =>

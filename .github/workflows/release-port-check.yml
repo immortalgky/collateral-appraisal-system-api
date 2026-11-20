@@ -1,0 +1,88 @@
+name: Release port check
+
+# Every commit on a release/vX.Y branch (backend AND frontend) must have reached main.
+# Unported commits are reported in ONE issue; the job only fails on script/infra errors.
+on:
+  push:
+    branches: [main, 'release/**']
+  schedule:
+    - cron: '0 1 * * *'   # 08:00 Asia/Bangkok
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: release-port-check
+  cancel-in-progress: false
+
+env:
+  ISSUE_TITLE: Release fixes not ported to main
+  ISSUE_LABEL: port-missing
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout backend
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Clone frontend
+        run: git clone --quiet https://github.com/immortalgky/collateral-appraisal-system-app.git "$RUNNER_TEMP/frontend"
+
+      - name: Check both repos
+        run: |
+          set -u
+          for pair in "be:$GITHUB_WORKSPACE" "fe:$RUNNER_TEMP/frontend"; do
+            name=${pair%%:*}; path=${pair#*:}
+            rc=0
+            pwsh -NoProfile -File deploy/Test-ReleasePorts.ps1 -RepoPath "$path" -AsJson > "$RUNNER_TEMP/$name.json" || rc=$?
+            # 1 = unported commits (reported via the issue); anything else is a real failure.
+            if [ "$rc" -gt 1 ]; then echo "::error::Test-ReleasePorts failed for $name (exit $rc)"; exit 1; fi
+          done
+
+      - name: Update the tracking issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          rows=$(jq -rs --arg owner "$GITHUB_REPOSITORY_OWNER" '
+            def esc: gsub("\\|"; "\\|");
+            add | .[] |
+            "| \(.Repo) | \(.Branch) | [\(.ShortSha)](https://github.com/\($owner)/\(.Repo)/commit/\(.Sha)) | \(.Author | esc) | \(.Subject | esc) |"
+          ' "$RUNNER_TEMP/be.json" "$RUNNER_TEMP/fe.json")
+
+          open=$(gh issue list --state open --label "$ISSUE_LABEL" --json number,title \
+            | jq -r --arg t "$ISSUE_TITLE" '[.[] | select(.title == $t)][0].number // empty')
+
+          if [ -z "$rows" ]; then
+            if [ -n "$open" ]; then
+              gh issue close "$open" --comment "All release commits have reached main. Closed by the Release port check ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)."
+            fi
+            echo "Nothing unported."
+            exit 0
+          fi
+
+          {
+            echo "These commits are on a \`release/v*\` branch but have not reached \`main\`."
+            echo
+            echo "| Repo | Branch | Commit | Author | Subject |"
+            echo "|---|---|---|---|---|"
+            echo "$rows"
+            echo
+            echo "**Fix:** \`git cherry-pick -x <sha>\` onto a branch off \`origin/main\` and open a PR to \`main\`."
+            echo "If a fix must not go to main, next time put a \`No-Port: <reason>\` line in the squash-merge commit message."
+            echo "For a commit that is already merged, land a main commit whose message contains \`(cherry picked from commit <full sha>)\` and the reason."
+          } > "$RUNNER_TEMP/body.md"
+
+          if [ -n "$open" ]; then
+            gh issue edit "$open" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh label create "$ISSUE_LABEL" --force --color D93F0B --description "A release-branch fix has not been ported to main"
+            gh issue create --title "$ISSUE_TITLE" --label "$ISSUE_LABEL" --body-file "$RUNNER_TEMP/body.md"
+          fi

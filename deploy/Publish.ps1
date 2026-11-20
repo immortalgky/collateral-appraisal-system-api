@@ -87,6 +87,47 @@ $sourceInfo = @(Get-SourceInfo 'Backend ' $repoRoot) + @(Get-SourceInfo 'Fronten
 Write-Host "==> Building from" -ForegroundColor Cyan
 $sourceInfo | Write-Host
 
+# --- Release port check: every fix on release/vX.Y should already be in main ---
+# Only for release versions (v6.1.0, v6.1.0-rc9). Timestamp dev builds skip it. It WARNS and never blocks, so
+# an exception case can still build; the banner is printed again in the final summary.
+function Write-PortBanner {
+    param([string[]]$Lines)
+    Write-Host ''
+    Write-Host '################ RELEASE PORT CHECK WARNING ################' -ForegroundColor Red
+    $Lines | ForEach-Object { Write-Host $_ -ForegroundColor Yellow }
+    Write-Host '#############################################################' -ForegroundColor Red
+    Write-Host ''
+}
+$portWarning = @()
+if ($Version -match '^v(\d+)\.(\d+)\.\d+(-rc\d+)?$') {
+    $releaseRef = "origin/release/v$($Matches[1]).$($Matches[2])"
+    Write-Host "==> Release port check ($releaseRef, backend + frontend)" -ForegroundColor Cyan
+    try {
+        $unported = @()
+        foreach ($repo in @($repoRoot, $FrontendRepo)) {
+            $repoFull = (Resolve-Path $repo -ErrorAction SilentlyContinue).ProviderPath
+            if (-not $repoFull) { throw "repo path '$repo' not found" }
+            $json = & "$PSScriptRoot/Test-ReleasePorts.ps1" -RepoPath $repoFull -Branch $releaseRef -Fetch -AsJson
+            if ($LASTEXITCODE -gt 1) { throw "the checker could not run for $repoFull (see the error above)" }
+            $unported += @($json | ConvertFrom-Json)
+        }
+        if ($unported.Count) {
+            $portWarning = @("$($unported.Count) commit(s) on $releaseRef have not reached main:") +
+                @($unported | ForEach-Object { "  $($_.Repo) $($_.Branch) $($_.ShortSha) $($_.Author) $($_.Date) $($_.Subject)" }) +
+                "Port each: 'git cherry-pick -x <sha>' on a branch off origin/main, then PR it to main." +
+                "Must not go to main? Next time put a 'No-Port: <reason>' line in the squash-merge message." +
+                "Already merged? A main commit with '(cherry picked from commit <full sha>)' + the reason clears it." +
+                "An intentional exception can still be built: this is only a warning."
+        }
+    } catch {
+        $portWarning = @("The port check could not run: $($_.Exception.Message)", "Building anyway - verify by hand that $releaseRef is fully ported to main.")
+    }
+    $global:LASTEXITCODE = 0   # the checker's exit code must not trip Invoke-Step
+    if ($portWarning) { Write-PortBanner $portWarning }
+} else {
+    Write-Host "==> Release port check skipped (version '$Version' is not vX.Y.Z[-rcN])" -ForegroundColor DarkGray
+}
+
 $stage = Join-Path $OutDir $Version
 $apiOut = Join-Path $stage 'api'
 $dbOut  = Join-Path $stage 'database'
@@ -197,6 +238,7 @@ Write-Host ""
 Write-Host "Built $zip" -ForegroundColor Green
 $sourceInfo | Write-Host
 Write-Host "  contains: api/  web/  tools/  db/$(if (Test-Path (Join-Path $stage 'rollback')) { '  rollback/' })$(if (-not $SkipDbTool) { '  database/' })   (version $Version)"
+if ($portWarning) { Write-PortBanner $portWarning }
 Write-Host ""
 Write-Host "Next:"
 Write-Host "  1. Copy this zip to C:\Deploy\temp on each app server and expand it."
