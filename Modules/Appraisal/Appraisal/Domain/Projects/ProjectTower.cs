@@ -18,8 +18,9 @@ public class ProjectTower : Entity<Guid>
 
     // Condition & Obligation
     public string? ConditionType { get; private set; }
-    public string? HasObligation { get; private set; }
+    public List<string>? ObligationType { get; private set; }
     public string? ObligationDetails { get; private set; }
+    public string? MortgageDetails { get; private set; }
     public string? DocumentValidationType { get; private set; }
 
     // Location
@@ -90,8 +91,9 @@ public class ProjectTower : Entity<Guid>
         string? condoRegistrationNumber = null,
         // Condition & Obligation
         string? conditionType = null,
-        string? hasObligation = null,
+        List<string>? obligationType = null,
         string? obligationDetails = null,
+        string? mortgageDetails = null,
         string? documentValidationType = null,
         // Location
         bool? isLocationCorrect = null,
@@ -136,8 +138,9 @@ public class ProjectTower : Entity<Guid>
 
         // Condition & Obligation
         ConditionType = conditionType;
-        HasObligation = hasObligation;
+        ObligationType = obligationType;
         ObligationDetails = obligationDetails;
+        MortgageDetails = mortgageDetails;
         DocumentValidationType = documentValidationType;
 
         // Location

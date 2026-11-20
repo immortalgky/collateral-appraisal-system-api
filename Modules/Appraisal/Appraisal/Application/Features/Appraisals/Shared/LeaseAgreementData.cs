@@ -19,7 +19,9 @@ public record LeaseAgreementData(
     string? ContractRenewal = null,
     string? RentalTermsImpactingPropertyUse = null,
     string? TerminationOfLease = null,
-    string? Remark = null
+    string? Remark = null,
+    bool? IsLeaseRegistered = null,
+    bool? IsLeaseholdPledgeable = null
 );
 
 /// <summary>
@@ -65,7 +67,9 @@ public record LeaseAgreementDetailDto(
     string? ContractRenewal,
     string? RentalTermsImpactingPropertyUse,
     string? TerminationOfLease,
-    string? Remark
+    string? Remark,
+    bool? IsLeaseRegistered,
+    bool? IsLeaseholdPledgeable
 );
 
 public record RentalInfoDto(

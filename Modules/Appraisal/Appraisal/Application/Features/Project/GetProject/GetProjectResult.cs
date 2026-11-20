@@ -43,5 +43,6 @@ public record GetProjectResult(
     decimal? ConstructionProgressPercent,
     // Type-specific (nullable)
     string? BuiltOnTitleDeedNumber,       // Condo only
-    DateTime? LicenseExpirationDate        // LandAndBuilding only
+    DateTime? LicenseExpirationDate,       // LandAndBuilding only
+    string? LicenseNumber                  // LandAndBuilding only
 );

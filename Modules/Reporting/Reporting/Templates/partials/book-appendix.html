@@ -1,0 +1,27 @@
+{{~ # Partial: ภาคผนวก of the land + building book — the appendix groups whose TYPE is a map, plan, layout or photo (is_attachment false): their images, then any PDF uploaded under the same type merged right after the group heading. ~}}
+{{ part_kind = 'body'; part_id = 'appendix'; include 'partials/book-part' }}
+<div class="bk bk-divider-page"><div class="bk-divider">ภาคผนวก</div></div>
+{{ part_kind = 'body'; part_id = ''; include 'partials/book-part' }}
+{{ for group in model.appendix_section.groups }}
+{{ if !group.is_attachment }}
+{{~ # No caption page of its own: one title block closes the group, under its last image, and the assembler stamps the same block on every PDF page (CAPTION marker on the slot below). ~}}
+{{ if group.images.size > 0 }}
+<div class="bk bk-keep">
+  {{ if group.images.size > 0 }}
+  <div class="appendix-grid cols-{{ group.layout_columns }}">
+    {{ for img in group.images }}
+    <div class="cell">
+      {{ if img.img_src }}<img alt="" src="{{ img.img_src }}"/>{{ end }}
+      {{ if img.caption }}<div class="cap">{{ img.caption }}</div>{{ end }}
+    </div>
+    {{ end }}
+  </div>
+  {{ tb_caption = group.type_name_thai; include 'partials/book-title-block' }}
+  {{ end }}
+</div>
+{{ end }}
+{{ if model.attachments_by_slot[group.slot_name] }}
+<!-- SLOT: {{ group.slot_name }} -->{{ if group.type_name_thai }}<!-- CAPTION: {{ group.type_name_thai }} -->{{ end }}<!-- pdf-margin-y:24mm -->
+{{ end }}
+{{ end }}
+{{ end }}

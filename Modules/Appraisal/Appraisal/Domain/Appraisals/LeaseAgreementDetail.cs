@@ -34,6 +34,10 @@ public class LeaseAgreementDetail : Entity<Guid>
     public string? TerminationOfLease { get; private set; }
 
     // Other
+    // Registration / collateral
+    public bool? IsLeaseRegistered { get; private set; }
+    public bool? IsLeaseholdPledgeable { get; private set; }
+
     public string? Remark { get; private set; }
 
     private LeaseAgreementDetail()
@@ -69,6 +73,8 @@ public class LeaseAgreementDetail : Entity<Guid>
             RentalTermsImpactingPropertyUse = source.RentalTermsImpactingPropertyUse,
             TerminationOfLease = source.TerminationOfLease,
             Remark = source.Remark,
+            IsLeaseRegistered = source.IsLeaseRegistered,
+            IsLeaseholdPledgeable = source.IsLeaseholdPledgeable,
         };
     }
 
@@ -88,7 +94,9 @@ public class LeaseAgreementDetail : Entity<Guid>
         string? contractRenewal = null,
         string? rentalTermsImpactingPropertyUse = null,
         string? terminationOfLease = null,
-        string? remark = null)
+        string? remark = null,
+        bool? isLeaseRegistered = null,
+        bool? isLeaseholdPledgeable = null)
     {
         if (lesseeName is not null) LesseeName = lesseeName;
         if (lessorName is not null) LessorName = lessorName;
@@ -106,5 +114,7 @@ public class LeaseAgreementDetail : Entity<Guid>
         if (rentalTermsImpactingPropertyUse is not null) RentalTermsImpactingPropertyUse = rentalTermsImpactingPropertyUse;
         if (terminationOfLease is not null) TerminationOfLease = terminationOfLease;
         if (remark is not null) Remark = remark;
+        if (isLeaseRegistered.HasValue) IsLeaseRegistered = isLeaseRegistered;
+        if (isLeaseholdPledgeable.HasValue) IsLeaseholdPledgeable = isLeaseholdPledgeable;
     }
 }

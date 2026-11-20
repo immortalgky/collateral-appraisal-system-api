@@ -48,12 +48,14 @@ public static class LandAndBuildingPropertyApplier
             address: address,
             ownerName: command.OwnerNameLand,
             isOwnerVerified: command.IsOwnerVerifiedLand,
-            hasObligation: command.HasObligation,
+            obligationType: command.ObligationType,
             obligationDetails: command.ObligationDetails,
+            mortgageDetails: command.MortgageDetails,
             // Land - Document Verification
             isLandLocationVerified: command.IsLandLocationVerified,
             landCheckMethodType: command.LandCheckMethodType,
             landCheckMethodTypeOther: command.LandCheckMethodTypeOther,
+            landLocationRemark: command.LandLocationRemark,
             // Land - Location Details
             street: command.Street,
             soi: command.Soi,
@@ -72,8 +74,8 @@ public static class LandAndBuildingPropertyApplier
             landFillTypeOther: command.LandFillTypeOther,
             landFillPercent: command.LandFillPercent,
             soilLevel: command.SoilLevel,
-            accessRoadWidth: command.AccessRoadWidth,
-            rightOfWay: command.RightOfWay,
+            carriagewayWidth: command.CarriagewayWidth,
+            rightOfWayWidth: command.RightOfWayWidth,
             roadFrontage: command.RoadFrontage,
             numberOfSidesFacingRoad: command.NumberOfSidesFacingRoad,
             roadPassInFrontOfLand: command.RoadPassInFrontOfLand,
@@ -92,6 +94,8 @@ public static class LandAndBuildingPropertyApplier
             landEntranceExitTypeOther: command.LandEntranceExitTypeOther,
             transportationAccessType: command.TransportationAccessType,
             transportationAccessTypeOther: command.TransportationAccessTypeOther,
+            environmentType: command.EnvironmentType,
+            environmentTypeOther: command.EnvironmentTypeOther,
             propertyAnticipationType: command.PropertyAnticipationType,
             propertyAnticipationTypeOther: command.PropertyAnticipationTypeOther,
             // Land - Legal
@@ -109,6 +113,7 @@ public static class LandAndBuildingPropertyApplier
             otherLegalLimitations: command.OtherLegalLimitations,
             evictionType: command.EvictionType,
             evictionTypeOther: command.EvictionTypeOther,
+            evictionRemark: command.EvictionRemark,
             allocationType: command.AllocationType,
             // Land - Boundaries
             northAdjacentArea: command.NorthAdjacentArea,
@@ -127,7 +132,19 @@ public static class LandAndBuildingPropertyApplier
             remark: command.Remark,
             isRentedOut: command.IsRentedOut,
             landOffice: command.LandOffice,
-            dopaAddress: dopaAddress);
+            dopaAddress: dopaAddress,
+            hasFloodProblem: command.HasFloodProblem,
+            floodProblemRemark: command.FloodProblemRemark,
+            hasPollutionProblem: command.HasPollutionProblem,
+            pollutionType: command.PollutionType,
+            pollutionTypeOther: command.PollutionTypeOther,
+            pollutionProblemRemark: command.PollutionProblemRemark,
+            hasOtherEnvironmentProblem: command.HasOtherEnvironmentProblem,
+            otherEnvironmentProblemRemark: command.OtherEnvironmentProblemRemark,
+            numberOfLanes: command.NumberOfLanes,
+            urbanPlanningColor: command.UrbanPlanningColor,
+            urbanPlanningColorOther: command.UrbanPlanningColorOther,
+            developmentSuitabilityType: command.DevelopmentSuitabilityType);
 
         // 6b. Sync land titles (null = no-op, empty list = clear all)
         if (command.Titles is not null)
@@ -150,11 +167,12 @@ public static class LandAndBuildingPropertyApplier
             modelName: command.ModelName,
             builtOnTitleNumber: command.BuiltOnTitleNumber,
             houseNumber: command.HouseNumber,
-            noHouseNumber: command.NoHouseNumber,
+            houseNumberStatus: command.HouseNumberStatus,
             ownerName: command.OwnerNameBuilding,
             isOwnerVerified: command.IsOwnerVerifiedBuilding,
-            hasObligation: command.HasObligation,
+            obligationType: command.ObligationType,
             obligationDetails: command.ObligationDetails,
+            mortgageDetails: command.MortgageDetails,
             // Building - Info
             buildingType: command.BuildingType,
             buildingTypeOther: command.BuildingTypeOther,
@@ -167,6 +185,7 @@ public static class LandAndBuildingPropertyApplier
             isUnderConstruction: command.IsUnderConstruction,
             constructionLicenseExpirationDate: command.ConstructionLicenseExpirationDate,
             isAppraisable: command.IsAppraisable,
+            notAppraisableReason: command.NotAppraisableReason,
             // Building - Area
             totalBuildingArea: command.TotalBuildingArea,
             // Building - Structure
@@ -180,6 +199,20 @@ public static class LandAndBuildingPropertyApplier
             constructionStyleRemark: command.ConstructionStyleRemark,
             constructionType: command.ConstructionType,
             constructionTypeOther: command.ConstructionTypeOther,
+            buildingWidth: command.BuildingWidth,
+            buildingLength: command.BuildingLength,
+            spaceDivision: command.SpaceDivision,
+            maintenanceType: command.MaintenanceType,
+            maintenanceTypeOther: command.MaintenanceTypeOther,
+            doorType: command.DoorType,
+            doorTypeOther: command.DoorTypeOther,
+            windowType: command.WindowType,
+            windowTypeOther: command.WindowTypeOther,
+            sanitaryType: command.SanitaryType,
+            sanitaryTypeOther: command.SanitaryTypeOther,
+            buildingSystemType: command.BuildingSystemType,
+            buildingSystemTypeOther: command.BuildingSystemTypeOther,
+            constructionLicenseNumber: command.ConstructionLicenseNumber,
             // Building - Components
             structureType: command.StructureType,
             structureTypeOther: command.StructureTypeOther,
@@ -246,7 +279,8 @@ public static class LandAndBuildingPropertyApplier
                     command.LeaseAgreement.Sublease, command.LeaseAgreement.AdditionalExpenses,
                     command.LeaseAgreement.LeaseTerminate, command.LeaseAgreement.ContractRenewal,
                     command.LeaseAgreement.RentalTermsImpactingPropertyUse, command.LeaseAgreement.TerminationOfLease,
-                    command.LeaseAgreement.Remark);
+                    command.LeaseAgreement.Remark,
+                    command.LeaseAgreement.IsLeaseRegistered, command.LeaseAgreement.IsLeaseholdPledgeable);
             }
 
             if (command.RentalInfo is not null)

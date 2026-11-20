@@ -17,14 +17,17 @@ public sealed class CostMachineSection
     // ── Property group routing ────────────────────────────────────────────────────
 
     /// <summary>
-    /// PropertyGroups.GroupNumber — 0 for the shared machinery section.
-    /// CostMachine is not split per property group at the outer section level;
-    /// internal splitting uses MachineCostGroup.GroupNumber instead.
+    /// PropertyGroups.GroupNumber of the group this section prints (0 = machines in no group).
+    /// The loader emits one section per property group, so this equals the single
+    /// <see cref="Groups"/> entry's GroupNumber.
     /// </summary>
     public int GroupNumber { get; init; }
 
-    /// <summary>PropertyGroups.GroupName — null for the shared machinery section.</summary>
+    /// <summary>PropertyGroups.GroupName, or null when not set.</summary>
     public string? GroupName { get; init; }
+
+    /// <summary>Which approach / role this page belongs to and whether it is a reference (printed in the page banner).</summary>
+    public PricingMethodContext? Context { get; init; }
 
     /// <summary>
     /// One block per machine property group, ordered by GroupNumber ascending.
@@ -64,6 +67,12 @@ public sealed class MachineCostGroup
 
     /// <summary>รวมมูลค่าตามสภาพ FMV (บาท) — SUM(Fmv) for the group. Null when all FMV values are null.</summary>
     public decimal? TotalFmv { get; init; }
+
+    /// <summary>ที่มาของราคาทดแทนใหม่ (RCN) — the MachineryCostRef sub-analyses of this group's machines (SubjectType 2).</summary>
+    public IReadOnlyList<PricingSubAnalysis> RcnSources { get; init; } = [];
+
+    /// <summary>หมายเหตุและสมมติฐาน — PricingAnalysisMethods.Remark of the MachineryCost method(s) of this group.</summary>
+    public string? Remark { get; init; }
 }
 
 /// <summary>
@@ -135,4 +144,7 @@ public sealed class MachineCostRow
     /// Surfaced as "ใช้งานได้" / "ใช้งานไม่ได้" by the loader.
     /// </summary>
     public string? MarketDemand { get; init; }
+
+    /// <summary>หมายเหตุ — Source: MachineCostItems.Notes (nvarchar, nullable).</summary>
+    public string? Notes { get; init; }
 }

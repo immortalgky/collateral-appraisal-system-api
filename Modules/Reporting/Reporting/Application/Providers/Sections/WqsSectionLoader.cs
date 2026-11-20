@@ -17,26 +17,19 @@ namespace Reporting.Application.Providers.Sections;
 ///       Also pulls pg.GroupNumber / pg.GroupName (for the กลุ่มที่ N bar),
 ///       pam.MethodValue → AppraisalValue and pam.ValuePerUnit → LandPerSqWa.
 ///
-///   Q2  appraisal.PricingComparableLinks (PricingMethodId, DisplaySequence)
-///       → comparable header labels ("ข้อมูล {seq}"), ordered by DisplaySequence.
+///   Q2  appraisal.PricingComparableLinks → the comparables in DisplaySequence order; appraisal.MarketComparables
+///       → the "ตลาด n" sub-line (kind · date · unit), see PricingGridCommon.
 ///
-///   Q3  appraisal.PricingComparativeFactors (PricingMethodId, FactorId, DisplaySequence)
-///       JOIN appraisal.MarketComparableFactors + appraisal.MarketComparableFactorTranslations
-///       → factor display names (Thai preferred, English fallback), ordered by DisplaySequence.
-///       WHERE IsSelectedForScoring = 1 (only scored factors appear in the WQS table).
+///   Q3  appraisal.PricingFactorScores → the factor rows (the distinct factors, in the score rows' DisplaySequence order,
+///       as the screen lists them): collateral row (MarketComparableId IS NULL) and one score row per comparable.
+///       Names: MarketComparableFactorTranslations (Thai preferred).
 ///
-///   Q4  appraisal.PricingFactorScores (PricingMethodId, MarketComparableId, FactorId,
-///       FactorWeight, Intensity, Score, DisplaySequence)
-///       → subject row  (MarketComparableId IS NULL): Weight, Intensity, Score per factor.
-///       → comparable rows (MarketComparableId IS NOT NULL): Score per factor per comparable.
+///   Q4  appraisal.PricingRsqResults → regression statistics.
+///   Q5  appraisal.PricingCalculations → the price band (stored inputs and TotalAdjustedValue).
+///   Q6  appraisal.PricingFinalValues → the Adjust Final Value block.
 ///
-///   Q5  appraisal.PricingRsqResults (PricingMethodId)
-///       → regression statistics (Rsq, Steyx, Intercept, Slope, Forecast,
-///         LowestEstimate, HighestEstimate).
-///
-/// Column sources confirmed against PricingConfiguration.cs and
-/// MarketComparableFactorConfiguration.cs. No HasColumnName overrides present on
-/// any of the five tables — DB column names match C# property names exactly.
+/// Everything printed is a stored value, except the two derivations that mirror the screen
+/// (WeightedIntensity and the รวม row), each in its own method below.
 ///
 /// Returns an empty list when no WQS method exists for the appraisal.
 /// When a group has multiple WQS methods the first one (lowest pam.Id via ORDER BY pam.Id)
@@ -52,65 +45,25 @@ internal static class WqsSectionLoader
     /// <param name="connection">An open Dapper <see cref="IDbConnection"/>.</param>
     /// <param name="appraisalId">The appraisal to load the WQS sections for.</param>
     /// <param name="ct">Cancellation token (unused by Dapper but signals intent).</param>
+    /// <param name="subjectValues">The group's subject values (ComparisonSubject); only its usable area is read, for a per-sqm final value.</param>
     public static async Task<IReadOnlyList<WqsSection>> LoadAllAsync(
         IDbConnection connection,
         Guid appraisalId,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Func<int, IReadOnlyDictionary<string, string?>>? subjectValues = null)
     {
-        var p = new DynamicParameters();
-        p.Add("AppraisalId", appraisalId);
-
-        // ── Q1: Resolve all WQS PricingMethodIds (one per property group) ─────────
-        // Navigation path:
-        //   appraisal.PropertyGroups → AnchorId in appraisal.PricingAnalysis
-        //     (SubjectType = 0 = PropertyGroup)
-        //   → appraisal.PricingAnalysisApproaches (PricingAnalysisId)
-        //   → appraisal.PricingAnalysisMethods    (ApproachId, MethodType = 'WQS')
-        //
-        // pg.GroupNumber and pg.GroupName are included so the template can print a
-        // กลุ่มที่ N bar when the list size > 1 (mirrors appraisal-book.html:30-31).
-        //
-        // ORDER BY pg.GroupNumber, pam.Id — groups appear in group order; within a
-        // group, if multiple methods exist, the first by pam.Id is used (taken in C#).
-        //
-        // MethodValue  → AppraisalValue  (PricingAnalysisMethodConfiguration: decimal 18,2)
-        // ValuePerUnit → LandPerSqWa / PricePerUnit (same column; decimal 18,2)
-        const string methodSql = """
-            SELECT
-                pg.Id          AS PropertyGroupId,
-                pg.GroupNumber,
-                pg.GroupName,
-                pam.Id         AS PricingMethodId,
-                pam.MethodValue,
-                pam.ValuePerUnit
-            FROM appraisal.PropertyGroups pg
-            JOIN appraisal.PricingAnalysis pa
-                ON pa.AnchorId  = pg.Id
-               AND pa.SubjectType = 0
-            JOIN appraisal.PricingAnalysisApproaches paa
-                ON paa.PricingAnalysisId = pa.Id
-            JOIN appraisal.PricingAnalysisMethods pam
-                ON pam.ApproachId = paa.Id
-               AND pam.MethodType = 'WQS'
-            WHERE pg.AppraisalId = @AppraisalId
-            ORDER BY pg.GroupNumber, pam.Id
-            """;
-
-        var allMethodRows = (await connection.QueryAsync<MethodRow>(methodSql, p)).ToList();
-        if (allMethodRows.Count == 0)
+        // ── Q1: the WQS methods to print ──────────────────────────────────────────
+        // PricingMethodPicker decides which: the appraiser's selected method(s) of every approach,
+        // plus the analysed-but-unselected (reference) ones — never "first method by Id".
+        var methodsPerGroup = await PricingMethodPicker.LoadAsync(connection, appraisalId, ["WQS"], ct);
+        if (methodsPerGroup.Count == 0)
             return [];
-
-        // Take the first PricingMethodId per PropertyGroup (lowest pam.Id within group).
-        var methodsPerGroup = allMethodRows
-            .GroupBy(r => r.PropertyGroupId)
-            .Select(g => g.First())        // already ordered by pam.Id within each group
-            .OrderBy(r => r.GroupNumber)   // final list ordered by group number
-            .ToList();
 
         var sections = new List<WqsSection>(methodsPerGroup.Count);
         foreach (var method in methodsPerGroup)
         {
-            var section = await LoadOneAsync(connection, method, ct);
+            var usable = PricingGridCommon.SubjectUsableArea(subjectValues?.Invoke(method.GroupNumber));
+            var section = await LoadOneAsync(connection, method, ct, usable);
             if (section is not null)
                 sections.Add(section);
         }
@@ -118,265 +71,153 @@ internal static class WqsSectionLoader
         return sections;
     }
 
-    // ── Per-method loader (unchanged logic extracted from the original LoadAsync) ──
+    /// <summary>One row per (factor, comparable [null = the collateral]); the first in the given order wins.</summary>
+    internal static List<ScoreRow> DistinctScoreRows(IEnumerable<ScoreRow> rows) =>
+        rows.GroupBy(s => (s.FactorId, s.MarketComparableId)).Select(g => g.First()).ToList();
 
-    private static async Task<WqsSection?> LoadOneAsync(
+    /// <summary>Comparable columns per printed table (A4 portrait; set by rendering).</summary>
+    private const int ComparablesPerTable = 4;
+
+    // ── Per-method loader ──────────────────────────────────────────────────────────
+
+    /// <summary>One WQS table. Also used for the sub-analyses (PricingSubAnalysisLoader).</summary>
+    internal static async Task<WqsSection?> LoadOneAsync(
         IDbConnection connection,
-        MethodRow method,
-        CancellationToken ct)
+        PickedMethod method,
+        CancellationToken ct,
+        decimal? usableArea = null)
     {
         var mp = new DynamicParameters();
         mp.Add("PricingMethodId", method.PricingMethodId);
 
-        // ── Q2: Comparable headers ────────────────────────────────────────────────
-        // Source: appraisal.PricingComparableLinks
-        //   PricingMethodId (required, FK to PricingAnalysisMethods)
-        //   MarketComparableId (required)
-        //   DisplaySequence (int, required)
-        // Header label = "ข้อมูล {DisplaySequence}".
-        const string comparablesSql = """
-            SELECT DisplaySequence
-            FROM appraisal.PricingComparableLinks
-            WHERE PricingMethodId = @PricingMethodId
-            ORDER BY DisplaySequence
-            """;
+        // Q2: comparables in column order.
+        var comparableIds = (await connection.QueryAsync<Guid>(
+            "SELECT MarketComparableId FROM appraisal.PricingComparableLinks WHERE PricingMethodId = @PricingMethodId ORDER BY DisplaySequence, MarketComparableId", mp)).ToList();
+        var headers = await PricingGridCommon.MarketHeadersAsync(connection, comparableIds);
 
-        var comparableSeqs = (await connection.QueryAsync<int>(comparablesSql, mp)).ToList();
-        var comparableHeaders = comparableSeqs
-            .Select(seq => $"ข้อมูล {seq}")
-            .ToList();
-
-        // Also need the ordered MarketComparableId list to pivot scores later (Q4).
-        const string comparableIdsSql = """
-            SELECT MarketComparableId
-            FROM appraisal.PricingComparableLinks
-            WHERE PricingMethodId = @PricingMethodId
-            ORDER BY DisplaySequence
-            """;
-
-        var comparableIds = (await connection.QueryAsync<Guid>(comparableIdsSql, mp)).ToList();
-
-        // ── Q3: Factor names (Thai preferred) ────────────────────────────────────
-        // Source tables confirmed against MarketComparableFactorConfiguration.cs:
-        //   appraisal.MarketComparableFactors          (Id, FactorCode, FieldName, IsActive)
-        //   appraisal.MarketComparableFactorTranslations (MarketComparableFactorId, Language,
-        //                                                 FactorName)
-        //
-        // PricingComparativeFactors columns confirmed against
-        // PricingComparativeFactorConfiguration.cs:
-        //   PricingMethodId, FactorId, DisplaySequence, IsSelectedForScoring (bit default 0)
-        //
-        // We LEFT JOIN translations twice: prefer 'th', fall back to 'en'.
-        // Only factors with IsSelectedForScoring = 1 appear in the WQS scoring table.
-        const string factorsSql = """
-            SELECT
-                pcf.FactorId,
-                pcf.DisplaySequence,
-                COALESCE(th.FactorName, en.FactorName, mcf.FieldName) AS FactorName
-            FROM appraisal.PricingComparativeFactors pcf
-            JOIN appraisal.MarketComparableFactors mcf
-                ON mcf.Id = pcf.FactorId
-            LEFT JOIN appraisal.MarketComparableFactorTranslations th
-                ON th.MarketComparableFactorId = mcf.Id
-               AND th.Language = 'th'
-            LEFT JOIN appraisal.MarketComparableFactorTranslations en
-                ON en.MarketComparableFactorId = mcf.Id
-               AND en.Language = 'en'
-            WHERE pcf.PricingMethodId = @PricingMethodId
-              AND pcf.IsSelectedForScoring = 1
-            ORDER BY pcf.DisplaySequence
-            """;
-
-        var factorRows = (await connection.QueryAsync<FactorNameRow>(factorsSql, mp)).ToList();
-        if (factorRows.Count == 0)
-        {
-            // WQS method exists but no factors selected for scoring.
-            // Still return a section (not null) so the template can render headings.
-        }
-
-        // ── Q4: Factor scores (subject + comparables) ─────────────────────────────
-        // Source: appraisal.PricingFactorScores
-        //   PricingMethodId, MarketComparableId (nullable; NULL = subject/collateral),
-        //   FactorId, FactorWeight (decimal 5,2), Intensity (decimal 5,2),
-        //   Score (decimal 5,2), DisplaySequence.
-        // Unique index: (PricingMethodId, MarketComparableId, FactorId).
-        const string scoresSql = """
-            SELECT
-                FactorId,
-                MarketComparableId,
-                FactorWeight,
-                Intensity,
-                Score,
-                WeightedScore
+        // Q3: score rows (NULL MarketComparableId = collateral). A null Guid? cannot be a dictionary key, so split it out.
+        var scoreRows = (await connection.QueryAsync<ScoreRow>(
+            """
+            SELECT FactorId, MarketComparableId, DisplaySequence, FactorWeight, Intensity, Score, WeightedScore
             FROM appraisal.PricingFactorScores
             WHERE PricingMethodId = @PricingMethodId
-            """;
+            ORDER BY DisplaySequence, FactorId, MarketComparableId
+            """, mp)).ToList();
 
-        var scoreRows = (await connection.QueryAsync<ScoreRow>(scoresSql, mp)).ToList();
+        // One row per (factor, comparable), taken once here, so the cells, the รวม row and the scatter's X all read the same rows:
+        // a duplicate must neither throw nor be counted twice in a sum. The first by the stored order wins.
+        scoreRows = DistinctScoreRows(scoreRows);
 
-        // The subject/collateral row has MarketComparableId = NULL and carries the factor's
-        // weight/intensity/score. A null Guid? CANNOT be a Dictionary key (Dictionary.Add
-        // rejects null keys regardless of comparer), so split it out instead of keying on null:
-        //   subjectByFactor:     factorId → subject ScoreRow (weight/intensity/score)
-        //   compScoresByFactor:  factorId → (comparableId → ScoreRow)  [non-null ids only]
-        var subjectByFactor = scoreRows
-            .Where(s => s.MarketComparableId is null)
-            .GroupBy(s => s.FactorId)
-            .ToDictionary(g => g.Key, g => g.First());
+        var factorIds = scoreRows.GroupBy(s => s.FactorId).OrderBy(g => g.Min(s => s.DisplaySequence)).Select(g => g.Key).ToList();
+        var names = factorIds.Count == 0
+            ? new Dictionary<Guid, string?>()
+            : (await connection.QueryAsync<FactorNameRow>(
+                """
+                SELECT mcf.Id AS FactorId, COALESCE(th.FactorName, en.FactorName, mcf.FieldName) AS FactorName
+                FROM appraisal.MarketComparableFactors mcf
+                LEFT JOIN appraisal.MarketComparableFactorTranslations th ON th.MarketComparableFactorId = mcf.Id AND th.Language = 'th'
+                LEFT JOIN appraisal.MarketComparableFactorTranslations en ON en.MarketComparableFactorId = mcf.Id AND en.Language = 'en'
+                WHERE mcf.Id IN @Ids
+                """, new { Ids = factorIds })).ToDictionary(r => r.FactorId, r => r.FactorName);
 
-        var compScoresByFactor = scoreRows
-            .Where(s => s.MarketComparableId is not null)
-            .GroupBy(s => s.FactorId)
-            .ToDictionary(
-                g => g.Key,
-                g => g.ToDictionary(s => s.MarketComparableId!.Value, s => s));
+        var subjectByFactor = scoreRows.Where(s => s.MarketComparableId is null).GroupBy(s => s.FactorId).ToDictionary(g => g.Key, g => g.First());
+        var compScoresByFactor = scoreRows.Where(s => s.MarketComparableId is not null).GroupBy(s => s.FactorId)
+            .ToDictionary(g => g.Key, g => g.ToDictionary(s => s.MarketComparableId!.Value, s => s)); // (factor, comparable) is unique after the de-duplication above
 
-        // ── Q5: Regression statistics ─────────────────────────────────────────────
-        // Source: appraisal.PricingRsqResults
-        //   PricingMethodId (unique index), CoefficientOfDecision (decimal 18,10) → Rsq,
-        //   StandardError (decimal 18,2) → Steyx,
-        //   IntersectionPoint (decimal 18,2) → Intercept,
-        //   Slope (decimal 18,2), RsqFinalValue (decimal 18,2) → Forecast,
-        //   LowestEstimate (decimal 18,2), HighestEstimate (decimal 18,2).
-        const string rsqSql = """
-            SELECT
-                CoefficientOfDecision AS Rsq,
-                StandardError         AS Steyx,
-                IntersectionPoint     AS Intercept,
-                Slope,
-                RsqFinalValue         AS Forecast,
-                LowestEstimate,
-                HighestEstimate
-            FROM appraisal.PricingRsqResults
-            WHERE PricingMethodId = @PricingMethodId
-            """;
-
-        var rsq = await connection.QueryFirstOrDefaultAsync<RsqRow>(rsqSql, mp);
-
-        // ── Build WqsFactorRow list ───────────────────────────────────────────────
-        var factors = factorRows.Select(f =>
+        var factors = factorIds.Select(fid =>
         {
-            subjectByFactor.TryGetValue(f.FactorId, out var subjectScore);
-            compScoresByFactor.TryGetValue(f.FactorId, out var byComparable);
-
-            // Pivot comparable scores in the same order as comparableIds
-            var comparableScores = comparableIds
-                .Select(cid =>
-                {
-                    if (byComparable is not null && byComparable.TryGetValue(cid, out var cs))
-                        return cs.Score;
-                    return (decimal?)null;
-                })
-                .ToList();
-
+            subjectByFactor.TryGetValue(fid, out var subj);
+            compScoresByFactor.TryGetValue(fid, out var byComp);
+            ScoreRow? Comp(Guid cid) => byComp is not null && byComp.TryGetValue(cid, out var cs) ? cs : null;
             return new WqsFactorRow
             {
-                FactorName       = f.FactorName,
-                Weight           = subjectScore?.FactorWeight,
-                Intensity        = subjectScore?.Intensity,
-                Score            = subjectScore?.Score,
-                ComparableScores = comparableScores
+                FactorName         = names.GetValueOrDefault(fid),
+                Weight             = PricingGridCommon.Whole(subj?.FactorWeight),
+                Intensity          = PricingGridCommon.Whole(subj?.Intensity),
+                WeightedIntensity  = WeightedIntensity(subj?.FactorWeight, subj?.Intensity),
+                SubjectScore       = PricingGridCommon.Whole(subj?.Score),
+                SubjectWeighted    = PricingGridCommon.Money(subj?.WeightedScore),
+                ComparableScores   = comparableIds.Select(c => PricingGridCommon.Whole(Comp(c)?.Score)).ToList(),
+                ComparableWeighted = comparableIds.Select(c => PricingGridCommon.Money(Comp(c)?.WeightedScore)).ToList(),
             };
         }).ToList();
 
-        // ── Q6: Per-comparable calculation row (scatter + price block) ────────────
-        // Scatter: X = total weighted score per comparable; Y = TotalAdjustedValue.
-        // Price block (FSD §2.1.2.9): purchase/offer prices + their adjustments, sourced
-        // from PricingCalculations (populated for WQS too — see SaveComparativeAnalysis).
-        //   ราคาซื้อขาย            = SellingPrice
-        //   การปรับแก้ราคาซื้อขาย % = CumulativeAdjPeriod
-        //   ราคาซื้อขายสุทธิหลังปรับ = SellingPrice × (1 + CumulativeAdjPeriod/100)
-        //   ราคาเสนอขาย            = OfferingPrice
-        //   การปรับแก้ราคาเสนอขาย % = AdjustOfferPricePct
-        //   ราคาเสนอขายสุทธิหลังปรับ = AdjustOfferPriceAmt (override) | OfferingPrice × (1 − AdjustOfferPricePct/100)
-        // "after adjust" math mirrors PricingCalculationHelper.ComputeInitialPrice.
-        const string calcSql = """
-            SELECT
-                MarketComparableId,
-                TotalAdjustedValue,
-                SellingPrice,
-                CumulativeAdjPeriod,
-                OfferingPrice,
-                AdjustOfferPricePct,
-                AdjustOfferPriceAmt
-            FROM appraisal.PricingCalculations
-            WHERE PricingMethodId = @PricingMethodId
-            """;
-        var calcByComparable = (await connection.QueryAsync<CalcRow>(calcSql, mp))
-            .GroupBy(c => c.MarketComparableId)
-            .ToDictionary(g => g.Key, g => g.First());
+        // Q4: regression statistics.
+        var rsq = await connection.QueryFirstOrDefaultAsync<RsqRow>(
+            """
+            SELECT CoefficientOfDecision AS Rsq, StandardError AS Steyx, IntersectionPoint AS Intercept, Slope,
+                   RsqFinalValue AS Forecast, LowestEstimate, HighestEstimate
+            FROM appraisal.PricingRsqResults WHERE PricingMethodId = @PricingMethodId
+            """, mp);
 
-        var priceByComparable = calcByComparable
-            .Where(kv => kv.Value.TotalAdjustedValue.HasValue)
-            .ToDictionary(kv => kv.Key, kv => kv.Value.TotalAdjustedValue!.Value);
+        // Q5: per-comparable calculation rows.
+        var calcByComparable = (await connection.QueryAsync<CalcRow>(
+            """
+            SELECT MarketComparableId, TotalAdjustedValue, SellingPrice, BuySellYear, AdjustedPeriodPct, CumulativeAdjPeriod,
+                   OfferingPrice, AdjustOfferPricePct, AdjustOfferPriceAmt
+            FROM appraisal.PricingCalculations WHERE PricingMethodId = @PricingMethodId
+            """, mp)).GroupBy(c => c.MarketComparableId).ToDictionary(g => g.Key, g => g.First());
 
-        // Total weighted score per comparable (skip null weighted scores).
-        var scoreByComparable = scoreRows
-            .Where(s => s.MarketComparableId is not null && s.WeightedScore.HasValue)
-            .GroupBy(s => s.MarketComparableId!.Value)
-            .ToDictionary(g => g.Key, g => g.Sum(s => s.WeightedScore!.Value));
-
-        // Comparable (X, Y) pairs — both must be present (WqsCalculationService rule).
+        // Scatter: X = Σ stored WeightedScore per comparable, Y = TotalAdjustedValue.
+        var scoreByComparable = scoreRows.Where(s => s.MarketComparableId is not null && s.WeightedScore.HasValue)
+            .GroupBy(s => s.MarketComparableId!.Value).ToDictionary(g => g.Key, g => g.Sum(s => s.WeightedScore!.Value));
         var dataPoints = scoreByComparable
-            .Where(kv => kv.Value != 0m && priceByComparable.ContainsKey(kv.Key))
-            .Select(kv => (X: (double)kv.Value, Y: (double)priceByComparable[kv.Key]))
+            .Where(kv => kv.Value != 0m && calcByComparable.TryGetValue(kv.Key, out var c) && c.TotalAdjustedValue.HasValue)
+            .Select(kv => (X: (double)kv.Value, Y: (double)calcByComparable[kv.Key].TotalAdjustedValue!.Value))
             .ToList();
-
         var scatter = BuildScatter(dataPoints, subjectByFactor, rsq);
 
-        // ── Totals row (ผลรวม) ────────────────────────────────────────────────────
-        // ΣWeight and Σ(Weight×Intensity) across factors; per-comparable and subject
-        // totals = Σ(Score×Weight) = ΣWeightedScore (the scatter X axis).
-        decimal? totalWeight = factors.Any(f => f.Weight.HasValue)
-            ? factors.Sum(f => f.Weight ?? 0m)
-            : null;
-        decimal? totalMaxScore = factors.Any(f => f.Weight.HasValue && f.Intensity.HasValue)
-            ? factors.Sum(f => (f.Weight ?? 0m) * (f.Intensity ?? 0m))
-            : null;
+        // Q6: Adjust Final Value.
+        var finalRows = PricingGridCommon.FinalRows(
+            await PricingGridCommon.LoadFinalValueAsync(connection, method.PricingMethodId), method.UnitType, "มูลค่าสุทธิ (การถดถอย)", perUnitSuffix: false, usableArea);
 
-        var comparableScoreTotals = comparableIds
-            .Select(cid => scoreByComparable.TryGetValue(cid, out var t) ? (decimal?)t : null)
-            .ToList();
-
-        decimal? subjectScoreTotal = subjectByFactor.Values.Any(s => s.WeightedScore.HasValue)
-            ? subjectByFactor.Values.Sum(s => s.WeightedScore ?? 0m)
-            : null;
-
-        // ── Price block (FSD §2.1.2.9) ────────────────────────────────────────────
-        var priceRows = BuildPriceRows(comparableIds, calcByComparable);
-
-        // ── เนื้อที่ดิน = ราคาประเมิน ÷ ตารางวาละ ──────────────────────────────────
-        decimal? landArea =
-            method.MethodValue.HasValue && method.ValuePerUnit.HasValue && method.ValuePerUnit.Value != 0m
-                ? method.MethodValue.Value / method.ValuePerUnit.Value
-                : null;
-
-        // ── Build section ─────────────────────────────────────────────────────────
         return new WqsSection
         {
-            GroupNumber           = method.GroupNumber,
-            GroupName             = method.GroupName,
-            ComparableHeaders     = comparableHeaders,
-            Factors               = factors,
-            TotalWeight           = totalWeight,
-            TotalMaxScore         = totalMaxScore,
-            ComparableScoreTotals = comparableScoreTotals,
-            SubjectScoreTotal     = subjectScoreTotal,
-            PriceRows             = priceRows,
-            LandArea              = landArea,
-            Rsq                   = rsq?.Rsq,
+            GroupNumber       = method.GroupNumber,
+            GroupName         = method.GroupName,
+            Context           = method.Context,
+            ComparableHeaders = headers,
+            Chunks            = PricingGridCommon.Chunks(comparableIds.Count, ComparablesPerTable),
+            Factors           = factors,
+            Totals            = TotalsRow(factorIds, scoreRows, comparableIds),
+            PriceRows         = BuildPriceRows(comparableIds, calcByComparable),
+            Rsq               = rsq?.Rsq,
             Steyx             = rsq?.Steyx,
             Intercept         = rsq?.Intercept,
             Slope             = rsq?.Slope,
             Forecast          = rsq?.Forecast,
             LowestEstimate    = rsq?.LowestEstimate,
             HighestEstimate   = rsq?.HighestEstimate,
-            LandPerSqWa       = method.ValuePerUnit,
-            PricePerUnit      = method.ValuePerUnit,
-            AppraisalValue    = method.MethodValue,
+            FinalRows         = finalRows,
             Scatter           = scatter
         };
     }  // LoadOneAsync
+
+    // ── Derived cells (not stored; each mirrors the screen's own formula) ──────────
+
+    /// <summary>คะแนน (การคำนวณ) per factor — mirrors the screen's calcWeightedScore (domain/calculateWQS.ts): round2(weight × intensity).</summary>
+    internal static string? WeightedIntensity(decimal? weight, decimal? intensity) =>
+        weight is null && intensity is null ? null : PricingGridCommon.Money(PricingGridCommon.Round2((weight ?? 0m) * (intensity ?? 0m)));
+
+    /// <summary>The รวม row — mirrors the screen's total row: raw column sums (stored WeightedScore for the ถ่วงน้ำหนัก columns).</summary>
+    internal static WqsTotalsRow TotalsRow(IReadOnlyList<Guid> factorIds, IReadOnlyList<ScoreRowView> scoreRows, IReadOnlyList<Guid> comparableIds)
+    {
+        var inTable = scoreRows.Where(s => factorIds.Contains(s.FactorId)).ToList();
+        var subject = inTable.Where(s => s.MarketComparableId is null).ToList();
+        static decimal? Sum(IEnumerable<decimal?> v) { var l = v.Where(x => x.HasValue).ToList(); return l.Count == 0 ? null : l.Sum(x => x!.Value); }
+        var perFactor = subject.Select(s => s.FactorWeight.HasValue || s.Intensity.HasValue
+            ? PricingGridCommon.Round2((s.FactorWeight ?? 0m) * (s.Intensity ?? 0m)) : (decimal?)null);
+        return new WqsTotalsRow
+        {
+            Weight             = PricingGridCommon.Whole(Sum(subject.Select(s => s.FactorWeight))),
+            Intensity          = PricingGridCommon.Whole(Sum(subject.Select(s => s.Intensity))),
+            WeightedIntensity  = PricingGridCommon.Whole(Sum(perFactor)),
+            SubjectScore       = PricingGridCommon.Whole(Sum(subject.Select(s => s.Score))),
+            SubjectWeighted    = PricingGridCommon.Money(Sum(subject.Select(s => s.WeightedScore))),
+            ComparableScores   = comparableIds.Select(c => PricingGridCommon.Whole(Sum(inTable.Where(s => s.MarketComparableId == c).Select(s => s.Score)))).ToList(),
+            ComparableWeighted = comparableIds.Select(c => PricingGridCommon.Money(Sum(inTable.Where(s => s.MarketComparableId == c).Select(s => s.WeightedScore)))).ToList(),
+        };
+    }
 
     // ── Scatter geometry (computed in C# so the template only emits literals) ────────
 
@@ -462,84 +303,67 @@ internal static class WqsSectionLoader
         };
     }
 
-    // ── Price block construction (FSD §2.1.2.9) ──────────────────────────────────
+    // ── Price band ───────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Builds the six price-adjustment rows from per-comparable <see cref="CalcRow"/>s.
-    /// A row is emitted only when at least one comparable carries a value, so a WQS
-    /// analysis scored purely on quality factors shows no empty price block.
+    /// The screen's price band, all rows always: stored inputs per comparable, blank where the comparable has none
+    /// (adjusted offer only with an offer price; years / period only with a sale price). The bold last row is
+    /// PricingCalculations.TotalAdjustedValue. No row at all when no comparable carries a price.
     /// </summary>
-    private static IReadOnlyList<WqsPriceRow> BuildPriceRows(
-        IReadOnlyList<Guid> comparableIds,
-        IReadOnlyDictionary<Guid, CalcRow> calcByComparable)
+    private static IReadOnlyList<WqsPriceRow> BuildPriceRows(IReadOnlyList<Guid> comparableIds, IReadOnlyDictionary<Guid, CalcRow> calc)
     {
-        const string Unit = "บาท/ตารางวา";
+        if (!comparableIds.Any(id => calc.TryGetValue(id, out var c) && (HasOffer(c) || HasSale(c))))
+            return [];
 
-        WqsPriceRow? Row(string label, Func<CalcRow, decimal?> selector)
+        WqsPriceRow Row(string label, Func<CalcRow, string?> cell, bool emphasis = false) => new()
         {
-            var values = comparableIds
-                .Select(id => calcByComparable.TryGetValue(id, out var c) ? selector(c) : null)
-                .Select(v => v.HasValue ? v.Value.ToString("N2") : null)
-                .ToList();
-            return values.Any(v => v is not null)
-                ? new WqsPriceRow { Label = label, Unit = Unit, Values = values }
-                : null;
-        }
-
-        // ราคาซื้อขายสุทธิหลังปรับ = SellingPrice × (1 + CumulativeAdjPeriod/100)
-        static decimal? PurchaseNet(CalcRow c) =>
-            c.SellingPrice.HasValue
-                ? c.SellingPrice.Value * (1m + (c.CumulativeAdjPeriod ?? 0m) / 100m)
-                : null;
-
-        // ราคาเสนอขายสุทธิหลังปรับ = AdjustOfferPriceAmt (override) | OfferingPrice × (1 − pct/100)
-        static decimal? OfferNet(CalcRow c)
-        {
-            if (c.AdjustOfferPriceAmt is { } amt && amt != 0m) return amt;
-            if (c.OfferingPrice.HasValue)
-                return c.OfferingPrice.Value * (1m - (c.AdjustOfferPricePct ?? 0m) / 100m);
-            return null;
-        }
-
-        var rows = new List<WqsPriceRow?>
-        {
-            Row("ราคาซื้อขาย", c => c.SellingPrice),
-            Row("การปรับแก้ราคาซื้อขาย (%)", c => c.CumulativeAdjPeriod),
-            Row("ราคาซื้อขายสุทธิหลังปรับ", PurchaseNet),
-            Row("ราคาเสนอขาย", c => c.OfferingPrice),
-            Row("การปรับแก้ราคาเสนอขาย (%)", c => c.AdjustOfferPricePct),
-            Row("ราคาเสนอขายสุทธิหลังปรับ", OfferNet),
+            Label = label,
+            Values = comparableIds.Select(id => calc.TryGetValue(id, out var c) ? cell(c) : null).ToList(),
+            Emphasis = emphasis
         };
 
-        return rows.Where(r => r is not null).Select(r => r!).ToList();
+        return
+        [
+            Row("ราคาเสนอขาย", c => HasOffer(c) ? PricingGridCommon.Money(c.OfferingPrice) : null),
+            Row("ราคาเสนอขายที่ปรับแล้ว (%)", c => HasOffer(c) ? PricingGridCommon.Money(c.AdjustOfferPricePct) : null),
+            Row("ราคาเสนอขายที่ปรับแล้ว (จำนวนเงิน)", c => HasOffer(c) ? PricingGridCommon.Money(c.AdjustOfferPriceAmt) : null),
+            Row("ราคาขาย", c => HasSale(c) ? PricingGridCommon.Money(c.SellingPrice) : null),
+            Row("จำนวนปี", c => HasSale(c) ? c.BuySellYear?.ToString(System.Globalization.CultureInfo.InvariantCulture) : null),
+            Row("ระยะเวลาที่ปรับแล้ว (%)", c => HasSale(c) ? PricingGridCommon.Money(c.AdjustedPeriodPct) : null),
+            Row("ระยะเวลาที่ปรับแล้วสะสม (%)", c => HasSale(c) ? PricingGridCommon.Money(c.CumulativeAdjPeriod) : null),
+            Row("มูลค่าที่ปรับแล้ว", c => PricingGridCommon.Money(c.TotalAdjustedValue), emphasis: true),
+        ];
     }
+
+    private static bool HasOffer(CalcRow c) => c.OfferingPrice is > 0m;
+    private static bool HasSale(CalcRow c) => c.SellingPrice is > 0m;
 
     // ── Private flat DTOs for Dapper mapping ─────────────────────────────────────
-
-    private sealed class MethodRow
-    {
-        public Guid    PropertyGroupId  { get; init; }
-        public int     GroupNumber      { get; init; }
-        public string? GroupName        { get; init; }
-        public Guid    PricingMethodId  { get; init; }
-        public decimal? MethodValue     { get; init; }
-        public decimal? ValuePerUnit    { get; init; }
-    }
 
     private sealed class FactorNameRow
     {
         public Guid FactorId { get; init; }
-        public int DisplaySequence { get; init; }
         public string? FactorName { get; init; }
     }
 
-    private sealed class ScoreRow
+    internal interface ScoreRowView
+    {
+        Guid FactorId { get; }
+        Guid? MarketComparableId { get; }
+        decimal? FactorWeight { get; }
+        decimal? Intensity { get; }
+        decimal? Score { get; }
+        decimal? WeightedScore { get; }
+    }
+
+    internal sealed class ScoreRow : ScoreRowView
     {
         public Guid FactorId { get; init; }
 
         // Nullable: null = subject/collateral row (MarketComparableId IS NULL in DB).
         public Guid? MarketComparableId { get; init; }
 
+        public int DisplaySequence { get; init; }
         public decimal? FactorWeight { get; init; }
         public decimal? Intensity { get; init; }
         public decimal? Score { get; init; }
@@ -551,6 +375,8 @@ internal static class WqsSectionLoader
         public Guid MarketComparableId { get; init; }
         public decimal? TotalAdjustedValue { get; init; }
         public decimal? SellingPrice { get; init; }
+        public int? BuySellYear { get; init; }
+        public decimal? AdjustedPeriodPct { get; init; }
         public decimal? CumulativeAdjPeriod { get; init; }
         public decimal? OfferingPrice { get; init; }
         public decimal? AdjustOfferPricePct { get; init; }

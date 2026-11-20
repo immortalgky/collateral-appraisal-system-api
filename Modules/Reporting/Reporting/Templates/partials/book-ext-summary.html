@@ -1,0 +1,57 @@
+{{~ # Partial: the external book's สรุปผลการประเมินมูลค่าทรัพย์สิน page — a numbered FRONT part (id "extsummary", right after the contents), so it keeps the normal running header and footer. Its own markup (the company letter has its own table). Included by appraisal-book.html for external books. Every row is left out when its value is not stated. ~}}
+{{ include 'partials/book-funcs' }}
+{{- func kvl
+  parts = $0 | string.split "\n"
+  if parts.size < 2
+    ret $0
+  end
+  html = ''
+  for p in parts
+    html = html + '<div>' + p + '</div>'
+  end
+  ret html
+end -}}
+{{~ # nb: keeps the "(หรือ N ตารางวา)" tail of an area line in one piece, so a line never breaks inside ตารางวา. ~}}
+{{- func nb
+  parts = $0 | string.split "(หรือ"
+  if parts.size != 2
+    ret $0
+  end
+  ret parts[0] + '<span style="white-space:nowrap">(หรือ' + parts[1] + '</span>'
+end -}}
+{{ part_kind = 'front'; part_id = 'extsummary'; include 'partials/book-part' }}
+<div class="bk">
+  <div class="bk-title">สรุปผลการประเมินมูลค่าทรัพย์สิน</div>
+  <div class="vk bk-ext">
+    {{ if model.customer_name }}{{ vk 'ชื่อลูกค้า' model.customer_name }}{{ end }}
+    {{ if model.appraisal_date }}{{ vk 'วันที่ประเมินมูลค่า' (thai.date model.appraisal_date) }}{{ end }}
+    {{ if model.appraisal_purpose }}{{ vk 'วัตถุประสงค์' model.appraisal_purpose }}{{ end }}
+    {{ if model.appraisal_criteria }}{{ vk 'หลักเกณฑ์การประเมินมูลค่า' model.appraisal_criteria }}{{ end }}
+    {{ if model.property_type_summary }}{{ vk 'ประเภททรัพย์สิน' model.property_type_summary }}{{ end }}
+    {{ if model.location_text }}{{ vk 'ที่ตั้งทรัพย์สิน' (kvl model.location_text) }}{{ end }}
+    {{~ # รายละเอียดทรัพย์สิน: the opening sentence, then one bold-titled block per part that exists (the first line runs on after the title). ~}}
+    {{ if model.property_blocks.size > 0 }}
+      {{ nar = '<div>ทรัพย์สินที่ประเมินมูลค่า' + (model.property_type_summary ? ' เป็น' + model.property_type_summary : '') + ' ประกอบด้วย</div>' }}
+      {{ for b in model.property_blocks }}{{ for l in b.lines }}{{ if for.first }}{{ nar = nar + '<div class="pb"><b>' + b.title + '</b> ' + (nb l) + '</div>' }}{{ else }}{{ nar = nar + '<div class="pl">' + (nb l) + '</div>' }}{{ end }}{{ end }}{{ end }}
+      {{ vk 'รายละเอียดทรัพย์สิน' nar }}
+    {{ end }}
+    {{ if model.land_owner }}{{ vk 'ผู้ถือกรรมสิทธิ์ที่ดิน' (kvl model.land_owner) }}{{ end }}
+    {{ if model.building_owner }}{{ vk 'ผู้ถือกรรมสิทธิ์สิ่งปลูกสร้าง' (kvl model.building_owner) }}{{ end }}
+    {{ if model.condo_owner }}{{ vk 'ผู้ถือกรรมสิทธิ์ห้องชุด' (kvl model.condo_owner) }}{{ end }}
+    {{ if model.obligation_mortgage }}{{ vk 'ภาระผูกพันการจำนอง' (kvl model.obligation_mortgage) }}{{ vk 'ภาระผูกพันอื่นๆ' (kvl model.obligation_others) }}{{ end }}
+    {{ if model.eviction_text }}{{ vk 'การรอนสิทธิ' (kvl model.eviction_text) }}{{ end }}
+    {{ vk 'ข้อจำกัดทางผังเมือง' (model.city_plan ? model.city_plan : '<span class="na">-</span>') }}
+    {{ if model.approach_methods_text }}{{ vk 'วิธีการประเมินมูลค่า' ('บริษัทฯ เลือกใช้' + model.approach_methods_text + ' เป็นเกณฑ์ในการกำหนดมูลค่าตลาดของทรัพย์สิน') }}{{ end }}
+  </div>
+
+  {{ if model.collateral_value || model.forced_sale_value || model.building_coverage_amount }}
+  <div class="bk-valbox">
+    <div class="t">มูลค่าตลาดตามสภาพปัจจุบัน</div>
+    <table role="presentation" class="bk-val">
+      {{ if model.collateral_value }}<tr><td class="k"><div class="b">&bull; มูลค่าตลาด</div><div>(Market Value)</div></td><td class="c">:</td><td class="v"><div>{{ f0 model.collateral_value }}.- บาท</div><div class="b">({{ thai.baht_text model.collateral_value }})</div></td></tr>{{ end }}
+      {{ if model.forced_sale_value }}<tr><td class="k"><div class="b">&bull; มูลค่าบังคับขาย{{ if model.force_sale_rate != null }} ({{ fx model.force_sale_rate }}%){{ end }}</div><div>(Forced Sale Value)</div></td><td class="c">:</td><td class="v"><div>{{ f0 model.forced_sale_value }}.- บาท</div><div class="b">({{ thai.baht_text model.forced_sale_value }})</div></td></tr>{{ end }}
+      {{ if model.building_coverage_amount }}<tr><td class="k"><div class="b">&bull; ทุนประกันภัยสิ่งปลูกสร้าง</div><div>(Insurance Value)</div></td><td class="c">:</td><td class="v"><div>{{ f0 model.building_coverage_amount }}.- บาท</div><div class="b">({{ thai.baht_text model.building_coverage_amount }})</div></td></tr>{{ end }}
+    </table>
+  </div>
+  {{ end }}
+</div>

@@ -24,8 +24,9 @@ public record GetLeaseAgreementLandPropertyResult
     // Owner Details
     public string? OwnerName { get; init; }
     public bool IsOwnerVerified { get; init; }
-    public string? HasObligation { get; init; }
+    public List<string>? ObligationType { get; init; }
     public string? ObligationDetails { get; init; }
+    public string? MortgageDetails { get; init; }
 
     // Location
     public string? Street { get; init; }
@@ -44,8 +45,9 @@ public record GetLeaseAgreementLandPropertyResult
 
     // Document Verification
     public bool? IsLandLocationVerified { get; init; }
-    public string? LandCheckMethodType { get; init; }
+    public List<string>? LandCheckMethodType { get; init; }
     public string? LandCheckMethodTypeOther { get; init; }
+    public string? LandLocationRemark { get; init; }
 
     public decimal? DistanceFromMainRoad { get; init; }
     public string? AddressLocation { get; init; }
@@ -53,7 +55,10 @@ public record GetLeaseAgreementLandPropertyResult
     // Land Characteristics
     public string? LandShapeType { get; init; }
     public string? LandShapeTypeOther { get; init; }
+    public string? DevelopmentSuitabilityType { get; init; }
     public string? UrbanPlanningType { get; init; }
+    public string? UrbanPlanningColor { get; init; }
+    public string? UrbanPlanningColorOther { get; init; }
     public List<string>? LandZoneType { get; init; }
     public string? LandZoneTypeOther { get; init; }
 
@@ -65,8 +70,9 @@ public record GetLeaseAgreementLandPropertyResult
     public decimal? SoilLevel { get; init; }
 
     // Road Access
-    public decimal? AccessRoadWidth { get; init; }
-    public short? RightOfWay { get; init; }
+    public decimal? CarriagewayWidth { get; init; }
+    public decimal? RightOfWayWidth { get; init; }
+    public short? NumberOfLanes { get; init; }
     public decimal? RoadFrontage { get; init; }
     public int? NumberOfSidesFacingRoad { get; init; }
     public string? RoadPassInFrontOfLand { get; init; }
@@ -86,6 +92,8 @@ public record GetLeaseAgreementLandPropertyResult
     public string? LandEntranceExitTypeOther { get; init; }
     public List<string>? TransportationAccessType { get; init; }
     public string? TransportationAccessTypeOther { get; init; }
+    public List<string>? EnvironmentType { get; init; }
+    public string? EnvironmentTypeOther { get; init; }
     public string? PropertyAnticipationType { get; init; }
     public string? PropertyAnticipationTypeOther { get; init; }
 
@@ -101,9 +109,18 @@ public record GetLeaseAgreementLandPropertyResult
     public string? LandlockedRemark { get; init; }
     public bool? IsForestBoundary { get; init; }
     public string? ForestBoundaryRemark { get; init; }
+    public bool? HasFloodProblem { get; init; }
+    public string? FloodProblemRemark { get; init; }
+    public bool? HasPollutionProblem { get; init; }
+    public List<string>? PollutionType { get; init; }
+    public string? PollutionTypeOther { get; init; }
+    public string? PollutionProblemRemark { get; init; }
+    public bool? HasOtherEnvironmentProblem { get; init; }
+    public string? OtherEnvironmentProblemRemark { get; init; }
     public string? OtherLegalLimitations { get; init; }
     public List<string>? EvictionType { get; init; }
     public string? EvictionTypeOther { get; init; }
+    public string? EvictionRemark { get; init; }
     public string? AllocationType { get; init; }
 
     // Adjacent Boundaries

@@ -1,0 +1,6 @@
+{{~ # Partial: the ข้อจำกัดของหลักประกัน sub-heading of ONE land (caller sets ls), printed in land 3.1 (the heading must not say กฎหมาย). This block holds only แนวเวนคืน and แนวเขตป่าไม้, both yes / no: their detail (decree, remarks) is in the Law & Regulation records of section 4. The landlocked row is gone (การเข้าถึงที่ดิน in 1.3 says it) and so is การบุกรุก (IsEncroached is now the deduction table's toggle, and 2.1 already shows that table). ~}}
+<div class="vk-sub">ข้อจำกัดของหลักประกัน</div>
+<div class="vk bk-keep">
+  {{ vk 'แนวเวนคืน' ((cb (ls.is_in_expropriation_line == false) 'ไม่อยู่ในแนวเวนคืน') + (cb (ls.is_in_expropriation_line == true) 'อยู่ในแนวเวนคืน')) }}
+  {{ prob 'แนวเขตป่าไม้' ls.is_forest_boundary 'ไม่อยู่' 'อยู่' }}
+</div>

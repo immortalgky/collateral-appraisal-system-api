@@ -23,6 +23,22 @@ public static class ThaiLandAreaFormatter
     }
 
     /// <summary>
+    /// The area in words as the book's cover and cost summary print it, from a total in square wa (the caller guards a zero total).
+    /// Leading zero units are dropped (no ไร่ when there are none, no งาน either when there are no ไร่ and no งาน) and the
+    /// "(หรือ N ตารางวา)" tail only follows when a ไร่ or งาน part was printed; once ไร่ is there the inner and trailing zeros stay, as on a deed.
+    /// <paramref name="waUnit"/> is the unit written after the wa figure ("ตารางวา" or the short "ตร.ว."); the tail always says "ตารางวา".
+    /// </summary>
+    public static string Describe(decimal totalSquareWa, string waUnit = "ตารางวา")
+    {
+        var t = NormalizeTotal(0m, 0m, totalSquareWa);
+        var wa = $"{t.Wa:#,##0.##} {waUnit}";
+        if (t.Rai == 0 && t.Ngan == 0)
+            return wa;
+        var parts = t.Rai > 0 ? $"{t.Rai:#,##0} ไร่ {t.Ngan} งาน {wa}" : $"{t.Ngan} งาน {wa}";
+        return $"{parts} (หรือ {t.TotalSquareWa:#,##0.##} ตารางวา)";
+    }
+
+    /// <summary>
     /// Normalises the raw rai/ngan/wa sums into a carried rai-ngan-wa triple plus the
     /// absolute total in square wa. Same arithmetic as <see cref="FormatTotal"/> so a
     /// table total row and the formatted string can never disagree.

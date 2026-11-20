@@ -21,12 +21,16 @@ public class
         builder.Property(e => e.ModelName).HasMaxLength(100);
         builder.Property(e => e.BuiltOnTitleNumber).HasMaxLength(500);
         builder.Property(e => e.HouseNumber).HasMaxLength(50);
-        builder.Property(e => e.NoHouseNumber).HasMaxLength(100);
+        builder.Property(e => e.HouseNumberStatus).HasMaxLength(100);
+        builder.Property(e => e.NotAppraisableReason).HasMaxLength(4000);
 
         // Owner
         builder.Property(e => e.OwnerName).HasMaxLength(200); // should not require for land and building
-        builder.Property(e => e.HasObligation).HasMaxLength(100);
+        builder.Property(e => e.ObligationType)
+            .HasConversion(new Appraisal.Infrastructure.Converters.TolerantCodeListConverter()) // a bare legacy '01' reads as ['01']
+            .HasColumnType("nvarchar(500)");
         builder.Property(e => e.ObligationDetails).HasMaxLength(500);
+        builder.Property(e => e.MortgageDetails).HasMaxLength(500);
 
         // Building Status
         builder.Property(e => e.BuildingConditionType).HasMaxLength(50);
@@ -106,6 +110,38 @@ public class
 
         // Other
         builder.Property(e => e.Remark).HasMaxLength(4000);
+
+        // Building detail (appraisal book)
+        builder.Property(e => e.BuildingWidth).HasPrecision(10, 2);
+        builder.Property(e => e.BuildingLength).HasPrecision(10, 2);
+        builder.Property(e => e.SpaceDivision).HasMaxLength(1000);
+        builder.Property(e => e.MaintenanceType).HasMaxLength(10);
+        builder.Property(e => e.MaintenanceTypeOther).HasMaxLength(100);
+        builder.Property(e => e.DoorType)
+            .HasConversion(
+                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+            .HasColumnType("nvarchar(500)");
+        builder.Property(e => e.DoorTypeOther).HasMaxLength(100);
+        builder.Property(e => e.WindowType)
+            .HasConversion(
+                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+            .HasColumnType("nvarchar(500)");
+        builder.Property(e => e.WindowTypeOther).HasMaxLength(100);
+        builder.Property(e => e.SanitaryType)
+            .HasConversion(
+                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+            .HasColumnType("nvarchar(500)");
+        builder.Property(e => e.SanitaryTypeOther).HasMaxLength(100);
+        builder.Property(e => e.BuildingSystemType)
+            .HasConversion(
+                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+            .HasColumnType("nvarchar(500)");
+        builder.Property(e => e.BuildingSystemTypeOther).HasMaxLength(100);
+        builder.Property(e => e.ConstructionLicenseNumber).HasMaxLength(50);
 
         // Relationship - FK to AppraisalProperty (1:1)
         builder.Property(e => e.AppraisalPropertyId).IsRequired();

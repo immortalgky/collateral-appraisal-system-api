@@ -87,7 +87,7 @@ public class CollateralPhaseC_PR2Tests(IntegrationTestFixture fixture)
             landShapeType: landShapeType,
             landZoneType: landZoneType,
             urbanPlanningType: urbanPlanningType,
-            accessRoadWidth: accessRoadWidth,
+            carriagewayWidth: accessRoadWidth,
             roadFrontage: roadFrontage
         );
         var title = LandTitle.Create(prop.LandDetail.Id, titleNo, titleType);

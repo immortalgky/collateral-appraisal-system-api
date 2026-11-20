@@ -87,6 +87,10 @@ public static class ThaiAddressFormatter
     /// </summary>
     public static string? Stated(string? value) => PlaceholderText.Stated(value);
 
+    /// <summary>"ห้อง 101" for a condo unit, or "ห้องที่ N" (1-based position) when its room number is blank or a dash. The one label every owner/obligation row uses.</summary>
+    public static string RoomLabel(string? roomNumber, int index) =>
+        Stated(roomNumber) is { } room ? $"ห้อง {room}" : $"ห้องที่ {index + 1}";
+
     /// <summary>
     /// Whether a free-text numeric field (e.g. a condo floor) was actually filled in. Blank or dashes
     /// mean not stated; so does a numeric zero, which the form cannot tell apart from "not stated" and

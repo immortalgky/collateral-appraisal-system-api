@@ -1,3 +1,5 @@
+using Appraisal.Application.Features.Appraisals.Shared;
+
 namespace Appraisal.Application.Features.Appraisals.GetCondoProperty;
 
 /// <summary>
@@ -75,15 +77,18 @@ public class GetCondoPropertyQueryHandler(
             IsOwnerVerified: detail.IsOwnerVerified,
             BuildingConditionType: detail.BuildingConditionType,
             BuildingConditionTypeOther: detail.BuildingConditionTypeOther,
-            HasObligation: detail.HasObligation,
+            ObligationType: detail.ObligationType,
             ObligationDetails: detail.ObligationDetails,
+            MortgageDetails: detail.MortgageDetails,
             DocumentValidationResultType: detail.DocumentValidationResultType,
             LocationType: detail.LocationType,
+            LocationRemark: detail.LocationRemark,
             Street: detail.Street,
             Soi: detail.Soi,
             DistanceFromMainRoad: detail.DistanceFromMainRoad,
-            AccessRoadWidth: detail.AccessRoadWidth,
-            RightOfWay: detail.RightOfWay,
+            CarriagewayWidth: detail.CarriagewayWidth,
+            RightOfWayWidth: detail.RightOfWayWidth,
+            NumberOfLanes: detail.NumberOfLanes,
             RoadSurfaceType: detail.RoadSurfaceType,
             RoadSurfaceTypeOther: detail.RoadSurfaceTypeOther,
             PublicUtilityType: detail.PublicUtilityType,
@@ -93,6 +98,8 @@ public class GetCondoPropertyQueryHandler(
             LandFillType: detail.LandFillType,
             LandFillTypeOther: detail.LandFillTypeOther,
             UrbanPlanningType: detail.UrbanPlanningType,
+            UrbanPlanningColor: detail.UrbanPlanningColor,
+            UrbanPlanningColorOther: detail.UrbanPlanningColorOther,
             LandUseType: detail.LandUseType,
             LandUseTypeOther: detail.LandUseTypeOther,
             DecorationType: detail.DecorationType,
@@ -122,8 +129,20 @@ public class GetCondoPropertyQueryHandler(
             IsInExpropriationLine: detail.IsInExpropriationLine,
             ExpropriationLineRemark: detail.ExpropriationLineRemark,
             RoyalDecree: detail.RoyalDecree,
+            OtherLegalLimitations: detail.OtherLegalLimitations,
             IsForestBoundary: detail.IsForestBoundary,
             ForestBoundaryRemark: detail.ForestBoundaryRemark,
+            HasFloodProblem: detail.HasFloodProblem,
+            FloodProblemRemark: detail.FloodProblemRemark,
+            HasPollutionProblem: detail.HasPollutionProblem,
+            PollutionType: detail.PollutionType,
+            PollutionTypeOther: detail.PollutionTypeOther,
+            PollutionProblemRemark: detail.PollutionProblemRemark,
+            HasOtherEnvironmentProblem: detail.HasOtherEnvironmentProblem,
+            OtherEnvironmentProblemRemark: detail.OtherEnvironmentProblemRemark,
+            RoadPassInFrontOfLand: detail.RoadPassInFrontOfLand,
+            TransportationAccessType: detail.TransportationAccessType,
+            TransportationAccessTypeOther: detail.TransportationAccessTypeOther,
             FacilityType: detail.FacilityType,
             FacilityTypeOther: detail.FacilityTypeOther,
             EnvironmentType: detail.EnvironmentType,
@@ -135,6 +154,9 @@ public class GetCondoPropertyQueryHandler(
             BuildingInsurancePrice: detail.BuildingInsurancePrice,
             BuildingInsurancePriceOverride: detail.BuildingInsurancePriceOverride,
             Remark: detail.Remark,
-            ConstructionInspection: constructionDto);
+            ConstructionInspection: constructionDto,
+            IsRentedOut: detail.IsRentedOut,
+            LeaseAgreement: LeaseAgreementMapper.MapLeaseAgreement(property.LeaseAgreementDetail),
+            RentalInfo: LeaseAgreementMapper.MapRentalInfo(property.RentalInfo));
     }
 }

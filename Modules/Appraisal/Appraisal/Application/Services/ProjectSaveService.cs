@@ -59,7 +59,8 @@ public class ProjectSaveService(
                 isUnderConstruction: data.IsUnderConstruction,
                 constructionProgressPercent: data.ConstructionProgressPercent,
                 builtOnTitleDeedNumber: data.BuiltOnTitleDeedNumber,
-                licenseExpirationDate: data.LicenseExpirationDate);
+                licenseExpirationDate: data.LicenseExpirationDate,
+                licenseNumber: data.LicenseNumber);
 
             projectRepository.Add(project);
         }
@@ -98,7 +99,8 @@ public class ProjectSaveService(
                 isUnderConstruction: data.IsUnderConstruction,
                 constructionProgressPercent: data.ConstructionProgressPercent,
                 builtOnTitleDeedNumber: data.BuiltOnTitleDeedNumber,
-                licenseExpirationDate: data.LicenseExpirationDate);
+                licenseExpirationDate: data.LicenseExpirationDate,
+                licenseNumber: data.LicenseNumber);
         }
 
         // Persist. The outer TransactionalBehavior (both commands are ITransactionalCommand)

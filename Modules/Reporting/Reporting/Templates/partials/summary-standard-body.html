@@ -295,9 +295,10 @@
       <div class="kv"><span class="k">สิทธิทางเข้า-ออก</span><span class="v">{{ model.entry_exit_rights }}</span></div>
       <div class="kv"><span class="k">กรรมสิทธิ์สิ่งปลูกสร้าง</span><span class="v">{{ model.building_owner }}</span></div>
       <div class="kv"><span class="k">สภาพที่ดิน</span><span class="v">{{ for c in model.land_conditions }}{{ c }}{{ if !for.last }}<br>{{ end }}{{ end }}</span></div>
-      <div class="kv"><span class="k">ภาระผูกพัน</span><span class="v">{{ model.obligation }}</span></div>
+      <div class="kv"><span class="k">ภาระผูกพัน</span><span class="v">{{ model.obligation_mortgage }}</span></div>
       <div class="kv"><span class="k">ผังเมือง</span><span class="v">{{ model.city_plan }}</span></div>
     </div>
+    {{ if model.obligation_others && model.obligation_others != 'ไม่มี' }}<div class="kv"><span class="k">ภาระผูกพันอื่นๆ</span><span class="v">{{ model.obligation_others }}</span></div>{{ end }}
     <div class="kv"><span class="k">พิกัด</span><span class="v">{{ model.gps }}</span></div>
     <div class="cols2">
       <div class="kv"><span class="k">ราคาประเมินราชการ</span><span class="v">{{ if model.government_price_text; model.government_price_text; else; "-"; end }}</span></div>

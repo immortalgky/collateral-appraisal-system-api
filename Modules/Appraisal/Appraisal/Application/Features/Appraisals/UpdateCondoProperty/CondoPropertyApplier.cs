@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals;
+using Appraisal.Application.Features.Appraisals.Shared;
 using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
 
 namespace Appraisal.Application.Features.Appraisals.UpdateCondoProperty;
@@ -59,15 +60,17 @@ public static class CondoPropertyApplier
             isOwnerVerified: command.IsOwnerVerified,
             buildingConditionType: command.BuildingConditionType,
             buildingConditionTypeOther: command.BuildingConditionTypeOther,
-            hasObligation: command.HasObligation,
+            obligationType: command.ObligationType,
             obligationDetails: command.ObligationDetails,
+            mortgageDetails: command.MortgageDetails,
             documentValidationResultType: command.DocumentValidationResultType,
             locationType: command.LocationType,
+            locationRemark: command.LocationRemark,
             street: command.Street,
             soi: command.Soi,
             distanceFromMainRoad: command.DistanceFromMainRoad,
-            accessRoadWidth: command.AccessRoadWidth,
-            rightOfWay: command.RightOfWay,
+            carriagewayWidth: command.CarriagewayWidth,
+            rightOfWayWidth: command.RightOfWayWidth,
             roadSurfaceType: command.RoadSurfaceType,
             roadSurfaceTypeOther: command.RoadSurfaceTypeOther,
             publicUtilityType: command.PublicUtilityType,
@@ -97,6 +100,7 @@ public static class CondoPropertyApplier
             isInExpropriationLine: command.IsInExpropriationLine,
             expropriationLineRemark: command.ExpropriationLineRemark,
             royalDecree: command.RoyalDecree,
+            otherLegalLimitations: command.OtherLegalLimitations,
             isForestBoundary: command.IsForestBoundary,
             forestBoundaryRemark: command.ForestBoundaryRemark,
             facilityType: command.FacilityType,
@@ -105,6 +109,21 @@ public static class CondoPropertyApplier
             environmentTypeOther: command.EnvironmentTypeOther,
             buildingInsurancePrice: buildingInsurancePrice,
             buildingInsurancePriceOverride: command.BuildingInsurancePriceOverride,
+            hasFloodProblem: command.HasFloodProblem,
+            floodProblemRemark: command.FloodProblemRemark,
+            hasPollutionProblem: command.HasPollutionProblem,
+            pollutionType: command.PollutionType,
+            pollutionTypeOther: command.PollutionTypeOther,
+            pollutionProblemRemark: command.PollutionProblemRemark,
+            hasOtherEnvironmentProblem: command.HasOtherEnvironmentProblem,
+            otherEnvironmentProblemRemark: command.OtherEnvironmentProblemRemark,
+            roadPassInFrontOfLand: command.RoadPassInFrontOfLand,
+            transportationAccessType: command.TransportationAccessType,
+            transportationAccessTypeOther: command.TransportationAccessTypeOther,
+            numberOfLanes: command.NumberOfLanes,
+            urbanPlanningColor: command.UrbanPlanningColor,
+            urbanPlanningColorOther: command.UrbanPlanningColorOther,
+            isRentedOut: command.IsRentedOut,
             remark: command.Remark,
             landOffice: command.LandOffice,
             dopaAddress: dopaAddress,
@@ -119,6 +138,9 @@ public static class CondoPropertyApplier
             governmentPricePerSqm: command.GovernmentPricePerSqm,
             governmentPrice: command.GovernmentPrice,
             fireInsuranceCode: command.FireInsuranceCode);
+
+        // Rented out to others: lease agreement & rental info follow the flag (cleared when not rented out)
+        RentedOutSync.Apply(property, command.IsRentedOut, command.LeaseAgreement, command.RentalInfo);
 
         // 7. Update CondoAreaDetails if provided
         if (command.AreaDetails is not null) SyncAreaDetail(detail, command.AreaDetails);

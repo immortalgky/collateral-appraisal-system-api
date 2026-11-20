@@ -53,7 +53,7 @@ public class AppraisalCancelledWebhookConsumer(
             eventType: WebhookEventTypes.AppraisalCancelled,
             externalCaseKey: keys.ExternalCaseKey,
             occurredAt: msg.CancelledAt,
-            data: new { appraisalNumber = keys.AppraisalNumber },
+            data: new { appraisalNumber = keys.AppraisalNumber, reason = msg.CancelReason ?? string.Empty },
             cancellationToken: context.CancellationToken);
     }
 }

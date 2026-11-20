@@ -162,6 +162,7 @@ public class GetAppraisalBriefQueryHandler(
                                    -- one thing on the wire, and COALESCE below must fall through
                                    -- to the condo's value rather than stop at an empty land one.
                                    NULLIF(ld.LandShapeType, N'')                            AS LandShapeType,
+                                   NULLIF(ld.DevelopmentSuitabilityType, N'')               AS DevelopmentSuitabilityType,
                                    ld.RoadFrontage,
                                    ld.SoilLevel,
                                    -- Land, else the condo's own record of the land it stands on — the
@@ -174,7 +175,7 @@ public class GetAppraisalBriefQueryHandler(
                                    -- True means FAR from electricity; renamed on the way out.
                                    ld.HasElectricity,
                                    ld.ElectricityDistance,
-                                   COALESCE(ld.AccessRoadWidth, cd.AccessRoadWidth)         AS AccessRoadWidth,
+                                   COALESCE(ld.CarriagewayWidth, cd.CarriagewayWidth)     AS CarriagewayWidth,
                                    COALESCE(NULLIF(ld.RoadSurfaceType, N''), NULLIF(cd.RoadSurfaceType, N''))
                                                                                             AS RoadSurfaceType,
                                    ld.NorthAdjacentArea, ld.NorthBoundaryLength,
@@ -186,6 +187,7 @@ public class GetAppraisalBriefQueryHandler(
                                    -- they fall through from land to condo like the road columns.
                                    -- Landlocked and encroached exist on land only.
                                    ld.IsLandlocked,
+                                   NULLIF(ld.LandAccessibilityType, N'')                    AS LandAccessibilityType,
                                    COALESCE(ld.IsExpropriated, cd.IsExpropriated)           AS IsExpropriated,
                                    COALESCE(ld.IsInExpropriationLine, cd.IsInExpropriationLine)
                                                                                             AS IsInExpropriationLine,
@@ -699,11 +701,13 @@ public class GetAppraisalBriefQueryHandler(
                            -- The project's land (ProjectLands is 1:1 with Projects). Code columns hold
                            -- '' where the form was saved without a choice, so blanks become NULL.
                            SELECT  NULLIF(l.LandShapeType, N'')                      AS LandShapeType,
+                                   NULLIF(l.DevelopmentSuitabilityType, N'')         AS DevelopmentSuitabilityType,
                                    l.RoadFrontage,
-                                   l.AccessRoadWidth,
+                                   l.CarriagewayWidth                                AS CarriagewayWidth,
                                    NULLIF(l.RoadSurfaceType, N'')                    AS RoadSurfaceType,
                                    l.LandUseType                                     AS LandUseTypeJson,
-                                   l.IsLandlocked, l.IsExpropriated, l.IsInExpropriationLine,
+                                   l.IsLandlocked, NULLIF(l.LandAccessibilityType, N'') AS LandAccessibilityType,
+                                   l.IsExpropriated, l.IsInExpropriationLine,
                                    l.IsEncroached, l.IsForestBoundary,
                                    NULLIF(LTRIM(RTRIM(l.LandUseTypeOther)), N'')     AS LandUseTypeOther,
                                    NULLIF(LTRIM(RTRIM(l.RoadSurfaceTypeOther)), N'') AS RoadSurfaceTypeOther
@@ -1066,6 +1070,7 @@ public class GetAppraisalBriefQueryHandler(
                     // The report prints a condo floor only when it is stated (not blank, dashes or 0).
                     CondoFloorNumber: PlaceholderText.StatedUnlessZero(a.CondoFloorNumber),
                     LandShapeType: a.LandShapeType,
+                    DevelopmentSuitabilityType: a.DevelopmentSuitabilityType,
                     RoadFrontage: PositiveOrNull(a.RoadFrontage),
                     SoilLevel: a.SoilLevel,
                     LandFillType: a.LandFillType,
@@ -1074,10 +1079,11 @@ public class GetAppraisalBriefQueryHandler(
                     PondDepth: PositiveOrNull(a.PondDepth),
                     FarFromElectricity: a.HasElectricity,
                     ElectricityDistance: DistanceIfFar(a.HasElectricity, a.ElectricityDistance),
-                    AccessRoadWidth: PositiveOrNull(a.AccessRoadWidth),
+                    CarriagewayWidth: PositiveOrNull(a.CarriagewayWidth),
                     RoadSurfaceType: a.RoadSurfaceType,
                     Boundaries: BuildBoundaries(a),
                     IsLandlocked: a.IsLandlocked,
+                    LandAccessibilityType: a.LandAccessibilityType,
                     IsExpropriated: a.IsExpropriated,
                     IsInExpropriationLine: a.IsInExpropriationLine,
                     IsEncroached: a.IsEncroached,
@@ -1418,6 +1424,7 @@ public class GetAppraisalBriefQueryHandler(
         public decimal? CondoFloors { get; init; }
         public string? CondoFloorNumber { get; init; }
         public string? LandShapeType { get; init; }
+        public string? DevelopmentSuitabilityType { get; init; }
         public decimal? RoadFrontage { get; init; }
         public decimal? SoilLevel { get; init; }
         public string? LandFillType { get; init; }
@@ -1426,7 +1433,7 @@ public class GetAppraisalBriefQueryHandler(
         public decimal? PondDepth { get; init; }
         public bool? HasElectricity { get; init; }
         public decimal? ElectricityDistance { get; init; }
-        public decimal? AccessRoadWidth { get; init; }
+        public decimal? CarriagewayWidth { get; init; }
         public string? RoadSurfaceType { get; init; }
         public string? NorthAdjacentArea { get; init; }
         public decimal? NorthBoundaryLength { get; init; }
@@ -1437,6 +1444,7 @@ public class GetAppraisalBriefQueryHandler(
         public string? WestAdjacentArea { get; init; }
         public decimal? WestBoundaryLength { get; init; }
         public bool? IsLandlocked { get; init; }
+        public string? LandAccessibilityType { get; init; }
         public bool? IsExpropriated { get; init; }
         public bool? IsInExpropriationLine { get; init; }
         public bool? IsEncroached { get; init; }
@@ -1570,16 +1578,16 @@ public class GetAppraisalBriefQueryHandler(
     }
 
     internal sealed record ProjectLandRow(
-        string? LandShapeType, decimal? RoadFrontage, decimal? AccessRoadWidth, string? RoadSurfaceType,
+        string? LandShapeType, string? DevelopmentSuitabilityType, decimal? RoadFrontage, decimal? CarriagewayWidth, string? RoadSurfaceType,
         string? LandUseTypeJson,
-        bool? IsLandlocked, bool? IsExpropriated, bool? IsInExpropriationLine,
+        bool? IsLandlocked, string? LandAccessibilityType, bool? IsExpropriated, bool? IsInExpropriationLine,
         bool? IsEncroached, bool? IsForestBoundary, string? LandUseTypeOther,
         string? RoadSurfaceTypeOther)
     {
         public BriefProjectLand ToLand() => new(
-            LandShapeType, PositiveOrNull(RoadFrontage), PositiveOrNull(AccessRoadWidth), RoadSurfaceType,
+            LandShapeType, DevelopmentSuitabilityType, PositiveOrNull(RoadFrontage), PositiveOrNull(CarriagewayWidth), RoadSurfaceType,
             ParseCodes(LandUseTypeJson),
-            IsLandlocked, IsExpropriated, IsInExpropriationLine, IsEncroached, IsForestBoundary)
+            IsLandlocked, LandAccessibilityType, IsExpropriated, IsInExpropriationLine, IsEncroached, IsForestBoundary)
         {
             LandUseTypeOther = LandUseTypeOther,
             RoadSurfaceTypeOther = RoadSurfaceTypeOther

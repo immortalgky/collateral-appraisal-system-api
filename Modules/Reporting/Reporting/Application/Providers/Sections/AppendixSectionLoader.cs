@@ -48,6 +48,28 @@ internal static class AppendixSectionLoader
             ["REG_INDEX"]      = "สารบัญจดทะเบียน",
         };
 
+    // Where each appendix type goes in the land + building book. The system's types are all maps, plans and photos except
+    // REG_INDEX (สารบัญจดทะเบียน, a copy of the register) — it holds no title-deed / lease / permit type yet.
+    //   ภาคผนวก : BRIEF_MAP DETAILED_MAP EARTH_MAP LAND_MAP CITY_PLAN STATUTORY_PLAN LAND_PLAN BUILDING_LAYOUT BLUEPRINT PHOTO_SPOT
+    //             and every Photos-tab topic (no type code)
+    //   แนบท้าย  : REG_INDEX
+    //   any other code: by format — PDFs only -> แนบท้าย, otherwise ภาคผนวก.
+    private static readonly HashSet<string> AppendixTypeCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "BRIEF_MAP", "DETAILED_MAP", "EARTH_MAP", "LAND_MAP", "CITY_PLAN", "STATUTORY_PLAN",
+        "LAND_PLAN", "BUILDING_LAYOUT", "BLUEPRINT", "PHOTO_SPOT"
+    };
+
+    private static readonly HashSet<string> AttachmentTypeCodes = new(StringComparer.OrdinalIgnoreCase) { "REG_INDEX" };
+
+    internal static bool IsAttachmentGroup(string? typeCode, int imageCount, int pdfCount)
+    {
+        if (typeCode is null) return false;
+        if (AttachmentTypeCodes.Contains(typeCode)) return true;
+        if (AppendixTypeCodes.Contains(typeCode)) return false;
+        return pdfCount > 0 && imageCount == 0;
+    }
+
     /// <summary>
     /// Loads appendix data for the given <paramref name="appraisalId"/>.
     /// </summary>
@@ -105,12 +127,12 @@ internal static class AppendixSectionLoader
             -- DocumentId is set per row (domain XOR invariant), so at most one of dd/dg ever
             -- matches and the COALESCE in the SELECT is equivalent to the old predicate.
             LEFT JOIN document.Documents dd          ON dd.Id = ad.DocumentId          -- PDF path
-                                                    AND dd.IsActive = 1
-                                                    AND dd.IsDeleted = 0
             LEFT JOIN document.Documents dg          ON dg.Id = g.DocumentId           -- image path
-                                                    AND dg.IsActive = 1
-                                                    AND dg.IsDeleted = 0
             WHERE aa.AppraisalId = @AppraisalId
+              -- dd/dg are the unfiltered joins, so g.FilePath (the COALESCE fallback) is only used when there is no document row at all;
+              -- a document that is deleted or deactivated drops the row instead of coming back through the denormalised path
+              AND (dd.Id IS NULL OR (dd.IsActive = 1 AND dd.IsDeleted = 0))
+              AND (dg.Id IS NULL OR (dg.IsActive = 1 AND dg.IsDeleted = 0))
             ORDER BY aa.SortOrder, ad.DisplaySequence
             """;
 
@@ -128,6 +150,7 @@ internal static class AppendixSectionLoader
         var groupMeta  = new Dictionary<string, (string TypeNameThai, int LayoutColumns)>(StringComparer.OrdinalIgnoreCase);
         var groupImages = new Dictionary<string, List<AppendixImage>>(StringComparer.OrdinalIgnoreCase);
         var groupPdfs   = new Dictionary<string, List<Guid>>(StringComparer.OrdinalIgnoreCase);
+        var groupCodes  = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var row in rows)
         {
@@ -148,6 +171,7 @@ internal static class AppendixSectionLoader
                 groupMeta[key] = (thaiName ?? key, cols);
                 groupImages[key] = [];
                 groupPdfs[key] = [];
+                groupCodes[key] = row.AppendixTypeCode;
             }
 
             var mime = row.MimeType ?? string.Empty;
@@ -191,6 +215,8 @@ internal static class AppendixSectionLoader
             groups.Add(new AppendixGroup
             {
                 TypeNameThai  = typeName,
+                TypeCode      = groupCodes.GetValueOrDefault(key),
+                IsAttachment  = IsAttachmentGroup(groupCodes.GetValueOrDefault(key), images.Count, pdfs.Count),
                 LayoutColumns = cols,
                 Images        = images.AsReadOnly(),
                 SlotName      = slotName,
@@ -235,14 +261,14 @@ internal static class AppendixSectionLoader
                 g.PhotoNumber,
                 g.Caption,
                 COALESCE(d.StoragePath, g.FilePath) AS FilePath,
-                COALESCE(g.MimeType, d.MimeType)    AS MimeType
+                COALESCE(d.MimeType, g.MimeType)    AS MimeType
             FROM appraisal.PhotoTopics t
             LEFT JOIN appraisal.GalleryPhotoTopicMappings m ON m.PhotoTopicId = t.Id
             LEFT JOIN appraisal.AppraisalGallery g          ON g.Id = m.GalleryPhotoId
             LEFT JOIN document.Documents d                  ON d.Id = g.DocumentId
-                                                           AND d.IsActive = 1
-                                                           AND d.IsDeleted = 0
             WHERE t.AppraisalId = @AppraisalId
+              -- d is the unfiltered join: g.FilePath is only the fallback for a photo with no document row; a deleted/deactivated document drops it
+              AND (d.Id IS NULL OR (d.IsActive = 1 AND d.IsDeleted = 0))
             ORDER BY t.SortOrder, g.PhotoNumber
             """;
 
@@ -305,7 +331,7 @@ internal static class AppendixSectionLoader
     /// path is blank. Falls back to a manual "file://" + encoded path if Uri can't parse
     /// (e.g. a relative path), so spaces/Thai chars never produce a broken &lt;img&gt; src.
     /// </summary>
-    private static string? ToFileUri(string? filePath)
+    internal static string? ToFileUri(string? filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath))
             return null;

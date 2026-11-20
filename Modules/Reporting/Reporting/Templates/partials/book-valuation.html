@@ -1,0 +1,30 @@
+{{~ # Partial: the valuation chapter (condo valuation table, then the pricing methods per group). Caller sets val_no ('6' or '4'), val_id ('s6' ...) and val_title. ~}}
+{{ part_kind = 'body'; part_id = val_id; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>{{ val_no }}.</span><span>{{ val_title }}</span></div>
+{{ multi6 = model.pricing_groups.size > 1 }}
+{{~ # The insured building sum is printed once, at the end of the LAST cost-building table that fed the value (a figure for the whole book, not per group); ins_printed tells section 7 to drop its own box. With no such table nothing is printed here and section 7 keeps the box. ~}}
+{{ ins_printed = false; ins_group = null; ins_amount = cover_total }}
+{{ if ins_amount != null }}{{ for g in model.pricing_groups }}{{ for b in g.buildings }}{{ if b.cost_rows.size > 0 && b.cost_is_reference != true }}{{ ins_group = g.group_number }}{{ end }}{{ end }}{{ end }}{{ end }}
+{{ n6 = 0; any6 = false; g6 = 0; h6 = val_no + '.' }}
+{{ if model.condo_section && model.condo_section.valuation }}
+  {{ any6 = true }}{{ if multi6 }}{{ g6 = 1 }}{{ else }}{{ n6 = 1 }}{{ end }}
+  <div class="bk-h2"><span>{{ val_no }}.1</span><span>รายละเอียดการประเมินมูลค่าทรัพย์สินห้องชุด</span></div>
+  <div class="vm" style="display:block;">{{ cval = model.condo_section.valuation }}{{ include 'partials/book-condo-valuation' }}</div>
+{{ end }}
+{{ for grp in model.pricing_groups }}
+  {{ if multi6 }}
+    {{ if group_has_methods grp }}
+      {{ g6 = g6 + 1; n6 = 0; h6 = val_no + '.' + g6 + '.'; sel = '' }}
+      {{ for av in model.approach_values }}{{ if av.group_number == grp.group_number && !av.is_reference && av.approach_label }}{{ sel = sel == '' ? av.approach_label : sel + ' + ' + av.approach_label }}{{ end }}{{ end }}
+      <div class="bk-h2"><span>{{ val_no }}.{{ g6 }}</span><span>{{ glabel grp }}{{ if sel != '' }} · {{ sel }}{{ end }}</span></div>
+    {{ end }}
+  {{ end }}
+  {{ for ref_pass in [false, true] }}
+    {{ include 'partials/book-flow-methods' }}
+  {{ end }}
+{{ end }}
+{{~ # val_has_more: the caller prints its own sub-sections after this chapter (block book), so an empty chapter is not "no data". ~}}
+{{ if !any6 && !val_has_more }}<p class="bk-p"><span class="na">-</span></p>{{ end }}
+</div>
+

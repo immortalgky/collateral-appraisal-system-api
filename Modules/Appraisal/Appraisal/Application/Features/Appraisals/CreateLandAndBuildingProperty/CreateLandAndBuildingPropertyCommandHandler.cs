@@ -47,12 +47,14 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             address,
             command.OwnerNameLand,
             command.IsOwnerVerifiedLand,
-            command.HasObligation,
+            command.ObligationType,
             command.ObligationDetails,
+            command.MortgageDetails,
             // Land - Document Verification
             command.IsLandLocationVerified,
             command.LandCheckMethodType,
             command.LandCheckMethodTypeOther,
+            command.LandLocationRemark,
             // Land - Location Details
             command.Street,
             command.Soi,
@@ -71,8 +73,8 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             landFillTypeOther: command.LandFillTypeOther,
             landFillPercent: command.LandFillPercent,
             soilLevel: command.SoilLevel,
-            accessRoadWidth: command.AccessRoadWidth,
-            rightOfWay: command.RightOfWay,
+            carriagewayWidth: command.CarriagewayWidth,
+            rightOfWayWidth: command.RightOfWayWidth,
             roadFrontage: command.RoadFrontage,
             numberOfSidesFacingRoad: command.NumberOfSidesFacingRoad,
             roadPassInFrontOfLand: command.RoadPassInFrontOfLand,
@@ -89,6 +91,8 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             landEntranceExitTypeOther: command.LandEntranceExitTypeOther,
             transportationAccessType: command.TransportationAccessType,
             transportationAccessTypeOther: command.TransportationAccessTypeOther,
+            environmentType: command.EnvironmentType,
+            environmentTypeOther: command.EnvironmentTypeOther,
             propertyAnticipationType: command.PropertyAnticipationType,
             propertyAnticipationTypeOther: command.PropertyAnticipationTypeOther,
             // Land - Legal
@@ -106,6 +110,7 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             otherLegalLimitations: command.OtherLegalLimitations,
             evictionType: command.EvictionType,
             evictionTypeOther: command.EvictionTypeOther,
+            evictionRemark: command.EvictionRemark,
             allocationType: command.AllocationType,
             // Land - Boundaries
             northAdjacentArea: command.NorthAdjacentArea,
@@ -124,7 +129,19 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             remark: command.Remark,
             isRentedOut: command.IsRentedOut,
             landOffice: command.LandOffice,
-            dopaAddress: dopaAddress);
+            dopaAddress: dopaAddress,
+            hasFloodProblem: command.HasFloodProblem,
+            floodProblemRemark: command.FloodProblemRemark,
+            hasPollutionProblem: command.HasPollutionProblem,
+            pollutionType: command.PollutionType,
+            pollutionTypeOther: command.PollutionTypeOther,
+            pollutionProblemRemark: command.PollutionProblemRemark,
+            hasOtherEnvironmentProblem: command.HasOtherEnvironmentProblem,
+            otherEnvironmentProblemRemark: command.OtherEnvironmentProblemRemark,
+            numberOfLanes: command.NumberOfLanes,
+            urbanPlanningColor: command.UrbanPlanningColor,
+            urbanPlanningColorOther: command.UrbanPlanningColorOther,
+            developmentSuitabilityType: command.DevelopmentSuitabilityType);
 
         // Add land titles if provided
         if (command.Titles is { Count: > 0 })
@@ -185,11 +202,12 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             modelName: command.ModelName,
             builtOnTitleNumber: command.BuiltOnTitleNumber,
             houseNumber: command.HouseNumber,
-            noHouseNumber: command.NoHouseNumber,
+            houseNumberStatus: command.HouseNumberStatus,
             ownerName: command.OwnerNameBuilding,
             isOwnerVerified: command.IsOwnerVerifiedBuilding,
-            hasObligation: command.HasObligation,
+            obligationType: command.ObligationType,
             obligationDetails: command.ObligationDetails,
+            mortgageDetails: command.MortgageDetails,
             // Building - Info
             buildingType: command.BuildingType,
             buildingTypeOther: command.BuildingTypeOther,
@@ -202,6 +220,7 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             isUnderConstruction: command.IsUnderConstruction,
             constructionLicenseExpirationDate: command.ConstructionLicenseExpirationDate,
             isAppraisable: command.IsAppraisable,
+            notAppraisableReason: command.NotAppraisableReason,
             // Building - Area
             totalBuildingArea: command.TotalBuildingArea,
             // Building - Structure
@@ -215,6 +234,20 @@ public class CreateLandAndBuildingPropertyCommandHandler(
             constructionStyleRemark: command.ConstructionStyleRemark,
             constructionType: command.ConstructionType,
             constructionTypeOther: command.ConstructionTypeOther,
+            buildingWidth: command.BuildingWidth,
+            buildingLength: command.BuildingLength,
+            spaceDivision: command.SpaceDivision,
+            maintenanceType: command.MaintenanceType,
+            maintenanceTypeOther: command.MaintenanceTypeOther,
+            doorType: command.DoorType,
+            doorTypeOther: command.DoorTypeOther,
+            windowType: command.WindowType,
+            windowTypeOther: command.WindowTypeOther,
+            sanitaryType: command.SanitaryType,
+            sanitaryTypeOther: command.SanitaryTypeOther,
+            buildingSystemType: command.BuildingSystemType,
+            buildingSystemTypeOther: command.BuildingSystemTypeOther,
+            constructionLicenseNumber: command.ConstructionLicenseNumber,
             // Building - Components
             structureType: command.StructureType,
             structureTypeOther: command.StructureTypeOther,
@@ -274,7 +307,8 @@ public class CreateLandAndBuildingPropertyCommandHandler(
                     command.LeaseAgreement.Sublease, command.LeaseAgreement.AdditionalExpenses,
                     command.LeaseAgreement.LeaseTerminate, command.LeaseAgreement.ContractRenewal,
                     command.LeaseAgreement.RentalTermsImpactingPropertyUse, command.LeaseAgreement.TerminationOfLease,
-                    command.LeaseAgreement.Remark);
+                    command.LeaseAgreement.Remark,
+                    command.LeaseAgreement.IsLeaseRegistered, command.LeaseAgreement.IsLeaseholdPledgeable);
             }
 
             if (command.RentalInfo is not null)

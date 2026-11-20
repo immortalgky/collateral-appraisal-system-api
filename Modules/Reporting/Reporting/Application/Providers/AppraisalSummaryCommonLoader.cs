@@ -45,6 +45,27 @@ internal static class AppraisalSummaryCommonLoader
     public static string? FirstNonBlank(params string?[] values) =>
         values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
 
+    /// <summary>ผังเมือง: the colour first, then the type ("สีน้ำตาล · ย่านที่อยู่อาศัยหนาแน่นมาก"); null when both are blank.</summary>
+    public static string? CityPlan(string? color, string? type) =>
+        string.Join(" · ", new[] { color, type }.Where(x => !string.IsNullOrWhiteSpace(x))) is { Length: > 0 } plan ? plan : null;
+
+    /// <summary>What an owner reads as when the appraiser marked the owner as not verifiable (IsOwnerVerified == false).</summary>
+    public const string OwnerNotVerifiedText = "ไม่สามารถตรวจสอบได้";
+
+    /// <summary>
+    /// Owner as printed, for a building or a condo unit: <see cref="OwnerNotVerifiedText"/> when the appraiser marked the owner as not
+    /// verifiable (IsOwnerVerified == false); otherwise the stored name (null/true keep today's behaviour).
+    /// </summary>
+    public static string? OwnerDisplay(string? ownerName, bool? isOwnerVerified) =>
+        isOwnerVerified == false ? OwnerNotVerifiedText : ownerName;
+
+    /// <summary>
+    /// Multi-select codes in parameter order, not the order they were ticked: codes are zero-padded so an
+    /// ordinal sort follows SeqNo, and "99" (other) always goes last so its free text never leads the list.
+    /// </summary>
+    public static List<string> OrderCodes(IEnumerable<string> codes) =>
+        codes.OrderBy(c => c == "99").ThenBy(c => c, StringComparer.Ordinal).ToList();
+
     /// <summary>
     /// Maps a set of pricing APPROACH types (Market / Cost / Income / Residual) to the four
     /// วิธีการประเมิน checkboxes. Callers pass the approaches of the groups a report actually shows.
@@ -217,6 +238,7 @@ internal static class AppraisalSummaryCommonLoader
             SELECT
                 ad.CommitteeOpinion,
                 ad.InternalAppraiserOpinion,
+                ad.AdditionalAssumptions,
                 ad.Condition,
                 ad.Remark
             FROM appraisal.AppraisalDecisions ad
@@ -563,7 +585,7 @@ internal static class AppraisalSummaryCommonLoader
         // caller since this loader is static and cannot inject ISystemConfigurationReader. Only
         // used as a fallback when ForcedSaleValue itself is not yet persisted (e.g. no
         // PricingAnalysis committed yet).
-        var forceSaleRate = valuation?.ForceSaleRate ?? valuation?.ProjectForceSalePercentage ?? forceSaleRateDefault;
+        var forceSaleRate = BookForceSaleRate.Resolve(valuation?.ForceSaleRate, valuation?.ProjectForceSalePercentage, forceSaleRateDefault);
         decimal? forcedSaleValue = valuation?.ForcedSaleValue
             ?? (totalAppraisalValue.HasValue ? totalAppraisalValue.Value * forceSaleRate / 100m : null);
 
@@ -587,6 +609,7 @@ internal static class AppraisalSummaryCommonLoader
             StaffPosition: staffPosition,
             TotalAppraisalValue: totalAppraisalValue,
             ForcedSaleValue: forcedSaleValue,
+            ForceSaleRate: forceSaleRate,
             BuildingCoverageAmount: valuation?.InsuranceValue,
             LoanValue: loanValue,
             IsIncreaseLimit: isIncreaseLimit,
@@ -600,6 +623,7 @@ internal static class AppraisalSummaryCommonLoader
             IsProfitRent: globalFlags.IsProfitRent,
             GroupMethodTypes: groupMethodTypes,
             AppraiserComment: FirstNonBlank(decision?.InternalAppraiserOpinion),
+            AdditionalAssumptions: decision?.AdditionalAssumptions is { } aa && !string.IsNullOrWhiteSpace(aa) ? aa.Trim() : null,
             Condition: FirstNonBlank(decision?.Condition),
             Remark: FirstNonBlank(decision?.Remark),
             CommitteeOpinion: FirstNonBlank(decision?.CommitteeOpinion),
@@ -731,9 +755,9 @@ internal static class AppraisalSummaryCommonLoader
                                                              WHERE cd.AppraisalPropertyId = lap.Id))))
             ) loc
             OUTER APPLY (
-                -- NoHouseNumber '02' = ยังไม่ขอเลขที่บ้าน (not yet requested); the FE then disables the
+                -- HouseNumberStatus '02' = ยังไม่ขอเลขที่บ้าน (not yet requested); the FE then disables the
                 -- house-number field, so the building has no number to print.
-                SELECT CASE WHEN b.NoHouseNumber = '02' THEN NULL ELSE b.HouseNumber END AS HouseNumber,
+                SELECT CASE WHEN b.HouseNumberStatus = '02' THEN NULL ELSE b.HouseNumber END AS HouseNumber,
                        CASE WHEN bp.Id = loc.Id THEN 0 ELSE 1 END AS HouseOrder,
                        bp.SequenceNumber AS HouseSeq
                 FROM appraisal.BuildingAppraisalDetails b
@@ -744,7 +768,7 @@ internal static class AppraisalSummaryCommonLoader
                   AND bp.AppraisalId = @AppraisalId
                   AND (
                         -- The property's own building is listed, whatever it says: a blank,
-                        -- a dash or NoHouseNumber '02' simply prints no เลขที่.
+                        -- a dash or HouseNumberStatus '02' simply prints no เลขที่.
                         bp.Id = loc.Id
                         -- The group's FIRST land property (lowest SequenceNumber) also lists every
                         -- building-only property (B/LSB) in the group — a house standing on that
@@ -800,7 +824,7 @@ internal static class AppraisalSummaryCommonLoader
     /// <summary>
     /// Formats the RS rows of <see cref="CollateralLocationSql"/>: condo → FormatCondo, land → FormatLandBuilding.
     /// Each slot is null when none of its units has anything to print. Readers use
-    /// <see cref="CollateralLocations.LandOrCondo"/> (land-building, book, construction, machine
+    /// <see cref="CollateralLocations.LandOrCondo"/> (land + condo; land-building, book, construction, machine
     /// fallback) or Condo (condo form).
     /// </summary>
     internal static CollateralLocations ComposeCollateralLocations(IEnumerable<CollateralLocationRow> rows)
@@ -917,6 +941,7 @@ internal static class AppraisalSummaryCommonLoader
     {
         public string? CommitteeOpinion { get; init; }
         public string? InternalAppraiserOpinion { get; init; }
+        public string? AdditionalAssumptions { get; init; }
         public string? Condition { get; init; }
         public string? Remark { get; init; }
     }
@@ -995,10 +1020,11 @@ internal sealed record CollateralLocation(string Address, string? SubDistrict);
 internal sealed record CollateralLocations(CollateralLocation? Land, CollateralLocation? Condo)
 {
     /// <summary>
-    /// Land first, else the condo: the rule for the land-building form, internal book, construction
-    /// summary and the machine form's fallback.
+    /// Land and condo: the rule for the land-building form, internal book, construction summary and the machine form's fallback.
+    /// When both exist the address is the land's, then the condo's on its own line (a condo address already starts with
+    /// "ห้องชุดเลขที่", so it needs no label); the sub-district stays the land's. With only one of them, that one.
     /// </summary>
-    public CollateralLocation? LandOrCondo => Land ?? Condo;
+    public CollateralLocation? LandOrCondo => Land is null ? Condo : Condo is null ? Land : new CollateralLocation($"{Land.Address}\n{Condo.Address}", Land.SubDistrict);
 }
 
 /// <summary>
@@ -1021,6 +1047,7 @@ internal sealed record CommonAppraisalData(
     string? StaffPosition,
     decimal? TotalAppraisalValue,
     decimal? ForcedSaleValue,
+    decimal? ForceSaleRate,
     decimal? BuildingCoverageAmount,
     decimal? LoanValue,
     bool IsIncreaseLimit,
@@ -1034,6 +1061,7 @@ internal sealed record CommonAppraisalData(
     bool IsProfitRent,
     IReadOnlyDictionary<Guid, IReadOnlySet<string>> GroupMethodTypes,
     string? AppraiserComment,
+    string? AdditionalAssumptions,
     string? Condition,
     string? Remark,
     string? CommitteeOpinion,

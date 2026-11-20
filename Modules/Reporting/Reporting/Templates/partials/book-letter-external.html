@@ -3,6 +3,18 @@
   Included by appraisal-book.html when model.is_external. Shares the parent Scriban scope;
   expects: model.* (AppraisalSummaryModel snake_case fields, external branch populated).
 -->
+{{~ # kvl: a value of several lines ("\n"-separated by LetterOwnerRows) prints one <div> per line; a single line stays plain text. ~}}
+{{- func kvl
+  parts = $0 | string.split "\n"
+  if parts.size < 2
+    ret $0
+  end
+  html = ''
+  for p in parts
+    html = html + '<div>' + p + '</div>'
+  end
+  ret html
+end -}}
 <div class="letter">
 
   <!-- Header row: report no (left) + logo placeholder (right) -->
@@ -20,8 +32,8 @@
 
   <!-- Intro paragraph -->
   <div class="letter-intro">
-    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ตามที่ {{ model.company_name }} ได้รับมอบหมายให้ดำเนินการประเมินมูลค่าทรัพย์สิน
-    ให้แก่ {{ model.customer_name }} นั้น บริษัทฯ ได้ดำเนินการประเมินราคาทรัพย์สินเป็นที่เรียบร้อยแล้ว
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ตามที่ {{ model.company_name }} ได้รับมอบหมายให้ดำเนินการประเมินมูลค่าทรัพย์สินนั้น
+    บริษัทฯ ได้ดำเนินการประเมินราคาทรัพย์สินเป็นที่เรียบร้อยแล้ว
     ขอเรียนแจ้งผลการประเมินมูลค่าทรัพย์สิน ดังนี้
   </div>
 
@@ -44,7 +56,7 @@
     {{ if model.collateral_location }}
     <tr>
       <th class="kv-label" scope="row">ที่ตั้งทรัพย์สิน</th>
-      <td class="kv-value">{{ model.collateral_location }}</td>
+      <td class="kv-value" style="white-space:pre-line">{{ model.collateral_location }}</td>
     </tr>
     {{ end }}
 
@@ -58,7 +70,7 @@
     {{ if model.title_deed_numbers }}
     <tr>
       <th class="kv-label" scope="row">เอกสารสิทธิ์ที่ดิน</th>
-      <td class="kv-value">{{ model.title_deed_numbers }} จำนวน {{ model.total_title_deeds }} ฉบับ</td>
+      <td class="kv-value">{{ model.title_deed_numbers }}{{ if !model.title_deeds_summarised }} จำนวน {{ model.total_title_deeds }} ฉบับ{{ end }}{{ if model.unnumbered_title_deeds > 0 }} (ไม่ระบุเลขที่ {{ model.unnumbered_title_deeds }} ฉบับ){{ end }}{{ if model.title_deeds_summarised }} (รายละเอียดตามข้อ {{ model.body_type == "construction" ? "2" : "2.1" }}){{ end }}</td>
     </tr>
     {{ end }}
 
@@ -72,51 +84,53 @@
     {{ if model.land_owner }}
     <tr>
       <th class="kv-label" scope="row">ผู้ถือกรรมสิทธิ์ที่ดิน</th>
-      <td class="kv-value">{{ model.land_owner }}</td>
+      <td class="kv-value">{{ kvl model.land_owner }}</td>
     </tr>
     {{ end }}
 
     {{ if model.building_details_text }}
     <tr>
       <th class="kv-label" scope="row">อาคารสิ่งปลูกสร้าง</th>
-      <td class="kv-value">{{ model.building_details_text }}</td>
+      <td class="kv-value">{{ kvl model.building_details_text }}</td>
     </tr>
     {{ end }}
 
     {{ if model.building_owner }}
     <tr>
       <th class="kv-label" scope="row">ผู้ถือกรรมสิทธิ์สิ่งปลูกสร้าง</th>
-      <td class="kv-value">{{ model.building_owner }}</td>
+      <td class="kv-value">{{ kvl model.building_owner }}</td>
     </tr>
     {{ end }}
 
     {{ if model.condo_owner }}
     <tr>
       <th class="kv-label" scope="row">ผู้ถือกรรมสิทธิ์ห้องชุด</th>
-      <td class="kv-value">{{ model.condo_owner }}</td>
+      <td class="kv-value">{{ kvl model.condo_owner }}</td>
     </tr>
     {{ end }}
 
-    {{ if model.machine_registration_numbers }}
+    {{ if model.machine_registrations.size > 0 }}
     <tr>
       <th class="kv-label" scope="row">เลขทะเบียนเครื่องจักร</th>
-      <td class="kv-value">{{ model.machine_registration_numbers }}</td>
+      <td class="kv-value">{{ if model.machine_registrations.size == 1 }}{{ model.machine_registrations[0] }}{{ else }}{{ for r in model.machine_registrations }}<div style="padding-left:2.2em;text-indent:-2.2em;">({{ for.index + 1 }}) {{ r }}</div>{{ end }}{{ end }}</td>
     </tr>
     {{ end }}
 
-    {{ if model.obligation }}
+    {{ if model.obligation_mortgage }}
     <tr>
-      <th class="kv-label" scope="row">ภาระผูกพัน</th>
-      <td class="kv-value">{{ model.obligation }}</td>
+      <th class="kv-label" scope="row">ภาระผูกพันการจำนอง</th>
+      <td class="kv-value">{{ kvl model.obligation_mortgage }}</td>
+    </tr>
+    <tr>
+      <th class="kv-label" scope="row">ภาระผูกพันอื่นๆ</th>
+      <td class="kv-value">{{ kvl model.obligation_others }}</td>
     </tr>
     {{ end }}
 
-    {{ if model.city_plan }}
     <tr>
       <th class="kv-label" scope="row">พรบ.ผังเมือง</th>
-      <td class="kv-value">{{ model.city_plan }}</td>
+      <td class="kv-value">{{ if model.city_plan }}{{ model.city_plan }}{{ else }}<span class="na">-</span>{{ end }}</td>
     </tr>
-    {{ end }}
 
     {{ if model.appraisal_purpose }}
     <tr>
@@ -176,41 +190,5 @@
     </tr>
     {{ end }}
   </table>
-
-  <!-- Closing paragraph -->
-  <div class="letter-closing">
-    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;รายละเอียดการประเมินมูลค่าทรัพย์สินปรากฏตามรายงานที่แนบมาพร้อมนี้
-  </div>
-  <div class="letter-closing" style="margin-top:-12px;">
-    จึงเรียนมาเพื่อโปรดพิจารณา
-  </div>
-
-  <!-- Surveyor line -->
-  {{ if model.surveyor_name }}
-  <div class="letter-surveyor">ผู้สำรวจ : {{ model.surveyor_name }}</div>
-  {{ end }}
-
-  <!-- Signature block: 3 columns -->
-  <div style="margin-top:4px; font-size:10pt;">ขอแสดงความนับถือ</div>
-  <div class="sig-table">
-    <div class="sig-cell">
-      <div class="sig-line"></div>
-      <div class="sig-name">{{ model.checker_name }}</div>
-      <div class="sig-role">ผู้ตรวจสอบรายงาน</div>
-    </div>
-    <div class="sig-cell">
-      <div class="sig-line"></div>
-      <div class="sig-name">{{ model.verify_name }}</div>
-      <div class="sig-role">
-        ผู้ประเมินหลักชั้นวุฒิ
-        {{ if model.verify_license_no }}เลขที่ {{ model.verify_license_no }}{{ end }}
-      </div>
-    </div>
-    <div class="sig-cell">
-      <div class="sig-line"></div>
-      <div class="sig-name">{{ model.director_name }}</div>
-      <div class="sig-role">กรรมการผู้มีอำนาจลงนาม</div>
-    </div>
-  </div>
 
 </div>

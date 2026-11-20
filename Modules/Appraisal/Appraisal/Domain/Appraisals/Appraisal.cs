@@ -475,6 +475,7 @@ public class Appraisal : Aggregate<Guid>
         else if (source.PropertyType == PropertyType.Condo)
         {
             newProperty.SetCondoDetail(CondoAppraisalDetail.CopyFrom(source.CondoDetail!, newProperty.Id));
+            CopyRentedOutLeaseInfo(source, newProperty);
         }
         else if (source.PropertyType == PropertyType.Vehicle)
         {
@@ -524,12 +525,12 @@ public class Appraisal : Aggregate<Guid>
     }
 
     /// <summary>
-    /// Copy lease agreement &amp; rental info for a rented-out plain Land / Land &amp; Building property.
-    /// Leasehold property types copy these unconditionally; plain land only when IsRentedOut is set.
+    /// Copy lease agreement &amp; rental info for a rented-out plain Land / Land &amp; Building / Condo property.
+    /// Leasehold property types copy these unconditionally; the plain types only when IsRentedOut is set.
     /// </summary>
     private static void CopyRentedOutLeaseInfo(AppraisalProperty source, AppraisalProperty newProperty)
     {
-        if (source.LandDetail?.IsRentedOut != true)
+        if ((source.LandDetail?.IsRentedOut ?? source.CondoDetail?.IsRentedOut) != true)
             return;
 
         if (source.LeaseAgreementDetail is not null)

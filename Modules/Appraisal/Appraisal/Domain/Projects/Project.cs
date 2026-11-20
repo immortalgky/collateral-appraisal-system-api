@@ -101,6 +101,9 @@ public class Project : Aggregate<Guid>
     /// <summary>LandAndBuilding only — project license expiration date.</summary>
     public DateTime? LicenseExpirationDate { get; private set; }
 
+    /// <summary>LandAndBuilding only — project construction license number.</summary>
+    public string? LicenseNumber { get; private set; }
+
     // ----- Private Collections -----
 
     private readonly List<ProjectTower> _towers = [];
@@ -164,12 +167,13 @@ public class Project : Aggregate<Guid>
         decimal? constructionProgressPercent = null,
         // Type-specific
         string? builtOnTitleDeedNumber = null,
-        DateTime? licenseExpirationDate = null)
+        DateTime? licenseExpirationDate = null,
+        string? licenseNumber = null)
     {
         ValidateSharedFields(landAreaRai, landAreaNgan, landAreaSquareWa, unitForSaleCount, numberOfPhase,
             constructionProgressPercent);
         ValidateProjectSaleLaunchDate(projectSaleLaunchDate);
-        ValidateTypeSpecificFields(projectType, builtOnTitleDeedNumber, licenseExpirationDate);
+        ValidateTypeSpecificFields(projectType, builtOnTitleDeedNumber, licenseExpirationDate, licenseNumber);
 
         var project = new Project
         {
@@ -207,7 +211,8 @@ public class Project : Aggregate<Guid>
                     ? constructionProgressPercent
                     : null,
             BuiltOnTitleDeedNumber = projectType == ProjectType.Condo ? builtOnTitleDeedNumber : null,
-            LicenseExpirationDate = projectType.IsLandAndBuildingLike() ? licenseExpirationDate : null
+            LicenseExpirationDate = projectType.IsLandAndBuildingLike() ? licenseExpirationDate : null,
+            LicenseNumber = projectType.IsLandAndBuildingLike() ? licenseNumber : null
         };
 
         project.AddDomainEvent(new ProjectCreatedEvent(project));
@@ -252,12 +257,13 @@ public class Project : Aggregate<Guid>
         decimal? constructionProgressPercent = null,
         // Type-specific
         string? builtOnTitleDeedNumber = null,
-        DateTime? licenseExpirationDate = null)
+        DateTime? licenseExpirationDate = null,
+        string? licenseNumber = null)
     {
         ValidateSharedFields(landAreaRai, landAreaNgan, landAreaSquareWa, unitForSaleCount, numberOfPhase,
             constructionProgressPercent);
         ValidateProjectSaleLaunchDate(projectSaleLaunchDate);
-        ValidateTypeSpecificFields(ProjectType, builtOnTitleDeedNumber, licenseExpirationDate);
+        ValidateTypeSpecificFields(ProjectType, builtOnTitleDeedNumber, licenseExpirationDate, licenseNumber);
 
         ProjectName = projectName;
         ProjectDescription = projectDescription;
@@ -323,6 +329,7 @@ public class Project : Aggregate<Guid>
         }
         BuiltOnTitleDeedNumber = ProjectType == ProjectType.Condo ? builtOnTitleDeedNumber : null;
         LicenseExpirationDate = ProjectType.IsLandAndBuildingLike() ? licenseExpirationDate : null;
+        LicenseNumber = ProjectType.IsLandAndBuildingLike() ? licenseNumber : null;
     }
 
     // =========================================================================
@@ -1281,7 +1288,8 @@ public class Project : Aggregate<Guid>
     private static void ValidateTypeSpecificFields(
         ProjectType projectType,
         string? builtOnTitleDeedNumber,
-        DateTime? licenseExpirationDate)
+        DateTime? licenseExpirationDate,
+        string? licenseNumber)
     {
         if (projectType.IsLandAndBuildingLike() && builtOnTitleDeedNumber != null)
             throw new ArgumentException(
@@ -1292,5 +1300,10 @@ public class Project : Aggregate<Guid>
             throw new ArgumentException(
                 "LicenseExpirationDate is only applicable to LandAndBuilding projects.",
                 nameof(licenseExpirationDate));
+
+        if (projectType == ProjectType.Condo && licenseNumber != null)
+            throw new ArgumentException(
+                "LicenseNumber is only applicable to LandAndBuilding projects.",
+                nameof(licenseNumber));
     }
 }

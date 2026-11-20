@@ -1,0 +1,59 @@
+{{~ # Partial: the condo valuation table (registration value + market comparison value), the same figures as the old condo detail page. Caller: cval = model.condo_section.valuation. ~}}
+{{- func nz; if $0 != null && $0 != ""; ret $0; end; ret "-"; end -}}
+<table class="grid">
+    <thead>
+      <tr>
+        <th style="border-top:0;"></th>
+        <th style="width:115px;">ตร.ม. ละ (บาท)</th>
+        <th style="width:110px;">เนื้อที่ (ตารางเมตร)</th>
+        <th style="width:125px;">จำนวนเงิน (บาท)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td colspan="4"><u>ราคาประเมินทุนทรัพย์ห้องชุดในการจดทะเบียนสิทธิและนิติกรรม</u></td></tr>
+      <tr>
+        <td>พื้นที่ภายในห้องชุด</td>
+        <td class="num">{{ if cval.interior_amount; cval.registration_price_per_sqm | math.format "N2"; else; "-"; end }}</td>
+        <td class="num">{{ if cval.interior_area; cval.interior_area | math.format "N2"; else; "-"; end }}</td>
+        <td class="num">{{ if cval.interior_amount; cval.interior_amount | math.format "N2"; else; "-"; end }}</td>
+      </tr>
+      <tr><td colspan="4">พื้นที่ภายนอกห้องชุด</td></tr>
+      <tr>
+        <td style="padding-left:18px;">- พื้นที่ระเบียง</td>
+        <td class="num">{{ if cval.balcony_amount; cval.registration_price_per_sqm | math.format "N2"; else; "-"; end }}</td>
+        <td class="num">{{ if cval.balcony_area; cval.balcony_area | math.format "N2"; else; "-"; end }}</td>
+        <td class="num">{{ if cval.balcony_amount; cval.balcony_amount | math.format "N2"; else; "-"; end }}</td>
+      </tr>
+      <tr>
+        <td style="padding-left:18px;">- พื้นที่วางแอร์</td>
+        <td class="num">{{ if cval.air_con_amount; cval.registration_price_per_sqm | math.format "N2"; else; "-"; end }}</td>
+        <td class="num">{{ if cval.air_con_area; cval.air_con_area | math.format "N2"; else; "-"; end }}</td>
+        <td class="num">{{ if cval.air_con_amount; cval.air_con_amount | math.format "N2"; else; "-"; end }}</td>
+      </tr>
+      <tr>
+        <td style="padding-left:18px;">- พื้นที่อื่นๆ</td>
+        <td class="num">{{ if cval.other_amount; cval.registration_price_per_sqm | math.format "N2"; else; "-"; end }}</td>
+        <td class="num">{{ if cval.other_area; cval.other_area | math.format "N2"; else; "-"; end }}</td>
+        <td class="num">{{ if cval.other_amount; cval.other_amount | math.format "N2"; else; "-"; end }}</td>
+      </tr>
+      <tr><td colspan="4"><u>ราคาประเมินโดยวิธีเปรียบเทียบราคาตลาด</u></td></tr>
+      <tr>
+        <td>พื้นที่ห้องชุดรวมระเบียง</td>
+        <td class="num">{{ if cval.market_price_per_sqm; cval.market_price_per_sqm | math.format "N2"; else; "-"; end }}</td>
+        <td class="num">{{ if cval.market_area; cval.market_area | math.format "N2"; else; "-"; end }}</td>
+        <td class="num">{{ if cval.market_amount; cval.market_amount | math.format "N2"; else; "-"; end }}</td>
+      </tr>
+      <tr>
+        <td><strong>รวมราคาประเมินมูลค่าทรัพย์สิน (ปัดเศษ)</strong></td>
+        <td class="num"></td>
+        <td class="num">(ปัดเศษ)</td>
+        <td class="num"><strong><u>{{ if cval.total_rounded_value; cval.total_rounded_value | math.format "N2"; else; "-"; end }}</u></strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:6px;">
+    <span>ประเมินเมื่อวันที่ {{ if model.appraisal_date }}{{ thai.date model.appraisal_date }}{{ end }}</span>
+    <span>{{ if cval.total_rounded_value }}( {{ thai.baht_text cval.total_rounded_value }} ){{ end }}</span>
+  </div>
+  <div class="bk-p" style="padding-left:0;"><b>หมายเหตุ :</b> {{ nz cval.remark }}</div>

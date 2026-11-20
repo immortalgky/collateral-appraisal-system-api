@@ -20,5 +20,7 @@ public record UpdateLeaseAgreementCommand(
     string? ContractRenewal = null,
     string? RentalTermsImpactingPropertyUse = null,
     string? TerminationOfLease = null,
-    string? Remark = null
+    string? Remark = null,
+    bool? IsLeaseRegistered = null,
+    bool? IsLeaseholdPledgeable = null
 ) : ICommand, ITransactionalCommand<IAppraisalUnitOfWork>;

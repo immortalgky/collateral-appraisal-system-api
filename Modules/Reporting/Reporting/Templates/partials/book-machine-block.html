@@ -1,0 +1,20 @@
+{{~ # Partial: one machine's detail rows. Caller sets m. ~}}
+<div class="vk-head"><span>เครื่องจักรรายการที่ {{ m.sequence }}</span><span>{{ m.machine_name }}{{ if m.quantity != null }} (จำนวน {{ m.quantity }} เครื่อง){{ end }}</span></div>
+<div class="vk bk-keep">
+  {{ vk 'หมายเลขทะเบียน' m.registration_number }}
+  {{ vk 'ตำแหน่งที่ตั้ง' m.location }}
+  {{ vk 'สภาพการใช้งาน' m.condition_use }}
+  {{ vk 'ยี่ห้อ' m.brand }}
+  {{ vk 'แบบ' m.type }}
+  {{ vk 'รุ่น' (m.model ? m.model + (m.year_of_manufacture ? ' , ปี ' + m.year_of_manufacture : '') : null) }}
+  {{ vk 'ขนาดเครื่อง' m.machine_dimensions }}
+  {{ vk 'พลังงานที่ใช้' m.energy_use }}
+  {{ vk 'หมายเลขเครื่อง' m.serial_no }}
+  {{ vk 'ใช้ในการ' m.usage_purpose }}
+  {{ vk 'ขนาดความสามารถ' m.capacity }}
+  {{ vk 'ผู้ผลิต' m.manufacturer }}
+  {{ vk 'อื่นๆ' m.other }}
+  {{ vk 'ส่วนประกอบ' m.machine_parts }}
+  {{ vk 'หมายเหตุ' m.remark }}
+  {{ vk 'ความเห็นผู้ประเมิน' m.appraiser_opinion }}
+</div>
