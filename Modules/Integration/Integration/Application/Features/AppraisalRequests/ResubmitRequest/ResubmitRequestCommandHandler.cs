@@ -1,3 +1,4 @@
+using Auth.Contracts.Users;
 using Integration.Application.Services;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -18,7 +19,8 @@ public class ResubmitRequestCommandHandler(
     ISender mediator,
     IAppraisalLookupService appraisalLookup,
     IIntegrationEventOutbox outbox,
-    ILogger<ResubmitRequestCommandHandler> logger
+    ILogger<ResubmitRequestCommandHandler> logger,
+    IUserLookupService userLookup
 ) : ICommandHandler<ResubmitRequestCommand, ResubmitRequestResult>
 {
     public async Task<ResubmitRequestResult> Handle(ResubmitRequestCommand command, CancellationToken cancellationToken)
@@ -72,6 +74,8 @@ public class ResubmitRequestCommandHandler(
             throw new BadRequestException("Requestor is required.");
         if (command.Creator is null)
             throw new BadRequestException("Creator is required.");
+        if (await userLookup.GetRequestorAsync(command.Requestor.UserId, ct) is null)
+            throw new BadRequestException($"Requestor '{command.Requestor.UserId}' is not registered or is inactive in CAS.");
         if (command.Detail is null)
             throw new BadRequestException("Detail is required.");
         if (command.Customers is null)

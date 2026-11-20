@@ -1,9 +1,11 @@
+using Auth.Contracts.Users;
 using Integration.Application.Services;
 using Mapster;
 using Request.Application.Services;
 using Request.Contracts.RequestDocuments.Dto;
 using Request.Contracts.Requests.Dtos;
 using Shared.CQRS;
+using Shared.Exceptions;
 using Shared.Time;
 
 namespace Integration.Application.Features.AppraisalRequests.CreateRequest;
@@ -12,13 +14,18 @@ public class CreateRequestCommandHandler(
     ICreateRequestService createRequestService,
     IRequestDocumentValidator validator,
     IAppraisalLookupService appraisalLookup,
-    IDateTimeProvider dateTimeProvider
+    IDateTimeProvider dateTimeProvider,
+    IUserLookupService userLookup
 ) : ICommandHandler<CreateRequestCommand, Guid>
 {
     public async Task<Guid> Handle(
         CreateRequestCommand command,
         CancellationToken cancellationToken)
     {
+        // The RM must be a registered, active CAS user: downstream emails look the RM up by this code and skip silently otherwise.
+        if (await userLookup.GetRequestorAsync(command.Requestor.UserId, cancellationToken) is null)
+            throw new BadRequestException($"Requestor '{command.Requestor.UserId}' is not registered or is inactive in CAS.");
+
         // PrevAppraisalNumber -> PrevAppraisalId for every purpose (400 naming the number when missing or
         // not Completed); a 99A legacy number stays a number and is recorded as a legacy prior book.
         // Whether the purpose needs / forbids / allows a prior appraisal is PriorAppraisalSubmissionGuard's call.

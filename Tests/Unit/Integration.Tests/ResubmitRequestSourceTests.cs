@@ -35,7 +35,8 @@ public class ResubmitRequestSourceTests
 
         var handler = new ResubmitRequestCommandHandler(
             update, sync, Substitute.For<ISender>(), Substitute.For<IAppraisalLookupService>(),
-            Substitute.For<IIntegrationEventOutbox>(), NullLogger<ResubmitRequestCommandHandler>.Instance);
+            Substitute.For<IIntegrationEventOutbox>(), NullLogger<ResubmitRequestCommandHandler>.Instance,
+            RequestorGuardTests.KnownUsers());
 
         var user = new UserInfoDto("U1", "u1");
         var documents = new List<RequestDocumentDto>
@@ -71,7 +72,8 @@ public class ResubmitRequestSourceTests
 
         var handler = new ResubmitRequestCommandHandler(
             update, Substitute.For<IRequestSyncService>(), Substitute.For<ISender>(), lookup,
-            Substitute.For<IIntegrationEventOutbox>(), NullLogger<ResubmitRequestCommandHandler>.Instance);
+            Substitute.For<IIntegrationEventOutbox>(), NullLogger<ResubmitRequestCommandHandler>.Instance,
+            RequestorGuardTests.KnownUsers());
         var user = new UserInfoDto("U1", "u1");
         var command = new ResubmitRequestCommand(
             requestId, "03", "SIBS", user, user, "Normal", false,
@@ -104,7 +106,8 @@ public class ResubmitRequestSourceTests
 
         var handler = new ResubmitRequestCommandHandler(
             update, Substitute.For<IRequestSyncService>(), Substitute.For<ISender>(), lookup,
-            Substitute.For<IIntegrationEventOutbox>(), NullLogger<ResubmitRequestCommandHandler>.Instance);
+            Substitute.For<IIntegrationEventOutbox>(), NullLogger<ResubmitRequestCommandHandler>.Instance,
+            RequestorGuardTests.KnownUsers());
         var user = new UserInfoDto("U1", "u1");
         var command = new ResubmitRequestCommand(
             requestId, "03", "SIBS", user, user, "Normal", false,
@@ -137,7 +140,8 @@ public class ResubmitRequestSourceTests
 
         var handler = new ResubmitRequestCommandHandler(
             update, Substitute.For<IRequestSyncService>(), Substitute.For<ISender>(), lookup,
-            Substitute.For<IIntegrationEventOutbox>(), NullLogger<ResubmitRequestCommandHandler>.Instance);
+            Substitute.For<IIntegrationEventOutbox>(), NullLogger<ResubmitRequestCommandHandler>.Instance,
+            RequestorGuardTests.KnownUsers());
         var user = new UserInfoDto("U1", "u1");
         var command = new ResubmitRequestCommand(
             requestId, "03", "LOS", user, user, "Normal", false,
@@ -168,7 +172,8 @@ public class ResubmitRequestSourceTests
 
         var handler = new ResubmitRequestCommandHandler(
             update, Substitute.For<IRequestSyncService>(), Substitute.For<ISender>(), lookup,
-            Substitute.For<IIntegrationEventOutbox>(), NullLogger<ResubmitRequestCommandHandler>.Instance);
+            Substitute.For<IIntegrationEventOutbox>(), NullLogger<ResubmitRequestCommandHandler>.Instance,
+            RequestorGuardTests.KnownUsers());
         var user = new UserInfoDto("U1", "u1");
         var command = new ResubmitRequestCommand(
             requestId, "03", "LOS", user, user, "Normal", false,
@@ -202,7 +207,8 @@ public class ResubmitRequestSourceTests
 
         var handler = new ResubmitRequestCommandHandler(
             update, sync, mediator, Substitute.For<IAppraisalLookupService>(),
-            Substitute.For<IIntegrationEventOutbox>(), NullLogger<ResubmitRequestCommandHandler>.Instance);
+            Substitute.For<IIntegrationEventOutbox>(), NullLogger<ResubmitRequestCommandHandler>.Instance,
+            RequestorGuardTests.KnownUsers());
 
         // The client labels its new file REQUEST (or nothing at all): in follow-up mode it still answers the follow-up.
         var documents = new List<RequestDocumentDto>
