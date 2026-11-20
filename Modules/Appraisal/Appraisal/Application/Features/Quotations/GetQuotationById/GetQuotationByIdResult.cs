@@ -110,6 +110,7 @@ public record QuotationAppraisalResult(
     // v7: the appraisal's owning request — FE uses this to call `/requests/{requestId}/documents`
     // when building the "share documents" picker.
     Guid? RequestId,
+    Guid? FeeId,
     string? CustomerName,
     // Admin-set maximum allowed duration in days (nullable — null means no cap set)
     int? MaxAppraisalDays,
