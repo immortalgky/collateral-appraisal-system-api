@@ -21,104 +21,56 @@ public sealed class WqsSection
     /// <summary>PropertyGroups.GroupName for the group, or null when no name is set.</summary>
     public string? GroupName { get; init; }
 
-    // ── Comparable column headers ─────────────────────────────────────────────────
+    /// <summary>Which approach / role this page belongs to and whether it is a reference (printed in the page banner).</summary>
+    public PricingMethodContext? Context { get; init; }
 
-    /// <summary>
-    /// Headers for the comparable columns, e.g. "ข้อมูล 1", "ข้อมูล 2", …
-    /// Ordered by PricingComparableLinks.DisplaySequence.
-    /// Empty when no comparables are linked.
-    /// </summary>
-    public IReadOnlyList<string> ComparableHeaders { get; init; } = [];
+    // ── Comparable columns ────────────────────────────────────────────────────────
 
-    // ── Factor rows ───────────────────────────────────────────────────────────────
+    /// <summary>"ตลาด n" + kind · date · unit per comparable, ordered by PricingComparableLinks.DisplaySequence.</summary>
+    public IReadOnlyList<MarketHeader> ComparableHeaders { get; init; } = [];
 
-    /// <summary>
-    /// One row per scoring factor, ordered by PricingComparativeFactors.DisplaySequence.
-    /// </summary>
+    /// <summary>The comparable columns split into tables that fit the page.</summary>
+    public IReadOnlyList<TableChunk> Chunks { get; init; } = [];
+
+    // ── Scoring band (ปัจจัยให้คะแนน) ─────────────────────────────────────────────
+
+    /// <summary>One row per factor in PricingFactorScores, ordered by its DisplaySequence.</summary>
     public IReadOnlyList<WqsFactorRow> Factors { get; init; } = [];
 
-    // ── Totals row (ผลรวม) — FSD §2.1.2.9 ─────────────────────────────────────────
+    /// <summary>The รวม row.</summary>
+    public WqsTotalsRow Totals { get; init; } = new();
 
-    /// <summary>ผลรวม ค่าน้ำหนัก — ΣWeight across all factors.</summary>
-    public decimal? TotalWeight { get; init; }
+    // ── Price band (ราคาเสนอขายและการปรับตามเวลา) ─────────────────────────────────
 
-    /// <summary>
-    /// ผลรวม คะแนน — Σ(Weight × Intensity) across all factors. This is the maximum
-    /// attainable weighted score (the คะแนน column total).
-    /// </summary>
-    public decimal? TotalMaxScore { get; init; }
-
-    /// <summary>
-    /// Per-comparable total weighted score (Σ Score×Weight), in the same order as
-    /// <see cref="ComparableHeaders"/>. Also the คะแนนเฉลี่ย row and the scatter X axis.
-    /// Null element when a comparable has no scored factors.
-    /// </summary>
-    public IReadOnlyList<decimal?> ComparableScoreTotals { get; init; } = [];
-
-    /// <summary>ทรัพย์สิน (SP) total weighted score — Σ subject Score×Weight.</summary>
-    public decimal? SubjectScoreTotal { get; init; }
-
-    // ── Price block (ราคาซื้อขาย / ราคาเสนอขาย) — FSD §2.1.2.9 ─────────────────────
-
-    /// <summary>
-    /// Price-adjustment rows (purchase price, its %, net; offer price, its %, net),
-    /// one value per comparable column. Empty when no comparable carries price data
-    /// (e.g. a WQS analysis scored purely on quality factors).
-    /// </summary>
+    /// <summary>Rows of the price band, last one is the bold มูลค่าที่ปรับแล้ว. Empty when no comparable carries a price.</summary>
     public IReadOnlyList<WqsPriceRow> PriceRows { get; init; } = [];
 
     // ── Regression statistics ─────────────────────────────────────────────────────
     // Source: appraisal.PricingRsqResults (PricingMethodId = WQS method).
 
-    /// <summary>สัมประสิทธิ์การกำหนด (R²) — source: PricingRsqResults.CoefficientOfDecision.</summary>
+    /// <summary>Coefficient of decision — PricingRsqResults.CoefficientOfDecision.</summary>
     public decimal? Rsq { get; init; }
 
-    /// <summary>ค่าผิดพลาดมาตรฐาน (STEYX) — source: PricingRsqResults.StandardError.</summary>
+    /// <summary>Standard error — PricingRsqResults.StandardError.</summary>
     public decimal? Steyx { get; init; }
 
-    /// <summary>จุดตัดแกน (INTERCEPT) — source: PricingRsqResults.IntersectionPoint.</summary>
+    /// <summary>Intersection point — PricingRsqResults.IntersectionPoint.</summary>
     public decimal? Intercept { get; init; }
 
-    /// <summary>ความชัน (SLOPE) — source: PricingRsqResults.Slope.</summary>
+    /// <summary>Slope — PricingRsqResults.Slope.</summary>
     public decimal? Slope { get; init; }
 
-    /// <summary>มูลค่าประมาณการ (FORECAST) — source: PricingRsqResults.RsqFinalValue.</summary>
+    /// <summary>Final value (มูลค่าสุทธิ (การถดถอย)) — PricingRsqResults.RsqFinalValue.</summary>
     public decimal? Forecast { get; init; }
 
-    /// <summary>ประมาณการต่ำสุด — source: PricingRsqResults.LowestEstimate.</summary>
+    /// <summary>Lowest estimate — PricingRsqResults.LowestEstimate.</summary>
     public decimal? LowestEstimate { get; init; }
 
-    /// <summary>ประมาณการสูงสุด — source: PricingRsqResults.HighestEstimate.</summary>
+    /// <summary>Highest estimate — PricingRsqResults.HighestEstimate.</summary>
     public decimal? HighestEstimate { get; init; }
 
-    // ── Summary values ────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// ราคาต่อ ตร.วา — source: PricingAnalysisMethods.ValuePerUnit.
-    /// This is the per-square-wa unit price stored directly on the method row.
-    /// (LandPerSqWa = ValuePerUnit; Forecast from RsqResults is the regression
-    /// predicted value and is a separate figure. We use ValuePerUnit here because
-    /// it is the authoritative user-confirmed per-unit price on the method.)
-    /// </summary>
-    public decimal? LandPerSqWa { get; init; }
-
-    /// <summary>
-    /// ราคาประเมิน — source: PricingAnalysisMethods.MethodValue.
-    /// The final appraised value for this WQS method.
-    /// </summary>
-    public decimal? AppraisalValue { get; init; }
-
-    /// <summary>
-    /// เนื้อที่ดิน (ตารางวา) — derived land area = MethodValue / ValuePerUnit
-    /// (ราคาประเมิน ÷ ตารางวาละ). Null when either input is missing or ValuePerUnit is 0.
-    /// </summary>
-    public decimal? LandArea { get; init; }
-
-    /// <summary>
-    /// ราคาต่อหน่วย — source: PricingAnalysisMethods.ValuePerUnit (same column as LandPerSqWa).
-    /// Exposed separately so templates may render either label without aliasing in code.
-    /// </summary>
-    public decimal? PricePerUnit { get; init; }
+    /// <summary>ปรับมูลค่าสุดท้าย (Adjust Final Value) — from PricingFinalValues. Empty when the method has none.</summary>
+    public IReadOnlyList<PricingFinalRow> FinalRows { get; init; } = [];
 
     // ── Scatter graph (FSD §2.1.2.9, image17) ─────────────────────────────────────
 
@@ -132,39 +84,44 @@ public sealed class WqsSection
     public WqsScatter? Scatter { get; init; }
 }
 
-/// <summary>
-/// One factor row in the WQS scoring table.
-/// </summary>
+/// <summary>One factor row of the WQS scoring band; every cell is pre-formatted, null prints "-".</summary>
 public sealed class WqsFactorRow
 {
-    /// <summary>
-    /// ปัจจัย — Thai factor name resolved from appraisal.MarketComparableFactorTranslations
-    /// (Language='th'). Falls back to the 'en' translation when no Thai translation exists.
-    /// </summary>
+    /// <summary>ปัจจัย — Thai translation of the factor name.</summary>
     public string? FactorName { get; init; }
 
-    /// <summary>
-    /// ค่าน้ำหนัก — source: PricingFactorScores.FactorWeight (subject row, MarketComparableId IS NULL).
-    /// </summary>
-    public decimal? Weight { get; init; }
+    /// <summary>น้ำหนัก — PricingFactorScores.FactorWeight (collateral row).</summary>
+    public string? Weight { get; init; }
 
-    /// <summary>
-    /// ความเข้ม — source: PricingFactorScores.Intensity (subject row, MarketComparableId IS NULL).
-    /// </summary>
-    public decimal? Intensity { get; init; }
+    /// <summary>ความเข้ม — PricingFactorScores.Intensity (collateral row).</summary>
+    public string? Intensity { get; init; }
 
-    /// <summary>
-    /// คะแนน — source: PricingFactorScores.Score (subject row, MarketComparableId IS NULL).
-    /// This is the subject's own quality score for this factor.
-    /// </summary>
-    public decimal? Score { get; init; }
+    /// <summary>คะแนน (การคำนวณ) = น้ำหนัก × ความเข้ม, as the screen computes it.</summary>
+    public string? WeightedIntensity { get; init; }
 
-    /// <summary>
-    /// Per-comparable scores, in the same order as <see cref="WqsSection.ComparableHeaders"/>.
-    /// Source: PricingFactorScores.Score per linked MarketComparableId, ordered by
-    /// PricingComparableLinks.DisplaySequence. Null element when a score row is absent.
-    /// </summary>
-    public IReadOnlyList<decimal?> ComparableScores { get; init; } = [];
+    /// <summary>ทรัพย์ คะแนน — PricingFactorScores.Score (collateral row).</summary>
+    public string? SubjectScore { get; init; }
+
+    /// <summary>ทรัพย์ ถ่วงน้ำหนัก — PricingFactorScores.WeightedScore (collateral row).</summary>
+    public string? SubjectWeighted { get; init; }
+
+    /// <summary>Per comparable คะแนน, in <see cref="WqsSection.ComparableHeaders"/> order.</summary>
+    public IReadOnlyList<string?> ComparableScores { get; init; } = [];
+
+    /// <summary>Per comparable ถ่วงน้ำหนัก (stored WeightedScore).</summary>
+    public IReadOnlyList<string?> ComparableWeighted { get; init; } = [];
+}
+
+/// <summary>The รวม row of the WQS scoring band (sums of the table's own columns).</summary>
+public sealed class WqsTotalsRow
+{
+    public string? Weight { get; init; }
+    public string? Intensity { get; init; }
+    public string? WeightedIntensity { get; init; }
+    public string? SubjectScore { get; init; }
+    public string? SubjectWeighted { get; init; }
+    public IReadOnlyList<string?> ComparableScores { get; init; } = [];
+    public IReadOnlyList<string?> ComparableWeighted { get; init; } = [];
 }
 
 /// <summary>
@@ -212,23 +169,12 @@ public sealed class WqsScatter
     public string YAxisTitle { get; init; } = "ราคา/หน่วย";
 }
 
-/// <summary>
-/// One price-block row in the WQS table (e.g. ราคาซื้อขาย / ราคาเสนอขายสุทธิหลังปรับ).
-/// Spans the same comparable columns as the factor rows; the subject (SP) column is blank.
-/// </summary>
+/// <summary>One row of the WQS price band: a label and one pre-formatted value per comparable (blank when the comparable has none).</summary>
 public sealed class WqsPriceRow
 {
-    /// <summary>Thai row label (first column), e.g. "ราคาซื้อขาย".</summary>
     public string? Label { get; init; }
-
-    /// <summary>Unit label shown in the คะแนน column, e.g. "บาท/ตารางวา".</summary>
-    public string? Unit { get; init; }
-
-    /// <summary>
-    /// One pre-formatted value per comparable column, in <see cref="WqsSection.ComparableHeaders"/>
-    /// order. A null element renders as blank.
-    /// </summary>
     public IReadOnlyList<string?> Values { get; init; } = [];
+    public bool Emphasis { get; init; }
 }
 
 /// <summary>One plotted point in <see cref="WqsScatter"/> (pixel coords).</summary>

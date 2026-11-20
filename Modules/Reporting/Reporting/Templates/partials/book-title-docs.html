@@ -1,0 +1,111 @@
+{{~ # Partial: 2.1-2.3 of the land book — one title table for every land, the ระวาง band, ownership rows, the rights (2.2) and the government-price table (2.3). Needs multi_land / multi_grp and the helper functions. ~}}
+<div class="bk-h2"><span>2.1</span><span>รายละเอียดเอกสารสิทธิ์ที่ดิน</span></div>
+{{ chk_off = []; chk_ok = []; chk_bad = [] }}
+{{ for ls in model.all_lands }}{{ chk_off = uadd chk_off ls.land_office }}{{ for t in ls.titles }}{{ if t.document_validation_result == '01' }}{{ chk_ok = uadd chk_ok t.title_number }}{{ else if t.document_validation_result == '02' }}{{ chk_bad = uadd chk_bad t.title_number }}{{ end }}{{ end }}{{ end }}
+<p class="bk-p">{{ doc_check 'เอกสารสิทธิ์' chk_off chk_ok chk_bad }}</p>
+{{ seq = 0; tot_wa = 0; ded = 0; rawangs = []; places = []; obls_m = []; obls_o = []; rems = [] }}
+<table class="vt">
+  <thead>
+    <tr><th rowspan="2" style="width:46px;">ลำดับ</th><th rowspan="2">โฉนดเลขที่</th><th rowspan="2">เลขที่ดิน</th><th rowspan="2">หน้าสำรวจ</th><th colspan="3">เนื้อที่ดิน</th><th rowspan="2">ผู้ถือกรรมสิทธิ์</th></tr>
+    <tr><th style="width:48px;">ไร่</th><th style="width:48px;">งาน</th><th style="width:56px;">วา</th></tr>
+  </thead>
+  <tbody>
+    {{ for ls in model.all_lands }}
+    {{ for t in ls.titles }}
+    {{ seq = seq + 1 }}{{ tot_wa = tot_wa + (t.area_rai ?? 0) * 400 + (t.area_ngan ?? 0) * 100 + (t.area_square_wa ?? 0) }}
+    <tr>
+      <td class="c">{{ seq }}</td>
+      <td class="c">{{ if t.title_type_display && t.title_type_display != "โฉนดที่ดิน" }}({{ t.title_type_display }}) {{ end }}{{ t.title_number }}</td>
+      <td class="c">{{ t.land_parcel_number }}</td>
+      <td class="c">{{ t.survey_number }}</td>
+      <td class="c">{{ f0 (t.area_rai ?? 0) }}</td>
+      <td class="c">{{ f0 (t.area_ngan ?? 0) }}</td>
+      <td class="c">{{ fx (t.area_square_wa ?? 0) }}</td>
+      <td class="c">{{ t.owner_name }}</td>
+    </tr>
+    {{ rawangs = uadd rawangs t.rawang }}
+    {{ end }}
+    {{ ded = ded + (ls.deducted_area_in_wa ?? 0) }}
+    {{ places = uadd places (place ls) }}{{ obls_m = uadd obls_m ls.obligation_mortgage }}{{ obls_o = uadd obls_o ls.obligation_others }}{{ rems = uadd rems ls.remark }}
+    {{ end }}
+    {{ t_rai = math.floor (tot_wa / 400) }}{{ t_rem = tot_wa - t_rai * 400 }}{{ t_ngan = math.floor (t_rem / 100) }}{{ t_wa = t_rem - t_ngan * 100 }}
+    <tr class="tot"><td colspan="4" class="r">เนื้อที่รวมตามเอกสารสิทธิ์</td><td class="c">{{ f0 t_rai }}</td><td class="c">{{ f0 t_ngan }}</td><td class="c">{{ fx t_wa }}</td><td class="c">หรือ {{ fx tot_wa }} ตารางวา</td></tr>
+    {{ if ded > 0 }}
+    {{ n_wa = tot_wa - ded }}
+    <tr class="ded"><td colspan="4" class="r">หัก เนื้อที่ที่ตัดออกจากการประเมิน</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c">{{ fx ded }} ตารางวา</td></tr>
+    {{ n_rai = math.floor (n_wa / 400) }}{{ n_rem = n_wa - n_rai * 400 }}{{ n_ngan = math.floor (n_rem / 100) }}{{ n_w = n_rem - n_ngan * 100 }}
+    <tr class="tot"><td colspan="4" class="r">คงเหลือ เนื้อที่ที่ใช้ประเมิน</td><td class="c">{{ f0 n_rai }}</td><td class="c">{{ f0 n_ngan }}</td><td class="c">{{ fx n_w }}</td><td class="c">หรือ {{ fx n_wa }} ตารางวา</td></tr>
+    {{ end }}
+  </tbody>
+</table>
+{{ if legal_in_31 }}
+{{~ # The land book: the area deductions of every land in one table under the title table (ลำดับ continues across lands; a land column when there are several). Its รวม is the หัก row above. ~}}
+{{ any_ded = false }}{{ for ls in model.all_lands }}{{ if ls.deductions.size > 0 }}{{ any_ded = true }}{{ end }}{{ end }}
+{{ if any_ded }}
+<div class="bk-p"><b>รายละเอียดเนื้อที่ที่ตัดออกจากการประเมิน</b></div>
+<table class="vt">
+  <thead><tr>{{ if multi_land }}<th>ที่ดิน</th>{{ end }}<th style="width:46px;">ลำดับ</th><th>เหตุผล</th><th>เนื้อที่ (ตร.ว.)</th><th>หมายเหตุ</th></tr></thead>
+  <tbody>
+    {{ dseq = 0 }}
+    {{ for ls in model.all_lands }}{{ land_k = for.index + 1 }}
+    {{ for d in ls.deductions }}{{ dseq = dseq + 1 }}
+    <tr>{{ if multi_land }}<td class="c">{{ (lsuf ls land_k) | string.strip }}</td>{{ end }}<td class="c">{{ dseq }}</td><td class="c">{{ d.reason }}</td><td class="c">{{ fx d.area_in_sq_wa }}</td><td class="c">{{ d.remark }}</td></tr>
+    {{ end }}
+    {{ end }}
+    <tr class="tot"><td colspan="{{ multi_land ? 3 : 2 }}" class="r">รวม</td><td class="c">{{ fx ded }}</td><td></td></tr>
+  </tbody>
+</table>
+{{ end }}
+{{ end }}
+<div class="bk-band">
+  {{ if rawangs.size == 0 }}ระวาง -<br/>{{ else }}{{ for r in rawangs }}ระวาง {{ r }}<br/>{{ end }}{{ end }}
+  {{ for p in places }}{{ p }}<br/>{{ end }}
+</div>
+<div class="vk bk-keep">
+  {{ vk 'ภาระผูกพัน' (ljoin obls_m) }}
+  {{ vk 'ภาระผูกพันอื่นๆ' (ljoin obls_o) }}
+  {{ vk 'หมายเหตุ' (rems | array.join "\n") }}
+</div>
+
+<div class="bk-keep">
+<div class="bk-h2"><span>2.2</span><span>การรอนสิทธิ</span></div>
+{{ for ls in model.all_lands }}
+{{ if multi_land }}{{ lhead ls (for.index + 1) }}{{ end }}
+{{ if legal_in_31 }}
+{{~ # The land book: 2.2 keeps the right-restriction data (the chips and their remark); the area deductions are under the 2.1 table and the legal rows in land 3.1. ~}}
+<div class="vk">
+  {{ vk 'การรอนสิทธิ์' (with_rm ls.eviction_type ls.eviction_remark) }}
+</div>
+{{ else }}
+<div class="vk">
+  {{ vk 'แนวเวนคืน' ((cb (ls.is_in_expropriation_line == false) 'ไม่อยู่ในแนวเวนคืน') + (cb (ls.is_in_expropriation_line == true) 'อยู่ในแนวเวนคืน')) }}
+  {{ prob 'แนวเขตป่าไม้' ls.is_forest_boundary 'ไม่อยู่' 'อยู่' }}
+  {{ vk 'การรอนสิทธิอื่นๆ' ls.other_legal_limitations }}
+</div>
+{{ end }}
+{{ end }}
+</div>
+
+<div class="bk-keep">
+<div class="bk-h2"><span>2.3</span><span>รายละเอียดราคาประเมินราชการ</span></div>
+<p class="bk-p">ราคาประเมินทุนทรัพย์ในการจดทะเบียนสิทธิและนิติกรรม รอบบัญชีปัจจุบัน</p>
+<table class="vt">
+  <thead><tr><th style="width:46px;">ลำดับ</th><th>โฉนดเลขที่</th><th>เลขที่ดิน</th><th>หน้าสำรวจ</th><th>เนื้อที่ดิน<br/>(ตารางวา)</th><th>ราคาประเมินราชการ<br/>(บาท/ตร.ว.)</th><th>ราคาประเมินราชการ<br/>(บาท)</th></tr></thead>
+  <tbody>
+    {{ seq = 0; tot_wa = 0; tot_gov = 0 }}
+    {{ for ls in model.all_lands }}{{ for t in ls.titles }}
+    {{ seq = seq + 1 }}{{ wa = (t.area_rai ?? 0) * 400 + (t.area_ngan ?? 0) * 100 + (t.area_square_wa ?? 0) }}{{ tot_wa = tot_wa + wa }}{{ tot_gov = tot_gov + (t.government_price ?? 0) }}
+    <tr>
+      <td class="c">{{ seq }}</td>
+      <td>{{ if t.title_type_display && t.title_type_display != "โฉนดที่ดิน" }}({{ t.title_type_display }}) {{ end }}{{ t.title_number }}</td>
+      <td class="c">{{ t.land_parcel_number }}</td>
+      <td class="c">{{ t.survey_number }}</td>
+      <td class="r">{{ fx wa }}</td>
+      <td class="r">{{ nz (f0 t.government_price_per_sq_wa) }}</td>
+      <td class="r">{{ nz (f0 t.government_price) }}</td>
+    </tr>
+    {{ end }}{{ end }}
+    <tr class="tot"><td colspan="4" class="r">รวมราคาประเมินราชการที่ดิน</td><td class="r">{{ fx tot_wa }}</td><td></td><td class="r">{{ f0 tot_gov }}</td></tr>
+  </tbody>
+</table>
+</div>

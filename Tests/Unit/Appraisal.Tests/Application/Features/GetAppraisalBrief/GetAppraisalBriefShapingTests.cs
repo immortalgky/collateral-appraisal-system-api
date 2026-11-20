@@ -116,10 +116,12 @@ public class GetAppraisalBriefShapingTests
     public void A_project_land_row_parses_land_use_and_keeps_the_legal_flags()
     {
         var land = new GetAppraisalBriefQueryHandler.ProjectLandRow(
-            null, 20m, 8m, "01", "[\"01\"]", false, null, true, null, false, "สวน", "ลูกรัง").ToLand();
+            null, "02", 20m, 8m, "01", "[\"01\"]", false, "03", null, true, null, false, "สวน", "ลูกรัง").ToLand();
 
         Assert.Equal(["01"], land.LandUseType);
         Assert.Null(land.LandShapeType);
+        Assert.Equal("03", land.LandAccessibilityType);
+        Assert.Equal("02", land.DevelopmentSuitabilityType); // the codes the data fix moved out of LandShapeType
         Assert.True(land.IsInExpropriationLine);
         Assert.Equal(20m, land.RoadFrontage);
         Assert.Equal(("สวน", "ลูกรัง"), (land.LandUseTypeOther, land.RoadSurfaceTypeOther));

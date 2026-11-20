@@ -1,0 +1,40 @@
+{{~ # Partial: the general-details and structure blocks of ONE building (caller sets b and bld_k). ~}}
+<div class="bk-bld">{{ if b.photo_src }}<div class="bk-img bk-bld-img"><img src="{{ b.photo_src }}"/></div>{{ end }}
+<div class="vk-head"><span>{{ if b.is_appraisable == false }}สิ่งปลูกสร้าง (ไม่ประเมินมูลค่า){{ else }}สิ่งปลูกสร้างรายการที่ {{ bld_k }}{{ end }}</span><span>{{ b.building_type_text }}{{ if b.number_of_floors }} {{ fx b.number_of_floors }} ชั้น{{ end }}</span></div>
+<div class="vk-sub">รายละเอียดทั่วไป</div>
+<div class="vk bk-keep">
+  {{~ # The first five rows repeat the 3.2 summary table of the land-and-building book (it sets bld_in_summary_table); the construction book has no such table and keeps them. ~}}
+  {{ if !bld_in_summary_table }}
+  {{ vk 'เลขที่บ้าน' b.house_number }}
+  {{ vk 'ลักษณะอาคาร' (b.building_type_text ? b.building_type_text + (b.number_of_floors ? ' (' + (fx b.number_of_floors) + ' ชั้น)' : '') : null) }}
+  {{ vk 'ชื่อแบบ' b.model_name }}
+  {{ vk 'ผู้ถือกรรมสิทธิ์อาคาร' b.owner_text }}
+  {{ vk 'ปลูกสร้างบนโฉนดเลขที่' b.built_on_title_number }}
+  {{ end }}
+  {{ vk 'ขนาดอาคาร (กว้าง x ยาว)' b.size_text (b.size_text ? 'เมตร' : null) }}
+  {{ vk 'พื้นที่ใช้สอยรวม' (f2 b.usable_area) 'ตารางเมตร' }}
+  {{ vk 'การแบ่งพื้นที่ใช้ประโยชน์' b.space_division }}
+  {{ vk 'สภาพอาคาร' b.building_condition }}
+  {{ vk 'รูปแบบอาคาร' b.building_form }}
+  {{ vk 'คุณภาพของวัสดุก่อสร้าง' b.material_quality }}
+  {{ vk 'อายุอาคารประมาณ' b.building_age 'ปี' }}
+  {{ vk 'การดูแล บำรุงรักษา' b.maintenance }}
+  {{ vk 'การตกแต่ง' b.painting }}
+  {{ vk 'รูปแบบการตกแต่ง / ลักษณะการก่อสร้าง' b.decoration }}
+</div>
+<div class="vk-sub">โครงสร้างและวัสดุอาคาร</div>
+<div class="vk">
+  {{ vk 'โครงสร้างอาคาร' b.main_structure }}
+  {{ vk 'โครงหลังคาและวัสดุมุงหลังคา' (b.roof_frame && b.roof_material ? b.roof_frame + ' มุงด้วย' + b.roof_material : (b.roof_frame ?? b.roof_material)) }}
+  {{ vk 'ฝ้าเพดาน' b.ceiling }}
+  {{ fl = '' }}{{ for f in b.floors }}{{ one = 'ชั้น ' + f.from_floor + (f.to_floor != f.from_floor ? ' - ' + f.to_floor : '') }}{{ if f.floor_type }}{{ one = one + ' ' + f.floor_type }}{{ end }}{{ if f.floor_structure }}{{ one = one + ' พื้น ' + f.floor_structure }}{{ end }}{{ if f.floor_surface }}{{ one = one + ' ' + f.floor_surface }}{{ end }}{{ if fl != '' }}{{ fl = fl + "\n" }}{{ end }}{{ fl = fl + one }}{{ end }}
+  {{ vk 'พื้นและวัสดุปูผิวพื้น' fl }}
+  {{ vk 'ผนังภายใน / ภายนอก' b.wall }}
+  {{ vk 'ประตู' b.door }}
+  {{ vk 'หน้าต่าง' b.window }}
+  {{ vk 'ห้องน้ำและสุขภัณฑ์' b.sanitary }}
+  {{ vk 'งานระบบในอาคาร' b.building_systems }}
+  {{ vk 'การใช้ประโยชน์ปัจจุบัน' b.utilization }}
+  {{ vk 'หมายเหตุ' b.remark }}
+</div>
+</div>

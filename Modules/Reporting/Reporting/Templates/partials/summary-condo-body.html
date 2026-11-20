@@ -1,0 +1,123 @@
+<!--
+  Partial: body content of สรุปรายงานการประเมินราคาทรัพย์สิน – ห้องชุด.
+  Included by appraisal-summary-condo.html and appraisal-book.html (internal book front page, `condo` form).
+  Shares the parent Scriban scope; expects: model.* (AppraisalSummaryModel snake_case fields).
+-->
+<div class="form">
+
+  <!-- ════ HEADER + INFO BLOCK (shared; opens .pad) ════ -->
+  {{ if model.report_title; summary_title = model.report_title; else; summary_title = "สรุปรายงานการประเมินราคาทรัพย์สิน"; end }}
+  {{ include 'partials/summary-head' }}
+    <div class="cols3">
+      <div class="kv"><span class="k">เขตการปกครอง</span><span class="v">{{ model.administrative_district }}</span></div>
+      {{ if model.is_increase_limit || model.has_prev_appraisal }}
+      <div class="kv"><span class="k">สำนักงานที่ดิน</span><span class="v">{{ model.land_office }}</span></div>
+      <div class="kv">{{ if model.is_increase_limit }}<span class="k">วงเงินสินเชื่อเดิม</span><span class="v">{{ if model.existing_loan_value; model.existing_loan_value | math.format "N2"; else; "-"; end }} บาท</span>{{ else if model.has_prev_appraisal }}<span class="k">ราคาประเมินเดิม</span><span class="v">{{ if model.old_appraisal_value; model.old_appraisal_value | math.format "N2"; else; "-"; end }}</span>{{ end }}</div>
+      {{ else }}
+      <div class="kv" style="grid-column:span 2;"><span class="k">สำนักงานที่ดิน</span><span class="v">{{ model.land_office }}</span></div>
+      {{ end }}
+    </div>
+    <div class="cols3">
+      <div class="kv" style="grid-column:span 2;"><span class="k">ผู้ประเมินราคา</span><span class="v">{{ model.appraiser }}</span></div>
+      <div class="kv">{{ if !model.is_re_appraisal }}<span class="k">{{ if model.is_increase_limit }}ขอเพิ่มวงเงิน{{ else }}วงเงินสินเชื่อ{{ end }}</span><span class="v">{{ if model.loan_value; model.loan_value | math.format "N2"; else; "-"; end }} บาท</span>{{ end }}</div>
+    </div>
+  </div>
+
+  <!-- ════ COLLATERAL TABLE (5 columns) ════ -->
+  <table class="grid">
+    <thead>
+      <tr>
+        <th style="width:130px;"></th>
+        <th>รายการทรัพย์สิน</th>
+        <th style="width:90px;">พื้นที่ / จำนวน</th>
+        <th style="width:85px;">ราคาต่อหน่วย</th>
+        <th style="width:100px;">ราคาประเมิน</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ for g in model.groups }}
+      <tr>
+        <td>
+          <span class="chk on"></span>
+          <strong>{{ g.property_type }}</strong>
+        </td>
+        <td>{{ if g.detail_items.size > 1 }}{{ for d in g.detail_items }}<div>- {{ d.description }}</div>{{ if d.remark }}{{ remark_item = d.remark }}{{ include 'partials/summary-remark' }}{{ end }}{{ end }}{{ else }}{{ g.collateral_details }}{{ for d in g.detail_items }}{{ if d.remark }}{{ remark_item = d.remark }}{{ include 'partials/summary-remark' }}{{ end }}{{ end }}{{ end }}</td>
+        <td>{{ g.area_or_unit }}</td>
+        <td class="num">{{ if g.price_per_area_or_unit; g.price_per_area_or_unit | math.format "N2"; end }}</td>
+        <td class="num">{{ if g.appraisal_value; g.appraisal_value | math.format "N2"; end }}</td>
+      </tr>
+      {{ end }}
+      {{ if model.groups.size == 0 }}
+      <tr><td colspan="5" style="height:34px;">&nbsp;</td></tr>
+      {{ end }}
+      {{ if model.condition }}<tr class="cond"><td><strong>เงื่อนไข</strong></td><td colspan="4" class="brk">{{ model.condition }}</td></tr>{{ end }}
+      {{ if model.remark }}<tr><td><strong>หมายเหตุ</strong></td><td colspan="4" class="brk">{{ model.remark }}</td></tr>{{ end }}
+    </tbody>
+  </table>
+
+  <!-- ════ TOTALS ════ -->
+  <table class="totals grid-aligned">
+    <tr>
+      <th class="tl" scope="row">รวมราคาประเมินทรัพย์สินเป็นเงินทั้งสิ้น</th>
+      <td class="tv">{{ if model.total_appraisal_value; model.total_appraisal_value | math.format "N2"; else; "-"; end }}</td>
+    </tr>
+    <tr>
+      <td class="tt" colspan="2">( {{ thai.baht_text model.total_appraisal_value }} )</td>
+    </tr>
+    <tr>
+      <th class="tl" scope="row">ทุนประกันภัยห้องชุด</th>
+      <td class="tv">{{ if model.building_coverage_amount; model.building_coverage_amount | math.format "N2"; else; "-"; end }}</td>
+    </tr>
+    <tr>
+      <th class="tl" scope="row">ราคาบังคับขายเป็นเงินทั้งสิ้น</th>
+      <td class="tv">{{ if model.forced_sale_value; model.forced_sale_value | math.format "N2"; else; "-"; end }}</td>
+    </tr>
+  </table>
+
+  <!-- ════ ATTRIBUTES (condo-specific) ════ -->
+  <div class="pad attrs-block">
+    <div class="cols2">
+      <div class="kv"><span class="k">กรรมสิทธิ์ห้องชุด</span><span class="v" style="white-space:pre-line">{{ model.land_owner }}</span></div>
+      <div class="kv"><span class="k">สิทธิทางเข้า-ออก</span><span class="v">{{ model.entry_exit_rights }}</span></div>
+      <div class="kv"><span class="k">ภาระผูกพัน</span><span class="v" style="white-space:pre-line">{{ model.obligation_mortgage }}</span></div>
+      <div class="kv"><span class="k">สภาพที่ดิน</span><span class="v">{{ for c in model.land_conditions }}{{ c }}{{ if !for.last }}<br>{{ end }}{{ end }}</span></div>
+    </div>
+    {{ if model.obligation_others && model.obligation_others != 'ไม่มี' }}<div class="kv"><span class="k">ภาระผูกพันอื่นๆ</span><span class="v" style="white-space:pre-line">{{ model.obligation_others }}</span></div>{{ end }}
+    <div class="cols2">
+      <div class="kv"><span class="k">พิกัด</span><span class="v">{{ model.gps }}</span></div>
+      <div class="kv"><span class="k">ผังเมือง</span><span class="v">{{ model.city_plan }}</span></div>
+      <div class="kv"><span class="k">ราคาประเมินราชการ</span><span class="v">{{ model.government_price_text }}</span></div>
+      <div class="kv"><span class="k">สภาพการใช้ประโยชน์</span><span class="v">{{ for u in model.utilizations }}{{ u }}{{ if !for.last }}<br>{{ end }}{{ end }}</span></div>
+    </div>
+    <div class="kv" style="margin-top:3px;">
+      <span class="k">วิธีการประเมิน</span>
+      <span class="methods">
+        <span class="m"><span class="chk {{ if model.is_wqs || model.is_sale_grid }}on{{ end }}"></span> Market Comparison Approach</span>
+        <span class="m"><span class="chk {{ if model.is_cost }}on{{ end }}"></span> Cost Approach</span>
+        <span class="m"><span class="chk {{ if model.is_income }}on{{ end }}"></span> Income Approach</span>
+        <span class="m"><span class="chk {{ if model.is_hypothesis || model.is_leasehold || model.is_profit_rent }}on{{ end }}"></span> Residual Approach</span>
+      </span>
+    </div>
+  </div>
+
+  <!-- ════ APPRAISER OPINION ════ -->
+  <div class="opinion-block">
+  <div class="section-bar">สรุปความเห็นผู้ประเมิน</div>
+  <div class="pad">
+    {{ if model.appraiser_comment }}
+    {{ if model.property_type }}<div class="opinion-type">{{ model.property_type }}</div>{{ end }}
+    <div class="comment-box">{{ model.appraiser_comment }}</div>
+    {{ else }}
+    <div class="comment-box">-</div>
+    {{ end }}
+  </div>
+  </div><!-- .opinion-block -->
+
+  <!-- ════ SIGN-OFF — own page-break unit ════ -->
+  {{ include 'partials/summary-signoff' }}
+
+  <!-- ════ COMMITTEE BLOCK — own page-break unit ════ -->
+  {{ include 'partials/approver-block' }}
+
+  {{ include 'partials/summary-page-close' }}
+</div>

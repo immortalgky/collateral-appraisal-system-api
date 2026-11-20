@@ -40,12 +40,16 @@ public class ProjectLandConfiguration : IEntityTypeConfiguration<ProjectLand>
 
         // Owner
         builder.Property(e => e.OwnerName).HasMaxLength(200);
-        builder.Property(e => e.HasObligation).HasMaxLength(100);
+        builder.Property(e => e.ObligationType)
+            .HasConversion(new Appraisal.Infrastructure.Converters.TolerantCodeListConverter()) // a bare legacy '01' reads as ['01']
+            .HasColumnType("nvarchar(500)");
         builder.Property(e => e.ObligationDetails).HasMaxLength(500);
+        builder.Property(e => e.MortgageDetails).HasMaxLength(500);
 
         // Document Verification
-        builder.Property(e => e.LandCheckMethodType).HasMaxLength(100);
+        builder.Property(e => e.LandCheckMethodType).HasConversion(new Appraisal.Infrastructure.Converters.TolerantCodeListConverter()).HasColumnType("nvarchar(500)");
         builder.Property(e => e.LandCheckMethodTypeOther).HasMaxLength(4000);
+        builder.Property(e => e.LandLocationRemark).HasMaxLength(4000);
 
         // Location Details
         builder.Property(e => e.Street).HasMaxLength(200);
@@ -56,7 +60,10 @@ public class ProjectLandConfiguration : IEntityTypeConfiguration<ProjectLand>
 
         // Land Characteristics
         builder.Property(e => e.LandShapeType).HasMaxLength(100);
+        builder.Property(e => e.DevelopmentSuitabilityType).HasMaxLength(10);
         builder.Property(e => e.UrbanPlanningType).HasMaxLength(100);
+        builder.Property(e => e.UrbanPlanningColor).HasMaxLength(10);
+        builder.Property(e => e.UrbanPlanningColorOther).HasMaxLength(100);
         builder.Property(e => e.LandZoneType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
@@ -77,7 +84,8 @@ public class ProjectLandConfiguration : IEntityTypeConfiguration<ProjectLand>
         builder.Property(e => e.SoilLevel).HasPrecision(10, 2);
 
         // Road Access
-        builder.Property(e => e.AccessRoadWidth).HasPrecision(10, 2);
+        builder.Property(e => e.CarriagewayWidth).HasPrecision(10, 2);
+        builder.Property(e => e.RightOfWayWidth).HasPrecision(10, 2); // metres (เขตทางกว้าง)
         builder.Property(e => e.RoadFrontage).HasPrecision(10, 2);
         builder.Property(e => e.RoadPassInFrontOfLand).HasMaxLength(200);
         builder.Property(e => e.LandAccessibilityType).HasMaxLength(100);
@@ -114,6 +122,13 @@ public class ProjectLandConfiguration : IEntityTypeConfiguration<ProjectLand>
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
         builder.Property(e => e.TransportationAccessTypeOther).HasMaxLength(4000);
+        // สภาพแวดล้อม (Environment parameter group), as on the land detail
+        builder.Property(e => e.EnvironmentType)
+            .HasConversion(
+                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+            .HasColumnType("nvarchar(500)");
+        builder.Property(e => e.EnvironmentTypeOther).HasMaxLength(200);
         builder.Property(e => e.PropertyAnticipationType).HasMaxLength(100);
         builder.Property(e => e.PropertyAnticipationTypeOther).HasMaxLength(4000);
 
@@ -133,6 +148,7 @@ public class ProjectLandConfiguration : IEntityTypeConfiguration<ProjectLand>
                 v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
             .HasColumnType("nvarchar(500)");
         builder.Property(e => e.EvictionTypeOther).HasMaxLength(4000);
+        builder.Property(e => e.EvictionRemark).HasMaxLength(4000);
         builder.Property(e => e.AllocationType).HasMaxLength(100);
 
         // Adjacent Boundaries

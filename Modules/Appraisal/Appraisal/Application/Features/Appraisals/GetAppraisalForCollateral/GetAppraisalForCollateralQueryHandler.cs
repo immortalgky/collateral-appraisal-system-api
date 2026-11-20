@@ -652,7 +652,7 @@ public class GetAppraisalForCollateralQueryHandler(
                 LandShapeType: p.LandDetail.LandShapeType,
                 LandZoneType: p.LandDetail.LandZoneType?.FirstOrDefault(),
                 UrbanPlanningType: p.LandDetail.UrbanPlanningType,
-                AccessRoadWidth: p.LandDetail.AccessRoadWidth,
+                AccessRoadWidth: p.LandDetail.CarriagewayWidth, 
                 RoadFrontage: p.LandDetail.RoadFrontage,
                 LandArea: p.LandDetail.TotalLandAreaInSqWa == 0m ? null : p.LandDetail.TotalLandAreaInSqWa
             )

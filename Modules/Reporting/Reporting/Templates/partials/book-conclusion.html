@@ -1,0 +1,67 @@
+{{~ # Partial: the conclusion section (value box, certification, signers). Caller sets concl_no ('7.' or '4.'), concl_id ('s7' ...), concl_machine (true for the machine book: machine table + FMV labels). ~}}
+{{ part_kind = 'body'; part_id = concl_id; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>{{ concl_no }}</span><span>{{ if concl_construction }}สรุปผลการตรวจงวดงานก่อสร้าง{{ else }}สรุปการประเมินมูลค่าทรัพย์สิน{{ end }}</span></div>
+{{ final_value = model.is_external ? model.collateral_value : model.total_appraisal_value }}
+{{ forced_value = model.forced_sale_value; cover_value = cover_total }}
+{{~ # An internal book whose appraisal fans out to several summary forms (land-building + condo + machine): the book's conclusion adds the forms up, so it equals the sum of the groups in section 6. The machine form's coverage is its machinery total, not a building cover, so it is left out of the insurance figure. ~}}
+{{ if !model.is_external }}{{ for ex in model.extra_summary_forms }}{{ final_value = (final_value ?? 0) + (ex.total_appraisal_value ?? 0) }}{{ forced_value = (forced_value ?? 0) + (ex.forced_sale_value ?? 0) }}{{ end }}{{ end }}
+{{ if !concl_construction }}<p class="bk-p">จากการวิเคราะห์ปัจจัยต่างๆ ที่มีผลต่อมูลค่าตลาดของทรัพย์สิน ขอสรุปผลการประเมินมูลค่าทรัพย์สิน ณ วันที่ {{ thai.date (model.appraisal_date ?? model.verify_date) }} ดังนี้</p>{{ end }}
+{{ if concl_block == true }}
+{{ bn = model.block_section.models.size; bcols = bn > 3 ? 3 : bn }}
+<div class="bk-concl"><div class="cells only" style="grid-template-columns:repeat({{ bcols }},1fr)">
+  {{ for m in model.block_section.models }}
+  <div><div class="l">{{ model.block_section.is_condo ? 'แบบห้องชุด ' : 'แบบ ' }}{{ m.model_name }}{{ if m.model_description }} ({{ m.model_description }}){{ end }}</div><div class="v">{{ nz (f0 m.appraised_value) }}.- บาท/{{ model.block_section.is_condo ? 'ห้อง' : 'หลัง' }}</div>{{ if m.coverage_amount != null }}<div class="t">(ทุนประกันภัย {{ f0 m.coverage_amount }} บาท)</div>{{ end }}</div>
+  {{ end }}
+</div></div>
+{{ else if concl_construction }}
+{{~ # The internal summary form carries these figures; the external model does not, so they fall back to the inspection tables themselves. ~}}
+{{ v100 = 0; vprev = 0; vcur = 0 }}{{ for b in (model.construction_section ?? {}).buildings }}{{ v100 = v100 + (b.total_value ?? 0); vprev = vprev + (b.total_previous_value ?? 0); vcur = vcur + (b.total_current_value ?? 0) }}{{ end }}
+{{ p_prev = model.previous_progress_pct ?? (v100 > 0 ? vprev * 100 / v100 : null) }}
+{{ p_tot = model.total_progress_pct ?? (v100 > 0 ? vcur * 100 / v100 : null) }}
+{{ p_add = model.additional_progress_pct ?? (p_tot != null && p_prev != null ? p_tot - p_prev : null) }}
+{{ b_cur = model.current_building_value ?? (v100 > 0 ? vcur : null) }}
+{{ t_cur = model.total_land_current_building }}{{ t_100 = model.total_land_building100 }}
+<table class="vt">
+  <thead><tr><th>รายการ</th><th>ผลงานก่อนหน้า</th><th>ผลงานที่สร้างเพิ่มขึ้น</th><th>รวมผลการดำเนินงาน</th></tr></thead>
+  <tbody><tr class="tot"><td>รวมผลงานก่อสร้าง</td><td class="r">{{ nz (f2 p_prev) }}%</td><td class="r">{{ nz (f2 p_add) }}%</td><td class="r">{{ nz (f2 p_tot) }}%</td></tr></tbody>
+</table>
+<div class="bk-sum">
+  <div><span>มูลค่าอาคาร ณ ปัจจุบัน (ผลงาน {{ nz (f2 p_tot) }}%)</span><span>เป็นเงิน</span><span>{{ nz (f0 b_cur) }}</span><span>บาท</span></div>
+  <div><span>ราคาประเมินที่ดิน</span><span>เป็นเงิน</span><span>{{ nz (f0 model.land_appraisal_value) }}</span><span>บาท</span></div>
+  <div class="b"><span>รวมราคา ที่ดิน + อาคาร ณ ปัจจุบัน</span><span>เป็นเงิน</span><span>{{ nz (f0 t_cur) }}</span><span>บาท</span></div>
+  <div><span>รวมราคา ที่ดิน + อาคาร เมื่อแล้วเสร็จ 100%</span><span>เป็นเงิน</span><span>{{ nz (f0 t_100) }}</span><span>บาท</span></div>
+</div>
+<div class="bk-concl"><div class="hero"><div class="l">ราคาประเมิน ณ ปัจจุบัน</div><div class="v">{{ nz (f0 t_cur) }}.- บาท</div>{{ if t_cur != null }}<div class="t">({{ thai.baht_text t_cur }})</div>{{ end }}</div></div>
+{{ else }}
+{{~ # The value box: one ruled row per figure, label (two lines) : amount in figures and in words. The insured sum prints at the end of the cost-building table (book-flow-methods sets ins_printed) when there is one; only then does its row go. ~}}
+{{ show_cover = concl_machine || ins_printed != true }}
+{{~ # The force-sale % shows only when every form of the book agrees on it (an appraisal that fans out to several summary forms adds them up). ~}}
+{{ forced_rate = model.force_sale_rate }}{{ if !model.is_external }}{{ for ex in model.extra_summary_forms }}{{ if ex.force_sale_rate != forced_rate }}{{ forced_rate = null }}{{ end }}{{ end }}{{ end }}
+<table class="bk-val">
+  <tr><td class="k"><div class="b">{{ if concl_machine }}มูลค่าตลาดเครื่องจักร{{ else }}มูลค่าทรัพย์สิน{{ end }}</div><div>{{ if concl_machine }}(Fair Market Value){{ else }}(Market Value){{ end }}</div></td><td class="c">:</td><td class="v"><div>{{ nz (f0 final_value) }}.- บาท</div>{{ if final_value != null }}<div class="b">({{ thai.baht_text final_value }})</div>{{ end }}</td></tr>
+  <tr><td class="k"><div class="b">มูลค่าบังคับขาย{{ if forced_rate != null }} ({{ fx forced_rate }}%){{ end }}</div><div>(Forced Sale Value)</div></td><td class="c">:</td><td class="v"><div>{{ nz (f0 forced_value) }}.- บาท</div>{{ if forced_value != null }}<div class="b">({{ thai.baht_text forced_value }})</div>{{ end }}</td></tr>
+  {{ if show_cover }}<tr><td class="k"><div class="b">{{ if concl_machine }}ทุนประกันภัยเครื่องจักร{{ else }}ทุนประกันภัยสิ่งปลูกสร้าง{{ end }}</div><div>(Insurance Value)</div></td><td class="c">:</td><td class="v"><div>{{ nz (f0 cover_value) }}.- บาท</div>{{ if cover_value != null }}<div class="b">({{ thai.baht_text cover_value }})</div>{{ end }}</td></tr>{{ end }}
+</table>
+{{ if concl_machine && model.cost_machine_sections.size > 0 }}
+<table class="vt">
+  <thead><tr><th style="width:46px;">ลำดับ</th><th>เครื่องจักร</th><th>RCN (บาท)</th><th>FMV (บาท)</th></tr></thead>
+  <tbody>
+    {{ mk = 0; trcn = 0; tfmv = 0 }}
+    {{ for cms in model.cost_machine_sections }}{{ for grp in cms.groups }}{{ for row in grp.rows }}
+    {{ mk = mk + 1; trcn = trcn + (row.rcn ?? 0); tfmv = tfmv + (row.fmv ?? 0) }}
+    {{ nm = null }}{{ for m in model.machine_section.machines }}{{ if m.sequence == row.sequence && nm == null }}{{ nm = m.machine_name }}{{ end }}{{ end }}
+    <tr><td class="c">{{ mk }}</td><td>{{ nm ?? row.machine_detail }}</td><td class="r">{{ nz (f0 row.rcn) }}</td><td class="r">{{ nz (f0 row.fmv) }}</td></tr>
+    {{ end }}{{ end }}{{ end }}
+    <tr class="tot"><td colspan="2" class="r">รวม</td><td class="r">{{ f0 trcn }}</td><td class="r">{{ f0 tfmv }}</td></tr>
+  </tbody>
+</table>
+{{ end }}
+{{ if model.approach_values_multi_group }}
+<table class="vt">
+  <thead><tr><th>กลุ่ม</th><th>มูลค่า (บาท)</th></tr></thead>
+  <tbody>{{ for av in model.approach_values }}{{ if !av.is_reference }}<tr><td>กลุ่มที่ {{ av.group_number }}{{ if av.group_name }} - {{ av.group_name }}{{ end }}</td><td class="r">{{ nz (f0 av.value) }}</td></tr>{{ end }}{{ end }}</tbody>
+</table>
+{{ end }}
+{{ end }}
+</div>

@@ -22,7 +22,15 @@ public sealed class FakeSqlConnectionFactory : ISqlConnectionFactory
     /// <summary>Enqueue a DataTable as the result of the next SQL query call.</summary>
     public void EnqueueResult(DataTable table) => _resultQueue.Enqueue(table);
 
-    public IDbConnection GetOpenConnection() => new FakeDbConnection(_resultQueue);
+    private DataSet? _multi;
+
+    /// <summary>Every command on this factory's connections returns these result sets in order (for QueryMultipleAsync).</summary>
+    public void SetMultiResult(DataSet sets) => _multi = sets;
+
+    /// <summary>The CommandText of every command executed so far, so a test can assert what the SQL reads.</summary>
+    public List<string> Commands { get; } = [];
+
+    public IDbConnection GetOpenConnection() => new FakeDbConnection(_resultQueue, _multi, Commands);
 
     public IDbConnection CreateNewConnection() => GetOpenConnection();
 
@@ -33,7 +41,7 @@ public sealed class FakeSqlConnectionFactory : ISqlConnectionFactory
 /// A DbConnection that creates one FakeDbCommand per CreateDbCommand() call.
 /// Each command dequeues one DataTable from the shared queue.
 /// </summary>
-internal sealed class FakeDbConnection(Queue<DataTable> results) : DbConnection
+internal sealed class FakeDbConnection(Queue<DataTable> results, DataSet? multi = null, List<string>? log = null) : DbConnection
 {
     public override string ConnectionString { get; set; } = "fake";
     public override string Database => "fake";
@@ -51,7 +59,7 @@ internal sealed class FakeDbConnection(Queue<DataTable> results) : DbConnection
         => throw new NotSupportedException("FakeDbConnection does not support ChangeDatabase.");
 
     protected override DbCommand CreateDbCommand()
-        => new FakeDbCommand(results.TryDequeue(out var dt) ? dt : new DataTable());
+        => new FakeDbCommand(results.TryDequeue(out var dt) ? dt : new DataTable(), multi, log);
 }
 
 /// <summary>
@@ -59,7 +67,7 @@ internal sealed class FakeDbConnection(Queue<DataTable> results) : DbConnection
 /// a DataTableReader over that table. ExecuteScalar returns the value in row 0, col 0
 /// (used by Dapper for scalar queries — not the path exercised by QueryAsync).
 /// </summary>
-internal sealed class FakeDbCommand(DataTable results) : DbCommand
+internal sealed class FakeDbCommand(DataTable results, DataSet? multi = null, List<string>? log = null) : DbCommand
 {
     private readonly FakeDbParameterCollection _params = new();
 
@@ -83,11 +91,17 @@ internal sealed class FakeDbCommand(DataTable results) : DbCommand
     protected override DbParameter CreateDbParameter() => new FakeDbParameter();
 
     protected override DbDataReader ExecuteDbDataReader(CommandBehavior behavior)
-        => results.CreateDataReader();
+    {
+        log?.Add(CommandText);
+        return multi?.CreateDataReader() ?? results.CreateDataReader();
+    }
 
     protected override Task<DbDataReader> ExecuteDbDataReaderAsync(
         CommandBehavior behavior, CancellationToken cancellationToken)
-        => Task.FromResult<DbDataReader>(results.CreateDataReader());
+    {
+        log?.Add(CommandText);
+        return Task.FromResult<DbDataReader>(multi?.CreateDataReader() ?? results.CreateDataReader());
+    }
 }
 
 internal sealed class FakeDbParameter : DbParameter

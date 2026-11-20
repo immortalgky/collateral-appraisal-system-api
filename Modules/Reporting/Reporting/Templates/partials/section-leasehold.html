@@ -1,19 +1,24 @@
 {{- # caller sets: lh = sec (one LeaseholdSection) -}}
 <div class="section-bar">การประเมินมูลค่าทรัพย์สินโดยวิธีสิทธิการเช่า (Leasehold Approach)</div>
+{{ ctx = lh.context }}{{ include 'partials/book-method-banner' }}
+{{ leases = lh.leases }}{{ if !book_flow }}{{ include 'partials/book-lease-agreement' }}{{ end }}
 
 <table class="params" style="margin-bottom:6px;">
   <tr>
     <td class="pl">มูลค่าที่ดินต่อตารางวา</td>
     <td class="pv">{{ if lh.land_value_per_sq_wa != null }}{{ lh.land_value_per_sq_wa | math.format "N2" }} บาท/ตร.วา{{ end }}</td>
     <td class="pl">ประเภทการเติบโตของที่ดิน</td>
-    <td class="pv">{{ lh.land_growth_rate_type }}</td>
+    <td class="pv">{{ if lh.land_growth_is_period }}รายช่วง{{ if lh.land_growth_periods.size > 0 }} (ดูตารางช่วงการเติบโต){{ end }}{{ else }}{{ lh.land_growth_rate_type }}{{ end }}</td>
   </tr>
+  {{~ # Period mode: one rate per year range (the period table below); the single rate / interval would mislead. ~}}
+  {{ if !lh.land_growth_is_period }}
   <tr>
     <td class="pl">อัตราการเติบโตของที่ดิน</td>
     <td class="pv">{{ if lh.land_growth_rate_percent != null }}{{ lh.land_growth_rate_percent | math.format "N4" }} %{{ end }}</td>
     <td class="pl">ช่วงเวลาการเติบโต</td>
     <td class="pv">{{ if lh.land_growth_interval_years != null }}{{ lh.land_growth_interval_years }} ปี{{ end }}</td>
   </tr>
+  {{ end }}
   <tr>
     <td class="pl">ดัชนีต้นทุนก่อสร้าง</td>
     <td class="pv">{{ if lh.construction_cost_index != null }}{{ lh.construction_cost_index | math.format "N4" }}{{ end }}</td>
@@ -107,14 +112,36 @@
   <tr>
     <td class="pl">ราคาต่อตารางวา</td>
     <td class="pv">{{ if lh.price_per_sq_wa != null }}{{ lh.price_per_sq_wa | math.format "N2" }} บาท/ตร.วา{{ end }}</td>
-    <td class="pl">มูลค่าที่ดินส่วน</td>
+    <td class="pl">มูลค่าที่ดินส่วนที่อยู่ในสัญญาเช่า</td>
     <td class="pv">{{ if lh.partial_land_price != null }}{{ lh.partial_land_price | math.format "N2" }} บาท{{ end }}</td>
   </tr>
-  <tr>
-    <td class="pl">มูลค่าสิทธิการเช่าสุทธิ</td>
-    <td class="pv">{{ if lh.estimate_net_price != null }}{{ lh.estimate_net_price | math.format "N2" }} บาท{{ end }}</td>
-    <td class="pl">มูลค่าสิทธิการเช่า (ปัดเศษ)</td>
-    <td class="pv">{{ if lh.effective_final_value != null }}{{ lh.effective_final_value | math.format "N2" }} บาท{{ end }}</td>
-  </tr>
 </table>
+{{~ # estimate (PV) + land not covered by the lease = total, so the printed figures add up (screen: LeaseholdPartialUsageSection). ~}}
+{{ if lh.estimate_net_price != null }}
+<table class="totals" style="margin-top:6px; break-inside:avoid;">
+  <tr><td class="tl">ประมาณการมูลค่าสิทธิการเช่า (จาก PV ปัดเศษหลักพัน)</td><td class="tv">{{ lh.final_value_rounded | math.format "N2" }} บาท</td></tr>
+  {{ if lh.uncovered_land_price != null }}
+  <tr><td class="tl">บวก ที่ดินส่วนที่ไม่ได้อยู่ในสัญญาเช่า{{ if lh.uncovered_land_area != null && lh.price_per_sq_wa != null }} ({{ lh.uncovered_land_area | math.format "N2" }} ตร.วา × {{ lh.price_per_sq_wa | math.format "N2" }}){{ end }}</td><td class="tv">{{ lh.uncovered_land_price | math.format "N2" }} บาท</td></tr>
+  {{ end }}
+  <tr><td class="tl">รวม มูลค่าสิทธิการเช่าและที่ดินส่วนที่ไม่อยู่ในสัญญาเช่า</td><td class="tv">{{ lh.estimate_net_price | math.format "N2" }} บาท</td></tr>
+</table>
+{{ end }}
+{{ end }}
+
+{{ if lh.land_growth_periods && lh.land_growth_periods.size > 0 }}
+<div class="sub-bar" style="margin-top:8px;">ช่วงการเติบโตของมูลค่าที่ดิน</div>
+<table class="grid" style="width:60%;">
+  <thead><tr><th>ช่วงปีที่</th><th>อัตราเพิ่ม (%)</th></tr></thead>
+  <tbody>
+    {{ for gp in lh.land_growth_periods }}<tr><td class="ctr">{{ gp.from_year }} – {{ gp.to_year }}</td><td class="num">{{ gp.growth_rate_percent | math.format "#,##0.00##" }}</td></tr>{{ end }}
+  </tbody>
+</table>
+{{ end }}
+
+{{ subs = lh.land_value_sources }}{{ include 'partials/book-sub-analyses' }}
+
+{{ if lh.context && lh.context.remark }}
+<div class="pad" style="margin-top:4px;">
+  <div class="kv"><span class="k kw">หมายเหตุและสมมติฐาน :</span><span class="v">{{ lh.context.remark }}</span></div>
+</div>
 {{ end }}

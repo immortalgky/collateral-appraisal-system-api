@@ -247,6 +247,8 @@ public record BriefAsset(
     // codes are the raw parameter codes; the client resolves labels.
     /// <summary>LandShape code. 04-08 have a drawable shape; 01-03 and 99 do not.</summary>
     string? LandShapeType,
+    /// <summary>DevelopmentSuitability code (01-03). It used to be stored in LandShapeType; a data fix moved those codes here, so read both. Land only.</summary>
+    string? DevelopmentSuitabilityType,
     /// <summary>Metres of the parcel that front the road.</summary>
     decimal? RoadFrontage,
     /// <summary>Centimetres the land sits above or below the road.</summary>
@@ -265,12 +267,14 @@ public record BriefAsset(
     bool? FarFromElectricity,
     decimal? ElectricityDistance,
     /// <summary>Land's own width, else the condo's.</summary>
-    decimal? AccessRoadWidth,
+    decimal? CarriagewayWidth,
     /// <summary>RoadSurface code — land's own, else the condo's.</summary>
     string? RoadSurfaceType,
     /// <summary>Only the sides that have text or a number.</summary>
     IReadOnlyList<BriefBoundary> Boundaries,
     bool? IsLandlocked,
+    /// <summary>LandAccessibility code (01 ได้, 02 ไม่ได้, 03 ต้องปรับปรุง, 04 ตามฤดูกาล). Land only; null on other properties. The client resolves the label.</summary>
+    string? LandAccessibilityType,
     bool? IsExpropriated,
     bool? IsInExpropriationLine,
     bool? IsEncroached,
@@ -446,11 +450,14 @@ public record BriefImprovement(string? Description, decimal? Area);
 /// <summary>The land a project stands on. Same meanings as the matching <see cref="BriefAsset"/> fields.</summary>
 public record BriefProjectLand(
     string? LandShapeType,
+    string? DevelopmentSuitabilityType,
     decimal? RoadFrontage,
-    decimal? AccessRoadWidth,
+    decimal? CarriagewayWidth,
     string? RoadSurfaceType,
     IReadOnlyList<string> LandUseType,
     bool? IsLandlocked,
+    /// <summary>LandAccessibility code, as on the asset (01 ได้, 02 ไม่ได้, 03 ต้องปรับปรุง, 04 ตามฤดูกาล); null when blank.</summary>
+    string? LandAccessibilityType,
     bool? IsExpropriated,
     bool? IsInExpropriationLine,
     bool? IsEncroached,

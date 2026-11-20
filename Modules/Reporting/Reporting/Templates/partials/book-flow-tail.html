@@ -1,0 +1,38 @@
+{{~ # Partial: sections 5-8 shared by every numbered book flow: analysis, valuation (methods), conclusion, comparable market data. Needs the helper functions of book-funcs. ~}}
+{{~ # ═══════════════ 5. การวิเคราะห์ทรัพย์สินที่ประเมินมูลค่า ═══════════════ ~}}
+{{ part_kind = 'body'; part_id = 's5'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>5.</span><span>การวิเคราะห์ทรัพย์สินที่ประเมินมูลค่า</span></div>
+<div class="bk-keep">
+<div class="bk-h2"><span>5.1</span><span>วิธีการประเมินมูลค่า</span></div>
+{{~ # The method narrative is built in C# (PricingNarrative): the used approach(es) and the methods that gave the value, then the reference approaches. ~}}
+{{ if model.price_method_narrative.size > 0 }}{{ for para in model.price_method_narrative }}<p class="bk-p">{{ para }}</p>
+{{ end }}{{ else }}<p class="bk-p">-</p>{{ end }}
+{{ if model.selection_reason }}<p class="bk-p"><b>เหตุผลการเลือกวิธี</b> {{ model.selection_reason }}</p>{{ end }}
+</div>
+<div class="bk-keep">
+<div class="bk-h2"><span>5.2</span><span>สมมติฐานเพิ่มเติม / พิเศษ</span></div>
+{{~ # The Decision Summary's "ข้อสมมติฐานเพิ่มเติม / พิเศษ › รายละเอียด" box: a paragraph that keeps the appraiser's line breaks; "-" when blank. ~}}
+<p class="bk-p" style="white-space:pre-line;overflow-wrap:anywhere;">{{ if model.additional_assumptions && (model.additional_assumptions | string.strip) != '' }}{{ model.additional_assumptions }}{{ else }}-{{ end }}</p>
+</div>
+<div class="bk-h2"><span>5.3</span><span>ความเห็นผู้ประเมิน</span></div>
+<p class="bk-p">{{ nz model.appraiser_comment }}</p>
+</div>
+
+{{ val_no = '6'; val_id = 's6'; val_title = 'การประเมินมูลค่าทรัพย์สิน'; include 'partials/book-valuation' }}
+
+{{ concl_no = '7.'; concl_id = 's7'; concl_machine = false; concl_construction = false; concl_block = false; include 'partials/book-conclusion' }}
+
+{{~ # ═══════════════ 8. ข้อมูลตลาดเปรียบเทียบ ═══════════════ ~}}
+{{ if model.comparison_sections.size > 0 }}
+{{ part_kind = 'body'; part_id = 's8'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>8.</span><span>ข้อมูลตลาดเปรียบเทียบ</span></div>
+<div class="vm">
+{{ for sec in model.comparison_sections }}
+  {{ cs = sec }}
+  {{ include 'partials/section-comparison' }}
+{{ end }}
+</div>
+</div>
+{{ end }}

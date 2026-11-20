@@ -14,12 +14,6 @@ namespace Reporting.Infrastructure.Rendering;
 /// </summary>
 internal static class ThaiScribanFunctions
 {
-    private static readonly string[] ThaiMonths =
-    {
-        "", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
-        "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
-    };
-
     public static ScriptObject Create()
     {
         var thai = new ScriptObject();
@@ -32,15 +26,9 @@ internal static class ThaiScribanFunctions
     private static string BahtText(object? value) =>
         ThaiBahtTextConverter.ToText(ToDecimal(value));
 
-    // "28 ตุลาคม 2567"
-    private static string ThaiDateLong(object? value)
-    {
-        var d = ToDateTime(value);
-        if (d is null)
-            return string.Empty;
-        var dt = d.Value;
-        return $"{dt.Day} {ThaiMonths[dt.Month]} {dt.Year + 543}";
-    }
+    // "28 ตุลาคม 2567" — the same text the loaders print (ThaiDateFormatter).
+    private static string ThaiDateLong(object? value) =>
+        ToDateTime(value) is { } d ? Reporting.Application.Formatting.ThaiDateFormatter.Long(d) : string.Empty;
 
     // "25/08/2567"
     private static string ThaiDateShort(object? value)

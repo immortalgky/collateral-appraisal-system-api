@@ -74,8 +74,8 @@ Content-Type: application/json
   "landFillPercent": 100,
   "soilLevel": 1.5,
 
-  "accessRoadWidth": 6.0,
-  "rightOfWay": 4,
+  "carriagewayWidth": 6.0,
+  "numberOfLanes": 4,
   "roadFrontage": 20.0,
   "numberOfSidesFacingRoad": 2,
   "roadPassInFrontOfLand": "Public road",

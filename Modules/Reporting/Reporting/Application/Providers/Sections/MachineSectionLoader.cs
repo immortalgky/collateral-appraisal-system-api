@@ -1,4 +1,5 @@
 using System.Data;
+using Reporting.Application.Formatting;
 using Reporting.Application.Models.Sections;
 
 namespace Reporting.Application.Providers.Sections;
@@ -120,10 +121,16 @@ internal static class MachineSectionLoader
             LEFT JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = ap.Id
             WHERE ap.AppraisalId = @AppraisalId
             ORDER BY pgi.PropertyGroupId, pgi.SequenceInGroup, ap.SequenceNumber;
+
+            -- RS03: สภาพการใช้งาน — ConditionUse code -> Thai (01 = ใช้งานอยู่)
+            SELECT [code] AS Code, [description] AS Description
+            FROM parameter.Parameters
+            WHERE [group] = 'ConditionUse' AND [language] = 'TH' AND [isactive] = 1;
             """;
 
         SummaryRow? summary;
         List<DetailRow> detailRows;
+        Dictionary<string, string?> conditionUse;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, p))
         {
@@ -132,6 +139,10 @@ internal static class MachineSectionLoader
 
             // RS02: QS2 — per-machine detail rows
             detailRows = (await multi.ReadAsync<DetailRow>()).ToList();
+
+            // RS03: ConditionUse code -> Thai
+            conditionUse = (await multi.ReadAsync<(string Code, string? Description)>())
+                .ToDictionary(r => r.Code, r => r.Description, StringComparer.OrdinalIgnoreCase);
         }
 
         // Return null when neither summary nor detail data exists (machinery not applicable)
@@ -160,7 +171,7 @@ internal static class MachineSectionLoader
                 UsagePurpose      = r.UsagePurpose,
                 Capacity          = r.Capacity,
                 MachineParts      = r.MachineParts,
-                ConditionUse      = r.ConditionUse,
+                ConditionUse      = ParameterCodeFormatter.Translate(r.ConditionUse, conditionUse),
                 MachineCondition  = r.MachineCondition,
                 Remark            = r.Remark,
                 Other             = r.Other,

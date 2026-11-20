@@ -151,7 +151,8 @@ public class ChangeProjectTypeCommandHandler(
                 isUnderConstruction:  isUnderConstruction,
                 constructionProgressPercent: constructionPct,
                 builtOnTitleDeedNumber: null,   // type-specific — reset
-                licenseExpirationDate:  null);  // type-specific — reset
+                licenseExpirationDate:  null,   // type-specific — reset
+                licenseNumber:          null);  // type-specific — reset
 
             projectRepository.Add(newProject);
 
@@ -199,5 +200,6 @@ public class ChangeProjectTypeCommandHandler(
             IsUnderConstruction: project.IsUnderConstruction,
             ConstructionProgressPercent: project.ConstructionProgressPercent,
             BuiltOnTitleDeedNumber: project.BuiltOnTitleDeedNumber,
-            LicenseExpirationDate:  project.LicenseExpirationDate);
+            LicenseExpirationDate:  project.LicenseExpirationDate,
+            LicenseNumber:          project.LicenseNumber);
 }

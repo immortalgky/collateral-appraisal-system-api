@@ -1,0 +1,14 @@
+{{- # caller sets: fv_rows = the section's final_rows (PricingFinalRow list). The "ปรับมูลค่าสุดท้าย (Adjust Final Value)" block of WQS / Sale Grid / Direct Comparison. -}}
+{{ if fv_rows && fv_rows.size > 0 }}
+<div style="margin-top:8px; width:60%; break-inside:avoid;">
+  <div style="font-weight:700; font-size:8.5pt; margin-bottom:2px;">ปรับมูลค่าสุดท้าย (Adjust Final Value)</div>
+  <table class="grid">
+    {{ for r in fv_rows }}
+    <tr>
+      <td>{{ r.label }}</td>
+      <td class="num">{{ if r.value != null }}{{ r.value }}{{ else }}-{{ end }}{{ if r.unit }} {{ r.unit }}{{ end }}{{ if r.note }} <span style="font-size:7pt;">({{ r.note }})</span>{{ end }}</td>
+    </tr>
+    {{ end }}
+  </table>
+</div>
+{{ end }}

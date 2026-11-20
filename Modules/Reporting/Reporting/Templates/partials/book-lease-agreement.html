@@ -1,0 +1,49 @@
+{{- # caller sets: leases = the section's LeaseAgreementBlock list -}}
+{{ if leases && leases.size > 0 }}
+<div class="sub-bar">รายละเอียดสัญญาเช่า</div>
+{{ for ls in leases }}
+<table class="params" style="margin-bottom:6px;">
+  <tr>
+    <td class="pl">ผู้ให้เช่า</td><td class="pv">{{ ls.lessor_name }}</td>
+    <td class="pl">ผู้เช่า</td><td class="pv">{{ ls.lessee_name }}</td>
+  </tr>
+  <tr>
+    <td class="pl">เลขที่สัญญา</td><td class="pv">{{ ls.contract_no }}</td>
+    <td class="pl">ค่าเช่าตามสัญญา</td><td class="pv">{{ if ls.lease_rent_fee != null }}{{ ls.lease_rent_fee | math.format "N2" }} บาท{{ end }}</td>
+  </tr>
+  <tr>
+    <td class="pl">วันเริ่มสัญญา</td><td class="pv">{{ if ls.lease_start_date }}{{ thai.date ls.lease_start_date }}{{ end }}</td>
+    <td class="pl">วันสิ้นสุดสัญญา</td><td class="pv">{{ if ls.lease_end_date }}{{ thai.date ls.lease_end_date }}{{ end }}</td>
+  </tr>
+  <tr>
+    <td class="pl">ระยะเวลาตามสัญญา</td><td class="pv">{{ if ls.lease_period_as_contract != null }}{{ ls.lease_period_as_contract | math.format "N2" }} ปี{{ end }}</td>
+    <td class="pl">ระยะเวลาคงเหลือ ณ วันประเมิน</td><td class="pv">{{ if ls.remaining_lease_as_appraisal_date != null }}{{ ls.remaining_lease_as_appraisal_date | math.format "N2" }} ปี{{ end }}</td>
+  </tr>
+  <tr>
+    <td class="pl">การปรับค่าเช่า</td><td class="pv">{{ if ls.rent_adjust != null }}{{ ls.rent_adjust | math.format "N2" }}{{ end }}{{ if ls.growth_text }} {{ ls.growth_text }}{{ end }}</td>
+    <td class="pl">ค่าใช้จ่ายเพิ่มเติม</td><td class="pv">{{ if ls.additional_expenses != null }}{{ ls.additional_expenses | math.format "N2" }} บาท{{ end }}</td>
+  </tr>
+  {{ if ls.number_of_years || ls.contract_rental_fee_per_year || ls.up_front_total_amount }}
+  <tr>
+    <td class="pl">จำนวนปีที่เช่า</td><td class="pv">{{ ls.number_of_years }}{{ if ls.first_year_start_date }} (เริ่ม {{ thai.date ls.first_year_start_date }}){{ end }}</td>
+    <td class="pl">ค่าเช่าต่อปี / เงินล่วงหน้า</td><td class="pv">{{ if ls.contract_rental_fee_per_year != null }}{{ ls.contract_rental_fee_per_year | math.format "N2" }}{{ end }}{{ if ls.up_front_total_amount != null }} / {{ ls.up_front_total_amount | math.format "N2" }}{{ end }}</td>
+  </tr>
+  {{ end }}
+  <tr>
+    <td class="pl">เช่าช่วง</td><td class="pv">{{ ls.sublease }}</td>
+    <td class="pl">การต่อสัญญา</td><td class="pv">{{ ls.contract_renewal }}</td>
+  </tr>
+  <tr>
+    <td class="pl">การบอกเลิกสัญญา</td><td class="pv">{{ ls.lease_terminate }}{{ if ls.termination_of_lease }} {{ ls.termination_of_lease }}{{ end }}</td>
+    <td class="pl">เงื่อนไขที่กระทบการใช้ประโยชน์</td><td class="pv">{{ ls.rental_terms_impacting_property_use }}</td>
+  </tr>
+  <tr>
+    <td class="pl">การจดทะเบียนการเช่า</td><td class="pv">{{ ls.registration_text }}</td>
+    <td class="pl">นำสิทธิการเช่าเป็นหลักประกัน</td><td class="pv">{{ ls.pledgeable_text }}</td>
+  </tr>
+  {{ if ls.remark }}
+  <tr><td class="pl">หมายเหตุ</td><td class="pv" colspan="3">{{ ls.remark }}</td></tr>
+  {{ end }}
+</table>
+{{ end }}
+{{ end }}

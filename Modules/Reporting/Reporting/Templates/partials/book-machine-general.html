@@ -1,0 +1,25 @@
+{{~ # Partial: the machinery general-details (2.1) and rights (2.2) rows. Caller sets ms = model.machine_section. ~}}
+{{ if ms.property_characteristics }}<p class="bk-p">{{ ms.property_characteristics }}</p>{{ end }}
+<div class="vk bk-keep">
+  {{ vk 'ใช้ในอุตสาหกรรม' ms.in_industrial }}
+  {{ vk 'จำนวนที่สำรวจได้' ms.surveyed_count 'เครื่อง' }}
+  {{ vk 'จำนวนที่ทำการประเมิน' ms.evaluated_count 'เครื่อง' }}
+  {{ vk 'ติดตั้งเสร็จและใช้งานแล้ว' ms.installed_in_use_count 'เครื่อง' }}
+  {{ vk 'ประเมินมูลค่าซาก' ms.wreckage_count 'เครื่อง' }}
+  {{ vk 'ประเมินมูลค่าตามเอกสาร' ms.appraised_by_document_count 'รายการ' }}
+  {{ vk 'ยังไม่ได้ติดตั้ง' ms.not_installed_count 'รายการ' }}
+  {{ vk 'สภาพการบำรุงรักษา' ms.maintenance_condition }}
+  {{ vk 'สภาพภายนอก' ms.exterior_condition }}
+  {{ vk 'ประสิทธิภาพการใช้งาน' ms.efficiency }}
+  {{ vk 'ความต้องการของตลาด' ms.market_demand }}
+</div>
+<div class="bk-keep">
+<div class="bk-h2"><span>2.2</span><span>สิทธิและเงื่อนไขข้อจำกัดทางกฎหมาย</span></div>
+<div class="vk">
+  {{ vk 'ผู้ถือกรรมสิทธิ์' ms.proprietor }}
+  {{ vk 'ผู้ครอบครองเครื่องจักร' ms.owner_name }}
+  {{ vk 'สถานที่ตั้งเครื่องจักร' ms.machine_location }}
+  {{ vk 'ภาระผูกพัน' ms.obligation }}
+  {{ vk 'อื่นๆ' ms.other }}
+</div>
+</div>

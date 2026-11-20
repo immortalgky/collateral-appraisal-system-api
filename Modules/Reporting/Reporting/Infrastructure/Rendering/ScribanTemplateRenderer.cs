@@ -26,6 +26,8 @@ internal sealed class ScribanTemplateRenderer(
 {
     // Regex-free split: we look for literal <!-- SLOT: xxx --> tokens.
     private const string SlotPrefix = "<!-- SLOT: ";
+    private const string PartPrefix = "<!-- PART: ";
+    private const string CaptionPrefix = "<!-- CAPTION: ";
     private const string SlotSuffix = " -->";
 
     public async Task<IReadOnlyList<RenderSegment>> RenderAsync(
@@ -172,34 +174,58 @@ internal sealed class ScribanTemplateRenderer(
         // image would fall back to its intrinsic pixel size and overflow (and be clipped by) the
         // page. Re-attach the document shell to those fragments.
         var (prelude, epilogue) = ExtractDocumentShell(renderedHtml);
-        var isFirstHtmlChunk = true;
+
+        // A template that uses PART markers (the appraisal book) is cut into parts: everything before the first
+        // marker is only the document shell (doctype, <head> styles, <body>), carried to every part but never
+        // rendered on its own — otherwise the stylesheet text would count as a page of content.
+        var partsMode = renderedHtml.Contains(PartPrefix, StringComparison.Ordinal);
+        var isFirstHtmlChunk = !partsMode;
+        BookPart? current = null;
 
         void AddHtml(string html)
         {
+            if (partsMode && current is null)
+                return;
             if (!HasRenderableContent(html))
                 return;
 
             // The first chunk already opens the document; later ones need the shell re-applied.
             segments.Add(new HtmlSegment(
-                isFirstHtmlChunk ? html + epilogue : prelude + html + epilogue));
+                isFirstHtmlChunk ? html + epilogue : prelude + html + epilogue, current));
             isFirstHtmlChunk = false;
         }
 
         while (true)
         {
             var slotStart = remaining.IndexOf(SlotPrefix, StringComparison.Ordinal);
-            if (slotStart < 0)
+            var partStart = remaining.IndexOf(PartPrefix, StringComparison.Ordinal);
+            if (slotStart < 0 && partStart < 0)
             {
-                // No more slot markers — everything remaining is an HTML fragment
+                // No more markers — everything remaining is an HTML fragment
                 AddHtml(remaining.ToString());
                 break;
             }
 
+            var isPart = partStart >= 0 && (slotStart < 0 || partStart < slotStart);
+            var markerStart = isPart ? partStart : slotStart;
+
             // Emit the HTML up to the marker
-            AddHtml(remaining[..slotStart].ToString());
+            AddHtml(remaining[..markerStart].ToString());
+
+            if (isPart)
+            {
+                remaining = remaining[(markerStart + PartPrefix.Length)..];
+                var partEnd = remaining.IndexOf(SlotSuffix, StringComparison.Ordinal);
+                if (partEnd < 0)
+                    break; // Malformed marker — stop processing
+
+                current = ParsePart(remaining[..partEnd].ToString());
+                remaining = remaining[(partEnd + SlotSuffix.Length)..];
+                continue;
+            }
 
             // Parse the slot name
-            remaining = remaining[(slotStart + SlotPrefix.Length)..];
+            remaining = remaining[(markerStart + SlotPrefix.Length)..];
             var slotEnd = remaining.IndexOf(SlotSuffix, StringComparison.Ordinal);
             if (slotEnd < 0)
                 break; // Malformed marker — stop processing
@@ -207,11 +233,23 @@ internal sealed class ScribanTemplateRenderer(
             var slotName = remaining[..slotEnd].ToString().Trim();
             remaining = remaining[(slotEnd + SlotSuffix.Length)..];
 
+            // An optional <!-- CAPTION: text --> right after the marker: printed on the slot's first PDF page.
+            string? caption = null;
+            if (remaining.StartsWith(CaptionPrefix, StringComparison.Ordinal))
+            {
+                var capEnd = remaining.IndexOf(SlotSuffix, StringComparison.Ordinal);
+                if (capEnd > 0)
+                {
+                    caption = remaining[CaptionPrefix.Length..capEnd].ToString().Trim();
+                    remaining = remaining[(capEnd + SlotSuffix.Length)..];
+                }
+            }
+
             var documentIds = attachmentsBySlot.TryGetValue(slotName, out var ids)
                 ? ids
                 : Array.Empty<Guid>();
 
-            segments.Add(new AttachmentSlotSegment(slotName, documentIds));
+            segments.Add(new AttachmentSlotSegment(slotName, documentIds, string.IsNullOrEmpty(caption) ? null : caption));
         }
 
         // Always return at least one segment so the assembler has something to work with
@@ -219,6 +257,20 @@ internal sealed class ScribanTemplateRenderer(
             segments.Add(new HtmlSegment("<html><body></body></html>"));
 
         return segments.AsReadOnly();
+    }
+
+    /// <summary>"raw", "front" or "body", optionally followed by an id: <c>body s1</c>. Anything else counts as raw
+    /// (no chrome, no number) so a typo in a template can never put a running header on the bank's pasted pages.</summary>
+    private static BookPart ParsePart(string marker)
+    {
+        var words = marker.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var kind = words.Length > 0 ? words[0].ToLowerInvariant() switch
+        {
+            "front" => BookPartKind.Front,
+            "body" => BookPartKind.Body,
+            _ => BookPartKind.Raw
+        } : BookPartKind.Raw;
+        return new BookPart(kind, words.Length > 1 ? words[1] : null);
     }
 
     /// <summary>

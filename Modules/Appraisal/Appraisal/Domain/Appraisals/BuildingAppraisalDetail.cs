@@ -16,20 +16,23 @@ public class BuildingAppraisalDetail : Entity<Guid>
     public string? ModelName { get; private set; }
     public string? BuiltOnTitleNumber { get; private set; }
     public string? HouseNumber { get; private set; }
-    public string? NoHouseNumber { get; private set; }
+    public string? HouseNumberStatus { get; private set; }
 
     // Owner
     public string? OwnerName { get; private set; }
     public bool? IsOwnerVerified { get; private set; }
-    public string? HasObligation { get; private set; }
+    public List<string>? ObligationType { get; private set; }
     public string? ObligationDetails { get; private set; }
+    public string? MortgageDetails { get; private set; }
 
     // Building Status
     public string? BuildingConditionType { get; private set; }
     public string? BuildingConditionTypeOther { get; private set; }
     public bool? IsUnderConstruction { get; private set; }
     public DateTime? ConstructionLicenseExpirationDate { get; private set; }
+    public string? ConstructionLicenseNumber { get; private set; }
     public bool? IsAppraisable { get; private set; } = true;
+    public string? NotAppraisableReason { get; private set; }
 
     // Building Info
     public string? BuildingType { get; private set; }
@@ -69,6 +72,21 @@ public class BuildingAppraisalDetail : Entity<Guid>
     public string? FenceTypeOther { get; private set; }
     public string? ConstructionType { get; private set; }
     public string? ConstructionTypeOther { get; private set; }
+
+    // Building detail (appraisal book)
+    public decimal? BuildingWidth { get; private set; }
+    public decimal? BuildingLength { get; private set; }
+    public string? SpaceDivision { get; private set; }
+    public string? MaintenanceType { get; private set; }
+    public string? MaintenanceTypeOther { get; private set; }
+    public List<string>? DoorType { get; private set; }
+    public string? DoorTypeOther { get; private set; }
+    public List<string>? WindowType { get; private set; }
+    public string? WindowTypeOther { get; private set; }
+    public List<string>? SanitaryType { get; private set; }
+    public string? SanitaryTypeOther { get; private set; }
+    public List<string>? BuildingSystemType { get; private set; }
+    public string? BuildingSystemTypeOther { get; private set; }
 
     // Utilization
     public string? UtilizationType { get; private set; }
@@ -125,18 +143,20 @@ public class BuildingAppraisalDetail : Entity<Guid>
         string? modelName = null,
         string? builtOnTitleNumber = null,
         string? houseNumber = null,
-        string? noHouseNumber = null,
+        string? houseNumberStatus = null,
         // Owner
         string? ownerName = null,
         bool? isOwnerVerified = null,
-        string? hasObligation = null,
+        List<string>? obligationType = null,
         string? obligationDetails = null,
+        string? mortgageDetails = null,
         // Building Status
         string? buildingConditionType = null,
         string? buildingConditionTypeOther = null,
         bool? isUnderConstruction = null,
         DateTime? constructionLicenseExpirationDate = null,
         bool? isAppraisable = null,
+        string? notAppraisableReason = null,
         // Building Info
         string? buildingType = null,
         string? buildingTypeOther = null,
@@ -181,7 +201,22 @@ public class BuildingAppraisalDetail : Entity<Guid>
         decimal? buildingCostValue = null,
         decimal? buildingInsurancePrice = null,
         // Other
-        string? remark = null)
+        string? remark = null,
+        // Building detail (appraisal book)
+        decimal? buildingWidth = null,
+        decimal? buildingLength = null,
+        string? spaceDivision = null,
+        string? maintenanceType = null,
+        string? maintenanceTypeOther = null,
+        List<string>? doorType = null,
+        string? doorTypeOther = null,
+        List<string>? windowType = null,
+        string? windowTypeOther = null,
+        List<string>? sanitaryType = null,
+        string? sanitaryTypeOther = null,
+        List<string>? buildingSystemType = null,
+        string? buildingSystemTypeOther = null,
+        string? constructionLicenseNumber = null)
     {
         // Property Identification
         PropertyName = propertyName;
@@ -189,13 +224,14 @@ public class BuildingAppraisalDetail : Entity<Guid>
         ModelName = modelName;
         BuiltOnTitleNumber = builtOnTitleNumber;
         HouseNumber = houseNumber;
-        NoHouseNumber = noHouseNumber;
+        HouseNumberStatus = houseNumberStatus;
 
         // Owner
         OwnerName = ownerName;
         IsOwnerVerified = isOwnerVerified;
-        HasObligation = hasObligation;
+        ObligationType = obligationType;
         ObligationDetails = obligationDetails;
+        MortgageDetails = mortgageDetails;
 
         // Building Status
         BuildingConditionType = buildingConditionType;
@@ -204,6 +240,7 @@ public class BuildingAppraisalDetail : Entity<Guid>
 
         ConstructionLicenseExpirationDate = constructionLicenseExpirationDate;
         IsAppraisable = isAppraisable;
+        NotAppraisableReason = notAppraisableReason;
 
         // Building Info
         BuildingType = buildingType;
@@ -255,6 +292,22 @@ public class BuildingAppraisalDetail : Entity<Guid>
 
         // Other
         Remark = remark;
+
+        // Building detail (appraisal book)
+        BuildingWidth = buildingWidth;
+        BuildingLength = buildingLength;
+        SpaceDivision = spaceDivision;
+        MaintenanceType = maintenanceType;
+        MaintenanceTypeOther = maintenanceTypeOther;
+        DoorType = doorType;
+        DoorTypeOther = doorTypeOther;
+        WindowType = windowType;
+        WindowTypeOther = windowTypeOther;
+        SanitaryType = sanitaryType;
+        SanitaryTypeOther = sanitaryTypeOther;
+        BuildingSystemType = buildingSystemType;
+        BuildingSystemTypeOther = buildingSystemTypeOther;
+        ConstructionLicenseNumber = constructionLicenseNumber;
     }
 
     public static BuildingAppraisalDetail CopyFrom(BuildingAppraisalDetail source, Guid newPropertyId)
@@ -267,16 +320,19 @@ public class BuildingAppraisalDetail : Entity<Guid>
             ModelName = source.ModelName,
             BuiltOnTitleNumber = source.BuiltOnTitleNumber,
             HouseNumber = source.HouseNumber,
-            NoHouseNumber = source.NoHouseNumber,
+            HouseNumberStatus = source.HouseNumberStatus,
             OwnerName = source.OwnerName,
             IsOwnerVerified = source.IsOwnerVerified,
-            HasObligation = source.HasObligation,
+            ObligationType = source.ObligationType?.ToList(),
             ObligationDetails = source.ObligationDetails,
+            MortgageDetails = source.MortgageDetails,
             BuildingConditionType = source.BuildingConditionType,
             BuildingConditionTypeOther = source.BuildingConditionTypeOther,
             IsUnderConstruction = source.IsUnderConstruction,
             ConstructionLicenseExpirationDate = source.ConstructionLicenseExpirationDate,
+            ConstructionLicenseNumber = source.ConstructionLicenseNumber,
             IsAppraisable = source.IsAppraisable,
+            NotAppraisableReason = source.NotAppraisableReason,
             BuildingType = source.BuildingType,
             BuildingTypeOther = source.BuildingTypeOther,
             NumberOfFloors = source.NumberOfFloors,
@@ -315,7 +371,20 @@ public class BuildingAppraisalDetail : Entity<Guid>
             TotalBuildingArea = source.TotalBuildingArea,
             BuildingCostValue = source.BuildingCostValue,
             BuildingInsurancePrice = source.BuildingInsurancePrice,
-            Remark = source.Remark
+            Remark = source.Remark,
+            BuildingWidth = source.BuildingWidth,
+            BuildingLength = source.BuildingLength,
+            SpaceDivision = source.SpaceDivision,
+            MaintenanceType = source.MaintenanceType,
+            MaintenanceTypeOther = source.MaintenanceTypeOther,
+            DoorType = source.DoorType?.ToList(),
+            DoorTypeOther = source.DoorTypeOther,
+            WindowType = source.WindowType?.ToList(),
+            WindowTypeOther = source.WindowTypeOther,
+            SanitaryType = source.SanitaryType?.ToList(),
+            SanitaryTypeOther = source.SanitaryTypeOther,
+            BuildingSystemType = source.BuildingSystemType?.ToList(),
+            BuildingSystemTypeOther = source.BuildingSystemTypeOther
         };
 
         foreach (var dep in source.DepreciationDetails)

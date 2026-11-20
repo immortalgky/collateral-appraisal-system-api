@@ -51,16 +51,21 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
         builder.Property(e => e.OwnerName).IsRequired().HasMaxLength(200);
         builder.Property(e => e.BuildingConditionType).HasMaxLength(50);
         builder.Property(e => e.BuildingConditionTypeOther).HasMaxLength(4000);
-        builder.Property(e => e.HasObligation).HasMaxLength(100);
+        builder.Property(e => e.ObligationType)
+            .HasConversion(new Appraisal.Infrastructure.Converters.TolerantCodeListConverter()) // a bare legacy '01' reads as ['01']
+            .HasColumnType("nvarchar(500)");
         builder.Property(e => e.ObligationDetails).HasMaxLength(4000);
+        builder.Property(e => e.MortgageDetails).HasMaxLength(500);
 
         // Location Details
         builder.Property(e => e.LocationType).HasMaxLength(500);
+        builder.Property(e => e.LocationRemark).HasMaxLength(4000);
         builder.Property(e => e.Street).HasMaxLength(200);
         builder.Property(e => e.Soi).HasMaxLength(100);
         builder.Property(e => e.DistanceFromMainRoad).HasPrecision(10, 2);
-        builder.Property(e => e.AccessRoadWidth).HasPrecision(10, 2);
-        // RightOfWay is short (smallint) - no string config needed
+        builder.Property(e => e.CarriagewayWidth).HasPrecision(10, 2);
+        builder.Property(e => e.RightOfWayWidth).HasPrecision(10, 2); // metres (เขตทางกว้าง)
+        // NumberOfLanes is short (smallint) - no precision needed
         builder.Property(e => e.RoadSurfaceType).HasMaxLength(100);
         builder.Property(e => e.RoadSurfaceTypeOther).HasMaxLength(4000);
         builder.Property(e => e.PublicUtilityType)
@@ -84,6 +89,8 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
         builder.Property(e => e.LandFillType).HasMaxLength(100);
         builder.Property(e => e.LandFillTypeOther).HasMaxLength(4000);
         builder.Property(e => e.UrbanPlanningType).HasMaxLength(100);
+        builder.Property(e => e.UrbanPlanningColor).HasMaxLength(10);
+        builder.Property(e => e.UrbanPlanningColorOther).HasMaxLength(100);
         builder.Property(e => e.LandUseType)
             .HasConversion(
                 v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
@@ -146,6 +153,7 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
         builder.Property(e => e.ExpropriationRemark).HasMaxLength(4000);
         builder.Property(e => e.ExpropriationLineRemark).HasMaxLength(4000);
         builder.Property(e => e.RoyalDecree).HasMaxLength(500);
+        builder.Property(e => e.OtherLegalLimitations).HasMaxLength(4000);
         builder.Property(e => e.ForestBoundaryRemark).HasMaxLength(4000);
 
         // Facilities & Environment
@@ -177,6 +185,24 @@ public class CondoAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appra
 
         // Other
         builder.Property(e => e.Remark).HasMaxLength(4000);
+
+        // Surroundings (appraisal book 1.5)
+        builder.Property(e => e.FloodProblemRemark).HasMaxLength(4000);
+        builder.Property(e => e.PollutionProblemRemark).HasMaxLength(4000);
+        builder.Property(e => e.OtherEnvironmentProblemRemark).HasMaxLength(4000);
+        builder.Property(e => e.PollutionType)
+            .HasConversion(
+                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+            .HasColumnType("nvarchar(500)");
+        builder.Property(e => e.PollutionTypeOther).HasMaxLength(100);
+        builder.Property(e => e.RoadPassInFrontOfLand).HasMaxLength(200);
+        builder.Property(e => e.TransportationAccessType)
+            .HasConversion(
+                v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => string.IsNullOrWhiteSpace(v) ? null : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null))
+            .HasColumnType("nvarchar(500)");
+        builder.Property(e => e.TransportationAccessTypeOther).HasMaxLength(4000);
 
         // Relationship - FK to AppraisalProperty (1:1)
         builder.Property(e => e.AppraisalPropertyId).IsRequired();

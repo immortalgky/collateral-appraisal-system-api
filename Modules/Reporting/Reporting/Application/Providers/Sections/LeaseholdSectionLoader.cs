@@ -30,45 +30,18 @@ internal static class LeaseholdSectionLoader
     public static async Task<IReadOnlyList<LeaseholdSection>> LoadAllAsync(
         IDbConnection connection,
         Guid appraisalId,
+        Func<DateTime, DateTime> toApplicationTime,
         CancellationToken ct = default)
     {
-        var p = new DynamicParameters();
-        p.Add("AppraisalId", appraisalId);
-
-        // ── Q1: Resolve all Leasehold PricingMethodIds ───────────────────────────
-        const string methodSql = """
-            SELECT
-                pg.Id          AS PropertyGroupId,
-                pg.GroupNumber,
-                pg.GroupName,
-                pam.Id         AS PricingMethodId
-            FROM appraisal.PropertyGroups pg
-            JOIN appraisal.PricingAnalysis pa
-                ON pa.AnchorId   = pg.Id
-               AND pa.SubjectType = 0
-            JOIN appraisal.PricingAnalysisApproaches paa
-                ON paa.PricingAnalysisId = pa.Id
-            JOIN appraisal.PricingAnalysisMethods pam
-                ON pam.ApproachId = paa.Id
-               AND pam.MethodType = 'Leasehold'
-            WHERE pg.AppraisalId = @AppraisalId
-            ORDER BY pg.GroupNumber, pam.Id
-            """;
-
-        var allMethodRows = (await connection.QueryAsync<MethodRow>(methodSql, p)).ToList();
-        if (allMethodRows.Count == 0)
+        // ── Q1: the methods to print (selected + reference), see PricingMethodPicker ──
+        var methodsPerGroup = await PricingMethodPicker.LoadAsync(connection, appraisalId, ["Leasehold"], ct);
+        if (methodsPerGroup.Count == 0)
             return [];
-
-        var methodsPerGroup = allMethodRows
-            .GroupBy(r => r.PropertyGroupId)
-            .Select(g => g.First())
-            .OrderBy(r => r.GroupNumber)
-            .ToList();
 
         var sections = new List<LeaseholdSection>(methodsPerGroup.Count);
         foreach (var method in methodsPerGroup)
         {
-            var section = await LoadOneAsync(connection, method, ct);
+            var section = await LoadOneAsync(connection, method, toApplicationTime, ct);
             if (section is not null)
                 sections.Add(section);
         }
@@ -78,7 +51,8 @@ internal static class LeaseholdSectionLoader
 
     private static async Task<LeaseholdSection?> LoadOneAsync(
         IDbConnection connection,
-        MethodRow method,
+        PickedMethod method,
+        Func<DateTime, DateTime> toApplicationTime,
         CancellationToken ct)
     {
         var mp = new DynamicParameters();
@@ -149,12 +123,21 @@ internal static class LeaseholdSectionLoader
 
         var detailRows = (await connection.QueryAsync<LeaseholdDetailRow>(detailSql, dp)).ToList();
 
+        // ── Q4: growth by period (only printed when the appraiser chose แบบช่วงเวลา) ───
+        var periods = IsPeriod(header.LandGrowthRateType)
+            ? (await connection.QueryAsync<GrowthPeriodRow>(
+                "SELECT FromYear, ToYear, GrowthRatePercent FROM appraisal.LeaseholdLandGrowthPeriods WHERE LeaseholdAnalysisId = @LeaseholdAnalysisId ORDER BY FromYear, ToYear",
+                dp)).ToList()
+            : [];
+
         return new LeaseholdSection
         {
             GroupNumber              = method.GroupNumber,
             GroupName                = method.GroupName,
+            Context                = method.Context,
+            Leases                 = await LeaseAgreementLoader.LoadAsync(connection, method.PropertyGroupId, ct),
             LandValuePerSqWa         = header.LandValuePerSqWa,
-            LandGrowthRateType       = header.LandGrowthRateType,
+            LandGrowthRateType       = LeaseAgreementLoader.GrowthTypeThai(header.LandGrowthRateType),
             LandGrowthRatePercent    = header.LandGrowthRatePercent,
             LandGrowthIntervalYears  = header.LandGrowthIntervalYears,
             ConstructionCostIndex    = header.ConstructionCostIndex,
@@ -181,7 +164,12 @@ internal static class LeaseholdSectionLoader
             PricePerSqWa             = header.PricePerSqWa,
             PartialLandPrice         = header.PartialLandPrice,
             EstimateNetPrice         = header.EstimateNetPrice,
+            UncoveredLandPrice       = Uncovered(header.IsPartialUsage, header.EstimateNetPrice, header.FinalValueRounded, header.PricePerSqWa)?.Price,
+            UncoveredLandArea        = Uncovered(header.IsPartialUsage, header.EstimateNetPrice, header.FinalValueRounded, header.PricePerSqWa)?.Area,
             EstimatePriceRounded     = header.EstimatePriceRounded,
+            LandGrowthIsPeriod       = IsPeriod(header.LandGrowthRateType),
+            LandGrowthPeriods        = periods,
+            LandValueSources         = await PricingSubAnalysisLoader.LoadForHostAsync(connection, method.PricingMethodId, toApplicationTime, ct),
             TableRows                = detailRows.Select(d => new LeaseholdCalcRow
             {
                 DisplaySequence          = d.DisplaySequence,
@@ -200,13 +188,27 @@ internal static class LeaseholdSectionLoader
         };
     }
 
-    // ── Private DTOs ──────────────────────────────────────────────────────────────
+    /// <summary>GrowthRateType "Period" = growth by year ranges (the other value is "Frequency").</summary>
+    internal static bool IsPeriod(string? growthRateType) =>
+        string.Equals(growthRateType?.Trim(), "Period", StringComparison.OrdinalIgnoreCase);
 
-    private sealed record MethodRow(
-        Guid    PropertyGroupId,
-        int     GroupNumber,
-        string? GroupName,
-        Guid    PricingMethodId);
+    /// <summary>
+    /// Partial land usage: the leasehold estimate is the PV (rounded) PLUS the land the lease does not cover
+    /// (LeaseholdCalculationService.CalculatePartialUsage: estimate = final + remaining area × price). Only the
+    /// total is stored, so the term is read back as total − PV, and its area as term / price per sq.wa.
+    /// Null when the analysis is not a partial usage or lacks the stored total / price.
+    /// </summary>
+    internal static (decimal Price, decimal? Area)? Uncovered(
+        bool isPartialUsage, decimal? estimateNetPrice, decimal? finalValueRounded, decimal? pricePerSqWa)
+    {
+        if (!isPartialUsage || estimateNetPrice is null || pricePerSqWa is null or 0m)
+            return null;
+
+        var price = estimateNetPrice.Value - (finalValueRounded ?? 0m);
+        return (price, Math.Round(price / pricePerSqWa.Value, 2));
+    }
+
+    // ── Private DTOs ──────────────────────────────────────────────────────────────
 
     private sealed record LeaseholdHeaderRow(
         Guid     LeaseholdAnalysisId,

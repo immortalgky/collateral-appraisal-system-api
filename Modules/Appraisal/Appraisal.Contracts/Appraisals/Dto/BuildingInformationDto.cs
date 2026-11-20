@@ -1,7 +1,7 @@
 namespace Appraisal.Contracts.Appraisals.Dto;
 
 public record BuildingInformationDto(
-    string NoHouseNumber,
+    string HouseNumberStatus,
     decimal? LandArea,
     string? BuildingCondition,
     string? BuildingStatus,

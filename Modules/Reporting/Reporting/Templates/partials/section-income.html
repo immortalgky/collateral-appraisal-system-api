@@ -1,66 +1,135 @@
 {{- # caller sets: inc = sec (one IncomeSection) -}}
-<div class="section-bar">การประเมินมูลค่าทรัพย์สินโดยวิธีรายได้ (Income Approach / DCF)</div>
+{{- func inc_n(v, fmt); if v == null; ret '-'; end; ret (v | math.format fmt); end -}}
+<style>
+table.inc-cf td.lbl { text-align:left; }
+table.inc-cf tr.inc-sec td { background:#d9d9d9; font-weight:700; }
+table.inc-cf tr.inc-cat td { background:#f5f5f5; font-weight:700; }
+table.inc-cf tr.inc-item td.lbl { padding-left:14px; }
+table.inc-cf tr.inc-sub td { font-style:italic; background:#fafafa; }
+table.inc-cf tr.inc-total td { font-weight:700; }
+table.inc-cf td.num { white-space:nowrap; }
+.inc-fx { font-size:8.5pt; margin:4px 0; }
+/* Keep a sub-heading with its table, and a section/category header row with its first line (same idea as .vm first rows). */
+.inc-h, table.params.inc-params { break-after:avoid; }
+table.params.inc-params { break-inside:avoid; }
+table.inc-cf tr.inc-sec, table.inc-cf tr.inc-cat { break-after:avoid; }
+/* Year blocks after the first line up with a full 6-year block: fixed widths, missing years padded with blank cells. */
+table.inc-cf.inc-fixed { table-layout:fixed; font-size:7.5pt; }
+table.inc-cf.inc-fixed td.num { padding-left:2px; padding-right:3px; }
+table.inc-cf .inc-pad { border:0 !important; background:transparent !important; }
+</style>
+<div class="section-bar">การประเมินมูลค่าทรัพย์สินโดยวิธีรายได้ (Income Approach – {{ if inc.is_direct_capitalization }}Direct Capitalization{{ else }}Discounted Cash Flow{{ end }})</div>
+{{ ctx = inc.context }}{{ include 'partials/book-method-banner' }}
 
-<table class="params" style="margin-bottom:6px;">
+<table class="params inc-params" style="margin-bottom:6px;">
   <tr>
-    <td class="pl">ระยะเวลาประเมิน</td>
-    <td class="pv">{{ inc.total_number_of_years }} ปี</td>
-    <td class="pl">อัตราผลตอบแทน (Cap Rate)</td>
-    <td class="pv">{{ if inc.capitalize_rate != null }}{{ inc.capitalize_rate | math.format "N2" }} %{{ end }}</td>
+    <td class="pl">แม่แบบ</td>
+    <td class="pv">{{ if inc.template_name }}{{ inc.template_name }}{{ else }}-{{ end }}</td>
+    <td class="pl">{{ if !inc.is_direct_capitalization }}ระยะเวลาประเมิน{{ else }}อัตราผลตอบแทน (Cap Rate){{ end }}</td>
+    <td class="pv">{{ if !inc.is_direct_capitalization }}{{ inc.total_number_of_years }} ปี{{ else }}{{ if inc.capitalize_rate != null }}{{ inc.capitalize_rate | math.format "N2" }} %{{ else }}-{{ end }}{{ end }}</td>
   </tr>
+  {{ if !inc.is_direct_capitalization }}
   <tr>
+    <td class="pl">อัตราผลตอบแทน (Cap Rate)</td>
+    <td class="pv">{{ if inc.capitalize_rate != null }}{{ inc.capitalize_rate | math.format "N2" }} %{{ else }}-{{ end }}</td>
     <td class="pl">อัตราคิดลด (Discount Rate)</td>
-    <td class="pv">{{ if inc.discounted_rate != null }}{{ inc.discounted_rate | math.format "N2" }} %{{ end }}</td>
+    <td class="pv">{{ if inc.discounted_rate != null }}{{ inc.discounted_rate | math.format "N2" }} %{{ else }}-{{ end }}</td>
+  </tr>
+  {{ end }}
+  <tr>
+    <td class="pl">จำนวนวันต่อปี</td>
+    <td class="pv">{{ if inc.days_in_year > 0 }}{{ inc.days_in_year }} วัน{{ else }}-{{ end }}</td>
     <td></td><td></td>
   </tr>
 </table>
 
-{{ if inc.year_rows && inc.year_rows.size > 0 }}
-<table class="grid income-dcf">
-  <thead>
-    <tr>
-      <th style="width:40px;">ปีที่</th>
-      <th>รายได้รวม (บาท)</th>
-      <th>มูลค่าซากสุดท้าย (บาท)</th>
-      <th>รายได้สุทธิ (บาท)</th>
-      <th>ตัวคูณลด</th>
-      <th>มูลค่าปัจจุบัน (บาท)</th>
-    </tr>
-  </thead>
+{{ if inc.cash_flow_blocks.size > 0 }}
+<div class="sub-bar inc-h">{{ if inc.is_direct_capitalization }}ประมาณการรายได้และค่าใช้จ่ายปีแรก{{ else }}ประมาณการรายได้และค่าใช้จ่าย{{ end }}</div>
+{{ inc_multi = inc.cash_flow_blocks.size > 1 }}
+{{ for blk in inc.cash_flow_blocks }}
+{{ inc_pad = inc_multi ? 6 - blk.years.size : 0 }}
+<table class="grid inc-cf{{ if inc_multi }} inc-fixed{{ end }}" style="{{ if inc.is_direct_capitalization }}width:70%;{{ end }}{{ if !for.first }}margin-top:6px;{{ end }}">
+  {{ if inc_multi }}<colgroup><col style="width:22%;"/>{{ for i in 1..6 }}<col style="width:13%;"/>{{ end }}</colgroup>{{ end }}
+  <thead><tr><th{{ if !inc_multi }} style="width:{{ if inc.is_direct_capitalization }}60{{ else }}34{{ end }}%;"{{ end }}>รายการ (บาท)</th>{{ for y in blk.years }}<th>ปีที่ {{ y }}</th>{{ end }}{{ if inc_pad > 0 }}{{ for i in 1..inc_pad }}<th class="inc-pad"></th>{{ end }}{{ end }}</tr></thead>
   <tbody>
-    {{ for row in inc.year_rows }}
-    <tr>
-      <td class="ctr">{{ row.year_index }}</td>
-      <td class="num">{{ if row.gross_revenue != null }}{{ row.gross_revenue | math.format "N2" }}{{ end }}</td>
-      <td class="num">{{ if row.terminal_revenue != null }}{{ row.terminal_revenue | math.format "N2" }}{{ end }}</td>
-      <td class="num">{{ if row.total_net != null }}{{ row.total_net | math.format "N2" }}{{ end }}</td>
-      <td class="num">{{ if row.discount != null }}{{ row.discount | math.format "N6" }}{{ end }}</td>
-      <td class="num">{{ if row.present_value != null }}{{ row.present_value | math.format "N2" }}{{ end }}</td>
-    </tr>
+    {{ for r in blk.rows }}
+    {{ if r.kind == 'sec' || r.kind == 'cat' }}
+    <tr class="inc-{{ r.kind }}"><td class="lbl" colspan="{{ blk.years.size + 1 }}">{{ r.label }}</td>{{ if inc_pad > 0 }}{{ for i in 1..inc_pad }}<td class="inc-pad"></td>{{ end }}{{ end }}</tr>
+    {{ else }}
+    <tr class="inc-{{ r.kind }}"><td class="lbl">{{ r.label }}</td>{{ for c in r.cells }}<td class="{{ if c == null }}ctr{{ else }}num{{ end }}">{{ inc_n c r.format }}</td>{{ end }}{{ if inc_pad > 0 }}{{ for i in 1..inc_pad }}<td class="inc-pad"></td>{{ end }}{{ end }}</tr>
+    {{ end }}
+    {{ end }}
+  </tbody>
+</table>
+{{ end }}
+{{ end }}
+
+{{ if inc.is_direct_capitalization }}
+{{ if inc.direct_noi != null && inc.capitalize_rate != null && inc.capitalize_rate != 0 }}
+<div class="inc-fx">มูลค่าทรัพย์สิน = รายได้สุทธิ {{ inc.direct_noi | math.format "N2" }} ÷ Cap Rate {{ inc.capitalize_rate | math.format "N2" }} % = <b>{{ inc_n inc.present_value_total "N2" }}</b> บาท</div>
+{{ end }}
+{{ else if inc.terminal_value != null && inc.terminal_base_noi != null }}
+<div class="inc-fx">มูลค่าซากสุดท้าย = รายได้สุทธิปีที่ {{ inc.total_number_of_years }} {{ inc.terminal_base_noi | math.format "N2" }} ÷ Cap Rate {{ inc_n inc.capitalize_rate "N2" }} % = <b>{{ inc.terminal_value | math.format "N2" }}</b> บาท (คิดลดที่ปีที่ {{ inc.total_number_of_years - 1 }}) · ปีที่ {{ inc.total_number_of_years }} ใช้คำนวณมูลค่าซากเท่านั้น</div>
+{{ end }}
+
+{{ if inc.assumptions.size > 0 }}
+<div class="sub-bar inc-h" style="margin-top:8px;">สมมติฐานการประมาณการ</div>
+<table class="grid">
+  <thead><tr><th style="width:4%;">#</th><th style="width:28%;">รายการ</th><th style="width:26%;">วิธีคำนวณ</th><th>สมมติฐาน</th></tr></thead>
+  <tbody>
+    {{ for a in inc.assumptions }}
+    <tr><td class="ctr">{{ a.number }}</td><td>{{ a.name }}</td><td>{{ a.method }}</td><td>{{ if a.summary }}{{ a.summary }}{{ else }}-{{ end }}</td></tr>
     {{ end }}
   </tbody>
 </table>
 {{ end }}
 
-{{- # C1 fix: HBU block applies when IsHighestBestUsed = false (flag defaults true = no HBU top-up) -}}
+{{- # HBU block applies when IsHighestBestUsed = false (flag defaults true = no HBU top-up) -}}
 {{ if inc.is_highest_best_used == false }}
 <div class="sub-bar" style="margin-top:8px;">การปรับมูลค่าสูงสุดและดีที่สุด (Highest and Best Use)</div>
 <table class="params">
   <tr>
     <td class="pl">เนื้อที่ (ไร่-งาน-วา)</td>
-    <td class="pv">
-      {{ if inc.hbu_area_rai != null }}{{ inc.hbu_area_rai | math.format "N0" }}-{{ end }}{{ if inc.hbu_area_ngan != null }}{{ inc.hbu_area_ngan | math.format "N0" }}-{{ end }}{{ if inc.hbu_area_wa != null }}{{ inc.hbu_area_wa | math.format "N2" }}{{ end }} ตร.วา
-    </td>
+    <td class="pv">{{ if inc.hbu_area_text }}{{ inc.hbu_area_text }}{{ else }}-{{ end }}</td>
     <td class="pl">ราคาต่อตารางวา</td>
     <td class="pv">{{ if inc.hbu_price_per_sq_wa != null }}{{ inc.hbu_price_per_sq_wa | math.format "N2" }} บาท/ตร.วา{{ end }}</td>
   </tr>
 </table>
 {{ end }}
 
-{{- # W1 fix: render effective_final_value (mirrors handler precedence IndicatedValue → FinalValueAdjust+HBU → FinalValueRounded) -}}
-<table class="totals" style="margin-top:8px;">
+{{- # Final value precedence (loader): IndicatedValue → FinalValueAdjust + HBU land → FinalValueRounded -}}
+<table class="totals" style="margin-top:8px; break-inside:avoid;">
+  {{ if inc.present_value_total != null }}
+  <tr><td class="tl">{{ if inc.is_direct_capitalization }}มูลค่าจากรายได้ (NOI ÷ Cap Rate){{ else }}รวมมูลค่าปัจจุบัน{{ end }}</td><td class="tv">{{ inc.present_value_total | math.format "N2" }} บาท</td></tr>
+  {{ end }}
+  {{ if inc.final_value_adjust != null }}
+  <tr><td class="tl">มูลค่าหลังปรับโดยผู้ประเมิน</td><td class="tv">{{ inc.final_value_adjust | math.format "N2" }} บาท</td></tr>
+  {{ end }}
+  {{~ # HBU = No: the split-off land value (area x price) and the total are printed whenever there is a land value, as the screen does — not only when the appraiser also adjusted the income value. ~}}
+  {{ if inc.hbu_land_value != null && inc.hbu_land_value > 0 }}
+  <tr><td class="tl">บวก มูลค่าที่ดินส่วนที่แยกประเมิน (HBU)</td><td class="tv">{{ inc.hbu_land_value | math.format "N2" }} บาท</td></tr>
+  {{ end }}
+  {{ if inc.hbu_total_value != null }}
+  <tr><td class="tl">รวม (มูลค่าจากรายได้ + ที่ดินส่วนที่แยกประเมิน)</td><td class="tv">{{ inc.hbu_total_value | math.format "N2" }} บาท</td></tr>
+  {{ end }}
+  {{~ # A typed value that is not the system figure rounded prints once, as the last line, and is not called rounded. ~}}
+  {{ if inc.is_value_edited }}
+  <tr><td class="tl">ปรับโดยผู้ประเมิน</td><td class="tv">{{ inc.effective_final_value | math.format "N2" }} บาท</td></tr>
+  {{ else }}
+  {{ if inc.indicated_value != null }}
+  <tr><td class="tl">มูลค่าที่ผู้ประเมินกำหนด</td><td class="tv">{{ inc.indicated_value | math.format "N2" }} บาท</td></tr>
+  {{ end }}
   <tr>
     <td class="tl">มูลค่าทรัพย์สิน (ปัดเศษ)</td>
-    <td class="tv">{{ if inc.effective_final_value != null }}{{ inc.effective_final_value | math.format "N2" }}{{ end }} บาท</td>
+    <td class="tv">{{ if inc.effective_final_value != null }}{{ inc.effective_final_value | math.format "N2" }}{{ else }}-{{ end }} บาท</td>
   </tr>
+  {{ end }}
 </table>
+
+{{ subs = inc.sub_analyses }}{{ include 'partials/book-sub-analyses' }}
+
+{{ if inc.context && inc.context.remark }}
+<div class="pad" style="margin-top:4px;">
+  <div class="kv"><span class="k kw">หมายเหตุและสมมติฐาน :</span><span class="v">{{ inc.context.remark }}</span></div>
+</div>
+{{ end }}

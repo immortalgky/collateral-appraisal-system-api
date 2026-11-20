@@ -44,16 +44,19 @@ public record GetCondoPropertyResult(
     bool? IsOwnerVerified,
     string? BuildingConditionType,
     string? BuildingConditionTypeOther,
-    string? HasObligation,
+    List<string>? ObligationType,
     string? ObligationDetails,
+    string? MortgageDetails,
     string? DocumentValidationResultType,
     // Location Details
     string? LocationType,
+    string? LocationRemark,
     string? Street,
     string? Soi,
     decimal? DistanceFromMainRoad,
-    decimal? AccessRoadWidth,
-    short? RightOfWay,
+    decimal? CarriagewayWidth,
+    decimal? RightOfWayWidth,
+    short? NumberOfLanes,
     string? RoadSurfaceType,
     string? RoadSurfaceTypeOther,
     List<string>? PublicUtilityType,
@@ -64,6 +67,8 @@ public record GetCondoPropertyResult(
     string? LandFillType,
     string? LandFillTypeOther,
     string? UrbanPlanningType,
+    string? UrbanPlanningColor,
+    string? UrbanPlanningColorOther,
     List<string>? LandUseType,
     string? LandUseTypeOther,
     // Building Info
@@ -95,8 +100,20 @@ public record GetCondoPropertyResult(
     bool? IsInExpropriationLine,
     string? ExpropriationLineRemark,
     string? RoyalDecree,
+    string? OtherLegalLimitations,
     bool? IsForestBoundary,
     string? ForestBoundaryRemark,
+    bool? HasFloodProblem,
+    string? FloodProblemRemark,
+    bool? HasPollutionProblem,
+    List<string>? PollutionType,
+    string? PollutionTypeOther,
+    string? PollutionProblemRemark,
+    bool? HasOtherEnvironmentProblem,
+    string? OtherEnvironmentProblemRemark,
+    string? RoadPassInFrontOfLand,
+    List<string>? TransportationAccessType,
+    string? TransportationAccessTypeOther,
     // Facilities & Environment
     List<string>? FacilityType,
     string? FacilityTypeOther,
@@ -112,5 +129,9 @@ public record GetCondoPropertyResult(
     // Other
     string? Remark,
     // Construction Inspection
-    ConstructionInspectionDto? ConstructionInspection
+    ConstructionInspectionDto? ConstructionInspection,
+    // Rented out to others (lease agreement & rental info populated when IsRentedOut == true)
+    bool? IsRentedOut,
+    Shared.LeaseAgreementDetailDto? LeaseAgreement,
+    Shared.RentalInfoDto? RentalInfo
 );

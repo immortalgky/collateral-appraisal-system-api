@@ -1,44 +1,59 @@
-{{- # caller sets: sgr = sec (one SaleGridSection) -}}
-<div class="section-bar">ตารางวิเคราะห์มูลค่าทรัพย์สิน (โดยวิธีเปรียบเทียบข้อมูลตลาด)</div>
+{{- # caller sets: sgr = sec (one SaleGridSection: Sale Adjustment Grid or Direct Comparison). Layout = the pricing screen: 2-row header, bands, final row; the comparables are split into tables (sgr.chunks). -}}
+{{- func nz; if $0 != null && $0 != ""; ret $0; end; ret "-"; end -}}
+{{- func sl(l, c); ret l | array.offset c.start | array.limit c.count; end -}}
+<div class="section-bar" style="text-align:center; text-decoration:underline; font-size:10pt;">{{ if sgr.is_direct_comparison }}ตารางแสดงวิธีการเปรียบเทียบตรง{{ else }}ตารางวิเคราะห์มูลค่าทรัพย์สิน (โดยวิธีเปรียบเทียบข้อมูลตลาด){{ end }}</div>
+{{ ctx = sgr.context }}{{ include 'partials/book-method-banner' }}
 
 {{ if sgr.comparable_headers && sgr.comparable_headers.size > 0 }}
-<table class="grid">
+{{ last_ch = sgr.chunks.size - 1 }}
+{{ for ch in sgr.chunks }}
+{{ span = 2 + ch.count * 2 }}
+{{ split = sgr.adjust_start }}
+{{ if split < 0 }}{{ split = sgr.rows.size }}{{ end }}
+<table class="grid" style="margin-bottom:6px;">
   <thead>
     <tr>
-      <th style="min-width:150px;">รายละเอียด</th>
-      {{ for hdr in sgr.comparable_headers }}
-      <th class="ctr">{{ hdr }}</th>
+      <th rowspan="2" style="width:20%;">ปัจจัย (Factors)</th>
+      <th rowspan="2" style="width:14%;">ทรัพย์ (Collateral)</th>
+      {{ for h in (sl sgr.comparable_headers ch) }}
+      <th colspan="2">{{ h.title }}{{ if h.sub }}<div style="font-weight:400; font-size:6.5pt;">{{ h.sub }}</div>{{ end }}</th>
       {{ end }}
-      <th class="ctr">ทรัพย์สิน (SP)</th>
+    </tr>
+    <tr>
+      {{ for h in (sl sgr.comparable_headers ch) }}<th>ค่าปัจจัย</th><th>ระดับ</th>{{ end }}
     </tr>
   </thead>
   <tbody>
-    {{ for row in sgr.rows }}
-    <tr{{ if row.emphasis }} style="font-weight:700; background:#f3f3f3;"{{ end }}>
-      <td>{{ row.label }}</td>
-      {{ for v in row.values }}
-      <td class="num">{{ v }}</td>
+    {{ for row in sgr.rows }}{{ if for.index < split }}{{ include 'partials/section-salegrid-row' }}{{ end }}{{ end }}
+  </tbody>
+</table>
+{{ if split < sgr.rows.size }}
+{{~ # Second table: the adjustment band and everything after it, with its own header so a repeated header is always the right one. ~}}
+<table class="grid" style="margin-bottom:6px;">
+  <thead>
+    <tr>
+      <th rowspan="2" style="width:20%;">ปัจจัย</th>
+      <th rowspan="2" style="width:14%;">หมายเหตุ</th>
+      {{ for h in (sl sgr.comparable_headers ch) }}
+      <th colspan="2">{{ h.title }}{{ if h.sub }}<div style="font-weight:400; font-size:6.5pt;">{{ h.sub }}</div>{{ end }}</th>
       {{ end }}
-      <td class="num">{{ row.subject_value }}</td>
     </tr>
-    {{ end }}
+    <tr>
+      {{ for h in (sl sgr.comparable_headers ch) }}<th>ปรับ %</th><th>จำนวนเงิน</th>{{ end }}
+    </tr>
+  </thead>
+  <tbody>
+    {{ for row in sgr.rows }}{{ if for.index >= split }}{{ include 'partials/section-salegrid-row' }}{{ end }}{{ end }}
   </tbody>
 </table>
 {{ end }}
+{{ end }}
+{{ end }}
 
-{{ if sgr.summary_value || sgr.summary_value_rounded }}
-<table class="totals" style="margin-top:4px;">
-  {{ if sgr.summary_value }}
-  <tr>
-    <td class="tl">สรุปมูลค่าทรัพย์สิน</td>
-    <td class="tv">{{ sgr.summary_value | math.format "N2" }} บาท</td>
-  </tr>
-  {{ end }}
-  {{ if sgr.summary_value_rounded }}
-  <tr>
-    <td class="tl">สรุปมูลค่าทรัพย์สิน (ปัดเศษ)</td>
-    <td class="tv">{{ sgr.summary_value_rounded | math.format "N2" }} บาท</td>
-  </tr>
-  {{ end }}
-</table>
+{{ fv_rows = sgr.final_rows }}{{ include 'partials/section-final-value' }}
+
+{{ if sgr.context && sgr.context.remark }}
+<div class="pad" style="margin-top:4px;">
+  <div class="kv"><span class="k kw">หมายเหตุและสมมติฐาน :</span><span class="v">{{ sgr.context.remark }}</span></div>
+</div>
 {{ end }}

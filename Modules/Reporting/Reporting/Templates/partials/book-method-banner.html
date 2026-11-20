@@ -1,0 +1,8 @@
+{{- # caller sets: ctx = the section's PricingMethodContext (may be null) -}}
+{{ if ctx }}
+<div class="method-banner">
+  {{ if ctx.approach_label }}แนวทาง : {{ ctx.approach_label }}{{ end }}
+  {{ if ctx.role_label }} &nbsp;·&nbsp; ส่วนที่ประเมิน : {{ ctx.role_label }}{{ end }}
+  &nbsp;·&nbsp; <strong>{{ if ctx.is_reference }}(อ้างอิง){{ else }}ใช้สรุปมูลค่า{{ end }}</strong>
+</div>
+{{ end }}

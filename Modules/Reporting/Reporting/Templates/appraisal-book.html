@@ -3,54 +3,97 @@
 <head>
   <meta charset="UTF-8"/>
   <title>เล่มรายงานการประเมิน</title>
+  <!-- book-report-no: {{ model.appraisal_book_number }} -->
   <style>
     {{ include 'partials/book-cover-styles' }}
 
     /* Shared form/table classes used by the summary bodies and detail-section partials. */
     {{ include 'partials/summary-styles' }}
+
+    /* Numbered body sections (label : value pages); last so it wins over the shared rules. */
+    {{ include 'partials/book-flow-styles' }}
   </style>
 </head>
 <body>
 
-<!-- ══ HEADER: external (cover + company letter) vs internal (cover + summary body) ══ -->
+{{~ # The book is cut into PARTS (book-part): the assembler renders each on its own, then numbers the pages (front I, II..; body 1, 2..), stamps the running header and footer, and fills the contents list. ~}}
+{{ has_appendix_images = false; has_attachments = false }}
+{{ if model.appendix_section }}{{ for g in model.appendix_section.groups }}{{ if g.is_attachment }}{{ has_attachments = true }}{{ else }}{{ has_appendix_images = true }}{{ end }}{{ end }}{{ end }}
+{{~ # The other book types keep the one appendix of old (each group's images and PDFs together): no separate เอกสารแนบท้าย yet. ~}}
+{{ if model.body_type != "standard" && model.body_type != "condo" && model.body_type != "machine" && model.body_type != "construction" && model.body_type != "block" }}{{ has_appendix_images = model.appendix_section != null; has_attachments = false }}{{ end }}
+
+<!-- ══ HEADER: external (cover + company letter) vs internal (the cover; the bank's appraisal-summary form(s) follow the contents, below) — raw part: no running header, no page number ══ -->
+{{ part_kind = 'raw'; part_id = ''; include 'partials/book-part' }}
 {{ if model.is_external }}
   {{ include 'partials/book-cover-external' }}
   {{ include 'partials/book-letter-external' }}
 {{ else }}
   {{ include 'partials/book-cover-internal' }}
-  {{ if model.body_type == "construction" }}{{ include 'partials/summary-construction-body' }}{{ end }}
-  {{ if model.body_type == "block" }}{{ include 'partials/summary-block-body' }}{{ end }}
-  {{ if model.body_type == "standard" }}{{ include 'partials/summary-standard-body' }}{{ end }}
+{{ end }}
+{{ include 'partials/book-front-matter' }}
+{{ if model.is_external }}
+{{~ # External only: the letter keeps its heading and opening; the field rows and the value box are this page, a numbered FRONT part right after the contents. ~}}
+{{ include 'partials/book-ext-summary' }}
+{{ end }}
+{{ has_summary = !model.is_external && (model.body_type == "standard" || model.body_type == "condo" || model.body_type == "machine" || model.body_type == "construction" || model.body_type == "block") }}
+{{ if has_summary }}
+{{~ # Internal only: the bank's summary form(s) come after the contents and before the numbered body — a numbered FRONT part (II, III …, id "summary", the contents lists its first page), so the body numbering still starts at 1. ~}}
+{{ part_kind = 'front'; part_id = 'summary'; include 'partials/book-part' }}
+  {{ include 'partials/book-summary-body' }}
+  <!-- A Standard appraisal can fan out to several forms (land-building, condo, machine) exactly as the
+       appraisal-summary report does: the first is this model, the rest are model.extra_summary_forms, and
+       each is rendered with `model` swapped to it so the partial reads the same fields it does there. -->
+  {{ book_model = model }}
+  {{ for extra_form in book_model.extra_summary_forms }}
+  <div style="page-break-before:always;">
+    {{ model = extra_form }}
+    {{ include 'partials/book-summary-body' }}
+  </div>
+  {{ end }}
+  {{ model = book_model }}
 {{ end }}
 
+{{ if model.body_type == "standard" || model.body_type == "condo" || model.body_type == "machine" || model.body_type == "construction" || model.body_type == "block" }}
+{{~ # Land + building and condo books: numbered sections 1-8, then ภาคผนวก (maps, plans, photos) and เอกสารแนบท้าย (copies of documents). ~}}
+{{ if model.body_type == "condo" }}{{ include 'partials/book-flow-condo' }}{{ else if model.body_type == "machine" }}{{ include 'partials/book-flow-machine' }}{{ else if model.body_type == "construction" }}{{ include 'partials/book-flow-construction' }}{{ else if model.body_type == "block" }}{{ include 'partials/book-flow-block' }}{{ else }}{{ include 'partials/book-flow-standard' }}{{ end }}
+{{ if has_appendix_images }}{{ include 'partials/book-appendix' }}{{ end }}
+{{ if has_attachments }}{{ include 'partials/book-attachments' }}{{ end }}
+{{ else }}
+
 <!-- ══ Shared detail sections (rendered for BOTH internal & external; each on a new page when its data is present) ══ -->
-{{ if model.condo_section }}<div style="page-break-before:always;">{{ include 'partials/section-condo' }}</div>{{ end }}
+<!-- Each is a body part, so it carries the running header/footer and a page number; the id is what the contents list asks for. -->
+{{ if model.condo_section }}{{ part_kind = 'body'; part_id = 'condo'; include 'partials/book-part' }}<div style="page-break-before:always;">{{ include 'partials/section-condo' }}</div>{{ end }}
 {{ for grp in model.property_groups }}
-<div style="page-break-before:always;">
+{{ part_kind = 'body'; part_id = grp.lands.size > 0 ? 'land' : 'building'; include 'partials/book-part' }}
+<div>
   {{ if model.property_groups.size > 1 && grp.group_number > 0 }}
-  <div class="section-bar">กลุ่มที่ {{ grp.group_number }}{{ if grp.group_name }} - {{ grp.group_name }}{{ end }}</div>
+  <div class="section-bar fsd-group-bar">กลุ่มที่ {{ grp.group_number }}{{ if grp.group_name }} - {{ grp.group_name }}{{ end }}</div>
   {{ end }}
   {{ for ls in grp.lands }}
     {{ land_section = ls }}
     {{ include 'partials/section-land' }}
   {{ end }}
+  {{ if grp.lands.size > 0 && grp.buildings.size > 0 }}{{ part_kind = 'body'; part_id = 'building'; include 'partials/book-part' }}{{ end }}
   {{ for bs in grp.buildings }}
     {{ building_section = bs }}
     {{ include 'partials/section-building' }}
   {{ end }}
 </div>
 {{ end }}
-{{ if model.construction_section }}<div style="page-break-before:always;">{{ include 'partials/section-construction' }}</div>{{ end }}
-{{ if model.machine_section }}<div style="page-break-before:always;">{{ include 'partials/section-machine' }}</div>{{ end }}
+{{ if model.construction_section }}{{ part_kind = 'body'; part_id = 'construction'; include 'partials/book-part' }}<div style="page-break-before:always;">{{ include 'partials/section-construction' }}</div>{{ end }}
+{{ if model.machine_section }}{{ part_kind = 'body'; part_id = 'machine'; include 'partials/book-part' }}<div style="page-break-before:always;">{{ include 'partials/section-machine' }}</div>{{ end }}
+{{ if model.block_section }}{{ part_kind = 'body'; part_id = 'block'; include 'partials/book-part' }}{{ include 'partials/section-block-front' }}{{ end }}
 
 <!-- ══ Price-analysis sections (shared) — one section per property group ══ -->
 {{ for sec in model.comparison_sections }}
+{{ part_kind = 'body'; part_id = 'comparison'; include 'partials/book-part' }}
 <div style="page-break-before:always;">
   {{ cs = sec }}
   {{ include 'partials/section-comparison' }}
 </div>
 {{ end }}
 {{ for sec in model.wqs_sections }}
+{{ part_kind = 'body'; part_id = 'wqs'; include 'partials/book-part' }}
 <div style="page-break-before:always;">
   {{ if model.wqs_sections.size > 1 && sec.group_number > 0 }}<div class="section-bar">กลุ่มที่ {{ sec.group_number }}{{ if sec.group_name }} - {{ sec.group_name }}{{ end }}</div>{{ end }}
   {{ w = sec }}
@@ -58,6 +101,7 @@
 </div>
 {{ end }}
 {{ for sec in model.sale_grid_sections }}
+{{ part_kind = 'body'; part_id = 'salegrid'; include 'partials/book-part' }}
 <div style="page-break-before:always;">
   {{ if model.sale_grid_sections.size > 1 && sec.group_number > 0 }}<div class="section-bar">กลุ่มที่ {{ sec.group_number }}{{ if sec.group_name }} - {{ sec.group_name }}{{ end }}</div>{{ end }}
   {{ sgr = sec }}
@@ -65,12 +109,14 @@
 </div>
 {{ end }}
 {{ for sec in model.cost_machine_sections }}
+{{ part_kind = 'body'; part_id = 'costmachine'; include 'partials/book-part' }}
 <div style="page-break-before:always;">
   {{ cms = sec }}
   {{ include 'partials/section-costmachine' }}
 </div>
 {{ end }}
 {{ for sec in model.income_sections }}
+{{ part_kind = 'body'; part_id = 'income'; include 'partials/book-part' }}
 <div style="page-break-before:always;">
   {{ if model.income_sections.size > 1 && sec.group_number > 0 }}<div class="section-bar">กลุ่มที่ {{ sec.group_number }}{{ if sec.group_name }} - {{ sec.group_name }}{{ end }}</div>{{ end }}
   {{ inc = sec }}
@@ -78,6 +124,7 @@
 </div>
 {{ end }}
 {{ for sec in model.profit_rent_sections }}
+{{ part_kind = 'body'; part_id = 'profitrent'; include 'partials/book-part' }}
 <div style="page-break-before:always;">
   {{ if model.profit_rent_sections.size > 1 && sec.group_number > 0 }}<div class="section-bar">กลุ่มที่ {{ sec.group_number }}{{ if sec.group_name }} - {{ sec.group_name }}{{ end }}</div>{{ end }}
   {{ pr = sec }}
@@ -85,6 +132,7 @@
 </div>
 {{ end }}
 {{ for sec in model.leasehold_sections }}
+{{ part_kind = 'body'; part_id = 'leasehold'; include 'partials/book-part' }}
 <div style="page-break-before:always;">
   {{ if model.leasehold_sections.size > 1 && sec.group_number > 0 }}<div class="section-bar">กลุ่มที่ {{ sec.group_number }}{{ if sec.group_name }} - {{ sec.group_name }}{{ end }}</div>{{ end }}
   {{ lh = sec }}
@@ -92,6 +140,7 @@
 </div>
 {{ end }}
 {{ for sec in model.hypothesis_sections }}
+{{ part_kind = 'body'; part_id = 'hypothesis'; include 'partials/book-part' }}
 <div style="page-break-before:always;">
   {{ if model.hypothesis_sections.size > 1 && sec.group_number > 0 }}<div class="section-bar">กลุ่มที่ {{ sec.group_number }}{{ if sec.group_name }} - {{ sec.group_name }}{{ end }}</div>{{ end }}
   {{ hyp = sec }}
@@ -99,7 +148,11 @@
 </div>
 {{ end }}
 
-{{ if model.appendix_section }}{{ include 'partials/section-appendix' }}{{ end }}
+{{ if model.block_section }}{{ part_kind = 'body'; part_id = ''; include 'partials/book-part' }}{{ include 'partials/section-block-back' }}{{ end }}
+
+{{ if model.appendix_section }}{{ part_kind = 'body'; part_id = 'appendix'; include 'partials/book-part' }}{{ include 'partials/section-appendix' }}{{ end }}
+{{ include 'partials/book-appendix-missing' }}
+{{ end }}
 
 </body>
 </html>

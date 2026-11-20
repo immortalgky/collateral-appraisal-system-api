@@ -28,16 +28,18 @@ public class CreateLeaseAgreementBuildingPropertyCommandHandler(
             command.ModelName,
             command.BuiltOnTitleNumber,
             command.HouseNumber,
-            command.NoHouseNumber,
+            command.HouseNumberStatus,
             command.OwnerNameBuilding,
             command.IsOwnerVerifiedBuilding,
-            command.HasObligation,
+            command.ObligationType,
             command.ObligationDetails,
+            command.MortgageDetails,
             command.BuildingConditionType,
             command.BuildingConditionTypeOther,
             command.IsUnderConstruction,
             command.ConstructionLicenseExpirationDate,
             command.IsAppraisable,
+            command.NotAppraisableReason,
             command.BuildingType,
             command.BuildingTypeOther,
             command.NumberOfFloors,
@@ -76,7 +78,21 @@ public class CreateLeaseAgreementBuildingPropertyCommandHandler(
             command.TotalBuildingArea,
             command.BuildingCostValue,
             command.BuildingInsurancePrice,
-            command.Remark);
+            command.Remark,
+            buildingWidth: command.BuildingWidth,
+            buildingLength: command.BuildingLength,
+            spaceDivision: command.SpaceDivision,
+            maintenanceType: command.MaintenanceType,
+            maintenanceTypeOther: command.MaintenanceTypeOther,
+            doorType: command.DoorType,
+            doorTypeOther: command.DoorTypeOther,
+            windowType: command.WindowType,
+            windowTypeOther: command.WindowTypeOther,
+            sanitaryType: command.SanitaryType,
+            sanitaryTypeOther: command.SanitaryTypeOther,
+            buildingSystemType: command.BuildingSystemType,
+            buildingSystemTypeOther: command.BuildingSystemTypeOther,
+            constructionLicenseNumber: command.ConstructionLicenseNumber);
 
         // Add depreciation details if provided
         if (command.DepreciationDetails is { Count: > 0 })
@@ -104,7 +120,8 @@ public class CreateLeaseAgreementBuildingPropertyCommandHandler(
                 command.LeaseAgreement.Sublease, command.LeaseAgreement.AdditionalExpenses,
                 command.LeaseAgreement.LeaseTerminate, command.LeaseAgreement.ContractRenewal,
                 command.LeaseAgreement.RentalTermsImpactingPropertyUse, command.LeaseAgreement.TerminationOfLease,
-                command.LeaseAgreement.Remark);
+                command.LeaseAgreement.Remark,
+                command.LeaseAgreement.IsLeaseRegistered, command.LeaseAgreement.IsLeaseholdPledgeable);
         }
 
         // Update rental info if provided

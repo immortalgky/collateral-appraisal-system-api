@@ -75,24 +75,40 @@ table.kv-table td.kv-value {
   width:62%;
 }
 
-.letter-closing { margin-bottom:18px; font-size:10.5pt; line-height:1.6; }
-.letter-surveyor { margin-bottom:28px; font-size:10pt; }
+.letter-sub { page-break-after:avoid; font-weight:700; margin:4px 0 4px; font-size:10pt; }
 
-/* 3-column signature block (CSS table layout so the columns split evenly, as the former table element did) */
-.sig-table {
-  display:table; table-layout:fixed;
-  width:100%;
-  margin-top:32px; font-size:10pt;
-}
-.sig-table .sig-cell {
-  display:table-cell;
-  text-align:center; vertical-align:top;
-  padding:0 12px;
-}
-.sig-line {
-  border-bottom:1px solid #555;
-  margin-bottom:6px;
-  height:38px;
-}
-.sig-name { font-weight:600; margin-bottom:2px; }
-.sig-role { font-size:9pt; color:#444; }
+/* ═══ MISSING-DATA MARK ═════════════════════════════════════════════════════
+   A value the system does not store yet is printed as a red "-" so the gap is visible on the page
+   instead of leaving the label blank. Book-only: summary-styles is shared with the standalone summaries. */
+.na { color:#C00000; font-weight:700; }
+/* The whole field is red, not just its dash: the element directly wrapping a .na is exactly one label + value + unit
+   (a .fsd-row pair <span>, a letter signer line, a .kv row, a label/value table row), so colouring it colours the label too. */
+:has(> .na), .kv:has(.na), tr:has(> td > .na) > th, tr:has(> td > .na) > td { color:#C00000; }
+
+/* A label wider than the fixed 110px .k column would run into its value; the land and building pages use .kw. */
+.kv .k.kw { width:auto; min-width:110px; margin-right:6px; }
+
+/* One-line banner under a pricing page's heading: approach · part valued · used / reference. */
+.method-banner { font-size:8.5pt; color:#333; margin:-2px 0 6px; }
+
+/* ═══ FRONT MATTER (สารบัญ / คำจำกัดความ / เงื่อนไข) ═══════════════════════ */
+.front-page { padding:30px 48px; page-break-before:always; }
+.front-bar { background:#e5e5e5; font-weight:700; text-align:center; padding:5px; margin:10px 0 12px; font-size:12pt; }
+.toc-list { margin:0 0 18px 24px; font-size:11pt; line-height:1.9; }
+
+/* ═══ FSD BOXED SECTIONS (land, building, condo, ...) — FSD layout, 2026-11-04 ═══
+   One box per section, bold label + normal value inline, a given number of label/value pairs per line. */
+.fsd-box { page-break-before:always; }
+.fsd-title { text-align:center; font-weight:700; margin:0 0 8px; padding:4px; }
+.fsd-sub { font-weight:700; text-decoration:underline; margin-top:8px; }
+.fsd-row { display:flex; gap:16px; line-height:2; }
+.fsd-row b { white-space:nowrap; }
+.fsd-row > span { flex:1; min-width:0; overflow-wrap:anywhere; }
+.fsd-box table.grid { margin:4px 0; }
+.fsd-box table.grid th { background:#e7e7e7; }
+/* The group bar opens the page; the first box under it must not break away from it. */
+.fsd-group-bar { page-break-before:always; page-break-after:avoid; }
+.fsd-group-bar + .fsd-box { page-break-before:auto; }
+table.grid.comparison { table-layout:fixed; }
+table.grid.comparison td { overflow-wrap:anywhere; }
+.fsd-note { line-height:2; margin-top:6px; }

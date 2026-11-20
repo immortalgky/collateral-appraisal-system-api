@@ -19,7 +19,7 @@ namespace Reporting.Infrastructure.PdfAssembly;
 /// PdfSharp requires <c>Encoding.RegisterProvider(CodePagesEncodingProvider.Instance)</c>
 /// for Windows-1252 encoded PDFs — registered once in <see cref="ReportingModule"/>.
 /// </summary>
-internal sealed class PdfSharpAssembler(
+internal sealed partial class PdfSharpAssembler(
     IPdfRenderer pdfRenderer,
     IReportAttachmentSource attachmentSource,
     IOptions<FileStorageConfiguration> fileStorageOptions,
@@ -46,6 +46,11 @@ internal sealed class PdfSharpAssembler(
         IReadOnlyList<RenderSegment> segments,
         CancellationToken cancellationToken)
     {
+        // A template that marks its regions with PART markers (the appraisal book) gets running headers/footers,
+        // roman/arabic page numbers and a contents list with real page numbers; every other report is merged as is.
+        if (segments.OfType<HtmlSegment>().Any(h => h.Part is not null))
+            return await AssembleBookAsync(segments, cancellationToken);
+
         using var output = new PdfDocument();
         var budget = new MergeBudget();
 
@@ -127,6 +132,40 @@ internal sealed class PdfSharpAssembler(
         MergeBudget budget,
         CancellationToken cancellationToken)
     {
+        foreach (var (bytes, _) in await LoadSlotPdfsAsync(slot, budget, cancellationToken))
+            ImportAttachmentPages(output, bytes);
+    }
+
+    /// <summary>
+    /// Imports one attachment's pages. A file that opened fine can still fail on AddPage (a damaged page tree, a restricted
+    /// document): that is a bad attachment, so its pages are rolled back and it is skipped with a warning, the report goes on.
+    /// Used by the plain and the book path alike; rendered report parts use <see cref="ImportPdfPages"/> and let a failure surface.
+    /// </summary>
+    private void ImportAttachmentPages(PdfDocument output, byte[] pdfBytes)
+    {
+        var before = output.PageCount;
+        try
+        {
+            ImportPdfPages(output, pdfBytes);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Failed to import the pages of a PDF attachment — skipping it");
+            while (output.PageCount > before)
+                output.Pages.RemoveAt(output.PageCount - 1);
+        }
+    }
+
+    /// <summary>
+    /// The readable, importable PDFs of one slot (with the number of pages each adds), within the attachment caps. A file that is missing,
+    /// over budget or not importable is skipped with a warning; the budget is only charged for files that were accepted.
+    /// </summary>
+    private async Task<List<(byte[] Bytes, int Pages)>> LoadSlotPdfsAsync(
+        AttachmentSlotSegment slot,
+        MergeBudget budget,
+        CancellationToken cancellationToken)
+    {
+        var accepted = new List<(byte[] Bytes, int Pages)>();
         foreach (var documentId in slot.DocumentIds)
         {
             if (budget.Count >= MaxAttachments || budget.Bytes >= _maxTotalAttachmentBytes)
@@ -163,17 +202,23 @@ internal sealed class PdfSharpAssembler(
             try
             {
                 var bytes = await File.ReadAllBytesAsync(filePath, cancellationToken);
-                ImportPdfPages(output, bytes);
+                // The validity check is a trial import into a throwaway document: a file that is not a readable PDF, or whose pages
+                // cannot be imported, is skipped HERE, before the budget is charged, so a bad attachment never uses up the cap.
+                // The page count it returns is what the book numbers from.
+                if (ImportablePageCount(bytes) is not { } pages)
+                    continue;
+                accepted.Add((bytes, pages));
                 budget.Count++;
                 budget.Bytes += bytes.LongLength;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogWarning(ex,
                     "Failed to import PDF attachment {DocumentId} from '{FilePath}' — skipping",
                     documentId, filePath);
             }
         }
+        return accepted;
     }
 
     // Running total across all attachment slots in one report (per-request, local state).

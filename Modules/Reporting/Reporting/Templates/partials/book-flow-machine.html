@@ -1,0 +1,49 @@
+{{~ # Partial: the machine book (model.body_type == "machine"): 1 ที่ตั้งเครื่องจักร, 2 รายละเอียดเครื่องจักร, 3 การประเมินมูลค่า, 4 สรุป. Mock tab B8. ~}}
+{{ include 'partials/book-funcs' }}
+{{ ms = model.machine_section }}
+
+{{ part_kind = 'body'; part_id = 's1'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>1.</span><span>ที่ตั้งเครื่องจักร</span></div>
+<div class="bk-keep">
+<div class="bk-h2"><span>1.1</span><span>สถานที่ตั้งเครื่องจักร</span></div>
+{{ pic = appx_img 'BRIEF_MAP' 'DETAILED_MAP' 'EARTH_MAP' }}{{ if pic && pic.img_src }}<div class="bk-img"><img src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
+<div class="vk">
+  {{ vk 'สถานที่ตั้งเครื่องจักร' ms.machine_location }}
+  {{ vkm 'อาคารที่ติดตั้ง' }}
+  {{ vk 'พิกัด' model.gps }}
+</div>
+</div>
+<div class="bk-keep">
+<div class="bk-h2"><span>1.2</span><span>การมอบหมายและวัตถุประสงค์</span></div>
+<div class="vk">
+  {{ vk 'การมอบหมาย' ms.assignment }}
+  {{ vk 'วัตถุประสงค์ในการประเมินมูลค่าทรัพย์สิน' ms.valuation_purpose }}
+  {{ vk 'วันที่สำรวจและประเมินมูลค่า' (model.appraisal_date ? (model.appraiser ? model.appraiser + ' ' : '') + 'ได้ทำการสำรวจ เมื่อวันที่ ' + (thai.date model.appraisal_date) + ' ประเมินมูลค่าทรัพย์สิน เมื่อวันที่ ' + (thai.date model.appraisal_date) : null) }}
+</div>
+</div>
+</div>
+
+{{ part_kind = 'body'; part_id = 's2'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>2.</span><span>รายละเอียดเครื่องจักร</span></div>
+<div class="bk-h2"><span>2.1</span><span>ลักษณะทั่วไปของเครื่องจักร</span></div>
+{{ include 'partials/book-machine-general' }}
+<div class="bk-h2"><span>2.3</span><span>รายละเอียดเครื่องจักรรายรายการ</span></div>
+{{ for m in ms.machines }}
+{{ include 'partials/book-machine-block' }}
+{{ end }}
+</div>
+
+{{ part_kind = 'body'; part_id = 's3'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>3.</span><span>การประเมินมูลค่าเครื่องจักร</span></div>
+<div class="bk-h2"><span>3.1</span><span>รายละเอียดวิธีการประเมิน</span></div>
+{{ cm_h32 = true }}
+<div class="vm">
+{{ for cms in model.cost_machine_sections }}{{ include 'partials/section-costmachine' }}{{ end }}
+</div>
+{{ cm_h32 = false }}
+</div>
+
+{{ concl_no = '4.'; concl_id = 's4'; concl_machine = true; concl_construction = false; concl_block = false; include 'partials/book-conclusion' }}

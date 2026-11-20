@@ -1,0 +1,17 @@
+{{~ # Partial: ส่วนพัฒนาอื่นๆ บนที่ดิน on its own page. Caller sets dev_items and dev_photos; nothing prints without items. The title is the parent building's type, else the item description; Area is in square metres, as in the cost table. ~}}
+{{ if dev_items.size > 0 }}
+<div class="bk-bld">
+{{ if dev_photos.size > 0 }}<div class="bk-dev-photos">{{ for ph in dev_photos }}<img src="{{ ph }}"/>{{ end }}</div>{{ end }}
+<div class="bk-h2"><span style="text-decoration:underline;">ส่วนพัฒนาอื่นๆ บนที่ดิน</span></div>
+<div class="vk-sub">รายละเอียดทั่วไป</div>
+{{ for it in dev_items }}
+{{ ttl = it.building_type_text ? (it.building_type_text | string.strip) : '' }}
+<div class="vk-item">{{ nz (ttl != '' ? ttl : it.area_description) }}</div>
+<div class="vk bk-keep">
+  {{ vk 'พื้นที่' (it.area != null ? 'ประมาณ ' + (f2 it.area) : null) (it.area != null ? 'ตร.ม.' : null) }}
+  {{ vk 'อายุประมาณ' it.age_years 'ปี' }}
+  {{ vk 'หมายเหตุ' it.remark }}
+</div>
+{{ end }}
+</div>
+{{ end }}

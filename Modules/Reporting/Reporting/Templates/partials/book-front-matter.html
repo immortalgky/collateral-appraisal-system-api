@@ -1,0 +1,78 @@
+{{~ # Partial: front matter — สารบัญ only (page I); the internal book's summary form(s) follow it as front part "summary" (II …) and head its list. Included once by appraisal-book.html after the front page (every body type, construction inspections included). The เงื่อนไข / คำนิยาม / คำอธิบายวิธีการประเมิน page was removed until the bank supplies its wording. ~}}
+{{~ # The contents is front part I (the summary form(s) that follow it are II, III …). Each contents line carries a page token naming a part id; the assembler replaces it with the page where that part starts. ~}}
+{{~ # The land + building book lists its numbered sections; the other book types list the sections they print today (their own numbered layout comes later). ~}}
+{{- func toc; ret '<div class="bk-toc"><span>' + $0 + '</span><i></i><span>[[PAGE:' + $1 + ']]</span></div>'; end -}}
+{{ part_kind = 'front'; part_id = 'toc'; include 'partials/book-part' }}
+<div class="bk">
+  <div class="bk-title">สารบัญ</div>
+  <div class="bk-toc hd"><span></span><i style="border:0"></i><span>หน้า</span></div>
+  {{~ # The external book's สรุปผลการประเมินมูลค่าทรัพย์สิน page comes right after this one (front part "extsummary"), first in the list. ~}}
+  {{ if model.is_external }}{{ toc 'สรุปผลการประเมินมูลค่าทรัพย์สิน' 'extsummary' }}{{ end }}
+  {{~ # The internal book's summary form(s) come right after this page (front part "summary"): its own title, unnumbered, first in the list. The title is the one the form prints (a construction summary and a block summary have a fixed one). ~}}
+  {{ if !model.is_external && (model.body_type == "standard" || model.body_type == "condo" || model.body_type == "machine" || model.body_type == "construction" || model.body_type == "block") }}
+    {{ if model.body_type == "construction" }}{{ summary_toc = 'สรุปรายงานการตรวจงานก่อสร้าง' }}{{ else if model.body_type != "block" && model.report_title }}{{ summary_toc = model.report_title }}{{ else }}{{ summary_toc = 'สรุปรายงานการประเมินราคาทรัพย์สิน' }}{{ end }}
+    {{ toc summary_toc 'summary' }}
+  {{ end }}
+  {{ if model.body_type == "standard" || model.body_type == "condo" }}
+    {{ if model.all_lands.size > 0 || model.body_type == "condo" }}
+    {{ toc '1. ทำเลที่ตั้งทรัพย์สิน' 's1' }}
+    {{ if model.body_type == "condo" }}{{ toc '2. หนังสือกรรมสิทธิ์ห้องชุด' 's2' }}{{ else }}{{ toc '2. เอกสารสิทธิ์' 's2' }}{{ end }}
+    {{ end }}
+    {{ toc '3. ทรัพย์สินที่ประเมินมูลค่า' 's3' }}
+    {{ toc '4. กฎหมายและข้อกำหนดที่เกี่ยวข้อง' 's4' }}
+    {{ toc '5. การวิเคราะห์ทรัพย์สินที่ประเมินมูลค่า' 's5' }}
+    {{ toc '6. การประเมินมูลค่าทรัพย์สิน' 's6' }}
+    {{ toc '7. สรุปการประเมินมูลค่าทรัพย์สิน' 's7' }}
+    {{ if model.comparison_sections.size > 0 }}{{ toc '8. ข้อมูลตลาดเปรียบเทียบ' 's8' }}{{ end }}
+  {{ else if model.body_type == "block" }}
+    {{ toc '1. ทำเลที่ตั้งทรัพย์สิน' 's1' }}
+    {{ toc '2. รายละเอียดโครงการ' 's2' }}
+    {{ toc (model.block_section.is_condo ? '3. แบบห้องชุด' : '3. แบบบ้าน') 's3' }}
+    {{ toc '4. การประเมินมูลค่า' 's4' }}
+    {{ toc '5. สรุปราคาประเมินรายแปลงเพื่อสนับสนุนรายย่อยโครงการ' 's5' }}
+    {{ if model.comparison_sections.size > 0 }}{{ toc '6. ข้อมูลตลาดเปรียบเทียบ' 's6' }}{{ end }}
+    {{ toc ((model.comparison_sections.size > 0 ? '7' : '6') + '. สรุปการประเมินมูลค่าทรัพย์สิน') 's7' }}
+  {{ else if model.body_type == "construction" }}
+    {{ toc '1. ทำเลที่ตั้งทรัพย์สิน' 's1' }}
+    {{ toc '2. เอกสารสิทธิ์' 's2' }}
+    {{ toc '3. รายละเอียดอาคารที่ตรวจ' 's3' }}
+    {{ toc '4. ความคืบหน้างานก่อสร้าง' 's4' }}
+    {{ toc '5. สรุปผลการตรวจงวดงานก่อสร้าง' 's5' }}
+  {{ else if model.body_type == "machine" }}
+    {{ toc '1. ที่ตั้งเครื่องจักร' 's1' }}
+    {{ toc '2. รายละเอียดเครื่องจักร' 's2' }}
+    {{ toc '3. การประเมินมูลค่าเครื่องจักร' 's3' }}
+    {{ toc '4. สรุปการประเมินมูลค่าทรัพย์สิน' 's4' }}
+  {{ else }}
+    {{ if model.condo_section }}{{ toc 'รายละเอียดห้องชุด' 'condo' }}{{ end }}
+    {{ has_land = false }}{{ has_building = false }}
+    {{ for g in model.property_groups }}{{ if g.lands.size > 0 }}{{ has_land = true }}{{ end }}{{ if g.buildings.size > 0 }}{{ has_building = true }}{{ end }}{{ end }}
+    {{ if has_land }}{{ toc 'รายละเอียดที่ดิน' 'land' }}{{ end }}
+    {{ if has_building }}{{ toc 'รายละเอียดสิ่งปลูกสร้าง' 'building' }}{{ end }}
+    {{ if model.construction_section }}{{ toc 'รายละเอียดการตรวจงานก่อสร้าง' 'construction' }}{{ end }}
+    {{ if model.machine_section }}{{ toc 'รายละเอียดเครื่องจักร' 'machine' }}{{ end }}
+    {{ if model.comparison_sections.size > 0 }}{{ toc 'ข้อมูลตลาดเปรียบเทียบ' 'comparison' }}{{ end }}
+    {{ if model.wqs_sections.size > 0 }}{{ toc 'การวิเคราะห์ด้วยวิธี WQS' 'wqs' }}{{ end }}
+    {{ if model.sale_grid_sections.size > 0 }}{{ toc 'การวิเคราะห์ด้วยวิธีเปรียบเทียบข้อมูลตลาด (Sale Grid)' 'salegrid' }}{{ end }}
+    {{ if model.cost_machine_sections.size > 0 }}{{ toc 'การประเมินเครื่องจักรด้วยวิธีต้นทุน' 'costmachine' }}{{ end }}
+    {{ if model.income_sections.size > 0 }}{{ toc 'การวิเคราะห์ด้วยวิธีรายได้' 'income' }}{{ end }}
+    {{ if model.profit_rent_sections.size > 0 }}{{ toc 'การวิเคราะห์ด้วยวิธีกำไรจากค่าเช่า' 'profitrent' }}{{ end }}
+    {{ if model.leasehold_sections.size > 0 }}{{ toc 'การวิเคราะห์ด้วยวิธีสิทธิการเช่า' 'leasehold' }}{{ end }}
+    {{ if model.hypothesis_sections.size > 0 }}{{ toc 'การวิเคราะห์ด้วยวิธีสมมติฐาน' 'hypothesis' }}{{ end }}
+  {{ end }}
+  {{ if has_appendix_images }}{{ toc 'ภาคผนวก' 'appendix' }}{{ end }}
+  {{ if has_attachments }}{{ toc 'เอกสารแนบท้าย' 'attach' }}{{ end }}
+
+  {{ if has_appendix_images || has_attachments }}
+  <div class="bk-toc-sub">
+    {{ if has_appendix_images }}
+    <b>ภาคผนวก</b>
+    {{ for g in model.appendix_section.groups }}{{ if !g.is_attachment || model.body_type != "standard" && model.body_type != "condo" && model.body_type != "machine" && model.body_type != "construction" && model.body_type != "block" }}<div>- {{ g.type_name_thai }}</div>{{ end }}{{ end }}
+    {{ end }}
+    {{ if has_attachments }}
+    <b>เอกสารแนบท้าย</b>
+    {{ for g in model.appendix_section.groups }}{{ if g.is_attachment }}<div>- {{ g.type_name_thai }}</div>{{ end }}{{ end }}
+    {{ end }}
+  </div>
+  {{ end }}
+</div>

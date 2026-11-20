@@ -21,4 +21,14 @@ public sealed class PropertyGroupDetail
 
     /// <summary>Building detail(s) in this group (B / LB / lease-building properties).</summary>
     public IReadOnlyList<BuildingSection> Buildings { get; init; } = [];
+
+    /// <summary>Buildings proper — development-only properties print under ส่วนพัฒนา instead.</summary>
+    public IReadOnlyList<BuildingSection> RealBuildings => Buildings.Where(b => !b.IsDevelopmentOnly).ToList();
+
+    /// <summary>ส่วนพัฒนา items of every building in the group.</summary>
+    public IReadOnlyList<DevelopmentItem> DevelopmentItems => Buildings.SelectMany(b => b.DevelopmentItems).ToList();
+
+    /// <summary>Up to 3 photos (one per development-only property) for the ส่วนพัฒนา page.</summary>
+    public IReadOnlyList<string> DevelopmentPhotos =>
+        Buildings.Where(b => b.IsDevelopmentOnly && b.PhotoSrc != null).Select(b => b.PhotoSrc!).Take(3).ToList();
 }

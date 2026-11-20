@@ -4657,7 +4657,7 @@ erDiagram
 | IsResidential | `bit` | NULL |  |  |
 | IsUnderConstruction | `bit` | NULL |  |  |
 | ModelName | `nvarchar(100)` | NULL |  |  |
-| NoHouseNumber | `nvarchar(100)` | NULL |  |  |
+| HouseNumberStatus | `nvarchar(100)` | NULL |  |  |
 | NumberOfFloors | `decimal(5,2)` | NULL |  |  |
 | ObligationDetails | `nvarchar(500)` | NULL |  |  |
 | OwnerName | `nvarchar(200)` | NULL |  |  |

@@ -1,22 +1,36 @@
 {{- # caller sets: cs = sec (one ComparisonSection) -}}
-<div class="section-bar">ข้อมูลตลาดเปรียบเทียบในการประเมินมูลค่าหลักทรัพย์</div>
+{{- func nz; if $0 != null && $0 != ""; ret $0; end; ret "-"; end -}}
+{{~ # FSD 2.1.2.8: the table prints cs table.fsd_rows only (no photo row; the factor / sale-price / coordinate rows stay on the model). ~}}
+<div class="section-bar center" style="text-align:center; font-size:10pt;">ข้อมูลตลาดเปรียบเทียบในการประเมินมูลค่าหลักทรัพย์</div>
 
 {{ if cs.tables && cs.tables.size > 0 }}
+{{ lastg = -1 }}
 {{ for table in cs.tables }}
 {{ if table.comparable_headers && table.comparable_headers.size > 0 }}
-{{ if table.property_type_label }}<div class="sub-bar">{{ table.property_type_label }}</div>{{ end }}
+{{ if cs.multi_group && table.group_number != lastg }}<div class="sub-bar">กลุ่มที่ {{ table.group_number }}</div>{{ lastg = table.group_number }}{{ end }}
+{{ if table.property_type_label && cs.tables.size > 1 }}<div class="sub-bar">{{ table.property_type_label }}</div>{{ end }}
 <table class="grid comparison">
-  <thead>
+  <thead style="break-after:avoid;">
     <tr>
-      <th>รายละเอียด</th>
+      <th>รายการ</th>
+      {{ for sh in table.subject_headers }}<th>{{ sh }}</th>{{ end }}
       {{ for h in table.comparable_headers }}<th>{{ h }}</th>{{ end }}
     </tr>
   </thead>
   <tbody>
-    {{ for row in table.rows }}
-    <tr>
+    {{~ # ภาพถ่าย: first row, one photo per column, centred and contained; an empty cell when there is none. ~}}
+    {{ if table.subject_photo || table.photos.size > 0 }}
+    <tr style="break-inside:avoid; page-break-inside:avoid;">
+      <td>ภาพถ่าย</td>
+      {{ for sh in table.subject_headers }}<td style="height:38mm; padding:2px; text-align:center; vertical-align:middle;">{{ if table.subject_photo }}<img src="{{ table.subject_photo }}" style="max-width:100%; max-height:36mm; object-fit:contain;" />{{ end }}</td>{{ end }}
+      {{ for h in table.comparable_headers }}<td style="height:38mm; padding:2px; text-align:center; vertical-align:middle;">{{ if table.photos.size > 0 && table.photos[for.index].size > 0 }}<img src="{{ table.photos[for.index][0] }}" style="max-width:100%; max-height:36mm; object-fit:contain;" />{{ end }}</td>{{ end }}
+    </tr>
+    {{ end }}
+    {{ for row in table.fsd_rows }}
+    <tr{{ if row.bold }} style="font-weight:700;"{{ end }}>
       <td>{{ row.factor_name }}</td>
-      {{ for v in row.values }}<td>{{ v }}</td>{{ end }}
+      {{ for sv in row.subject_values }}<td>{{ nz sv }}</td>{{ end }}
+      {{ for v in row.values }}<td>{{ nz v }}</td>{{ end }}
     </tr>
     {{ end }}
   </tbody>

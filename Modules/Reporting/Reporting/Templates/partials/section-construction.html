@@ -1,12 +1,15 @@
 {{ if model.construction_section && model.construction_section.buildings.size > 0 }}
-<div class="section-bar">ตารางรายละเอียดความคืบหน้างานก่อสร้าง</div>
+<div class="section-bar">ตารางรายละเอียดความคืบหน้าการก่อสร้าง</div>
 
+<!-- The inspection round / reference-book rows (cons.current_inspection_round, cons.refer_*) are loaded but not
+     printed: FSD §5 does not have them (the internal summary page does). -->
+<style>.fsd-cons th { background:#e7e7e7; text-align:center; font-weight:700; }</style>
 {{ for building in model.construction_section.buildings }}
 <div class="pad" style="padding-bottom:2px;">
-  <strong>{{ if building.building_name }}{{ building.building_name }}{{ else }}อาคาร{{ end }}</strong>
+  <strong>{{ for.index + 1 }}. {{ if building.building_name }}{{ building.building_name }}{{ else }}อาคาร{{ end }}</strong>
 </div>
 
-<table class="grid">
+<table class="grid fsd-cons">
   <thead>
     <tr>
       <th>รายการ</th>
@@ -25,7 +28,7 @@
     </tr>
     {{ for item in group.items }}
     <tr>
-      <td style="padding-left:14px;">{{ item.item_name }}</td>
+      <td style="text-align:right;">{{ item.item_name }}</td>
       <td class="num">{{ if item.value; item.value | math.format "N2"; else; "-"; end }}</td>
       <td class="num">{{ if item.proportion_pct; item.proportion_pct | math.format "N2"; else; "-"; end }}%</td>
       <td class="num">{{ if item.previous_pct; item.previous_pct | math.format "N2"; else; "-"; end }}%</td>

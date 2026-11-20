@@ -21,8 +21,9 @@ public record ProjectTowerDto(
     string? CondoRegistrationNumber,
     // Condition & Obligation
     string? ConditionType,
-    string? HasObligation,
+    List<string>? ObligationType,
     string? ObligationDetails,
+    string? MortgageDetails,
     string? DocumentValidationType,
     // Location
     bool? IsLocationCorrect,

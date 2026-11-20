@@ -33,16 +33,19 @@ public record CreateCondoPropertyRequest(
     bool? IsOwnerVerified = null,
     string? BuildingConditionType = null,
     string? BuildingConditionTypeOther = null,
-    string? HasObligation = null,
+    List<string>? ObligationType = null,
     string? ObligationDetails = null,
+    string? MortgageDetails = null,
     string? DocumentValidationResultType = null,
     // Location Details
     string? LocationType = null,
+    string? LocationRemark = null,
     string? Street = null,
     string? Soi = null,
     decimal? DistanceFromMainRoad = null,
-    decimal? AccessRoadWidth = null,
-    short? RightOfWay = null,
+    decimal? CarriagewayWidth = null,
+    decimal? RightOfWayWidth = null,
+    short? NumberOfLanes = null,
     string? RoadSurfaceType = null,
     string? RoadSurfaceTypeOther = null,
     List<string>? PublicUtilityType = null,
@@ -53,6 +56,8 @@ public record CreateCondoPropertyRequest(
     string? LandFillType = null,
     string? LandFillTypeOther = null,
     string? UrbanPlanningType = null,
+    string? UrbanPlanningColor = null,
+    string? UrbanPlanningColorOther = null,
     List<string>? LandUseType = null,
     string? LandUseTypeOther = null,
     // Building Info
@@ -85,8 +90,20 @@ public record CreateCondoPropertyRequest(
     bool? IsInExpropriationLine = null,
     string? ExpropriationLineRemark = null,
     string? RoyalDecree = null,
+    string? OtherLegalLimitations = null,
     bool? IsForestBoundary = null,
     string? ForestBoundaryRemark = null,
+    bool? HasFloodProblem = null,
+    string? FloodProblemRemark = null,
+    bool? HasPollutionProblem = null,
+    List<string>? PollutionType = null,
+    string? PollutionTypeOther = null,
+    string? PollutionProblemRemark = null,
+    bool? HasOtherEnvironmentProblem = null,
+    string? OtherEnvironmentProblemRemark = null,
+    string? RoadPassInFrontOfLand = null,
+    List<string>? TransportationAccessType = null,
+    string? TransportationAccessTypeOther = null,
     // Facilities & Environment
     List<string>? FacilityType = null,
     string? FacilityTypeOther = null,
@@ -102,5 +119,9 @@ public record CreateCondoPropertyRequest(
     decimal? BuildingInsurancePriceOverride = null,
     // Other
     string? Remark = null,
-    ConstructionInspectionData? ConstructionInspection = null
+    ConstructionInspectionData? ConstructionInspection = null,
+    // Rented out to others: lease agreement & rental info (sent when IsRentedOut == true)
+    bool? IsRentedOut = null,
+    Shared.LeaseAgreementData? LeaseAgreement = null,
+    Shared.RentalInfoData? RentalInfo = null
 );

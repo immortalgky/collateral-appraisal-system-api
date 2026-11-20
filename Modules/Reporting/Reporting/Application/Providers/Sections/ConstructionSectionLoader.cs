@@ -53,7 +53,8 @@ internal static class ConstructionSectionLoader
                 ci.SummaryPreviousValue,
                 ci.SummaryCurrentValue,
                 ap.SequenceNumber,
-                bad.PropertyName AS BuildingName
+                bad.PropertyName AS BuildingName,
+                bad.ConstructionLicenseNumber AS LicenseNumber
             FROM appraisal.ConstructionInspections ci
             JOIN appraisal.AppraisalProperties ap
                 ON ap.Id = ci.AppraisalPropertyId
@@ -112,6 +113,44 @@ internal static class ConstructionSectionLoader
 
         var detailRows = (await connection.QueryAsync<WorkDetailRow>(detailSql, detailParams)).ToList();
 
+        // ── Reference to the previous book + this round (same rules as the summary page) ──
+        // Previous appraisal = Appraisals.PrevAppraisalId; the round falls back to the chain count
+        // only for rows created before Appraisals.InspectionNumber existed.
+        const string refSql = """
+            SELECT prev.AppraisalNumber AS PrevNumber,
+                   prev.AppraisalType   AS PrevType,
+                   prev.InspectionNumber AS PrevRound,
+                   a.InspectionNumber   AS StampedRound
+            FROM appraisal.Appraisals a
+            LEFT JOIN appraisal.Appraisals prev ON prev.Id = a.PrevAppraisalId
+            WHERE a.Id = @AppraisalId;
+
+            WITH chain AS (
+                SELECT a.Id, a.AppraisalType, a.PrevAppraisalId
+                FROM appraisal.Appraisals a
+                WHERE a.Id = (SELECT PrevAppraisalId FROM appraisal.Appraisals WHERE Id = @AppraisalId)
+                UNION ALL
+                SELECT p.Id, p.AppraisalType, p.PrevAppraisalId
+                FROM appraisal.Appraisals p
+                JOIN chain c ON p.Id = c.PrevAppraisalId
+            )
+            SELECT COUNT(*) FROM chain WHERE AppraisalType = 'Progressive';
+            """;
+
+        RefRow? refRow;
+        int chainCount;
+        using (var refMulti = await connection.QueryMultipleAsync(refSql, ciParams))
+        {
+            refRow = await refMulti.ReadFirstOrDefaultAsync<RefRow>();
+            chainCount = await refMulti.ReadFirstAsync<int>();
+        }
+
+        var hasPrev = !string.IsNullOrWhiteSpace(refRow?.PrevNumber);
+        var priorIsProgressive = hasPrev &&
+            string.Equals(refRow!.PrevType, "Progressive", StringComparison.OrdinalIgnoreCase);
+        var (referRound, currentRound) = AppraisalSummaryConstructionDataProvider.ResolveRounds(
+            priorIsProgressive, refRow?.PrevRound, refRow?.StampedRound, chainCount);
+
         // ── Assemble the section hierarchy ────────────────────────────────────────
         // Group detail rows by CI ID for fast lookup.
         var detailsByCi = detailRows
@@ -168,6 +207,7 @@ internal static class ConstructionSectionLoader
             return new ConstructionBuilding
             {
                 BuildingName      = ci.BuildingName,
+                LicenseNumber     = AppraisalSummaryCommonLoader.FirstNonBlank(ci.LicenseNumber),
                 Groups            = groups,
                 TotalValue        = items.Count > 0 ? items.Sum(d => d.ConstructionValue) : null,
                 TotalProportionPct = items.Count > 0 ? items.Sum(d => d.ProportionPct)   : null,
@@ -183,10 +223,25 @@ internal static class ConstructionSectionLoader
             };
         }).ToList();
 
-        return new ConstructionSection { Buildings = buildings };
+        return new ConstructionSection
+        {
+            Buildings = buildings,
+            CurrentInspectionRound = currentRound,
+            ReferAppraisalBookNumber = hasPrev && !priorIsProgressive ? refRow!.PrevNumber : null,
+            ReferConstructionBookNumber = priorIsProgressive ? refRow!.PrevNumber : null,
+            ReferInspectionRound = priorIsProgressive ? referRound : null,
+        };
     }
 
     // ── Private flat DTOs for Dapper mapping ─────────────────────────────────────
+
+    private sealed class RefRow
+    {
+        public string? PrevNumber { get; init; }
+        public string? PrevType { get; init; }
+        public int? PrevRound { get; init; }
+        public int? StampedRound { get; init; }
+    }
 
     private sealed class CiHeaderRow
     {
@@ -196,6 +251,7 @@ internal static class ConstructionSectionLoader
         public decimal? SummaryCurrentValue { get; init; }
         public int SequenceNumber { get; init; }
         public string? BuildingName { get; init; }
+        public string? LicenseNumber { get; init; }
     }
 
     private sealed class WorkDetailRow

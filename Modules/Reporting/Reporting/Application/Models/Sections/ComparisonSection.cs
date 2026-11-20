@@ -32,6 +32,9 @@ public sealed class ComparisonSection
     /// (lowest <c>DisplaySequence</c> of the group's comparables).
     /// </summary>
     public IReadOnlyList<ComparisonTable> Tables { get; init; } = [];
+
+    /// <summary>True when the appraisal has two or more property groups: the tables are headed "กลุ่มที่ N".</summary>
+    public bool MultiGroup { get; init; }
 }
 
 /// <summary>
@@ -61,6 +64,31 @@ public sealed class ComparisonTable
     /// Missing values are represented as <see langword="null"/>.
     /// </summary>
     public IReadOnlyList<ComparisonFactorRow> Rows { get; init; } = [];
+
+    /// <summary>
+    /// The rows of the FSD layout (2.1.2.8), in FSD order: ประเภททรัพย์สิน … หมายเหตุ. This is what the book prints;
+    /// <see cref="Rows"/> keeps every factor and fixed row so more can be switched back on later.
+    /// </summary>
+    public IReadOnlyList<ComparisonFactorRow> FsdRows { get; init; } = [];
+
+    /// <summary>
+    /// Header(s) of the subject column(s) printed right after the label column ("ทรัพย์สินที่ประเมิน", or one
+    /// "ทรัพย์สิน กลุ่มที่ N" per property group in a multi-group appraisal). Empty = no subject column.
+    /// Each <see cref="ComparisonFactorRow.SubjectValues"/> list lines up with it.
+    /// </summary>
+    public IReadOnlyList<string> SubjectHeaders { get; init; } = [];
+
+    /// <summary>The property group these comparables belong to (the section lists each group's used comparables).</summary>
+    public int GroupNumber { get; init; }
+
+    /// <summary>ภาพถ่าย of the subject column: file:// source of the group's photo; null = empty cell.</summary>
+    public string? SubjectPhoto { get; init; }
+
+    /// <summary>
+    /// ภาพถ่าย — per comparable column (same order as <see cref="ComparableHeaders"/>), the file:// sources of the
+    /// photos attached to that market data (MarketComparableImages). Empty list when none of the comparables has a photo.
+    /// </summary>
+    public IReadOnlyList<IReadOnlyList<string>> Photos { get; init; } = [];
 }
 
 /// <summary>
@@ -73,6 +101,15 @@ public sealed class ComparisonFactorRow
     /// Null for rows where the label is unavailable.
     /// </summary>
     public string? FactorName { get; init; }
+
+    /// <summary>MarketComparableFactors.FactorCode of the factor behind this row (null for the fixed rows).</summary>
+    public string? FactorCode { get; init; }
+
+    /// <summary>Values printed bold (the FSD prints ประเภททรัพย์สิน in bold).</summary>
+    public bool Bold { get; init; }
+
+    /// <summary>The subject's value under each <see cref="ComparisonTable.SubjectHeaders"/> entry; null = "-".</summary>
+    public IReadOnlyList<string?> SubjectValues { get; init; } = [];
 
     /// <summary>
     /// Cell values — one per comparable, in the same order as

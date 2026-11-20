@@ -45,6 +45,7 @@ public class GetProjectQueryHandler(
             IsUnderConstruction: project.IsUnderConstruction,
             ConstructionProgressPercent: project.ConstructionProgressPercent,
             BuiltOnTitleDeedNumber: project.BuiltOnTitleDeedNumber,
-            LicenseExpirationDate: project.LicenseExpirationDate);
+            LicenseExpirationDate: project.LicenseExpirationDate,
+            LicenseNumber: project.LicenseNumber);
     }
 }

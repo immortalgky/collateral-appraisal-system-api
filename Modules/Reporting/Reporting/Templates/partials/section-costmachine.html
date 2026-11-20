@@ -37,14 +37,17 @@
 <!-- Calculation tables (landscape) — one table per machine property group -->
 {{ if cms.groups.size > 0 }}
 <div class="landscape-page">
+  {{ if cm_h32 }}<div class="bk-h2" style="padding-left:0;"><span>3.2</span><span>ตารางการประเมินมูลค่าเครื่องจักร (วิธีต้นทุน · RCN × P × F × E)</span></div>{{ end }}
 
   {{ for grp in cms.groups }}
   <div class="section-bar">{{ if grp.group_name }}{{ grp.group_name }}{{ else }}เครื่องจักรและอุปกรณ์{{ end }}</div>
 
+  {{~ # Figures never wrap (a split "-4.0" reads as two numbers); the name and หมายเหตุ columns take the squeeze. ~}}
+  <style>.cm-cost-table td.nw { white-space:nowrap; } .cm-cost-table td.cm-note { max-width:90px; overflow-wrap:anywhere; }</style>
   <table class="grid cm-cost-table">
     <thead>
       <tr>
-        <th rowspan="2" style="width:22px;">ลำดับที่</th>
+        <th rowspan="2" style="width:34px; white-space:nowrap;">ลำดับที่</th>
         <th rowspan="2" style="width:30px;">จำนวน</th>
         <th rowspan="2">ชื่อและรายละเอียดเครื่องจักรพร้อมอุปกรณ์</th>
         <th rowspan="2" style="width:70px;">หมายเลขทะเบียนเครื่องจักร</th>
@@ -58,6 +61,7 @@
         <th rowspan="2" style="width:72px;">มูลค่าทดแทน RCN (บาท)</th>
         <th rowspan="2" style="width:72px;">มูลค่าตามสภาพ FMV (บาท)</th>
         <th rowspan="2" style="width:50px;">ความต้องการตลาด ใช้งานได้/ใช้งานไม่ได้</th>
+        <th rowspan="2" style="width:90px;">หมายเหตุ</th>
       </tr>
       <tr>
         <th style="width:30px;">C</th>
@@ -69,38 +73,45 @@
     <tbody>
       {{ for row in grp.rows }}
       <tr>
-        <td class="ctr">{{ row.sequence }}</td>
+        <td class="ctr nw">{{ row.sequence }}</td>
         <td class="ctr">{{ row.quantity }}</td>
         <td>{{ row.machine_detail }}</td>
         <td class="ctr">{{ row.registration_number }}</td>
         <td class="ctr">{{ row.manufacturer_country }}</td>
         <td class="ctr">{{ row.condition_use }}</td>
         <td class="ctr">{{ row.year_of_use }}</td>
-        <td class="ctr">{{ if row.life_span_n != null; row.life_span_n | math.format "N1"; end }}</td>
-        <td class="ctr">{{ if row.age_n != null; row.age_n | math.format "N1"; end }}</td>
-        <td class="ctr">{{ if row.remaining_r != null; row.remaining_r | math.format "N1"; end }}</td>
-        <td class="ctr">{{ if row.condition_factor_c != null; row.condition_factor_c | math.format "N2"; end }}</td>
-        <td class="ctr">{{ if row.physical_p != null; row.physical_p | math.format "N2"; end }}</td>
-        <td class="ctr">{{ if row.functional_f != null; row.functional_f | math.format "N2"; end }}</td>
-        <td class="ctr">{{ if row.economic_e != null; row.economic_e | math.format "N2"; end }}</td>
-        <td class="num">{{ if row.rcn != null; row.rcn | math.format "N2"; end }}</td>
-        <td class="num">{{ if row.fmv != null; row.fmv | math.format "N2"; end }}</td>
-        <td class="ctr">{{ row.market_demand }}</td>
+        <td class="ctr nw">{{ if row.life_span_n != null; row.life_span_n | math.format "N1"; end }}</td>
+        <td class="ctr nw">{{ if row.age_n != null; row.age_n | math.format "N1"; end }}</td>
+        <td class="ctr nw">{{ if row.remaining_r != null; row.remaining_r | math.format "N1"; end }}</td>
+        <td class="ctr nw">{{ if row.condition_factor_c != null; row.condition_factor_c | math.format "N2"; end }}</td>
+        <td class="ctr nw">{{ if row.physical_p != null; row.physical_p | math.format "N2"; end }}</td>
+        <td class="ctr nw">{{ if row.functional_f != null; row.functional_f | math.format "N2"; end }}</td>
+        <td class="ctr nw">{{ if row.economic_e != null; row.economic_e | math.format "N2"; end }}</td>
+        <td class="num nw">{{ if row.rcn != null; row.rcn | math.format "N2"; end }}</td>
+        <td class="num nw">{{ if row.fmv != null; row.fmv | math.format "N2"; end }}</td>
+        <td class="ctr nw">{{ row.market_demand }}</td>
+        <td class="cm-note">{{ if row.notes }}{{ row.notes }}{{ else }}-{{ end }}</td>
       </tr>
       {{ end }}
       <tr class="grp-total">
-        <td class="ctr">รวม</td>
+        <td class="ctr nw">รวม</td>
         <td class="ctr">{{ grp.surveyed_count }}</td>
         <td colspan="12" style="text-align:right;">
           รวมมูลค่าเครื่องจักรและอุปกรณ์ จำนวน {{ grp.machine_count }} เครื่อง&nbsp;&nbsp;
           สำรวจพบ {{ grp.surveyed_count }} เครื่อง&nbsp;&nbsp;เป็นเงิน
         </td>
-        <td class="num">{{ if grp.total_rcn != null; grp.total_rcn | math.format "N2"; end }}</td>
-        <td class="num">{{ if grp.total_fmv != null; grp.total_fmv | math.format "N2"; end }}</td>
-        <td></td>
+        <td class="num nw">{{ if grp.total_rcn != null; grp.total_rcn | math.format "N2"; end }}</td>
+        <td class="num nw">{{ if grp.total_fmv != null; grp.total_fmv | math.format "N2"; end }}</td>
+        <td></td><td></td>
       </tr>
     </tbody>
   </table>
+  {{ subs = grp.rcn_sources }}{{ include 'partials/book-sub-analyses' }}
+  {{ if grp.remark }}
+  <div class="pad" style="margin-top:4px;">
+    <div class="kv"><span class="k kw">หมายเหตุและสมมติฐาน :</span><span class="v" style="white-space:pre-line;">{{ grp.remark }}</span></div>
+  </div>
+  {{ end }}
   {{ end }}
 
   <div class="cm-notes">

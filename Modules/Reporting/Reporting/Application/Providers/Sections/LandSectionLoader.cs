@@ -44,11 +44,11 @@ internal static class LandSectionLoader
         // Q1 column notes (confirmed from LandAppraisalDetailConfiguration.cs):
         //   OwnerName (nvarchar 200), ObligationDetails (nvarchar 500),
         //   RoadPassInFrontOfLand (nvarchar 200), RoadSurfaceType (nvarchar 100),
-        //   AccessRoadWidth / RoadFrontage (decimal 10,2),
+        //   CarriagewayWidth / RightOfWayWidth / RoadFrontage (decimal 10,2),
         //   LandEntranceExitType / PlotLocationType / PublicUtilityType /
         //     LandUseType / TransportationAccessType / LandZoneType (nvarchar 500, JSON arrays),
         //   LandDescription / PropertyAnticipationType / UrbanPlanningType (nvarchar),
-        //   IsExpropriated (bool) → IsInExpropriationLine (closest equivalent),
+        //   IsInExpropriationLine (bool) — the legacy IsExpropriated (ระวางเวนคืน) is no longer read,
         //   Remark (nvarchar 4000),
         //   Address VO: SubDistrict/District/Province/LandOffice (HasColumnName).
         //
@@ -67,20 +67,70 @@ internal static class LandSectionLoader
                 pg.GroupName,
                 lad.OwnerName,
                 lad.ObligationDetails,
+                lad.ObligationType,
+                lad.MortgageDetails,
                 lad.RoadPassInFrontOfLand,
                 lad.RoadSurfaceType,
-                lad.AccessRoadWidth,
+                lad.RoadSurfaceTypeOther,
+                lad.CarriagewayWidth,
+                lad.RightOfWayWidth,
                 lad.RoadFrontage,
+                lad.NumberOfLanes,
+                lad.NumberOfSidesFacingRoad,
+                lad.IsLandLocationVerified,
+                lad.LandLocationRemark,
+                lad.IsOwnerVerified,
+                lad.IsRentedOut,
+                lad.Latitude,
+                lad.Longitude,
+                lad.DistanceFromMainRoad,
+                lad.LandFillType,
+                lad.LandFillTypeOther,
+                lad.LandFillPercent,
+                lad.SoilLevel,
+                lad.PondArea,
+                lad.PondDepth,
+                lad.LandAccessibilityType,
+                lad.LandAccessibilityRemark,
+                lad.HasElectricity            AS FarFromElectricity,
+                lad.ElectricityDistance,
+                lad.IsForestBoundary,
+                lad.ForestBoundaryRemark,
+                lad.HasFloodProblem,
+                lad.FloodProblemRemark,
+                lad.HasPollutionProblem,
+                lad.PollutionType,
+                lad.PollutionTypeOther,
+                lad.HasOtherEnvironmentProblem,
+                lad.OtherEnvironmentProblemRemark,
+                lad.PollutionProblemRemark,
+                lad.IsEncroached,
+                lad.EncroachmentRemark,
+                lad.IsLandlocked,
+                lad.LandlockedRemark,
+                lad.ExpropriationLineRemark,
+                lad.RoyalDecree,
+                lad.OtherLegalLimitations,
+                lad.NorthAdjacentArea, lad.NorthBoundaryLength,
+                lad.SouthAdjacentArea, lad.SouthBoundaryLength,
+                lad.EastAdjacentArea,  lad.EastBoundaryLength,
+                lad.WestAdjacentArea,  lad.WestBoundaryLength,
                 lad.LandEntranceExitType,
                 lad.PlotLocationType,
                 lad.PublicUtilityType,
                 lad.LandDescription,
                 lad.LandShapeType,
+                lad.DevelopmentSuitabilityType,
                 lad.LandUseType,
                 lad.TransportationAccessType,
+                lad.TransportationAccessTypeOther,
                 lad.PropertyAnticipationType,
-                lad.IsExpropriated            AS IsInExpropriationLine,
+                lad.IsInExpropriationLine,
                 lad.UrbanPlanningType,
+                lad.EnvironmentType,
+                lad.EnvironmentTypeOther,
+                lad.UrbanPlanningColor,
+                lad.UrbanPlanningColorOther,
                 lad.LandZoneType,
                 lad.LandCheckMethodType,
                 lad.LandCheckMethodTypeOther,
@@ -89,6 +139,9 @@ internal static class LandSectionLoader
                 COALESCE(tdist.NameTh, lad.District)    AS District,
                 COALESCE(tprov.NameTh, lad.Province)    AS Province,
                 lad.LandOffice,
+                lad.EvictionType,
+                lad.EvictionTypeOther,
+                lad.EvictionRemark,
                 lad.DeductedAreaInSqWa
             FROM appraisal.LandAppraisalDetails lad
             JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
@@ -109,6 +162,11 @@ internal static class LandSectionLoader
                 lt.SurveyNumber,
                 lt.MapSheetNumber,
                 lt.Rawang,
+                lt.DocumentValidationResultType,
+                lt.GovernmentPricePerSqWa,
+                lt.GovernmentPrice,
+                lt.BoundaryMarkerType,
+                lt.BoundaryMarkerRemark,
                 lt.AreaRai,
                 lt.AreaNgan,
                 lt.AreaSquareWa,
@@ -128,12 +186,21 @@ internal static class LandSectionLoader
               AND [group] IN (
                   'RoadSurface', 'LandEntranceExit', 'PlotLocation', 'PublicUtility',
                   'LandUse', 'Transportation', 'Location', 'AnticipationOfProsperity',
-                  'TypeOfUrbanPlanning', 'LandOffice', 'CheckBy');
+                  'TypeOfUrbanPlanning', 'LandOffice', 'CheckBy', 'Landfill', 'LandAccessibility', 'BoundaryMarker', 'LandShape', 'DevelopmentSuitability', 'UrbanPlanningColor', 'Pollution', 'Obligation', 'Environment', 'Eviction', 'LandAreaDeductionReason');
+
+            -- RS04: the area deductions of every land, in the order the appraiser listed them (SequenceNumber, then Id).
+            SELECT d.LandAppraisalDetailId AS LandDetailId, d.ReasonCode, d.ReasonOther, d.AreaInSqWa, d.Remark
+            FROM appraisal.LandAreaDeductions d
+            JOIN appraisal.LandAppraisalDetails lad ON lad.Id = d.LandAppraisalDetailId
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = lad.AppraisalPropertyId
+            WHERE ap.AppraisalId = @AppraisalId
+            ORDER BY d.LandAppraisalDetailId, d.SequenceNumber, d.Id;
             """;
 
         List<LandDetailRow> landRows;
         List<TitleRow> titleRows;
         List<ParamRow> paramRows;
+        List<DeductionRow> deductionRows;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, p))
         {
@@ -145,6 +212,9 @@ internal static class LandSectionLoader
 
             // RS03: Q3 — parameter code→Thai maps (always read to drain the result set)
             paramRows = (await multi.ReadAsync<ParamRow>()).ToList();
+
+            // RS04: the area deductions
+            deductionRows = (await multi.ReadAsync<DeductionRow>()).ToList();
         }
 
         if (landRows.Count == 0)
@@ -186,7 +256,11 @@ internal static class LandSectionLoader
                     TitleNumber      = r.TitleNumber,
                     LandParcelNumber = r.LandParcelNumber,
                     SurveyNumber     = r.SurveyNumber,
-                    MapSheet         = JoinNonEmpty(r.MapSheetNumber, r.Rawang),
+                    MapSheet         = TitleSheet(r.TitleType, r.Rawang, r.MapSheetNumber),
+                    Rawang           = AppraisalSummaryCommonLoader.FirstNonBlank(r.Rawang),
+                    DocumentValidationResult = DocumentCheck.Result(r.DocumentValidationResultType),
+                    GovernmentPricePerSqWa = r.GovernmentPricePerSqWa,
+                    GovernmentPrice  = r.GovernmentPrice,
                     AreaRai          = r.AreaRai,
                     AreaNgan         = r.AreaNgan,
                     AreaSquareWa     = r.AreaSquareWa,
@@ -200,18 +274,29 @@ internal static class LandSectionLoader
                 rows.Sum(r => r.AreaNgan ?? 0m),
                 rows.Sum(r => r.AreaSquareWa ?? 0m));
 
-            // ตรวจสอบจาก — check-method code → Thai. Code 99 ("other") shows the free-text
-            // remark instead of the "อื่นๆ" label; for any other code we still fall back to
-            // the remark only when the code resolves to nothing.
-            string? checkedFrom = Resolve("CheckBy", landRow.LandCheckMethodType);
-            if (landRow.LandCheckMethodType == OtherCode &&
-                !string.IsNullOrWhiteSpace(landRow.LandCheckMethodTypeOther))
-                checkedFrom = landRow.LandCheckMethodTypeOther;
-            else if (string.IsNullOrWhiteSpace(checkedFrom))
-                checkedFrom = landRow.LandCheckMethodTypeOther;
+            // ตรวจสอบจาก — a multi-select: the codes (a bare code on older rows, a JSON array now) → Thai, joined ", ".
+            // Code 99 ("other") shows the free-text remark instead of the "อื่นๆ" label.
+            string? checkedFrom = JsonCodesToThai(landRow.LandCheckMethodType, paramMaps.GetValueOrDefault("CheckBy") ?? EmptyMap, landRow.LandCheckMethodTypeOther);
+
+            var evictionType = JsonCodesToThai(landRow.EvictionType, paramMaps.GetValueOrDefault("Eviction") ?? EmptyMap, landRow.EvictionTypeOther);
+            var reasonMap = paramMaps.GetValueOrDefault("LandAreaDeductionReason") ?? EmptyMap;
+            var deductions = deductionRows.Where(d => d.LandDetailId == landRow.LandDetailId)
+                .Select((d, i) => new LandDeductionRow
+                {
+                    Sequence = i + 1,
+                    // Code 99 ("other") shows its own text instead of the "สาเหตุอื่น" label.
+                    Reason = d.ReasonCode == OtherCode && !string.IsNullOrWhiteSpace(d.ReasonOther)
+                        ? d.ReasonOther.Trim()
+                        : (reasonMap.TryGetValue(d.ReasonCode ?? "", out var label) && !string.IsNullOrWhiteSpace(label) ? label : d.ReasonCode),
+                    AreaInSqWa = d.AreaInSqWa,
+                    Remark = AppraisalSummaryCommonLoader.FirstNonBlank(d.Remark)
+                }).ToList();
 
             sections.Add(new LandSection
             {
+                EvictionType           = evictionType,
+                EvictionRemark         = AppraisalSummaryCommonLoader.FirstNonBlank(landRow.EvictionRemark),
+                Deductions             = deductions,
                 GroupNumber            = landRow.GroupNumber,
                 GroupName              = landRow.GroupName,
                 TotalRai               = total.Rai,
@@ -223,27 +308,73 @@ internal static class LandSectionLoader
                 DeductedAreaInWa       = landRow.DeductedAreaInSqWa ?? 0m,
                 NetAreaInWa            = Math.Max(0m, total.TotalSquareWa - (landRow.DeductedAreaInSqWa ?? 0m)),
                 CheckedFrom            = checkedFrom,
+                MapSheets              = titles.Select(t => t.MapSheet).Where(m => !string.IsNullOrWhiteSpace(m)).Distinct().ToList() is { Count: > 0 } sheets
+                                             ? string.Join(", ", sheets) : null,
                 SubDistrict            = landRow.SubDistrict,
                 District               = landRow.District,
                 Province               = landRow.Province,
                 LandOffice             = Resolve("LandOffice", landRow.LandOffice),
-                Obligation             = landRow.ObligationDetails,
+                ObligationMortgage     = ObligationText.Mortgage(landRow.ObligationType, landRow.MortgageDetails),
+                ObligationOthers       = ObligationText.Others(landRow.ObligationType, landRow.ObligationDetails, paramMaps.GetValueOrDefault(ObligationText.ParameterGroup) ?? EmptyMap),
                 RoadPassInFrontOfLand  = landRow.RoadPassInFrontOfLand,
-                RoadSurfaceType        = Resolve("RoadSurface", landRow.RoadSurfaceType),
-                AccessRoadWidth        = landRow.AccessRoadWidth,
+                RoadSurfaceType        = JsonCodesToThai(landRow.RoadSurfaceType, paramMaps.GetValueOrDefault("RoadSurface") ?? EmptyMap, landRow.RoadSurfaceTypeOther),
+                CarriagewayWidth       = landRow.CarriagewayWidth,
+                RightOfWayWidth             = landRow.RightOfWayWidth,
                 RoadFrontage           = landRow.RoadFrontage,
+                NumberOfLanes              = landRow.NumberOfLanes,
+                NumberOfSidesFacingRoad = landRow.NumberOfSidesFacingRoad,
+                IsLandLocationVerified = landRow.IsLandLocationVerified,
+                LandLocationRemark = AppraisalSummaryCommonLoader.FirstNonBlank(landRow.LandLocationRemark),
+                IsOwnerVerified        = landRow.IsOwnerVerified,
+                IsRentedOut            = landRow.IsRentedOut,
+                Latitude               = landRow.Latitude,
+                Longitude              = landRow.Longitude,
+                DistanceFromMainRoad   = landRow.DistanceFromMainRoad,
+                TransportationAccessType = JsonCodesToThai(landRow.TransportationAccessType, paramMaps.GetValueOrDefault("Transportation") ?? EmptyMap, landRow.TransportationAccessTypeOther),
                 LandEntranceExitType   = Resolve("LandEntranceExit", landRow.LandEntranceExitType),
                 PlotLocationType       = Resolve("PlotLocation", landRow.PlotLocationType),
                 PublicUtilityType      = Resolve("PublicUtility", landRow.PublicUtilityType),
-                // ลักษณะทางกายภาพ → LandShapeType (code, group "LandShape"), not LandDescription
+                // รูปแปลงที่ดิน → LandShapeType (code, group "LandShape"), not LandDescription
                 LandDescription        = Resolve("LandShape", landRow.LandShapeType),
+                // ความเหมาะสมต่อการพัฒนา → DevelopmentSuitabilityType (code, group "DevelopmentSuitability")
+                DevelopmentSuitability = Resolve("DevelopmentSuitability", landRow.DevelopmentSuitabilityType),
+                LandDescriptionText    = AppraisalSummaryCommonLoader.FirstNonBlank(landRow.LandDescription),
                 LandUseType            = Resolve("LandUse", landRow.LandUseType),
-                // ทรัพย์สินอยู่ในพื้นที่ → UrbanPlanningType (group "TypeOfUrbanPlanning"), not TransportationAccessType
-                TransportationAccessType = Resolve("TypeOfUrbanPlanning", landRow.UrbanPlanningType),
                 PropertyAnticipationType = Resolve("AnticipationOfProsperity", landRow.PropertyAnticipationType),
                 IsInExpropriationLine  = landRow.IsInExpropriationLine,
                 UrbanPlanningType      = Resolve("TypeOfUrbanPlanning", landRow.UrbanPlanningType),
+                EnvironmentType        = JsonCodesToThai(landRow.EnvironmentType, paramMaps.GetValueOrDefault("Environment") ?? EmptyMap, landRow.EnvironmentTypeOther),
+                UrbanPlanningColor     = JsonCodesToThai(landRow.UrbanPlanningColor, paramMaps.GetValueOrDefault("UrbanPlanningColor") ?? EmptyMap, landRow.UrbanPlanningColorOther),
                 LandZoneType           = Resolve("Location", landRow.LandZoneType),
+                IsForestBoundary       = landRow.IsForestBoundary,
+                ForestBoundaryRemark   = AppraisalSummaryCommonLoader.FirstNonBlank(landRow.ForestBoundaryRemark),
+                HasFloodProblem        = landRow.HasFloodProblem,
+                FloodProblemRemark     = AppraisalSummaryCommonLoader.FirstNonBlank(landRow.FloodProblemRemark),
+                HasPollutionProblem    = landRow.HasPollutionProblem,
+                PollutionType          = JsonCodesToThai(landRow.PollutionType, paramMaps.GetValueOrDefault("Pollution") ?? EmptyMap, landRow.PollutionTypeOther, " / "),
+                PollutionProblemRemark = AppraisalSummaryCommonLoader.FirstNonBlank(landRow.PollutionProblemRemark),
+                HasOtherEnvironmentProblem = landRow.HasOtherEnvironmentProblem,
+                OtherEnvironmentProblemRemark = AppraisalSummaryCommonLoader.FirstNonBlank(landRow.OtherEnvironmentProblemRemark),
+                IsEncroached           = landRow.IsEncroached,
+                EncroachmentRemark     = AppraisalSummaryCommonLoader.FirstNonBlank(landRow.EncroachmentRemark),
+                IsLandlocked           = landRow.IsLandlocked,
+                LandlockedRemark       = AppraisalSummaryCommonLoader.FirstNonBlank(landRow.LandlockedRemark),
+                ExpropriationRemark    = AppraisalSummaryCommonLoader.FirstNonBlank(landRow.ExpropriationLineRemark),
+                RoyalDecree            = AppraisalSummaryCommonLoader.FirstNonBlank(landRow.RoyalDecree),
+                OtherLegalLimitations  = AppraisalSummaryCommonLoader.FirstNonBlank(landRow.OtherLegalLimitations),
+                LandFill               = landRow.LandFillType == OtherCode && !string.IsNullOrWhiteSpace(landRow.LandFillTypeOther)
+                                             ? landRow.LandFillTypeOther
+                                             : Resolve("Landfill", landRow.LandFillType) ?? AppraisalSummaryCommonLoader.FirstNonBlank(landRow.LandFillTypeOther),
+                LandFillPercent        = landRow.LandFillPercent,
+                SoilLevel              = landRow.SoilLevel,
+                PondArea               = landRow.PondArea,
+                PondDepth              = landRow.PondDepth,
+                LandAccessibility      = Resolve("LandAccessibility", landRow.LandAccessibilityType),
+                LandAccessibilityRemark = AppraisalSummaryCommonLoader.FirstNonBlank(landRow.LandAccessibilityRemark),
+                FarFromElectricity     = landRow.FarFromElectricity,
+                ElectricityDistance    = landRow.ElectricityDistance,
+                BoundaryMarker         = BoundaryMarkerText(rows, Resolve),
+                Boundaries             = BuildBoundaries(landRow),
                 Remark                 = AppraisalSummaryCommonLoader.FirstNonBlank(landRow.Remark),
                 Titles                 = titles
             });
@@ -269,7 +400,7 @@ internal static class LandSectionLoader
     ///
     /// Mirrors <c>JsonCodesToThai</c> in <c>AppraisalSummaryLandBuildingDataProvider</c>.
     /// </summary>
-    private static string? JsonCodesToThai(string? raw, IReadOnlyDictionary<string, string?> map)
+    internal static string? JsonCodesToThai(string? raw, IReadOnlyDictionary<string, string?> map, string? other = null, string separator = ", ")
     {
         if (string.IsNullOrWhiteSpace(raw))
             return null;
@@ -292,12 +423,51 @@ internal static class LandSectionLoader
             codes = [s];
         }
 
-        var labels = codes
-            .Where(c => !string.IsNullOrWhiteSpace(c))
-            .Select(c => map.TryGetValue(c, out var d) && !string.IsNullOrWhiteSpace(d) ? d! : c);
+        // Code "99" = other: the remark replaces the "อื่นๆ" label. It prints only while 99 is ticked: text left in the box after
+        // 99 was unticked is stale and must not appear (this is the one place every caller resolves through).
+        var remark = string.IsNullOrWhiteSpace(other) ? null : other.Trim();
+        var labels = AppraisalSummaryCommonLoader.OrderCodes(codes.Where(c => !string.IsNullOrWhiteSpace(c)))
+            .Select(c => c == OtherCode && remark != null ? remark : map.TryGetValue(c, out var d) && !string.IsNullOrWhiteSpace(d) ? d! : c)
+            .ToList();
 
-        var joined = string.Join(", ", labels);
+        var joined = string.Join(separator, labels);
         return string.IsNullOrWhiteSpace(joined) ? null : joined;
+    }
+
+    /// <summary>
+    /// The sheet a title prints: ระวาง (Rawang) belongs to a โฉนด, แผ่นที่ (MapSheetNumber) to an น.ส.3 ก. They are two names for one slot,
+    /// so the one that matches the document type leads and the other only stands in when it is blank (a stale value left in the
+    /// other field after the type was changed never wins). Any other type: ระวาง first.
+    /// </summary>
+    internal static string? TitleSheet(string? titleType, string? rawang, string? mapSheetNumber) =>
+        string.Equals(titleType?.Trim(), "NS3K", StringComparison.OrdinalIgnoreCase)
+            ? AppraisalSummaryCommonLoader.FirstNonBlank(mapSheetNumber, rawang)
+            : AppraisalSummaryCommonLoader.FirstNonBlank(rawang, mapSheetNumber);
+
+    /// <summary>
+    /// หลักเขตที่พบ across a property's titles: each distinct "พบหลักเขต (remark)" once, joined with ", ".
+    /// </summary>
+    private static string? BoundaryMarkerText(List<TitleRow> titles, Func<string, string?, string?> resolve)
+    {
+        var parts = titles
+            .Select(t => JoinNonEmpty(resolve("BoundaryMarker", t.BoundaryMarkerType), t.BoundaryMarkerRemark))
+            .Where(x => x is not null)
+            .Distinct()
+            .ToList();
+        return parts.Count > 0 ? string.Join(", ", parts) : null;
+    }
+
+    /// <summary>The four compass sides that carry something to print, in N/S/E/W order.</summary>
+    private static List<LandBoundaryRow> BuildBoundaries(LandDetailRow r)
+    {
+        var all = new[]
+        {
+            new LandBoundaryRow { Direction = "ทิศเหนือ", Adjacent = r.NorthAdjacentArea, Distance = r.NorthBoundaryLength },
+            new LandBoundaryRow { Direction = "ทิศใต้", Adjacent = r.SouthAdjacentArea, Distance = r.SouthBoundaryLength },
+            new LandBoundaryRow { Direction = "ทิศตะวันออก", Adjacent = r.EastAdjacentArea, Distance = r.EastBoundaryLength },
+            new LandBoundaryRow { Direction = "ทิศตะวันตก", Adjacent = r.WestAdjacentArea, Distance = r.WestBoundaryLength },
+        };
+        return all.Where(b => !string.IsNullOrWhiteSpace(b.Adjacent) || b.Distance.HasValue).ToList();
     }
 
     /// <summary>Space-joins the non-empty parts; returns null when all are empty.</summary>
@@ -309,18 +479,78 @@ internal static class LandSectionLoader
 
     // ── Private flat DTOs for Dapper mapping ─────────────────────────────────────
 
+    private sealed class DeductionRow
+    {
+        public Guid LandDetailId { get; init; }
+        public string? ReasonCode { get; init; }
+        public string? ReasonOther { get; init; }
+        public decimal? AreaInSqWa { get; init; }
+        public string? Remark { get; init; }
+    }
+
     private sealed class LandDetailRow
     {
         public Guid LandDetailId { get; init; }
+        public string? EvictionType { get; init; }
+        public string? EvictionTypeOther { get; init; }
+        public string? EvictionRemark { get; init; }
         public decimal? DeductedAreaInSqWa { get; init; }
         public int GroupNumber { get; init; }
         public string? GroupName { get; init; }
         public string? OwnerName { get; init; }
         public string? ObligationDetails { get; init; }
+        public string? ObligationType { get; init; }
+        public string? MortgageDetails { get; init; }
         public string? RoadPassInFrontOfLand { get; init; }
         public string? RoadSurfaceType { get; init; }
-        public decimal? AccessRoadWidth { get; init; }
+        public string? RoadSurfaceTypeOther { get; init; }
+        public decimal? CarriagewayWidth { get; init; }
+        public decimal? RightOfWayWidth { get; init; }
         public decimal? RoadFrontage { get; init; }
+        public short? NumberOfLanes { get; init; }
+        public int? NumberOfSidesFacingRoad { get; init; }
+        public bool? IsLandLocationVerified { get; init; }
+        public string? LandLocationRemark { get; init; }
+        public bool? IsOwnerVerified { get; init; }
+        public bool? IsRentedOut { get; init; }
+        public decimal? Latitude { get; init; }
+        public decimal? Longitude { get; init; }
+        public decimal? DistanceFromMainRoad { get; init; }
+        public string? LandFillType { get; init; }
+        public string? LandFillTypeOther { get; init; }
+        public decimal? LandFillPercent { get; init; }
+        public decimal? SoilLevel { get; init; }
+        public decimal? PondArea { get; init; }
+        public decimal? PondDepth { get; init; }
+        public string? LandAccessibilityType { get; init; }
+        public string? LandAccessibilityRemark { get; init; }
+        public bool? FarFromElectricity { get; init; }
+        public decimal? ElectricityDistance { get; init; }
+        public bool? IsForestBoundary { get; init; }
+        public string? ForestBoundaryRemark { get; init; }
+        public bool? HasFloodProblem { get; init; }
+        public string? FloodProblemRemark { get; init; }
+        public bool? HasPollutionProblem { get; init; }
+        public string? PollutionType { get; init; }
+        public string? PollutionTypeOther { get; init; }
+        public string? PollutionProblemRemark { get; init; }
+        public bool? HasOtherEnvironmentProblem { get; init; }
+        public string? OtherEnvironmentProblemRemark { get; init; }
+        public bool? IsEncroached { get; init; }
+        public string? EncroachmentRemark { get; init; }
+        public bool? IsLandlocked { get; init; }
+        public string? LandlockedRemark { get; init; }
+        public string? ExpropriationLineRemark { get; init; }
+        public string? RoyalDecree { get; init; }
+        public string? OtherLegalLimitations { get; init; }
+        public string? NorthAdjacentArea { get; init; }
+        public decimal? NorthBoundaryLength { get; init; }
+        public string? SouthAdjacentArea { get; init; }
+        public decimal? SouthBoundaryLength { get; init; }
+        public string? EastAdjacentArea { get; init; }
+        public decimal? EastBoundaryLength { get; init; }
+        public string? WestAdjacentArea { get; init; }
+        public decimal? WestBoundaryLength { get; init; }
 
         // JSON array columns — decoded by JsonArrayToDisplay
         public string? LandEntranceExitType { get; init; }
@@ -328,13 +558,19 @@ internal static class LandSectionLoader
         public string? PublicUtilityType { get; init; }
         public string? LandUseType { get; init; }
         public string? TransportationAccessType { get; init; }
+        public string? TransportationAccessTypeOther { get; init; }
         public string? LandZoneType { get; init; }
 
         public string? LandDescription { get; init; }
         public string? LandShapeType { get; init; }
+        public string? DevelopmentSuitabilityType { get; init; }
         public string? PropertyAnticipationType { get; init; }
         public bool? IsInExpropriationLine { get; init; }
         public string? UrbanPlanningType { get; init; }
+        public string? EnvironmentType { get; init; }
+        public string? EnvironmentTypeOther { get; init; }
+        public string? UrbanPlanningColor { get; init; }
+        public string? UrbanPlanningColorOther { get; init; }
         public string? LandCheckMethodType { get; init; }
         public string? LandCheckMethodTypeOther { get; init; }
         public string? Remark { get; init; }
@@ -356,6 +592,11 @@ internal static class LandSectionLoader
         public string? SurveyNumber { get; init; }
         public string? MapSheetNumber { get; init; }
         public string? Rawang { get; init; }
+        public string? DocumentValidationResultType { get; init; }
+        public decimal? GovernmentPricePerSqWa { get; init; }
+        public decimal? GovernmentPrice { get; init; }
+        public string? BoundaryMarkerType { get; init; }
+        public string? BoundaryMarkerRemark { get; init; }
         public decimal? AreaRai { get; init; }
         public decimal? AreaNgan { get; init; }
         public decimal? AreaSquareWa { get; init; }

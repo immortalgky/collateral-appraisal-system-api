@@ -1,4 +1,5 @@
 using Appraisal.Application.Features.Appraisals;
+using Appraisal.Application.Features.Appraisals.Shared;
 using Appraisal.Application.Features.Appraisals.UpdateLandAndBuildingProperty;
 using Appraisal.Application.Services;
 
@@ -65,15 +66,17 @@ public class CreateCondoPropertyCommandHandler(
             command.IsOwnerVerified,
             command.BuildingConditionType,
             command.BuildingConditionTypeOther,
-            command.HasObligation,
+            command.ObligationType,
             command.ObligationDetails,
+            command.MortgageDetails,
             command.DocumentValidationResultType,
             command.LocationType,
+            command.LocationRemark,
             command.Street,
             command.Soi,
             command.DistanceFromMainRoad,
-            command.AccessRoadWidth,
-            command.RightOfWay,
+            command.CarriagewayWidth,
+            command.RightOfWayWidth,
             command.RoadSurfaceType,
             command.RoadSurfaceTypeOther,
             command.PublicUtilityType,
@@ -103,6 +106,7 @@ public class CreateCondoPropertyCommandHandler(
             command.IsInExpropriationLine,
             command.ExpropriationLineRemark,
             command.RoyalDecree,
+            command.OtherLegalLimitations,
             command.IsForestBoundary,
             command.ForestBoundaryRemark,
             command.FacilityType,
@@ -124,7 +128,22 @@ public class CreateCondoPropertyCommandHandler(
             command.GovernmentPricePerSqm,
             command.GovernmentPrice,
             command.FireInsuranceCode,
-            command.BuildingInsurancePriceOverride);
+            command.BuildingInsurancePriceOverride,
+            hasFloodProblem: command.HasFloodProblem,
+            floodProblemRemark: command.FloodProblemRemark,
+            hasPollutionProblem: command.HasPollutionProblem,
+            pollutionType: command.PollutionType,
+            pollutionTypeOther: command.PollutionTypeOther,
+            pollutionProblemRemark: command.PollutionProblemRemark,
+            hasOtherEnvironmentProblem: command.HasOtherEnvironmentProblem,
+            otherEnvironmentProblemRemark: command.OtherEnvironmentProblemRemark,
+            roadPassInFrontOfLand: command.RoadPassInFrontOfLand,
+            transportationAccessType: command.TransportationAccessType,
+            transportationAccessTypeOther: command.TransportationAccessTypeOther,
+            numberOfLanes: command.NumberOfLanes,
+            urbanPlanningColor: command.UrbanPlanningColor,
+            urbanPlanningColorOther: command.UrbanPlanningColorOther,
+            isRentedOut: command.IsRentedOut);
 
         // 5. Create CondoAreaDetails
         if (command.AreaDetails is { Count: > 0 })
@@ -135,6 +154,8 @@ public class CreateCondoPropertyCommandHandler(
                 property.CondoDetail.AddCondoAreaDetail(areaDetail);
             }
         }
+
+        RentedOutSync.Apply(property, command.IsRentedOut, command.LeaseAgreement, command.RentalInfo);
 
         // Add construction inspection if provided and building is under construction
         if (command.ConstructionInspection is { } ci && command.IsUnderConstruction != false)

@@ -44,11 +44,13 @@ public class CreateLeaseAgreementLandPropertyCommandHandler(
             address,
             command.OwnerNameLand,
             command.IsOwnerVerifiedLand,
-            command.HasObligation,
+            command.ObligationType,
             command.ObligationDetails,
+            command.MortgageDetails,
             command.IsLandLocationVerified,
             command.LandCheckMethodType,
             command.LandCheckMethodTypeOther,
+            command.LandLocationRemark,
             command.Street,
             command.Soi,
             command.DistanceFromMainRoad,
@@ -65,8 +67,8 @@ public class CreateLeaseAgreementLandPropertyCommandHandler(
             command.LandFillTypeOther,
             command.LandFillPercent,
             command.SoilLevel,
-            command.AccessRoadWidth,
-            command.RightOfWay,
+            command.CarriagewayWidth,
+            command.RightOfWayWidth,
             command.RoadFrontage,
             command.NumberOfSidesFacingRoad,
             command.RoadPassInFrontOfLand,
@@ -84,6 +86,8 @@ public class CreateLeaseAgreementLandPropertyCommandHandler(
             command.LandEntranceExitTypeOther,
             command.TransportationAccessType,
             command.TransportationAccessTypeOther,
+            command.EnvironmentType,
+            command.EnvironmentTypeOther,
             command.PropertyAnticipationType,
             command.PropertyAnticipationTypeOther,
             command.IsExpropriated,
@@ -100,6 +104,7 @@ public class CreateLeaseAgreementLandPropertyCommandHandler(
             command.OtherLegalLimitations,
             command.EvictionType,
             command.EvictionTypeOther,
+            command.EvictionRemark,
             command.AllocationType,
             command.NorthAdjacentArea,
             command.NorthBoundaryLength,
@@ -115,7 +120,19 @@ public class CreateLeaseAgreementLandPropertyCommandHandler(
             command.HasBuildingOther,
             command.Remark,
             landOffice: command.LandOffice,
-            dopaAddress: dopaAddress);
+            dopaAddress: dopaAddress,
+            hasFloodProblem: command.HasFloodProblem,
+            floodProblemRemark: command.FloodProblemRemark,
+            hasPollutionProblem: command.HasPollutionProblem,
+            pollutionType: command.PollutionType,
+            pollutionTypeOther: command.PollutionTypeOther,
+            pollutionProblemRemark: command.PollutionProblemRemark,
+            hasOtherEnvironmentProblem: command.HasOtherEnvironmentProblem,
+            otherEnvironmentProblemRemark: command.OtherEnvironmentProblemRemark,
+            numberOfLanes: command.NumberOfLanes,
+            urbanPlanningColor: command.UrbanPlanningColor,
+            urbanPlanningColorOther: command.UrbanPlanningColorOther,
+            developmentSuitabilityType: command.DevelopmentSuitabilityType);
 
         // Add land titles if provided
         if (command.Titles is { Count: > 0 })
@@ -180,7 +197,8 @@ public class CreateLeaseAgreementLandPropertyCommandHandler(
                 command.LeaseAgreement.Sublease, command.LeaseAgreement.AdditionalExpenses,
                 command.LeaseAgreement.LeaseTerminate, command.LeaseAgreement.ContractRenewal,
                 command.LeaseAgreement.RentalTermsImpactingPropertyUse, command.LeaseAgreement.TerminationOfLease,
-                command.LeaseAgreement.Remark);
+                command.LeaseAgreement.Remark,
+                command.LeaseAgreement.IsLeaseRegistered, command.LeaseAgreement.IsLeaseholdPledgeable);
         }
 
         // Update rental info if provided

@@ -42,5 +42,6 @@ public record SaveProjectRequest(
     decimal? ConstructionProgressPercent = null,
     // Type-specific
     string? BuiltOnTitleDeedNumber = null,        // Condo only
-    DateTime? LicenseExpirationDate = null         // LandAndBuilding only
+    DateTime? LicenseExpirationDate = null,        // LandAndBuilding only
+    string? LicenseNumber = null                   // LandAndBuilding only
 );

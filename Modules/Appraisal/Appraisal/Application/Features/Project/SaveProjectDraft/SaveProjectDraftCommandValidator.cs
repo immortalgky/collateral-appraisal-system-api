@@ -32,6 +32,11 @@ public class SaveProjectDraftCommandValidator : AbstractValidator<SaveProjectDra
             .When(x => ProjectType.IsCondoCode(x.ProjectType))
             .WithMessage("LicenseExpirationDate is only applicable to LandAndBuilding / Land projects.");
 
+        RuleFor(x => x.LicenseNumber)
+            .Null()
+            .When(x => ProjectType.IsCondoCode(x.ProjectType))
+            .WithMessage("LicenseNumber is only applicable to LandAndBuilding / Land projects.");
+
         // Numeric range guards
         RuleFor(x => x.LandAreaRai)
             .GreaterThanOrEqualTo(0).When(x => x.LandAreaRai.HasValue)
