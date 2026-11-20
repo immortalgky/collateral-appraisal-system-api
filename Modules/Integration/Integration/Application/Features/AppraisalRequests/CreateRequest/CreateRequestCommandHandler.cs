@@ -1,6 +1,7 @@
 using Auth.Contracts.Users;
 using Integration.Application.Services;
 using Mapster;
+using Microsoft.Extensions.Configuration;
 using Request.Application.Services;
 using Request.Contracts.RequestDocuments.Dto;
 using Request.Contracts.Requests.Dtos;
@@ -15,7 +16,8 @@ public class CreateRequestCommandHandler(
     IRequestDocumentValidator validator,
     IAppraisalLookupService appraisalLookup,
     IDateTimeProvider dateTimeProvider,
-    IUserLookupService userLookup
+    IUserLookupService userLookup,
+    IConfiguration configuration
 ) : ICommandHandler<CreateRequestCommand, Guid>
 {
     public async Task<Guid> Handle(
@@ -23,7 +25,9 @@ public class CreateRequestCommandHandler(
         CancellationToken cancellationToken)
     {
         // The RM must be a registered, active CAS user: downstream emails look the RM up by this code and skip silently otherwise.
-        if (await userLookup.GetRequestorAsync(command.Requestor.UserId, cancellationToken) is null)
+        // Temporary flag until LOS is ready; remove the flag (keep the check) once it is on in PRD.
+        if (configuration.GetValue<bool>("Integration:RequireRegisteredRequestor")
+            && await userLookup.GetRequestorAsync(command.Requestor.UserId, cancellationToken) is null)
             throw new BadRequestException($"Requestor '{command.Requestor.UserId}' is not registered or is inactive in CAS.");
 
         // PrevAppraisalNumber -> PrevAppraisalId for every purpose (400 naming the number when missing or
